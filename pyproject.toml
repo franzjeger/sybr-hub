@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "sybr-hub"
+version = "0.1.0"
+description = "Read-mostly aggregator for MSP technicians — M365 audit + Autotask + IT Glue + myITprocess + RMM in one place."
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+sybr-hub = "main:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "app/web/static",
+    "app/reports/templates",
+]
+
+[tool.ruff.lint]
+# A pragmatic "on by default" set:
+#   E  pycodestyle errors    F  pyflakes
+#   I  isort                 UP pyupgrade
+#   B  bugbear               SIM simplify
+#   RUF Ruff-specific lints
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Allow longer lines in generated strings / SQL DDL where wrapping hurts
+# more than it helps.
+ignore = [
+    "E501",   # line-length handled by formatter, not linter
+    "B008",   # function-call in default arg — FastAPI Depends() is idiomatic
+    "SIM108", # ternary-vs-if preference; we keep readability on a case-by-case basis
+    "UP007",  # Optional[X] vs X | None — keep for codebase consistency
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can be verbose; don't hector about unused args / shadowing fixtures.
+"tests/**.py" = ["F401", "F811", "B011"]
+# Scripts are entry points, not library code.
+"scripts/**.py" = ["T201"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html data-theme="{{ theme }}" lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<title>{{ t.report_title_customer }} — {{ customer_name }}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-drag: none; }
+:root {
+  --brand:  #1a3148;
+  --brand2: #1d6387;
+  --accent: #4d9fb5;
+  --green:  #15803d; --green-bg: #f0fdf4; --green-bd: #bbf7d0;
+  --orange: #c2410c; --orange-bg:#fff7ed; --orange-bd:#fed7aa;
+  --red:    #b91c1c; --red-bg:  #fef2f2; --red-bd:   #fecaca;
+  --blue-bg: #dbeafe; --blue-text: #1e40af;
+  --text:   #111827; --muted: #6b7280; --border: #e5e7eb; --bg: #f9fafb;
+  --font:   'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+[data-theme="dark"] {
+  --brand: #8ec8e8; --brand2: #5ba3c9; --accent: #4d9fb5;
+  --green: #4ade80; --green-bg: #14532d; --green-bd: #166534;
+  --orange: #fb923c; --orange-bg: #431407; --orange-bd: #7c2d12;
+  --red: #f87171; --red-bg: #450a0a; --red-bd: #7f1d1d;
+  --blue-bg: #1e3a5f; --blue-text: #93c5fd;
+  --text: #e5e7eb; --muted: #9ca3af; --border: #374151; --bg: #111827;
+}
+[data-theme="dark"] body { background: #0d1117; color: #e5e7eb; }
+[data-theme="dark"] h2 { color: #8ec8e8; }
+[data-theme="dark"] .toc { background: #161b22; }
+[data-theme="dark"] .section-label { color: #4d9fb5; }
+body { font-family: var(--font); color: var(--text); background: white; font-size: 14px; line-height: 1.6; }
+
+/* Cover page */
+.cover {
+  display: block; padding: 60px;
+  background: linear-gradient(160deg, #1d6387 0%, #236e8e 40%, #1a3148 100%);
+  page-break-after: always; color: white;
+}
+@media screen {
+  .cover { min-height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .cover::after {
+    content: ''; position: absolute; right: -100px; top: -100px;
+    width: 500px; height: 500px; border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+}
+.cover-header { padding: 40px 60px; display: flex; justify-content: space-between; align-items: center; }
+.cover-logo { color: white; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+.cover-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 60px; }
+.cover-label { color: #4d9fb5; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+.cover-customer { font-size: 52px; font-weight: 800; color: white; line-height: 1.1; margin-bottom: 12px; border-bottom: 3px solid #4d9fb5; display: inline-block; padding-bottom: 8px; }
+.cover-title { font-size: 22px; color: rgba(255,255,255,0.75); margin-bottom: 48px; }
+.cover-divider { border: none; border-top: 1px solid rgba(255,255,255,0.2); margin-bottom: 40px; }
+.cover-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+.cover-meta-item label { color: #4d9fb5; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+.cover-meta-item span { color: white; font-size: 15px; font-weight: 600; }
+.cover-footer { padding: 32px 60px; border-top: 1px solid rgba(255,255,255,0.15); }
+.cover-footer p { color: rgba(255,255,255,0.5); font-size: 11px; }
+
+/* Layout */
+.page { max-width: 860px; margin: 0 auto; padding: 56px 40px; }
+
+/* TOC */
+.toc { background: var(--bg); border: 1px solid var(--border); border-left: 4px solid #4d9fb5; border-radius: 12px; padding: 28px 32px; margin-bottom: 40px; }
+.toc h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--brand); font-weight: 700; margin-bottom: 16px; }
+.toc ol { padding-left: 22px; }
+.toc li { margin-bottom: 6px; font-size: 14px; }
+.toc a { text-decoration: none; color: #1d6387; }
+.toc a:hover { text-decoration: underline; }
+
+/* Section headings */
+.section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #4d9fb5; font-weight: 700; margin-bottom: 8px; margin-top: 56px; }
+h2 { font-size: 26px; font-weight: 800; color: #1a3148; margin-bottom: 8px; }
+.section-intro { color: var(--muted); font-size: 14px; margin-bottom: 32px; max-width: 680px; }
+
+/* Posture card */
+.posture-card {
+  background: linear-gradient(135deg, #1a3148 0%, #1d6387 100%);
+  border-radius: 16px; padding: 36px 40px; color: white; margin-bottom: 32px;
+  display: flex; align-items: center; gap: 40px;
+}
+.posture-grade {
+  width: 96px; height: 96px; background: rgba(255,255,255,0.15); border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 56px; font-weight: 900; flex-shrink: 0;
+}
+.posture-info h3 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.posture-info p { color: rgba(255,255,255,0.7); font-size: 14px; max-width: 480px; }
+.posture-score { margin-left: auto; text-align: center; flex-shrink: 0; }
+.posture-score .num { font-size: 42px; font-weight: 800; line-height: 1; }
+.posture-score .lbl { font-size: 11px; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; }
+
+/* Metric grid */
+.metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+.metric-card {
+  background: white; border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px 20px; text-align: center;
+}
+.metric-card .icon { font-size: 24px; margin-bottom: 12px; }
+.metric-card .num { font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.metric-card .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.metric-card .sublbl { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.metric-card-invalid { background: #f9fafb; border-style: dashed; border-color: #d1d5db; }
+.posture-card-invalid { background: #f9fafb; border-style: dashed; border-color: #d1d5db; }
+.num.green  { color: var(--green); }
+.num.orange { color: var(--orange); }
+.num.red    { color: var(--red); }
+.num.brand  { color: #1d6387; }
+
+/* Progress bar */
+.pbar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 10px; }
+.pbar-fill { height: 100%; border-radius: 3px; }
+.pbar-fill.green  { background: var(--green); }
+.pbar-fill.orange { background: var(--orange); }
+.pbar-fill.red    { background: var(--red); }
+
+/* Findings */
+.finding {
+  border-radius: 12px; padding: 20px 24px; margin-bottom: 14px;
+  display: flex; align-items: flex-start; gap: 16px;
+}
+.finding.critical { background: var(--red-bg); border: 1px solid var(--red-bd); }
+.finding.warning  { background: var(--orange-bg); border: 1px solid var(--orange-bd); }
+.finding.ok       { background: var(--green-bg); border: 1px solid var(--green-bd); }
+.finding-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+.finding-body h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.finding.critical h4 { color: var(--red); }
+.finding.warning  h4 { color: var(--orange); }
+.finding.ok       h4 { color: var(--green); }
+.finding-body p { font-size: 13px; color: var(--muted); }
+.finding-badge { margin-left: auto; flex-shrink: 0; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.badge.critical { background: var(--red-bd); color: var(--red); }
+.badge.warning  { background: var(--orange-bd); color: var(--orange); }
+.badge.ok       { background: var(--green-bd); color: var(--green); }
+.badge.medium   { background: #e0f4f4; color: #1d6387; }
+
+/* Recommendations */
+.rec {
+  background: white; border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 24px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 16px;
+}
+.rec-num {
+  width: 32px; height: 32px; background: #1d6387; color: white;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
+}
+.rec-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.rec-body p  { font-size: 13px; color: var(--muted); }
+.rec-effort { margin-left: auto; flex-shrink: 0; text-align: right; }
+.rec-effort .eff { font-size: 11px; color: var(--muted); }
+.rec-expand {
+  margin-top: 8px; cursor: pointer; font-size: 12px; color: var(--brand);
+  font-weight: 600; user-select: none; display: flex; align-items: center; gap: 4px;
+}
+.rec-expand:hover { text-decoration: underline; }
+.rec-expand .arrow { transition: transform 0.2s; font-size: 10px; }
+.rec-expand.open .arrow { transform: rotate(90deg); }
+.rec-sub-items {
+  display: none; margin-top: 8px; padding: 10px 14px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; font-size: 12px;
+  max-height: 300px; overflow-y: auto;
+}
+.rec-sub-items.open { display: block; }
+.rec-sub-item { padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--muted); }
+.rec-sub-item:last-child { border-bottom: none; }
+
+/* Finding ↔ Recommendation cross-links */
+.finding-rec-link {
+  display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600;
+  color: #1d6387; text-decoration: none; cursor: pointer;
+}
+.finding-rec-link:hover { text-decoration: underline; }
+.rec-finding-link {
+  display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 600;
+  color: var(--muted); text-decoration: none;
+}
+.rec-finding-link:hover { color: #1d6387; text-decoration: underline; }
+
+/* Clickable section headers */
+h2 a.section-anchor {
+  color: inherit; text-decoration: none;
+}
+h2 a.section-anchor:hover { color: #1d6387; }
+h2 a.section-anchor::after {
+  content: ' §'; font-size: 16px; color: transparent; transition: color 0.2s;
+}
+h2:hover a.section-anchor::after { color: #ccc; }
+
+/* MFA drill-down table */
+.mfa-drilldown {
+  display: none; margin-top: 12px; background: white; border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.mfa-drilldown.open { display: block; }
+.mfa-drilldown table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mfa-drilldown th {
+  text-align: left; padding: 8px 12px; background: var(--bg); font-size: 11px;
+  font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px;
+  border-bottom: 1px solid var(--border);
+}
+.mfa-drilldown td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.mfa-drilldown tr:last-child td { border-bottom: none; }
+.mfa-drilldown .tag {
+  display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
+}
+.mfa-drilldown .tag-no  { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-bd); }
+.mfa-drilldown .tag-yes { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bd); }
+.mfa-toggle {
+  margin-top: 10px; cursor: pointer; font-size: 12px; color: var(--brand2);
+  font-weight: 600; user-select: none; display: inline-flex; align-items: center; gap: 4px;
+}
+.mfa-toggle:hover { text-decoration: underline; }
+.mfa-toggle .arrow { transition: transform 0.2s; font-size: 10px; }
+.mfa-toggle.open .arrow { transform: rotate(90deg); }
+
+/* Env overview */
+.env-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 32px; }
+.env-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+.env-card h4 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.env-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.env-row:last-child { border-bottom: none; }
+.env-row span:last-child { font-weight: 600; }
+
+/* Tables */
+.email-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.email-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid var(--border); }
+.email-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.email-table tr:last-child td { border-bottom: none; }
+.status-pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.status-pill.ok       { background: var(--green-bg); color: var(--green); }
+.status-pill.warning  { background: var(--orange-bg); color: var(--orange); }
+.status-pill.critical { background: var(--red-bg); color: var(--red); }
+
+/* Alert inline */
+.alert-inline {
+  background: var(--orange-bg); border: 1px solid var(--orange-bd); border-radius: 8px;
+  padding: 12px 16px; margin-top: 12px; font-size: 12px; color: var(--orange);
+}
+
+/* Footer */
+.report-footer {
+  background: #1a3148; color: white; padding: 40px 60px;
+  margin-top: 80px; display: flex; justify-content: space-between; align-items: center;
+}
+.report-footer .msp { font-size: 16px; font-weight: 700; }
+.report-footer .meta { font-size: 12px; opacity: 0.6; text-align: right; }
+
+/* Trend indicators */
+.trend-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.trend-item { font-size: 12px; padding: 6px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.trend-up { color: var(--green); }
+.trend-down { color: var(--red); }
+.trend-arrow { font-weight: 700; }
+
+/* Trend charts */
+.trend-charts { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+.trend-chart-card {
+  flex: 1 1 200px; max-width: 240px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px 8px; text-align: center;
+}
+.trend-chart-card .chart-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+.trend-chart-card svg { display: block; margin: 0 auto; }
+
+/* Action plan */
+.action-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+.action-table th {
+  text-align: left; padding: 10px 14px; color: var(--muted); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid var(--border);
+  background: var(--bg);
+}
+.action-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.action-table tr:last-child td { border-bottom: none; }
+.action-table .placeholder { color: #ccc; font-style: italic; }
+
+/* PDF / Print — prevent ALL content overflow on A4
+   A4 = 210mm wide, margins 18mm each side = 174mm printable = ~657px.
+   WeasyPrint is always in "print" mode — no @media print needed for it. */
+*, *::before, *::after { overflow-wrap: break-word; word-wrap: break-word; box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
+.page { max-width: 100%; padding: 0; overflow: hidden; }
+table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+td, th { overflow-wrap: break-word; word-break: break-word; overflow: hidden; }
+img, svg { max-width: 100%; height: auto; }
+.posture-card { max-width: 100%; overflow: hidden; }
+.metrics { grid-template-columns: repeat(3, 1fr); max-width: 100%; }
+.env-grid { grid-template-columns: 1fr 1fr; max-width: 100%; }
+.env-card { overflow: hidden; }
+.finding { overflow: hidden; max-width: 100%; }
+.rec { overflow: hidden; max-width: 100%; }
+.rec-sub-items { max-width: 100%; overflow: hidden; }
+.cover-meta { grid-template-columns: repeat(3, 1fr); max-width: 100%; }
+.action-table td, .action-table th { overflow: hidden; text-overflow: ellipsis; }
+.action-table col.col-status { width: 12%; }
+.action-table col.col-action { width: 50%; }
+.action-table col.col-priority { width: 15%; }
+.action-table col.col-effort { width: 12%; }
+.action-table col.col-responsible { width: 11%; }
+.mfa-drilldown { max-width: 100%; overflow: hidden; }
+.mfa-drilldown table { table-layout: fixed; }
+.mfa-drilldown td { overflow-wrap: break-word; }
+.email-table { table-layout: fixed; }
+.email-table td { overflow: hidden; text-overflow: ellipsis; }
+.trend-row { max-width: 100%; overflow: hidden; }
+div[style*="display:flex"] { max-width: 100%; overflow: hidden; }
+div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
+pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
+
+@media print {
+  .cover { height: 297mm; min-height: 0; page-break-after: always; }
+  .toc { page-break-after: always; }
+  h2 { page-break-after: avoid; }
+  .posture-card, .metrics { page-break-inside: avoid; }
+  .env-grid { page-break-inside: auto; }
+  .env-card { page-break-inside: avoid; }
+  .finding { page-break-inside: avoid; }
+  .rec { page-break-inside: avoid; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  .action-table { page-break-inside: auto; }
+  .action-table tr { page-break-inside: avoid; }
+  .rec-expand { display: none; }
+  .rec-sub-items { display: block !important; max-height: none; }
+  .mfa-toggle { display: none; }
+  .mfa-drilldown { display: block !important; }
+}
+
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm 18mm;
+  {% if theme == "dark" %}background: #0d1117;{% endif %}
+  @bottom-center {
+    content: "{{ t.page_of }} " counter(page) " {{ t.of }} " counter(pages);
+    font-size: 8px; color: {% if theme == "dark" %}#6b7280{% else %}#9ca3af{% endif %}; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  @bottom-left {
+    content: "{{ t('page_footer_left', company=(branding.company_name if branding is defined and branding.company_name else 'SYBR AS')) }}";
+    font-size: 7px; color: {% if theme == "dark" %}#4b5563{% else %}#d1d5db{% endif %}; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  @bottom-right {
+    content: "{{ t.confidential }}";
+    font-size: 7px; color: {% if theme == "dark" %}#4b5563{% else %}#d1d5db{% endif %}; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+}
+
+@page :first {
+  margin: 0;
+  {% if theme == "dark" %}background: #0d1117;{% endif %}
+  @bottom-center { content: none; }
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Cover ── -->
+<div class="cover">
+  <div class="cover-header">
+    <div class="cover-logo">
+      {% if logo_light %}<img src="{{ logo_light }}" alt="SYBR" style="height:48px;opacity:0.9;">{% endif %}
+    </div>
+    <div style="color:rgba(255,255,255,0.5);font-size:12px;">{{ t.confidential }}</div>
+  </div>
+  <div class="cover-body">
+    <div class="cover-label">{{ t.report_title_customer }} · {{ report_date_no }}</div>
+    <div class="cover-customer">{{ customer_name }}</div>
+    <div class="cover-title">{{ t.report_subtitle }}</div>
+    <hr class="cover-divider">
+    <div class="cover-meta">
+      <div class="cover-meta-item"><label>{{ t.primary_domain }}</label><span>{{ org_domain }}</span></div>
+      <div class="cover-meta-item"><label>{{ t.report_date }}</label><span>{{ report_date_no }}</span></div>
+      <div class="cover-meta-item"><label>{{ t.prepared_by }}</label><span>{{ branding.company_name if branding is defined and branding.company_name else 'SYBR AS' }}</span></div>
+    </div>
+  </div>
+  <div class="cover-footer">
+    <p>{{ t('confidential_notice', customer=customer_name) }}</p>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- ── Table of Contents ── -->
+<div class="toc">
+  <h3>{{ t.toc_title }}</h3>
+  <ol>
+    <li><a href="#sammendrag">{{ t.summary }}</a></li>
+    <li><a href="#postur">{{ t.security_posture }}</a></li>
+    <li><a href="#funn">{{ t.key_findings }}</a></li>
+    <li><a href="#anbefalinger">{{ t.recommendations }}</a></li>
+    <li><a href="#handlingsplan">{{ t.action_plan }}</a></li>
+    <li><a href="#identitet">{{ t.identity_access }}</a></li>
+    <li><a href="#enheter">{{ t.devices }}</a></li>
+    <li><a href="#data">{{ t.data_collaboration }}</a></li>
+    <li><a href="#exchange">{{ t.email_exchange }}</a></li>
+    <li><a href="#apper">{{ t.apps_integrations }}</a></li>
+    {% if purview and purview.has_data %}<li><a href="#databeskyttelse">{{ t.data_protection }}</a></li>{% endif %}
+    <li><a href="#azure">{{ t.azure_infrastructure }}</a></li>
+    {% if network and network.has_data %}<li><a href="#nettverk">{{ t.section_network }}</a></li>{% endif %}
+    {% if compliance %}<li><a href="#compliance">CIS {{ t.compliance }}</a></li>{% endif %}
+    <li><a href="#miljo">{{ t.environment_overview }}</a></li>
+  </ol>
+</div>
+
+<!-- ── Executive Summary ── -->
+{% if executive_summary %}
+<div class="section-label" style="margin-top:0;" id="sammendrag">{{ t.summary }}</div>
+<h2 style="font-size:28px;"><a href="#sammendrag" class="section-anchor">{{ t.main_findings }}</a></h2>
+<p class="section-intro">{{ t('executive_summary_intro', customer=customer_name) }}</p>
+
+<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:24px 28px;">
+  {% for bullet in executive_summary %}
+  <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+    <span style="color:var(--brand);font-weight:700;font-size:18px;line-height:1.4;">{{ loop.index }}.</span>
+    <p style="margin:0;font-size:14px;line-height:1.6;">{{ bullet }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 1. Security Posture ── -->
+<div class="section-label" id="postur">{{ t.security_posture }}</div>
+<h2><a href="#postur" class="section-anchor">{{ t.your_security_status }}</a></h2>
+<p class="section-intro">
+  {{ t.posture_intro }}
+</p>
+
+<div class="posture-card{% if risk.grade == '?' %} posture-card-invalid{% endif %}">
+  <div class="posture-grade">{{ risk.grade }}</div>
+  <div class="posture-info">
+    <h3>{{ risk.level }}</h3>
+    <p>
+      {% if risk.grade == '?' %}
+      {{ t.posture_grade_invalid }}
+      {% elif risk.grade == 'A' %}
+      {{ t.posture_grade_a }}
+      {% elif risk.grade == 'B' %}
+      {{ t.posture_grade_b }}
+      {% elif risk.grade == 'C' %}
+      {{ t.posture_grade_c }}
+      {% else %}
+      {{ t.posture_grade_d }}
+      {% endif %}
+      {% if risk.blocking_data_gaps %}
+      <br><strong>{{ t.posture_blocking_gaps_label }}</strong>
+      <ul>
+        {% for gap in risk.blocking_data_gaps %}<li>{{ gap }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </p>
+  </div>
+  <div class="posture-score">
+    <div class="num">{% if risk.score is none %}—{% else %}{{ risk.score }}{% endif %}</div>
+    <div class="lbl">{{ t.of_100_points }}</div>
+  </div>
+</div>
+
+{% if trends %}
+{% set trend_labels = {
+  "mfa_coverage_pct": t.trend_mfa_coverage,
+  "secure_score_pct": t.trend_secure_score,
+  "total_users": t.trend_users,
+  "users_no_mfa": t.trend_without_mfa,
+  "ca_policies_enabled": t.trend_ca_policies,
+  "intune_compliance_pct": t.trend_device_compliance,
+  "intune_total_devices": t.trend_devices,
+  "admin_roles_ga_count": t.trend_global_admins,
+  "total_warns": t.trend_warnings,
+  "risk_score": t.trend_risk_score
+} %}
+{% set trend_suffix = {
+  "mfa_coverage_pct": "%",
+  "secure_score_pct": "%",
+  "intune_compliance_pct": "%"
+} %}
+<div class="trend-row">
+  {% for key, tr in trends.items() %}
+  <div class="trend-item">
+    <span>{{ trend_labels.get(key, key) }}: </span>
+    <span>{{ tr.previous }}{{ trend_suffix.get(key, '') }}</span>
+    <span class="trend-arrow {% if tr.improved %}trend-up{% else %}trend-down{% endif %}">
+      {% if tr.improved %}&uarr;{% else %}&darr;{% endif %}
+    </span>
+    <span>{{ tr.current }}{{ trend_suffix.get(key, '') }}</span>
+    <span class="{% if tr.improved %}trend-up{% else %}trend-down{% endif %}">
+      ({% if tr.delta > 0 %}+{% endif %}{{ tr.delta }}{{ trend_suffix.get(key, '') }})
+    </span>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Trend charts (SVG) ─────────────────────────────────────────── #}
+{% if metrics_timeline|length >= 2 %}
+{% set tl = metrics_timeline %}
+{% set n = tl|length %}
+{# Chart dimensions #}
+{% set cw = 200 %}
+{% set ch = 80 %}
+{% set pad_x = 28 %}
+{% set pad_y = 16 %}
+{% set plot_w = cw - 2 * pad_x %}
+{% set plot_h = ch - 2 * pad_y %}
+
+{# ── Macro: line chart for percentage / score metrics ─────────── #}
+{% macro line_chart(metric_key, title, suffix, max_val_override=None) %}
+  {% set values = [] %}
+  {% for pt in tl %}
+    {% if pt[metric_key] is defined and pt[metric_key] is not none %}
+      {% set _ = values.append(pt[metric_key]) %}
+    {% endif %}
+  {% endfor %}
+  {% if values|length >= 2 %}
+  {% set v_min = values|min %}
+  {% set v_max = values|max %}
+  {# Use override max if provided (e.g. 100 for percentages) #}
+  {% if max_val_override is not none and max_val_override > v_max %}
+    {% set v_max = max_val_override %}
+  {% endif %}
+  {# Ensure range is not zero #}
+  {% set v_range = v_max - v_min if v_max != v_min else 1 %}
+  {% set step_x = plot_w / (values|length - 1) if values|length > 1 else 0 %}
+  <div class="trend-chart-card">
+    <div class="chart-title">{{ title }}</div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="{{ cw }}" height="{{ ch }}" viewBox="0 0 {{ cw }} {{ ch }}">
+      {# Grid lines #}
+      <line x1="{{ pad_x }}" y1="{{ pad_y }}" x2="{{ pad_x + plot_w }}" y2="{{ pad_y }}" stroke="#e2e8f0" stroke-width="0.5"/>
+      <line x1="{{ pad_x }}" y1="{{ pad_y + plot_h }}" x2="{{ pad_x + plot_w }}" y2="{{ pad_y + plot_h }}" stroke="#e2e8f0" stroke-width="0.5"/>
+      <line x1="{{ pad_x }}" y1="{{ pad_y + plot_h / 2 }}" x2="{{ pad_x + plot_w }}" y2="{{ pad_y + plot_h / 2 }}" stroke="#e2e8f0" stroke-width="0.5" stroke-dasharray="3,3"/>
+      {# Area fill #}
+      {% set points_line = [] %}
+      {% set points_area = [] %}
+      {% for v in values %}
+        {% set px = pad_x + step_x * loop.index0 %}
+        {% set py = pad_y + plot_h - (plot_h * ((v - v_min) / v_range)) %}
+        {% set _ = points_line.append("%.1f,%.1f"|format(px, py)) %}
+        {% set _ = points_area.append("%.1f,%.1f"|format(px, py)) %}
+      {% endfor %}
+      {# Area polygon #}
+      <polygon points="{{ points_area|join(' ') }} {{ pad_x + step_x * (values|length - 1) }},{{ pad_y + plot_h }} {{ pad_x }},{{ pad_y + plot_h }}"
+               fill="#1d6387" fill-opacity="0.10"/>
+      {# Line #}
+      <polyline points="{{ points_line|join(' ') }}"
+                fill="none" stroke="#1d6387" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      {# Data points and labels #}
+      {% for v in values %}
+        {% set px = pad_x + step_x * loop.index0 %}
+        {% set py = pad_y + plot_h - (plot_h * ((v - v_min) / v_range)) %}
+        <circle cx="{{ "%.1f"|format(px) }}" cy="{{ "%.1f"|format(py) }}" r="3"
+                fill="{% if loop.last %}#1d6387{% else %}#4d9fb5{% endif %}" stroke="#fff" stroke-width="1"/>
+        <text x="{{ "%.1f"|format(px) }}" y="{{ "%.1f"|format(py - 5) }}"
+              text-anchor="middle" fill="#1a3148" font-size="8" font-weight="{% if loop.last %}700{% else %}400{% endif %}">{{ v }}{{ suffix }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{# ── Macro: bar chart for count metrics ───────────────────────── #}
+{% macro bar_chart(metric_key, title, color_good_down=false) %}
+  {% set values = [] %}
+  {% for pt in tl %}
+    {% if pt[metric_key] is defined and pt[metric_key] is not none %}
+      {% set _ = values.append(pt[metric_key]) %}
+    {% endif %}
+  {% endfor %}
+  {% if values|length >= 2 %}
+  {% set v_max = values|max if values|max > 0 else 1 %}
+  {% set bar_gap = 4 %}
+  {% set total_gap = bar_gap * (values|length - 1) %}
+  {% set bar_w = (plot_w - total_gap) / values|length %}
+  {% set bar_w = [bar_w, 28]|min %}
+  {% set total_bars_w = bar_w * values|length + bar_gap * (values|length - 1) %}
+  {% set offset_x = pad_x + (plot_w - total_bars_w) / 2 %}
+  <div class="trend-chart-card">
+    <div class="chart-title">{{ title }}</div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="{{ cw }}" height="{{ ch }}" viewBox="0 0 {{ cw }} {{ ch }}">
+      {# Baseline #}
+      <line x1="{{ pad_x }}" y1="{{ pad_y + plot_h }}" x2="{{ pad_x + plot_w }}" y2="{{ pad_y + plot_h }}" stroke="#e2e8f0" stroke-width="0.5"/>
+      {% for v in values %}
+        {% set bar_h = plot_h * (v / v_max) if v_max > 0 else 0 %}
+        {% set bar_h = [bar_h, 2]|max %}
+        {% set bx = offset_x + loop.index0 * (bar_w + bar_gap) %}
+        {% set by = pad_y + plot_h - bar_h %}
+        {# Color: last bar uses primary, others use lighter shade #}
+        {% if loop.last %}
+          {% set bar_color = "#1d6387" %}
+        {% else %}
+          {% set bar_color = "#4d9fb5" %}
+        {% endif %}
+        {# If lower is better and value decreased, show green on last bar #}
+        {% if color_good_down and loop.last and values|length > 1 and v < values[-2] %}
+          {% set bar_color = "#22c55e" %}
+        {% elif color_good_down and loop.last and values|length > 1 and v > values[-2] %}
+          {% set bar_color = "#ef4444" %}
+        {% endif %}
+        <rect x="{{ "%.1f"|format(bx) }}" y="{{ "%.1f"|format(by) }}" width="{{ "%.1f"|format(bar_w) }}" height="{{ "%.1f"|format(bar_h) }}"
+              rx="2" fill="{{ bar_color }}"/>
+        <text x="{{ "%.1f"|format(bx + bar_w / 2) }}" y="{{ "%.1f"|format(by - 4) }}"
+              text-anchor="middle" fill="#1a3148" font-size="8" font-weight="{% if loop.last %}700{% else %}400{% endif %}">{{ v }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+  {% endif %}
+{% endmacro %}
+
+<div class="trend-charts">
+  {{ line_chart("mfa_coverage_pct", t.trend_mfa_coverage, "%", 100) }}
+  {{ line_chart("risk_score", t.trend_risk_score, "", 100) }}
+  {{ line_chart("secure_score_pct", t.trend_secure_score, "%", 100) }}
+  {{ bar_chart("users_no_mfa", t.users_without_mfa, true) }}
+</div>
+{% endif %}
+
+{% endif %}
+
+{% if radar_svg and '<svg' in radar_svg %}
+<div style="display:flex;gap:32px;align-items:center;margin-bottom:32px;">
+  <div style="flex:1;">{{ radar_svg | safe }}</div>
+  <div style="flex:1;">
+    {% for cat, score in risk_radar.items() %}
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;width:80px;">{{ cat }}</span>
+      <div style="flex:1;height:8px;background:var(--border);border-radius:4px;">
+        <div style="height:100%;border-radius:4px;width:{{ score }}%;background:{% if score >= 75 %}var(--green){% elif score >= 50 %}var(--orange){% else %}var(--red){% endif %};"></div>
+      </div>
+      <span style="font-size:13px;font-weight:700;width:32px;text-align:right;color:{% if score >= 75 %}var(--green){% elif score >= 50 %}var(--orange){% else %}var(--red){% endif %};">{{ score }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Metrics row 1 -->
+<div class="metrics">
+  <div class="metric-card{% if not users.has_data %} metric-card-invalid{% endif %}">
+    <div class="icon">&#x1F464;</div>
+    {% if users.has_data %}
+    <div class="num brand">{{ users.total }}</div>
+    <div class="lbl">{{ t.total_users_label }}</div>
+    <div class="sublbl">{{ t('active_n_disabled', enabled=users.enabled, disabled=users.disabled) }}</div>
+    {% else %}
+    <div class="num" style="color:#9ca3af;">{{ t.data_unavailable_short }}</div>
+    <div class="lbl">{{ t.total_users_label }}</div>
+    <div class="sublbl" style="color:#9ca3af;">{{ t.data_unavailable }}</div>
+    {% endif %}
+  </div>
+  <div class="metric-card{% if not mfa.has_data %} metric-card-invalid{% endif %}">
+    <div class="icon">&#x1F510;</div>
+    {% if mfa.has_data %}
+    <div class="num {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}">{{ mfa.pct | round(0) | int }}%</div>
+    <div class="lbl">{{ t.mfa_coverage }}</div>
+    <div class="pbar"><div class="pbar-fill {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}" style="width:{{ mfa.pct }}%"></div></div>
+    {% else %}
+    <div class="num" style="color:#9ca3af;">{{ t.data_unavailable_short }}</div>
+    <div class="lbl">{{ t.mfa_coverage }}</div>
+    <div class="sublbl" style="color:#9ca3af;">{{ t.data_unavailable }}</div>
+    {% endif %}
+  </div>
+  <div class="metric-card">
+    <div class="icon">&#x1F3C6;</div>
+    <div class="num {% if secure_score.pct >= 75 %}green{% elif secure_score.pct >= 50 %}orange{% else %}red{% endif %}">{{ secure_score.pct | round(0) | int }}%</div>
+    <div class="lbl">{{ t.microsoft_secure_score }}</div>
+    <div class="pbar"><div class="pbar-fill {% if secure_score.pct >= 75 %}green{% elif secure_score.pct >= 50 %}orange{% else %}red{% endif %}" style="width:{{ secure_score.pct }}%"></div></div>
+  </div>
+</div>
+
+<!-- Metrics row 2 -->
+<div class="metrics" style="margin-bottom:40px;">
+  {% if intune and intune.total > 0 %}
+  <div class="metric-card">
+    <div class="icon">&#x1F4BB;</div>
+    <div class="num {% if intune.compliance_pct >= 90 %}green{% elif intune.compliance_pct >= 70 %}orange{% else %}red{% endif %}">{{ intune.compliance_pct | round(0) | int }}%</div>
+    <div class="lbl">{{ t.device_compliance }}</div>
+    <div class="pbar"><div class="pbar-fill {% if intune.compliance_pct >= 90 %}green{% elif intune.compliance_pct >= 70 %}orange{% else %}red{% endif %}" style="width:{{ intune.compliance_pct }}%"></div></div>
+  </div>
+  {% endif %}
+  <div class="metric-card">
+    <div class="icon">&#x1F6E1;</div>
+    <div class="num brand">{{ ca.enabled }}</div>
+    <div class="lbl">{{ t.ca_rules }}</div>
+    <div class="sublbl">{{ t('n_report_mode', count=ca.report_only) }}</div>
+  </div>
+  {% if admin_roles %}
+  <div class="metric-card">
+    <div class="icon">&#x1F511;</div>
+    <div class="num {% if admin_roles.global_admin_count > 4 %}red{% elif admin_roles.global_admin_count > 2 %}orange{% else %}green{% endif %}">{{ admin_roles.global_admin_count }}</div>
+    <div class="lbl">{{ t.global_admins }}</div>
+    <div class="sublbl">{{ t('n_role_assignments_total', count=admin_roles.total_assignments) }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 2. Key Findings ── -->
+<div class="section-label" id="funn">{{ t.what_we_found }}</div>
+<h2><a href="#funn" class="section-anchor">{{ t.key_findings }}</a></h2>
+<p class="section-intro">{{ t.key_findings_intro }}</p>
+
+<!-- MFA -->
+{% if not mfa.has_data %}
+<div class="finding warning" id="finding-mfa">
+  <div class="finding-icon">&#x26A0;&#xFE0F;</div>
+  <div class="finding-body">
+    <h4>{{ t.mfa_data_missing_finding }}</h4>
+    <p>{{ t.mfa_data_missing_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.data_unavailable }}</span></div>
+</div>
+{% elif mfa.no_mfa > 0 %}
+<div class="finding critical" id="finding-mfa">
+  <div class="finding-icon">&#x1F513;</div>
+  <div class="finding-body">
+    <h4>{{ t('mfa_missing_title', count=mfa.no_mfa) }}</h4>
+    <p>{{ t.mfa_missing_desc }}</p>
+    {% set unprotected = mfa.users | selectattr("protected", "false") | list %}
+    {% if unprotected %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_unprotected', count=unprotected|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead>
+          <tr><th>{{ t.user }}</th><th>{{ t.email_upn }}</th><th>{{ t.mfa_registered }}</th><th>{{ t.ca_coverage }}</th><th>{{ t.reason }}</th></tr>
+        </thead>
+        <tbody>
+        {% for u in unprotected %}
+          <tr>
+            <td><strong>{{ u.name }}</strong></td>
+            <td style="font-size:11px;color:var(--muted);">{{ u.upn }}</td>
+            <td><span class="tag tag-no">{{ t.no_word }}</span></td>
+            <td><span class="tag {% if u.ca_excluded %}tag-no{% else %}tag-no{% endif %}">{% if u.ca_excluded %}{{ t.excluded }}{% else %}{{ t.no_word }}{% endif %}</span></td>
+            <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{{ t.excluded_from_ca }}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if finding_to_recs.get('finding-mfa') %}{% for ri in finding_to_recs['finding-mfa'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge critical">{{ t.critical }}</span></div>
+</div>
+{% else %}
+<div class="finding ok">
+  <div class="finding-icon">&#x2705;</div>
+  <div class="finding-body">
+    <h4>{{ t.mfa_ok_title }}</h4>
+    <p>{{ t('mfa_ok_desc', covered=mfa.covered, total=mfa.total) }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge ok">{{ t.ok }}</span></div>
+</div>
+{% endif %}
+
+<!-- External forwarding -->
+{% if ext_fwd_warn and ext_fwd_warn.strip() %}
+{% set fwd_entries = [] %}
+{% for line in ext_fwd_warn.splitlines() %}
+  {% if '→' in line %}
+    {% set _ = fwd_entries.append(line.strip()) %}
+  {% endif %}
+{% endfor %}
+<div class="finding critical" id="finding-fwd">
+  <div class="finding-icon">&#x1F4E4;</div>
+  <div class="finding-body">
+    <h4>{{ t('ext_fwd_title', count=fwd_entries|length) }}</h4>
+    <p>{{ t.ext_fwd_desc }}</p>
+    {% if fwd_entries %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_forwarding', count=fwd_entries|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead><tr><th style="width:40%;">{{ t.mailbox }}</th><th style="width:60%;">{{ t.forwarded_to }}</th></tr></thead>
+        <tbody>
+        {% for entry in fwd_entries %}
+          {% set parts = entry.split('→') %}
+          <tr>
+            <td><strong>{{ parts[0].strip() }}</strong></td>
+            <td style="font-size:12px;color:var(--muted);">{{ parts[1].strip().replace('smtp:', '').replace('SMTP:', '') if parts | length > 1 else '' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if finding_to_recs.get('finding-fwd') %}{% for ri in finding_to_recs['finding-fwd'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge critical">{{ t.critical }}</span></div>
+</div>
+{% endif %}
+
+<!-- Risky users -->
+{% if risky_users and 'No risky' not in risky_users and 'not available' not in risky_users.lower() and risky_users.strip() %}
+{% set risky_entries = [] %}
+{% for line in risky_users.splitlines() %}
+  {% set l = line.strip() %}
+  {% if l and not l.startswith('=') and not l.startswith('-') and 'UPN' not in l and 'RISKY' not in l %}
+    {% set cols = l.split('  ') | reject('equalto', '') | list %}
+    {% if cols | length >= 3 %}
+      {% set _ = risky_entries.append({'upn': cols[0].strip(), 'level': cols[1].strip(), 'state': cols[2].strip()}) %}
+    {% endif %}
+  {% endif %}
+{% endfor %}
+<div class="finding warning" id="finding-risky">
+  <div class="finding-icon">&#x26A0;&#xFE0F;</div>
+  <div class="finding-body">
+    <h4>{{ t('risky_users_title', count=risky_entries|length if risky_entries else '') }}</h4>
+    <p>{{ t.risky_users_desc }}</p>
+    {% if risky_entries %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_risky', count=risky_entries|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead><tr><th style="width:50%;">{{ t.user }}</th><th style="width:25%;">{{ t.risk_level }}</th><th style="width:25%;">{{ t.status }}</th></tr></thead>
+        <tbody>
+        {% for u in risky_entries %}
+          <tr>
+            <td style="font-size:12px;">{{ u.upn }}</td>
+            <td><span class="tag {% if u.level == 'high' %}tag-no{% else %}tag-yes{% endif %}">{{ u.level }}</span></td>
+            <td style="font-size:12px;">{{ u.state }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if finding_to_recs.get('finding-risky') %}{% for ri in finding_to_recs['finding-risky'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.high_risk }}</span></div>
+</div>
+{% endif %}
+
+<!-- Admin roles -->
+{% if admin_roles and admin_roles.global_admin_count > 4 %}
+<div class="finding warning" id="finding-ga">
+  <div class="finding-icon">&#x1F511;</div>
+  <div class="finding-body">
+    <h4>{{ t('ga_accounts_title', count=admin_roles.global_admin_count) }}</h4>
+    <p>{{ t.ga_accounts_desc }}</p>
+    {% if admin_roles.global_admin_users %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_global_admins', count=admin_roles.global_admin_users|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead><tr><th>{{ t.user }}</th><th>{{ t.email_upn }}</th></tr></thead>
+        <tbody>
+        {% for u in admin_roles.global_admin_users %}
+          <tr><td><strong>{{ u.user }}</strong></td><td style="font-size:12px;color:var(--muted);">{{ u.email }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if finding_to_recs.get('finding-ga') %}{% for ri in finding_to_recs['finding-ga'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.recommended_action }}</span></div>
+</div>
+{% elif admin_roles and admin_roles.global_admin_count <= 4 %}
+<div class="finding ok">
+  <div class="finding-icon">&#x1F511;</div>
+  <div class="finding-body">
+    <h4>{{ t('ga_ok_title', count=admin_roles.global_admin_count) }}</h4>
+    <p>{{ t.ga_ok_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge ok">{{ t.ok }}</span></div>
+</div>
+{% endif %}
+
+<!-- Intune compliance -->
+{% if intune and intune.total > 0 %}
+{% if intune.noncompliant > 0 %}
+<div class="finding {% if intune.compliance_pct < 50 %}critical{% else %}warning{% endif %}" id="finding-intune">
+  <div class="finding-icon">&#x1F4BB;</div>
+  <div class="finding-body">
+    <h4>{{ t('intune_noncompliant_title', count=intune.noncompliant) }}</h4>
+    <p>{{ t('intune_noncompliant_desc', pct=intune.compliance_pct|round(0)|int, total=intune.total) }}</p>
+    {% if intune.noncompliant_devices %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_noncompliant', count=intune.noncompliant_devices|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead><tr><th>{{ t.device_name }}</th><th>{{ t.os }}</th><th>{{ t.user }}</th><th>{{ t.compliance_state }}</th></tr></thead>
+        <tbody>
+        {% for d in intune.noncompliant_devices[:30] %}
+          <tr>
+            <td><strong>{{ d.name }}</strong></td>
+            <td style="font-size:12px;">{{ d.os }}</td>
+            <td style="font-size:12px;color:var(--muted);">{{ d.user }}</td>
+            <td><span class="tag tag-no">{{ d.compliance }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if finding_to_recs.get('finding-intune') %}{% for ri in finding_to_recs['finding-intune'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge {% if intune.compliance_pct < 50 %}critical{% else %}warning{% endif %}">{% if intune.compliance_pct < 50 %}{{ t.critical }}{% else %}{{ t.action_needed }}{% endif %}</span></div>
+</div>
+{% else %}
+<div class="finding ok">
+  <div class="finding-icon">&#x1F4BB;</div>
+  <div class="finding-body">
+    <h4>{{ t('intune_all_compliant_title', count=intune.total) }}</h4>
+    <p>{{ t.intune_all_compliant_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge ok">{{ t.ok }}</span></div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- SharePoint sharing -->
+{% if sharepoint and sharepoint.sharing_level == 'warning' %}
+<div class="finding warning" id="finding-sp">
+  <div class="finding-icon">&#x1F4C1;</div>
+  <div class="finding-body">
+    <h4>{{ t.sp_sharing_open_title }}</h4>
+    <p>{{ t('sp_sharing_open_desc', label=sharepoint.sharing_label) }}</p>
+    {% if finding_to_recs.get('finding-sp') %}{% for ri in finding_to_recs['finding-sp'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.recommended_action }}</span></div>
+</div>
+{% endif %}
+
+<!-- Email security per domain -->
+{% for d in spf_dmarc %}
+{% if 'MISSING' in d.get('spf','') or 'CRITICAL' in d.get('spf','') or 'MISSING' in d.get('dmarc','') or 'WEAK' in d.get('dmarc','') %}
+<div class="finding warning" id="finding-email">
+  <div class="finding-icon">&#x1F4E7;</div>
+  <div class="finding-body">
+    <h4>{{ t('email_security_title', domain=d.get('domain','')) }}</h4>
+    <p>
+      {% if 'MISSING' in d.get('spf','') %}{{ t.spf_missing }}{% endif %}
+      {% if 'MISSING' in d.get('dmarc','') %} {{ t.dmarc_missing }}{% elif 'WEAK' in d.get('dmarc','') or 'NONE' in d.get('dmarc','') %} {{ t.dmarc_weak }}{% endif %}
+    </p>
+    {% if finding_to_recs.get('finding-email') %}{% for ri in finding_to_recs['finding-email'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.recommended_action }}</span></div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- Conditional Access -->
+{% if ca.enabled == 0 %}
+<div class="finding warning" id="finding-ca">
+  <div class="finding-icon">&#x1F6A6;</div>
+  <div class="finding-body">
+    <h4>{{ t.no_ca_title }}</h4>
+    <p>{{ t.no_ca_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.recommended_action }}</span></div>
+</div>
+{% else %}
+<div class="finding ok">
+  <div class="finding-icon">&#x1F6A6;</div>
+  <div class="finding-body">
+    <h4>{{ t('ca_ok_title', count=ca.enabled) }}</h4>
+    <p>{{ t.ca_ok_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge ok">{{ t.ok }}</span></div>
+</div>
+{% endif %}
+
+<!-- OAuth high-privilege -->
+{% if oauth and oauth.high_privilege_apps %}
+<div class="finding warning" id="finding-oauth">
+  <div class="finding-icon">&#x1F50C;</div>
+  <div class="finding-body">
+    <h4>{{ t('oauth_high_priv_title', count=oauth.high_privilege_apps|length) }}</h4>
+    <p>{{ t.oauth_high_priv_desc }}</p>
+    {% if oauth.high_privilege_apps|length <= 10 %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_apps', count=oauth.high_privilege_apps|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead><tr><th>{{ t.app_name }}</th></tr></thead>
+        <tbody>
+        {% for app in oauth.high_privilege_apps %}
+          <tr><td style="font-size:12px;">{{ app }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if finding_to_recs.get('finding-oauth') %}{% for ri in finding_to_recs['finding-oauth'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.recommended_action }}</span></div>
+</div>
+{% endif %}
+
+<!-- Secure Score -->
+{% if secure_score.pct > 0 %}
+{% if secure_score.pct < 50 %}
+<div class="finding critical" id="finding-securescore">
+  <div class="finding-icon">&#x1F4CA;</div>
+  <div class="finding-body">
+    <h4>{{ t('secure_score_low_title', pct=secure_score.pct|round(0)|int) }}</h4>
+    <p>{{ t.secure_score_low_desc }}</p>
+    {% if finding_to_recs.get('finding-securescore') %}{% for ri in finding_to_recs['finding-securescore'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge critical">{{ t.critical }}</span></div>
+</div>
+{% elif secure_score.pct < 75 %}
+<div class="finding warning" id="finding-securescore">
+  <div class="finding-icon">&#x1F4CA;</div>
+  <div class="finding-body">
+    <h4>{{ t('secure_score_mid_title', pct=secure_score.pct|round(0)|int) }}</h4>
+    <p>{{ t.secure_score_mid_desc }}</p>
+    {% if finding_to_recs.get('finding-securescore') %}{% for ri in finding_to_recs['finding-securescore'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
+  </div>
+  <div class="finding-badge"><span class="badge warning">{{ t.improvement_possible }}</span></div>
+</div>
+{% else %}
+<div class="finding ok">
+  <div class="finding-icon">&#x1F4CA;</div>
+  <div class="finding-body">
+    <h4>{{ t('secure_score_good_title', pct=secure_score.pct|round(0)|int) }}</h4>
+    <p>{{ t.secure_score_good_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge ok">{{ t.good }}</span></div>
+</div>
+{% endif %}
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 3. Recommendations ── -->
+{% if recommendations %}
+<div class="section-label" style="margin-top:56px;" id="anbefalinger">{{ t.recommendations }}</div>
+<h2><a href="#anbefalinger" class="section-anchor">{{ t.what_we_recommend }}</a></h2>
+<p class="section-intro">{{ t.recommendations_intro }}</p>
+
+{% for rec in recommendations %}
+<div class="rec" id="rec-{{ loop.index }}">
+  <div class="rec-num">{{ loop.index }}</div>
+  <div class="rec-body">
+    <h4>{{ rec.title }}</h4>
+    <p>{{ rec.detail }}{% if rec.doc_url is defined and rec.doc_url %} <a href="{{ rec.doc_url }}" target="_blank" rel="noopener" style="font-size:11px;color:var(--blue);white-space:nowrap;">Microsoft Learn &rarr;</a>{% endif %}</p>
+    {% if rec.sub_items is defined and rec.sub_items %}
+    <div class="rec-expand" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_all_n_details', count=rec.sub_items|length) }}
+    </div>
+    <div class="rec-sub-items">
+      {% for item in rec.sub_items %}
+      <div class="rec-sub-item">{{ item }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if rec.finding_id is defined and rec.finding_id %}<a href="#{{ rec.finding_id }}" class="rec-finding-link">↑ {{ t.related_finding }}</a>{% endif %}
+  </div>
+  <div class="rec-effort">
+    <div>
+      {% if rec.priority == 'critical' %}<span class="badge critical">{{ t.critical }}</span>
+      {% elif rec.priority == 'high' %}<span class="badge warning">{{ t.high }}</span>
+      {% elif rec.priority == 'low' %}<span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">{{ t.low }}</span>
+      {% else %}<span class="badge medium">{{ t.medium }}</span>{% endif %}
+    </div>
+    <div class="eff" style="margin-top:4px;">{{ t('effort_label', effort=rec.effort) }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 3b. Action Plan ── -->
+{% if recommendations %}
+<div class="section-label" style="margin-top:56px;" id="handlingsplan">{{ t.action_plan }}</div>
+<h2><a href="#handlingsplan" class="section-anchor">{{ t.prioritised_action_plan }}</a></h2>
+<p class="section-intro">
+  {{ t.action_plan_intro }}
+</p>
+
+<table class="action-table">
+  <thead>
+    <tr>
+      <th style="width:30px;">#</th>
+      <th>{{ t.action_column }}</th>
+      <th style="width:80px;">{{ t.priority }}</th>
+      <th style="width:90px;">{{ t.responsible }}</th>
+      <th style="width:80px;">{{ t.deadline }}</th>
+      <th style="width:80px;">{{ t.status }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for rec in recommendations %}
+    <tr>
+      <td style="font-weight:700;color:var(--brand);">{{ loop.index }}</td>
+      <td>
+        <strong>{{ rec.title }}</strong>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">{{ rec.detail | replace('\n', '<br>') }}{% if rec.doc_url is defined and rec.doc_url %} <a href="{{ rec.doc_url }}" target="_blank" rel="noopener" style="font-size:11px;color:var(--blue);white-space:nowrap;">Microsoft Learn &rarr;</a>{% endif %}</div>
+      </td>
+      <td>
+        {% if rec.priority == 'critical' %}<span class="badge critical">{{ t.critical }}</span>
+        {% elif rec.priority == 'high' %}<span class="badge warning">{{ t.high }}</span>
+        {% else %}<span class="badge medium">{{ t.medium }}</span>{% endif %}
+      </td>
+      <td class="placeholder">&mdash;</td>
+      <td class="placeholder">&mdash;</td>
+      <td class="placeholder">&mdash;</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 4. Identity & Access ── -->
+<div class="section-label" style="margin-top:56px;" id="identitet">{{ t.identity_access }}</div>
+<h2><a href="#identitet" class="section-anchor">{{ t.admin_roles_and_groups }}</a></h2>
+<p class="section-intro">{{ t.identity_access_intro }}</p>
+
+<div class="env-grid">
+  {% if admin_roles and admin_roles.role_summary %}
+  <div class="env-card">
+    <h4>{{ t.admin_roles_label }}</h4>
+    <div class="env-row"><span>{{ t.total_role_assignments }}</span><span>{{ admin_roles.total_assignments }}</span></div>
+    <div class="env-row"><span>{{ t.unique_roles }}</span><span>{{ admin_roles.unique_roles }}</span></div>
+    <div class="env-row"><span>{{ t.global_admins_label }}</span><span style="{% if admin_roles.global_admin_count > 4 %}color:var(--red);{% endif %}">{{ admin_roles.global_admin_count }}</span></div>
+    <table class="email-table" style="margin-top:12px;">
+      <tr><th>{{ t.role }}</th><th style="text-align:right;">{{ t.count }}</th></tr>
+      {% for rs in admin_roles.role_summary %}
+      <tr>
+        <td>{{ rs.role }}</td>
+        <td style="text-align:right;font-weight:600;">{{ rs.count }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  {% if groups %}
+  <div class="env-card">
+    <h4>{{ t.groups_label }}</h4>
+    <div class="env-row"><span>{{ t.total_groups }}</span><span>{{ groups.total }}</span></div>
+    {% for gtype, count in groups.by_type.items() %}
+    <div class="env-row"><span>{{ gtype }}</span><span>{{ count }}</span></div>
+    {% endfor %}
+    <div class="env-row"><span>{{ t.dynamic_groups }}</span><span>{{ groups.dynamic_groups }}</span></div>
+    <div class="env-row"><span>{{ t.empty_groups }}</span><span>{{ groups.empty_groups }}</span></div>
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 5. Devices ── -->
+{% if intune and intune.total > 0 %}
+<div class="section-label" style="margin-top:56px;" id="enheter">{{ t.devices }}</div>
+<h2><a href="#enheter" class="section-anchor">{{ t.device_management }}</a></h2>
+<p class="section-intro">{{ t.devices_intro }}</p>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ intune.total }}</div>
+    <div class="lbl">{{ t.total_devices }}</div>
+    <div class="sublbl">Win {{ intune.windows }} &middot; iOS {{ intune.ios }} &middot; Android {{ intune.android }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num green">{{ intune.compliant }}</div>
+    <div class="lbl">{{ t.compliant }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num {% if intune.noncompliant > 0 %}red{% else %}green{% endif %}">{{ intune.noncompliant }}</div>
+    <div class="lbl">{{ t.not_compliant }}</div>
+  </div>
+</div>
+
+<div class="env-card">
+  <h4>{{ t.compliance_rate }}</h4>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="pbar" style="flex:1;height:10px;">
+      <div class="pbar-fill {% if intune.compliance_pct >= 90 %}green{% elif intune.compliance_pct >= 70 %}orange{% else %}red{% endif %}" style="width:{{ intune.compliance_pct }}%"></div>
+    </div>
+    <span style="font-weight:700;font-size:16px;">{{ intune.compliance_pct | round(0) | int }}%</span>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 6. Data & Collaboration ── -->
+<div class="section-label" style="margin-top:56px;" id="data">{{ t.data_collaboration }}</div>
+<h2><a href="#data" class="section-anchor">{{ t.sharepoint_and_teams }}</a></h2>
+<p class="section-intro">{{ t.data_collab_intro }}</p>
+
+<div class="env-grid">
+  {% if sharepoint %}
+  <div class="env-card">
+    <h4>SharePoint</h4>
+    <div class="env-row">
+      <span>{{ t.external_sharing }}</span>
+      <span><span class="status-pill {{ sharepoint.sharing_level }}">{{ sharepoint.sharing_label }}</span></span>
+    </div>
+    <div class="env-row">
+      <span>{{ t.legacy_auth }}</span>
+      <span style="{% if sharepoint.legacy_auth %}color:var(--red);{% else %}color:var(--green);{% endif %}">{% if sharepoint.legacy_auth %}{{ t.enabled_label }}{% else %}{{ t.disabled_label }}{% endif %}</span>
+    </div>
+    <div class="env-row"><span>{{ t.total_sites }}</span><span>{{ sharepoint.site_count }}</span></div>
+    <div class="env-row"><span>{{ t.personal_onedrive }}</span><span>{{ sharepoint.personal_sites }}</span></div>
+    <div class="env-row"><span>{{ t.team_sites }}</span><span>{{ sharepoint.team_sites }}</span></div>
+  </div>
+  {% endif %}
+
+  <div class="env-card">
+    <h4>Teams</h4>
+    <div class="env-row"><span>Conditional Access</span><span>{{ t('active_policies', count=ca.enabled) }}</span></div>
+    {% if groups %}
+    <div class="env-row"><span>{{ t.m365_groups_incl_teams }}</span>
+      <span>{% set m365 = groups.by_type.get('M365', 0) + groups.by_type.get('M365+Dynamic', 0) %}{{ m365 }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Exchange ── -->
+{% if exchange and exchange.has_data %}
+<div class="section-label" style="margin-top:56px;" id="exchange">{{ t.email_label }}</div>
+<h2><a href="#exchange" class="section-anchor">{{ t.exchange_online }}</a></h2>
+<p class="section-intro">{{ t.exchange_intro }}</p>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ exchange.mailbox_total }}</div>
+    <div class="lbl">{{ t.mailboxes }}</div>
+    <div class="sublbl">{{ t('n_user_n_shared', user=exchange.mailbox_user, shared=exchange.mailbox_shared) }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ exchange.transport_rules }}</div>
+    <div class="lbl">{{ t.transport_rules }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num {% if exchange.external_forwarding %}red{% else %}green{% endif %}">{{ exchange.forwarding_count }}</div>
+    <div class="lbl">{{ t.forwarding }}</div>
+  </div>
+</div>
+
+{% if exchange.external_forwarding %}
+<div class="finding critical">
+  <div class="finding-icon">&#x1F4E4;</div>
+  <div class="finding-body">
+    <h4>{{ t.ext_fwd_detected_title }}</h4>
+    <p>{{ t.ext_fwd_detected_desc }}</p>
+  </div>
+  <div class="finding-badge"><span class="badge critical">{{ t.critical }}</span></div>
+</div>
+{% endif %}
+
+<div class="env-grid">
+  <div class="env-card">
+    <h4>{{ t.security_policies }}</h4>
+    <div class="env-row"><span>{{ t.antiphish_policies }}</span><span>{{ exchange.antiphish_policies | length }}</span></div>
+    <div class="env-row"><span>{{ t.antispam_policies }}</span><span>{{ exchange.antispam_policies | length }}</span></div>
+    <div class="env-row"><span>{{ t.transport_rules }}</span><span>{{ exchange.transport_rules }}</span></div>
+    <div class="env-row"><span>{{ t.connectors }}</span><span>{{ exchange.connectors }}</span></div>
+  </div>
+  <div class="env-card">
+    <h4>{{ t.forwarding_label }}</h4>
+    <div class="env-row"><span>{{ t.mailbox_forwarding }}</span><span>{{ exchange.forwarding_count }}</span></div>
+    <div class="env-row"><span>{{ t.external_forwarding }}</span>
+      <span style="{% if exchange.external_forwarding %}color:var(--red);font-weight:700;{% endif %}">
+        {% if exchange.external_forwarding %}{{ t.detected }}{% else %}{{ t.none }}{% endif %}
+      </span>
+    </div>
+    <div class="env-row"><span>{{ t.inbox_rules_ext_fwd }}</span><span>{{ exchange.inbox_rules_external }}</span></div>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 7. Apps & Integrations ── -->
+{% if oauth and oauth.total_grants > 0 %}
+<div class="section-label" style="margin-top:56px;" id="apper">{{ t.apps_integrations }}</div>
+<h2><a href="#apper" class="section-anchor">{{ t.oauth_permissions_title }}</a></h2>
+<p class="section-intro">{{ t.apps_intro }}</p>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ oauth.unique_apps }}</div>
+    <div class="lbl">{{ t.unique_apps }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ oauth.total_grants }}</div>
+    <div class="lbl">{{ t.total_grants }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num {% if oauth.high_privilege_apps %}orange{% else %}green{% endif %}">{{ oauth.high_privilege_apps | length }}</div>
+    <div class="lbl">{{ t.broad_permissions }}</div>
+  </div>
+</div>
+
+{% if oauth.high_privilege_apps %}
+<div class="alert-inline">
+  <strong style="display:block;margin-bottom:4px;">{{ t.apps_broad_permissions_label }}</strong>
+  {{ oauth.high_privilege_apps | join(', ') }}
+</div>
+{% endif %}
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Purview / Data Protection ── -->
+{% if purview and purview.has_data %}
+<div class="section-label" style="margin-top:56px;" id="databeskyttelse">{{ t.data_protection }}</div>
+<h2><a href="#databeskyttelse" class="section-anchor">{{ t.microsoft_purview }}</a></h2>
+<p class="section-intro">{{ t.purview_intro }}</p>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ purview.sensitivity_label_count }}</div>
+    <div class="lbl">{{ t.sensitivity_labels }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ purview.dlp_policy_count }}</div>
+    <div class="lbl">{{ t.dlp_policies }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ purview.retention_policy_count }}</div>
+    <div class="lbl">{{ t.retention_policies }}</div>
+  </div>
+</div>
+
+<div class="env-grid">
+  {% if purview.sensitivity_labels %}
+  <div class="env-card">
+    <h4>{{ t.sensitivity_labels }}</h4>
+    {% for label in purview.sensitivity_labels %}
+    <div class="env-row">
+      <span>{{ label.name }}</span>
+      <span>{% if label.active %}<span style="color:var(--green);font-size:11px;">{{ t.active_label }}</span>{% else %}<span style="color:var(--muted);font-size:11px;">{{ t.inactive_label }}</span>{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if purview.dlp_policies %}
+  <div class="env-card">
+    <h4>{{ t.dlp_policies }}</h4>
+    {% for pol in purview.dlp_policies %}
+    <div class="env-row"><span>{{ pol.name }}</span><span></span></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if purview.retention_policies %}
+  <div class="env-card">
+    <h4>{{ t.retention_policies }}</h4>
+    {% for pol in purview.retention_policies %}
+    <div class="env-row"><span>{{ pol.name }}</span><span></span></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Azure ── -->
+{% if azure and azure.has_data %}
+<div class="section-label" style="margin-top:56px;" id="azure">{{ t.azure_infrastructure }}</div>
+<h2><a href="#azure" class="section-anchor">{{ t.azure_resources }}</a></h2>
+<p class="section-intro">{{ t.azure_intro }}</p>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ azure.subscriptions | length }}</div>
+    <div class="lbl">{{ t.subscriptions }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ azure.total_resources }}</div>
+    <div class="lbl">{{ t.total_resources }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ azure.vms | length }}</div>
+    <div class="lbl">{{ t.virtual_machines }}</div>
+  </div>
+</div>
+
+{% if azure.subscriptions %}
+<div class="env-card">
+  <h4>{{ t.subscriptions }}</h4>
+  {% for s in azure.subscriptions %}
+  <div class="env-row">
+    <span>{{ s.name }}</span>
+    <span><span class="status-pill {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ s.state }}</span></span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if azure.vms %}
+<div class="env-card">
+  <h4>{{ t.virtual_machines }}</h4>
+  <table class="email-table">
+    <tr><th>{{ t.vm_label }}</th><th>Subscription</th><th>{{ t.location }}</th><th>{{ t.os_label }}</th><th>{{ t.size_label }}</th></tr>
+    {% for vm in azure.vms %}
+    <tr>
+      <td style="font-weight:600;">{{ vm.name }}</td>
+      <td style="font-size:11px;">{{ vm.subscription }}</td>
+      <td>{{ vm.location }}</td>
+      <td>{{ vm.os }}</td>
+      <td style="font-size:11px;">{{ vm.size }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if backup_coverage and backup_coverage.vms_total > 0 %}
+<div class="env-card">
+  <h4>{{ t.backup_coverage }}</h4>
+  <div class="env-row"><span>{{ t.vms_total }}</span><span>{{ backup_coverage.vms_total }}</span></div>
+  <div class="env-row"><span>{{ t.with_backup }}</span><span style="color:var(--green);">{{ backup_coverage.vms_backed_up }}</span></div>
+  <div class="env-row"><span>{{ t.without_backup }}</span>
+    <span style="{% if backup_coverage.vms_not_backed_up %}color:var(--red);font-weight:700;{% endif %}">
+      {{ backup_coverage.vms_not_backed_up | length }}
+    </span>
+  </div>
+  {% if backup_coverage.vms_not_backed_up %}
+  <div style="margin-top:8px;padding:8px 12px;background:var(--red-bg);border:1px solid var(--red-bd);border-radius:8px;font-size:12px;">
+    <strong style="color:var(--red);">{{ t.vms_without_backup }}</strong>
+    {{ backup_coverage.vms_not_backed_up | join(', ') }}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if azure.per_sub %}
+<div class="env-grid">
+  {% for sub in azure.per_sub %}
+  {% if sub.resources > 0 %}
+  <div class="env-card">
+    <h4>{{ sub.name }} ({{ t('n_resources', count=sub.resources) }})</h4>
+    {% for rtype, count in sub.types[:8] %}
+    <div class="env-row"><span style="font-size:11px;">{{ rtype.split('/')[-1] }}</span><span>{{ count }}</span></div>
+    {% endfor %}
+    {% if sub.types | length > 8 %}
+    <div class="env-row"><span style="font-size:11px;color:var(--muted);">{{ t('n_more', count=sub.types|length - 8) }}</span><span></span></div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if azure.resource_types_list %}
+<div class="env-card">
+  <h4>{{ t.resource_types_total }}</h4>
+  <table class="email-table">
+    <tr><th>{{ t.type_label }}</th><th style="text-align:right;">{{ t.count }}</th></tr>
+    {% for rt in azure.resource_types_list[:15] %}
+    <tr>
+      <td style="font-size:12px;">{{ rt.type }}</td>
+      <td style="text-align:right;font-weight:600;">{{ rt.count }}</td>
+    </tr>
+    {% endfor %}
+    {% if azure.resource_types_list | length > 15 %}
+    <tr><td colspan="2" style="font-size:11px;color:var(--muted);">{{ t('and_n_more_types', count=azure.resource_types_list|length - 15) }}</td></tr>
+    {% endif %}
+  </table>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Network Security (FortiGate + UniFi) ── -->
+{% if network and network.has_data %}
+<div class="section-label" style="margin-top:56px;" id="nettverk">{{ t.section_network }}</div>
+<h2><a href="#nettverk" class="section-anchor">{{ t.section_network }}</a></h2>
+
+{% if network.fortigate and 'error' not in network.fortigate %}
+{% set fg = network.fortigate %}
+<h3 style="margin-top:24px;">{{ t.section_fortigate }}</h3>
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ fg.model or fg.hostname or '–' }}</div>
+    <div class="lbl">Modell</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ fg.firmware or '–' }}</div>
+    <div class="lbl">Firmware</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ fg.policy_count | default(0) }}</div>
+    <div class="lbl">Brannmurregler</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ fg.admin_count | default(0) }}</div>
+    <div class="lbl">Admins</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ fg.vpn_tunnels | default(0) }}</div>
+    <div class="lbl">VPN-tunneler</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ fg.ha_mode | default('Standalone') }}</div>
+    <div class="lbl">HA-modus</div>
+  </div>
+</div>
+
+{% if fg.admins %}
+<h4 style="margin-top:16px;">Administratorer</h4>
+<table class="data-table" style="width:100%; font-size:12px;">
+  <thead><tr><th>Navn</th><th>Profil</th><th>2FA</th><th>IP-begrensning</th></tr></thead>
+  <tbody>
+    {% for a in fg.admins %}
+    <tr>
+      <td>{{ a.name }}</td>
+      <td>{{ a.profile }}</td>
+      <td style="color: {{ 'green' if a.two_factor else 'var(--red, red)' }};">{{ '✓' if a.two_factor else '✗' }}</td>
+      <td style="color: {{ 'green' if a.trusthost else 'var(--orange, orange)' }};">{{ '✓' if a.trusthost else '✗' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if fg.policy_warnings %}
+<h4 style="margin-top:16px;">Brannmur-advarsler</h4>
+<ul style="font-size:12px;">
+  {% for w in fg.policy_warnings %}
+  <li style="color: var(--red, red);">{{ w }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endif %}
+
+{% if network.unifi and 'error' not in network.unifi %}
+{% set uf = network.unifi %}
+<h3 style="margin-top:24px;">{{ t.section_unifi }}</h3>
+<div class="metrics">
+  <div class="metric-card">
+    <div class="num brand">{{ uf.device_count | default(0) }}</div>
+    <div class="lbl">Enheter</div>
+  </div>
+  {% if uf.mode == 'controller' %}
+  <div class="metric-card">
+    <div class="num brand">{{ uf.wlan_count | default(0) }}</div>
+    <div class="lbl">SSID-er</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ uf.network_count | default(0) }}</div>
+    <div class="lbl">Nettverk</div>
+  </div>
+  <div class="metric-card">
+    <div class="num brand">{{ uf.firewall_rules | default(0) }}</div>
+    <div class="lbl">Brannmurregler</div>
+  </div>
+  <div class="metric-card">
+    <div class="num {{ 'red' if (uf.active_alarms | default(0)) > 0 else 'green' }}">{{ uf.active_alarms | default(0) }}</div>
+    <div class="lbl">Aktive alarmer</div>
+  </div>
+  {% endif %}
+  {% if uf.mode == 'direct' %}
+  <div class="metric-card">
+    <div class="num {{ 'green' if uf.reachable == uf.device_count else 'orange' }}">{{ uf.reachable | default(0) }}</div>
+    <div class="lbl">Tilgjengelige</div>
+  </div>
+  {% if uf.default_creds_count | default(0) > 0 %}
+  <div class="metric-card">
+    <div class="num red">{{ uf.default_creds_count }}</div>
+    <div class="lbl">Standard-passord</div>
+  </div>
+  {% endif %}
+  {% if uf.outdated_firmware_count | default(0) > 0 %}
+  <div class="metric-card">
+    <div class="num orange">{{ uf.outdated_firmware_count }}</div>
+    <div class="lbl">Utdatert firmware</div>
+  </div>
+  {% endif %}
+  {% if uf.eol_count | default(0) > 0 %}
+  <div class="metric-card">
+    <div class="num red">{{ uf.eol_count }}</div>
+    <div class="lbl">End-of-life</div>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+
+{% if uf.devices %}
+<h4 style="margin-top:16px;">Enhetsoversikt</h4>
+<table class="data-table" style="width:100%; font-size:12px;">
+  <thead>
+    <tr>
+      <th>Enhet</th>
+      <th>Modell</th>
+      <th>Firmware</th>
+      {% if uf.mode == 'controller' %}<th>Klienter</th><th>Status</th>
+      {% else %}<th>MAC</th><th>Status</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in uf.devices %}
+    <tr>
+      <td>{{ d.name or d.hostname or d.label or d.host or '–' }}</td>
+      <td>{{ d.model or '–' }}</td>
+      <td style="font-family: monospace; font-size:11px;">{{ d.firmware or '–' }}</td>
+      {% if uf.mode == 'controller' %}
+      <td>{{ d.clients | default(0) }}</td>
+      <td style="color: {{ 'green' if d.status == 'online' else 'var(--red, red)' }};">{{ d.status | default('–') }}</td>
+      {% else %}
+      <td style="font-family: monospace; font-size:11px;">{{ d.mac or '–' }}</td>
+      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{{ 'Online' if d.ok else (d.error or 'Offline') }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if uf.mode == 'controller' and uf.wlans %}
+<h4 style="margin-top:16px;">Trådløse nettverk</h4>
+<table class="data-table" style="width:100%; font-size:12px;">
+  <thead><tr><th>SSID</th><th>Sikkerhet</th><th>Gjest</th><th>Aktiv</th></tr></thead>
+  <tbody>
+    {% for w in uf.wlans %}
+    <tr>
+      <td>{{ w.name }}</td>
+      <td style="color: {{ 'var(--red, red)' if w.security == 'open' else 'green' }};">{{ w.security }}</td>
+      <td>{{ 'Ja' if w.guest else 'Nei' }}</td>
+      <td>{{ 'Ja' if w.enabled else 'Nei' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endif %}
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Compliance ── -->
+{% if compliance %}
+<div class="section-label" style="margin-top:56px;" id="compliance">{{ t.compliance }}</div>
+<h2><a href="#compliance" class="section-anchor">{{ t.cis_benchmark }}</a></h2>
+<p class="section-intro">{{ t.compliance_intro }}</p>
+
+<div class="metrics" style="margin-bottom:24px;">
+  <div class="metric-card">
+    <div class="num green">{{ compliance_pass }}</div>
+    <div class="lbl">{{ t.passed }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num orange">{{ compliance_partial }}</div>
+    <div class="lbl">{{ t.partial_warning }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num red">{{ compliance_fail }}</div>
+    <div class="lbl">{{ t.not_passed }}</div>
+  </div>
+</div>
+
+<div class="env-card">
+  <table class="email-table">
+    <tr><th>{{ t.cis_id }}</th>{% if show_nist %}<th>NIST CSF</th>{% endif %}{% if show_iso %}<th>ISO 27001</th>{% endif %}<th>{{ t.control }}</th><th>{{ t.category }}</th><th>{{ t.status }}</th><th>{{ t.details }}</th></tr>
+    {% for c in compliance %}
+    <tr>
+      <td style="font-family:monospace;font-weight:600;">{{ c.cis_id }}</td>
+      {% if show_nist %}<td style="font-family:monospace;font-size:11px;color:var(--muted);">{{ c.nist_id | default('') }}</td>{% endif %}
+      {% if show_iso %}<td style="font-family:monospace;font-size:11px;color:var(--muted);">{{ c.iso_id | default('') }}</td>{% endif %}
+      <td>{{ c.title }}</td>
+      <td style="font-size:11px;color:var(--muted);">{{ c.category }}</td>
+      <td>
+        {% if c.status == 'pass' %}<span class="status-pill ok">{{ t.passed }}</span>
+        {% elif c.status == 'partial' %}<span class="status-pill warning">{{ t.partial }}</span>
+        {% elif c.status == 'fail' %}<span class="status-pill critical">{{ t.failed }}</span>
+        {% elif c.status == 'warn' %}<span class="status-pill warning">{{ t.warning }}</span>
+        {% else %}<span class="status-pill" style="background:#dbeafe;color:#1e40af;">{{ t.info }}</span>{% endif %}
+      </td>
+      <td style="font-size:11px;color:var(--muted);">{{ c.detail }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 8. Environment Overview ── -->
+<div class="section-label" style="margin-top:56px;" id="miljo">{{ t.environment_overview }}</div>
+<h2><a href="#miljo" class="section-anchor">{{ t.your_m365_environment }}</a></h2>
+<p class="section-intro">{{ t.env_overview_intro }}</p>
+
+<div class="env-grid">
+  <div class="env-card">
+    <h4>{{ t.users_label }}</h4>
+    {% if users.has_data %}
+    <div class="env-row"><span>{{ t.total_user_count }}</span><span>{{ users.total }}</span></div>
+    <div class="env-row"><span>{{ t.active_users }}</span><span>{{ users.enabled }}</span></div>
+    <div class="env-row"><span>{{ t.disabled_users }}</span><span>{{ users.disabled }}</span></div>
+    <div class="env-row"><span>{{ t.guest_users }}</span><span>{{ users.guests }}</span></div>
+    <div class="env-row"><span>{{ t.hybrid_synced }}</span><span>{{ users.hybrid }}</span></div>
+    {% else %}
+    <div class="env-row"><span>{{ t.total_user_count }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    <div class="env-row"><span>{{ t.active_users }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    <div class="env-row"><span>{{ t.disabled_users }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    <div class="env-row"><span>{{ t.guest_users }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    <div class="env-row"><span>{{ t.hybrid_synced }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    {% endif %}
+  </div>
+
+  <div class="env-card">
+    <h4>{{ t.security_label }}</h4>
+    {% if mfa.has_data %}
+    <div class="env-row"><span>{{ t.mfa_coverage }}</span><span>{{ mfa.pct | round(0) | int }}%</span></div>
+    <div class="env-row"><span>{{ t.users_without_mfa }}</span><span>{{ mfa.no_mfa }}</span></div>
+    {% else %}
+    <div class="env-row"><span>{{ t.mfa_coverage }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    <div class="env-row"><span>{{ t.users_without_mfa }}</span><span style="color:#9ca3af;">{{ t.data_unavailable }}</span></div>
+    {% endif %}
+    <div class="env-row"><span>{{ t.ca_policies_label }}</span><span>{{ ca.enabled }}</span></div>
+    <div class="env-row"><span>{{ t.microsoft_secure_score }}</span>{% if secure_score.has_data %}<span>{{ secure_score.pct | round(0) | int }}%</span>{% else %}<span style="color:#9ca3af;">{{ t.data_unavailable }}</span>{% endif %}</div>
+  </div>
+</div>
+
+{% if spf_dmarc %}
+<div class="env-card">
+  <h4>{{ t.email_security_per_domain }}</h4>
+  <table class="email-table">
+    <tr>
+      <th>{{ t.domain }}</th><th>SPF</th><th>DMARC</th><th>DKIM</th><th>MTA-STS</th>
+    </tr>
+    {% for d in spf_dmarc %}
+    <tr>
+      <td style="font-weight:600;">{{ d.get('domain','') }}</td>
+      <td>
+        {% set s = d.get('spf','') %}
+        {% if 'MISSING' in s or 'CRITICAL' in s %}<span class="status-pill critical">{{ t.missing_label }}</span>
+        {% elif 'WEAK' in s %}<span class="status-pill warning">{{ t.weak_label }}</span>
+        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
+      </td>
+      <td>
+        {% set s = d.get('dmarc','') %}
+        {% if 'MISSING' in s %}<span class="status-pill critical">{{ t.missing_label }}</span>
+        {% elif 'WEAK' in s or 'none' in s %}<span class="status-pill warning">{{ t.weak_label }}</span>
+        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
+      </td>
+      <td>
+        {% set d1 = d.get('dkim1','') %}{% set d2 = d.get('dkim2','') %}
+        {% if 'MISSING' in d1 and 'MISSING' in d2 %}<span class="status-pill critical">{{ t.missing_label }}</span>
+        {% else %}<span class="status-pill ok">{{ t.found_label }}</span>{% endif %}
+      </td>
+      <td>
+        {% set s = d.get('mta_sts','') %}
+        {% if 'MISSING' in s %}<span class="status-pill warning">{{ t.missing_label }}</span>
+        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if licenses %}
+<div class="env-card">
+  <h4>{{ t.licences_label }}</h4>
+  <table class="email-table">
+    <tr><th>{{ t.product }}</th><th>{{ t.used }}</th><th>{{ t.purchased }}</th><th>{{ t.utilisation }}</th></tr>
+    {% for lic in licenses %}
+    <tr>
+      <td>{{ lic.part }}</td>
+      <td>{{ lic.used }}</td>
+      <td>{{ lic.total }}</td>
+      <td>
+        <div class="pbar" style="width:120px;display:inline-block;vertical-align:middle;margin-right:8px;">
+          <div class="pbar-fill {% if lic.pct >= 90 %}red{% elif lic.pct >= 75 %}orange{% else %}green{% endif %}" style="width:{{ [lic.pct,100]|min }}%"></div>
+        </div>
+        {{ lic.pct | round(0) | int }}%
+        {% if lic.warn %}<span class="badge warning" style="margin-left:4px;">{{ t.near_limit }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{# ── License Optimization ────────────────────────────────────────────── #}
+{% if license_optimization is defined and license_optimization %}
+<div class="env-card" style="margin-top:16px;">
+  <h4>{{ t.lo_title }}</h4>
+
+  {% if not license_optimization.has_data %}
+  <p style="color:#888;font-style:italic;">
+    {%- if license_optimization.no_data_reason == 'not_collected' -%}
+      {{ t.lo_not_collected }}
+    {%- else -%}
+      {{ t.lo_no_data }}
+    {%- endif -%}
+  </p>
+  {% elif license_optimization.total_waste_estimate == 0 and not license_optimization.unused_licenses and not license_optimization.over_provisioned and not license_optimization.downgrade_candidates %}
+  <p style="color:#27ae60;">{{ t.lo_no_issues }}</p>
+  {% else %}
+
+  {# Estimated monthly waste banner #}
+  {% if license_optimization.total_waste_estimate > 0 %}
+  <div style="background:#fff3e0;border-left:4px solid #f39c12;padding:12px 16px;margin-bottom:16px;border-radius:4px;">
+    <strong>{{ t.lo_estimated_waste }}:</strong>
+    <span style="font-size:1.3em;font-weight:700;color:#e67e22;margin-left:8px;">
+      {{ "{:,}".format(license_optimization.total_waste_estimate).replace(",", " ") }} {{ t.lo_per_month }}
+    </span>
+  </div>
+  {% endif %}
+
+  {# Unused licenses (inactive users) #}
+  {% if license_optimization.unused_licenses %}
+  <h5 style="margin-top:16px;">{{ t.lo_unused_licenses }}</h5>
+  <table class="email-table">
+    <tr><th>{{ t.lo_user }}</th><th>UPN</th><th>{{ t.lo_inactive }}</th></tr>
+    {% for u in license_optimization.unused_licenses[:15] %}
+    <tr>
+      <td>{{ u.name }}</td>
+      <td style="font-size:0.9em;">{{ u.upn }}</td>
+      <td>{{ u.days_label }}</td>
+    </tr>
+    {% endfor %}
+    {% if license_optimization.unused_licenses | length > 15 %}
+    <tr><td colspan="3" style="text-align:center;color:#888;font-style:italic;">
+      ... +{{ license_optimization.unused_licenses | length - 15 }} {{ t.lo_days }}
+    </td></tr>
+    {% endif %}
+  </table>
+  {% endif %}
+
+  {# Over-provisioned SKUs #}
+  {% if license_optimization.over_provisioned %}
+  <h5 style="margin-top:16px;">{{ t.lo_over_provisioned }}</h5>
+  <table class="email-table">
+    <tr><th>{{ t.lo_sku }}</th><th>{{ t.lo_assigned }}</th><th>{{ t.purchased }}</th><th>{{ t.lo_unused_count }}</th><th>{{ t.lo_waste }}</th></tr>
+    {% for op in license_optimization.over_provisioned %}
+    <tr>
+      <td>{{ op.part }}</td>
+      <td>{{ op.used }}</td>
+      <td>{{ op.total }}</td>
+      <td><span style="color:#e67e22;font-weight:600;">{{ op.unused }}</span></td>
+      <td>{% if op.monthly_waste > 0 %}{{ "{:,}".format(op.monthly_waste).replace(",", " ") }} {{ t.lo_per_month }}{% else %}&mdash;{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {# Optimization suggestions #}
+  {% if license_optimization.optimization_suggestions %}
+  <h5 style="margin-top:16px;">{{ t.lo_suggestions }}</h5>
+  {% for s in license_optimization.optimization_suggestions %}
+  <div style="background:#f8f9fa;border-radius:6px;padding:10px 14px;margin-bottom:8px;border-left:4px solid {% if s.priority == 'high' %}#e74c3c{% elif s.priority == 'medium' %}#f39c12{% else %}#3498db{% endif %};">
+    <strong>{{ s.title }}</strong>
+    {% if s.priority == 'high' %}<span class="badge danger" style="margin-left:6px;">{{ t.lo_priority_high }}</span>
+    {% elif s.priority == 'medium' %}<span class="badge warning" style="margin-left:6px;">{{ t.lo_priority_medium }}</span>
+    {% else %}<span class="badge info" style="margin-left:6px;">{{ t.lo_priority_low }}</span>{% endif %}
+    <div style="margin-top:4px;font-size:0.92em;color:#555;">{{ s.detail }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <p style="font-size:0.85em;color:#999;margin-top:12px;font-style:italic;">{{ t.lo_note_estimates }}</p>
+  {% endif %}
+</div>
+{% endif %}
+
+</div><!-- /page -->
+
+<div class="report-footer">
+  <div style="display:flex;align-items:center;gap:12px;">
+    {% if logo_dark %}<img src="{{ logo_dark }}" alt="SYBR" style="height:28px;">{% endif %}
+    <div>
+      <div class="msp">{{ branding.company_name if branding is defined and branding.company_name else 'SYBR AS' }}</div>
+      <div style="font-size:12px;opacity:0.6;margin-top:2px;">{{ t.report_title_customer }}</div>
+    </div>
+  </div>
+  <div class="meta">
+    <div>{{ customer_name }}</div>
+    <div>{{ report_date_no }}</div>
+    <div style="margin-top:4px;">{{ t.confidential }}</div>
+    <div style="margin-top:2px;font-size:10px;opacity:0.4;">{{ app_version }}</div>
+  </div>
+</div>
+
+<script>
+// Fix anchor navigation when loaded inside an iframe
+document.addEventListener('click', function(e) {
+  var a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  e.preventDefault();
+  var id = a.getAttribute('href').substring(1);
+  var el = document.getElementById(id);
+  if (el) el.scrollIntoView({behavior: 'smooth'});
+});
+</script>
+</body>
+</html>

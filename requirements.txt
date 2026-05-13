@@ -1,0 +1,71 @@
+# Web UI
+fastapi>=0.111.0,<1.0
+uvicorn[standard]>=0.30.0,<1.0
+python-multipart>=0.0.7,<1.0
+
+
+# Microsoft Graph API (httpx-based, no heavy SDK)
+httpx>=0.27.0,<1.0
+msal>=1.28.0,<2.0
+
+# Azure SDK
+azure-identity>=1.16.0,<2.0
+azure-mgmt-compute>=30.3.0,<32.0
+azure-mgmt-network>=25.3.0,<27.0
+azure-mgmt-resource>=23.1.0,<24.0
+azure-mgmt-storage>=21.1.0,<22.0
+azure-mgmt-monitor>=6.0.1,<7.0
+azure-mgmt-advisor>=9.0.0,<10.0
+azure-mgmt-recoveryservices>=2.5.0,<3.0
+azure-mgmt-loganalytics>=13.0.0,<14.0
+azure-mgmt-desktopvirtualization>=1.0.0,<2.0
+azure-mgmt-costmanagement>=4.0.0,<5.0
+azure-mgmt-authorization>=4.0.0,<5.0
+azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0
+six>=1.16.0,<2.0
+
+# Credentials
+keyring>=24.3.0,<26.0
+
+# Cryptography (cert generation, JWT signing via PyJWT[crypto])
+# Bumped floor to 44.x — earlier 42.x is no longer receiving security
+# updates and several transitive deps (PyJWT, weasyprint) require >= 43.
+cryptography>=44.0.0,<46.0
+
+# Reports
+jinja2>=3.1.4,<4.0
+# weasyprint 64+ ships meaningful PDF rendering fixes; keep <67 to dodge
+# the not-yet-released breaking-change line.
+weasyprint>=64.0,<67.0
+
+# SSH (UniFi direct device access)
+asyncssh>=2.14.0,<3.0
+
+# WebSocket proxy (Guacamole reverse proxy)
+websockets>=12.0,<15.0
+
+# Database
+aiosqlite>=0.20.0,<1.0
+
+# Authentication — PyJWT is actively maintained and broadly used (Django,
+# DRF, Authlib upstream). python-jose was dropped; it hasn't had a
+# meaningful release since 2023 and is deprecated in many downstream projects.
+argon2-cffi>=25.1.0,<26.0
+PyJWT[crypto]>=2.9.0,<3.0
+
+# AI Console (optional — app works without it)
+anthropic>=0.40.0,<1.0
+
+# DNS validation
+dnspython>=2.6.0,<3.0
+
+# Pentest / network scanning
+python-nmap>=0.7.1,<1.0
+
+# Utilities
+platformdirs>=4.2.0,<5.0
+pydantic>=2.7.0,<3.0
+
+# Testing
+pytest>=8.0.0,<9.0
+pytest-asyncio>=0.23.0,<1.0

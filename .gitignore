@@ -1,0 +1,42 @@
+# ── Customer / audit data — must never be tracked ────────────────────────
+audit_data/
+audit_config.json
+audit_cert.pfx
+*.pfx
+*.p12
+*.pem
+*.key
+
+# ── Claude Code session data ──────────────────────────────────────────────
+.claude/
+memory/
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+*.log
+
+# ── Local config / secrets ────────────────────────────────────────────────
+.env
+.env.local
+settings.local.json
+local_settings.py

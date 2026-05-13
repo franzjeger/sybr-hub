@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html data-theme="{{ theme }}" lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<title>{{ t.report_title_tech }} — {{ customer_name }}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-drag: none; }
+:root {
+  --bg: #f6f8fa; --card: #ffffff; --border: #d0d7de; --text: #1f2328;
+  --muted: #57606a; --blue: #4d9fb5; --green: #1a7f37; --orange: #d4a017;
+  --red: #d1242f; --purple: #8250df;
+  --brand: #1a3148; --brand2: #1d6387; --accent: #4d9fb5;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+}
+[data-theme="dark"] {
+  --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3;
+  --muted: #8b949e; --blue: #58a6ff; --green: #3fb950; --orange: #d29922;
+  --red: #f85149; --purple: #bc8cff;
+  --brand: #8ec8e8; --brand2: #5ba3c9; --accent: #4d9fb5;
+}
+[data-theme="dark"] h2 { color: #8ec8e8; }
+[data-theme="dark"] .risk-grade.green { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .risk-grade.blue  { background: #1e3a5f; color: #7dd3fc; }
+[data-theme="dark"] .risk-grade.orange{ background: #451a03; color: #fcd34d; }
+[data-theme="dark"] .risk-grade.red   { background: #450a0a; color: #fca5a5; }
+body { font-family: var(--font); font-size: 13px; color: var(--text); background: var(--bg); line-height: 1.5; }
+a { color: var(--blue); }
+
+/* Cover */
+.cover {
+  background: linear-gradient(135deg, #1d6387 0%, #1a3148 100%);
+  color: #e6edf3; height: 297mm; display: flex; flex-direction: column;
+  justify-content: center; align-items: flex-start; padding: 80px;
+  page-break-after: always;
+  position: relative;
+}
+@media screen {
+  .cover { min-height: 100vh; height: auto; }
+}
+.cover-tag { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #4d9fb5; margin-bottom: 24px; }
+.cover h1 { font-size: 42px; font-weight: 700; line-height: 1.1; margin-bottom: 12px; }
+.cover-sub { font-size: 18px; color: #8b949e; margin-bottom: 48px; }
+.cover-meta { border-top: 1px solid #30363d; padding-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; }
+.cover-meta-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #4d9fb5; display: block; margin-bottom: 4px; }
+.cover-meta-item span { font-size: 16px; color: #e6edf3; }
+
+/* Container */
+.container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+/* TOC */
+.toc { background: var(--card); border: 1px solid var(--border); border-left: 4px solid #4d9fb5; border-radius: 8px; padding: 24px 32px; margin-bottom: 40px; }
+.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 16px; border: none; }
+.toc ol { padding-left: 20px; columns: 2; gap: 40px; }
+.toc li { margin-bottom: 6px; font-size: 13px; }
+.toc a { text-decoration: none; color: var(--blue); }
+
+/* Section headings */
+h2 { font-size: 20px; font-weight: 700; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #4d9fb5; display: flex; align-items: center; gap: 10px; color: #1a3148; }
+h3 { font-size: 15px; font-weight: 600; margin: 24px 0 10px; color: var(--text); }
+
+/* Summary bar */
+.summary-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.stat-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
+.stat-box .num { font-size: 32px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.stat-box .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; }
+.stat-box.blue .num { color: #1d6387; }
+.stat-box.green .num { color: var(--green); }
+.stat-box.orange .num { color: var(--orange); }
+.stat-box.red .num { color: var(--red); }
+
+/* Risk badge */
+.risk-bar { display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 24px; }
+.risk-grade { font-size: 48px; font-weight: 900; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
+.risk-grade.green { background: #d1fae5; color: #065f46; }
+.risk-grade.blue  { background: #e0f4f4; color: #1d6387; }
+.risk-grade.orange{ background: #fef3c7; color: #92400e; }
+.risk-grade.red   { background: #fee2e2; color: #991b1b; }
+.risk-info h3 { margin: 0 0 4px; font-size: 16px; }
+.risk-info p  { margin: 0; color: var(--muted); font-size: 12px; }
+.risk-score { margin-left: auto; text-align: right; }
+.risk-score .num { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.risk-score .lbl { font-size: 11px; color: var(--muted); }
+
+/* MFA drill-down */
+.mfa-drilldown {
+  display: none; margin-top: 12px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.mfa-drilldown.open { display: block; }
+.mfa-drilldown table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mfa-drilldown th {
+  text-align: left; padding: 8px 12px; background: var(--bg); font-size: 11px;
+  font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px;
+  border-bottom: 1px solid var(--border);
+}
+.mfa-drilldown td { padding: 6px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.mfa-drilldown tr:last-child td { border-bottom: none; }
+.mfa-drilldown .tag {
+  display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
+}
+.mfa-drilldown .tag-no  { background: #fee2e2; color: var(--red); }
+.mfa-drilldown .tag-yes { background: #d1fae5; color: var(--green); }
+.mfa-toggle {
+  cursor: pointer; font-size: 12px; color: var(--brand2);
+  font-weight: 600; user-select: none; display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 12px;
+}
+.mfa-toggle:hover { text-decoration: underline; }
+.mfa-toggle .arrow { transition: transform 0.2s; font-size: 10px; }
+.mfa-toggle.open .arrow { transform: rotate(90deg); }
+
+/* Alerts */
+.alert { border-radius: 6px; padding: 14px 18px; margin-bottom: 12px; font-size: 13px; }
+.alert strong { display: block; margin-bottom: 6px; }
+.alert.critical { background: #fff1f2; border-left: 4px solid var(--red); }
+.alert.warning  { background: #fffbeb; border-left: 4px solid #f59e0b; }
+.alert.info     { background: #eff6ff; border-left: 4px solid var(--blue); }
+.alert.ok       { background: #f0fdf4; border-left: 4px solid var(--green); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+th { background: #f6f8fa; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid var(--border); }
+td { padding: 8px 12px; border-bottom: 1px solid #eaecef; vertical-align: top; }
+tr:hover td { background: #f6f8fa; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.tag.ok       { background: #d1fae5; color: #065f46; }
+.tag.warning  { background: #fef3c7; color: #92400e; }
+.tag.critical { background: #fee2e2; color: #991b1b; }
+.tag.skip     { background: #f3f4f6; color: #6b7280; }
+.tag.fail     { background: #fee2e2; color: #991b1b; }
+.tag.blue     { background: #e0f4f4; color: #1d6387; }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.metric { text-align: center; padding: 12px; }
+.metric .num { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.metric .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+
+/* Progress bar */
+.pbar-wrap { background: #eaecef; border-radius: 4px; height: 8px; overflow: hidden; margin: 4px 0; }
+.pbar-fill { height: 100%; border-radius: 4px; }
+.pbar-fill.green  { background: var(--green); }
+.pbar-fill.orange { background: var(--orange); }
+.pbar-fill.red    { background: var(--red); }
+
+/* Recommendation table */
+.rec-priority { width: 90px; }
+.rec-effort { width: 90px; font-size: 11px; color: var(--muted); }
+
+/* Search bar */
+.search-bar {
+  position: sticky; top: 0; z-index: 10; background: var(--bg);
+  padding: 12px 0; margin-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.search-input {
+  width: 100%; padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 14px; font-family: var(--font); background: var(--card); color: var(--text);
+  outline: none; transition: border-color 0.15s;
+}
+.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(93,189,190,0.15); }
+.search-count { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.search-results {
+  margin-top: 8px; max-height: 320px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  display: none;
+}
+.search-results.visible { display: block; }
+.search-result-item {
+  padding: 10px 16px; border-bottom: 1px solid #eaecef; cursor: pointer;
+  font-size: 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: #f6f8fa; }
+.search-result-title { font-weight: 600; font-size: 13px; color: var(--blue); }
+.search-result-preview { color: var(--muted); font-family: var(--mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-result-preview mark { background: #fff8c5; color: var(--text); border-radius: 2px; }
+.highlight { background: #fff8c5; border-radius: 2px; }
+
+/* Data section (collapsible) */
+.data-section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.data-header {
+  padding: 12px 20px; background: #f6f8fa; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600;
+  cursor: pointer; user-select: none;
+}
+.data-header:hover { background: #e0f4f4; }
+.data-header .fn { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: auto; }
+.data-header .toggle { font-size: 10px; color: var(--muted); transition: transform 0.2s; }
+.data-header.collapsed .toggle { transform: rotate(-90deg); }
+.data-body {
+  padding: 16px 20px; font-size: 12px; line-height: 1.6; white-space: pre-wrap;
+  word-break: break-word; font-family: var(--mono); color: var(--text); background: white;
+  max-height: 600px; overflow-y: auto;
+}
+.data-body.collapsed { display: none; }
+.search-hidden { display: none; }
+
+/* Footer */
+.footer { border-top: 2px solid #4d9fb5; padding: 24px 0; color: var(--muted); font-size: 11px; display: flex; justify-content: space-between; margin-top: 48px; }
+
+/* PDF / Print — prevent ALL content overflow on A4
+   A4 = 210mm wide, margins 18mm each side = 174mm printable = ~657px. */
+*, *::before, *::after { overflow-wrap: break-word; word-wrap: break-word; box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
+.container { max-width: 100%; overflow: hidden; padding: 20px 0; }
+table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+td, th { overflow-wrap: break-word; word-break: break-word; overflow: hidden; }
+img, svg { max-width: 100%; height: auto; }
+.summary-bar { max-width: 100%; overflow: hidden; }
+.stat-box { overflow: hidden; }
+.data-body { overflow-x: hidden; max-width: 100%; white-space: pre-wrap; word-break: break-word; }
+.data-section { max-width: 100%; overflow: hidden; }
+.mfa-drilldown { max-width: 100%; overflow: hidden; }
+.mfa-drilldown table { table-layout: fixed; }
+.alert { max-width: 100%; overflow: hidden; }
+.risk-bar { max-width: 100%; overflow: hidden; }
+.toc { max-width: 100%; overflow: hidden; }
+pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
+div[style*="display:flex"] { max-width: 100%; overflow: hidden; }
+div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
+
+@media print {
+  body { font-size: 11px; }
+  .cover { height: 297mm; min-height: 0; page-break-after: always; }
+  .toc { page-break-after: always; }
+  h2 { page-break-after: avoid; }
+  .data-body { max-height: none; }
+  .card { page-break-inside: avoid; }
+  .alert { page-break-inside: avoid; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  .tab-nav { display: none !important; }
+  .search-bar { display: none !important; }
+  .tab-panel { display: block !important; }
+  .data-body.collapsed { display: block !important; }
+  .data-header .toggle { display: none; }
+  .mfa-toggle { display: none; }
+  .mfa-drilldown { display: block !important; }
+  .rec-expand { display: none; }
+  .rec-sub-items { display: block !important; max-height: none; }
+}
+
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm 18mm;
+  {% if theme == "dark" %}background: #0d1117;{% endif %}
+  @bottom-center {
+    content: "{{ t.page_of }} " counter(page) " {{ t.of }} " counter(pages);
+    font-size: 8px; color: {% if theme == "dark" %}#6b7280{% else %}#9ca3af{% endif %}; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  @bottom-left {
+    content: "{{ branding.company_name if branding is defined and branding.company_name else 'SYBR AS' }} — {{ t.report_title_tech }}";
+    font-size: 7px; color: {% if theme == "dark" %}#4b5563{% else %}#d1d5db{% endif %}; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  @bottom-right {
+    content: "{{ t.confidential }}";
+    font-size: 7px; color: {% if theme == "dark" %}#4b5563{% else %}#d1d5db{% endif %}; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+}
+
+@page :first {
+  margin: 0;
+  {% if theme == "dark" %}background: #0d1117;{% endif %}
+  @bottom-center { content: none; }
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Cover ── -->
+<div class="cover">
+  <div class="cover-tag">{{ t.report_title_tech }} &middot; {{ t.confidential }}</div>
+  {% if logo_light %}<img src="{{ logo_light }}" alt="SYBR" style="height:48px;margin-bottom:24px;opacity:0.8;">{% endif %}
+  <h1>M365 + Azure<br>Full Security Audit</h1>
+  <div class="cover-sub">{{ t.cover_tech_subtitle }}</div>
+  <div class="cover-meta">
+    <div class="cover-meta-item"><label>{{ t.customer }}</label><span>{{ customer_name }}</span></div>
+    <div class="cover-meta-item"><label>{{ t.domain }}</label><span>{{ org_domain }}</span></div>
+    <div class="cover-meta-item"><label>{{ t.report_date }}</label><span>{{ report_date }}</span></div>
+    <div class="cover-meta-item"><label>{{ t.generated_by }}</label><span>{{ branding.company_name if branding is defined and branding.company_name else 'SYBR AS' }} &mdash; MSP Toolkit {{ app_version }}</span></div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ── TOC ── -->
+<div class="toc">
+  <h2>{{ t.toc_title }}</h2>
+  <ol>
+    <li><a href="#oversikt">{{ t.security_summary }}</a></li>
+    <li><a href="#anbefalinger">{{ t.recommendation_heading }}</a></li>
+    <li><a href="#seksjonstatus">{{ t.audit_section_status }}</a></li>
+    <li><a href="#brukere">{{ t.users_and_mfa }}</a></li>
+    <li><a href="#adminroller">{{ t.admin_roles_pim }}</a></li>
+    <li><a href="#grupper">{{ t.groups_heading }}</a></li>
+    <li><a href="#lisenser">{{ t.license_overview }}</a></li>
+    <li><a href="#ca">{{ t.conditional_access }}</a></li>
+    <li><a href="#epost">{{ t.email_security }}</a></li>
+    <li><a href="#exchange">{{ t.exchange_online }}</a></li>
+    <li><a href="#securescor">{{ t.ms_secure_score }}</a></li>
+    <li><a href="#enheter">{{ t.devices_intune }}</a></li>
+    <li><a href="#sharepoint">{{ t.sharepoint_teams }}</a></li>
+    <li><a href="#apper">{{ t.apps_oauth }}</a></li>
+    <li><a href="#kritiske">{{ t.critical_findings }}</a></li>
+    <li><a href="#rawdata">{{ t.raw_data }}</a></li>
+  </ol>
+</div>
+
+<!-- ── Search bar ── -->
+<div class="search-bar">
+  <input class="search-input" id="searchInput" type="text" placeholder="{{ t.search_placeholder }}" oninput="handleSearch(this.value)">
+  <div class="search-count" id="searchCount"></div>
+  <div class="search-results" id="searchResults"></div>
+</div>
+
+<!-- ── Tab navigation ── -->
+<style>
+.tab-nav { display: flex; gap: 4px; margin-bottom: 24px; flex-wrap: wrap; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+.tab-btn {
+  padding: 8px 16px; border: 1px solid transparent; border-radius: 6px 6px 0 0;
+  background: none; color: var(--muted); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.tab-btn:hover { background: var(--card); color: var(--text); }
+.tab-btn.active { background: var(--card); color: #4d9fb5; border-color: var(--border); border-bottom-color: #4d9fb5; font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+</style>
+
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('overview')">{{ t.tab_overview }}</button>
+  <button class="tab-btn" onclick="switchTab('recommendations')">{{ t.tab_recommendations }}</button>
+  <button class="tab-btn" onclick="switchTab('identity')">{{ t.tab_identity }}</button>
+  <button class="tab-btn" onclick="switchTab('devices')">{{ t.tab_devices }}</button>
+  <button class="tab-btn" onclick="switchTab('email')">{{ t.tab_email }}</button>
+  <button class="tab-btn" onclick="switchTab('apps')">{{ t.tab_apps }}</button>
+  <button class="tab-btn" onclick="switchTab('azure')">{{ t.tab_azure }}</button>
+  <button class="tab-btn" onclick="switchTab('findings')">{{ t.tab_findings }}</button>
+  <button class="tab-btn" onclick="switchTab('rawdata')">{{ t.tab_rawdata }}</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-overview">
+<!-- ── 1. Security Overview ── -->
+<a name="oversikt"></a><h2 id="oversikt">{{ t.security_summary }}</h2>
+
+<div class="risk-bar">
+  <div class="risk-grade {{ risk.color }}">{{ risk.grade }}</div>
+  <div class="risk-info">
+    <h3>{{ t.security_posture }}: {{ risk.level }}</h3>
+    <p>{{ t.risk_based_on_desc }}</p>
+  </div>
+  <div class="risk-score">
+    <div class="num" style="color:var(--{% if risk.color == 'green' %}green{% elif risk.color == 'blue' %}blue{% elif risk.color == 'orange' %}orange{% else %}red{% endif %})">{{ risk.score }}</div>
+    <div class="lbl">{{ t.points_of_100 }}</div>
+  </div>
+</div>
+
+<div class="summary-bar">
+  <div class="stat-box blue">
+    <div class="num">{{ total_sections }}</div>
+    <div class="lbl">{{ t.sections_run }}</div>
+  </div>
+  <div class="stat-box green">
+    <div class="num">{{ done_sections }}</div>
+    <div class="lbl">{{ t.completed }}</div>
+  </div>
+  <div class="stat-box orange">
+    <div class="num">{{ all_warns | length }}</div>
+    <div class="lbl">{{ t.warnings_label }}</div>
+  </div>
+  <div class="stat-box {% if failed_sections > 0 %}red{% else %}green{% endif %}">
+    <div class="num">{{ failed_sections }}</div>
+    <div class="lbl">{{ t.failed_label }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">{{ t.key_metrics }}</div>
+  <div class="card-grid">
+    <div class="metric">
+      <div class="num" style="color:{% if mfa.pct >= 95 %}var(--green){% elif mfa.pct >= 80 %}var(--orange){% else %}var(--red){% endif %}">{{ mfa.pct | round(0) | int }}%</div>
+      <div class="lbl">{{ t.mfa_coverage }}</div>
+      <div class="pbar-wrap" style="margin-top:6px;">
+        <div class="pbar-fill {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}" style="width:{{ mfa.pct }}%"></div>
+      </div>
+    </div>
+    <div class="metric">
+      <div class="num" style="color:{% if secure_score.pct >= 75 %}var(--green){% elif secure_score.pct >= 50 %}var(--orange){% else %}var(--red){% endif %}">{{ secure_score.pct | round(0) | int }}%</div>
+      <div class="lbl">{{ t.secure_score }}</div>
+      <div class="pbar-wrap" style="margin-top:6px;">
+        <div class="pbar-fill {% if secure_score.pct >= 75 %}green{% elif secure_score.pct >= 50 %}orange{% else %}red{% endif %}" style="width:{{ secure_score.pct }}%"></div>
+      </div>
+    </div>
+    <div class="metric">
+      <div class="num" style="color:var(--blue)">{{ users.total }}</div>
+      <div class="lbl">{{ t.total_user_count }}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">{{ t('active_n_disabled', enabled=users.enabled, disabled=users.disabled) }}</div>
+    </div>
+  </div>
+</div>
+
+{% if compliance %}
+<h3 style="margin-top:24px;">{{ t.cis_benchmark }}</h3>
+<div class="metric-row" style="margin-bottom:12px;">
+  <div class="metric" style="flex:1;text-align:center;">
+    <div class="num" style="color:var(--green)">{{ compliance_pass }}</div>
+    <div class="lbl">{{ t.passed }}</div>
+  </div>
+  <div class="metric" style="flex:1;text-align:center;">
+    <div class="num" style="color:var(--orange)">{{ compliance_partial }}</div>
+    <div class="lbl">{{ t.partial_warning }}</div>
+  </div>
+  <div class="metric" style="flex:1;text-align:center;">
+    <div class="num" style="color:var(--red)">{{ compliance_fail }}</div>
+    <div class="lbl">{{ t.not_passed }}</div>
+  </div>
+</div>
+<table class="data-table" style="font-size:12px;">
+  <tr><th>CIS ID</th>{% if show_nist %}<th>NIST CSF</th>{% endif %}{% if show_iso %}<th>ISO 27001</th>{% endif %}<th>{{ t.control }}</th><th>{{ t.category }}</th><th>{{ t.status }}</th><th>{{ t.details }}</th></tr>
+  {% for c in compliance %}
+  <tr>
+    <td style="font-family:monospace;font-weight:600;">{{ c.cis_id }}</td>
+    {% if show_nist %}<td style="font-family:monospace;color:var(--muted);">{{ c.nist_id | default('') }}</td>{% endif %}
+    {% if show_iso %}<td style="font-family:monospace;color:var(--muted);">{{ c.iso_id | default('') }}</td>{% endif %}
+    <td>{{ c.title }}</td>
+    <td style="color:var(--muted);">{{ c.category }}</td>
+    <td>
+      {% if c.status == 'pass' %}<span style="color:var(--green);font-weight:700;">{{ t.passed }}</span>
+      {% elif c.status == 'partial' %}<span style="color:var(--orange);font-weight:700;">{{ t.partial }}</span>
+      {% elif c.status == 'fail' %}<span style="color:var(--red);font-weight:700;">{{ t.not_passed }}</span>
+      {% elif c.status == 'warn' %}<span style="color:var(--orange);font-weight:700;">{{ t.warning }}</span>
+      {% else %}<span style="color:var(--blue);font-weight:700;">{{ t.info }}</span>{% endif %}
+    </td>
+    <td style="color:var(--muted);">{{ c.detail }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+</div><!-- /tab-overview -->
+
+<div class="tab-panel" id="tab-recommendations">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 2. Recommendations ── -->
+<a name="anbefalinger"></a><h2 id="anbefalinger">{{ t.recommendation_heading }}</h2>
+{% if recommendations %}
+<table>
+  <tr>
+    <th class="rec-priority">{{ t.priority }}</th>
+    <th>{{ t.recommendation_label }}</th>
+    <th>{{ t.detail_header }}</th>
+    <th class="rec-effort">{{ t.effort }}</th>
+  </tr>
+  {% for r in recommendations %}
+  <tr>
+    <td>
+      {% if r.priority == 'critical' %}<span class="tag critical">{{ t.critical }}</span>
+      {% elif r.priority == 'high' %}<span class="tag warning">{{ t.high }}</span>
+      {% else %}<span class="tag blue">{{ t.medium }}</span>{% endif %}
+    </td>
+    <td style="font-weight:600;">{{ r.title }}</td>
+    <td style="color:var(--muted);">
+      {{ r.detail }}{% if r.doc_url is defined and r.doc_url %} <a href="{{ r.doc_url }}" target="_blank" rel="noopener" style="font-size:11px;color:var(--blue);white-space:nowrap;">Microsoft Docs &rarr;</a>{% endif %}
+      {% if r.sub_items is defined and r.sub_items %}
+      <div style="margin-top:6px;">
+        <span style="cursor:pointer;color:var(--blue);font-size:11px;font-weight:600;" onclick="var el=this.nextElementSibling;el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'&#x25B6; {{ t('show_n_details', count=r.sub_items|length) }}':'&#x25BC; {{ t.hide_details }}'">&#x25B6; {{ t('show_n_details', count=r.sub_items|length) }}</span>
+        <div style="display:none;margin-top:6px;padding:8px 12px;background:#f6f8fa;border:1px solid var(--border);border-radius:6px;font-size:11px;max-height:250px;overflow-y:auto;">
+          {% for item in r.sub_items %}
+          <div style="padding:3px 0;border-bottom:1px solid #eaecef;">{{ item }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </td>
+    <td class="rec-effort">{{ r.effort }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="alert ok"><strong>&#x2713; {{ t.no_critical_recs }}</strong>{{ t.no_immediate_actions }}</div>
+{% endif %}
+
+</div><!-- /tab-recommendations -->
+
+<div class="tab-panel" id="tab-identity">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 3. Section Status ── -->
+<a name="seksjonstatus"></a><h2 id="seksjonstatus">{{ t.audit_section_status }}</h2>
+<table>
+  <tr><th>{{ t.status }}</th><th>{{ t.section }}</th><th>{{ t.files }}</th><th>{{ t.warnings_label }}</th><th>{{ t.errors }}</th></tr>
+  {% for r in results %}
+  <tr>
+    <td>
+      {% if r.status == SectionStatus.DONE %}<span class="tag ok">&#x2713; {{ t.done }}</span>
+      {% elif r.status == SectionStatus.FAILED %}<span class="tag fail">&#x2717; {{ t.error_status }}</span>
+      {% elif r.status == SectionStatus.SKIPPED %}<span class="tag skip">&#x2192; {{ t.skipped }}</span>
+      {% else %}<span class="tag skip">?</span>{% endif %}
+    </td>
+    <td style="font-weight:500;">{{ r.name }}</td>
+    <td style="font-family:var(--mono);color:var(--muted);">{{ r.files | length }}</td>
+    <td>{% for w in r.warns %}<div style="font-size:11px;color:var(--orange);">&#x26A0; {{ w }}</div>{% endfor %}</td>
+    <td style="font-size:11px;color:var(--red);">{% if r.error %}{{ r.error[:100] }}{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 4. Users & MFA ── -->
+<a name="brukere"></a><h2 id="brukere">{{ t.users_and_mfa }}</h2>
+<div class="summary-bar" style="grid-template-columns:repeat(5,1fr);">
+  <div class="stat-box blue"><div class="num">{{ users.total }}</div><div class="lbl">{{ t.total }}</div></div>
+  <div class="stat-box green"><div class="num">{{ users.enabled }}</div><div class="lbl">{{ t.active }}</div></div>
+  <div class="stat-box {% if users.disabled > 0 %}orange{% else %}green{% endif %}"><div class="num">{{ users.disabled }}</div><div class="lbl">{{ t.disabled }}</div></div>
+  <div class="stat-box {% if users.guests > 0 %}orange{% else %}green{% endif %}"><div class="num">{{ users.guests }}</div><div class="lbl">{{ t.guests }}</div></div>
+  <div class="stat-box {% if mfa.no_mfa > 0 %}red{% else %}green{% endif %}" {% if mfa.no_mfa > 0 %}style="cursor:pointer;" onclick="document.getElementById('mfa-detail-tech').classList.add('open');document.querySelector('.mfa-toggle').classList.add('open');" title="{{ t.click_to_see_unprotected }}"{% endif %}><div class="num">{{ mfa.no_mfa }}</div><div class="lbl">{{ t.without_mfa }}</div></div>
+</div>
+
+{% if mfa.no_mfa > 0 %}
+{% set unprotected = mfa.users | selectattr("protected", "false") | list %}
+<div class="alert critical">
+  <strong>&#x26A0; {{ t('mfa_missing_alert', count=mfa.no_mfa) }}</strong>
+  {% if unprotected %}
+  <span class="mfa-toggle" onclick="this.classList.toggle('open');document.getElementById('mfa-detail-tech').classList.toggle('open')">
+    <span class="arrow">&#x25B6;</span> {{ t.show_details }}
+  </span>
+  {% endif %}
+</div>
+{% if unprotected %}
+<div class="mfa-drilldown" id="mfa-detail-tech">
+  <table>
+    <thead>
+      <tr><th>{{ t.user }}</th><th>{{ t.email_upn }}</th><th>{{ t.mfa_label }}</th><th>{{ t.ca_coverage }}</th><th>{{ t.methods }}</th><th>{{ t.reason }}</th></tr>
+    </thead>
+    <tbody>
+    {% for u in unprotected %}
+      <tr>
+        <td><strong>{{ u.name }}</strong></td>
+        <td style="font-family:var(--mono);font-size:11px;">{{ u.upn }}</td>
+        <td><span class="tag tag-no">{{ t.no_word }}</span></td>
+        <td><span class="tag tag-no">{% if u.ca_excluded %}{{ t.excl_short }}{% else %}{{ t.no_word }}{% endif %}</span></td>
+        <td style="font-size:11px;">{{ u.methods if u.methods else '—' }}</td>
+        <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{{ t.excluded_from_ca }}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% else %}
+<div class="alert ok"><strong>&#x2713; {{ t.mfa_all_registered }}</strong></div>
+{% endif %}
+
+<div class="data-section">
+  <div class="data-header"><span>{{ t.mfa_status_per_user }}</span><span class="fn">04_mfa_methods.txt</span></div>
+  <div class="data-body">{{ file_contents.get('04_mfa_methods.txt', t.no_data + '.') }}</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 4b. Sign-in Risk Analysis ── -->
+{% if signin_risk and signin_risk.has_data %}
+<h2 id="paalogging">{{ t.signin_analysis }}</h2>
+<div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
+  <div class="stat-box blue"><div class="num">{{ signin_risk.total_signins }}</div><div class="lbl">{{ t.total_signins }}</div></div>
+  <div class="stat-box {% if signin_risk.total_failures > 100 %}orange{% else %}green{% endif %}"><div class="num">{{ signin_risk.total_failures }}</div><div class="lbl">{{ t.failed_attempts }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ signin_risk.unique_users }}</div><div class="lbl">{{ t.unique_users }}</div></div>
+</div>
+
+{% if signin_risk.brute_force_suspects %}
+<div class="alert critical">
+  <strong>&#x26A0; {{ t.brute_force_warning }}</strong>
+  {{ t.brute_force_desc }}
+  {{ signin_risk.brute_force_suspects | join(', ') }}
+</div>
+{% endif %}
+
+{% if signin_risk.top_failure_users %}
+<h3>{{ t.top_failure_users }}</h3>
+<table>
+  <tr><th>{{ t.user }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+  {% for u in signin_risk.top_failure_users %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:12px;">{{ u.user }}</td>
+    <td style="text-align:right;font-weight:600;{% if u.count >= 50 %}color:var(--red);{% elif u.count >= 20 %}color:var(--orange);{% endif %}">{{ u.count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if signin_risk.top_failure_reasons %}
+<h3>{{ t.common_failure_reasons }}</h3>
+<table>
+  <tr><th>{{ t.reason }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+  {% for r in signin_risk.top_failure_reasons %}
+  <tr>
+    <td style="font-size:12px;">{{ r.reason }}</td>
+    <td style="text-align:right;font-weight:600;">{{ r.count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 5. Admin Roles & PIM ── -->
+<a name="adminroller"></a><h2 id="adminroller">{{ t.admin_roles_pim }}</h2>
+
+{% if admin_roles and admin_roles.total_assignments > 0 %}
+<div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
+  <div class="stat-box {% if admin_roles.global_admin_count > 4 %}red{% elif admin_roles.global_admin_count > 2 %}orange{% else %}green{% endif %}">
+    <div class="num">{{ admin_roles.global_admin_count }}</div><div class="lbl">{{ t.global_admins }}</div>
+  </div>
+  <div class="stat-box blue"><div class="num">{{ admin_roles.total_assignments }}</div><div class="lbl">{{ t.total_role_assignments }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ admin_roles.unique_roles }}</div><div class="lbl">{{ t.unique_roles }}</div></div>
+</div>
+
+{% if admin_roles.global_admin_count > 4 %}
+<div class="alert warning"><strong>&#x26A0; {{ t('too_many_global_admins', count=admin_roles.global_admin_count) }}</strong>{{ t.too_many_global_admins_desc }}</div>
+{% endif %}
+
+<table>
+  <tr><th>{{ t.role }}</th><th>{{ t.user }}</th><th>{{ t.email_header }}</th></tr>
+  {% for r in admin_roles.roles %}
+  <tr>
+    <td style="font-weight:500;">{{ r.role }}</td>
+    <td>{{ r.user }}</td>
+    <td style="font-family:var(--mono);font-size:11px;">{{ r.email }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="alert info"><strong>{{ t.no_admin_roles }}</strong></div>
+{% endif %}
+
+{% if emergency_access and emergency_access.strip() %}
+<h3>{{ t.emergency_access_heading }}</h3>
+<div class="data-section">
+  <div class="data-header"><span>{{ t.emergency_access_analysis }}</span><span class="fn">07c_emergency_access_check.txt</span></div>
+  <div class="data-body">{{ emergency_access }}</div>
+</div>
+{% endif %}
+
+{% if pim_assignments and pim_assignments.strip() %}
+<h3>{{ t.pim_assignments_heading }}</h3>
+<div class="data-section">
+  <div class="data-header"><span>PIM Eligible Assignments</span><span class="fn">07b_pim_eligible_assignments.txt</span></div>
+  <div class="data-body">{{ pim_assignments }}</div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 6. Groups ── -->
+<a name="grupper"></a><h2 id="grupper">{{ t.groups_heading }}</h2>
+
+{% if groups and groups.total > 0 %}
+<div class="summary-bar" style="grid-template-columns:repeat(4,1fr);">
+  <div class="stat-box blue"><div class="num">{{ groups.total }}</div><div class="lbl">{{ t.total }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ groups.dynamic_groups }}</div><div class="lbl">{{ t.dynamic_label }}</div></div>
+  <div class="stat-box {% if groups.empty_groups > 5 %}orange{% else %}green{% endif %}"><div class="num">{{ groups.empty_groups }}</div><div class="lbl">{{ t.empty_label }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ groups.by_type | length }}</div><div class="lbl">{{ t.group_types_label }}</div></div>
+</div>
+
+<table>
+  <tr><th>{{ t.group_name }}</th><th>{{ t.type }}</th><th style="text-align:right;">{{ t.members }}</th></tr>
+  {% for g in groups.groups %}
+  <tr>
+    <td style="font-weight:500;">{{ g.name }}</td>
+    <td><span class="tag {% if 'Dynamic' in g.type %}blue{% else %}ok{% endif %}">{{ g.type }}</span></td>
+    <td style="text-align:right;font-family:var(--mono);">{{ g.members }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="alert info"><strong>{{ t.no_group_data }}</strong></div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 7. Licenses ── -->
+<a name="lisenser"></a><h2 id="lisenser">{{ t.license_overview }}</h2>
+{% if licenses %}
+<table>
+  <tr><th>{{ t.sku_product }}</th><th style="text-align:right;">{{ t.used }}</th><th style="text-align:right;">{{ t.total }}</th><th style="width:120px;">{{ t.utilization }}</th><th>{{ t.status }}</th></tr>
+  {% for lic in licenses %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:12px;">{{ lic.part }}</td>
+    <td style="text-align:right;font-family:var(--mono);">{{ lic.used }}</td>
+    <td style="text-align:right;font-family:var(--mono);">{{ lic.total }}</td>
+    <td>
+      <div class="pbar-wrap"><div class="pbar-fill {% if lic.pct >= 90 %}red{% elif lic.pct >= 75 %}orange{% else %}green{% endif %}" style="width:{{ [lic.pct, 100] | min }}%"></div></div>
+      <span style="font-size:11px;color:var(--muted);">{{ lic.pct | round(0) | int }}%</span>
+    </td>
+    <td>{% if lic.warn %}<span class="tag warning">{{ t.near_limit }}</span>{% else %}<span class="tag ok">{{ t.ok }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="data-section">
+  <div class="data-header"><span>{{ t.license_data }}</span><span class="fn">02_licenses.txt</span></div>
+  <div class="data-body">{{ file_contents.get('02_licenses.txt', t.no_data + '.') }}</div>
+</div>
+{% endif %}
+
+{# ── License Optimization (tech report) ──────────────────────────────── #}
+{% if license_optimization is defined and license_optimization and license_optimization.has_data %}
+<h3>{{ t.lo_title }}</h3>
+{% if license_optimization.total_waste_estimate > 0 %}
+<div class="summary-bar" style="grid-template-columns:1fr;">
+  <div class="stat-box orange">
+    <div class="num">{{ "{:,}".format(license_optimization.total_waste_estimate).replace(",", " ") }} {{ t.lo_per_month }}</div>
+    <div class="lbl">{{ t.lo_estimated_waste }}</div>
+  </div>
+</div>
+{% endif %}
+{% if license_optimization.optimization_suggestions %}
+<table class="audit-table">
+  <tr><th>{{ t.lo_suggestions }}</th><th>Priority</th><th>{{ t.lo_savings }}</th></tr>
+  {% for s in license_optimization.optimization_suggestions %}
+  <tr>
+    <td><strong>{{ s.title }}</strong><br><span style="font-size:0.9em;color:#666;">{{ s.detail }}</span></td>
+    <td><span class="badge {% if s.priority == 'high' %}danger{% elif s.priority == 'medium' %}warning{% else %}info{% endif %}">{{ s.priority | upper }}</span></td>
+    <td>{% if s.savings > 0 %}{{ "{:,}".format(s.savings).replace(",", " ") }} {{ t.lo_per_month }}{% else %}&mdash;{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% if license_optimization.unused_licenses %}
+<details>
+  <summary>{{ t.lo_unused_licenses }} ({{ license_optimization.unused_licenses | length }})</summary>
+  <table class="audit-table">
+    <tr><th>{{ t.lo_user }}</th><th>UPN</th><th>{{ t.lo_inactive }}</th></tr>
+    {% for u in license_optimization.unused_licenses %}
+    <tr><td>{{ u.name }}</td><td>{{ u.upn }}</td><td>{{ u.days_label }}</td></tr>
+    {% endfor %}
+  </table>
+</details>
+{% endif %}
+<p style="font-size:0.85em;color:#999;margin-top:8px;font-style:italic;">{{ t.lo_note_estimates }}</p>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 8. Conditional Access ── -->
+<a name="ca"></a><h2 id="ca">{{ t.conditional_access }}</h2>
+<div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
+  <div class="stat-box green"><div class="num">{{ ca.enabled }}</div><div class="lbl">{{ t.active_policies_label }}</div></div>
+  <div class="stat-box orange"><div class="num">{{ ca.report_only }}</div><div class="lbl">{{ t.report_mode }}</div></div>
+  <div class="stat-box {% if ca.disabled > 0 %}orange{% else %}green{% endif %}"><div class="num">{{ ca.disabled }}</div><div class="lbl">{{ t.disabled }}</div></div>
+</div>
+
+<div class="data-section">
+  <div class="data-header"><span>{{ t.ca_policies_heading }}</span><span class="fn">08_conditional_access.txt</span></div>
+  <div class="data-body">{{ file_contents.get('08_conditional_access.txt', t.no_data + '.') }}</div>
+</div>
+
+</div><!-- /tab-identity -->
+
+<div class="tab-panel" id="tab-email">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 9. Email Security ── -->
+<a name="epost"></a><h2 id="epost">{{ t.email_security }}</h2>
+{% if spf_dmarc %}
+<table>
+  <tr><th>{{ t.domain }}</th><th>SPF</th><th>DMARC</th><th>DKIM sel1</th><th>DKIM sel2</th><th>MTA-STS</th></tr>
+  {% for d in spf_dmarc %}
+  <tr>
+    <td style="font-weight:600;">{{ d.get('domain','') }}</td>
+    <td>
+      {% set s = d.get('spf','') %}
+      <span class="tag {{ _severity(s) }}">{{ s.split('(')[0].strip() if '(' in s else s[:20] }}</span>
+    </td>
+    <td>
+      {% set s = d.get('dmarc','') %}
+      <span class="tag {{ _severity(s) }}">{{ s.split('(')[0].strip() if '(' in s else s[:20] }}</span>
+    </td>
+    <td style="font-size:11px;">{{ d.get('dkim1','')[:35] }}</td>
+    <td style="font-size:11px;">{{ d.get('dkim2','')[:35] }}</td>
+    <td>
+      {% set s = d.get('mta_sts','') %}
+      <span class="tag {% if 'MISSING' in s %}critical{% else %}ok{% endif %}">{{ s[:15] }}</span>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Exchange Online ── -->
+{% if exchange and exchange.has_data %}
+<a name="exchange"></a><h2 id="exchange">{{ t.exchange_online }}</h2>
+
+<div class="summary-bar" style="grid-template-columns:repeat(4,1fr);">
+  <div class="stat-box blue"><div class="num">{{ exchange.mailbox_total }}</div><div class="lbl">{{ t.mailboxes }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ exchange.transport_rules }}</div><div class="lbl">{{ t.transport_rules }}</div></div>
+  <div class="stat-box {% if exchange.forwarding_count > 0 %}orange{% else %}green{% endif %}"><div class="num">{{ exchange.forwarding_count }}</div><div class="lbl">{{ t.forwarding }}</div></div>
+  <div class="stat-box {% if exchange.external_forwarding %}red{% else %}green{% endif %}"><div class="num">{% if exchange.external_forwarding %}!{% else %}0{% endif %}</div><div class="lbl">{{ t.external_fwd_short }}</div></div>
+</div>
+
+{% if exchange.external_forwarding %}
+<div class="alert critical"><strong>&#x1F534; {{ t.external_fwd_detected }}</strong>{{ t.external_fwd_desc }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-title">{{ t.mailbox_overview }}</div>
+  <table>
+    <tr><th>{{ t.type }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+    <tr><td>{{ t.user_mailboxes }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.mailbox_user }}</td></tr>
+    <tr><td>{{ t.shared_mailboxes }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.mailbox_shared }}</td></tr>
+    <tr><td style="font-weight:600;">{{ t.total }}</td><td style="text-align:right;font-family:var(--mono);font-weight:600;">{{ exchange.mailbox_total }}</td></tr>
+  </table>
+</div>
+
+{% if exchange.antiphish_policies %}
+<h3>{{ t.antiphish_policies }} ({{ exchange.antiphish_policies | length }})</h3>
+<table>
+  <tr><th>{{ t.policy_name }}</th></tr>
+  {% for p in exchange.antiphish_policies %}
+  <tr><td>{{ p }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if exchange.antispam_policies %}
+<h3>{{ t.antispam_policies }} ({{ exchange.antispam_policies | length }})</h3>
+<table>
+  <tr><th>{{ t.policy_name }}</th></tr>
+  {% for p in exchange.antispam_policies %}
+  <tr><td>{{ p }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<div class="card">
+  <div class="card-title">{{ t.forwarding_and_connectors }}</div>
+  <table>
+    <tr><th>{{ t.setting }}</th><th style="text-align:right;">{{ t.value }}</th></tr>
+    <tr><td>{{ t.mailbox_forwarding }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.forwarding_count }}</td></tr>
+    <tr>
+      <td>{{ t.external_forwarding }}</td>
+      <td style="text-align:right;">
+        {% if exchange.external_forwarding %}<span class="tag critical">{{ t.detected }}</span>{% else %}<span class="tag ok">{{ t.none }}</span>{% endif %}
+      </td>
+    </tr>
+    <tr><td>{{ t.inbox_rules_ext_fwd }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.inbox_rules_external }}</td></tr>
+    <tr><td>{{ t.transport_rules }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.transport_rules }}</td></tr>
+    <tr><td>{{ t.connectors }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.connectors }}</td></tr>
+  </table>
+</div>
+
+<!-- Exchange raw data sections -->
+{% for key in ['20_exchange_mailboxes_count.txt', '21_exchange_transport_rules.txt', '22_exchange_connectors.txt', '23_exchange_antiphish.txt', '24_exchange_antispam.txt', '28_exchange_mailbox_forwarding.txt', '29_exchange_inbox_rules_external_fwd.txt'] %}
+{% if file_contents.get(key, '') and file_contents.get(key, '').strip() %}
+<div class="data-section">
+  <div class="data-header collapsed" onclick="toggleDataSection(this)">
+    <span class="toggle">&#x25BC;</span>
+    <span>{{ key.replace('.txt','').replace('_',' ').title() }}</span>
+    <span class="fn">{{ key }}</span>
+  </div>
+  <div class="data-body collapsed">{{ file_contents.get(key, '') }}</div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 10. Secure Score ── -->
+<a name="securescor"></a><h2 id="securescor">{{ t.ms_secure_score }}</h2>
+<div class="card">
+  <div class="card-grid">
+    <div class="metric">
+      <div class="num" style="color:{% if secure_score.pct >= 75 %}var(--green){% elif secure_score.pct >= 50 %}var(--orange){% else %}var(--red){% endif %}">{{ secure_score.current | round(0) | int }}</div>
+      <div class="lbl">{{ t.points }}</div>
+    </div>
+    <div class="metric">
+      <div class="num" style="color:var(--muted);">{{ secure_score.max | round(0) | int }}</div>
+      <div class="lbl">{{ t.max_label }}</div>
+    </div>
+    <div class="metric">
+      <div class="num">{{ secure_score.pct | round(1) }}%</div>
+      <div class="lbl">{{ t.score }}</div>
+    </div>
+  </div>
+  {% if secure_score.improvements %}
+  <h3 style="margin-top:16px;">{{ t.top_improvements }}</h3>
+  <table>
+    <tr><th>{{ t.action_label }}</th><th style="text-align:right;width:80px;">{{ t.score_pct }}</th></tr>
+    {% for imp in secure_score.improvements %}
+    <tr>
+      <td>{{ imp.name }}</td>
+      <td style="text-align:right;font-family:var(--mono);">{{ imp.pct | round(1) }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+</div><!-- /tab-email -->
+
+<div class="tab-panel" id="tab-devices">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 11. Devices & Intune ── -->
+<a name="enheter"></a><h2 id="enheter">{{ t.devices_intune }}</h2>
+
+{% if intune and intune.total > 0 %}
+<div class="summary-bar" style="grid-template-columns:repeat(6,1fr);">
+  <div class="stat-box blue"><div class="num">{{ intune.total }}</div><div class="lbl">{{ t.total }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ intune.windows }}</div><div class="lbl">Windows</div></div>
+  <div class="stat-box blue"><div class="num">{{ intune.ios }}</div><div class="lbl">iOS</div></div>
+  <div class="stat-box blue"><div class="num">{{ intune.android }}</div><div class="lbl">Android</div></div>
+  <div class="stat-box green"><div class="num">{{ intune.compliant }}</div><div class="lbl">{{ t.compliant_label }}</div></div>
+  <div class="stat-box {% if intune.noncompliant > 0 %}red{% else %}green{% endif %}"><div class="num">{{ intune.noncompliant }}</div><div class="lbl">{{ t.noncompliant_label }}</div></div>
+</div>
+
+{% if intune.compliance_pct < 80 %}
+<div class="alert warning"><strong>&#x26A0; {{ t('device_compliance_low', pct=intune.compliance_pct|round(0)|int) }}</strong>{{ t('device_compliance_low_desc', non=intune.noncompliant, total=intune.total) }}</div>
+{% else %}
+<div class="alert ok"><strong>&#x2713; {{ t('device_compliance_ok_pct', pct=intune.compliance_pct|round(0)|int) }}</strong></div>
+{% endif %}
+
+{% if intune.devices %}
+<table>
+  <tr><th>{{ t.device_name }}</th><th>{{ t.os_header }}</th><th>{{ t.user }}</th><th>{{ t.compliant_label }}</th><th>{{ t.enrolled }}</th></tr>
+  {% for dev in intune.devices %}
+  <tr>
+    <td style="font-weight:500;">{{ dev.name }}</td>
+    <td style="font-size:11px;">{{ dev.os }}</td>
+    <td style="font-family:var(--mono);font-size:11px;">{{ dev.user }}</td>
+    <td>
+      {% if 'compliant' in dev.compliance.lower() and 'non' not in dev.compliance.lower() %}
+      <span class="tag ok">{{ t.compliant_label }}</span>
+      {% else %}
+      <span class="tag critical">{{ t.noncompliant_label }}</span>
+      {% endif %}
+    </td>
+    <td style="font-size:11px;">{{ dev.enrolled }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if compliance_policies and compliance_policies.strip() %}
+<h3>{{ t.compliance_policies_heading }}</h3>
+<div class="data-section">
+  <div class="data-header"><span>Intune Compliance Policies</span><span class="fn">11_intune_compliance_policies.txt</span></div>
+  <div class="data-body">{{ compliance_policies }}</div>
+</div>
+{% endif %}
+{% else %}
+<div class="alert info"><strong>{{ t.no_intune_devices }}</strong>{{ t.no_intune_desc }}</div>
+{% endif %}
+
+</div><!-- /tab-devices -->
+
+<div class="tab-panel" id="tab-apps">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 12. SharePoint & Teams ── -->
+<a name="sharepoint"></a><h2 id="sharepoint">{{ t.sharepoint_teams }}</h2>
+
+{% if sharepoint %}
+<div class="card">
+  <div class="card-title">{{ t.sharepoint_settings }}</div>
+  <table>
+    <tr><th>{{ t.setting }}</th><th>{{ t.value }}</th><th>{{ t.assessment }}</th></tr>
+    <tr>
+      <td>{{ t.external_sharing }}</td>
+      <td>{{ sharepoint.sharing_label }}</td>
+      <td><span class="tag {{ sharepoint.sharing_level }}">{% if sharepoint.sharing_level == 'ok' %}{{ t.ok }}{% else %}{{ t.consider }}{% endif %}</span></td>
+    </tr>
+    <tr>
+      <td>{{ t.legacy_auth_label }}</td>
+      <td>{% if sharepoint.legacy_auth %}{{ t.enabled_label }}{% else %}{{ t.disabled_label }}{% endif %}</td>
+      <td><span class="tag {% if sharepoint.legacy_auth %}warning{% else %}ok{% endif %}">{% if sharepoint.legacy_auth %}{{ t.consider }}{% else %}{{ t.ok }}{% endif %}</span></td>
+    </tr>
+    <tr>
+      <td>{{ t.unmanaged_devices }}</td>
+      <td>{% if sharepoint.unmanaged_devices %}{{ t.allowed }}{% else %}{{ t.blocked_restricted }}{% endif %}</td>
+      <td><span class="tag ok">{{ t.ok }}</span></td>
+    </tr>
+    <tr>
+      <td>{{ t.sites_total }}</td>
+      <td>{{ sharepoint.site_count }} ({{ sharepoint.personal_sites }} {{ t.personal_label }}, {{ sharepoint.team_sites }} {{ t.team_label }})</td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+{% endif %}
+
+{% if teams_settings and teams_settings.strip() %}
+<h3>{{ t.teams_settings_heading }}</h3>
+<div class="data-section">
+  <div class="data-header"><span>{{ t.teams_config }}</span><span class="fn">16b_teams_settings.txt</span></div>
+  <div class="data-body">{{ teams_settings }}</div>
+</div>
+{% endif %}
+
+{% if teams_external and teams_external.strip() %}
+<h3>{{ t.teams_external_access_heading }}</h3>
+<div class="data-section">
+  <div class="data-header"><span>{{ t.external_access_label }}</span><span class="fn">16c_teams_external_access.txt</span></div>
+  <div class="data-body">{{ teams_external }}</div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 13. Apps & OAuth ── -->
+<a name="apper"></a><h2 id="apper">{{ t.apps_oauth }}</h2>
+
+{% if oauth and oauth.total_grants > 0 %}
+<div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
+  <div class="stat-box blue"><div class="num">{{ oauth.unique_apps }}</div><div class="lbl">{{ t.unique_apps }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ oauth.total_grants }}</div><div class="lbl">{{ t.total_grants }}</div></div>
+  <div class="stat-box {% if oauth.high_privilege_apps %}orange{% else %}green{% endif %}"><div class="num">{{ oauth.high_privilege_apps | length }}</div><div class="lbl">{{ t.broad_permissions }}</div></div>
+</div>
+
+{% if oauth.high_privilege_apps %}
+<div class="alert warning"><strong>&#x26A0; {{ t.apps_broad_perms_alert }}</strong>{{ oauth.high_privilege_apps | join(', ') }}</div>
+{% endif %}
+
+{% if oauth.admin_consent %}
+<h3>{{ t.delegated_perms }}</h3>
+<table>
+  <tr><th>{{ t.app_label }}</th><th>{{ t.permissions_scopes }}</th></tr>
+  {% for g in oauth.admin_consent %}
+  <tr>
+    <td style="font-weight:500;">{{ g.app }}</td>
+    <td style="font-size:11px;font-family:var(--mono);word-break:break-word;">{{ g.scopes | join(', ') | truncate(120) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if oauth.app_permissions %}
+<h3>{{ t.app_permissions_heading }}</h3>
+<table>
+  <tr><th>{{ t.app_label }}</th><th>{{ t.role }}</th><th>{{ t.resource_header }}</th></tr>
+  {% for g in oauth.app_permissions %}
+  <tr>
+    <td style="font-weight:500;">{{ g.app }}</td>
+    <td style="font-size:11px;">{{ g.role }}</td>
+    <td style="font-size:11px;">{{ g.resource }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% else %}
+<div class="alert info"><strong>{{ t.no_oauth_grants }}</strong></div>
+{% endif %}
+
+{% if app_registrations and app_registrations.strip() %}
+<h3>{{ t.app_registrations_heading }}</h3>
+<div class="data-section">
+  <div class="data-header"><span>Entra ID App Registrations</span><span class="fn">17_app_registrations.txt</span></div>
+  <div class="data-body">{{ app_registrations }}</div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Purview / Data Protection ── -->
+{% if purview and purview.has_data %}
+<h2 id="purview">{{ t.purview_data_protection }}</h2>
+<div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
+  <div class="stat-box blue"><div class="num">{{ purview.sensitivity_label_count }}</div><div class="lbl">{{ t.sensitivity_labels }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ purview.dlp_policy_count }}</div><div class="lbl">{{ t.dlp_policies }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ purview.retention_policy_count }}</div><div class="lbl">{{ t.retention_policies }}</div></div>
+</div>
+
+{% if purview.sensitivity_labels %}
+<h3>{{ t.sensitivity_labels_heading }}</h3>
+<table>
+  <tr><th>{{ t.label_header }}</th><th style="text-align:right;">{{ t.priority }}</th><th>{{ t.status }}</th></tr>
+  {% for label in purview.sensitivity_labels %}
+  <tr>
+    <td style="font-weight:500;">{{ label.name }}</td>
+    <td style="text-align:right;font-family:var(--mono);">{{ label.priority }}</td>
+    <td>{% if label.active %}<span class="tag ok">{{ t.active_status }}</span>{% else %}<span class="tag skip">{{ t.inactive_status }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if purview.dlp_policies %}
+<h3>{{ t.dlp_policies_heading }}</h3>
+<table>
+  <tr><th>{{ t.policy_name }}</th></tr>
+  {% for pol in purview.dlp_policies %}
+  <tr><td>{{ pol.name }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if purview.retention_policies %}
+<h3>{{ t.retention_policies_heading }}</h3>
+<table>
+  <tr><th>{{ t.policy_name }}</th></tr>
+  {% for pol in purview.retention_policies %}
+  <tr><td>{{ pol.name }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endif %}
+
+</div><!-- /tab-apps -->
+
+<div class="tab-panel" id="tab-azure">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<h2 id="azure">{{ t.azure_infrastructure }}</h2>
+
+{% if azure and azure.has_data %}
+
+<!-- Summary -->
+<div class="summary-bar" style="grid-template-columns:repeat(5,1fr);">
+  <div class="stat-box blue"><div class="num">{{ azure.subscriptions | length }}</div><div class="lbl">{{ t.subscriptions }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ azure.total_resources }}</div><div class="lbl">{{ t.resources_header }}</div></div>
+  <div class="stat-box blue"><div class="num">{{ azure.vms | length }}</div><div class="lbl">{{ t.vms_header }}</div></div>
+  <div class="stat-box {% if azure.advisor_recs > 0 %}orange{% else %}green{% endif %}"><div class="num">{{ azure.advisor_recs }}</div><div class="lbl">{{ t.advisor_recs }}</div></div>
+  <div class="stat-box {% if azure.orphaned > 0 %}orange{% else %}green{% endif %}"><div class="num">{{ azure.orphaned }}</div><div class="lbl">{{ t.orphaned_label }}</div></div>
+</div>
+
+{% if azure.subscriptions %}
+<h3>{{ t.subscriptions }} ({{ azure.subscriptions | length }})</h3>
+<table>
+  <tr><th>{{ t.subscription }}</th><th>ID</th><th>{{ t.status }}</th></tr>
+  {% for s in azure.subscriptions %}
+  <tr>
+    <td style="font-weight:600;">{{ s.name }}</td>
+    <td style="font-family:var(--mono);font-size:11px;">{{ s.id }}</td>
+    <td><span class="tag {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ s.state }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<!-- Per-subscription breakdown -->
+{% if azure.per_sub %}
+<h3>{{ t.resources_per_sub }}</h3>
+{% for sub in azure.per_sub %}
+<div class="card" style="margin-bottom:12px;">
+  <div class="card-title">{{ sub.name }} &mdash; {{ t('n_resources', count=sub.resources) }}</div>
+  {% if sub.types %}
+  <table>
+    <tr><th>{{ t.resource_type_header }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+    {% for rtype, count in sub.types[:15] %}
+    <tr>
+      <td style="font-family:var(--mono);font-size:11px;">{{ rtype }}</td>
+      <td style="text-align:right;font-family:var(--mono);">{{ count }}</td>
+    </tr>
+    {% endfor %}
+    {% if sub.types | length > 15 %}
+    <tr><td colspan="2" style="color:var(--muted);font-size:11px;">{{ t('and_n_more', count=sub.types|length - 15) }}</td></tr>
+    {% endif %}
+  </table>
+  {% endif %}
+  {% if sub.rgs %}
+  <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+    {{ t.resource_groups_label }}: {% for rg in sub.rgs %}{{ rg.name }} ({{ rg.count }}){% if not loop.last %}, {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if azure.vms %}
+<h3>{{ t('virtual_machines_n', count=azure.vms|length) }}</h3>
+<table>
+  <tr><th>VM</th><th>{{ t.subscription }}</th><th>{{ t.resource_group_header }}</th><th>{{ t.location_header }}</th><th>{{ t.os_header }}</th><th>{{ t.size_header }}</th><th>{{ t.status }}</th></tr>
+  {% for vm in azure.vms %}
+  <tr>
+    <td style="font-weight:500;">{{ vm.name }}</td>
+    <td style="font-size:11px;color:var(--muted);">{{ vm.subscription }}</td>
+    <td style="font-size:11px;">{{ vm.rg }}</td>
+    <td>{{ vm.location }}</td>
+    <td>{{ vm.os }}</td>
+    <td style="font-family:var(--mono);font-size:11px;">{{ vm.size }}</td>
+    <td><span class="tag {% if vm.status == 'running' %}ok{% elif vm.status == 'deallocated' %}skip{% else %}warning{% endif %}">{{ vm.status or 'N/A' }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if azure.storage_accounts %}
+<h3>{{ t('storage_accounts_n', count=azure.storage_accounts|length) }}</h3>
+<table>
+  <tr><th>{{ t.account_header }}</th><th>{{ t.subscription }}</th><th>SKU</th><th>{{ t.type }}</th></tr>
+  {% for sa in azure.storage_accounts %}
+  <tr>
+    <td style="font-weight:500;font-family:var(--mono);font-size:12px;">{{ sa.name }}</td>
+    <td style="font-size:11px;color:var(--muted);">{{ sa.subscription }}</td>
+    <td>{{ sa.sku }}</td>
+    <td>{{ sa.kind }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if azure.resource_types_list %}
+<h3>{{ t.all_resource_types }}</h3>
+<table>
+  <tr><th>{{ t.type }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+  {% for rt in azure.resource_types_list %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:11px;">{{ rt.type }}</td>
+    <td style="text-align:right;font-family:var(--mono);">{{ rt.count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<!-- Azure raw data sections (all azure files) -->
+{% for key in file_contents.keys() | sort %}
+{% if (key.startswith('50_') or key.startswith('50b_') or key.startswith('51_') or key.startswith('52_') or key.startswith('53_') or key.startswith('61_') or key.startswith('32b_')) and key.endswith('.txt') %}
+{% if file_contents.get(key, '') and file_contents.get(key, '').strip() and 'Error' not in file_contents.get(key, '')[:20] %}
+<div class="data-section">
+  <div class="data-header collapsed" onclick="toggleDataSection(this)">
+    <span class="toggle">&#x25BC;</span>
+    <span>{{ key.replace('.txt','').replace('_',' ').title() }}</span>
+    <span class="fn">{{ key }}</span>
+  </div>
+  <div class="data-body collapsed">{{ file_contents.get(key, '') }}</div>
+</div>
+{% endif %}
+{% endif %}
+{% endfor %}
+
+{% else %}
+<div class="alert info"><strong>{{ t.no_azure_data }}</strong>{{ t.no_azure_desc }}</div>
+{% endif %}
+
+</div><!-- /tab-azure -->
+
+<div class="tab-panel" id="tab-findings">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 14. Critical Findings ── -->
+<a name="kritiske"></a><h2 id="kritiske">{{ t.critical_findings }}</h2>
+
+{% if defender_alerts and 'No active' not in defender_alerts and defender_alerts.strip() %}
+<div class="alert critical"><strong>&#x1F534; {{ t.active_defender_alerts }}</strong></div>
+<div class="data-section">
+  <div class="data-header"><span>Defender Alerts</span><span class="fn">19b_defender_active_alerts.txt</span></div>
+  <div class="data-body">{{ defender_alerts }}</div>
+</div>
+{% endif %}
+
+{% if ext_fwd_warn and ext_fwd_warn.strip() %}
+<div class="alert critical"><strong>&#x1F534; {{ t.external_fwd_detected }}</strong></div>
+<div class="data-section">
+  <div class="data-header"><span>{{ t.external_forwarding }}</span></div>
+  <div class="data-body">{{ ext_fwd_warn }}</div>
+</div>
+{% endif %}
+
+{% if inbox_rule_warn and inbox_rule_warn.strip() %}
+<div class="alert critical"><strong>&#x1F534; {{ t.inbox_rules_ext_fwd_detected }}</strong></div>
+<div class="data-section">
+  <div class="data-header"><span>{{ t.inbox_rules_ext_fwd_header }}</span></div>
+  <div class="data-body">{{ inbox_rule_warn }}</div>
+</div>
+{% endif %}
+
+{% if risky_users and 'No risky' not in risky_users and risky_users.strip() %}
+<div class="alert warning"><strong>&#x26A0; {{ t.risky_users_idp }}</strong></div>
+<div class="data-section">
+  <div class="data-header"><span>{{ t.risky_users_header }}</span><span class="fn">18_risky_users.txt</span></div>
+  <div class="data-body">{{ risky_users }}</div>
+</div>
+{% endif %}
+
+{% if all_warns %}
+<h3>{{ t.all_warnings }}</h3>
+<table>
+  <tr><th>{{ t.warning_header }}</th></tr>
+  {% for w in all_warns %}
+  <tr><td style="color:var(--orange);">&#x26A0; {{ w }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if not (defender_alerts and 'No active' not in defender_alerts) and not ext_fwd_warn and not inbox_rule_warn and not (risky_users and 'No risky' not in risky_users) and not all_warns %}
+<div class="alert ok"><strong>&#x2713; {{ t.no_critical_findings }}</strong>{{ t.no_critical_desc }}</div>
+{% endif %}
+
+</div><!-- /tab-findings -->
+
+<div class="tab-panel" id="tab-rawdata">
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── 15. Raw Data ── -->
+<a name="rawdata"></a><h2 id="rawdata">{{ t.raw_data }}</h2>
+<p style="color:var(--muted);margin-bottom:20px;font-size:12px;">{{ t.raw_data_desc }}</p>
+
+{% for filename, content in file_contents.items() | sort %}
+<div class="data-section">
+  <div class="data-header collapsed" onclick="toggleDataSection(this)">
+    <span class="toggle">&#x25BC;</span>
+    <span>{{ filename.replace('.txt','').replace('_',' ').title() }}</span>
+    <span class="fn">{{ filename }}</span>
+  </div>
+  <div class="data-body collapsed">{{ content }}</div>
+</div>
+{% endfor %}
+
+</div><!-- /tab-rawdata -->
+
+<div class="footer">
+  <span style="display:flex;align-items:center;gap:8px;">
+    {% if logo_dark %}<img src="{{ logo_dark }}" alt="SYBR" style="height:22px;">{% endif %}
+    {{ branding.company_name if branding is defined and branding.company_name else 'SYBR AS' }} &mdash; {{ t.report_title_tech }}
+  </span>
+  <span>{{ customer_name }} &middot; {{ report_date }} &middot; {{ app_version }}</span>
+</div>
+
+</div>
+
+<script>
+// Fix anchor navigation — activate parent tab first, then scroll
+document.addEventListener('click', function(e) {
+  var a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  e.preventDefault();
+  var id = a.getAttribute('href').substring(1);
+  var el = document.getElementById(id);
+  if (!el) return;
+  // Find parent tab-panel and activate it
+  var panel = el.closest('.tab-panel');
+  if (panel && !panel.classList.contains('active')) {
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    panel.classList.add('active');
+    // Highlight correct tab button
+    var tabId = panel.id.replace('tab-', '');
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    var btns = document.querySelectorAll('.tab-btn');
+    btns.forEach(function(b) { if (b.textContent && b.getAttribute('onclick') && b.getAttribute('onclick').indexOf(tabId) !== -1) b.classList.add('active'); });
+  }
+  setTimeout(function() { el.scrollIntoView({behavior: 'smooth'}); }, 50);
+});
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Collapsible data sections
+function toggleDataSection(header) {
+  header.classList.toggle('collapsed');
+  const body = header.nextElementSibling;
+  body.classList.toggle('collapsed');
+}
+
+// Search
+let searchTimeout = null;
+const SEARCH_HITS_TEMPLATE = {{ t.search_hits | tojson }};
+const NO_RESULTS_TEXT = {{ t.no_results | tojson }};
+
+function handleSearch(query) {
+  clearTimeout(searchTimeout);
+  const countEl = document.getElementById('searchCount');
+  const resultsEl = document.getElementById('searchResults');
+
+  if (!query || query.length < 2) {
+    countEl.textContent = '';
+    resultsEl.classList.remove('visible');
+    resultsEl.innerHTML = '';
+    return;
+  }
+
+  // Debounce for performance
+  searchTimeout = setTimeout(() => doSearch(query), 150);
+}
+
+function doSearch(query) {
+  const countEl = document.getElementById('searchCount');
+  const resultsEl = document.getElementById('searchResults');
+  const qLower = query.toLowerCase();
+  const results = [];
+
+  // Search all searchable elements: tables, data sections, alerts, cards
+  const searchTargets = [
+    ...document.querySelectorAll('.data-section'),
+    ...document.querySelectorAll('table'),
+    ...document.querySelectorAll('.alert'),
+    ...document.querySelectorAll('.card'),
+    ...document.querySelectorAll('.stat-box'),
+  ];
+
+  // Also search all h2/h3 headings and their sibling content
+  document.querySelectorAll('h2, h3').forEach(heading => {
+    const section = heading;
+    const text = [];
+    let sibling = heading.nextElementSibling;
+    // Collect text from siblings until next heading
+    while (sibling && !['H2','H3'].includes(sibling.tagName)) {
+      text.push(sibling.textContent || '');
+      sibling = sibling.nextElementSibling;
+    }
+    const fullText = (heading.textContent + ' ' + text.join(' ')).toLowerCase();
+    if (fullText.includes(qLower)) {
+      // Extract preview around match
+      const idx = fullText.indexOf(qLower);
+      const start = Math.max(0, idx - 40);
+      const end = Math.min(fullText.length, idx + query.length + 60);
+      let preview = fullText.substring(start, end).trim();
+      // Highlight match in preview
+      const matchIdx = preview.toLowerCase().indexOf(qLower);
+      if (matchIdx >= 0) {
+        preview = escapeHtml(preview.substring(0, matchIdx))
+          + '<mark>' + escapeHtml(preview.substring(matchIdx, matchIdx + query.length)) + '</mark>'
+          + escapeHtml(preview.substring(matchIdx + query.length));
+      }
+      results.push({
+        title: heading.textContent.trim(),
+        preview: preview,
+        element: heading,
+        tab: heading.closest('.tab-panel'),
+      });
+    }
+  });
+
+  // Search data sections specifically
+  document.querySelectorAll('.data-section').forEach(section => {
+    const body = section.querySelector('.data-body');
+    const header = section.querySelector('.data-header');
+    if (!body) return;
+    const text = body.textContent.toLowerCase();
+    if (!text.includes(qLower)) return;
+
+    const titleEl = header ? header.querySelector('span:not(.fn):not(.toggle)') : null;
+    const title = titleEl ? titleEl.textContent.trim() : 'Data';
+    const fn = header ? (header.querySelector('.fn') || {}).textContent || '' : '';
+
+    // Find matching line for preview
+    const bodyLines = body.textContent.split('\n');
+    let preview = '';
+    for (const line of bodyLines) {
+      if (line.toLowerCase().includes(qLower)) {
+        const trimmed = line.trim().substring(0, 120);
+        const idx = trimmed.toLowerCase().indexOf(qLower);
+        if (idx >= 0) {
+          preview = escapeHtml(trimmed.substring(0, idx))
+            + '<mark>' + escapeHtml(trimmed.substring(idx, idx + query.length)) + '</mark>'
+            + escapeHtml(trimmed.substring(idx + query.length));
+        } else {
+          preview = escapeHtml(trimmed);
+        }
+        break;
+      }
+    }
+
+    results.push({
+      title: title + (fn ? ' (' + fn + ')' : ''),
+      preview: preview,
+      element: section,
+      tab: section.closest('.tab-panel'),
+      isDataSection: true,
+      header: header,
+      body: body,
+    });
+  });
+
+  // Deduplicate by element
+  const seen = new Set();
+  const unique = results.filter(r => {
+    if (seen.has(r.element)) return false;
+    seen.add(r.element);
+    return true;
+  });
+
+  countEl.textContent = SEARCH_HITS_TEMPLATE.replace('{count}', unique.length).replace('{query}', query);
+
+  if (unique.length === 0) {
+    resultsEl.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;">' + NO_RESULTS_TEXT + '</div>';
+    resultsEl.classList.add('visible');
+    return;
+  }
+
+  resultsEl.innerHTML = unique.slice(0, 25).map((r, i) =>
+    '<div class="search-result-item" onclick="navigateToResult(' + i + ')">' +
+    '<div class="search-result-title">' + escapeHtml(r.title) + '</div>' +
+    (r.preview ? '<div class="search-result-preview">' + r.preview + '</div>' : '') +
+    '</div>'
+  ).join('');
+  resultsEl.classList.add('visible');
+
+  // Store results for navigation
+  window._searchResults = unique;
+}
+
+function navigateToResult(idx) {
+  const r = window._searchResults[idx];
+  if (!r) return;
+
+  // Switch to correct tab
+  if (r.tab) {
+    const tabId = r.tab.id.replace('tab-', '');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    r.tab.classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      if (b.textContent.toLowerCase().includes(tabId) || b.onclick.toString().includes(tabId)) {
+        b.classList.add('active');
+      }
+    });
+  }
+
+  // Expand data section if collapsed
+  if (r.isDataSection && r.header && r.body) {
+    r.header.classList.remove('collapsed');
+    r.body.classList.remove('collapsed');
+  }
+
+  // Scroll to element
+  r.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Flash highlight
+  r.element.style.outline = '3px solid var(--blue)';
+  r.element.style.outlineOffset = '4px';
+  r.element.style.borderRadius = '4px';
+  setTimeout(() => {
+    r.element.style.outline = '';
+    r.element.style.outlineOffset = '';
+  }, 2000);
+
+  // Close results
+  document.getElementById('searchResults').classList.remove('visible');
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Keyboard shortcut for search
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+});
+
+</script>
+</body>
+</html>

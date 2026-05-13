@@ -1,0 +1,404 @@
+"""Section 20–29 — Exchange Online (data sourced from EXO PowerShell helper)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from app.modules.base import BaseSection, SectionResult, SectionStatus
+
+
+def _fmt_val(val: Any, indent: int = 4) -> str:
+    """Recursively format a value for human-readable output."""
+    pad = " " * indent
+    if val is None:
+        return "N/A"
+    if isinstance(val, bool):
+        return "Yes" if val else "No"
+    if isinstance(val, (int, float)):
+        return str(val)
+    if isinstance(val, str):
+        return val or "(empty)"
+    if isinstance(val, list):
+        if not val:
+            return "(none)"
+        items = [_fmt_val(i, indent) for i in val]
+        if all(isinstance(i, str) and len(i) < 60 for i in val):
+            joined = ", ".join(str(i) for i in val)
+            if len(joined) < 100:
+                return joined
+        return "\n" + "\n".join(f"{pad}- {_fmt_val(i, indent+2)}" for i in val)
+    if isinstance(val, dict):
+        inner = "\n".join(
+            f"{pad}{k}: {_fmt_val(v, indent+2)}" for k, v in val.items()
+        )
+        return "\n" + inner
+    return str(val)
+
+
+def _section_block(title: str, items: list[dict], key_fields: list[str] | None = None) -> str:
+    """Format a list of dicts as a readable block."""
+    lines = [
+        "=" * 80,
+        f"  {title}  ({len(items)} entries)",
+        "=" * 80,
+    ]
+    if not items:
+        lines += ["  (none)", ""]
+        return "\n".join(lines)
+
+    for i, item in enumerate(items, 1):
+        lines.append(f"\n  [{i}]")
+        if key_fields:
+            # Show key fields first, then the rest
+            shown = set()
+            for k in key_fields:
+                if k in item:
+                    lines.append(f"    {k}: {_fmt_val(item[k])}")
+                    shown.add(k)
+            for k, v in item.items():
+                if k not in shown:
+                    lines.append(f"    {k}: {_fmt_val(v)}")
+        else:
+            for k, v in item.items():
+                lines.append(f"    {k}: {_fmt_val(v)}")
+    lines += ["", "=" * 80, ""]
+    return "\n".join(lines)
+
+
+class ExchangeSection(BaseSection):
+    name = "Exchange Online"
+
+    def __init__(
+        self,
+        out_dir: Path,
+        exo_data: dict,
+        verified_domains: list[str],
+        progress_cb=None,
+    ):
+        super().__init__(out_dir, progress_cb)
+        self.exo_data        = exo_data
+        self.verified_domains = verified_domains
+
+    async def collect(self) -> SectionResult:
+        self._report(SectionStatus.RUNNING)
+        try:
+            # Check for error from PS helper
+            if "error" in self.exo_data:
+                err_msg = self.exo_data["error"]
+                self._save(
+                    "EXCHANGE_ERROR.txt",
+                    f"Exchange Online data collection failed:\n{err_msg}\n",
+                )
+                self._report(SectionStatus.SKIPPED, err_msg)
+                return self.result
+
+            self._save_mailboxes()
+            self._save_transport_rules()
+            self._save_connectors()
+            self._save_anti_phish()
+            self._save_anti_spam()
+            self._save_dkim()
+            self._save_defender_policies()
+            self._save_quarantine_policies()
+            self._save_org_config()
+            self._save_forwarding()
+            self._save_inbox_rules()
+            self._save_dlp()
+            self._save_retention()
+            self._save_mailbox_delegations()
+
+            self._report(SectionStatus.DONE)
+        except Exception as e:
+            self._report(SectionStatus.FAILED, str(e))
+        return self.result
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _get(self, key: str) -> list[dict]:
+        val = self.exo_data.get(key, [])
+        if isinstance(val, list):
+            return val
+        if isinstance(val, dict):
+            return [val]
+        return []
+
+    def _get_single(self, key: str) -> dict:
+        val = self.exo_data.get(key, {})
+        if isinstance(val, list) and val:
+            return val[0]
+        if isinstance(val, dict):
+            return val
+        return {}
+
+    # ── Mailboxes ─────────────────────────────────────────────────────────────
+
+    def _save_mailboxes(self) -> None:
+        mailboxes = self._get("mailboxes")
+        total    = len(mailboxes)
+        shared   = sum(1 for m in mailboxes if (m.get("RecipientTypeDetails") or m.get("RecipientType", "")) == "SharedMailbox")
+        room     = sum(1 for m in mailboxes if (m.get("RecipientTypeDetails") or m.get("RecipientType", "")) == "RoomMailbox")
+        user_mb  = total - shared - room
+
+        lines = [
+            "=" * 100,
+            f"  EXCHANGE MAILBOXES  ({total} total)",
+            "=" * 100,
+            f"  {'Display Name':<40} {'UPN':<45} {'Type':<20} {'Quota'}",
+            "  " + "-" * 96,
+        ]
+        for m in mailboxes:
+            name   = str(m.get("DisplayName") or "")[:40]
+            upn    = str(m.get("UserPrincipalName") or "")[:45]
+            mtype  = str(m.get("RecipientTypeDetails") or m.get("RecipientType") or "")[:20]
+            quota  = str(m.get("TotalItemSize") or m.get("ProhibitSendReceiveQuota") or "N/A")[:20]
+            lines.append(f"  {name:<40} {upn:<45} {mtype:<20} {quota}")
+        lines += ["=" * 100, ""]
+        self._save("20_exchange_mailboxes.txt", "\n".join(lines))
+
+        count_lines = [
+            "=" * 40,
+            "  EXCHANGE MAILBOX COUNT",
+            "=" * 40,
+            f"  Total     : {total}",
+            f"  User      : {user_mb}",
+            f"  Shared    : {shared}",
+            f"  Room      : {room}",
+            "=" * 40,
+            "",
+        ]
+        self._save("20_exchange_mailboxes_count.txt", "\n".join(count_lines))
+
+    # ── Transport Rules ───────────────────────────────────────────────────────
+
+    def _save_transport_rules(self) -> None:
+        rules = self._get("transport_rules")
+        content = _section_block(
+            "EXCHANGE TRANSPORT RULES",
+            rules,
+            key_fields=["Name", "State", "Priority", "Description"],
+        )
+        self._save("21_exchange_transport_rules.txt", content)
+
+    # ── Connectors ────────────────────────────────────────────────────────────
+
+    def _save_connectors(self) -> None:
+        connectors = self._get("connectors")
+        content = _section_block(
+            "EXCHANGE CONNECTORS",
+            connectors,
+            key_fields=["Name", "ConnectorType", "ConnectorSource", "Enabled", "SmartHosts"],
+        )
+        self._save("22_exchange_connectors.txt", content)
+
+    # ── Anti-Phish ────────────────────────────────────────────────────────────
+
+    def _save_anti_phish(self) -> None:
+        policies = self._get("anti_phish")
+        content  = _section_block(
+            "EXCHANGE ANTI-PHISHING POLICIES",
+            policies,
+            key_fields=["Name", "Enabled", "PhishThresholdLevel", "EnableMailboxIntelligence"],
+        )
+        self._save("23_exchange_antiphish.txt", content)
+
+    # ── Anti-Spam ─────────────────────────────────────────────────────────────
+
+    def _save_anti_spam(self) -> None:
+        policies = self._get("anti_spam")
+        content  = _section_block(
+            "EXCHANGE ANTI-SPAM POLICIES",
+            policies,
+            key_fields=["Name", "SpamAction", "BulkSpamAction", "PhishSpamAction"],
+        )
+        self._save("24_exchange_antispam.txt", content)
+
+    # ── DKIM ──────────────────────────────────────────────────────────────────
+
+    def _save_dkim(self) -> None:
+        configs  = self._get("dkim")
+        lines = [
+            "=" * 80,
+            f"  EXCHANGE DKIM SIGNING CONFIGS  ({len(configs)} total)",
+            "=" * 80,
+            f"  {'Domain':<45} {'Enabled':>8} {'Status':<20} {'Selector'}",
+            "  " + "-" * 76,
+        ]
+        for d in configs:
+            domain   = str(d.get("Domain") or "")[:45]
+            enabled  = "Yes" if d.get("Enabled") else "No"
+            status   = str(d.get("Status") or "")[:20]
+            selector = str(d.get("Selector1CNAME") or d.get("Selector") or "N/A")[:30]
+            lines.append(f"  {domain:<45} {enabled:>8} {status:<20} {selector}")
+        lines += ["=" * 80, ""]
+        self._save("25_exchange_dkim.txt", "\n".join(lines))
+
+    # ── Defender Policies ─────────────────────────────────────────────────────
+
+    def _save_defender_policies(self) -> None:
+        policies = self._get("defender_policies")
+        content  = _section_block(
+            "MICROSOFT DEFENDER FOR OFFICE 365 POLICIES",
+            policies,
+            key_fields=["Name", "PolicyType", "Enabled"],
+        )
+        self._save("27_exchange_defender_policies.txt", content)
+
+    # ── Quarantine Policies ───────────────────────────────────────────────────
+
+    def _save_quarantine_policies(self) -> None:
+        policies = self._get("quarantine_policies")
+        content  = _section_block(
+            "EXCHANGE QUARANTINE POLICIES",
+            policies,
+            key_fields=["Name", "EndUserQuarantinePermissionsValue", "ESNEnabled"],
+        )
+        self._save("27b_exchange_quarantine_policies.txt", content)
+
+    # ── Org Config ────────────────────────────────────────────────────────────
+
+    def _save_org_config(self) -> None:
+        cfg = self._get_single("org_config")
+        lines = ["=" * 80, "  EXCHANGE ORG CONFIG", "=" * 80]
+        for k, v in cfg.items():
+            lines.append(f"  {k}: {_fmt_val(v)}")
+        lines += ["=" * 80, ""]
+        self._save("27c_exchange_org_config.txt", "\n".join(lines))
+
+    # ── Mailbox Forwarding ────────────────────────────────────────────────────
+
+    def _save_forwarding(self) -> None:
+        fwd_list = self._get("forwarding")
+        lines = [
+            "=" * 100,
+            f"  MAILBOX FORWARDING  ({len(fwd_list)} entries)",
+            "=" * 100,
+            f"  {'Mailbox':<45} {'Forward To':<45} {'External':>9}",
+            "  " + "-" * 96,
+        ]
+        external_fwd: list[dict] = []
+        for fwd in fwd_list:
+            mbx      = str(fwd.get("DisplayName") or fwd.get("Name") or fwd.get("PrimarySmtpAddress") or fwd.get("Mailbox") or "")[:45]
+            fwd_to   = str(
+                fwd.get("ForwardingSmtp")
+                or fwd.get("ForwardingSmtpAddress")
+                or fwd.get("ForwardingAddress")
+                or ""
+            )[:45]
+            is_ext   = "Yes" if fwd.get("DeliverAndForward") or fwd.get("DeliverToMailboxAndForward") else "No"
+            lines.append(f"  {mbx:<45} {fwd_to:<45} {is_ext:>9}")
+
+            # Detect external (not in verified domains)
+            domain_part = fwd_to.split("@")[-1].lower().rstrip(">")
+            if domain_part and not any(
+                d.lower() == domain_part for d in self.verified_domains
+            ):
+                external_fwd.append(fwd)
+
+        lines += ["=" * 100, ""]
+        self._save("28_exchange_mailbox_forwarding.txt", "\n".join(lines))
+
+        if external_fwd:
+            self._warn(
+                f"{len(external_fwd)} mailbox(es) forwarding to external addresses"
+            )
+            ext_lines = [
+                "=" * 100,
+                f"  EXTERNAL MAILBOX FORWARDING WARNING  ({len(external_fwd)} mailboxes)",
+                "=" * 100,
+            ]
+            for fwd in external_fwd:
+                mbx_name = fwd.get('DisplayName') or fwd.get('Name') or fwd.get('PrimarySmtpAddress') or fwd.get('Mailbox') or '?'
+                fwd_target = fwd.get('ForwardingSmtp') or fwd.get('ForwardingSmtpAddress') or fwd.get('ForwardingAddress') or '?'
+                ext_lines.append(f"  {mbx_name}  →  {fwd_target}")
+            ext_lines += ["=" * 100, ""]
+            self._save("28b_exchange_external_forwarding_WARN.txt", "\n".join(ext_lines))
+
+    # ── Inbox Rules ───────────────────────────────────────────────────────────
+
+    def _save_inbox_rules(self) -> None:
+        rules    = self._get("inbox_rules_external")
+        filename = (
+            "29_exchange_inbox_rules_external_fwd_WARN.txt"
+            if rules
+            else "29_exchange_inbox_rules_external_fwd.txt"
+        )
+        content = _section_block(
+            "INBOX RULES WITH EXTERNAL FORWARDING",
+            rules,
+            key_fields=["Name", "Mailbox", "ForwardTo", "RedirectTo", "Enabled"],
+        )
+        self._save(filename, content)
+        if rules:
+            self._warn(
+                f"{len(rules)} inbox rule(s) forwarding to external addresses found"
+            )
+
+    # ── DLP Policies ──────────────────────────────────────────────────────────
+
+    def _save_dlp(self) -> None:
+        policies = self._get("dlp_policies")
+        content  = _section_block(
+            "PURVIEW DLP POLICIES",
+            policies,
+            key_fields=["Name", "Mode", "Priority", "Workload"],
+        )
+        self._save("19d_purview_dlp_policies.txt", content)
+
+    # ── Retention Policies ────────────────────────────────────────────────────
+
+    def _save_retention(self) -> None:
+        policies = self._get("retention_policies")
+        content  = _section_block(
+            "PURVIEW RETENTION POLICIES",
+            policies,
+            key_fields=["Name", "Enabled", "RetentionRuleTypes"],
+        )
+        self._save("19e_purview_retention_policies.txt", content)
+
+    # ── Mailbox Delegations ──────────────────────────────────────────────────
+
+    def _save_mailbox_delegations(self) -> None:
+        delegations = self._get("mailbox_delegations")
+        error = self.exo_data.get("mailbox_delegation_error")
+
+        if error and not delegations:
+            self._save(
+                "29b_exchange_mailbox_delegations.txt",
+                f"Error collecting mailbox delegations: {error}\n",
+            )
+            return
+
+        lines = [
+            "=" * 110,
+            f"  MAILBOX DELEGATIONS (SendAs / FullAccess)  ({len(delegations)} entries)",
+            "=" * 110,
+            f"  {'Mailbox':<45} {'Type':<15} {'Delegate'}",
+            "  " + "-" * 106,
+        ]
+
+        full_access = []
+        send_as = []
+        for d in delegations:
+            mailbox  = str(d.get("Mailbox") or "")[:45]
+            ptype    = str(d.get("Type") or "")[:15]
+            delegate = str(d.get("Delegate") or "")
+            lines.append(f"  {mailbox:<45} {ptype:<15} {delegate}")
+            if ptype == "FullAccess":
+                full_access.append(d)
+            elif ptype == "SendAs":
+                send_as.append(d)
+
+        lines += [
+            "",
+            f"  Summary: {len(full_access)} FullAccess, {len(send_as)} SendAs delegation(s)",
+            "=" * 110,
+            "",
+        ]
+        self._save("29b_exchange_mailbox_delegations.txt", "\n".join(lines))
+
+        if delegations:
+            self._warn(
+                f"{len(delegations)} mailbox delegation(s) found "
+                f"({len(full_access)} FullAccess, {len(send_as)} SendAs)"
+            )
