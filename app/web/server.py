@@ -16,7 +16,7 @@ from fastapi import FastAPI
 
 from app.core.database import run_migrations
 from app.core.version import get_version
-from app.web.routes import hub
+from app.web.routes import fortigate, hub, unifi, vpn
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,12 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(hub.router, prefix="/api", tags=["hub"])
+    # VPN management — required so the toolkit can reach customer-internal
+    # devices (FortiGate / UniFi management interfaces live on the LAN,
+    # not on the internet). Routes are operator-gated.
+    app.include_router(vpn.router, prefix="/api", tags=["vpn"])
+    app.include_router(fortigate.router, prefix="/api", tags=["fortigate"])
+    app.include_router(unifi.router, prefix="/api", tags=["unifi"])
 
     @app.get("/api/health")
     async def health() -> dict[str, str | bool]:

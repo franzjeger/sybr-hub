@@ -26,13 +26,14 @@ Read from everything. Write to a deliberate few.
 | Domain | Read | Write |
 |---|---|---|
 | **Microsoft 365** | Full security audit (26 sections, CIS / NIST CSF / ISO 27001 mapped) | — |
-| **FortiGate** | Policy + admin audit | Config backups → IT Glue |
-| **UniFi** | Device + firmware audit | — |
+| **FortiGate** | Policy + admin audit over REST API | Config backups → IT Glue |
+| **UniFi** | Device + firmware audit (controller-API or direct-SSH) | — |
 | **DNS / email security** | SPF / DKIM / DMARC / MTA-STS | — |
 | **Autotask PSA** | Account, Classification, Contract | Create Ticket *(manual click only)* |
 | **IT Glue** | Documentation pointers | Audit reports + firewall config backups |
 | **myITprocess** | — | Push Recommendation *(manual click only)* |
 | **RMM (Datto / Ninja / Atera / …)** | Device status | Deep-link WebRemote sessions |
+| **VPN** (OpenVPN-3 / WireGuard) | Tunnel state | Required so the toolkit can reach customer-internal FortiGate / UniFi management interfaces |
 
 **The write side is deliberately small and operator-initiated.** No
 scheduled audit ever creates a ticket. The technician reads the

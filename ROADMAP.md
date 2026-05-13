@@ -14,7 +14,7 @@ an issue to discuss.
 ## Done in v0.1.0 (Initial release)
 
 Validated audit layer carried forward from MSP-Toolkit-V2 v10.10.12.
-The data-quality pass that produced v10.10.2–.12 is locked in by 243
+The data-quality pass that produced v10.10.2–.12 is locked in by
 regression tests in this repo.
 
 - **Microsoft 365 audit** — 26 sections, full pagination on every
@@ -23,8 +23,18 @@ regression tests in this repo.
 - **Report generator** — CIS / NIST CSF 2.0 / ISO 27001:2022 control
   mapping; verdicts grounded in actual data rather than substring
   matching against banners.
+- **FortiGate audit** — REST-API client, policy + admin audit, encrypted
+  config backup, CIS-Fortinet compliance checks.
+- **UniFi audit** — both controller-API and direct-SSH modes; firmware
+  currency + EOL detection in both modes.
+- **VPN tunnel management** — OpenVPN-3 and WireGuard backends.
+  Required infrastructure: customer FortiGate / UniFi management
+  interfaces are on internal LANs, so the toolkit needs a way to
+  reach them. The VPN module is operator-facing connectivity, not a
+  customer-facing VPN-as-a-service product.
 - **IT Glue integration** — read organizations + flexible assets;
-  write audit reports as encrypted attachments.
+  write audit reports + FortiGate config backups as encrypted
+  attachments.
 - **DNS email security** — SPF / DKIM / DMARC / MTA-STS over DoH,
   distinguishes transport errors from "record absent".
 - **AES-256-GCM at-rest encryption** for everything written under
@@ -92,10 +102,15 @@ part of the Sybr HUB vision and should not return without an explicit
 decision:
 
 - Remote browser via Guacamole / x11vnc — use the RMM's WebRemote
-- VPN management — separate concern, not workflow-critical
 - Penetration testing module — not aligned with "read-mostly
   aggregator" framing
 - Auto-remediation of any kind — operator discretion is the workflow
+
+VPN management is **in scope** as infrastructure (the toolkit must
+reach customer-internal management interfaces) — the operator-facing
+VPN routes are kept. What's out is any future "VPN-as-a-service for
+end-users" framing — Sybr HUB is for MSP technicians, not customer
+employees.
 
 ## Versioning
 
