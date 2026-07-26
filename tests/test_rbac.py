@@ -54,13 +54,77 @@ async def test_admin_accessible_returns_none(admin_user):
 
 
 # ---------------------------------------------------------------------------
-# Technician with no RBAC configured (backwards compat)
+# Unassigned technician — fails closed
 # ---------------------------------------------------------------------------
 
-async def test_unconfigured_tech_has_full_access(tech_user):
-    # No rows in customer_access → allow all
-    assert await check_customer_access(tech_user, "any-customer") is True
-    assert await get_accessible_customer_ids(tech_user) is None
+async def test_unassigned_tech_has_no_access(tech_user):
+    """A technician with no assignments sees nothing.
+
+    This previously asserted the opposite: an empty customer_access table meant
+    "unrestricted", so forgetting to assign customers granted access to every
+    one of them. Access is now an explicit grant (users.all_customers or a
+    customer_access row), so a mis-configuration fails closed.
+    """
+    assert await check_customer_access(tech_user, "any-customer") is False
+    assert await get_accessible_customer_ids(tech_user) == set()
+
+
+async def test_all_customers_grant_restores_unrestricted_access(tech_user):
+    """The explicit grant is what existing installs are migrated onto."""
+    from app.core.auth import get_user_by_id
+    from app.core.rbac import set_all_customers
+
+    await set_all_customers(tech_user.id, True)
+    reloaded = await get_user_by_id(tech_user.id)
+
+    assert reloaded.all_customers is True
+    assert await check_customer_access(reloaded, "any-customer") is True
+    assert await get_accessible_customer_ids(reloaded) is None
+
+
+async def test_all_customers_grant_is_revocable(tech_user):
+    from app.core.auth import get_user_by_id
+    from app.core.rbac import set_all_customers
+
+    await set_all_customers(tech_user.id, True)
+    await set_all_customers(tech_user.id, False)
+    reloaded = await get_user_by_id(tech_user.id)
+
+    assert reloaded.all_customers is False
+    assert await check_customer_access(reloaded, "any-customer") is False
+
+
+async def test_migration_defaults_existing_accounts_to_unrestricted():
+    """Migration 14 must not lock out accounts created before it ran.
+
+    Rows that predate the column get all_customers = 1, preserving exactly the
+    access they had under the old "no rows means everything" rule.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    from app.core.auth import get_user_by_id
+    from app.core.database import get_db
+
+    # Insert without the new column, as a pre-migration row would have been.
+    user_id = str(uuid.uuid4())
+    async with get_db() as conn:
+        await conn.execute(
+            "INSERT INTO users (id, username, display_name, password_hash, role, created_at, is_active) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1)",
+            (user_id, "legacy", "Legacy", "x", "technician",
+             datetime.now(timezone.utc).isoformat()),
+        )
+        await conn.commit()
+
+    legacy = await get_user_by_id(user_id)
+    assert legacy.all_customers is True
+    assert await check_customer_access(legacy, "any-customer") is True
+
+
+async def test_new_accounts_are_scoped_by_default(tech_user):
+    """create_user() defaults all_customers to False."""
+    assert tech_user.all_customers is False
 
 
 # ---------------------------------------------------------------------------

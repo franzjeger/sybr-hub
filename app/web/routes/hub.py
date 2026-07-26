@@ -26,7 +26,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.models.user import User
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import require_customer_access
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -35,7 +35,7 @@ router = APIRouter()
 @router.get("/hub/{customer_id}")
 async def get_customer_hub(
     customer_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_customer_access()),
 ) -> dict[str, Any]:
     """Aggregate view of one customer.
 
@@ -83,7 +83,7 @@ async def get_customer_hub(
 async def create_ticket_from_finding(
     customer_id: str,
     finding_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_customer_access()),
 ) -> dict[str, Any]:
     """Convert an audit finding into an Autotask ticket.
 
@@ -105,7 +105,7 @@ async def create_ticket_from_finding(
 async def push_finding_to_myitprocess(
     customer_id: str,
     finding_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_customer_access()),
 ) -> dict[str, Any]:
     """Convert an audit finding into a myITprocess Recommendation.
 

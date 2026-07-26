@@ -131,6 +131,7 @@ async def _put_secret_to_db(key: str, value: str) -> None:
             (key, encrypted),
         )
         await conn.commit()
+    _invalidate_secret_cache(key)
 
 
 async def _delete_secret_from_db(key: str) -> None:
@@ -138,16 +139,43 @@ async def _delete_secret_from_db(key: str) -> None:
     async with get_db() as conn:
         await conn.execute("DELETE FROM app_secrets WHERE key = ?", (key,))
         await conn.commit()
+    _invalidate_secret_cache(key)
+
+
+# The signing secret is read for every token operation — i.e. on every
+# authenticated request — and each read is a database round-trip plus an
+# AES-GCM decrypt. It changes only when it is written, so cache it in-process
+# and invalidate from the two write helpers above rather than from their
+# callers: anything that stores or deletes a secret then cannot leave a stale
+# entry behind, whether or not it went through rotate_jwt_secret().
+#
+# Keyed by database path so a test (or an MSP_DATA_DIR change) pointing at a
+# different database never inherits the previous one's secret.
+_secret_cache: dict[str, str] = {}
+
+
+def _secret_cache_key(name: str) -> str:
+    from app.core import database
+    return f"{database.DB_PATH}|{name}"
+
+
+def _invalidate_secret_cache(name: str) -> None:
+    _secret_cache.pop(_secret_cache_key(name), None)
 
 
 async def _get_jwt_secret() -> str:
     """Retrieve or generate the JWT signing secret (encrypted in DB)."""
+    cache_key = _secret_cache_key("jwt_secret")
+    cached = _secret_cache.get(cache_key)
+    if cached:
+        return cached
+
     secret = await _get_secret_from_db("jwt_secret")
-    if secret:
-        return secret
-    # Generate and store encrypted
-    secret = secrets.token_urlsafe(64)
-    await _put_secret_to_db("jwt_secret", secret)
+    if not secret:
+        # Generate and store encrypted (this invalidates, so cache after).
+        secret = secrets.token_urlsafe(64)
+        await _put_secret_to_db("jwt_secret", secret)
+    _secret_cache[cache_key] = secret
     return secret
 
 
@@ -478,7 +506,14 @@ async def create_user(
     display_name: str,
     role: Role = Role.technician,
     email: Optional[str] = None,
+    all_customers: bool = False,
 ) -> User:
+    """Create a user.
+
+    ``all_customers`` defaults to False, so a new account starts scoped to
+    whatever customers an admin assigns it. (Admins bypass the check outright,
+    so the flag is irrelevant for them.)
+    """
     from app.core.exceptions import ValidationError
     pw_err = validate_password(password)
     if pw_err:
@@ -488,9 +523,9 @@ async def create_user(
     pw_hash = hash_password(password)
     async with get_db() as conn:
         await conn.execute(
-            """INSERT INTO users (id, username, display_name, email, password_hash, role, created_at, is_active)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
-            (user_id, username, display_name, email, pw_hash, role.value, now),
+            """INSERT INTO users (id, username, display_name, email, password_hash, role, created_at, is_active, all_customers)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+            (user_id, username, display_name, email, pw_hash, role.value, now, int(all_customers)),
         )
         await conn.commit()
     return User(
@@ -501,6 +536,7 @@ async def create_user(
         role=role,
         created_at=datetime.fromisoformat(now),
         is_active=True,
+        all_customers=all_customers,
     )
 
 
@@ -603,6 +639,7 @@ async def authenticate(username: str, password: str) -> Optional[User]:
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _row_to_user(row) -> User:
+    keys = row.keys()
     return User(
         id=row["id"],
         username=row["username"],
@@ -612,4 +649,6 @@ def _row_to_user(row) -> User:
         created_at=datetime.fromisoformat(row["created_at"]),
         last_login=datetime.fromisoformat(row["last_login"]) if row["last_login"] else None,
         is_active=bool(row["is_active"]),
+        # Tolerate a row read before migration 14 has run.
+        all_customers=bool(row["all_customers"]) if "all_customers" in keys else False,
     )

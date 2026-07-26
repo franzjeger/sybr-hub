@@ -21,13 +21,37 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 # ── Schema migrations ────────────────────────────────────────────────────────
-# Each entry is (version, description, sql).  Migrations run sequentially
+# Each entry is (version, description, body).  Migrations run sequentially
 # from the stored version up to SCHEMA_VERSION.
+#
+# ``body`` is either a SQL script (run via executescript) or an async callable
+# taking the connection. SQLite has no `ALTER TABLE ... ADD COLUMN IF NOT
+# EXISTS`, so column additions have to inspect the schema first to stay
+# re-runnable — which the runner requires, since a migration whose version
+# bump fails is retried on the next boot.
 
-_MIGRATIONS: list[tuple[int, str, str]] = [
+
+async def _add_all_customers_column(conn: aiosqlite.Connection) -> None:
+    """Add users.all_customers, defaulting existing accounts to unrestricted.
+
+    Existing installs relied on 'a user with no customer_access rows can see
+    everything'. Defaulting the new column to 1 preserves exactly that for
+    accounts that already exist, while new accounts are created scoped —
+    turning an implicit fail-open into an explicit, visible grant.
+    """
+    async with conn.execute("PRAGMA table_info(users)") as cur:
+        columns = {row[1] for row in await cur.fetchall()}
+    if "all_customers" in columns:
+        return
+    await conn.execute(
+        "ALTER TABLE users ADD COLUMN all_customers INTEGER NOT NULL DEFAULT 1"
+    )
+
+
+_MIGRATIONS: list = [
     (
         1,
         "Initial schema — schema_version table",
@@ -324,21 +348,49 @@ _MIGRATIONS: list[tuple[int, str, str]] = [
             ON token_blacklist(expires_at);
         """,
     ),
+    (
+        14,
+        "Explicit all-customers grant — replaces 'no rows means unrestricted' in RBAC",
+        _add_all_customers_column,
+    ),
 ]
 
 
 # ── Connection helpers ───────────────────────────────────────────────────────
 
+# Journal mode is a property of the *database file*, not of a connection: once
+# a database is in WAL it stays in WAL until something changes it back. Running
+# `PRAGMA journal_mode=WAL` on every connection therefore bought nothing and
+# cost ~0.56 ms a time — measured at 43% of the whole open/close cycle, on an
+# authenticated request that opens four of them. Set it once per process
+# instead, when the schema is prepared.
+_journal_mode_set_for: str | None = None
+
+
+async def _ensure_journal_mode(conn: aiosqlite.Connection) -> None:
+    """Put the database into WAL mode once per process, per database file."""
+    global _journal_mode_set_for
+    path = str(DB_PATH)
+    if _journal_mode_set_for == path:
+        return
+    await conn.execute("PRAGMA journal_mode=WAL")
+    _journal_mode_set_for = path
+    logger.debug("journal_mode=WAL applied to %s", path)
+
+
 async def _get_connection() -> aiosqlite.Connection:
-    """Open a new connection with WAL mode and foreign keys enabled."""
+    """Open a new connection with the per-connection pragmas applied."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = await aiosqlite.connect(str(DB_PATH), timeout=30)
     conn.row_factory = aiosqlite.Row
-    await conn.execute("PRAGMA journal_mode=WAL")
-    # Cap WAL growth: SQLite checkpoints into the main DB after this many
-    # pages of write-ahead log. Default is 1000 (~4 MiB at 4 KiB pages).
-    # Without this, the .db-wal file can grow unbounded between explicit
-    # checkpoints and slow recovery on power loss.
+    await _ensure_journal_mode(conn)
+    # Both of these are per-connection settings and must be re-applied each
+    # time — unlike journal_mode above. Together they cost ~0.25 ms.
+    #
+    # wal_autocheckpoint caps WAL growth: SQLite checkpoints into the main DB
+    # after this many pages of write-ahead log. Default is 1000 (~4 MiB at
+    # 4 KiB pages). Without it the .db-wal file can grow unbounded between
+    # explicit checkpoints and slow recovery on power loss.
     await conn.execute("PRAGMA wal_autocheckpoint=1000")
     await conn.execute("PRAGMA foreign_keys=ON")
     return conn
@@ -377,7 +429,7 @@ async def run_migrations() -> None:
     async with get_db() as conn:
         current = await _current_version(conn)
 
-        for version, description, sql in _MIGRATIONS:
+        for version, description, body in _MIGRATIONS:
             if version <= current:
                 continue
 
@@ -387,10 +439,14 @@ async def run_migrations() -> None:
                 # whole migration in a single BEGIN..COMMIT. Instead: run the
                 # DDL (which auto-commits), then update schema_version inside
                 # an explicit transaction. If the version bump fails we roll
-                # back — the migration will be re-attempted next boot and the
-                # DDL is written to be idempotent (CREATE TABLE IF NOT EXISTS
-                # / ALTER TABLE ... IF NOT EXISTS patterns).
-                await conn.executescript(sql)
+                # back — the migration will be re-attempted next boot, so every
+                # migration body must be re-runnable (CREATE TABLE IF NOT
+                # EXISTS, or an explicit schema check before ALTER).
+                if callable(body):
+                    await body(conn)
+                    await conn.commit()
+                else:
+                    await conn.executescript(body)
                 await conn.execute("BEGIN")
                 await conn.execute(
                     "UPDATE schema_version SET version = ? WHERE id = 1",

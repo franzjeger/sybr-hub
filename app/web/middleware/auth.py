@@ -238,6 +238,36 @@ def require_role(min_role: Role) -> Callable:
     return _check
 
 
+def require_customer_access(min_role: Role = Role.viewer) -> Callable:
+    """Dependency factory for routes scoped to a single customer.
+
+    Enforces the role floor *and* that the caller may see this particular
+    customer. ``customer_id`` is taken from the path, so any route with a
+    ``{customer_id}`` segment can use this directly.
+
+    Without it, per-customer RBAC was effectively decorative: only one route
+    consulted it, so a technician assigned to customer A could read customer
+    B's dashboard, backups and threat logs by changing the URL.
+    """
+    role_check = require_role(min_role)
+
+    async def _check(customer_id: str, user: User = Depends(role_check)) -> User:
+        from app.core.rbac import check_customer_access
+
+        if not await check_customer_access(user, customer_id):
+            from fastapi import HTTPException
+            logger.info(
+                "403 customer-access: user=%s customer=%s", user.username, customer_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Du har ikke tilgang til denne kunden",
+            )
+        return user
+
+    return _check
+
+
 # Convenience shortcuts
 require_admin = require_role(Role.admin)
 require_technician = require_role(Role.technician)

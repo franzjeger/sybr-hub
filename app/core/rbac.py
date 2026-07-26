@@ -18,25 +18,20 @@ logger = logging.getLogger(__name__)
 async def check_customer_access(user: User, customer_id: str) -> bool:
     """Return True if user may access the given customer.
 
-    Admins always have access.  For other roles, a matching row in
-    ``customer_access`` is required.  If no rows exist at all for a user,
-    access is granted (backwards-compatible: RBAC not yet configured).
+    Access is granted when the user is an admin, or holds the explicit
+    ``all_customers`` grant, or has a matching ``customer_access`` row.
+
+    Previously an *absence* of rows meant "unrestricted", so a technician
+    nobody had assigned customers to could read every customer in the system —
+    the failure mode of a mis-configuration was full access rather than none.
+    The grant is now a column on the user (see migration 14), which preserves
+    the old behaviour for accounts that already existed while making it a
+    visible, revocable decision rather than a side effect of an empty table.
     """
-    if user.role == Role.admin:
+    if user.role == Role.admin or user.all_customers:
         return True
 
     async with get_db() as conn:
-        # Check if user has *any* customer_access rows (RBAC configured)
-        async with conn.execute(
-            "SELECT COUNT(*) FROM customer_access WHERE user_id = ?",
-            (user.id,),
-        ) as cur:
-            total = (await cur.fetchone())[0]
-
-        if total == 0:
-            # RBAC not configured for this user — allow all (backwards compat)
-            return True
-
         async with conn.execute(
             "SELECT 1 FROM customer_access WHERE user_id = ? AND customer_id = ?",
             (user.id, customer_id),
@@ -47,10 +42,11 @@ async def check_customer_access(user: User, customer_id: str) -> bool:
 async def get_accessible_customer_ids(user: User) -> Optional[set[str]]:
     """Return the set of customer IDs this user may access.
 
-    Returns None if the user is admin or has no RBAC rows configured
-    (meaning "all customers").  Returns a set otherwise.
+    Returns None for "no restriction" (admin, or the explicit all-customers
+    grant). Otherwise returns the assigned set, which may be empty — an empty
+    set means "no customers", not "all customers".
     """
-    if user.role == Role.admin:
+    if user.role == Role.admin or user.all_customers:
         return None  # no restriction
 
     async with get_db() as conn:
@@ -60,10 +56,17 @@ async def get_accessible_customer_ids(user: User) -> Optional[set[str]]:
         ) as cur:
             rows = await cur.fetchall()
 
-    if not rows:
-        return None  # RBAC not configured — allow all
-
     return {r[0] for r in rows}
+
+
+async def set_all_customers(user_id: str, allowed: bool) -> None:
+    """Grant or revoke the blanket all-customers access for a user."""
+    async with get_db() as conn:
+        await conn.execute(
+            "UPDATE users SET all_customers = ? WHERE id = ?",
+            (int(allowed), user_id),
+        )
+        await conn.commit()
 
 
 def filter_customers(customers: list[dict], allowed: Optional[set[str]]) -> list[dict]:

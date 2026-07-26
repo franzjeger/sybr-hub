@@ -15,7 +15,11 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.models.user import Role, User
-from app.web.middleware.auth import get_current_user, require_role
+from app.web.middleware.auth import (
+    get_current_user,
+    require_customer_access,
+    require_role,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -108,7 +112,7 @@ def _get_fg_config(customer_id: str) -> tuple[dict, str]:
 @router.get("/fortigate/dashboard/{customer_id}")
 async def fortigate_dashboard(
     customer_id: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Live FortiGate dashboard stats."""
     from app.services.fortigate_api import get_dashboard
@@ -124,7 +128,7 @@ async def fortigate_dashboard(
 @router.post("/fortigate/backup/{customer_id}")
 async def fortigate_backup(
     customer_id: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Trigger a FortiGate config backup."""
     from app.services.fortigate_api import backup_config
@@ -142,7 +146,7 @@ async def fortigate_backup(
 @router.get("/fortigate/backups/{customer_id}")
 async def fortigate_list_backups(
     customer_id: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """List available FortiGate config backups."""
     from app.services.fortigate_api import list_backups
@@ -154,7 +158,7 @@ async def fortigate_list_backups(
 async def fortigate_download_backup(
     customer_id: str,
     filename: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Download a specific backup file (decrypted)."""
     from app.services.fortigate_api import read_backup
@@ -170,7 +174,7 @@ async def fortigate_diff(
     customer_id: str,
     file1: str = Query(..., description="First backup filename"),
     file2: str = Query(..., description="Second backup filename"),
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Compare two FortiGate config backups."""
     from app.services.fortigate_api import diff_configs
@@ -184,7 +188,7 @@ async def fortigate_diff(
 async def fortigate_deploy_key(
     customer_id: str,
     request: Request,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Push an SSH public key to a FortiGate admin user via REST API."""
     from app.services.fortigate_api import deploy_ssh_key
@@ -206,7 +210,7 @@ async def fortigate_deploy_key(
 async def fortigate_generate_token(
     customer_id: str,
     request: Request,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Create a FortiGate REST API token via SSH."""
     from app.services.fortigate_api import generate_api_token
@@ -320,12 +324,17 @@ async def fortigate_bootstrap(
 @router.get("/fortigate/credentials/{customer_id}")
 async def fortigate_credentials(
     customer_id: str,
-    user: User = Depends(require_role(Role.technician)),
+    user: User = Depends(require_customer_access(Role.admin)),
 ):
     """Return stored FortiGate credentials for a customer (host, port, admin/password, API token).
 
     Used to recover credentials after a bootstrap if the browser/PC was lost.
     Returns 404 if no credentials are stored.
+
+    Admin-only: this hands back a firewall's plaintext admin password and API
+    token. Day-to-day FortiGate work goes through the other endpoints, which
+    use the stored token without ever disclosing it, so a technician has no
+    routine need for this. Every call is recorded in the activity log.
     """
     from app.core.activity_log import log_activity
     from app.core.credentials import get_secret
@@ -365,7 +374,7 @@ async def fortigate_credentials(
 @router.get("/fortigate/compliance/{customer_id}")
 async def fortigate_compliance(
     customer_id: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Run CIS compliance checks against the FortiGate."""
     from app.services.fortigate_api import check_compliance
@@ -381,7 +390,7 @@ async def fortigate_compliance(
 @router.get("/fortigate/threats/{customer_id}")
 async def fortigate_threats(
     customer_id: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Fetch threat log summary for a customer's FortiGate."""
     from app.services.fortigate_api import get_threat_summary
@@ -397,7 +406,7 @@ async def fortigate_threats(
 @router.get("/fortigate/firewall-audit/{customer_id}")
 async def fortigate_firewall_audit(
     customer_id: str,
-    _user=Depends(require_role(Role.technician)),
+    _user=Depends(require_customer_access(Role.technician)),
 ):
     """Audit firewall policies for a customer's FortiGate."""
     from app.services.fortigate_api import audit_firewall_rules
