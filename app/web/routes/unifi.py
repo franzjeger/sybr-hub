@@ -144,7 +144,10 @@ async def network_scan_subnet(request: Request, user: User = Depends(get_current
 
 
 @router.post("/network/save-config-backup")
-async def network_save_config_backup(request: Request):
+async def network_save_config_backup(
+    request: Request,
+    user: User = Depends(require_role(Role.technician)),
+):
     """Save a device config dump to the customer's audit directory."""
     from app.core.config import get_audit_dir
     from app.core.customer import CustomerManager
@@ -177,7 +180,7 @@ async def network_save_config_backup(request: Request):
 
 
 @router.get("/network/config-backups")
-async def network_list_config_backups():
+async def network_list_config_backups(user: User = Depends(get_current_user)):
     """List saved network config backups for the active customer."""
     from app.core.config import get_audit_dir
     from app.core.customer import CustomerManager
@@ -206,7 +209,10 @@ async def network_list_config_backups():
 
 
 @router.post("/unifi/save")
-async def unifi_save(request: Request):
+async def unifi_save(
+    request: Request,
+    user: User = Depends(require_role(Role.technician)),
+):
     """Save UniFi config for the active customer."""
     from app.core.credentials import store_secret
     from app.core.customer import CustomerManager
@@ -245,7 +251,7 @@ async def unifi_save(request: Request):
 
 
 @router.post("/network/quick-audit")
-async def network_quick_audit():
+async def network_quick_audit(user: User = Depends(require_role(Role.technician))):
     """Run a quick network audit — gathers key data from FortiGate and/or UniFi."""
     import json as _json
 
@@ -300,7 +306,7 @@ async def network_quick_audit():
 
 
 @router.get("/network-devices")
-async def get_network_devices():
+async def get_network_devices(user: User = Depends(get_current_user)):
     """Return configured network devices for the active customer."""
     from app.core.credentials import get_secret
     from app.core.customer import CustomerManager

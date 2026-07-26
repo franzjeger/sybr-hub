@@ -31,6 +31,9 @@ WINDOW = 60               # seconds
 
 # Prefixes that get the stricter limit.
 _SENSITIVE_PREFIXES: tuple[str, ...] = (
+    # Credential endpoints — the stricter bucket is the brute-force brake.
+    "/api/auth/login",
+    "/api/auth/setup",
     "/api/vpn/",
     "/api/audit/stream",
     "/api/audit/bulk",

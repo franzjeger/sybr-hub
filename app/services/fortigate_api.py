@@ -17,6 +17,11 @@ from typing import Optional
 
 from app.core.config import get_audit_dir
 from app.core.encryption import encrypted_read_text, encrypted_write_text
+from app.core.validation import (
+    validate_cidr_list,
+    validate_identifier,
+    validate_ssh_public_key,
+)
 from app.modules.fortigate_audit.client import FortiGateClient
 
 log = logging.getLogger(__name__)
@@ -223,6 +228,11 @@ async def deploy_ssh_key(
     Uses PUT /api/v2/cmdb/system/admin/{admin_user} to set the
     ssh-public-key1 field.
     """
+    # Both values land in a URL path and a FortiOS config field respectively,
+    # so neither may carry separators or quotes.
+    validate_identifier(admin_user, "admin_user", max_length=35)
+    public_key = validate_ssh_public_key(public_key)
+
     async with _build_client(config, token) as fg:
         path = f"/api/v2/cmdb/system/admin/{admin_user}"
         try:
@@ -259,16 +269,31 @@ async def generate_api_token(
     Connects via SSH, runs FortiOS CLI commands to create a REST API
     administrator, and parses the generated token from the output.
     """
+    # These values are interpolated into a CLI script executed on the
+    # customer's firewall. Validate before doing anything else — a quote or
+    # newline here would append arbitrary FortiOS commands. Deliberately
+    # outside the try/except below so a bad value surfaces as a 400, not as
+    # {"ok": False}.
+    validate_identifier(api_admin_name, "api_admin_name", max_length=35)
+    validate_identifier(accprofile, "accprofile", max_length=35)
+    validate_identifier(vdom, "vdom", max_length=31)
+    trusthosts = validate_cidr_list(trusted_hosts, "trusted_hosts")
+
     from app.services.ssh_connection import SshSession
+
+    trusthost_entries = "\n".join(
+        f"""            edit {i}
+                set ipv4-trusthost {host}
+            next"""
+        for i, host in enumerate(trusthosts, start=1)
+    )
 
     commands = f"""config system api-user
     edit "{api_admin_name}"
         set accprofile "{accprofile}"
         set vdom "{vdom}"
         config trusthost
-            edit 1
-                set ipv4-trusthost {trusted_hosts}
-            next
+{trusthost_entries}
         end
     next
 end
@@ -335,6 +360,12 @@ async def factory_bootstrap(
     Returns:
         {"ok": True, "admin_password": "...", "api_token": "...", "api_admin": "...", "host": "..."}
     """
+    # Interpolated into an interactive CLI session below — validate before
+    # doing anything else so a bad value can never reach the firewall.
+    validate_identifier(api_admin_name, "api_admin_name", max_length=35)
+    if hostname:
+        validate_identifier(hostname, "hostname", max_length=35)
+
     import asyncio
     import secrets
     import string
@@ -423,9 +454,8 @@ async def factory_bootstrap(
 
         # ── Step 3: Set hostname ──────────────────────────────────────
         if hostname:
-            safe_hostname = re.sub(r"[^A-Za-z0-9\\-]", "", hostname)[:35]
             await _send(proc, "config system global")
-            await _send(proc, f'set hostname "{safe_hostname}"')
+            await _send(proc, f'set hostname "{hostname}"')
             await _send(proc, "end")
             result["steps"].append("hostname_set")
 

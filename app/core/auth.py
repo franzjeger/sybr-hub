@@ -272,9 +272,14 @@ async def create_session(
     refresh_token: str,
     ip_address: str = "",
     user_agent: str = "",
+    session_id: str | None = None,
 ) -> str:
-    """Create a new session record. Returns the session ID."""
-    session_id = str(uuid.uuid4())
+    """Create a new session record. Returns the session ID.
+
+    Pass *session_id* when the caller has already embedded it in the token
+    being stored, so the record's hash matches the token the client holds.
+    """
+    session_id = session_id or str(uuid.uuid4())
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     now = datetime.now(timezone.utc)
     expires = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
@@ -572,10 +577,18 @@ async def update_last_login(user_id: str) -> None:
 
 # ── Authenticate ─────────────────────────────────────────────────────────────
 
+# A pre-computed hash of a random value, verified against when the username
+# doesn't exist. Without it, a missing user returns in microseconds while a
+# real one costs a full Argon2 verify — a timing oracle for enumerating
+# usernames. The password is never known, so this always fails.
+_DUMMY_HASH = _ph.hash(secrets.token_urlsafe(32))
+
+
 async def authenticate(username: str, password: str) -> Optional[User]:
     """Verify credentials and return the user, or None."""
     pw_hash = await get_password_hash(username)
     if not pw_hash:
+        verify_password(password, _DUMMY_HASH)  # equalise timing
         return None
     if not verify_password(password, pw_hash):
         return None
