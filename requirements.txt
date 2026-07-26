@@ -1,7 +1,6 @@
 # Web UI
 fastapi>=0.111.0,<1.0
 uvicorn[standard]>=0.30.0,<1.0
-python-multipart>=0.0.7,<1.0
 
 
 # Microsoft Graph API (httpx-based, no heavy SDK)
@@ -17,12 +16,12 @@ azure-mgmt-storage>=21.1.0,<22.0
 azure-mgmt-monitor>=6.0.1,<7.0
 azure-mgmt-advisor>=9.0.0,<10.0
 azure-mgmt-recoveryservices>=2.5.0,<3.0
+# Separate distribution from azure-mgmt-recoveryservices — the Azure
+# governance section imports it for backup-policy checks, and without it
+# that check silently degrades to "unavailable".
+azure-mgmt-recoveryservicesbackup>=8.0.0,<10.0
 azure-mgmt-loganalytics>=13.0.0,<14.0
 azure-mgmt-desktopvirtualization>=1.0.0,<2.0
-azure-mgmt-costmanagement>=4.0.0,<5.0
-azure-mgmt-authorization>=4.0.0,<5.0
-azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0
-six>=1.16.0,<2.0
 
 # Credentials
 keyring>=24.3.0,<26.0
@@ -38,11 +37,8 @@ jinja2>=3.1.4,<4.0
 # the not-yet-released breaking-change line.
 weasyprint>=64.0,<67.0
 
-# SSH (UniFi direct device access)
+# SSH (UniFi direct device access, FortiGate CLI)
 asyncssh>=2.14.0,<3.0
-
-# WebSocket proxy (Guacamole reverse proxy)
-websockets>=12.0,<15.0
 
 # Database
 aiosqlite>=0.20.0,<1.0
@@ -53,14 +49,8 @@ aiosqlite>=0.20.0,<1.0
 argon2-cffi>=25.1.0,<26.0
 PyJWT[crypto]>=2.9.0,<3.0
 
-# AI Console (optional — app works without it)
-anthropic>=0.40.0,<1.0
-
 # DNS validation
 dnspython>=2.6.0,<3.0
-
-# Pentest / network scanning
-python-nmap>=0.7.1,<1.0
 
 # Utilities
 platformdirs>=4.2.0,<5.0

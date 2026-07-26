@@ -40,7 +40,7 @@ class UniFiControllerClient:
         username: str,
         password: str,
         is_unifi_os: bool = False,
-        verify_ssl: bool = False,
+        verify_ssl: bool = True,
         timeout: float = 30.0,
     ):
         self.host = host.rstrip("/")
@@ -218,7 +218,7 @@ class UniFiDirectDevice:
         device_type: str = "ap",
         port: int = 443,
         ssh_port: int = 22,
-        verify_ssl: bool = False,
+        verify_ssl: bool = True,
     ):
         self.host = host.rstrip("/")
         self.username = username
@@ -246,15 +246,19 @@ class UniFiDirectDevice:
     async def _ssh_exec(self, remote_cmd: str, timeout: float = 20) -> tuple[str, str, int]:
         """Run a command on the device via asyncssh.  Returns (stdout, stderr, rc)."""
         import asyncssh
+
+        from app.services.ssh_connection import open_verified_connection
         try:
-            async with asyncssh.connect(
-                self.host,
+            # Host key is pinned on first contact and verified thereafter —
+            # these sessions carry device credentials.
+            conn = await open_verified_connection(
+                hostname=self.host,
                 port=self.ssh_port,
                 username=self.username,
                 password=self.password,
-                known_hosts=None,  # Accept any host key
                 connect_timeout=10,
-            ) as conn:
+            )
+            async with conn:
                 result = await asyncio.wait_for(
                     conn.run(remote_cmd, check=False),
                     timeout=timeout,

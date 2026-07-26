@@ -8,8 +8,6 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
-import re
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -21,19 +19,35 @@ UNIFI_INFORM_PORT = 8080
 
 async def _ping(host: str, timeout: float = 1.0) -> bool:
     """Ping a single host. Returns True if reachable."""
+    proc = None
     try:
+        # `ping -W` takes *seconds*, not milliseconds. Passing ms meant a
+        # 0.5s timeout became `-W 500` — an 8-minute deadline that only the
+        # wait_for below cut short, leaving one ping process per unreachable
+        # address alive (up to 1024 on a /22 sweep).
         proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", str(int(timeout * 1000)), str(host),
+            "ping", "-c", "1", "-W", str(max(1, round(timeout))), str(host),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
         await asyncio.wait_for(proc.wait(), timeout=timeout + 1)
         return proc.returncode == 0
-    except Exception:
+    except TimeoutError:
         return False
+    except (OSError, ValueError) as e:
+        log.debug("ping to %s failed: %s", host, e)
+        return False
+    finally:
+        # wait_for cancels the wait but never the child — reap it explicitly.
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+                await proc.wait()
+            except (ProcessLookupError, OSError):
+                pass
 
 
-async def _check_ssh_banner(host: str, port: int = 22, timeout: float = 3.0) -> Optional[str]:
+async def _check_ssh_banner(host: str, port: int = 22, timeout: float = 3.0) -> str | None:
     """Connect to SSH port and read banner. Returns banner string or None."""
     try:
         reader, writer = await asyncio.wait_for(
@@ -48,7 +62,7 @@ async def _check_ssh_banner(host: str, port: int = 22, timeout: float = 3.0) -> 
         return None
 
 
-async def _check_https(host: str, port: int = 443, timeout: float = 3.0) -> Optional[str]:
+async def _check_https(host: str, port: int = 443, timeout: float = 3.0) -> str | None:
     """Try HTTPS connection to detect UniFi web interface."""
     import httpx
     try:
@@ -66,7 +80,7 @@ async def _check_https(host: str, port: int = 443, timeout: float = 3.0) -> Opti
         return None
 
 
-async def scan_host(host: str) -> Optional[dict]:
+async def scan_host(host: str) -> dict | None:
     """Probe a single host for UniFi device indicators.
 
     Returns a dict with device info, or None if not a UniFi device.
@@ -99,7 +113,7 @@ async def scan_host(host: str) -> Optional[dict]:
 
 async def scan_subnet(
     subnet: str,
-    on_progress: Optional[callable] = None,
+    on_progress: callable | None = None,
     max_concurrent: int = 50,
 ) -> list[dict]:
     """Scan a subnet for UniFi devices.

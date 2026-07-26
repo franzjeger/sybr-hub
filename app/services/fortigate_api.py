@@ -43,7 +43,7 @@ def _build_client(config: dict, token: str) -> FortiGateClient:
         api_token=token,
         port=int(config.get("FortiGatePort", 443)),
         vdom=config.get("FortiGateVDOM", "root"),
-        verify_ssl=config.get("FortiGateVerifySSL", False),
+        verify_ssl=config.get("FortiGateVerifySSL", True),
     )
 
 
@@ -370,7 +370,7 @@ async def factory_bootstrap(
     import secrets
     import string
 
-    import asyncssh
+    from app.services.ssh_connection import open_verified_connection
 
     if not new_password:
         alphabet = string.ascii_letters + string.digits + "!@#$%&*"
@@ -406,15 +406,17 @@ async def factory_bootstrap(
     # ── Step 1: Connect with factory defaults ────────────────────────
     try:
         log.info("Factory bootstrap: connecting to %s:%d", host, port)
-        conn = await asyncssh.connect(
-            host=host, port=port, username="admin", password="",
-            known_hosts=None, connect_timeout=20,
+        # First contact with a factory-default unit, so its key is pinned here
+        # and verified on every later connection.
+        conn = await open_verified_connection(
+            hostname=host, port=port, username="admin", password="",
+            connect_timeout=20,
         )
     except Exception:
         try:
-            conn = await asyncssh.connect(
-                host=host, port=port, username="admin",
-                known_hosts=None, connect_timeout=20,
+            conn = await open_verified_connection(
+                hostname=host, port=port, username="admin",
+                connect_timeout=20,
             )
         except Exception as e:
             result["error"] = (
@@ -739,7 +741,7 @@ async def poll_all_fortigates() -> list[dict]:
                 fg_host, fg_token,
                 port=int(cust.get("FortiGatePort", 443)),
                 vdom=cust.get("FortiGateVDOM", "root"),
-                verify_ssl=cust.get("FortiGateVerifySSL", False),
+                verify_ssl=cust.get("FortiGateVerifySSL", True),
             ) as fg:
                 status, perf, firmware, csf, vpn_mon, policies = await asyncio.gather(
                     fg.get_system_status(),

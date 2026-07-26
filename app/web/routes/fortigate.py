@@ -31,7 +31,7 @@ async def fortigate_test(request: Request, user: User = Depends(get_current_user
     token = body.get("api_token", "").strip()
     port = int(body.get("port", 443))
     vdom = body.get("vdom", "root")
-    verify_ssl = body.get("verify_ssl", False)
+    verify_ssl = body.get("verify_ssl", True)
 
     if not host or not token:
         raise ValidationError("Host og API-token er påkrevd")
@@ -65,7 +65,7 @@ async def fortigate_save(request: Request, user: User = Depends(get_current_user
     config["FortiGateHost"] = body.get("host", "").strip()
     config["FortiGatePort"] = int(body.get("port", 443))
     config["FortiGateVDOM"] = body.get("vdom", "root")
-    config["FortiGateVerifySSL"] = body.get("verify_ssl", False)
+    config["FortiGateVerifySSL"] = body.get("verify_ssl", True)
 
     # Save token to keyring
     token = body.get("api_token", "").strip()
@@ -287,7 +287,7 @@ async def fortigate_bootstrap(
                 cfg["FortiGateHost"] = host
                 cfg["FortiGatePort"] = 8443
                 cfg["FortiGateVDOM"] = cfg.get("FortiGateVDOM") or "root"
-                cfg["FortiGateVerifySSL"] = cfg.get("FortiGateVerifySSL", False)
+                cfg["FortiGateVerifySSL"] = cfg.get("FortiGateVerifySSL", True)
                 cfg["FortiGateAdminUser"] = "admin"
                 cfg["FortiGateApiUser"] = api_admin_name
                 cfg["FortiGateBootstrappedAt"] = (
@@ -435,9 +435,17 @@ async def fortigate_backup_all(user: User = Depends(require_role(Role.admin))):
         cid = c.get("_id", "")
         name = c.get("CustomerName", "")
         host = c.get("FortiGateHost", "")
-        tid = c.get("TenantId", "")
-        token = get_secret(tid, "fortigate_token") if tid else None
+        # Must match how fortigate_save/_get_fg_config store it: keyed by the
+        # customer id under "fortigate_api_token". Looking up "fortigate_token"
+        # under TenantId found nothing, so backup-all silently backed up
+        # zero devices while reporting success.
+        token = get_secret(cid, "fortigate_api_token") if cid else None
         if not host or not token:
+            logger.warning(
+                "Skipping FortiGate backup for %s — %s",
+                name or cid,
+                "no host configured" if not host else "no API token stored",
+            )
             return None
         config = c
         try:

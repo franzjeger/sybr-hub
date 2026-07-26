@@ -322,7 +322,7 @@ async def get_network_devices(user: User = Depends(get_current_user)):
             "host": active["FortiGateHost"],
             "port": active.get("FortiGatePort", 443),
             "vdom": active.get("FortiGateVDOM", "root"),
-            "verify_ssl": active.get("FortiGateVerifySSL", False),
+            "verify_ssl": active.get("FortiGateVerifySSL", True),
             "has_token": bool(get_secret(cust_id, "fortigate_api_token")),
         }
 
