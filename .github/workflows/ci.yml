@@ -21,6 +21,9 @@ jobs:
   test:
     name: pytest
     runs-on: ubuntu-latest
+    # A wedged test run should not hold a runner for the 6-hour default. This
+    # is comfortably above the ~1 minute the suite actually takes.
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -41,10 +44,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt pytest-timeout
 
+      # --timeout names the offending test and dumps its stack if one hangs;
+      # --session-timeout bounds the run as a whole. Neither covers a hang in
+      # interpreter *shutdown* after the last test passes — a leaked
+      # non-daemon thread (aiosqlite starts one per connection) does exactly
+      # that, and did on this branch. `timeout-minutes` above is the backstop
+      # for that case.
       - name: Run tests
-        run: pytest -v --tb=short
+        run: pytest -v --tb=short --timeout=120 --session-timeout=600
 
   lint:
     name: ruff

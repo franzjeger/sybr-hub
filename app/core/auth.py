@@ -21,7 +21,6 @@ from argon2.exceptions import VerifyMismatchError
 from jwt import PyJWTError
 
 from app.core.database import get_db
-from app.core.utils import fire_and_forget
 from app.models.user import Role, TokenPayload, User
 
 # ── Token blacklist (in-memory, survives until restart) ─────────────────────
@@ -351,9 +350,8 @@ async def validate_session(session_id: str) -> bool:
             return expires > datetime.now(timezone.utc)
 
 
-def blacklist_token(token: str) -> None:
-    """Revoke a token. Records the hash in both the in-memory hot cache and
-    the DB so the revocation survives a process restart.
+def _blacklist_in_memory(token: str) -> tuple[str, datetime]:
+    """Record the revocation in the hot cache. Returns (token_hash, expires).
 
     Token expiry is computed by decoding the token (without verifying — we
     only need the exp claim, not authenticity, since this is a defensive
@@ -363,7 +361,6 @@ def blacklist_token(token: str) -> None:
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     now = datetime.now(timezone.utc)
 
-    # Compute the token's natural expiry so we can purge it later.
     expires = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     try:
         # options={"verify_signature": False} — we already trust the caller,
@@ -375,24 +372,53 @@ def blacklist_token(token: str) -> None:
     except Exception:
         pass
 
-    # In-memory hot cache for fast lookup
     _TOKEN_BLACKLIST[token_hash] = expires
     while len(_TOKEN_BLACKLIST) > _BLACKLIST_MAX:
         _TOKEN_BLACKLIST.popitem(last=False)
+    return token_hash, expires
 
-    # Persist so a server restart doesn't resurrect a revoked token. Best-
-    # effort: blacklisting is a security defence-in-depth check. If the DB
-    # write fails the in-memory cache still protects the current process.
+
+async def blacklist_token(token: str) -> None:
+    """Revoke a token in the hot cache and persist it so the revocation
+    survives a process restart.
+
+    The persist is awaited rather than fired into the background. Two reasons:
+    a revocation that is only *probably* written is not a revocation, and an
+    un-awaited database write outlives the caller — if the event loop shuts
+    down while that task is still connecting, aiosqlite's worker thread is
+    orphaned and, being non-daemon, hangs interpreter exit indefinitely. That
+    is what wedged the test suite here.
+    """
+    token_hash, expires = _blacklist_in_memory(token)
+    await _persist_blacklist_entry(token_hash, expires)
+
+
+def blacklist_token_sync(token: str) -> None:
+    """Revoke a token from synchronous code.
+
+    Runs the persist to completion on a private event loop, so no task
+    outlives this call. Prefer the async ``blacklist_token`` where possible.
+    """
     import asyncio
+
+    token_hash, expires = _blacklist_in_memory(token)
     try:
         asyncio.get_running_loop()
-        fire_and_forget(_persist_blacklist_entry(token_hash, expires))
     except RuntimeError:
-        # No event loop in this thread — fire on a fresh one.
         try:
             asyncio.run(_persist_blacklist_entry(token_hash, expires))
         except Exception as e:
             logger.warning("Failed to persist token blacklist entry: %s", e)
+        return
+
+    # Called from inside a running loop: asyncio.run() would fail and
+    # scheduling a background task is what caused the orphaned-thread hang.
+    # The in-memory revocation already applies to this process; the caller
+    # should await blacklist_token() to make it durable.
+    logger.warning(
+        "blacklist_token_sync() called from a running event loop — revocation "
+        "applied in memory only. Await blacklist_token() instead to persist it."
+    )
 
 
 async def _persist_blacklist_entry(token_hash: str, expires: datetime) -> None:

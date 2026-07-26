@@ -262,7 +262,7 @@ async def test_blacklisted_token_is_rejected(client, existing_user):
     token = await create_access_token(existing_user)
     assert client.get("/api/vpn/profiles", headers=_auth_headers(token)).status_code == 200
 
-    blacklist_token(token)
+    await blacklist_token(token)
     assert client.get("/api/vpn/profiles", headers=_auth_headers(token)).status_code == 401
 
 

@@ -84,12 +84,40 @@ async def test_blacklist_token(test_user):
     # Should decode fine before blacklisting
     assert await decode_token(token) is not None
 
-    blacklist_token(token)
+    await blacklist_token(token)
 
     # Should return None after blacklisting
     assert await decode_token(token) is None
 
     # Cleanup
+    _TOKEN_BLACKLIST.clear()
+
+
+async def test_blacklist_token_persists_to_the_database(test_user):
+    """The revocation must be durable, not fire-and-forget.
+
+    It previously scheduled the write as a background task, so the caller
+    returned before the row existed — and if the event loop shut down while
+    that task was still connecting, aiosqlite's non-daemon worker thread was
+    orphaned and hung interpreter exit.
+    """
+    import hashlib
+
+    from app.core.database import get_db
+
+    token = await create_access_token(test_user)
+    await blacklist_token(token)
+    _TOKEN_BLACKLIST.clear()  # force the lookup to hit the database
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    async with get_db() as conn:
+        async with conn.execute(
+            "SELECT 1 FROM token_blacklist WHERE token_hash = ?", (token_hash,)
+        ) as cur:
+            assert await cur.fetchone() is not None
+
+    # And the revocation still holds when served from the database.
+    assert await decode_token(token) is None
     _TOKEN_BLACKLIST.clear()
 
 

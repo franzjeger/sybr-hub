@@ -158,7 +158,7 @@ async def auth_logout(
     """Revoke the current access token and drop its session."""
     token = _access_token_from(request)
     if token:
-        blacklist_token(token)
+        await blacklist_token(token)
         payload = await decode_token(token)
         if payload and payload.session_id:
             await delete_session(payload.session_id)
