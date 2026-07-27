@@ -78,3 +78,102 @@ def test_unavailable_string_no_longer_conflates_two_conditions():
         text = T(lang).cis_mfa_unavailable.lower()
         assert " or " not in text
         assert " eller " not in text
+
+
+# ── CIS 4.4: the control read the wrong files, in both directions ─────────────
+
+
+def _fwd_ctx(**files) -> dict:
+    return {"mfa": {"has_data": True, "pct": 100.0, "no_mfa": 0}, "file_contents": files}
+
+
+_FWD_CLEAN = (
+    "MAILBOX FORWARDING\n"
+    "==================\n"
+    "No mailboxes with external forwarding configured.\n"
+)
+
+
+def test_the_unconditional_forwarding_file_is_not_evidence_of_forwarding():
+    """28_exchange_mailbox_forwarding.txt is written on every run and is
+    titled "MAILBOX FORWARDING", so `"forwarding" in text` was true for every
+    tenant whose Exchange section ran — a guaranteed false positive on a
+    control about an exfiltration path.
+    """
+    ctrl = _control(_build_compliance_map(_fwd_ctx(**{
+        "28_exchange_mailbox_forwarding.txt": _FWD_CLEAN,
+        "29_exchange_inbox_rules_external_fwd.txt": "INBOX RULES\n===========\nNone.\n",
+    })), "4.4")
+    assert ctrl["status"] == "pass"
+
+
+def test_the_clean_inbox_rules_file_is_not_evidence_either():
+    """The collector writes 29_..._WARN.txt when rules are found and the
+    plain name when they are not, so the plain file is the all-clear.
+    """
+    ctrl = _control(_build_compliance_map(_fwd_ctx(**{
+        "28_exchange_mailbox_forwarding.txt": _FWD_CLEAN,
+        "29_exchange_inbox_rules_external_fwd.txt":
+            "INBOX RULES WITH EXTERNAL FORWARDING\n====================================\nNone found.\n",
+    })), "4.4")
+    assert ctrl["status"] == "pass"
+
+
+def test_real_external_forwarding_is_still_caught():
+    """The WARN file is the one that carries the finding — and the old code
+    never opened it, so a genuine detection relied on a substring accident.
+    """
+    ctrl = _control(_build_compliance_map(_fwd_ctx(**{
+        "28_exchange_mailbox_forwarding.txt": _FWD_CLEAN,
+        "28b_exchange_external_forwarding_WARN.txt":
+            "EXTERNAL MAILBOX FORWARDING WARNING  (1 mailboxes)\n  ola@acme.no  →  ola@gmail.com\n",
+    })), "4.4")
+    assert ctrl["status"] == "warn"
+
+
+def test_a_forwarding_inbox_rule_is_caught_from_its_warn_file():
+    ctrl = _control(_build_compliance_map(_fwd_ctx(**{
+        "28_exchange_mailbox_forwarding.txt": _FWD_CLEAN,
+        "29_exchange_inbox_rules_external_fwd_WARN.txt":
+            "INBOX RULES WITH EXTERNAL FORWARDING\n  Rule 'archive' → ext@example.com\n",
+    })), "4.4")
+    assert ctrl["status"] == "warn"
+
+
+def test_no_forwarding_files_at_all_cannot_be_verified():
+    assert _control(_build_compliance_map(_fwd_ctx()), "4.4")["status"] == "info"
+
+
+# ── CIS 5.2.3: a DKIM lookup that did not run is not a missing record ─────────
+
+
+def _dns_ctx(domain_entry: dict) -> dict:
+    return {
+        "mfa": {"has_data": True, "pct": 100.0, "no_mfa": 0},
+        "spf_dmarc": [domain_entry],
+        "file_contents": {},
+    }
+
+
+def test_a_domain_whose_dkim_was_never_looked_up_is_not_a_failure():
+    """Per domain, so a multi-domain tenant collected a column of these."""
+    ctrl = _control(_build_compliance_map(
+        _dns_ctx({"domain": "acme.no", "spf": "OK", "dmarc": "OK"})
+    ), "5.2.3")
+    assert ctrl["status"] == "info"
+    assert "No DKIM record found" not in ctrl["detail"]
+
+
+def test_a_domain_checked_with_no_dkim_record_still_fails():
+    ctrl = _control(_build_compliance_map(
+        _dns_ctx({"domain": "acme.no", "spf": "OK", "dmarc": "OK", "dkim1": ""})
+    ), "5.2.3")
+    assert ctrl["status"] == "fail"
+
+
+def test_a_domain_with_dkim_passes():
+    ctrl = _control(_build_compliance_map(
+        _dns_ctx({"domain": "acme.no", "spf": "OK", "dmarc": "OK",
+                  "dkim1": "CNAME selector1._domainkey.acme.no OK"})
+    ), "5.2.3")
+    assert ctrl["status"] == "pass"

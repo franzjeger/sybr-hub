@@ -944,11 +944,32 @@ class TestComplianceDeviceCompliancePolicies:
         "  macOS baseline                      macOS                2026-01-01 10:00:00\n"
     )
 
-    def test_devices_present_but_no_policies_fails(self):
+    _EMPTY_POLICY_TEXT = (
+        "===============================\n"
+        "  INTUNE COMPLIANCE POLICIES  (0 total)\n"
+        "===============================\n"
+    )
+
+    def test_devices_present_and_policy_file_lists_none_fails(self):
+        """The real finding: we read the policy list and it was empty."""
+        ctrl = [c for c in _build_compliance_map(_ctx(
+            intune={"has_data": True, "total": 50, "compliance_pct": 100, "noncompliant": 0},
+            file_contents={"11_intune_compliance_policies.txt": self._EMPTY_POLICY_TEXT},
+        )) if c["cis_id"] == "6.1.1"]
+        assert ctrl[0]["status"] == "fail"
+
+    def test_devices_present_but_policy_file_absent_cannot_be_verified(self):
+        """Devices enrolled and no policy file is a *half-collected* Intune
+        section, not a tenant without compliance policies.
+
+        Only reachable when devices are present, so the empty-audit contract
+        test cannot see it — it took the partial-audit one.
+        """
         ctrl = [c for c in _build_compliance_map(
             _ctx(intune={"has_data": True, "total": 50, "compliance_pct": 100, "noncompliant": 0})
         ) if c["cis_id"] == "6.1.1"]
-        assert ctrl[0]["status"] == "fail"
+        assert ctrl[0]["status"] == "info"
+        assert ctrl[0]["status"] != "fail", "an unread policy list is not a CIS failure"
 
     def test_policies_present_and_compliant_passes(self):
         ctrl = [c for c in _build_compliance_map(_ctx(

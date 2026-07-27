@@ -785,7 +785,19 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
         "externaluserandguestsharing":        ("warning", t.sp_sharing_guests_anon),
     }
     sharing_key = sharing_raw.lower().replace(" ", "")
-    sharing_level, sharing_label = sharing_map.get(sharing_key, ("warning", sharing_raw or t.sp_sharing_unknown))
+    # An absent "Sharing Capability" used to fall through to ("warning", …),
+    # which every consumer reads as a finding. It is not one: has_data on this
+    # parser is true as soon as the *sites* file parsed, so a tenant whose
+    # admin-settings call failed while the site list succeeded got a
+    # "SharePoint external sharing is at its most permissive level"
+    # recommendation, an amber CIS 7.2.1, and a red panel — all from a field
+    # nobody read. An unrecognised value is likewise unknown, not permissive.
+    if not sharing_key:
+        sharing_level, sharing_label = "unknown", t.sp_sharing_unknown
+    else:
+        sharing_level, sharing_label = sharing_map.get(
+            sharing_key, ("unknown", sharing_raw or t.sp_sharing_unknown)
+        )
 
     legacy_auth = settings.get("legacy auth", "").lower() == "true"
 
@@ -3160,18 +3172,32 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
             _CANNOT_VERIFY + "anti-spam-data utilgjengelig "
             "(kjør Get-HostedContentFilterPolicy i EOP)")
 
-    # 4.4 External forwarding. "No forwarding detected" is an attestation, and
-    # attesting it from two files that were never written is the worst shape
-    # this control can take — external forwarding is an exfiltration path.
-    fwd_warn = fc.get("28_exchange_mailbox_forwarding.txt", "")
-    inbox_fwd = fc.get("29_exchange_inbox_rules_external_fwd.txt", "")
-    has_fwd = ("forwarding" in fwd_warn.lower() and fwd_warn.strip()) or \
-              ("external" in inbox_fwd.lower() and inbox_fwd.strip())
-    if has_fwd:
+    # 4.4 External forwarding. This read the wrong two files, in both
+    # directions:
+    #
+    #   28_exchange_mailbox_forwarding.txt is written unconditionally and
+    #   lists *all* forwarding, internal included — and its own title is
+    #   "MAILBOX FORWARDING", so `"forwarding" in text` was true for every
+    #   tenant whose Exchange section ran. The external-forwarding warning
+    #   goes to a separate file, 28b_..._WARN.txt.
+    #
+    #   29_exchange_inbox_rules_external_fwd.txt is, by the collector's
+    #   naming convention, the *clean* result — when rules are found it
+    #   writes 29_..._WARN.txt instead. So the check treated the all-clear
+    #   file as evidence and never looked at the file that carries the
+    #   finding.
+    #
+    # Net: a guaranteed false "external forwarding detected" for everyone,
+    # and blind to the real thing. _compute_risk had this right already; it
+    # reads 28b_..._WARN.txt.
+    ext_fwd_warn   = fc.get("28b_exchange_external_forwarding_WARN.txt", "")
+    inbox_fwd_warn = fc.get("29_exchange_inbox_rules_external_fwd_WARN.txt", "")
+    if ext_fwd_warn.strip() or inbox_fwd_warn.strip():
         add("4.4", "Ensure mail forwarding to external domains is restricted", t.cis_cat_email, "warn",
             "Ekstern videresending oppdaget på en eller flere postbokser")
     elif _section_ran(fc, "28_exchange_mailbox_forwarding.txt",
                       "29_exchange_inbox_rules_external_fwd.txt"):
+        # The unconditional file is present, so the check genuinely ran.
         add("4.4", "Ensure mail forwarding to external domains is restricted", t.cis_cat_email, "pass",
             "Ingen ekstern videresending oppdaget")
     else:
@@ -3274,12 +3300,22 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         elif "k=rsa" in dkim1.lower() or "k=rsa" in dkim2.lower():
             dkim_valid = True  # Third-party DKIM key published
             dkim_detail = dkim1 or dkim2
+        # The parser only creates dkim/dkim1/dkim2 when the DNS output carried
+        # a DKIM line, so key presence is what separates "we looked and found
+        # nothing" from "DKIM was never checked for this domain". Without the
+        # distinction a domain whose DKIM lookup did not run failed the
+        # control — once per domain, so a multi-domain tenant collected a
+        # whole column of false failures.
+        dkim_checked = any(k in d for k in ("dkim", "dkim1", "dkim2"))
         if dkim_valid:
             add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "pass", dkim_detail)
         elif dkim_detail:
             add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "fail", dkim_detail)
-        else:
+        elif dkim_checked:
             add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "fail", "No DKIM record found")
+        else:
+            add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "info",
+                _CANNOT_VERIFY + "DKIM ikke kontrollert for dette domenet")
 
     # ═══ 6. DEVICES ═══
 
@@ -3299,6 +3335,14 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     if not has_policies and not has_devices:
         add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "info",
             t.cis_no_intune)
+    elif not has_policies and not _section_ran(fc, "11_intune_compliance_policies.txt"):
+        # Devices enrolled but the policy file was never written. "No
+        # compliance policies configured" and "we could not read the
+        # compliance policies" are the same absence here, and only one of
+        # them is a CIS failure. This is the shape an empty-audit check
+        # cannot catch: the Intune section half-succeeded.
+        add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "info",
+            _CANNOT_VERIFY + "Intune-compliance-policyer utilgjengelig")
     elif not has_policies:
         # Devices exist but no compliance policies — the control fails
         # regardless of how many devices look "compliant" (with no policy
@@ -3327,7 +3371,11 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # ExternalUserAndGuestSharing (i.e. anyone-with-the-link) got an amber
     # flag instead of a red one. CIS 7.2.1 expects external sharing to be
     # *managed*, and "anyone" is the opposite of managed.
-    if not sp.get("has_data"):
+    # has_data alone is not enough: it is true as soon as the *site list*
+    # parsed, and the sharing capability comes from the separate admin-
+    # settings file. sharing_level == "unknown" is the parser saying it did
+    # not read that field.
+    if not sp.get("has_data") or sp.get("sharing_level") == "unknown":
         add("7.2.1", "Ensure SharePoint external sharing is managed", t.cis_cat_data, "info",
             "Kan ikke verifiseres — SharePoint-innstillinger utilgjengelig")
     else:

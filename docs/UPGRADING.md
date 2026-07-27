@@ -147,6 +147,28 @@ things it did not measure.
   `has_data`.
 - **The executive summary no longer opens with "the environment has 0 users
   (0 active, 0 guests)"** when the user list could not be read.
+- **CIS 4.4 will change for essentially every tenant.** It read
+  `28_exchange_mailbox_forwarding.txt`, which the collector writes on every
+  run and titles "MAILBOX FORWARDING" — so its substring test for
+  "forwarding" was true whenever the Exchange section ran, and every such
+  tenant was told external forwarding had been detected. It also treated
+  `29_exchange_inbox_rules_external_fwd.txt` as evidence, when by the
+  collector's naming convention that is the *all-clear* file; the finding
+  goes to `29_..._WARN.txt`. Both `_WARN` files are now the trigger, matching
+  what `_compute_risk` already did. **If you dismissed a 4.4 warning as noise,
+  that was correct — but re-check any tenant where you did, because the old
+  control could not have caught a real detection either.**
+- **CIS 6.1.1** no longer fails with "devices are enrolled but no Intune
+  compliance policies are configured" when the policy file is simply absent.
+- **CIS 5.2.3** no longer fails with "No DKIM record found" for a domain
+  whose DKIM lookup did not run — once per domain, so multi-domain tenants
+  saw several.
+- **SharePoint sharing capability has a third state.** An absent or
+  unrecognised "Sharing Capability" used to fall through to `warning`, which
+  every consumer reads as a finding. Because the parser's `has_data` is true
+  as soon as the *site list* parses, a tenant whose admin-settings call failed
+  got a permissive-sharing recommendation, an amber CIS 7.2.1 and a red panel
+  from a field nobody read. It now renders as a neutral "unknown" pill.
 
 ### Trend history: past audits may have recorded false zeroes
 

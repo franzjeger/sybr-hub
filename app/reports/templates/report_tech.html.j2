@@ -127,6 +127,7 @@ tr:hover td { background: #f6f8fa; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .tag.ok       { background: #d1fae5; color: #065f46; }
 .tag.warning  { background: #fef3c7; color: #92400e; }
+.tag.unknown  { background: #e5e7eb; color: #4b5563; }
 .tag.critical { background: #fee2e2; color: #991b1b; }
 .tag.skip     { background: #f3f4f6; color: #6b7280; }
 .tag.fail     { background: #fee2e2; color: #991b1b; }
@@ -969,7 +970,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <tr>
       <td>{{ t.external_sharing }}</td>
       <td>{{ sharepoint.sharing_label }}</td>
-      <td><span class="tag {{ sharepoint.sharing_level }}">{% if sharepoint.sharing_level == 'ok' %}{{ t.ok }}{% else %}{{ t.consider }}{% endif %}</span></td>
+      <td><span class="tag {{ sharepoint.sharing_level }}">{% if sharepoint.sharing_level == 'ok' %}{{ t.ok }}{% elif sharepoint.sharing_level == 'unknown' %}{{ t.sp_sharing_unknown }}{% else %}{{ t.consider }}{% endif %}</span></td>
     </tr>
     <tr>
       <td>{{ t.legacy_auth_label }}</td>
