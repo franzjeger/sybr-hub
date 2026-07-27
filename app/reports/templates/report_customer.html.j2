@@ -1420,12 +1420,20 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <div class="env-card">
   <h4>{{ t.backup_coverage }}</h4>
   <div class="env-row"><span>{{ t.vms_total }}</span><span>{{ backup_coverage.vms_total }}</span></div>
+  {# Without vault data the with/without split is 0/0, which reads as "nothing
+     is unprotected". Say what actually happened instead. #}
+  {% if not backup_coverage.coverage_known %}
+  <div style="margin-top:8px;padding:8px 12px;background:var(--orange-bg, #fff7ed);border:1px solid var(--orange-bd, #fed7aa);border-radius:8px;font-size:12px;">
+    {{ t.backup_coverage_unknown }}
+  </div>
+  {% else %}
   <div class="env-row"><span>{{ t.with_backup }}</span><span style="color:var(--green);">{{ backup_coverage.vms_backed_up }}</span></div>
   <div class="env-row"><span>{{ t.without_backup }}</span>
     <span style="{% if backup_coverage.vms_not_backed_up %}color:var(--red);font-weight:700;{% endif %}">
       {{ backup_coverage.vms_not_backed_up | length }}
     </span>
   </div>
+  {% endif %}
   {% if backup_coverage.vms_not_backed_up %}
   <div style="margin-top:8px;padding:8px 12px;background:var(--red-bg);border:1px solid var(--red-bd);border-radius:8px;font-size:12px;">
     <strong style="color:var(--red);">{{ t.vms_without_backup }}</strong>

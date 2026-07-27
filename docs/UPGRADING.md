@@ -132,6 +132,7 @@ things it did not measure.
   including when 0% was a real, measured reading.
 - **Reports for un-gradeable audits no longer print "None/100".**
 - **Some open-WiFi findings will disappear.** See below.
+- **Some "VMs without backup" findings will disappear.** See below.
 
 ### Open-WiFi findings on UniFi controller sites
 
@@ -150,6 +151,24 @@ carry a `security_label` field alongside the raw value.
 
 `WEP` also no longer shares the green "not open" colour with WPA2/WPA3 in the
 WLAN table.
+
+### Azure VM backup coverage
+
+Backup coverage is a cross-reference between the VM list
+(`30_azure_vms*.txt`) and Recovery Services Vault protected items
+(`52_azure_backup*.txt`). The cross-reference ran even when the vault half was
+missing or errored, so every VM came out "not backed up" — a high-priority
+recommendation naming each server, plus a red "VMs without backup" panel.
+
+Coverage is now reported only when both halves were read. Where the vault data
+is missing, the panel says so instead of showing a 0/0 split, and no
+recommendation is raised. **A vault that was read and contains nothing is
+unchanged** — that is a real finding.
+
+**If a customer was told their VMs are unprotected and you could not
+reproduce it in the portal**, check whether `52_azure_backup*.txt` in that
+audit is empty or starts with `Error:`. The usual cause is the app
+registration lacking Reader on the vault's resource group.
 
 ---
 

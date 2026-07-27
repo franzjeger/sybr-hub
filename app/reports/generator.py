@@ -1003,10 +1003,22 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
             if len(cols) >= 4:
                 vm_names.append(cols[0])
 
-    # Collect all backup protected item names
+    # Collect all backup protected item names.
+    #
+    # backup_data_read is the whole point of this block. Coverage is a
+    # cross-reference between two independently-collected files, and if the
+    # backup half is absent or errored then backed_up_names is empty and every
+    # VM falls into vms_not_backed_up — a high-priority "these servers have no
+    # backup" finding, naming each one, derived entirely from a file we never
+    # read. An empty *successful* read is a different thing and still a real
+    # finding.
     backed_up_names: set[str] = set()
     vault_names: set[str] = set()
+    backup_data_read = False
     for fname, content, sub_name in _find_azure_files(file_contents, "52_azure_backup"):
+        if not content.strip() or content.strip().startswith("Error:"):
+            continue
+        backup_data_read = True
         current_vault = ""
         for line in content.splitlines():
             stripped = line.strip()
@@ -1028,24 +1040,28 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
                 if item_name and item_name not in ("Name", "Protected Item", "Item Name", "Container"):
                     backed_up_names.add(item_name.lower())
 
-    # Cross-reference
+    # Cross-reference — only meaningful when both halves were read.
+    vms_total = len(vm_names)
+    coverage_known = backup_data_read and vms_total > 0
+
     vms_backed_up = 0
     vms_not_backed_up: list[str] = []
-    for vm in vm_names:
-        if vm.lower() in backed_up_names:
-            vms_backed_up += 1
-        else:
-            vms_not_backed_up.append(vm)
+    if coverage_known:
+        for vm in vm_names:
+            if vm.lower() in backed_up_names:
+                vms_backed_up += 1
+            else:
+                vms_not_backed_up.append(vm)
 
-    vms_total = len(vm_names)
-    backup_pct = (vms_backed_up / vms_total * 100) if vms_total > 0 else 0.0
+    backup_pct = (vms_backed_up / vms_total * 100) if coverage_known else 0.0
 
     return {
         "vms_total": vms_total,
         "vms_backed_up": vms_backed_up,
-        "vms_not_backed_up": vms_not_backed_up,
+        "vms_not_backed_up": vms_not_backed_up,   # empty unless coverage_known
         "backup_pct": round(backup_pct, 1),
         "vaults": len(vault_names),
+        "coverage_known": coverage_known,
         "has_data": vms_total > 0 or len(vault_names) > 0,
     }
 
@@ -2338,7 +2354,7 @@ def _build_recommendations(
             })
 
     # Backup coverage — VMs without backup
-    if backup_coverage and backup_coverage.get("vms_not_backed_up"):
+    if backup_coverage and backup_coverage.get("coverage_known") and backup_coverage.get("vms_not_backed_up"):
         not_backed = backup_coverage["vms_not_backed_up"]
         recs.append({
             "priority": "high",

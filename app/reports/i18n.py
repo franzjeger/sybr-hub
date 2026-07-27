@@ -1003,6 +1003,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Backup-dekning",
         "en": "Backup Coverage",
     },
+    "backup_coverage_unknown": {
+        "no": "Backup-dekning kunne ikke fastslås — data fra Recovery Services "
+              "Vault mangler. Verifiser backup manuelt før dette rapporteres.",
+        "en": "Backup coverage could not be determined — Recovery Services "
+              "Vault data is missing. Verify backup manually before reporting.",
+    },
     "vms_total": {
         "no": "VMs totalt",
         "en": "VMs total",
