@@ -24,6 +24,11 @@ die() { printf '\n\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run with sudo"
 
+# Piped from curl, so the working directory is the invoker's home — which the
+# service user cannot enter. Anything run as $SVC_USER from here would fail on
+# a directory it has no business being in. Every path below is absolute.
+cd /
+
 # ── System packages ───────────────────────────────────────────────────────────
 # pango/cairo/gdk-pixbuf2 are WeasyPrint's runtime libraries. It fails on a
 # missing .so at PDF time, not at pip install time, so leaving them out gives
@@ -55,13 +60,16 @@ log "Building virtualenv (Python $PYVER)"
 sudo -u "$SVC_USER" "$PREFIX/.venv/bin/pip" install --quiet --upgrade pip
 sudo -u "$SVC_USER" "$PREFIX/.venv/bin/pip" install --quiet -r "$PREFIX/requirements.txt"
 
+# Run it *from* $PREFIX. pytest chdirs back to its start directory during
+# teardown, so with the invoker's home as cwd the suite passes and then dies
+# with PermissionError on the way out.
 log "Running the test suite"
-if sudo -u "$SVC_USER" "$PREFIX/.venv/bin/python" -m pytest -q -m "not slow" \
-        --rootdir "$PREFIX" "$PREFIX/tests"; then
+if (cd "$PREFIX" && sudo -u "$SVC_USER" "$PREFIX/.venv/bin/python" -m pytest -q -m "not slow"); then
     echo "    suite green on Python $PYVER"
 else
-    die "tests failed on Python $PYVER — if this is 3.13, install python312 from the AUR
-       and re-run with:  sudo env SYBR_HUB_PYTHON=/usr/bin/python3.12 bash $0"
+    die "tests failed on Python $PYVER — install python312 from the AUR, then:
+       sudo rm -rf $PREFIX/.venv && sudo -u $SVC_USER python3.12 -m venv $PREFIX/.venv
+       and re-run this script"
 fi
 
 # ── systemd unit ──────────────────────────────────────────────────────────────

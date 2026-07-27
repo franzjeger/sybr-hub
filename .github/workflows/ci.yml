@@ -25,8 +25,13 @@ jobs:
     # is comfortably above the ~1 minute the suite actually takes.
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # 3.11 is the floor from pyproject. 3.13/3.14 are here because Arch —
+        # and so CachyOS, which is a real deployment target — ships whatever is
+        # newest; the install script builds its venv from the system Python, so
+        # an untested version there means an untested production install.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
