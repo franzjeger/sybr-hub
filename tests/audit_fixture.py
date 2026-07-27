@@ -286,3 +286,129 @@ FULL_AUDIT: dict[str, str] = {
         '"outdated_firmware_count": 0, "eol_count": 0, "default_creds_count": 0}'
     ),
 }
+
+
+# ── The same tenant, badly run ────────────────────────────────────────────────
+#
+# The healthy fixture above proves the report raises no *false* findings. It
+# says nothing about whether real ones still fire — and every fix in this area
+# made the report quieter, so that is the direction the risk now runs. These
+# overrides describe a tenant with a genuine problem in each scored area.
+#
+# Keep it broken. If you add a finding to the report, break something here so
+# the finding has something to catch.
+
+_BROKEN_OVERRIDES: dict[str, str] = {
+    # 8 of 40 users have MFA, and no CA policy covers the rest.
+    "04_mfa_methods.txt": (
+        "MFA METHOD REPORT\n"
+        "=================\n"
+        + "".join(
+            f"User {i:02d} | user{i:02d}@acme.no | MFA:YES | CA:NO | EXCL:NO | Authenticator\n"
+            for i in range(1, 9)
+        )
+        + "".join(
+            f"User {i:02d} | user{i:02d}@acme.no | MFA:NO | CA:NO | EXCL:NO | (none)\n"
+            for i in range(9, 41)
+        )
+    ),
+    "04b_mfa_ca_analysis.txt": (
+        "CONDITIONAL ACCESS MFA ANALYSIS\n"
+        "===============================\n"
+        "No conditional access policy enforces MFA.\n"
+    ),
+    "08_conditional_access.txt": (
+        "CONDITIONAL ACCESS POLICIES\n"
+        "===========================\n"
+        "[disabled  ] Require MFA for all users\n"
+    ),
+    "09_secure_score.txt": (
+        "MICROSOFT SECURE SCORE\n"
+        "======================\n"
+        "Score: 120.0 / 400.0 (30.0%)\n"
+        "Top 20 Improvement Actions\n"
+        "Require MFA for administrative roles          12.0%   High\n"
+        "Enable Safe Attachments                        8.0%   High\n"
+    ),
+    # Seven global admins.
+    "07_admin_roles.txt": (
+        "ADMIN ROLE ASSIGNMENTS\n"
+        "======================\n"
+        "Role                     User            Email\n"
+        + "".join(
+            f"Global Administrator     Admin {i}        admin{i}@acme.no\n"
+            for i in range(1, 8)
+        )
+    ),
+    "10_intune_devices_count.txt": (
+        "INTUNE DEVICE COUNT\n"
+        "===================\n"
+        "Total devices: 40\n"
+        "Compliant: 12\n"
+        "Non-compliant: 28\n"
+    ),
+    "15b_sharepoint_settings.txt": (
+        "SHAREPOINT TENANT SETTINGS\n"
+        "==========================\n"
+        "Sharing Capability: ExternalUserAndGuestSharing\n"
+        "Legacy Auth: true\n"
+        "Unmanaged Devices: true\n"
+    ),
+    "26_email_dns_spf_dmarc.txt": (
+        "EMAIL DNS SECURITY\n"
+        "==================\n"
+        "Domain : acme.no\n"
+        "SPF   : MISSING\n"
+        "DMARC : MISSING\n"
+        "DKIM (sel1) : NOT FOUND\n"
+    ),
+    "18_risky_users.txt": (
+        "RISKY USERS\n"
+        "===========\n"
+        "UPN                   Risk Level    State\n"
+        "user09@acme.no        high          atRisk\n"
+        "user14@acme.no        high          atRisk\n"
+    ),
+    # The collector writes this file only when it finds something.
+    "28b_exchange_external_forwarding_WARN.txt": (
+        "====================================================\n"
+        "  EXTERNAL MAILBOX FORWARDING WARNING  (2 mailboxes)\n"
+        "====================================================\n"
+        "  Ola Nordmann  →  ola.private@gmail.com\n"
+        "  Kari Nordmann  →  kari@competitor.example\n"
+    ),
+    "19b_defender_alert_count.txt": (
+        "DEFENDER ALERT COUNT\n"
+        "====================\n"
+        "3 active alerts\n"
+    ),
+    "19b_defender_active_alerts.txt": (
+        "ACTIVE DEFENDER ALERTS\n"
+        "======================\n"
+        "Suspicious sign-in from unfamiliar location   high\n"
+        "Malware detected on LAPTOP-07                 high\n"
+        "Mass download by a single user                medium\n"
+    ),
+    # A FortiGate with every finding the report knows how to raise.
+    "60_fortigate_audit.txt": (
+        '{"hostname": "acme-fgt-01", "version": "7.4.3", '
+        '"admins": ['
+        '{"name": "admin", "two_factor": false, "trusthost": false}, '
+        '{"name": "svc-monitor", "two_factor": false, "trusthost": true}], '
+        '"policy_warnings": ['
+        '"Policy 12 \\"any-any\\" is an allow-all rule", '
+        '"Policy 19 has no logging enabled"]}'
+    ),
+    "61_unifi_audit.txt": (
+        '{"mode": "controller", "sites": 1, "device_count": 6, "devices": [], '
+        '"wlan_count": 2, "wlans": ['
+        '{"name": "Acme-Corp", "security": "wpapsk", "security_label": "WPA2", '
+        '"vlan": "", "enabled": true, "guest": false}, '
+        '{"name": "Acme-Open", "security": "open", "security_label": "Open", '
+        '"vlan": "", "enabled": true, "guest": true}], '
+        '"network_count": 3, "firewall_rules": 4, "active_alarms": 2, '
+        '"outdated_firmware_count": 3, "eol_count": 2, "default_creds_count": 1}'
+    ),
+}
+
+BROKEN_AUDIT: dict[str, str] = {**FULL_AUDIT, **_BROKEN_OVERRIDES}

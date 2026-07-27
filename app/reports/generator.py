@@ -2408,7 +2408,15 @@ def _build_recommendations(
                     "title": t("rec_fg_admin_no_2fa_title", count=len(admins_no_2fa)),
                     "detail": t.rec_fg_admin_no_2fa_detail,
                     "effort": t.rec_effort_low,
-                    "sub_items": [f"{a['name']} ({a['profile']})" for a in admins_no_2fa],
+                    # .get, not [] — this dict is json.loads of a file on disk,
+                    # so it can predate a field or be a partial write. The
+                    # surrounding filters are already defensive; indexing here
+                    # threw KeyError out of build_report_context and cost the
+                    # whole report for the sake of a label in a sub-item.
+                    "sub_items": [
+                        f"{a.get('name', '?')} ({a.get('profile', '?')})"
+                        for a in admins_no_2fa
+                    ],
                 })
             # Allow-all rules
             allow_all = [w for w in fg.get("policy_warnings", []) if "allow-all" in w.lower()]
@@ -2441,7 +2449,7 @@ def _build_recommendations(
                     "title": t("rec_fg_no_trusthost_title", count=len(admins_no_trust)),
                     "detail": t.rec_fg_no_trusthost_detail,
                     "effort": t.rec_effort_low,
-                    "sub_items": [a["name"] for a in admins_no_trust],
+                    "sub_items": [a.get("name", "?") for a in admins_no_trust],
                 })
 
         # UniFi findings
