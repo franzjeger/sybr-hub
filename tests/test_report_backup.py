@@ -21,7 +21,6 @@ import pytest
 
 from app.reports.generator import _build_recommendations, _parse_backup_coverage
 
-
 VMS = (
     "AZURE VIRTUAL MACHINES\n"
     "=======================\n"
