@@ -1735,6 +1735,24 @@ def _parse_network_audit(file_contents: dict) -> dict:
     return result
 
 
+def _is_open_wlan(wlan: dict) -> bool:
+    """True only when this WLAN is positively identified as unencrypted.
+
+    Reports are rendered from audit JSON saved on disk, so this has to cope
+    with three vintages: files written before ``security_label`` existed,
+    files where the controller never returned a security field at all, and
+    current files. In every one of them, "we could not tell" must come back
+    False — an open-WiFi finding is critical-priority and named by SSID in
+    the report, so it has to rest on a reading.
+    """
+    from app.services.unifi_api import is_open_wlan_security
+
+    label = wlan.get("security_label")
+    if label is not None:
+        return label == "Open"
+    return is_open_wlan_security(wlan.get("security"))
+
+
 def _compute_network_risk(network: dict) -> dict:
     """Compute network-specific risk factors. Returns {penalty, findings}."""
     penalty = 0
@@ -1777,7 +1795,7 @@ def _compute_network_risk(network: dict) -> dict:
         # Check for open WiFi in controller mode
         if uf.get("mode") == "controller":
             for w in uf.get("wlans", []):
-                if w.get("security", "open") == "open" and w.get("enabled", True):
+                if _is_open_wlan(w) and w.get("enabled", True):
                     penalty += 5
                     findings.append("Åpent WiFi-nettverk")
                     break
@@ -2442,7 +2460,8 @@ def _build_recommendations(
                 })
             # Open WiFi (controller mode)
             if uf.get("mode") == "controller":
-                open_wlans = [w["name"] for w in uf.get("wlans", []) if w.get("security", "open") == "open" and w.get("enabled")]
+                open_wlans = [w.get("name", "") for w in uf.get("wlans", [])
+                              if _is_open_wlan(w) and w.get("enabled")]
                 if open_wlans:
                     recs.append({
                         "priority": "critical",

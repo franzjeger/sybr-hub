@@ -108,6 +108,51 @@ Note that `up-delay` and `up-restart` are *not* hooks and are unaffected.
 
 ---
 
+## Unreleased — reports stop scoring data they never collected
+
+No config change, but **numbers in customer-facing reports will move**, and if
+you have already sent a report to a customer the new one may disagree with it.
+Every change here is in the same direction: the report now declines to state
+things it did not measure.
+
+**What changes on a re-render:**
+
+- **The risk radar may show fewer than five axes, or disappear.** Axes are
+  drawn only where the underlying section produced data. Previously Azure
+  defaulted to 80/100 and Email to 100/100 whether or not those sections ran,
+  Devices and Data Protection fell back to 50, and a failed conditional-access
+  fetch was averaged into Identity as a zero. The chart hides itself entirely
+  below three axes, as it always did.
+- **The compliance percentage may rise.** CIS 1.1.1 marked unreadable MFA
+  state as a *failure*; it is now `info`, which `compliance_assessed` excludes
+  from the denominator. A tenant whose Graph permissions blocked the user list
+  was being scored non-compliant rather than un-assessed.
+- **"MFA data is not available for this customer" now means what it says.**
+  The executive summary previously printed it whenever coverage was 0%,
+  including when 0% was a real, measured reading.
+- **Reports for un-gradeable audits no longer print "None/100".**
+- **Some open-WiFi findings will disappear.** See below.
+
+### Open-WiFi findings on UniFi controller sites
+
+The UniFi audit defaulted a WLAN's security field to `"open"` when the
+controller did not return one. That produced a critical-priority
+recommendation naming the SSID, plus a risk penalty, for networks that may
+well be encrypted. A WLAN whose security cannot be read now renders as
+`Unknown` (amber) in the WLAN table and raises no finding.
+
+**Audits saved before this change cannot be corrected retroactively** — the
+string `"open"` is already in `61_unifi_audit.txt`, indistinguishable from a
+genuine reading. If you have acted on an open-WiFi finding for a controller
+site and could not reproduce it on the device, that is the likely cause.
+**Re-run the network audit** to get a truthful value; new audit files also
+carry a `security_label` field alongside the raw value.
+
+`WEP` also no longer shares the green "not open" colour with WPA2/WPA3 in the
+WLAN table.
+
+---
+
 ### Also in this change
 
 No action needed, listed for completeness:

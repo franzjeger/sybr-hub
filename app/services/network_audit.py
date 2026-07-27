@@ -135,6 +135,7 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
     from app.core.credentials import get_secret
     from app.modules.unifi_audit.client import UniFiControllerClient
     from app.modules.unifi_audit.firmware_db import check_firmware
+    from app.services.unifi_api import wlan_security_label
 
     uf_host = config.get("UniFiHost")
     uf_user = get_secret(customer_id, "unifi_username")
@@ -182,9 +183,15 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
                     elif fw_check.get("up_to_date") is False:
                         outdated_count += 1
 
+            # Never default `security` to "open". A WLAN whose security field
+            # the controller did not return is unknown, and the report treats
+            # "open" as a critical finding — that default manufactured one.
+            # security_label carries the classification forward so consumers
+            # (and the WLAN table) don't each have to re-derive it.
             wlan_summary = [{
                 "name": w.get("name", ""),
-                "security": w.get("security", "open"),
+                "security": w.get("security"),
+                "security_label": wlan_security_label(w.get("security")),
                 "vlan": w.get("networkconf_id", ""),
                 "enabled": w.get("enabled", True),
                 "guest": w.get("is_guest", False),

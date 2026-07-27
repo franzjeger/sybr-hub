@@ -1623,10 +1623,13 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <table class="data-table" style="width:100%; font-size:12px;">
   <thead><tr><th>SSID</th><th>Sikkerhet</th><th>Gjest</th><th>Aktiv</th></tr></thead>
   <tbody>
+    {# Three states, not two. Colouring "anything that isn't 'open'" green
+       painted an unreadable security field as a secured network. #}
     {% for w in uf.wlans %}
+    {% set sec = (w.security_label or w.security or 'Unknown') | string %}
     <tr>
       <td>{{ w.name }}</td>
-      <td style="color: {{ 'var(--red, red)' if w.security == 'open' else 'green' }};">{{ w.security }}</td>
+      <td style="color: {% if sec|lower == 'open' or 'WEP' in sec %}var(--red, red){% elif 'Unknown' in sec %}var(--orange, #b45309){% else %}green{% endif %};">{{ sec }}</td>
       <td>{{ 'Ja' if w.guest else 'Nei' }}</td>
       <td>{{ 'Ja' if w.enabled else 'Nei' }}</td>
     </tr>
