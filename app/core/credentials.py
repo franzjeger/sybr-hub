@@ -3,16 +3,30 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import secrets
 from pathlib import Path
 from typing import Optional
 
 import keyring
-from keyring.errors import PasswordDeleteError
 
 from app.core.config import DATA_DIR
 
+log = logging.getLogger(__name__)
+
 _SERVICE = "MSPToolkit"
+
+# Where secrets go when there is no OS keyring. This is the normal state on a
+# headless Linux host: no Secret Service provider, and none at all under the
+# systemd unit, which runs as a system user with ProtectHome=yes and no D-Bus
+# session. Unguarded, keyring *raises* there — which is how customer setup
+# failed at "Generating self-signed certificate" with NoKeyringError.
+#
+# The file is written through the same AES-GCM layer as everything else in
+# MSP_DATA_DIR, so these are encrypted at rest under the master key rather
+# than sitting in plaintext JSON.
+_FALLBACK_PATH = DATA_DIR / "secrets.enc"
 
 
 # ── Keyring helpers ───────────────────────────────────────────────────────────
@@ -21,9 +35,39 @@ def _key(tenant_id: str, name: str) -> str:
     return f"{tenant_id}:{name}"
 
 
+def _fallback_load() -> dict[str, str]:
+    from app.core.encryption import encrypted_read_json
+
+    if not _FALLBACK_PATH.exists():
+        return {}
+    try:
+        return encrypted_read_json(_FALLBACK_PATH) or {}
+    except Exception as e:
+        log.error("Could not read the secret fallback store: %s", e)
+        return {}
+
+
+def _fallback_save(data: dict[str, str]) -> None:
+    from app.core.encryption import encrypted_write_json
+
+    _FALLBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    encrypted_write_json(_FALLBACK_PATH, data)
+    try:
+        os.chmod(_FALLBACK_PATH, 0o600)
+    except OSError:
+        pass
+
+
 def store_secret(tenant_id: str, name: str, value: str) -> None:
     k = _key(tenant_id, name)
-    keyring.set_password(_SERVICE, k, value)
+    try:
+        keyring.set_password(_SERVICE, k, value)
+    except Exception as e:
+        log.warning("OS keyring unavailable (%s) — storing secret in %s",
+                    e, _FALLBACK_PATH.name)
+        data = _fallback_load()
+        data[k] = value
+        _fallback_save(data)
     _secret_cache[k] = value
 
 
@@ -34,7 +78,17 @@ def get_secret(tenant_id: str, name: str) -> Optional[str]:
     k = _key(tenant_id, name)
     if k in _secret_cache and _secret_cache[k] is not None:
         return _secret_cache[k]
-    val = keyring.get_password(_SERVICE, k)
+
+    try:
+        val = keyring.get_password(_SERVICE, k)
+    except Exception as e:
+        log.debug("OS keyring unavailable (%s) — reading from fallback store", e)
+        val = None
+    if val is None:
+        # Also covers the case where a keyring exists but the secret was
+        # written before one did, so the fallback is the only copy.
+        val = _fallback_load().get(k)
+
     if val is not None:
         _secret_cache[k] = val
     else:
@@ -47,8 +101,12 @@ def delete_secret(tenant_id: str, name: str) -> None:
     _secret_cache.pop(k, None)
     try:
         keyring.delete_password(_SERVICE, k)
-    except (PasswordDeleteError, Exception):
+    except Exception:
+        # Includes PasswordDeleteError (not stored) and NoKeyringError.
         pass
+    data = _fallback_load()
+    if data.pop(k, None) is not None:
+        _fallback_save(data)
 
 
 def delete_all_secrets(tenant_id: str) -> None:
