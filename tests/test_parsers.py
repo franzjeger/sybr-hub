@@ -675,13 +675,33 @@ class TestComplianceUnifiedAuditLog:
 
 class TestComplianceAntiSpamNotSilent:
     """CIS 4.3 used to be omitted entirely when the policy file was empty,
-    making the missing entry look like N/A in the customer report rather
-    than the FAIL it should be."""
+    making the missing entry look like N/A in the customer report.
 
-    def test_empty_antispam_emits_fail_entry(self):
+    Keeping the row is still the requirement. Grading it FAIL was the part
+    that was wrong: an absent 24_exchange_antispam.txt means the Exchange
+    section did not run, not that the tenant has no anti-spam policy, and
+    "info" is how every neighbouring control reports that (see
+    TestComplianceLegacyAuthDataGap below). It also keeps the control out of
+    the compliance_pct denominator, which excludes "info" for this reason."""
+
+    def test_empty_antispam_emits_an_entry_but_does_not_grade_it(self):
         ctrl = [c for c in _build_compliance_map(_ctx()) if c["cis_id"] == "4.3"]
         assert len(ctrl) == 1, "CIS 4.3 must always be emitted, even if anti-spam file is empty"
-        assert ctrl[0]["status"] == "fail"
+        assert ctrl[0]["status"] == "info"
+        assert ctrl[0]["status"] != "fail", "no data is not a compliance failure"
+
+    def test_an_error_stub_is_not_a_reading_either(self):
+        """A non-empty file is not automatically a successful collection.
+
+        The first cut of this fix tested `antispam.strip()` for the positive
+        branch, so "Error: access denied" — non-empty — attested that
+        anti-spam policies were configured.
+        """
+        ctrl = [c for c in _build_compliance_map(
+            _ctx(file_contents={"24_exchange_antispam.txt": "Error: access denied"})
+        ) if c["cis_id"] == "4.3"]
+        assert ctrl[0]["status"] == "info"
+        assert ctrl[0]["status"] != "pass", "an error stub must not attest compliance"
 
     def test_populated_antispam_emits_pass(self):
         ctrl = [c for c in _build_compliance_map(

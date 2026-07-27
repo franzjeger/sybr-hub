@@ -2232,6 +2232,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Milj\u00f8et har {total} brukere ({enabled} aktive, {guests} gjester) og {azure_resources} Azure-ressurser fordelt p\u00e5 {subscriptions} subscription(s).",
         "en": "The environment has {total} users ({enabled} active, {guests} guests) and {azure_resources} Azure resources across {subscriptions} subscription(s).",
     },
+    "exec_env_size_unavailable": {
+        "no": "Miljøets størrelse kunne ikke fastslås — auditen returnerte ingen brukerdata.",
+        "en": "Environment size could not be determined — the audit returned no user data.",
+    },
     "exec_mfa_good": {
         "no": "MFA-dekningen er {pct:.0f}% \u2014 godt sikret mot kontoovertakelse.",
         "en": "MFA coverage is {pct:.0f}% \u2014 well protected against account takeover.",

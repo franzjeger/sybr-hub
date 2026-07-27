@@ -133,6 +133,55 @@ things it did not measure.
 - **Reports for un-gradeable audits no longer print "None/100".**
 - **Some open-WiFi findings will disappear.** See below.
 - **Some "VMs without backup" findings will disappear.** See below.
+- **Compliance controls whose collector section did not run now report
+  `info`** instead of a grade. Eleven controls used to grade an empty or
+  errored source file: CIS 4.3 failed for "no anti-spam policies"; CIS 2.1.2,
+  4.4 and 9.2 *passed*, attesting that app credentials were not expired, that
+  no external mail forwarding existed, and that there were no Defender alerts
+  — from files that were never written. CIS 3.1.1, 3.2.1, 4.2, 4.5, 4.6 and
+  7.2.2 warned on the same basis. Rows are still emitted, so nothing looks
+  like N/A; they just no longer count for or against the tenant.
+- **The "SharePoint external sharing is at its most permissive level"
+  recommendation no longer fires from missing data.** `sharing_level` defaults
+  to `"warning"`, and the recommendation was the one consumer not checking
+  `has_data`.
+- **The executive summary no longer opens with "the environment has 0 users
+  (0 active, 0 guests)"** when the user list could not be read.
+
+### Trend history: past audits may have recorded false zeroes
+
+`save_audit_metrics` wrote `0` for every metric whose section produced no
+data, into both `_audit_metrics.json` and the `audit_metrics` table.
+`_compute_trends` skips `None` but not `0`, so a single throttled or
+permission-denied audit recorded MFA coverage, user count and Secure Score as
+zero — and the next report drew that as a collapse and recovery in the
+customer's history. A later correct audit adds a row; it cannot retract that
+one.
+
+Unknown metrics are now stored as SQL `NULL` (every affected column was
+already nullable) and skipped by the trend comparison. A *measured* zero is
+still stored as `0` — the distinction is the point.
+
+**Existing rows are not migrated**, because a stored `0` is indistinguishable
+from a real one. If a trend chart shows an inexplicable cliff, that is the
+likely cause; the offending row can be removed by hand:
+
+```sql
+-- inspect first
+SELECT audit_date, mfa_coverage_pct, total_users, risk_score
+FROM audit_metrics WHERE customer_name = '<name>' ORDER BY audit_date;
+
+DELETE FROM audit_metrics WHERE id = <the bogus row>;
+```
+
+### Reports no longer die on an unreadable previous run
+
+`load_previous_metrics` caught `(json.JSONDecodeError, OSError)`, which does
+not include `cryptography.exceptions.InvalidTag`. A `_audit_metrics.json`
+that could not be decrypted — after a master-key rotation, a recreated
+keyring entry, or corruption — propagated out of `build_report_context` and
+failed the whole report. It is now logged and skipped: you lose the trend
+chart for that run, not the report.
 
 ### Open-WiFi findings on UniFi controller sites
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2183,8 +2184,13 @@ def _build_recommendations(
             "doc_url": "https://learn.microsoft.com/en-us/mem/intune/protect/device-compliance-get-started",
         })
 
-    # SharePoint external sharing
-    if sharepoint and sharepoint.get("sharing_level") == "warning":
+    # SharePoint external sharing. _parse_sharepoint_settings defaults
+    # sharing_level to "warning" for an unrecognised or absent "Sharing
+    # Capability" value, so without the has_data gate an audit that never
+    # reached SharePoint admin settings raised "external sharing is at its
+    # most permissive level" against every tenant. _compute_risk already
+    # gates on has_data for exactly this reason.
+    if sharepoint and sharepoint.get("has_data") and sharepoint.get("sharing_level") == "warning":
         recs.append({
             "priority": "medium",
             "finding_id": "finding-sp",
@@ -2195,7 +2201,7 @@ def _build_recommendations(
         })
 
     # SharePoint legacy auth
-    if sharepoint and sharepoint.get("legacy_auth"):
+    if sharepoint and sharepoint.get("has_data") and sharepoint.get("legacy_auth"):
         recs.append({
             "priority": "medium",
             "title": t.rec_sp_legacy_title,
@@ -2500,27 +2506,56 @@ def _build_recommendations(
 
 # ── Trend comparison ──────────────────────────────────────────────────────────
 
+def _metric(source: dict | None, key: str):
+    """Return a metric only when its source section actually produced data.
+
+    These values are *persisted* — to _audit_metrics.json and to the
+    audit_metrics table — and they feed the trend charts in the next report.
+    A zero written for a section that failed is indistinguishable downstream
+    from a measured zero, and _compute_trends only skips None. So a single
+    throttled audit would draw MFA coverage collapsing to 0% and recovering,
+    in the customer's history, permanently: a later correct audit adds a new
+    row but cannot retract the old one.
+
+    None means unknown, is stored as SQL NULL (every one of these columns is
+    nullable), and is skipped by the trend comparison.
+    """
+    if not source or not source.get("has_data"):
+        return None
+    return source.get(key)
+
+
 def save_audit_metrics(out_dir: Path, context: dict) -> None:
     """Save key audit metrics as JSON for future trend comparison."""
+    mfa      = context.get("mfa", {})
+    network  = context.get("network", {}) or {}
+    unifi    = (network.get("unifi") or {}) if network.get("has_data") else None
+    fortigate = network.get("fortigate") if network.get("has_data") else None
+
     metrics = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "mfa_coverage_pct": context.get("mfa", {}).get("pct", 0),
-        "secure_score_pct": context.get("secure_score", {}).get("pct", 0),
-        "total_users": context.get("users", {}).get("total", 0),
-        "users_no_mfa": context.get("mfa", {}).get("no_mfa", 0),
-        "ca_policies_enabled": context.get("ca", {}).get("enabled", 0),
-        "intune_compliance_pct": context.get("intune", {}).get("compliance_pct", 0.0),
-        "intune_total_devices": context.get("intune", {}).get("total", 0),
-        "admin_roles_ga_count": context.get("admin_roles", {}).get("global_admin_count", 0)
-            if context.get("admin_roles") else 0,
+        "mfa_coverage_pct": _metric(mfa, "pct"),
+        "secure_score_pct": _metric(context.get("secure_score", {}), "pct"),
+        "total_users": _metric(context.get("users", {}), "total"),
+        "users_no_mfa": _metric(mfa, "no_mfa"),
+        "ca_policies_enabled": _metric(context.get("ca", {}), "enabled"),
+        "intune_compliance_pct": _metric(context.get("intune", {}), "compliance_pct"),
+        "intune_total_devices": _metric(context.get("intune", {}), "total"),
+        "admin_roles_ga_count": _metric(context.get("admin_roles", {}), "global_admin_count"),
         "total_warns": len(context.get("all_warns", [])),
-        "risk_score": context.get("risk", {}).get("score", 0),
+        # _compute_risk already returns None here when a blocking gap makes
+        # the grade fiction — carry it through rather than flattening to 0.
+        "risk_score": context.get("risk", {}).get("score"),
         "risk_grade": context.get("risk", {}).get("grade", ""),
-        # Network metrics
-        "network_devices": (context.get("network", {}).get("unifi", {}) or {}).get("device_count", 0)
-            + (1 if context.get("network", {}).get("fortigate") and "error" not in context.get("network", {}).get("fortigate", {}) else 0),
-        "network_default_creds": (context.get("network", {}).get("unifi", {}) or {}).get("default_creds_count", 0),
-        "network_outdated_fw": (context.get("network", {}).get("unifi", {}) or {}).get("outdated_firmware_count", 0),
+        # Network metrics — None when the network audit produced nothing, so
+        # a customer with no FortiGate/UniFi reachable does not register as
+        # "0 devices, 0 default credentials" alongside tenants we did scan.
+        "network_devices": None if unifi is None and fortigate is None else (
+            (unifi or {}).get("device_count", 0)
+            + (1 if fortigate and "error" not in fortigate else 0)
+        ),
+        "network_default_creds": (unifi or {}).get("default_creds_count") if unifi else None,
+        "network_outdated_fw": (unifi or {}).get("outdated_firmware_count") if unifi else None,
         "recommendations": [
             {"priority": r.get("priority", ""), "title": r.get("title", ""), "detail": r.get("detail", ""), "effort": r.get("effort", "")}
             for r in context.get("recommendations", [])
@@ -2566,14 +2601,16 @@ def _save_metrics_to_db(out_dir: Path, metrics: dict) -> None:
                 customer_name,
                 metrics.get("timestamp", ""),
                 metrics.get("risk_grade", ""),
-                metrics.get("risk_score", 0),
-                metrics.get("mfa_coverage_pct", 0),
-                metrics.get("secure_score_pct", 0),
-                metrics.get("total_users", 0),
-                metrics.get("users_no_mfa", 0),
-                metrics.get("ca_policies_enabled", 0),
-                metrics.get("intune_compliance_pct", 0),
-                metrics.get("admin_roles_ga_count", 0),
+                # No `, 0` fallbacks: these columns are nullable and an
+                # unknown must reach the row as NULL, not as a measured zero.
+                metrics.get("risk_score"),
+                metrics.get("mfa_coverage_pct"),
+                metrics.get("secure_score_pct"),
+                metrics.get("total_users"),
+                metrics.get("users_no_mfa"),
+                metrics.get("ca_policies_enabled"),
+                metrics.get("intune_compliance_pct"),
+                metrics.get("admin_roles_ga_count"),
                 __import__("json").dumps(metrics),
                 metrics.get("timestamp", ""),
             ),
@@ -2604,7 +2641,16 @@ def load_previous_metrics(out_dir: Path) -> dict | None:
     try:
         from app.core.encryption import encrypted_read_json
         return encrypted_read_json(prev_dir / "_audit_metrics.json")
-    except (json.JSONDecodeError, OSError):
+    except Exception as e:
+        # Deliberately broad. The old (json.JSONDecodeError, OSError) missed
+        # cryptography's InvalidTag, so a metrics file that could not be
+        # decrypted — after a master-key rotation, a recreated keyring entry,
+        # or plain corruption — took the whole report generation down with
+        # it. The trend comparison is an enhancement; the report is the
+        # deliverable, and losing the former must never cost the latter.
+        logging.getLogger(__name__).warning(
+            "Could not read previous metrics from %s: %s", prev_dir.name, e
+        )
         return None
 
 
@@ -2636,7 +2682,12 @@ def load_metrics_history(out_dir: Path, max_runs: int = 5) -> list[dict]:
             data = encrypted_read_json(cdir / "_audit_metrics.json")
             data["_run_label"] = cdir.name
             history.append(data)
-        except (json.JSONDecodeError, OSError):
+        except Exception as e:
+            # See load_previous_metrics — an undecryptable run must cost that
+            # one point on the chart, not the whole report.
+            logging.getLogger(__name__).warning(
+                "Skipping unreadable metrics history for %s: %s", cdir.name, e
+            )
             continue
     return history
 
@@ -2745,6 +2796,27 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
     "9.3":   {"nist_id": "RS.AN-3", "nist_name": "Forensic analysis is conducted",
               "iso_id": "A.5.28", "iso_name": "Collection of evidence"},
 }
+
+
+def _section_ran(fc: dict, *names: str) -> bool:
+    """True when at least one of the named collector outputs is usable.
+
+    A file that is absent, empty, or an "Error:" stub means the section
+    produced no reading. Zero policies in a file that *was* written is a
+    reading — and a completely different claim. Compliance controls kept
+    conflating the two, so a tenant whose Exchange section never ran was
+    attested as having no external forwarding and failed for having no
+    anti-spam policy, on identical evidence: nothing.
+    """
+    for name in names:
+        text = fc.get(name, "")
+        stripped = text.strip() if isinstance(text, str) else ""
+        if stripped and not stripped.startswith("Error:"):
+            return True
+    return False
+
+
+_CANNOT_VERIFY = "Kan ikke verifiseres — "
 
 
 def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "all") -> list[dict]:
@@ -2980,8 +3052,16 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # the file) matched the WARN banner word and reported FAIL even when
     # the file just said "no expired credentials". Use the explicit summary
     # line ("X expired, Y expiring within Z days.") that the collector emits.
+    #
+    # The WARN file only exists when there is something to warn about, so its
+    # absence reads as "no expired credentials" — but only if the section that
+    # would have written it actually ran. Without that check, a failed
+    # app-registrations fetch was attested as a clean bill of health.
     cred_warn = fc.get("17c_app_credential_expiry_WARN.txt", "")
-    if not cred_warn.strip():
+    if not cred_warn.strip() and not _section_ran(fc, "17_app_registrations.txt"):
+        add("2.1.2", "Ensure app credentials are not expired", t.cis_cat_applications, "info",
+            _CANNOT_VERIFY + "app-registreringer utilgjengelig")
+    elif not cred_warn.strip():
         add("2.1.2", "Ensure app credentials are not expired", t.cis_cat_applications, "pass",
             "Ingen utløpte app-credentials")
     else:
@@ -3010,9 +3090,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     elif dlp_text.strip():
         add("3.1.1", "Ensure DLP policies are configured", t.cis_cat_data, "partial",
             "DLP-policyer finnes men kan være i test-/overvåkingsmodus")
-    else:
+    elif _section_ran(fc, "19d_purview_dlp_policies.txt"):
         add("3.1.1", "Ensure DLP policies are configured", t.cis_cat_data, "warn",
             "Ingen DLP-policyer funnet")
+    else:
+        add("3.1.1", "Ensure DLP policies are configured", t.cis_cat_data, "info",
+            _CANNOT_VERIFY + "Purview DLP-data utilgjengelig")
 
     # 3.2.1 Sensitivity labels
     _labels_raw = purview.get("sensitivity_labels", 0) if purview else 0
@@ -3021,9 +3104,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     if labels > 0 or ("label" in labels_text.lower() and labels_text.strip()):
         add("3.2.1", "Ensure sensitivity labels are published", t.cis_cat_data, "pass",
             f"{labels} sensitivitetsetiketter publisert" if labels else "Sensitivitetsetiketter funnet")
-    else:
+    elif _section_ran(fc, "19c_purview_sensitivity_labels.txt"):
         add("3.2.1", "Ensure sensitivity labels are published", t.cis_cat_data, "warn",
             "Ingen sensitivitetsetiketter funnet")
+    else:
+        add("3.2.1", "Ensure sensitivity labels are published", t.cis_cat_data, "info",
+            _CANNOT_VERIFY + "Purview-etikettdata utilgjengelig")
 
     # ═══ 4. EMAIL SECURITY ═══
 
@@ -3050,28 +3136,33 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("4.1", "Ensure mailbox audit logging is enabled", t.cis_cat_email, "info",
             "Kunne ikke fastslå audit-status fra org-config")
 
-    # 4.2 Anti-phishing
-    antiphish = fc.get("23_exchange_antiphish.txt", "")
-    if antiphish.strip():
+    # 4.2 Anti-phishing. _section_ran, not .strip(): an "Error: access denied"
+    # stub is non-empty and would otherwise attest that policies exist.
+    if _section_ran(fc, "23_exchange_antiphish.txt"):
         add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "pass",
             "Anti-phishing-policyer er konfigurert")
     else:
-        add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "warn",
-            "Ingen anti-phishing-data funnet")
+        # An absent 23_ file is the Exchange section not running, not a tenant
+        # without anti-phishing policies.
+        add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "info",
+            _CANNOT_VERIFY + "anti-phishing-data utilgjengelig")
 
-    # 4.3 Anti-spam — always add the entry. Previously the control was
-    # silently omitted from the report when the file was empty, so a tenant
-    # with no anti-spam policies got no CIS 4.3 entry at all (looks like N/A
-    # rather than the actual FAIL it should be).
-    antispam = fc.get("24_exchange_antispam.txt", "")
-    if antispam.strip():
+    # 4.3 Anti-spam — always add the entry. The control used to be silently
+    # omitted when the file was empty, so a tenant with no anti-spam policies
+    # got no CIS 4.3 row at all. Keeping the row is right; grading it FAIL on
+    # an empty file was not — an absent 24_ file means the Exchange section
+    # did not run, and "no policies" and "no data" are different claims.
+    if _section_ran(fc, "24_exchange_antispam.txt"):
         add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "pass",
             "Anti-spam-policyer er konfigurert")
     else:
-        add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "fail",
-            "Ingen anti-spam-policyer funnet — kjør Get-HostedContentFilterPolicy i EOP")
+        add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "info",
+            _CANNOT_VERIFY + "anti-spam-data utilgjengelig "
+            "(kjør Get-HostedContentFilterPolicy i EOP)")
 
-    # 4.4 External forwarding
+    # 4.4 External forwarding. "No forwarding detected" is an attestation, and
+    # attesting it from two files that were never written is the worst shape
+    # this control can take — external forwarding is an exfiltration path.
     fwd_warn = fc.get("28_exchange_mailbox_forwarding.txt", "")
     inbox_fwd = fc.get("29_exchange_inbox_rules_external_fwd.txt", "")
     has_fwd = ("forwarding" in fwd_warn.lower() and fwd_warn.strip()) or \
@@ -3079,9 +3170,13 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     if has_fwd:
         add("4.4", "Ensure mail forwarding to external domains is restricted", t.cis_cat_email, "warn",
             "Ekstern videresending oppdaget på en eller flere postbokser")
-    else:
+    elif _section_ran(fc, "28_exchange_mailbox_forwarding.txt",
+                      "29_exchange_inbox_rules_external_fwd.txt"):
         add("4.4", "Ensure mail forwarding to external domains is restricted", t.cis_cat_email, "pass",
             "Ingen ekstern videresending oppdaget")
+    else:
+        add("4.4", "Ensure mail forwarding to external domains is restricted", t.cis_cat_email, "info",
+            _CANNOT_VERIFY + "videresendingsdata utilgjengelig")
 
     # 4.5 / 4.6 Safe Links and Safe Attachments. The previous logic matched
     # the substring "safe links" / "safe attach" anywhere in the file —
@@ -3098,9 +3193,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         # Policy exists but is disabled
         add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "fail",
             "Safe Links-policy(er) finnes men er deaktivert")
-    else:
+    elif _section_ran(fc, "27_exchange_defender_policies.txt"):
         add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "warn",
             "Ingen Safe Links-policyer funnet (krever Defender for Office 365)")
+    else:
+        add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "info",
+            _CANNOT_VERIFY + "Defender-policydata utilgjengelig")
 
     if safe_attach_enabled > 0:
         add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "pass",
@@ -3108,9 +3206,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     elif "safeattach" in defender.lower() or "safe attach" in defender.lower():
         add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "fail",
             "Safe Attachments-policy(er) finnes men er deaktivert")
-    else:
+    elif _section_ran(fc, "27_exchange_defender_policies.txt"):
         add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "warn",
             "Ingen Safe Attachments-policyer funnet (krever Defender for Office 365)")
+    else:
+        add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "info",
+            _CANNOT_VERIFY + "Defender-policydata utilgjengelig")
 
     # ═══ 5. EMAIL AUTHENTICATION ═══
 
@@ -3250,9 +3351,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     if ret_count > 0 or retention_text.strip():
         add("7.2.2", "Ensure data retention policies are configured", t.cis_cat_data, "pass",
             f"{ret_count} oppbevaringspolicyer" if ret_count else "Oppbevaringspolicyer funnet")
-    else:
+    elif _section_ran(fc, "19e_purview_retention_policies.txt"):
         add("7.2.2", "Ensure data retention policies are configured", t.cis_cat_data, "warn",
             "Ingen oppbevaringspolicyer funnet")
+    else:
+        add("7.2.2", "Ensure data retention policies are configured", t.cis_cat_data, "info",
+            _CANNOT_VERIFY + "Purview-oppbevaringsdata utilgjengelig")
 
     # ═══ 8. TEAMS ═══
 
@@ -3301,15 +3405,20 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "pass",
             f"{audit_log_data_rows} hendelser i administrativ audit-logg de siste 14 dagene")
 
-    # 9.2 Defender alerts
+    # 9.2 Defender alerts. An empty alerts file was read as "no alerts", which
+    # is only true when the alert query ran — the count file states that
+    # explicitly, so require one of the two to have been written.
     defender_alerts = fc.get("19b_defender_active_alerts.txt", "")
     alert_count_text = fc.get("19b_defender_alert_count.txt", "")
-    if "0 active" in alert_count_text.lower() or not defender_alerts.strip():
+    if defender_alerts.strip() and "0 active" not in alert_count_text.lower():
+        add("9.2", "Ensure security alerts are monitored", t.cis_cat_logging, "warn",
+            "Aktive Defender-varsler krever oppfølging")
+    elif _section_ran(fc, "19b_defender_alert_count.txt", "19b_defender_active_alerts.txt"):
         add("9.2", "Ensure security alerts are monitored", t.cis_cat_logging, "pass",
             "Ingen aktive Defender-varsler")
-    elif defender_alerts.strip():
-        add("9.2", "Ensure security alerts are monitored", t.cis_cat_logging, "warn",
-            f"Aktive Defender-varsler krever oppfølging")
+    else:
+        add("9.2", "Ensure security alerts are monitored", t.cis_cat_logging, "info",
+            _CANNOT_VERIFY + "Defender-varseldata utilgjengelig")
 
     # 9.3 Risky users. Substring "high" matched "high availability" or any
     # other use of that word in the file (including the header). The signin
@@ -3364,13 +3473,18 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
     risk = context.get("risk", {})
     recs = context.get("recommendations", [])
 
-    # Always: environment size
-    bullets.append(t("exec_env_size",
-                     total=users.get('total', 0),
-                     enabled=users.get('enabled', 0),
-                     guests=users.get('guests', 0),
-                     azure_resources=azure.get('total_resources', 0),
-                     subscriptions=len(azure.get('subscriptions', []))))
+    # Environment size. "The environment has 0 users (0 active, 0 guests)" is
+    # not a description of a tenant, it is a description of a failed audit —
+    # and it opened the summary.
+    if users.get("has_data"):
+        bullets.append(t("exec_env_size",
+                         total=users.get('total', 0),
+                         enabled=users.get('enabled', 0),
+                         guests=users.get('guests', 0),
+                         azure_resources=azure.get('total_resources', 0) if azure.get('has_data') else 0,
+                         subscriptions=len(azure.get('subscriptions', [])) if azure.get('has_data') else 0))
+    else:
+        bullets.append(t.exec_env_size_unavailable)
 
     # MFA status — gate on has_data, not on pct. A tenant where every user is
     # unprotected scores 0%, and branching on the number alone announced the
