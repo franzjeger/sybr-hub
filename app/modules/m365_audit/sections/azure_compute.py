@@ -73,6 +73,9 @@ class AzureComputeSection(BaseSection):
             vms    = await _run_sync(lambda: list(client.virtual_machines.list_all()))
         except Exception as ex:
             self._save(self._fname("30_azure_vms.txt"), f"Error listing VMs: {ex}\n")
+            # Surface it in the section result too — an enumeration that
+            # failed must not read as "this subscription has no VMs".
+            self._warn(f"Could not list VMs for {self._sub_name or self._sub_id}: {ex}")
             return []
 
         sub_label = f"  [{self._sub_name}]" if self._multi else ""
@@ -173,6 +176,7 @@ class AzureComputeSection(BaseSection):
             )
         except Exception as ex:
             self._save(self._fname("40_avd.txt"), f"Error listing AVD host pools: {ex}\n")
+            self._warn(f"Could not list AVD host pools for {self._sub_name or self._sub_id}: {ex}")
             return
 
         if not host_pools:

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient
+
+logger = logging.getLogger(__name__)
 
 # Friendly labels for @odata.type values
 _METHOD_LABELS: dict[str, str] = {
@@ -273,18 +276,27 @@ class MFASection(BaseSection):
             return self._ca_section.policies
         return []
 
-    async def _get_methods(self, user_id: str) -> list[str]:
+    async def _get_methods(self, user_id: str) -> Optional[list[str]]:
+        """Return this user's registered MFA methods, or None if unknown.
+
+        None means the lookup failed — throttling, a transient 5xx, a missing
+        permission. It is deliberately distinct from ``[]`` ("this user has no
+        methods registered"), because collapsing the two is what turns a
+        throttled audit into a page of users falsely reported as having no MFA.
+        The Graph client raises rather than returning empty for exactly this
+        reason; swallowing that here would undo it at the call site.
+        """
         try:
             data    = await self.graph.get(f"users/{user_id}/authentication/methods")
             methods = data.get("value", [])
-            labels  = [
+            return [
                 _method_label(m.get("@odata.type", ""))
                 for m in methods
                 if m.get("@odata.type") != "#microsoft.graph.passwordAuthenticationMethod"
             ]
-            return labels
-        except Exception:
-            return []
+        except Exception as e:
+            logger.warning("Could not read auth methods for user %s: %s", user_id, e)
+            return None
 
     async def _analyse_ca_policies(self) -> tuple[
         list[dict], set[str], set[str], dict[str, list[str]], dict[str, dict]
@@ -579,27 +591,48 @@ class MFASection(BaseSection):
                 header,
                 "  " + "-" * 126,
             ]
+            # Three states, not two: a user whose lookup failed is *unknown*,
+            # not "no MFA". Bucketing unknowns with the failures is what turns
+            # a throttled run into a page of false findings — and this metric
+            # reaches the customer-facing report and the IT Glue asset.
             no_mfa_users = []
+            unknown_users = []
             for user, methods in results:
                 name = (user.get("displayName") or "")[:35]
                 upn  = (user.get("userPrincipalName") or "")[:45]
                 uid  = user.get("id", "")
-                has_mfa = bool(methods)
-                mfa_str = "YES" if has_mfa else "NO"
+                if methods is None:
+                    mfa_str, method_str = "?", "(lookup failed)"
+                    unknown_users.append(upn)
+                else:
+                    mfa_str = "YES" if methods else "NO"
+                    method_str = ", ".join(methods) if methods else "(none)"
+                    if not methods:
+                        no_mfa_users.append(upn)
                 ca_str = "YES" if uid in covered_ids else "NO"
                 ca_excl_str = "YES" if uid in excluded_ids else "NO"
-                method_str = ", ".join(methods) if methods else "(none)"
                 lines.append(
                     f"  {name:<35} {upn:<45} {mfa_str:>5} {ca_str:>4} {ca_excl_str:>8}  {method_str}"
                 )
-                if not has_mfa:
-                    no_mfa_users.append(upn)
+
+            if unknown_users:
+                lines += [
+                    "",
+                    f"  NOTE: {len(unknown_users)} user(s) marked '?' — their authentication",
+                    "  methods could not be read (throttling, transient error or missing",
+                    "  permission). They are NOT counted as lacking MFA. Re-run to resolve.",
+                ]
 
             lines += ["=" * 130, ""]
 
             if no_mfa_users:
                 self._warn(
                     f"{len(no_mfa_users)} enabled member user(s) have no MFA methods registered"
+                )
+            if unknown_users:
+                self._warn(
+                    f"MFA status could not be determined for {len(unknown_users)} user(s) — "
+                    f"coverage figures are incomplete"
                 )
 
             self._save("04_mfa_methods.txt", "\n".join(lines))
