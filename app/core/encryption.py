@@ -135,8 +135,19 @@ def _get_or_create_master_key() -> bytes:
 
     import base64
 
-    # 1. Try OS keyring
-    stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY)
+    # 1. Try OS keyring.
+    #
+    # Guarded, because keyring *raises* NoKeyringError when no Secret Service
+    # provider is present — which is the normal state on a headless Linux box
+    # and guaranteed under the systemd unit (system user, ProtectHome=yes, no
+    # D-Bus session). Unguarded, that exception escaped and took the whole
+    # process with it, and the file-backup recovery below — which exists for
+    # exactly this case — was unreachable.
+    try:
+        stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY)
+    except Exception as e:
+        log.warning("OS keyring unavailable (%s) — falling back to file backups", e)
+        stored = None
     if stored:
         _cached_key = base64.urlsafe_b64decode(stored)
         # Ensure backups exist
@@ -162,9 +173,15 @@ def _get_or_create_master_key() -> bytes:
     log.warning("No master key found anywhere — creating NEW key")
     _cached_key = os.urandom(32)
     b64 = base64.urlsafe_b64encode(_cached_key).decode()
-    keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, b64)
+    try:
+        keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, b64)
+    except Exception as e:
+        # Same reasoning as the read above. The file backups are the key's
+        # real home on a headless install; failing to *also* put it in a
+        # keyring that does not exist must not lose the key we just made.
+        log.warning("Could not store master key in OS keyring (%s) — using file backups", e)
     _save_key_backups(b64)
-    log.info("New master key created and backed up to 3 locations")
+    log.info("New master key created and backed up")
 
     return _cached_key
 
