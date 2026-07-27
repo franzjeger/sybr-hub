@@ -72,13 +72,9 @@ def _h(token: str) -> dict[str, str]:
 
 
 def _has_customer_access_dep(route: APIRoute) -> bool:
-    from fastapi.dependencies.utils import get_flat_dependant
+    from tests.fastapi_introspect import has_dependency_named
 
-    flat = get_flat_dependant(route.dependant, skip_repeats=True)
-    return any(
-        getattr(dep.call, "__qualname__", "").startswith("require_customer_access")
-        for dep in flat.dependencies
-    )
+    return has_dependency_named(route, "require_customer_access")
 
 
 def test_every_customer_scoped_route_enforces_access(app):

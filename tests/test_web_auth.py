@@ -154,7 +154,7 @@ def _iter_api_routes(app) -> list[tuple[str, APIRoute]]:
 
 def _auth_dependencies(route: APIRoute) -> list:
     """Return the auth-related dependency callables reachable from *route*."""
-    from fastapi.dependencies.utils import get_flat_dependant
+    from tests.fastapi_introspect import flat_dependency_calls
 
     def _is_auth_dep(call) -> bool:
         # require_role() returns a closure named `_check` defined inside it,
@@ -163,8 +163,7 @@ def _auth_dependencies(route: APIRoute) -> list:
             call, "__qualname__", ""
         ).startswith("require_role")
 
-    flat = get_flat_dependant(route.dependant, skip_repeats=True)
-    return [dep.call for dep in flat.dependencies if _is_auth_dep(dep.call)]
+    return [call for call in flat_dependency_calls(route) if _is_auth_dep(call)]
 
 
 def test_route_walk_finds_the_whole_api(app):
