@@ -32,3 +32,19 @@ def _mock_keyring():
         enc._cached_key = None
         yield
         enc._cached_key = None
+
+
+@pytest.fixture(autouse=True)
+def _dispose_db_pool():
+    """Terminate pooled connections after every test.
+
+    Each test gets its own event loop and usually its own DB_PATH, so a pooled
+    connection cannot be reused across tests anyway. Disposing explicitly stops
+    aiosqlite's non-daemon worker threads: left running they accumulate over a
+    suite this size and hang interpreter exit, which is precisely how CI got
+    wedged once already.
+    """
+    yield
+    from app.core.database import reset_pools_for_tests
+
+    reset_pools_for_tests()

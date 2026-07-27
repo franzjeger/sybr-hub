@@ -15,6 +15,12 @@ These tests lock in five behaviors:
 4. The sign-in activity collector keeps "unknown" events separate from
    successes. Defaulting a missing status.errorCode to 0 (= success)
    under-reports failures.
+5. A per-user MFA methods lookup that fails is reported as unknown, not
+   as "this user has no MFA". Same shape as (1) and (2): the collector
+   must not launder a transport failure into a definite finding.
+
+The report layer has the same invariant on the presentation side; see
+``tests/test_report_radar.py``.
 """
 
 from __future__ import annotations
@@ -298,3 +304,56 @@ async def test_signin_missing_status_errorcode_not_counted_as_success():
     # counted as unknown, not as success.
     warns = " ".join(section.result.warns)
     assert "3 sign-in event(s) had no status.errorCode" in warns
+
+
+# ── MFA methods: throttled lookup is not "no MFA" ─────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_mfa_methods_lookup_failure_is_not_reported_as_no_mfa():
+    """A failed per-user methods lookup must be 'unknown', not 'no MFA'.
+
+    The Graph client raises rather than returning empty precisely so callers
+    cannot mistake "throttled out" for "no data" — but catching that in the
+    collector and returning [] undid it at the call site. A throttled run then
+    reported healthy users as having no MFA, and mfa_coverage_pct reaches the
+    customer-facing report and the IT Glue asset, so the dip was visible.
+    """
+    from pathlib import Path
+
+    from app.modules.m365_audit.sections.users_mfa import MFASection
+
+    users = [
+        {"id": "u1", "displayName": "Has MFA", "userPrincipalName": "a@example.com",
+         "accountEnabled": True, "userType": "Member"},
+        {"id": "u2", "displayName": "No MFA", "userPrincipalName": "b@example.com",
+         "accountEnabled": True, "userType": "Member"},
+        {"id": "u3", "displayName": "Throttled", "userPrincipalName": "c@example.com",
+         "accountEnabled": True, "userType": "Member"},
+    ]
+
+    class _Graph:
+        async def get(self, path, **_kw):
+            if path.startswith("users/u1/"):
+                return {"value": [{"@odata.type": "#microsoft.graph.fido2AuthenticationMethod"}]}
+            if path.startswith("users/u2/"):
+                return {"value": []}
+            raise httpx.HTTPError("429 throttled")
+
+    saved: dict[str, str] = {}
+    section = MFASection(  # type: ignore[arg-type]
+        out_dir=Path("/tmp"), graph=_Graph(), users=users,
+    )
+    section._save = lambda name, body: saved.__setitem__(name, body)  # type: ignore[assignment]
+
+    await section.collect()
+
+    warns = " ".join(section.result.warns)
+    # Exactly one user genuinely lacks MFA — the throttled one is not counted.
+    assert "1 enabled member user(s) have no MFA methods registered" in warns
+    # And the unknown is surfaced rather than hidden.
+    assert "could not be determined for 1 user(s)" in warns
+
+    report = saved.get("04_mfa_methods.txt", "")
+    assert "(lookup failed)" in report
+    assert "NOT counted as lacking MFA" in report

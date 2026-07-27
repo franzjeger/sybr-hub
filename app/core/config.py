@@ -48,8 +48,11 @@ def get_audit_dir() -> Path:
     return _DEFAULT_AUDIT_DIR
 
 
-# Module-level reference — resolved once at import.
-# Use get_audit_dir() if you need the live value after settings change.
+# Module-level reference — resolved once at import, so it goes stale the
+# moment an operator changes the audit directory in Settings.
+#
+# Deprecated: call get_audit_dir() instead. Kept only so an out-of-tree import
+# doesn't break; nothing in app/ uses it any more.
 AUDIT_DIR = get_audit_dir()
 
 # Graph permissions required for audit

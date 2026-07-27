@@ -42,6 +42,9 @@ class User(BaseModel):
     created_at: datetime
     last_login: Optional[datetime] = None
     is_active: bool = True
+    # Blanket grant to every customer, independent of customer_access rows.
+    # Defaults to False so a user built without it is scoped, not unrestricted.
+    all_customers: bool = False
 
 
 class TokenPayload(BaseModel):

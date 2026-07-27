@@ -21,7 +21,6 @@ from argon2.exceptions import VerifyMismatchError
 from jwt import PyJWTError
 
 from app.core.database import get_db
-from app.core.utils import fire_and_forget
 from app.models.user import Role, TokenPayload, User
 
 # ── Token blacklist (in-memory, survives until restart) ─────────────────────
@@ -131,6 +130,7 @@ async def _put_secret_to_db(key: str, value: str) -> None:
             (key, encrypted),
         )
         await conn.commit()
+    _invalidate_secret_cache(key)
 
 
 async def _delete_secret_from_db(key: str) -> None:
@@ -138,16 +138,43 @@ async def _delete_secret_from_db(key: str) -> None:
     async with get_db() as conn:
         await conn.execute("DELETE FROM app_secrets WHERE key = ?", (key,))
         await conn.commit()
+    _invalidate_secret_cache(key)
+
+
+# The signing secret is read for every token operation — i.e. on every
+# authenticated request — and each read is a database round-trip plus an
+# AES-GCM decrypt. It changes only when it is written, so cache it in-process
+# and invalidate from the two write helpers above rather than from their
+# callers: anything that stores or deletes a secret then cannot leave a stale
+# entry behind, whether or not it went through rotate_jwt_secret().
+#
+# Keyed by database path so a test (or an MSP_DATA_DIR change) pointing at a
+# different database never inherits the previous one's secret.
+_secret_cache: dict[str, str] = {}
+
+
+def _secret_cache_key(name: str) -> str:
+    from app.core import database
+    return f"{database.DB_PATH}|{name}"
+
+
+def _invalidate_secret_cache(name: str) -> None:
+    _secret_cache.pop(_secret_cache_key(name), None)
 
 
 async def _get_jwt_secret() -> str:
     """Retrieve or generate the JWT signing secret (encrypted in DB)."""
+    cache_key = _secret_cache_key("jwt_secret")
+    cached = _secret_cache.get(cache_key)
+    if cached:
+        return cached
+
     secret = await _get_secret_from_db("jwt_secret")
-    if secret:
-        return secret
-    # Generate and store encrypted
-    secret = secrets.token_urlsafe(64)
-    await _put_secret_to_db("jwt_secret", secret)
+    if not secret:
+        # Generate and store encrypted (this invalidates, so cache after).
+        secret = secrets.token_urlsafe(64)
+        await _put_secret_to_db("jwt_secret", secret)
+    _secret_cache[cache_key] = secret
     return secret
 
 
@@ -272,9 +299,14 @@ async def create_session(
     refresh_token: str,
     ip_address: str = "",
     user_agent: str = "",
+    session_id: str | None = None,
 ) -> str:
-    """Create a new session record. Returns the session ID."""
-    session_id = str(uuid.uuid4())
+    """Create a new session record. Returns the session ID.
+
+    Pass *session_id* when the caller has already embedded it in the token
+    being stored, so the record's hash matches the token the client holds.
+    """
+    session_id = session_id or str(uuid.uuid4())
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     now = datetime.now(timezone.utc)
     expires = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
@@ -318,9 +350,8 @@ async def validate_session(session_id: str) -> bool:
             return expires > datetime.now(timezone.utc)
 
 
-def blacklist_token(token: str) -> None:
-    """Revoke a token. Records the hash in both the in-memory hot cache and
-    the DB so the revocation survives a process restart.
+def _blacklist_in_memory(token: str) -> tuple[str, datetime]:
+    """Record the revocation in the hot cache. Returns (token_hash, expires).
 
     Token expiry is computed by decoding the token (without verifying — we
     only need the exp claim, not authenticity, since this is a defensive
@@ -330,7 +361,6 @@ def blacklist_token(token: str) -> None:
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     now = datetime.now(timezone.utc)
 
-    # Compute the token's natural expiry so we can purge it later.
     expires = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     try:
         # options={"verify_signature": False} — we already trust the caller,
@@ -342,24 +372,53 @@ def blacklist_token(token: str) -> None:
     except Exception:
         pass
 
-    # In-memory hot cache for fast lookup
     _TOKEN_BLACKLIST[token_hash] = expires
     while len(_TOKEN_BLACKLIST) > _BLACKLIST_MAX:
         _TOKEN_BLACKLIST.popitem(last=False)
+    return token_hash, expires
 
-    # Persist so a server restart doesn't resurrect a revoked token. Best-
-    # effort: blacklisting is a security defence-in-depth check. If the DB
-    # write fails the in-memory cache still protects the current process.
+
+async def blacklist_token(token: str) -> None:
+    """Revoke a token in the hot cache and persist it so the revocation
+    survives a process restart.
+
+    The persist is awaited rather than fired into the background. Two reasons:
+    a revocation that is only *probably* written is not a revocation, and an
+    un-awaited database write outlives the caller — if the event loop shuts
+    down while that task is still connecting, aiosqlite's worker thread is
+    orphaned and, being non-daemon, hangs interpreter exit indefinitely. That
+    is what wedged the test suite here.
+    """
+    token_hash, expires = _blacklist_in_memory(token)
+    await _persist_blacklist_entry(token_hash, expires)
+
+
+def blacklist_token_sync(token: str) -> None:
+    """Revoke a token from synchronous code.
+
+    Runs the persist to completion on a private event loop, so no task
+    outlives this call. Prefer the async ``blacklist_token`` where possible.
+    """
     import asyncio
+
+    token_hash, expires = _blacklist_in_memory(token)
     try:
         asyncio.get_running_loop()
-        fire_and_forget(_persist_blacklist_entry(token_hash, expires))
     except RuntimeError:
-        # No event loop in this thread — fire on a fresh one.
         try:
             asyncio.run(_persist_blacklist_entry(token_hash, expires))
         except Exception as e:
             logger.warning("Failed to persist token blacklist entry: %s", e)
+        return
+
+    # Called from inside a running loop: asyncio.run() would fail and
+    # scheduling a background task is what caused the orphaned-thread hang.
+    # The in-memory revocation already applies to this process; the caller
+    # should await blacklist_token() to make it durable.
+    logger.warning(
+        "blacklist_token_sync() called from a running event loop — revocation "
+        "applied in memory only. Await blacklist_token() instead to persist it."
+    )
 
 
 async def _persist_blacklist_entry(token_hash: str, expires: datetime) -> None:
@@ -473,7 +532,14 @@ async def create_user(
     display_name: str,
     role: Role = Role.technician,
     email: Optional[str] = None,
+    all_customers: bool = False,
 ) -> User:
+    """Create a user.
+
+    ``all_customers`` defaults to False, so a new account starts scoped to
+    whatever customers an admin assigns it. (Admins bypass the check outright,
+    so the flag is irrelevant for them.)
+    """
     from app.core.exceptions import ValidationError
     pw_err = validate_password(password)
     if pw_err:
@@ -483,9 +549,9 @@ async def create_user(
     pw_hash = hash_password(password)
     async with get_db() as conn:
         await conn.execute(
-            """INSERT INTO users (id, username, display_name, email, password_hash, role, created_at, is_active)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
-            (user_id, username, display_name, email, pw_hash, role.value, now),
+            """INSERT INTO users (id, username, display_name, email, password_hash, role, created_at, is_active, all_customers)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+            (user_id, username, display_name, email, pw_hash, role.value, now, int(all_customers)),
         )
         await conn.commit()
     return User(
@@ -496,6 +562,7 @@ async def create_user(
         role=role,
         created_at=datetime.fromisoformat(now),
         is_active=True,
+        all_customers=all_customers,
     )
 
 
@@ -572,10 +639,18 @@ async def update_last_login(user_id: str) -> None:
 
 # ── Authenticate ─────────────────────────────────────────────────────────────
 
+# A pre-computed hash of a random value, verified against when the username
+# doesn't exist. Without it, a missing user returns in microseconds while a
+# real one costs a full Argon2 verify — a timing oracle for enumerating
+# usernames. The password is never known, so this always fails.
+_DUMMY_HASH = _ph.hash(secrets.token_urlsafe(32))
+
+
 async def authenticate(username: str, password: str) -> Optional[User]:
     """Verify credentials and return the user, or None."""
     pw_hash = await get_password_hash(username)
     if not pw_hash:
+        verify_password(password, _DUMMY_HASH)  # equalise timing
         return None
     if not verify_password(password, pw_hash):
         return None
@@ -590,6 +665,7 @@ async def authenticate(username: str, password: str) -> Optional[User]:
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _row_to_user(row) -> User:
+    keys = row.keys()
     return User(
         id=row["id"],
         username=row["username"],
@@ -599,4 +675,6 @@ def _row_to_user(row) -> User:
         created_at=datetime.fromisoformat(row["created_at"]),
         last_login=datetime.fromisoformat(row["last_login"]) if row["last_login"] else None,
         is_active=bool(row["is_active"]),
+        # Tolerate a row read before migration 14 has run.
+        all_customers=bool(row["all_customers"]) if "all_customers" in keys else False,
     )

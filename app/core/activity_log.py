@@ -20,6 +20,9 @@ _MAX_LOG_ENTRIES = 10000
 
 _LOG_PATH = DATA_DIR / "activity_log.jsonl"
 
+# Informational: the set of actions the UI knows how to label. Not enforced —
+# an unrecognised action is still recorded, since dropping an audit entry is
+# worse than showing an unfamiliar label.
 VALID_ACTIONS = {
     "audit_started",
     "audit_completed",
@@ -33,6 +36,8 @@ VALID_ACTIONS = {
     "also_sync",
     "ssh_key_push",
     "ssh_key_revoke",
+    "fortigate_bootstrapped",
+    "fortigate_credentials_viewed",
 }
 
 
@@ -130,19 +135,19 @@ def get_activity_log(limit: int = 50, offset: int = 0, customer: str = "") -> li
     # Most recent last in file, reverse so newest first
     json_lines.reverse()
 
-    # Apply offset then limit
-    if offset > 0:
-        json_lines = json_lines[offset:]
-    json_lines = json_lines[:limit]
-
+    # Parse and filter *before* paginating. Slicing first meant a customer
+    # filter was applied only to the current page, so filtered queries
+    # returned short or empty pages while matching entries sat further down.
     entries: list[dict] = []
+    wanted = customer.lower() if customer else ""
     for line in json_lines:
         try:
             entry = json.loads(line)
-            if customer and entry.get("customer", "").lower() != customer.lower():
-                continue
-            entries.append(entry)
         except json.JSONDecodeError:
             continue
+        if wanted and entry.get("customer", "").lower() != wanted:
+            continue
+        entries.append(entry)
 
-    return entries[:limit]
+    start = max(0, offset)
+    return entries[start:start + limit]

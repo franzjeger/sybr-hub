@@ -1,0 +1,118 @@
+# ── Sybr HUB systemd unit ───────────────────────────────────────────────────
+#
+# Install:
+#   sudo cp scripts/sybr-hub.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sybr-hub
+#
+# Edit the User/Group/WorkingDirectory placeholders below to match your
+# install before enabling. The unit deliberately does NOT run as root — see
+# "VPN and privileged commands" at the bottom for the small set of commands
+# that need elevation and how to grant just those.
+
+[Unit]
+Description=Sybr HUB — read-mostly aggregator for MSP technicians
+Documentation=https://github.com/franzjeger/sybr-hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+
+# ── Identity ────────────────────────────────────────────────────────────────
+# Create a dedicated account; do not reuse a login user.
+#   sudo useradd --system --home /opt/sybr-hub --shell /usr/sbin/nologin sybrhub
+User=sybrhub
+Group=sybrhub
+
+WorkingDirectory=/opt/sybr-hub
+ExecStart=/opt/sybr-hub/.venv/bin/python /opt/sybr-hub/main.py
+
+Restart=on-failure
+RestartSec=5s
+
+# ── Configuration ───────────────────────────────────────────────────────────
+# Bind to localhost and terminate TLS at a reverse proxy, or set the two
+# SSL_* variables below and expose this directly. Do not do neither: the app
+# serves plain HTTP when no certificate is configured.
+Environment=SYBR_HUB_HOST=127.0.0.1
+Environment=SYBR_HUB_PORT=8099
+Environment=SYBR_HUB_LOG_LEVEL=INFO
+
+# Serve HTTPS directly — both must be set, or neither.
+#Environment=SYBR_HUB_SSL_CERT=/etc/ssl/certs/sybr-hub.pem
+#Environment=SYBR_HUB_SSL_KEY=/etc/ssl/private/sybr-hub.key
+
+# Data and config locations. Default to XDG paths under the service user's
+# home; set explicitly so a home-directory change cannot silently relocate
+# the database and the encrypted customer files.
+Environment=MSP_DATA_DIR=/var/lib/sybr-hub
+Environment=MSP_CONFIG_DIR=/etc/sybr-hub
+
+# SQLite connections held open per event loop. 5 is the default and is
+# ample for a single-operator install; raise only if you see requests
+# queueing on the pool.
+#Environment=MSP_DB_POOL_SIZE=5
+
+# PowerShell 7, required for the Exchange Online audit section and first-run
+# app registration. Only needed if pwsh is not on PATH.
+#Environment=PWSH_PATH=/opt/microsoft/powershell/7/pwsh
+
+# ── Hardening ───────────────────────────────────────────────────────────────
+# This process holds customer credentials, an encryption master key and live
+# VPN tunnels into customer networks. Constrain it accordingly.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+# ProtectSystem=strict makes everything read-only; grant back only what the
+# app writes: the database, encrypted customer configs, audit output.
+ReadWritePaths=/var/lib/sybr-hub /etc/sybr-hub
+#ReadWritePaths=/srv/sybr-hub-audits          # if audit_dir is set elsewhere
+
+[Install]
+WantedBy=multi-user.target
+
+# ── VPN and privileged commands ─────────────────────────────────────────────
+#
+# The VPN backends shell out to a handful of commands that need root. Rather
+# than running the whole service as root, grant exactly those via sudoers.
+# Create /etc/sudoers.d/sybr-hub (validate with `visudo -c -f`) containing:
+#
+#   Cmnd_Alias SYBR_VPN = /usr/sbin/swanctl, /usr/bin/wg-quick, \
+#                         /usr/sbin/ip, /usr/bin/resolvectl, /usr/bin/tee
+#   sybrhub ALL=(root) NOPASSWD: SYBR_VPN
+#
+# Verify the paths on your distribution first (`command -v swanctl` etc.) —
+# a sudoers rule naming a path that does not exist grants nothing, and one
+# naming a wrapper script may grant more than intended.
+#
+# NOTE: `tee` is used to write strongSwan connection configs into
+# /etc/swanctl/conf.d. It is the broadest entry in that list — sudo tee can
+# write any file as root. The application validates the connection name and
+# confirms the resolved path stays inside that directory before invoking it,
+# but if you do not use FortiGate IPsec, drop /usr/bin/tee from the alias and
+# pre-create /etc/swanctl/conf.d owned by the service user instead.
+#
+# If you do not use the VPN features at all, omit the sudoers file entirely.
+# The VPN routes will return errors; nothing else is affected.
+#
+# ── Hardening vs. VPN ───────────────────────────────────────────────────────
+# Creating tunnel interfaces needs privileges the sandbox above withholds.
+# If tunnels fail to come up, the usual culprits are PrivateDevices=yes
+# (blocks /dev/net/tun) and RestrictAddressFamilies (blocks AF_PACKET).
+# Relax those two specifically rather than dropping the whole block:
+#
+#   PrivateDevices=no
+#   DeviceAllow=/dev/net/tun rw
+#   RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET

@@ -1003,6 +1003,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Backup-dekning",
         "en": "Backup Coverage",
     },
+    "backup_coverage_unknown": {
+        "no": "Backup-dekning kunne ikke fastslås — data fra Recovery Services "
+              "Vault mangler. Verifiser backup manuelt før dette rapporteres.",
+        "en": "Backup coverage could not be determined — Recovery Services "
+              "Vault data is missing. Verify backup manually before reporting.",
+    },
     "vms_total": {
         "no": "VMs totalt",
         "en": "VMs total",
@@ -1955,8 +1961,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "MFA coverage: {pct:.0f}% \u2014 {no_mfa} users missing MFA",
     },
     "cis_mfa_unavailable": {
-        "no": "MFA-data ikke tilgjengelig eller 0% dekning",
-        "en": "MFA data not available or 0% coverage",
+        "no": "Kan ikke verifiseres — MFA-data utilgjengelig",
+        "en": "Cannot be verified — MFA data unavailable",
+    },
+    "cis_mfa_none": {
+        "no": "Ingen brukere har MFA — 0% dekning ({no_mfa} brukere ubeskyttet)",
+        "en": "No users have MFA — 0% coverage ({no_mfa} users unprotected)",
     },
     "cis_active_policies": {
         "no": "{count} aktive policyer",
@@ -2222,6 +2232,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Milj\u00f8et har {total} brukere ({enabled} aktive, {guests} gjester) og {azure_resources} Azure-ressurser fordelt p\u00e5 {subscriptions} subscription(s).",
         "en": "The environment has {total} users ({enabled} active, {guests} guests) and {azure_resources} Azure resources across {subscriptions} subscription(s).",
     },
+    "exec_env_size_unavailable": {
+        "no": "Miljøets størrelse kunne ikke fastslås — auditen returnerte ingen brukerdata.",
+        "en": "Environment size could not be determined — the audit returned no user data.",
+    },
     "exec_mfa_good": {
         "no": "MFA-dekningen er {pct:.0f}% \u2014 godt sikret mot kontoovertakelse.",
         "en": "MFA coverage is {pct:.0f}% \u2014 well protected against account takeover.",
@@ -2269,6 +2283,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "exec_overall": {
         "no": "Samlet sikkerhetspostur er vurdert til grad {grade} ({score}/100) \u2014 {description}.",
         "en": "Overall security posture is assessed at grade {grade} ({score}/100) \u2014 {description}.",
+    },
+    "exec_overall_invalid": {
+        "no": "Samlet sikkerhetspostur kan ikke vurderes \u2014 auditen mangler n\u00f8dvendige data.",
+        "en": "Overall security posture cannot be assessed \u2014 the audit is missing required data.",
     },
     "exec_grade_a": {
         "no": "godt sikret",

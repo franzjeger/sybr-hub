@@ -254,9 +254,12 @@ class AuditCollector:
 
 def make_output_dir(customer_name: str) -> Path:
     """Create timestamped output directory for this audit run."""
-    from app.core.config import AUDIT_DIR
+    # get_audit_dir() rather than the AUDIT_DIR constant: the constant is
+    # resolved once at import, so an operator who changes the audit directory
+    # in Settings would keep writing to the old one until a restart.
+    from app.core.config import get_audit_dir
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in customer_name)
     timestamp  = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
-    out        = AUDIT_DIR / safe_name / timestamp
+    out        = get_audit_dir() / safe_name / timestamp
     out.mkdir(parents=True, exist_ok=True)
     return out

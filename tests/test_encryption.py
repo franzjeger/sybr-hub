@@ -101,3 +101,53 @@ class TestPlaintextFallback:
         """Unencrypted UTF-8 text should pass through decrypt_text unchanged."""
         raw = "legacy plaintext".encode("utf-8")
         assert decrypt_text(raw) == "legacy plaintext"
+
+
+# ── Headless Linux: no Secret Service ─────────────────────────────────────────
+
+
+def test_master_key_survives_a_keyring_that_raises(tmp_path, monkeypatch):
+    """keyring raises NoKeyringError when no Secret Service provider exists —
+    the normal state on a headless box, and guaranteed under the systemd unit
+    (system user, ProtectHome=yes, no D-Bus session). That exception used to
+    escape _get_or_create_master_key and take the process with it, leaving the
+    file-backup recovery chain below it unreachable.
+    """
+    import keyring.errors
+
+    import app.core.encryption as enc
+
+    def _boom(*a, **k):
+        raise keyring.errors.NoKeyringError("no backend")
+
+    monkeypatch.setattr("keyring.get_password", _boom)
+    monkeypatch.setattr("keyring.set_password", _boom)
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setattr(enc, "DATA_DIR", tmp_path / "data", raising=False)
+    monkeypatch.setattr(enc, "CONFIG_DIR", tmp_path / "conf", raising=False)
+
+    blob = enc.encrypt_text("hemmelig")
+    assert blob.startswith(enc._MAGIC_V2)
+    assert enc.decrypt_bytes(blob).decode() == "hemmelig"
+
+
+def test_the_key_persists_across_a_restart_without_a_keyring(tmp_path, monkeypatch):
+    """Second boot must recover the same key from the file backups, or every
+    previously encrypted audit becomes unreadable."""
+    import keyring.errors
+
+    import app.core.encryption as enc
+
+    def _boom(*a, **k):
+        raise keyring.errors.NoKeyringError("no backend")
+
+    monkeypatch.setattr("keyring.get_password", _boom)
+    monkeypatch.setattr("keyring.set_password", _boom)
+    monkeypatch.setattr(enc, "DATA_DIR", tmp_path / "data", raising=False)
+    monkeypatch.setattr(enc, "CONFIG_DIR", tmp_path / "conf", raising=False)
+
+    monkeypatch.setattr(enc, "_cached_key", None)
+    blob = enc.encrypt_text("hemmelig")
+
+    monkeypatch.setattr(enc, "_cached_key", None)   # simulate a restart
+    assert enc.decrypt_bytes(blob).decode() == "hemmelig"

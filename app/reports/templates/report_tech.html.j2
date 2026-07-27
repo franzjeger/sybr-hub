@@ -127,6 +127,7 @@ tr:hover td { background: #f6f8fa; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .tag.ok       { background: #d1fae5; color: #065f46; }
 .tag.warning  { background: #fef3c7; color: #92400e; }
+.tag.unknown  { background: #e5e7eb; color: #4b5563; }
 .tag.critical { background: #fee2e2; color: #991b1b; }
 .tag.skip     { background: #f3f4f6; color: #6b7280; }
 .tag.fail     { background: #fee2e2; color: #991b1b; }
@@ -357,7 +358,10 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <p>{{ t.risk_based_on_desc }}</p>
   </div>
   <div class="risk-score">
-    <div class="num" style="color:var(--{% if risk.color == 'green' %}green{% elif risk.color == 'blue' %}blue{% elif risk.color == 'orange' %}orange{% else %}red{% endif %})">{{ risk.score }}</div>
+    {# _compute_risk returns score=None when a blocking data gap makes the
+       grade fiction. The customer report already renders that as an em dash;
+       here it printed the literal "None / 100 points". #}
+    <div class="num" style="color:var(--{% if risk.color == 'green' %}green{% elif risk.color == 'blue' %}blue{% elif risk.color == 'orange' %}orange{% else %}red{% endif %})">{% if risk.score is none %}&mdash;{% else %}{{ risk.score }}{% endif %}</div>
     <div class="lbl">{{ t.points_of_100 }}</div>
   </div>
 </div>
@@ -969,7 +973,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <tr>
       <td>{{ t.external_sharing }}</td>
       <td>{{ sharepoint.sharing_label }}</td>
-      <td><span class="tag {{ sharepoint.sharing_level }}">{% if sharepoint.sharing_level == 'ok' %}{{ t.ok }}{% else %}{{ t.consider }}{% endif %}</span></td>
+      <td><span class="tag {{ sharepoint.sharing_level }}">{% if sharepoint.sharing_level == 'ok' %}{{ t.ok }}{% elif sharepoint.sharing_level == 'unknown' %}{{ t.sp_sharing_unknown }}{% else %}{{ t.consider }}{% endif %}</span></td>
     </tr>
     <tr>
       <td>{{ t.legacy_auth_label }}</td>

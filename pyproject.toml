@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "sybr-hub"
@@ -8,7 +8,44 @@ version = "0.1.0"
 description = "Read-mostly aggregator for MSP technicians — M365 audit + Autotask + IT Glue + myITprocess + RMM in one place."
 license = { text = "MIT" }
 requires-python = ">=3.11"
-dependencies = []
+# Kept in sync with requirements.txt, which stays the canonical list for
+# `pip install -r`. Anything imported by app/ belongs here too, otherwise
+# `pip install .` produces a package that cannot start.
+dependencies = [
+    "fastapi>=0.111.0,<1.0",
+    "uvicorn[standard]>=0.30.0,<1.0",
+    "httpx>=0.27.0,<1.0",
+    "msal>=1.28.0,<2.0",
+    "azure-identity>=1.16.0,<2.0",
+    "azure-mgmt-compute>=30.3.0,<32.0",
+    "azure-mgmt-network>=25.3.0,<27.0",
+    "azure-mgmt-resource>=23.1.0,<24.0",
+    "azure-mgmt-storage>=21.1.0,<22.0",
+    "azure-mgmt-monitor>=6.0.1,<7.0",
+    "azure-mgmt-advisor>=9.0.0,<10.0",
+    "azure-mgmt-recoveryservices>=2.5.0,<3.0",
+    "azure-mgmt-recoveryservicesbackup>=8.0.0,<10.0",
+    "azure-mgmt-loganalytics>=13.0.0,<14.0",
+    "azure-mgmt-desktopvirtualization>=1.0.0,<2.0",
+    "keyring>=24.3.0,<26.0",
+    "cryptography>=44.0.0,<46.0",
+    "jinja2>=3.1.4,<4.0",
+    "weasyprint>=64.0,<67.0",
+    "asyncssh>=2.14.0,<3.0",
+    "aiosqlite>=0.20.0,<1.0",
+    "argon2-cffi>=25.1.0,<26.0",
+    "PyJWT[crypto]>=2.9.0,<3.0",
+    "dnspython>=2.6.0,<3.0",
+    "platformdirs>=4.2.0,<5.0",
+    "pydantic>=2.7.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0,<9.0",
+    "pytest-asyncio>=0.23.0,<1.0",
+    "ruff",
+]
 
 [project.scripts]
 sybr-hub = "main:run"
@@ -19,6 +56,12 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    # PDF rendering costs ~9s — the only test that catches WeasyPrint failing
+    # on a missing system library, which is a deployment failure rather than a
+    # code one. CI runs everything; `pytest -m "not slow"` skips it locally.
+    "slow: takes seconds rather than milliseconds",
+]
 
 [tool.ruff]
 target-version = "py311"

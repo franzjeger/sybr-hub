@@ -17,6 +17,7 @@ Usage in route modules::
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from fastapi import Depends, Request
@@ -24,7 +25,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from app.core.auth import decode_token, get_user_by_id, get_user_count
+from app.core.auth import (
+    decode_token,
+    get_user_by_id,
+    get_user_count,
+    validate_session,
+)
 from app.models.user import Role, User
 
 logger = logging.getLogger(__name__)
@@ -51,6 +57,15 @@ _PUBLIC_PREFIXES: tuple[str, ...] = (
     "/branding/",
 )
 
+# Paths that may run *before any account exists*, so the first admin can be
+# created. This set is deliberately tiny: on a fresh install these are the
+# only endpoints reachable without a token. Everything else answers 401 until
+# setup completes.
+_SETUP_PATHS: set[str] = {
+    "/api/auth/setup",
+    "/api/auth/status",
+}
+
 
 def _is_public(path: str) -> bool:
     if path in _PUBLIC_PATHS:
@@ -58,13 +73,38 @@ def _is_public(path: str) -> bool:
     return any(path.startswith(p) for p in _PUBLIC_PREFIXES)
 
 
+# ── First-run detection ──────────────────────────────────────────────────────
+# Latched: once any account exists the app can never re-enter first-run mode,
+# so we stop paying for a COUNT(*) on every single request. Deleting the last
+# user does not reopen setup — that would be a privilege-escalation path, not
+# a feature.
+_users_exist: bool = False
+
+
+async def users_exist() -> bool:
+    """Return True once at least one account has ever been observed."""
+    global _users_exist
+    if _users_exist:
+        return True
+    if await get_user_count() > 0:
+        _users_exist = True
+    return _users_exist
+
+
+def _reset_users_exist_cache() -> None:
+    """Test hook — clear the first-run latch between test cases."""
+    global _users_exist
+    _users_exist = False
+
+
 # ── Middleware: attach user to request state ─────────────────────────────────
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """Extract JWT from Authorization header or cookie and attach user to request.
 
-    Public paths bypass authentication.  When no users exist (first-run),
-    all paths are accessible to allow initial setup.
+    Public paths bypass authentication.  When no users exist (first-run), the
+    handful of paths in ``_SETUP_PATHS`` — and only those — are reachable so
+    the first admin account can be created.
     """
 
     async def dispatch(
@@ -74,10 +114,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if _is_public(request.url.path):
             return await call_next(request)
 
-        # First-run bypass: if no users exist, allow everything so the
-        # admin setup can be completed.
-        user_count = await get_user_count()
-        if user_count == 0:
+        # First-run: only the setup endpoints are open, and only while no
+        # account exists. Any other path falls through to the normal token
+        # checks below and gets a 401.
+        if request.url.path in _SETUP_PATHS and not await users_exist():
             return await call_next(request)
 
         # Extract token
@@ -105,6 +145,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
             return JSONResponse(
                 {"error": "Invalid or expired token"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # A token bound to a session dies with that session, so revoking
+        # sessions ("log out everywhere") actually revokes access instead of
+        # leaving outstanding access tokens valid for their full lifetime.
+        if payload.session_id and not await validate_session(payload.session_id):
+            logger.info(
+                "401 dead-session: %s %s (sid=%s)",
+                request.method, request.url.path, payload.session_id,
+            )
+            return JSONResponse(
+                {"error": "Session expired"},
                 status_code=401,
                 headers={"WWW-Authenticate": "Bearer"},
             )
@@ -137,6 +191,18 @@ def _extract_token(request: Request) -> Optional[str]:
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
 
+def _setup_user() -> User:
+    """Synthetic admin used only by the first-run setup endpoints."""
+    return User(
+        id="__setup__",
+        username="setup",
+        display_name="Initial Setup",
+        role=Role.admin,
+        created_at=datetime.now(timezone.utc),
+        is_active=True,
+    )
+
+
 async def get_current_user(request: Request) -> User:
     """FastAPI dependency — returns the authenticated user.
 
@@ -144,24 +210,17 @@ async def get_current_user(request: Request) -> User:
     to populate ``request.state.user``.
     """
     user: Optional[User] = getattr(request.state, "user", None)
-    if not user:
-        # During first-run (no users), return a synthetic admin user
-        # so that existing routes don't break.
-        count = await get_user_count()
-        if count == 0:
-            return User(
-                id="__setup__",
-                username="setup",
-                display_name="Initial Setup",
-                role=Role.admin,
-                created_at=__import__("datetime").datetime.now(
-                    __import__("datetime").timezone.utc
-                ),
-                is_active=True,
-            )
-        from fastapi import HTTPException
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
+    if user:
+        return user
+
+    # First-run: the setup endpoints run before any account exists, so they
+    # get a synthetic admin. Every other path requires a real token — a
+    # blanket fallback here would hand admin to anyone who reached the port.
+    if request.url.path in _SETUP_PATHS and not await users_exist():
+        return _setup_user()
+
+    from fastapi import HTTPException
+    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 def require_role(min_role: Role) -> Callable:
@@ -173,6 +232,36 @@ def require_role(min_role: Role) -> Callable:
             raise HTTPException(
                 status_code=403,
                 detail=f"Requires {min_role.value} role or higher",
+            )
+        return user
+
+    return _check
+
+
+def require_customer_access(min_role: Role = Role.viewer) -> Callable:
+    """Dependency factory for routes scoped to a single customer.
+
+    Enforces the role floor *and* that the caller may see this particular
+    customer. ``customer_id`` is taken from the path, so any route with a
+    ``{customer_id}`` segment can use this directly.
+
+    Without it, per-customer RBAC was effectively decorative: only one route
+    consulted it, so a technician assigned to customer A could read customer
+    B's dashboard, backups and threat logs by changing the URL.
+    """
+    role_check = require_role(min_role)
+
+    async def _check(customer_id: str, user: User = Depends(role_check)) -> User:
+        from app.core.rbac import check_customer_access
+
+        if not await check_customer_access(user, customer_id):
+            from fastapi import HTTPException
+            logger.info(
+                "403 customer-access: user=%s customer=%s", user.username, customer_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Du har ikke tilgang til denne kunden",
             )
         return user
 

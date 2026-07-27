@@ -17,6 +17,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.validation import validate_identifier
 from app.models.user import Role, User
 from app.models.vpn import ProfileCreateRequest, ProfileImportRequest, ProfileUpdateRequest
 from app.web.middleware.auth import get_current_user, require_role
@@ -161,24 +162,29 @@ async def vpn_force_disconnect(user: User = Depends(require_role(Role.technician
     except Exception as e:
         logger.debug("Graceful VPN disconnect failed, proceeding with force: %s", e)
 
-    # Kill common VPN processes. subprocess.run blocks the asyncio event loop
-    # so every other in-flight request waits for these calls (each can take up
-    # to 5s on the timeout). Off-load to a thread so the event loop keeps
-    # serving other connections.
-    for proc in ["openvpn", "openconnect", "swanctl"]:
+    # Terminate only the processes this app started. `pkill -f openvpn`
+    # matched on the whole command line and killed every openvpn on the host,
+    # including tunnels belonging to other tools or other operators.
+    from app.services.vpn_backends import openvpn as ovpn_backend
+
+    for tag, proc in list(ovpn_backend._processes.items()):
+        if proc.returncode is not None:
+            continue
         try:
-            await asyncio.to_thread(
-                subprocess.run, ["pkill", "-f", proc],
-                capture_output=True, timeout=5,
-            )
-        except Exception as e:
-            logger.debug("Failed to kill %s process: %s", proc, e)
+            proc.kill()
+            await asyncio.wait_for(proc.wait(), timeout=5)
+        except (asyncio.TimeoutError, ProcessLookupError, OSError) as e:
+            logger.debug("Failed to kill OpenVPN process for %s: %s", tag, e)
+    for tag in list(ovpn_backend._processes):
+        ovpn_backend._processes.pop(tag, None)
+        ovpn_backend._cleanup_tempfiles(tag)
 
     # Clean up all active interfaces
     for pid, conn in list(vpn_manager._connections.items()):
         iface = conn.get("interface")
         if iface:
             try:
+                validate_identifier(iface, "interface", max_length=15)
                 await asyncio.to_thread(
                     subprocess.run, ["ip", "link", "delete", iface],
                     capture_output=True, timeout=5,

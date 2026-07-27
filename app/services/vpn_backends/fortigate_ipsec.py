@@ -6,13 +6,35 @@ or use the msp-vpn-helper systemd service.
 """
 import asyncio
 import logging
-import tempfile
 from pathlib import Path
 from typing import Optional
+
+from app.core.exceptions import ValidationError
+from app.core.validation import (
+    quote_conf_value,
+    validate_cidr,
+    validate_host_list,
+    validate_identifier,
+)
 
 logger = logging.getLogger(__name__)
 
 CONF_DIR = Path("/etc/swanctl/conf.d")
+
+
+def _conf_path(conn_name: str) -> Path:
+    """Resolve the config path for *conn_name*, refusing to escape CONF_DIR.
+
+    ``conn_name`` originates in a user-supplied VPN profile, and the write
+    below may go through ``sudo tee`` — so an unvalidated name is an
+    arbitrary-file-write-as-root primitive. Validate the name, then verify
+    the resolved path is still inside CONF_DIR as a second line of defence.
+    """
+    validate_identifier(conn_name, "conn_name", max_length=32)
+    path = (CONF_DIR / f"{conn_name}.conf").resolve()
+    if path.parent != CONF_DIR.resolve():
+        raise ValidationError("Ugyldig conn_name")
+    return path
 
 
 async def _run(cmd, timeout=30):
@@ -29,7 +51,7 @@ async def _sudo_run(cmd, timeout=30):
 
 async def _write_conf(conf_text: str, conn_name: str) -> Optional[str]:
     """Write swanctl config, trying direct first then sudo."""
-    conf_path = CONF_DIR / f"{conn_name}.conf"
+    conf_path = _conf_path(conn_name)
 
     # Try direct write first
     try:
@@ -60,6 +82,8 @@ async def _write_conf(conf_text: str, conn_name: str) -> Optional[str]:
 
 async def connect(config: dict, conn_name: str = "msp-fg") -> dict:
     """Connect FortiGate IPsec VPN via strongSwan."""
+    validate_identifier(conn_name, "conn_name", max_length=32)
+
     # Check if swanctl is available
     rc, _, _ = await _run(["which", "swanctl"])
     if rc != 0:
@@ -137,10 +161,10 @@ async def _install_routes(config: dict, conn_name: str) -> None:
 
 async def disconnect(conn_name: str = "msp-fg") -> dict:
     """Disconnect FortiGate IPsec VPN."""
+    conf_path = _conf_path(conn_name)  # validates conn_name before any use
     await _sudo_run(["swanctl", "--terminate", "--ike", conn_name])
 
     # Remove config
-    conf_path = CONF_DIR / f"{conn_name}.conf"
     try:
         conf_path.unlink(missing_ok=True)
     except PermissionError:
@@ -152,6 +176,7 @@ async def disconnect(conn_name: str = "msp-fg") -> dict:
 
 
 async def get_status(conn_name: str = "msp-fg") -> dict:
+    validate_identifier(conn_name, "conn_name", max_length=32)
     rc, out, err = await _sudo_run(["swanctl", "--list-sas", "--ike", conn_name])
     if rc != 0 or not out.strip():
         return {"connected": False}
@@ -172,17 +197,22 @@ def _build_swanctl_conf(config: dict, conn_name: str) -> str:
     - remote auth = psk (not pubkey)
     - start_action = none (initiate manually)
     - IKE PSK secret listed before EAP secret
+
+    Every interpolated value is validated or escaped first: this text is
+    written to /etc/swanctl/conf.d (potentially via sudo), so an unescaped
+    quote or newline in a PSK would let a profile inject config directives.
     """
-    host = config.get("host", "")
-    username = config.get("username", "")
-    password = config.get("password", "")
-    psk = config.get("psk", "")
+    validate_identifier(conn_name, "conn_name", max_length=32)
+    host = validate_host_list(config.get("host", ""), "host")
+    username = quote_conf_value(config.get("username", ""), "username")
+    password = quote_conf_value(config.get("password", ""), "password")
+    psk = quote_conf_value(config.get("psk", ""), "psk")
 
     routes = config.get("routes", [])
     if not routes:
         remote_ts = "0.0.0.0/0,::/0"
     else:
-        remote_ts = ",".join(routes)
+        remote_ts = ",".join(validate_cidr(r, "routes") for r in routes)
 
     return f"""connections {{
   {conn_name} {{
@@ -191,8 +221,8 @@ def _build_swanctl_conf(config: dict, conn_name: str) -> str:
     proposals = aes128-sha256-ecp384,aes256-sha256-ecp384,aes128gcm16-prfsha256-ecp384,aes256gcm16-prfsha384-ecp521,chacha20poly1305-prfsha256-ecp384
     local {{
       auth = eap-mschapv2
-      id = {username}
-      eap_id = {username}
+      id = "{username}"
+      eap_id = "{username}"
     }}
     remote {{
       auth = psk
@@ -210,7 +240,7 @@ secrets {{
     secret = "{psk}"
   }}
   eap-{conn_name} {{
-    id = {username}
+    id = "{username}"
     secret = "{password}"
   }}
 }}

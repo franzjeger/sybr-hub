@@ -28,7 +28,7 @@ class FortiGateClient:
         api_token: str,
         port: int = 443,
         vdom: str = "root",
-        verify_ssl: bool = False,
+        verify_ssl: bool = True,
         timeout: float = 30.0,
     ):
         self.host = host.rstrip("/")

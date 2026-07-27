@@ -21,9 +21,17 @@ jobs:
   test:
     name: pytest
     runs-on: ubuntu-latest
+    # A wedged test run should not hold a runner for the 6-hour default. This
+    # is comfortably above the ~1 minute the suite actually takes.
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # 3.11 is the floor from pyproject. 3.13/3.14 are here because Arch —
+        # and so CachyOS, which is a real deployment target — ships whatever is
+        # newest; the install script builds its venv from the system Python, so
+        # an untested version there means an untested production install.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
@@ -41,10 +49,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt pytest-timeout
 
+      # --timeout names the offending test and dumps its stack if one hangs;
+      # --session-timeout bounds the run as a whole. Neither covers a hang in
+      # interpreter *shutdown* after the last test passes — a leaked
+      # non-daemon thread (aiosqlite starts one per connection) does exactly
+      # that, and did on this branch. `timeout-minutes` above is the backstop
+      # for that case.
       - name: Run tests
-        run: pytest -v --tb=short
+        run: pytest -v --tb=short --timeout=120 --session-timeout=600
 
   lint:
     name: ruff
@@ -81,8 +95,15 @@ jobs:
       - name: Install pip-audit
         run: python -m pip install --upgrade pip pip-audit
 
-      # Non-blocking: known CVEs are reported but do not fail the build.
-      # Flip `continue-on-error` to false once baseline is clean.
+      # `--disable-pip` was silently defeating this job. pip-audit only accepts
+      # it with hashed requirements or --no-deps, and requirements.txt is
+      # neither — so every run exited on argument validation before scanning
+      # anything, and `continue-on-error` reported that as success. Letting pip
+      # resolve the tree also means transitive dependencies get audited, which
+      # is where most CVEs actually live.
+      #
+      # Still non-blocking: the baseline is not clean (see docs/UPGRADING.md).
+      # Flip `continue-on-error` to false once it is.
       - name: Scan dependencies for known CVEs
         continue-on-error: true
-        run: pip-audit -r requirements.txt --disable-pip --strict
+        run: pip-audit -r requirements.txt --strict

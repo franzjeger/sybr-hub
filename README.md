@@ -69,6 +69,7 @@ For production deployment behind systemd: see
 - [`ROADMAP.md`](ROADMAP.md) — what's built, what's next
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module layout
 - [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) — wiring each upstream system
+- [`docs/UPGRADING.md`](docs/UPGRADING.md) — behaviour changes that need a decision
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure
 

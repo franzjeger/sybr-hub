@@ -65,6 +65,45 @@ def _default_site(customer_id: str) -> str:
     return (cust or {}).get("UniFiSite", "default")
 
 
+def wlan_security_label(security: Any) -> str:
+    """Map a UniFi WLAN security string to a human label.
+
+    Anything unrecognised comes back as "Unknown (<value>)" rather than
+    falling through to "Open". Reporting an unrecognised cipher as an open
+    network is a false finding either way — it sends a technician to fix a
+    network that is already encrypted, and it would hide a genuinely open one
+    behind the same label. WEP is called out by name because "Open" flatters
+    it and "WPA2" would be badly wrong.
+    """
+    if not isinstance(security, str) or not security.strip():
+        return "Unknown"
+    s = security.strip().lower()
+    if s == "open":
+        return "Open"
+    # SAE is WPA3-Personal's handshake; some firmware reports it on its own.
+    if "wpa3" in s or "sae" in s:
+        return "WPA3-Enterprise" if "eap" in s else "WPA3"
+    if "eap" in s:                       # wpaeap, wpa2eap
+        return "WPA2-Enterprise"
+    if "wpapsk" in s or "wpa2" in s or "wpa" in s:
+        return "WPA2"
+    if "wep" in s:
+        return "WEP (insecure)"
+    return f"Unknown ({security})"
+
+
+def is_open_wlan_security(security: Any) -> bool:
+    """True only when the value positively identifies an unencrypted WLAN.
+
+    Absent, null, and unrecognised values return False. Callers use this to
+    decide whether to raise an "open WiFi" finding, and an open-WiFi finding
+    is the most alarming thing the network audit emits — it must rest on a
+    reading, never on a default. Anything we cannot classify is Unknown, and
+    Unknown is not a finding.
+    """
+    return wlan_security_label(security) == "Open"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. Enhanced device stats
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -293,15 +332,7 @@ async def get_wifi_health(customer_id: str) -> dict[str, Any]:
 
         for w in wlans_raw:
             name = w.get("name", "")
-            security = w.get("security", "open")
-            # Map UniFi security strings
-            sec_label = "Open"
-            if "wpapsk" in security or "wpa2" in security.lower():
-                sec_label = "WPA2"
-            if "wpa3" in security.lower():
-                sec_label = "WPA3"
-            if "wpaeap" in security:
-                sec_label = "WPA2-Enterprise"
+            sec_label = wlan_security_label(w.get("security"))
 
             ssids.append({
                 "name": name,
