@@ -358,7 +358,10 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <p>{{ t.risk_based_on_desc }}</p>
   </div>
   <div class="risk-score">
-    <div class="num" style="color:var(--{% if risk.color == 'green' %}green{% elif risk.color == 'blue' %}blue{% elif risk.color == 'orange' %}orange{% else %}red{% endif %})">{{ risk.score }}</div>
+    {# _compute_risk returns score=None when a blocking data gap makes the
+       grade fiction. The customer report already renders that as an em dash;
+       here it printed the literal "None / 100 points". #}
+    <div class="num" style="color:var(--{% if risk.color == 'green' %}green{% elif risk.color == 'blue' %}blue{% elif risk.color == 'orange' %}orange{% else %}red{% endif %})">{% if risk.score is none %}&mdash;{% else %}{{ risk.score }}{% endif %}</div>
     <div class="lbl">{{ t.points_of_100 }}</div>
   </div>
 </div>
