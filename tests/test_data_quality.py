@@ -15,6 +15,12 @@ These tests lock in five behaviors:
 4. The sign-in activity collector keeps "unknown" events separate from
    successes. Defaulting a missing status.errorCode to 0 (= success)
    under-reports failures.
+5. A per-user MFA methods lookup that fails is reported as unknown, not
+   as "this user has no MFA". Same shape as (1) and (2): the collector
+   must not launder a transport failure into a definite finding.
+
+The report layer has the same invariant on the presentation side; see
+``tests/test_report_radar.py``.
 """
 
 from __future__ import annotations

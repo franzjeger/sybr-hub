@@ -2754,8 +2754,18 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
 
     # ═══ 1. IDENTITY & ACCESS ═══
 
-    # 1.1.1 MFA
-    if mfa.get("pct", 0) >= 95:
+    # 1.1.1 MFA. The old branch collapsed "we could not read MFA state" and
+    # "we read it and nobody has MFA" into one "fail" — the translation string
+    # even said "not available or 0% coverage". Both halves were wrong: an
+    # unverifiable control landed in compliance_fail and stayed in the
+    # compliance_pct denominator (compliance_assessed excludes "info"
+    # precisely so it wouldn't), and a genuine 0% was described as missing
+    # data. Every neighbouring control here already uses "info" +
+    # "Kan ikke verifiseres" for the unverifiable case.
+    if not mfa.get("has_data"):
+        add("1.1.1", "Ensure MFA is enabled for all users", t.cis_cat_identity, "info",
+            t.cis_mfa_unavailable)
+    elif mfa.get("pct", 0) >= 95:
         add("1.1.1", "Ensure MFA is enabled for all users", t.cis_cat_identity, "pass",
             t("cis_mfa_coverage", pct=mfa.get('pct', 0)))
     elif mfa.get("pct", 0) > 0:
@@ -2763,7 +2773,7 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
             t("cis_mfa_partial", pct=mfa.get('pct', 0), no_mfa=mfa.get('no_mfa', 0)))
     else:
         add("1.1.1", "Ensure MFA is enabled for all users", t.cis_cat_identity, "fail",
-            t.cis_mfa_unavailable)
+            t("cis_mfa_none", no_mfa=mfa.get('no_mfa', 0)))
 
     # 1.1.2 Phishing-resistant MFA. CIS says phishing-resistant methods
     # should be "preferred" (i.e. enabled at the policy level). The previous
@@ -3327,17 +3337,19 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
                      azure_resources=azure.get('total_resources', 0),
                      subscriptions=len(azure.get('subscriptions', []))))
 
-    # MFA status
-    if mfa.get("pct", 0) >= 95:
-        bullets.append(t("exec_mfa_good", pct=mfa['pct']))
-    elif mfa.get("pct", 0) > 0:
-        bullets.append(t("exec_mfa_partial", pct=mfa['pct'], no_mfa=mfa.get('no_mfa', 0)))
-    else:
+    # MFA status — gate on has_data, not on pct. A tenant where every user is
+    # unprotected scores 0%, and branching on the number alone announced the
+    # single worst identity finding in the product as "data not available".
+    if not mfa.get("has_data"):
         bullets.append(t.exec_mfa_unavailable)
+    elif mfa.get("pct", 0) >= 95:
+        bullets.append(t("exec_mfa_good", pct=mfa['pct']))
+    else:
+        bullets.append(t("exec_mfa_partial", pct=mfa.get('pct', 0), no_mfa=mfa.get('no_mfa', 0)))
 
-    # Secure Score
-    if ss.get("pct", 0) > 0:
-        if ss["pct"] >= 75:
+    # Secure Score — same reasoning; 0% is a reading, not a missing reading.
+    if ss.get("has_data"):
+        if ss.get("pct", 0) >= 75:
             bullets.append(t("exec_ss_good", pct=ss['pct']))
         else:
             bullets.append(t("exec_ss_low", pct=ss['pct'], count=len(ss.get('improvements', []))))
@@ -3370,12 +3382,17 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
     if ga > 4:
         bullets.append(t("exec_ga_too_many", count=ga))
 
-    # Overall
-    grade_text = {"A": t.exec_grade_a, "B": t.exec_grade_b, "C": t.exec_grade_c, "D": t.exec_grade_d}
-    bullets.append(t("exec_overall",
-                     grade=risk.get('grade', '?'),
-                     score=risk.get('score', 0),
-                     description=grade_text.get(risk.get('grade', 'C'), t.exec_grade_unknown)))
+    # Overall. _compute_risk returns score=None / grade="?" when a blocking gap
+    # makes the grade fiction; formatting that into "{score}/100" printed the
+    # literal "None/100" in the customer-facing summary.
+    if risk.get("score") is None:
+        bullets.append(t.exec_overall_invalid)
+    else:
+        grade_text = {"A": t.exec_grade_a, "B": t.exec_grade_b, "C": t.exec_grade_c, "D": t.exec_grade_d}
+        bullets.append(t("exec_overall",
+                         grade=risk.get('grade', '?'),
+                         score=risk['score'],
+                         description=grade_text.get(risk.get('grade', 'C'), t.exec_grade_unknown)))
 
     return bullets
 
@@ -3385,9 +3402,16 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
 def _build_risk_radar(context: dict, lang: str = "no") -> dict:
     """Compute risk scores per category for radar chart.
 
-    Returns an empty dict when essential inputs (MFA/users) are missing — the
-    caller should hide the chart entirely instead of plotting fabricated
-    fallback values like Identity=16, Devices=50, etc.
+    Only axes backed by data we actually collected are returned. An axis whose
+    source section failed, was throttled out, or never ran is *omitted* — not
+    plotted at some neutral-looking default. A fabricated 80 on the Azure axis
+    reads to a technician as "we checked Azure and it is fine", which is the
+    opposite of the truth, and a fabricated 0 sends them chasing a finding that
+    does not exist. Both are worse than an absent axis.
+
+    Returns an empty dict when nothing can be scored. `_render_radar_svg`
+    additionally declines to draw fewer than three axes, and the template hides
+    the whole block when no SVG comes back.
     """
     t = T(lang)
 
@@ -3395,55 +3419,82 @@ def _build_risk_radar(context: dict, lang: str = "no") -> dict:
     if risk.get("blocking_data_gaps"):
         return {}
 
-    categories = {}
+    categories: dict[str, int] = {}
 
-    # Identity (MFA + CA + admin roles)
-    mfa_score = min(100, context.get("mfa", {}).get("pct", 0))
-    ca_score = 100 if context.get("ca", {}).get("enabled", 0) >= 3 else context.get("ca", {}).get("enabled", 0) * 30
-    ga = context.get("admin_roles", {}).get("global_admin_count", 0)
-    ga_score = 100 if 2 <= ga <= 4 else max(0, 100 - (ga - 4) * 20) if ga > 4 else 50
-    categories[t.radar_identity] = min(100, int((mfa_score + ca_score + ga_score) / 3))
+    # ── Identity (MFA + CA + admin roles) ────────────────────────────
+    # Average over the inputs that were measured, not over all three. A failed
+    # /identity/conditionalAccess/policies fetch reads as "0 policies enabled"
+    # in the parsed dict, which used to drag this axis toward red on its own.
+    identity_parts: list[float] = []
+    mfa = context.get("mfa", {})
+    if mfa.get("has_data"):
+        identity_parts.append(min(100, mfa.get("pct", 0)))
+    ca = context.get("ca", {})
+    if ca.get("has_data"):
+        ca_enabled = ca.get("enabled", 0)
+        identity_parts.append(100 if ca_enabled >= 3 else ca_enabled * 30)
+    admin_roles = context.get("admin_roles", {})
+    if admin_roles.get("has_data"):
+        ga = admin_roles.get("global_admin_count", 0)
+        identity_parts.append(
+            100 if 2 <= ga <= 4 else max(0, 100 - (ga - 4) * 20) if ga > 4 else 50
+        )
+    if identity_parts:
+        categories[t.radar_identity] = min(100, int(sum(identity_parts) / len(identity_parts)))
 
-    # Devices
+    # ── Devices ──────────────────────────────────────────────────────
+    # has_data means "the Intune audit produced a parseable report" — see
+    # _parse_intune_devices — which is not the same as "this tenant enrols
+    # devices". Both must hold before a compliance percentage means anything.
     intune = context.get("intune", {})
-    if intune.get("total", 0) > 0:
+    if intune.get("has_data") and intune.get("total", 0) > 0:
         categories[t.radar_devices] = int(intune.get("compliance_pct", 0))
-    else:
-        categories[t.radar_devices] = 50  # unknown
 
-    # Email — only score customer-owned domains
+    # ── Email — only score customer-owned domains ────────────────────
     spf = context.get("spf_dmarc", [])
     email_score = 100
+    scored_domains = 0
     for d in spf:
         if not _is_audit_relevant_domain(d.get("domain", "")):
             continue
+        scored_domains += 1
         if "MISSING" in d.get("spf", "") or "MISSING" in d.get("dmarc", ""):
             email_score -= 30
         elif "WEAK" in d.get("spf", "") or "WEAK" in d.get("dmarc", ""):
             email_score -= 15
-    categories[t.radar_email] = max(0, email_score)
+    # No relevant domain resolved means the DNS section did not run or returned
+    # nothing — a perfect 100 there would be an assurance we never earned.
+    if scored_domains:
+        categories[t.radar_email] = max(0, email_score)
 
-    # Azure
+    # ── Azure ────────────────────────────────────────────────────────
     azure = context.get("azure", {})
-    azure_score = 80  # default ok
-    if azure.get("orphaned", 0) > 0:
-        azure_score -= 10
-    if azure.get("advisor_recs", 0) > 20:
-        azure_score -= 20
-    elif azure.get("advisor_recs", 0) > 5:
-        azure_score -= 10
-    categories[t.radar_azure] = max(0, azure_score)
+    if azure.get("has_data"):
+        azure_score = 80  # baseline for a subscription we could enumerate
+        if azure.get("orphaned", 0) > 0:
+            azure_score -= 10
+        if azure.get("advisor_recs", 0) > 20:
+            azure_score -= 20
+        elif azure.get("advisor_recs", 0) > 5:
+            azure_score -= 10
+        categories[t.radar_azure] = max(0, azure_score)
 
-    # Data Protection
+    # ── Data Protection ──────────────────────────────────────────────
+    # _parse_purview only sets has_data once it has found at least one label,
+    # DLP policy, or retention policy, so the 50 baseline is a floor this axis
+    # never actually lands on. That is deliberate: a tenant with none of the
+    # three is indistinguishable from one where Purview was never collected,
+    # and the honest rendering of "indistinguishable" is no axis at all.
     purview = context.get("purview", {})
-    data_score = 50  # baseline
-    if purview.get("sensitivity_label_count", 0) > 0:
-        data_score += 20
-    if purview.get("dlp_policy_count", 0) > 0:
-        data_score += 20
-    if purview.get("retention_policy_count", 0) > 0:
-        data_score += 10
-    categories[t.radar_data] = min(100, data_score)
+    if purview.get("has_data"):
+        data_score = 50  # baseline
+        if purview.get("sensitivity_label_count", 0) > 0:
+            data_score += 20
+        if purview.get("dlp_policy_count", 0) > 0:
+            data_score += 20
+        if purview.get("retention_policy_count", 0) > 0:
+            data_score += 10
+        categories[t.radar_data] = min(100, data_score)
 
     return categories
 
