@@ -15,7 +15,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.core.database import run_migrations
+from app.core.database import close_pool, run_migrations
 from app.core.exceptions import ToolkitError
 from app.core.version import get_version
 from app.web.middleware.auth import AuthMiddleware
@@ -31,6 +31,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("Sybr HUB starting — version %s", get_version())
     await run_migrations()
     yield
+    # Dispose pooled connections explicitly. aiosqlite runs a non-daemon
+    # thread per connection, so leaving them open holds the process open.
+    await close_pool()
     log.info("Sybr HUB shutting down")
 
 
