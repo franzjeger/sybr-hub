@@ -470,7 +470,11 @@ async function checkAuth() {
   try {
     var res = await fetch('/api/auth/status');
     var data = await res.json();
-    if (!data.setup_complete) { showLoginView('setup'); return; }
+    // The endpoint reports setup_required. Reading a setup_complete that the
+    // server never sends made this !undefined === true on every call, so the
+    // setup form came back even straight after it had succeeded — and the
+    // second attempt then failed with "Oppsett er allerede fullført".
+    if (data.setup_required) { showLoginView('setup'); return; }
     if (!_authToken) { showLoginView('login'); return; }
     // Validate token
     var me = await fetch('/api/auth/me', {headers:{'Authorization':'Bearer '+_authToken}});

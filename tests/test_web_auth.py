@@ -646,3 +646,35 @@ async def test_not_found_error_maps_to_404(client, existing_user):
     resp = client.get("/api/vpn/profiles/does-not-exist", headers=_auth_headers(token))
     assert resp.status_code == 404
     assert resp.json()["error_type"] == "not_found"
+
+
+# ── Front-end contract ───────────────────────────────────────────────────────
+
+
+def test_client_reads_the_status_fields_the_server_sends(client):
+    """The SPA's first-run branch must read a field /api/auth/status returns.
+
+    Regression: app.js branched on ``data.setup_complete`` while the endpoint
+    reports ``setup_required``. ``!undefined`` is true, so checkAuth() sent the
+    operator back to the setup form on every call — including the one right
+    after setup had succeeded, whose retry then failed with 409. Nothing caught
+    it: no test drives the static client, and both halves are individually
+    correct. The mismatch arrived when the ported front-end was paired with
+    this repo's auth routes.
+    """
+    import re
+    from pathlib import Path
+
+    body = client.get("/api/auth/status").json()
+    app_js = Path(__file__).parent.parent / "app" / "web" / "static" / "app.js"
+    source = app_js.read_text(encoding="utf-8")
+
+    # Whatever the status handler destructures off its response.
+    read = set(re.findall(r"data\.(setup_[A-Za-z_]+)", source))
+    assert read, "app.js no longer reads a setup_* field — has the check moved?"
+
+    unknown = read - set(body)
+    assert not unknown, (
+        f"app.js reads {sorted(unknown)} from /api/auth/status, "
+        f"which returns {sorted(body)}"
+    )
