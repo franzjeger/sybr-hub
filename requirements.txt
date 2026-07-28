@@ -1,6 +1,15 @@
 # Web UI
 fastapi>=0.111.0,<1.0
 uvicorn[standard]>=0.30.0,<1.0
+# Multipart form parsing — FastAPI raises at import time on any route that
+# declares File()/Form(), which the backup restore and branding upload do.
+python-multipart>=0.0.7,<1.0
+# Guacamole reverse proxy (remote access) speaks WebSocket to guacd.
+websockets>=12.0,<15.0
+
+# Terminal UI (app/ui) — a separate entry point from the web service, but
+# kept declared so the tree imports cleanly and the suite can cover it.
+textual>=0.60.0,<2.0
 
 
 # Microsoft Graph API (httpx-based, no heavy SDK)
@@ -22,6 +31,11 @@ azure-mgmt-recoveryservices>=2.5.0,<3.0
 azure-mgmt-recoveryservicesbackup>=8.0.0,<10.0
 azure-mgmt-loganalytics>=13.0.0,<14.0
 azure-mgmt-desktopvirtualization>=1.0.0,<2.0
+# Cost analysis, RBAC role assignments and tenant/subscription enumeration
+# for the Azure governance sections.
+azure-mgmt-costmanagement>=4.0.0,<5.0
+azure-mgmt-authorization>=4.0.0,<5.0
+azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0
 
 # Credentials
 keyring>=24.3.0,<26.0
@@ -52,9 +66,25 @@ PyJWT[crypto]>=2.9.0,<3.0
 # DNS validation
 dnspython>=2.6.0,<3.0
 
+# Penetration testing module
+# python-nmap shells out to the nmap binary; the scan degrades to
+# "unavailable" when nmap isn't installed rather than failing the import.
+python-nmap>=0.7.1,<1.0
+# TLS auditing needs the low-level handshake control pyOpenSSL exposes and
+# the stdlib ssl module does not.
+pyOpenSSL>=24.0.0,<26.0
+
+# Uniweb hosting portal has no API — the client drives a headless Chrome
+# over the DevTools protocol.
+pychrome>=0.2.4,<1.0
+
+# Claude assistant
+anthropic>=0.40.0,<1.0
+
 # Utilities
 platformdirs>=4.2.0,<5.0
 pydantic>=2.7.0,<3.0
+six>=1.16.0,<2.0
 
 # Testing
 pytest>=8.0.0,<9.0

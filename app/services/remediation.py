@@ -122,3 +122,30 @@ async def clear_remediation(customer_id: str, recommendation_id: str) -> bool:
         )
         await conn.commit()
         return cur.rowcount > 0
+
+
+async def get_remediation_counts(customer_id: str) -> dict:
+    """Return ``{total, counts, pct}`` for one customer's remediation items.
+
+    ``counts`` always carries every status in :data:`VALID_STATUSES`, so the
+    dashboard can render a stable set of tiles before any item exists. ``pct``
+    is the share of items marked done, rounded to one decimal.
+    """
+    counts = dict.fromkeys(sorted(VALID_STATUSES), 0)
+    total = 0
+    async with get_db() as conn, conn.execute(
+        "SELECT status, COUNT(*) AS cnt FROM remediation_items "
+        "WHERE customer_id = ? GROUP BY status",
+        (customer_id,),
+    ) as cur:
+        rows = await cur.fetchall()
+
+    for row in rows:
+        # A status outside VALID_STATUSES can only come from a hand-edited
+        # database; count it in the total but don't invent a bucket for it.
+        if row["status"] in counts:
+            counts[row["status"]] = row["cnt"]
+        total += row["cnt"]
+
+    pct = round(counts["done"] / total * 100, 1) if total else 0.0
+    return {"total": total, "counts": counts, "pct": pct}

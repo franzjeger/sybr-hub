@@ -14,29 +14,45 @@ import logging
 
 from fastapi import APIRouter, Depends, Request, Response
 
+from app.core.activity_log import log_activity
 from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS,
     authenticate,
     blacklist_token,
+    change_password,
     create_access_token,
     create_refresh_token,
     create_session,
     create_user,
     decode_token,
     delete_session,
+    delete_user,
+    get_password_hash,
     get_user_by_id,
+    get_user_by_username,
     get_user_count,
+    list_users,
+    update_user,
+    verify_password,
 )
-from app.core.exceptions import AuthError, ConflictError, ValidationError
+from app.core.exceptions import (
+    AuthError,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from app.models.user import (
     LoginRequest,
+    PasswordChange,
     Role,
     SetupRequest,
     TokenResponse,
     User,
+    UserCreate,
+    UserUpdate,
 )
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import get_current_user, require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -171,7 +187,162 @@ async def auth_me(user: User = Depends(get_current_user)) -> dict:
     return {"user": _public_user(user)}
 
 
+@router.post("/auth/change-password")
+async def auth_change_password(
+    body: PasswordChange,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Change your own password, confirming the current one first.
+
+    The path is what the front-end calls. The ported branch served this as
+    ``/auth/me/password``, which no client ever requested — the change-password
+    dialog has been posting to ``/auth/change-password`` and getting a 404.
+    """
+    pw_hash = await get_password_hash(user.username)
+    if not pw_hash or not verify_password(body.current_password, pw_hash):
+        raise ValidationError("Nåværende passord er feil")
+
+    await change_password(user.id, body.new_password)
+    log_activity(
+        "password_changed",
+        detail=f"Bruker {user.username} endret passord",
+        user=user.username,
+    )
+    return {"ok": True}
+
+
+# ── User management (admin only) ─────────────────────────────────────────────
+
+
+@router.get("/auth/users")
+async def auth_list_users(user: User = Depends(require_role(Role.admin))) -> dict:
+    users = await list_users()
+    return {
+        "users": [
+            {
+                **_public_user(u),
+                "is_active": u.is_active,
+                "created_at": u.created_at.isoformat(),
+                "last_login": u.last_login.isoformat() if u.last_login else None,
+            }
+            for u in users
+        ]
+    }
+
+
+@router.post("/auth/users")
+async def auth_create_user(
+    body: UserCreate,
+    admin: User = Depends(require_role(Role.admin)),
+) -> dict:
+    if await get_user_by_username(body.username):
+        raise ConflictError(f"Brukernavnet '{body.username}' finnes allerede")
+
+    user = await create_user(
+        username=body.username,
+        password=body.password,
+        display_name=body.display_name,
+        email=body.email,
+        role=body.role,
+    )
+    logger.info(
+        "User created by %s: %s (%s)", admin.username, user.username, user.role.value
+    )
+    log_activity(
+        "user_created",
+        detail=f"Bruker {user.username} opprettet (rolle: {user.role.value})",
+        user=admin.username,
+    )
+    return {"ok": True, "user": _public_user(user)}
+
+
+@router.put("/auth/users/{user_id}")
+async def auth_update_user(
+    user_id: str,
+    body: UserUpdate,
+    admin: User = Depends(require_role(Role.admin)),
+) -> dict:
+    target = await get_user_by_id(user_id)
+    if not target:
+        raise NotFoundError("Bruker ikke funnet")
+
+    if body.role and body.role != Role.admin and target.role == Role.admin:
+        await _guard_last_admin("Kan ikke nedgradere siste administrator")
+
+    updated = await update_user(
+        user_id,
+        display_name=body.display_name,
+        email=body.email,
+        role=body.role,
+        is_active=body.is_active,
+    )
+    return {"ok": True, "user": {**_public_user(updated), "is_active": updated.is_active}}
+
+
+@router.delete("/auth/users/{user_id}")
+async def auth_delete_user(
+    user_id: str,
+    admin: User = Depends(require_role(Role.admin)),
+) -> dict:
+    if user_id == admin.id:
+        raise ValidationError("Kan ikke slette deg selv")
+
+    target = await get_user_by_id(user_id)
+    if not target:
+        raise NotFoundError("Bruker ikke funnet")
+    if target.role == Role.admin:
+        await _guard_last_admin("Kan ikke slette siste administrator")
+
+    await delete_user(user_id)
+    logger.info("User deleted by %s: %s", admin.username, target.username)
+    log_activity(
+        "user_deleted",
+        detail=f"Bruker {target.username} slettet",
+        user=admin.username,
+    )
+    return {"ok": True}
+
+
+# ── Customer access (RBAC) ───────────────────────────────────────────────────
+
+
+@router.get("/auth/users/{user_id}/customers")
+async def auth_get_user_customers(
+    user_id: str,
+    admin: User = Depends(require_role(Role.admin)),
+) -> dict:
+    from app.core.rbac import get_user_customer_ids
+
+    return {"customer_ids": await get_user_customer_ids(user_id)}
+
+
+@router.put("/auth/users/{user_id}/customers")
+async def auth_set_user_customers(
+    user_id: str,
+    request: Request,
+    admin: User = Depends(require_role(Role.admin)),
+) -> dict:
+    from app.core.rbac import set_user_customers
+
+    body = await request.json()
+    customer_ids = (body or {}).get("customer_ids", [])
+    await set_user_customers(user_id, customer_ids)
+    log_activity(
+        "rbac_updated",
+        detail=f"Kundetilgang oppdatert for bruker {user_id}: {len(customer_ids)} kunder",
+        user=admin.username,
+    )
+    return {"ok": True, "count": len(customer_ids)}
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+async def _guard_last_admin(message: str) -> None:
+    """Refuse an edit that would leave the install with no active admin."""
+    users = await list_users()
+    if sum(1 for u in users if u.role == Role.admin and u.is_active) <= 1:
+        raise ValidationError(message)
 
 
 async def _issue_tokens(user: User, request: Request) -> TokenResponse:

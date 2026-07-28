@@ -1,0 +1,2457 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4d9fb5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
+<title>SYBR — MSP Toolkit</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.460.0/font/lucide.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<!-- marked.js for in-app markdown rendering of the repo's docs/ tree -->
+<script defer src="https://cdn.jsdelivr.net/npm/marked@14.1.3/marked.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.0/dist/purify.min.js"></script>
+<link rel="stylesheet" href="/static/app.css?v=1015">
+</head>
+<body>
+<div id="toast-container" class="toast-container"></div>
+<button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:24px;right:24px;z-index:90;width:40px;height:40px;border-radius:50%;background:var(--blue-btn);color:#fff;border:none;cursor:pointer;font-size:18px;box-shadow:var(--shadow-md);transition:opacity var(--duration-normal),transform var(--duration-normal);opacity:0;transform:translateY(10px);" aria-label="Scroll to top">&#8593;</button>
+<!-- ── Reusable confirm modal ── -->
+<div class="modal-backdrop" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onclick="if(event.target===this)resolveConfirm(false)" style="display:none;">
+  <div class="modal" style="width:400px;">
+    <div class="modal-title" id="confirm-modal-title"></div>
+    <div id="confirm-modal-body" style="font-size:13px;color:var(--text-muted);margin:12px 0 0;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="resolveConfirm(false)" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-danger" id="confirm-modal-ok" onclick="resolveConfirm(true)" data-i18n="btn_confirm">Bekreft</button>
+    </div>
+  </div>
+</div>
+<!-- ── Command Palette (Cmd+K) ── -->
+<div id="cmd-palette" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg-overlay);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;padding-top:min(20vh,160px);" onclick="if(event.target===this)closeCommandPalette()">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);width:560px;max-width:95vw;box-shadow:var(--shadow-xl);overflow:hidden;animation:modal-slide-in var(--duration-normal) var(--ease-out);">
+    <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);">
+      <span style="color:var(--text-dim);font-size:16px;">&#128269;</span>
+      <input id="cmd-input" type="text" data-i18n-placeholder="placeholder_cmd_search" placeholder="Søk i kunder, sider, handlinger..." autocomplete="off" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--font-md);font-family:inherit;">
+      <kbd style="font-size:var(--font-xs);color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px 6px;font-family:var(--mono);">ESC</kbd>
+    </div>
+    <div id="cmd-results" style="max-height:360px;overflow-y:auto;padding:var(--space-2) 0;"></div>
+  </div>
+</div>
+<!-- ── Report Viewer Modal ── -->
+<div id="report-viewer-modal" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);flex-direction:column;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);background:var(--bg-card);flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:var(--space-3);">
+      <span style="font-size:var(--font-md);font-weight:700;">&#128196; Rapport</span>
+      <span id="report-viewer-title" style="font-size:var(--font-sm);color:var(--text-muted);"></span>
+    </div>
+    <div style="display:flex;gap:var(--space-2);">
+      <a id="report-viewer-link" href="#" target="_blank" class="btn btn-ghost btn-sm">&#8599; Ny fane</a>
+      <button class="btn btn-ghost btn-sm" onclick="closeReportViewer()">&#10005; <span data-i18n="btn_close">Lukk</span></button>
+    </div>
+  </div>
+  <iframe id="report-viewer-iframe" style="flex:1;border:none;width:100%;background:#fff;"></iframe>
+</div>
+<!-- ── Auth Overlay ── -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:40px;max-width:400px;width:100%;box-shadow:var(--shadow-xl);">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img class="logo-dark" src="/branding/sybr_logo_transparent.png" alt="SYBR" style="height:44px;margin:0 auto var(--space-3);">
+      <img class="logo-light" src="/branding/300 x 86.png" alt="SYBR" style="height:44px;margin:0 auto var(--space-3);">
+      <h2 style="font-size:var(--font-lg);font-weight:700;color:var(--text);">MSP Toolkit</h2>
+      <div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:var(--space-1);" id="login-version"></div>
+    </div>
+    <!-- Setup form (first run) -->
+    <div id="auth-setup-form" style="display:none;">
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;" data-i18n="msg_create_admin">Opprett admin-konto for å komme i gang.</p>
+      <label for="setup-username" class="sr-only">Brukernavn</label>
+      <input id="setup-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+      <label for="setup-displayname" class="sr-only">Visningsnavn</label>
+      <input id="setup-displayname" type="text" data-i18n-placeholder="lbl_display_name" placeholder="Visningsnavn" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+      <label for="setup-password" class="sr-only">Passord</label>
+      <input id="setup-password" type="password" data-i18n-placeholder="placeholder_password_min8" placeholder="Passord (min. 8 tegn)" autocomplete="new-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter')doSetup()">
+      <button onclick="doSetup()" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_create_admin">Opprett admin</button>
+    </div>
+    <!-- Login form -->
+    <div id="auth-login-form" style="display:none;">
+      <label for="login-username" class="sr-only">Brukernavn</label>
+      <input id="login-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+      <label for="login-password" class="sr-only">Passord</label>
+      <input id="login-password" type="password" data-i18n-placeholder="lbl_password" placeholder="Passord" autocomplete="current-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_login">Logg inn</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">
+      <img id="header-logo-dark" class="logo-dark" src="/branding/sybr_logo_dark_matched.png" alt="SYBR" width="100" height="29">
+      <img id="header-logo-light" class="logo-light" src="/branding/300 x 86.png" alt="SYBR" width="100" height="29">
+    </div>
+    <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Meny">&#9776;</button>
+    <nav class="nav" id="main-nav">
+      <button class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" title="Dashboard (Ctrl+1)">Dashboard</button>
+      <div class="nav-dropdown">
+        <button class="nav-btn" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" title="Kunder (Ctrl+3)">Kunder ▾</button>
+        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
+          <button onclick="showView('customers')" data-i18n="nav_dd_customer_overview" title="Ctrl+3">&#128101; Kundeoversikt</button>
+          <button onclick="showView('home')" data-i18n="nav_dd_m365_status" title="Ctrl+2">&#9729; M365 Status</button>
+          <button onclick="showView('history')" data-i18n="nav_dd_history" title="Ctrl+5">&#128197; Historikk</button>
+        </div></div>
+      </div>
+      <button class="nav-btn" id="nav-remote" onclick="showView('hosts')" data-i18n="nav_remote_access">Fjernaksess</button>
+      <div class="nav-dropdown">
+        <button class="nav-btn" id="nav-network" onclick="showView('network')" data-i18n="nav_network">Nettverk ▾</button>
+        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
+          <button onclick="showView('network')" data-i18n="nav_dd_network">&#127760; FortiGate / UniFi</button>
+          <button onclick="showView('vpn')" data-i18n="nav_dd_vpn">&#128274; VPN</button>
+          <button onclick="showView('tls')" data-i18n="nav_dd_tls_monitor">&#128274; TLS Monitor</button>
+          <button onclick="showView('tailscale')">&#128279; Tailscale</button>
+        </div></div>
+      </div>
+      <div class="nav-dropdown">
+        <button class="nav-btn" id="nav-tools" onclick="showView('browser')" data-i18n="nav_tools">Verkt&#248;y ▾</button>
+        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
+          <button onclick="showView('ssh')">&#128273; SSH-nøkler</button>
+          <button onclick="showView('browser')">&#127760; Nettleser</button>
+          <button onclick="showView('provision')" data-i18n="nav_dd_provisioning">&#9881; Provisjonering</button>
+        </div></div>
+      </div>
+      <button class="nav-btn" id="nav-ai" onclick="showView('ai')" style="display:flex;align-items:center;gap:4px;"><img src="/static/sybrt-mascot.png" alt="Sybrt" style="width:18px;height:18px;border-radius:50%;"> Sybrt</button>
+      <button class="nav-btn" id="nav-integrations" onclick="showView('integrations')" data-i18n="nav_integrations">Integrasjoner</button>
+      <button class="nav-btn" id="nav-workshop" onclick="showView('workshop')" data-i18n="nav_workshop" title="Workshop">Workshop</button>
+      <button class="nav-btn" id="nav-logs" onclick="showView('logs')" style="display:none;" data-i18n="nav_logs">Logg</button>
+      <!-- Hidden nav IDs for showView highlighting -->
+      <button class="nav-btn" id="nav-m365" style="display:none;"></button>
+      <button class="nav-btn" id="nav-home" style="display:none;"></button>
+      <button class="nav-btn" id="nav-history" style="display:none;"></button>
+      <button class="nav-btn" id="nav-hosts" style="display:none;"></button>
+      <button class="nav-btn" id="nav-ssh" style="display:none;"></button>
+      <button class="nav-btn" id="nav-vpn" style="display:none;"></button>
+      <button class="nav-btn" id="nav-terminal" style="display:none;"></button>
+      <button class="nav-btn" id="nav-provision" style="display:none;"></button>
+      <button class="nav-btn" id="nav-browser" style="display:none;"></button>
+      <button class="nav-btn" id="nav-docs" style="display:none;" onclick="showView('docs')" data-i18n="nav_docs">Docs</button>
+      <button class="nav-btn" id="nav-customer-detail" style="display:none;"></button>
+    </nav>
+    <div class="header-right">
+      <button id="vpn-header-badge" onclick="showView('vpn')" style="display:none;align-items:center;gap:4px;padding:2px 10px;border:1px solid var(--green);border-radius:var(--radius-full);font-size:var(--font-xs);background:rgba(63,185,80,0.1);color:var(--green);cursor:pointer;font-weight:600;" title="VPN connected — click to manage">&#128274; VPN</button>
+      <!-- Live connection indicator: polls /api/health every 30 s. -->
+      <div id="conn-status" title="Live" style="display:none;align-items:center;gap:4px;padding:2px 8px;border:1px solid var(--border);border-radius:var(--radius-full);font-size:9px;color:var(--text-muted);">
+        <span id="conn-status-dot" style="width:6px;height:6px;border-radius:50%;background:var(--color-success);display:inline-block;transition:background var(--duration-fast);"></span>
+        <span id="conn-status-label" style="font-size:10px;font-weight:600;">Live</span>
+      </div>
+      <!-- The old 3-dot integration-status widget was removed in v10.9.3:
+           Dashboard → Kundeoversikt has a full INTEGRASJONSSTATUS section
+           covering all 8 integrations with richer context, and keeping a
+           3-dot subset in the header was duplicate UI surface. -->
+      <button id="audit-running-indicator" onclick="showView('audit')" data-i18n-title="tip_audit_running_click" title="Audit kjører — klikk for å se status"
+        style="display:none;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:600;color:#fff;background:var(--blue);border:none;border-radius:20px;cursor:pointer;animation:pulse 1.5s infinite;">
+        <span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span>
+        <span data-i18n="msg_audit_running_indicator">Audit kjører</span>
+      </button>
+      <div style="position:relative;display:inline-block;">
+        <button onclick="toggleNotifications()" aria-label="Varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
+        <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;max-height:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;z-index:150;animation:dropdown-in var(--duration-fast) var(--ease-out);">
+          <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:var(--font-sm);font-weight:600;" data-i18n="hdr_notifications">Varsler</span>
+            <button class="btn btn-ghost btn-sm" onclick="markAllNotificationsRead()" data-i18n="btn_mark_all_read" style="font-size:var(--font-xs);">Merk alle som lest</button>
+          </div>
+          <div id="notif-list" style="overflow-y:auto;max-height:360px;"></div>
+        </div>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" data-i18n-title="tip_toggle_theme" title="Bytt tema" aria-label="Bytt tema">🌙</button>
+      <button class="btn btn-ghost" onclick="openSettings()" style="padding:6px 10px;font-size:12px;" data-i18n-title="tip_settings" title="Innstillinger (Ctrl+,)" aria-label="Innstillinger" data-i18n="hdr_settings">
+        &#9881; Innstillinger
+      </button>
+      <button class="shortcuts-btn" onclick="openShortcutsModal()" data-i18n-title="tip_shortcuts" title="Tastatursnarveier (?)" aria-label="Tastatursnarveier">?</button>
+      <button id="pwa-install-btn" onclick="promptPwaInstall()" aria-label="Installer app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
+      <div style="position:relative;display:inline-block;" class="nav-dropdown">
+        <span id="user-display" style="display:none;font-size:12px;color:var(--text-muted);cursor:pointer;"></span>
+        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
+          <button onclick="showChangePasswordModal()" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''" data-i18n="btn_change_password">Change password</button>
+          <button onclick="doLogout()" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--red);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(248,81,73,0.08)'" onmouseout="this.style.background=''" data-i18n="btn_logout">Log out</button>
+        </div></div>
+      </div>
+      <span class="version" id="header-version" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"></span>
+    </div>
+  </header>
+
+  <!-- Active customer bar -->
+  <div id="active-customer-bar" style="display:none;position:relative;background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 24px;height:32px;align-items:center;font-size:var(--font-xs);gap:var(--space-3);flex-shrink:0;">
+    <div id="active-customer-trigger" onclick="toggleActiveCustomerSwitcher(event)" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;padding:2px 6px;margin-left:-6px;border-radius:var(--radius-sm);transition:background var(--duration-fast);" title="Bytt kunde">
+      <span style="color:var(--text-dim);">&#128101;</span>
+      <span id="active-customer-name" style="color:var(--text);font-weight:600;"></span>
+      <span id="active-customer-domain" style="color:var(--text-dim);font-family:var(--mono);"></span>
+      <span id="active-customer-grade"></span>
+      <span style="color:var(--text-dim);font-size:10px;margin-left:2px;">&#9662;</span>
+    </div>
+    <span id="active-customer-last-audit" style="color:var(--text-dim);font-family:var(--mono);margin-left:var(--space-2);"></span>
+    <div style="flex:1;"></div>
+    <button class="btn btn-ghost btn-sm" onclick="loadUnifiedDashboard()" style="padding:2px 8px;font-size:var(--font-xs);border:none;color:var(--blue);font-weight:600;">Overview</button>
+    <button class="btn btn-ghost btn-sm" onclick="showView('home')" style="padding:2px 8px;font-size:var(--font-xs);border:none;">M365</button>
+    <button class="btn btn-ghost btn-sm" onclick="showView('history')" style="padding:2px 8px;font-size:var(--font-xs);border:none;" data-i18n="nav_history">History</button>
+    <button class="btn btn-ghost btn-sm" onclick="openLatestReport()" style="padding:2px 8px;font-size:var(--font-xs);border:none;" data-i18n="btn_open_report">Report</button>
+    <button class="btn btn-ghost btn-sm" onclick="showView('files')" style="padding:2px 8px;font-size:var(--font-xs);border:none;" data-i18n="nav_dd_files">Files</button>
+    <button id="active-bar-licenses-btn" class="btn btn-ghost btn-sm" onclick="loadCustomerLicensesFromActive()" style="padding:2px 8px;font-size:var(--font-xs);border:none;display:none;" data-i18n="nav_licenses">Licenses</button>
+    <button class="btn btn-sm" onclick="showView('audit')" style="padding:2px 10px;font-size:var(--font-xs);background:var(--blue);color:#fff;border:none;border-radius:var(--radius-sm);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r Audit</button>
+    <kbd style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 5px;font-family:var(--mono);cursor:pointer;" onclick="toggleCommandPalette()" title="Cmd+K">&#8984;K</kbd>
+
+    <!-- Quick-switcher dropdown — switch active customer from any view -->
+    <div id="active-customer-switcher" style="display:none;position:absolute;top:34px;left:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);z-index:50;min-width:340px;max-height:420px;flex-direction:column;padding:8px;">
+      <input id="customer-switcher-search" type="text" placeholder="Søk kunde..." data-i18n-placeholder="ph_search_customer" style="width:100%;padding:6px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:12px;box-sizing:border-box;">
+      <div id="customer-switcher-list" style="overflow-y:auto;max-height:340px;"></div>
+    </div>
+  </div>
+
+  <!-- ── Main ── -->
+  <main>
+    <!-- Breadcrumb -->
+    <nav id="breadcrumb" aria-label="Breadcrumb" style="font-size:var(--font-sm);color:var(--text-dim);padding:var(--space-2) 0;display:none;">
+      <span id="breadcrumb-items"></span>
+    </nav>
+
+    <!-- ════════════ OVERVIEW DASHBOARD VIEW ════════════ -->
+    <div class="view" id="view-overview" style="max-width:1200px;">
+      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);align-items:flex-end;">
+        <button class="btn btn-ghost dash-tab-btn active" onclick="switchDashTab(this,'dash-customers')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;border-bottom:2px solid var(--blue);" data-i18n="dash_tab_customers">Kundeoversikt</button>
+        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-alerts')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_alerts">🔔 Varsler</button>
+        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-health')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_health">💚 Helse</button>
+        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-renewals')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_renewals">📋 Fornyelser</button>
+        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-costs')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_costs">💰 Kostnader</button>
+        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-domains')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_domains">🌐 Domener</button>
+        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-archive')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_archive">📂 Rapporter</button>
+        <div style="flex:1;"></div>
+        <button id="dash-export-btn" class="btn btn-ghost" onclick="dashExportCurrentTab()" style="padding:4px 10px;font-size:11px;margin-bottom:4px;opacity:0.7;" title="Export CSV">CSV</button>
+        <button id="dash-autorefresh-btn" class="btn btn-ghost" onclick="dashToggleAutoRefresh(this)" style="padding:4px 10px;font-size:11px;margin-bottom:4px;opacity:0.5;" data-i18n="btn_auto_refresh_off">Auto-refresh: Off</button>
+      </div>
+      <div id="dash-customers" class="dash-tab-content" style="display:block;">
+        <!-- Integration health strip — populated by renderIntegrationHealthStrip().
+             Lives outside #overview-content so renderOverview()'s innerHTML
+             replacement doesn't wipe it on each refresh. -->
+        <div id="integration-health-widget" style="display:none;margin-bottom:var(--space-4);"></div>
+        <div id="overview-content">
+          <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
+            <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+            <span data-i18n="msg_loading_dashboard">Laster dashboard...</span>
+          </div>
+        </div>
+      </div>
+      <div id="dash-renewals" class="dash-tab-content" style="display:none;">
+        <div id="dash-renewals-content">
+          <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_click_load_renewals">Klikk for å laste fornyelsesdata</div>
+        </div>
+      </div>
+      <div id="dash-alerts" class="dash-tab-content" style="display:none;">
+        <div id="dash-alerts-content"></div>
+      </div>
+      <div id="dash-health" class="dash-tab-content" style="display:none;">
+        <div id="dash-health-content"></div>
+      </div>
+      <div id="dash-costs" class="dash-tab-content" style="display:none;">
+        <div id="dash-costs-content"></div>
+      </div>
+      <div id="dash-domains" class="dash-tab-content" style="display:none;">
+        <div id="dash-domains-content"></div>
+      </div>
+      <div id="dash-archive" class="dash-tab-content" style="display:none;">
+        <div id="dash-archive-content"></div>
+      </div>
+    </div>
+
+    <!-- ════════════ M365 SUB-TAB BAR (injected above home/files/audit views) ════════════ -->
+    <div id="m365-subtab-bar" style="display:none;margin-bottom:20px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-ghost m365-sub-btn" data-sub="home" onclick="showView('home')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="m365_tab_status">Status</button>
+        <button class="btn btn-ghost m365-sub-btn" data-sub="files" onclick="showView('files')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="nav_files">Filer</button>
+        <button class="btn btn-ghost m365-sub-btn" data-sub="audit" onclick="showView('audit')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="m365_tab_audit">Audit</button>
+      </div>
+    </div>
+
+    <!-- ════════════ HOME VIEW ════════════ -->
+    <div class="view active" id="view-home">
+      <div id="home-content">
+        <!-- Populated by loadStatus() -->
+        <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
+          <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+          <span data-i18n="msg_loading">Laster...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ SETUP VIEW ════════════ -->
+    <div class="view" id="view-setup">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+        <button class="btn btn-ghost" onclick="showView('home')" style="padding:6px 10px;" data-i18n="btn_back">
+          ← Tilbake
+        </button>
+        <div style="font-size:18px;font-weight:700;" data-i18n="hdr_setup_new_customer">Sett opp ny kunde</div>
+      </div>
+
+      <!-- Device code card — hidden until device code arrives -->
+      <div class="device-code-card" id="device-code-card">
+        <div class="device-code-title" data-i18n="setup_login_required">🔑 Innlogging kreves</div>
+        <div class="device-code-step" data-i18n="setup_step1">1. Åpne i privat nettleservindu:</div>
+        <div style="margin:4px 0 4px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="dc-open-private" onclick="openPrivateBrowser()" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;" data-i18n="btn_open_private_window">
+            <span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> Åpne i privat vindu
+          </button>
+          <span id="dc-browser-info" style="font-size:11px; color:var(--text-dim);"></span>
+        </div>
+        <div style="margin:2px 0 12px;">
+          <span style="font-size:11px; color:var(--text-dim);" data-i18n="setup_open_manually">Eller åpne manuelt: </span>
+          <a id="dc-url" href="#" target="_blank" style="color:var(--text-dim);font-family:var(--mono);font-size:11px;"></a>
+        </div>
+        <div class="device-code-step" data-i18n="setup_step2">2. Skriv inn koden (klikk for å kopiere):</div>
+        <div class="device-code-value" id="dc-code" onclick="copyCode()" title="Klikk for å kopiere">——</div>
+        <div class="code-hint" id="dc-copy-hint" data-i18n="msg_click_to_copy">Klikk på koden for å kopiere til utklippstavlen</div>
+        <div class="device-code-note" data-i18n="setup_login_global_admin">⚡ Logg inn som Global Admin, vent deretter her.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="hdr_progress">Fremgang</div>
+        <div class="setup-log" id="setup-log"></div>
+      </div>
+
+      <div id="setup-result-area" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- ════════════ AUDIT VIEW ════════════ -->
+    <div class="view" id="view-audit">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+        <button class="btn btn-ghost" id="audit-back-btn" onclick="auditBack()" style="padding:6px 10px;" data-i18n="btn_back">
+          ← Tilbake
+        </button>
+        <div>
+          <div style="font-size:18px;font-weight:700;" id="audit-title" data-i18n="hdr_audit_title">M365 + Azure Audit</div>
+          <div style="font-size:12px;color:var(--text-muted);" id="audit-subtitle"></div>
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div class="audit-status-bar" id="audit-status-bar">
+        <div class="loader"></div>
+        <span data-i18n="msg_starting_audit">Starter audit...</span>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-row">
+        <span class="progress-label" id="progress-label">0 / 0 seksjoner</span>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <span class="progress-pct" id="progress-pct">0%</span>
+      </div>
+
+      <!-- Sections table -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table class="section-table" id="section-table">
+            <thead>
+              <tr>
+                <th style="width:28px;"></th>
+                <th data-i18n="lbl_section">Seksjon</th>
+                <th style="width:110px;" data-i18n="lbl_status">Status</th>
+                <th data-i18n="lbl_details_warnings">Detaljer / Varsler</th>
+              </tr>
+            </thead>
+            <tbody id="section-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Post-audit: summary + actions (hidden until done) -->
+      <div id="audit-done-area" style="display:none;margin-top:16px;">
+        <div class="summary-grid">
+          <div class="summary-box">
+            <div class="summary-num num-ok"  id="sum-done">0</div>
+            <div class="summary-lbl" data-i18n="status_completed">Fullført</div>
+          </div>
+          <div class="summary-box">
+            <div class="summary-num num-warn" id="sum-warn">0</div>
+            <div class="summary-lbl" data-i18n="status_warnings">Varsler</div>
+          </div>
+          <div class="summary-box">
+            <div class="summary-num num-fail" id="sum-fail">0</div>
+            <div class="summary-lbl" data-i18n="status_failed">Feilet</div>
+          </div>
+        </div>
+
+        <div id="report-result" style="margin-bottom:12px;"></div>
+
+        <div style="margin-top:0;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+            <span class="tooltip" data-tip="Velg spr&#229;k for den genererte rapporten" style="font-size:12px;color:var(--text-muted);" data-i18n="lbl_report_lang">Rapportspråk:</span>
+            <select id="report-lang" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;font-family:inherit;">
+              <option value="no" data-i18n="lbl_norsk">Norsk</option>
+              <option value="en" data-i18n="lbl_english">English</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px;" data-i18n="lbl_framework">Rammeverk:</span>
+            <select id="report-frameworks" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;font-family:inherit;">
+              <option value="all">CIS + NIST + ISO</option>
+              <option value="cis+nist">CIS + NIST CSF</option>
+              <option value="cis+iso">CIS + ISO 27001</option>
+              <option value="cis">CIS only</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px;" data-i18n="lbl_report_theme">Rapport-tema:</span>
+            <select id="report-theme" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;font-family:inherit;">
+              <option value="light" data-i18n="lbl_light">Lys</option>
+              <option value="dark" data-i18n="lbl_dark">M&#248;rk</option>
+            </select>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_tech_report">Teknisk rapport</div>
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn btn-success" onclick="generateReport('html','tech')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> HTML
+            </button>
+            <button class="btn btn-success" onclick="generateReport('pdf','tech')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> PDF
+            </button>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_customer_report">Kunderapport</div>
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn btn-primary" onclick="generateReport('html','customer')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> HTML
+            </button>
+            <button class="btn btn-primary" onclick="generateReport('pdf','customer')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> PDF
+            </button>
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_export">Eksport</div>
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn btn-default" onclick="exportCSV()" data-i18n="btn_csv_export">
+              📊 CSV-eksport
+            </button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-default" onclick="openFolder()" data-i18n="btn_open_folder">
+              📂 Åpne mappe
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ FILES VIEW ════════════ -->
+    <div class="view" id="view-files">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div style="font-size:18px;font-weight:700;" data-i18n="hdr_files">Filer</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-default" onclick="loadFiles()" style="font-size:12px;" data-i18n="btn_refresh">↻ Oppdater</button>
+        </div>
+      </div>
+
+      <div id="files-no-customer" style="display:none;">
+        <div style="text-align:center;padding:48px 0;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:12px;">📁</div>
+          <div style="font-size:14px;" data-i18n="files_no_customer">Ingen kunde valgt.</div>
+          <div style="font-size:13px;margin-top:8px;" data-i18n="files_select_customer">Velg en kunde fra kundelisten først.</div>
+        </div>
+      </div>
+
+      <div id="files-content" style="display:none;">
+        <!-- Credentials -->
+        <div class="card">
+          <div class="card-title" data-i18n="hdr_connection_info">🔐 Tilkoblingsinformasjon</div>
+          <div id="files-creds" style="font-size:13px;"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon" data-i18n="btn_upload_to_itglue">
+              ☁ Last opp til IT-Glue
+            </button>
+          </div>
+        </div>
+
+        <!-- Certificate -->
+        <div class="card">
+          <div class="card-title" data-i18n="hdr_certificate">📜 Sertifikat</div>
+          <div id="files-cert" style="font-size:13px;"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon" data-i18n="btn_upload_to_itglue">
+              ☁ Last opp til IT-Glue
+            </button>
+          </div>
+        </div>
+
+        <!-- Audit Reports -->
+        <div class="card">
+          <div class="card-title" data-i18n="hdr_audit_reports">📊 Audit-rapporter</div>
+          <div id="files-reports" style="font-size:13px;"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-default" onclick="uploadReportsToITGlue(this)" style="font-size:12px;" data-i18n="btn_upload_reports_itglue">
+              ☁ Last opp rapporter til IT Glue
+            </button>
+            <button class="btn btn-default" id="btn-open-reports-folder" onclick="openReportsFolder()" style="font-size:12px;" data-i18n="btn_open_folder">
+              📂 Åpne mappe
+            </button>
+          </div>
+        </div>
+
+        <!-- Audit Raw Data -->
+        <div class="card">
+          <div class="card-title" data-i18n="hdr_audit_raw_data">🗂 Audit-data (radata)</div>
+          <div id="files-rawdata" style="font-size:13px;"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon" data-i18n="btn_upload_to_itglue">
+              ☁ Last opp til IT-Glue
+            </button>
+          </div>
+        </div>
+
+        <!-- Encryption -->
+        <div class="card tooltip" data-tip="Alle kundedata krypteres med AES-256 p&#229; disk" data-i18n-title="tip_encryption">
+          <div class="card-title" data-i18n="hdr_encryption_card">🔒 Kryptering</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+            <span data-i18n="msg_all_files_encrypted">Alle nye filer krypteres automatisk med AES-256-GCM. Krypteringsnøkkelen lagres i OS-nøkkelringen.</span>
+            <span data-i18n="msg_encrypt_existing_desc">Bruk knappen under for å kryptere eksisterende data som ble opprettet før kryptering ble aktivert.</span>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="migrateEncryption()" style="font-size:12px;" id="btn-migrate-encrypt" data-i18n="btn_encrypt_existing">
+              🔐 Krypter eksisterende data
+            </button>
+            <span id="migrate-encrypt-result" style="font-size:12px;color:var(--text-muted);"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ NETWORK VIEW ════════════ -->
+    <div class="view" id="view-network">
+      <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);">
+        <button class="btn btn-ghost net-sub-btn active" data-sub="net-devices" onclick="switchNetSub(this,'net-devices')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;border-bottom:2px solid var(--blue);" data-i18n="net_tab_devices">Oversikt</button>
+        <button class="btn btn-ghost net-sub-btn" data-sub="net-fortigates" onclick="switchNetSub(this,'net-fortigates')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_fortigate">FortiGate</button>
+        <button class="btn btn-ghost net-sub-btn" data-sub="net-unifi" onclick="switchNetSub(this,'net-unifi')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_unifi">UniFi</button>
+        <button class="btn btn-ghost net-sub-btn" data-sub="net-audit" onclick="switchNetSub(this,'net-audit')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_audit">Audit</button>
+        <button class="btn btn-ghost net-sub-btn" data-sub="net-pentest" onclick="switchNetSub(this,'net-pentest')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;">Pentest</button>
+      </div>
+
+      <div id="net-devices" class="net-sub-content">
+        <div id="network-devices-content" style="font-size:13px;color:var(--text-muted);">
+          <div style="text-align:center;padding:48px 0;">
+            <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+            <span data-i18n="msg_loading_network_devices">Laster nettverksenheter...</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="net-fortigates" class="net-sub-content" style="display:none;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <select id="fg-live-interval" onchange="liveSetInterval(this.value)" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+            <option value="30">30s</option>
+            <option value="60" selected>60s</option>
+            <option value="300">5 min</option>
+          </select>
+          <button class="btn btn-ghost" onclick="fgPollAll()" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
+          <div id="fg-live-status" style="margin-left:auto;font-size:12px;color:var(--text-muted);"></div>
+        </div>
+        <div id="dash-fg-content">
+          <div style="color:var(--text-muted);text-align:center;padding:48px;">
+            <div class="loader" style="width:20px;height:20px;margin:0 auto 12px;"></div>
+            <span data-i18n="msg_loading_fortigate">Henter FortiGate-data fra alle kunder...</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="net-unifi" class="net-sub-content" style="display:none;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <button class="btn btn-ghost" onclick="dashUnifiRefresh()" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
+          <div id="unifi-live-status" style="margin-left:auto;font-size:12px;color:var(--text-muted);"></div>
+        </div>
+        <div id="dash-unifi-content">
+          <div style="color:var(--text-muted);text-align:center;padding:48px;">
+            <div class="loader" style="width:20px;height:20px;margin:0 auto 12px;"></div>
+            <span data-i18n="msg_loading_unifi_sites">Henter UniFi-enheter fra alle kunder...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- net-live merged into net-fortigates -->
+
+      <div id="net-audit" class="net-sub-content" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:16px;font-weight:600;" data-i18n="hdr_network_audit">Nettverks-audit</div>
+          <button class="btn btn-primary" onclick="runNetworkQuickAudit()" id="btn-run-network-audit" style="padding:6px 16px;" data-i18n="btn_run_quick_check">Kjør hurtigsjekk</button>
+        </div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;" data-i18n="msg_quick_check_desc">
+          Hurtigsjekk henter system-info, admin-kontoer, brannmurregler og firmware fra konfigurerte enheter.
+        </div>
+        <div id="net-audit-result"></div>
+
+        <!-- Subnet scanner -->
+        <div class="card" style="margin-top:24px;">
+          <div class="card-title" data-i18n="hdr_network_scanner">Nettverks-skanner</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;" data-i18n="msg_scan_subnet_desc">Skann et subnet for å oppdage UniFi-enheter automatisk.</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;">
+            <div style="flex:1;">
+              <label class="field-label" data-i18n="lbl_subnet_cidr">Subnet (CIDR)</label>
+              <input class="field-input" id="input-scan-subnet" type="text" placeholder="192.168.1.0/24" style="margin-bottom:0;">
+            </div>
+            <button class="btn btn-primary" onclick="runSubnetScan()" id="btn-subnet-scan" style="padding:6px 16px;white-space:nowrap;" data-i18n="btn_scan">Skann</button>
+          </div>
+          <div id="subnet-scan-result" style="margin-top:12px;"></div>
+        </div>
+
+        <!-- Config backups -->
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title" data-i18n="hdr_config_backups">Konfigurasjon-backups</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;" data-i18n="msg_config_backups_desc">Lagrede konfigurasjonsfiler fra nettverksenheter.</div>
+          <button class="btn btn-default" onclick="loadConfigBackups()" style="font-size:12px;padding:4px 12px;margin-bottom:8px;" data-i18n="btn_refresh_list">Oppdater liste</button>
+          <div id="config-backups-list"></div>
+        </div>
+      </div>
+
+      <div id="net-pentest" class="net-sub-content" style="display:none;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <div style="font-size:16px;font-weight:600;">🔓 Pentest</div>
+          <span style="font-size:11px;color:var(--text-muted);" data-i18n="pentest_subtitle"></span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;" data-i18n="pentest_intro"></div>
+
+        <!-- Target input -->
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:240px;">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_target_label"></label>
+              <input id="pentest-target" type="text" data-i18n-placeholder="pentest_target_placeholder" placeholder="" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_scan_type_label"></label>
+              <select id="pentest-type" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+                <option value="full" data-i18n="pentest_scan_type_full"></option>
+                <option value="port" data-i18n="pentest_scan_type_port"></option>
+                <option value="web" data-i18n="pentest_scan_type_web"></option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_port_mode_label"></label>
+              <select id="pentest-scan-mode" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+                <option value="fast" data-i18n="pentest_port_mode_fast"></option>
+                <option value="full" data-i18n="pentest_port_mode_full"></option>
+                <option value="stealth" data-i18n="pentest_port_mode_stealth"></option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="runPentest()" style="padding:8px 20px;font-size:13px;" data-i18n="pentest_btn_run" data-i18n-title="pentest_btn_run_tip"></button>
+          </div>
+        </div>
+
+        <!-- Phase 1: Recon -->
+        <div class="card" style="margin-bottom:10px;border-left:3px solid #4a90e2;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:#4a90e2;" data-i18n="pentest_phase1_title"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase1_desc"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="runDnsPentest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_dns" data-i18n-title="pentest_btn_dns_tip"></button>
+            <button class="btn btn-ghost" onclick="runPentest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_port" data-i18n-title="pentest_btn_port_tip"></button>
+          </div>
+        </div>
+
+        <!-- Phase 2: Service tests -->
+        <div class="card" style="margin-bottom:10px;border-left:3px solid #f5a623;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:#f5a623;" data-i18n="pentest_phase2_title"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase2_desc"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="runPentest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_web" data-i18n-title="pentest_btn_web_tip"></button>
+            <button class="btn btn-ghost" onclick="runTlsAudit()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_tls" data-i18n-title="pentest_btn_tls_tip"></button>
+            <button class="btn btn-ghost" onclick="runCmsScan()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_cms" data-i18n-title="pentest_btn_cms_tip"></button>
+            <button class="btn btn-ghost" onclick="runSmbEnum()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_smb" data-i18n-title="pentest_btn_smb_tip"></button>
+            <button class="btn btn-ghost" onclick="runCredentialTest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_creds" data-i18n-title="pentest_btn_creds_tip"></button>
+          </div>
+        </div>
+
+        <!-- Phase 3: Post-recon / exploitation -->
+        <div class="card" style="margin-bottom:16px;border-left:3px solid #d0021b;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:#d0021b;" data-i18n="pentest_phase3_title"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase3_desc"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="runTakeoverCheck()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_takeover" data-i18n-title="pentest_btn_takeover_tip"></button>
+            <button class="btn btn-ghost" onclick="runSegTest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_seg" data-i18n-title="pentest_btn_seg_tip"></button>
+          </div>
+        </div>
+
+        <div id="pentest-results" style="font-size:13px;color:var(--text-muted);text-align:center;padding:24px;" data-i18n="pentest_empty_state"></div>
+      </div>
+    </div>
+
+    <!-- ════════════ HISTORY VIEW ════════════ -->
+    <div class="view" id="view-history">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+        <div style="font-size:18px;font-weight:700;" data-i18n="hdr_history">Tidligere audit-kjøringer</div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;" id="compare-bar">
+          <button class="btn btn-default" id="btn-delete-selected" style="display:none;padding:6px 12px;font-size:12px;color:var(--red);border-color:var(--red);"
+            onclick="deleteSelectedRuns()" data-i18n="btn_delete_selected">Slett valgte</button>
+          <button class="btn btn-primary" id="btn-compare" style="display:none;padding:6px 16px;font-size:13px;background:#1d6387;"
+            onclick="runComparison()" data-i18n="btn_compare_selected">Sammenlign valgte</button>
+        </div>
+      </div>
+      <div id="compare-result" style="display:none;"></div>
+      <div id="history-content">
+        <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
+          <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+          <span data-i18n="msg_loading_history">Laster historikk...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ CUSTOMERS VIEW ════════════ -->
+    <div class="view" id="view-customers">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:18px;font-weight:700;" data-i18n="hdr_customers">Kunder</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-default" onclick="exportCustomersJSON()" style="font-size:12px;" data-i18n="btn_export_json">Export JSON</button>
+          <button class="btn btn-default" onclick="openITGlueImport()" style="font-size:12px;" data-i18n="btn_import_from_itglue">Importer fra IT Glue</button>
+          <button class="btn btn-default" onclick="openManualCustomer()" style="font-size:12px;" data-i18n="btn_add_manual_customer">+ Legg til manuelt</button>
+          <button class="btn btn-primary" onclick="startSetup()" data-i18n="btn_new_customer">+ Ny kunde</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+        <input id="customers-search" type="text" data-i18n-placeholder="placeholder_search_customer" placeholder="Søk navn, domene, tag, tenant..." oninput="customersFilter()"
+          style="flex:1;max-width:400px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+        <span id="customers-count" style="font-size:12px;color:var(--text-muted);"></span>
+      </div>
+      <div id="customers-bulk-bar" style="display:none;padding:var(--space-2) var(--space-4);background:var(--bg-card);border:1px solid var(--blue);border-radius:var(--radius-md);margin-bottom:var(--space-3);display:none;align-items:center;gap:var(--space-3);">
+        <span id="customers-bulk-count" style="font-size:var(--font-sm);font-weight:600;color:var(--blue);"></span>
+        <button class="btn btn-ghost btn-sm" onclick="bulkTagCustomers()" data-i18n="btn_tag">Tag</button>
+        <button class="btn btn-danger btn-sm" onclick="bulkDeleteCustomers()" data-i18n="btn_delete">Slett</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearBulkSelection()" style="margin-left:auto;" data-i18n="btn_cancel">Avbryt</button>
+      </div>
+      <div id="customers-content">
+        <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
+          <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+          <span data-i18n="msg_loading">Laster...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ HISTORY-REPORT VIEW ════════════ -->
+    <div class="view" id="view-history-report">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+        <button class="btn btn-ghost" onclick="showView('history')" style="padding:6px 10px;" data-i18n="btn_back">
+          ← Tilbake
+        </button>
+        <div>
+          <div style="font-size:18px;font-weight:700;" id="hist-report-title" data-i18n="hdr_generate_report">Generer rapport</div>
+          <div style="font-size:12px;color:var(--text-muted);" id="hist-report-subtitle"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="hdr_audit_data_loaded">Audit-data lastet</div>
+        <div id="hist-report-info" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;"></div>
+
+        <div id="hist-report-result" style="margin-bottom:12px;"></div>
+
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+            <span class="tooltip" data-tip="Velg spr&#229;k for den genererte rapporten" style="font-size:12px;color:var(--text-muted);" data-i18n="lbl_report_lang">Rapportspråk:</span>
+            <select id="hist-report-lang" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;font-family:inherit;">
+              <option value="no" data-i18n="lbl_norsk">Norsk</option>
+              <option value="en" data-i18n="lbl_english">English</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px;" data-i18n="lbl_framework">Rammeverk:</span>
+            <select id="hist-report-frameworks" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;font-family:inherit;">
+              <option value="all">CIS + NIST + ISO</option>
+              <option value="cis+nist">CIS + NIST CSF</option>
+              <option value="cis+iso">CIS + ISO 27001</option>
+              <option value="cis">CIS only</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px;" data-i18n="lbl_report_theme">Rapport-tema:</span>
+            <select id="hist-report-theme" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;font-family:inherit;">
+              <option value="light" data-i18n="lbl_light">Lys</option>
+              <option value="dark" data-i18n="lbl_dark">M&#248;rk</option>
+            </select>
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_tech_report">Teknisk rapport</div>
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn btn-success" onclick="generateReport('html','tech')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> HTML
+            </button>
+            <button class="btn btn-success" onclick="generateReport('pdf','tech')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> PDF
+            </button>
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_customer_report">Kunderapport</div>
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn btn-primary" onclick="generateReport('html','customer')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> HTML
+            </button>
+            <button class="btn btn-primary" onclick="generateReport('pdf','customer')" style="display:inline-flex;align-items:center;gap:4px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> PDF
+            </button>
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_export">Eksport</div>
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn btn-default" onclick="exportCSV()" data-i18n="btn_csv_export">
+              📊 CSV-eksport
+            </button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-default" onclick="openFolder()" data-i18n="btn_open_folder">
+              📂 Åpne mappe
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ INTEGRATIONS VIEW ════════════ -->
+    <div class="view" id="view-integrations">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+        <div style="font-size:18px;font-weight:700;" data-i18n="hdr_integrations">Integrasjoner</div>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:0;">
+        <button class="btn btn-ghost integ-tab-btn active" data-tab="integ-active" onclick="switchIntegTab(this,'integ-active')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;border-bottom:2px solid var(--blue);" data-i18n="tab_active_integrations">Aktive integrasjoner</button>
+        <button class="btn btn-ghost integ-tab-btn" data-tab="integ-wiki" onclick="switchIntegTab(this,'integ-wiki')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="tab_wiki_guide">Wiki / Integrasjonsguide</button>
+      </div>
+      <div id="integ-active" class="integ-tab-content" style="display:block;">
+        <div id="integ-summary" style="display:flex;gap:var(--space-4);margin-bottom:var(--space-4);font-size:var(--font-xs);color:var(--text-dim);"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+          <!-- IT Glue card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#1d6387,#4d9fb5);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0;">IG</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_it_glue">IT Glue</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_it_glue_desc">Dokumentasjon og asset management</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="itglue-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="itglue-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="itglue-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('itglue-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+              <button class="btn btn-default" id="itglue-sync-doc-btn" onclick="itglueSyncAllDocumentation()" style="width:100%;padding:8px;font-size:12px;" data-i18n="btn_sync_documentation">Synkroniser dokumentasjon</button>
+            </div>
+            <div id="itglue-sync-status" style="display:none;margin-top:8px;font-size:12px;"></div>
+            <div id="itglue-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label" for="input-itglue-key" data-i18n="lbl_api_key">API-nokkel</label>
+              <input class="field-input" id="input-itglue-key" type="password" placeholder="IT Glue API key">
+              <label class="field-label" for="input-itglue-region" style="margin-top:10px;" data-i18n="lbl_region">Region</label>
+              <select class="field-input" id="input-itglue-region" style="padding:8px 12px;">
+                <option value="eu">EU</option>
+                <option value="us">US</option>
+                <option value="au">Australia</option>
+              </select>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testITGlue()" data-i18n="btn_test_connection">Test tilkobling</button>
+                <span id="itglue-test-result" style="font-size:11px;color:var(--text-muted);"></span>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="saveITGlueSettings()" data-i18n="btn_save">Lagre</button>
+                <span id="itglue-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+            </div>
+          </div>
+          <!-- E-post card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#d29922,#e8b84b);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0;">@</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_email">E-post</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_email_desc">SMTP-sending av rapporter</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="email-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="email-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="email-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('email-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="email-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label" for="input-smtp-server" data-i18n="lbl_smtp_server">SMTP-server</label>
+              <input class="field-input" id="input-smtp-server" type="text" placeholder="smtp.office365.com">
+              <label class="field-label" for="input-smtp-port" style="margin-top:10px;" data-i18n="lbl_port">Port</label>
+              <input class="field-input" id="input-smtp-port" type="number" value="587" placeholder="587 (TLS) / 465 (SSL)">
+              <label class="field-label" for="input-smtp-user" style="margin-top:10px;" data-i18n="lbl_username">Brukernavn</label>
+              <input class="field-input" id="input-smtp-user" type="text" placeholder="bruker@firma.no">
+              <label class="field-label" for="input-smtp-password" style="margin-top:10px;" data-i18n="lbl_password">Passord</label>
+              <input class="field-input" id="input-smtp-password" type="password" placeholder="SMTP-passord">
+              <label class="field-label" for="input-smtp-from" style="margin-top:10px;" data-i18n="lbl_sender_address">Avsenderadresse</label>
+              <input class="field-input" id="input-smtp-from" type="text" placeholder="(Samme som brukernavn om tom)">
+              <label class="field-label" for="input-email-recipient" style="margin-top:10px;" data-i18n="lbl_default_recipients">Standard mottaker(e)</label>
+              <input class="field-input" id="input-email-recipient" type="text" data-i18n-placeholder="placeholder_email_recipients" placeholder="mottaker@kunde.no, mottaker2@kunde.no">
+              <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+                <input type="checkbox" id="input-email-auto-send">
+                <label for="input-email-auto-send" style="font-size:13px;" data-i18n="settings_send_auto_email">Send rapport automatisk etter audit</label>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testEmail()" data-i18n="btn_test_email">Send testepost</button>
+                <span id="email-test-result" style="font-size:11px;color:var(--text-muted);"></span>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="saveEmailSettings()" data-i18n="btn_save">Lagre</button>
+                <span id="email-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+            </div>
+          </div>
+          <!-- Teams/Slack Webhook card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#4b53bc,#7b83eb);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0;">WH</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_webhook">Teams/Slack Webhook</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_webhook_desc">Varsler til Teams eller Slack</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="webhook-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="webhook-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="webhook-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('webhook-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="webhook-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label" for="input-webhook-url" data-i18n="lbl_webhook_url">Webhook-URL (Teams/Slack)</label>
+              <input class="field-input" id="input-webhook-url" type="text" placeholder="https://outlook.office.com/webhook/...">
+              <div style="display:flex;gap:8px;margin-top:6px;">
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testWebhook()" data-i18n="btn_test_webhook">Test webhook</button>
+                <span id="webhook-test-result" style="font-size:11px;color:var(--text-muted);"></span>
+              </div>
+              <div id="webhook-event-options" style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);">
+                <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-muted);" data-i18n="hdr_webhook_events">Webhook-hendelser</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <input type="checkbox" id="alert-audit-completed" checked>
+                  <label for="alert-audit-completed" style="font-size:12px;" data-i18n="sched_audit_completed">Audit fullfort</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <input type="checkbox" id="alert-risk-score-drop" checked>
+                  <label for="alert-risk-score-drop" style="font-size:12px;" data-i18n="sched_risk_score_worsened">Risikoscore forverret</label>
+                  <input class="field-input" id="alert-risk-score-drop-threshold" type="number" value="5" min="1" max="100" style="width:50px;padding:2px 4px;font-size:11px;" data-i18n-title="tip_threshold_points" title="Terskel (poeng)">
+                  <span style="font-size:11px;color:var(--text-muted);">poeng</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <input type="checkbox" id="alert-new-risky-users" checked>
+                  <label for="alert-new-risky-users" style="font-size:12px;" data-i18n="sched_new_risky_users">Nye risikobrukere</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <input type="checkbox" id="alert-expired-credentials" checked>
+                  <label for="alert-expired-credentials" style="font-size:12px;" data-i18n="sched_expired_credentials">Credentials utloper</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <input type="checkbox" id="alert-secure-score-drop" checked>
+                  <label for="alert-secure-score-drop" style="font-size:12px;" data-i18n="sched_secure_score_drop">Secure Score nedgang</label>
+                  <input class="field-input" id="alert-secure-score-drop-threshold" type="number" value="5" min="1" max="100" style="width:50px;padding:2px 4px;font-size:11px;" data-i18n-title="tip_threshold_points" title="Terskel (poeng)">
+                  <span style="font-size:11px;color:var(--text-muted);">poeng</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <input type="checkbox" id="alert-new-nsg-warnings" checked>
+                  <label for="alert-new-nsg-warnings" style="font-size:12px;" data-i18n="sched_nsg_warnings">NSG-advarsler</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="alert-mfa-below-threshold" checked>
+                  <label for="alert-mfa-below-threshold" style="font-size:12px;" data-i18n="sched_mfa_below_threshold">MFA-dekning under terskel</label>
+                  <input class="field-input" id="alert-mfa-threshold" type="number" value="80" min="1" max="100" style="width:50px;padding:2px 4px;font-size:11px;" data-i18n-title="tip_mfa_threshold" title="MFA-terskel (%)">
+                  <span style="font-size:11px;color:var(--text-muted);">%</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="saveWebhookSettings()" data-i18n="btn_save">Lagre</button>
+                <span id="webhook-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+            </div>
+          </div>
+          <!-- FortiGate REST API card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#DA291C,#F04E3E);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0;">FG</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_fortigate">FortiGate REST API</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_fortigate_desc">Firewall-dashboard, config backup, CIS-compliance</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="fg-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="fg-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="fg-integ-label" data-i18n="status_not_configured">Ikke konfigurert</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('fg-api-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="fg-api-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.</p>
+              <p style="font-size:11px;color:var(--orange);margin-bottom:12px;">Lagres per aktiv kunde — bytt kunde først hvis du vil konfigurere en annen FortiGate.</p>
+              <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Generer API-token på FortiGate: <strong>System → Administrators → Create New → REST API Admin</strong></p>
+              <!-- Factory bootstrap -->
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
+                <div style="font-weight:600;font-size:12px;margin-bottom:6px;">Ny FortiGate? Automatisk oppsett</div>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Kobler til med fabrikkinnstillinger (admin / tomt passord), setter sterkt passord, aktiverer hardening og oppretter REST API-nøkkel automatisk.</p>
+                <label class="field-label" for="fg-bootstrap-host">FortiGate IP</label>
+                <input class="field-input" id="fg-bootstrap-host" type="text" placeholder="192.168.1.99">
+                <label class="field-label" for="fg-bootstrap-hostname" style="margin-top:8px;">Hostname (valgfritt)</label>
+                <input class="field-input" id="fg-bootstrap-hostname" type="text" placeholder="FW-Kundenavn">
+                <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+                  <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="fgBootstrap()" id="btn-fg-bootstrap">Sett opp FortiGate</button>
+                  <span id="fg-bootstrap-status" style="font-size:11px;color:var(--text-muted);"></span>
+                </div>
+                <div id="fg-bootstrap-result" style="display:none;margin-top:12px;background:var(--bg-card);border:1px solid var(--green);border-radius:6px;padding:12px;"></div>
+              </div>
+              <label class="field-label" for="fg-api-host">Host / IP</label>
+              <input class="field-input" id="fg-api-host" type="text" placeholder="f.eks. 192.168.1.1 eller fw.kunde.no">
+              <label class="field-label" for="fg-api-port" style="margin-top:10px;">Port</label>
+              <input class="field-input" id="fg-api-port" type="number" value="443" placeholder="443">
+              <label class="field-label" for="fg-api-token" style="margin-top:10px;">API-token</label>
+              <input class="field-input" id="fg-api-token" type="password" placeholder="FortiGate REST API token">
+              <label class="field-label" for="fg-api-vdom" style="margin-top:10px;">VDOM (valgfritt)</label>
+              <input class="field-input" id="fg-api-vdom" type="text" value="root" placeholder="root">
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="fgApiTest()" data-i18n="btn_test_connection">Test tilkobling</button>
+                <span id="fg-api-test-result" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="fgApiSave()" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="fgDownloadCredentials()" title="Last ned admin-passord og API-token for aktiv kunde">Last ned credentials</button>
+                <span id="fg-api-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+            </div>
+          </div>
+          <!-- UniFi Site Manager card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#0559C9,#0096FB);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0;">U</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_unifi_sm">UniFi Site Manager</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_unifi_sm_desc">Sentralisert oversikt over alle UniFi-siter</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="unifi-sm-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="unifi-sm-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="unifi-sm-integ-label" data-i18n="status_not_configured">Ikke konfigurert</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('unifi-sm-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="unifi-sm-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Koble til UniFi Site Manager for å hente alle siter og enheter sentralt. Du kan bruke enten API-nøkkel (anbefalt) eller SSO-innlogging.</p>
+              <!-- API Key method -->
+              <div style="margin-bottom:16px;">
+                <label class="field-label" for="unifi-sm-apikey">API-nøkkel</label>
+                <input class="field-input" id="unifi-sm-apikey" type="password" placeholder="UniFi Site Manager API key">
+                <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Generer nøkkel via <strong>unifi.ui.com → Settings → API</strong></div>
+              </div>
+              <!-- Controller direct access -->
+              <details style="margin-bottom:12px;">
+                <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:8px;">Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)</summary>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en <strong>Organization API key</strong> fra unifi.ui.com, eller direkte tilgang til kontrolleren.</p>
+                <label class="field-label" for="unifi-sm-ctrl-host">Kontroller-URL (valgfritt)</label>
+                <input class="field-input" id="unifi-sm-ctrl-host" type="text" placeholder="f.eks. https://sybr.unihosted.com">
+                <label class="field-label" for="unifi-sm-ctrl-user" style="margin-top:10px;">Brukernavn</label>
+                <input class="field-input" id="unifi-sm-ctrl-user" type="text" placeholder="Lokal kontroller-bruker">
+                <label class="field-label" for="unifi-sm-ctrl-pass" style="margin-top:10px;">Passord</label>
+                <input class="field-input" id="unifi-sm-ctrl-pass" type="password" placeholder="Kontroller-passord">
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmTestController()" data-i18n="btn_test_connection">Test tilkobling</button>
+                  <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmSaveController()" data-i18n="btn_save">Lagre</button>
+                  <span id="unifi-sm-ctrl-result" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+                </div>
+              </details>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="unifiSmAuth()" id="unifi-sm-auth-btn" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button class="btn btn-ghost" style="padding:6px 16px;font-size:12px;" onclick="unifiSmSave()" data-i18n="btn_save_key">Lagre nøkkel</button>
+                <span id="unifi-sm-auth-result" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+              <div id="unifi-sm-sites" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <div style="font-size:13px;font-weight:600;" data-i18n="lbl_your_sites">Dine siter</div>
+                  <button class="btn btn-ghost" onclick="unifiSmLoadSites()" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
+                </div>
+                <div id="unifi-sm-sites-list" style="max-height:300px;overflow-y:auto;"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Claude AI card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#D97706,#F59E0B);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0;">AI</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_claude_ai">Sybrt AI</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_claude_ai_desc">AI-assistent med verktøytilgang</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="claude-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="claude-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="claude-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('claude-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="claude-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label">Tilkoblingsmetode</label>
+              <select class="field-input" id="claude-mode" onchange="claudeModeChanged()" style="padding:8px 12px;margin-bottom:12px;">
+                <option value="api">API-nøkkel (pay-as-you-go)</option>
+                <option value="cli">Claude Max / Pro (subscription via CLI)</option>
+              </select>
+
+              <!-- API key mode -->
+              <div id="claude-mode-api">
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Hent API-nøkkel fra <strong>console.anthropic.com</strong>. Betales per token.</p>
+                <label class="field-label" for="claude-api-key">API-nøkkel</label>
+                <input class="field-input" id="claude-api-key" type="password" placeholder="sk-ant-...">
+              </div>
+
+              <!-- CLI/subscription mode -->
+              <div id="claude-mode-cli" style="display:none;">
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Bruker din Claude Max/Pro-subscription via <code>claude</code> CLI. Ingen ekstra kostnad per forespørsel.</p>
+                <p style="font-size:11px;color:var(--orange);margin-bottom:8px;">Merk: CLI-modus er tregere enn API (ny prosess per melding) og har ikke verktøy-støtte. API-modus anbefales for best opplevelse.</p>
+                <div id="claude-cli-status" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-muted);margin-bottom:8px;" data-i18n="msg_checking_cli">Sjekker CLI...</div>
+                <button class="btn btn-ghost" onclick="claudeCheckCli()" style="padding:4px 12px;font-size:11px;margin-bottom:8px;" data-i18n="btn_check_cli">Sjekk CLI-status</button>
+              </div>
+
+              <label class="field-label" style="margin-top:10px;" for="claude-model">Modell</label>
+              <select class="field-input" id="claude-model" style="padding:8px 12px;">
+                <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (anbefalt)</option>
+                <option value="claude-opus-4-20250514">Claude Opus 4 (mest kapabel)</option>
+                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (raskest)</option>
+              </select>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="claudeSaveSettings()" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="claudeTestConnection()" data-i18n="btn_test">Test</button>
+                <span id="claude-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
+              </div>
+              <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text-dim);">
+                <div style="font-weight:600;margin-bottom:4px;">AI-assistenten har tilgang til:</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+                  <span>• SSH-verter og nøkler</span>
+                  <span>• VPN-tilkoblinger</span>
+                  <span>• FortiGate-brannmurer</span>
+                  <span>• UniFi-enheter og siter</span>
+                  <span>• CIS compliance-sjekk</span>
+                  <span>• Config backup</span>
+                  <span>• Kundeoversikt</span>
+                  <span>• Kommandokjøring (SSH)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ALSO Cloud Marketplace card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#00a651,#00cc66);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;">ALSO</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;">ALSO Cloud Marketplace</div>
+                <div style="font-size:12px;color:var(--text-muted);">License management, customer sync, billing</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="also-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="also-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="also-integ-label" data-i18n="msg_not_configured">Not configured</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('also-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Configure</button>
+            </div>
+            <div id="also-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label">Username / Email</label>
+              <input class="field-input" id="input-also-username" type="text" placeholder="user@company.no">
+              <label class="field-label" style="margin-top:10px;">Password</label>
+              <input class="field-input" id="input-also-password" type="password" placeholder="API password">
+              <label class="field-label" style="margin-top:10px;">Country</label>
+              <select class="field-input" id="input-also-country">
+                <option value="no">Norway</option>
+                <option value="se">Sweden</option>
+                <option value="dk">Denmark</option>
+                <option value="fi">Finland</option>
+                <option value="de">Germany</option>
+                <option value="nl">Netherlands</option>
+                <option value="ch">Switzerland</option>
+                <option value="at">Austria</option>
+              </select>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" onclick="alsoTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test connection</button>
+                <button class="btn btn-default" onclick="alsoSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Save</button>
+                <button class="btn btn-ghost" onclick="alsoSyncCustomers()" style="padding:6px 14px;font-size:12px;">Sync customers</button>
+              </div>
+              <div id="also-config-msg" style="font-size:12px;margin-top:8px;"></div>
+            </div>
+          </div>
+          <!-- Uniweb card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#2b5797,#4a8bc2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;">UW</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;">Uniweb</div>
+                <div style="font-size:12px;color:var(--text-muted);">Domener, hosting, SSL, e-post</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="uniweb-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="uniweb-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="uniweb-integ-label">Ikke konfigurert</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('uniweb-config')" style="width:100%;padding:8px;font-size:13px;">Konfigurer</button>
+            </div>
+            <div id="uniweb-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label">E-post</label>
+              <input class="field-input" id="input-uniweb-email" type="text" placeholder="bruker@firma.no">
+              <label class="field-label" style="margin-top:10px;">Passord</label>
+              <input class="field-input" id="input-uniweb-password" type="password" placeholder="Uniweb-passord">
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" onclick="uniwebSaveConfig()" style="padding:6px 14px;font-size:12px;">Lagre</button>
+                <button class="btn btn-ghost" onclick="uniwebSync()" id="uniweb-sync-btn" style="padding:6px 14px;font-size:12px;">Synkroniser</button>
+              </div>
+              <div id="uniweb-config-msg" style="font-size:12px;margin-top:8px;"></div>
+              <div id="uniweb-last-sync" style="font-size:11px;color:var(--text-dim);margin-top:4px;"></div>
+              <div id="uniweb-accounts-container" style="margin-top:12px;"></div>
+            </div>
+          </div>
+          <!-- Tailscale card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#242c3a,#3b4863);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="28" height="28" fill="none"><circle cx="12" cy="4" r="2.5" fill="#fff"/><circle cx="4" cy="12" r="2.5" fill="#fff"/><circle cx="20" cy="12" r="2.5" fill="#fff"/><circle cx="12" cy="20" r="2.5" fill="#fff"/><circle cx="12" cy="12" r="2.5" fill="#fff"/></svg></div>
+              <div>
+                <div style="font-weight:600;font-size:14px;">Tailscale</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_tailscale_desc">VPN mesh, enhetsoversikt, auth keys</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="ts-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="ts-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="ts-integ-label" data-i18n="msg_not_configured">Ikke konfigurert</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('ts-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="ts-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label">API Access Token</label>
+              <input class="field-input" id="input-ts-api-key" type="password" placeholder="tskey-api-...">
+              <label class="field-label" style="margin-top:10px;">Tailnet <span style="font-weight:400;color:var(--text-dim);">(valgfritt, standard: -)</span></label>
+              <input class="field-input" id="input-ts-tailnet" type="text" placeholder="your-org.github">
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" onclick="tsTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button class="btn btn-default" onclick="tsSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
+              </div>
+              <div id="ts-config-msg" style="font-size:12px;margin-top:8px;"></div>
+            </div>
+          </div>
+          <!-- GDAP / Partner Center card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#0078d4,#00bcf2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M11.4 2H2v9.4h9.4V2zM22 2h-9.4v9.4H22V2zM11.4 12.6H2V22h9.4v-9.4zM22 12.6h-9.4V22H22v-9.4z"/></svg></div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_gdap">GDAP / Partner Center</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_gdap_desc">Delegert admin for alle kundetenanter</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;" id="gdap-integ-status">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="gdap-integ-dot"></span>
+              <span style="font-size:12px;color:var(--text-muted);" id="gdap-integ-label" data-i18n="msg_not_configured">Ikke konfigurert</span>
+            </div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('gdap-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
+              <button class="btn btn-default" id="gdap-discover-btn" onclick="gdapDiscoverCustomers()" style="width:100%;padding:8px;font-size:12px;display:none;" data-i18n="gdap_btn_discover">Oppdag kunder</button>
+            </div>
+            <div id="gdap-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <label class="field-label" for="input-gdap-tenant" data-i18n="gdap_lbl_partner_tenant">Partner Tenant ID</label>
+              <input class="field-input" id="input-gdap-tenant" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              <label class="field-label" for="input-gdap-client" style="margin-top:10px;" data-i18n="gdap_lbl_client_id">Client ID (App Registration)</label>
+              <input class="field-input" id="input-gdap-client" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              <label class="field-label" for="input-gdap-secret" style="margin-top:10px;" data-i18n="gdap_lbl_client_secret">Client Secret</label>
+              <input class="field-input" id="input-gdap-secret" type="password" placeholder="Client secret">
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" onclick="gdapSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-default" onclick="gdapTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
+              </div>
+              <div id="gdap-config-msg" style="font-size:12px;margin-top:8px;"></div>
+              <div id="gdap-customer-count" style="font-size:12px;margin-top:6px;color:var(--text-muted);"></div>
+            </div>
+            <div id="gdap-discover-panel" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+              <div style="font-weight:600;font-size:13px;margin-bottom:8px;" data-i18n="gdap_lbl_discovered">Oppdagede kunder</div>
+              <div id="gdap-discover-list" style="max-height:300px;overflow-y:auto;"></div>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" onclick="gdapImportSelected()" style="padding:6px 14px;font-size:12px;" data-i18n="gdap_btn_import">Importer valgte</button>
+                <button class="btn btn-ghost" onclick="document.getElementById('gdap-discover-panel').style.display='none'" style="padding:6px 14px;font-size:12px;" data-i18n="btn_cancel">Avbryt</button>
+              </div>
+              <div id="gdap-import-msg" style="font-size:12px;margin-top:8px;"></div>
+            </div>
+          </div>
+          <!-- ConnectWise PSA card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#c23934,#e85d58);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0;">CW</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_connectwise">ConnectWise PSA</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_connectwise_desc">Ticket- og kundestyring</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;"></span>
+              <span style="font-size:12px;color:var(--orange);" data-i18n="status_coming_soon">Kommer snart</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-default" disabled style="width:100%;padding:8px;font-size:13px;opacity:0.5;cursor:not-allowed;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+          </div>
+          <!-- Autotask card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#0072bc,#00a3e0);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0;">AT</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_autotask">Autotask / Datto PSA</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_autotask_desc">Ticket- og kundestyring</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;"></span>
+              <span style="font-size:12px;color:var(--orange);" data-i18n="status_coming_soon">Kommer snart</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-default" disabled style="width:100%;padding:8px;font-size:13px;opacity:0.5;cursor:not-allowed;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+          </div>
+          <!-- Halo PSA card -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#6c2eb9,#9b59b6);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0;">HP</div>
+              <div>
+                <div style="font-weight:600;font-size:14px;" data-i18n="integ_halo">Halo PSA</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_halo_desc">Ticket, asset og rapportering</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;"></span>
+              <span style="font-size:12px;color:var(--orange);" data-i18n="status_coming_soon">Kommer snart</span>
+            </div>
+            <div style="margin-top:auto;">
+              <button class="btn btn-default" disabled style="width:100%;padding:8px;font-size:13px;opacity:0.5;cursor:not-allowed;" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+          </div>
+        </div>
+        <!-- ═══════════ AUTOMATIC ALERTS ═══════════ -->
+        <div style="margin-top:32px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <div style="font-size:16px;font-weight:700;" data-i18n="hdr_auto_alerts">Automatiske varsler</div>
+          </div>
+          <div class="card" style="padding:20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" id="alert-master-toggle" onchange="alertToggleMaster(this.checked)">
+                  <span style="font-weight:600;font-size:14px;" data-i18n="lbl_alerts_enabled">Varsler aktivert</span>
+                </label>
+                <span id="alert-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;"></span>
+              </div>
+              <button class="btn btn-primary" onclick="alertRunCheckNow()" style="padding:6px 16px;font-size:12px;" data-i18n="btn_run_check_now">Kjor sjekk na</button>
+            </div>
+
+            <!-- Notification channels -->
+            <div style="display:flex;gap:24px;margin-bottom:16px;font-size:13px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="alert-notify-teams" onchange="alertSaveConfig()">
+                <span data-i18n="lbl_notify_teams">Teams webhook</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="alert-notify-email" onchange="alertSaveConfig()">
+                <span data-i18n="lbl_notify_email">E-post</span>
+              </label>
+              <div style="flex:1;">
+                <input class="field-input" id="alert-email-recipient" placeholder="varsler@firma.no" style="padding:4px 8px;font-size:12px;width:200px;" onchange="alertSaveConfig()">
+              </div>
+            </div>
+
+            <!-- Alert rules -->
+            <div style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:16px;">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead>
+                  <tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">
+                    <th style="text-align:left;padding:8px;" data-i18n="col_active">Aktiv</th>
+                    <th style="text-align:left;padding:8px;" data-i18n="col_alert_type">Varseltype</th>
+                    <th style="text-align:left;padding:8px;" data-i18n="col_threshold">Terskel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:8px;"><input type="checkbox" id="rule-ssl-expiry" onchange="alertSaveConfig()"></td>
+                    <td style="padding:8px;" data-i18n="alert_ssl_expiry">SSL-sertifikat utloper</td>
+                    <td style="padding:8px;"><input type="number" id="rule-ssl-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" onchange="alertSaveConfig()"> <span data-i18n="lbl_days">dager</span></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:8px;"><input type="checkbox" id="rule-domain-expiry" onchange="alertSaveConfig()"></td>
+                    <td style="padding:8px;" data-i18n="alert_domain_expiry">Domene utloper</td>
+                    <td style="padding:8px;"><input type="number" id="rule-domain-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" onchange="alertSaveConfig()"> <span data-i18n="lbl_days">dager</span></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:8px;"><input type="checkbox" id="rule-fortigate-threats" onchange="alertSaveConfig()"></td>
+                    <td style="padding:8px;" data-i18n="alert_fortigate_threats">FortiGate trusler/dag</td>
+                    <td style="padding:8px;"><input type="number" id="rule-fg-threshold" value="50" min="1" max="10000" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" onchange="alertSaveConfig()"> <span data-i18n="lbl_events">hendelser</span></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:8px;"><input type="checkbox" id="rule-firmware-outdated" onchange="alertSaveConfig()"></td>
+                    <td style="padding:8px;" data-i18n="alert_firmware_outdated">Firmware utdatert</td>
+                    <td style="padding:8px;color:var(--text-muted);font-size:11px;" data-i18n="lbl_auto_detect">Autodeteksjon</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:8px;"><input type="checkbox" id="rule-also-license" onchange="alertSaveConfig()"></td>
+                    <td style="padding:8px;" data-i18n="alert_also_license">ALSO lisens utloper</td>
+                    <td style="padding:8px;"><input type="number" id="rule-also-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" onchange="alertSaveConfig()"> <span data-i18n="lbl_days">dager</span></td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px;"><input type="checkbox" id="rule-mfa-coverage" onchange="alertSaveConfig()"></td>
+                    <td style="padding:8px;" data-i18n="alert_mfa_coverage">MFA-dekning under terskel</td>
+                    <td style="padding:8px;"><input type="number" id="rule-mfa-threshold" value="80" min="1" max="100" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" onchange="alertSaveConfig()"> %</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Check result / status -->
+            <div id="alert-check-result" style="font-size:12px;color:var(--text-muted);margin-bottom:16px;"></div>
+
+            <!-- Alert history -->
+            <details>
+              <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--blue);" data-i18n="hdr_alert_history">Varselhistorikk</summary>
+              <div id="alert-history-container" style="margin-top:8px;max-height:300px;overflow-y:auto;"></div>
+            </details>
+          </div>
+        </div>
+        <!-- ═══════════ SCHEDULED TASKS ═══════════ -->
+        <div style="margin-top:32px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <div style="font-size:16px;font-weight:700;" data-i18n="hdr_scheduled_tasks">Planlagte oppgaver</div>
+            <button class="btn btn-ghost" onclick="taskSchedRefresh()" style="padding:4px 12px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
+          </div>
+          <div id="task-scheduler-table" style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;">
+            <div style="padding:16px;color:var(--text-muted);font-size:13px;" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+      </div>
+      <div id="integ-wiki" class="integ-tab-content" style="display:none;">
+        <div style="margin-bottom:32px;">
+          <div style="font-size:15px;font-weight:600;color:var(--blue);margin-bottom:8px;" data-i18n="hdr_integration_guide">Integrasjonsguide</div>
+          <p style="font-size:13px;color:var(--text-muted);line-height:1.7;max-width:800px;" data-i18n="integ_guide_desc">Komplett teknisk dokumentasjon for alle integrasjoner i SYBR MSP Toolkit — hva som fungerer, hva som er mulig, begrensninger, og hvordan API-ene kommuniserer.</p>
+        </div>
+
+        <!-- ═══════════ ITGLUE ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_itglue">IT Glue</span></div>
+          <div id="wiki-itglue-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ VPN ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_vpn">Azure VPN (P2S)</span></div>
+          <div id="wiki-vpn-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ GUACAMOLE ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_guacamole">Apache Guacamole (Web RDP / Nettleser)</span></div>
+          <div id="wiki-guacamole-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ UNIFI ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_unifi">UniFi (Site Manager + Controller)</span></div>
+          <div id="wiki-unifi-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ FORTIGATE ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_fortigate">FortiGate</span></div>
+          <div id="wiki-fortigate-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ TAILSCALE ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_tailscale">Tailscale</span></div>
+          <div id="wiki-tailscale-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ ALSO CLOUD ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_also_cloud">ALSO Cloud (SimpleAPI)</span></div>
+          <div id="wiki-also-cloud-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ UNIWEB ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_uniweb">Uniweb (Tornado Kontrollpanel)</span></div>
+          <div id="wiki-uniweb-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ TLS MONITOR ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_tls_monitor">TLS-sertifikatmonitor</span></div>
+          <div id="wiki-tls-monitor-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ MICROSOFT GRAPH ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_microsoft_graph">Microsoft 365 / Azure AD</span></div>
+          <div id="wiki-microsoft-graph-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ GDAP ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_gdap">GDAP / Partner Center</span></div>
+          <div id="wiki-gdap-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ CLAUDE ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_claude">Claude AI-konsoll</span></div>
+          <div id="wiki-claude-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ AUTOTASK DATTO ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--orange);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_planned">Planlagt</span> <span data-i18n="wiki_title_autotask_datto">Autotask / Datto PSA</span></div>
+          <div id="wiki-autotask-datto-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ CONNECTWISE ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--orange);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_planned">Planlagt</span> <span data-i18n="wiki_title_connectwise">ConnectWise PSA (Manage)</span></div>
+          <div id="wiki-connectwise-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ HALO PSA ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--orange);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_planned">Planlagt</span> <span data-i18n="wiki_title_halo_psa">Halo PSA</span></div>
+          <div id="wiki-halo-psa-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ TEAMS WEBHOOK ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_teams_webhook">Microsoft Teams Webhook</span></div>
+          <div id="wiki-teams-webhook-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ SMTP ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--green);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_implemented">Implementert</span> <span data-i18n="wiki_title_smtp">E-post (SMTP)</span></div>
+          <div id="wiki-smtp-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ POWER BI ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--blue);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_partial">Delvis</span> <span data-i18n="wiki_title_power_bi">Power BI</span></div>
+          <div id="wiki-power-bi-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- ═══════════ REST API ═══════════ -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title"><span style="background:var(--purple);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_advanced">Avansert</span> <span data-i18n="wiki_title_rest_api">MSP Toolkit REST API — egendefinerte integrasjoner</span></div>
+          <div id="wiki-rest-api-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  <!-- ════════════ DOCS VIEW ════════════ -->
+  <div class="view" id="view-docs" style="max-width:900px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">
+      <div style="font-size:18px;font-weight:700;" data-i18n="nav_docs">Documentation</div>
+    </div>
+
+    <!-- Docs tabs — single source of truth is docs/*.md served via
+         /api/docs/list + /api/docs/file. No more duplicated hardcoded
+         sections (those used to drift, e.g. "v9.2.0" stamped in
+         Overview while the app was on v10.6). -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-5);">
+      <button class="btn btn-ghost docs-tab-btn active" onclick="switchDocsTab(this,'docs-repo'); docsRepoLoad();" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;" title="Browse the documentation shipped with this version" data-i18n="docs_tab_documentation">Documentation</button>
+      <button class="btn btn-ghost docs-tab-btn" onclick="switchDocsTab(this,'docs-api')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" title="REST API endpoints reference">API</button>
+      <a href="/api/docs" target="_blank" rel="noopener" class="btn btn-ghost" style="margin-left:auto;font-size:var(--font-sm);text-decoration:none;color:var(--text-muted);align-self:center;padding:var(--space-2) var(--space-4);" title="OpenAPI / Swagger UI">Swagger ↗</a>
+    </div>
+
+    <!-- Tab: Documentation — renders markdown from the in-repo docs/ tree -->
+    <div id="docs-repo" class="docs-tab-pane">
+      <div style="display:grid;grid-template-columns:260px 1fr;gap:var(--space-4);min-height:420px;">
+        <div id="docs-repo-tree" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);background:var(--bg-card);font-size:13px;max-height:75vh;overflow:auto;">
+          <div style="color:var(--text-muted);">Laster …</div>
+        </div>
+        <div id="docs-repo-content" class="markdown-body" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);background:var(--bg-card);min-height:420px;max-height:75vh;overflow:auto;font-size:14px;line-height:1.6;">
+          <div style="color:var(--text-muted);">&larr; Velg en fil i treet til venstre.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: API -->
+    <div id="docs-api" class="docs-tab-pane" style="display:none;">
+      <div class="card">
+        <h3 style="font-size:var(--font-md);font-weight:700;margin-bottom:var(--space-3);">REST API-endepunkter &mdash; v9.2.0</h3>
+        <p style="font-size:var(--font-sm);color:var(--text-muted);margin-bottom:var(--space-3);">Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL: <code>https://&lt;server&gt;:8099/api</code></p>
+        <div style="font-family:var(--mono);font-size:var(--font-xs);line-height:2.2;color:var(--text-muted);">
+
+          <strong style="color:var(--blue);">Auth (/api/auth/*)</strong><br>
+          POST /auth/login &middot; POST /auth/setup &middot; POST /auth/refresh &middot; POST /auth/logout<br>
+          GET /auth/status &middot; GET /auth/me &middot; POST /auth/me/password<br>
+          GET /auth/users &middot; POST /auth/users &middot; PUT /auth/users/{id} &middot; DELETE /auth/users/{id}<br><br>
+
+          <strong style="color:var(--blue);">Kunder (/api/customers/*)</strong><br>
+          GET /customers &middot; POST /customers/switch &middot; POST /customers/register &middot; POST /customers/delete<br>
+          GET /customer/notes &middot; POST /customer/notes &middot; GET /customer/tags &middot; POST /customer/tags<br>
+          POST /customers/import-itglue &middot; POST /customer/wipe &middot; POST /customer/renew<br>
+          GET /customer/{id}/unified &middot; GET /search/customers<br><br>
+
+          <strong style="color:var(--blue);">Audit (/api/audit/*)</strong><br>
+          GET /audit/stream (SSE) &middot; GET /audit/bulk &middot; POST /audit/cancel<br>
+          POST /audit/validate-permissions &middot; GET /audit/sections<br>
+          GET /audit/scope &middot; POST /audit/scope &middot; GET /audit/presets &middot; POST /audit/presets &middot; DELETE /audit/presets/{name}<br>
+          GET /audit/progress &middot; GET /audit/progress/{customer_id} &middot; GET /audit/compare<br>
+          GET /setup/stream (SSE) &middot; GET /trends &middot; GET /trends/{id}<br>
+          GET /history &middot; POST /history/load &middot; POST /history/delete &middot; POST /history/delete-customer<br><br>
+
+          <strong style="color:var(--blue);">VPN (/api/vpn/*)</strong><br>
+          GET /vpn/profiles &middot; GET /vpn/profiles/{id} &middot; POST /vpn/profiles &middot; POST /vpn/profiles/import<br>
+          PUT /vpn/profiles/{id} &middot; DELETE /vpn/profiles/{id}<br>
+          POST /vpn/connect/{id} &middot; POST /vpn/disconnect &middot; POST /vpn/force-disconnect &middot; GET /vpn/status<br>
+          POST /vpn/azure/try-silent &middot; POST /vpn/azure/pkce-start &middot; POST /vpn/azure/pkce-complete<br>
+          POST /vpn/azure/device-code &middot; GET /vpn/azure/device-code/status &middot; POST /vpn/azure/connect-with-token<br><br>
+
+          <strong style="color:var(--blue);">SSH (/api/ssh/*)</strong><br>
+          GET /ssh/keys &middot; GET /ssh/keys/{id} &middot; POST /ssh/keys &middot; POST /ssh/keys/import &middot; DELETE /ssh/keys/{id}<br>
+          GET /ssh/keys/{id}/public &middot; POST /ssh/keys/{id}/push &middot; POST /ssh/keys/{id}/revoke<br>
+          GET /ssh/hosts &middot; GET /ssh/hosts/{id} &middot; POST /ssh/hosts &middot; PUT /ssh/hosts/{id} &middot; DELETE /ssh/hosts/{id}<br>
+          GET /ssh/hosts/{id}/password &middot; POST /ssh/hosts/{id}/test &middot; POST /ssh/hosts/health<br>
+          POST /ssh/exec &middot; POST /ssh/config/generate &middot; GET /ssh/audit-log<br><br>
+
+          <strong style="color:var(--blue);">RDP (/api/rdp/*)</strong><br>
+          POST /rdp/start &middot; POST /rdp/stop &middot; GET /rdp/status &middot; POST /rdp/clipboard<br>
+          POST /rdp/launch (via SSH-ruter)<br><br>
+
+          <strong style="color:var(--blue);">Nettleser (/api/browser/*)</strong><br>
+          POST /browser/start &middot; POST /browser/navigate &middot; POST /browser/stop &middot; GET /browser/status<br><br>
+
+          <strong style="color:var(--blue);">FortiGate (/api/fortigate/*)</strong><br>
+          POST /fortigate/test &middot; POST /fortigate/save &middot; GET /fortigate/all<br>
+          GET /fortigate/dashboard/{id} &middot; GET /fortigate/compliance/{id}<br>
+          POST /fortigate/backup/{id} &middot; GET /fortigate/backups/{id} &middot; GET /fortigate/backup/{id}/{fil}<br>
+          GET /fortigate/diff/{id} &middot; POST /fortigate/deploy-key/{id} &middot; POST /fortigate/generate-token/{id}<br><br>
+
+          <strong style="color:var(--blue);">UniFi (/api/unifi/*)</strong><br>
+          POST /unifi/test &middot; POST /unifi/save &middot; POST /unifi/test-device<br>
+          GET /unifi/dashboard/{id} &middot; GET /unifi/firmware-check/{id} &middot; GET /unifi/controller-summary/{id}<br>
+          POST /unifi/site-manager/auth &middot; GET /unifi/site-manager/sites<br>
+          GET /unifi/sm/devices &middot; GET /unifi/sm/isp-metrics &middot; GET /unifi/sm/site/{id}/wan<br>
+          POST /unifi/set-inform &middot; POST /unifi/reboot-device &middot; POST /unifi/device-config<br>
+          POST /network/scan &middot; POST /network/quick-audit &middot; GET /network-devices<br>
+          POST /network/save-config-backup &middot; GET /network/config-backups<br><br>
+
+          <strong style="color:var(--blue);">Tailscale (/api/tailscale/*)</strong><br>
+          GET /tailscale/status &middot; GET /tailscale/devices &middot; POST /tailscale/test<br>
+          DELETE /tailscale/device/{id} &middot; POST /tailscale/device/{id}/tags<br>
+          POST /tailscale/device/{id}/authorize &middot; POST /tailscale/device/{id}/name &middot; POST /tailscale/device/{id}/key<br>
+          GET /tailscale/device/{id}/routes &middot; POST /tailscale/device/{id}/routes<br>
+          GET /tailscale/keys &middot; POST /tailscale/keys &middot; DELETE /tailscale/keys/{id}<br><br>
+
+          <strong style="color:var(--blue);">ALSO Cloud (/api/also/*)</strong><br>
+          POST /also/test &middot; GET /also/companies &middot; GET /also/company/{id} &middot; GET /also/api-stats<br>
+          GET /also/subscriptions/{id} &middot; GET /also/subscription/{id}<br>
+          GET /also/renewals &middot; POST /also/renewal-scan &middot; GET /also/renewal-scan/progress<br>
+          POST /also/renewals/{id}/handle &middot; GET /also/renewals/report<br>
+          POST /also/price-scan &middot; GET /also/price-scan/progress &middot; GET /also/invoices<br>
+          GET /also/sync-preview &middot; POST /also/link-matched &middot; POST /also/sync-customers<br><br>
+
+          <strong style="color:var(--blue);">IT Glue (/api/itglue/*)</strong><br>
+          POST /itglue/test &middot; POST /itglue/organizations &middot; GET /itglue/inspect<br>
+          POST /customers/import-itglue &middot; POST /itglue/upload/audit<br>
+          GET /itglue/available-reports &middot; POST /itglue/upload/reports &middot; POST /itglue/upload/credentials<br><br>
+
+          <strong style="color:var(--blue);">TLS-sertifikater (/api/tls/*)</strong><br>
+          GET /tls/auto-discover &middot; POST /tls/check &middot; POST /tls/scan<br><br>
+
+          <strong style="color:var(--blue);">Claude AI (/api/claude/*)</strong><br>
+          GET /claude/status &middot; GET /claude/cli-status &middot; POST /claude/message<br>
+          GET /claude/conversations &middot; DELETE /claude/conversations/{id} &middot; POST /claude/settings<br><br>
+
+          <strong style="color:var(--blue);">Rapporter (/api/report/*)</strong><br>
+          POST /report/generate &middot; POST /report/csv &middot; POST /export/excel<br>
+          POST /email/test &middot; POST /email/send-report &middot; GET /latest-report<br>
+          POST /open-private &middot; POST /open-folder<br><br>
+
+          <strong style="color:var(--blue);">Dashboard (/api/dashboard/*)</strong><br>
+          GET /status &middot; GET /dashboard &middot; GET /dashboard/overview<br>
+          GET /dashboard/alerts &middot; GET /dashboard/health<br>
+          GET /dashboard/devices &middot; GET /dashboard/devices/{id} &middot; POST /dashboard/poll/{id} &middot; POST /dashboard/interval<br>
+          GET /remediation &middot; POST /remediation &middot; GET /remediation/summary &middot; GET /expiry/check<br>
+          GET /files<br><br>
+
+          <strong style="color:var(--blue);">Innstillinger (/api/settings)</strong><br>
+          GET /settings &middot; POST /settings &middot; GET /settings/language &middot; POST /settings/language<br>
+          POST /settings/logo &middot; GET /settings/logo<br>
+          GET /scheduler &middot; POST /scheduler &middot; POST /scheduler/test-webhook<br>
+          POST /encrypt/migrate &middot; GET /encryption/key-backup &middot; POST /encryption/key-restore<br>
+          GET /activity-log &middot; GET /system-info &middot; GET /version<br>
+          POST /backup/create &middot; POST /backup/restore &middot; GET /backup/info<br>
+          GET /logs &middot; POST /logs/clear &middot; GET /changelog<br><br>
+
+          <strong style="color:var(--blue);">Provisjonering (/api/provisioning/*)</strong><br>
+          POST /provisioning/start &middot; GET /provisioning/sessions &middot; GET /provisioning/{id}<br>
+          PUT /provisioning/{id}/step/{step} &middot; GET /provisioning/{id}/summary<br>
+          POST /provisioning/{id}/generate &middot; POST /provisioning/{id}/deploy &middot; DELETE /provisioning/{id}<br><br>
+
+          <strong style="color:var(--blue);">Proxy (/api/proxy/*)</strong><br>
+          POST /proxy/fetch &middot; GET /proxy/raw
+
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- ════════════ WORKSHOP VIEW ════════════ -->
+  <div class="view" id="view-workshop" style="max-width:1400px;">
+    <div style="margin-bottom:24px;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px;" data-i18n="hdr_workshop">MSP Toolkit — Workshop</div>
+      <p style="font-size:13px;color:var(--text-muted);max-width:900px;line-height:1.6;" data-i18n="workshop_intro">Dedikert arbeidsrom for workshop: plan, innspill og oppfølging. Endringer lagres automatisk på serveren og deles mellom alle som har siden åpen (last siden for å se andres input).</p>
+    </div>
+
+    <!-- Architecture diagram — visual reference for the "Oversikt"-seksjonen i workshop-planen -->
+    <div class="card" style="margin-bottom:16px;padding:16px;">
+      <div class="card-title" data-i18n="hdr_workshop_architecture">Arkitektur — MSP Toolkit-integrasjoner</div>
+      <div style="overflow-x:auto;text-align:center;background:var(--bg);border-radius:var(--radius-sm);padding:12px;">
+        <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" alt="MSP Toolkit — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+        <div style="display:none;color:var(--text-muted);font-size:12px;padding:20px;" data-i18n="err_architecture_missing">Arkitekturdiagrammet kunne ikke lastes. Sjekk at <code>docs/msp-toolkit-architecture.svg</code> finnes på serveren.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;">
+      <!-- Left: plan (markdown) -->
+      <div class="card" style="align-self:start;">
+        <div class="card-title" data-i18n="hdr_workshop_plan">Workshop-plan</div>
+        <div id="workshop-plan-body" class="markdown-body" style="font-size:13px;line-height:1.7;max-height:78vh;overflow:auto;padding-right:8px;">
+          <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+        </div>
+      </div>
+
+      <!-- Right: interactive sections -->
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+        <!-- Wishlist -->
+        <div class="card">
+          <div class="card-title"><span data-i18n="hdr_workshop_wishlist">Ønskeliste — funksjoner folk vil ha</span> <span id="workshop-wishlist-count" style="font-size:11px;color:var(--text-muted);font-weight:400;margin-left:8px;"></span></div>
+          <ul id="workshop-wishlist-list" style="list-style:none;padding:0;margin:0 0 12px 0;font-size:13px;"></ul>
+          <div style="display:flex;gap:8px;">
+            <input id="workshop-wishlist-input" type="text" class="field-input" data-i18n-placeholder="ph_workshop_wishlist" placeholder="Skriv et ønske og trykk Enter ..." style="flex:1;margin:0;" onkeydown="if(event.key==='Enter'){workshopAddWishlist();event.preventDefault();}">
+            <button onclick="workshopAddWishlist()" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
+          </div>
+        </div>
+
+        <!-- Discussion notes (sections 6–9) -->
+        <div class="card">
+          <div class="card-title" data-i18n="hdr_workshop_notes">Diskusjonsnotater</div>
+          <div id="workshop-notes-container" style="display:flex;flex-direction:column;gap:12px;font-size:13px;">
+            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
+          </div>
+        </div>
+
+        <!-- Follow-ups -->
+        <div class="card">
+          <div class="card-title"><span data-i18n="hdr_workshop_followups">Oppfølgingspunkter</span> <span id="workshop-followups-count" style="font-size:11px;color:var(--text-muted);font-weight:400;margin-left:8px;"></span></div>
+          <div id="workshop-followups-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 130px 140px auto;gap:6px;align-items:center;">
+            <input id="workshop-followup-text" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_text" placeholder="Handling ..." style="margin:0;min-width:0;" onkeydown="if(event.key==='Enter'){workshopAddFollowup();event.preventDefault();}">
+            <input id="workshop-followup-owner" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_owner" placeholder="Eier" style="margin:0;min-width:0;">
+            <input id="workshop-followup-due" type="date" class="field-input" style="margin:0;min-width:0;" title="Frist">
+            <button onclick="workshopAddFollowup()" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-dim);">
+          <span id="workshop-save-status"></span>
+          <button onclick="workshopLoad()" class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh" title="Hent andres oppdateringer fra serveren">Oppdater</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ LOGS VIEW ════════════ -->
+  <!-- ════════════ CUSTOMER DETAIL VIEW ════════════ -->
+  <div class="view" id="view-customer-detail" style="max-width:1000px;">
+    <div id="customer-detail-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_loading">Laster...</div>
+    </div>
+  </div>
+
+  <div class="view" id="view-logs">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <div style="font-size:18px;font-weight:700;" data-i18n="hdr_troubleshooting">Feilsøking / Logg</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="log-level-filter" class="field-input" style="width:auto;padding:5px 10px;font-size:12px;" onchange="loadLogs()">
+          <option value="DEBUG" data-i18n="log_all_debug">Alle (DEBUG+)</option>
+          <option value="INFO">INFO+</option>
+          <option value="WARNING" selected>WARNING+</option>
+          <option value="ERROR" data-i18n="log_errors_only">Kun feil</option>
+        </select>
+        <button class="btn btn-ghost" onclick="loadLogs()" style="font-size:12px;padding:5px 12px;" data-i18n="btn_refresh">Oppdater</button>
+        <button class="btn btn-ghost" onclick="copyLogs()" style="font-size:12px;padding:5px 12px;" data-i18n="log_copy">Kopier</button>
+        <button class="btn btn-default" onclick="clearLogs()" style="font-size:12px;padding:5px 12px;color:var(--red);" data-i18n="log_clear">T&#248;m logg</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+          <input type="checkbox" id="log-auto-refresh" onchange="toggleLogAutoRefresh()"> <span data-i18n="log_auto_refresh_3s">Auto-refresh (3s)</span>
+        </label>
+      </div>
+    </div>
+    <div id="log-stats" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>
+    <div id="log-content" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:70vh;overflow-y:auto;line-height:1.6;">
+      <span style="color:var(--text-dim);" data-i18n="msg_loading">Laster logg...</span>
+    </div>
+  </div>
+  <!-- ════════════ HOSTS VIEW ════════════ -->
+  <div class="view" id="view-hosts">
+    <!-- No sub-tabs — SSH/RDP/Terminal accessed from host cards -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_hosts">Verter</h2>
+      <button class="btn btn-primary" onclick="hostsAdd()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_add_host">Legg til vert</button>
+      <button class="btn btn-ghost" onclick="hostsHealthAll()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_check_all">Sjekk alle</button>
+      <select id="hosts-filter-type" onchange="hostsLoad()" style="margin-left:auto;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+        <option value="" data-i18n="opt_all_types">Alle typer</option>
+        <option value="windows">Windows</option>
+        <option value="linux">Linux</option>
+        <option value="fortigate">FortiGate</option>
+        <option value="unifi">UniFi</option>
+        <option value="pfsense">pfSense</option>
+        <option value="openwrt">OpenWrt</option>
+        <option value="custom" data-i18n="opt_other">Annet</option>
+      </select>
+      <select id="hosts-filter-group" onchange="hostsLoad()" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+        <option value="" data-i18n="opt_all_groups">Alle grupper</option>
+      </select>
+    </div>
+    <div id="hosts-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_loading_hosts">Laster verter...</div>
+    </div>
+  </div>
+
+  <!-- ════════════ SSH KEYS VIEW ════════════ -->
+  <div class="view" id="view-ssh">
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-4);">
+    </div>
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_ssh_keys">SSH-nøkler</h2>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="sshShowKeys()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_keys">Nøkler</button>
+      <button class="btn btn-ghost" onclick="sshShowExec()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_run_command">Kjør kommando</button>
+    </div>
+    <div id="ssh-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_select_tab_above">Velg en fane ovenfor</div>
+    </div>
+  </div>
+
+  <!-- ════════════ VPN MANAGEMENT VIEW ════════════ -->
+  <div class="view" id="view-vpn">
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_vpn_admin">VPN-administrasjon</h2>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="vpnLoadProfiles()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_profiles">Profiler</button>
+      <button class="btn btn-ghost" onclick="vpnShowCreate()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_profile">Ny profil</button>
+      <button class="btn btn-ghost" onclick="vpnShowImport()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_import_file">Importer fil</button>
+      <div id="vpn-status-badge" style="margin-left:auto;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:var(--bg);border:1px solid var(--border);"></div>
+    </div>
+    <div id="vpn-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_loading_vpn">Laster VPN-profiler...</div>
+    </div>
+  </div>
+
+  <!-- ════════════ TERMINAL VIEW ════════════ -->
+  <div class="view" id="view-terminal" style="padding:0;">
+    <!-- Terminal opened from host cards or Verktøy menu -->
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);">
+      <span style="font-size:14px;font-weight:600;" data-i18n="hdr_terminal">Terminal</span>
+      <select id="term-mode" onchange="termModeChanged()" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+        <option value="local" data-i18n="opt_local_shell">Lokal shell</option>
+        <option value="ssh" data-i18n="opt_ssh_to_host">SSH til vert</option>
+      </select>
+      <div id="term-ssh-opts" style="display:none;display:none;align-items:center;gap:6px;">
+        <select id="term-host-select" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+          <option value="" data-i18n="opt_select_host">Velg vert...</option>
+        </select>
+        <span style="color:var(--text-dim);font-size:12px;" data-i18n="lbl_or">eller</span>
+        <input id="term-host-manual" type="text" placeholder="bruker@host:port" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;width:180px;">
+      </div>
+      <button class="btn btn-primary" onclick="termConnect()" id="term-connect-btn" style="padding:4px 14px;font-size:12px;" data-i18n="vpn_connect">Koble til</button>
+      <button class="btn btn-ghost" onclick="termDisconnect()" id="term-disconnect-btn" style="padding:4px 14px;font-size:12px;display:none;color:var(--red);" data-i18n="vpn_disconnect">Koble fra</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:var(--space-2);">
+        <button onclick="termChangeFontSize(-1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:12px;display:flex;align-items:center;justify-content:center;" title="Smaller">A-</button>
+        <button onclick="termChangeFontSize(1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:14px;display:flex;align-items:center;justify-content:center;" title="Larger">A+</button>
+        <span id="term-status" style="font-size:12px;color:var(--text-muted);"></span>
+      </div>
+    </div>
+    <div id="term-container" style="background:#0d1117;height:calc(100vh - 160px);padding:4px;"></div>
+  </div>
+
+  <!-- Live Dashboard is now a sub-tab under Dashboard (view-overview) -->
+
+  <!-- ════════════ TAILSCALE VIEW ════════════ -->
+  <div class="view" id="view-tailscale">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <h2 style="font-size:18px;font-weight:700;margin:0;">Tailscale</h2>
+    </div>
+    <div id="ts-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_loading">Laster...</div>
+    </div>
+  </div>
+
+  <!-- ════════════ TLS MONITOR VIEW ════════════ -->
+  <div class="view" id="view-tls">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_tls_monitor">TLS / Sertifikatmonitor</h2>
+    </div>
+    <div id="tls-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_tls_loading">Laster...</div>
+    </div>
+  </div>
+
+  <!-- ════════════ WEB PROXY / NETTLESER VIEW ════════════ -->
+  <div class="view" id="view-browser">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <h2 style="font-size:18px;font-weight:700;margin:0;">Nettleser</h2>
+    </div>
+    <div id="browser-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;">Skriv inn en URL for å starte.</div>
+    </div>
+  </div>
+
+  <!-- ════════════ REMOTE RDP VIEW ════════════ -->
+  <div class="view" id="view-rdp">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <h2 style="font-size:18px;font-weight:700;margin:0;">Eksternt skrivebord (RDP)</h2>
+    </div>
+    <div id="rdp-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;">Fyll inn tilkoblingsdetaljer for å starte.</div>
+    </div>
+  </div>
+
+  <!-- ════════════ AI CONSOLE VIEW ════════════ -->
+  <div class="view" id="view-ai">
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 140px);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <img src="/static/sybrt-mascot.png" alt="Sybrt" style="width:28px;height:28px;border-radius:50%;">
+        <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_ai_console">Sybrt</h2>
+        <select id="ai-focus" style="padding:4px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+          <option value="general" data-i18n="ai_focus_general">Generell assistent</option>
+          <option value="network" data-i18n="ai_focus_network">Nettverksadmin</option>
+          <option value="security" data-i18n="ai_focus_security">Sikkerhetsaudit</option>
+          <option value="troubleshoot" data-i18n="ai_focus_troubleshoot">Feilsøking</option>
+          <option value="provision" data-i18n="ai_focus_provision">Provisjonering</option>
+        </select>
+        <div style="position:relative;display:inline-block;" id="ai-customer-wrap">
+          <select id="ai-customer-select" onchange="aiSelectCustomerFromDropdown(this)" style="padding:4px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;width:200px;">
+            <option value="all" data-i18n="lbl_all_customers">All Customers</option>
+          </select>
+          <input type="hidden" id="ai-customer" value="all">
+          <!-- Customer list now uses native select -->
+        </div>
+        <div id="ai-status" style="font-size:12px;color:var(--text-muted);"></div>
+        <button class="btn btn-ghost" onclick="aiClearChat()" style="margin-left:auto;padding:4px 12px;font-size:12px;" data-i18n="btn_new_chat">Ny samtale</button>
+      </div>
+      <div id="ai-messages" style="flex:1;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;font-size:13px;line-height:1.7;">
+        <div data-welcome style="color:var(--text-muted);padding:32px;text-align:center;">
+          <img src="/static/sybrt-mascot.png" alt="Sybrt" style="width:64px;height:64px;border-radius:50%;margin-bottom:12px;opacity:0.9;">
+          <div style="font-size:15px;font-weight:600;margin-bottom:12px;" data-i18n="ai_welcome">Hva kan jeg hjelpe deg med?</div>
+          <div id="ai-quick-prompts" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:500px;margin:0 auto;text-align:left;">
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input id="ai-input" type="text" data-i18n-placeholder="placeholder_ai_input" placeholder="Spør AI-assistenten..." style="flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}">
+        <button class="btn btn-primary" onclick="aiSend()" style="padding:10px 20px;font-size:14px;" data-i18n="btn_send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PROVISIONING WIZARD VIEW ════════════ -->
+  <div class="view" id="view-provision">
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_network_provisioning">Nettverksprovisjonering</h2>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="provisionStart()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_wizard">Ny oppsett-veiviser</button>
+    </div>
+    <div id="provision-content">
+      <div style="color:var(--text-muted);text-align:center;padding:48px;">
+        <span data-i18n="msg_wizard_desc">Veiviseren guider deg gjennom oppsett av nytt kundenettverk:</span><br>
+        <span style="font-size:12px;margin-top:8px;display:inline-block;" data-i18n="msg_wizard_steps">Kunde → Nettverk → Tjenester → Sikkerhet → Gjennomgang & Deploy</span>
+      </div>
+    </div>
+  </div>
+
+  </main>
+
+  <footer style="display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-6);">
+    <div style="display:flex;align-items:center;gap:var(--space-2);">
+      <img id="footer-logo" src="/branding/300 x 86.png" alt="SYBR" style="height:18px;opacity:0.4;">
+      <span style="font-size:var(--font-xs);color:var(--text-dim);">MSP Toolkit</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:var(--space-4);">
+      <span id="footer-stats" style="font-size:9px;color:var(--text-dim);opacity:0.5;"></span>
+      <kbd onclick="toggleCommandPalette()" style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono);cursor:pointer;" title="Hurtigsøk">&#8984;K</kbd>
+      <span style="font-size:var(--font-xs);color:var(--text-dim);">?</span>
+      <span class="version" id="footer-version" style="font-size:10px;opacity:0.4;"></span>
+    </div>
+  </footer>
+</div>
+
+<!-- ── IT Glue Upload modal ── -->
+<div class="modal-backdrop" id="itglue-upload-modal" onclick="if(event.target===this)this.style.display='none';" style="display:none;">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-title" data-i18n="hdr_itglue_upload">Last opp rapporter til IT Glue</div>
+    <div class="modal-desc" data-i18n="itglue_upload_desc">Velg hvilke rapporter du vil laste opp og til hvilken organisasjon.</div>
+    <div id="itglue-upload-content" style="margin:16px 0;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('itglue-upload-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-primary" id="btn-itglue-upload-go" onclick="executeITGlueUpload()" disabled style="padding:8px 20px;" data-i18n="btn_upload">Last opp</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── IT Glue Org Picker modal ── -->
+<div class="modal-backdrop" id="itglue-org-picker-modal" onclick="if(event.target===this)this.style.display='none';" style="display:none;">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-title" data-i18n="hdr_itglue_org_picker">Velg IT Glue-organisasjon</div>
+    <div class="modal-desc" data-i18n="itglue_org_picker_desc">Velg organisasjonen rapportene skal lastes opp til.</div>
+    <div id="itglue-org-picker-content" style="margin:16px 0;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('itglue-org-picker-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-primary" id="btn-itglue-org-pick" onclick="confirmITGlueOrgPick()" disabled style="padding:8px 20px;" data-i18n="btn_select">Velg</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── IT Glue Import modal ── -->
+<div class="modal-backdrop" id="itglue-import-modal" onclick="if(event.target===this)this.classList.remove('active');" style="display:none;">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-title" data-i18n="hdr_itglue_import">Importer kunder fra IT Glue</div>
+    <div class="modal-desc" data-i18n="itglue_import_desc">Velg organisasjoner du vil importere. Kunder som allerede finnes hoppes over.</div>
+    <div id="itglue-import-content" style="margin:16px 0;">
+      <div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div><span data-i18n="msg_fetching_orgs_itglue">Henter organisasjoner fra IT Glue...</span></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('itglue-import-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-primary" id="btn-itglue-import" onclick="runITGlueImport()" disabled style="padding:8px 20px;" data-i18n="btn_import_selected">Importer valgte</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Manual customer modal ── -->
+<div class="modal-backdrop" id="manual-customer-modal" onclick="if(event.target===this)this.style.display='none';" style="display:none;">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title" data-i18n="hdr_add_manual_customer">Legg til kunde manuelt</div>
+    <div class="modal-desc" data-i18n="desc_add_manual_customer">Opprett en kunde uten M365-oppsett. Du kan koble til M365 senere.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0;">
+      <div>
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_customer_name">Kundenavn</label>
+        <input id="manual-cust-name" type="text" class="field-input" style="width:100%;padding:8px 12px;" required>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_primary_domain">Primærdomene</label>
+        <input id="manual-cust-domain" type="text" class="field-input" style="width:100%;padding:8px 12px;" placeholder="example.com">
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div style="flex:1;">
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_contact_email">Kontakt-epost</label>
+          <input id="manual-cust-email" type="email" class="field-input" style="width:100%;padding:8px 12px;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_contact_phone">Kontakttelefon</label>
+          <input id="manual-cust-phone" type="text" class="field-input" style="width:100%;padding:8px 12px;">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_org_number">Org.nr</label>
+        <input id="manual-cust-orgnum" type="text" class="field-input" style="width:100%;padding:8px 12px;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_notes">Notater</label>
+        <textarea id="manual-cust-notes" class="field-input" style="width:100%;padding:8px 12px;min-height:60px;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div id="manual-cust-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="document.getElementById('manual-customer-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-primary" id="btn-manual-cust-save" onclick="submitManualCustomer()" data-i18n="btn_save">Lagre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings modal ── -->
+<div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" aria-label="Innstillinger" onclick="closeSettingsOnBackdrop(event)">
+  <div class="modal" style="width:620px;">
+    <div class="modal-title" data-i18n="hdr_settings">&#9881; Innstillinger</div>
+
+    <!-- Settings tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-4);">
+      <button class="btn btn-ghost settings-tab-btn active" onclick="switchSettingsTab(this,'stab-general')" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_general">Generelt</button>
+      <button class="btn btn-ghost settings-tab-btn" onclick="switchSettingsTab(this,'stab-branding')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="hdr_branding">Branding</button>
+      <button class="btn btn-ghost settings-tab-btn" onclick="switchSettingsTab(this,'stab-email')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_email">E-post</button>
+      <button class="btn btn-ghost settings-tab-btn" onclick="switchSettingsTab(this,'stab-backup')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="hdr_backup">Backup</button>
+      <button class="btn btn-ghost settings-tab-btn" onclick="switchSettingsTab(this,'stab-users')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_users">Users</button>
+      <button class="btn btn-ghost settings-tab-btn" onclick="switchSettingsTab(this,'stab-thresholds')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_thresholds">Terskler</button>
+      <button class="btn btn-ghost settings-tab-btn" onclick="switchSettingsTab(this,'stab-advanced')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_advanced">Avansert</button>
+    </div>
+
+    <!-- Tab: General -->
+    <div id="stab-general" class="settings-tab-pane">
+    <div style="margin-bottom:16px;">
+        <label style="font-weight:600;display:block;margin-bottom:6px;" data-i18n="settings_language">Språk</label>
+        <select id="input-language" onchange="setLanguage(this.value)" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);width:100%;">
+            <option value="no">Norsk</option>
+            <option value="en">English</option>
+        </select>
+    </div>
+
+    <label class="field-label" for="input-audit-dir" data-i18n="lbl_audit_dir">Lagringmappe for audit-data</label>
+    <input class="field-input" id="input-audit-dir" type="text" placeholder="Standard (Documents/MSPToolkit/Audits)">
+    <div class="field-hint" id="settings-current-dir"></div>
+
+    <label class="field-label" for="input-cert-dir" style="margin-top:10px;" data-i18n="lbl_cert_dir">Lagringmappe for sertifikater</label>
+    <input class="field-input" id="input-cert-dir" type="text" placeholder="Standard (samme som audit-data)">
+    <div class="field-hint" data-i18n="settings_cert_hint">Sertifikatfiler (.pfx) er alltid passordbeskyttet. Passord lagres i OS-nøkkelringen.</div>
+    </div>
+
+    <!-- Tab: Branding -->
+    <div id="stab-branding" class="settings-tab-pane" style="display:none;">
+
+    <label class="field-label" for="input-company-name" data-i18n="lbl_company_name">Firmanavn</label>
+    <input class="field-input" id="input-company-name" type="text" placeholder="SYBR AS">
+
+    <label class="field-label" for="input-contact-email" style="margin-top:10px;" data-i18n="lbl_contact_email">Kontakt-epost</label>
+    <input class="field-input" id="input-contact-email" type="text" placeholder="post@firma.no">
+
+    <label class="field-label" for="input-website" style="margin-top:10px;" data-i18n="lbl_website">Nettside</label>
+    <input class="field-input" id="input-website" type="text" placeholder="https://www.firma.no">
+
+    <label class="field-label" style="margin-top:10px;" data-i18n="lbl_company_logo">Firmalogo</label>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+      <img id="logo-preview" src="/api/settings/logo" alt="" style="height:40px;max-width:180px;object-fit:contain;border-radius:4px;background:var(--bg-card);padding:4px;display:none;">
+      <span id="logo-no-preview" style="font-size:11px;color:var(--text-muted);" data-i18n="err_no_logo_uploaded">Ingen logo lastet opp</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input type="file" id="input-logo-file" accept=".png,.jpg,.jpeg,.svg" style="font-size:12px;">
+      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="uploadLogo()" data-i18n="btn_upload">Last opp</button>
+      <span id="logo-upload-msg" style="font-size:11px;color:var(--text-muted);"></span>
+    </div>
+    <div class="field-hint" data-i18n="settings_logo_hint">PNG, JPG eller SVG. Vises i rapporter og brev. Maks 5 MB.</div>
+
+    <label class="field-label" style="margin-top:14px;" data-i18n="lbl_brand_color">Merkefarge (primær)</label>
+    <div style="display:flex;align-items:center;gap:var(--space-3);">
+      <input type="color" id="input-brand-color" value="#4d9fb5" style="width:40px;height:32px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:transparent;padding:0;">
+      <input class="field-input" id="input-brand-color-hex" type="text" placeholder="#4d9fb5" style="width:100px;font-family:var(--mono);font-size:12px;" maxlength="7">
+      <button class="btn btn-ghost btn-sm" onclick="resetBrandColor()" data-i18n="btn_reset">Tilbakestill</button>
+    </div>
+    <div class="field-hint" data-i18n="settings_brand_color_hint">Brukes i header, knapper, grafer og navigasjon. Påvirker hele grensesnittet.</div>
+    </div>
+
+    <!-- Tab: Email (placeholder — actual SMTP fields are loaded below) -->
+    <div id="stab-email" class="settings-tab-pane" style="display:none;">
+    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_auto_audit">Automatisk Audit</div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <input type="checkbox" id="input-scheduler-enabled">
+      <label for="input-scheduler-enabled" style="font-size:13px;" data-i18n="settings_scheduler_enabled">Aktiver automatisk audit</label>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <input type="checkbox" id="input-scheduler-audit-all" checked>
+      <label for="input-scheduler-audit-all" style="font-size:13px;" data-i18n="settings_scheduler_audit_all">Audit alle kunder</label>
+      <span style="font-size:11px;color:var(--text-muted);" data-i18n="settings_scheduler_hint">(deaktivert = kun aktiv kunde)</span>
+    </div>
+
+    <label class="field-label" for="input-scheduler-interval" data-i18n="lbl_interval_hours">Intervall (timer)</label>
+    <input class="field-input" id="input-scheduler-interval" type="number" value="168" min="1" placeholder="168 (ukentlig)">
+
+
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+      <input type="checkbox" id="input-scheduler-backup">
+      <label for="input-scheduler-backup" style="font-size:13px;" data-i18n="settings_scheduler_backup">Opprett backup etter alle audits er ferdige</label>
+    </div>
+
+    </div>
+
+    <!-- Tab: Backup -->
+    <div id="stab-backup" class="settings-tab-pane" style="display:none;">
+    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_backup">Backup</div>
+
+    <div id="backup-last-info" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;"></div>
+
+    <label class="field-label" for="input-backup-dest" data-i18n="lbl_backup_dest">Lagringsmappe (valgfritt)</label>
+    <input class="field-input" id="input-backup-dest" type="text" placeholder="Standard (Documents/MSPToolkit/Backups/)">
+    <div class="field-hint" id="backup-default-dir"></div>
+
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="createBackup()" data-i18n="btn_create_backup">Opprett backup</button>
+      <span id="backup-create-msg" style="font-size:11px;color:var(--text-muted);"></span>
+    </div>
+
+    <hr style="border:none;border-top:1px dashed var(--border);margin:14px 0;">
+
+    <label class="field-label" for="input-restore-path" data-i18n="lbl_restore_from_backup">Gjenopprett fra backup</label>
+    <input class="field-input" id="input-restore-path" type="text" data-i18n-placeholder="placeholder_zip_path" placeholder="Sti til .zip-fil">
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="restoreBackup()" data-i18n="btn_restore_backup">Gjenopprett backup</button>
+      <span id="backup-restore-msg" style="font-size:11px;color:var(--text-muted);"></span>
+    </div>
+
+    </div>
+
+    <!-- Tab: Advanced -->
+    <!-- Tab: Users -->
+    <div id="stab-users" class="settings-tab-pane" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">
+        <div class="modal-title" style="font-size:14px;margin:0;" data-i18n="hdr_user_management">User Management</div>
+        <button class="btn btn-primary btn-sm" onclick="showAddUserForm()" data-i18n="btn_add_user">Add User</button>
+      </div>
+      <div id="add-user-form" style="display:none;padding:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-4);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
+          <input id="new-user-username" class="field-input" type="text" data-i18n-placeholder="placeholder_username" placeholder="Username">
+          <input id="new-user-displayname" class="field-input" type="text" data-i18n-placeholder="placeholder_display_name" placeholder="Display name">
+          <input id="new-user-password" class="field-input" type="password" data-i18n-placeholder="placeholder_password" placeholder="Password (min 8)">
+          <select id="new-user-role" class="field-input">
+            <option value="viewer">Viewer</option>
+            <option value="technician" selected>Technician</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:var(--space-2);">
+          <button class="btn btn-primary btn-sm" onclick="createUser()" data-i18n="btn_create">Create</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-user-form').style.display='none'" data-i18n="btn_cancel">Cancel</button>
+        </div>
+        <div id="add-user-msg" style="font-size:var(--font-xs);margin-top:var(--space-2);"></div>
+      </div>
+      <div id="users-list" style="font-size:var(--font-sm);"></div>
+    </div>
+
+    <!-- Tab: Thresholds -->
+    <div id="stab-thresholds" class="settings-tab-pane" style="display:none;">
+      <div class="modal-title" style="font-size:14px;margin-bottom:12px;" data-i18n="hdr_thresholds">Terskelverdier for dashboard og varsler</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label style="font-weight:600;display:block;margin-bottom:4px;">MFA-dekning</label>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_mfa_threshold">Varsler når MFA-dekning er under denne prosenten</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="threshold-mfa" type="number" min="0" max="100" value="80" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <span style="font-size:12px;color:var(--text-muted);">%</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight:600;display:block;margin-bottom:4px;">Secure Score</label>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_ss_threshold">Orange under denne, rød under halvparten</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="threshold-secure-score" type="number" min="0" max="100" value="75" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <span style="font-size:12px;color:var(--text-muted);">%</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_credential_warn_days">Credential-varsel (dager)</label>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_cred_days">Varsler når credentials utløper innen dette antall dager</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="threshold-credential-days" type="number" min="1" max="365" value="30" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <span style="font-size:12px;color:var(--text-muted);" data-i18n="lbl_days">dager</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_alert_interval">Varselintervall</label>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_alert_interval">Hvor ofte varselsjekk kjøres automatisk</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="threshold-alert-interval" type="number" min="1" max="24" value="6" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <span style="font-size:12px;color:var(--text-muted);" data-i18n="lbl_hours">timer</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_password_min_length">Min. passordlengde</label>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_password_min">Minimumslengde for brukerpassord</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="threshold-password-min" type="number" min="6" max="64" value="8" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <span style="font-size:12px;color:var(--text-muted);" data-i18n="lbl_chars">tegn</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_needs_audit_days">Trenger audit (dager)</label>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_needs_audit">Kunder markert som 'trenger audit' etter dette antall dager</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="threshold-needs-audit" type="number" min="7" max="365" value="30" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <span style="font-size:12px;color:var(--text-muted);" data-i18n="lbl_days">dager</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="stab-advanced" class="settings-tab-pane" style="display:none;">
+    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_encryption">Kryptering</div>
+    <div style="font-size:12px;color:var(--danger);font-weight:600;margin-bottom:10px;" data-i18n="msg_encryption_key_warning">
+      Denne nøkkelen er den ENESTE måten å dekryptere dataene dine. Lagre den trygt!
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="backupEncryptionKey()" data-i18n="btn_backup_key">Backup nøkkel</button>
+      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="showRestoreKeyInput()" data-i18n="btn_restore_key">Gjenopprett nøkkel</button>
+    </div>
+
+    <div id="encryption-key-display" style="display:none;margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;" data-i18n="lbl_master_key">Master-nøkkel (klikk for å kopiere):</div>
+      <code id="encryption-key-value" onclick="copyEncryptionKey()" style="cursor:pointer;font-size:11px;word-break:break-all;display:block;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></code>
+      <span id="encryption-copy-msg" style="font-size:11px;color:var(--success);"></span>
+    </div>
+
+    <div id="encryption-restore-input" style="display:none;margin-bottom:10px;">
+      <input class="field-input" id="input-restore-key" type="text" data-i18n-placeholder="msg_paste_key_here" placeholder="Lim inn base64-nøkkel her" style="font-size:11px;margin-bottom:6px;">
+      <button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="restoreEncryptionKey()" data-i18n="btn_import_key">Importer nøkkel</button>
+      <span id="encryption-restore-msg" style="font-size:11px;margin-left:8px;"></span>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_troubleshooting">Feilsøking</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <input type="checkbox" id="input-show-log-tab" onchange="toggleLogTabVisibility()">
+      <label for="input-show-log-tab" style="font-size:13px;" data-i18n="settings_show_log_tab">Vis Feilsøking-fane i navigasjonsmenyen</label>
+    </div>
+    <div class="field-hint" data-i18n="settings_log_tab_hint">Gir tilgang til applikasjonslogg for feilsøking. Kan skjules igjen her.</div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;margin-bottom:8px;">
+      <input type="checkbox" id="input-show-docs-tab" onchange="toggleDocsTabVisibility()">
+      <label for="input-show-docs-tab" style="font-size:13px;" data-i18n="settings_show_docs_tab">Vis Dokumentasjon-fane i navigasjonsmenyen</label>
+    </div>
+    <div class="field-hint" data-i18n="settings_docs_tab_hint">Teknisk dokumentasjon: arkitektur, tillatelser, audit-seksjoner, autentisering.</div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_version">Versjon</div>
+    <div id="settings-version-info" style="font-size:12px;color:var(--text-muted);line-height:1.8;font-family:var(--mono);"></div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_system_info">System Info</div>
+    <div id="settings-system-info" style="font-size:12px;color:var(--text-muted);line-height:1.8;font-family:var(--mono);"></div>
+    </div><!-- end stab-advanced -->
+
+    <div id="settings-msg" style="margin-top:10px;font-size:13px;min-height:20px;"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-default" onclick="closeSettings()" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-default" onclick="resetAuditDir()" data-i18n="btn_reset_default">Tilbakestill til standard</button>
+      <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn_save">Lagre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Permissions check modal ── -->
+<div class="modal-backdrop" id="permissions-modal" role="dialog" aria-modal="true" aria-label="Tilganger" onclick="if(event.target===this)closePermissionsModal()">
+  <div class="modal" style="width:600px;">
+    <div class="modal-title" id="perm-modal-title" data-i18n="hdr_permissions_check">Sjekk Graph API-tillatelser</div>
+    <div class="modal-desc" id="perm-modal-desc" data-i18n="permissions_checking_desc">Kontrollerer at alle nodvendige tillatelser er gitt...</div>
+    <div id="perm-modal-body" style="max-height:50vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:8px;padding:24px 0;justify-content:center;">
+        <div class="loader"></div><span style="color:var(--text-muted);" data-i18n="msg_checking_permissions">Sjekker tillatelser...</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-default" onclick="closePermissionsModal()" data-i18n="btn_close">Lukk</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Shortcuts help modal ── -->
+<div class="modal-backdrop" id="shortcuts-modal" role="dialog" aria-modal="true" aria-label="Tastatursnarveier" onclick="if(event.target===this)closeShortcutsModal()">
+  <div class="modal">
+    <div class="modal-title" data-i18n="hdr_shortcuts">Tastatursnarveier</div>
+    <div class="modal-desc" data-i18n="shortcuts_desc">Hurtigtaster for vanlige handlinger.</div>
+    <div class="shortcuts-section" data-i18n="nav_navigation">Navigasjon</div>
+    <ul class="shortcuts-list">
+      <li><span class="shortcut-desc" data-i18n="shortcut_dashboard">Dashboard</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>1</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_home">Hjem</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>2</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_customers">Kunder</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>3</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_files">Filer</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>4</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_history">Historikk</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>5</kbd></span></li>
+    </ul>
+    <div class="shortcuts-section" data-i18n="nav_actions">Handlinger</div>
+    <ul class="shortcuts-list">
+      <li><span class="shortcut-desc" data-i18n="shortcut_command_palette">Kommandopalett / Hurtigsøk</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>K</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_start_audit">Start audit</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>A</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_toggle_theme">Bytt tema</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_settings">Innstillinger</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>,</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_close_modal">Lukk modal / meny</span><span class="shortcut-keys"><kbd>Esc</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_show_shortcuts">Vis snarveier</span><span class="shortcut-keys"><kbd>?</kbd></span></li>
+    </ul>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeShortcutsModal()" data-i18n="btn_close">Lukk</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Changelog modal ── -->
+<div class="modal-backdrop" id="changelog-modal" role="dialog" aria-modal="true" aria-label="Endringslogg" onclick="if(event.target===this)closeChangelogModal()">
+  <div class="modal">
+    <div class="modal-title" data-i18n="hdr_changelog">Endringslogg</div>
+    <input id="changelog-search" type="text" class="field-input" data-i18n-placeholder="placeholder_search" placeholder="Search..." oninput="filterChangelog()" style="margin-bottom:var(--space-3);padding:6px 10px;font-size:var(--font-sm);">
+    <div class="changelog-content" id="changelog-content" style="max-height:60vh;overflow-y:auto;">
+      <p style="color:var(--text-dim);" data-i18n="msg_loading">Laster...</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeChangelogModal()" data-i18n="btn_close">Lukk</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/guacamole.min.js"></script>
+<script src="/static/app.js?v=1013"></script>
+<script src="/static/app-infra.js?v=1012"></script>
+<script src="/static/app-dashboard.js?v=1012"></script>
+<script src="/static/app-also.js?v=1012"></script>
+<script src="/static/app-tailscale.js?v=1012"></script>
+<script src="/static/app-tls.js?v=1012"></script>
+<script src="/static/app-integrations.js?v=1014"></script>
+
+<!-- Floating audit progress bar (visible from any view while audit runs) -->
+<div id="audit-progress-float" style="display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:10px 18px;min-width:340px;max-width:520px;cursor:pointer;" onclick="showView('audit')">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <span style="font-size:12px;font-weight:600;color:var(--text);">Audit</span>
+    <span class="apf-counts" style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">0 / 0</span>
+  </div>
+  <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+    <div class="apf-fill" style="width:0%;height:100%;background:var(--blue);border-radius:3px;transition:width 0.4s ease;"></div>
+  </div>
+  <div class="apf-text" style="font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">...</div>
+</div>
+
+</body>
+</html>

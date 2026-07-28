@@ -1,0 +1,46 @@
+{
+  "name": "SYBR MSP Toolkit",
+  "short_name": "MSP Toolkit",
+  "description": "M365 security audits, network monitoring and multi-customer MSP management",
+  "lang": "no",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#4d9fb5",
+  "categories": ["productivity", "business", "security"],
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Kundeoversikt med helse-score",
+      "url": "/?view=overview",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Kjør audit",
+      "short_name": "Audit",
+      "description": "Start ny sikkerhetsaudit",
+      "url": "/?action=run-audit",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Integrasjoner",
+      "short_name": "Integrasjoner",
+      "description": "Administrer eksterne integrasjoner",
+      "url": "/?view=integrations",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
