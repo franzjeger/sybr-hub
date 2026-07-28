@@ -56,6 +56,11 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Collect only from tests/. Without this pytest walks the whole checkout, and
+# anything unreadable in it becomes a collection error rather than a test
+# failure — a stray symlink under Logo-Branding pointing outside the repo took
+# the installer's test gate down that way, on a tree where every test passed.
+testpaths = ["tests"]
 markers = [
     # PDF rendering costs ~9s — the only test that catches WeasyPrint failing
     # on a missing system library, which is a deployment failure rather than a
