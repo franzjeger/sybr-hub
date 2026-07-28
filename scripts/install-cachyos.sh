@@ -107,7 +107,13 @@ sed -i '/^Environment=PYTHON_KEYRING_BACKEND=/d' /etc/systemd/system/sybr-hub.se
 install -d -o "$SVC_USER" -g "$SVC_USER" -m 750 "$DATA_DIR/home"
 
 systemctl daemon-reload
-systemctl enable --now sybr-hub.service
+systemctl enable sybr-hub.service
+# restart, not `enable --now`: --now only *starts* a stopped unit, so on every
+# upgrade of an already-running install the new code sat on disk while the old
+# process kept serving. The script said "Sybr HUB is running" and it was — the
+# previous version. restart also starts it if it is stopped, so this covers the
+# first install too.
+systemctl restart sybr-hub.service
 
 # ── Tailscale ─────────────────────────────────────────────────────────────────
 # `tailscale serve` terminates TLS with a real cert for the MagicDNS name and
