@@ -64,8 +64,9 @@ else
 fi
 
 # ── Python environment ────────────────────────────────────────────────────────
-# CachyOS ships Python 3.13; the project is CI-tested on 3.11 and 3.12. It is
-# reported here rather than blocked — the test run below is the real check.
+# Arch/CachyOS ships whatever Python is newest (3.14 at time of writing).
+# CI covers 3.11-3.14; the version is reported rather than blocked, since
+# the test run below is the real check.
 PYVER="$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
 log "Building virtualenv (Python $PYVER)"
 [[ -x "$PREFIX/.venv/bin/python" ]] || sudo -u "$SVC_USER" python -m venv "$PREFIX/.venv"
@@ -85,31 +86,25 @@ else
 fi
 
 # ── systemd unit ──────────────────────────────────────────────────────────────
-# PYTHON_KEYRING_BACKEND matters: there is no Secret Service under a system
-# unit with ProtectHome=yes and no D-Bus session. The null backend returns None
-# instead of raising, so the app's own file-backup key store is used. The
-# master key then lives in $DATA_DIR / $CONF_DIR — both 0750, owned by the
-# service user — rather than in an OS keyring.
+# There is no Secret Service under a system unit with ProtectHome=yes and no
+# D-Bus session, so the app falls back to its own encrypted key/secret store.
+# Both live under $DATA_DIR / $CONF_DIR (0750, owned by the service user)
+# rather than in an OS keyring — back those two directories up.
 log "Installing systemd unit"
 sed -e "s#^Environment=SYBR_HUB_PORT=.*#Environment=SYBR_HUB_PORT=${PORT}#" \
     "$PREFIX/scripts/sybr-hub.service" > /etc/systemd/system/sybr-hub.service
-# Strip the null keyring backend if an earlier run of this script added it.
-# It does not raise, it *discards* — every stored secret was lost at restart
-# with no error anywhere. credentials.py now verifies its writes, so a keyring
-# that simply raises is handled properly and this setting is pure harm.
+# scripts/sybr-hub.service is the source of truth and already carries the
+# correct MemoryDenyWriteExecute, HOME and hardening settings. The only thing
+# to patch is removing a setting an *earlier* version of this script added:
+# PYTHON_KEYRING_BACKEND=null does not raise, it discards, so every stored
+# secret vanished at restart with no error. credentials.py now verifies its
+# writes, which handles a keyring that raises properly; this setting is pure
+# harm and must not survive an upgrade.
 sed -i '/^Environment=PYTHON_KEYRING_BACKEND=/d' /etc/systemd/system/sybr-hub.service
 
-# pwsh is .NET; its JIT needs write-then-execute mappings, which
-# MemoryDenyWriteExecute blocks — the process dies with SIGSEGV inside
-# libcoreclr.so rather than any useful error.
-sed -i 's/^MemoryDenyWriteExecute=yes/MemoryDenyWriteExecute=no/' /etc/systemd/system/sybr-hub.service
-
-# Install-Module -Scope CurrentUser targets $HOME, which is /opt/sybr-hub and
-# read-only under ProtectSystem=strict. Point PowerShell at a writable path.
-grep -q '^Environment=PSModulePath=' /etc/systemd/system/sybr-hub.service || \
-    sed -i '/^Environment=MSP_CONFIG_DIR=/a Environment=PSModulePath='"$DATA_DIR"'/psmodules' \
-        /etc/systemd/system/sybr-hub.service
-install -d -o "$SVC_USER" -g "$SVC_USER" -m 750 "$DATA_DIR/psmodules"
+# HOME must exist and be writable before pwsh starts, or it fails creating
+# ~/.cache/powershell before it has even read its arguments.
+install -d -o "$SVC_USER" -g "$SVC_USER" -m 750 "$DATA_DIR/home"
 
 systemctl daemon-reload
 systemctl enable --now sybr-hub.service

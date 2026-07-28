@@ -48,6 +48,13 @@ Environment=SYBR_HUB_LOG_LEVEL=INFO
 # the database and the encrypted customer files.
 Environment=MSP_DATA_DIR=/var/lib/sybr-hub
 Environment=MSP_CONFIG_DIR=/etc/sybr-hub
+# systemd defaults HOME to WorkingDirectory, which ProtectSystem=strict
+# makes read-only. PowerShell creates ~/.cache/powershell before it parses
+# its arguments, so the setup wizard died with
+#   IOException: Read-only file system : '/opt/sybr-hub/.cache/powershell'
+# and exit code -6, long before any script ran. Install-Module
+# -Scope CurrentUser lands under $HOME too, so this covers both.
+Environment=HOME=/var/lib/sybr-hub/home
 
 # SQLite connections held open per event loop. 5 is the default and is
 # ample for a single-operator install; raise only if you see requests
@@ -72,7 +79,9 @@ ProtectControlGroups=yes
 RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
+# Must stay 'no': pwsh is .NET and its JIT needs W-then-X mappings. With
+# yes, pwsh dies with SIGSEGV inside libcoreclr.so and no legible error.
+MemoryDenyWriteExecute=no
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 # ProtectSystem=strict makes everything read-only; grant back only what the
