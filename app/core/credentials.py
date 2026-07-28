@@ -58,13 +58,33 @@ def _fallback_save(data: dict[str, str]) -> None:
         pass
 
 
-def store_secret(tenant_id: str, name: str, value: str) -> None:
-    k = _key(tenant_id, name)
+def _keyring_stored(k: str, value: str) -> bool:
+    """Write to the OS keyring and confirm the value is actually retrievable.
+
+    Trusting set_password to raise on failure is not enough. keyring's *null*
+    backend accepts writes and discards them silently, so a store looks like
+    it worked and the secret is gone at the next restart — no exception, no
+    log line, nothing until an audit fails to authenticate. The installer
+    shipped exactly that (PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring,
+    added to dodge NoKeyringError), which quietly dropped every client secret
+    and certificate password.
+
+    Reading it back costs one call and covers the silent case as well as the
+    loud one, so the fallback engages for any keyring that does not actually
+    persist — not just the ones that admit it.
+    """
     try:
         keyring.set_password(_SERVICE, k, value)
+        return keyring.get_password(_SERVICE, k) == value
     except Exception as e:
-        log.warning("OS keyring unavailable (%s) — storing secret in %s",
-                    e, _FALLBACK_PATH.name)
+        log.warning("OS keyring unavailable (%s) — using %s", e, _FALLBACK_PATH.name)
+        return False
+
+
+def store_secret(tenant_id: str, name: str, value: str) -> None:
+    k = _key(tenant_id, name)
+    if not _keyring_stored(k, value):
+        log.info("Storing secret %r in the encrypted fallback store", name)
         data = _fallback_load()
         data[k] = value
         _fallback_save(data)

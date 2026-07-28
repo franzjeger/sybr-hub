@@ -91,6 +91,17 @@ class FirstRunSetup:
             "app_name":     AUDIT_APP_NAME,
         }).encode()
 
+        # app/helpers/*.ps1 has never been committed to the repository, so a
+        # clone gets a wizard that cannot run. Without this check pwsh is
+        # handed a path that does not exist and reports it in its own words,
+        # which reads like a PowerShell problem rather than a missing file.
+        if not _SETUP_PS1.exists():
+            yield {"step": "Setup", "status": "error",
+                   "msg": f"Setup helper not found: {_SETUP_PS1} — the "
+                          "app/helpers/*.ps1 scripts are not part of the "
+                          f"repository. Copy them into {_HELPERS_DIR} on this host."}
+            return
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 pwsh_exe, "-NoProfile", "-NonInteractive", "-File", str(_SETUP_PS1),

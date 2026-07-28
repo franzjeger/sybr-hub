@@ -98,3 +98,47 @@ def test_a_working_keyring_is_still_preferred(tmp_path, monkeypatch):
     assert store == {("MSPToolkit", "acme:client_secret"): "via-keyring"}
     assert not (tmp_path / "secrets.enc").exists(), "wrote a fallback file needlessly"
     creds.clear_secret_cache()
+
+
+def test_a_keyring_that_silently_discards_is_treated_as_unavailable(tmp_path, monkeypatch):
+    """The dangerous case, and the one the installer used to create.
+
+    keyring's null backend accepts set_password and drops the value — no
+    exception, no log line. Guarding only on exceptions meant the store
+    "succeeded", the fallback was never written, and the secret was gone at
+    the next restart. Nothing surfaced until an audit failed to authenticate.
+    """
+    monkeypatch.setattr("keyring.set_password", lambda s, k, v: None)   # accepts
+    monkeypatch.setattr("keyring.get_password", lambda s, k: None)      # discards
+
+    import app.core.credentials as creds
+
+    monkeypatch.setattr(creds, "_FALLBACK_PATH", tmp_path / "secrets.enc")
+    creds.clear_secret_cache()
+
+    creds.store_secret("acme", "client_secret", "TOPSECRET")
+    creds.clear_secret_cache()                      # simulate a service restart
+
+    assert creds.get_secret("acme", "client_secret") == "TOPSECRET", (
+        "secret silently lost — the keyring accepted the write and dropped it"
+    )
+    assert (tmp_path / "secrets.enc").exists()
+
+
+def test_a_keyring_that_returns_something_else_is_not_trusted(tmp_path, monkeypatch):
+    """Round-tripping the wrong value is corruption, not success."""
+    # Scoped to the tenant key: the master-key lookup goes through the same
+    # keyring and would choke base64-decoding a bogus value.
+    monkeypatch.setattr("keyring.set_password", lambda s, k, v: None)
+    monkeypatch.setattr(
+        "keyring.get_password",
+        lambda s, k: "not-what-we-wrote" if k == "acme:client_secret" else None,
+    )
+
+    import app.core.credentials as creds
+
+    monkeypatch.setattr(creds, "_FALLBACK_PATH", tmp_path / "secrets.enc")
+    creds.clear_secret_cache()
+
+    creds.store_secret("acme", "client_secret", "TOPSECRET")
+    assert (tmp_path / "secrets.enc").exists(), "fallback not used despite a bad readback"

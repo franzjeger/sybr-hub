@@ -35,6 +35,18 @@ cd /
 # you an app that works until the first report.
 log "Installing system packages"
 pacman -Sy --needed --noconfirm git python python-pip pango cairo gdk-pixbuf2 libffi
+# The first-run wizard and Exchange Online collection shell out to pwsh.
+# powershell-bin lives in the AUR, so it needs an AUR helper; without it the
+# wizard stops at [PwshInstall].
+if ! command -v pwsh &>/dev/null; then
+    for helper in paru yay; do
+        if command -v $helper &>/dev/null; then
+            sudo -u "${SUDO_USER:-nobody}" $helper -S --needed --noconfirm powershell-bin || true
+            break
+        fi
+    done
+fi
+command -v pwsh &>/dev/null || echo "    WARNING: pwsh not found — install it with: paru -S powershell-bin"
 
 # ── Service account and directories ───────────────────────────────────────────
 log "Creating service account and directories"
@@ -81,9 +93,23 @@ fi
 log "Installing systemd unit"
 sed -e "s#^Environment=SYBR_HUB_PORT=.*#Environment=SYBR_HUB_PORT=${PORT}#" \
     "$PREFIX/scripts/sybr-hub.service" > /etc/systemd/system/sybr-hub.service
-grep -q PYTHON_KEYRING_BACKEND /etc/systemd/system/sybr-hub.service || \
-    sed -i '/^Environment=MSP_CONFIG_DIR=/a Environment=PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring' \
+# Strip the null keyring backend if an earlier run of this script added it.
+# It does not raise, it *discards* — every stored secret was lost at restart
+# with no error anywhere. credentials.py now verifies its writes, so a keyring
+# that simply raises is handled properly and this setting is pure harm.
+sed -i '/^Environment=PYTHON_KEYRING_BACKEND=/d' /etc/systemd/system/sybr-hub.service
+
+# pwsh is .NET; its JIT needs write-then-execute mappings, which
+# MemoryDenyWriteExecute blocks — the process dies with SIGSEGV inside
+# libcoreclr.so rather than any useful error.
+sed -i 's/^MemoryDenyWriteExecute=yes/MemoryDenyWriteExecute=no/' /etc/systemd/system/sybr-hub.service
+
+# Install-Module -Scope CurrentUser targets $HOME, which is /opt/sybr-hub and
+# read-only under ProtectSystem=strict. Point PowerShell at a writable path.
+grep -q '^Environment=PSModulePath=' /etc/systemd/system/sybr-hub.service || \
+    sed -i '/^Environment=MSP_CONFIG_DIR=/a Environment=PSModulePath='"$DATA_DIR"'/psmodules' \
         /etc/systemd/system/sybr-hub.service
+install -d -o "$SVC_USER" -g "$SVC_USER" -m 750 "$DATA_DIR/psmodules"
 
 systemctl daemon-reload
 systemctl enable --now sybr-hub.service
