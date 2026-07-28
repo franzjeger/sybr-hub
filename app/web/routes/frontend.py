@@ -129,6 +129,37 @@ async def favicon() -> Response:
     return Response(status_code=204)
 
 
+_SW_VERSION = re.compile(r"const CACHE_VERSION = '[^']*'")
+
+
+# Registered before the catch-all below, which would otherwise serve sw.js
+# verbatim — FastAPI matches routes in registration order.
+@router.get("/static/sw.js")
+async def service_worker() -> Response:
+    """Serve the worker with CACHE_VERSION pinned to the running build.
+
+    Everything under /static/ is cached cache-first, and the worker only evicts
+    when CACHE_VERSION changes. Left as a literal in the file it went stale —
+    it still read v10.6.0 at app version 10.10.12 — which means a shipped
+    front-end fix never reached a browser that had already loaded the app once.
+    Deriving it here makes every release evict, without anyone remembering to
+    bump a string.
+    """
+    from app.core.version import get_version
+
+    source = (_STATIC_DIR / "sw.js").read_text(encoding="utf-8")
+    source = _SW_VERSION.sub(
+        f"const CACHE_VERSION = 'msptoolkit-{get_version()}'", source, count=1
+    )
+    return Response(
+        source,
+        media_type="application/javascript",
+        # The worker script itself must never come from cache, or a browser
+        # holding the old one never learns the version changed.
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 @router.get("/static/{filename:path}")
 async def static_file(filename: str) -> Response:
     if filename == "index.html":
