@@ -5,11 +5,14 @@ reaching it directly, so the operator only has to expose one port. HTTP
 requests are proxied in :func:`guac_proxy`; the display itself runs over the
 WebSocket tunnel in :func:`guac_ws_proxy`.
 
-SECURITY: ``AuthMiddleware`` is a ``BaseHTTPMiddleware``, which Starlette only
-runs for the ``http`` scope. The WebSocket route below is therefore *not*
-covered by it — anyone who can reach the port can open the tunnel. That gap
-came over with the port and is unchanged here; it wants a dependency-based
-check on the WebSocket handshake before this is exposed beyond loopback.
+``AuthMiddleware`` is a ``BaseHTTPMiddleware``, which Starlette only runs for
+the ``http`` scope, so it does not see the handshake below. Both routes
+therefore declare their guard explicitly: ``get_current_user`` on the HTTP half
+and ``get_current_user_ws`` on the tunnel.
+
+Note that the ``token`` in the forwarded query string is Guacamole's own
+session token, not ours — it must reach the backend intact or the tunnel cannot
+authenticate. Our token comes from the cookie or the subprotocol.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.models.user import User
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import get_current_user, get_current_user_ws
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -108,14 +111,20 @@ async def guac_proxy(
 
 
 @router.websocket("/guacamole/{path:path}")
-async def guac_ws_proxy(websocket: WebSocket, path: str) -> None:
+async def guac_ws_proxy(
+    websocket: WebSocket,
+    path: str,
+    _user: User = Depends(get_current_user_ws),
+) -> None:
     """Relay the Guacamole display tunnel in both directions."""
     await websocket.accept(subprotocol="guacamole")
 
     ws_url = f"{_WS_BACKEND}/guacamole/{path}"
     if websocket.query_params:
         ws_url += "?" + str(websocket.query_params)
-    log.info("WS proxy connecting to %s", ws_url)
+    # Path only: the query string carries Guacamole's session token, and this
+    # record is readable through /api/logs by any authenticated role.
+    log.info("WS proxy connecting to %s/guacamole/%s", _WS_BACKEND, path)
 
     try:
         import websockets

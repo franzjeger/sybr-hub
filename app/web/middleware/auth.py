@@ -12,6 +12,15 @@ Usage in route modules::
     @router.post("/admin-only")
     async def admin_only(user: User = Depends(require_role(Role.admin))):
         ...
+
+WebSocket routes must use the ``_ws`` variants instead. ``AuthMiddleware`` is a
+``BaseHTTPMiddleware``, and Starlette returns early from those for any scope
+that is not ``http`` — so none of the middleware below, authentication or rate
+limiting, runs for a WebSocket handshake::
+
+    @router.websocket("/ws/thing")
+    async def thing(websocket: WebSocket, user: User = Depends(get_current_user_ws)):
+        await websocket.accept()
 """
 
 from __future__ import annotations
@@ -20,7 +29,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, WebSocket, WebSocketException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
@@ -232,6 +241,87 @@ def require_role(min_role: Role) -> Callable:
             raise HTTPException(
                 status_code=403,
                 detail=f"Requires {min_role.value} role or higher",
+            )
+        return user
+
+    return _check
+
+
+# ── WebSocket dependencies ───────────────────────────────────────────────────
+#
+# These exist because AuthMiddleware cannot see a WebSocket handshake at all
+# (Starlette skips BaseHTTPMiddleware for non-http scopes), so every guard the
+# middleware applies to HTTP has to be repeated here.
+
+# A browser cannot set headers on a WebSocket handshake, so the token rides in
+# the subprotocol list when there is no usable cookie. The JWT itself contains
+# dots, hence partitioning on the first one only.
+_WS_TOKEN_PREFIX = "access_token."
+
+
+def _extract_ws_token(websocket: WebSocket) -> Optional[str]:
+    """Pull the access token off a handshake: cookie, subprotocol, then query.
+
+    Cookie first because it is the only channel that does not end up in an
+    access log. The query fallback stays for the terminal client, which still
+    builds its URL that way; it is the least private of the three.
+    """
+    token = websocket.cookies.get("access_token")
+    if token:
+        return token
+
+    for offered in websocket.headers.get("sec-websocket-protocol", "").split(","):
+        offered = offered.strip()
+        if offered.startswith(_WS_TOKEN_PREFIX):
+            return offered[len(_WS_TOKEN_PREFIX):]
+
+    return websocket.query_params.get("token") or None
+
+
+async def get_current_user_ws(websocket: WebSocket) -> User:
+    """Authenticate a WebSocket handshake, or abort it.
+
+    Raises ``WebSocketException`` rather than closing the socket: a dependency
+    that calls ``websocket.close()`` and returns does NOT stop the endpoint —
+    FastAPI runs the handler anyway, which then blows up on "cannot call send
+    once a close message has been sent". Raising aborts before the body runs.
+
+    There is deliberately no first-run bypass. ``_SETUP_PATHS`` is scoped to two
+    HTTP endpoints; no WebSocket is a setup path, and handing a synthetic admin
+    to an anonymous handshake would open a local shell on a fresh install.
+    """
+    token = _extract_ws_token(websocket)
+    if not token:
+        raise WebSocketException(code=1008, reason="Not authenticated")
+
+    payload = await decode_token(token)
+    if not payload or payload.token_type != "access":
+        raise WebSocketException(code=1008, reason="Invalid token")
+
+    # Same revocation check the middleware does at the HTTP layer — without it
+    # "log out everywhere" would leave established sockets working until the
+    # access token expired on its own.
+    if payload.session_id and not await validate_session(payload.session_id):
+        raise WebSocketException(code=1008, reason="Session expired")
+
+    user = await get_user_by_id(payload.sub)
+    if not user or not user.is_active:
+        raise WebSocketException(code=1008, reason="User disabled")
+
+    return user
+
+
+def require_role_ws(min_role: Role) -> Callable:
+    """WebSocket counterpart of :func:`require_role`."""
+
+    async def _check(user: User = Depends(get_current_user_ws)) -> User:
+        if user.role < min_role:
+            logger.info(
+                "WS role denied: user=%s role=%s required=%s",
+                user.username, user.role.value, min_role.value,
+            )
+            raise WebSocketException(
+                code=1008, reason=f"Requires {min_role.value} role or higher"
             )
         return user
 

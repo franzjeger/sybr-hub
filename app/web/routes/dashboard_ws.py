@@ -9,9 +9,11 @@ import uuid
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
+from app.core.rbac import check_customer_access
 from app.models.user import Role, User
 from app.web.middleware.auth import (
     get_current_user,
+    get_current_user_ws,
     require_customer_access,
     require_role,
 )
@@ -67,7 +69,9 @@ async def set_poll_interval(
 # ── WebSocket: real-time device updates ──────────────────────────────────────
 
 @router.websocket("/ws/dashboard")
-async def dashboard_websocket(websocket: WebSocket):
+async def dashboard_websocket(
+    websocket: WebSocket, user: User = Depends(get_current_user_ws)
+):
     """WebSocket for live dashboard updates.
 
     Protocol:
@@ -78,51 +82,14 @@ async def dashboard_websocket(websocket: WebSocket):
     - type: "poll" — force immediate poll
     - Server sends: {type: "update", devices: [...]}
 
-    Authentication: JWT via cookie, or first message {"type": "auth", "token": "..."}.
-    Falls back to query param ?token=... for backwards compatibility.
+    Authenticated on the handshake. Each message is authorized separately: the
+    REST endpoints above gate per customer and per role, and this socket
+    reaches the same poller, so it has to apply the same rules — otherwise a
+    viewer scoped to one customer could stream every customer's devices by
+    asking for them here.
     """
-    from app.core.auth import decode_token, get_user_by_id, get_user_count
 
-    user = None
-
-    # Strategy 1: cookie (preferred — not logged in URLs)
-    token = websocket.cookies.get("access_token", "")
-
-    # Strategy 2: query param (backwards compat)
-    if not token:
-        token = websocket.query_params.get("token", "")
-
-    if token:
-        payload = await decode_token(token)
-        if payload and payload.token_type == "access":
-            user = await get_user_by_id(payload.sub)
-            if user and not user.is_active:
-                await websocket.close(code=4003, reason="User disabled")
-                return
-
-    # First-run bypass: no users exist
-    if not user and await get_user_count() == 0:
-        await websocket.accept()
-    elif not user:
-        # Accept and wait for auth message
-        await websocket.accept()
-        try:
-            data = await websocket.receive_text()
-            msg = json.loads(data)
-            if msg.get("type") == "auth" and msg.get("token"):
-                payload = await decode_token(msg["token"])
-                if payload and payload.token_type == "access":
-                    user = await get_user_by_id(payload.sub)
-            if not user or not user.is_active:
-                await websocket.send_json({"type": "error", "msg": "Authentication failed"})
-                await websocket.close(code=4001, reason="Token required")
-                return
-        except Exception as e:
-            logger.debug("Dashboard WS auth failed: %s", e)
-            await websocket.close(code=4001, reason="Token required")
-            return
-    else:
-        await websocket.accept()
+    await websocket.accept()
 
     ws_id = str(uuid.uuid4())
     from app.services.dashboard_poller import poller
@@ -142,7 +109,15 @@ async def dashboard_websocket(websocket: WebSocket):
             msg_type = msg.get("type", "")
 
             if msg_type == "subscribe":
-                customer_ids = msg.get("customer_ids", [])
+                requested = msg.get("customer_ids", [])
+                customer_ids = [
+                    cid for cid in requested if await check_customer_access(user, cid)
+                ]
+                if len(customer_ids) != len(requested):
+                    logger.info(
+                        "Dashboard WS: dropped %d customer(s) from subscribe for user=%s",
+                        len(requested) - len(customer_ids), user.username,
+                    )
                 poller.subscribe(ws_id, customer_ids, send_updates)
                 # Send initial data
                 devices = []
@@ -155,12 +130,26 @@ async def dashboard_websocket(websocket: WebSocket):
                 await websocket.send_json({"type": "unsubscribed"})
 
             elif msg_type == "set_interval":
+                # The poll interval is global, so it matches the admin floor on
+                # the REST twin rather than a per-customer check.
+                if user.role < Role.admin:
+                    await websocket.send_json(
+                        {"type": "error", "msg": "Krever admin-rolle"}
+                    )
+                    continue
                 interval = msg.get("interval", 60)
                 poller.set_interval(int(interval))
                 await websocket.send_json({"type": "interval_set", "interval": poller._interval})
 
             elif msg_type == "poll":
                 customer_id = msg.get("customer_id")
+                if user.role < Role.technician or not await check_customer_access(
+                    user, customer_id
+                ):
+                    await websocket.send_json(
+                        {"type": "error", "msg": "Ingen tilgang til denne kunden"}
+                    )
+                    continue
                 devices = await poller.poll_now(customer_id)
                 await websocket.send_json({"type": "update", "devices": devices})
 

@@ -10,8 +10,10 @@ wiring itself, so that failure mode can't come back silently.
 from __future__ import annotations
 
 import pytest
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, APIWebSocketRoute
 from fastapi.testclient import TestClient
+from starlette.routing import WebSocketRoute
+from starlette.websockets import WebSocketDisconnect
 
 from app.core.auth import create_access_token, create_user
 from app.core.database import run_migrations
@@ -23,6 +25,7 @@ from app.web.middleware.auth import (
     AuthMiddleware,
     _reset_users_exist_cache,
     get_current_user,
+    get_current_user_ws,
 )
 from app.web.middleware.rate_limit import RateLimitMiddleware
 from app.web.server import create_app
@@ -124,21 +127,37 @@ def test_rate_limit_runs_outside_auth(app):
 # ---------------------------------------------------------------------------
 
 
-def _iter_api_routes(app) -> list[tuple[str, APIRoute]]:
-    """Yield ``(effective_path, route)`` for every APIRoute in the app.
+def _walk_routes(app) -> tuple[list, list, list]:
+    """Return ``(http, websocket, raw_websocket)`` route lists for the app.
 
     FastAPI >= 0.140 wraps each ``include_router`` call in an internal
     ``_IncludedRouter`` rather than flattening its routes into ``app.routes``,
     so a naive walk over ``app.routes`` sees only ``/api/health``. Handle both
     shapes; ``test_route_walk_finds_the_whole_api`` guards against this
     silently returning nothing if the internals change again.
+
+    WebSocket routes are collected separately because ``APIWebSocketRoute`` is
+    *not* a subclass of ``APIRoute``. The original walk tested only for the
+    latter, so all three WebSocket routes were skipped in silence — which is
+    how an unauthenticated terminal shipped past a suite that asserts every
+    route is guarded.
     """
-    found: list[tuple[str, APIRoute]] = []
+    http: list[tuple[str, APIRoute]] = []
+    ws: list[tuple[str, APIWebSocketRoute]] = []
+    raw_ws: list[tuple[str, object]] = []
 
     def walk(routes, prefix: str) -> None:
         for route in routes:
             if isinstance(route, APIRoute):
-                found.append((prefix + route.path, route))
+                http.append((prefix + route.path, route))
+                continue
+            if isinstance(route, APIWebSocketRoute):
+                ws.append((prefix + route.path, route))
+                continue
+            if isinstance(route, WebSocketRoute):
+                # Raw Starlette route: cannot carry Depends() at all, so it can
+                # never be audited. Collected so the test below can reject it.
+                raw_ws.append((prefix + route.path, route))
                 continue
             ctx = getattr(route, "include_context", None)
             if ctx is not None:  # FastAPI >= 0.140
@@ -149,7 +168,17 @@ def _iter_api_routes(app) -> list[tuple[str, APIRoute]]:
                 walk(sub, prefix)
 
     walk(app.routes, "")
-    return found
+    return http, ws, raw_ws
+
+
+def _iter_api_routes(app) -> list[tuple[str, APIRoute]]:
+    """Yield ``(effective_path, route)`` for every HTTP APIRoute in the app."""
+    return _walk_routes(app)[0]
+
+
+def _iter_ws_routes(app) -> list[tuple[str, "APIWebSocketRoute"]]:
+    """Yield ``(effective_path, route)`` for every WebSocket route in the app."""
+    return _walk_routes(app)[1]
 
 
 def _auth_dependencies(route: APIRoute) -> list:
@@ -158,12 +187,25 @@ def _auth_dependencies(route: APIRoute) -> list:
 
     def _is_auth_dep(call) -> bool:
         # require_role() returns a closure named `_check` defined inside it,
-        # so match on the enclosing function's qualname.
-        return call is get_current_user or getattr(
-            call, "__qualname__", ""
-        ).startswith("require_role")
+        # so match on the enclosing function's qualname. The trailing dot
+        # matters: without it `require_role_ws` also matches, and a
+        # WebSocket-only guard would satisfy the HTTP audit.
+        qualname = getattr(call, "__qualname__", "")
+        return call is get_current_user or qualname.startswith("require_role.")
 
     return [call for call in flat_dependency_calls(route) if _is_auth_dep(call)]
+
+
+def _ws_auth_dependencies(route) -> list:
+    """Return the auth-related dependency callables on a WebSocket route."""
+    from tests.fastapi_introspect import flat_dependency_calls
+
+    def _is_ws_auth_dep(call) -> bool:
+        return call is get_current_user_ws or getattr(
+            call, "__qualname__", ""
+        ).startswith("require_role_ws.")
+
+    return [call for call in flat_dependency_calls(route) if _is_ws_auth_dep(call)]
 
 
 def test_route_walk_finds_the_whole_api(app):
@@ -197,6 +239,202 @@ def test_every_route_has_an_auth_dependency(app):
     assert not unguarded, (
         "routes reachable without an auth dependency:\n  " + "\n  ".join(unguarded)
     )
+
+
+# ── WebSocket routes ─────────────────────────────────────────────────────────
+#
+# AuthMiddleware is a BaseHTTPMiddleware, and Starlette skips those for any
+# scope that is not "http". Nothing above this line covers a handshake.
+
+
+def test_ws_route_walk_finds_the_websocket_routes(app):
+    """Canary: the WebSocket audit is vacuous if the walk finds nothing."""
+    paths = {path for path, _ in _iter_ws_routes(app)}
+    assert paths == {
+        "/guacamole/{path:path}",
+        "/api/ws/dashboard",
+        "/api/ws/terminal",
+    }, f"unexpected WebSocket route set: {sorted(paths)}"
+
+
+def test_every_ws_route_has_an_auth_dependency(app):
+    """Regression: all three WebSocket routes shipped unguarded by the audit.
+
+    APIWebSocketRoute is not an APIRoute, so the HTTP walk skipped them
+    entirely — the terminal route reached production able to hand out a local
+    shell with no token whenever the users table was empty.
+    """
+    unguarded = [
+        path for path, route in _iter_ws_routes(app) if not _ws_auth_dependencies(route)
+    ]
+    assert not unguarded, (
+        "WebSocket routes reachable without an auth dependency:\n  "
+        + "\n  ".join(unguarded)
+    )
+
+
+def test_no_raw_starlette_websocket_routes(app):
+    """A raw WebSocketRoute cannot carry Depends(), so it can never be audited."""
+    raw = [path for path, _ in _walk_routes(app)[2]]
+    assert not raw, f"raw Starlette WebSocket routes cannot be guarded: {raw}"
+
+
+def test_public_paths_do_not_exempt_websockets(app):
+    """The public-path list is an HTTP concept and must not leak into WS auth."""
+    for path, _ in _iter_ws_routes(app):
+        assert not _is_public(path), f"{path} is both a WebSocket route and public"
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/guacamole/websocket-tunnel", "/api/ws/dashboard", "/api/ws/terminal?mode=ssh"],
+)
+def test_ws_rejects_unauthenticated_handshake(client, existing_user, path):
+    """No token, no socket — on every WebSocket route."""
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect(path):
+            pass
+    assert exc.value.code == 1008
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/guacamole/websocket-tunnel", "/api/ws/dashboard", "/api/ws/terminal?mode=ssh"],
+)
+def test_ws_rejects_garbage_token(client, existing_user, path):
+    client.cookies.set("access_token", "not-a-jwt")
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect(path):
+            pass
+    assert exc.value.code == 1008
+
+
+async def test_ws_first_run_does_not_bypass_auth(client):
+    """With zero accounts the terminal must still refuse — it hands out a shell.
+
+    This is the exact state a fresh install sits in, and the old code took it
+    as licence to skip the token check *and* the role gate.
+    """
+    _reset_users_exist_cache()
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect("/api/ws/terminal?mode=local"):
+            pass
+    assert exc.value.code == 1008
+
+
+async def test_ws_rejects_a_revoked_session(client, existing_user):
+    """Logging out everywhere must close the WebSocket door too.
+
+    The HTTP middleware checks validate_session; before this the WebSocket
+    paths did not, so a revoked session kept working over WS until the access
+    token expired on its own.
+    """
+    import uuid
+
+    from app.core.auth import create_refresh_token, create_session, delete_session
+
+    session_id = str(uuid.uuid4())
+    refresh = await create_refresh_token(existing_user, session_id=session_id)
+    await create_session(
+        user_id=existing_user.id,
+        refresh_token=refresh,
+        ip_address="",
+        user_agent="",
+        session_id=session_id,
+    )
+    client.cookies.set(
+        "access_token", await create_access_token(existing_user, session_id=session_id)
+    )
+
+    # Positive control: the same token opens a socket while the session lives.
+    with client.websocket_connect("/api/ws/dashboard") as ws:
+        ws.send_json({"type": "ping"})
+        assert ws.receive_json() == {"type": "pong"}
+
+    await delete_session(session_id)
+
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect("/api/ws/dashboard"):
+            pass
+    assert exc.value.code == 1008
+
+
+async def test_ws_rejects_a_refresh_token(client, existing_user):
+    """Only access tokens open a socket; a refresh token must not."""
+    from app.core.auth import create_refresh_token
+
+    client.cookies.set("access_token", await create_refresh_token(existing_user))
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect("/api/ws/dashboard"):
+            pass
+    assert exc.value.code == 1008
+
+
+async def test_ws_accepts_a_valid_access_token(client, existing_user):
+    """Positive control — otherwise every assertion above passes vacuously.
+
+    ``mode=ssh`` with no host returns immediately; ``mode=local`` would fork a
+    real PTY under CI.
+    """
+    client.cookies.set("access_token", await create_access_token(existing_user))
+    with client.websocket_connect("/api/ws/dashboard") as ws:
+        ws.send_json({"type": "ping"})
+        assert ws.receive_json() == {"type": "pong"}
+
+
+async def test_ws_accepts_token_via_subprotocol(client, existing_user):
+    """A browser cannot set headers on a handshake, so the subprotocol carries it."""
+    token = await create_access_token(existing_user)
+    with client.websocket_connect(
+        "/api/ws/dashboard", subprotocols=["access_token." + token]
+    ) as ws:
+        ws.send_json({"type": "ping"})
+        assert ws.receive_json() == {"type": "pong"}
+
+
+async def test_ws_dashboard_filters_customers_the_user_cannot_see(
+    client, existing_user, monkeypatch
+):
+    """Only customers the user may see reach the poller.
+
+    The REST twins gate on require_customer_access; the socket reaches the same
+    poller and previously trusted whatever customer_ids the client asked for.
+
+    Asserting on the reply is not enough — an unknown customer yields no
+    devices whether or not it was filtered, so that version of this test passed
+    with the filter deleted. Record what the poller is actually handed.
+    """
+    from app.core.rbac import grant_access
+    from app.services.dashboard_poller import poller
+
+    await grant_access(existing_user.id, "mine")
+
+    seen: list[list[str]] = []
+    original = poller.subscribe
+
+    def _record(ws_id, customer_ids, callback):
+        seen.append(list(customer_ids))
+        return original(ws_id, customer_ids, callback)
+
+    monkeypatch.setattr(poller, "subscribe", _record)
+
+    client.cookies.set("access_token", await create_access_token(existing_user))
+    with client.websocket_connect("/api/ws/dashboard") as ws:
+        ws.send_json({"type": "subscribe", "customer_ids": ["mine", "not-mine"]})
+        ws.receive_json()
+
+    # The granted one survives, the other never reaches the poller. Both halves
+    # matter: filtering everything would satisfy a negative-only assertion.
+    assert seen == [["mine"]], f"poller was handed the wrong customer set: {seen}"
+
+
+async def test_ws_dashboard_set_interval_requires_admin(client, existing_user):
+    """set_interval is global; its REST twin is admin-only."""
+    client.cookies.set("access_token", await create_access_token(existing_user))
+    with client.websocket_connect("/api/ws/dashboard") as ws:
+        ws.send_json({"type": "set_interval", "interval": 5})
+        reply = ws.receive_json()
+        assert reply["type"] == "error"
 
 
 def test_public_paths_do_not_require_auth(client):

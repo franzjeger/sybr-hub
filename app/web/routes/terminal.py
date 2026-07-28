@@ -12,14 +12,19 @@ import struct
 import termios
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+
+from app.models.user import Role, User
+from app.web.middleware.auth import get_current_user_ws
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.websocket("/ws/terminal")
-async def terminal_websocket(websocket: WebSocket):
+async def terminal_websocket(
+    websocket: WebSocket, user: User = Depends(get_current_user_ws)
+):
     """Interactive terminal via WebSocket.
 
     Query params:
@@ -34,53 +39,36 @@ async def terminal_websocket(websocket: WebSocket):
       Client -> Server: {"type": "input", "data": "..."} or {"type": "resize", "cols": N, "rows": N}
       Server -> Client: {"type": "output", "data": "..."}
     """
-    # Auth
-    token = websocket.query_params.get("token", "")
-    if token:
-        from app.core.auth import decode_token, get_user_by_id, get_user_count
-        payload = await decode_token(token)
-        if not payload or payload.token_type != "access":
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-        user = await get_user_by_id(payload.sub)
-        if not user or not user.is_active:
-            await websocket.close(code=4003, reason="User disabled")
-            return
-    else:
-        from app.core.auth import get_user_count
-        if await get_user_count() > 0:
-            await websocket.close(code=4001, reason="Token required")
-            return
-        user = None
-
+    # Authentication happens in get_current_user_ws, before this body runs, so
+    # `user` is always a real active account. There is deliberately no
+    # first-run bypass: this route hands out a shell, and the previous
+    # "no accounts yet means no token needed" branch made that shell
+    # unauthenticated on exactly the fresh installs it was meant to help.
     await websocket.accept()
 
     mode = websocket.query_params.get("mode", "local")
 
-    # Enforce role before accepting any payload. First-run (user is None
-    # when no accounts exist yet) still bypasses — matches the auth
-    # middleware's first-run bypass so initial setup works.
+    # Enforce role before accepting any payload. The role floor depends on the
+    # mode, so it cannot move into the dependency.
     #
     # Use the Role enum's ordering (viewer < technician < admin). The old
     # check compared user.role to the string "admin" which worked by
     # accident (Role is a str subclass) but left SSH mode completely
     # unprotected — any viewer could open a shell on any registered host.
-    if user is not None:
-        from app.models.user import Role
-        required = Role.admin if mode != "ssh" else Role.technician
-        if user.role < required:
-            msg_no = ("lokal terminal krever admin-rolle" if mode != "ssh"
-                      else "SSH krever teknisk-rolle eller høyere")
-            await websocket.send_json({
-                "type": "output",
-                "data": f"\r\n*** Tilgang nektet — {msg_no} ***\r\n",
-            })
-            logger.info(
-                "Terminal WS denied: user=%s role=%s mode=%s required=%s",
-                user.username, user.role.value, mode, required.value,
-            )
-            await websocket.close(code=4003, reason=f"Requires {required.value}+ role")
-            return
+    required = Role.admin if mode != "ssh" else Role.technician
+    if user.role < required:
+        msg_no = ("lokal terminal krever admin-rolle" if mode != "ssh"
+                  else "SSH krever teknisk-rolle eller høyere")
+        await websocket.send_json({
+            "type": "output",
+            "data": f"\r\n*** Tilgang nektet — {msg_no} ***\r\n",
+        })
+        logger.info(
+            "Terminal WS denied: user=%s role=%s mode=%s required=%s",
+            user.username, user.role.value, mode, required.value,
+        )
+        await websocket.close(code=4003, reason=f"Requires {required.value}+ role")
+        return
 
     if mode == "ssh":
         await _handle_ssh_terminal(websocket)
