@@ -26,6 +26,7 @@ from app.core.database import (
     reset_pools_for_tests,
     run_migrations,
 )
+from app.core.utils import fire_and_forget
 
 
 @pytest.fixture(autouse=True)
@@ -336,6 +337,107 @@ def test_abandon_after_close_does_not_raise_inside_the_worker():
     assert not errors, f"worker thread raised during teardown: {errors!r}"
 
 
+# ---------------------------------------------------------------------------
+# Connections abandoned mid-connect — owned by no pool at all
+# ---------------------------------------------------------------------------
+
+
+def test_task_abandoned_while_connecting_does_not_leak_its_thread():
+    """Regression: the suite passed every test, then never exited.
+
+    A backgrounded write outlives the request that fired it. If the loop stops
+    while that task is still inside aiosqlite.connect(), the task is never
+    resumed, so Connection._connection is never assigned — and aiosqlite's
+    __del__ returns early precisely when _connection is None, without stopping
+    the worker thread. The thread stays parked on its queue, and because it is
+    non-daemon, Python's shutdown blocks joining it forever.
+
+    The pool cannot catch this on its own: the thread starts inside __await__,
+    so the connection is live for the whole handshake before acquire() has a
+    reference to it. Hence the registry that _get_connection() writes to before
+    it awaits.
+    """
+    reset_pools_for_tests()
+    before = _sqlite_threads()
+
+    async def background():
+        async with get_db() as conn:
+            await _scalar(conn)
+
+    async def fire():
+        fire_and_forget(background())
+        await asyncio.sleep(0)  # let it start and block on the connect future
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(fire())
+        # The loop has stopped but is not yet closed — the ordinary teardown
+        # window. The worker finishes sqlite3.connect() and posts its result
+        # successfully, then parks; the callback that would resume the task
+        # never runs. This is the timing that hung, and it is a race, so the
+        # wait is what makes the test reproduce it rather than pass by luck.
+        threading.Event().wait(0.3)
+    finally:
+        loop.close()
+
+    assert db._started, "the connection should still be registered to be found"
+
+    reset_pools_for_tests()
+    threading.Event().wait(1.0)
+
+    assert _sqlite_threads() <= before, "abandoned connect leaked a worker thread"
+    assert not db._started, "registry should be empty once everything is stopped"
+
+
+def test_failure_after_connect_stops_the_thread():
+    """A pragma that fails leaves the connection owned by nobody."""
+    reset_pools_for_tests()
+    before = _sqlite_threads()
+
+    async def boom(conn):
+        raise RuntimeError("pragma failed")
+
+    original = db._ensure_journal_mode
+    db._ensure_journal_mode = boom
+
+    async def borrow():
+        with pytest.raises(RuntimeError):
+            async with get_db():
+                pass
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(borrow())
+    finally:
+        db._ensure_journal_mode = original
+        loop.close()
+
+    threading.Event().wait(1.0)
+    assert _sqlite_threads() <= before, "failed setup leaked a worker thread"
+    assert not db._started
+
+
+async def test_pool_registry_is_emptied_by_normal_disposal():
+    """The registry must not accumulate — it holds strong references."""
+    async with get_db() as conn:
+        await _scalar(conn)
+    assert db._started, "an open connection should be registered"
+
+    await close_pool()
+    assert not db._started, "close_pool should deregister what it disposed"
+
+
+async def test_sweep_spares_a_connection_that_is_checked_out():
+    """An in-flight borrow must not be mistaken for an orphan."""
+    async with get_db() as conn:
+        # A sweep from another teardown path must leave this one alone: it is
+        # owned by a live pool and its borrower is still using it.
+        db._sweep_orphans(only_dead_loops=False)
+        assert await _scalar(conn) == 1
+
+
 async def test_close_pool_is_safe_to_call_twice():
     async with get_db() as conn:
         await _scalar(conn)
@@ -346,3 +448,79 @@ async def test_close_pool_is_safe_to_call_twice():
 def test_reset_pools_is_safe_when_empty():
     reset_pools_for_tests()
     reset_pools_for_tests()  # must not raise
+
+
+async def test_sweep_spares_a_connection_that_is_still_being_opened():
+    """An unconditional sweep must not shoot a borrower mid-handshake.
+
+    ``test_sweep_spares_a_connection_that_is_checked_out`` only covers the
+    already-acquired case, where a pool vouches for the connection. The window
+    the registry exists for is earlier than that: between the worker thread
+    starting and the hand-off in acquire(), nothing owns the connection, so it
+    looked exactly like an orphan. Both unconditional callers —
+    close_all_pools() and reset_pools_for_tests() — run on a live loop, and
+    sweeping there stopped the connection under the task still opening it,
+    which then failed with "no active connection".
+    """
+    released = asyncio.Event()
+    swept = asyncio.Event()
+
+    async def borrower():
+        # Suspends inside _get_connection with the connection registered but
+        # not yet owned by any pool.
+        conn = await db._get_connection()
+        await released.wait()
+        return await (await conn.execute("SELECT 1")).fetchone()
+
+    original = db._ensure_journal_mode
+
+    async def _park(conn):
+        await original(conn)
+        swept.set()
+        await released.wait()
+
+    db._ensure_journal_mode = _park
+    try:
+        task = asyncio.create_task(borrower())
+        await asyncio.wait_for(swept.wait(), timeout=5)
+
+        # Registered, and no pool has it.
+        assert any(c not in {x for p in db._pools.values() for x in p._live}
+                   for c in db._started), "expected a connection mid-handshake"
+
+        db._sweep_orphans(only_dead_loops=False)
+
+        released.set()
+        row = await asyncio.wait_for(task, timeout=5)
+        assert row[0] == 1, "the sweep stopped a connection that was still being opened"
+    finally:
+        db._ensure_journal_mode = original
+        released.set()
+
+
+async def test_cancelled_disposal_still_deregisters():
+    """Cancellation must not strand an entry in the registry.
+
+    _dispose discards from _live first and deregistered after the await, under
+    `except Exception` — which CancelledError is not. The connection then
+    belonged to no pool and sat in _started forever, where the only sweep a
+    running application performs (dead loops only) will never look. aiosqlite
+    stops the worker from its own finally, so no thread leaked; what leaked was
+    a Connection and an event loop pinned for the life of the process.
+    """
+    pool = _current_pool()
+    conn = await pool.acquire()
+    assert conn in db._started
+
+    async def slow_close():
+        await asyncio.sleep(3600)
+
+    conn.close = slow_close
+    task = asyncio.create_task(pool._dispose(conn))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert conn not in db._started, "cancelled disposal left the connection registered"
+    assert conn not in pool._live

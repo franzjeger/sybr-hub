@@ -10,9 +10,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, NamedTuple, Optional
 
 import aiosqlite
 
@@ -380,21 +381,67 @@ async def _ensure_journal_mode(conn: aiosqlite.Connection) -> None:
     logger.debug("journal_mode=WAL applied to %s", path)
 
 
+# Every connection whose worker thread may be running, from before the thread
+# can start until the connection is disposed, mapped to the loop that opened
+# it. A pool alone cannot cover this: aiosqlite starts the thread inside
+# ``__await__``, so a connection is live for the whole of the connect handshake
+# before any pool has a reference to it, and a task abandoned in that window is
+# unreachable from everything else in this module. See _get_connection().
+class _Opened(NamedTuple):
+    """Who opened a connection, so teardown can tell an orphan from a borrow.
+
+    ``task`` is the task that was inside the connect handshake. While it is
+    still pending, the connection is not an orphan however it looks from here —
+    that task is going to be handed the connection. Once it is done or
+    cancelled without the connection reaching a pool, nothing will ever claim
+    it, and it is safe to stop.
+    """
+
+    loop: asyncio.AbstractEventLoop
+    task: Optional[asyncio.Task]
+
+
+_started: dict[aiosqlite.Connection, _Opened] = {}
+
+
 async def _get_connection() -> aiosqlite.Connection:
     """Open a new connection with the per-connection pragmas applied."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = await aiosqlite.connect(str(DB_PATH), timeout=30)
-    conn.row_factory = aiosqlite.Row
-    await _ensure_journal_mode(conn)
-    # Both of these are per-connection settings and must be re-applied each
-    # time — unlike journal_mode above. Together they cost ~0.25 ms.
+    # Registered *before* it is awaited, because awaiting is what starts the
+    # worker thread. If the loop stops while a task is suspended here — a
+    # backgrounded write whose request finished first, say — that task is never
+    # resumed, so ``_connection`` is never assigned. aiosqlite's __del__ bails
+    # out early in exactly that case:
     #
-    # wal_autocheckpoint caps WAL growth: SQLite checkpoints into the main DB
-    # after this many pages of write-ahead log. Default is 1000 (~4 MiB at
-    # 4 KiB pages). Without it the .db-wal file can grow unbounded between
-    # explicit checkpoints and slow recovery on power loss.
-    await conn.execute("PRAGMA wal_autocheckpoint=1000")
-    await conn.execute("PRAGMA foreign_keys=ON")
+    #     def __del__(self):
+    #         if self._connection is None:
+    #             return
+    #
+    # …so nothing ever stops the thread, and it sits on its queue forever.
+    # Being non-daemon, it then blocks interpreter exit indefinitely — a suite
+    # that reports all tests passed and never returns to the shell. Holding the
+    # reference here is what lets teardown find it anyway.
+    conn = aiosqlite.connect(str(DB_PATH), timeout=30)
+    _started[conn] = _Opened(asyncio.get_running_loop(), asyncio.current_task())
+    try:
+        await conn
+        conn.row_factory = aiosqlite.Row
+        await _ensure_journal_mode(conn)
+        # Both of these are per-connection settings and must be re-applied each
+        # time — unlike journal_mode above. Together they cost ~0.25 ms.
+        #
+        # wal_autocheckpoint caps WAL growth: SQLite checkpoints into the main
+        # DB after this many pages of write-ahead log. Default is 1000 (~4 MiB
+        # at 4 KiB pages). Without it the .db-wal file can grow unbounded
+        # between explicit checkpoints and slow recovery on power loss.
+        await conn.execute("PRAGMA wal_autocheckpoint=1000")
+        await conn.execute("PRAGMA foreign_keys=ON")
+    except BaseException:
+        # Failed or cancelled with the thread already running, and no caller
+        # holds the connection to close it. Includes CancelledError, hence
+        # BaseException rather than Exception.
+        _stop_connection(conn)
+        raise
     return conn
 
 
@@ -416,7 +463,10 @@ async def _get_connection() -> aiosqlite.Connection:
 #      so an undisposed connection blocks interpreter exit forever — that is
 #      exactly what wedged CI on this branch. Every path out of the pool
 #      terminates the thread: close() when the loop is alive, and stop() —
-#      which is synchronous and needs no loop — when it is not.
+#      which is synchronous and needs no loop — when it is not. The pool is
+#      not sufficient on its own, though: a connection is already running its
+#      thread before acquire() has a reference to it, so ownership starts at
+#      the _started registry above, not here.
 
 _POOL_SIZE = max(1, int(os.environ.get("MSP_DB_POOL_SIZE", "5")))
 
@@ -476,6 +526,16 @@ class _ConnectionPool:
         except Exception as e:
             logger.debug("close() failed on pooled connection, stopping thread: %s", e)
             _stop_connection(conn)
+            return
+        finally:
+            # In a finally, not after the await: cancellation here is not an
+            # Exception, so it would skip the deregistration while _live has
+            # already let go — leaving an entry no pool vouches for and no
+            # sweep on a live loop will collect. aiosqlite's close() stops the
+            # worker from its own finally, so the thread does exit; what
+            # leaked was this dict entry, pinning a Connection and a loop for
+            # the life of the process.
+            _started.pop(conn, None)
 
     async def close(self) -> None:
         """Close idle connections; those still checked out go on release."""
@@ -488,10 +548,9 @@ class _ConnectionPool:
         """Terminate every connection without needing a live event loop.
 
         Used when the pool's loop has gone away, where awaiting close() is
-        impossible. Connection.stop() is synchronous: with no loop to build a
-        future on it enqueues (None, close_and_stop), and the worker thread
-        closes the handle and breaks out of its loop without ever touching the
-        dead loop. That is what stops the thread from outliving the process.
+        impossible. _stop_connection() covers that case: the worker closes its
+        handle and breaks out of its loop without touching the dead loop, which
+        is what stops the thread from outliving the process.
         """
         self._closed = True
         for conn in list(self._live):
@@ -504,45 +563,44 @@ def _stop_connection(conn: aiosqlite.Connection) -> None:
     """Terminate a connection's worker thread, whatever state its loop is in.
 
     aiosqlite's stop() builds a future on ``asyncio.get_event_loop()`` when it
-    can, and the worker thread posts the result back to that loop. Closing a
-    loop does not unset it for the thread, so after close() that call returns a
-    *closed* loop — the worker's post then raises inside the thread and it dies
-    by exception rather than on the stop sentinel. The connection still closes,
-    but it logs an alarming traceback and pytest reports an unhandled thread
-    exception.
+    can find one, and the worker posts the result back to that loop:
 
-    So when no loop is running and the thread's loop is already closed, detach
-    it first. stop() then takes its future-less path, and the worker closes the
-    handle and breaks out of its loop without touching anything dead.
+        try:
+            future = asyncio.get_event_loop().create_future()
+        except Exception:
+            future = None
+        self._tx.put_nowait((future, close_and_stop))
+
+    Nothing here ever awaits that future — teardown is synchronous — so the
+    only thing it can do is go wrong. If the loop closes before the worker
+    posts, the post raises inside the thread, the worker dies by exception
+    instead of on the stop sentinel, and pytest reports an unhandled thread
+    exception. Teardown closing a loop promptly is the normal case, not the
+    exotic one, which is why that warning was a permanent fixture of this suite.
+
+    So take the future-less branch every time, by calling stop() from a
+    throwaway thread: a fresh thread has no running loop and no loop set, so
+    get_event_loop() raises there and aiosqlite enqueues (None, close_and_stop).
+    The worker closes the handle and breaks out of its loop without touching
+    anything external. Masking the loop in *this* thread would not do — while a
+    loop is running, get_event_loop() returns it regardless of set_event_loop().
     """
-    running = True
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        running = False
+    _started.pop(conn, None)
 
-    if running:
-        # A live loop is driving us; stop()'s future resolves on it harmlessly.
+    stopper = threading.Thread(
+        target=_call_stop, args=(conn,), name="aiosqlite-stop", daemon=True
+    )
+    try:
+        stopper.start()
+    except RuntimeError:
+        # No new threads during interpreter shutdown. Stopping in-line may
+        # queue a future the worker cannot post to, but a noisy teardown beats
+        # not stopping the thread at all.
         _call_stop(conn)
         return
-
-    # Nothing running. Whatever loop is attached to this thread may already be
-    # closed, and inspecting it is not reliable — pytest-asyncio, asyncio.run()
-    # and plain new_event_loop() all leave the thread in different states. So
-    # detach unconditionally for the duration of the call: stop() then finds no
-    # loop, takes its future-less path, and the worker exits on the sentinel
-    # without posting anywhere. set_event_loop is thread-local, so this cannot
-    # disturb another thread.
-    try:
-        previous = asyncio.get_event_loop_policy().get_event_loop()
-    except Exception:
-        previous = None
-    asyncio.set_event_loop(None)
-    try:
-        _call_stop(conn)
-    finally:
-        if previous is not None:
-            asyncio.set_event_loop(previous)
+    # Joined so the sentinel is definitely queued before the caller moves on —
+    # callers such as abandon() treat the connection as finished on return.
+    stopper.join(timeout=5)
 
 
 def _call_stop(conn: aiosqlite.Connection) -> None:
@@ -561,12 +619,54 @@ def _call_stop(conn: aiosqlite.Connection) -> None:
 _pools: dict[asyncio.AbstractEventLoop, _ConnectionPool] = {}
 
 
+def _sweep_orphans(*, only_dead_loops: bool) -> None:
+    """Terminate started connections that no pool ever took ownership of.
+
+    An orphan is a connection that was opened but never made it into a pool —
+    the caller was cancelled, or its loop stopped, somewhere between the worker
+    thread starting and the hand-off in acquire(). Nothing else will ever close
+    it, so its non-daemon thread would otherwise outlive the process.
+
+    Two things make a started connection safe to stop: no pool vouches for it,
+    and whoever opened it can no longer finish. The second is what the recorded
+    task answers. A pending task is still inside the handshake and is going to
+    be handed this connection, so stopping it would break a caller in flight —
+    it fails its next statement with "no active connection". A done or
+    cancelled task will never claim it, and a closed loop settles the question
+    outright.
+
+    ``only_dead_loops`` narrows this further to closed loops alone. It is not
+    needed for correctness now that the task is tracked; it stays because the
+    application-facing path has no reason to touch a live loop's connections at
+    all, and the narrowest teardown that works is the one to run in production.
+
+    Both collections are snapshotted before iterating. ``_pools`` is keyed by
+    loop and reachable from any thread that runs one, so a bare comprehension
+    over it can raise "dictionary changed size during iteration" mid-teardown.
+    """
+    owned = {conn for pool in list(_pools.values()) for conn in list(pool._live)}
+    for conn, opened in list(_started.items()):
+        if conn in owned:
+            continue
+        if opened.loop.is_closed():
+            _stop_connection(conn)
+            continue
+        if only_dead_loops:
+            continue
+        # Live loop: an orphan only if nobody is still opening it. A task that
+        # has not finished is mid-handshake, not abandoned.
+        if opened.task is not None and not opened.task.done():
+            continue
+        _stop_connection(conn)
+
+
 def _prune_dead_pools() -> None:
     """Abandon pools whose loop has closed, so their threads don't outlive it."""
     for loop, pool in list(_pools.items()):
         if loop.is_closed():
             del _pools[loop]
             pool.abandon()
+    _sweep_orphans(only_dead_loops=True)
 
 
 def _current_pool() -> _ConnectionPool:
@@ -624,6 +724,11 @@ async def close_all_pools() -> None:
         reset_pools_for_tests()
         return
 
+    # Before the pools are dismantled, while they still vouch for the
+    # connections they hold — otherwise a connection legitimately checked out
+    # of a pool would look like an orphan and be stopped under its borrower.
+    _sweep_orphans(only_dead_loops=False)
+
     mine = _pools.pop(loop, None)
     if mine is not None:
         await mine.close()
@@ -638,7 +743,14 @@ async def close_all_pools() -> None:
 
 
 def reset_pools_for_tests() -> None:
-    """Drop every pool synchronously, terminating all worker threads."""
+    """Drop every pool synchronously, terminating all worker threads.
+
+    Sweeps orphans unconditionally rather than only on closed loops. A test's
+    loop is usually still open when its teardown runs, and nothing is going to
+    reclaim an orphan afterwards — the suite would carry it to the end of the
+    session and hang on exit.
+    """
+    _sweep_orphans(only_dead_loops=False)
     pools = list(_pools.values())
     _pools.clear()
     for pool in pools:
