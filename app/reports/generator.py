@@ -1734,6 +1734,8 @@ def _extract_policy_names(text: str) -> list[str]:
 
 def _severity(status: str) -> str:
     s = status.upper()
+    if s.startswith("ERROR") or "QUERY FAILED" in s:
+        return "warning"  # transport error — an unanswered lookup is not a clean pass
     if "MISSING" in s or "CRITICAL" in s:
         return "critical"
     if "WEAK" in s or "WARN" in s or "QUARANTINE" in s or "NONE" in s:

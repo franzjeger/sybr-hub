@@ -357,3 +357,23 @@ async def test_mfa_methods_lookup_failure_is_not_reported_as_no_mfa():
     report = saved.get("04_mfa_methods.txt", "")
     assert "(lookup failed)" in report
     assert "NOT counted as lacking MFA" in report
+
+
+def test_failed_lookups_are_not_reported_as_clean_passes():
+    """A lookup that never answered must not read as OK in a customer report.
+
+    _severity() fell through to "ok" for statuses like "ERROR: timeout" or
+    "SPF QUERY FAILED", so a transport failure was presented to the customer as
+    a passing check. The fix existed on the port branch and was lost when that
+    branch was superseded rather than merged.
+    """
+    from app.reports.generator import _severity
+
+    for status in ("ERROR: connection refused", "ERROR", "SPF QUERY FAILED",
+                   "DMARC query failed"):
+        assert _severity(status) == "warning", f"{status!r} scored as {_severity(status)}"
+
+    # Unchanged for everything else.
+    assert _severity("MISSING") == "critical"
+    assert _severity("WEAK cipher") == "warning"
+    assert _severity("ENABLED") == "ok"

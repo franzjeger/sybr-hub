@@ -282,7 +282,19 @@ class AuthManager:
             return {"error": "EXO helper timed out after 5 minutes"}
 
         if proc.returncode != 0:
-            return {"error": f"EXO helper exited {proc.returncode}: {stderr.decode()[:500]}"}
+            # The helper writes its real failure reason as JSON on stdout
+            # (e.g. {"error":"Certificate not found: ..."} or a Connect-
+            # ExchangeOnline auth error). stderr is usually empty, so reading
+            # it alone produced the useless "EXO helper exited 1:" with no
+            # detail. Prefer the stdout reason.
+            detail = ""
+            try:
+                detail = (json.loads(stdout.decode() or "{}") or {}).get("error", "")
+            except json.JSONDecodeError:
+                detail = stdout.decode()[:500].strip()
+            if not detail:
+                detail = stderr.decode()[:500].strip() or "(no output captured)"
+            return {"error": f"EXO helper exited {proc.returncode}: {detail}"}
 
         try:
             return json.loads(stdout.decode())
