@@ -653,7 +653,8 @@ def _sweep_orphans(*, only_dead_loops: bool) -> None:
     loop and reachable from any thread that runs one, so a bare comprehension
     over it can raise "dictionary changed size during iteration" mid-teardown.
     """
-    owned = {conn for pool in list(_pools.values()) for conn in list(pool._live)}
+    with _pools_lock:
+        owned = {conn for pool in _pools.values() for conn in list(pool._live)}
     for conn, opened in list(_started.items()):
         if conn in owned:
             continue
@@ -673,40 +674,64 @@ def _sweep_orphans(*, only_dead_loops: bool) -> None:
         _stop_connection(conn)
 
 
+# _pools is read and written from every thread that runs a loop, so each
+# read-decide-remove sequence has to be atomic. It is an RLock because
+# _current_pool() takes it and then calls _prune_dead_pools(), which takes it
+# again. Nothing in here awaits while holding it: an asyncio.Lock would bind to
+# whichever loop touched it first, which is the affinity problem _pools is keyed
+# by loop to avoid in the first place.
+#
+# Pools are always abandoned *after* the lock is released. abandon() joins a
+# worker thread with a timeout, and holding a process-wide lock across that
+# would let one slow teardown stall every other loop.
+_pools_lock = threading.RLock()
+
+
 def _prune_dead_pools() -> None:
     """Abandon pools whose loop has closed, so their threads don't outlive it."""
-    for loop, pool in list(_pools.items()):
-        if loop.is_closed():
-            del _pools[loop]
-            pool.abandon()
+    with _pools_lock:
+        dead = [loop for loop in _pools if loop.is_closed()]
+        # pop, not del: another thread may have reaped the same entry between
+        # the scan and here, and only the caller that actually removed a pool
+        # may abandon it — otherwise two threads stop the same connections.
+        pools = [p for p in (_pools.pop(loop, None) for loop in dead) if p is not None]
+    for pool in pools:
+        pool.abandon()
     _sweep_orphans(only_dead_loops=True)
 
 
 def _current_pool() -> _ConnectionPool:
     """Return the pool for the running loop and current DB_PATH.
 
-    Deliberately contains no await: the lookup and the swap are therefore
-    atomic against other coroutines on this loop, so no module-level lock is
-    needed — and a module-level asyncio.Lock would itself bind to whichever
-    loop touched it first, reintroducing the affinity problem it was meant
-    to solve.
+    Contains no await, so it is atomic against other coroutines on this loop;
+    _pools_lock covers the other threads.
     """
     loop = asyncio.get_running_loop()
     path = str(DB_PATH)
 
-    pool = _pools.get(loop)
-    if pool is not None and pool.matches(path, loop):
-        return pool
+    with _pools_lock:
+        pool = _pools.get(loop)
+        if pool is not None and pool.matches(path, loop):
+            return pool
 
     _prune_dead_pools()
-    if pool is not None:
+
+    with _pools_lock:
+        # Re-read: another thread may have pruned or replaced this loop's entry
+        # while the lock was released above.
+        existing = _pools.get(loop)
+        if existing is not None and existing.matches(path, loop):
+            return existing
+        stale = _pools.pop(loop, None)
+        pool = _ConnectionPool(path, loop, _POOL_SIZE)
+        _pools[loop] = pool
+
+    if stale is not None:
         # Same loop, different database (tests reassign DB_PATH, and
         # MSP_DATA_DIR can move it) — the old connections point at the wrong
-        # file, so retire them.
-        pool.abandon()
-
-    pool = _ConnectionPool(path, loop, _POOL_SIZE)
-    _pools[loop] = pool
+        # file, so retire them. Safe to abandon unlocked: this loop is the only
+        # one that could have been borrowing from it, and it is us.
+        stale.abandon()
     return pool
 
 
@@ -716,7 +741,8 @@ async def close_pool() -> None:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return
-    pool = _pools.pop(loop, None)
+    with _pools_lock:
+        pool = _pools.pop(loop, None)
     if pool is not None:
         await pool.close()
     _prune_dead_pools()
@@ -742,17 +768,26 @@ async def close_all_pools() -> None:
     # of a pool would look like an orphan and be stopped under its borrower.
     _sweep_orphans(only_dead_loops=False)
 
-    mine = _pools.pop(loop, None)
+    with _pools_lock:
+        mine = _pools.pop(loop, None)
     if mine is not None:
         await mine.close()
 
-    # Any pool belonging to another loop cannot be awaited from here; those
-    # get the synchronous treatment, which is safe because their loop is not
-    # the one about to close underneath them.
-    for other_loop, pool in list(_pools.items()):
-        if other_loop is not loop:
-            del _pools[other_loop]
-            pool.abandon()
+    # A pool on another loop cannot be awaited from here, so it gets the
+    # synchronous treatment — but only if that loop has stopped. Reaping a
+    # *running* foreign loop's pool stops connections a live thread is
+    # borrowing, and its next statement then waits on a worker that has already
+    # taken the stop sentinel: that thread hangs forever, and being non-daemon
+    # it blocks interpreter exit. Whoever owns a running loop closes its own
+    # pool; there is nothing here to clean up on its behalf.
+    with _pools_lock:
+        reapable = [
+            other for other in _pools
+            if other is not loop and not other.is_running()
+        ]
+        pools = [p for p in (_pools.pop(o, None) for o in reapable) if p is not None]
+    for pool in pools:
+        pool.abandon()
 
 
 def reset_pools_for_tests() -> None:
@@ -764,8 +799,9 @@ def reset_pools_for_tests() -> None:
     session and hang on exit.
     """
     _sweep_orphans(only_dead_loops=False)
-    pools = list(_pools.values())
-    _pools.clear()
+    with _pools_lock:
+        pools = list(_pools.values())
+        _pools.clear()
     for pool in pools:
         pool.abandon()
 

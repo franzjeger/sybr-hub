@@ -573,3 +573,82 @@ def test_sweep_reclaims_a_task_parked_on_a_stopped_but_open_loop():
     finally:
         loop.close()
         reset_pools_for_tests()
+
+
+async def test_close_all_pools_leaves_a_running_loops_pool_alone():
+    """Reaping a live foreign loop's pool hangs the thread that owns it.
+
+    close_all_pools() used to abandon every pool that was not its own, on the
+    reasoning that another loop "is not the one about to close underneath
+    them". That holds only if the other loop has stopped. Abandon a running
+    one and its borrower's next statement waits on a worker that has already
+    taken the stop sentinel — the thread blocks forever, and being non-daemon
+    it takes interpreter exit with it.
+    """
+    started = threading.Event()
+    finish = threading.Event()
+    foreign: dict = {}
+
+    def run_foreign():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        async def hold():
+            foreign["pool"] = _current_pool()
+            foreign["loop"] = asyncio.get_running_loop()
+            started.set()
+            while not finish.is_set():
+                await asyncio.sleep(0.01)
+
+        try:
+            loop.run_until_complete(hold())
+        finally:
+            loop.close()
+
+    thread = threading.Thread(target=run_foreign, name="foreign-loop")
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        assert _pools.get(foreign["loop"]) is foreign["pool"]
+
+        await close_all_pools()
+
+        assert _pools.get(foreign["loop"]) is foreign["pool"], (
+            "close_all_pools reaped a pool whose loop is still running"
+        )
+        assert not foreign["pool"]._closed
+    finally:
+        finish.set()
+        thread.join(timeout=5)
+        # The foreign pool was spared on purpose, and its loop is closed now —
+        # nothing else in this test's teardown owns it, so reclaim it here or
+        # its worker thread outlives the session and hangs interpreter exit.
+        reset_pools_for_tests()
+
+
+def test_pruning_the_same_dead_pool_twice_is_safe():
+    """A dead pool is abandoned once, and pruning again is a no-op.
+
+    Covers the half of that guarantee a test can pin down. The other half —
+    that the removal uses pop() rather than del, so a second caller racing
+    between the scan and the delete gets None instead of KeyError — needs two
+    threads interleaved inside _prune_dead_pools() and has no deterministic
+    test; sequentially the first call empties the entry and del would do just
+    as well. Verified only under the stress harness described in the commit.
+    """
+    reset_pools_for_tests()
+
+    loop = asyncio.new_event_loop()
+    loop.close()
+    pool = db._ConnectionPool(str(db.DB_PATH), loop, _POOL_SIZE)
+    _pools[loop] = pool
+
+    calls = []
+    original = pool.abandon
+    pool.abandon = lambda: (calls.append(1), original())[1]
+
+    db._prune_dead_pools()
+    db._prune_dead_pools()  # must not raise
+
+    assert loop not in _pools
+    assert len(calls) == 1, f"dead pool abandoned {len(calls)} times"
