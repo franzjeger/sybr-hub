@@ -629,11 +629,20 @@ def _sweep_orphans(*, only_dead_loops: bool) -> None:
 
     Two things make a started connection safe to stop: no pool vouches for it,
     and whoever opened it can no longer finish. The second is what the recorded
-    task answers. A pending task is still inside the handshake and is going to
-    be handed this connection, so stopping it would break a caller in flight —
-    it fails its next statement with "no active connection". A done or
-    cancelled task will never claim it, and a closed loop settles the question
-    outright.
+    task answers. A pending task on a *running* loop is still inside the
+    handshake and is going to be handed this connection, so stopping it would
+    break a caller in flight — it fails its next statement with "no active
+    connection". A done or cancelled task will never claim it, and a closed
+    loop settles the question outright.
+
+    The loop must be checked for running, not merely for open. A loop whose
+    run_until_complete() has returned is neither: its tasks stay pending
+    forever and is_closed() is False, so a pending task there protected a
+    connection nothing would ever claim — the non-daemon thread survived and
+    blocked interpreter exit, which is the failure this registry exists to
+    prevent. Requiring is_running() keeps the in-flight case safe (the only
+    caller that sweeps a live loop, close_all_pools, runs inside a coroutine on
+    it) while letting a parked loop's connections go.
 
     ``only_dead_loops`` narrows this further to closed loops alone. It is not
     needed for correctness now that the task is tracked; it stays because the
@@ -653,9 +662,13 @@ def _sweep_orphans(*, only_dead_loops: bool) -> None:
             continue
         if only_dead_loops:
             continue
-        # Live loop: an orphan only if nobody is still opening it. A task that
-        # has not finished is mid-handshake, not abandoned.
-        if opened.task is not None and not opened.task.done():
+        # Open loop: an orphan unless someone is still opening it, which
+        # requires both a pending task and a loop actually driving it.
+        if (
+            opened.task is not None
+            and not opened.task.done()
+            and opened.loop.is_running()
+        ):
             continue
         _stop_connection(conn)
 

@@ -513,6 +513,12 @@ async def test_cancelled_disposal_still_deregisters():
     assert conn in db._started
 
     async def slow_close():
+        # Mirror what aiosqlite's own close() guarantees in its finally before
+        # anything can be cancelled — otherwise the worker thread only survives
+        # this test by GC calling __del__, and the test would be asserting
+        # refcount timing rather than the teardown path production relies on.
+        conn._connection = None
+        conn.stop()
         await asyncio.sleep(3600)
 
     conn.close = slow_close
@@ -524,3 +530,46 @@ async def test_cancelled_disposal_still_deregisters():
 
     assert conn not in db._started, "cancelled disposal left the connection registered"
     assert conn not in pool._live
+
+
+def test_sweep_reclaims_a_task_parked_on_a_stopped_but_open_loop():
+    """A pending task only protects a connection while its loop is running.
+
+    ``test_task_abandoned_while_connecting_does_not_leak_its_thread`` closes the
+    loop before sweeping, which settles the question outright. The harder case
+    is the one reset_pools_for_tests() actually documents — teardown running
+    while the test's loop is stopped but still open. There the task stays
+    pending forever and is_closed() is False, so keying only on task.done()
+    spared a connection nobody would ever claim, and its non-daemon thread went
+    on blocking interpreter exit.
+    """
+    reset_pools_for_tests()
+    before = _sqlite_threads()
+
+    async def background():
+        async with get_db() as conn:
+            await _scalar(conn)
+
+    async def fire():
+        fire_and_forget(background())
+        await asyncio.sleep(0)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(fire())
+        threading.Event().wait(0.3)
+
+        # Deliberately NOT closed: stopped, open, task still pending.
+        assert not loop.is_closed()
+        assert not loop.is_running()
+        assert db._started, "expected a connection registered to the parked loop"
+
+        reset_pools_for_tests()
+        threading.Event().wait(1.0)
+
+        assert not db._started, "sweep spared a connection on a loop that had stopped"
+        assert _sqlite_threads() <= before, "parked loop leaked a worker thread"
+    finally:
+        loop.close()
+        reset_pools_for_tests()
