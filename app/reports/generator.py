@@ -1732,6 +1732,31 @@ def _extract_policy_names(text: str) -> list[str]:
     return names
 
 
+def _is_error_payload(text: str) -> bool:
+    """True if a section file holds a collector's error instead of its data.
+
+    A section that fails writes the exception into the file it would otherwise
+    have filled, so the file exists, is non-empty, and looks parseable. Every
+    parser here then treats it as content.
+
+    Matched on the first few lines only, and on the shapes the collectors
+    actually emit. Files like 05b_signin_failures.txt and 18_risky_users.txt
+    contain the word "error" in their *data* — they open with a header rule,
+    and must not be blanked.
+    """
+    head = "\n".join(text.strip().splitlines()[:3]).lower()
+    if not head:
+        return False
+    return (
+        head.startswith("error:")
+        or "client error '4" in head
+        or "server error '5" in head
+        or "query failed" in head
+        or "fetch failed" in head
+        or "collection failed" in head
+    )
+
+
 def _severity(status: str) -> str:
     s = status.upper()
     if s.startswith("ERROR") or "QUERY FAILED" in s:
@@ -3781,11 +3806,25 @@ def build_report_context(
 ) -> dict:
     from app.core.encryption import encrypted_read_text
     file_contents: dict[str, str] = {}
+    failed_sections: list[str] = []
     for f in sorted(out_dir.glob("*.txt")):
         try:
-            file_contents[f.name] = encrypted_read_text(f)
+            text = encrypted_read_text(f)
         except Exception:
-            file_contents[f.name] = f.read_text(encoding="utf-8", errors="replace")
+            text = f.read_text(encoding="utf-8", errors="replace")
+        if _is_error_payload(text):
+            # Blanked deliberately. Eighteen parsers read these files and none
+            # of them checked whether they held data or an error, so a failed
+            # section was parsed as content: a two-line 404 from the Purview
+            # endpoint became "2 sensitivity labels published", and the CIS
+            # control for publishing labels passed on it. Handing the parsers
+            # an empty string routes them into the paths that already say
+            # "cannot be verified — data unavailable". The failure itself is
+            # still reported: the section carries it as a warning.
+            log.warning("Section %s holds an error rather than data — not parsed", f.name)
+            failed_sections.append(f.name)
+            text = ""
+        file_contents[f.name] = text
 
     def fc(name: str) -> str:
         return file_contents.get(name, "")

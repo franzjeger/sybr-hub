@@ -418,3 +418,37 @@ async def test_get_all_retries_without_top_when_the_endpoint_rejects_it():
     assert items == [{"id": "1"}]
     assert calls[0] == {"$top": "999"}, "first attempt should carry $top"
     assert calls[1] is None, "retry should drop $top entirely"
+
+
+def test_a_failed_section_is_not_parsed_as_data():
+    """A collector's error must not become a finding.
+
+    Real case: /beta/.../sensitivityLabels answered 404, the section wrote the
+    two-line error into its file, and the label parser split those lines on
+    whitespace and counted them as two published labels — so the CIS control
+    "Ensure sensitivity labels are published" passed, citing "2 sensitivity
+    labels published", on a tenant where the query had failed outright.
+    """
+    from app.reports.generator import _is_error_payload
+
+    four_oh_four = (
+        "Error: Client error '404 Not Found' for url "
+        "'https://graph.microsoft.com/beta/security/informationProtection/"
+        "sensitivityLabels?%24top=999'\n"
+        "For more information check: "
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\n"
+    )
+    assert _is_error_payload(four_oh_four)
+    assert _is_error_payload("Exchange Online data collection failed:\nEXO helper exited 1")
+    assert _is_error_payload(
+        "Error fetching authentication strength policies: Client error '400 Bad Request'"
+    )
+
+    # Data that merely mentions errors must survive — these open with a header
+    # rule and describe failed sign-ins, which is the finding, not a failure.
+    signin_failures = (
+        "=" * 70 + "\n  SIGN-IN FAILURES\n" + "=" * 70 + "\n"
+        "  user@example.com  52 failures (error code != 0)\n"
+    )
+    assert not _is_error_payload(signin_failures)
+    assert not _is_error_payload("")
