@@ -1904,9 +1904,18 @@ def _count_data_lines(text: str) -> int:
         if not _is_furniture(s, near_rule=_is_underlined(stripped_lines, i))
     )
     if declared is not None and declared != rows:
+        # The two directions mean different things and the message used to
+        # assert truncation for both. Fewer rows than declared is consistent
+        # with truncated output. More rows than declared is not — the section
+        # cannot hold records the collector never wrote — so it means extra
+        # lines are being counted, typically a summary or a second table under
+        # one banner. Naming which one is observed keeps the log from claiming
+        # a cause it has no evidence for.
+        cause = ("output may be truncated" if rows < declared
+                 else "non-record lines may be counted")
         log.warning(
             "Section banner declares %d record(s) but %d row(s) are present — "
-            "using the row count; output may be truncated", declared, rows
+            "using the row count; %s", declared, rows, cause
         )
     return rows
 
