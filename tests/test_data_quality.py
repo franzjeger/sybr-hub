@@ -377,3 +377,44 @@ def test_failed_lookups_are_not_reported_as_clean_passes():
     assert _severity("MISSING") == "critical"
     assert _severity("WEAK cipher") == "warning"
     assert _severity("ENABLED") == "ok"
+
+
+async def test_get_all_retries_without_top_when_the_endpoint_rejects_it():
+    """Several Graph collections answer 400 to $top instead of ignoring it.
+
+    /directoryRoles, /settings, accessReviews/definitions and
+    authenticationStrength/policies all did, and each took its whole audit
+    section down — five dead sections in one run before one was traced back to
+    the query string. The retry belongs here because the section cannot see the
+    cause; it only sees an exception.
+    """
+    import httpx
+
+    from app.modules.m365_audit.graph_client import GraphClient
+
+    calls: list[dict | None] = []
+
+    class FakeResponse:
+        status_code = 400
+        text = "Bad Request"
+
+        def json(self):
+            return {}
+
+    client = GraphClient.__new__(GraphClient)
+
+    async def fake_get(url, params=None, extra_headers=None):
+        calls.append(params)
+        if params and "$top" in params:
+            raise httpx.HTTPStatusError(
+                "400", request=httpx.Request("GET", url), response=httpx.Response(400)
+            )
+        return {"value": [{"id": "1"}]}
+
+    client._get = fake_get
+
+    items = await client.get_all("directoryRoles", params={"$top": "999"})
+
+    assert items == [{"id": "1"}]
+    assert calls[0] == {"$top": "999"}, "first attempt should carry $top"
+    assert calls[1] is None, "retry should drop $top entirely"

@@ -103,7 +103,32 @@ class GraphClient:
         page_count = 0
         max_pages = 500
         while url and page_count < max_pages:
-            data = await self._get(url, params=params, extra_headers=extra_headers)
+            try:
+                data = await self._get(url, params=params, extra_headers=extra_headers)
+            except httpx.HTTPStatusError as e:
+                # Not every Graph collection accepts $top. /directoryRoles takes
+                # only $select, $filter and $expand; several others are the same,
+                # and they answer 400 rather than ignoring the parameter. Those
+                # endpoints return short, unpaged lists, so dropping $top costs
+                # nothing and is always the right retry.
+                #
+                # Done here rather than per-caller because the failure is
+                # invisible from the section's side: it surfaces as a dead
+                # section in the report, and five of them had gone that way
+                # before anyone traced one back to the query string.
+                if (
+                    page_count == 0
+                    and e.response is not None
+                    and e.response.status_code in (400, 404)
+                    and params
+                    and "$top" in params
+                ):
+                    retry = {k: v for k, v in params.items() if k != "$top"}
+                    log.debug("%s rejected $top — retrying without it", path)
+                    data = await self._get(url, params=retry or None,
+                                           extra_headers=extra_headers)
+                else:
+                    raise
             params = None                             # params only on first request
             items.extend(data.get(key, []))
             url = data.get("@odata.nextLink", "")

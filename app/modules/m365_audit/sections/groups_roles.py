@@ -130,10 +130,13 @@ class AdminRolesSection(BaseSection):
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
         try:
-            roles = await self.graph.get_all(
-                "directoryRoles",
-                params={"$top": "999"},
-            )
+            # No $top: /directoryRoles supports only $select, $filter (eq) and
+            # $expand, and rejects anything else with 400 — which took the whole
+            # Admin Roles section down. It returns just the roles activated in
+            # the tenant, a short list with no paging, so there is nothing to
+            # page through anyway. The members call below is a directoryObject
+            # collection and does support it.
+            roles = await self.graph.get_all("directoryRoles")
 
             has_signin = bool(self._users_ref)
             hdr = f"  {'Role':<40} {'Display Name':<30} {'UPN':<45}"
