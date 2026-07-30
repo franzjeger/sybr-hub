@@ -503,3 +503,61 @@ def test_progress_cb_never_lands_in_another_sections_parameter():
                 )
 
     assert not offenders, "; ".join(offenders)
+
+
+async def test_exo_helper_gets_a_decrypted_certificate(tmp_path, monkeypatch):
+    """PowerShell cannot read our encryption-at-rest wrapper.
+
+    The .pfx is stored with the MSPTK header and AES-GCM body, and the helper
+    was handed that path. X509Certificate2 got ciphertext and failed with
+    "ASN1 corrupted data", so Exchange collection produced nothing from the day
+    encryption-at-rest landed. Whatever path we pass must contain a real PKCS#12
+    blob, and it must not survive the call.
+    """
+    import json
+
+    from app.core.encryption import encrypt_bytes
+    from app.modules.m365_audit import auth as auth_mod
+
+    pfx_plain = b"\x30\x82fake-pkcs12-body"
+    cert_file = tmp_path / "audit_cert.pfx"
+    cert_file.write_bytes(encrypt_bytes(pfx_plain))
+    assert cert_file.read_bytes().startswith(b"MSPTK"), "fixture must be encrypted"
+
+    seen: dict = {}
+
+    class FakeProc:
+        returncode = 0
+
+        async def communicate(self, input=None):
+            payload = json.loads(input.decode())
+            path = payload["CertPath"]
+            seen["path"] = path
+            seen["bytes"] = open(path, "rb").read()
+            return (b'{"ok": true}', b"")
+
+    async def fake_exec(*a, **k):
+        return FakeProc()
+
+    monkeypatch.setattr(auth_mod.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(auth_mod, "find_pwsh", lambda: "/usr/bin/pwsh")
+
+    mgr = auth_mod.AuthManager.__new__(auth_mod.AuthManager)
+    mgr.cert_path = cert_file
+    mgr.cert_password = "pw"
+    mgr.tenant_id = "t"
+    mgr.client_id = "c"
+    mgr.org_domain = "example.com"
+
+    helper = (
+        auth_mod.Path(auth_mod.__file__).parent.parent.parent / "helpers" / "exo_collector.ps1"
+    )
+    if not helper.exists():
+        import pytest
+
+        pytest.skip("EXO helper script not present")
+
+    await mgr.collect_exo_data(tmp_path)
+
+    assert seen["bytes"] == pfx_plain, "helper was handed ciphertext, not a certificate"
+    assert not auth_mod.Path(seen["path"]).exists(), "plaintext certificate outlived the call"

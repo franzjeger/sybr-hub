@@ -253,33 +253,62 @@ class AuthManager:
         if not helper.exists():
             return {"error": "EXO helper script not found"}
 
-        config_payload = json.dumps({
-            "TenantId":     self.tenant_id,
-            "ClientId":     self.client_id,
-            "CertPath":     str(self.cert_path),
-            "CertPassword": self.cert_password,
-            "OrgDomain":    self.org_domain,
-            "OutDir":       str(out_dir),
-        })
-
         ps_exe = find_pwsh()
         if not ps_exe:
             return {"error": "PowerShell 7 (pwsh) not found — Exchange data skipped"}
 
-        proc = await asyncio.create_subprocess_exec(
-            ps_exe, "-NonInteractive", "-NoProfile", "-File", str(helper),
-            stdin  = asyncio.subprocess.PIPE,
-            stdout = asyncio.subprocess.PIPE,
-            stderr = asyncio.subprocess.PIPE,
-        )
+        # The .pfx is encrypted at rest (MSPTK header + AES-GCM), so handing its
+        # path to PowerShell gave X509Certificate2 a blob of ciphertext and it
+        # failed with "ASN1 corrupted data" — Exchange collection had been dead
+        # since encryption-at-rest landed. Decrypt to a private temporary file
+        # for the length of the call and remove it afterwards; a plaintext
+        # certificate must not outlive the subprocess that needs it.
+        # encrypted_read_bytes passes plaintext through unchanged, so this is
+        # also correct for an install whose cert predates encryption.
+        import os
+        import tempfile
+
+        from app.core.encryption import encrypted_read_bytes
+
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=config_payload.encode()),
-                timeout=300
+            plain_cert = encrypted_read_bytes(Path(self.cert_path))
+        except Exception as e:
+            return {"error": f"Could not read the audit certificate: {e}"}
+
+        fd, temp_cert = tempfile.mkstemp(suffix=".pfx")
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(plain_cert)
+
+            config_payload = json.dumps({
+                "TenantId":     self.tenant_id,
+                "ClientId":     self.client_id,
+                "CertPath":     temp_cert,
+                "CertPassword": self.cert_password,
+                "OrgDomain":    self.org_domain,
+                "OutDir":       str(out_dir),
+            })
+
+            proc = await asyncio.create_subprocess_exec(
+                ps_exe, "-NonInteractive", "-NoProfile", "-File", str(helper),
+                stdin  = asyncio.subprocess.PIPE,
+                stdout = asyncio.subprocess.PIPE,
+                stderr = asyncio.subprocess.PIPE,
             )
-        except asyncio.TimeoutError:
-            proc.kill()
-            return {"error": "EXO helper timed out after 5 minutes"}
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(input=config_payload.encode()),
+                    timeout=300
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                return {"error": "EXO helper timed out after 5 minutes"}
+        finally:
+            try:
+                os.unlink(temp_cert)
+            except OSError:
+                pass
 
         if proc.returncode != 0:
             # The helper writes its real failure reason as JSON on stdout
