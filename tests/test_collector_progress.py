@@ -46,7 +46,7 @@ class _NullAsyncContext:
 
 
 class _StubExchangeSection:
-    def __init__(self, out_dir, exo_data, verified_domains, progress_cb=None):
+    def __init__(self, out_dir, exo_data, verified_domains, progress_cb=None, *, graph):
         self.progress_cb = progress_cb
         self.result = SectionResult(name="Exchange Online")
 

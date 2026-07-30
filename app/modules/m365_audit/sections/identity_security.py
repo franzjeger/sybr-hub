@@ -1,5 +1,8 @@
 """Section 18/19 — Identity Security: Risky Users, PIM, Audit Logs, Defender,
-Purview Labels, Break-Glass Checks, and Access Reviews."""
+Break-Glass Checks, and Access Reviews.
+
+Purview sensitivity labels (19c) used to be collected here too; they now live
+in exchange.py alongside the other two Purview outputs."""
 
 from __future__ import annotations
 
@@ -57,7 +60,6 @@ class IdentitySecuritySection(BaseSection):
                 _safe(self._collect_pim_eligible()),
                 _safe(self._collect_directory_audits()),
                 _safe(self._collect_defender_alerts()),
-                _safe(self._collect_sensitivity_labels()),
                 _safe(self._collect_break_glass()),
                 _safe(self._collect_access_reviews()),
             )
@@ -332,36 +334,6 @@ class IdentitySecuritySection(BaseSection):
                 self._warn(
                     f"{sev_counts[sev]} {sev}-severity Defender alert(s) are unresolved"
                 )
-
-    # ── Sensitivity Labels ────────────────────────────────────────────────────
-
-    async def _collect_sensitivity_labels(self) -> None:
-        try:
-            labels = await self.graph.get_all(
-                "security/informationProtection/sensitivityLabels",
-                beta=True,
-                params={"$top": "999"},
-            )
-        except Exception as ex:
-            self._save("19c_purview_sensitivity_labels.txt", f"Error: {ex}\n")
-            self._warn(f"Sensitivity labels fetch failed: {ex}")
-            return
-
-        lines = [
-            "=" * 90,
-            f"  PURVIEW SENSITIVITY LABELS  ({len(labels)} total)",
-            "=" * 90,
-            f"  {'Label Name':<45} {'Priority':>9} {'Enabled':>8} {'Parent ID'}",
-            "  " + "-" * 86,
-        ]
-        for lbl in labels:
-            name     = (lbl.get("name") or "")[:45]
-            priority = lbl.get("priority", 0)
-            enabled  = "Yes" if lbl.get("isActive") else "No"
-            parent   = lbl.get("parent", {}).get("id") or "(top-level)"
-            lines.append(f"  {name:<45} {priority:>9} {enabled:>8}  {parent}")
-        lines += ["=" * 90, ""]
-        self._save("19c_purview_sensitivity_labels.txt", "\n".join(lines))
 
     # ── Break-Glass / Emergency Access Check ──────────────────────────────────
 

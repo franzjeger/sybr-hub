@@ -922,3 +922,73 @@ async def test_ca_policy_records_its_template_and_creation_date():
     assert "tmpl-abc" not in custom_line
     # The scope fix must survive alongside it.
     assert "2 role(s)" in written
+
+
+async def test_sensitivity_labels_survive_a_failed_exo_helper():
+    """19c comes from Graph, so a dead PowerShell helper must not erase it.
+
+    The Purview trio (19c/19d/19e) is owned by ExchangeSection, and that
+    section returns early when the EXO helper reports an error. Labels are the
+    one member of the trio Graph supplies, so collecting them below that guard
+    would mean every failed EXO connection produced no labels file at all. That
+    is not a rare path: the helper needs a working PowerShell and certificate.
+    The compliance control reads an absent file as "not checked" only because
+    the file is absent for the right reason, and "Graph was never asked" is the
+    wrong one.
+    """
+    import pathlib
+    import tempfile
+
+    from app.core.encryption import encrypted_read_text
+    from app.modules.base import SectionStatus
+    from app.modules.m365_audit.sections.exchange import ExchangeSection
+
+    asked = []
+
+    class FakeGraph:
+        async def get_all(self, path, **kwargs):
+            asked.append(path)
+            return [{"name": "Konfidensiell", "priority": 1, "isActive": True}]
+
+    out_dir = pathlib.Path(tempfile.mkdtemp())
+    result = await ExchangeSection(
+        out_dir,
+        {"error": "Connect-ExchangeOnline failed"},
+        [],
+        graph=FakeGraph(),
+    ).collect()
+
+    assert any("sensitivityLabels" in p for p in asked), "Graph was never asked"
+    written = encrypted_read_text(out_dir / "19c_purview_sensitivity_labels.txt")
+    assert "Konfidensiell" in written
+    assert "1 total" in written
+
+    # The EXO half must still report its own failure honestly.
+    assert result.status is SectionStatus.SKIPPED
+    assert (out_dir / "EXCHANGE_ERROR.txt").exists()
+
+
+async def test_identity_security_no_longer_writes_the_purview_file():
+    """One owner for 19c, so the duplicate collector cannot come back.
+
+    IdentitySecuritySection carried a byte-identical copy of the labels
+    collector for as long as the dead PurviewSection did. Both wrote the same
+    filename, so whichever ran last won and neither was obviously redundant.
+    """
+    import pathlib
+    import tempfile
+
+    from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
+
+    class FakeGraph:
+        async def get_all(self, path, **kwargs):
+            assert "sensitivityLabels" not in path, "labels moved to ExchangeSection"
+            return []
+
+        async def get(self, *args, **kwargs):
+            return {}
+
+    out_dir = pathlib.Path(tempfile.mkdtemp())
+    await IdentitySecuritySection(out_dir, FakeGraph()).collect()
+
+    assert not (out_dir / "19c_purview_sensitivity_labels.txt").exists()

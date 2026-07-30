@@ -82,14 +82,28 @@ class ExchangeSection(BaseSection):
         exo_data: dict,
         verified_domains: list[str],
         progress_cb=None,
+        *,
+        graph: GraphClient,
     ):
+        # graph is keyword-only on purpose. Inserting it as a fourth positional
+        # would have silently swallowed the progress_cb the one caller passes
+        # there, which is the failure identity_security.py:30 documents. A
+        # missing graph has to be a TypeError, not a section that runs blind.
         super().__init__(out_dir, progress_cb)
         self.exo_data        = exo_data
         self.verified_domains = verified_domains
+        self.graph           = graph
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
         try:
+            # Sensitivity labels come from Graph, not from the EXO helper, so
+            # they are collected before the helper's error is considered. Put
+            # below the guard they would vanish whenever PowerShell failed to
+            # connect, which is a routine outcome, and the report would then
+            # attest "no labels" on evidence it never gathered.
+            await self._collect_sensitivity_labels()
+
             # Check for error from PS helper
             if "error" in self.exo_data:
                 err_msg = self.exo_data["error"]
@@ -340,6 +354,36 @@ class ExchangeSection(BaseSection):
             self._warn(
                 f"{len(rules)} inbox rule(s) forwarding to external addresses found"
             )
+
+    # ── Sensitivity Labels (Graph, not EXO) ───────────────────────────────────
+
+    async def _collect_sensitivity_labels(self) -> None:
+        try:
+            labels = await self.graph.get_all(
+                "security/informationProtection/sensitivityLabels",
+                beta=True,
+                params={"$top": "999"},
+            )
+        except Exception as ex:
+            self._save("19c_purview_sensitivity_labels.txt", f"Error: {ex}\n")
+            self._warn(f"Sensitivity labels fetch failed: {ex}")
+            return
+
+        lines = [
+            "=" * 90,
+            f"  PURVIEW SENSITIVITY LABELS  ({len(labels)} total)",
+            "=" * 90,
+            f"  {'Label Name':<45} {'Priority':>9} {'Enabled':>8} {'Parent ID'}",
+            "  " + "-" * 86,
+        ]
+        for lbl in labels:
+            name     = (lbl.get("name") or "")[:45]
+            priority = lbl.get("priority", 0)
+            enabled  = "Yes" if lbl.get("isActive") else "No"
+            parent   = lbl.get("parent", {}).get("id") or "(top-level)"
+            lines.append(f"  {name:<45} {priority:>9} {enabled:>8}  {parent}")
+        lines += ["=" * 90, ""]
+        self._save("19c_purview_sensitivity_labels.txt", "\n".join(lines))
 
     # ── DLP Policies ──────────────────────────────────────────────────────────
 

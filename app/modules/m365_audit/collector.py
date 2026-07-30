@@ -170,7 +170,10 @@ class AuditCollector:
                     self._report_progress("Exchange Online", SectionStatus.RUNNING, "Waiting for EXO helper...")
                     exo_data = await exo_task
                     from app.modules.m365_audit.sections.exchange import ExchangeSection
-                    exo_sec = ExchangeSection(self.out_dir, exo_data, verified_domains, self.progress_cb)
+                    exo_sec = ExchangeSection(
+                        self.out_dir, exo_data, verified_domains, self.progress_cb,
+                        graph=graph,
+                    )
                     await self._run(exo_sec)
 
         return self.results
