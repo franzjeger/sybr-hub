@@ -856,7 +856,11 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 
 <!-- Exchange raw data sections -->
-{% for key in ['20_exchange_mailboxes_count.txt', '21_exchange_transport_rules.txt', '22_exchange_connectors.txt', '23_exchange_antiphish.txt', '24_exchange_antispam.txt', '28_exchange_mailbox_forwarding.txt', '29_exchange_inbox_rules_external_fwd.txt'] %}
+{# 28b_ and 29_..._WARN are the files that carry the actual findings; the
+   collector renames 29_ rather than writing into it, so listing only the
+   plain name left the raw evidence out of the appendix exactly when there
+   was something to show. Missing keys are skipped by the guard below. #}
+{% for key in ['20_exchange_mailboxes_count.txt', '21_exchange_transport_rules.txt', '22_exchange_connectors.txt', '23_exchange_antiphish.txt', '24_exchange_antispam.txt', '28_exchange_mailbox_forwarding.txt', '28b_exchange_external_forwarding_WARN.txt', '29_exchange_inbox_rules_external_fwd.txt', '29_exchange_inbox_rules_external_fwd_WARN.txt'] %}
 {% if file_contents.get(key, '') and file_contents.get(key, '').strip() %}
 <div class="data-section">
   <div class="data-header collapsed" onclick="toggleDataSection(this)">

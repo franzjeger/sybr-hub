@@ -1230,3 +1230,55 @@ def test_column_header_is_still_excluded():
         "  laptop-01            Windows\n"
     )
     assert _count_data_lines(text) == 1
+
+
+# ---------------------------------------------------------------------------
+# The collector signals some findings by renaming the file. A reader that
+# knows only the all-clear name reports "nothing found" exactly when
+# something was.
+# ---------------------------------------------------------------------------
+
+def _exchange(file_contents):
+    from app.reports.generator import _parse_exchange_overview
+    return _parse_exchange_overview(file_contents)
+
+
+def test_inbox_rules_counted_from_the_warn_file():
+    """Rules found go to 29_..._WARN.txt; the plain name is the all-clear.
+
+    This count is printed on the customer-facing report. Reading only the
+    plain name showed zero external-forwarding inbox rules to a tenant that
+    had two, while CIS 4.4 on the same report flagged them.
+    """
+    warn = (
+        "=" * 80 + "\n"
+        "  INBOX RULES WITH EXTERNAL FORWARDING  (2 entries)\n"
+        + "=" * 80 + "\n"
+        "\n  [1]\n"
+        "    Name: Send to Gmail\n"
+        "    Mailbox: anna@example.com\n"
+        "    ForwardTo: anna.private@gmail.com\n"
+        "\n  [2]\n"
+        "    Name: Copy to personal\n"
+        "    Mailbox: bjorn@example.com\n"
+        "    ForwardTo: bjorn@outlook.com\n"
+    )
+    result = _exchange({"29_exchange_inbox_rules_external_fwd_WARN.txt": warn})
+    assert result["inbox_rules_external"] == 2
+
+
+def test_inbox_rules_all_clear_still_reads_zero():
+    """The clean file must keep reporting nothing."""
+    clean = (
+        "=" * 80 + "\n"
+        "  INBOX RULES WITH EXTERNAL FORWARDING  (0 entries)\n"
+        + "=" * 80 + "\n"
+        "  (none)\n"
+    )
+    result = _exchange({"29_exchange_inbox_rules_external_fwd.txt": clean})
+    assert result["inbox_rules_external"] == 0
+
+
+def test_inbox_rules_missing_section_reads_zero():
+    """No Exchange data at all must not invent a finding."""
+    assert _exchange({})["inbox_rules_external"] == 0

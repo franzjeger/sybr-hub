@@ -1615,8 +1615,21 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     ext_fwd_text = file_contents.get("28b_exchange_external_forwarding_WARN.txt", "")
     result["external_forwarding"] = bool(ext_fwd_text and ext_fwd_text.strip())
 
-    # Inbox rules with external forwarding
-    inbox_rules_text = file_contents.get("29_exchange_inbox_rules_external_fwd.txt", "")
+    # Inbox rules with external forwarding.
+    #
+    # The collector signals the finding by renaming the file, not by writing
+    # anything inside it: rules found go to 29_..._WARN.txt, and the plain name
+    # is the all-clear. Reading only the plain name meant this count was zero
+    # precisely when it should not have been, and that number is printed on the
+    # customer-facing report — while CIS 4.4 on the same report flagged the
+    # forwarding correctly, because it reads the WARN file. The report
+    # contradicted itself, and the reassuring half was the wrong half.
+    #
+    # Same trap 4.4 itself fell into once; see the note on that check.
+    inbox_rules_text = (
+        file_contents.get("29_exchange_inbox_rules_external_fwd_WARN.txt", "")
+        or file_contents.get("29_exchange_inbox_rules_external_fwd.txt", "")
+    )
     result["inbox_rules_external"] = _count_data_lines(inbox_rules_text)
 
     result["has_data"] = (
