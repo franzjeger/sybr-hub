@@ -659,3 +659,124 @@ def test_break_glass_does_not_claim_ca_status_it_never_collected():
 
     src = inspect.getsource(identity_security)
     assert 'ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"' in src
+
+
+# ── Report must not invent findings from empty sections ──────────────────────
+
+
+def test_branch_one_banner_declaring_zero_settles_it():
+    """Gren 1: a zero banner ends the question; rows are never counted.
+
+    Taken from a real run: the Purview endpoint returned nothing and the
+    section wrote a "(none)" placeholder under a "(0 entries)" banner. Counting
+    that placeholder as a row passed the CIS control for having DLP policies,
+    citing one policy, on a tenant that has none.
+    """
+    from app.reports.generator import _count_data_lines
+
+    dlp = (
+        "=" * 80 + "\n  PURVIEW DLP POLICIES  (0 entries)\n" + "=" * 80 + "\n  (none)\n"
+    )
+    assert _count_data_lines(dlp) == 0
+
+    intune = (
+        "=" * 80 + "\n  INTUNE COMPLIANCE POLICIES  (0 total)\n" + "=" * 80 + "\n"
+        "  Policy Name                Platform             Created\n"
+        "  " + "-" * 60 + "\n" + "=" * 80 + "\n"
+    )
+    assert _count_data_lines(intune) == 0
+
+    alerts = (
+        "=" * 80 + "\n  DEFENDER ACTIVE ALERTS  (0 unresolved)\n" + "=" * 80 + "\n"
+        "  Alert Title          Severity     Status          Created\n"
+        "  " + "-" * 60 + "\n" + "=" * 80 + "\n"
+    )
+    assert _count_data_lines(alerts) == 0
+
+
+def test_branch_two_multiline_records_trust_the_banner():
+    """Gren 2: one record spanning many lines must not read as many records.
+
+    Verbatim shape of 21_exchange_transport_rules.txt from the same run: a
+    single rule whose free-text Description wraps over four lines. Row counting
+    makes that nine.
+    """
+    from app.reports.generator import _count_data_lines, _is_multiline_record_format
+
+    rules = (
+        "=" * 80 + "\n  EXCHANGE TRANSPORT RULES  (1 entries)\n" + "=" * 80 + "\n\n"
+        "  [1]\n"
+        "    Name: Scanner spam-bypass\n"
+        "    State: Disabled\n"
+        "    Priority: 0\n"
+        "    Description: If the message:\n"
+        "\tsender's address domain portion belongs to any of these domains: 'x.no'\n"
+        "Take the following actions:\n"
+        "\tSet the spam confidence level (SCL) to '-1'\n"
+        "Activation date: 3/11/2025 12:30:00 PM\n\n\n" + "=" * 80 + "\n"
+    )
+    assert _is_multiline_record_format(rules)
+    assert _count_data_lines(rules) == 1
+
+
+def test_branch_three_tabular_rows_win_over_the_banner():
+    """Gren 3: one record per line — count the rows, banner is a sanity check.
+
+    A bannerless table must skip its own furniture: a real 03_users.txt with
+    216 users read as 217 because the "USER INVENTORY" title counted as a user.
+    Where a banner disagrees with the rows the smaller honest number is used.
+    """
+    from app.reports.generator import _count_data_lines
+
+    users = (
+        "=" * 80 + "\n  USER INVENTORY\n" + "=" * 80 + "\n"
+        "  Display Name        UPN                 Enabled\n"
+        "  " + "-" * 60 + "\n"
+        "  Ann Berg            ann@example.com         Yes\n"
+        "  Bo Dahl             bo@example.com          Yes\n"
+    )
+    assert _count_data_lines(users) == 2
+
+    truncated = (
+        "=" * 80 + "\n  SECURITY ALERTS  (12 found)\n" + "=" * 80 + "\n"
+        "  Suspicious sign-in\n" + "=" * 80 + "\n"
+    )
+    assert _count_data_lines(truncated) == 1
+
+
+def test_branch_one_wins_over_rows_when_the_banner_says_zero():
+    """Gren 1 has priority: a zero banner is not overruled by stray rows.
+
+    Contradictory output — the banner declares nothing was found, yet a row is
+    present. The rule is that zero settles it, so this returns 0 rather than
+    reporting a record the collector says it did not find.
+    """
+    from app.reports.generator import _count_data_lines
+
+    contradictory = (
+        "=" * 80 + "\n  DEFENDER ACTIVE ALERTS  (0 unresolved)\n" + "=" * 80 + "\n"
+        "  leftover row from a previous write\n" + "=" * 80 + "\n"
+    )
+    assert _count_data_lines(contradictory) == 0
+
+
+def test_capabilities_require_an_assigned_seat():
+    """An owned but unassigned licence grants nobody anything.
+
+    The tenant this came from holds one AAD_PREMIUM_P2 with zero seats used.
+    Treating that as "has P2" would score PIM as a config failure the customer
+    cannot fix without first assigning the licence.
+    """
+    from app.reports.generator import _licensed_capabilities
+
+    assert _licensed_capabilities([{"part": "AAD_PREMIUM_P2", "used": 0, "total": 1}]) == set()
+    assert "entra_p2" in _licensed_capabilities(
+        [{"part": "AAD_PREMIUM_P2", "used": 3, "total": 5}]
+    )
+
+    # O365_BUSINESS_PREMIUM is Business *Standard* and carries none of these.
+    standard = _licensed_capabilities([{"part": "O365_BUSINESS_PREMIUM", "used": 42, "total": 42}])
+    assert standard == set()
+
+    # SPB is the real Business Premium.
+    assert "intune" in _licensed_capabilities([{"part": "SPB", "used": 1, "total": 5}])

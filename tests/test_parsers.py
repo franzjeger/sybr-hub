@@ -586,6 +586,13 @@ class TestCountDataLinesSkipsBanner:
         assert _count_data_lines(text) == 3  # not 4
 
     def test_alerts_found_banner_not_counted(self):
+        """A tabular section counts its rows; the banner is never a row.
+
+        One record per line, so the row count decides and the banner is only a
+        sanity check. The mismatch here (banner 12, one row present) means
+        truncated output — the smaller honest number is reported and the
+        disagreement is logged.
+        """
         text = (
             "================================\n"
             "  SECURITY ALERTS  (12 found)\n"
@@ -593,7 +600,7 @@ class TestCountDataLinesSkipsBanner:
             "  Suspicious sign-in\n"
             "================================\n"
         )
-        assert _count_data_lines(text) == 1  # not 2
+        assert _count_data_lines(text) == 1  # not 2, and not the banner's 12
 
     def test_no_banner_still_counts_correctly(self):
         text = "  Row one\n  Row two\n  Row three\n"
@@ -843,12 +850,18 @@ class TestComplianceSubstringBugs:
         ctrl = [c for c in _build_compliance_map(
             _ctx(file_contents={"07c_emergency_access_check.txt": text})
         ) if c["cis_id"] == "1.1.6"]
-        # The header word "EMERGENCY" used to make this pass; the "skipping
-        # check" message is real prose so _count_data_lines counts it, but
-        # the verdict logic only PASSES on actual user rows.
-        # Without a count check the substring match made every tenant pass.
-        assert ctrl[0]["status"] in ("pass", "warn"), \
-            "verdict must be derived from a count, not the banner"
+        # The header word "EMERGENCY" used to make this pass; the verdict must
+        # come from actual user rows, not from the banner.
+        #
+        # This fixture is the section reporting that it skipped — it had no
+        # admin ids to check. That is not a pass, and it is not a warning
+        # either: "no break-glass accounts found" would be a negative finding
+        # asserted from a check that never ran. The assertion allowed "warn"
+        # because cannot-verify was not yet an outcome here; the invariant it
+        # was protecting is that a skipped check never reads as a pass.
+        assert ctrl[0]["status"] == "info", \
+            "a skipped check must report cannot-verify, not a finding"
+        assert "Kan ikke verifiseres" in ctrl[0]["detail"]
 
     def test_banned_passwords_reads_correct_file(self):
         """Pre-v10.10.6 the check read 09c_auth_strength_policies.txt

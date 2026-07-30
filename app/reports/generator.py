@@ -1621,10 +1621,29 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     return result
 
 
+# Permissive about what surrounds the count: banners in the wild include
+# "(5 total)", "(0 entries)" and "(last 14 days — 0 events)". Requiring the
+# digits to follow the parenthesis directly missed the third and counted it as
+# an audit-log event.
 _HEADER_TOTAL_RE = re.compile(
-    r'^[A-Z][^\(]*\(.*\b\d+\s+(total|found|events?)\b.*\)\s*$'
+    r'^[A-Z][^\(]*\(.*\b\d+\s+[A-Za-z][A-Za-z-]*\b.*\)\s*$'
 )
-_BANNER_COUNT_RE = re.compile(r'\(\s*(\d+)\s+(?:total|found|events?)\b', re.IGNORECASE)
+# Banner counts: pull the parenthesised part, then take the first number that
+# is attached to a word meaning "how many". The vocabulary is deliberate —
+# position alone cannot decide it, as two real banners show:
+#
+#   "(26 total: 26 permanent, 0 time-bound/activated)"  -> 26, the first number
+#   "(last 14 days — 0 events)"                         -> 0, the last one
+#
+# Neither first-wins nor last-wins is right; "total" and "events" are the
+# count words and "days" is not. An unrecognised banner yields None and the
+# caller counts rows, which is the safe direction.
+_BANNER_PARENS_RE = re.compile(r'\(([^)]*)\)')
+_BANNER_COUNT_RE = re.compile(
+    r'\b(\d+)\s+(?:total|entries|found|unresolved|events?|mailboxes|results?|'
+    r'assignments?|policies|devices)\b',
+    re.IGNORECASE,
+)
 
 
 def _count_defender_policy_state(text: str) -> tuple[int, int]:
@@ -1668,48 +1687,159 @@ def _count_defender_policy_state(text: str) -> tuple[int, int]:
     return safe_links, safe_attach
 
 
+_EMPTY_PLACEHOLDER_RE = re.compile(
+    r'^\(?\s*(none|ingen|n/?a|empty|tom)\s*\)?\.?$', re.IGNORECASE
+)
+# "[1]" — the per-record index a multi-line section writes before its fields.
+_RECORD_INDEX_RE = re.compile(r'^\[\d+\]$')
+# "Name: Scanner spam-bypass" — a field line inside such a record.
+_RECORD_FIELD_RE = re.compile(r'^[A-Z][A-Za-z ]{0,30}:\s')
+
+
+def _looks_like_column_header(line: str) -> bool:
+    """True for a table header row or a bare section title.
+
+    Two shapes, both of which were being counted as data:
+
+    "Policy Name  Platform  Created" — columns split on runs of whitespace, at
+    least two of them, every token starting with a capital and none carrying
+    the characters that mark real data (digits, @, /, :).
+
+    "USER INVENTORY" — a single all-caps title with no banner count after it.
+    That one made every bannerless section read one too high.
+
+    Deliberately narrow. Mistaking a data row for a header undercounts, which
+    is the same class of error this exists to prevent.
+    """
+    stripped = line.strip()
+    cols = [c for c in re.split(r'\s{2,}', stripped) if c]
+
+    if len(cols) == 1:
+        return (
+            stripped == stripped.upper()
+            and any(ch.isalpha() for ch in stripped)
+            and not any(ch.isdigit() or ch in "@/:" for ch in stripped)
+        )
+
+    return all(
+        c[:1].isupper() and not any(ch.isdigit() or ch in "@/:" for ch in c)
+        for c in cols
+    )
+
+
 def _parse_banner_count(text: str) -> int | None:
     """Pull the authoritative count from a collector banner.
 
     Many audit files write `SECTION NAME  (N total)` as their header. That's
     the number the collector intended; trying to re-count by scanning data
     rows is error-prone because column headers and continuation lines look
-    like data. Returns None if no banner is found, the int otherwise.
+    like data.
+
+    Returns None when there is no banner *or* when the file carries more than
+    one. 32_pim_roles.txt is the reason for the second case: it holds two
+    sub-sections, "ELIGIBLE ... (0 total)" followed by "ACTIVE ASSIGNMENTS
+    (26 total: ...)". Taking the first banner as the file's count reported zero
+    privileged assignments for a tenant with twenty-six permanent ones, two of
+    them Global Administrator. No single number describes such a file, so the
+    caller falls back to counting rows.
     """
-    for line in text.splitlines():
-        m = _BANNER_COUNT_RE.search(line)
-        if m:
-            try:
-                return int(m.group(1))
-            except ValueError:
-                pass
-    return None
-
-
-def _count_data_lines(text: str) -> int:
-    """Count non-empty, non-header/separator lines in a text block.
-
-    Skips the section banner ("TRANSPORT RULES  (5 total)"), table headers
-    (a row whose tokens are all capitalised words), and the NOTE / NO prefix
-    lines. Without skipping the "(N total)" banner the count is off by one
-    every time — transport_rules, connectors and forwarding_count all read
-    through this helper, so even a +1 here biases the entire Exchange
-    overview.
-    """
-    count = 0
+    counts: list[int] = []
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
-        if stripped.startswith("=") or stripped.startswith("-") or stripped.startswith("#"):
-            continue
-        if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
-            continue
-        # Skip section banner like "TRANSPORT RULES  (5 total)" or "ALERTS  (12 found)"
-        if _HEADER_TOTAL_RE.match(stripped):
-            continue
-        count += 1
-    return count
+        for inside in _BANNER_PARENS_RE.findall(stripped):
+            found = _BANNER_COUNT_RE.findall(inside)
+            if found:
+                counts.append(int(found[0]))
+                break
+
+    if len(counts) != 1:
+        return None
+    return counts[0]
+
+
+def _is_furniture(stripped: str) -> bool:
+    """True for a line that is never data, whichever branch is counting.
+
+    Separators, NOTE prose, "(none)" placeholders, column headers and the
+    section banner itself. Counting any of these is how a tenant with no Intune
+    compliance policies came to be reported as having one, and how two empty
+    Purview sections passed their CIS controls.
+    """
+    if not stripped:
+        return True
+    if stripped.startswith(("=", "-", "#")):
+        return True
+    if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
+        return True
+    if _EMPTY_PLACEHOLDER_RE.match(stripped):
+        return True
+    if _looks_like_column_header(stripped):
+        return True
+    if _HEADER_TOTAL_RE.match(stripped):
+        return True
+    return False
+
+
+def _is_multiline_record_format(text: str) -> bool:
+    """True when a section renders one record across several lines.
+
+    Transport rules are the case that matters: each rule is an "[n]" index
+    followed by indented "Key: value" lines and a free-text Description that
+    wraps. Row counting cannot work on that shape at all — one rule with a
+    four-line description reads as nine rows.
+    """
+    indexed_records = 0
+    keyed_lines = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if _RECORD_INDEX_RE.match(stripped):
+            indexed_records += 1
+        elif _RECORD_FIELD_RE.match(stripped):
+            keyed_lines += 1
+    return indexed_records > 0 and keyed_lines > indexed_records
+
+
+def _count_data_lines(text: str) -> int:
+    """How many records a section file holds.
+
+    Three branches, in priority order. They are named and separate on purpose:
+    this used to be decided implicitly by which regex happened to match first,
+    and the answer came out wrong in both directions.
+
+    1. Banner declares zero. Settled, whatever the vocabulary — entries, total,
+       found, unresolved, events, mailboxes. No row counting runs, because the
+       rows in an empty section are furniture and counting them is precisely
+       the bug: "(0 entries)" over a "(none)" placeholder was read as one
+       policy, and passed a CIS control on it.
+
+    2. Banner declares N > 0 and the file uses a multi-line record format.
+       The banner wins; see _is_multiline_record_format.
+
+    3. Anything else — a plain table, one record per line. Rows win and the
+       banner is only a sanity check. A file listing one row is one row even if
+       its header claims twelve; a disagreement means the output was truncated,
+       so the smaller honest number is used and the mismatch is logged.
+    """
+    declared = _parse_banner_count(text)
+
+    # Branch 1 — declared empty.
+    if declared == 0:
+        return 0
+
+    # Branch 2 — declared non-empty, records span lines.
+    if declared is not None and _is_multiline_record_format(text):
+        return declared
+
+    # Branch 3 — tabular, or no banner at all.
+    rows = sum(1 for line in text.splitlines() if not _is_furniture(line.strip()))
+    if declared is not None and declared != rows:
+        log.warning(
+            "Section banner declares %d record(s) but %d row(s) are present — "
+            "using the row count; output may be truncated", declared, rows
+        )
+    return rows
 
 
 def _extract_policy_names(text: str) -> list[str]:
@@ -2866,6 +2996,60 @@ def _section_ran(fc: dict, *names: str) -> bool:
 
 
 _CANNOT_VERIFY = "Kan ikke verifiseres — "
+_NOT_LICENSED = "Ikke lisensiert — "
+
+# Which SKU part numbers carry which capability. Only the ones a CIS control
+# actually gates on; this is not meant to be a complete Microsoft catalogue,
+# and an unknown SKU deliberately yields "unknown" rather than "absent".
+#
+# O365_BUSINESS_PREMIUM is Microsoft 365 Business *Standard*, not Premium —
+# Microsoft's part number predates the rename. Business Premium is SPB, and
+# it is the one that carries Entra ID P1, Intune and Defender for Office P1.
+# Getting that pair backwards turns a licence gap into a config finding.
+_SKU_CAPABILITIES: dict[str, tuple[str, ...]] = {
+    "AAD_PREMIUM":        ("entra_p1",),
+    "AAD_PREMIUM_P2":     ("entra_p1", "entra_p2"),
+    "EMS":                ("entra_p1", "intune"),
+    "EMSPREMIUM":         ("entra_p1", "entra_p2", "intune"),
+    "SPB":                ("entra_p1", "intune", "defender_office"),
+    "SPE_E3":             ("entra_p1", "intune"),
+    "SPE_E5":             ("entra_p1", "entra_p2", "intune", "defender_office", "purview"),
+    "ENTERPRISEPREMIUM":  ("entra_p1", "entra_p2", "intune", "defender_office", "purview"),
+    "INTUNE_A":           ("intune",),
+    "ATP_ENTERPRISE":     ("defender_office",),
+    "THREAT_INTELLIGENCE": ("defender_office",),
+    "INFORMATION_PROTECTION_COMPLIANCE": ("purview",),
+}
+
+
+def _licensed_capabilities(licenses: list[dict] | None) -> set[str] | None:
+    """Capabilities assigned to at least one user, or None if unknown.
+
+    Ownership is not entitlement in practice: this tenant holds one
+    AAD_PREMIUM_P2 with zero seats assigned, which grants nobody anything.
+    Counting it as present would let a P2-gated control be scored as a
+    configuration failure the customer could act on, when the honest finding
+    is that the licence needs assigning first.
+
+    None when the licence section produced nothing. An empty inventory and an
+    uncollected one are not the same claim, and callers must not read "no
+    licence data" as "no licence" — that is the absence-as-finding mistake this
+    whole pass exists to remove, and it is easy to make right here.
+    """
+    if not licenses:
+        return None
+    capabilities: set[str] = set()
+    for lic in licenses:
+        if lic.get("used", 0) <= 0:
+            continue
+        for capability in _SKU_CAPABILITIES.get(lic.get("part", ""), ()):
+            capabilities.add(capability)
+    return capabilities
+
+
+def _lacks(capabilities: set[str] | None, capability: str) -> bool:
+    """True only when the licence inventory was read and lacks *capability*."""
+    return capabilities is not None and capability not in capabilities
 
 
 def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "all") -> list[dict]:
@@ -2881,6 +3065,11 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     controls = []
     show_nist = frameworks in ("cis+nist", "all")
     show_iso  = frameworks in ("cis+iso", "all")
+
+    # What the tenant can actually do. A control gated on a licence nobody
+    # holds is a purchasing decision, not a misconfiguration, and scoring it as
+    # a deviation puts work on the customer's list that they cannot do.
+    capabilities = _licensed_capabilities(context.get("licenses") or [])
 
     # Helper — includes human-readable framework names
     def add(cis_id, title, category, status, detail=""):
@@ -3014,6 +3203,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     elif pim_count is not None and pim_count > 0:
         add("1.1.5", "Ensure PIM is used for privileged role activation", t.cis_cat_identity, "pass",
             f"{pim_count} PIM-berettigede rolletildelinger funnet")
+    elif _lacks(capabilities, "entra_p2"):
+        # PIM is an Entra ID P2 feature. Without an assigned P2 seat there is
+        # nothing to configure, so "no assignments found" describes the licence
+        # rather than the tenant's hygiene.
+        add("1.1.5", "Ensure PIM is used for privileged role activation", t.cis_cat_identity, "info",
+            _NOT_LICENSED + "PIM krever Entra ID P2, som ikke er tildelt noen bruker")
     else:
         add("1.1.5", "Ensure PIM is used for privileged role activation", t.cis_cat_identity, "warn",
             "Ingen PIM-tildelinger funnet — roller kan være permanent tildelt")
@@ -3027,9 +3222,15 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         1 for line in emerg_text.splitlines()
         if "@" in line and "skipping" not in line.lower() and "ID provided" not in line
     )
-    if not emerg_text.strip() or emerg_text.strip().startswith("Error:"):
+    # The section writes "No Global Admin IDs provided — skipping check" when it
+    # had nothing to work from. That file is present and non-empty, so the
+    # error/empty branch above does not catch it, and it fell through to "no
+    # break-glass accounts identified" — a warning asserting a clean negative
+    # from a check that never ran.
+    emerg_skipped = "skipping check" in emerg_text.lower()
+    if not emerg_text.strip() or emerg_text.strip().startswith("Error:") or emerg_skipped:
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "info",
-            "Kan ikke verifiseres — data utilgjengelig")
+            _CANNOT_VERIFY + "break-glass-sjekken ble hoppet over (ingen admin-IDer tilgjengelig)")
     elif emerg_user_rows > 0:
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "pass",
             f"{emerg_user_rows} nødtilgangskonto(er) (break glass) oppdaget")
@@ -3065,9 +3266,16 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         if custom_enabled or list_configured:
             add("1.2.1", "Ensure custom banned passwords are configured", t.cis_cat_identity, "pass",
                 "Egendefinert forbudt passordliste er aktiv")
+        elif _lacks(capabilities, "entra_p1"):
+            # The collector already writes "requires Entra ID P1+" into its own
+            # output. Scoring it as a failure anyway put a Critical item on the
+            # customer's list that no amount of configuration would clear.
+            add("1.2.1", "Ensure custom banned passwords are configured", t.cis_cat_identity, "info",
+                _NOT_LICENSED + "egendefinert passordliste krever Entra ID P1, "
+                                "som ikke er tildelt noen bruker")
         else:
             add("1.2.1", "Ensure custom banned passwords are configured", t.cis_cat_identity, "fail",
-                "Kun Microsofts standardliste — ingen egendefinerte forbudte passord (krever Entra ID P1+)")
+                "Kun Microsofts standardliste — ingen egendefinerte forbudte passord")
 
     # 1.4 Secure Score. ss.get("pct", 0) silently defaulted to 0 when the
     # secure-score fetch failed, then the verdict tree below evaluated `< 50`
@@ -3256,9 +3464,14 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         # Policy exists but is disabled
         add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "fail",
             "Safe Links-policy(er) finnes men er deaktivert")
+    elif _lacks(capabilities, "defender_office"):
+        # Defender for Office is not in this tenant's SKUs, so the
+        # absence of policies is the licence, not the configuration.
+        add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "info",
+            _NOT_LICENSED + "Safe Links krever Defender for Office 365 Plan 1")
     elif _section_ran(fc, "27_exchange_defender_policies.txt"):
         add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "warn",
-            "Ingen Safe Links-policyer funnet (krever Defender for Office 365)")
+            "Ingen Safe Links-policyer funnet")
     else:
         add("4.5", "Ensure Safe Links is enabled", t.cis_cat_email, "info",
             _CANNOT_VERIFY + "Defender-policydata utilgjengelig")
@@ -3269,9 +3482,14 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     elif "safeattach" in defender.lower() or "safe attach" in defender.lower():
         add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "fail",
             "Safe Attachments-policy(er) finnes men er deaktivert")
+    elif _lacks(capabilities, "defender_office"):
+        # Defender for Office is not in this tenant's SKUs, so the
+        # absence of policies is the licence, not the configuration.
+        add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "info",
+            _NOT_LICENSED + "Safe Attachments krever Defender for Office 365 Plan 1")
     elif _section_ran(fc, "27_exchange_defender_policies.txt"):
         add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "warn",
-            "Ingen Safe Attachments-policyer funnet (krever Defender for Office 365)")
+            "Ingen Safe Attachments-policyer funnet")
     else:
         add("4.6", "Ensure Safe Attachments is enabled", t.cis_cat_email, "info",
             _CANNOT_VERIFY + "Defender-policydata utilgjengelig")
@@ -3495,9 +3713,15 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # explicitly, so require one of the two to have been written.
     defender_alerts = fc.get("19b_defender_active_alerts.txt", "")
     alert_count_text = fc.get("19b_defender_alert_count.txt", "")
-    if defender_alerts.strip() and "0 active" not in alert_count_text.lower():
+    # Count the alert rows rather than matching a phrase. The guard used to
+    # look for "0 active" while the collector writes "(0 unresolved)", so the
+    # substring never matched and a tenant with zero alerts was told that
+    # active alerts required follow-up — a warning raised by a string that was
+    # never going to be there.
+    open_alerts = _count_data_lines(defender_alerts) if defender_alerts.strip() else 0
+    if open_alerts > 0:
         add("9.2", "Ensure security alerts are monitored", t.cis_cat_logging, "warn",
-            "Aktive Defender-varsler krever oppfølging")
+            f"{open_alerts} aktive Defender-varsler krever oppfølging")
     elif _section_ran(fc, "19b_defender_alert_count.txt", "19b_defender_active_alerts.txt"):
         add("9.2", "Ensure security alerts are monitored", t.cis_cat_logging, "pass",
             "Ingen aktive Defender-varsler")
