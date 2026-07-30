@@ -803,13 +803,20 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
 
     legacy_auth = settings.get("legacy auth", "").lower() == "true"
 
-    site_count = 0
-    personal_sites = 0
-    for line in sites_text.splitlines():
-        if line.strip() and not line.strip().startswith("==="):
-            site_count += 1
-            if "-my.sharepoint.com" in line.lower() or "personal" in line.lower():
-                personal_sites += 1
+    # Counted through the shared helper rather than a local loop. The loop here
+    # skipped only "===" lines, so the banner, the column header and the "---"
+    # rule were each counted as a site: a tenant with 105 sites was reported as
+    # having 108.
+    site_count = _count_data_lines(sites_text)
+
+    # A personal site is identified by its host, not by the word "personal"
+    # appearing anywhere on the line. This tenant has an ordinary team site
+    # named "Personal FF HF" at /sites/pers, which the substring match filed as
+    # a OneDrive — the one "personal" site in a report where there are none.
+    personal_sites = sum(
+        1 for line in sites_text.splitlines()
+        if "-my.sharepoint.com" in line.lower() or "/personal/" in line.lower()
+    )
 
     return {
         "sharing": sharing_raw,

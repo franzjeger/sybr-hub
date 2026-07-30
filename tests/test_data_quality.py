@@ -780,3 +780,43 @@ def test_capabilities_require_an_assigned_seat():
 
     # SPB is the real Business Premium.
     assert "intune" in _licensed_capabilities([{"part": "SPB", "used": 1, "total": 5}])
+
+
+def test_sharepoint_counts_sites_not_furniture():
+    """The site total counted the banner, the column header and the rule.
+
+    A tenant with 105 sites was reported as having 108. The local loop skipped
+    only "===" lines, so every other piece of table furniture became a site.
+    """
+    from app.reports.generator import _parse_sharepoint_settings
+
+    sites = (
+        "=" * 110 + "\n  SHAREPOINT SITES  (105 total)\n" + "=" * 110 + "\n"
+        "  Site Name          Web URL                                    Created\n"
+        "  " + "-" * 100 + "\n"
+        "  Basene             https://x.sharepoint.com/sites/basar       2024-11-20\n"
+        "  Teknisk            https://x.sharepoint.com/sites/teknisk     2024-11-21\n"
+    )
+    result = _parse_sharepoint_settings("", sites)
+    assert result["site_count"] == 2
+
+
+def test_a_site_named_personal_is_not_a_onedrive():
+    """Classification is by host, not by the word appearing on the line.
+
+    This tenant has an ordinary team site called "Personal FF HF" at
+    /sites/pers. Substring-matching "personal" across the whole line filed it
+    as a personal site, so the report claimed one OneDrive where there are
+    none.
+    """
+    from app.reports.generator import _parse_sharepoint_settings
+
+    sites = (
+        "=" * 110 + "\n  SHAREPOINT SITES  (2 total)\n" + "=" * 110 + "\n"
+        "  Site Name          Web URL                                    Created\n"
+        "  " + "-" * 100 + "\n"
+        "  Personal FF HF     https://x.sharepoint.com/sites/pers        2024-11-20\n"
+        "  Anna Berg          https://x-my.sharepoint.com/personal/anna  2024-11-21\n"
+    )
+    result = _parse_sharepoint_settings("", sites)
+    assert result["personal_sites"] == 1, "only the -my.sharepoint.com host counts"
