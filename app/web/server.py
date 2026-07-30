@@ -156,8 +156,35 @@ def create_app() -> FastAPI:
     app.include_router(frontend.router, tags=["frontend"])
 
     @app.get("/api/health")
-    async def health() -> dict[str, str | bool]:
-        return {"status": "ok", "version": get_version()}
+    async def health() -> JSONResponse:
+        """Unauthenticated liveness *and* readiness probe.
+
+        Reports ok only when the database answers. A health check that returns
+        ok while the thing the app exists to read is unreachable tells a
+        monitor nothing — and the front-end's connection badge reads ``db_ok``
+        to decide between "Live" and "Degradert", so leaving the field out made
+        it read degraded permanently on a perfectly healthy install.
+
+        Non-200 on failure so an external monitor can alert without parsing the
+        body.
+        """
+        from app.core.database import get_db
+
+        db_ok = False
+        try:
+            async with get_db() as conn, conn.execute("SELECT 1") as cur:
+                db_ok = (await cur.fetchone())[0] == 1
+        except Exception as e:
+            log.warning("Health check: database unreachable — %s", e)
+
+        return JSONResponse(
+            {
+                "status": "ok" if db_ok else "degraded",
+                "version": get_version(),
+                "db_ok": db_ok,
+            },
+            status_code=200 if db_ok else 503,
+        )
 
     return app
 

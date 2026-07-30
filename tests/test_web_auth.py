@@ -695,3 +695,49 @@ def test_service_worker_cache_version_tracks_the_build(client):
     # And the worker script itself must not be cacheable, or the browser never
     # sees the new version in the first place.
     assert "no-cache" in client.get("/static/sw.js").headers.get("cache-control", "")
+
+
+def test_health_reports_the_database(client):
+    """The badge reads db_ok; without it the UI shows "Degradert" forever.
+
+    Same drift as the setup_required case: the ported front-end expects the
+    richer shape this repo's slim endpoint never sent, and both halves look
+    correct on their own. A health check that says ok while the database is
+    unreachable is also just wrong on its own terms.
+    """
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["db_ok"] is True
+    assert body["version"]
+
+
+def test_health_is_degraded_when_the_database_is_gone(client, monkeypatch):
+    """A monitor must be able to alert on this without parsing the body."""
+    import app.core.database as db_mod
+
+    def boom():
+        raise RuntimeError("no database")
+
+    monkeypatch.setattr(db_mod, "get_db", lambda: boom())
+
+    resp = client.get("/api/health")
+    assert resp.status_code == 503
+    assert resp.json()["db_ok"] is False
+
+
+def test_client_reads_the_health_fields_the_server_sends(client):
+    """Guard the same contract for /api/health that we guard for auth/status."""
+    import re
+    from pathlib import Path
+
+    body = client.get("/api/health").json()
+    source = (Path(__file__).parent.parent / "app" / "web" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    # The connection monitor destructures its response as `d.<field>`.
+    monitor = source[source.index("fetch('/api/health'") :][:900]
+    read = set(re.findall(r"\bd\.([A-Za-z_]+)", monitor))
+    unknown = read - set(body)
+    assert not unknown, f"app.js reads {sorted(unknown)} from /api/health, which returns {sorted(body)}"
