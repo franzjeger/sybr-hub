@@ -77,7 +77,9 @@ def _keyring_stored(k: str, value: str) -> bool:
         keyring.set_password(_SERVICE, k, value)
         return keyring.get_password(_SERVICE, k) == value
     except Exception as e:
-        log.warning("OS keyring unavailable (%s) — using %s", e, _FALLBACK_PATH.name)
+        from app.core.encryption import _log_keyring_absence
+
+        _log_keyring_absence("store a secret", e)
         return False
 
 

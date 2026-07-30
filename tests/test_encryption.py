@@ -151,3 +151,27 @@ def test_the_key_persists_across_a_restart_without_a_keyring(tmp_path, monkeypat
 
     monkeypatch.setattr(enc, "_cached_key", None)   # simulate a restart
     assert enc.decrypt_bytes(blob).decode() == "hemmelig"
+
+
+def test_absent_keyring_is_not_logged_as_a_problem(caplog):
+    """A headless host has no keyring; saying so four times per boot is noise.
+
+    The messages were warning and error level, and their text was identical to
+    what a genuine keyring failure produces — so the operator learned to read
+    past the one line that would have mattered. Absence is debug; a keyring
+    that exists and then misbehaves is still a warning.
+    """
+    import logging
+
+    import keyring.errors
+
+    from app.core.encryption import _log_keyring_absence
+
+    with caplog.at_level(logging.DEBUG, logger="app.core.encryption"):
+        _log_keyring_absence("read the master key", keyring.errors.NoKeyringError("none"))
+    assert [r.levelno for r in caplog.records] == [logging.DEBUG]
+
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG, logger="app.core.encryption"):
+        _log_keyring_absence("read the master key", keyring.errors.KeyringError("locked"))
+    assert [r.levelno for r in caplog.records] == [logging.WARNING]

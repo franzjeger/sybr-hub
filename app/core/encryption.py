@@ -111,12 +111,31 @@ def _try_restore_from_backup() -> bytes | None:
                     # Legacy plaintext format
                     key = base64.urlsafe_b64decode(data["key"])
                 if len(key) == 32:
-                    log.warning("Master key restored from backup: %s", path)
+                    # Routine on a headless install — the backups are the
+                    # primary store there, not a fallback from a bad state.
+                    log.debug("Master key read from backup: %s", path)
                     return key
             except Exception as e:
                 log.debug("Key backup at %s unreadable: %s", path, e)
                 continue
     return None
+
+
+def _log_keyring_absence(action: str, exc: Exception) -> None:
+    """Log a keyring failure at a level that matches what it means.
+
+    On a headless install there is no Secret Service provider, so every call
+    raises and the file backups are the key's real home. Logging that at
+    warning or error made four lines of alarm on every single startup for the
+    designed behaviour — and the text is identical to the message from a real
+    failure, so it trained the operator to read past exactly the thing that
+    would matter. A keyring that exists and then misbehaves is different: that
+    one is worth seeing.
+    """
+    if isinstance(exc, keyring.errors.NoKeyringError):
+        log.debug("No OS keyring on this host, so could not %s; using file backups", action)
+    else:
+        log.warning("OS keyring present but failed to %s (%s)", action, exc)
 
 
 def _get_or_create_master_key() -> bytes:
@@ -146,7 +165,7 @@ def _get_or_create_master_key() -> bytes:
     try:
         stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY)
     except Exception as e:
-        log.warning("OS keyring unavailable (%s) — falling back to file backups", e)
+        _log_keyring_absence("read the master key", e)
         stored = None
     if stored:
         _cached_key = base64.urlsafe_b64decode(stored)
@@ -154,23 +173,24 @@ def _get_or_create_master_key() -> bytes:
         _save_key_backups(stored)
         return _cached_key
 
-    # 2. Keyring lost the key — try backups
-    log.warning("Master key NOT found in OS keyring — checking backups...")
+    # 2. No key in the keyring — try the file backups.
     restored = _try_restore_from_backup()
     if restored:
         _cached_key = restored
         b64 = base64.urlsafe_b64encode(restored).decode()
-        # Restore to keyring
+        # Put it back in the keyring if there is one to put it in.
         try:
             keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, b64)
             log.info("Master key restored to OS keyring from backup")
         except Exception as e:
-            log.error("Failed to restore key to keyring: %s", e)
+            _log_keyring_absence("write the master key back", e)
         _save_key_backups(b64)
         return _cached_key
 
-    # 3. No backups — create new key (first run, or total loss)
-    log.warning("No master key found anywhere — creating NEW key")
+    # 3. No key and no backups — first run, or total loss. This one stays loud:
+    # if backups existed and we still got here, everything encrypted with the
+    # old key has just become unreadable.
+    log.warning("No master key found in the keyring or any backup — creating a NEW key")
     _cached_key = os.urandom(32)
     b64 = base64.urlsafe_b64encode(_cached_key).decode()
     try:
@@ -179,7 +199,7 @@ def _get_or_create_master_key() -> bytes:
         # Same reasoning as the read above. The file backups are the key's
         # real home on a headless install; failing to *also* put it in a
         # keyring that does not exist must not lose the key we just made.
-        log.warning("Could not store master key in OS keyring (%s) — using file backups", e)
+        _log_keyring_absence("store the new master key", e)
     _save_key_backups(b64)
     log.info("New master key created and backed up")
 
