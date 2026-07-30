@@ -13,9 +13,29 @@ def _summarise_conditions(cond: dict) -> str:
     apps  = cond.get("applications", {})
 
     inc_users = users.get("includeUsers", [])
+    inc_roles = users.get("includeRoles", [])
+    inc_guests = users.get("includeGuestsOrExternalUsers")
     inc_apps  = apps.get("includeApplications", [])
 
-    u_str = "All" if "All" in inc_users else f"{len(inc_users)} user(s)"
+    # A policy can be scoped by directory role rather than by user, and the
+    # Microsoft-managed "Require multifactor authentication for admins" is:
+    # includeUsers is empty and includeRoles carries the admin role templates.
+    # Reading only includeUsers rendered that as "0 user(s)", which reads as a
+    # policy protecting nobody — an alarming and entirely false finding about
+    # the one policy covering every administrator.
+    if "All" in inc_users:
+        u_str = "All"
+    else:
+        parts = []
+        if inc_users:
+            parts.append(f"{len(inc_users)} user(s)")
+        if inc_roles:
+            parts.append(f"{len(inc_roles)} role(s)")
+        if inc_guests:
+            parts.append("guests/external")
+        # Genuinely empty is worth seeing, and now means what it says.
+        u_str = ", ".join(parts) if parts else "none"
+
     a_str = "All" if "All" in inc_apps else f"{len(inc_apps)} app(s)"
     return u_str, a_str
 

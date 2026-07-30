@@ -820,3 +820,37 @@ def test_a_site_named_personal_is_not_a_onedrive():
     )
     result = _parse_sharepoint_settings("", sites)
     assert result["personal_sites"] == 1, "only the -my.sharepoint.com host counts"
+
+
+def test_role_scoped_ca_policy_is_not_reported_as_targeting_nobody():
+    """Reading only includeUsers made an admin policy look empty.
+
+    "Require multifactor authentication for admins" is scoped by directory
+    role: includeUsers is empty and includeRoles carries the admin templates.
+    The summary rendered "0 user(s)", which reads as a policy protecting
+    nobody — the most alarming thing a reader could be told about the one
+    policy covering every administrator, and false.
+    """
+    from app.modules.m365_audit.sections.conditional_access import _summarise_conditions
+
+    admin_policy = {
+        "users": {"includeUsers": [], "includeRoles": ["tmpl-ga", "tmpl-ea", "tmpl-sa"]},
+        "applications": {"includeApplications": ["All"]},
+    }
+    scope, _ = _summarise_conditions(admin_policy)
+    assert scope == "3 role(s)"
+    assert "0 user" not in scope
+
+
+def test_a_ca_policy_scoped_to_nothing_still_says_so():
+    """The real empty case must remain visible, and now means what it says."""
+    from app.modules.m365_audit.sections.conditional_access import _summarise_conditions
+
+    empty = {"users": {"includeUsers": []}, "applications": {"includeApplications": ["All"]}}
+    assert _summarise_conditions(empty)[0] == "none"
+
+    guests = {
+        "users": {"includeUsers": [], "includeGuestsOrExternalUsers": {"guestOrExternalUserTypes": "b2b"}},
+        "applications": {"includeApplications": ["All"]},
+    }
+    assert _summarise_conditions(guests)[0] == "guests/external"
