@@ -177,3 +177,48 @@ def test_a_domain_with_dkim_passes():
                   "dkim1": "CNAME selector1._domainkey.acme.no OK"})
     ), "5.2.3")
     assert ctrl["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# A DNS lookup that failed is not a DNS record that is missing. The DNS
+# section keeps them apart on purpose; 5.2.1 and 5.2.2 used to collapse both
+# into a failed control, which reads as "configure SPF" for a domain that may
+# already have it. 5.2.3 already guarded against this.
+# ---------------------------------------------------------------------------
+
+def _controls(spf_rows, cid):
+    rows = _build_compliance_map({"spf_dmarc": spf_rows, "file_contents": {}})
+    return [r for r in rows if r["cis_id"] == cid]
+
+
+def test_spf_lookup_error_is_not_reported_as_missing():
+    rows = _controls(
+        [{"domain": "example.com", "spf": "ERROR (SERVFAIL)", "dmarc": "ERROR (SERVFAIL)"}],
+        "5.2.1",
+    )
+    assert rows, "the control should still appear"
+    assert rows[0]["status"] == "info"
+    assert "Kan ikke verifiseres" in rows[0]["detail"]
+
+
+def test_dmarc_lookup_error_is_not_reported_as_missing():
+    rows = _controls(
+        [{"domain": "example.com", "spf": "ERROR (SERVFAIL)", "dmarc": "ERROR (timeout)"}],
+        "5.2.2",
+    )
+    assert rows[0]["status"] == "info"
+    assert "Kan ikke verifiseres" in rows[0]["detail"]
+
+
+def test_genuinely_missing_spf_still_fails():
+    """The guard must not turn a real finding into a shrug."""
+    rows = _controls([{"domain": "example.com", "spf": "MISSING", "dmarc": "MISSING"}], "5.2.1")
+    assert rows[0]["status"] == "fail"
+
+
+def test_valid_spf_still_passes():
+    rows = _controls(
+        [{"domain": "example.com", "spf": "OK (-all hardfail)", "dmarc": "OK (p=reject)"}],
+        "5.2.1",
+    )
+    assert rows[0]["status"] == "pass"

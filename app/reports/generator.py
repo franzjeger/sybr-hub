@@ -3598,9 +3598,21 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         dmarc_s = d.get("dmarc", "")
         dkim_s = d.get("dkim", "")
 
+        # A failed lookup is not an absent record. The DNS section is careful
+        # to keep them apart — SERVFAIL and a DoH outage come back as
+        # "ERROR (...)", never "MISSING" — and these two checks threw that
+        # away by treating everything that was not a pass as a failure. The
+        # result was "configure SPF" for a domain that may well have it,
+        # repeated per domain. 5.2.3 below already guards against this; these
+        # two were left behind when it was fixed.
+        unresolved = spf_s.strip().upper().startswith("ERROR")
+
         # SPF
         if "OK" in spf_s:
             add("5.2.1", f"Ensure SPF is configured — {domain}", t.cis_cat_email, "pass", spf_s)
+        elif unresolved:
+            add("5.2.1", f"Ensure SPF is configured — {domain}", t.cis_cat_email, "info",
+                _CANNOT_VERIFY + f"SPF-oppslaget feilet for {domain} — {spf_s}")
         else:
             add("5.2.1", f"Ensure SPF is configured — {domain}", t.cis_cat_email, "fail",
                 spf_s or t.cis_spf_missing)
@@ -3617,6 +3629,9 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         elif "p=none" in dmarc_s.lower() or "p=none" in dmarc_record.lower():
             add("5.2.2", f"Ensure DMARC is configured — {domain}", t.cis_cat_email, "partial",
                 f"p=none (kun overvåking) — {dmarc_record}" if dmarc_record else dmarc_s)
+        elif dmarc_s.strip().upper().startswith("ERROR"):
+            add("5.2.2", f"Ensure DMARC is configured — {domain}", t.cis_cat_email, "info",
+                _CANNOT_VERIFY + f"DMARC-oppslaget feilet for {domain} — {dmarc_s}")
         else:
             add("5.2.2", f"Ensure DMARC is configured — {domain}", t.cis_cat_email, "fail",
                 dmarc_s or t.cis_dmarc_missing)
