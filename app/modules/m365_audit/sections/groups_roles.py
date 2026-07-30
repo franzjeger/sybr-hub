@@ -112,6 +112,12 @@ class AdminRolesSection(BaseSection):
         super().__init__(out_dir, progress_cb)
         self.graph = graph
         self._users_ref = users_ref or []
+        # Populated during collect() and read by IdentitySecuritySection's
+        # break-glass check, which runs later in the same sequential pass.
+        # Mutated in place rather than reassigned, so the reference handed to
+        # that section at construction stays valid — the same idiom as
+        # UsersSection.users.
+        self.global_admin_ids: list[str] = []
 
     def _get_last_signin(self, upn: str) -> str:
         """Look up last sign-in from the users list (already fetched by UsersSection)."""
@@ -184,6 +190,9 @@ class AdminRolesSection(BaseSection):
                     lines.append(line)
                     if role_name in ("Global Administrator", "Company Administrator"):
                         global_admin_count += 1
+                        member_id = m.get("id")
+                        if member_id and member_id not in self.global_admin_ids:
+                            self.global_admin_ids.append(member_id)
 
             lines += ["=" * 130, ""]
             self._save("07_admin_roles.txt", "\n".join(lines))

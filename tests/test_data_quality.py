@@ -618,3 +618,44 @@ def test_exo_helper_skips_absent_mailbox_types():
     helper = pathlib.Path("app/helpers/exo_collector.ps1").read_text(encoding="utf-8")
     assert "if ($found) { $mbx += $found }" in helper, "null results must not be appended"
     assert "Where-Object { $_ -and $_.Identity }" in helper, "null rows must be filtered"
+
+
+async def test_break_glass_check_receives_the_global_admins():
+    """The check ran but had nothing to check.
+
+    AdminRolesSection counted Global Administrators and discarded their ids, so
+    IdentitySecuritySection was constructed without them and wrote "No Global
+    Admin IDs provided — skipping check" on every audit. The report then said
+    "cannot be verified — data unavailable", which reads as a tenant condition
+    rather than nothing having been wired up.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from app.modules.m365_audit.sections.groups_roles import AdminRolesSection
+
+    class FakeGraph:
+        async def get_all(self, path, **kw):
+            if path == "directoryRoles":
+                return [{"id": "role-ga", "displayName": "Global Administrator"}]
+            return [{"id": "admin-1", "userPrincipalName": "ga@example.com"},
+                    {"id": "admin-2", "userPrincipalName": "ga2@example.com"}]
+        async def get(self, *a, **k):
+            return {}
+
+    section = AdminRolesSection(Path(tempfile.mkdtemp()), FakeGraph())
+    shared = section.global_admin_ids          # captured at construction time
+    await section.collect()
+
+    assert shared is section.global_admin_ids, "list was replaced, breaking the shared reference"
+    assert section.global_admin_ids == ["admin-1", "admin-2"]
+
+
+def test_break_glass_does_not_claim_ca_status_it_never_collected():
+    """An empty exclusion set means unknown, not "not excluded"."""
+    import inspect
+
+    from app.modules.m365_audit.sections import identity_security
+
+    src = inspect.getsource(identity_security)
+    assert 'ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"' in src

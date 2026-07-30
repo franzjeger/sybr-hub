@@ -191,6 +191,11 @@ class AuditCollector:
 
         users_sec = UsersSection(self.out_dir, graph, self.progress_cb)
         ca_sec    = ConditionalAccessSection(self.out_dir, graph, self.progress_cb)
+        # Built here so its global_admin_ids list exists before the section
+        # list is assembled; the break-glass check below shares that list by
+        # reference and reads it after this section has run.
+        admin_sec = AdminRolesSection(self.out_dir, graph, self.progress_cb,
+                                      users_ref=users_sec.users)
 
         return [
             LicensesSection(self.out_dir, graph, self.progress_cb),
@@ -201,13 +206,17 @@ class AuditCollector:
                        ca_section=ca_sec),
             SignInsSection(self.out_dir, graph, self.progress_cb),
             GroupsSection(self.out_dir, graph, self.progress_cb),
-            AdminRolesSection(self.out_dir, graph, self.progress_cb, users_ref=users_sec.users),
+            admin_sec,
             SecureScoreSection(self.out_dir, graph, self.progress_cb),
             IntuneSection(self.out_dir, graph, self.progress_cb),
             SharePointSection(self.out_dir, graph, self.progress_cb),
             TeamsSection(self.out_dir, graph, self.progress_cb),
             AppsOAuthSection(self.out_dir, graph, self.progress_cb),
-            IdentitySecuritySection(self.out_dir, graph, progress_cb=self.progress_cb),
+            # AdminRoles runs earlier in this list, so its ids are populated
+            # by the time the break-glass check reads them.
+            IdentitySecuritySection(self.out_dir, graph,
+                                    global_admin_ids=admin_sec.global_admin_ids,
+                                    progress_cb=self.progress_cb),
             TeamsPoliciesSection(self.out_dir, graph, self.progress_cb),
             PasswordProtectionSection(self.out_dir, graph, self.progress_cb),
             PIMSection(self.out_dir, graph, self.progress_cb),

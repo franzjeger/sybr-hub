@@ -407,14 +407,21 @@ class IdentitySecuritySection(BaseSection):
             except Exception:
                 has_mfa = None  # unknown
 
-            ca_excluded = uid in self.ca_exclusions
+            # An empty exclusion set means nobody supplied one, not that nobody
+            # is excluded. Writing "No" there asserts a clean result from data
+            # we never had — the same mistake as reporting an unanswered lookup
+            # as a pass.
+            ca_known    = bool(self.ca_exclusions)
+            ca_excluded = ca_known and uid in self.ca_exclusions
             mfa_str     = "Yes" if has_mfa else ("Unknown" if has_mfa is None else "NO")
-            ca_str      = "Yes" if ca_excluded else "No"
+            ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"
             notes       = []
             if not has_mfa and has_mfa is not None:
                 notes.append("No MFA — potential break-glass")
             if ca_excluded:
                 notes.append("Excluded from CA — confirmed break-glass candidate")
+            if not ca_known:
+                notes.append("CA exclusions not collected — cannot confirm")
             lines.append(
                 f"  {uid:<40} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}"
             )
