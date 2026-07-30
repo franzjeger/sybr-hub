@@ -1108,3 +1108,67 @@ class TestCompliancePhishingResistantMFA:
         )) if c["cis_id"] == "1.1.2"]
         assert ctrl[0]["status"] == "pass", \
             "policy-level configuration should PASS independently of user adoption"
+
+
+def test_multiline_record_with_lowercase_fields_trusts_its_banner():
+    """22_exchange_connectors.txt writes its fields in lower case.
+
+    The multi-line detector required a capitalised field name, so a file
+    holding one record across three lines was treated as a plain table and
+    counted as three. The connector count is printed verbatim on the
+    customer-facing report, so the tenant's single connector was reported as
+    three of them.
+    """
+    from app.reports.generator import _count_data_lines, _is_multiline_record_format
+
+    text = (
+        "=" * 80 + "\n"
+        "  EXCHANGE CONNECTORS  (1 entries)\n"
+        + "=" * 80 + "\n"
+        "\n"
+        "  [1]\n"
+        "    outbound: N/A\n"
+        "    inbound: N/A\n"
+        "\n"
+        + "=" * 80 + "\n"
+    )
+
+    assert _is_multiline_record_format(text), "lower-case field names are still fields"
+    assert _count_data_lines(text) == 1
+
+
+def test_capitalised_fields_still_detected():
+    """The original shape must keep working."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "  TRANSPORT RULES  (2 entries)\n"
+        "  [1]\n"
+        "    Name: Scanner spam-bypass\n"
+        "    State: Enabled\n"
+        "  [2]\n"
+        "    Name: External warning\n"
+        "    State: Enabled\n"
+    )
+    assert _count_data_lines(text) == 2
+
+
+def test_plain_table_is_not_pulled_into_the_multiline_branch():
+    """Relaxing the field regex must not let a tabular file trust its banner.
+
+    The "[n]" index line is the gate on that branch, and it is what makes the
+    relaxation safe. So this file is the awkward case: every row is shaped
+    like a field, "label: value", but there are no index lines and each row is
+    a whole record. Without the gate the over-claiming banner would win and
+    the section would report nine domains where two were collected.
+    """
+    from app.reports.generator import _count_data_lines, _is_multiline_record_format
+
+    text = (
+        "  TEAMS POLICIES  (9 total)\n"
+        "  " + "-" * 40 + "\n"
+        "  Global: Enabled\n"
+        "  Restricted guests: Disabled\n"
+    )
+    assert not _is_multiline_record_format(text), "no [n] lines means no records span lines"
+    assert _count_data_lines(text) == 2

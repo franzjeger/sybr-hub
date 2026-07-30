@@ -1699,8 +1699,14 @@ _EMPTY_PLACEHOLDER_RE = re.compile(
 )
 # "[1]" — the per-record index a multi-line section writes before its fields.
 _RECORD_INDEX_RE = re.compile(r'^\[\d+\]$')
-# "Name: Scanner spam-bypass" — a field line inside such a record.
-_RECORD_FIELD_RE = re.compile(r'^[A-Z][A-Za-z ]{0,30}:\s')
+# "Name: Scanner spam-bypass" — a field line inside such a record. The field
+# name may be lower-case: 22_exchange_connectors.txt writes "outbound:" and
+# "inbound:", and requiring a capital meant its one record was not recognised
+# as multi-line at all. Row counting then reported the tenant's single
+# connector as three, on the customer-facing report as well as the technical
+# one. Only a file that already carries "[n]" index lines can reach the
+# multi-line branch, so relaxing this cannot pull a plain table into it.
+_RECORD_FIELD_RE = re.compile(r'^[A-Za-z][A-Za-z ]{0,30}:\s')
 
 
 def _looks_like_column_header(line: str) -> bool:
