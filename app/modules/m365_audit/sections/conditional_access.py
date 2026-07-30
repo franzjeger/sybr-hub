@@ -121,24 +121,28 @@ class ConditionalAccessSection(BaseSection):
 
             lines.append(f"  [{state:<10}] {name:<45} {u_str:<25} {g_str:<25} {a_str}{flag}")
 
-            # Provenance, recorded rather than inferred.
+            # Provenance. A technician reads "Microsoft enabled this
+            # automatically" very differently from "the customer configured
+            # this", and the report could not tell them apart.
             #
-            # A technician reads "Microsoft turned this on automatically" very
-            # differently from "the customer configured this", and the report
-            # cannot currently tell them apart. There is no property that says
-            # so: conditionalAccessPolicy in v1.0 carries no createdBy, and the
-            # "Microsoft-managed:" prefix the audit log shows is not present in
-            # displayName here. templateId is the only documented candidate.
+            # Graph exposes no createdBy, and the "Microsoft-managed:" prefix
+            # the audit log shows is absent from displayName. templateId is the
+            # signal, confirmed against a live tenant rather than assumed: four
+            # policies matching Microsoft's published managed-policy names each
+            # carry one, three of them created the same day in a bulk rollout,
+            # while the customer's own "All users require MFA" has none.
             #
-            # So it is written to the output instead of being turned into a
-            # verdict. Whether Microsoft-managed policies actually carry one is
-            # an open question, and the next run against a tenant that has them
-            # answers it. Guessing at the signal is how two false findings got
-            # into this report already.
+            # Worded as "from template" rather than "Microsoft-managed" because
+            # that is what the field actually attests. An administrator can
+            # also create a policy from a template by hand, and the data cannot
+            # distinguish that case.
             template_id = policy.get("templateId")
             created = policy.get("createdDateTime", "")
             if template_id or created:
-                provenance = f"template: {template_id}" if template_id else "template: none"
+                origin = "from template" if template_id else "custom"
+                provenance = f"origin: {origin}"
+                if template_id:
+                    provenance += f" ({template_id})"
                 if created:
                     provenance += f"   created: {created[:10]}"
                 lines.append(f"  {'':>12} {provenance}")

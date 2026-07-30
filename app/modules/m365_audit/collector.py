@@ -100,11 +100,19 @@ class AuditCollector:
 
                 # ── 2. Collect tenant info first (other sections may need it) ─
                 from app.modules.m365_audit.sections.tenant import TenantSection
-                tenant_sec = TenantSection(self.out_dir, graph, self.progress_cb)
-                if self._is_enabled("Tenant Information"):
+                tenant_enabled = self._is_enabled("Tenant Information")
+                # When the section is deselected it still has to run, because
+                # every later section needs verified_domains. It must then run
+                # without the progress callback: the caller sizes the progress
+                # bar from the selected sections only, so a report from an
+                # unselected section pushes the numerator past the denominator.
+                # That is where "21/18" came from.
+                tenant_sec = TenantSection(
+                    self.out_dir, graph, self.progress_cb if tenant_enabled else None
+                )
+                if tenant_enabled:
                     await self._run(tenant_sec)
                 else:
-                    # Always collect tenant info silently for verified_domains
                     try:
                         await tenant_sec.collect()
                     except Exception as e:

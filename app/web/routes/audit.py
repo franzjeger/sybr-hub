@@ -34,6 +34,55 @@ _BUILTIN_PRESETS = {
     "Identity Only": ["Users", "MFA Methods", "Conditional Access", "Admin Roles", "Groups", "Privileged Identity Management"],
 }
 
+class _ProgressTracker:
+    """Counts audit sections towards a total the run may turn out to exceed.
+
+    The denominator is an estimate: it is fixed before the run from the
+    selected section names, while the numerator comes from whatever the
+    collector actually reports. The two disagreed and the bar read "21 / 18".
+
+    Two rules keep the ratio honest. Sections are counted by name, so a
+    section that reaches a terminal state more than once — the Azure sections
+    run once per subscription under a single name — is still one section. And
+    if the count exceeds the estimate anyway, the estimate is what was wrong,
+    so it widens.
+    """
+
+    def __init__(self, sections_filter: Optional[set[str]] = None):
+        from app.modules.m365_audit.collector import AuditCollector
+
+        all_sections = AuditCollector.GRAPH_SECTION_NAMES + AuditCollector.AZURE_SECTION_NAMES
+        if sections_filter:
+            self.total = sum(1 for s in all_sections if s in sections_filter)
+        else:
+            self.total = len(all_sections)
+        self._done: set[str] = set()
+        self._current = ""
+
+    def record(self, name: str, status) -> dict:
+        from app.modules.base import SectionStatus
+
+        if status in (SectionStatus.DONE, SectionStatus.SKIPPED, SectionStatus.FAILED):
+            self._done.add(name)
+        self._current = name
+        if len(self._done) > self.total:
+            logger.warning(
+                "Audit progress: %d sections completed but %d were expected; "
+                "last section '%s'", len(self._done), self.total, name,
+            )
+            self.total = len(self._done)
+        return self.snapshot()
+
+    def snapshot(self) -> dict:
+        completed = len(self._done)
+        pct = round((completed / self.total) * 100) if self.total > 0 else 0
+        return {
+            "progress": min(pct, 100),
+            "current_section": self._current,
+            "total_sections": self.total,
+            "completed": completed,
+        }
+
 
 # ── API: Setup SSE stream ──────────────────────────────────────────────────────
 
@@ -280,36 +329,15 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
 
             queue: asyncio.Queue = asyncio.Queue()
 
-            # Compute total sections for progress tracking
-            all_sections = AuditCollector.GRAPH_SECTION_NAMES + AuditCollector.AZURE_SECTION_NAMES
-            if sections_filter:
-                total_sections = sum(1 for s in all_sections if s in sections_filter)
-            else:
-                total_sections = len(all_sections)
-            _progress_completed = 0
+            tracker = _ProgressTracker(sections_filter)
 
             from app.core.customer import CustomerManager as _CM
             _active_id = _CM.get_active_id() or "active"
 
-            state.audit_progress[_active_id] = {
-                "progress": 0,
-                "current_section": "",
-                "total_sections": total_sections,
-                "completed": 0,
-            }
+            state.audit_progress[_active_id] = tracker.snapshot()
 
             def progress_cb(name: str, status: SectionStatus, detail: Optional[str]) -> None:
-                nonlocal _progress_completed
-                terminal = {SectionStatus.DONE, SectionStatus.SKIPPED, SectionStatus.FAILED}
-                if status in terminal:
-                    _progress_completed += 1
-                pct = round((_progress_completed / total_sections) * 100) if total_sections > 0 else 0
-                state.audit_progress[_active_id] = {
-                    "progress": min(pct, 100),
-                    "current_section": name,
-                    "total_sections": total_sections,
-                    "completed": _progress_completed,
-                }
+                state.audit_progress[_active_id] = tracker.record(name, status)
                 queue.put_nowait({
                     "type":   "progress",
                     "name":   name,

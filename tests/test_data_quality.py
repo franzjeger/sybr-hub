@@ -863,9 +863,14 @@ async def test_ca_policy_records_its_template_and_creation_date():
     from "the customer configured this", and the report could not tell them
     apart. No property states it: conditionalAccessPolicy in v1.0 has no
     createdBy, and the "Microsoft-managed:" prefix visible in the audit log is
-    not part of displayName. templateId is the only documented candidate, so it
-    is written to the output for a real run to answer — deliberately not turned
-    into a verdict on a signal nobody has confirmed.
+    not part of displayName.
+
+    templateId turned out to carry the signal, confirmed against a live tenant:
+    four policies matching Microsoft's published managed-policy names each had
+    one, three created the same day in a bulk rollout, while the customer's own
+    policy had none. The wording stays at "from template" rather than
+    "Microsoft-managed" because an administrator can also create a policy from
+    a template by hand, and the data cannot separate those two.
     """
     import pathlib
     import tempfile
@@ -909,8 +914,11 @@ async def test_ca_policy_records_its_template_and_creation_date():
     await ConditionalAccessSection(out_dir, FakeGraph()).collect()
     written = encrypted_read_text(out_dir / "08_conditional_access.txt")
 
-    assert "template: tmpl-abc" in written
+    assert "origin: from template (tmpl-abc)" in written
     assert "created: 2025-03-11" in written
-    assert "template: none" in written, "a policy without a template must say so"
+    assert "origin: custom" in written, "a policy without a template must say so"
+    # And the two must not be confusable: the custom one carries no template id.
+    custom_line = next(ln for ln in written.splitlines() if "origin: custom" in ln)
+    assert "tmpl-abc" not in custom_line
     # The scope fix must survive alongside it.
     assert "2 role(s)" in written
