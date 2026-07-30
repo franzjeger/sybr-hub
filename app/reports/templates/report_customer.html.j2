@@ -1671,7 +1671,18 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="num red">{{ compliance_fail }}</div>
     <div class="lbl">{{ t.not_passed }}</div>
   </div>
+  {# Controls with no data behind them are excluded from the percentage's
+     denominator. That is the right arithmetic, but showing the percentage
+     without showing what it is a percentage of invites the reader to assume
+     every control was measured. #}
+  <div class="metric-card">
+    <div class="num" style="color:var(--text-dim);">{{ compliance_info }}</div>
+    <div class="lbl">{{ t.not_assessed }}</div>
+  </div>
 </div>
+{% if compliance_info %}
+<p class="section-intro" style="margin-top:-12px;">{{ t('compliance_basis', assessed=compliance_assessed, total=compliance_total, skipped=compliance_info) }}</p>
+{% endif %}
 
 <div class="env-card">
   <table class="email-table">

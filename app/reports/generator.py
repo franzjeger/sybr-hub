@@ -3074,6 +3074,24 @@ def _section_ran(fc: dict, *names: str) -> bool:
 
 
 _CANNOT_VERIFY = "Kan ikke verifiseres — "
+
+
+def _labelled_value(text: str, label: str) -> str:
+    """Pull "  Label   : value" out of a section file.
+
+    Returns "" when the label is absent or the value is a placeholder, so an
+    unanswered field reads as no data rather than as the string "N/A".
+    """
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith(label):
+            continue
+        rest = stripped[len(label):].lstrip()
+        if not rest.startswith(":"):
+            continue
+        value = rest[1:].strip()
+        return "" if value.upper() in ("N/A", "NA", "-", "") else value
+    return ""
 _NOT_LICENSED = "Ikke lisensiert — "
 
 # Which SKU part numbers carry which capability. Only the ones a CIS control
@@ -3774,10 +3792,40 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "info",
             "Kan ikke verifiseres — Teams external access-data utilgjengelig")
 
-    teams_settings = fc.get("16b_teams_settings.txt", "")
-    if teams_settings.strip():
-        add("8.1.2", "Ensure Teams guest access is reviewed", t.cis_cat_teams, "info",
-            "Teams-innstillinger er hentet — gjennomgå gjeste-/eksternpolicyer")
+    # 8.1.2 Guest access.
+    #
+    # This read 16b_teams_settings.txt and emitted a permanent "info" saying
+    # the settings had been fetched. That file holds messaging settings, every
+    # value N/A on a real tenant, and nothing whatsoever about guests — so the
+    # control asserted it had data because a file existed, and was the only one
+    # of the thirty that could never pass or fail. A control that cannot reach
+    # a verdict is decoration in a compliance table.
+    #
+    # The guest settings live in the Teams section's own file, already mapped
+    # from the raw Graph values to readable names by teams_policies.py.
+    guest_txt = fc.get("30b_teams_guest_access.txt", "")
+    invites = _labelled_value(guest_txt, "Allow Invites From")
+    guest_role = _labelled_value(guest_txt, "Guest User Role")
+
+    if not invites:
+        add("8.1.2", "Ensure Teams guest access is restricted", t.cis_cat_teams, "info",
+            _CANNOT_VERIFY + "gjesteinnstillinger ble ikke hentet")
+    else:
+        detail = f"Invitasjoner: {invites}. Gjesterolle: {guest_role or 'ukjent'}"
+        if "same as member" in guest_role.lower():
+            # Worse than any invitation setting: whoever gets in sees what a
+            # member sees, so the invitation gate stops mattering.
+            add("8.1.2", "Ensure Teams guest access is restricted", t.cis_cat_teams, "fail",
+                detail + " — gjester har samme tilgang som ansatte")
+        elif invites.lower().startswith("everyone"):
+            add("8.1.2", "Ensure Teams guest access is restricted", t.cis_cat_teams, "fail",
+                detail + " — gjester kan invitere flere gjester")
+        elif "member" in invites.lower():
+            add("8.1.2", "Ensure Teams guest access is restricted", t.cis_cat_teams, "warn",
+                detail + " — alle ansatte kan invitere gjester")
+        else:
+            add("8.1.2", "Ensure Teams guest access is restricted", t.cis_cat_teams, "pass",
+                detail)
 
     # ═══ 9. LOGGING & MONITORING ═══
 
@@ -4281,6 +4329,10 @@ def build_report_context(
     context["compliance_fail"] = compliance_fail
     context["compliance_total"] = compliance_total
     context["compliance_assessed"] = compliance_assessed
+    # The count of controls left out of the denominator. Computed here since
+    # the percentage was first introduced, but never passed to a template, so
+    # the reports showed a rate without showing what it was a rate of.
+    context["compliance_info"] = compliance_info
     context["compliance_pct"] = compliance_pct
     context["show_nist"] = frameworks in ("cis+nist", "all")
     context["show_iso"]  = frameworks in ("cis+iso", "all")

@@ -222,3 +222,100 @@ def test_valid_spf_still_passes():
         "5.2.1",
     )
     assert rows[0]["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# 8.1.2 used to read 16b_teams_settings.txt — a file holding messaging
+# settings, every value N/A, and nothing about guests — and emit a permanent
+# "info" claiming the settings had been fetched. It was the only control of
+# the thirty that could never pass or fail.
+# ---------------------------------------------------------------------------
+
+def _guest(text):
+    rows = _build_compliance_map({"file_contents": {"30b_teams_guest_access.txt": text}})
+    return [r for r in rows if r["cis_id"] == "8.1.2"][0]
+
+
+_GUEST_FILE = (
+    "=" * 60 + "\n"
+    "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n"
+    + "=" * 60 + "\n"
+    "  Allow Invites From       : {invites}\n"
+    "  Guest User Role          : {role}\n"
+)
+
+
+def test_everyone_can_invite_guests_is_a_failure():
+    """Fonnafly's real setting. Previously invisible in the report."""
+    c = _guest(_GUEST_FILE.format(invites="Everyone (most open)",
+                                  role="Limited access (default)"))
+    assert c["status"] == "fail"
+    assert "gjester kan invitere flere gjester" in c["detail"]
+
+
+def test_guests_with_member_access_fails_whatever_the_invite_setting():
+    c = _guest(_GUEST_FILE.format(invites="No one (most restrictive)",
+                                  role="Same as member users"))
+    assert c["status"] == "fail"
+
+
+def test_members_may_invite_is_a_warning_not_a_failure():
+    c = _guest(_GUEST_FILE.format(invites="Admins, Guest Inviters, and Members",
+                                  role="Limited access (default)"))
+    assert c["status"] == "warn"
+
+
+def test_restricted_invites_pass():
+    c = _guest(_GUEST_FILE.format(invites="Admins and Guest Inviters",
+                                  role="Restricted access (most restrictive)"))
+    assert c["status"] == "pass"
+
+
+def test_missing_guest_data_cannot_be_verified():
+    c = _guest("")
+    assert c["status"] == "info"
+    assert "Kan ikke verifiseres" in c["detail"]
+
+
+def test_na_values_count_as_missing_not_as_an_answer():
+    """The old file's every field was N/A; that must not read as a verdict."""
+    c = _guest(_GUEST_FILE.format(invites="N/A", role="N/A"))
+    assert c["status"] == "info"
+
+
+def test_the_control_can_actually_reach_a_verdict():
+    """Guards the property that was wrong: it was info-only."""
+    import re, pathlib
+    src = pathlib.Path("app/reports/generator.py").read_text()
+    i = src.find("def _build_compliance_map")
+    body = src[i:src.find("\ndef ", i + 10)]
+    statuses = {
+        st for cid, st in
+        re.findall(r'add\(\s*"([^"]+)"[^)]*?"(pass|warn|fail|info|partial)"', body, re.S)
+        if cid == "8.1.2"
+    }
+    assert statuses != {"info"}, "8.1.2 must be able to pass or fail, not only shrug"
+
+
+# ---------------------------------------------------------------------------
+# The compliance percentage excludes controls that could not be assessed.
+# That is the right arithmetic, but both reports printed the rate without the
+# basis, so a reader had no way to tell 94% of 30 from 94% of 17.
+# ---------------------------------------------------------------------------
+
+def test_unassessed_count_reaches_the_template_context(tmp_path):
+    from app.reports.generator import build_report_context
+
+    ctx = build_report_context("Tom Tenant", "tom.example", tmp_path, [])
+    assert "compliance_info" in ctx, "the reports cannot show what they never receive"
+    assert ctx["compliance_info"] >= 1, "an empty audit assesses nothing"
+    assert ctx["compliance_assessed"] + ctx["compliance_info"] == ctx["compliance_total"]
+
+
+def test_the_percentage_is_taken_over_the_assessed_controls(tmp_path):
+    from app.reports.generator import build_report_context
+
+    ctx = build_report_context("Tom Tenant", "tom.example", tmp_path, [])
+    if ctx["compliance_assessed"]:
+        expected = round(ctx["compliance_pass"] / ctx["compliance_assessed"] * 100, 0)
+        assert ctx["compliance_pct"] == expected

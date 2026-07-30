@@ -1060,8 +1060,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Partial / Warning",
     },
     "not_passed": {
-        "no": "Ikke bestatt",
+        "no": "Ikke bestått",
         "en": "Not Passed",
+    },
+    "not_assessed": {
+        "no": "Ikke vurdert",
+        "en": "Not Assessed",
+    },
+    "compliance_basis": {
+        "no": "Prosenten er regnet av {assessed} av {total} kontroller. "
+              "{skipped} kunne ikke vurderes fordi datagrunnlaget mangler, "
+              "og teller verken som bestått eller som avvik.",
+        "en": "The percentage is based on {assessed} of {total} controls. "
+              "{skipped} could not be assessed for lack of data, and count "
+              "neither as passed nor as findings.",
     },
     "cis_id": {
         "no": "CIS ID",

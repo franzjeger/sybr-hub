@@ -425,7 +425,16 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <div class="num" style="color:var(--red)">{{ compliance_fail }}</div>
     <div class="lbl">{{ t.not_passed }}</div>
   </div>
+  {# Unassessable controls are out of the percentage's denominator. Show them,
+     or the reader assumes every control was measured. #}
+  <div class="metric" style="flex:1;text-align:center;">
+    <div class="num" style="color:var(--muted)">{{ compliance_info }}</div>
+    <div class="lbl">{{ t.not_assessed }}</div>
+  </div>
 </div>
+{% if compliance_info %}
+<p style="font-size:12px;color:var(--muted);margin:-4px 0 12px;">{{ t('compliance_basis', assessed=compliance_assessed, total=compliance_total, skipped=compliance_info) }}</p>
+{% endif %}
 <table class="data-table" style="font-size:12px;">
   <tr><th>CIS ID</th>{% if show_nist %}<th>NIST CSF</th>{% endif %}{% if show_iso %}<th>ISO 27001</th>{% endif %}<th>{{ t.control }}</th><th>{{ t.category }}</th><th>{{ t.status }}</th><th>{{ t.details }}</th></tr>
   {% for c in compliance %}
