@@ -21,11 +21,18 @@ class IdentitySecuritySection(BaseSection):
         self,
         out_dir: Path,
         graph: GraphClient,
+        *,
         global_admin_ids: Optional[list[str]] = None,
         mfa_users: Optional[dict[str, list[str]]] = None,
         ca_exclusions: Optional[set[str]] = None,
         progress_cb=None,
     ):
+        # Keyword-only past graph. The collector used to pass progress_cb third,
+        # which landed it in global_admin_ids: a function is truthy, so the
+        # "no admin ids, skip" guard let it through and the loop below raised
+        # "'function' object is not iterable" — the break-glass check had never
+        # once run, and the section reported no progress either. A positional
+        # slip here is silent; making it a TypeError is the point.
         super().__init__(out_dir, progress_cb)
         self.graph             = graph
         self.global_admin_ids  = global_admin_ids or []

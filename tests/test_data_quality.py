@@ -452,3 +452,54 @@ def test_a_failed_section_is_not_parsed_as_data():
     )
     assert not _is_error_payload(signin_failures)
     assert not _is_error_payload("")
+
+
+def test_progress_cb_never_lands_in_another_sections_parameter():
+    """A misplaced positional argument corrupted a section silently.
+
+    The collector passed progress_cb third to IdentitySecuritySection, whose
+    third parameter is global_admin_ids. A function is truthy, so the "no admin
+    ids — skip" guard passed it through to `for uid in <function>`, and the
+    break-glass check raised on every audit that has ever run. Nothing failed
+    loudly: the section caught it as a warning and carried on, and the report
+    said "cannot be verified — data unavailable", which reads like a tenant
+    condition rather than a bug.
+
+    Most sections take progress_cb third and are fine positionally; the
+    invariant is that it must not land in a parameter that is not progress_cb.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path("app/modules")
+    signatures: dict[str, list[str]] = {}
+    for path in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for body in node.body:
+                if isinstance(body, ast.FunctionDef) and body.name == "__init__":
+                    signatures[node.name] = [
+                        a.arg for a in body.args.args if a.arg != "self"
+                    ]
+
+    collector = pathlib.Path("app/modules/m365_audit/collector.py")
+    offenders = []
+    for node in ast.walk(ast.parse(collector.read_text())):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Name):
+            continue
+        params = signatures.get(node.func.id)
+        if not params:
+            continue
+        for index, arg in enumerate(node.args):
+            if "progress_cb" not in ast.unparse(arg):
+                continue
+            if index < len(params) and params[index] != "progress_cb":
+                offenders.append(
+                    f"{node.func.id} line {node.lineno}: progress_cb lands in "
+                    f"'{params[index]}'"
+                )
+
+    assert not offenders, "; ".join(offenders)

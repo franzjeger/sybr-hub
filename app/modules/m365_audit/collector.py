@@ -207,7 +207,7 @@ class AuditCollector:
             SharePointSection(self.out_dir, graph, self.progress_cb),
             TeamsSection(self.out_dir, graph, self.progress_cb),
             AppsOAuthSection(self.out_dir, graph, self.progress_cb),
-            IdentitySecuritySection(self.out_dir, graph, self.progress_cb),
+            IdentitySecuritySection(self.out_dir, graph, progress_cb=self.progress_cb),
             TeamsPoliciesSection(self.out_dir, graph, self.progress_cb),
             PasswordProtectionSection(self.out_dir, graph, self.progress_cb),
             PIMSection(self.out_dir, graph, self.progress_cb),
