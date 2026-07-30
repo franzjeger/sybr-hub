@@ -1,4 +1,10 @@
-"""Section 20–29 — Exchange Online (data sourced from EXO PowerShell helper)."""
+"""Section 20–29 — Exchange Online (data sourced from EXO PowerShell helper),
+plus the Purview trio 19c/19d/19e.
+
+19d and 19e come from the EXO helper. 19c (sensitivity labels) comes from
+Graph, and is collected here so that one section owns all three Purview
+outputs rather than splitting them across two.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
+from app.modules.m365_audit.graph_client import GraphClient
 
 
 def _fmt_val(val: Any, indent: int = 4) -> str:

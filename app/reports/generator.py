@@ -1709,7 +1709,7 @@ _RECORD_INDEX_RE = re.compile(r'^\[\d+\]$')
 _RECORD_FIELD_RE = re.compile(r'^[A-Za-z][A-Za-z ]{0,30}:\s')
 
 
-def _looks_like_column_header(line: str) -> bool:
+def _looks_like_column_header(line: str, *, near_rule: bool = True) -> bool:
     """True for a table header row or a bare section title.
 
     Two shapes, both of which were being counted as data:
@@ -1721,8 +1721,22 @@ def _looks_like_column_header(line: str) -> bool:
     "USER INVENTORY" — a single all-caps title with no banner count after it.
     That one made every bannerless section read one too high.
 
-    Deliberately narrow. Mistaking a data row for a header undercounts, which
-    is the same class of error this exists to prevent.
+    The column shape alone is not enough, because real rows land on it. Two
+    that did: an OAuth grant reading "AvePoint Fly | Microsoft Graph |
+    User.Read", and a PIM assignment whose principal name was truncated to
+    exactly the column width, closing the gap that would have exposed the
+    lower-case "servicePrinc" beside it. Eleven consent grants and one
+    privileged assignment were being dropped from their counts.
+
+    So position decides. Every header these collectors emit is written against
+    a "---" or "===" rule, and across a full audit that held without exception:
+    67 of 67 headers sat next to one, and all 12 lines matching the column
+    shape away from a rule were data. near_rule carries that context in; the
+    all-caps title needs no such help, since a lone capitalised word is not a
+    record in any of these files.
+
+    Mistaking a data row for a header undercounts, which is the same class of
+    error this exists to prevent.
     """
     stripped = line.strip()
     cols = [c for c in re.split(r'\s{2,}', stripped) if c]
@@ -1733,6 +1747,9 @@ def _looks_like_column_header(line: str) -> bool:
             and any(ch.isalpha() for ch in stripped)
             and not any(ch.isdigit() or ch in "@/:" for ch in stripped)
         )
+
+    if not near_rule:
+        return False
 
     return all(
         c[:1].isupper() and not any(ch.isdigit() or ch in "@/:" for ch in c)
@@ -1772,13 +1789,18 @@ def _parse_banner_count(text: str) -> int | None:
     return counts[0]
 
 
-def _is_furniture(stripped: str) -> bool:
+def _is_furniture(stripped: str, *, near_rule: bool = True) -> bool:
     """True for a line that is never data, whichever branch is counting.
 
     Separators, NOTE prose, "(none)" placeholders, column headers and the
     section banner itself. Counting any of these is how a tenant with no Intune
     compliance policies came to be reported as having one, and how two empty
     Purview sections passed their CIS controls.
+
+    near_rule says whether this line sits against a "---" or "===" rule, which
+    is what separates a column header from a data row that happens to share its
+    shape. It defaults to True so a caller judging a line in isolation keeps
+    the older, more aggressive reading.
     """
     if not stripped:
         return True
@@ -1788,11 +1810,27 @@ def _is_furniture(stripped: str) -> bool:
         return True
     if _EMPTY_PLACEHOLDER_RE.match(stripped):
         return True
-    if _looks_like_column_header(stripped):
+    if _looks_like_column_header(stripped, near_rule=near_rule):
         return True
     if _HEADER_TOTAL_RE.match(stripped):
         return True
     return False
+
+
+def _is_underlined(stripped_lines: list[str], i: int) -> bool:
+    """True when line i is immediately underlined by a "---" rule.
+
+    Underlined, not merely near a rule: the first data row of every table sits
+    directly below the rule that underlines the header, so "next to a rule"
+    catches it too, and eleven OAuth consent grants stayed missing.
+
+    A dashed rule specifically. "===" frames titles and closes the file, so
+    accepting it would eat the last row of a table instead — which is a real
+    row, and the first version of this did exactly that. Across a full audit
+    all 39 column headers were underlined by "---" and none by "===".
+    """
+    nxt = stripped_lines[i + 1] if i + 1 < len(stripped_lines) else ""
+    return nxt.startswith("---")
 
 
 def _is_multiline_record_format(text: str) -> bool:
@@ -1846,7 +1884,12 @@ def _count_data_lines(text: str) -> int:
         return declared
 
     # Branch 3 — tabular, or no banner at all.
-    rows = sum(1 for line in text.splitlines() if not _is_furniture(line.strip()))
+    stripped_lines = [line.strip() for line in text.splitlines()]
+    rows = sum(
+        1
+        for i, s in enumerate(stripped_lines)
+        if not _is_furniture(s, near_rule=_is_underlined(stripped_lines, i))
+    )
     if declared is not None and declared != rows:
         log.warning(
             "Section banner declares %d record(s) but %d row(s) are present — "

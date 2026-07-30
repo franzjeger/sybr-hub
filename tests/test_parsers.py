@@ -1172,3 +1172,61 @@ def test_plain_table_is_not_pulled_into_the_multiline_branch():
     )
     assert not _is_multiline_record_format(text), "no [n] lines means no records span lines"
     assert _count_data_lines(text) == 2
+
+
+def test_data_row_shaped_like_a_header_is_still_data():
+    """A column header is underlined by a rule; a data row is not.
+
+    Real rows land on the header shape — every column capitalised, no digits,
+    no @ / :. Two did: an OAuth consent grant reading "AvePoint Fly |
+    Microsoft Graph | User.Read", and a PIM assignment whose principal name
+    was truncated to exactly the column width, closing the gap that would
+    otherwise have exposed the lower-case "servicePrinc" beside it. Eleven
+    consent grants were dropped from a security-relevant count.
+    """
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "=" * 70 + "\n"
+        "  OAUTH TENANT-WIDE CONSENT GRANTS  (3 total)\n"
+        + "=" * 70 + "\n"
+        "  Client App                Resource                 Scopes\n"
+        "  " + "-" * 66 + "\n"
+        "  AvePoint Fly              Microsoft Graph          User.Read\n"
+        "  Datto RMM integration     Microsoft Graph          User.Read\n"
+        "  Autotask PSA AD Sync      Microsoft Graph          User.Read\n"
+        + "=" * 70 + "\n"
+    )
+    assert _count_data_lines(text) == 3
+
+
+def test_the_first_data_row_is_not_eaten_by_the_rule_above_it():
+    """Being next to a rule is not enough — the first row always is.
+
+    This is the case that survived the first attempt at the fix: the rule that
+    underlines the header sits directly above row one.
+    """
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "  GRANTS  (2 total)\n"
+        "  Client App           Resource\n"
+        "  " + "-" * 40 + "\n"
+        "  AvePoint Fly         Microsoft Graph\n"
+        "  Inforcer Integration Microsoft Graph\n"
+    )
+    assert _count_data_lines(text) == 2
+
+
+def test_column_header_is_still_excluded():
+    """The rule must not swing the other way and start counting headers."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "  DEVICES  (1 total)\n"
+        "  " + "-" * 40 + "\n"
+        "  Device Name          Platform\n"
+        "  " + "-" * 40 + "\n"
+        "  laptop-01            Windows\n"
+    )
+    assert _count_data_lines(text) == 1
