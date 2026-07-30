@@ -319,3 +319,50 @@ def test_the_percentage_is_taken_over_the_assessed_controls(tmp_path):
     if ctx["compliance_assessed"]:
         expected = round(ctx["compliance_pass"] / ctx["compliance_assessed"] * 100, 0)
         assert ctx["compliance_pct"] == expected
+
+
+# ---------------------------------------------------------------------------
+# Every CIS verdict names the collected file it was formed from. The report
+# already carries all 72 files, but nothing said which one backed a given
+# control, so checking a verdict meant reading the generator.
+# ---------------------------------------------------------------------------
+
+def test_every_control_declares_where_its_verdict_comes_from():
+    from app.reports.generator import _EVIDENCE_MAP, _build_compliance_map
+
+    produced = {c["cis_id"] for c in _build_compliance_map({"file_contents": {}})}
+    undeclared = sorted(produced - set(_EVIDENCE_MAP))
+    assert not undeclared, f"controls with no evidence source: {undeclared}"
+
+
+def test_every_named_file_is_one_a_collector_actually_writes():
+    """Guards against drift: a link to a file no run produces is worse than none."""
+    import pathlib
+    from app.reports.generator import _EVIDENCE_MAP
+
+    written = " ".join(
+        p.read_text() for p in pathlib.Path("app/modules").rglob("*.py")
+    )
+    missing = sorted({
+        f for files in _EVIDENCE_MAP.values() for f in files if f not in written
+    })
+    assert not missing, f"evidence files no collector writes: {missing}"
+
+
+def test_evidence_lists_only_files_this_run_collected():
+    """A link into the appendix must land on a section that is there."""
+    from app.reports.generator import _build_compliance_map
+
+    fc = {"30b_teams_guest_access.txt": "  Allow Invites From       : Everyone (most open)\n"}
+    rows = _build_compliance_map({"file_contents": fc})
+    for r in rows:
+        for f in r["evidence"]:
+            assert f in fc, f"{r['cis_id']} points at {f}, which this run has not got"
+
+
+def test_the_guest_control_points_at_the_file_it_reads():
+    from app.reports.generator import _build_compliance_map
+
+    fc = {"30b_teams_guest_access.txt": "  Allow Invites From       : Everyone (most open)\n"}
+    row = [r for r in _build_compliance_map({"file_contents": fc}) if r["cis_id"] == "8.1.2"][0]
+    assert row["evidence"] == ["30b_teams_guest_access.txt"]

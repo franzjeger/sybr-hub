@@ -1067,6 +1067,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ikke vurdert",
         "en": "Not Assessed",
     },
+    "evidence_label": {
+        "no": "Grunnlag:",
+        "en": "Evidence:",
+    },
     "compliance_basis": {
         "no": "Prosenten er regnet av {assessed} av {total} kontroller. "
               "{skipped} kunne ikke vurderes fordi datagrunnlaget mangler, "

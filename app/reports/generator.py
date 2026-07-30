@@ -3075,6 +3075,58 @@ def _section_ran(fc: dict, *names: str) -> bool:
 
 _CANNOT_VERIFY = "Kan ikke verifiseres — "
 
+# Which collected files each CIS verdict is formed from.
+#
+# The technical report already carries every file the audit produced, so the
+# evidence is in the reader's hands — but nothing says which of the seventy-two
+# backs a given control, and finding out meant reading the code. A verdict a
+# technician cannot trace to its source is a verdict they have to take on
+# faith, which is the opposite of what this report is for.
+#
+# Each entry was read off the block that produces the control, not inferred:
+# the parsed inputs (mfa, ca, admin_roles, secure_score, oauth, sharepoint,
+# spf_dmarc, intune) come from the files named where build_report_context calls
+# the parsers, and the rest read fc directly.
+#
+# 5.1.1 is the one worth a note: it reads SharePoint's legacy-auth protocol
+# flag, not Entra's. A tenant can block legacy auth with a Conditional Access
+# policy and still fail this, or the reverse. The file named here is the one
+# the verdict actually comes from, whatever the title suggests.
+_EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
+    "1.1.1": ("04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
+    "1.1.2": ("09b_auth_methods_policy.txt",),
+    "1.1.3": ("07_admin_roles.txt",),
+    "1.1.4": ("08_conditional_access.txt",),
+    "1.1.5": ("07b_pim_eligible_assignments.txt", "32_pim_roles.txt"),
+    "1.1.6": ("07c_emergency_access_check.txt",),
+    "1.2.1": ("31_password_protection.txt",),
+    "1.4":   ("09_secure_score.txt",),
+    "2.1":   ("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
+    "2.1.2": ("17c_app_credential_expiry.txt", "17c_app_credential_expiry_WARN.txt"),
+    "3.1.1": ("19d_purview_dlp_policies.txt",),
+    "3.2.1": ("19c_purview_sensitivity_labels.txt",),
+    "4.1":   ("27c_exchange_org_config.txt",),
+    "4.2":   ("23_exchange_antiphish.txt",),
+    "4.3":   ("24_exchange_antispam.txt",),
+    "4.4":   ("28_exchange_mailbox_forwarding.txt",
+              "28b_exchange_external_forwarding_WARN.txt",
+              "29_exchange_inbox_rules_external_fwd_WARN.txt"),
+    "4.5":   ("27_exchange_defender_policies.txt",),
+    "4.6":   ("27_exchange_defender_policies.txt",),
+    "5.1.1": ("15b_sharepoint_settings.txt",),
+    "5.2.1": ("26_email_dns_spf_dmarc.txt",),
+    "5.2.2": ("26_email_dns_spf_dmarc.txt",),
+    "5.2.3": ("26_email_dns_spf_dmarc.txt",),
+    "6.1.1": ("11_intune_compliance_policies.txt", "10_intune_devices_count.txt"),
+    "7.2.1": ("15b_sharepoint_settings.txt",),
+    "7.2.2": ("19e_purview_retention_policies.txt",),
+    "8.1.1": ("16c_teams_external_access.txt",),
+    "8.1.2": ("30b_teams_guest_access.txt",),
+    "9.1":   ("19_entra_audit_log_admin_activity.txt",),
+    "9.2":   ("19b_defender_active_alerts.txt", "19b_defender_alert_count.txt"),
+    "9.3":   ("18_risky_users.txt",),
+}
+
 
 def _labelled_value(text: str, label: str) -> str:
     """Pull "  Label   : value" out of a section file.
@@ -3170,6 +3222,9 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # Helper — includes human-readable framework names
     def add(cis_id, title, category, status, detail=""):
         entry = {"cis_id": cis_id, "title": title, "category": category, "status": status, "detail": detail}
+        # Only name files this run actually collected. Pointing a reader at a
+        # file that is not in the report is worse than pointing at nothing.
+        entry["evidence"] = [f for f in _EVIDENCE_MAP.get(cis_id, ()) if fc.get(f, "").strip()]
         fw = _FRAMEWORK_MAP.get(cis_id, {})
         if show_nist:
             nid = fw.get("nist_id", "")

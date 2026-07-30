@@ -451,7 +451,18 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
       {% elif c.status == 'warn' %}<span style="color:var(--orange);font-weight:700;">{{ t.warning }}</span>
       {% else %}<span style="color:var(--blue);font-weight:700;">{{ t.info }}</span>{% endif %}
     </td>
-    <td style="color:var(--muted);">{{ c.detail }}</td>
+    <td style="color:var(--muted);">
+      {{ c.detail }}
+      {# Which collected file the verdict came from. The raw data is all in the
+         appendix already, but nothing said which of the seventy-two files
+         backed a given control, so checking a verdict meant reading the code. #}
+      {% if c.evidence %}
+      <div style="margin-top:4px;font-size:11px;">
+        <span style="color:var(--muted);">{{ t.evidence_label }}</span>
+        {% for f in c.evidence %}<a href="#raw-{{ f }}" style="font-family:var(--mono);color:var(--blue);text-decoration:none;">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+    </td>
   </tr>
   {% endfor %}
 </table>
@@ -1309,7 +1320,8 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <p style="color:var(--muted);margin-bottom:20px;font-size:12px;">{{ t.raw_data_desc }}</p>
 
 {% for filename, content in file_contents.items() | sort %}
-<div class="data-section">
+{# The anchor the evidence links in the compliance table point at. #}
+<div class="data-section" id="raw-{{ filename }}">
   <div class="data-header collapsed" onclick="toggleDataSection(this)">
     <span class="toggle">&#x25BC;</span>
     <span>{{ filename.replace('.txt','').replace('_',' ').title() }}</span>
