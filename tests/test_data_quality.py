@@ -854,3 +854,63 @@ def test_a_ca_policy_scoped_to_nothing_still_says_so():
         "applications": {"includeApplications": ["All"]},
     }
     assert _summarise_conditions(guests)[0] == "guests/external"
+
+
+async def test_ca_policy_records_its_template_and_creation_date():
+    """Provenance is recorded, not inferred.
+
+    A technician reads "Microsoft enabled this automatically" very differently
+    from "the customer configured this", and the report could not tell them
+    apart. No property states it: conditionalAccessPolicy in v1.0 has no
+    createdBy, and the "Microsoft-managed:" prefix visible in the audit log is
+    not part of displayName. templateId is the only documented candidate, so it
+    is written to the output for a real run to answer — deliberately not turned
+    into a verdict on a signal nobody has confirmed.
+    """
+    import pathlib
+    import tempfile
+
+    from app.core.encryption import encrypted_read_text
+    from app.modules.m365_audit.sections.conditional_access import ConditionalAccessSection
+
+    class FakeGraph:
+        async def get_all(self, path, **kwargs):
+            if "namedLocations" in path:
+                return []
+            return [
+                {
+                    "displayName": "Require multifactor authentication for admins",
+                    "state": "enabled",
+                    "templateId": "tmpl-abc",
+                    "createdDateTime": "2025-03-11T12:30:00Z",
+                    "conditions": {
+                        "users": {"includeUsers": [], "includeRoles": ["r1", "r2"]},
+                        "applications": {"includeApplications": ["All"]},
+                    },
+                    "grantControls": {"builtInControls": ["mfa"]},
+                },
+                {
+                    "displayName": "Egendefinert policy",
+                    "state": "enabled",
+                    "templateId": None,
+                    "createdDateTime": "2024-01-05T09:00:00Z",
+                    "conditions": {
+                        "users": {"includeUsers": ["All"]},
+                        "applications": {"includeApplications": ["All"]},
+                    },
+                    "grantControls": {"builtInControls": ["mfa"]},
+                },
+            ]
+
+        async def get(self, *args, **kwargs):
+            return {}
+
+    out_dir = pathlib.Path(tempfile.mkdtemp())
+    await ConditionalAccessSection(out_dir, FakeGraph()).collect()
+    written = encrypted_read_text(out_dir / "08_conditional_access.txt")
+
+    assert "template: tmpl-abc" in written
+    assert "created: 2025-03-11" in written
+    assert "template: none" in written, "a policy without a template must say so"
+    # The scope fix must survive alongside it.
+    assert "2 role(s)" in written
