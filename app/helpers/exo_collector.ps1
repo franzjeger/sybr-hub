@@ -68,9 +68,16 @@ function Safe-Json($obj) {
 try {
     $mbx = @()
     foreach ($rType in @('UserMailbox', 'SharedMailbox', 'RoomMailbox', 'EquipmentMailbox')) {
-        $mbx += Get-Mailbox -RecipientTypeDetails $rType -ResultSize Unlimited -ErrorAction SilentlyContinue
+        # A tenant with no room or equipment mailboxes makes Get-Mailbox return
+        # $null, and "+= $null" appends a null *element* rather than nothing.
+        # That null then reached Get-MailboxStatistics, which threw "Cannot bind
+        # argument to parameter 'Identity' because it is null" — and the catch
+        # below discarded every mailbox already collected. One absent recipient
+        # type silently cost the whole mailbox inventory.
+        $found = Get-Mailbox -RecipientTypeDetails $rType -ResultSize Unlimited -ErrorAction SilentlyContinue
+        if ($found) { $mbx += $found }
     }
-    $mbxData = $mbx | ForEach-Object {
+    $mbxData = $mbx | Where-Object { $_ -and $_.Identity } | ForEach-Object {
         $stats = Get-MailboxStatistics $_.Identity -ErrorAction SilentlyContinue
         @{
             DisplayName        = $_.DisplayName

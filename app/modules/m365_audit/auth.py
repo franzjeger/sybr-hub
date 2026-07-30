@@ -11,6 +11,15 @@ from app.core.credentials import get_secret, load_cert_bytes
 from app.core.pwsh import find_pwsh
 from app.modules.m365_audit.httpx_credential import HttpxClientSecretCredential
 
+# Connect-ExchangeOnline with certificate auth is genuinely slow: measured at
+# 346 seconds against a live tenant, on a run that then succeeded. The old
+# 300-second budget killed it just short of the finish line, so Exchange data
+# was reported as a timeout when nothing was actually wrong. Sized well past
+# the observed time rather than just above it — the cost of waiting is a slower
+# audit, the cost of cutting it short is a section of missing data that looks
+# like a tenant problem.
+_EXO_TIMEOUT_SECONDS = 900
+
 
 class AuthError(Exception):
     pass
@@ -299,11 +308,14 @@ class AuthManager:
             try:
                 stdout, stderr = await asyncio.wait_for(
                     proc.communicate(input=config_payload.encode()),
-                    timeout=300
+                    timeout=_EXO_TIMEOUT_SECONDS
                 )
             except asyncio.TimeoutError:
                 proc.kill()
-                return {"error": "EXO helper timed out after 5 minutes"}
+                return {
+                    "error": "EXO helper timed out after "
+                             f"{_EXO_TIMEOUT_SECONDS // 60} minutes"
+                }
         finally:
             try:
                 os.unlink(temp_cert)

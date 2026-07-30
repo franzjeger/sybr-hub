@@ -587,3 +587,34 @@ def test_build_report_context_survives_a_failed_section(tmp_path):
     assert isinstance(context, dict)
     # The failed section contributed nothing rather than two invented labels.
     assert context.get("purview", {}).get("sensitivity_label_count", 0) == 0
+
+
+def test_exo_timeout_exceeds_a_measured_real_connection():
+    """Connect-ExchangeOnline is slow; the budget must not cut it short.
+
+    Measured 346 seconds against a live tenant on a run that succeeded and
+    returned data. The 300-second budget killed it at the last moment, and the
+    audit reported "EXO helper timed out" — indistinguishable, to a reader,
+    from Exchange being unreachable.
+    """
+    from app.modules.m365_audit.auth import _EXO_TIMEOUT_SECONDS
+
+    assert _EXO_TIMEOUT_SECONDS >= 600, (
+        "a real certificate connection took 346s; leave real headroom"
+    )
+
+
+def test_exo_helper_skips_absent_mailbox_types():
+    """One missing recipient type must not discard the whole inventory.
+
+    Get-Mailbox returns $null when a tenant has no room or equipment
+    mailboxes, and "+= $null" appends a null element. That reached
+    Get-MailboxStatistics, threw, and the catch dropped every mailbox already
+    collected — the section reported a bind error instead of the mailboxes it
+    had.
+    """
+    import pathlib
+
+    helper = pathlib.Path("app/helpers/exo_collector.ps1").read_text(encoding="utf-8")
+    assert "if ($found) { $mbx += $found }" in helper, "null results must not be appended"
+    assert "Where-Object { $_ -and $_.Identity }" in helper, "null rows must be filtered"
