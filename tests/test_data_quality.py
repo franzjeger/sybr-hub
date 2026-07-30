@@ -561,3 +561,29 @@ async def test_exo_helper_gets_a_decrypted_certificate(tmp_path, monkeypatch):
 
     assert seen["bytes"] == pfx_plain, "helper was handed ciphertext, not a certificate"
     assert not auth_mod.Path(seen["path"]).exists(), "plaintext certificate outlived the call"
+
+
+def test_build_report_context_survives_a_failed_section(tmp_path):
+    """End-to-end guard: the report must build when a section file holds an error.
+
+    The error-payload filter shipped with a NameError on its own log line —
+    the module had no logger — so every report generation raised, and the only
+    coverage was a unit test of the predicate. Nothing exercised the function
+    that reads the files. This does.
+    """
+    from app.reports.generator import build_report_context
+
+    (tmp_path / "19c_purview_sensitivity_labels.txt").write_text(
+        "Error: Client error '404 Not Found' for url '.../sensitivityLabels'\n"
+        "For more information check: https://developer.mozilla.org/\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "03_users_count.txt").write_text(
+        "=" * 40 + "\n  USER COUNTS\n" + "=" * 40 + "\n  Total: 10\n", encoding="utf-8"
+    )
+
+    context = build_report_context("Test AS", "test.example", tmp_path, [])
+
+    assert isinstance(context, dict)
+    # The failed section contributed nothing rather than two invented labels.
+    assert context.get("purview", {}).get("sensitivity_label_count", 0) == 0

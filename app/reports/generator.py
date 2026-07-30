@@ -15,6 +15,8 @@ from app.core.config import get_branding, get_logo_path
 from app.modules.base import SectionResult, SectionStatus
 from app.reports.i18n import T
 
+log = logging.getLogger(__name__)
+
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
