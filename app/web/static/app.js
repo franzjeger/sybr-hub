@@ -570,6 +570,7 @@ function showLoginView(mode) {
   if (!el) return;
   el.style.display = 'flex';
   document.querySelector('header').style.display = 'none';
+  var _bnLogin = document.getElementById('bottom-nav'); if (_bnLogin) _bnLogin.style.display = 'none';
   document.getElementById('auth-setup-form').style.display = mode === 'setup' ? 'block' : 'none';
   document.getElementById('auth-login-form').style.display = mode === 'login' ? 'block' : 'none';
   // Show version in login
@@ -582,6 +583,7 @@ function hideLoginView() {
   var el = document.getElementById('auth-overlay');
   if (el) el.style.display = 'none';
   document.querySelector('header').style.display = '';
+  var _bnApp = document.getElementById('bottom-nav'); if (_bnApp) _bnApp.style.display = '';
 }
 
 function updateUserDisplay() {
@@ -934,6 +936,7 @@ function showView(name) {
     var nb = document.getElementById('nav-' + name);
     if (nb) nb.classList.add('active');
   }
+  _syncBottomNav(name);
 
   // Show/hide M365 sub-tab bar
   var subBar = document.getElementById('m365-subtab-bar');
@@ -7849,188 +7852,136 @@ async function loadUnifiedDashboard() {
 
   var html = '';
 
-  // ── Header ──
-  html += '<div style="margin-bottom:20px;">';
-  html += '<div style="font-size:18px;font-weight:700;">'+esc(d.customer_name)+'</div>';
-  html += '<div style="font-size:12px;color:var(--text-muted);">'+(d.domain ? '<span style="font-family:var(--mono);">'+esc(d.domain)+'</span> · ' : '')+(d.source ? 'Source: '+esc(d.source)+' · ' : '')+(d.also_account_id ? 'ALSO ID: '+d.also_account_id : '')+'</div>';
-  html += '</div>';
+  var a = d.audit || {};
+  var _grade = a.risk_grade || '-';
+  var _gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[_grade] || 'var(--text-muted)';
 
-  // ── Integration status cards ──
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px;">';
+  // ── Hero ──
+  var _meta = [];
+  if (d.domain) _meta.push('<span style="font-family:var(--mono);">'+esc(d.domain)+'</span>');
+  if (d.also_account_id) _meta.push('ALSO ID ' + esc(String(d.also_account_id)));
+  if (d.source) _meta.push(esc(d.source));
+  html += '<div class="cd-hero">'
+    + '<span class="cd-hero-tile" style="color:'+_gv+';background:color-mix(in srgb, '+_gv+' 12%, transparent);border-color:color-mix(in srgb, '+_gv+' 40%, transparent);">'+esc(_grade)+'</span>'
+    + '<span class="cd-hero-id"><span class="cd-hero-name">'+esc(d.customer_name)+' <span class="cd-active-pill">Aktiv kunde</span></span>'
+    + '<span class="cd-hero-meta">'+_meta.join(' · ')+'</span></span>'
+    + '<div style="flex:1;"></div>'
+    + '<button class="context-ghost" onclick="openLatestReport()">' + t('btn_open_report','Åpne rapport') + '</button>'
+    + '<button class="context-ghost" onclick="showView(\'history\')">' + t('nav_history','Historikk') + '</button>'
+    + '<button class="btn btn-sm" style="padding:7px 16px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" onclick="showView(\'audit\')">' + t('btn_run_audit','Kjør audit') + '</button>'
+    + '</div>';
 
-  // M365
-  var m365Status = d.m365 && d.m365.TenantId ? 'var(--green)' : 'var(--text-dim)';
-  var m365Label = d.m365 && d.m365.TenantId ? 'Configured' : 'Not configured';
-  if (d.m365 && d.m365.secret_status === 'expired') { m365Status = 'var(--red)'; m365Label = 'Creds expired'; }
-  else if (d.m365 && d.m365.secret_status === 'warning') { m365Status = 'var(--orange)'; m365Label = d.m365.secret_days_left + 'd left'; }
-  html += '<div class="card" style="padding:12px;border-top:2px solid '+m365Status+';text-align:center;cursor:pointer;" onclick="showView(\'home\')">';
-  html += '<div style="font-size:16px;">☁️</div><div style="font-size:13px;font-weight:600;">M365</div>';
-  html += '<div style="font-size:11px;color:'+m365Status+';">'+m365Label+'</div></div>';
-
-  // FortiGate
-  var fgStatus = d.fortigate ? 'var(--green)' : 'var(--text-dim)';
-  html += '<div class="card" style="padding:12px;border-top:2px solid '+fgStatus+';text-align:center;">';
-  html += '<div style="font-size:16px;">'+icon('shield',18)+'</div><div style="font-size:13px;font-weight:600;">FortiGate</div>';
-  html += '<div style="font-size:11px;color:'+fgStatus+';">'+(d.fortigate ? esc(d.fortigate.FortiGateHost) : 'Not configured')+'</div></div>';
-
-  // UniFi
-  var ufStatus = d.unifi ? 'var(--green)' : 'var(--text-dim)';
-  html += '<div class="card" style="padding:12px;border-top:2px solid '+ufStatus+';text-align:center;">';
-  html += '<div style="font-size:16px;">📡</div><div style="font-size:13px;font-weight:600;">UniFi</div>';
-  html += '<div style="font-size:11px;color:'+ufStatus+';">'+(d.unifi ? esc(d.unifi.UniFiHost) : 'Not configured')+'</div></div>';
-
-  // ALSO
-  var alsoStatus = d.also ? 'var(--green)' : 'var(--text-dim)';
-  var alsoLabel = d.also ? d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · MRR ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'') : '') : 'Not linked';
-  if (d.also && (d.also.expired > 0 || d.also.expiring_90d > 0)) { alsoStatus = d.also.expired > 0 ? 'var(--red)' : 'var(--orange)'; alsoLabel += ' · ' + (d.also.expired + d.also.expiring_90d) + ' action needed'; }
-  html += '<div class="card" style="padding:12px;border-top:2px solid '+alsoStatus+';text-align:center;cursor:pointer;" onclick="loadCustomerLicensesFromActive()">';
-  html += '<div style="font-size:16px;">💳</div><div style="font-size:13px;font-weight:600;">ALSO</div>';
-  html += '<div style="font-size:11px;color:'+alsoStatus+';">'+alsoLabel+'</div></div>';
-
-  // SSH Hosts
-  var sshCount = d.ssh_hosts ? d.ssh_hosts.length : 0;
-  var sshStatus = sshCount > 0 ? 'var(--green)' : 'var(--text-dim)';
-  html += '<div class="card" style="padding:12px;border-top:2px solid '+sshStatus+';text-align:center;">';
-  html += '<div style="font-size:16px;">'+icon('server',18)+'</div><div style="font-size:13px;font-weight:600;">SSH Hosts</div>';
-  html += '<div style="font-size:11px;color:'+sshStatus+';">'+(sshCount ? sshCount + ' hosts' : 'None')+'</div></div>';
-
-  // Uniweb — placeholder, filled async below
-  html += '<div class="card" id="unified-uniweb-status" style="padding:12px;border-top:2px solid var(--text-dim);text-align:center;">';
-  html += '<div style="font-size:16px;">'+icon('globe',18)+'</div><div style="font-size:13px;font-weight:600;">Hosting</div>';
-  html += '<div style="font-size:11px;color:var(--text-dim);">Laster...</div></div>';
-
-  html += '</div>';
-
-  // ── ALSO Renewals (if linked) ──
-  if (d.also && d.also.renewals && d.also.renewals.length) {
-    var renewals = d.also.renewals;
-    var expiring = renewals.filter(function(r){ return r.days_left !== null && r.days_left >= 0 && r.days_left <= 90; });
-    var expired = renewals.filter(function(r){ return r.days_left !== null && r.days_left < 0; });
-
-    html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-    html += '<div style="font-size:14px;font-weight:600;">💳 Subscriptions ('+renewals.length+')</div>';
-    if (expired.length || expiring.length) {
-      html += '<div style="font-size:12px;">';
-      if (expired.length) html += '<span style="color:var(--red);font-weight:600;">'+expired.length+' expired</span> ';
-      if (expiring.length) html += '<span style="color:var(--orange);font-weight:600;">'+expiring.length+' expiring &lt;90d</span>';
-      html += '</div>';
-    }
-    html += '</div>';
-
-    // Show critical renewals first (expired + <90d), then the rest collapsed
-    var critical = expired.concat(expiring);
-    var rest = renewals.filter(function(r){ return !r.days_left || r.days_left > 90; });
-
-    if (critical.length) {
-      html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">';
-      html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px 8px;color:var(--text-muted);font-size:11px;">Product</th><th style="text-align:left;padding:4px 8px;color:var(--text-muted);font-size:11px;">Vendor</th><th style="text-align:center;padding:4px 8px;color:var(--text-muted);font-size:11px;">Renews</th><th style="text-align:center;padding:4px 8px;color:var(--text-muted);font-size:11px;">Days</th></tr></thead><tbody>';
-      critical.forEach(function(r) {
-        var dColor = r.days_left < 0 ? 'var(--red)' : r.days_left <= 30 ? 'var(--red)' : 'var(--orange)';
-        var dLabel = r.days_left < 0 ? 'EXPIRED' : r.days_left + 'd';
-        html += '<tr style="border-bottom:1px solid var(--border);">';
-        html += '<td style="padding:4px 8px;font-weight:500;">'+esc(r.service_display)+'</td>';
-        html += '<td style="padding:4px 8px;color:var(--text-muted);">'+esc(r.vendor)+'</td>';
-        html += '<td style="padding:4px 8px;text-align:center;font-size:11px;">'+(r.contract_end ? r.contract_end.slice(0,10) : '-')+'</td>';
-        html += '<td style="padding:4px 8px;text-align:center;font-weight:700;color:'+dColor+';">'+dLabel+'</td>';
-        html += '</tr>';
-      });
-      html += '</tbody></table>';
-    }
-
-    if (rest.length) {
-      html += '<details style="font-size:12px;"><summary style="cursor:pointer;color:var(--text-muted);">'+rest.length+' other subscriptions (> 90 days)</summary>';
-      html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">';
-      rest.forEach(function(r) {
-        html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 8px;">'+esc(r.service_display)+'</td><td style="padding:3px 8px;color:var(--text-dim);">'+esc(r.vendor)+'</td><td style="padding:3px 8px;text-align:center;">'+(r.contract_end ? r.contract_end.slice(0,10) : '-')+'</td><td style="padding:3px 8px;text-align:center;color:var(--text-muted);">'+(r.days_left != null ? r.days_left+'d' : '-')+'</td></tr>';
-      });
-      html += '</table></details>';
-    }
-    html += '</div>';
+  // ── Integration chips ──
+  function _cdChip(name, color, status, opts) {
+    opts = opts || {};
+    return '<div class="cd-chip"' + (opts.id ? ' id="'+opts.id+'"' : '') + ' style="border-top-color:'+color+';' + (opts.onclick ? 'cursor:pointer;' : '') + '"' + (opts.onclick ? ' onclick="'+opts.onclick+'"' : '') + '>'
+      + '<div class="cd-chip-name">'+esc(name)+'</div>'
+      + '<div class="cd-chip-status" style="color:'+color+';">'+esc(status)+'</div></div>';
   }
+  var _m365c = 'var(--text-dim)', _m365l = 'Ikke konfigurert';
+  if (d.m365 && d.m365.TenantId) { _m365c = 'var(--green)'; _m365l = 'Konfigurert'; }
+  if (d.m365 && d.m365.secret_status === 'expired') { _m365c = 'var(--red)'; _m365l = 'Secret utløpt'; }
+  else if (d.m365 && d.m365.secret_status === 'warning') { _m365c = 'var(--orange)'; _m365l = 'Secret ' + d.m365.secret_days_left + ' d igjen'; }
+  var _fgc = d.fortigate ? 'var(--green)' : 'var(--text-dim)';
+  var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || 'Konfigurert') : 'Ikke konfigurert';
+  var _ufc = d.unifi ? 'var(--green)' : 'var(--text-dim)';
+  var _ufl = d.unifi ? (d.unifi.UniFiHost || 'Konfigurert') : 'Ikke konfigurert';
+  var _aoc = d.also ? 'var(--green)' : 'var(--text-dim)';
+  var _aol = d.also ? (d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'kr') : '')) : 'Ikke koblet';
+  if (d.also && (d.also.expired > 0 || d.also.expiring_90d > 0)) { _aoc = d.also.expired > 0 ? 'var(--red)' : 'var(--orange)'; }
+  var _sshN = d.ssh_hosts ? d.ssh_hosts.length : 0;
+  var _sshc = _sshN > 0 ? 'var(--green)' : 'var(--text-dim)';
+  html += '<div class="cd-chips">'
+    + _cdChip('M365', _m365c, _m365l, {onclick:"showView('home')"})
+    + _cdChip('FortiGate', _fgc, _fgl)
+    + _cdChip('UniFi', _ufc, _ufl)
+    + _cdChip('ALSO', _aoc, _aol, {onclick:"loadCustomerLicensesFromActive()"})
+    + _cdChip('SSH Hosts', _sshc, (_sshN ? _sshN + ' hosts' : 'Ingen'), {onclick:"showView('hosts')"})
+    + _cdChip('Hosting', 'var(--text-dim)', 'Laster…', {id:'unified-uniweb-status'})
+    + '</div>';
 
-  // ── SSH Hosts ──
-  if (d.ssh_hosts && d.ssh_hosts.length) {
-    html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-    html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">'+icon('server',16)+' SSH Hosts ('+d.ssh_hosts.length+')</div>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;">';
-    d.ssh_hosts.forEach(function(h) {
-      var sColor = h.is_reachable ? 'var(--green)' : 'var(--text-dim)';
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;border-left:3px solid '+sColor+';">';
-      html += '<span style="font-weight:600;font-size:12px;flex:1;">'+esc(h.label||h.hostname)+'</span>';
-      html += '<span style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">'+esc(h.hostname)+':'+h.port+'</span>';
-      html += '</div>';
+  // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
+  var _find = [];
+  if ((a.users_no_mfa || 0) > 0) _find.push({sev:'crit', text: a.users_no_mfa + ' brukere uten MFA', src:'M365-audit', label:'Se audit', onclick:"showView('audit')"});
+  if (d.m365 && d.m365.secret_days_left != null && d.m365.secret_days_left <= 60) _find.push({sev: d.m365.secret_days_left <= 14 ? 'crit' : 'warn', text: 'M365-secret utløper om ' + d.m365.secret_days_left + ' d', src:'M365', label:'M365-status', onclick:"showView('home')"});
+  if (d.also && d.also.expired > 0) _find.push({sev:'crit', text: d.also.expired + ' abonnement utløpt', src:'ALSO', label:'Se abonnementer', onclick:"loadCustomerLicensesFromActive()"});
+  if (d.also && d.also.expiring_90d > 0) _find.push({sev:'warn', text: d.also.expiring_90d + ' abonnement utløper < 90 d', src:'ALSO', label:'Se abonnementer', onclick:"loadCustomerLicensesFromActive()"});
+  if (_find.length) {
+    html += '<div class="cd-action-band"><div class="cd-action-title">Krever handling</div>';
+    _find.forEach(function(f) {
+      var _dc = f.sev === 'crit' ? 'var(--red)' : 'var(--orange)';
+      html += '<div class="cd-action-row"><span class="cd-dot" style="background:'+_dc+';"></span>'
+        + '<span class="cd-action-text">'+esc(f.text)+'</span>'
+        + '<span class="cd-action-src">'+esc(f.src)+'</span>'
+        + '<button class="cd-action-btn" onclick="'+f.onclick+'">'+esc(f.label)+'</button></div>';
     });
-    html += '</div></div>';
+    html += '</div>';
   }
 
-  // ── M365 credential status ──
+  // ── Two columns: audit summary + M365 creds | subscriptions + hosts ──
+  html += '<div class="cd-cols"><div class="cd-col">';
+
+  if (d.audit) {
+    var _ssc = (a.secure_score_pct||0) >= 70 ? 'var(--green)' : (a.secure_score_pct||0) >= 40 ? 'var(--orange)' : 'var(--red)';
+    var _mfc = (a.mfa_coverage_pct||0) >= 90 ? 'var(--green)' : (a.mfa_coverage_pct||0) >= 70 ? 'var(--orange)' : 'var(--red)';
+    var _nmc = (a.users_no_mfa||0) > 0 ? 'var(--red)' : 'var(--green)';
+    html += '<div class="cd-card"><div class="cd-card-title">Siste M365-audit <span class="sub">'+esc(a.audit_date||'')+'</span><span class="link" onclick="openLatestReport()">Full rapport →</span></div>'
+      + '<div class="cd-stat-grid">'
+      + '<div class="cd-stat"><div class="n" style="color:'+_gv+';">'+esc(_grade)+'</div><div class="l">Grade</div></div>'
+      + '<div class="cd-stat"><div class="n">'+Math.round(a.risk_score||0)+'</div><div class="l">Risikoscore</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_ssc+';">'+Math.round(a.secure_score_pct||0)+'%</div><div class="l">Secure score</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_mfc+';">'+Math.round(a.mfa_coverage_pct||0)+'%</div><div class="l">MFA</div></div>'
+      + '<div class="cd-stat"><div class="n">'+(a.total_users||0)+'</div><div class="l">Brukere</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_nmc+';">'+(a.users_no_mfa||0)+'</div><div class="l">Uten MFA</div></div>'
+      + '</div></div>';
+  }
+
   if (d.m365 && d.m365.TenantId) {
-    html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-    html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">☁️ Microsoft 365</div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--text-muted);">';
-    html += '<span>Tenant: <strong style="color:var(--text);">'+esc(d.m365.TenantId||'-')+'</strong></span>';
-    html += '<span>Domain: <strong style="color:var(--text);">'+esc(d.domain||'-')+'</strong></span>';
+    var _cred = '<span>Tenant: <b class="mono">'+esc(d.m365.TenantId||'-')+'</b></span>'
+      + '<span>Domene: <b class="mono">'+esc(d.domain||'-')+'</b></span>';
     if (d.m365.secret_days_left != null) {
-      var credColor = d.m365.secret_status === 'expired' ? 'var(--red)' : d.m365.secret_status === 'critical' ? 'var(--red)' : d.m365.secret_status === 'warning' ? 'var(--orange)' : 'var(--green)';
-      html += '<span>Secret expires: <strong style="color:'+credColor+';">'+d.m365.secret_days_left+'d</strong></span>';
+      var _sc = (d.m365.secret_status==='expired'||d.m365.secret_status==='critical') ? 'var(--red)' : d.m365.secret_status==='warning' ? 'var(--orange)' : 'var(--green)';
+      _cred += '<span>Secret utløper: <b style="color:'+_sc+';">'+d.m365.secret_days_left+' d</b></span>';
     }
     if (d.m365.cert_days_left != null) {
-      var certColor = d.m365.cert_status === 'expired' ? 'var(--red)' : d.m365.cert_status === 'critical' ? 'var(--red)' : d.m365.cert_status === 'warning' ? 'var(--orange)' : 'var(--green)';
-      html += '<span>Cert expires: <strong style="color:'+certColor+';">'+d.m365.cert_days_left+'d</strong></span>';
+      var _cc2 = (d.m365.cert_status==='expired'||d.m365.cert_status==='critical') ? 'var(--red)' : d.m365.cert_status==='warning' ? 'var(--orange)' : 'var(--green)';
+      _cred += '<span>Sertifikat utløper: <b style="color:'+_cc2+';">'+d.m365.cert_days_left+' d</b></span>';
     }
-    html += '</div></div>';
+    html += '<div class="cd-card"><div class="cd-card-title">M365-legitimasjon</div><div class="cd-creds">'+_cred+'</div></div>';
   }
 
-  // ── Latest audit results ──
-  if (d.audit) {
-    var a = d.audit;
-    var gradeColors = {A:'var(--green)',B:'#6bcb77',C:'var(--orange)',D:'var(--orange)',F:'var(--red)'};
-    var gColor = gradeColors[a.risk_grade] || 'var(--text-dim)';
-    html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">';
-    html += '<div style="font-size:14px;font-weight:600;">🔍 Latest Audit</div>';
-    html += '<span style="font-size:10px;color:var(--text-dim);">'+esc(a.audit_date||'')+'</span>';
+  html += '</div><div class="cd-col">';
+
+  if (d.also && d.also.renewals && d.also.renewals.length) {
+    var _rens = d.also.renewals;
+    var _crit = _rens.filter(function(r){ return r.days_left != null && r.days_left <= 90; }).sort(function(x,y){ return (x.days_left||0) - (y.days_left||0); });
+    var _restN = _rens.filter(function(r){ return r.days_left == null || r.days_left > 90; }).length;
+    html += '<div class="cd-card"><div class="cd-card-title">Abonnementer <span class="sub">'+_rens.length+' totalt'+(d.also.mrr > 0 ? ' · MRR '+d.also.mrr.toFixed(0)+' '+(d.also.currency||'kr') : '')+'</span></div>';
+    if (_crit.length) {
+      _crit.forEach(function(r, i) {
+        var _dc = r.days_left < 0 ? 'var(--red)' : r.days_left <= 30 ? 'var(--red)' : 'var(--orange)';
+        var _dl = r.days_left < 0 ? 'Utløpt' : r.days_left + ' d';
+        html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="grow">'+esc(r.service_display)+'</span><span class="vendor">'+esc(r.vendor||'')+'</span><span class="days" style="color:'+_dc+';">'+_dl+'</span></div>';
+      });
+    } else {
+      html += '<div style="font-size:12px;color:var(--text-dim);padding:6px 0;">Ingen utløper snart</div>';
+    }
+    if (_restN) html += '<div style="font-size:11px;color:var(--text-dim);padding-top:8px;border-top:1px solid var(--row-divider);margin-top:2px;">'+_restN+' øvrige (&gt; 90 dager)</div>';
     html += '</div>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;">';
-
-    // Risk grade card
-    html += '<div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;border-top:2px solid '+gColor+';">';
-    html += '<div style="font-size:24px;font-weight:800;color:'+gColor+';">'+esc(a.risk_grade||'-')+'</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);">Risk Grade</div></div>';
-
-    // Risk score
-    html += '<div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">';
-    html += '<div style="font-size:20px;font-weight:700;">'+Math.round(a.risk_score||0)+'</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);">Risk Score</div></div>';
-
-    // Secure Score
-    var ssColor = (a.secure_score_pct||0) >= 70 ? 'var(--green)' : (a.secure_score_pct||0) >= 40 ? 'var(--orange)' : 'var(--red)';
-    html += '<div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">';
-    html += '<div style="font-size:20px;font-weight:700;color:'+ssColor+';">'+Math.round(a.secure_score_pct||0)+'%</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);">Secure Score</div></div>';
-
-    // MFA
-    var mfaColor = (a.mfa_coverage_pct||0) >= 90 ? 'var(--green)' : (a.mfa_coverage_pct||0) >= 70 ? 'var(--orange)' : 'var(--red)';
-    html += '<div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">';
-    html += '<div style="font-size:20px;font-weight:700;color:'+mfaColor+';">'+Math.round(a.mfa_coverage_pct||0)+'%</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);">MFA Coverage</div></div>';
-
-    // Users
-    html += '<div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">';
-    html += '<div style="font-size:20px;font-weight:700;">'+(a.total_users||0)+'</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);">Total Users</div></div>';
-
-    // No MFA
-    var noMfaColor = (a.users_no_mfa||0) > 0 ? 'var(--red)' : 'var(--green)';
-    html += '<div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">';
-    html += '<div style="font-size:20px;font-weight:700;color:'+noMfaColor+';">'+(a.users_no_mfa||0)+'</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);">No MFA</div></div>';
-
-    html += '</div></div>';
   }
 
-  // Placeholder for Uniweb detail card
+  if (d.ssh_hosts && d.ssh_hosts.length) {
+    html += '<div class="cd-card"><div class="cd-card-title">Hosts <span class="sub">'+d.ssh_hosts.length+'</span></div>';
+    d.ssh_hosts.forEach(function(h, i) {
+      var _hc = h.is_reachable ? 'var(--green)' : 'var(--text-dim)';
+      html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="cd-dot" style="background:'+_hc+';"></span><span class="grow">'+esc(h.label||h.hostname)+'</span><span class="mono">'+esc(h.hostname)+':'+esc(String(h.port))+'</span><button class="cd-row-btn" onclick="showView(\'hosts\')">Åpne</button></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '</div></div>';
+
+  // Placeholder for async Uniweb detail card
   html += '<div id="unified-uniweb-card"></div>';
 
   el.innerHTML = html;
@@ -8536,8 +8487,15 @@ async function _checkNotifBadge() {
       newCount = entries.length;
     }
     var badge = document.getElementById('notif-badge');
-    if (newCount > 0) { badge.textContent = newCount > 9 ? '9+' : newCount; badge.style.display = 'block'; }
-    else { badge.style.display = 'none'; }
+    var bnavBadge = document.getElementById('bnav-alerts-badge');
+    if (newCount > 0) {
+      var _nb = newCount > 9 ? '9+' : String(newCount);
+      badge.textContent = _nb; badge.style.display = 'block';
+      if (bnavBadge) { bnavBadge.textContent = _nb; bnavBadge.style.display = 'block'; }
+    } else {
+      badge.style.display = 'none';
+      if (bnavBadge) bnavBadge.style.display = 'none';
+    }
   } catch(e) { /* notification poll — retries periodically */ }
 }
 
@@ -8686,6 +8644,35 @@ var _NAV_MOBILE_BREAKPOINT = 1100;
 function toggleMobileNav() {
   var nav = document.getElementById('main-nav');
   if (nav) nav.classList.toggle('open');
+}
+
+// ── Mobile bottom nav + «Mer» sheet (frame 4a) ──────────────────────────────
+function openMoreSheet() {
+  var b = document.getElementById('more-backdrop');
+  if (b) { b.classList.add('open'); document.addEventListener('keydown', _closeMoreSheetEsc); }
+  _syncBottomNav('more');
+}
+function closeMoreSheet() {
+  var b = document.getElementById('more-backdrop');
+  if (b) b.classList.remove('open');
+  document.removeEventListener('keydown', _closeMoreSheetEsc);
+  var av = document.querySelector('.view.active');
+  _syncBottomNav(av ? av.id.replace('view-', '') : 'overview');
+}
+function _closeMoreSheetEsc(e) { if (e.key === 'Escape') closeMoreSheet(); }
+function _syncBottomNav(name) {
+  // Map every view onto one of the five bottom-tab groups.
+  var map = {
+    overview: 'dashboard',
+    customers: 'customers', home: 'customers', audit: 'customers', history: 'customers',
+    files: 'customers', setup: 'customers', 'customer-detail': 'customers',
+    network: 'network', vpn: 'network', tls: 'network', tailscale: 'network', provision: 'network',
+    more: 'more',
+  };
+  var active = map[name] || '';
+  document.querySelectorAll('.bnav-item').forEach(function(el) {
+    el.classList.toggle('active', el.getAttribute('data-bnav') === active);
+  });
 }
 
 window.addEventListener('resize', function() {

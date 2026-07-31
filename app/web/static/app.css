@@ -507,6 +507,132 @@
   .grade-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); flex-wrap: wrap; }
   .grade-legend b { font-weight: 700; }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     REDESIGN 4a — mobile: a 5-item bottom tab bar replaces the hamburger
+     drawer, «Mer» opens a bottom sheet, the customer table becomes cards.
+     Base state hides the bottom-nav bits on desktop; the media query below
+     switches them on for phones.
+     ══════════════════════════════════════════════════════════════════════ */
+  .bottom-nav, .more-backdrop { display: none; }
+
+  @media (max-width: 767px) {
+    /* Retire the hamburger drawer + the 200px header search on phones. */
+    .hamburger { display: none !important; }
+    #main-nav { display: none !important; }
+    .header-right .hdr-search { display: none; }
+
+    /* Room above the fixed bar so the last row isn't trapped under it. */
+    main { padding-bottom: calc(78px + var(--safe-bottom)); }
+
+    .bottom-nav {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 120;
+      background: var(--bg-panel); border-top: 1px solid var(--border);
+      padding: 8px 6px calc(8px + var(--safe-bottom));
+    }
+    .bnav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: none; border: none; cursor: pointer; padding: 6px 0; position: relative;
+      font-size: 10px; font-weight: 500; color: var(--text-muted); font-family: inherit;
+      transition: color var(--duration-fast);
+    }
+    .bnav-item.active { color: var(--blue); font-weight: 600; }
+    .bnav-item svg { width: 20px; height: 20px; }
+    .bnav-badge {
+      position: absolute; top: 0; left: 50%; transform: translateX(8px);
+      background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
+      min-width: 14px; height: 14px; line-height: 14px; text-align: center; border-radius: var(--radius-full); padding: 0 3px;
+    }
+
+    /* «Mer» bottom sheet. */
+    .more-backdrop { display: none; position: fixed; inset: 0; z-index: 130; background: rgba(0,0,0,0.55); }
+    .more-backdrop.open { display: flex; align-items: flex-end; }
+    .more-sheet {
+      width: 100%; background: var(--bg-card); border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0; padding: 8px 0 calc(16px + var(--safe-bottom));
+      max-height: 82vh; overflow-y: auto; position: relative;
+      animation: modal-slide-up var(--duration-normal) var(--ease-out);
+    }
+    .more-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 6px auto 4px; }
+    .more-title { padding: 12px 20px 6px; font-size: 13px; font-weight: 700; }
+    .more-group-title { padding: 12px 20px 4px; font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+    .more-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 20px; background: none; border: none; text-align: left; cursor: pointer; font-size: 14px; color: var(--text); font-family: inherit; }
+    .more-row:active { background: rgba(77,159,181,0.12); }
+    .more-row.danger { color: var(--red); }
+    .more-ic { color: var(--blue); width: 20px; text-align: center; flex-shrink: 0; }
+    .more-row.danger .more-ic { color: var(--red); }
+    .more-meta { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+
+    /* KPIs to two columns. */
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+
+    /* Customer table → touch cards: grade tile + name/meta, status pill right;
+       numeric columns and the ⋯ menu drop away (tap the card for detail). */
+    .overview-table-wrap { overflow: visible; max-height: none; border: none; background: none; }
+    .slim-table, .slim-table tbody { display: block; }
+    .slim-table thead { display: none; }
+    .slim-table tbody tr {
+      display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px;
+      padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+      margin: 0 0 10px; background: var(--bg-panel);
+    }
+    .slim-table tbody td { border: none; padding: 0; }
+    .slim-table tbody td:first-child { grid-column: 1; min-width: 0; }
+    .slim-table tbody td:nth-child(2) { grid-column: 2; justify-self: end; }
+    .slim-table tbody td:nth-child(n+3) { display: none; }
+    .slim-table .grade-tile { width: 38px; height: 38px; font-size: 16px; }
+    /* Customer-detail: stack the two columns and the chip grid. */
+    .cd-cols { grid-template-columns: 1fr; }
+    .cd-chips { grid-template-columns: 1fr 1fr; }
+    .cd-hero { flex-wrap: wrap; }
+    .cd-hero-name { white-space: normal; }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     REDESIGN 5a — customer detail (unified view): hero, integration chips,
+     a «Krever handling» band, then a two-column audit / subscriptions layout.
+     ══════════════════════════════════════════════════════════════════════ */
+  .cd-hero { display: flex; align-items: center; gap: 16px; padding: 4px 0 20px; }
+  .cd-hero-tile { width: 52px; height: 52px; border-radius: var(--radius-lg); font-weight: 800; font-size: 22px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid; flex-shrink: 0; }
+  .cd-hero-id { min-width: 0; }
+  .cd-hero-name { font-size: 20px; font-weight: 700; display: block; white-space: nowrap; }
+  .cd-active-pill { font-size: 11px; font-weight: 600; color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); border-radius: var(--radius-full); padding: 2px 8px; vertical-align: middle; margin-left: 4px; }
+  .cd-hero-meta { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+  [data-theme="light"] .cd-hero-meta { color: var(--text-muted); }
+  .cd-chips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 20px; }
+  .cd-chip { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); border-top: 2px solid var(--text-dim); padding: 12px 14px; min-width: 0; }
+  .cd-chip .cd-chip-name { font-size: 12px; font-weight: 600; white-space: nowrap; margin-bottom: 2px; }
+  .cd-chip .cd-chip-status { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-action-band { border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); background: color-mix(in srgb, var(--red) 6%, transparent); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 20px; }
+  .cd-action-title { font-size: 13px; font-weight: 700; color: var(--red); margin-bottom: 8px; }
+  .cd-action-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid color-mix(in srgb, var(--red) 15%, transparent); }
+  .cd-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cd-action-text { font-size: 13px; flex: 1; min-width: 0; }
+  .cd-action-src { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .cd-action-btn { font-size: 11px; font-weight: 600; color: var(--blue); background: none; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px 10px; white-space: nowrap; cursor: pointer; font-family: inherit; transition: background var(--duration-fast); }
+  .cd-action-btn:hover { background: var(--bg-card-hover); }
+  .cd-cols { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+  .cd-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .cd-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+  .cd-card-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .cd-card-title .sub { font-size: 11px; color: var(--text-dim); font-weight: 400; }
+  .cd-card-title .link { margin-left: auto; font-size: 11px; color: var(--blue); cursor: pointer; }
+  .cd-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .cd-stat { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; text-align: center; }
+  .cd-stat .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cd-stat .l { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+  .cd-row { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--row-divider); }
+  .cd-row.first { border-top: none; }
+  .cd-row .grow { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-row .vendor { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .cd-row .mono { font-size: 11px; color: var(--text-dim); font-family: var(--mono); white-space: nowrap; }
+  .cd-row .days { font-size: 11px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cd-row-btn { font-size: 11px; font-weight: 600; color: var(--blue); background: none; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 3px 9px; white-space: nowrap; cursor: pointer; font-family: inherit; }
+  .cd-row-btn:hover { background: var(--bg-card-hover); }
+  .cd-creds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: var(--text-muted); }
+  .cd-creds b { font-weight: 600; color: var(--text); }
+  .cd-creds .mono { font-family: var(--mono); }
+
   #changelog-modal .modal { width: 640px; max-height: 80vh; }
   .changelog-content h2 { font-size: 16px; font-weight: 700; color: var(--blue); margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
   .changelog-content h2:first-child { margin-top: 0; }
@@ -1149,6 +1275,7 @@
      --text-dim (#8b949e) fails AA on the light bg, so use --text-muted there. */
   [data-theme="light"] .cust-domain,
   [data-theme="light"] .slim-table .cust-cell .cdom,
+  [data-theme="light"] .slim-table thead th,
   [data-theme="light"] .context-audit,
   [data-theme="light"] .hdr-search .kbd-chip { color: var(--text-muted); }
   [data-theme="light"] .nav-dropdown-menu-inner { background: var(--bg-card); border-color: var(--border); box-shadow: var(--shadow-lg); }
