@@ -33,6 +33,7 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **Grensesnitt:**
+- **KPI-tallene på dashbordet** kunne vise feil verdi. Flisene ble tegnet med en literal `0` og sannheten i `data-count`, så tallet en leser så var avhengig av at en animasjon fullførte. Den startet alltid fra null og hadde ingen sperre mot overlappende løkker, så en gjenrendering dro tallet tilbake til null. Målt: «KUNDER 0» over en tabell med én kunde, risiko 23 der sannheten var 52, MFA 42 % der den var 97. Markupen bærer nå verdien, og animasjonen er pynt oppå.
 - Auditresultatet ledes nå av hva kjøringen fant. Tabellen svarte "kjørte alle seksjonene", som er riktig spørsmål mens den kjører, ikke etterpå.
 - Varsler har alvorlighetsgrad, satt av samleren som fant tingen. Fem aktive eksponeringer er merket kritiske.
 - Fremdriftsbaren tok nevneren fra sitt eget teller og sto på 100 % gjennom hele kjøringen.

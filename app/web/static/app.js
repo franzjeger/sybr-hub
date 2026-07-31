@@ -5761,15 +5761,38 @@ function _celebrateConfetti() {
 
 function _animateCountUp(el, target, suffix, duration) {
   if (!el || isNaN(target)) return;
-  var start = 0, startTime = null;
+
+  // The element already shows the true value; this only animates towards it.
+  //
+  // It used to be the other way round: the markup carried a literal 0 and the
+  // truth lived in data-count, so the number a reader saw depended on an
+  // animation finishing. It often did not. start was pinned to 0, so a
+  // re-render — this view refreshes itself — dropped the figure back to zero
+  // and raced the previous loop, and requestAnimationFrame is throttled in a
+  // background tab, so switching away could leave a tile reading 0 over a
+  // table listing one customer.
+  //
+  // Starting from what is on screen makes a re-render a no-op instead of a
+  // reset, and the generation counter means the newest call is the only one
+  // still writing.
+  var start = parseFloat(String(el.textContent).replace(/[^0-9.-]/g, ''));
+  if (isNaN(start)) start = 0;
+  if (start === target) return;
+
+  var generation = (el._countGeneration || 0) + 1;
+  el._countGeneration = generation;
+
+  var startTime = null;
   duration = duration || 800;
   function step(ts) {
+    if (el._countGeneration !== generation) return;   // superseded
     if (!startTime) startTime = ts;
     var progress = Math.min((ts - startTime) / duration, 1);
     var eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
     var current = Math.round(start + (target - start) * eased);
     el.textContent = current + (suffix || '');
     if (progress < 1) requestAnimationFrame(step);
+    else el.textContent = target + (suffix || '');   // land exactly on it
   }
   requestAnimationFrame(step);
 }
@@ -6152,23 +6175,23 @@ function renderOverview(customers, activeId) {
   let html = `
     <div class="card-grid card-grid--kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-3);grid-auto-rows:1fr;margin-bottom:var(--space-6);">
       <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${total}" style="font-size:var(--font-2xl);font-weight:800;color:var(--blue);">0</div>
+        <div class="kpi-num" data-count="${total}" style="font-size:var(--font-2xl);font-weight:800;color:var(--blue);">${total}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_total_customers')}</div>
       </div>
       <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" data-suffix="${avgRisk !== '-' ? '/100' : ''}" style="font-size:var(--font-2xl);font-weight:800;color:${avgRisk !== '-' && avgRisk < 50 ? 'var(--red)' : avgRisk !== '-' && avgRisk < 70 ? 'var(--orange)' : 'var(--green)'};">${avgRisk === '-' ? '-' : '0'}</div>
+        <div class="kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" data-suffix="${avgRisk !== '-' ? '/100' : ''}" style="font-size:var(--font-2xl);font-weight:800;color:${avgRisk !== '-' && avgRisk < 50 ? 'var(--red)' : avgRisk !== '-' && avgRisk < 70 ? 'var(--orange)' : 'var(--green)'};">${avgRisk === '-' ? '-' : avgRisk + '/100'}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_avg_risk_score')}</div>
       </div>
       <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="font-size:var(--font-2xl);font-weight:800;color:${avgMfa !== '-' && avgMfa < 80 ? 'var(--red)' : avgMfa !== '-' && avgMfa < 95 ? 'var(--orange)' : 'var(--green)'};">${avgMfa === '-' ? '-' : '0'}</div>
+        <div class="kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="font-size:var(--font-2xl);font-weight:800;color:${avgMfa !== '-' && avgMfa < 80 ? 'var(--red)' : avgMfa !== '-' && avgMfa < 95 ? 'var(--orange)' : 'var(--green)'};">${avgMfa === '-' ? '-' : avgMfa + '%'}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_avg_mfa','MFA Snitt')}</div>
       </div>
       <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${needsAttention}" style="font-size:var(--font-2xl);font-weight:800;color:${needsAttention > 0 ? 'var(--red)' : 'var(--green)'};">0</div>
+        <div class="kpi-num" data-count="${needsAttention}" style="font-size:var(--font-2xl);font-weight:800;color:${needsAttention > 0 ? 'var(--red)' : 'var(--green)'};">${needsAttention}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_needs_attention')}</div>
       </div>
       <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${staleCount}" style="font-size:var(--font-2xl);font-weight:800;color:${staleCount > 0 ? 'var(--orange)' : 'var(--green)'};">0</div>
+        <div class="kpi-num" data-count="${staleCount}" style="font-size:var(--font-2xl);font-weight:800;color:${staleCount > 0 ? 'var(--orange)' : 'var(--green)'};">${staleCount}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_stale_30d','Utdatert >30d')}</div>
       </div>
     </div>

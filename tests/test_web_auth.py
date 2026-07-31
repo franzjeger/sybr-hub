@@ -867,3 +867,35 @@ def test_autofilled_fields_keep_the_apps_colours():
     assert "-webkit-text-fill-color: var(--text)" in css, (
         "only text-fill-color wins over Chrome's own colour"
     )
+
+
+def test_kpi_tiles_render_their_value_not_a_placeholder():
+    """The visible number must not depend on an animation finishing.
+
+    The tiles carried a literal 0 with the truth in data-count, and the count-up
+    was pinned to start at 0 with no guard against a second loop. The dashboard
+    refreshes itself, so a re-render dropped the figure back to zero and raced
+    the previous run; requestAnimationFrame is throttled in a background tab,
+    so switching away could leave "KUNDER 0" above a table listing one customer.
+    Measured on the live dashboard: 0 against 1, 23/100 against 52, 42% against
+    97.
+    """
+    import pathlib
+    import re
+
+    src = pathlib.Path("app/web/static/app.js").read_text()
+    tiles = re.findall(r'class="kpi-num" data-count="\$\{([^}]+)\}"[^>]*>([^<]*)<', src)
+    assert tiles, "the KPI tiles should still be found by this pattern"
+    for expr, rendered in tiles:
+        assert rendered.strip() not in ("0", ""), (
+            f"tile for {expr} renders a placeholder rather than its value"
+        )
+
+
+def test_the_count_up_starts_from_what_is_on_screen():
+    """So a re-render is a no-op instead of a reset to zero."""
+    import pathlib
+
+    src = pathlib.Path("app/web/static/app.js").read_text()
+    assert "var start = 0, startTime = null;" not in src, "start must not be pinned to 0"
+    assert "el._countGeneration" in src, "a superseded loop must stop writing"
