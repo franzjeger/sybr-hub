@@ -37,7 +37,7 @@
 </head>
 <body>
 <div id="toast-container" class="toast-container"></div>
-<button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:24px;right:24px;z-index:90;width:40px;height:40px;border-radius:50%;background:var(--blue-btn);color:#fff;border:none;cursor:pointer;font-size:18px;box-shadow:var(--shadow-md);transition:opacity var(--duration-normal),transform var(--duration-normal);opacity:0;transform:translateY(10px);" aria-label="Scroll to top">&#8593;</button>
+<button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:24px;right:24px;z-index:90;width:40px;height:40px;border-radius:50%;background:var(--blue-btn);color:#fff;border:none;cursor:pointer;font-size:18px;box-shadow:var(--shadow-md);transition:opacity var(--duration-normal),transform var(--duration-normal);opacity:0;transform:translateY(10px);" data-i18n-aria-label="scroll_to_top" aria-label="Scroll to top">&#8593;</button>
 <!-- ── Reusable confirm modal ── -->
 <div class="modal-backdrop" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onclick="if(event.target===this)resolveConfirm(false)" style="display:none;">
   <div class="modal" style="width:400px;">
@@ -113,12 +113,12 @@
       <img id="header-logo-dark" class="logo-dark" src="/branding/sybr_logo_dark_matched.png" alt="SYBR" width="100" height="29">
       <img id="header-logo-light" class="logo-light" src="/branding/300 x 86.png" alt="SYBR" width="100" height="29">
     </div>
-    <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Meny">&#9776;</button>
+    <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" data-i18n-aria-label="meny" aria-label="Meny">&#9776;</button>
     <nav class="nav" id="main-nav">
-      <button class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" title="Dashboard (Ctrl+1)">Dashboard</button>
+      <button class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" data-i18n-title="dashboard_ctrl" title="Dashboard (Ctrl+1)">Dashboard</button>
 
       <div class="nav-dropdown">
-        <button class="nav-btn nav-caret" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" title="Kunder (Ctrl+3)">Kunder</button>
+        <button class="nav-btn nav-caret" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" data-i18n-title="kunder_ctrl" title="Kunder (Ctrl+3)">Kunder</button>
         <div class="nav-dropdown-menu"><div class="navdd-panel">
           <button class="navdd-item" onclick="showView('customers')">
             <span class="navdd-ic">&#9638;</span>
@@ -210,18 +210,18 @@
     </nav>
     <div class="header-right">
       <!-- Search field — opens the command palette (same as ⌘K). -->
-      <button class="hdr-search" onclick="toggleCommandPalette()" title="S&#248;k eller hopp til&#8230; (&#8984;K)" aria-label="S&#248;k">
+      <button class="hdr-search" onclick="toggleCommandPalette()" data-i18n-title="ph_search_or_jump" title="S&#248;k eller hopp til&#8230; (&#8984;K)" data-i18n-aria-label="lbl_search" aria-label="S&#248;k">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <span>S&#248;k eller hopp til&#8230;</span>
         <span class="kbd-chip">&#8984;K</span>
       </button>
 
       <!-- Sybrt assistant — a global tool, so an icon button rather than a nav slot. -->
-      <button class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" title="Sybrt" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" alt="Sybrt"></button>
+      <button class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" data-i18n-alt="sybrt_4" data-i18n-alt="sybrt_5" alt="Sybrt"></button>
 
       <!-- One status chip: server-live dot, with a VPN prefix when a tunnel is up.
            Merges the old vpn-header-badge + conn-status pair. Polls /api/health. -->
-      <button class="status-chip" id="conn-status" onclick="showView('vpn')" title="Live" style="display:none;">
+      <button class="status-chip" id="conn-status" onclick="showView('vpn')" data-i18n-title="live" title="Live" style="display:none;">
         <span class="dot" id="conn-status-dot"></span>
         <span id="vpn-chip-prefix" style="display:none;">VPN&#160;&#183;&#160;</span>
         <span id="conn-status-label">Live</span>
@@ -236,7 +236,7 @@
 
       <!-- Notifications bell -->
       <div style="position:relative;display:inline-block;">
-        <button onclick="toggleNotifications()" aria-label="Varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
+        <button onclick="toggleNotifications()" data-i18n-aria-label="varsler_2" aria-label="Varsler" data-i18n-title="varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
         <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;max-height:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;z-index:150;animation:dropdown-in var(--duration-fast) var(--ease-out);">
           <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:var(--font-sm);font-weight:600;" data-i18n="hdr_notifications">Varsler</span>
@@ -247,11 +247,11 @@
       </div>
 
       <!-- PWA install (conditional). -->
-      <button id="pwa-install-btn" onclick="promptPwaInstall()" aria-label="Installer app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
+      <button id="pwa-install-btn" onclick="promptPwaInstall()" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
 
       <!-- Avatar + account menu: settings, theme, shortcuts, password, logout, version. -->
       <div style="position:relative;display:inline-block;">
-        <button class="avatar-btn" id="avatar-btn" onclick="toggleAvatarMenu(event)" aria-label="Konto" title="Konto"><span id="avatar-initials">&#183;</span></button>
+        <button class="avatar-btn" id="avatar-btn" onclick="toggleAvatarMenu(event)" data-i18n-aria-label="konto_3" aria-label="Konto" data-i18n-title="konto_2" title="Konto"><span id="avatar-initials">&#183;</span></button>
         <div class="avatar-menu" id="avatar-menu">
           <div class="avatar-head">
             <span class="name" id="avatar-name"></span>
@@ -267,14 +267,14 @@
       </div>
 
       <!-- Legacy controls kept hidden so existing JS references never null out. -->
-      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" aria-label="Bytt tema">🌙</button>
+      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">🌙</button>
       <span id="user-display" style="display:none;"></span>
     </div>
   </header>
 
   <!-- Context bar: active customer identity + primary actions (frame 3a) -->
   <div id="active-customer-bar" class="context-bar" style="display:none;">
-    <div id="active-customer-trigger" onclick="toggleActiveCustomerSwitcher(event)" style="display:flex;align-items:center;gap:8px;cursor:pointer;" title="Bytt kunde">
+    <div id="active-customer-trigger" onclick="toggleActiveCustomerSwitcher(event)" style="display:flex;align-items:center;gap:8px;cursor:pointer;" data-i18n-title="bytt_kunde" title="Bytt kunde">
       <span id="active-customer-name" class="cust-name"></span>
       <span id="active-customer-domain" class="cust-domain"></span>
       <span id="active-customer-grade"></span>
@@ -297,7 +297,7 @@
   <!-- ── Main ── -->
   <main>
     <!-- Breadcrumb -->
-    <nav id="breadcrumb" aria-label="Breadcrumb" style="font-size:var(--font-sm);color:var(--text-dim);padding:var(--space-2) 0;display:none;">
+    <nav id="breadcrumb" data-i18n-aria-label="breadcrumb" aria-label="Breadcrumb" style="font-size:var(--font-sm);color:var(--text-dim);padding:var(--space-2) 0;display:none;">
       <span id="breadcrumb-items"></span>
     </nav>
 
@@ -402,7 +402,7 @@
           <a id="dc-url" href="#" target="_blank" style="color:var(--text-dim);font-family:var(--mono);font-size:11px;"></a>
         </div>
         <div class="device-code-step" data-i18n="setup_step2">2. Skriv inn koden (klikk for å kopiere):</div>
-        <div class="device-code-value" id="dc-code" onclick="copyCode()" title="Klikk for å kopiere">——</div>
+        <div class="device-code-value" id="dc-code" onclick="copyCode()" data-i18n-title="tip_click_to_copy" title="Klikk for å kopiere">——</div>
         <div class="code-hint" id="dc-copy-hint" data-i18n="msg_click_to_copy">Klikk på koden for å kopiere til utklippstavlen</div>
         <div class="device-code-note" data-i18n="setup_login_global_admin">⚡ Logg inn som Global Admin, vent deretter her.</div>
       </div>
@@ -934,7 +934,7 @@
             <div id="itglue-sync-status" style="display:none;margin-top:8px;font-size:12px;"></div>
             <div id="itglue-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label" for="input-itglue-key" data-i18n="lbl_api_key">API-nokkel</label>
-              <input class="field-input" id="input-itglue-key" type="password" placeholder="IT Glue API key">
+              <input class="field-input" id="input-itglue-key" type="password" data-i18n-placeholder="it_glue_api_key" placeholder="IT Glue API key">
               <label class="field-label" for="input-itglue-region" style="margin-top:10px;" data-i18n="lbl_region">Region</label>
               <select class="field-input" id="input-itglue-region" style="padding:8px 12px;">
                 <option value="eu">EU</option>
@@ -973,11 +973,11 @@
               <label class="field-label" for="input-smtp-port" style="margin-top:10px;" data-i18n="lbl_port" data-i18n="lbl_port">Port</label>
               <input class="field-input" id="input-smtp-port" type="number" value="587" placeholder="587 (TLS) / 465 (SSL)">
               <label class="field-label" for="input-smtp-user" style="margin-top:10px;" data-i18n="lbl_username">Brukernavn</label>
-              <input class="field-input" id="input-smtp-user" type="text" placeholder="bruker@firma.no">
+              <input class="field-input" id="input-smtp-user" type="text" data-i18n-placeholder="bruker_firma_no" data-i18n-placeholder="bruker_firma_no_2" data-i18n-placeholder="ph_user_at_company" data-i18n-placeholder="ph_user_at_company" placeholder="bruker@firma.no">
               <label class="field-label" for="input-smtp-password" style="margin-top:10px;" data-i18n="lbl_password">Passord</label>
-              <input class="field-input" id="input-smtp-password" type="password" placeholder="SMTP-passord">
+              <input class="field-input" id="input-smtp-password" type="password" data-i18n-placeholder="smtp_passord" placeholder="SMTP-passord">
               <label class="field-label" for="input-smtp-from" style="margin-top:10px;" data-i18n="lbl_sender_address">Avsenderadresse</label>
-              <input class="field-input" id="input-smtp-from" type="text" placeholder="(Samme som brukernavn om tom)">
+              <input class="field-input" id="input-smtp-from" type="text" data-i18n-placeholder="samme_som_brukernavn_om_tom" placeholder="(Samme som brukernavn om tom)">
               <label class="field-label" for="input-email-recipient" style="margin-top:10px;" data-i18n="lbl_default_recipients">Standard mottaker(e)</label>
               <input class="field-input" id="input-email-recipient" type="text" data-i18n-placeholder="placeholder_email_recipients" placeholder="mottaker@kunde.no, mottaker2@kunde.no">
               <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
@@ -1087,7 +1087,7 @@
                 <label class="field-label" for="fg-bootstrap-host" data-i18n="lbl_fortigate_ip">FortiGate IP</label>
                 <input class="field-input" id="fg-bootstrap-host" type="text" placeholder="192.168.1.99">
                 <label class="field-label" for="fg-bootstrap-hostname" style="margin-top:8px;" data-i18n="lbl_hostname_optional">Hostname (valgfritt)</label>
-                <input class="field-input" id="fg-bootstrap-hostname" type="text" placeholder="FW-Kundenavn">
+                <input class="field-input" id="fg-bootstrap-hostname" type="text" data-i18n-placeholder="ph_fw_customer_name" placeholder="FW-Kundenavn">
                 <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
                   <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="fgBootstrap()" id="btn-fg-bootstrap" data-i18n="btn_setup_fortigate">Sett opp FortiGate</button>
                   <span id="fg-bootstrap-status" style="font-size:11px;color:var(--text-muted);"></span>
@@ -1095,11 +1095,11 @@
                 <div id="fg-bootstrap-result" style="display:none;margin-top:12px;background:var(--bg-card);border:1px solid var(--green);border-radius:6px;padding:12px;"></div>
               </div>
               <label class="field-label" for="fg-api-host" data-i18n="lbl_host_ip">Host / IP</label>
-              <input class="field-input" id="fg-api-host" type="text" placeholder="f.eks. 192.168.1.1 eller fw.kunde.no">
+              <input class="field-input" id="fg-api-host" type="text" data-i18n-placeholder="f_eks_eller_fw_kunde" placeholder="f.eks. 192.168.1.1 eller fw.kunde.no">
               <label class="field-label" for="fg-api-port" style="margin-top:10px;" data-i18n="lbl_port">Port</label>
               <input class="field-input" id="fg-api-port" type="number" value="443" placeholder="443">
               <label class="field-label" for="fg-api-token" style="margin-top:10px;" data-i18n="lbl_api_token">API-token</label>
-              <input class="field-input" id="fg-api-token" type="password" placeholder="FortiGate REST API token">
+              <input class="field-input" id="fg-api-token" type="password" data-i18n-placeholder="fortigate_rest_api_token" placeholder="FortiGate REST API token">
               <label class="field-label" for="fg-api-vdom" style="margin-top:10px;" data-i18n="lbl_vdom_optional">VDOM (valgfritt)</label>
               <input class="field-input" id="fg-api-vdom" type="text" value="root" placeholder="root">
               <div style="display:flex;gap:8px;margin-top:12px;">
@@ -1108,7 +1108,7 @@
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="fgApiSave()" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="fgDownloadCredentials()" title="Last ned admin-passord og API-token for aktiv kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="fgDownloadCredentials()" data-i18n-title="last_ned_admin_passord_og" title="Last ned admin-passord og API-token for aktiv kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
                 <span id="fg-api-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -1134,7 +1134,7 @@
               <!-- API Key method -->
               <div style="margin-bottom:16px;">
                 <label class="field-label" for="unifi-sm-apikey" data-i18n="lbl_api_key">API-nøkkel</label>
-                <input class="field-input" id="unifi-sm-apikey" type="password" placeholder="UniFi Site Manager API key">
+                <input class="field-input" id="unifi-sm-apikey" type="password" data-i18n-placeholder="unifi_site_manager_api_key" placeholder="UniFi Site Manager API key">
                 <div style="font-size:11px;color:var(--text-dim);margin-top:4px;"><span data-i18n="unifi_key_hint_before">Generer nøkkel via</span> <strong>unifi.ui.com → Settings → API</strong></div>
               </div>
               <!-- Controller direct access -->
@@ -1142,11 +1142,11 @@
                 <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:8px;" data-i18n="unifi_controller_access">Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)</summary>
                 <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en <strong>Organization API key</strong> fra unifi.ui.com, eller direkte tilgang til kontrolleren.</p>
                 <label class="field-label" for="unifi-sm-ctrl-host" data-i18n="lbl_controller_url_optional">Kontroller-URL (valgfritt)</label>
-                <input class="field-input" id="unifi-sm-ctrl-host" type="text" placeholder="f.eks. https://sybr.unihosted.com">
+                <input class="field-input" id="unifi-sm-ctrl-host" type="text" data-i18n-placeholder="f_eks_https_sybr_unihosted" placeholder="f.eks. https://sybr.unihosted.com">
                 <label class="field-label" for="unifi-sm-ctrl-user" style="margin-top:10px;" data-i18n="lbl_username_label">Brukernavn</label>
-                <input class="field-input" id="unifi-sm-ctrl-user" type="text" placeholder="Lokal kontroller-bruker">
+                <input class="field-input" id="unifi-sm-ctrl-user" type="text" data-i18n-placeholder="lokal_kontroller_bruker" placeholder="Lokal kontroller-bruker">
                 <label class="field-label" for="unifi-sm-ctrl-pass" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
-                <input class="field-input" id="unifi-sm-ctrl-pass" type="password" placeholder="Kontroller-passord">
+                <input class="field-input" id="unifi-sm-ctrl-pass" type="password" data-i18n-placeholder="kontroller_passord" placeholder="Kontroller-passord">
                 <div style="display:flex;gap:8px;margin-top:8px;">
                   <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmTestController()" data-i18n="btn_test_connection">Test tilkobling</button>
                   <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmSaveController()" data-i18n="btn_save">Lagre</button>
@@ -1249,9 +1249,9 @@
             </div>
             <div id="also-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label">Username / Email</label>
-              <input class="field-input" id="input-also-username" type="text" placeholder="user@company.no">
+              <input class="field-input" id="input-also-username" type="text" data-i18n-placeholder="user_company_no" placeholder="user@company.no">
               <label class="field-label" style="margin-top:10px;">Password</label>
-              <input class="field-input" id="input-also-password" type="password" placeholder="API password">
+              <input class="field-input" id="input-also-password" type="password" data-i18n-placeholder="api_password" placeholder="API password">
               <label class="field-label" style="margin-top:10px;">Country</label>
               <select class="field-input" id="input-also-country">
                 <option value="no">Norway</option>
@@ -1289,9 +1289,9 @@
             </div>
             <div id="uniweb-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label">E-post</label>
-              <input class="field-input" id="input-uniweb-email" type="text" placeholder="bruker@firma.no">
+              <input class="field-input" id="input-uniweb-email" type="text" data-i18n-placeholder="ph_user_at_company" placeholder="bruker@firma.no">
               <label class="field-label" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
-              <input class="field-input" id="input-uniweb-password" type="password" placeholder="Uniweb-passord">
+              <input class="field-input" id="input-uniweb-password" type="password" data-i18n-placeholder="uniweb_passord" placeholder="Uniweb-passord">
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" onclick="uniwebSaveConfig()" style="padding:6px 14px;font-size:12px;">Lagre</button>
                 <button class="btn btn-ghost" onclick="uniwebSync()" id="uniweb-sync-btn" style="padding:6px 14px;font-size:12px;">Synkroniser</button>
@@ -1352,7 +1352,7 @@
               <label class="field-label" for="input-gdap-client" style="margin-top:10px;" data-i18n="gdap_lbl_client_id">Client ID (App Registration)</label>
               <input class="field-input" id="input-gdap-client" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
               <label class="field-label" for="input-gdap-secret" style="margin-top:10px;" data-i18n="gdap_lbl_client_secret">Client Secret</label>
-              <input class="field-input" id="input-gdap-secret" type="password" placeholder="Client secret">
+              <input class="field-input" id="input-gdap-secret" type="password" data-i18n-placeholder="client_secret" placeholder="Client secret">
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" onclick="gdapSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
                 <button class="btn btn-default" onclick="gdapTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
@@ -1450,7 +1450,7 @@
                 <span data-i18n="lbl_notify_email">E-post</span>
               </label>
               <div style="flex:1;">
-                <input class="field-input" id="alert-email-recipient" placeholder="varsler@firma.no" style="padding:4px 8px;font-size:12px;width:200px;" onchange="alertSaveConfig()">
+                <input class="field-input" id="alert-email-recipient" data-i18n-placeholder="varsler_firma_no" placeholder="varsler@firma.no" style="padding:4px 8px;font-size:12px;width:200px;" onchange="alertSaveConfig()">
               </div>
             </div>
 
@@ -1692,9 +1692,9 @@
          sections (those used to drift, e.g. "v9.2.0" stamped in
          Overview while the app was on v10.6). -->
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-5);">
-      <button class="btn btn-ghost docs-tab-btn active" onclick="switchDocsTab(this,'docs-repo'); docsRepoLoad();" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;" title="Browse the documentation shipped with this version" data-i18n="docs_tab_documentation">Documentation</button>
-      <button class="btn btn-ghost docs-tab-btn" onclick="switchDocsTab(this,'docs-api')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" title="REST API endpoints reference">API</button>
-      <a href="/api/docs" target="_blank" rel="noopener" class="btn btn-ghost" style="margin-left:auto;font-size:var(--font-sm);text-decoration:none;color:var(--text-muted);align-self:center;padding:var(--space-2) var(--space-4);" title="OpenAPI / Swagger UI">Swagger ↗</a>
+      <button class="btn btn-ghost docs-tab-btn active" onclick="switchDocsTab(this,'docs-repo'); docsRepoLoad();" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;" data-i18n-title="browse_the_documentation_shipped_with" title="Browse the documentation shipped with this version" data-i18n="docs_tab_documentation">Documentation</button>
+      <button class="btn btn-ghost docs-tab-btn" onclick="switchDocsTab(this,'docs-api')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n-title="rest_api_endpoints_reference" title="REST API endpoints reference">API</button>
+      <a href="/api/docs" target="_blank" rel="noopener" class="btn btn-ghost" style="margin-left:auto;font-size:var(--font-sm);text-decoration:none;color:var(--text-muted);align-self:center;padding:var(--space-2) var(--space-4);" data-i18n-title="openapi_swagger_ui" title="OpenAPI / Swagger UI">Swagger ↗</a>
     </div>
 
     <!-- Tab: Documentation — renders markdown from the in-repo docs/ tree -->
@@ -1845,7 +1845,7 @@
     <div class="card" style="margin-bottom:16px;padding:16px;">
       <div class="card-title" data-i18n="hdr_workshop_architecture">Arkitektur — MSP Toolkit-integrasjoner</div>
       <div style="overflow-x:auto;text-align:center;background:var(--bg);border-radius:var(--radius-sm);padding:12px;">
-        <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" alt="MSP Toolkit — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+        <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" data-i18n-alt="msp_toolkit_integrasjoner_og_dataflyt" alt="MSP Toolkit — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
         <div style="display:none;color:var(--text-muted);font-size:12px;padding:20px;" data-i18n="err_architecture_missing">Arkitekturdiagrammet kunne ikke lastes. Sjekk at <code>docs/msp-toolkit-architecture.svg</code> finnes på serveren.</div>
       </div>
     </div>
@@ -1886,14 +1886,14 @@
           <div style="display:grid;grid-template-columns:minmax(0,1fr) 130px 140px auto;gap:6px;align-items:center;">
             <input id="workshop-followup-text" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_text" placeholder="Handling ..." style="margin:0;min-width:0;" onkeydown="if(event.key==='Enter'){workshopAddFollowup();event.preventDefault();}">
             <input id="workshop-followup-owner" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_owner" placeholder="Eier" style="margin:0;min-width:0;">
-            <input id="workshop-followup-due" type="date" class="field-input" style="margin:0;min-width:0;" title="Frist">
+            <input id="workshop-followup-due" type="date" class="field-input" style="margin:0;min-width:0;" data-i18n-title="frist" title="Frist">
             <button onclick="workshopAddFollowup()" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
           </div>
         </div>
 
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-dim);">
           <span id="workshop-save-status"></span>
-          <button onclick="workshopLoad()" class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh" title="Hent andres oppdateringer fra serveren">Oppdater</button>
+          <button onclick="workshopLoad()" class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh" data-i18n-title="hent_andres_oppdateringer_fra_serveren" title="Hent andres oppdateringer fra serveren">Oppdater</button>
         </div>
       </div>
     </div>
@@ -1998,13 +1998,13 @@
           <option value="" data-i18n="opt_select_host">Velg vert...</option>
         </select>
         <span style="color:var(--text-dim);font-size:12px;" data-i18n="lbl_or">eller</span>
-        <input id="term-host-manual" type="text" placeholder="bruker@host:port" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;width:180px;">
+        <input id="term-host-manual" type="text" data-i18n-placeholder="ph_user_at_host_port" placeholder="bruker@host:port" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;width:180px;">
       </div>
       <button class="btn btn-primary" onclick="termConnect()" id="term-connect-btn" style="padding:4px 14px;font-size:12px;" data-i18n="vpn_connect">Koble til</button>
       <button class="btn btn-ghost" onclick="termDisconnect()" id="term-disconnect-btn" style="padding:4px 14px;font-size:12px;display:none;color:var(--red);" data-i18n="vpn_disconnect">Koble fra</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:var(--space-2);">
-        <button onclick="termChangeFontSize(-1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:12px;display:flex;align-items:center;justify-content:center;" title="Smaller">A-</button>
-        <button onclick="termChangeFontSize(1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:14px;display:flex;align-items:center;justify-content:center;" title="Larger">A+</button>
+        <button onclick="termChangeFontSize(-1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:12px;display:flex;align-items:center;justify-content:center;" data-i18n-title="smaller" title="Smaller">A-</button>
+        <button onclick="termChangeFontSize(1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:14px;display:flex;align-items:center;justify-content:center;" data-i18n-title="larger" title="Larger">A+</button>
         <span id="term-status" style="font-size:12px;color:var(--text-muted);"></span>
       </div>
     </div>
@@ -2049,7 +2049,7 @@
       <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="eksternt_skrivebord_rdp">Eksternt skrivebord (RDP)</h2>
     </div>
     <div id="rdp-content">
-      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="fyll_inn_tilkoblingsdetaljer_for_å">Fyll inn tilkoblingsdetaljer for å starte.</div>
+      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_fill_connection_details">Fyll inn tilkoblingsdetaljer for å starte.</div>
     </div>
   </div>
 
@@ -2108,7 +2108,7 @@
   </main>
 
   <!-- ── Mobile bottom tab bar (frame 4a) — replaces the hamburger drawer on phones ── -->
-  <nav class="bottom-nav" id="bottom-nav" aria-label="Hovedmeny">
+  <nav class="bottom-nav" id="bottom-nav" data-i18n-aria-label="hovedmeny" aria-label="Hovedmeny">
     <button class="bnav-item active" data-bnav="dashboard" onclick="showView('overview')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
       <span data-i18n="nav_dashboard">Dashboard</span>
@@ -2134,7 +2134,7 @@
 
   <!-- ── «Mer» bottom sheet ── -->
   <div class="more-backdrop" id="more-backdrop" onclick="if(event.target===this)closeMoreSheet()">
-    <div class="more-sheet" id="more-sheet" role="dialog" aria-label="Mer">
+    <div class="more-sheet" id="more-sheet" role="dialog" data-i18n-aria-label="mer_3" aria-label="Mer">
       <div class="more-handle"></div>
       <div class="more-title" data-i18n="mer_2">Mer</div>
       <div class="more-group-title" data-i18n="nav_tools">Verkt&#248;y</div>
@@ -2166,7 +2166,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:var(--space-4);">
       <span id="footer-stats" style="font-size:9px;color:var(--text-dim);opacity:0.5;"></span>
-      <kbd onclick="toggleCommandPalette()" style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono);cursor:pointer;" title="Hurtigsøk">&#8984;K</kbd>
+      <kbd onclick="toggleCommandPalette()" style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono);cursor:pointer;" data-i18n-title="lbl_quick_search" title="Hurtigsøk">&#8984;K</kbd>
       <span style="font-size:var(--font-xs);color:var(--text-dim);">?</span>
       <span class="version" id="footer-version" style="font-size:10px;opacity:0.4;"></span>
     </div>
@@ -2256,7 +2256,7 @@
 </div>
 
 <!-- ── Settings modal ── -->
-<div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" aria-label="Innstillinger" onclick="closeSettingsOnBackdrop(event)">
+<div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" data-i18n-aria-label="innstillinger_2" aria-label="Innstillinger" onclick="closeSettingsOnBackdrop(event)">
   <div class="modal" style="width:620px;">
     <div class="modal-title" data-i18n="hdr_settings">&#9881; Innstillinger</div>
 
@@ -2282,11 +2282,11 @@
     </div>
 
     <label class="field-label" for="input-audit-dir" data-i18n="lbl_audit_dir">Lagringmappe for audit-data</label>
-    <input class="field-input" id="input-audit-dir" type="text" placeholder="Standard (Documents/MSPToolkit/Audits)">
+    <input class="field-input" id="input-audit-dir" type="text" data-i18n-placeholder="standard_documents_msptoolkit_audits" placeholder="Standard (Documents/MSPToolkit/Audits)">
     <div class="field-hint" id="settings-current-dir"></div>
 
     <label class="field-label" for="input-cert-dir" style="margin-top:10px;" data-i18n="lbl_cert_dir">Lagringmappe for sertifikater</label>
-    <input class="field-input" id="input-cert-dir" type="text" placeholder="Standard (samme som audit-data)">
+    <input class="field-input" id="input-cert-dir" type="text" data-i18n-placeholder="standard_samme_som_audit_data" placeholder="Standard (samme som audit-data)">
     <div class="field-hint" data-i18n="settings_cert_hint">Sertifikatfiler (.pfx) er alltid passordbeskyttet. Passord lagres i OS-nøkkelringen.</div>
     </div>
 
@@ -2294,13 +2294,13 @@
     <div id="stab-branding" class="settings-tab-pane" style="display:none;">
 
     <label class="field-label" for="input-company-name" data-i18n="lbl_company_name">Firmanavn</label>
-    <input class="field-input" id="input-company-name" type="text" placeholder="SYBR AS">
+    <input class="field-input" id="input-company-name" type="text" data-i18n-placeholder="sybr_as" placeholder="SYBR AS">
 
     <label class="field-label" for="input-contact-email" style="margin-top:10px;" data-i18n="lbl_contact_email">Kontakt-epost</label>
-    <input class="field-input" id="input-contact-email" type="text" placeholder="post@firma.no">
+    <input class="field-input" id="input-contact-email" type="text" data-i18n-placeholder="post_firma_no" placeholder="post@firma.no">
 
     <label class="field-label" for="input-website" style="margin-top:10px;" data-i18n="lbl_website">Nettside</label>
-    <input class="field-input" id="input-website" type="text" placeholder="https://www.firma.no">
+    <input class="field-input" id="input-website" type="text" data-i18n-placeholder="ph_company_url" placeholder="https://www.firma.no">
 
     <label class="field-label" style="margin-top:10px;" data-i18n="lbl_company_logo">Firmalogo</label>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
@@ -2339,7 +2339,7 @@
     </div>
 
     <label class="field-label" for="input-scheduler-interval" data-i18n="lbl_interval_hours">Intervall (timer)</label>
-    <input class="field-input" id="input-scheduler-interval" type="number" value="168" min="1" placeholder="168 (ukentlig)">
+    <input class="field-input" id="input-scheduler-interval" type="number" value="168" min="1" data-i18n-placeholder="ukentlig" placeholder="168 (ukentlig)">
 
 
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
@@ -2356,7 +2356,7 @@
     <div id="backup-last-info" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;"></div>
 
     <label class="field-label" for="input-backup-dest" data-i18n="lbl_backup_dest">Lagringsmappe (valgfritt)</label>
-    <input class="field-input" id="input-backup-dest" type="text" placeholder="Standard (Documents/MSPToolkit/Backups/)">
+    <input class="field-input" id="input-backup-dest" type="text" data-i18n-placeholder="standard_documents_msptoolkit_backups" placeholder="Standard (Documents/MSPToolkit/Backups/)">
     <div class="field-hint" id="backup-default-dir"></div>
 
     <div style="display:flex;gap:8px;margin-top:10px;">
@@ -2520,7 +2520,7 @@
 </div>
 
 <!-- ── Permissions check modal ── -->
-<div class="modal-backdrop" id="permissions-modal" role="dialog" aria-modal="true" aria-label="Tilganger" onclick="if(event.target===this)closePermissionsModal()">
+<div class="modal-backdrop" id="permissions-modal" role="dialog" aria-modal="true" data-i18n-aria-label="tilganger" aria-label="Tilganger" onclick="if(event.target===this)closePermissionsModal()">
   <div class="modal" style="width:600px;">
     <div class="modal-title" id="perm-modal-title" data-i18n="hdr_permissions_check">Sjekk Graph API-tillatelser</div>
     <div class="modal-desc" id="perm-modal-desc" data-i18n="permissions_checking_desc">Kontrollerer at alle nodvendige tillatelser er gitt...</div>
@@ -2536,7 +2536,7 @@
 </div>
 
 <!-- ── Shortcuts help modal ── -->
-<div class="modal-backdrop" id="shortcuts-modal" role="dialog" aria-modal="true" aria-label="Tastatursnarveier" onclick="if(event.target===this)closeShortcutsModal()">
+<div class="modal-backdrop" id="shortcuts-modal" role="dialog" aria-modal="true" data-i18n-aria-label="tastatursnarveier" aria-label="Tastatursnarveier" onclick="if(event.target===this)closeShortcutsModal()">
   <div class="modal">
     <div class="modal-title" data-i18n="hdr_shortcuts">Tastatursnarveier</div>
     <div class="modal-desc" data-i18n="shortcuts_desc">Hurtigtaster for vanlige handlinger.</div>
@@ -2564,7 +2564,7 @@
 </div>
 
 <!-- ── Changelog modal ── -->
-<div class="modal-backdrop" id="changelog-modal" role="dialog" aria-modal="true" aria-label="Endringslogg" onclick="if(event.target===this)closeChangelogModal()">
+<div class="modal-backdrop" id="changelog-modal" role="dialog" aria-modal="true" data-i18n-aria-label="endringslogg" aria-label="Endringslogg" onclick="if(event.target===this)closeChangelogModal()">
   <div class="modal">
     <div class="modal-title" data-i18n="hdr_changelog">Endringslogg</div>
     <input id="changelog-search" type="text" class="field-input" data-i18n-placeholder="placeholder_search" placeholder="Search..." oninput="filterChangelog()" style="margin-bottom:var(--space-3);padding:6px 10px;font-size:var(--font-sm);">

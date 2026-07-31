@@ -34,8 +34,14 @@ _SIMPLE = re.compile(
 )
 
 
+_TRANSLIT = str.maketrans({"æ": "ae", "ø": "oe", "å": "aa"})
+
+
 def _slug(text: str) -> str:
-    words = re.findall(r"[a-zæøå]+", htmlmod.unescape(text).lower())
+    """ASCII snake_case. A key with ø in it is legal but out of step with the
+    1800 already in the file, and awkward to type or grep for."""
+    plain = htmlmod.unescape(text).lower().translate(_TRANSLIT)
+    words = re.findall(r"[a-z]+", plain)
     return "_".join(words[:5])[:44] or "text"
 
 
@@ -59,6 +65,73 @@ def _candidates(lo: int, hi: int):
             raw = m.group(3)
             if raw.strip() and _translatable(raw):
                 yield n, m.group(1), raw
+
+
+_ATTRS = ("title", "placeholder", "aria-label", "alt")
+
+
+def _attr_candidates(lo: int, hi: int):
+    """title, placeholder, aria-label and alt on elements that declare no key
+    for them. translatePage handles all four, so they are taggable the same way
+    the text is."""
+    lines = HTML.read_text().split("\n")
+    for n in range(lo, min(hi, len(lines)) + 1):
+        line = lines[n - 1]
+        for attr in _ATTRS:
+            for m in re.finditer(rf'{attr}="([^"]*[A-Za-zÆØÅæøå][^"]*)"', line):
+                end = line.find(">", m.start())
+                tag = line[line.rfind("<", 0, m.start()):end + 1 if end > 0 else len(line)]
+                if f"data-i18n-{attr}" in tag:
+                    continue
+                if _translatable(m.group(1)):
+                    yield n, attr, m.group(1)
+
+
+def cmd_list_attrs(lo: int, hi: int) -> None:
+    for n, attr, value in _attr_candidates(lo, hi):
+        print(f"{n:5}  {attr:<11} {htmlmod.unescape(value)[:64]}")
+
+
+def cmd_plan_attrs(lo: int, hi: int) -> None:
+    d = json.loads(I18N.read_text())
+    seen: set[str] = set()
+    for n, attr, value in _attr_candidates(lo, hi):
+        key = _slug(value)
+        base, i = key, 2
+        while key in d["no"] or key in seen:
+            key = f"{base}_{i}"; i += 1
+        seen.add(key)
+        print(f"{key}\t{attr}\t{value}\t")
+
+
+def cmd_apply_attrs(path: str) -> None:
+    rows = []
+    for line in pathlib.Path(path).read_text().split("\n"):
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) < 4 or not parts[3].strip():
+            print(f"skipping (no English): {parts[0] if parts else line[:40]}")
+            continue
+        rows.append((parts[0], parts[1], parts[2], parts[3]))
+
+    html = HTML.read_text()
+    d = json.loads(I18N.read_text())
+    applied = 0
+    for key, attr, value, en in rows:
+        # Add the marker beside the attribute it translates, once, and only
+        # where the value still matches.
+        pat = re.compile(rf'({attr}="{re.escape(value)}")')
+        html, count = pat.subn(rf'data-i18n-{attr}="{key}" \1', html, count=1)
+        if not count:
+            print(f"NOT FOUND, skipped: {key}  {attr}={value[:40]}")
+            continue
+        d["no"][key] = htmlmod.unescape(value).strip()
+        d["en"][key] = en.strip()
+        applied += 1
+    HTML.write_text(html)
+    I18N.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+    print(f"applied {applied} of {len(rows)}")
 
 
 def cmd_list(lo: int, hi: int) -> None:
@@ -128,5 +201,11 @@ if __name__ == "__main__":
         cmd_plan(int(rest[0]), int(rest[1]))
     elif cmd == "apply":
         cmd_apply(rest[0])
+    elif cmd == "list-attrs":
+        cmd_list_attrs(int(rest[0]), int(rest[1]))
+    elif cmd == "plan-attrs":
+        cmd_plan_attrs(int(rest[0]), int(rest[1]))
+    elif cmd == "apply-attrs":
+        cmd_apply_attrs(rest[0])
     else:
         sys.exit(__doc__)

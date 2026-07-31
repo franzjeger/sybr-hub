@@ -32,6 +32,12 @@ _NOT_TEXT = {
     "Swagger ↗", "Claude AI",
     # Operating systems and firewall platforms, named as products.
     "Windows", "Linux", "macOS", "pfSense", "OpenWrt", "OPNsense",
+    # Placeholder examples: a host, a key prefix, a UUID shape, a colour. They
+    # show the form of a value, and that form is the same in any language.
+    "smtp.office365.com", "587 (TLS) / 465 (SSL)", "root", "sk-ant-...",
+    "tskey-api-...", "your-org.github", "example.com", "#4d9fb5",
+    "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "https://outlook.office.com/webhook/...", "Sybrt",
     # Log-level filters and grade letters: symbols the UI reads back verbatim.
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
 }
@@ -160,7 +166,7 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 # The one that remains is a multi-line string the regex mis-reads, kept rather
 # than special-cased so the next reader sees the limit of the measurement.
 BUDGET_TEXT_NODES = 90
-BUDGET_ATTRIBUTES = 74
+BUDGET_ATTRIBUTES = 0
 BUDGET_JS_NORWEGIAN = 1
 
 

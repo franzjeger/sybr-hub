@@ -33,6 +33,8 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **i18n:**
+- **Alle attributter er ute av markupen.** 65 nøkler for `title`, `placeholder`, `aria-label` og `alt`. Budsjettet 74 → 0.
+- Verktøyet håndterer nå attributter, og genererer ASCII-nøkler. Fem nøkler med `ø` i navnet ble omdøpt.
 - Mobilnavigasjon, kontomeny og de siste API-overskriftene: 24 nøkler. Budsjettet 121 → 90.
 - **`scripts/i18n_extract.py`** henter norsk tekst ut av filen, skriver den til språkfila byte for byte og merker elementet på plass. Den bruker samme definisjon av «oversettbart» som sperren, importert i stedet for gjentatt.
 - Claude AI-seksjonen og resten av FortiGate/UniFi-skjemaene: 24 nøkler. Budsjettet 143 → 121.
