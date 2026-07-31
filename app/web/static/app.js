@@ -585,20 +585,59 @@ function hideLoginView() {
 }
 
 function updateUserDisplay() {
+  if (!_currentUser) return;
+  var role = _currentUser.role || '';
+  var fullName = _currentUser.display_name || _currentUser.username || '';
+  var initials = fullName.split(/\s+/).filter(Boolean).map(function(w){return w.charAt(0).toUpperCase()}).join('').substring(0, 2) || '?';
+  // Populate the avatar button + account-menu identity header (frame 3a).
+  var ini = document.getElementById('avatar-initials');
+  if (ini) ini.textContent = initials;
+  var nm = document.getElementById('avatar-name');
+  if (nm) nm.textContent = fullName;
+  var em = document.getElementById('avatar-email');
+  if (em) em.textContent = _currentUser.email || _currentUser.username || '';
+  var btn = document.getElementById('avatar-btn');
+  if (btn) btn.title = fullName + (role ? ' (' + role + ')' : '');
+  // Legacy hidden element — kept so any remaining reference resolves.
   var el = document.getElementById('user-display');
-  if (el && _currentUser) {
-    var role = _currentUser.role || '';
-    var roleColors = {admin:'var(--blue)',technician:'var(--green)',viewer:'var(--text-dim)'};
-    // Show initials instead of full name to save space
-    var fullName = _currentUser.display_name || _currentUser.username || '';
-    var initials = fullName.split(' ').map(function(w){return w.charAt(0).toUpperCase()}).join('');
-    var roleColor = roleColors[role] || 'var(--text-dim)';
-    el.innerHTML = '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:' + roleColor + '20;color:' + roleColor + ';font-weight:700;font-size:11px;border:1px solid ' + roleColor + '40;">' + esc(initials) + '</span>';
-    el.style.display = 'inline-flex';
-    el.style.alignItems = 'center';
-    el.title = fullName + ' (' + role + ')\n' + t('tip_click_logout','Click to log out');
+  if (el) el.textContent = initials;
+}
+
+// ── Avatar account menu ──────────────────────────────────────────────────────
+function toggleAvatarMenu(e) {
+  if (e) e.stopPropagation();
+  var m = document.getElementById('avatar-menu');
+  var b = document.getElementById('avatar-btn');
+  if (!m) return;
+  var open = m.classList.toggle('open');
+  if (b) b.classList.toggle('open', open);
+  if (open) {
+    // Defer so this same click doesn't immediately close it.
+    setTimeout(function() {
+      document.addEventListener('click', _closeAvatarMenuOutside);
+      document.addEventListener('keydown', _closeAvatarMenuEsc);
+    }, 0);
+  } else {
+    _detachAvatarMenuListeners();
   }
 }
+function closeAvatarMenu() {
+  var m = document.getElementById('avatar-menu');
+  var b = document.getElementById('avatar-btn');
+  if (m) m.classList.remove('open');
+  if (b) b.classList.remove('open');
+  _detachAvatarMenuListeners();
+}
+function _detachAvatarMenuListeners() {
+  document.removeEventListener('click', _closeAvatarMenuOutside);
+  document.removeEventListener('keydown', _closeAvatarMenuEsc);
+}
+function _closeAvatarMenuOutside(e) {
+  var m = document.getElementById('avatar-menu');
+  var b = document.getElementById('avatar-btn');
+  if (m && !m.contains(e.target) && b && !b.contains(e.target)) closeAvatarMenu();
+}
+function _closeAvatarMenuEsc(e) { if (e.key === 'Escape') closeAvatarMenu(); }
 
 async function doLogin() {
   var u = document.getElementById('login-username').value.trim();
@@ -868,9 +907,12 @@ function showView(name) {
   if (viewEl) { viewEl.classList.add('active'); viewEl.style.animation = 'view-fade-in 0.25s ease-out'; }
 
   // Highlight correct nav button
-  var _remoteViews = {hosts:1, terminal:1, rdp:1};
-  var _networkViews = {network:1, vpn:1, tls:1};
-  var _toolViews = {ssh:1, browser:1, tailscale:1, provision:1};
+  // IA (frame 2a): Fjernaksess/Terminal/Nettleser/Workshop live under Verktøy;
+  // Tailscale + Provisjonering under Nettverk. _remoteViews kept (empty) so the
+  // branch below stays valid; hosts/terminal/rdp now highlight Verktøy.
+  var _remoteViews = {};
+  var _networkViews = {network:1, vpn:1, tls:1, tailscale:1, provision:1};
+  var _toolViews = {hosts:1, terminal:1, rdp:1, ssh:1, browser:1, workshop:1};
   var _customerViews = {customers:1, home:1, audit:1, history:1, files:1, setup:1, 'customer-detail':1, 'history-report':1};
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   if (_m365SubViews[name]) {
@@ -1361,14 +1403,22 @@ function _updateActiveCustomerBar(d) {
   if (gradeEl) {
     gradeEl.style.display = '';
     if (d && d.risk_grade) {
-      var gc = {A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[d.risk_grade] || '';
-      gradeEl.innerHTML = gc ? '<span style="background:'+gc+';color:#fff;padding:1px 6px;border-radius:var(--radius-sm);font-size:10px;font-weight:700;">'+d.risk_grade+'</span>' : '';
+      // Tinted, grade-coloured pill "B · 78/100" (frame 3a). color-mix keeps
+      // the tint theme-adaptive without a second light-theme definition.
+      var gvar = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[d.risk_grade] || 'var(--text-muted)';
+      var scoreTxt = (d.risk_score !== undefined && d.risk_score !== null && d.risk_score !== '') ? ' · ' + d.risk_score + '/100' : '';
+      gradeEl.innerHTML = '<span class="context-grade-pill" style="color:' + gvar + ';background:color-mix(in srgb, ' + gvar + ' 12%, transparent);">' + esc(d.risk_grade + scoreTxt) + '</span>';
     } else {
       gradeEl.innerHTML = '';
     }
   }
   if (lastEl && d && d.run_date) {
-    lastEl.textContent = d.run_date.substring(0,10);
+    // Relative "Audit N d siden" (frame 3a) instead of a bare date.
+    var _rd = new Date(d.run_date.substring(0, 10));
+    var _days = Math.floor((Date.now() - _rd.getTime()) / 86400000);
+    lastEl.textContent = (!isNaN(_days) && _days >= 0)
+      ? (_days === 0 ? 'Audit i dag' : 'Audit ' + _days + ' d siden')
+      : 'Audit ' + d.run_date.substring(0, 10);
   } else if (lastEl) {
     lastEl.textContent = '';
   }
@@ -8396,19 +8446,21 @@ function markAllNotificationsRead() {
 async function _checkVpnHeaderBadge() {
   try {
     var d = await apiFetch('/api/vpn/status');
-    var badge = document.getElementById('vpn-header-badge');
-    if (!badge) return;
+    // Single status chip: prefix "VPN · " ahead of the live dot when a tunnel
+    // is up (the old standalone #vpn-header-badge was merged into #conn-status).
+    var prefix = document.getElementById('vpn-chip-prefix');
+    if (!prefix) return;
     if (d && d.state === 'connected') {
-      badge.style.display = 'flex';
+      prefix.style.display = 'inline';
       var stats = d.stats || {};
       var tip = 'VPN ' + t('vpn_connected','Connected');
       if (d.interface) tip += ' (' + d.interface + ')';
       if (stats.local_ip) tip += '\nIP: ' + stats.local_ip;
       if (stats.tx_bytes || stats.rx_bytes) tip += '\nTX: ' + _formatBytes(stats.tx_bytes||0) + ' / RX: ' + _formatBytes(stats.rx_bytes||0);
       tip += '\n' + t('tip_click_to_manage','Click to manage');
-      badge.title = tip;
+      prefix.title = tip;
     } else {
-      badge.style.display = 'none';
+      prefix.style.display = 'none';
     }
   } catch(e) { /* VPN badge poll — retries every 30s */ }
 }

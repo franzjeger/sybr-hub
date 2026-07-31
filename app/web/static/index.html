@@ -116,37 +116,86 @@
     <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Meny">&#9776;</button>
     <nav class="nav" id="main-nav">
       <button class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" title="Dashboard (Ctrl+1)">Dashboard</button>
+
       <div class="nav-dropdown">
-        <button class="nav-btn" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" title="Kunder (Ctrl+3)">Kunder ▾</button>
-        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
-          <button onclick="showView('customers')" data-i18n="nav_dd_customer_overview" title="Ctrl+3">&#128101; Kundeoversikt</button>
-          <button onclick="showView('home')" data-i18n="nav_dd_m365_status" title="Ctrl+2">&#9729; M365 Status</button>
-          <button onclick="showView('history')" data-i18n="nav_dd_history" title="Ctrl+5">&#128197; Historikk</button>
+        <button class="nav-btn nav-caret" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" title="Kunder (Ctrl+3)">Kunder</button>
+        <div class="nav-dropdown-menu"><div class="navdd-panel">
+          <button class="navdd-item" onclick="showView('customers')">
+            <span class="navdd-ic">&#9638;</span>
+            <span class="navdd-txt"><span class="navdd-label">Kundeoversikt <span class="navdd-kbd">Ctrl+3</span></span><span class="navdd-desc">Alle kunder med risiko, MFA og MRR</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('home')">
+            <span class="navdd-ic">&#9729;</span>
+            <span class="navdd-txt"><span class="navdd-label">M365-status <span class="navdd-kbd">Ctrl+2</span></span><span class="navdd-desc">Status og filer for aktiv kunde</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('history')">
+            <span class="navdd-ic">&#9636;</span>
+            <span class="navdd-txt"><span class="navdd-label">Audit-historikk <span class="navdd-kbd">Ctrl+5</span></span><span class="navdd-desc">Tidligere kj&#248;ringer og rapporter</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('setup')">
+            <span class="navdd-ic">&#8853;</span>
+            <span class="navdd-txt"><span class="navdd-label">Ny kunde</span><span class="navdd-desc">Registrer og koble til integrasjoner</span></span>
+          </button>
+          <div class="navdd-sep"></div>
+          <button class="navdd-foot" onclick="openLatestReport()"><span class="navdd-ic">&#8599;</span>&#197;pne siste rapport for aktiv kunde</button>
         </div></div>
       </div>
-      <button class="nav-btn" id="nav-remote" onclick="showView('hosts')" data-i18n="nav_remote_access">Fjernaksess</button>
+
       <div class="nav-dropdown">
-        <button class="nav-btn" id="nav-network" onclick="showView('network')" data-i18n="nav_network">Nettverk ▾</button>
-        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
-          <button onclick="showView('network')" data-i18n="nav_dd_network">&#127760; FortiGate / UniFi</button>
-          <button onclick="showView('vpn')" data-i18n="nav_dd_vpn">&#128274; VPN</button>
-          <button onclick="showView('tls')" data-i18n="nav_dd_tls_monitor">&#128274; TLS Monitor</button>
-          <button onclick="showView('tailscale')">&#128279; Tailscale</button>
+        <button class="nav-btn nav-caret" id="nav-network" onclick="showView('network')" data-i18n="nav_network">Nettverk</button>
+        <div class="nav-dropdown-menu"><div class="navdd-panel">
+          <button class="navdd-item" onclick="showView('network')">
+            <span class="navdd-ic">&#9635;</span>
+            <span class="navdd-txt"><span class="navdd-label">FortiGate / UniFi</span><span class="navdd-desc">Enheter, firmware og policy-audit</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('vpn')">
+            <span class="navdd-ic">&#8644;</span>
+            <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc">Tunneler mot kundenett &#8212; status og tilkobling</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('tls')">
+            <span class="navdd-ic">&#10003;</span>
+            <span class="navdd-txt"><span class="navdd-label">TLS-monitor</span><span class="navdd-desc">Sertifikater som utl&#248;per</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('tailscale')">
+            <span class="navdd-ic">&#8734;</span>
+            <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc">Mesh-tilgang og noder</span></span>
+          </button>
+          <div class="navdd-sep"></div>
+          <button class="navdd-foot" onclick="showView('provision')"><span class="navdd-ic">&#9881;</span>Provisjonering &#8212; nytt kundenett</button>
         </div></div>
       </div>
+
       <div class="nav-dropdown">
-        <button class="nav-btn" id="nav-tools" onclick="showView('browser')" data-i18n="nav_tools">Verkt&#248;y ▾</button>
-        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
-          <button onclick="showView('ssh')">&#128273; SSH-nøkler</button>
-          <button onclick="showView('browser')">&#127760; Nettleser</button>
-          <button onclick="showView('provision')" data-i18n="nav_dd_provisioning">&#9881; Provisjonering</button>
+        <button class="nav-btn nav-caret" id="nav-tools" onclick="showView('hosts')" data-i18n="nav_tools">Verkt&#248;y</button>
+        <div class="nav-dropdown-menu"><div class="navdd-panel">
+          <button class="navdd-item" onclick="showView('hosts')">
+            <span class="navdd-ic">&#8997;</span>
+            <span class="navdd-txt"><span class="navdd-label">Fjernaksess</span><span class="navdd-desc">Hosts, RDP og WebRemote-lenker</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('ssh')">
+            <span class="navdd-ic" style="font-family:var(--mono);font-size:11px;">&gt;_</span>
+            <span class="navdd-txt"><span class="navdd-label">Terminal / SSH</span><span class="navdd-desc">&#216;kter og SSH-n&#248;kler</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('browser')">
+            <span class="navdd-ic">&#9707;</span>
+            <span class="navdd-txt"><span class="navdd-label">Nettleser</span><span class="navdd-desc">Proxy mot kundens interne grensesnitt</span></span>
+          </button>
+          <button class="navdd-item" onclick="showView('workshop')">
+            <span class="navdd-ic">&#9998;</span>
+            <span class="navdd-txt"><span class="navdd-label">Workshop</span><span class="navdd-desc">Skjema og sjekklister</span></span>
+          </button>
+          <div class="navdd-sep"></div>
+          <button class="navdd-foot" onclick="showView('docs')"><span class="navdd-ic">?</span>Dokumentasjon og endringslogg</button>
         </div></div>
       </div>
-      <button class="nav-btn" id="nav-ai" onclick="showView('ai')" style="display:flex;align-items:center;gap:4px;"><img src="/static/sybrt-mascot.png" alt="Sybrt" style="width:18px;height:18px;border-radius:50%;"> Sybrt</button>
+
       <button class="nav-btn" id="nav-integrations" onclick="showView('integrations')" data-i18n="nav_integrations">Integrasjoner</button>
-      <button class="nav-btn" id="nav-workshop" onclick="showView('workshop')" data-i18n="nav_workshop" title="Workshop">Workshop</button>
+
+      <!-- Hidden nav IDs so showView() active-highlighting keeps working for
+           child/moved views (Fjernaksess, Workshop, VPN, etc.). -->
+      <button class="nav-btn" id="nav-remote" style="display:none;"></button>
+      <button class="nav-btn" id="nav-workshop" style="display:none;"></button>
       <button class="nav-btn" id="nav-logs" onclick="showView('logs')" style="display:none;" data-i18n="nav_logs">Logg</button>
-      <!-- Hidden nav IDs for showView highlighting -->
       <button class="nav-btn" id="nav-m365" style="display:none;"></button>
       <button class="nav-btn" id="nav-home" style="display:none;"></button>
       <button class="nav-btn" id="nav-history" style="display:none;"></button>
@@ -160,23 +209,34 @@
       <button class="nav-btn" id="nav-customer-detail" style="display:none;"></button>
     </nav>
     <div class="header-right">
-      <button id="vpn-header-badge" onclick="showView('vpn')" style="display:none;align-items:center;gap:4px;padding:2px 10px;border:1px solid var(--green);border-radius:var(--radius-full);font-size:var(--font-xs);background:rgba(63,185,80,0.1);color:var(--green);cursor:pointer;font-weight:600;" title="VPN connected — click to manage">&#128274; VPN</button>
-      <!-- Live connection indicator: polls /api/health every 30 s. -->
-      <div id="conn-status" title="Live" style="display:none;align-items:center;gap:4px;padding:2px 8px;border:1px solid var(--border);border-radius:var(--radius-full);font-size:9px;color:var(--text-muted);">
-        <span id="conn-status-dot" style="width:6px;height:6px;border-radius:50%;background:var(--color-success);display:inline-block;transition:background var(--duration-fast);"></span>
-        <span id="conn-status-label" style="font-size:10px;font-weight:600;">Live</span>
-      </div>
-      <!-- The old 3-dot integration-status widget was removed in v10.9.3:
-           Dashboard → Kundeoversikt has a full INTEGRASJONSSTATUS section
-           covering all 8 integrations with richer context, and keeping a
-           3-dot subset in the header was duplicate UI surface. -->
+      <!-- Search field — opens the command palette (same as ⌘K). -->
+      <button class="hdr-search" onclick="toggleCommandPalette()" title="S&#248;k eller hopp til&#8230; (&#8984;K)" aria-label="S&#248;k">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span>S&#248;k eller hopp til&#8230;</span>
+        <span class="kbd-chip">&#8984;K</span>
+      </button>
+
+      <!-- Sybrt assistant — a global tool, so an icon button rather than a nav slot. -->
+      <button class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" title="Sybrt" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" alt="Sybrt"></button>
+
+      <!-- One status chip: server-live dot, with a VPN prefix when a tunnel is up.
+           Merges the old vpn-header-badge + conn-status pair. Polls /api/health. -->
+      <button class="status-chip" id="conn-status" onclick="showView('vpn')" title="Live" style="display:none;">
+        <span class="dot" id="conn-status-dot"></span>
+        <span id="vpn-chip-prefix" style="display:none;">VPN&#160;&#183;&#160;</span>
+        <span id="conn-status-label">Live</span>
+      </button>
+
+      <!-- Audit-running indicator (visible only while an audit runs). -->
       <button id="audit-running-indicator" onclick="showView('audit')" data-i18n-title="tip_audit_running_click" title="Audit kjører — klikk for å se status"
         style="display:none;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:600;color:#fff;background:var(--blue);border:none;border-radius:20px;cursor:pointer;animation:pulse 1.5s infinite;">
         <span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span>
         <span data-i18n="msg_audit_running_indicator">Audit kjører</span>
       </button>
+
+      <!-- Notifications bell -->
       <div style="position:relative;display:inline-block;">
-        <button onclick="toggleNotifications()" aria-label="Varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
+        <button onclick="toggleNotifications()" aria-label="Varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
         <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;max-height:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;z-index:150;animation:dropdown-in var(--duration-fast) var(--ease-out);">
           <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:var(--font-sm);font-weight:600;" data-i18n="hdr_notifications">Varsler</span>
@@ -185,45 +245,50 @@
           <div id="notif-list" style="overflow-y:auto;max-height:360px;"></div>
         </div>
       </div>
-      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" data-i18n-title="tip_toggle_theme" title="Bytt tema" aria-label="Bytt tema">🌙</button>
-      <button class="btn btn-ghost" onclick="openSettings()" style="padding:6px 10px;font-size:12px;" data-i18n-title="tip_settings" title="Innstillinger (Ctrl+,)" aria-label="Innstillinger" data-i18n="hdr_settings">
-        &#9881; Innstillinger
-      </button>
-      <button class="shortcuts-btn" onclick="openShortcutsModal()" data-i18n-title="tip_shortcuts" title="Tastatursnarveier (?)" aria-label="Tastatursnarveier">?</button>
+
+      <!-- PWA install (conditional). -->
       <button id="pwa-install-btn" onclick="promptPwaInstall()" aria-label="Installer app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
-      <div style="position:relative;display:inline-block;" class="nav-dropdown">
-        <span id="user-display" style="display:none;font-size:12px;color:var(--text-muted);cursor:pointer;"></span>
-        <div class="nav-dropdown-menu"><div class="nav-dropdown-menu-inner">
-          <button onclick="showChangePasswordModal()" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''" data-i18n="btn_change_password">Change password</button>
-          <button onclick="doLogout()" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--red);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(248,81,73,0.08)'" onmouseout="this.style.background=''" data-i18n="btn_logout">Log out</button>
-        </div></div>
+
+      <!-- Avatar + account menu: settings, theme, shortcuts, password, logout, version. -->
+      <div style="position:relative;display:inline-block;">
+        <button class="avatar-btn" id="avatar-btn" onclick="toggleAvatarMenu(event)" aria-label="Konto" title="Konto"><span id="avatar-initials">&#183;</span></button>
+        <div class="avatar-menu" id="avatar-menu">
+          <div class="avatar-head">
+            <span class="name" id="avatar-name"></span>
+            <span class="email" id="avatar-email"></span>
+          </div>
+          <button class="avatar-item" onclick="closeAvatarMenu();openSettings()"><span class="ic">&#9881;</span><span style="flex:1;">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
+          <button class="avatar-item" onclick="toggleTheme()"><span class="ic">&#9680;</span><span style="flex:1;">Bytt tema</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic">&#9000;</span><span style="flex:1;">Tastatursnarveier</span><span class="kbd">?</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic">&#128273;</span><span style="flex:1;">Bytt passord</span></button>
+          <button class="avatar-item danger" onclick="doLogout()"><span class="ic">&#8617;</span><span style="flex:1;">Logg ut</span></button>
+          <button class="avatar-foot" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; endringslogg</button>
+        </div>
       </div>
-      <span class="version" id="header-version" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"></span>
+
+      <!-- Legacy controls kept hidden so existing JS references never null out. -->
+      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" aria-label="Bytt tema">🌙</button>
+      <span id="user-display" style="display:none;"></span>
     </div>
   </header>
 
-  <!-- Active customer bar -->
-  <div id="active-customer-bar" style="display:none;position:relative;background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 24px;height:32px;align-items:center;font-size:var(--font-xs);gap:var(--space-3);flex-shrink:0;">
-    <div id="active-customer-trigger" onclick="toggleActiveCustomerSwitcher(event)" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;padding:2px 6px;margin-left:-6px;border-radius:var(--radius-sm);transition:background var(--duration-fast);" title="Bytt kunde">
-      <span style="color:var(--text-dim);">&#128101;</span>
-      <span id="active-customer-name" style="color:var(--text);font-weight:600;"></span>
-      <span id="active-customer-domain" style="color:var(--text-dim);font-family:var(--mono);"></span>
+  <!-- Context bar: active customer identity + primary actions (frame 3a) -->
+  <div id="active-customer-bar" class="context-bar" style="display:none;">
+    <div id="active-customer-trigger" onclick="toggleActiveCustomerSwitcher(event)" style="display:flex;align-items:center;gap:8px;cursor:pointer;" title="Bytt kunde">
+      <span id="active-customer-name" class="cust-name"></span>
+      <span id="active-customer-domain" class="cust-domain"></span>
       <span id="active-customer-grade"></span>
-      <span style="color:var(--text-dim);font-size:10px;margin-left:2px;">&#9662;</span>
+      <span style="color:var(--text-dim);font-size:10px;">&#9662;</span>
     </div>
-    <span id="active-customer-last-audit" style="color:var(--text-dim);font-family:var(--mono);margin-left:var(--space-2);"></span>
+    <span id="active-customer-last-audit" class="context-audit"></span>
     <div style="flex:1;"></div>
-    <button class="btn btn-ghost btn-sm" onclick="loadUnifiedDashboard()" style="padding:2px 8px;font-size:var(--font-xs);border:none;color:var(--blue);font-weight:600;">Overview</button>
-    <button class="btn btn-ghost btn-sm" onclick="showView('home')" style="padding:2px 8px;font-size:var(--font-xs);border:none;">M365</button>
-    <button class="btn btn-ghost btn-sm" onclick="showView('history')" style="padding:2px 8px;font-size:var(--font-xs);border:none;" data-i18n="nav_history">History</button>
-    <button class="btn btn-ghost btn-sm" onclick="openLatestReport()" style="padding:2px 8px;font-size:var(--font-xs);border:none;" data-i18n="btn_open_report">Report</button>
-    <button class="btn btn-ghost btn-sm" onclick="showView('files')" style="padding:2px 8px;font-size:var(--font-xs);border:none;" data-i18n="nav_dd_files">Files</button>
-    <button id="active-bar-licenses-btn" class="btn btn-ghost btn-sm" onclick="loadCustomerLicensesFromActive()" style="padding:2px 8px;font-size:var(--font-xs);border:none;display:none;" data-i18n="nav_licenses">Licenses</button>
-    <button class="btn btn-sm" onclick="showView('audit')" style="padding:2px 10px;font-size:var(--font-xs);background:var(--blue);color:#fff;border:none;border-radius:var(--radius-sm);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r Audit</button>
-    <kbd style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 5px;font-family:var(--mono);cursor:pointer;" onclick="toggleCommandPalette()" title="Cmd+K">&#8984;K</kbd>
+    <button class="context-ghost" onclick="openLatestReport()" data-i18n="btn_open_report">Rapport</button>
+    <button class="context-ghost" onclick="showView('history')" data-i18n="nav_history">Historikk</button>
+    <button id="active-bar-licenses-btn" class="context-ghost" onclick="loadCustomerLicensesFromActive()" style="display:none;" data-i18n="nav_licenses">Licenses</button>
+    <button class="btn btn-sm" onclick="showView('audit')" style="padding:6px 14px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r audit</button>
 
     <!-- Quick-switcher dropdown — switch active customer from any view -->
-    <div id="active-customer-switcher" style="display:none;position:absolute;top:34px;left:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);z-index:50;min-width:340px;max-height:420px;flex-direction:column;padding:8px;">
+    <div id="active-customer-switcher" style="display:none;position:absolute;top:46px;left:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);z-index:50;min-width:340px;max-height:420px;flex-direction:column;padding:8px;">
       <input id="customer-switcher-search" type="text" placeholder="Søk kunde..." data-i18n-placeholder="ph_search_customer" style="width:100%;padding:6px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:12px;box-sizing:border-box;">
       <div id="customer-switcher-list" style="overflow-y:auto;max-height:340px;"></div>
     </div>
