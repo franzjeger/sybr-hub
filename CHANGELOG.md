@@ -33,6 +33,8 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **i18n:**
+- Mobilnavigasjon, kontomeny og de siste API-overskriftene: 24 nøkler. Budsjettet 121 → 90.
+- **`scripts/i18n_extract.py`** henter norsk tekst ut av filen, skriver den til språkfila byte for byte og merker elementet på plass. Den bruker samme definisjon av «oversettbart» som sperren, importert i stedet for gjentatt.
 - Claude AI-seksjonen og resten av FortiGate/UniFi-skjemaene: 24 nøkler. Budsjettet 143 → 121.
 - FortiGate- og UniFi-panelene hentet inn: 15 nøkler, skjemaetiketter og hjelpetekst. Budsjettet 158 → 143.
 - API-referansepanelet hentet inn: 9 nye nøkler. Målingen ble samtidig rettet — 82 av strengene den talte var endepunktsignaturer og leverandørnavn, altså kode, ikke språk. Budsjettet 251 → 158, hvorav bare 11 er reelt hentet inn.
