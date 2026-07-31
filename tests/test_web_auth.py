@@ -839,3 +839,31 @@ def test_the_cache_version_covers_every_cached_asset():
     from app.web.routes import frontend
 
     assert set(frontend._CACHED_ASSETS) >= {"app.js", "app.css", "index.html"}
+
+
+def test_the_theme_is_set_before_the_stylesheet_loads():
+    """Otherwise every load paints in the default palette and then flips.
+
+    :root carries the dark colours, and data-theme was only applied by the
+    last line of app.js — after the browser had already painted. The result
+    was a dark flash on every load for anyone using the light theme.
+    """
+    import pathlib
+
+    html = pathlib.Path("app/web/static/index.html").read_text()
+    theme_script = html.find("data-theme")
+    stylesheet = html.find("/static/app.css")
+    assert theme_script != -1 and stylesheet != -1
+    assert theme_script < stylesheet, "the theme must be decided before paint"
+    assert "sybr-theme" in html[:stylesheet], "and from the same key app.js uses"
+
+
+def test_autofilled_fields_keep_the_apps_colours():
+    """Chrome paints over an autofilled field without knowing the theme."""
+    import pathlib
+
+    css = pathlib.Path("app/web/static/app.css").read_text()
+    assert "input:-webkit-autofill" in css
+    assert "-webkit-text-fill-color: var(--text)" in css, (
+        "only text-fill-color wins over Chrome's own colour"
+    )

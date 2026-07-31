@@ -940,6 +940,22 @@
   [data-theme="light"] .warn-pill { background: #fff8e1; border-color: #ffd54f; color: #9a6700; }
   [data-theme="light"] .warn-pill.crit { background: #fdecea; border-color: #f5a3a3; color: #b62121; }
 
+  /* Chrome paints its own background and text colour over an autofilled
+     field and knows nothing about the theme, so a saved username came back
+     near-invisible. -webkit-text-fill-color is the only thing that wins over
+     it, and the inset shadow stands in for a background it will not let us
+     set. The absurd transition delay stops Chrome animating its colour back. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-input) inset;
+    caret-color: var(--text);
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
   /* ── Theme toggle ── */
   .theme-toggle {
     background: none; border: 1px solid var(--border); border-radius: 6px;

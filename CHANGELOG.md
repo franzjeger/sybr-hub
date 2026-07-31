@@ -1,3 +1,50 @@
+## v10.11.0 (2026-07-31)
+### Rapporten svarer for tallene sine
+
+**Bakgrunn:** En gjennomgang av datagrunnlaget mot anbefalingene avdekket at flere vurderinger var bygget på felt som aldri ble samlet inn, og at rapporten ikke kunne spores tilbake til rådataene. Feilene delte én form: Graph protesterer ikke på en egenskap du staver feil, den utelater den, og "N/A" leses som "ikke konfigurert".
+
+**Bugfix — vurderinger uten grunnlag:**
+- **CIS 7.2.3 (SharePoint legacy-protokoller)** besto på enhver tenant uansett innstilling. Parseren leste `legacy auth` fra en fil samleren aldri skrev. Feltet hentes nå (`isLegacyAuthProtocolsEnabled`), og fravær er en tredje tilstand i stedet for `false`.
+- **"Uadministrerte enheter"** i den tekniske rapporten meldte alltid "Blokkert/Begrenset" uten at noe hadde sett etter. Hos Fonnafly var sannheten det motsatte.
+- **Kryssleie-tilgang** viste `N/A` på begge feltene siden dagen de ble skrevet. `default` er en relasjon på `crossTenantAccessPolicy`, ikke en egenskap, så samleren leste et objekt som aldri fantes i svaret.
+- **Tre egenskapsnavn i SharePoint-samleren** sto ikke på v1.0-ressursen. To fantes ikke, én manglet suffikset `Enabled`.
+- **CIS 5.1.1** het "legacy authentication is blocked" og målte SharePoints protokollflagg, ikke Entras. Den leser nå Conditional Access, avgjort fra policyens klientapp-omfang og grant-kontroll, aldri fra visningsnavnet. SharePoint-flagget lever videre som 7.2.3.
+- **CIS 5.2.1 og 5.2.2** gjorde et feilet DNS-oppslag om til "konfigurer SPF". DNS-laget skiller allerede ERROR fra MISSING; 5.2.3 hadde vakten fra før, disse to ble glemt.
+- **Report-only CA-policyer** ble talt som håndhevet. Graph staver tilstanden `enabledForReportingButNotEnforced`, og prefikstesten på `[enabled` lå foran report-only-grenen.
+- **Innbokssregler med ekstern videresending** ble rapportert som null nøyaktig når de fantes. Samleren signaliserer funnet ved å døpe om filen, og rapporten leste bare friskmeldingsnavnet.
+- **Konnektorer** ble talt til tre der tenanten hadde én. Én post over tre linjer, og flerlinjedetektoren krevde stor forbokstav i feltnavnet.
+- **Radtelleren** talte oppsummeringshaler og mellomtitler som poster. En tabell er nå det en `---`-strek understreker.
+
+**Nye kontroller:**
+- **1.1.7** Grunnleggende påloggingsbeskyttelse (Security Defaults sett mot CA-policyer)
+- **1.1.8** Tilgangsgjennomganger, portet på tildelt Entra ID P2
+- **1.1.9** Kryssleie-tilgang. Tillatt B2B-samarbeid graderes bevisst ikke som stryk; direct connect inn og ubesluttet systemstandard gjør det
+- **7.2.4** Anonyme delingslenker
+- **8.1.2** Teams gjestetilgang gikk fra en kontroll som aldri kunne gi pass eller fail til en reell vurdering
+
+**Sporbarhet:**
+- Hver CIS-kontroll navngir filen vurderingen er formet fra, lenket til vedlegget. Bare filer kjøringen faktisk samlet blir lenket.
+- Anbefalingene har samme proveniens.
+- Etterlevelsesprosenten viser hva den er en prosent av. `compliance_assessed` og `compliance_info` ble beregnet og aldri vist, så leseren så ikke at ikke-vurderbare kontroller var trukket ut av nevneren.
+
+**Tester:**
+- Sømtester som kjører den ekte samleren og mater utdataene til den ekte parseren, for ti seksjoner. Fixtures kan ikke fange drift mellom de to sidene, fordi fixturen *er* antagelsen. Den første av dem fant report-only-feilen på minutter.
+- Golden-fil over den syntetiske auditen: nesten hver feil funnet her flyttet et tall uten å flytte en test.
+- En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
+
+**Grensesnitt:**
+- Auditresultatet ledes nå av hva kjøringen fant. Tabellen svarte "kjørte alle seksjonene", som er riktig spørsmål mens den kjører, ikke etterpå.
+- Varsler har alvorlighetsgrad, satt av samleren som fant tingen. Fem aktive eksponeringer er merket kritiske.
+- Fremdriftsbaren tok nevneren fra sitt eget teller og sto på 100 % gjennom hele kjøringen.
+- En hoppet over seksjon meldes ikke lenger som feilet.
+- Temaet settes før stilarket lastes, så siden ikke lenger blinker mørkt før den bytter.
+- Autofylte felter beholder appens farger. Chrome maler over uten å vite om temaet.
+
+**Drift:**
+- Service worker-cachen evicter nå på utrulling, ikke bare på release. Nøkkelen var appversjonen, og et titalls frontend-fikser på samme versjon nådde aldri en nettleser som hadde lastet appen én gang.
+
+---
+
 ## v10.10.1 (2026-05-05)
 ### Audit-integritet steg 2: data-mangler kaskaderer gjennom hele rapporten
 
