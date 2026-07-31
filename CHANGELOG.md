@@ -16,6 +16,7 @@
 
 **Avhengigheter:**
 - **`python-nmap`** var en hard avhengighet ingenting importerer — pentest-modulen skaller ut til `nmap`-*binæren* via subprocess. Den gamle `setup.py`-en bygger ikke under nyere setuptools, så `pip install -r requirements.txt` krasjet ved installasjon for en pakke uten kallere. Fjernet.
+- **Fire CVE-er var holdt nede av øvre grenser** i `requirements.txt`. Grensene er hevet: `cryptography` → 49 (PYSEC-2026-35/-36/-2141, GHSA-537c-gmf6-5ccf), `pyOpenSSL` → 26.3 (PYSEC-2026-2268/-2269), `weasyprint` → 68.1 (PYSEC-2026-2034), `pytest` → 9.1 med `pytest-asyncio` → 1.4 (PYSEC-2026-1845). `cryptography` og `pyOpenSSL` er de som betyr noe i produksjon — de signerer JWT-ene, genererer sertifikatet og driver VPN-TLS-håndtrykket. Live pip-audit gikk fra elleve varsler over fire pakker til ett: `weasyprint` PYSEC-2026-3412 har ingen fix ennå, og rapporten rendres fra våre egne maler, ikke fremmed markup. Hele suiten — inkludert PDF-renderingen — passerer på den nye stacken.
 
 **Tester:**
 - Argument-injeksjon: option-formede pentest-mål og PUSH_REPLY-tokens forkastes, legitime IP/host/CIDR-mål og -svar passerer, og `enumerate_smb`/`add_route` nekter å starte en subprocess på en flagg-formet verdi. De verifiseres mot den ufiksede koden — de fleste feiler der.

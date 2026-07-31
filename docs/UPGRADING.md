@@ -266,40 +266,37 @@ added without ever having looked at a dependency.** It now runs as
 `pip-audit -r requirements.txt --strict`, which also audits transitive
 dependencies.
 
-### What it found — three pins need a decision
+### What it found, and the bumps that cleared it
 
-Every fix is blocked by an *upper* bound in `requirements.txt`, so none of
-these clear with a `pip install -U`:
+Each fix had been held below by an *upper* bound in `requirements.txt`, so
+none cleared with a plain `pip install -U`. The bounds are now lifted. Live
+`pip-audit` went from **11 advisories across four packages to one**, and the
+full suite — including the WeasyPrint PDF render — passes on the new stack.
 
-| Package | Resolves to | Advisories | First fixed | Current pin |
+| Package | Was | Now (`requirements.txt`) | Resolves to | Cleared |
 |---|---|---|---|---|
-| `cryptography` | 45.0.7 | PYSEC-2026-35, -36, -2141, GHSA-537c-gmf6-5ccf | 48.0.1 clears all four | `>=44.0.0,<46.0` |
-| `weasyprint` | 66.0 | PYSEC-2026-2034 | 68.0 | `>=64.0,<67.0` |
-| `pytest` | 8.4.2 | PYSEC-2026-1845 | 9.0.3 | `>=8.0.0,<9.0` |
+| `cryptography` | 45.0.7 | `>=48.0.1,<50.0` | 49.0.0 | PYSEC-2026-35, -36, -2141, GHSA-537c-gmf6-5ccf |
+| `pyOpenSSL` | 25.3.0 | `>=26.0.0,<27.0` | 26.3.0 | PYSEC-2026-2268, -2269 |
+| `weasyprint` | 66.0 | `>=68.0,<69.0` | 68.1 | PYSEC-2026-2034 |
+| `pytest` + `pytest-asyncio` | 8.4.2 / 0.26.0 | `>=9.0.3,<10.0` / `>=1.0.0,<2.0` | 9.1.1 / 1.4.0 | PYSEC-2026-1845 |
 
-`weasyprint` also carries PYSEC-2026-3412, for which no fixed version is
-published yet.
+`cryptography` and `pyOpenSSL` are the ones that matter in production —
+they sign the JWTs, generate the self-signed cert, and drive the VPN TLS
+handshake. `pytest` is test-only; taking pytest 9 required lifting the
+`pytest-asyncio` cap to 1.x, whose fixture-loop-scope change the suite
+passing on 1.4.0 confirms is a non-event here. `asyncio_mode = "auto"`
+needed no adjustment.
 
-**These are deliberately not bumped here** — they want a run against your
-install, not just a green unit suite.
+**One advisory remains, unavoidably:** `weasyprint` 68.1 still carries
+PYSEC-2026-3412, which has no released fix. The report HTML WeasyPrint
+renders is generated from our own templates and audit data, not
+attacker-supplied markup, which bounds the exposure; pip-audit will keep
+flagging it (non-blocking) until upstream ships a fix.
 
-- **`cryptography` → `>=46.0.7,<49.0`** is the one that matters for a
-  deployed instance: it signs JWTs via `PyJWT[crypto]` and generates the
-  self-signed certificate. Resolves cleanly to 48.0.1.
-- **`weasyprint` → `>=68.0,<69.0`** resolves to 68.1. The existing `<67.0`
-  cap is commented as deliberate ("dodge the not-yet-released breaking-change
-  line"), and PDF output is worth eyeballing after the bump — a rendering
-  regression will not show up in the test suite.
-- **`pytest` → `>=9.0.3`** is test-only and does not affect a deployed
-  instance. It is also entangled: with `pytest-asyncio<1.0` still in place,
-  the resolver satisfies pytest 9 by walking `pytest-asyncio` *back* to
-  0.23.3 rather than forward. Taking pytest 9 means lifting the
-  `pytest-asyncio` cap too, and 1.x changed the fixture loop scoping and
-  `asyncio_mode` defaults. Budget for suite churn.
-
-Verified resolvable together with `pip install --dry-run`:
-`cryptography-48.0.1 pytest-9.1.1 pytest-asyncio-0.23.3 weasyprint-68.1`.
-That is a resolution, not an endorsement — see the pytest-asyncio note above.
+**Still worth a look on the host:** the suite proves WeasyPrint 68.1 renders
+a valid PDF, but not that it renders the report *identically* — a layout
+regression would not fail a test. Eyeball one real customer PDF after
+deploying.
 
 ---
 

@@ -28,9 +28,9 @@ dependencies = [
     "azure-mgmt-loganalytics>=13.0.0,<14.0",
     "azure-mgmt-desktopvirtualization>=1.0.0,<2.0",
     "keyring>=24.3.0,<26.0",
-    "cryptography>=44.0.0,<46.0",
+    "cryptography>=48.0.1,<50.0",
     "jinja2>=3.1.4,<4.0",
-    "weasyprint>=64.0,<67.0",
+    "weasyprint>=68.0,<69.0",
     "asyncssh>=2.14.0,<3.0",
     "aiosqlite>=0.20.0,<1.0",
     "argon2-cffi>=25.1.0,<26.0",
@@ -42,8 +42,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0,<9.0",
-    "pytest-asyncio>=0.23.0,<1.0",
+    "pytest>=9.0.3,<10.0",
+    "pytest-asyncio>=1.0.0,<2.0",
     "ruff",
 ]
 

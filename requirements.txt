@@ -41,15 +41,17 @@ azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0
 keyring>=24.3.0,<26.0
 
 # Cryptography (cert generation, JWT signing via PyJWT[crypto])
-# Bumped floor to 44.x — earlier 42.x is no longer receiving security
-# updates and several transitive deps (PyJWT, weasyprint) require >= 43.
-cryptography>=44.0.0,<46.0
+# Floor is 48.0.1: it clears PYSEC-2026-35/-36/-2141 and GHSA-537c-gmf6-5ccf,
+# which the previous <46 cap held the tree below. This one matters in
+# production — it signs the JWTs and generates the self-signed cert.
+cryptography>=48.0.1,<50.0
 
 # Reports
 jinja2>=3.1.4,<4.0
-# weasyprint 64+ ships meaningful PDF rendering fixes; keep <67 to dodge
-# the not-yet-released breaking-change line.
-weasyprint>=64.0,<67.0
+# weasyprint 68 fixes PYSEC-2026-2034; the <67 cap that dodged the 67 line
+# also held the tree below that fix. PYSEC-2026-3412 has no released fix yet,
+# so it will still surface in pip-audit — unavoidable, non-blocking.
+weasyprint>=68.0,<69.0
 
 # SSH (UniFi direct device access, FortiGate CLI)
 asyncssh>=2.14.0,<3.0
@@ -74,8 +76,8 @@ dnspython>=2.6.0,<3.0
 # nothing imported, and its legacy setup.py fails to build under newer
 # setuptools — an install-time crash for a package with no callers.
 # TLS auditing needs the low-level handshake control pyOpenSSL exposes and
-# the stdlib ssl module does not.
-pyOpenSSL>=24.0.0,<26.0
+# the stdlib ssl module does not. Floor 26.0.0 clears PYSEC-2026-2268/-2269.
+pyOpenSSL>=26.0.0,<27.0
 
 # Uniweb hosting portal has no API — the client drives a headless Chrome
 # over the DevTools protocol.
@@ -90,5 +92,8 @@ pydantic>=2.7.0,<3.0
 six>=1.16.0,<2.0
 
 # Testing
-pytest>=8.0.0,<9.0
-pytest-asyncio>=0.23.0,<1.0
+# pytest 9.0.3 fixes PYSEC-2026-1845 (test-runner only, not shipped). pytest 9
+# needs pytest-asyncio 1.x; 1.x changed fixture loop scoping, so this is a
+# test-infra bump verified by the suite still passing, not just resolving.
+pytest>=9.0.3,<10.0
+pytest-asyncio>=1.0.0,<2.0
