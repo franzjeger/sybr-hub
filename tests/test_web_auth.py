@@ -884,7 +884,9 @@ def test_kpi_tiles_render_their_value_not_a_placeholder():
     import re
 
     src = pathlib.Path("app/web/static/app.js").read_text()
-    tiles = re.findall(r'class="kpi-num" data-count="\$\{([^}]+)\}"[^>]*>([^<]*)<', src)
+    # kpi-num may sit alongside other classes (the redesigned tiles carry it on
+    # a `kpi-value kpi-num` span), so match it as one class among several.
+    tiles = re.findall(r'class="[^"]*\bkpi-num\b[^"]*" data-count="\$\{([^}]+)\}"[^>]*>([^<]*)<', src)
     assert tiles, "the KPI tiles should still be found by this pattern"
     for expr, rendered in tiles:
         assert rendered.strip() not in ("0", ""), (

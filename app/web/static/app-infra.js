@@ -2738,11 +2738,11 @@ async function fgApiLoadSaved() {
 
 function switchDashTab(btn, tabId) {
   document.querySelectorAll('.dash-tab-content').forEach(function(el) { el.style.display = 'none'; });
-  document.querySelectorAll('.dash-tab-btn').forEach(function(b) { b.classList.remove('active'); b.style.borderBottom = 'none'; });
+  // Active state is CSS-driven now (.dash-tab-btn.active); just toggle the class.
+  document.querySelectorAll('.dash-tab-btn').forEach(function(b) { b.classList.remove('active'); });
   var tab = document.getElementById(tabId);
   if (tab) tab.style.display = 'block';
   btn.classList.add('active');
-  btn.style.borderBottom = '2px solid var(--blue)';
 
   if (tabId === 'dash-renewals') dashLoadRenewals();
   if (tabId === 'dash-alerts') dashLoadAlerts();
