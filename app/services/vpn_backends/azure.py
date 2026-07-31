@@ -402,10 +402,18 @@ async def connect(config: dict, access_token: str) -> dict:
     local_ip = ip_line[0].strip().split()[1].split("/")[0] if ip_line else "?"
     logger.info("Azure VPN connected via openvpn3: tun0 = %s", local_ip)
 
-    # Set DNS
+    # Set DNS. dns_servers is operator config, but it can be imported from an
+    # untrusted .ovpn — and it reaches `sudo resolvectl` as an argument, where
+    # a value starting with "-" would be a flag. An IP cannot; validate first.
+    import ipaddress
     for dns in dns_servers:
+        try:
+            ipaddress.ip_address(str(dns).strip())
+        except ValueError:
+            logger.warning("Ignoring invalid DNS server %r from config", dns)
+            continue
         await (await asyncio.create_subprocess_exec(
-            "sudo", "resolvectl", "dns", "tun0", dns,
+            "sudo", "resolvectl", "dns", "tun0", str(dns).strip(),
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
 
     # Save refresh token for auto-refresh

@@ -191,6 +191,13 @@ class TunDevice:
                 pass
 
     async def configure(self, local_ip: str, netmask_or_peer: str, mtu: int = 1500):
+        # Both reach `sudo ip addr add` as arguments. Validate at the command
+        # boundary so every caller is covered, whatever the source (PUSH_REPLY
+        # or operator config). An address cannot begin with "-".
+        if not (_valid_ip(local_ip) and _valid_ip(netmask_or_peer)):
+            logger.warning("Refusing to configure TUN with non-IP %r / %r",
+                           local_ip, netmask_or_peer)
+            return
         # Detect if second value is a netmask (subnet topology) or peer IP (net30)
         parts = netmask_or_peer.split(".")
         if len(parts) == 4 and int(parts[0]) >= 224:
@@ -214,6 +221,14 @@ class TunDevice:
 
     async def add_route(self, network: str, netmask_or_prefix: str):
         """Add a route via this TUN device."""
+        # network and mask reach `sudo ip route add`. Guard at the boundary so
+        # both PUSH_REPLY and operator-config routes are covered; a bad value
+        # here would be argument injection into a root command or a crash in
+        # the int() below.
+        if not (_valid_ip(network) and _valid_mask(netmask_or_prefix)):
+            logger.warning("Refusing route with invalid network/mask %r/%r",
+                           network, netmask_or_prefix)
+            return
         # Convert dotted netmask to prefix if needed
         if "." in netmask_or_prefix:
             prefix = sum(bin(int(x)).count("1") for x in netmask_or_prefix.split("."))
@@ -636,8 +651,40 @@ def parse_key_method_2_server(data: bytes) -> dict:
 # PUSH_REPLY parsing
 # ---------------------------------------------------------------------------
 
+def _valid_ip(token: str) -> bool:
+    """True if *token* is a bare IPv4/IPv6 address.
+
+    PUSH_REPLY is sent by the VPN peer — a customer gateway we do not control
+    and that could be compromised — and its ifconfig / route / DNS values flow
+    into `sudo ip` and `sudo resolvectl`. A value beginning with "-" is
+    argument injection into a root command; a malformed one misconfigures
+    routing. An address cannot start with "-", so validating it as an IP
+    closes both. Tokens that do not parse are dropped, not stored.
+    """
+    import ipaddress
+    try:
+        ipaddress.ip_address(token)
+        return True
+    except ValueError:
+        return False
+
+
+def _valid_mask(token: str) -> bool:
+    """A route's second field: a dotted netmask (an IP) or a numeric prefix."""
+    if _valid_ip(token):
+        return True
+    return token.isdigit() and 0 <= int(token) <= 128
+
+
 def parse_push_reply(reply: str) -> dict:
-    """Parse PUSH_REPLY comma-separated directives."""
+    """Parse PUSH_REPLY comma-separated directives.
+
+    Every value that later reaches a privileged `ip`/`resolvectl` invocation is
+    validated here, at the single point the server's reply is trusted, and
+    invalid tokens are discarded rather than passed downstream. Numeric fields
+    are parsed defensively so a hostile peer cannot crash tunnel setup by
+    sending ``ping-restart nope``.
+    """
     result = {
         "ifconfig_local": "",
         "ifconfig_remote": "",
@@ -649,6 +696,14 @@ def parse_push_reply(reply: str) -> dict:
         "ping_restart": 120,
         "use_ekm": False,
     }
+
+    def _int_or(default: int, token: str) -> int:
+        try:
+            return int(token)
+        except ValueError:
+            logger.warning("PUSH_REPLY: ignoring non-numeric value %r", token)
+            return default
+
     parts = reply.split(",")
     for part in parts:
         part = part.strip()
@@ -657,26 +712,33 @@ def parse_push_reply(reply: str) -> dict:
             continue
         directive = tokens[0]
         if directive == "ifconfig" and len(tokens) >= 3:
-            result["ifconfig_local"] = tokens[1]
-            result["ifconfig_remote"] = tokens[2]
+            if _valid_ip(tokens[1]) and _valid_ip(tokens[2]):
+                result["ifconfig_local"] = tokens[1]
+                result["ifconfig_remote"] = tokens[2]
+            else:
+                logger.warning("PUSH_REPLY: rejecting non-IP ifconfig %r", tokens[1:3])
         elif directive == "route" and len(tokens) >= 3:
-            result["routes"].append((tokens[1], tokens[2]))
+            if _valid_ip(tokens[1]) and _valid_mask(tokens[2]):
+                result["routes"].append((tokens[1], tokens[2]))
+            else:
+                logger.warning("PUSH_REPLY: rejecting invalid route %r", tokens[1:3])
         elif directive == "peer-id" and len(tokens) >= 2:
-            result["peer_id"] = int(tokens[1])
+            result["peer_id"] = _int_or(0, tokens[1])
         elif directive == "cipher" and len(tokens) >= 2:
             result["cipher"] = tokens[1]
         elif directive == "ping" and len(tokens) >= 2:
-            result["ping"] = int(tokens[1])
+            result["ping"] = _int_or(10, tokens[1])
         elif directive == "ping-restart" and len(tokens) >= 2:
-            result["ping_restart"] = int(tokens[1])
+            result["ping_restart"] = _int_or(120, tokens[1])
         elif directive == "dhcp-option" and len(tokens) >= 3 and tokens[1] == "DNS":
-            result["dns_servers"].append(tokens[2])
-        elif directive == "protocol-flags":
-            if "tls-ekm" in tokens:
-                result["use_ekm"] = True
-        elif directive == "key-derivation" and len(tokens) >= 2:
-            if tokens[1] == "tls-ekm":
-                result["use_ekm"] = True
+            if _valid_ip(tokens[2]):
+                result["dns_servers"].append(tokens[2])
+            else:
+                logger.warning("PUSH_REPLY: rejecting non-IP DNS %r", tokens[2])
+        elif (directive == "protocol-flags" and "tls-ekm" in tokens) or (
+            directive == "key-derivation" and len(tokens) >= 2 and tokens[1] == "tls-ekm"
+        ):
+            result["use_ekm"] = True
     return result
 
 
@@ -1038,11 +1100,16 @@ class OpenVPNTunnel:
                 parts = route.split("/")
                 await self._tun.add_route(parts[0], parts[1])
 
-        # Configure DNS
+        # Configure DNS. PUSH_REPLY servers are validated in parse_push_reply;
+        # the config fallback is not, and reaches `sudo resolvectl` — validate
+        # it here too so neither source can pass an option-shaped value.
         for dns in (push["dns_servers"] or self.dns_servers):
+            if not _valid_ip(str(dns).strip()):
+                logger.warning("Ignoring invalid DNS server %r", dns)
+                continue
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "sudo", "resolvectl", "dns", self._tun.name, dns,
+                    "sudo", "resolvectl", "dns", self._tun.name, str(dns).strip(),
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
                 await asyncio.wait_for(proc.communicate(), 5)
             except Exception as e:
