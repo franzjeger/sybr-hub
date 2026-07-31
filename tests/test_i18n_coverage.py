@@ -52,6 +52,7 @@ _NOT_TEXT = {
     "unifi.ui.com → Settings → API", "console.anthropic.com",
     "docs/msp-toolkit-architecture.svg",
     # Log-level filters and grade letters: symbols the UI reads back verbatim.
+    "&times;", "0 : diff",   # a close glyph, and a ternary the regex reads as markup
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
@@ -334,7 +335,7 @@ def prose_in_generated_markup() -> list[tuple[int, str]]:
 
 
 # Ceiling for the above. Same rule as the others: only ever down.
-BUDGET_JS_PROSE = 69
+BUDGET_JS_PROSE = 0
 
 
 def test_no_new_prose_hard_coded_into_generated_markup():

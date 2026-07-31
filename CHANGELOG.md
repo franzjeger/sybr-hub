@@ -33,6 +33,7 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **i18n:**
+- **`app.js` er ferdig: 196 → 0.** All tekst som bygges inn i markup går nå gjennom `t()`. Rundt 2100 nøkler totalt, full paritet.
 - **`app.js` påbegynt: 196 → 69 strenger.** 70 nøkler for tekst som bygges inn i markup fra JS. Detektoren måler posisjon i stedet for stavemåte — alt mellom `>` og `<` i en generert streng leses av et menneske, uansett språk — så den ser engelsk like godt som norsk.
 - **`index.html` er ferdig.** Både tekstnoder og attributter står på null, og begge er mutasjonstestet. Rundt 1940 nøkler, full paritet mellom språkene.
 - To elementer hadde `data-i18n` på en beholder med `<code>` inni. Oversetting satte `textContent` og slettet kodeelementet — teksten overlevde, formateringen ikke.

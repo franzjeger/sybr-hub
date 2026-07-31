@@ -237,13 +237,24 @@ def cmd_apply_js(path: str) -> None:
     d = json.loads(I18N.read_text())
     applied = skipped = 0
     for key, text, en in rows:
-        needle = f">{text}<"
-        if needle not in js:
+        # The detector strips its match; the source may hold padding around it.
+        # Searching for the stripped form found nothing on twelve of twelve,
+        # which looked like the input being wrong when it was this.
+        pat = re.compile(r">(\s*)" + re.escape(text) + r"(\s*)<")
+        m = pat.search(js)
+        if not m:
             print(f"NOT FOUND: {key}  {text[:40]}")
             skipped += 1
             continue
-        js = js.replace(needle, ">' + t('" + key + "') + '<")
-        d["no"][key] = text
+        js = js[:m.start()] + ">" + m.group(1) + "' + t('" + key + "') + '" \
+             + m.group(2) + "<" + js[m.end():]
+        # The source may hold \u00f8 rather than ø. Match on what is written
+        # there, but store what it means — otherwise the escape sequence ends
+        # up on screen as six literal characters.
+        try:
+            d["no"][key] = text.encode().decode("unicode_escape").encode("latin-1").decode("utf-8")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            d["no"][key] = text
         d["en"][key] = en.strip()
         applied += 1
     JS.write_text(js)

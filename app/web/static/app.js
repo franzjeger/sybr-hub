@@ -1488,7 +1488,7 @@ function renderHome(d) {
       <div class="customer-domain">${esc(c.domain)}</div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;">
         <span id="tag-pills-home">${tagPillsHtml(c.tags || [])}</span>
-        <button class="btn btn-ghost" style="padding:1px 6px;font-size:10px;border:1px dashed var(--border);border-radius:10px;" onclick="openTagEditor('${esc(d.active_id)}',JSON.parse(this.dataset.tags))" data-tags="${esc(JSON.stringify(c.tags||[]))}">&#9998; Tags</button>
+        <button class="btn btn-ghost" style="padding:1px 6px;font-size:10px;border:1px dashed var(--border);border-radius:10px;" onclick="openTagEditor('${esc(d.active_id)}',JSON.parse(this.dataset.tags))" data-tags="${esc(JSON.stringify(c.tags||[]))}">' + t('tags') + '</button>
       </div>
       <div id="tag-editor-${(d.active_id||'').replace(/[^a-zA-Z0-9_-]/g,'_')}" style="display:none;margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;"></div>
       <div class="meta-row">
@@ -2644,8 +2644,8 @@ async function generateReport(fmt, reportType) {
       area.innerHTML = '<div class="alert alert-success" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);">'
         + '<span>&#9989; ' + esc(label) + '</span>'
         + '<div style="display:flex;gap:var(--space-2);">'
-        + '<button class="btn btn-primary btn-sm" onclick="openReportViewer(\'' + d.html_url + '\')">&#128196; Vis i app</button>'
-        + '<a href="' + d.html_url + '" target="_blank" class="btn btn-ghost btn-sm">&#8599; Ny fane</a>'
+        + '<button class="btn btn-primary btn-sm" onclick="openReportViewer(\'' + d.html_url + '\')">' + t('vis_i_app') + '</button>'
+        + '<a href="' + d.html_url + '" target="_blank" class="btn btn-ghost btn-sm">' + t('ny_fane') + '</a>'
         + '</div></div>';
     } else if (fmt === 'pdf' && d.pdf_url) {
       var _dlLink = '<a href="' + d.pdf_url + '" download style="color:var(--green);">' + t('msg_report_generated_download').replace('{label}', esc(label)).replace('✓ ', '').split(' — ')[1] + '</a>';
@@ -3655,7 +3655,7 @@ async function loadNetworkDevices() {
     html += '</div>';
     html += '<label class="field-label" style="margin-top:8px;">' + t('api_token') + '</label>';
     html += '<input class="field-input" id="input-fg-token" type="password" placeholder="Lim inn FortiGate REST API-token">';
-    html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-fg-verify-ssl" ' + (d.fortigate && d.fortigate.verify_ssl ? 'checked' : '') + '> Verifiser SSL-sertifikat</label>';
+    html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-fg-verify-ssl" ' + (d.fortigate && d.fortigate.verify_ssl ? 'checked' : '') + '> ' + t('verifiser_ssl_sertifikat') + '</label>';
     html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">';
     html += '<button class="btn btn-default" onclick="testFortiGate()" style="font-size:12px;padding:4px 12px;">' + t('test_tilkobling') + '</button>';
     html += '<button class="btn btn-primary" onclick="saveFortiGate()" style="font-size:12px;padding:4px 12px;">' + t('lagre_2') + '</button>';
@@ -3672,8 +3672,8 @@ async function loadNetworkDevices() {
 
     // Mode selector
     html += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
-    html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="unifi-mode" value="controller" ' + (ufMode === 'controller' ? 'checked' : '') + ' onchange="toggleUniFiMode()"> Controller</label>';
-    html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="unifi-mode" value="direct" ' + (ufMode === 'direct' ? 'checked' : '') + ' onchange="toggleUniFiMode()"> Direkte enheter</label>';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="unifi-mode" value="controller" ' + (ufMode === 'controller' ? 'checked' : '') + ' onchange="toggleUniFiMode()"> ' + t('controller_2') + '</label>';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="unifi-mode" value="direct" ' + (ufMode === 'direct' ? 'checked' : '') + ' onchange="toggleUniFiMode()"> ' + t('direkte_enheter') + '</label>';
     html += '</div>';
 
     // Controller mode
@@ -3699,7 +3699,7 @@ async function loadNetworkDevices() {
     html += '</div>';
     html += '<label class="field-label" style="margin-top:8px;">' + t('site') + '</label>';
     html += '<input class="field-input" id="input-uf-site" type="text" value="' + esc((d.unifi && d.unifi.site) || 'default') + '" placeholder="default">';
-    html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-uf-os" ' + (d.unifi && d.unifi.is_unifi_os ? 'checked' : '') + '> UniFi OS (UDM / Cloud Key Gen2+)</label>';
+    html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-uf-os" ' + (d.unifi && d.unifi.is_unifi_os ? 'checked' : '') + '> ' + t('unifi_os_udm_cloud_key_gen2') + '</label>';
     html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">';
     html += '<button class="btn btn-default" onclick="testUniFi()" style="font-size:12px;padding:4px 12px;">' + t('test_tilkobling') + '</button>';
     html += '<button class="btn btn-primary" onclick="saveUniFi()" style="font-size:12px;padding:4px 12px;">' + t('lagre_2') + '</button>';
@@ -3992,7 +3992,7 @@ async function runNetworkQuickAudit() {
               // Action buttons
               html += '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">';
               // Set-inform
-              html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;" onclick="unifiDeviceSetInform(\'' + esc(dev.host) + '\')">Set-Inform</button>';
+              html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;" onclick="unifiDeviceSetInform(\'' + esc(dev.host) + '\')">' + t('set_inform') + '</button>';
               // View config
               html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;" onclick="unifiDeviceConfig(\'' + esc(dev.host) + '\')">' + t('btn_view_config','View config') + '</button>';
               // Reboot
@@ -4206,7 +4206,7 @@ async function runSubnetScan() {
         html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" id="scan-add-' + hostId + '" onclick="addScannedDevice(\'' + hostSafe + '\',this)">' + t('btn_add','Add') + '</button> ';
       }
       if (dev.ssh) {
-        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" onclick="scanDeviceSetInform(\'' + hostSafe + '\')">Set-Inform</button> ';
+        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" onclick="scanDeviceSetInform(\'' + hostSafe + '\')">' + t('set_inform') + '</button> ';
         html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" onclick="scanDeviceConfig(\'' + hostSafe + '\',\'scan-cfg-' + hostId + '\')">' + t('btn_view_config','Vis konfig') + '</button> ';
         html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" onclick="scanDeviceReboot(\'' + hostSafe + '\')">' + t('btn_restart','Restart') + '</button>';
       }
@@ -5572,7 +5572,7 @@ function renderCustomers(customers, activeId) {
           <div style="display:flex;gap:var(--space-2);flex-shrink:0;" onclick="event.stopPropagation();">
             ${isActive
               ? (configured
-                ? `<button class="btn btn-success btn-sm" onclick="startAudit()">&#9654; Audit</button>`
+                ? `<button class="btn btn-success btn-sm" onclick="startAudit()">' + t('audit_2') + '</button>`
                 : `<button class="btn btn-primary btn-sm" onclick="startSetup()">${t('btn_setup','Sett opp')}</button>`)
               : `<button class="btn btn-primary btn-sm" onclick="switchCustomer('${esc(c._id)}')">${t('btn_activate')}</button>`
             }
@@ -7873,7 +7873,7 @@ async function loadUnifiedDashboard() {
   if (d.source) _meta.push(esc(d.source));
   html += '<div class="cd-hero">'
     + '<span class="cd-hero-tile" style="color:'+_gv+';background:color-mix(in srgb, '+_gv+' 12%, transparent);border-color:color-mix(in srgb, '+_gv+' 40%, transparent);">'+esc(_grade)+'</span>'
-    + '<span class="cd-hero-id"><span class="cd-hero-name">'+esc(d.customer_name)+' <span class="cd-active-pill">Aktiv kunde</span></span>'
+    + '<span class="cd-hero-id"><span class="cd-hero-name">'+esc(d.customer_name)+' <span class="cd-active-pill">' + t('aktiv_kunde') + '</span></span>'
     + '<span class="cd-hero-meta">'+_meta.join(' · ')+'</span></span>'
     + '<div style="flex:1;"></div>'
     + '<button class="context-ghost" onclick="openLatestReport()">' + t('btn_open_report','Åpne rapport') + '</button>'
@@ -7935,29 +7935,29 @@ async function loadUnifiedDashboard() {
     var _ssc = (a.secure_score_pct||0) >= 70 ? 'var(--green)' : (a.secure_score_pct||0) >= 40 ? 'var(--orange)' : 'var(--red)';
     var _mfc = (a.mfa_coverage_pct||0) >= 90 ? 'var(--green)' : (a.mfa_coverage_pct||0) >= 70 ? 'var(--orange)' : 'var(--red)';
     var _nmc = (a.users_no_mfa||0) > 0 ? 'var(--red)' : 'var(--green)';
-    html += '<div class="cd-card"><div class="cd-card-title">Siste M365-audit <span class="sub">'+esc(a.audit_date||'')+'</span><span class="link" onclick="openLatestReport()">Full rapport →</span></div>'
+    html += '<div class="cd-card"><div class="cd-card-title">' + t('siste_m365_audit') + ' <span class="sub">'+esc(a.audit_date||'')+'</span><span class="link" onclick="openLatestReport()">' + t('full_rapport') + '</span></div>'
       + '<div class="cd-stat-grid">'
-      + '<div class="cd-stat"><div class="n" style="color:'+_gv+';">'+esc(_grade)+'</div><div class="l">Grade</div></div>'
-      + '<div class="cd-stat"><div class="n">'+Math.round(a.risk_score||0)+'</div><div class="l">Risikoscore</div></div>'
-      + '<div class="cd-stat"><div class="n" style="color:'+_ssc+';">'+Math.round(a.secure_score_pct||0)+'%</div><div class="l">Secure score</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_gv+';">'+esc(_grade)+'</div><div class="l">' + t('grade') + '</div></div>'
+      + '<div class="cd-stat"><div class="n">'+Math.round(a.risk_score||0)+'</div><div class="l">' + t('risikoscore') + '</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_ssc+';">'+Math.round(a.secure_score_pct||0)+'%</div><div class="l">' + t('secure_score_3') + '</div></div>'
       + '<div class="cd-stat"><div class="n" style="color:'+_mfc+';">'+Math.round(a.mfa_coverage_pct||0)+'%</div><div class="l">MFA</div></div>'
-      + '<div class="cd-stat"><div class="n">'+(a.total_users||0)+'</div><div class="l">Brukere</div></div>'
-      + '<div class="cd-stat"><div class="n" style="color:'+_nmc+';">'+(a.users_no_mfa||0)+'</div><div class="l">Uten MFA</div></div>'
+      + '<div class="cd-stat"><div class="n">'+(a.total_users||0)+'</div><div class="l">' + t('brukere') + '</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_nmc+';">'+(a.users_no_mfa||0)+'</div><div class="l">' + t('uten_mfa') + '</div></div>'
       + '</div></div>';
   }
 
   if (d.m365 && d.m365.TenantId) {
-    var _cred = '<span>Tenant: <b class="mono">'+esc(d.m365.TenantId||'-')+'</b></span>'
-      + '<span>Domene: <b class="mono">'+esc(d.domain||'-')+'</b></span>';
+    var _cred = '<span>' + t('tenant') + ' <b class="mono">'+esc(d.m365.TenantId||'-')+'</b></span>'
+      + '<span>' + t('domene_2') + ' <b class="mono">'+esc(d.domain||'-')+'</b></span>';
     if (d.m365.secret_days_left != null) {
       var _sc = (d.m365.secret_status==='expired'||d.m365.secret_status==='critical') ? 'var(--red)' : d.m365.secret_status==='warning' ? 'var(--orange)' : 'var(--green)';
-      _cred += '<span>Secret utløper: <b style="color:'+_sc+';">'+d.m365.secret_days_left+' d</b></span>';
+      _cred += '<span>' + t('secret_utloeper') + ' <b style="color:'+_sc+';">'+d.m365.secret_days_left+' d</b></span>';
     }
     if (d.m365.cert_days_left != null) {
       var _cc2 = (d.m365.cert_status==='expired'||d.m365.cert_status==='critical') ? 'var(--red)' : d.m365.cert_status==='warning' ? 'var(--orange)' : 'var(--green)';
-      _cred += '<span>Sertifikat utløper: <b style="color:'+_cc2+';">'+d.m365.cert_days_left+' d</b></span>';
+      _cred += '<span>' + t('sertifikat_utloeper') + ' <b style="color:'+_cc2+';">'+d.m365.cert_days_left+' d</b></span>';
     }
-    html += '<div class="cd-card"><div class="cd-card-title">M365-legitimasjon</div><div class="cd-creds">'+_cred+'</div></div>';
+    html += '<div class="cd-card"><div class="cd-card-title">' + t('m_legitimasjon') + '</div><div class="cd-creds">'+_cred+'</div></div>';
   }
 
   html += '</div><div class="cd-col">';
@@ -7966,7 +7966,7 @@ async function loadUnifiedDashboard() {
     var _rens = d.also.renewals;
     var _crit = _rens.filter(function(r){ return r.days_left != null && r.days_left <= 90; }).sort(function(x,y){ return (x.days_left||0) - (y.days_left||0); });
     var _restN = _rens.filter(function(r){ return r.days_left == null || r.days_left > 90; }).length;
-    html += '<div class="cd-card"><div class="cd-card-title">Abonnementer <span class="sub">'+_rens.length+' totalt'+(d.also.mrr > 0 ? ' · MRR '+d.also.mrr.toFixed(0)+' '+(d.also.currency||'kr') : '')+'</span></div>';
+    html += '<div class="cd-card"><div class="cd-card-title">' + t('abonnementer_2') + ' <span class="sub">'+_rens.length+' totalt'+(d.also.mrr > 0 ? ' · MRR '+d.also.mrr.toFixed(0)+' '+(d.also.currency||'kr') : '')+'</span></div>';
     if (_crit.length) {
       _crit.forEach(function(r, i) {
         var _dc = r.days_left < 0 ? 'var(--red)' : r.days_left <= 30 ? 'var(--red)' : 'var(--orange)';
@@ -7981,10 +7981,10 @@ async function loadUnifiedDashboard() {
   }
 
   if (d.ssh_hosts && d.ssh_hosts.length) {
-    html += '<div class="cd-card"><div class="cd-card-title">Hosts <span class="sub">'+d.ssh_hosts.length+'</span></div>';
+    html += '<div class="cd-card"><div class="cd-card-title">' + t('hosts') + ' <span class="sub">'+d.ssh_hosts.length+'</span></div>';
     d.ssh_hosts.forEach(function(h, i) {
       var _hc = h.is_reachable ? 'var(--green)' : 'var(--text-dim)';
-      html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="cd-dot" style="background:'+_hc+';"></span><span class="grow">'+esc(h.label||h.hostname)+'</span><span class="mono">'+esc(h.hostname)+':'+esc(String(h.port))+'</span><button class="cd-row-btn" onclick="showView(\'hosts\')">Åpne</button></div>';
+      html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="cd-dot" style="background:'+_hc+';"></span><span class="grow">'+esc(h.label||h.hostname)+'</span><span class="mono">'+esc(h.hostname)+':'+esc(String(h.port))+'</span><button class="cd-row-btn" onclick="showView(\'hosts\')">' + t('aapne') + '</button></div>';
     });
     html += '</div>';
   }
@@ -8066,7 +8066,7 @@ async function _unifiedLoadUniwebCard(custId) {
     h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
     h += '<div style="display:flex;align-items:center;gap:8px;">';
     h += '<span style="font-size:18px;">&#127760;</span>';
-    h += '<span style="font-size:14px;font-weight:600;">Hosting (Uniweb)</span>';
+    h += '<span style="font-size:14px;font-weight:600;">' + t('hosting_uniweb') + '</span>';
     h += '</div>';
     h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">';
     h += '<div style="font-size:11px;color:var(--text-muted);">' + esc(uw.account_name) + (uw.account_id ? ' \u00b7 ID: ' + esc(uw.account_id) : '') + '</div>';
@@ -8080,19 +8080,19 @@ async function _unifiedLoadUniwebCard(custId) {
 
     h += '<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;">';
     h += '<div style="font-size:18px;font-weight:700;">' + (uw.domains ? uw.domains.length : 0) + '</div>';
-    h += '<div style="font-size:10px;color:var(--text-muted);">Domener</div></div>';
+    h += '<div style="font-size:10px;color:var(--text-muted);">' + t('domener') + '</div></div>';
 
     h += '<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;">';
     h += '<div style="font-size:18px;font-weight:700;">' + (uw.subscriptions ? uw.subscriptions.length : 0) + '</div>';
-    h += '<div style="font-size:10px;color:var(--text-muted);">Abonnementer</div></div>';
+    h += '<div style="font-size:10px;color:var(--text-muted);">' + t('abonnementer') + '</div></div>';
 
     h += '<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;">';
     h += '<div style="font-size:18px;font-weight:700;color:var(--blue);">' + (uw.monthly_total > 0 ? uw.monthly_total.toFixed(0) : '0') + '</div>';
-    h += '<div style="font-size:10px;color:var(--text-muted);">Kr/mnd</div></div>';
+    h += '<div style="font-size:10px;color:var(--text-muted);">' + t('kr_mnd') + '</div></div>';
 
     h += '<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;">';
     h += '<div style="font-size:18px;font-weight:700;">' + (uw.email ? uw.email.length : 0) + '</div>';
-    h += '<div style="font-size:10px;color:var(--text-muted);">E-post</div></div>';
+    h += '<div style="font-size:10px;color:var(--text-muted);">' + t('e_post_2') + '</div></div>';
 
     h += '<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;">';
     h += '<div style="font-size:18px;font-weight:700;">' + (uw.ssl ? uw.ssl.length : 0) + '</div>';
@@ -8105,10 +8105,10 @@ async function _unifiedLoadUniwebCard(custId) {
       h += _uwSection('&#127758;', 'Domener');
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
-      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Domene</th>';
+      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('domene') + '</th>';
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">DNS</th>';
-      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Registrert</th>';
-      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Utl\u00f8per</th>';
+      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('registrert') + '</th>';
+      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('lbl_expires') + '</th>';
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('status') + '</th>';
       h += '</tr></thead><tbody>';
       uw.domains.forEach(function(dom) {
@@ -8136,10 +8136,10 @@ async function _unifiedLoadUniwebCard(custId) {
       h += _uwSection('&#128230;', 'Abonnementer');
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
-      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Tjeneste</th>';
-      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Bruker/Domene</th>';
-      h += '<th style="text-align:right;padding:4px 6px;color:var(--text-muted);font-size:10px;">Pris/mnd</th>';
-      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Fornyelse</th>';
+      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('tjeneste') + '</th>';
+      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('bruker_domene') + '</th>';
+      h += '<th style="text-align:right;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('pris_mnd') + '</th>';
+      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('fornyelse') + '</th>';
       h += '</tr></thead><tbody>';
       uw.subscriptions.forEach(function(sub) {
         var price = sub['Price per month'] || sub.price_monthly || '-';
@@ -8177,10 +8177,10 @@ async function _unifiedLoadUniwebCard(custId) {
       h += _uwSection('&#9993;', 'E-postkontoer (' + uw.email.length + ')');
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
-      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Adresse</th>';
+      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('adresse') + '</th>';
       h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('type') + '</th>';
-      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Domene</th>';
-      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Kvote</th>';
+      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('domene') + '</th>';
+      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('kvote') + '</th>';
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('status') + '</th>';
       h += '</tr></thead><tbody>';
       uw.email.forEach(function(em) {
@@ -8204,12 +8204,12 @@ async function _unifiedLoadUniwebCard(custId) {
     // SSL certificates
     if (uw.ssl && uw.ssl.length) {
       h += _uwSection('&#128274;', 'SSL-sertifikater (' + uw.ssl.length + ')');
-      h += '<details style="font-size:12px;margin-top:2px;"><summary style="cursor:pointer;color:var(--text-muted);font-size:11px;">Vis detaljer</summary>';
+      h += '<details style="font-size:12px;margin-top:2px;"><summary style="cursor:pointer;color:var(--text-muted);font-size:11px;">' + t('vis_detaljer') + '</summary>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
-      h += '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);font-size:10px;">Domene</th>';
+      h += '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);font-size:10px;">' + t('domene') + '</th>';
       h += '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);font-size:10px;">' + t('type') + '</th>';
-      h += '<th style="text-align:center;padding:3px 6px;color:var(--text-muted);font-size:10px;">Utl\u00f8per</th>';
+      h += '<th style="text-align:center;padding:3px 6px;color:var(--text-muted);font-size:10px;">' + t('lbl_expires') + '</th>';
       h += '</tr></thead><tbody>';
       uw.ssl.forEach(function(cert) {
         var certDays = _uwDaysUntil(cert.expiry);
@@ -8250,7 +8250,7 @@ async function uwToggleDns(row, domain) {
   var cols = row.querySelectorAll('td').length || 5;
   var loadingHtml = '<tr class="uw-dns-row"><td colspan="' + cols + '" style="padding:10px 16px;background:var(--bg);text-align:center;">';
   loadingHtml += '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></div>';
-  loadingHtml += '<span style="margin-left:8px;font-size:11px;color:var(--text-muted);">Henter DNS-poster\u2026</span>';
+  loadingHtml += '<span style="margin-left:8px;font-size:11px;color:var(--text-muted);">' + t('msg_fetching_dns') + '</span>';
   loadingHtml += '</td></tr>';
   row.insertAdjacentHTML('afterend', loadingHtml);
   var loadingRow = row.nextElementSibling;
@@ -8263,9 +8263,9 @@ async function uwToggleDns(row, domain) {
     if (d && d.records && d.records.length > 0) {
       dnsHtml += '<table style="width:100%;font-size:10px;border-collapse:collapse;">';
       dnsHtml += '<thead><tr style="border-bottom:1px solid var(--border);">';
-      dnsHtml += '<th style="text-align:left;padding:2px 6px;color:var(--text-muted);">Vertsnavn</th>';
+      dnsHtml += '<th style="text-align:left;padding:2px 6px;color:var(--text-muted);">' + t('vertsnavn') + '</th>';
       dnsHtml += '<th style="text-align:center;padding:2px 6px;color:var(--text-muted);">' + t('type') + '</th>';
-      dnsHtml += '<th style="text-align:left;padding:2px 6px;color:var(--text-muted);">Verdi</th>';
+      dnsHtml += '<th style="text-align:left;padding:2px 6px;color:var(--text-muted);">' + t('verdi') + '</th>';
       dnsHtml += '<th style="text-align:right;padding:2px 6px;color:var(--text-muted);">TTL</th>';
       dnsHtml += '</tr></thead><tbody>';
       d.records.forEach(function(r) {
@@ -8280,7 +8280,7 @@ async function uwToggleDns(row, domain) {
       });
       dnsHtml += '</tbody></table>';
     } else {
-      dnsHtml += '<span style="color:var(--text-dim);font-size:11px;">Ingen DNS-poster funnet</span>';
+      dnsHtml += '<span style="color:var(--text-dim);font-size:11px;">' + t('ingen_dns_poster_funnet') + '</span>';
     }
     dnsHtml += '</td>';
 
@@ -8290,7 +8290,7 @@ async function uwToggleDns(row, domain) {
     }
   } catch(e) {
     if (loadingRow && loadingRow.classList.contains('uw-dns-row')) {
-      loadingRow.innerHTML = '<td colspan="' + cols + '" style="padding:8px 16px;background:var(--bg);"><span style="color:var(--red);font-size:11px;">Feil ved henting av DNS-poster</span></td>';
+      loadingRow.innerHTML = '<td colspan="' + cols + '" style="padding:8px 16px;background:var(--bg);"><span style="color:var(--red);font-size:11px;">' + t('feil_ved_henting_av_dns') + '</span></td>';
     }
   }
 }
@@ -8304,7 +8304,7 @@ async function alsoToggleSubDetail(rowEl, subId) {
   }
   detailRow.style.display = '';
   var cell = detailRow.querySelector('td');
-  cell.innerHTML = '<div style="padding:12px 16px;"><div class="loader" style="width:14px;height:14px;display:inline-block;"></div> Loading details...</div>';
+  cell.innerHTML = '<div style="padding:12px 16px;"><div class="loader" style="width:14px;height:14px;display:inline-block;"></div> ' + t('loading_details') + '</div>';
 
   var d = await apiFetch('/api/also/subscription/' + encodeURIComponent(subId));
   if (!d || d.error) {
@@ -8317,14 +8317,14 @@ async function alsoToggleSubDetail(rowEl, subId) {
 
   var html = '<div style="padding:12px 16px;background:var(--bg);border-left:3px solid var(--blue);">';
   html += '<table style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">';
-  html += '<tr><td style="padding:2px 12px 2px 0;white-space:nowrap;">Contract:</td><td style="padding:2px 0;font-weight:600;">' + esc(s.ContractId || '-') + '</td></tr>';
-  if (s.VendorReferenceId) html += '<tr><td style="padding:2px 12px 2px 0;">Vendor ref:</td><td style="padding:2px 0;font-family:var(--mono);font-size:11px;">' + esc(s.VendorReferenceId) + '</td></tr>';
-  if (s.DependencyServiceName) html += '<tr><td style="padding:2px 12px 2px 0;">Depends on:</td><td style="padding:2px 0;">' + esc(s.DependencyServiceName.split('_').pop() || s.DependencyServiceName) + '</td></tr>';
+  html += '<tr><td style="padding:2px 12px 2px 0;white-space:nowrap;">' + t('contract') + '</td><td style="padding:2px 0;font-weight:600;">' + esc(s.ContractId || '-') + '</td></tr>';
+  if (s.VendorReferenceId) html += '<tr><td style="padding:2px 12px 2px 0;">' + t('vendor_ref') + '</td><td style="padding:2px 0;font-family:var(--mono);font-size:11px;">' + esc(s.VendorReferenceId) + '</td></tr>';
+  if (s.DependencyServiceName) html += '<tr><td style="padding:2px 12px 2px 0;">' + t('depends_on') + '</td><td style="padding:2px 0;">' + esc(s.DependencyServiceName.split('_').pop() || s.DependencyServiceName) + '</td></tr>';
   html += '</table>';
 
   // Fields (seat counts, config) — ALSO uses Name/DisplayName/Value (PascalCase)
   if (fields.length) {
-    html += '<div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text);">Seats / Configuration</div>';
+    html += '<div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text);">' + t('seats_configuration') + '</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
     fields.forEach(function(f) {
       var label = f.DisplayName || f.displayName || f.Name || f.name || f.FieldName || '?';
@@ -8339,16 +8339,16 @@ async function alsoToggleSubDetail(rowEl, subId) {
 
   // PriceableItems (pricing) — ALSO uses PriceableItemDescription, PurchasePrice, SalesPrice, etc.
   if (items.length) {
-    html += '<div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--text);">Pricing</div>';
+    html += '<div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--text);">' + t('pricing') + '</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
     html += '<tr style="border-bottom:1px solid var(--border);">'
-      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">Item</th>'
+      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">' + t('item') + '</th>'
       + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">' + t('type') + '</th>'
-      + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">Purchase</th>'
-      + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">Sales</th>'
+      + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">' + t('purchase') + '</th>'
+      + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">' + t('sales') + '</th>'
       + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">RRP</th>'
-      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">Currency</th>'
-      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">Product #</th>'
+      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">' + t('currency') + '</th>'
+      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">' + t('product') + '</th>'
       + '</tr>';
     items.forEach(function(p) {
       var pDesc = p.PriceableItemDescription || p.priceableItemDescription || p.Description || p.DisplayName || '-';
@@ -8744,8 +8744,8 @@ function openChangelogModal() {
 function _renderChangelogTab() {
   var content = _changelogTab === 'latest' ? _changelogLatest : _changelogFull;
   var tabs = '<div style="display:flex;gap:8px;margin-bottom:16px;">'
-    + '<button class="btn btn-sm ' + (_changelogTab === 'latest' ? 'btn-primary' : 'btn-ghost') + '" onclick="_changelogTab=\'latest\';_renderChangelogTab();">Siste endringer</button>'
-    + '<button class="btn btn-sm ' + (_changelogTab === 'all' ? 'btn-primary' : 'btn-ghost') + '" onclick="_changelogTab=\'all\';_renderChangelogTab();">Alle versjoner</button>'
+    + '<button class="btn btn-sm ' + (_changelogTab === 'latest' ? 'btn-primary' : 'btn-ghost') + '" onclick="_changelogTab=\'latest\';_renderChangelogTab();">' + t('siste_endringer') + '</button>'
+    + '<button class="btn btn-sm ' + (_changelogTab === 'all' ? 'btn-primary' : 'btn-ghost') + '" onclick="_changelogTab=\'all\';_renderChangelogTab();">' + t('alle_versjoner') + '</button>'
     + '</div>';
   document.getElementById('changelog-content').innerHTML = tabs + content;
 }
@@ -9197,11 +9197,11 @@ setInterval(_checkSessionTimeout, 30000);
       '<p id="ob-text"></p>' +
       '<div class="onboarding-dots" id="ob-dots"></div>' +
       '<div class="onboarding-btns">' +
-        '<button class="btn btn-ghost" id="ob-prev" data-i18n="btn_prev">Forrige</button>' +
-        '<button class="btn btn-primary" id="ob-next" data-i18n="btn_next">Neste</button>' +
+        '<button class="btn btn-ghost" id="ob-prev" data-i18n="btn_prev">' + t('forrige') + '</button>' +
+        '<button class="btn btn-primary" id="ob-next" data-i18n="btn_next">' + t('neste') + '</button>' +
       '</div>' +
       '<label class="onboarding-check">' +
-        '<input type="checkbox" id="ob-noshow"> <span data-i18n="onboarding_dont_show">Ikke vis igjen</span>' +
+        '<input type="checkbox" id="ob-noshow"> <span data-i18n="onboarding_dont_show">' + t('ikke_vis_igjen') + '</span>' +
       '</label>' +
     '</div>';
   document.body.appendChild(overlay);
