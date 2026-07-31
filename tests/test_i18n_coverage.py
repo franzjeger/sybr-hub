@@ -306,3 +306,40 @@ def test_a_translated_span_does_not_hold_the_spacing_around_it():
     html = (STATIC / "index.html").read_text()
     bad = re.findall(r'<span data-i18n="([^"]+)">(?:\s[^<]*|[^<]*\s)</span>', html)
     assert not bad, f"spans holding their own padding: {bad[:8]}"
+
+
+def prose_in_generated_markup() -> list[tuple[int, str]]:
+    """Text that lands between tags in markup app.js builds.
+
+    The Norwegian-letter detector above cannot see "Save" or "In Progress", and
+    those are just as stuck in one language. This keys on position instead of
+    spelling: anything sitting between > and < in a generated string is read by
+    a person, whatever language it happens to be in.
+    """
+    js = (STATIC / "app.js").read_text()
+    lines = js.split("\n")
+    found = []
+    for m in re.finditer(r">([^<>{}$'\"\n]{2,70})<", js):
+        text = m.group(1).strip()
+        if not text or not re.search(r"[A-Za-zÆØÅæøå]", text):
+            continue
+        if text in _NOT_TEXT or _NOT_TEXT_RE.match(text) or _is_code(text):
+            continue
+        line_no = js[:m.start()].count("\n")
+        src = lines[line_no].strip()
+        if src.startswith("//") or src.startswith("*"):
+            continue
+        found.append((line_no + 1, text[:60]))
+    return found
+
+
+# Ceiling for the above. Same rule as the others: only ever down.
+BUDGET_JS_PROSE = 69
+
+
+def test_no_new_prose_hard_coded_into_generated_markup():
+    found = prose_in_generated_markup()
+    assert len(found) <= BUDGET_JS_PROSE, (
+        f"{len(found)} strings baked into markup app.js builds, budget "
+        f"{BUDGET_JS_PROSE}. Route them through t():\n{_report(found)}"
+    )

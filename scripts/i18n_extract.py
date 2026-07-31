@@ -193,6 +193,63 @@ def cmd_apply(path: str) -> None:
     print(f"applied {applied} of {len(rows)}")
 
 
+
+JS = STATIC / "app.js"
+
+
+def _js_candidates():
+    sys.path.insert(0, ".")
+    from tests.test_i18n_coverage import prose_in_generated_markup
+    return prose_in_generated_markup()
+
+
+def cmd_plan_js() -> None:
+    d = json.loads(I18N.read_text())
+    seen: set[str] = set()
+    for _, text in _js_candidates():
+        if text in seen:
+            continue
+        seen.add(text)
+        key = _slug(text)
+        base, i = key, 2
+        while key in d["no"] or key in {k for k in seen if k == key}:
+            key = f"{base}_{i}"; i += 1
+        print(f"{key}\t{text}\t")
+
+
+def cmd_apply_js(path: str) -> None:
+    """Turn >Lagre< inside a quoted string into >' + t('btn_save') + '<.
+
+    Only single-quoted strings are rewritten. A template literal needs
+    ${t(...)} instead, and mixing the two forms silently produces a string
+    containing the word "t(" — so anything else is reported and left alone.
+    """
+    rows = []
+    for line in pathlib.Path(path).read_text().split("\n"):
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3 or not parts[2].strip():
+            continue
+        rows.append((parts[0], parts[1], parts[2]))
+
+    js = JS.read_text()
+    d = json.loads(I18N.read_text())
+    applied = skipped = 0
+    for key, text, en in rows:
+        needle = f">{text}<"
+        if needle not in js:
+            print(f"NOT FOUND: {key}  {text[:40]}")
+            skipped += 1
+            continue
+        js = js.replace(needle, ">' + t('" + key + "') + '<")
+        d["no"][key] = text
+        d["en"][key] = en.strip()
+        applied += 1
+    JS.write_text(js)
+    I18N.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+    print(f"applied {applied}, skipped {skipped}")
+
 if __name__ == "__main__":
     cmd, *rest = sys.argv[1:]
     if cmd == "list":
@@ -207,5 +264,9 @@ if __name__ == "__main__":
         cmd_plan_attrs(int(rest[0]), int(rest[1]))
     elif cmd == "apply-attrs":
         cmd_apply_attrs(rest[0])
+    elif cmd == "plan-js":
+        cmd_plan_js()
+    elif cmd == "apply-js":
+        cmd_apply_js(rest[0])
     else:
         sys.exit(__doc__)

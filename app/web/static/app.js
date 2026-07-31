@@ -1696,7 +1696,7 @@ function renderDashboard(d) {
         </div>
         <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
           <div style="font-size:28px;font-weight:700;color:${metricColor(m.secure_score_pct, [75, 50])};">${m.secure_score_pct?.toFixed(0) || 0}%</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">Secure Score</div>
+          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">' + t('secure_score_2') + '</div>
           ${trend('secure_score_pct', 'SS', false)}
         </div>
         <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
@@ -1784,10 +1784,10 @@ function renderRemediation(recs, statuses) {
       + (rec.detail ? '<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">' + esc(rec.detail.substring(0,120)) + (rec.detail.length > 120 ? '...' : '') + '</div>' : '')
       + '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">'
       + '<select class="rem-status-select" data-rec-title="' + esc(title) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;">'
-      + '<option value="open"' + (curStatus==='open'?' selected':'') + '>Open</option>'
-      + '<option value="in_progress"' + (curStatus==='in_progress'?' selected':'') + '>In Progress</option>'
-      + '<option value="done"' + (curStatus==='done'?' selected':'') + '>Done</option>'
-      + '<option value="ignored"' + (curStatus==='ignored'?' selected':'') + '>Ignored</option>'
+      + '<option value="open"' + (curStatus==='open'?' selected':'') + '>' + t('open') + '</option>'
+      + '<option value="in_progress"' + (curStatus==='in_progress'?' selected':'') + '>' + t('in_progress') + '</option>'
+      + '<option value="done"' + (curStatus==='done'?' selected':'') + '>' + t('done') + '</option>'
+      + '<option value="ignored"' + (curStatus==='ignored'?' selected':'') + '>' + t('ignored') + '</option>'
       + '</select>'
       + '<input type="text" class="rem-notes-input" data-rec-title="' + esc(title) + '" placeholder="' + t('tip_notes_placeholder_rem') + '" value="' + esc(notes) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex:1;min-width:80px;" />'
       + '</div></div>'
@@ -3214,9 +3214,9 @@ async function loadUsers() {
         + '<div style="font-size:var(--font-xs);color:var(--text-dim);">' + t('lbl_last_prefix','Last:') + ' ' + lastLogin + '</div>'
         + '</div>'
         + '<select style="padding:2px 6px;font-size:var(--font-xs);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);" onchange="changeUserRole(\'' + esc(u.id) + '\',this.value)">'
-        + '<option value="viewer"' + (u.role==='viewer'?' selected':'') + '>Viewer</option>'
-        + '<option value="technician"' + (u.role==='technician'?' selected':'') + '>Technician</option>'
-        + '<option value="admin"' + (u.role==='admin'?' selected':'') + '>Admin</option>'
+        + '<option value="viewer"' + (u.role==='viewer'?' selected':'') + '>' + t('viewer_2') + '</option>'
+        + '<option value="technician"' + (u.role==='technician'?' selected':'') + '>' + t('technician_2') + '</option>'
+        + '<option value="admin"' + (u.role==='admin'?' selected':'') + '>' + t('admin_2') + '</option>'
         + '</select>'
         + '<button class="btn btn-ghost btn-sm" onclick="editUserCustomers(\'' + esc(u.id) + '\',\'' + esc(u.display_name) + '\')" title="Kundetilgang">🔑</button>'
         + (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deleteUser(\'' + esc(u.id) + '\',\'' + esc(u.username) + '\')">&#128465;</button>' : '')
@@ -3300,9 +3300,9 @@ async function editUserCustomers(userId, displayName) {
   });
   html += '</div>';
   html += '<div style="display:flex;gap:8px;margin-top:8px;">';
-  html += '<button class="btn btn-primary btn-sm" onclick="saveUserCustomers(\''+userId+'\')">Lagre</button>';
-  html += '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'rbac-panel-'+userId+'\').remove()">Avbryt</button>';
-  html += '<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;color:var(--text-dim);" onclick="clearUserCustomers(\''+userId+'\')">Fjern alle (gi full tilgang)</button>';
+  html += '<button class="btn btn-primary btn-sm" onclick="saveUserCustomers(\''+userId+'\')">' + t('lagre_2') + '</button>';
+  html += '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'rbac-panel-'+userId+'\').remove()">' + t('avbryt') + '</button>';
+  html += '<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;color:var(--text-dim);" onclick="clearUserCustomers(\''+userId+'\')">' + t('fjern_alle_gi_full_tilgang') + '</button>';
   html += '</div>';
   p.innerHTML = html;
 }
@@ -3628,7 +3628,7 @@ async function loadNetworkDevices() {
   if (!box) return;
   try {
     var d = await apiFetch('/api/network-devices');
-    if (!d) { box.innerHTML = '<span style="color:var(--text-muted);">Kunne ikke laste nettverksenheter.</span>'; return; }
+    if (!d) { box.innerHTML = '<span style="color:var(--text-muted);">' + t('kunne_ikke_laste_nettverksenheter') + '</span>'; return; }
 
     var html = '';
 
@@ -3637,28 +3637,28 @@ async function loadNetworkDevices() {
     html += '<div class="card-title">FortiGate</div>';
     if (d.fortigate) {
       html += '<div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;margin-bottom:8px;font-size:13px;">';
-      html += '<span style="color:var(--text-muted);">Host</span><span style="font-family:var(--mono);font-size:12px;">' + esc(d.fortigate.host) + ':' + d.fortigate.port + '</span>';
+      html += '<span style="color:var(--text-muted);">' + t('host') + '</span><span style="font-family:var(--mono);font-size:12px;">' + esc(d.fortigate.host) + ':' + d.fortigate.port + '</span>';
       html += '<span style="color:var(--text-muted);">VDOM</span><span>' + esc(d.fortigate.vdom) + '</span>';
-      html += '<span style="color:var(--text-muted);">API-token</span><span>' + (d.fortigate.has_token ? '<span style="color:var(--green);">Konfigurert</span>' : '<span style="color:var(--red);">Mangler</span>') + '</span>';
+      html += '<span style="color:var(--text-muted);">' + t('api_token') + '</span><span>' + (d.fortigate.has_token ? '<span style="color:var(--green);">' + t('konfigurert') + '</span>' : '<span style="color:var(--red);">' + t('mangler') + '</span>') + '</span>';
       html += '</div>';
-      html += '<button class="btn btn-default" onclick="toggleNetworkConfig(\'fg-config\')" style="font-size:12px;padding:4px 12px;">Endre</button>';
+      html += '<button class="btn btn-default" onclick="toggleNetworkConfig(\'fg-config\')" style="font-size:12px;padding:4px 12px;">' + t('endre') + '</button>';
     } else {
-      html += '<div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">Ikke konfigurert</div>';
-      html += '<button class="btn btn-primary" onclick="toggleNetworkConfig(\'fg-config\')" style="font-size:12px;padding:5px 14px;">Konfigurer FortiGate</button>';
+      html += '<div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">' + t('ikke_konfigurert_2') + '</div>';
+      html += '<button class="btn btn-primary" onclick="toggleNetworkConfig(\'fg-config\')" style="font-size:12px;padding:5px 14px;">' + t('konfigurer_fortigate') + '</button>';
     }
     html += '<div id="fg-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">';
-    html += '<label class="field-label">Host (IP eller FQDN)</label>';
+    html += '<label class="field-label">' + t('host_ip_eller_fqdn') + '</label>';
     html += '<input class="field-input" id="input-fg-host" type="text" placeholder="192.168.1.1" value="' + esc((d.fortigate && d.fortigate.host) || '') + '">';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
-    html += '<div><label class="field-label">Port</label><input class="field-input" id="input-fg-port" type="number" value="' + ((d.fortigate && d.fortigate.port) || 443) + '"></div>';
+    html += '<div><label class="field-label">' + t('port') + '</label><input class="field-input" id="input-fg-port" type="number" value="' + ((d.fortigate && d.fortigate.port) || 443) + '"></div>';
     html += '<div><label class="field-label">VDOM</label><input class="field-input" id="input-fg-vdom" type="text" value="' + esc((d.fortigate && d.fortigate.vdom) || 'root') + '"></div>';
     html += '</div>';
-    html += '<label class="field-label" style="margin-top:8px;">API-token</label>';
+    html += '<label class="field-label" style="margin-top:8px;">' + t('api_token') + '</label>';
     html += '<input class="field-input" id="input-fg-token" type="password" placeholder="Lim inn FortiGate REST API-token">';
     html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-fg-verify-ssl" ' + (d.fortigate && d.fortigate.verify_ssl ? 'checked' : '') + '> Verifiser SSL-sertifikat</label>';
     html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">';
-    html += '<button class="btn btn-default" onclick="testFortiGate()" style="font-size:12px;padding:4px 12px;">Test tilkobling</button>';
-    html += '<button class="btn btn-primary" onclick="saveFortiGate()" style="font-size:12px;padding:4px 12px;">Lagre</button>';
+    html += '<button class="btn btn-default" onclick="testFortiGate()" style="font-size:12px;padding:4px 12px;">' + t('test_tilkobling') + '</button>';
+    html += '<button class="btn btn-primary" onclick="saveFortiGate()" style="font-size:12px;padding:4px 12px;">' + t('lagre_2') + '</button>';
     html += '<span id="fg-test-result" style="font-size:11px;color:var(--text-muted);"></span>';
     html += '</div></div>';
     html += '</div>';
@@ -3680,29 +3680,29 @@ async function loadNetworkDevices() {
     html += '<div id="unifi-controller-section" style="' + (ufMode === 'controller' ? '' : 'display:none;') + '">';
     if (d.unifi && d.unifi.host && ufMode === 'controller') {
       html += '<div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;margin-bottom:8px;font-size:13px;">';
-      html += '<span style="color:var(--text-muted);">Controller</span><span style="font-family:var(--mono);font-size:12px;">' + esc(d.unifi.host) + '</span>';
-      html += '<span style="color:var(--text-muted);">Type</span><span>' + (d.unifi.is_unifi_os ? 'UniFi OS (UDM/CK)' : 'Classic') + '</span>';
-      html += '<span style="color:var(--text-muted);">Site</span><span>' + esc(d.unifi.site) + '</span>';
-      html += '<span style="color:var(--text-muted);">Credentials</span><span>' + (d.unifi.has_credentials ? '<span style="color:var(--green);">OK</span>' : '<span style="color:var(--red);">Mangler</span>') + '</span>';
+      html += '<span style="color:var(--text-muted);">' + t('controller') + '</span><span style="font-family:var(--mono);font-size:12px;">' + esc(d.unifi.host) + '</span>';
+      html += '<span style="color:var(--text-muted);">' + t('type') + '</span><span>' + (d.unifi.is_unifi_os ? 'UniFi OS (UDM/CK)' : 'Classic') + '</span>';
+      html += '<span style="color:var(--text-muted);">' + t('site') + '</span><span>' + esc(d.unifi.site) + '</span>';
+      html += '<span style="color:var(--text-muted);">' + t('credentials') + '</span><span>' + (d.unifi.has_credentials ? '<span style="color:var(--green);">OK</span>' : '<span style="color:var(--red);">' + t('mangler') + '</span>') + '</span>';
       html += '</div>';
-      html += '<button class="btn btn-default" onclick="toggleNetworkConfig(\'uf-ctrl-config\')" style="font-size:12px;padding:4px 12px;">Endre</button>';
+      html += '<button class="btn btn-default" onclick="toggleNetworkConfig(\'uf-ctrl-config\')" style="font-size:12px;padding:4px 12px;">' + t('endre') + '</button>';
     } else {
-      html += '<div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">Ikke konfigurert</div>';
-      html += '<button class="btn btn-primary" onclick="toggleNetworkConfig(\'uf-ctrl-config\')" style="font-size:12px;padding:5px 14px;">Konfigurer Controller</button>';
+      html += '<div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">' + t('ikke_konfigurert_2') + '</div>';
+      html += '<button class="btn btn-primary" onclick="toggleNetworkConfig(\'uf-ctrl-config\')" style="font-size:12px;padding:5px 14px;">' + t('konfigurer_controller') + '</button>';
     }
     html += '<div id="uf-ctrl-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">';
-    html += '<label class="field-label">Controller URL</label>';
+    html += '<label class="field-label">' + t('controller_url') + '</label>';
     html += '<input class="field-input" id="input-uf-host" type="text" placeholder="https://192.168.1.1:8443" value="' + esc((d.unifi && d.unifi.host) || '') + '">';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
-    html += '<div><label class="field-label">Brukernavn</label><input class="field-input" id="input-uf-user" type="text" placeholder="admin"></div>';
-    html += '<div><label class="field-label">Passord</label><input class="field-input" id="input-uf-pass" type="password" placeholder="Passord"></div>';
+    html += '<div><label class="field-label">' + t('brukernavn') + '</label><input class="field-input" id="input-uf-user" type="text" placeholder="admin"></div>';
+    html += '<div><label class="field-label">' + t('passord') + '</label><input class="field-input" id="input-uf-pass" type="password" placeholder="Passord"></div>';
     html += '</div>';
-    html += '<label class="field-label" style="margin-top:8px;">Site</label>';
+    html += '<label class="field-label" style="margin-top:8px;">' + t('site') + '</label>';
     html += '<input class="field-input" id="input-uf-site" type="text" value="' + esc((d.unifi && d.unifi.site) || 'default') + '" placeholder="default">';
     html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-uf-os" ' + (d.unifi && d.unifi.is_unifi_os ? 'checked' : '') + '> UniFi OS (UDM / Cloud Key Gen2+)</label>';
     html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">';
-    html += '<button class="btn btn-default" onclick="testUniFi()" style="font-size:12px;padding:4px 12px;">Test tilkobling</button>';
-    html += '<button class="btn btn-primary" onclick="saveUniFi()" style="font-size:12px;padding:4px 12px;">Lagre</button>';
+    html += '<button class="btn btn-default" onclick="testUniFi()" style="font-size:12px;padding:4px 12px;">' + t('test_tilkobling') + '</button>';
+    html += '<button class="btn btn-primary" onclick="saveUniFi()" style="font-size:12px;padding:4px 12px;">' + t('lagre_2') + '</button>';
     html += '<span id="uf-test-result" style="font-size:11px;color:var(--text-muted);"></span>';
     html += '</div></div>';
     html += '</div>';
@@ -3716,17 +3716,17 @@ async function loadNetworkDevices() {
     html += '<div style="margin-top:12px;padding:12px;border:1px dashed var(--border);border-radius:6px;">';
     html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;">' + t('btn_add_device','Add device') + '</div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-    html += '<div><label class="field-label">IP-adresse</label><input class="field-input" id="input-uf-dev-host" type="text" placeholder="192.168.1.10"></div>';
-    html += '<div><label class="field-label">Type</label><select class="field-input" id="input-uf-dev-type" style="padding:8px 12px;"><option value="ap">Access Point</option><option value="gateway">Gateway / Firewall</option><option value="switch">Switch</option></select></div>';
+    html += '<div><label class="field-label">' + t('ip_adresse') + '</label><input class="field-input" id="input-uf-dev-host" type="text" placeholder="192.168.1.10"></div>';
+    html += '<div><label class="field-label">' + t('type') + '</label><select class="field-input" id="input-uf-dev-type" style="padding:8px 12px;"><option value="ap">' + t('access_point') + '</option><option value="gateway">' + t('gateway_firewall') + '</option><option value="switch">' + t('switch') + '</option></select></div>';
     html += '</div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
-    html += '<div><label class="field-label">Brukernavn</label><input class="field-input" id="input-uf-dev-user" type="text" value="ubnt" placeholder="ubnt"></div>';
-    html += '<div><label class="field-label">Passord</label><input class="field-input" id="input-uf-dev-pass" type="password" value="ubnt" placeholder="ubnt"></div>';
+    html += '<div><label class="field-label">' + t('brukernavn') + '</label><input class="field-input" id="input-uf-dev-user" type="text" value="ubnt" placeholder="ubnt"></div>';
+    html += '<div><label class="field-label">' + t('passord') + '</label><input class="field-input" id="input-uf-dev-pass" type="password" value="ubnt" placeholder="ubnt"></div>';
     html += '</div>';
     html += '<button class="btn btn-primary" onclick="addUniFiDeviceFromForm()" style="font-size:12px;padding:5px 14px;margin-top:8px;">+ ' + t('btn_add','Add') + '</button>';
     html += '</div>';
 
-    html += '<div style="margin-top:12px;"><button class="btn btn-primary" onclick="saveUniFiDirect()" style="font-size:12px;padding:5px 14px;">Lagre alle enheter</button></div>';
+    html += '<div style="margin-top:12px;"><button class="btn btn-primary" onclick="saveUniFiDirect()" style="font-size:12px;padding:5px 14px;">' + t('lagre_alle_enheter') + '</button></div>';
     html += '</div>';
 
     html += '</div>';
@@ -3765,7 +3765,7 @@ function renderUniFiDeviceList() {
     html += '<span style="color:var(--text-muted);min-width:100px;">' + esc(typeLabel) + '</span>';
     html += '<span style="color:var(--text-muted);">' + esc(dev.username || 'ubnt') + '</span>';
     html += '<span id="dev-status-' + i + '" style="margin-left:auto;font-size:11px;color:var(--text-dim);">' + (dev.status || '') + '</span>';
-    html += '<button class="btn btn-ghost" onclick="testUniFiDevice(' + i + ')" style="font-size:11px;padding:2px 8px;">Test</button>';
+    html += '<button class="btn btn-ghost" onclick="testUniFiDevice(' + i + ')" style="font-size:11px;padding:2px 8px;">' + t('test') + '</button>';
     html += '<button class="btn btn-ghost" onclick="removeUniFiDevice(' + i + ')" style="font-size:11px;padding:2px 8px;color:var(--red);">' + t('btn_remove','Remove') + '</button>';
     html += '</div>';
   }
@@ -3843,17 +3843,17 @@ async function runNetworkQuickAudit() {
         html += '<div class="card" style="margin-bottom:16px;">';
         html += '<div class="card-title">FortiGate — ' + esc(fg.hostname) + '</div>';
         html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:16px;">';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.firmware) + '</div><div style="font-size:11px;color:var(--text-muted);">Firmware</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.firmware) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('firmware') + '</div></div>';
         html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.policy_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
         html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.admin_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
         html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.vpn_tunnels + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.interface_count + '</div><div style="font-size:11px;color:var(--text-muted);">Interfaces</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.interface_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('interfaces') + '</div></div>';
         html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.ha_mode) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ha_mode','HA mode') + '</div></div>';
         html += '</div>';
 
         // Admin table
-        html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">Admin-kontoer</div>';
-        html += '<table class="section-table" style="width:100%;margin-bottom:12px;"><thead><tr><th>Navn</th><th>Profil</th><th>Trusted Host</th><th>2FA</th></tr></thead><tbody>';
+        html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">' + t('admin_kontoer') + '</div>';
+        html += '<table class="section-table" style="width:100%;margin-bottom:12px;"><thead><tr><th>' + t('navn') + '</th><th>' + t('profil') + '</th><th>' + t('trusted_host') + '</th><th>' + t('fa') + '</th></tr></thead><tbody>';
         for (var a of fg.admins) {
           var thColor = a.trusthost ? 'var(--green)' : 'var(--red)';
           var tfaColor = a.two_factor ? 'var(--green)' : 'var(--red)';
@@ -3870,7 +3870,7 @@ async function runNetworkQuickAudit() {
           for (var w of fg.policy_warnings) html += '<li>' + esc(w) + '</li>';
           html += '</ul>';
         } else {
-          html += '<div style="font-size:12px;color:var(--green);">Ingen policy-advarsler funnet</div>';
+          html += '<div style="font-size:12px;color:var(--green);">' + t('ingen_policy_advarsler_funnet') + '</div>';
         }
         html += '<div style="font-size:11px;color:var(--text-dim);margin-top:8px;">S/N: ' + esc(fg.serial) + ' | ' + t('lbl_model','Model') + ': ' + esc(fg.model) + ' | ' + t('lbl_uptime','Uptime') + ': ' + esc(fg.uptime) + '</div>';
         html += '</div>';
@@ -3898,7 +3898,7 @@ async function runNetworkQuickAudit() {
             html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--orange);">' + uf.outdated_firmware_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_outdated_firmware','Outdated firmware') + '</div></div>';
           }
           if (uf.eol_count > 0) {
-            html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--red);">' + uf.eol_count + '</div><div style="font-size:11px;color:var(--text-muted);">End-of-life</div></div>';
+            html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--red);">' + uf.eol_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('end_of_life') + '</div></div>';
           }
           html += '</div>';
 
@@ -3918,9 +3918,9 @@ async function runNetworkQuickAudit() {
             var typeLabels = {ap: 'Access Point', gateway: 'Gateway', switch: 'Switch'};
             html += '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg);border:1px solid var(--border);">' + esc(typeLabels[dev.device_type] || dev.device_type) + '</span>';
             if (dev.ok) {
-              html += '<span style="font-size:11px;color:var(--green);">● Online</span>';
+              html += '<span style="font-size:11px;color:var(--green);">' + t('online') + '</span>';
             } else {
-              html += '<span style="font-size:11px;color:var(--red);">● Offline</span>';
+              html += '<span style="font-size:11px;color:var(--red);">' + t('offline') + '</span>';
             }
             html += '</div></div>';
 
@@ -4014,7 +4014,7 @@ async function runNetworkQuickAudit() {
 
           // Device table
           html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">' + t('lbl_devices_count','Devices') + '</div>';
-          html += '<table class="section-table" style="width:100%;margin-bottom:12px;"><thead><tr><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('lbl_model','Model') + '</th><th>Firmware</th><th>' + t('lbl_upgrade','Upgrade') + '</th><th>' + t('lbl_clients','Clients') + '</th><th>Status</th></tr></thead><tbody>';
+          html += '<table class="section-table" style="width:100%;margin-bottom:12px;"><thead><tr><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('lbl_model','Model') + '</th><th>' + t('firmware') + '</th><th>' + t('lbl_upgrade','Upgrade') + '</th><th>' + t('lbl_clients','Clients') + '</th><th>' + t('status') + '</th></tr></thead><tbody>';
           for (var dev of uf.devices) {
             var statusColor = dev.status === 'online' ? 'var(--green)' : 'var(--red)';
             var upgradeHtml = dev.upgrade ? '<span style="color:var(--orange);">' + esc(dev.upgrade) + '</span>' : '<span style="color:var(--green);">OK</span>';
@@ -4187,7 +4187,7 @@ async function runSubnetScan() {
     }
 
     var html = '<div style="font-size:13px;margin-bottom:8px;"><strong>' + d.found.length + '</strong> ' + t('msg_devices_found_in','devices found in') + ' ' + esc(subnet) + '</div>';
-    html += '<table class="section-table" style="width:100%;"><thead><tr><th>IP</th><th>SSH</th><th>HTTPS</th><th>UniFi</th><th>Info</th><th>' + t('btn_actions','Actions') + '</th></tr></thead><tbody>';
+    html += '<table class="section-table" style="width:100%;"><thead><tr><th>IP</th><th>SSH</th><th>HTTPS</th><th>UniFi</th><th>' + t('info') + '</th><th>' + t('btn_actions','Actions') + '</th></tr></thead><tbody>';
     for (var dev of d.found) {
       var isUf = dev.is_unifi ? '<span style="color:var(--green);">' + t('lbl_yes','Yes') + '</span>' : '<span style="color:var(--text-muted);">' + t('lbl_no','No') + '</span>';
       var hostSafe = esc(dev.host);
@@ -4270,7 +4270,7 @@ async function scanDeviceSetInform(host) {
     pickHtml += '<button class="btn btn-primary" style="font-size:12px;padding:8px 14px;" onclick="doScanSetInform(\'' + esc(host) + '\',\'' + esc(p.url) + '\')">' + esc(p.label) + ' <span style="font-size:10px;opacity:0.7;margin-left:4px;">' + esc(p.url) + '</span></button>';
   }
   pickHtml += '</div>';
-  pickHtml += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Eller angi manuelt:</div>';
+  pickHtml += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">' + t('eller_angi_manuelt') + '</div>';
   pickHtml += '<div style="display:flex;gap:6px;align-items:center;">';
   pickHtml += '<input class="field-input" id="scan-inform-custom-url" type="text" placeholder="http://controller:8080/inform" style="flex:1;margin:0;">';
   pickHtml += '<button class="btn btn-default" style="font-size:12px;padding:6px 12px;white-space:nowrap;" onclick="doScanSetInform(\'' + esc(host) + '\',document.getElementById(\'scan-inform-custom-url\').value.trim())">' + t('btn_send','Send') + '</button>';
@@ -4468,7 +4468,7 @@ async function saveUniFi() {
       })
     });
     if (d.ok) {
-      res.innerHTML = '<span style="color:var(--green);">Lagret</span>';
+      res.innerHTML = '<span style="color:var(--green);">' + t('lagret') + '</span>';
       loadNetworkDevices();
     } else {
       res.innerHTML = '<span style="color:var(--red);">' + esc(d.error) + '</span>';
@@ -4818,7 +4818,7 @@ function pickITGlueOrg(orgs) {
     backdrop.className = 'modal-backdrop open';
     backdrop.innerHTML = `
       <div class="modal" style="max-height:80vh;overflow-y:auto;">
-        <div class="modal-title" data-i18n="hdr_itglue_org_picker">Velg IT Glue-organisasjon</div>
+        <div class="modal-title" data-i18n="hdr_itglue_org_picker">' + t('velg_it_glue_organisasjon') + '</div>
         <div class="modal-desc">${t('msg_select_org_upload','Select which organization to upload data to.')}</div>
         <input class="field-input" id="itglue-org-search" type="text" placeholder="${t('placeholder_search','Search...')}" style="margin-bottom:12px;">
         <div id="itglue-org-list" style="max-height:300px;overflow-y:auto;"></div>
@@ -5102,7 +5102,7 @@ function renderHistory(runs) {
               onchange="onCompareCheck('${escapedPath}', this.checked)"
               style="accent-color:#1d6387;width:15px;height:15px;cursor:pointer;">
           </td>
-          <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">(ufullstendig)</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
+          <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
           <td style="font-family:var(--mono);color:var(--text-muted);">${run.file_count} ${t('nav_files','filer')}</td>
           <td style="text-align:right;">
             <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;"
@@ -5233,7 +5233,7 @@ async function openITGlueImport() {
   var btn = document.getElementById('btn-itglue-import');
   modal.style.display = 'flex';
   btn.disabled = true;
-  content.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div><span data-i18n="msg_fetching_orgs_itglue">Henter organisasjoner fra IT Glue...</span></div>';
+  content.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div><span data-i18n="msg_fetching_orgs_itglue">' + t('henter_organisasjoner_fra_it_glue') + '</span></div>';
   _itglueImportOrgs = [];
 
   try {
@@ -6146,7 +6146,7 @@ function renderOverview(customers, activeId) {
     return d.substring(0, 10);
   }
 
-  var tagFilterHtml = '<select id="overview-tag-filter" onchange="filterOverview()" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);margin-left:12px;"><option value="">Alle tags</option>';
+  var tagFilterHtml = '<select id="overview-tag-filter" onchange="filterOverview()" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);margin-left:12px;"><option value="">' + t('alle_tags') + '</option>';
   allTags.forEach(function(t){tagFilterHtml += '<option value="'+esc(t)+'"'+(selectedTag===t?' selected':'')+'>'+esc(t)+'</option>'});
   tagFilterHtml += '</select>';
 
@@ -6585,23 +6585,23 @@ function startBulkAudit() {
   panel.style.display = 'block';
   panel.innerHTML = '<div class="card" style="padding:20px;margin-bottom:24px;" id="bulk-progress-card">' +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
-    '<div style="font-weight:700;font-size:15px;">Bulk Audit</div>' +
-    '<button class="btn btn-ghost" id="bulk-cancel-btn" onclick="cancelBulkAudit()" style="font-size:12px;padding:4px 10px;">Avbryt</button></div>' +
-    '<div id="bulk-overall-status" style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Starter...</div>' +
+    '<div style="font-weight:700;font-size:15px;">' + t('bulk_audit') + '</div>' +
+    '<button class="btn btn-ghost" id="bulk-cancel-btn" onclick="cancelBulkAudit()" style="font-size:12px;padding:4px 10px;">' + t('avbryt') + '</button></div>' +
+    '<div id="bulk-overall-status" style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">' + t('starter') + '</div>' +
     '<div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px;">' +
     '<div id="bulk-overall-bar" style="height:100%;width:0%;background:var(--blue);transition:width 0.3s;border-radius:6px;"></div></div>' +
     '<div id="bulk-customer-status" style="font-size:13px;color:var(--text-muted);margin-bottom:8px;"></div>' +
     '<div style="background:var(--bg);border-radius:6px;height:6px;overflow:hidden;margin-bottom:16px;">' +
     '<div id="bulk-customer-bar" style="height:100%;width:0%;background:#4d9fb5;transition:width 0.3s;border-radius:6px;"></div></div>' +
     '<div id="bulk-results-table" style="display:none;">' +
-    '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">Resultater</div>' +
+    '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">' + t('resultater') + '</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
     '<thead><tr style="border-bottom:1px solid var(--border);">' +
-    '<th style="text-align:left;padding:6px 8px;color:var(--text-muted);">Kunde</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">Grad</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">Score</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">Seksjoner</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">Status</th>' +
+    '<th style="text-align:left;padding:6px 8px;color:var(--text-muted);">' + t('kunde') + '</th>' +
+    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('grad') + '</th>' +
+    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('score') + '</th>' +
+    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('seksjoner_2') + '</th>' +
+    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('status') + '</th>' +
     '</tr></thead><tbody id="bulk-results-tbody"></tbody></table></div></div>';
   var _ari_b = document.getElementById('audit-running-indicator');
   if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.style.display = 'flex'; }
@@ -6799,7 +6799,7 @@ async function loadCustomerDetail(customerId) {
       </div>
       <div class="card" style="text-align:center;padding:var(--space-5);">
         <div style="position:relative;width:80px;height:80px;margin:0 auto var(--space-2);"><canvas id="gauge-ss"></canvas></div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">Secure Score</div>
+        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">' + t('secure_score_2') + '</div>
       </div>
     </div>
 
@@ -6815,7 +6815,7 @@ async function loadCustomerDetail(customerId) {
           <span style="color:var(--text-muted);">${t('lbl_users')}</span><span style="font-weight:600;">${hasM ? (m.total_users || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_without_mfa')}</span><span style="font-weight:600;color:${hasM && m.users_no_mfa > 0 ? 'var(--red)' : 'var(--text)'};">${hasM ? (m.users_no_mfa || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_ca_policies')}</span><span style="font-weight:600;">${hasM ? (m.ca_policies_enabled || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">Intune</span><span style="font-weight:600;">${hasM && m.intune_compliance_pct !== undefined ? m.intune_compliance_pct.toFixed(0)+'%' : '-'}</span>
+          <span style="color:var(--text-muted);">' + t('intune') + '</span><span style="font-weight:600;">${hasM && m.intune_compliance_pct !== undefined ? m.intune_compliance_pct.toFixed(0)+'%' : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_last_audit')}</span><span style="font-weight:600;">${cust.last_audit ? cust.last_audit.substring(0,10) : '-'}${cust.last_audit ? (() => { try { var d = new Date(cust.last_audit.replace(/_/g,'T').substring(0,16)); var days = Math.floor((Date.now()-d.getTime())/86400000); return ' <span style="color:var(--text-dim);font-weight:400;">(' + days + 'd)</span>'; } catch(e) { return ''; } })() : ''}</span>
           <span style="color:var(--text-muted);">${t('lbl_warnings','Warnings')}</span><span style="font-weight:600;color:${hasM && m.total_warns > 0 ? 'var(--orange)' : 'var(--text)'};">${hasM ? (m.total_warns || 0) : '-'}</span>
         </div>
@@ -6965,8 +6965,8 @@ async function _loadCustomerInfraCard(customerId) {
         html += '<div style="padding:var(--space-3);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);">';
         html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">FortiGate</div>';
         html += '<div style="font-size:var(--font-xs);display:grid;grid-template-columns:70px 1fr;gap:2px var(--space-2);">';
-        html += '<span style="color:var(--text-muted);">Host</span><span style="font-family:var(--mono);">' + esc(fg.host) + '</span>';
-        html += '<span style="color:var(--text-muted);">Port</span><span>' + fg.port + '</span>';
+        html += '<span style="color:var(--text-muted);">' + t('host') + '</span><span style="font-family:var(--mono);">' + esc(fg.host) + '</span>';
+        html += '<span style="color:var(--text-muted);">' + t('port') + '</span><span>' + fg.port + '</span>';
         html += '<span style="color:var(--text-muted);">VDOM</span><span>' + esc(fg.vdom) + '</span>';
         html += '</div></div>';
       }
@@ -6974,9 +6974,9 @@ async function _loadCustomerInfraCard(customerId) {
         html += '<div style="padding:var(--space-3);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);">';
         html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">UniFi</div>';
         html += '<div style="font-size:var(--font-xs);display:grid;grid-template-columns:70px 1fr;gap:2px var(--space-2);">';
-        html += '<span style="color:var(--text-muted);">Host</span><span style="font-family:var(--mono);">' + esc(uf.host) + '</span>';
-        html += '<span style="color:var(--text-muted);">Site</span><span>' + esc(uf.site) + '</span>';
-        html += '<span style="color:var(--text-muted);">Mode</span><span>' + esc(uf.mode) + '</span>';
+        html += '<span style="color:var(--text-muted);">' + t('host') + '</span><span style="font-family:var(--mono);">' + esc(uf.host) + '</span>';
+        html += '<span style="color:var(--text-muted);">' + t('site') + '</span><span>' + esc(uf.site) + '</span>';
+        html += '<span style="color:var(--text-muted);">' + t('mode') + '</span><span>' + esc(uf.mode) + '</span>';
         html += '</div></div>';
       }
       html += '</div>';
@@ -7749,7 +7749,7 @@ async function loadCustomerLicenses(accountId) {
       + '<div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">' + t('also_subscriptions','Subscriptions') + '</div></div>'
       + '<div class="card" style="padding:var(--space-3) var(--space-4);text-align:center;min-width:100px;">'
       + '<div style="font-size:var(--font-2xl);font-weight:800;color:var(--green);">' + activeCount + '</div>'
-      + '<div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">Active</div></div>'
+      + '<div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">' + t('active') + '</div></div>'
       + (totalSeats > 0 ? '<div class="card" style="padding:var(--space-3) var(--space-4);text-align:center;min-width:100px;">'
       + '<div style="font-size:var(--font-2xl);font-weight:800;color:var(--purple);">' + totalSeats + '</div>'
       + '<div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">' + t('also_total_seats','Total Seats') + '</div></div>' : '')
@@ -7760,11 +7760,11 @@ async function loadCustomerLicenses(accountId) {
       + '<table style="width:100%;border-collapse:collapse;font-size:var(--font-sm);">'
       + '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">'
       + '<th style="text-align:left;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('also_product','Product') + '</th>'
-      + '<th style="text-align:left;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">Vendor</th>'
-      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">Qty</th>'
-      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">Term</th>'
-      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">Started</th>'
-      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">Renews</th>'
+      + '<th style="text-align:left;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('vendor') + '</th>'
+      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('qty') + '</th>'
+      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('term') + '</th>'
+      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('started') + '</th>'
+      + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('renews') + '</th>'
       + '<th style="text-align:center;padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-muted);font-size:var(--font-xs);text-transform:uppercase;">' + t('also_status','Status') + '</th>'
       + '</tr></thead><tbody>';
 
@@ -8109,7 +8109,7 @@ async function _unifiedLoadUniwebCard(custId) {
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">DNS</th>';
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Registrert</th>';
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Utl\u00f8per</th>';
-      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Status</th>';
+      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('status') + '</th>';
       h += '</tr></thead><tbody>';
       uw.domains.forEach(function(dom) {
         var domName = dom.domain || dom[''] || Object.values(dom)[0] || '';
@@ -8178,10 +8178,10 @@ async function _unifiedLoadUniwebCard(custId) {
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
       h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Adresse</th>';
-      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Type</th>';
+      h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('type') + '</th>';
       h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">Domene</th>';
       h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Kvote</th>';
-      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">Status</th>';
+      h += '<th style="text-align:center;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('status') + '</th>';
       h += '</tr></thead><tbody>';
       uw.email.forEach(function(em) {
         var addr = em.address || em.email || em.username || '-';
@@ -8208,7 +8208,7 @@ async function _unifiedLoadUniwebCard(custId) {
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
       h += '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);font-size:10px;">Domene</th>';
-      h += '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);font-size:10px;">Type</th>';
+      h += '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);font-size:10px;">' + t('type') + '</th>';
       h += '<th style="text-align:center;padding:3px 6px;color:var(--text-muted);font-size:10px;">Utl\u00f8per</th>';
       h += '</tr></thead><tbody>';
       uw.ssl.forEach(function(cert) {
@@ -8264,7 +8264,7 @@ async function uwToggleDns(row, domain) {
       dnsHtml += '<table style="width:100%;font-size:10px;border-collapse:collapse;">';
       dnsHtml += '<thead><tr style="border-bottom:1px solid var(--border);">';
       dnsHtml += '<th style="text-align:left;padding:2px 6px;color:var(--text-muted);">Vertsnavn</th>';
-      dnsHtml += '<th style="text-align:center;padding:2px 6px;color:var(--text-muted);">Type</th>';
+      dnsHtml += '<th style="text-align:center;padding:2px 6px;color:var(--text-muted);">' + t('type') + '</th>';
       dnsHtml += '<th style="text-align:left;padding:2px 6px;color:var(--text-muted);">Verdi</th>';
       dnsHtml += '<th style="text-align:right;padding:2px 6px;color:var(--text-muted);">TTL</th>';
       dnsHtml += '</tr></thead><tbody>';
@@ -8343,7 +8343,7 @@ async function alsoToggleSubDetail(rowEl, subId) {
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
     html += '<tr style="border-bottom:1px solid var(--border);">'
       + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">Item</th>'
-      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">Type</th>'
+      + '<th style="text-align:left;padding:3px 6px;color:var(--text-muted);">' + t('type') + '</th>'
       + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">Purchase</th>'
       + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">Sales</th>'
       + '<th style="text-align:right;padding:3px 6px;color:var(--text-muted);">RRP</th>'
