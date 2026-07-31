@@ -589,6 +589,72 @@ def test_build_report_context_survives_a_failed_section(tmp_path):
     assert context.get("purview", {}).get("sensitivity_label_count", 0) == 0
 
 
+def test_a_failed_section_file_reaches_the_templates(tmp_path):
+    """Blanking a failed section must not also erase the reason it was blanked.
+
+    The context builder already knew which files held an error — it collected
+    their names to decide what to blank — and then dropped the list on the
+    floor when it returned. So a tenant whose Purview endpoint answered 404
+    read "0 failed sections" (that count comes from section *results*, not
+    from these files), saw CIS 3.2.1 as "cannot be verified", and had nothing
+    anywhere connecting the two. The reason survived only as a section warning.
+
+    The list must arrive under its own key: ``failed_sections`` is a count of
+    sections whose collector reported failure, which is a different quantity
+    from the files that hold an error, and the two disagree on exactly the
+    tenants this matters for.
+    """
+    from app.reports.generator import build_report_context
+
+    (tmp_path / "19c_purview_sensitivity_labels.txt").write_text(
+        "Error: Client error '404 Not Found' for url '.../sensitivityLabels'\n"
+        "For more information check: https://developer.mozilla.org/\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "03_users_count.txt").write_text(
+        "=" * 40 + "\n  USER COUNTS\n" + "=" * 40 + "\n  Total: 10\n", encoding="utf-8"
+    )
+
+    context = build_report_context("Test AS", "test.example", tmp_path, [])
+
+    error_files = context.get("error_files")
+    assert error_files, "the names of the files that held an error must reach the templates"
+
+    names = [e["name"] for e in error_files]
+    assert "19c_purview_sensitivity_labels.txt" in names
+    assert "03_users_count.txt" not in names, "a file that held data is not a failure"
+
+    # Traceable in the direction a reader needs: this file is why 3.2.1 says
+    # it cannot be verified. The evidence links cannot carry this — they
+    # deliberately drop files whose contents were blanked.
+    entry = next(e for e in error_files if e["name"] == "19c_purview_sensitivity_labels.txt")
+    assert "3.2.1" in entry["controls"]
+
+    # The existing key keeps its meaning: a count, computed from results.
+    assert context["failed_sections"] == 0
+
+
+def test_named_error_files_only_cite_controls_the_report_shows(tmp_path):
+    """Every control named beside a failed file must exist in the CIS table.
+
+    The control ids come from ``_EVIDENCE_MAP``, which is keyed by CIS id and
+    maintained by hand. Naming an id the table does not list sends the reader
+    looking for a row that is not there.
+    """
+    from app.reports.generator import build_report_context
+
+    for name in ("19c_purview_sensitivity_labels.txt", "23_exchange_antiphish.txt",
+                 "08_conditional_access.txt"):
+        (tmp_path / name).write_text("Error: Client error '403 Forbidden'\n", encoding="utf-8")
+
+    context = build_report_context("Test AS", "test.example", tmp_path, [])
+
+    shown = {c["cis_id"] for c in context["compliance"]}
+    cited = {cid for e in context["error_files"] for cid in e["controls"]}
+    assert cited, "these files back CIS controls; the mapping must resolve"
+    assert cited <= shown, f"cites controls absent from the table: {sorted(cited - shown)}"
+
+
 def test_exo_timeout_exceeds_a_measured_real_connection():
     """Connect-ExchangeOnline is slow; the budget must not cut it short.
 

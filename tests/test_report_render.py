@@ -158,6 +158,49 @@ def test_sharepoint_sharing_renders_neutral_when_settings_were_not_read(tmp_path
     assert "status-pill warning" not in html.split("sharing")[0][-2000:]
 
 
+# ── Why a control could not be verified ───────────────────────────────────────
+
+
+_PURVIEW_404 = (
+    "Error: Client error '404 Not Found' for url "
+    "'https://graph.microsoft.com/beta/security/informationProtection/sensitivityLabels'\n"
+    "For more information check: https://developer.mozilla.org/\n"
+)
+
+
+def test_the_tech_report_names_the_file_that_held_an_error(tmp_path):
+    """"Cannot be verified" has to be traceable to the file that failed.
+
+    The filename alone is not evidence of this: every collected file is
+    printed in the raw-data appendix, so asserting it appears somewhere in the
+    page would pass without the panel. It has to appear beside the CIS table,
+    with the control it explains.
+    """
+    broken = {**FULL_AUDIT, "19c_purview_sensitivity_labels.txt": _PURVIEW_404}
+    html = _render_strict(tmp_path, "report_tech.html.j2", broken)
+
+    overview = html.split("<!-- /tab-overview -->")[0]
+    assert 'id="error-files"' in overview, "no failure panel beside the CIS table"
+
+    panel = overview.split('id="error-files"', 1)[1]
+    assert "19c_purview_sensitivity_labels.txt" in panel
+    assert "3.2.1" in panel, "the panel must say which control the failure explains"
+    assert T("no").error_files_heading in _visible_text(panel)
+
+
+def test_a_clean_audit_renders_no_failure_panel(tmp_path):
+    html = _render_strict(tmp_path, "report_tech.html.j2", FULL_AUDIT)
+    assert 'id="error-files"' not in html, "nothing failed; the panel must stay away"
+
+
+def test_the_failure_panel_is_translated(tmp_path):
+    broken = {**FULL_AUDIT, "19c_purview_sensitivity_labels.txt": _PURVIEW_404}
+    html = _render_strict(tmp_path, "report_tech.html.j2", broken, lang="en")
+    text = _visible_text(html)
+    assert T("en").error_files_heading in text
+    assert T("no").error_files_heading not in text
+
+
 # ── Trend charts vs. the now-nullable metrics ─────────────────────────────────
 
 
