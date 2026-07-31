@@ -22,6 +22,8 @@ import html as htmlmod
 import pathlib
 import re
 
+import pytest
+
 STATIC = pathlib.Path("app/web/static")
 
 # Not translatable: product and vendor names, keyboard hints, bare numbers and
@@ -52,7 +54,8 @@ _NOT_TEXT = {
     "unifi.ui.com → Settings → API", "console.anthropic.com",
     "docs/msp-toolkit-architecture.svg",
     # Log-level filters and grade letters: symbols the UI reads back verbatim.
-    "&times;", "0 : diff",   # a close glyph, and a ternary the regex reads as markup
+    "&times;", "&bull;",   # a close glyph and a bullet
+    "0 : diff", "0 && synced",   # expressions the position regex reads as markup
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
@@ -309,15 +312,21 @@ def test_a_translated_span_does_not_hold_the_spacing_around_it():
     assert not bad, f"spans holding their own padding: {bad[:8]}"
 
 
-def prose_in_generated_markup() -> list[tuple[int, str]]:
-    """Text that lands between tags in markup app.js builds.
+# Every script that builds markup. app.js was measured first and cleared; the
+# other two were never looked at, and app-infra.js turned out to hold more than
+# app.js did.
+_SCRIPTS = ("app.js", "app-integrations.js", "app-infra.js")
+
+
+def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
+    """Text that lands between tags in markup a script builds.
 
     The Norwegian-letter detector above cannot see "Save" or "In Progress", and
     those are just as stuck in one language. This keys on position instead of
     spelling: anything sitting between > and < in a generated string is read by
     a person, whatever language it happens to be in.
     """
-    js = (STATIC / "app.js").read_text()
+    js = (STATIC / script).read_text()
     lines = js.split("\n")
     found = []
     for m in re.finditer(r">([^<>{}$'\"\n]{2,70})<", js):
@@ -334,13 +343,18 @@ def prose_in_generated_markup() -> list[tuple[int, str]]:
     return found
 
 
-# Ceiling for the above. Same rule as the others: only ever down.
-BUDGET_JS_PROSE = 0
+# Ceilings, per script. Same rule as the others: only ever down.
+BUDGET_JS_PROSE = {
+    "app.js": 0,
+    "app-integrations.js": 0,
+    "app-infra.js": 336,
+}
 
 
-def test_no_new_prose_hard_coded_into_generated_markup():
-    found = prose_in_generated_markup()
-    assert len(found) <= BUDGET_JS_PROSE, (
-        f"{len(found)} strings baked into markup app.js builds, budget "
-        f"{BUDGET_JS_PROSE}. Route them through t():\n{_report(found)}"
+@pytest.mark.parametrize("script", _SCRIPTS)
+def test_no_new_prose_hard_coded_into_generated_markup(script):
+    found = prose_in_generated_markup(script)
+    assert len(found) <= BUDGET_JS_PROSE[script], (
+        f"{len(found)} strings baked into markup {script} builds, budget "
+        f"{BUDGET_JS_PROSE[script]}. Route them through t():\n{_report(found)}"
     )

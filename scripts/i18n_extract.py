@@ -197,16 +197,16 @@ def cmd_apply(path: str) -> None:
 JS = STATIC / "app.js"
 
 
-def _js_candidates():
+def _js_candidates(script="app.js"):
     sys.path.insert(0, ".")
     from tests.test_i18n_coverage import prose_in_generated_markup
-    return prose_in_generated_markup()
+    return prose_in_generated_markup(script)
 
 
-def cmd_plan_js() -> None:
+def cmd_plan_js(script="app.js") -> None:
     d = json.loads(I18N.read_text())
     seen: set[str] = set()
-    for _, text in _js_candidates():
+    for _, text in _js_candidates(script):
         if text in seen:
             continue
         seen.add(text)
@@ -217,7 +217,7 @@ def cmd_plan_js() -> None:
         print(f"{key}\t{text}\t")
 
 
-def cmd_apply_js(path: str) -> None:
+def cmd_apply_js(path: str, script: str = "app.js") -> None:
     """Turn >Lagre< inside a quoted string into >' + t('btn_save') + '<.
 
     Only single-quoted strings are rewritten. A template literal needs
@@ -231,12 +231,15 @@ def cmd_apply_js(path: str) -> None:
         parts = line.split("\t")
         if len(parts) < 3 or not parts[2].strip():
             continue
-        rows.append((parts[0], parts[1], parts[2]))
+        # An optional fourth column is the Norwegian to store, when the
+        # source spells it without æøå and should not set the canon.
+        rows.append((parts[0], parts[1], parts[2], parts[3] if len(parts) > 3 and parts[3].strip() else None))
 
-    js = JS.read_text()
+    target = STATIC / script
+    js = target.read_text()
     d = json.loads(I18N.read_text())
     applied = skipped = 0
-    for key, text, en in rows:
+    for key, text, en, no_override in rows:
         # The detector strips its match; the source may hold padding around it.
         # Searching for the stripped form found nothing on twelve of twelve,
         # which looked like the input being wrong when it was this.
@@ -251,13 +254,16 @@ def cmd_apply_js(path: str) -> None:
         # The source may hold \u00f8 rather than ø. Match on what is written
         # there, but store what it means — otherwise the escape sequence ends
         # up on screen as six literal characters.
-        try:
-            d["no"][key] = text.encode().decode("unicode_escape").encode("latin-1").decode("utf-8")
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            d["no"][key] = text
+        if no_override:
+            d["no"][key] = no_override
+        else:
+            try:
+                d["no"][key] = text.encode().decode("unicode_escape").encode("latin-1").decode("utf-8")
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                d["no"][key] = text
         d["en"][key] = en.strip()
         applied += 1
-    JS.write_text(js)
+    target.write_text(js)
     I18N.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
     print(f"applied {applied}, skipped {skipped}")
 
@@ -276,8 +282,8 @@ if __name__ == "__main__":
     elif cmd == "apply-attrs":
         cmd_apply_attrs(rest[0])
     elif cmd == "plan-js":
-        cmd_plan_js()
+        cmd_plan_js(*rest)
     elif cmd == "apply-js":
-        cmd_apply_js(rest[0])
+        cmd_apply_js(*rest)
     else:
         sys.exit(__doc__)

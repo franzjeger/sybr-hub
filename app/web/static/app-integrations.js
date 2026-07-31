@@ -83,7 +83,7 @@ async function docsRepoLoad() {
   if (_docsRepoTreeLoaded) return;
   var treeBox = document.getElementById('docs-repo-tree');
   if (!treeBox) return;
-  treeBox.innerHTML = '<div style="color:var(--text-muted);">Laster …</div>';
+  treeBox.innerHTML = '<div style="color:var(--text-muted);">' + t('laster') + '</div>';
   try {
     var data = await apiFetch('/api/docs/list');
     if (!data || !data.root) throw new Error('no tree');
@@ -119,7 +119,7 @@ function _docsRenderTree(node, depth) {
 async function docsRepoOpen(path) {
   var content = document.getElementById('docs-repo-content');
   if (!content) return;
-  content.innerHTML = '<div style="color:var(--text-muted);">Laster …</div>';
+  content.innerHTML = '<div style="color:var(--text-muted);">' + t('laster') + '</div>';
   try {
     var data = await apiFetch('/api/docs/file?path=' + encodeURIComponent(path));
     if (!data || !data.content) throw new Error('empty doc');
@@ -484,7 +484,7 @@ async function alsoSyncCustomers() {
     var matched = d.customers.filter(function(c){return c.status === 'matched'});
 
     var html = '<div style="margin-top:var(--space-3);font-size:var(--font-sm);">'
-      + '<div style="margin-bottom:var(--space-2);"><strong>ALSO:</strong> ' + d.also_total + ' | <span style="color:var(--green);">Matched: ' + d.matched + '</span> | <span style="color:var(--blue);">New: ' + d.new + '</span></div>';
+      + '<div style="margin-bottom:var(--space-2);"><strong>' + t('also') + '</strong> ' + d.also_total + ' | <span style="color:var(--green);">Matched: ' + d.matched + '</span> | <span style="color:var(--blue);">New: ' + d.new + '</span></div>';
 
     if (newC.length > 0) {
       html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-3);">';
@@ -498,7 +498,7 @@ async function alsoSyncCustomers() {
       html += '</div>';
       html += '<button class="btn btn-primary btn-sm" onclick="alsoDoImport()">' + t('btn_import','Import') + ' ' + newC.length + ' ' + t('nav_customers').toLowerCase() + '</button>';
     } else {
-      html += '<div style="color:var(--green);">&#10003; All ALSO customers already matched</div>';
+      html += '<div style="color:var(--green);">' + t('all_also_customers_already_matched') + '</div>';
     }
 
     if (matched.length > 0) {
@@ -507,7 +507,7 @@ async function alsoSyncCustomers() {
       if (unlinked.length > 0) {
         html += '<div style="margin-top:var(--space-3);padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;align-items:center;gap:var(--space-3);">';
         html += '<span style="font-size:var(--font-sm);flex:1;">🔗 ' + unlinked.length + ' matched customers can be linked to ALSO for license viewing</span>';
-        html += '<button class="btn btn-primary btn-sm" onclick="alsoLinkMatched()" id="also-link-btn">Link all</button>';
+        html += '<button class="btn btn-primary btn-sm" onclick="alsoLinkMatched()" id="also-link-btn">' + t('link_all') + '</button>';
         html += '</div>';
       }
       html += '<details style="margin-top:var(--space-3);font-size:var(--font-xs);"><summary style="cursor:pointer;color:var(--text-muted);">Matched (' + matched.length + ')</summary><div style="max-height:150px;overflow-y:auto;margin-top:var(--space-2);">';
@@ -569,7 +569,7 @@ async function uniwebSaveConfig() {
   var email = document.getElementById('input-uniweb-email').value.trim();
   var password = document.getElementById('input-uniweb-password').value.trim();
   if (!email || !password) {
-    msg.innerHTML = '<span style="color:var(--red);">E-post og passord er pakrevd</span>';
+    msg.innerHTML = '<span style="color:var(--red);">' + t('e_post_og_passord_er') + '</span>';
     return;
   }
   var d = await apiFetch('/api/uniweb/settings', {
@@ -578,7 +578,7 @@ async function uniwebSaveConfig() {
     body: JSON.stringify({email: email, password: password}),
   });
   if (d && d.ok) {
-    msg.innerHTML = '<span style="color:var(--green);">&#10003; Lagret</span>';
+    msg.innerHTML = '<span style="color:var(--green);">' + t('lagret_2') + '</span>';
     document.getElementById('uniweb-integ-dot').style.background = 'var(--green)';
     document.getElementById('uniweb-integ-label').textContent = 'Konfigurert';
     document.getElementById('uniweb-integ-label').style.color = 'var(--green)';
@@ -622,7 +622,7 @@ function _uniwebFormatDuration(ms) {
 async function uniwebSync() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
-  msg.innerHTML = '<span style="color:var(--text-muted);">Starter synkronisering...</span>';
+  msg.innerHTML = '<span style="color:var(--text-muted);">' + t('starter_synkronisering') + '</span>';
   if (btn) { btn.disabled = true; btn.textContent = 'Synkroniserer...'; }
   _uniwebSyncStart = Date.now();
 
@@ -665,7 +665,7 @@ async function uniwebPollStatus() {
 
     var html = '<div class="uniweb-sync-panel uniweb-sync-active">';
     html += '<div class="uniweb-sync-row" style="margin-bottom:4px;">';
-    html += '<span style="font-weight:600;color:var(--blue);">Synkroniserer Uniweb</span>';
+    html += '<span style="font-weight:600;color:var(--blue);">' + t('synkroniserer_uniweb') + '</span>';
     html += '<span class="uniweb-sync-value">' + synced + ' av ' + (total || '?') + ' kontoer</span>';
     html += '</div>';
 
@@ -674,7 +674,7 @@ async function uniwebPollStatus() {
 
     // Current account
     html += '<div class="uniweb-sync-row" style="margin-top:4px;">';
-    html += '<span class="uniweb-sync-label">Behandler: <span style="color:var(--text-primary);">' + accountLabel + '</span></span>';
+    html += '<span class="uniweb-sync-label">' + t('behandler') + ' <span style="color:var(--text-primary);">' + accountLabel + '</span></span>';
     html += '<span class="uniweb-sync-value">' + pct + '%</span>';
     html += '</div>';
 
@@ -705,22 +705,22 @@ async function uniwebPollStatus() {
 
     if (d.last_error) {
       msg.innerHTML = '<div class="uniweb-sync-panel" style="border-color:var(--red);">'
-        + '<span style="color:var(--red);font-weight:600;">&#10007; Synkronisering feilet</span>'
+        + '<span style="color:var(--red);font-weight:600;">' + t('synkronisering_feilet') + '</span>'
         + '<div style="margin-top:4px;color:var(--red);font-size:11px;">' + esc(d.last_error) + '</div>'
         + '</div>';
     } else {
       var html = '<div class="uniweb-sync-panel" style="border-color:var(--green);">';
-      html += '<span style="color:var(--green);font-weight:600;">&#10003; Synkronisering fullfort</span>';
+      html += '<span style="color:var(--green);font-weight:600;">' + t('synkronisering_fullfort') + '</span>';
       if (totalElapsed) {
         html += '<span class="uniweb-sync-label" style="margin-left:8px;">(' + totalElapsed + ')</span>';
       }
 
       // Summary cards
       html += '<div class="uniweb-summary">';
-      html += '<div class="uniweb-summary-card"><div class="val">' + (d.total_accounts || 0) + '</div><div class="lbl">Kontoer</div></div>';
-      html += '<div class="uniweb-summary-card"><div class="val">' + (d.domains_found || 0) + '</div><div class="lbl">Domener</div></div>';
+      html += '<div class="uniweb-summary-card"><div class="val">' + (d.total_accounts || 0) + '</div><div class="lbl">' + t('kontoer') + '</div></div>';
+      html += '<div class="uniweb-summary-card"><div class="val">' + (d.domains_found || 0) + '</div><div class="lbl">' + t('domener_2') + '</div></div>';
       if (d.errors_count > 0) {
-        html += '<div class="uniweb-summary-card" style="border:1px solid var(--orange);"><div class="val" style="color:var(--orange);">' + d.errors_count + '</div><div class="lbl">Feil</div></div>';
+        html += '<div class="uniweb-summary-card" style="border:1px solid var(--orange);"><div class="val" style="color:var(--orange);">' + d.errors_count + '</div><div class="lbl">' + t('feil') + '</div></div>';
       }
       html += '</div>';
       html += '</div>';
@@ -757,12 +757,12 @@ async function uniwebLoadAccounts() {
   html += '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
   html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
-  html += '<th style="text-align:left;padding:6px 8px;">Konto</th>';
-  html += '<th style="text-align:left;padding:6px 8px;">MSP-kunde</th>';
-  html += '<th style="text-align:center;padding:6px 8px;">Domener</th>';
-  html += '<th style="text-align:center;padding:6px 8px;">Abo.</th>';
-  html += '<th style="text-align:right;padding:6px 8px;">Kr/mnd</th>';
-  html += '<th style="text-align:center;padding:6px 8px;">Fornyelse</th>';
+  html += '<th style="text-align:left;padding:6px 8px;">' + t('konto_4') + '</th>';
+  html += '<th style="text-align:left;padding:6px 8px;">' + t('msp_kunde') + '</th>';
+  html += '<th style="text-align:center;padding:6px 8px;">' + t('domener_2') + '</th>';
+  html += '<th style="text-align:center;padding:6px 8px;">' + t('abo') + '</th>';
+  html += '<th style="text-align:right;padding:6px 8px;">' + t('kr_mnd_2') + '</th>';
+  html += '<th style="text-align:center;padding:6px 8px;">' + t('fornyelse_2') + '</th>';
   html += '</tr></thead><tbody>';
 
   d.accounts.forEach(function(a) {
@@ -770,7 +770,7 @@ async function uniwebLoadAccounts() {
     if (a.customer_name) {
       customerCol = '<span style="color:var(--green);">' + esc(a.customer_name) + '</span>';
     } else {
-      customerCol = '<button class="btn btn-ghost" onclick="uniwebShowMatch(\'' + esc(a.id) + '\')" style="padding:2px 8px;font-size:10px;color:var(--orange);">Ikke koblet</button>';
+      customerCol = '<button class="btn btn-ghost" onclick="uniwebShowMatch(\'' + esc(a.id) + '\')" style="padding:2px 8px;font-size:10px;color:var(--orange);">' + t('ikke_koblet') + '</button>';
     }
 
     html += '<tr style="border-bottom:1px solid var(--border);">';
@@ -802,16 +802,16 @@ async function uniwebShowMatch(accountId) {
   var customers = d.available_customers || [];
   var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="uniweb-match-modal" onclick="if(event.target===this)this.remove()">';
   html += '<div class="card" style="width:400px;max-height:500px;padding:20px;" onclick="event.stopPropagation()">';
-  html += '<div style="font-weight:600;font-size:14px;margin-bottom:12px;">Koble Uniweb-konto til MSP-kunde</div>';
+  html += '<div style="font-weight:600;font-size:14px;margin-bottom:12px;">' + t('koble_uniweb_konto_til_msp') + '</div>';
   html += '<select id="uniweb-match-select" class="field-input" style="margin-bottom:12px;">';
-  html += '<option value="">-- Velg kunde --</option>';
+  html += '<option value="">' + t('velg_kunde') + '</option>';
   customers.forEach(function(c) {
     html += '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
   });
   html += '</select>';
   html += '<div style="display:flex;gap:8px;">';
-  html += '<button class="btn btn-primary" onclick="uniwebDoMatch(\'' + esc(accountId) + '\')">Koble</button>';
-  html += '<button class="btn btn-ghost" onclick="document.getElementById(\'uniweb-match-modal\').remove()">Avbryt</button>';
+  html += '<button class="btn btn-primary" onclick="uniwebDoMatch(\'' + esc(accountId) + '\')">' + t('koble') + '</button>';
+  html += '<button class="btn btn-ghost" onclick="document.getElementById(\'uniweb-match-modal\').remove()">' + t('avbryt_2') + '</button>';
   html += '</div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
 }
@@ -855,7 +855,7 @@ async function uniwebShowDetail(accountId) {
   if (d.domains && d.domains.length > 0) {
     html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">Domener (' + d.domains.length + ')</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">Domene</th><th style="text-align:center;padding:4px 6px;">Utloper</th><th style="text-align:center;padding:4px 6px;">Status</th></tr></thead><tbody>';
+    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('domene_3') + '</th><th style="text-align:center;padding:4px 6px;">' + t('utloper') + '</th><th style="text-align:center;padding:4px 6px;">' + t('status_2') + '</th></tr></thead><tbody>';
     d.domains.forEach(function(dom) {
       html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(dom.domain) + '</td><td style="text-align:center;padding:4px 6px;">' + esc(dom.expiry || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(dom.status || '-') + '</td></tr>';
     });
@@ -866,7 +866,7 @@ async function uniwebShowDetail(accountId) {
   if (d.subscriptions && d.subscriptions.length > 0) {
     html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">Abonnementer (' + d.subscriptions.length + ')</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">Tjeneste</th><th style="text-align:left;padding:4px 6px;">Bruker/Domene</th><th style="text-align:right;padding:4px 6px;">Pris/mnd</th><th style="text-align:center;padding:4px 6px;">Fornyelse</th></tr></thead><tbody>';
+    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('tjeneste_2') + '</th><th style="text-align:left;padding:4px 6px;">' + t('bruker_domene_2') + '</th><th style="text-align:right;padding:4px 6px;">' + t('pris_mnd_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('fornyelse_2') + '</th></tr></thead><tbody>';
     d.subscriptions.forEach(function(sub) {
       html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(sub.service_type || '-') + '</td><td style="padding:4px 6px;">' + esc(sub.username_domain || '-') + '</td><td style="text-align:right;padding:4px 6px;font-family:var(--mono);">' + esc(sub.price_monthly || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(sub.renewal_date || '-') + '</td></tr>';
     });
@@ -877,7 +877,7 @@ async function uniwebShowDetail(accountId) {
   if (d.ssl && d.ssl.length > 0) {
     html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">SSL-sertifikater (' + d.ssl.length + ')</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">Domene</th><th style="text-align:left;padding:4px 6px;">Type</th><th style="text-align:center;padding:4px 6px;">Utloper</th></tr></thead><tbody>';
+    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('domene_3') + '</th><th style="text-align:left;padding:4px 6px;">' + t('type_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('utloper') + '</th></tr></thead><tbody>';
     d.ssl.forEach(function(cert) {
       html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(cert.domain) + '</td><td style="padding:4px 6px;">' + esc(cert.type || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(cert.expiry || '-') + '</td></tr>';
     });
@@ -888,7 +888,7 @@ async function uniwebShowDetail(accountId) {
   if (d.email && d.email.length > 0) {
     html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">E-postkontoer (' + d.email.length + ')</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">Adresse</th><th style="text-align:center;padding:4px 6px;">Kvote</th><th style="text-align:center;padding:4px 6px;">Brukt</th></tr></thead><tbody>';
+    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('adresse_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('kvote_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('brukt') + '</th></tr></thead><tbody>';
     d.email.forEach(function(em) {
       html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(em.address) + '</td><td style="text-align:center;padding:4px 6px;">' + esc(em.quota || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(em.used || '-') + '</td></tr>';
     });
@@ -899,7 +899,7 @@ async function uniwebShowDetail(accountId) {
   if (d.hosting && d.hosting.length > 0) {
     html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">Webhosting (' + d.hosting.length + ')</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">Domene</th><th style="text-align:left;padding:4px 6px;">Pakke</th><th style="text-align:center;padding:4px 6px;">Status</th></tr></thead><tbody>';
+    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('domene_3') + '</th><th style="text-align:left;padding:4px 6px;">' + t('pakke') + '</th><th style="text-align:center;padding:4px 6px;">' + t('status_2') + '</th></tr></thead><tbody>';
     d.hosting.forEach(function(h) {
       html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(h.domain || '-') + '</td><td style="padding:4px 6px;">' + esc(h.plan || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(h.status || '-') + '</td></tr>';
     });
@@ -932,7 +932,7 @@ async function uniwebShowImport() {
 
   // Header with title and selection counter
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-  html += '<div style="font-weight:600;font-size:16px;">Importer kunder fra Uniweb</div>';
+  html += '<div style="font-weight:600;font-size:16px;">' + t('importer_kunder_fra_uniweb') + '</div>';
   html += '<button class="btn btn-ghost" onclick="uniwebCloseImport()" style="padding:4px 8px;font-size:14px;">X</button>';
   html += '</div>';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
@@ -943,18 +943,18 @@ async function uniwebShowImport() {
   // Search + select all
   html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">';
   html += '<input type="text" id="uniweb-import-search" class="field-input" placeholder="Sok..." style="flex:1;min-width:150px;padding:6px 12px;font-size:12px;" oninput="uniwebFilterImport()">';
-  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="uniweb-import-select-all" onchange="uniwebToggleAllImport(this.checked)"> Velg alle</label>';
+  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="uniweb-import-select-all" onchange="uniwebToggleAllImport(this.checked)"> ' + t('velg_alle') + '</label>';
   html += '</div>';
 
   // Table
   html += '<div style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:6px;max-height:400px;min-height:0;">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;">';
   html += '<th style="width:32px;padding:6px;background:var(--bg-tertiary);"></th>';
-  html += '<th style="text-align:left;padding:6px 8px;background:var(--bg-tertiary);">Kontonavn</th>';
+  html += '<th style="text-align:left;padding:6px 8px;background:var(--bg-tertiary);">' + t('kontonavn') + '</th>';
   if (hasParents) {
-    html += '<th style="text-align:left;padding:6px 8px;background:var(--bg-tertiary);">Overordnet konto</th>';
+    html += '<th style="text-align:left;padding:6px 8px;background:var(--bg-tertiary);">' + t('overordnet_konto') + '</th>';
   }
-  html += '<th style="text-align:left;padding:6px 8px;font-family:var(--mono);background:var(--bg-tertiary);">Uniweb ID</th>';
+  html += '<th style="text-align:left;padding:6px 8px;font-family:var(--mono);background:var(--bg-tertiary);">' + t('uniweb_id') + '</th>';
   html += '</tr></thead><tbody>';
 
   unmatched.sort(function(a, b) { return a.uniweb_name.localeCompare(b.uniweb_name); });
@@ -978,8 +978,8 @@ async function uniwebShowImport() {
 
   // Buttons
   html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;">';
-  html += '<button class="btn btn-ghost" onclick="uniwebCloseImport()">Avbryt</button>';
-  html += '<button class="btn btn-primary" id="uniweb-import-btn" disabled onclick="uniwebDoImport()">Importer valgte</button>';
+  html += '<button class="btn btn-ghost" onclick="uniwebCloseImport()">' + t('avbryt_2') + '</button>';
+  html += '<button class="btn btn-primary" id="uniweb-import-btn" disabled onclick="uniwebDoImport()">' + t('importer_valgte') + '</button>';
   html += '</div>';
 
   html += '</div></div>';
@@ -1159,7 +1159,7 @@ function taskSchedRender(tasks) {
     // Status indicator
     var statusHtml;
     if (task.last_error) {
-      statusHtml = '<span style="color:var(--red);font-size:11px;" title="' + esc(task.last_error) + '">Feil</span>';
+      statusHtml = '<span style="color:var(--red);font-size:11px;" title="' + esc(task.last_error) + '">' + t('feil') + '</span>';
     } else if (task.last_result) {
       statusHtml = '<span style="color:var(--green);font-size:11px;" title="' + esc(task.last_result) + '">OK</span>';
     } else {
