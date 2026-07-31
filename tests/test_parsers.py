@@ -1304,3 +1304,115 @@ def test_unmeasured_legacy_auth_is_not_a_pass():
     ctx = {"sharepoint": {"has_data": True, "legacy_auth": False}, "file_contents": {}}
     row = [c for c in _build_compliance_map(ctx) if c["cis_id"] == "7.2.3"][0]
     assert row["status"] == "info"
+
+
+# ---------------------------------------------------------------------------
+# A section file carries more than its table. Counting the whole file made four
+# sections disagree with their own headers.
+# ---------------------------------------------------------------------------
+
+def test_a_summary_block_after_the_table_is_not_counted():
+    """PIM writes a SUMMARY block and a findings list below its rows."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "=" * 60 + "\n"
+        "  PRIVILEGED IDENTITY MANAGEMENT (PIM) — ROLE ASSIGNMENTS\n"
+        + "=" * 60 + "\n\n"
+        "  ELIGIBLE (Just-In-Time) ASSIGNMENTS  (0 total)\n"
+        "  " + "-" * 56 + "\n"
+        "  Role          Principal      Type      Expiry\n"
+        "  " + "-" * 56 + "\n\n"
+        "  ACTIVE ASSIGNMENTS  (2 total: 2 permanent, 0 time-bound)\n"
+        "  " + "-" * 56 + "\n"
+        "  Role          Principal      Type      Assignment   End\n"
+        "  " + "-" * 56 + "\n"
+        "  Global Administrator   Admin Sybr    user   Assigned  PERMANENT\n"
+        "  Exchange Administrator Thorsten      user   Assigned  PERMANENT\n\n"
+        "  " + "=" * 40 + "\n"
+        "  SUMMARY\n"
+        "  " + "=" * 40 + "\n"
+        "    Eligible (JIT) assignments   : 0\n"
+        "    Active assignments           : 2\n"
+        "      Permanent                  : 2\n\n"
+        "  PERMANENT CRITICAL ROLE ASSIGNMENTS (should be eligible/JIT):\n"
+        "    - Global Administrator: Admin Sybr\n"
+        + "=" * 60 + "\n"
+    )
+    assert _count_data_lines(text) == 2
+
+
+def test_a_tally_above_the_table_is_not_counted():
+    """Defender writes "High: 3 | Medium: 0 | Low: 0" before its rows."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "=" * 60 + "\n"
+        "  DEFENDER FOR OFFICE 365 — SECURITY ALERTS  (2 total)\n"
+        + "=" * 60 + "\n"
+        "  High: 2  |  Medium: 0  |  Low: 0\n\n"
+        "  Title                 Severity   Status     Created\n"
+        "  " + "-" * 56 + "\n"
+        "  Malicious IP address  high       resolved   2026-06-17\n"
+        "  Anonymous IP address  high       resolved   2026-06-17\n"
+        + "=" * 60 + "\n"
+    )
+    assert _count_data_lines(text) == 2
+
+
+def test_a_trailing_summary_line_is_not_a_record():
+    """Mailbox delegations end with "Summary: 0 FullAccess, 84 SendAs"."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "=" * 60 + "\n"
+        "  MAILBOX DELEGATIONS (SendAs / FullAccess)  (2 entries)\n"
+        + "=" * 60 + "\n"
+        "  Mailbox              Type      Delegate\n"
+        "  " + "-" * 56 + "\n"
+        "  post@x.no            SendAs    kenneth@x.no\n"
+        "  brann@x.no           SendAs    thorsten@x.no\n\n"
+        "  Summary: 0 FullAccess, 2 SendAs delegation(s)\n"
+        + "=" * 60 + "\n"
+    )
+    assert _count_data_lines(text) == 2
+
+
+def test_two_tables_under_one_banner_are_both_counted():
+    """The compliance score holds a control list and an improvement list."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "=" * 60 + "\n"
+        "  MICROSOFT COMPLIANCE SCORE\n"
+        + "=" * 60 + "\n"
+        "  Overall Score : 156.0 / 273.0  (57.1%)\n"
+        "  As of         : 2026-07-30\n\n"
+        "  ── Compliance-Related Controls (2 found) ──\n"
+        "  Control              Score%  Category\n"
+        "  " + "-" * 50 + "\n"
+        "  dlp_datalossprevention    0.0%  Data\n"
+        "  mip_purviewlabelconsent   0.0%  Data\n\n"
+        "  ── Top Improvement Actions ──\n"
+        "  Control              Score%  Category\n"
+        "  " + "-" * 50 + "\n"
+        "  McasFirewallLogUpload     0.0%  Apps\n"
+        + "=" * 60 + "\n"
+    )
+    assert _count_data_lines(text) == 3, "two controls plus one improvement action"
+
+
+def test_a_file_with_no_table_still_counts_its_lines():
+    """Count files are all summary and no table; they must not read as empty."""
+    from app.reports.generator import _count_data_lines
+
+    text = (
+        "=" * 40 + "\n"
+        "  USER COUNT SUMMARY\n"
+        + "=" * 40 + "\n"
+        "  Total users    : 216\n"
+        "  Enabled        : 202\n"
+        "  Disabled       : 14\n"
+        + "=" * 40 + "\n"
+    )
+    assert _count_data_lines(text) == 3

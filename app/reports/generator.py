@@ -1946,6 +1946,52 @@ def _is_multiline_record_format(text: str) -> bool:
     return indexed_records > 0 and keyed_lines > indexed_records
 
 
+def _count_table_rows(stripped_lines: list[str]) -> int:
+    """Count the rows inside a section's tables, not every line in the file.
+
+    These files carry more than their table. A summary block follows the rows
+    in PIM and in mailbox delegations; a severity tally precedes them in the
+    Defender alerts; the compliance score holds two tables under one banner.
+    Counting the whole file made all four disagree with their own headers —
+    one privileged-assignment file read thirty-one where twenty-six were
+    listed, because four summary lines and a heading were counted as records.
+
+    A table is what a "---" rule underlines: the header sits on the rule, and
+    the rows run until a blank line, a "===" frame, or the next header. Files
+    with no such structure fall back to counting the whole thing, which is what
+    every count file and free-text section needs.
+    """
+    def underlined(i: int) -> bool:
+        s = stripped_lines[i]
+        return bool(s) and not s.startswith(("---", "===")) and _is_underlined(stripped_lines, i)
+
+    if not any(underlined(i) for i in range(len(stripped_lines))):
+        return sum(1 for s in stripped_lines if not _is_furniture(s))
+
+    # One pass, because the regions overlap otherwise. A sub-section banner is
+    # underlined by the same kind of rule as the column header beneath it, so
+    # treating every underlined line as the start of its own table counted the
+    # PIM assignments twice and its column headers as records — thirty-one
+    # became fifty-four. Walking once, a header simply opens the table and the
+    # next header closes it.
+    rows = 0
+    in_table = False
+    for i, s in enumerate(stripped_lines):
+        if underlined(i):
+            in_table = True          # a heading or a column header; never a row
+            continue
+        if not in_table:
+            continue
+        if not s or s.startswith("==="):
+            in_table = False         # blank line or frame ends the table
+            continue
+        if s.startswith("---"):
+            continue                 # the rule under a header, or a divider
+        if not _is_furniture(s, near_rule=False):
+            rows += 1
+    return rows
+
+
 def _count_data_lines(text: str) -> int:
     """How many records a section file holds.
 
@@ -1979,11 +2025,7 @@ def _count_data_lines(text: str) -> int:
 
     # Branch 3 — tabular, or no banner at all.
     stripped_lines = [line.strip() for line in text.splitlines()]
-    rows = sum(
-        1
-        for i, s in enumerate(stripped_lines)
-        if not _is_furniture(s, near_rule=_is_underlined(stripped_lines, i))
-    )
+    rows = _count_table_rows(stripped_lines)
     if declared is not None and declared != rows:
         # The two directions mean different things and the message used to
         # assert truncation for both. Fewer rows than declared is consistent
