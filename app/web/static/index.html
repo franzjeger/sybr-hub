@@ -236,7 +236,7 @@
 
       <!-- Notifications bell -->
       <div style="position:relative;display:inline-block;">
-        <button onclick="toggleNotifications()" aria-label="Varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
+        <button onclick="toggleNotifications()" aria-label="Varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
         <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;max-height:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;z-index:150;animation:dropdown-in var(--duration-fast) var(--ease-out);">
           <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:var(--font-sm);font-weight:600;" data-i18n="hdr_notifications">Varsler</span>
@@ -259,8 +259,8 @@
           </div>
           <button class="avatar-item" onclick="closeAvatarMenu();openSettings()"><span class="ic">&#9881;</span><span style="flex:1;">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
           <button class="avatar-item" onclick="toggleTheme()"><span class="ic">&#9680;</span><span style="flex:1;">Bytt tema</span></button>
-          <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic">&#9000;</span><span style="flex:1;">Tastatursnarveier</span><span class="kbd">?</span></button>
-          <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic">&#128273;</span><span style="flex:1;">Bytt passord</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span style="flex:1;">Tastatursnarveier</span><span class="kbd">?</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"></path></svg></span><span style="flex:1;">Bytt passord</span></button>
           <button class="avatar-item danger" onclick="doLogout()"><span class="ic">&#8617;</span><span style="flex:1;">Logg ut</span></button>
           <button class="avatar-foot" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; endringslogg</button>
         </div>
@@ -303,17 +303,26 @@
 
     <!-- ════════════ OVERVIEW DASHBOARD VIEW ════════════ -->
     <div class="view" id="view-overview" style="max-width:1200px;">
-      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);align-items:flex-end;">
-        <button class="btn btn-ghost dash-tab-btn active" onclick="switchDashTab(this,'dash-customers')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;border-bottom:2px solid var(--blue);" data-i18n="dash_tab_customers">Kundeoversikt</button>
-        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-alerts')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_alerts">🔔 Varsler</button>
-        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-health')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_health">💚 Helse</button>
-        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-renewals')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_renewals">📋 Fornyelser</button>
-        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-costs')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_costs">💰 Kostnader</button>
-        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-domains')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_domains">🌐 Domener</button>
-        <button class="btn btn-ghost dash-tab-btn" onclick="switchDashTab(this,'dash-archive')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="dash_tab_archive">📂 Rapporter</button>
+      <div class="dash-tabs">
+        <button class="dash-tab-btn active" onclick="switchDashTab(this,'dash-customers')"><span data-i18n="dash_tab_customers">Kundeoversikt</span></button>
+        <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-alerts')"><span data-i18n="dash_tab_alerts">Varsler</span><span id="dash-badge-alerts" class="tab-badge tab-badge-red" style="display:none;"></span></button>
+        <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-health')"><span data-i18n="dash_tab_health">Helse</span></button>
+        <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-renewals')"><span data-i18n="dash_tab_renewals">Fornyelser</span><span id="dash-badge-renewals" class="tab-badge" style="display:none;"></span></button>
+        <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-costs')"><span data-i18n="dash_tab_costs">Kostnader</span></button>
+        <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-domains')"><span data-i18n="dash_tab_domains">Domener</span></button>
+        <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-archive')"><span data-i18n="dash_tab_archive">Rapporter</span></button>
         <div style="flex:1;"></div>
-        <button id="dash-export-btn" class="btn btn-ghost" onclick="dashExportCurrentTab()" style="padding:4px 10px;font-size:11px;margin-bottom:4px;opacity:0.7;" title="Export CSV">CSV</button>
-        <button id="dash-autorefresh-btn" class="btn btn-ghost" onclick="dashToggleAutoRefresh(this)" style="padding:4px 10px;font-size:11px;margin-bottom:4px;opacity:0.5;" data-i18n="btn_auto_refresh_off">Auto-refresh: Off</button>
+        <span class="dash-updated" id="dash-updated-wrap" style="display:none;">Oppdatert <span id="dash-updated-time">--:--</span></span>
+        <div class="nav-dropdown">
+          <button class="dash-tab-tool accent" data-i18n-title="btn_export" title="Eksport">Eksport &#9662;</button>
+          <div class="nav-dropdown-menu" style="left:auto;right:0;"><div class="nav-dropdown-menu-inner">
+            <button onclick="dashExportCurrentTab()">CSV</button>
+            <button onclick="exportDashboardExcel()">Excel</button>
+            <button onclick="copyOverviewToClipboard()">Kopier tabell</button>
+            <button onclick="generateQBR()">QBR-rapport</button>
+          </div></div>
+        </div>
+        <button id="dash-autorefresh-btn" class="dash-tab-tool" onclick="dashToggleAutoRefresh(this)" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
       </div>
       <div id="dash-customers" class="dash-tab-content" style="display:block;">
         <!-- Integration health strip — populated by renderIntegrationHealthStrip().

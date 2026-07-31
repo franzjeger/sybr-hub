@@ -5868,28 +5868,8 @@ function _renderDashboardCharts(withMetrics) {
     });
   }
 
-  // Grade donut chart
-  const donutCanvas = document.getElementById('chart-grade-donut');
-  if (donutCanvas && withMetrics.length > 0) {
-    const grades = {A:0, B:0, C:0, D:0, F:0};
-    withMetrics.forEach(c => { const g = c.metrics.risk_grade || '?'; if (grades[g] !== undefined) grades[g]++; });
-    const gradeLabels = Object.keys(grades).filter(g => grades[g] > 0);
-    const gradeData = gradeLabels.map(g => grades[g]);
-    const gradeColors = {A:'#3fb950', B:'#4d9fb5', C:'#d29922', D:'#f85149', F:'#8b0000'};
-    _dashChartInstances.donut = new Chart(donutCanvas, {
-      type: 'doughnut',
-      data: {
-        labels: gradeLabels.map(g => t('lbl_grade') + ' ' + g),
-        datasets: [{ data: gradeData, backgroundColor: gradeLabels.map(g => gradeColors[g]), borderWidth: 0, hoverOffset: 6 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: '65%',
-        plugins: {
-          legend: { position: 'bottom', labels: { color: textColor, padding: 12, font: { size: 11 }, usePointStyle: true, pointStyleWidth: 8 } }
-        }
-      }
-    });
-  }
+  // Grade distribution renders as a CSS stacked bar in renderOverview() now,
+  // so there is no donut chart to draw here.
 }
 
 // Cached extra dashboard data (health scores + costs) for overview enrichment
@@ -6163,24 +6143,11 @@ function renderOverview(customers, activeId) {
     var searchVal = '';
     var filterVal = 'all';
     box.innerHTML = `
+    <div id="overview-summary"></div>
     <div id="overview-search-bar">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:var(--space-3);"><span style="font-size:18px;font-weight:700;">${t('hdr_dashboard_all')}</span>${tagFilterHtml}<span style="font-size:var(--font-xs);color:var(--text-dim);margin-left:auto;">${t('msg_last_saved','Last updated')}: ${new Date().toLocaleTimeString('no-NO',{hour:'2-digit',minute:'2-digit'})}</span></div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div style="display:flex;align-items:center;gap:var(--space-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px 4px;">
-            <button class="btn btn-ghost btn-sm" onclick="toggleDashAutoRefresh()" id="dash-autorefresh-btn" title="${t('tip_auto_refresh')}" style="border:none;">&#8635;</button>
-            <span id="dash-autorefresh-countdown" style="font-size:var(--font-xs);color:var(--text-dim);font-family:var(--mono);min-width:28px;display:none;"></span>
-          </div>
-          <button class="btn btn-ghost" onclick="copyOverviewToClipboard()" style="font-size:13px;" title="${t('btn_copy_to_clipboard')}">${t('btn_copy_to_clipboard')}</button>
-          <button class="btn btn-ghost" onclick="exportDashboardExcel()" style="font-size:13px;" title="${t('btn_export_excel')}">${t('btn_export_excel')}</button>
-          <button class="btn btn-ghost" onclick="generateQBR()" style="font-size:13px;" title="${t('btn_qbr_report','QBR Report')}">QBR</button>
-          <button class="btn btn-primary" id="bulk-audit-btn" onclick="startBulkAudit()" style="font-size:13px;">${t('btn_run_all_customers')}</button>
-        </div>
-      </div>
-      <div id="bulk-audit-panel" style="display:none;"></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-        <input id="overview-search" type="text" class="field-input" placeholder="${t('lbl_search_customer')}" style="width:200px;padding:6px 10px;font-size:13px;" oninput="filterOverview()">
-        <select id="overview-filter" class="field-input" style="width:auto;padding:6px 10px;font-size:13px;" onchange="filterOverview()">
+      <div class="dash-toolbar">
+        <input id="overview-search" type="text" class="field-input" placeholder="${t('lbl_search_customer')}" style="width:220px;padding:7px 10px;font-size:13px;" oninput="filterOverview()">
+        <select id="overview-filter" class="field-input" style="width:auto;padding:7px 10px;font-size:13px;" onchange="filterOverview()">
           <option value="all">${t('filter_all')}</option>
           <option value="has_m365">${t('filter_has_m365','Has M365')}</option>
           <option value="has_fortigate">${t('filter_has_fortigate','Has FortiGate')}</option>
@@ -6190,18 +6157,30 @@ function renderOverview(customers, activeId) {
           <option value="noaudit">${t('filter_no_audit')}</option>
           <option value="stale">${t('filter_stale_audit','Stale audit')}</option>
         </select>
-        <select id="overview-time-filter" class="field-input" style="width:auto;padding:6px 10px;font-size:13px;" onchange="filterOverview()">
+        <select id="overview-time-filter" class="field-input" style="width:auto;padding:7px 10px;font-size:13px;" onchange="filterOverview()">
           <option value="all">${t('filter_all_time','All time')}</option>
           <option value="7">${t('filter_last_7d','Last 7 days')}</option>
           <option value="30">${t('filter_last_30d','Last 30 days')}</option>
           <option value="90">${t('filter_last_90d','Last 90 days')}</option>
         </select>
+        ${tagFilterHtml}
+        <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
+        <button class="qpill" id="qp-all" onclick="_quickFilter='all';filterOverview();">${t('filter_quick_all','Alle')}</button>
+        <button class="qpill" id="qp-problems" onclick="_quickFilter='problems';filterOverview();">${t('filter_quick_problems','Problemer')}</button>
+        <button class="qpill" id="qp-expiring" onclick="_quickFilter='expiring';filterOverview();">${t('filter_quick_expiring','Utløper snart')}</button>
+        <div style="flex:1;"></div>
+        <button class="btn btn-primary btn-sm" id="bulk-audit-btn" onclick="startBulkAudit()" style="font-size:12px;">${t('btn_run_all_customers')}</button>
+        <div class="colpick" id="overview-colpick">
+          <button class="dash-tab-tool" onclick="toggleOverviewColpick(event)">${t('lbl_columns','Kolonner')} &#9662;</button>
+          <div class="colpick-menu" id="overview-colpick-menu">
+            <label><input type="checkbox" data-col="health" onchange="toggleOverviewColumn('health',this.checked)"> ${t('lbl_health','Helse')}</label>
+            <label><input type="checkbox" data-col="users" onchange="toggleOverviewColumn('users',this.checked)"> ${t('lbl_users','Brukere')}</label>
+            <label><input type="checkbox" data-col="trend" onchange="toggleOverviewColumn('trend',this.checked)"> ${t('lbl_trend','Trend')}</label>
+            <label><input type="checkbox" data-col="tags" onchange="toggleOverviewColumn('tags',this.checked)"> ${t('lbl_tags','Tags')}</label>
+          </div>
+        </div>
       </div>
-      <div style="display:flex;gap:6px;margin-top:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="_quickFilter='all';filterOverview();" style="font-size:12px;${!window._quickFilter||window._quickFilter==='all'?'border-color:var(--blue);color:var(--blue);':''}">${t('filter_quick_all','Alle')}</button>
-        <button class="btn btn-ghost btn-sm" onclick="_quickFilter='problems';filterOverview();" style="font-size:12px;${window._quickFilter==='problems'?'border-color:var(--red);color:var(--red);':''}">${t('filter_quick_problems','Problemer')}</button>
-        <button class="btn btn-ghost btn-sm" onclick="_quickFilter='expiring';filterOverview();" style="font-size:12px;${window._quickFilter==='expiring'?'border-color:var(--orange);color:var(--orange);':''}">${t('filter_quick_expiring','Utloper snart')}</button>
-      </div>
+      <div id="bulk-audit-panel" style="display:none;"></div>
     </div>
     <div id="overview-active-filters" style="display:none;margin-bottom:var(--space-3);display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;"></div>
     <div id="overview-table-content"></div>`;
@@ -6212,53 +6191,53 @@ function renderOverview(customers, activeId) {
 
   var tableBox = document.getElementById('overview-table-content') || box;
 
-  let html = `
-    <div class="card-grid card-grid--kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-3);grid-auto-rows:1fr;margin-bottom:var(--space-6);">
-      <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${total}" style="font-size:var(--font-2xl);font-weight:800;color:var(--blue);">${total}</div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_total_customers')}</div>
-      </div>
-      <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" data-suffix="${avgRisk !== '-' ? '/100' : ''}" style="font-size:var(--font-2xl);font-weight:800;color:${avgRisk !== '-' && avgRisk < 50 ? 'var(--red)' : avgRisk !== '-' && avgRisk < 70 ? 'var(--orange)' : 'var(--green)'};">${avgRisk === '-' ? '-' : avgRisk + '/100'}</div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_avg_risk_score')}</div>
-      </div>
-      <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="font-size:var(--font-2xl);font-weight:800;color:${avgMfa !== '-' && avgMfa < 80 ? 'var(--red)' : avgMfa !== '-' && avgMfa < 95 ? 'var(--orange)' : 'var(--green)'};">${avgMfa === '-' ? '-' : avgMfa + '%'}</div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_avg_mfa','MFA Snitt')}</div>
-      </div>
-      <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${needsAttention}" style="font-size:var(--font-2xl);font-weight:800;color:${needsAttention > 0 ? 'var(--red)' : 'var(--green)'};">${needsAttention}</div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_needs_attention')}</div>
-      </div>
-      <div class="card" style="text-align:center;padding:16px 8px;height:100%;">
-        <div class="kpi-num" data-count="${staleCount}" style="font-size:var(--font-2xl);font-weight:800;color:${staleCount > 0 ? 'var(--orange)' : 'var(--green)'};">${staleCount}</div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:var(--space-1);">${t('lbl_stale_30d','Utdatert >30d')}</div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-4);margin-bottom:var(--space-6);">
-      <div class="card" style="padding:var(--space-5);">
-        <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">${t('lbl_risk_distribution')}</div>
-        <div style="position:relative;height:200px;"><canvas id="chart-risk-bar"></canvas></div>
-      </div>
-      <div class="card" style="padding:var(--space-5);">
-        <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">${t('lbl_grade_distribution')}</div>
-        <div style="position:relative;height:180px;"><canvas id="chart-grade-donut"></canvas></div>
-        <div id="grade-summary-bar" style="display:flex;justify-content:center;gap:var(--space-3);margin-top:var(--space-2);font-size:var(--font-xs);"></div>
-      </div>
+  // Summary block (attention strip + KPI cards) goes into a persistent
+  // container ABOVE the toolbar, so the mock's order holds — attention → KPI →
+  // toolbar → table → charts — while the search input keeps focus/value.
+  var summaryHtml = '';
+  if (needsAttention > 0) {
+    var _attnGradeD = withMetrics.filter(function(c){ return c.metrics.risk_grade === 'D' || c.metrics.risk_grade === 'F'; }).length;
+    var _attnLowMfa = withMetrics.filter(function(c){ return c.metrics.mfa_coverage_pct !== undefined && c.metrics.mfa_coverage_pct < 80; }).length;
+    var _attnNoAudit = customers.filter(function(c){ return !c.last_audit; }).length;
+    var _attnParts = [];
+    if (_attnGradeD) _attnParts.push(_attnGradeD + ' ' + t('attn_grade_d', 'med grade D'));
+    if (_attnLowMfa) _attnParts.push(_attnLowMfa + ' ' + t('attn_low_mfa', 'med MFA < 80 %'));
+    if (_attnNoAudit) _attnParts.push(_attnNoAudit + ' ' + t('attn_no_audit', 'uten audit'));
+    summaryHtml += `
+      <div class="attn-strip">
+        <span class="attn-title">${needsAttention} ${t('lbl_needs_followup', 'kunder trenger oppfølging')}</span>
+        <span class="attn-detail">${esc(_attnParts.join(' · '))}</span>
+        <div style="flex:1;"></div>
+        <button class="attn-action" onclick="_quickFilter='problems';filterOverview();">${t('btn_show_only_these', 'Vis kun disse')}</button>
+      </div>`;
+  }
+  summaryHtml += `
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_total_customers')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${total}" style="color:var(--text);">${total}</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_risk_score')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" style="color:${avgRisk !== '-' && avgRisk < 50 ? 'var(--red)' : avgRisk !== '-' && avgRisk < 70 ? 'var(--orange)' : 'var(--green)'};">${avgRisk === '-' ? '-' : avgRisk}</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_mfa','MFA-dekning')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="color:${avgMfa !== '-' && avgMfa < 80 ? 'var(--red)' : avgMfa !== '-' && avgMfa < 95 ? 'var(--orange)' : 'var(--green)'};">${avgMfa === '-' ? '-' : avgMfa + '%'}</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_needs_attention')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${needsAttention}" style="color:${needsAttention > 0 ? 'var(--red)' : 'var(--green)'};">${needsAttention}</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_stale_30d','Utdatert >30d')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${staleCount}" style="color:${staleCount > 0 ? 'var(--orange)' : 'var(--green)'};">${staleCount}</span></div></div>
     </div>`;
+  var _sumBox = document.getElementById('overview-summary');
+  if (_sumBox) _sumBox.innerHTML = summaryHtml;
 
-  // Build grade summary text
+  let html = '';
+
+  // Build the grade-distribution stacked bar (charts sit below the table now).
   setTimeout(function() {
     var grades = {A:0, B:0, C:0, D:0, F:0};
     withMetrics.forEach(function(c) { var g = c.metrics.risk_grade; if (grades[g] !== undefined) grades[g]++; });
-    var bar = document.getElementById('grade-summary-bar');
-    if (bar) {
-      var gc = {A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'};
-      bar.innerHTML = Object.entries(grades).filter(function(e){return e[1]>0}).map(function(e){
-        return '<span style="color:'+gc[e[0]]+';font-weight:700;">'+e[0]+'</span><span style="color:var(--text-dim);">'+e[1]+'</span>';
-      }).join('<span style="color:var(--border);">·</span>');
+    var gc = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'#8b0000'};
+    var stack = document.getElementById('grade-stack');
+    if (stack) {
+      stack.innerHTML = Object.keys(gc).map(function(k){ return grades[k] > 0 ? '<span style="flex:'+grades[k]+';background:'+gc[k]+';"></span>' : ''; }).join('') || '<span style="flex:1;background:var(--border);"></span>';
     }
-  }, 100);
+    var legend = document.getElementById('grade-legend');
+    if (legend) {
+      legend.innerHTML = Object.keys(gc).filter(function(k){return grades[k]>0;}).map(function(k){ return '<span><b style="color:'+gc[k]+';">'+k+'</b> '+grades[k]+'</span>'; }).join('');
+    }
+  }, 60);
 
   // Render charts after DOM update
   setTimeout(() => {
@@ -6281,22 +6260,22 @@ function renderOverview(customers, activeId) {
       </div>`;
   } else {
     html += `
-    <div class="card overview-table-wrap" style="padding:0;overflow:auto;max-height:70vh;">
-      <table class="customer-overview-table" style="width:100%;border-collapse:collapse;font-size:13px;">
-        <thead class="sticky-thead">
-          <tr style="background:var(--bg-card);border-bottom:1px solid var(--border);">
-            <th style="text-align:left;padding:12px 16px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onclick="sortOverview('customer_name')">${t('lbl_customer')} ${_overviewSortKey==='customer_name'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;min-width:40px;" title="${t('tip_health_grade','Health grade (A-F) across all integrations')}">${t('lbl_health','Helse')}</th>
-            <th class="tooltip" data-tip="${t('tip_risk_grade_scale')}" style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onclick="sortOverview('risk_grade')">${t('lbl_grade')} ${_overviewSortKey==='risk_grade'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onclick="sortOverview('risk_score')">${t('lbl_risk')} ${_overviewSortKey==='risk_score'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th class="tooltip" data-tip="${t('tip_mfa_coverage')}" style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onclick="sortOverview('mfa_coverage_pct')">MFA% ${_overviewSortKey==='mfa_coverage_pct'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onclick="sortOverview('secure_score_pct')">Secure Score% ${_overviewSortKey==='secure_score_pct'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;" onclick="sortOverview('total_users')">${t('lbl_users')} ${_overviewSortKey==='total_users'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">${t('lbl_last_audit')}</th>
-            <th style="text-align:right;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;" title="${t('tip_mrr','Monthly Recurring Revenue: ALSO + Uniweb')}">MRR</th>
-            <th style="text-align:center;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;min-width:80px;">${t('lbl_trend')}</th>
+    <div class="card overview-table-wrap" style="padding:0;overflow:auto;max-height:70vh;background:var(--bg-panel);">
+      <table class="slim-table customer-overview-table">
+        <thead>
+          <tr>
+            <th class="sortable" onclick="sortOverview('customer_name')">${t('lbl_customer')} ${_overviewSortKey==='customer_name'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
+            <th>${t('lbl_status','Status')}</th>
+            <th class="num sortable" onclick="sortOverview('risk_score')">${t('lbl_risk')} ${_overviewSortKey==='risk_score'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
+            <th class="num sortable" onclick="sortOverview('mfa_coverage_pct')">MFA ${_overviewSortKey==='mfa_coverage_pct'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
+            <th class="num sortable" onclick="sortOverview('secure_score_pct')">${t('lbl_secure_score','Secure score')} ${_overviewSortKey==='secure_score_pct'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
+            <th class="num">MRR</th>
+            <th>${t('lbl_last_audit')}</th>
+            <th class="col-opt col-hidden" data-optcol="health" title="${t('tip_health_grade','Health grade (A-F) across all integrations')}">${t('lbl_health','Helse')}</th>
+            <th class="num col-opt col-hidden sortable" data-optcol="users" onclick="sortOverview('total_users')">${t('lbl_users','Brukere')}</th>
+            <th class="col-opt col-hidden" data-optcol="trend">${t('lbl_trend','Trend')}</th>
+            <th class="col-opt col-hidden" data-optcol="tags">${t('lbl_tags','Tags')}</th>
             <th style="width:40px;"></th>
-            <th style="text-align:left;padding:12px 8px;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">${t('lbl_tags')}</th>
           </tr>
         </thead>
         <tbody>`;
@@ -6346,33 +6325,44 @@ function renderOverview(customers, activeId) {
       const mrrVal = _cd.total_monthly || 0;
       const mrrStr = mrrVal > 0 ? mrrVal.toLocaleString('nb-NO', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' kr' : '-';
 
+      // Grade → semantic colour var + derived status pill (frame 1b).
+      const _gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[grade] || 'var(--text-muted)';
+      let _stLabel, _stColor;
+      if (grade === 'D' || grade === 'F') { _stLabel = t('status_needs_followup','Trenger oppfølging'); _stColor = 'var(--red)'; }
+      else if (hasM && m.total_warns > 0) { _stLabel = t('status_watch','Følg med'); _stColor = 'var(--orange)'; }
+      else if (hasM) { _stLabel = 'OK'; _stColor = 'var(--green)'; }
+      else { _stLabel = '—'; _stColor = 'var(--text-dim)'; }
+      const _stBg = hasM ? `color-mix(in srgb, ${_stColor} 12%, transparent)` : 'transparent';
+      const _domBadges = `${c.has_m365 ? ' <span style="background:var(--blue);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="M365 configured">M365</span>' : ''}${c.has_fortigate ? ' <span style="background:#e8590c;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="FortiGate configured">FG</span>' : ''}${c.has_unifi ? ' <span style="background:#06b6d4;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="UniFi configured">UF</span>' : ''}${!c.has_m365 && !c.has_fortigate && !c.has_unifi ? ' <span style="background:var(--text-dim);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="'+t('filter_needs_setup','Needs setup')+'">?</span>' : ''}`;
+      const _warnNote = `${hasM && m.total_warns > 0 ? '<div style="font-size:10px;color:var(--orange);margin-top:2px;">&#9888; ' + m.total_warns + ' ' + t('lbl_warnings','warnings') + '</div>' : ''}${(() => { if (!c.last_audit) return '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+t('lbl_never_audited','Never audited')+'</div>'; try { var _ad = new Date(c.last_audit.replace(/_/g,'T').substring(0,16)); var _da = Math.floor((Date.now()-_ad.getTime())/86400000); if (_da > 30) return '<div style="font-size:10px;color:var(--orange);margin-top:1px;">&#9200; '+_da+'d '+t('lbl_since_audit','since audit')+'</div>'; } catch(e){} return ''; })()}`;
+
       html += `
-          <tr style="border-bottom:1px solid var(--border);border-left:3px solid ${gradeColor(grade)};cursor:pointer;transition:background 0.15s;"
-              onmouseover="this.style.background='rgba(77,159,181,0.08)'"
-              onmouseout="this.style.background=''"
-              onclick="overviewSelectCustomer('${esc(c.customer_id)}')"
+          <tr onclick="overviewSelectCustomer('${esc(c.customer_id)}')"
               ondblclick="event.preventDefault();quickSwitchAndAudit('${esc(c.customer_id)}')"
               title="${t('tip_click_detail_dblclick_audit','Click: details · Double-click: run audit')}">
-            <td style="padding:12px 16px;">
-              <div style="font-weight:600;" title="${esc(c.customer_name)}${hasM ? '\n'+t('lbl_grade')+': '+grade+' · Score: '+score+'\nMFA: '+mfa+' · Secure Score: '+ss+'\n'+t('lbl_users')+': '+users : ''}">${esc(c.customer_name)}${activeBadge}</div>
-              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);">${esc(c.primary_domain || '')}${c.has_m365 ? ' <span style="background:var(--blue);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="M365 configured">M365</span>' : ''}${c.has_fortigate ? ' <span style="background:#e8590c;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="FortiGate configured">FG</span>' : ''}${c.has_unifi ? ' <span style="background:#06b6d4;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="UniFi configured">UF</span>' : ''}${!c.has_m365 && !c.has_fortigate && !c.has_unifi ? ' <span style="background:var(--text-dim);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="'+t('filter_needs_setup','Needs setup')+'">?</span>' : ''}</div>
-              ${hasM && m.total_warns > 0 ? '<div style="font-size:10px;color:var(--orange);margin-top:2px;">&#9888; ' + m.total_warns + ' ' + t('lbl_warnings','warnings') + '</div>' : ''}${(() => { if (!c.last_audit) return '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+t('lbl_never_audited','Never audited')+'</div>'; try { var _ad = new Date(c.last_audit.replace(/_/g,'T').substring(0,16)); var _da = Math.floor((Date.now()-_ad.getTime())/86400000); if (_da > 30) return '<div style="font-size:10px;color:var(--orange);margin-top:1px;">&#9200; '+_da+'d '+t('lbl_since_audit','since audit')+'</div>'; } catch(e){} return ''; })()}
+            <td>
+              <div class="cust-cell">
+                <span class="grade-tile" style="color:${_gv};background:color-mix(in srgb, ${_gv} 12%, transparent);border-color:color-mix(in srgb, ${_gv} 40%, transparent);" onclick="event.stopPropagation();filterByGrade('${grade}')" title="${t('tip_click_filter_grade','Click to filter by grade')}">${grade}</span>
+                <span style="min-width:0;">
+                  <span class="cname">${esc(c.customer_name)}${activeBadge}</span>
+                  <span class="cdom">${esc(c.primary_domain || '')}${_domBadges}</span>
+                  ${_warnNote}
+                </span>
+              </div>
             </td>
-            <td style="text-align:center;padding:12px 8px;">
-              <span onclick="event.stopPropagation();showView('overview');setTimeout(function(){var dt=document.querySelector('[data-dash-tab=health]');if(dt)dt.click();},200);" style="display:inline-block;width:26px;height:26px;line-height:26px;border-radius:50%;font-weight:700;font-size:12px;color:#fff;background:${healthColor};cursor:pointer;transition:transform var(--duration-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform=''" title="${t('tip_health_click','Health: ${healthGrade} (${healthScore}/100) — Click for details')}">${healthGrade}</span>
+            <td><span class="status-pill" style="color:${_stColor};background:${_stBg};">${_stLabel}</span></td>
+            <td class="num">${score}${hasPrev ? deltaHtml(m, pm, 'risk_score', true) : ''}</td>
+            <td class="num" style="color:${mfaColor};">${mfa}${hasPrev ? deltaHtml(m, pm, 'mfa_coverage_pct', true) : ''}</td>
+            <td class="num" style="color:${ssColor};">${ss}${hasPrev ? deltaHtml(m, pm, 'secure_score_pct', true) : ''}</td>
+            <td class="num" style="color:${mrrVal > 0 ? 'var(--text-muted)' : 'var(--text-dim)'};font-weight:${mrrVal > 0 ? '600' : '400'};">${mrrStr}</td>
+            <td style="color:var(--text-muted);font-size:12px;white-space:nowrap;">${lastAudit}</td>
+            <td class="col-opt col-hidden" data-optcol="health" style="text-align:center;">
+              <span onclick="event.stopPropagation();showView('overview');setTimeout(function(){var dt=document.querySelector('[data-dash-tab=health]');if(dt)dt.click();},200);" style="display:inline-block;width:26px;height:26px;line-height:26px;border-radius:50%;font-weight:700;font-size:12px;color:#fff;background:${healthColor};cursor:pointer;" title="${t('lbl_health','Helse')}: ${healthGrade} (${healthScore}/100)">${healthGrade}</span>
             </td>
-            <td style="text-align:center;padding:12px 8px;">
-              <span onclick="event.stopPropagation();filterByGrade('${grade}')" style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:6px;font-weight:800;font-size:16px;color:#fff;background:${gradeColor(grade)};cursor:pointer;transition:transform var(--duration-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform=''" title="${t('tip_click_filter_grade','Click to filter by grade')}">${grade}</span>
-            </td>
-            <td style="text-align:center;padding:12px 8px;font-weight:600;">${score}${hasPrev ? deltaHtml(m, pm, 'risk_score', true) : ''}</td>
-            <td style="text-align:center;padding:12px 8px;font-weight:600;color:${mfaColor};">${mfa}${hasPrev ? deltaHtml(m, pm, 'mfa_coverage_pct', true) : ''}</td>
-            <td style="text-align:center;padding:12px 8px;font-weight:600;color:${ssColor};">${ss}${hasPrev ? deltaHtml(m, pm, 'secure_score_pct', true) : ''}</td>
-            <td style="text-align:center;padding:12px 8px;">${users}</td>
-            <td style="text-align:center;padding:12px 8px;color:var(--text-muted);font-size:12px;">${lastAudit}</td>
-            <td style="text-align:right;padding:12px 8px;font-size:12px;font-weight:600;color:${mrrVal > 0 ? 'var(--text)' : 'var(--text-muted)'};">${mrrStr}</td>
-            <td style="text-align:center;padding:12px 8px;"><span id="spark-${esc(c.customer_id || c._id || '')}" style="display:inline-block;width:72px;height:24px;"></span></td>
-            <td style="padding:12px 8px;">${tagPillsHtml(c.tags || [])}</td>
-            <td style="padding:8px 4px;text-align:center;">
+            <td class="num col-opt col-hidden" data-optcol="users">${users}</td>
+            <td class="col-opt col-hidden" data-optcol="trend" style="text-align:center;"><span id="spark-${esc(c.customer_id || c._id || '')}" style="display:inline-block;width:72px;height:24px;"></span></td>
+            <td class="col-opt col-hidden" data-optcol="tags">${tagPillsHtml(c.tags || [])}</td>
+            <td style="text-align:center;">
               <div style="position:relative;display:inline-block;" class="row-actions-wrap">
                 <button onclick="event.stopPropagation();toggleRowActions(this)" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-dim);padding:2px 6px;border-radius:var(--radius-sm);transition:background var(--duration-fast);" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">&#8943;</button>
                 <div class="row-actions-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-1) 0;min-width:180px;box-shadow:var(--shadow-lg);z-index:50;animation:dropdown-in var(--duration-fast) var(--ease-out);">
@@ -6391,6 +6381,17 @@ function renderOverview(customers, activeId) {
     html += `
         </tbody>
       </table>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px;">
+      <div class="card" style="background:var(--bg-panel);padding:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">${t('lbl_risk_distribution')}</div>
+        <div style="position:relative;height:120px;"><canvas id="chart-risk-bar"></canvas></div>
+      </div>
+      <div class="card" style="background:var(--bg-panel);padding:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">${t('lbl_grade_distribution')}</div>
+        <div class="grade-stack" id="grade-stack"></div>
+        <div class="grade-legend" id="grade-legend"></div>
+      </div>
     </div>`;
   }
 
@@ -6405,12 +6406,68 @@ function renderOverview(customers, activeId) {
 
   tableBox.innerHTML = html;
 
+  // Apply saved column-visibility prefs, refresh the quick-filter pills,
+  // and stamp "Oppdatert HH:MM" in the tab bar.
+  applyOverviewColumnPrefs();
+  _updateOverviewQuickPills();
+  var _updT = document.getElementById('dash-updated-time');
+  if (_updT) {
+    _updT.textContent = new Date().toLocaleTimeString('no-NO', {hour:'2-digit', minute:'2-digit'});
+    var _updW = document.getElementById('dash-updated-wrap');
+    if (_updW) _updW.style.display = '';
+  }
+
   // Make the overview table sortable
   var overviewTable = tableBox.querySelector('table');
   if (overviewTable) makeSortable(overviewTable);
 
   // Load sparkline trend data
   _loadSparklines();
+}
+
+// ── Overview column picker + quick-pill state (frame 1b) ─────────────────────
+function _overviewColPrefs() {
+  try { return JSON.parse(localStorage.getItem('sybr_overview_cols') || '{}') || {}; } catch (e) { return {}; }
+}
+function applyOverviewColumnPrefs() {
+  var prefs = _overviewColPrefs();
+  ['health', 'users', 'trend', 'tags'].forEach(function(col) {
+    var show = !!prefs[col];
+    document.querySelectorAll('[data-optcol="' + col + '"]').forEach(function(el) { el.classList.toggle('col-hidden', !show); });
+    var cb = document.querySelector('#overview-colpick-menu input[data-col="' + col + '"]');
+    if (cb) cb.checked = show;
+  });
+}
+function toggleOverviewColumn(col, show) {
+  var prefs = _overviewColPrefs();
+  prefs[col] = !!show;
+  try { localStorage.setItem('sybr_overview_cols', JSON.stringify(prefs)); } catch (e) { /* private mode */ }
+  document.querySelectorAll('[data-optcol="' + col + '"]').forEach(function(el) { el.classList.toggle('col-hidden', !show); });
+}
+function toggleOverviewColpick(e) {
+  if (e) e.stopPropagation();
+  var menu = document.getElementById('overview-colpick-menu');
+  if (!menu) return;
+  if (menu.classList.toggle('open')) {
+    setTimeout(function() { document.addEventListener('click', _closeOverviewColpickOutside); }, 0);
+  } else {
+    document.removeEventListener('click', _closeOverviewColpickOutside);
+  }
+}
+function _closeOverviewColpickOutside(e) {
+  var wrap = document.getElementById('overview-colpick');
+  if (wrap && !wrap.contains(e.target)) {
+    var menu = document.getElementById('overview-colpick-menu');
+    if (menu) menu.classList.remove('open');
+    document.removeEventListener('click', _closeOverviewColpickOutside);
+  }
+}
+function _updateOverviewQuickPills() {
+  var qf = window._quickFilter || 'all';
+  [['qp-all', 'all'], ['qp-problems', 'problems'], ['qp-expiring', 'expiring']].forEach(function(pair) {
+    var el = document.getElementById(pair[0]);
+    if (el) el.classList.toggle('active', qf === pair[1]);
+  });
 }
 
 async function _loadSparklines() {
