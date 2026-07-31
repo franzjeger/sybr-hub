@@ -307,3 +307,191 @@ async def test_every_property_asked_for_exists_on_the_v1_resource():
 
     unknown = sorted(asked - known)
     assert not unknown, f"not properties of sharepointSettings v1.0: {unknown}"
+
+
+# ── Secure Score ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_secure_score_survives_the_round_trip():
+    from app.modules.m365_audit.sections.secure_score import SecureScoreSection
+
+    section = SecureScoreSection(_tmp(), _FakeGraph({}, {"security/secureScores": {
+        "value": [
+            {"createdDateTime": "2026-07-01T00:00:00Z", "currentScore": 100.0,
+             "maxScore": 400.0, "controlScores": []},
+            {"createdDateTime": "2026-07-30T00:00:00Z", "currentScore": 231.5,
+             "maxScore": 400.0, "controlScores": [
+                 {"controlName": "MFA for admins", "scoreInPercentage": 0.0,
+                  "controlCategory": "Identity"},
+                 {"controlName": "Block legacy auth", "scoreInPercentage": 100.0,
+                  "controlCategory": "Identity"},
+             ]},
+        ]
+    }}))
+    await _run(section)
+
+    parsed = g._parse_secure_score(_read(section.out_dir, "09_secure_score.txt"))
+    assert parsed["has_data"] is True
+    assert parsed["current"] == 231.5, "the most recent snapshot, not the first"
+    assert parsed["max"] == 400.0
+    assert parsed["pct"] == pytest.approx(57.9, abs=0.2)
+
+
+@pytest.mark.asyncio
+async def test_a_tenant_with_no_secure_score_reads_back_as_unknown():
+    """Not as a zero score, which is a very different statement."""
+    from app.modules.m365_audit.sections.secure_score import SecureScoreSection
+
+    section = SecureScoreSection(_tmp(), _FakeGraph({}, {"security/secureScores": {"value": []}}))
+    await _run(section)
+
+    parsed = g._parse_secure_score(_read(section.out_dir, "09_secure_score.txt"))
+    assert parsed["has_data"] is False
+
+
+# ── Intune ───────────────────────────────────────────────────────────────────
+
+
+def _device(name, state):
+    return {
+        "deviceName": name, "complianceState": state,
+        "operatingSystem": "Windows", "osVersion": "10.0",
+        "userPrincipalName": f"{name}@x.no", "enrolledDateTime": "2026-01-01T00:00:00Z",
+        "lastSyncDateTime": "2026-07-30T00:00:00Z", "managedDeviceOwnerType": "company",
+    }
+
+
+@pytest.mark.asyncio
+async def test_device_compliance_counts_survive_the_round_trip():
+    from app.modules.m365_audit.sections.intune import IntuneSection
+
+    section = IntuneSection(_tmp(), _FakeGraph({"deviceManagement/managedDevices": [
+        _device("pc1", "compliant"),
+        _device("pc2", "compliant"),
+        _device("pc3", "noncompliant"),
+        _device("pc4", "unknown"),
+    ]}))
+    await section._collect_devices()
+
+    parsed = g._parse_intune_devices(_read(section.out_dir, "10_intune_devices_count.txt"),
+                                     _read(section.out_dir, "10_intune_devices.txt"))
+    assert parsed["total"] == 4
+    assert parsed["compliant"] == 2
+    assert parsed["noncompliant"] == 1
+    assert parsed["unknown"] == 1
+    assert parsed["compliance_pct"] == 50.0
+
+
+@pytest.mark.asyncio
+async def test_a_tenant_with_no_enrolled_devices_is_not_a_hundred_percent_compliant():
+    """Zero of zero is not full marks; CIS 6.1.1 used to read it that way."""
+    from app.modules.m365_audit.sections.intune import IntuneSection
+
+    section = IntuneSection(_tmp(), _FakeGraph({"deviceManagement/managedDevices": []}))
+    await section._collect_devices()
+
+    parsed = g._parse_intune_devices(_read(section.out_dir, "10_intune_devices_count.txt"),
+                                     _read(section.out_dir, "10_intune_devices.txt"))
+    assert parsed["total"] == 0
+    assert parsed["compliance_pct"] == 0.0
+
+
+# ── OAuth consent grants ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_oauth_grants_survive_the_round_trip():
+    """The section that lost eleven of twenty-eight grants to a header heuristic."""
+    from app.modules.m365_audit.sections.apps_oauth import AppsOAuthSection
+
+    graph = _FakeGraph(
+        {"oauth2PermissionGrants": [
+            {"clientId": "c1", "resourceId": "r1", "scope": "User.Read"},
+            {"clientId": "c2", "resourceId": "r1", "scope": "Mail.ReadWrite Files.Read.All"},
+            {"clientId": "c1", "resourceId": "r2", "scope": "Sites.FullControl.All"},
+        ]},
+        {
+            "servicePrincipals/c1": {"displayName": "AvePoint Fly"},
+            "servicePrincipals/c2": {"displayName": "Datto RMM integration"},
+            "servicePrincipals/r1": {"displayName": "Microsoft Graph"},
+            "servicePrincipals/r2": {"displayName": "Office 365 SharePoint Online"},
+        },
+    )
+    section = AppsOAuthSection(_tmp(), graph)
+    await section._collect_oauth_grants()
+
+    text = _read(section.out_dir, "17b_oauth_consent_grants.txt")
+    assert "AvePoint Fly" in text and "Datto RMM integration" in text
+
+    parsed = g._parse_oauth_grants(text, "")
+    assert parsed["has_data"] is True
+    assert parsed["unique_apps"] == 2, "two distinct client apps across three grants"
+
+
+@pytest.mark.asyncio
+async def test_a_grant_whose_every_column_looks_like_a_heading_still_counts():
+    """Capitalised, no digits, no @ / : — the shape that swallowed eleven rows."""
+    from app.modules.m365_audit.sections.apps_oauth import AppsOAuthSection
+
+    graph = _FakeGraph(
+        {"oauth2PermissionGrants": [{"clientId": "c1", "resourceId": "r1", "scope": "User.Read"}]},
+        {"servicePrincipals/c1": {"displayName": "AvePoint Fly"},
+         "servicePrincipals/r1": {"displayName": "Microsoft Graph"}},
+    )
+    section = AppsOAuthSection(_tmp(), graph)
+    await section._collect_oauth_grants()
+
+    text = _read(section.out_dir, "17b_oauth_consent_grants.txt")
+    assert g._count_data_lines(text) == 1
+    assert g._parse_oauth_grants(text, "")["unique_apps"] == 1
+
+
+# ── Groups ───────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_group_inventory_survives_the_round_trip():
+    from app.modules.m365_audit.sections.groups_roles import GroupsSection
+
+    graph = _FakeGraph(
+        {"groups": [
+            {"id": "g1", "displayName": "All Staff", "groupTypes": ["Unified"],
+             "securityEnabled": False, "mailEnabled": True},
+            {"id": "g2", "displayName": "SYBR - Exclude", "groupTypes": [],
+             "securityEnabled": True, "mailEnabled": False},
+            {"id": "g3", "displayName": "Dynamic Sales", "groupTypes": [],
+             "securityEnabled": True, "mailEnabled": False,
+             "membershipRule": 'user.department -eq "Sales"'},
+        ]},
+        {"groups/g1/members/$count": 42, "groups/g2/members/$count": 3,
+         "groups/g3/transitiveMembers/$count": 7},
+    )
+    out = await _run(GroupsSection(_tmp(), graph))
+
+    parsed = g._parse_groups(_read(out, "06_groups.txt"))
+    assert parsed["total"] == 3
+    assert parsed["has_data"] is True
+    by_name = {gr["name"]: gr for gr in parsed["groups"]}
+    assert by_name["All Staff"]["type"] == "Microsoft 365"
+    assert by_name["Dynamic Sales"]["type"] == "Dynamic"
+    assert by_name["All Staff"]["members"] == 42
+
+
+@pytest.mark.asyncio
+async def test_a_group_whose_member_count_failed_is_not_reported_as_empty():
+    """N/A means the count call failed; an empty group is a finding, so the
+    two must not be confused."""
+    from app.modules.m365_audit.sections.groups_roles import GroupsSection
+
+    graph = _FakeGraph(
+        {"groups": [{"id": "g1", "displayName": "Mystery", "groupTypes": [],
+                     "securityEnabled": True, "mailEnabled": False}]},
+        {},  # every $count call returns {} → member_count stays "N/A"
+    )
+    out = await _run(GroupsSection(_tmp(), graph))
+
+    parsed = g._parse_groups(_read(out, "06_groups.txt"))
+    assert parsed["total"] == 1
+    assert parsed["groups"][0]["members_known"] is False
+    assert parsed["empty_groups"] == 0, "unknown is not empty"
