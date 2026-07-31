@@ -2339,6 +2339,55 @@ function handleProgress(d) {
   }
 }
 
+// Everything the run flagged, gathered in one place and ordered by weight.
+//
+// The section table answers "did every section run", which is what you want
+// while it is running. Afterwards the question is "what is wrong", and that
+// answer was spread across twenty-six rows — most of them empty, since a
+// section with nothing to report still takes a full row — with the longest
+// lists truncated behind "+n til". Nothing is removed; this sits above it.
+function renderAuditFindings(results) {
+  var box = document.getElementById('audit-findings');
+  if (!box) return;
+
+  var failures = [], findings = [];
+  results.forEach(function (r) {
+    if (r.error) failures.push({ section: r.name, text: r.error });
+    (r.warns || []).forEach(function (w) { findings.push({ section: r.name, text: w }); });
+  });
+
+  if (!failures.length && !findings.length) {
+    box.style.display = 'block';
+    box.innerHTML = '<div class="card" style="border-left:3px solid var(--green);">'
+      + '<div style="font-weight:600;color:var(--green);">&#10003; '
+      + esc(t('audit_no_findings', 'Ingen varsler')) + '</div>'
+      + '<div style="color:var(--text-dim);font-size:12px;margin-top:4px;">'
+      + esc(t('audit_no_findings_detail', 'Alle seksjoner fullførte uten å flagge noe.'))
+      + '</div></div>';
+    return;
+  }
+
+  function list(items, colour, heading) {
+    if (!items.length) return '';
+    return '<div style="margin-bottom:' + (failures.length && findings.length ? '12px' : '0') + ';">'
+      + '<div style="font-weight:600;color:' + colour + ';margin-bottom:6px;font-size:13px;">'
+      + esc(heading) + ' (' + items.length + ')</div>'
+      + items.map(function (f) {
+          return '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+            + '<span style="color:var(--text-dim);flex:0 0 150px;">' + esc(f.section) + '</span>'
+            + '<span>' + esc(f.text) + '</span></div>';
+        }).join('')
+      + '</div>';
+  }
+
+  box.style.display = 'block';
+  box.innerHTML = '<div class="card" style="border-left:3px solid '
+    + (failures.length ? 'var(--red)' : 'var(--orange)') + ';">'
+    + list(failures, 'var(--red)', t('status_failed', 'Feilet'))
+    + list(findings, 'var(--orange)', t('status_warnings', 'Varsler'))
+    + '</div>';
+}
+
 function handleAuditDone(results) {
   let done = 0, warns = 0, failed = 0;
 
@@ -2392,6 +2441,7 @@ function handleAuditDone(results) {
   document.getElementById('sum-warn').textContent = warns;
   document.getElementById('sum-fail').textContent = failed;
   document.getElementById('audit-done-area').style.display = 'block';
+  renderAuditFindings(results);
 
   // Browser notification if tab is hidden
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {

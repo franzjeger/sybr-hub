@@ -1048,7 +1048,6 @@
     "msg_deploy_failed": "Deploy feilet",
     "hdr_config_summary": "Konfigurasjonsoversikt",
     "btn_download_summary": "Last ned oversikt",
-    "lbl_details": "Detaljer",
     "msg_lan_ip_changed": "Brannmurens LAN-adresse er endret",
     "msg_lan_ip_old": "Gammel IP",
     "msg_lan_ip_new": "Ny IP",
@@ -1277,7 +1276,6 @@
     "msg_loading_summary": "Laster sammendrag...",
     "lbl_connected": "Tilkoblet",
     "lbl_key_saved_sdk_missing": "Nøkkel lagret, men SDK mangler",
-    "lbl_not_configured": "Ikke konfigurert",
     "err_host_token_required": "Host og token er påkrevd",
     "msg_fortigate_config_saved": "FortiGate-konfig lagret for aktiv kunde",
     "lbl_saved": "Lagret",
@@ -1702,7 +1700,9 @@
     "gdap_roles": "Roller",
     "gdap_err_missing_fields": "Partner Tenant ID og Client ID er påkrevd",
     "gdap_badge": "GDAP",
-    "gdap_exo_unavailable": "EXO-data ikke tilgjengelig via GDAP"
+    "gdap_exo_unavailable": "EXO-data ikke tilgjengelig via GDAP",
+    "audit_no_findings": "Ingen varsler",
+    "audit_no_findings_detail": "Alle seksjoner fullførte uten å flagge noe."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -2753,7 +2753,6 @@
     "msg_deploy_failed": "Deploy failed",
     "hdr_config_summary": "Configuration Summary",
     "btn_download_summary": "Download Summary",
-    "lbl_details": "Details",
     "msg_lan_ip_changed": "Firewall LAN address has changed",
     "msg_lan_ip_old": "Old IP",
     "msg_lan_ip_new": "New IP",
@@ -2982,7 +2981,6 @@
     "msg_loading_summary": "Loading summary...",
     "lbl_connected": "Connected",
     "lbl_key_saved_sdk_missing": "Key saved, but SDK missing",
-    "lbl_not_configured": "Not configured",
     "err_host_token_required": "Host and token are required",
     "msg_fortigate_config_saved": "FortiGate config saved for active customer",
     "lbl_saved": "Saved",
@@ -3407,6 +3405,8 @@
     "gdap_roles": "Roles",
     "gdap_err_missing_fields": "Partner Tenant ID and Client ID are required",
     "gdap_badge": "GDAP",
-    "gdap_exo_unavailable": "EXO data not available via GDAP"
+    "gdap_exo_unavailable": "EXO data not available via GDAP",
+    "audit_no_findings": "No warnings",
+    "audit_no_findings_detail": "Every section completed without flagging anything."
   }
 }
