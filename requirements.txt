@@ -66,10 +66,13 @@ PyJWT[crypto]>=2.9.0,<3.0
 # DNS validation
 dnspython>=2.6.0,<3.0
 
-# Penetration testing module
-# python-nmap shells out to the nmap binary; the scan degrades to
-# "unavailable" when nmap isn't installed rather than failing the import.
-python-nmap>=0.7.1,<1.0
+# Penetration testing module.
+# No python-nmap here on purpose: the pentest code shells out to the nmap
+# *binary* via subprocess (app/modules/pentest/{scanner,smb_enum}.py check
+# shutil.which("nmap") and degrade to "unavailable" when it is absent), and
+# never imports the python-nmap library. It was a hard dependency for a module
+# nothing imported, and its legacy setup.py fails to build under newer
+# setuptools — an install-time crash for a package with no callers.
 # TLS auditing needs the low-level handshake control pyOpenSSL exposes and
 # the stdlib ssl module does not.
 pyOpenSSL>=24.0.0,<26.0
