@@ -375,6 +375,7 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                                 "name":  r.name,
                                 "status": r.status.name.lower(),
                                 "warns": r.warns,
+                                "warn_levels": r.warn_levels,
                                 "files": r.files,
                                 "error": r.error,
                             }
@@ -407,7 +408,8 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                         _cfg2 = _lc2() or {}
                         _ro2 = [
                             _SR2(name=r["name"], status=_SS2[r["status"].upper()],
-                                 warns=r.get("warns", []), files=r.get("files", []), error=r.get("error"))
+                                 warns=r.get("warns", []), warn_levels=r.get("warn_levels", []),
+                                 files=r.get("files", []), error=r.get("error"))
                             for r in (state.audit_results or [])
                         ]
                         await asyncio.get_event_loop().run_in_executor(
@@ -449,7 +451,8 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                         _cfg = _lc() or {}
                         _results_objs = [
                             SectionResult(name=r["name"], status=_SS[r["status"].upper()],
-                                          warns=r.get("warns", []), files=r.get("files", []), error=r.get("error"))
+                                          warns=r.get("warns", []), warn_levels=r.get("warn_levels", []),
+                                 files=r.get("files", []), error=r.get("error"))
                             for r in (state.audit_results or [])
                         ]
                         _ctx = await asyncio.get_event_loop().run_in_executor(
@@ -622,7 +625,8 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
 
                         # Generate reports
                         results_objs = [
-                            SectionResult(name=r.name, status=r.status, warns=r.warns, files=r.files, error=r.error)
+                            SectionResult(name=r.name, status=r.status, warns=r.warns,
+                                          warn_levels=r.warn_levels, files=r.files, error=r.error)
                             for r in audit_results_raw
                         ]
                         org_domain = full_cust.get("PrimaryDomain", "")

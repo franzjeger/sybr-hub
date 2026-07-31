@@ -321,7 +321,8 @@ class ExchangeSection(BaseSection):
 
         if external_fwd:
             self._warn(
-                f"{len(external_fwd)} mailbox(es) forwarding to external addresses"
+                f"{len(external_fwd)} mailbox(es) forwarding to external addresses",
+                level="critical",
             )
             ext_lines = [
                 "=" * 100,
@@ -352,7 +353,8 @@ class ExchangeSection(BaseSection):
         self._save(filename, content)
         if rules:
             self._warn(
-                f"{len(rules)} inbox rule(s) forwarding to external addresses found"
+                f"{len(rules)} inbox rule(s) forwarding to external addresses found",
+                level="critical",
             )
 
     # ── Sensitivity Labels (Graph, not EXO) ───────────────────────────────────

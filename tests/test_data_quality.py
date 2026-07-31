@@ -1058,3 +1058,56 @@ async def test_identity_security_no_longer_writes_the_purview_file():
     await IdentitySecuritySection(out_dir, FakeGraph()).collect()
 
     assert not (out_dir / "19c_purview_sensitivity_labels.txt").exists()
+
+
+# ── Warning severity travels with the warning ────────────────────────────────
+
+
+def test_warn_records_a_level_for_every_message():
+    """warns and warn_levels are parallel lists; nothing else appends to either.
+
+    Kept alongside rather than folded into one list because warns is consumed
+    as plain strings by the scheduler, the SSE payload and three places in the
+    UI. The invariant is only safe while _warn is the sole writer.
+    """
+    from app.modules.base import BaseSection, SectionResult
+
+    class _S(BaseSection):
+        name = "T"
+        async def collect(self) -> SectionResult:
+            return self.result
+
+    import pathlib, tempfile
+    s = _S(pathlib.Path(tempfile.mkdtemp()))
+    s._warn("ordinary")
+    s._warn("an active exposure", level="critical")
+    s._warn("nonsense level", level="banana")
+
+    assert s.result.warns == ["ordinary", "an active exposure", "nonsense level"]
+    assert s.result.warn_levels == ["warn", "critical", "warn"], (
+        "an unknown level falls back rather than reaching the UI"
+    )
+    assert len(s.result.warns) == len(s.result.warn_levels)
+
+
+@pytest.mark.asyncio
+async def test_external_forwarding_is_marked_critical():
+    """The severity belongs to the collector that found it, not to a pattern
+    match over the message downstream."""
+    import pathlib, tempfile
+
+    from app.modules.m365_audit.sections.exchange import ExchangeSection
+
+    class _G:
+        async def get_all(self, *a, **k): return []
+        async def get(self, *a, **k): return {}
+
+    section = ExchangeSection(
+        pathlib.Path(tempfile.mkdtemp()),
+        {"forwarding": [{"DisplayName": "Anna", "ForwardingSmtp": "anna@gmail.com"}]},
+        ["example.no"], graph=_G(),
+    )
+    section._save_forwarding()
+
+    assert section.result.warns, "the finding should be recorded"
+    assert "critical" in section.result.warn_levels

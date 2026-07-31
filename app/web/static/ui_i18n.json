@@ -1702,7 +1702,8 @@
     "gdap_badge": "GDAP",
     "gdap_exo_unavailable": "EXO-data ikke tilgjengelig via GDAP",
     "audit_no_findings": "Ingen varsler",
-    "audit_no_findings_detail": "Alle seksjoner fullførte uten å flagge noe."
+    "audit_no_findings_detail": "Alle seksjoner fullførte uten å flagge noe.",
+    "status_critical_findings": "Kritiske funn"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -3407,6 +3408,7 @@
     "gdap_badge": "GDAP",
     "gdap_exo_unavailable": "EXO data not available via GDAP",
     "audit_no_findings": "No warnings",
-    "audit_no_findings_detail": "Every section completed without flagging anything."
+    "audit_no_findings_detail": "Every section completed without flagging anything.",
+    "status_critical_findings": "Critical findings"
   }
 }

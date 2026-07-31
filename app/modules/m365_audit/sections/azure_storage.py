@@ -93,10 +93,12 @@ class AzureStorageSection(BaseSection):
                 self._warn(f"Storage '{sa.name}': minimum TLS version is {tls} (below TLS1_2)")
             if not https_only:
                 flags.append("HTTP-ALLOWED")
-                self._warn(f"Storage '{sa.name}': HTTP traffic is allowed (not HTTPS-only)")
+                self._warn(f"Storage '{sa.name}': HTTP traffic is allowed (not HTTPS-only)",
+                           level="critical")
             if pub_blob:
                 flags.append("PUBLIC-BLOB")
-                self._warn(f"Storage '{sa.name}': public blob access is enabled")
+                self._warn(f"Storage '{sa.name}': public blob access is enabled",
+                           level="critical")
 
             flag_str   = ", ".join(flags) if flags else "OK"
             https_str  = "Yes" if https_only else "No"

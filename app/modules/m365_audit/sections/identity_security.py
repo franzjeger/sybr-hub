@@ -160,7 +160,8 @@ class IdentitySecuritySection(BaseSection):
         # Warn on high/critical detections
         high = [d for d in detections if d.get("riskLevel") in ("high", "critical")]
         if high:
-            self._warn(f"{len(high)} high/critical risk detection(s) found")
+            self._warn(f"{len(high)} high/critical risk detection(s) found",
+                       level="critical")
 
     # ── External Collaboration ────────────────────────────────────────────────
 

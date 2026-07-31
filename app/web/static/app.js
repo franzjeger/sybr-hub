@@ -2353,7 +2353,10 @@ function renderAuditFindings(results) {
   var failures = [], findings = [];
   results.forEach(function (r) {
     if (r.error) failures.push({ section: r.name, text: r.error });
-    (r.warns || []).forEach(function (w) { findings.push({ section: r.name, text: w }); });
+    (r.warns || []).forEach(function (w, i) {
+      var level = (r.warn_levels || [])[i] || 'warn';
+      findings.push({ section: r.name, text: w, level: level });
+    });
   });
 
   if (!failures.length && !findings.length) {
@@ -2373,18 +2376,28 @@ function renderAuditFindings(results) {
       + '<div style="font-weight:600;color:' + colour + ';margin-bottom:6px;font-size:13px;">'
       + esc(heading) + ' (' + items.length + ')</div>'
       + items.map(function (f) {
-          return '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">'
-            + '<span style="color:var(--text-dim);flex:0 0 150px;">' + esc(f.section) + '</span>'
-            + '<span>' + esc(f.text) + '</span></div>';
+          // Wraps rather than squeezing: a fixed basis pinched the section
+          // name to a few characters once the pane got narrow, and the app is
+          // otherwise built for that — the tables scroll, the layout breaks at
+          // 1100, 767 and 479.
+          return '<div style="display:flex;flex-wrap:wrap;gap:2px 8px;padding:4px 0;'
+            + 'border-bottom:1px solid var(--border);font-size:12px;">'
+            + '<span style="color:var(--text-dim);flex:0 0 150px;min-width:120px;">'
+            + esc(f.section) + '</span>'
+            + '<span style="flex:1 1 220px;">' + esc(f.text) + '</span></div>';
         }).join('')
       + '</div>';
   }
 
   box.style.display = 'block';
+  var anyCritical = findings.some(function (f) { return f.level === 'critical'; });
   box.innerHTML = '<div class="card" style="border-left:3px solid '
-    + (failures.length ? 'var(--red)' : 'var(--orange)') + ';">'
+    + (failures.length || anyCritical ? 'var(--red)' : 'var(--orange)') + ';">'
     + list(failures, 'var(--red)', t('status_failed', 'Feilet'))
-    + list(findings, 'var(--orange)', t('status_warnings', 'Varsler'))
+    + list(findings.filter(function (f) { return f.level === 'critical'; }),
+           'var(--red)', t('status_critical_findings', 'Kritiske funn'))
+    + list(findings.filter(function (f) { return f.level !== 'critical'; }),
+           'var(--orange)', t('status_warnings', 'Varsler'))
     + '</div>';
 }
 
@@ -2403,14 +2416,17 @@ function handleAuditDone(results) {
       // Update icon/status in case last progress event was 'running'
       tr.querySelector('.status-icon').textContent = icons[status] || '•';
       tr.querySelector('.status-icon').className = `status-icon ${cls[status] || ''}`;
-      tr.querySelector('.status-text').textContent = labels[status] || status;
+      tr.querySelector('.status-text').textContent = status === 'done' ? '' : (labels[status] || status);
       tr.querySelector('.status-text').className = `status-text ${cls[status] || ''}`;
 
       const detailCell = tr.querySelector('.detail-cell');
       let extra = '';
       if (r.warns && r.warns.length > 0) {
         warns++;
-        const pills = r.warns.slice(0, 3).map(w => `<span class="warn-pill">⚠ ${esc(w)}</span>`).join('');
+        const pills = r.warns.slice(0, 3).map(function (w, i) {
+          var crit = (r.warn_levels || [])[i] === 'critical';
+          return `<span class="warn-pill${crit ? ' crit' : ''}">⚠ ${esc(w)}</span>`;
+        }).join('');
         const more  = r.warns.length > 3 ? `<span class="warn-pill" style="cursor:pointer;">+${r.warns.length - 3} til &#9660;</span>` : '';
         extra += `<div class="warn-pills">${pills}${more}</div>`;
       }

@@ -23,6 +23,12 @@ class SectionResult:
     status:  SectionStatus = SectionStatus.PENDING
     files:   list[str]     = field(default_factory=list)
     warns:   list[str]     = field(default_factory=list)
+    # Severity per entry in `warns`, same order and length. Kept alongside
+    # rather than folded into it because `warns` is consumed as plain strings
+    # in the scheduler, the SSE payload and three places in the UI; changing
+    # its element type would break all of them for a presentation detail.
+    # Nothing appends to either list except _warn(), which appends to both.
+    warn_levels: list[str] = field(default_factory=list)
     error:   Optional[str] = None
 
     @property
@@ -38,6 +44,9 @@ class SectionResult:
             SectionStatus.SKIPPED:  "→",
             SectionStatus.FAILED:   "✗",
         }[self.status]
+
+
+_WARN_LEVELS = ("critical", "warn", "info")
 
 
 # Callback type: called by sections to report progress
@@ -66,8 +75,15 @@ class BaseSection(ABC):
         encrypted_write_text(path, content)
         self.result.files.append(filename)
 
-    def _warn(self, msg: str) -> None:
+    def _warn(self, msg: str, level: str = "warn") -> None:
+        """Record a finding. level is "critical", "warn" or "info".
+
+        Severity belongs to the collector that found the thing, not to a
+        pattern match over the message text downstream. Defaulting to "warn"
+        keeps the eighty-odd existing calls meaning exactly what they did.
+        """
         self.result.warns.append(msg)
+        self.result.warn_levels.append(level if level in _WARN_LEVELS else "warn")
 
     @abstractmethod
     async def collect(self) -> SectionResult:

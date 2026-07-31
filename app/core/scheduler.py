@@ -289,7 +289,8 @@ class AuditScheduler:
             from app.modules.base import SectionResult, SectionStatus
             from app.reports.generator import generate_reports
             results_objs = [
-                SectionResult(name=r.name, status=r.status, warns=r.warns, files=r.files, error=r.error)
+                SectionResult(name=r.name, status=r.status, warns=r.warns,
+                              warn_levels=r.warn_levels, files=r.files, error=r.error)
                 for r in results
             ]
             loop = asyncio.get_event_loop()
