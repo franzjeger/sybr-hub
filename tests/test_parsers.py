@@ -736,13 +736,13 @@ class TestComplianceLegacyAuthDataGap:
 
     def test_legacy_auth_enabled_reports_fail(self):
         ctrl = [c for c in _build_compliance_map(
-            _ctx(sharepoint={"has_data": True, "legacy_auth": True})
+            _ctx(sharepoint={"has_data": True, "legacy_auth": True, "legacy_auth_known": True})
         ) if c["cis_id"] == "7.2.3"]
         assert ctrl[0]["status"] == "fail"
 
     def test_legacy_auth_disabled_reports_pass(self):
         ctrl = [c for c in _build_compliance_map(
-            _ctx(sharepoint={"has_data": True, "legacy_auth": False})
+            _ctx(sharepoint={"has_data": True, "legacy_auth": False, "legacy_auth_known": True})
         ) if c["cis_id"] == "7.2.3"]
         assert ctrl[0]["status"] == "pass"
 
@@ -1290,3 +1290,17 @@ def test_inbox_rules_all_clear_still_reads_zero():
 def test_inbox_rules_missing_section_reads_zero():
     """No Exchange data at all must not invent a finding."""
     assert _exchange({})["inbox_rules_external"] == 0
+
+
+def test_unmeasured_legacy_auth_is_not_a_pass():
+    """The field was never collected at all until this was found.
+
+    _parse_sharepoint_settings read "legacy auth" out of a file the collector
+    did not write, so the flag was False on every tenant and the control that
+    grades it passed unconditionally. Absence now reads as unmeasured.
+    """
+    from app.reports.generator import _build_compliance_map
+
+    ctx = {"sharepoint": {"has_data": True, "legacy_auth": False}, "file_contents": {}}
+    row = [c for c in _build_compliance_map(ctx) if c["cis_id"] == "7.2.3"][0]
+    assert row["status"] == "info"

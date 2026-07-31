@@ -68,16 +68,38 @@ class SharePointSection(BaseSection):
             self._warn(f"SharePoint admin settings fetch failed: {ex}")
             return
 
+        # Property names checked against the v1.0 sharepointSettings resource.
+        # Three of the five asked for here did not exist on it: two were never
+        # part of the type at all, and one was missing its "Enabled" suffix.
+        # Graph does not complain about a property you never mention — it just
+        # omits it — so all three rendered as "N/A", which reads as "not
+        # configured" rather than "we asked the wrong question".
+        def flag(name: str) -> str:
+            value = data.get(name)
+            return "N/A" if value is None else str(value).lower()
+
+        # Written because the report grades them, and until now neither was
+        # collected at all: the legacy-auth control passed on every tenant
+        # regardless of the setting, and the report stated "unmanaged devices:
+        # blocked" without ever having looked.
+        unmanaged_restricted = data.get("isUnmanagedSyncAppForTenantRestricted")
+        unmanaged = (
+            "N/A" if unmanaged_restricted is None
+            else str(not unmanaged_restricted).lower()
+        )
+
         sharing_cap = data.get("sharingCapability", "N/A")
         lines = [
             "=" * 70,
             "  SHAREPOINT SETTINGS",
             "=" * 70,
             f"  Sharing Capability            : {sharing_cap}",
-            f"  Default Sharing Link Type     : {data.get('defaultSharingLinkType', 'N/A')}",
-            f"  Default Link Permission       : {data.get('defaultLinkPermission', 'N/A')}",
-            f"  Require Accept. Agreement     : {data.get('isRequireAcceptingUserToMatchInvitedUser', 'N/A')}",
+            f"  Sharing Domain Restriction    : {data.get('sharingDomainRestrictionMode', 'N/A')}",
+            f"  Guest Resharing               : {flag('isResharingByExternalUsersEnabled')}",
+            f"  Require Accept. Agreement     : {flag('isRequireAcceptingUserToMatchInvitedUserEnabled')}",
             f"  External Sharing Ext. Users   : {data.get('sharingAllowedDomainList', 'N/A')}",
+            f"  Legacy Auth                   : {flag('isLegacyAuthProtocolsEnabled')}",
+            f"  Unmanaged Devices             : {unmanaged}",
             "=" * 70,
             "",
         ]

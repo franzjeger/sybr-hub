@@ -18,6 +18,7 @@ feed the most prominent numbers in the report and the risk score.
 from __future__ import annotations
 
 import pathlib
+import re
 import tempfile
 
 import pytest
@@ -199,3 +200,110 @@ async def test_a_service_principal_holding_a_role_still_counts():
 
     parsed = g._parse_admin_roles(_read(out, "07_admin_roles.txt"))
     assert parsed["global_admin_count"] == 1
+
+
+# ── SharePoint tenant settings ───────────────────────────────────────────────
+#
+# The seam that motivated the sweep. The parser read "legacy auth" and
+# "unmanaged devices" out of this file; the collector wrote neither. So the
+# control grading legacy protocols passed on every tenant regardless of the
+# setting, and the report stated "unmanaged devices: blocked" without ever
+# having looked. A fixture written by hand had both lines in it, because the
+# person writing it read the parser.
+
+
+def _sp_section(response):
+    from app.modules.m365_audit.sections.sharepoint import SharePointSection
+
+    return SharePointSection(_tmp(), _FakeGraph({}, {"admin/sharepoint/settings": response}))
+
+
+@pytest.mark.asyncio
+async def test_sharepoint_legacy_auth_reaches_the_parser():
+    section = _sp_section({
+        "sharingCapability": "externalUserSharingOnly",
+        "isLegacyAuthProtocolsEnabled": True,
+        "isUnmanagedSyncAppForTenantRestricted": True,
+    })
+    await section._collect_settings()
+
+    parsed = g._parse_sharepoint_settings(_read(section.out_dir, "15b_sharepoint_settings.txt"), "")
+    assert parsed["legacy_auth"] is True
+    assert parsed["legacy_auth_known"] is True
+    assert parsed["unmanaged_devices"] is False, "restricted sync means unmanaged is not allowed"
+
+
+@pytest.mark.asyncio
+async def test_sharepoint_legacy_auth_disabled_reads_back_as_disabled():
+    section = _sp_section({
+        "sharingCapability": "disabled",
+        "isLegacyAuthProtocolsEnabled": False,
+        "isUnmanagedSyncAppForTenantRestricted": False,
+    })
+    await section._collect_settings()
+
+    parsed = g._parse_sharepoint_settings(_read(section.out_dir, "15b_sharepoint_settings.txt"), "")
+    assert parsed["legacy_auth"] is False
+    assert parsed["legacy_auth_known"] is True
+    assert parsed["unmanaged_devices"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_property_graph_omits_is_unknown_rather_than_false():
+    """Graph omits what it has no value for, and absence is not a setting."""
+    section = _sp_section({"sharingCapability": "disabled"})
+    await section._collect_settings()
+
+    text = _read(section.out_dir, "15b_sharepoint_settings.txt")
+    assert "Legacy Auth                   : N/A" in text
+
+    parsed = g._parse_sharepoint_settings(text, "")
+    assert parsed["legacy_auth_known"] is False
+
+
+@pytest.mark.asyncio
+async def test_the_control_will_not_pass_on_a_field_it_never_saw():
+    """The whole point: no verdict without the measurement."""
+    section = _sp_section({"sharingCapability": "disabled"})
+    await section._collect_settings()
+
+    sp = g._parse_sharepoint_settings(_read(section.out_dir, "15b_sharepoint_settings.txt"), "")
+    row = [c for c in g._build_compliance_map({"sharepoint": sp, "file_contents": {}})
+           if c["cis_id"] == "7.2.3"][0]
+    assert row["status"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_every_property_asked_for_exists_on_the_v1_resource():
+    """Graph omits properties you misname instead of erroring.
+
+    Three of the five originally requested here were not on the v1.0
+    sharepointSettings type, so they rendered as "N/A" — indistinguishable
+    from a setting that is genuinely unset.
+    """
+    import inspect
+
+    from app.modules.m365_audit.sections import sharepoint as sp_mod
+
+    # Property names on microsoft.graph.sharepointSettings (v1.0), as published.
+    known = {
+        "allowedDomainGuidsForSyncApp", "availableManagedPathsForSiteCreation",
+        "deletedUserPersonalSiteRetentionPeriodInDays", "excludedFileExtensionsForSyncApp",
+        "idleSessionSignOut", "imageTaggingOption", "isCommentingOnSitePagesEnabled",
+        "isFileActivityNotificationEnabled", "isLegacyAuthProtocolsEnabled", "isLoopEnabled",
+        "isMacSyncAppEnabled", "isRequireAcceptingUserToMatchInvitedUserEnabled",
+        "isResharingByExternalUsersEnabled", "isSharePointMobileNotificationEnabled",
+        "isSharePointNewsfeedEnabled", "isSiteCreationEnabled", "isSiteCreationUIEnabled",
+        "isSitePagesCreationEnabled", "isSitesStorageLimitAutomatic",
+        "isSyncButtonHiddenOnPersonalSite", "isUnmanagedSyncAppForTenantRestricted",
+        "personalSiteDefaultStorageLimitInMB", "sharingAllowedDomainList",
+        "sharingBlockedDomainList", "sharingCapability", "sharingDomainRestrictionMode",
+        "siteCreationDefaultManagedPath", "siteCreationDefaultStorageLimitInMB",
+        "tenantDefaultTimezone",
+    }
+    src = inspect.getsource(sp_mod.SharePointSection._collect_settings)
+    asked = set(re.findall(r"""data\.get\(\s*["']([A-Za-z]+)["']""", src))
+    asked |= set(re.findall(r"""flag\(\s*["']([A-Za-z]+)["']""", src))
+
+    unknown = sorted(asked - known)
+    assert not unknown, f"not properties of sharepointSettings v1.0: {unknown}"

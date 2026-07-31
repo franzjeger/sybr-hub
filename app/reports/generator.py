@@ -876,7 +876,12 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
             sharing_key, ("unknown", sharing_raw or t.sp_sharing_unknown)
         )
 
-    legacy_auth = settings.get("legacy auth", "").lower() == "true"
+    # Three states, not two. The collector did not write this line at all until
+    # recently, and reading its absence as "false" meant the control that
+    # grades it passed on every tenant ever audited, whatever the setting was.
+    legacy_raw = settings.get("legacy auth", "").strip().lower()
+    legacy_auth = legacy_raw == "true"
+    legacy_known = legacy_raw in ("true", "false")
 
     # Counted through the shared helper rather than a local loop. The loop here
     # skipped only "===" lines, so the banner, the column header and the "---"
@@ -898,6 +903,7 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
         "sharing_level": sharing_level,
         "sharing_label": sharing_label,
         "legacy_auth": legacy_auth,
+        "legacy_auth_known": legacy_known,
         "unmanaged_devices": settings.get("unmanaged devices", "").lower() == "true",
         "site_count": site_count,
         "personal_sites": personal_sites,
@@ -3761,6 +3767,11 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("7.2.3", "Ensure legacy authentication protocols are disabled in SharePoint",
             t.cis_cat_data, "info",
             _CANNOT_VERIFY + "SharePoint-tenant-innstillinger utilgjengelig")
+    elif not sp.get("legacy_auth_known"):
+        add("7.2.3", "Ensure legacy authentication protocols are disabled in SharePoint",
+            t.cis_cat_data, "info",
+            _CANNOT_VERIFY + "auditen er kjørt før dette feltet ble samlet inn — "
+            "kjør en ny audit")
     elif sp.get("legacy_auth"):
         add("7.2.3", "Ensure legacy authentication protocols are disabled in SharePoint",
             t.cis_cat_data, "fail", t.cis_legacy_auth_enabled)
