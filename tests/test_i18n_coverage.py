@@ -1,0 +1,208 @@
+"""No user-facing text may be hard-coded in the markup or the scripts.
+
+Every string a person reads belongs in ui_i18n.json, in both languages. A
+literal in index.html or app.js is stuck in whichever language whoever typed it
+happened to think in, which is how the app came to show "Customer Overview"
+beside "Oppdatert 16:15" and "Alle tags".
+
+There are several hundred of them, accumulated over a long time and added to by
+every redesign. Fixing them in one pass would be a huge unreviewable change, so
+this test works as a ratchet: it counts what is left and fails if the number
+grows. Bring a batch into ui_i18n.json, lower the budget in the same commit,
+and the ground you took cannot be given back.
+
+The budgets are ceilings, not targets. They only ever go down.
+"""
+
+from __future__ import annotations
+
+import html as htmlmod
+import pathlib
+import re
+
+STATIC = pathlib.Path("app/web/static")
+
+# Not translatable: product and vendor names, keyboard hints, bare numbers and
+# acronyms. Listed rather than pattern-matched where a pattern would be too
+# eager, so adding a new brand is a deliberate edit.
+_NOT_TEXT = {
+    "SYBR", "MSP Toolkit", "SYBR — MSP Toolkit", "ESC", "IT Glue", "M365",
+    "GDAP", "UniFi", "FortiGate", "Tailscale", "ALSO Cloud", "Uniweb", "MRR",
+    "CSV", "PDF", "HTML", "API", "SSH", "RDP", "VPN", "DNS", "TLS", "AI",
+}
+_NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
+
+
+def _markup_without_scripts() -> str:
+    src = (STATIC / "index.html").read_text()
+    return re.sub(
+        r"<script\b.*?</script>|<style\b.*?</style>|<title\b.*?</title>",
+        "", src, flags=re.S,
+    )
+
+
+def untranslated_text_nodes() -> list[tuple[int, str]]:
+    """Text a reader sees, on an element that declares no key for it."""
+    clean = _markup_without_scripts()
+    found = []
+    for m in re.finditer(r">([^<>]*[A-Za-zÆØÅæøå][^<>]*)<", clean):
+        text = htmlmod.unescape(m.group(1)).strip()
+        if not text or len(text) < 2 or text in _NOT_TEXT or _NOT_TEXT_RE.match(text):
+            continue
+        tag = clean[clean.rfind("<", 0, m.start()):m.start() + 1]
+        if "data-i18n" in tag:
+            continue
+        found.append((clean[:m.start()].count("\n") + 1, text[:60]))
+    return found
+
+
+def untranslated_attributes() -> list[tuple[int, str, str]]:
+    """title, placeholder, aria-label and alt carry text too."""
+    clean = _markup_without_scripts()
+    found = []
+    for attr in ("title", "placeholder", "aria-label", "alt"):
+        for m in re.finditer(rf'{attr}="([^"]*[A-Za-zÆØÅæøå][^"]*)"', clean):
+            end = clean.find(">", m.start())
+            tag = clean[clean.rfind("<", 0, m.start()):end + 1]
+            if f"data-i18n-{attr}" in tag:
+                continue
+            value = m.group(1).strip()
+            if value in _NOT_TEXT or _NOT_TEXT_RE.match(value):
+                continue
+            found.append((clean[:m.start()].count("\n") + 1, attr, value[:40]))
+    return found
+
+
+def norwegian_literals_in_js() -> list[tuple[int, str]]:
+    """Norwegian text in the scripts that never passes through t().
+
+    Two things are deliberately not counted. A fallback — t("key", "Verktøy")
+    — is a safety net for a missing key, not hard-coded UI; the key resolves
+    normally. And comments are not user-facing. Counting both put the figure at
+    56 when the real number was 9, which made the budget below meaningless.
+
+    English literals are invisible to this, since there is no letter that gives
+    them away. It is a floor on the problem, not a measure of it.
+    """
+    js = (STATIC / "app.js").read_text()
+    lines = js.split("\n")
+    found = []
+    for m in re.finditer(r"""(['"])((?:[^'"\\]|\\.)*[ÆØÅæøå][^'"\\]*)\1""", js):
+        line_no = js[:m.start()].count("\n")
+        stripped = lines[line_no].strip()
+        if stripped.startswith("//") or stripped.startswith("*"):
+            continue
+        before = js[max(0, m.start() - 200):m.start()]
+        if re.search(r"\bt\(\s*['\"][A-Za-z0-9_.]+['\"]\s*,\s*$", before):
+            continue                              # fallback argument
+        if re.search(r"\bt\(\s*$", before):
+            continue                              # goes through t()
+        found.append((line_no + 1, m.group(2)[:60]))
+    return found
+
+
+# Ceilings. Lower them as batches land; never raise them.
+#
+# js literals went 56 -> 1 in one commit, but only 9 of those 56 were ever
+# real: the detector was counting t("key", "fallback") arguments and comments.
+# The one that remains is a multi-line string the regex mis-reads, kept rather
+# than special-cased so the next reader sees the limit of the measurement.
+BUDGET_TEXT_NODES = 283
+BUDGET_ATTRIBUTES = 74
+BUDGET_JS_NORWEGIAN = 1
+
+
+def _report(items) -> str:
+    return "\n".join("  " + " ".join(str(p) for p in i) for i in items[:15])
+
+
+def test_no_new_hardcoded_text_in_the_markup():
+    found = untranslated_text_nodes()
+    assert len(found) <= BUDGET_TEXT_NODES, (
+        f"{len(found)} hard-coded strings, budget {BUDGET_TEXT_NODES}. "
+        f"New user-facing text belongs in ui_i18n.json:\n{_report(found)}"
+    )
+
+
+def test_no_new_hardcoded_attributes():
+    found = untranslated_attributes()
+    assert len(found) <= BUDGET_ATTRIBUTES, (
+        f"{len(found)} untranslated attributes, budget {BUDGET_ATTRIBUTES}:\n{_report(found)}"
+    )
+
+
+def test_no_new_norwegian_literals_in_the_scripts():
+    found = norwegian_literals_in_js()
+    assert len(found) <= BUDGET_JS_NORWEGIAN, (
+        f"{len(found)} Norwegian literals outside t(), budget {BUDGET_JS_NORWEGIAN}:\n{_report(found)}"
+    )
+
+
+def test_the_budgets_are_not_stale():
+    """A budget well above the real count stops ratcheting anything.
+
+    If a batch lands without the ceiling coming down with it, this says so
+    rather than letting the slack hide the next regression.
+    """
+    for name, budget, found in (
+        ("text nodes", BUDGET_TEXT_NODES, untranslated_text_nodes()),
+        ("attributes", BUDGET_ATTRIBUTES, untranslated_attributes()),
+        ("js literals", BUDGET_JS_NORWEGIAN, norwegian_literals_in_js()),
+    ):
+        slack = budget - len(found)
+        assert slack <= 10, (
+            f"{name}: budget {budget} but only {len(found)} remain — "
+            f"lower it to {len(found)} in the commit that fixed them"
+        )
+
+
+def test_every_text_bearing_attribute_can_actually_be_translated():
+    """aria-label and alt were not handled, so marking them up did nothing."""
+    js = (STATIC / "app.js").read_text()
+    for attr in ("title", "placeholder", "aria-label", "alt"):
+        assert f"'{attr}'" in js.split("_I18N_ATTRS")[1][:200], (
+            f"{attr} is not in the translated attribute list"
+        )
+
+
+# The letter-based detector above cannot see Norwegian spelled without æøå —
+# "Konfigurert", "Se audit", "Krever handling" look like any other string. A
+# mutation putting one of them back passed the whole file, which means the
+# batch that removed them was unprotected. These name the keys instead.
+
+_KEYS_THAT_REPLACED_LITERALS = (
+    "st_not_configured", "st_configured", "st_secret_expired",
+    "st_secret_days_left", "st_expired", "st_none", "time_now",
+    "find_users_no_mfa", "find_secret_expiring", "find_subs_expired",
+    "find_subs_expiring", "lbl_see_audit", "lbl_see_subscriptions",
+    "hdr_needs_action", "msg_none_expiring_soon", "lbl_others_over_90d",
+    "src_m365_audit", "nav_m365_status",
+)
+
+
+def test_the_keys_that_replaced_literals_are_still_used():
+    """Otherwise a revert reintroduces the literal and nothing notices."""
+    js = (STATIC / "app.js").read_text()
+    unused = [k for k in _KEYS_THAT_REPLACED_LITERALS if f"'{k}'" not in js]
+    assert not unused, (
+        f"keys no longer referenced — a literal has probably come back: {unused}"
+    )
+
+
+def test_those_keys_exist_in_both_languages():
+    import json
+
+    d = json.loads((STATIC / "ui_i18n.json").read_text())
+    for key in _KEYS_THAT_REPLACED_LITERALS:
+        assert key in d["no"], f"{key} missing from Norwegian"
+        assert key in d["en"], f"{key} missing from English"
+
+
+def test_the_languages_have_the_same_keys():
+    """A key present in one language only shows a raw key name to the other."""
+    import json
+
+    d = json.loads((STATIC / "ui_i18n.json").read_text())
+    only_no = set(d["no"]) - set(d["en"])
+    only_en = set(d["en"]) - set(d["no"])
+    assert not only_no and not only_en, f"no-only: {sorted(only_no)[:5]}, en-only: {sorted(only_en)[:5]}"

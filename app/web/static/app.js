@@ -122,9 +122,19 @@ function setLanguage(lang) {
     translatePage();
 }
 
-function translatePage() {
-    // Single DOM scan with combined selector instead of 3 separate scans
-    document.querySelectorAll('[data-i18n],[data-i18n-title],[data-i18n-placeholder]').forEach(el => {
+// Attributes that can carry user-facing text. aria-label and alt were not
+// handled at all, so marking them up did nothing and the Norwegian in them was
+// permanently untranslatable — invisible to sighted users and stuck in one
+// language for everyone using a screen reader.
+var _I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'alt'];
+
+function translatePage(root) {
+    var scope = root || document;
+    // Single DOM scan with combined selector instead of one per attribute.
+    var selector = '[data-i18n]' + _I18N_ATTRS.map(function (a) {
+        return ',[data-i18n-' + a + ']';
+    }).join('');
+    scope.querySelectorAll(selector).forEach(el => {
         var key = el.getAttribute('data-i18n');
         if (key) {
             var val = t(key);
@@ -134,10 +144,10 @@ function translatePage() {
                 el.textContent = val;
             }
         }
-        var titleKey = el.getAttribute('data-i18n-title');
-        if (titleKey) el.title = t(titleKey);
-        var phKey = el.getAttribute('data-i18n-placeholder');
-        if (phKey) el.placeholder = t(phKey);
+        _I18N_ATTRS.forEach(function (attr) {
+            var attrKey = el.getAttribute('data-i18n-' + attr);
+            if (attrKey) el.setAttribute(attr, t(attrKey));
+        });
     });
 }
 
@@ -324,7 +334,7 @@ function _renderCmdResults(query) {
   var pages = [
     {label:'Dashboard',       action:function(){showView('overview')},  section:t('nav_dashboard'), icon:'&#9634;'},
     {label:t('nav_customers','Customers'), action:function(){showView('customers')}, section:t('nav_customers'), icon:'&#128101;'},
-    {label:'M365 Status',     action:function(){showView('home')},      section:t('nav_customers'), icon:'&#9729;'},
+    {label:t('nav_m365_status'),     action:function(){showView('home')},      section:t('nav_customers'), icon:'&#9729;'},
     {label:t('nav_history','History'), action:function(){showView('history')},    section:t('nav_customers'), icon:'&#128197;'},
     {label:t('bc_hosts_ssh','Hosts'), action:function(){showView('hosts')},      section:t('nav_remote_access','Fjernaksess'),    icon:'&#128421;'},
     {label:t('bc_network','FortiGate / UniFi'), action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:'&#127760;'},
@@ -347,7 +357,7 @@ function _renderCmdResults(query) {
 
   // Actions
   var actions = [
-    {label:t('btn_run_audit')||'Kjør Audit',       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:'&#9654;'},
+    {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:'&#9654;'},
     {label:t('hdr_settings')||'Innstillinger',      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:'&#9881;'},
     {label:t('btn_export_excel')||'Eksporter Excel', action:function(){exportDashboardExcel()},                      hint:'',             icon:'&#128202;'},
   ];
@@ -835,8 +845,8 @@ function _updateBreadcrumb(name) {
   var map = {
     overview:     [{label:t('nav_dashboard')}],
     customers:    [{label:t('nav_customers')}],
-    home:         [{label:t('nav_customers'),view:'customers'}, {label:'M365 Status'}],
-    audit:        [{label:t('nav_customers'),view:'customers'}, {label:'M365 Status',view:'home'}, {label:'Audit'}],
+    home:         [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status')}],
+    audit:        [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status'),view:'home'}, {label:'Audit'}],
     history:      [{label:t('nav_customers'),view:'customers'}, {label:t('nav_history')}],
     hosts:        [{label:t('nav_remote_access','Fjernaksess')}, {label:t('bc_hosts_ssh','Verter')}],
     terminal:     [{label:t('nav_remote_access','Fjernaksess'),view:'hosts'}, {label:'Terminal'}],
@@ -5919,7 +5929,7 @@ async function loadIntegrationHealthStrip() {
     if (!iso) return '';
     try {
       var diff = (Date.now() - new Date(iso).getTime()) / 1000;
-      if (diff < 60) return 'nå';
+      if (diff < 60) return t('time_now');
       if (diff < 3600) return Math.round(diff / 60) + 'm';
       if (diff < 86400) return Math.round(diff / 3600) + 't';
       return Math.round(diff / 86400) + 'd';
@@ -6370,7 +6380,7 @@ function renderOverview(customers, activeId) {
                 <button onclick="event.stopPropagation();toggleRowActions(this)" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-dim);padding:2px 6px;border-radius:var(--radius-sm);transition:background var(--duration-fast);" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">&#8943;</button>
                 <div class="row-actions-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-1) 0;min-width:180px;box-shadow:var(--shadow-lg);z-index:50;animation:dropdown-in var(--duration-fast) var(--ease-out);">
                   <button onclick="event.stopPropagation();overviewSelectCustomer('${esc(c.customer_id)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#128200; ${t('lbl_details')}</button>
-                  <button onclick="event.stopPropagation();quickSwitchAndAudit('${esc(c.customer_id)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#9654; ${t('btn_run_audit')}</button>
+                  <button onclick="event.stopPropagation();quickSwitchAndAudit('${esc(c.customer_id)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">${t('btn_run_audit')}</button>
                   <button onclick="event.stopPropagation();quickSwitchAndView('${esc(c.customer_id)}','history')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#128197; ${t('nav_history')}</button>
                   <button onclick="event.stopPropagation();window.open('/api/reports/customer-summary/${esc(c.customer_id)}','_blank')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#128203; ${t('btn_generate_report')}</button>
                   <div style="border-top:1px solid var(--border);margin:var(--space-1) 0;"></div>
@@ -6761,14 +6771,14 @@ async function loadCustomerDetail(customerId) {
         <div style="font-size:var(--font-2xl);font-weight:800;">${esc(cust.customer_name)}</div>
         <div style="font-size:var(--font-sm);color:var(--text-dim);font-family:var(--mono);">${esc(cust.primary_domain || '')}</div>
       </div>
-      <button class="btn btn-primary" onclick="quickSwitchAndAudit('${esc(customerId)}')">&#9654; ${t('btn_run_audit')}</button>
+      <button class="btn btn-primary" onclick="quickSwitchAndAudit('${esc(customerId)}')">${t('btn_run_audit')}</button>
       <button class="btn btn-ghost" onclick="openLatestReport()" title="${t('btn_open_report','Open report')}">&#128196; ${t('btn_open_report','Report')}</button>
       <button class="btn btn-ghost" onclick="window.open('/api/reports/customer-summary/${esc(customerId)}','_blank')" title="${t('btn_generate_customer_report','Generate customer report')}">&#128203; ${t('btn_generate_report')}</button>
       <button class="btn btn-ghost" onclick="copyCustomerSummary()" title="${t('btn_copy_to_clipboard')}">&#128203;</button>
     </div>
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-6);">
       <button class="btn btn-ghost" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;">&#128200; ${t('nav_dashboard')}</button>
-      <button class="btn btn-ghost" onclick="showView('home')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#9729; M365 Status</button>
+      <button class="btn btn-ghost" onclick="showView('home')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#9729; ${t('nav_m365_status')}</button>
       <button class="btn btn-ghost" onclick="showView('history')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#128197; ${t('nav_history')}</button>
       <button class="btn btn-ghost" onclick="showView('files')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#128196; ${t('nav_files','Filer')}</button>
       ${cust.also_account_id ? '<button class="btn btn-ghost" onclick="loadCustomerLicenses(\'' + esc(cust.also_account_id) + '\')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#128179; ' + t('nav_licenses','Licenses') + '</button>' : ''}
@@ -7878,10 +7888,10 @@ async function loadUnifiedDashboard() {
       + '<div class="cd-chip-name">'+esc(name)+'</div>'
       + '<div class="cd-chip-status" style="color:'+color+';">'+esc(status)+'</div></div>';
   }
-  var _m365c = 'var(--text-dim)', _m365l = 'Ikke konfigurert';
-  if (d.m365 && d.m365.TenantId) { _m365c = 'var(--green)'; _m365l = 'Konfigurert'; }
-  if (d.m365 && d.m365.secret_status === 'expired') { _m365c = 'var(--red)'; _m365l = 'Secret utløpt'; }
-  else if (d.m365 && d.m365.secret_status === 'warning') { _m365c = 'var(--orange)'; _m365l = 'Secret ' + d.m365.secret_days_left + ' d igjen'; }
+  var _m365c = 'var(--text-dim)', _m365l = t('st_not_configured');
+  if (d.m365 && d.m365.TenantId) { _m365c = 'var(--green)'; _m365l = t('st_configured'); }
+  if (d.m365 && d.m365.secret_status === 'expired') { _m365c = 'var(--red)'; _m365l = t('st_secret_expired'); }
+  else if (d.m365 && d.m365.secret_status === 'warning') { _m365c = 'var(--orange)'; _m365l = t('st_secret_days_left').replace('{days}', d.m365.secret_days_left); }
   var _fgc = d.fortigate ? 'var(--green)' : 'var(--text-dim)';
   var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || 'Konfigurert') : 'Ikke konfigurert';
   var _ufc = d.unifi ? 'var(--green)' : 'var(--text-dim)';
@@ -7896,18 +7906,18 @@ async function loadUnifiedDashboard() {
     + _cdChip('FortiGate', _fgc, _fgl)
     + _cdChip('UniFi', _ufc, _ufl)
     + _cdChip('ALSO', _aoc, _aol, {onclick:"loadCustomerLicensesFromActive()"})
-    + _cdChip('SSH Hosts', _sshc, (_sshN ? _sshN + ' hosts' : 'Ingen'), {onclick:"showView('hosts')"})
+    + _cdChip(t('lbl_ssh_hosts'), _sshc, (_sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none')), {onclick:"showView('hosts')"})
     + _cdChip('Hosting', 'var(--text-dim)', 'Laster…', {id:'unified-uniweb-status'})
     + '</div>';
 
   // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
   var _find = [];
-  if ((a.users_no_mfa || 0) > 0) _find.push({sev:'crit', text: a.users_no_mfa + ' brukere uten MFA', src:'M365-audit', label:'Se audit', onclick:"showView('audit')"});
-  if (d.m365 && d.m365.secret_days_left != null && d.m365.secret_days_left <= 60) _find.push({sev: d.m365.secret_days_left <= 14 ? 'crit' : 'warn', text: 'M365-secret utløper om ' + d.m365.secret_days_left + ' d', src:'M365', label:'M365-status', onclick:"showView('home')"});
-  if (d.also && d.also.expired > 0) _find.push({sev:'crit', text: d.also.expired + ' abonnement utløpt', src:'ALSO', label:'Se abonnementer', onclick:"loadCustomerLicensesFromActive()"});
-  if (d.also && d.also.expiring_90d > 0) _find.push({sev:'warn', text: d.also.expiring_90d + ' abonnement utløper < 90 d', src:'ALSO', label:'Se abonnementer', onclick:"loadCustomerLicensesFromActive()"});
+  if ((a.users_no_mfa || 0) > 0) _find.push({sev:'crit', text: t('find_users_no_mfa').replace('{count}', a.users_no_mfa), src:t('src_m365_audit'), label:t('lbl_see_audit'), onclick:"showView('audit')"});
+  if (d.m365 && d.m365.secret_days_left != null && d.m365.secret_days_left <= 60) _find.push({sev: d.m365.secret_days_left <= 14 ? 'crit' : 'warn', text: t('find_secret_expiring').replace('{days}', d.m365.secret_days_left), src:'M365', label:'M365-status', onclick:"showView('home')"});
+  if (d.also && d.also.expired > 0) _find.push({sev:'crit', text: t('find_subs_expired').replace('{count}', d.also.expired), src:'ALSO', label:t('lbl_see_subscriptions'), onclick:"loadCustomerLicensesFromActive()"});
+  if (d.also && d.also.expiring_90d > 0) _find.push({sev:'warn', text: t('find_subs_expiring').replace('{count}', d.also.expiring_90d), src:'ALSO', label:t('lbl_see_subscriptions'), onclick:"loadCustomerLicensesFromActive()"});
   if (_find.length) {
-    html += '<div class="cd-action-band"><div class="cd-action-title">Krever handling</div>';
+    html += '<div class="cd-action-band"><div class="cd-action-title">' + esc(t('hdr_needs_action')) + '</div>';
     _find.forEach(function(f) {
       var _dc = f.sev === 'crit' ? 'var(--red)' : 'var(--orange)';
       html += '<div class="cd-action-row"><span class="cd-dot" style="background:'+_dc+';"></span>'
@@ -7960,13 +7970,13 @@ async function loadUnifiedDashboard() {
     if (_crit.length) {
       _crit.forEach(function(r, i) {
         var _dc = r.days_left < 0 ? 'var(--red)' : r.days_left <= 30 ? 'var(--red)' : 'var(--orange)';
-        var _dl = r.days_left < 0 ? 'Utløpt' : r.days_left + ' d';
+        var _dl = r.days_left < 0 ? t('st_expired') : r.days_left + ' d';
         html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="grow">'+esc(r.service_display)+'</span><span class="vendor">'+esc(r.vendor||'')+'</span><span class="days" style="color:'+_dc+';">'+_dl+'</span></div>';
       });
     } else {
-      html += '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">Ingen utløper snart</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">' + esc(t('msg_none_expiring_soon')) + '</div>';
     }
-    if (_restN) html += '<div style="font-size:11px;color:var(--text-muted);padding-top:8px;border-top:1px solid var(--row-divider);margin-top:2px;">'+_restN+' øvrige (&gt; 90 dager)</div>';
+    if (_restN) html += '<div style="font-size:11px;color:var(--text-muted);padding-top:8px;border-top:1px solid var(--row-divider);margin-top:2px;">'+esc(t('lbl_others_over_90d').replace('{count}', _restN))+'</div>';
     html += '</div>';
   }
 

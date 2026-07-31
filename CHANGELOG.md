@@ -32,6 +32,12 @@
 - Golden-fil over den syntetiske auditen: nesten hver feil funnet her flyttet et tall uten å flytte en test.
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
+**i18n:**
+- **Hardkodet tekst er nå en testfeil, ikke en vane.** Rundt 400 strenger står fortsatt i markupen og skriptene, samlet opp over lang tid og lagt til av hvert redesign. `tests/test_i18n_coverage.py` teller dem og feiler hvis tallet vokser, så en batch om gangen kan hentes inn uten at grunnen gis tilbake.
+- **`translatePage` håndterte aldri `aria-label` og `alt`.** Å merke dem gjorde ingenting, så norsk der var permanent uoversettelig — usynlig for seende og fastlåst for alle som bruker skjermleser.
+- 22 nye nøkler for det nye dashbord-kortet fra redesignet, som kom med hardkodet norsk: «Krever handling», «Ikke konfigurert», «Se audit», «Ingen utløper snart» og flere.
+- **«Kjør Audit» viste to avspillingsikoner.** Ikonet lå både i markupen og i selve oversettelsesverdien. 86 nøkler har fortsatt ikon bakt inn i verdien, som er presentasjon på feil sted, men bare denne ble faktisk doblet.
+
 **Grensesnitt:**
 - **Auditvisningen sa alt to ganger.** Funnlista bærer hele settet, mens tabellen under gjenga de samme funnene i en tapsbehandlet form: tre første som piller, resten bak «+n til», og alle sammen en tredje gang i en utvider. De to synlige gjengivelsene var de ufullstendige. Tabellen er nå redusert til det bare den kan svare på, nemlig om hver seksjon kjørte. Feil og hopp-begrunnelser blir stående, siden de hører til seksjonen og ikke til funnlista.
 - **Radene tilbød en utvidelse tolv av dem ikke hadde noe å vise.** `cursor:pointer` og klikkhåndtereren lå på hver rad uansett innhold.
