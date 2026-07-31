@@ -787,3 +787,18 @@ def test_the_status_label_rule_is_applied_at_every_call_site():
     # Minus the definition line, which matches the same text.
     calls = src.count("statusLabel(status, labels)") - src.count("function statusLabel(status, labels)")
     assert calls == 3, f"expected three call sites, found {calls}"
+
+
+def test_a_skipped_section_is_not_announced_as_a_failure():
+    """_skip() stores its reason in the same field a failure uses.
+
+    "No Azure subscriptions found" is a legitimate skip on a tenant without
+    Azure, and the findings summary announced four of them as failures in red
+    while the table below correctly said "Hoppet over". Status decides which
+    group a section lands in; the reason is only the wording.
+    """
+    import pathlib
+
+    src = pathlib.Path("app/web/static/app.js").read_text()
+    assert "r.error && r.status === 'failed'" in src, "failures gate on status"
+    assert "r.error && r.status === 'skipped'" in src, "skips get their own group"

@@ -2356,16 +2356,22 @@ function renderAuditFindings(results) {
   var box = document.getElementById('audit-findings');
   if (!box) return;
 
-  var failures = [], findings = [];
+  var failures = [], skipped = [], findings = [];
   results.forEach(function (r) {
-    if (r.error) failures.push({ section: r.name, text: r.error });
+    // A skipped section carries its reason in the same field a failed one
+    // uses, so "no Azure subscriptions found" — which is a legitimate skip on
+    // a tenant without Azure — was announced as four failures in red at the
+    // top of the list, while the table below correctly said "Hoppet over".
+    // Status decides; the reason is only the wording.
+    if (r.error && r.status === 'failed') failures.push({ section: r.name, text: r.error });
+    else if (r.error && r.status === 'skipped') skipped.push({ section: r.name, text: r.error });
     (r.warns || []).forEach(function (w, i) {
       var level = (r.warn_levels || [])[i] || 'warn';
       findings.push({ section: r.name, text: w, level: level });
     });
   });
 
-  if (!failures.length && !findings.length) {
+  if (!failures.length && !findings.length && !skipped.length) {
     box.style.display = 'block';
     box.innerHTML = '<div class="card" style="border-left:3px solid var(--green);">'
       + '<div style="font-weight:600;color:var(--green);">&#10003; '
@@ -2378,7 +2384,7 @@ function renderAuditFindings(results) {
 
   function list(items, colour, heading) {
     if (!items.length) return '';
-    return '<div style="margin-bottom:' + (failures.length && findings.length ? '12px' : '0') + ';">'
+    return '<div style="margin-bottom:12px;">'
       + '<div style="font-weight:600;color:' + colour + ';margin-bottom:6px;font-size:13px;">'
       + esc(heading) + ' (' + items.length + ')</div>'
       + items.map(function (f) {
@@ -2404,6 +2410,7 @@ function renderAuditFindings(results) {
            'var(--red)', t('status_critical_findings', 'Kritiske funn'))
     + list(findings.filter(function (f) { return f.level !== 'critical'; }),
            'var(--orange)', t('status_warnings', 'Varsler'))
+    + list(skipped, 'var(--text-dim)', t('status_skipped', 'Hoppet over'))
     + '</div>';
 }
 
