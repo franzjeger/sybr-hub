@@ -312,6 +312,61 @@ def _cidr_to_netmask(prefix_len: int) -> str:
     return f"{(mask >> 24) & 0xFF}.{(mask >> 16) & 0xFF}.{(mask >> 8) & 0xFF}.{mask & 0xFF}"
 
 
+def _build_ovpn_config(gw: str, ca_cert: str, tls_key_hex: str) -> str:
+    """Build the openvpn3 client config as a string.
+
+    The TLS-auth key is *inlined* as a <tls-auth> block rather than written to
+    a separate file. That key is a secret; the previous code wrote it to a
+    fixed, world-readable path (/tmp/azure_vpn_tls.key, chmod 644) that any
+    local user could read and that a symlink could redirect. Inlining removes
+    the file — and the question of who may read it — entirely. `openvpn3
+    session-start --config <file>` parses this as the calling user, so nothing
+    else needs access to the key.
+    """
+    lines = [
+        "client", "dev tun", "proto tcp",
+        f"remote {gw} 443",
+        "resolv-retry infinite", "nobind", "persist-tun",
+        "remote-cert-tls server",
+        "auth SHA256", "cipher AES-256-GCM", "data-ciphers AES-256-GCM",
+        "disable-dco", "verb 3",
+        "auth-user-pass",
+    ]
+    if tls_key_hex and tls_key_hex.strip():
+        hex_clean = tls_key_hex.strip()
+        body = "\n".join(hex_clean[i:i + 32] for i in range(0, len(hex_clean), 32))
+        lines.append(
+            "<tls-auth>\n"
+            "-----BEGIN OpenVPN Static key V1-----\n"
+            f"{body}\n"
+            "-----END OpenVPN Static key V1-----\n"
+            "</tls-auth>"
+        )
+        # `tls-auth <file> 1` becomes `key-direction 1` with an inline block.
+        lines.append("key-direction 1")
+    if ca_cert and ca_cert.strip():
+        lines.append(f"<ca>\n{ca_cert.strip()}\n</ca>")
+    return "\n".join(lines) + "\n"
+
+
+def _write_private(content: str, suffix: str) -> pathlib.Path:
+    """Write *content* to a fresh 0600 file with an unpredictable name.
+
+    Replaces fixed /tmp/azure_vpn_*.{key,ovpn,txt} paths, which were a symlink
+    /TOCTOU target and let a local user read the secret from a name they could
+    predict. mkstemp creates the file O_EXCL with mode 0600, owned by us.
+    """
+    import tempfile
+    fd, name = tempfile.mkstemp(suffix=suffix, prefix="azvpn_")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(content)
+    except Exception:
+        os.unlink(name)
+        raise
+    return pathlib.Path(name)
+
+
 async def connect(config: dict, access_token: str) -> dict:
     """Connect via OpenVPN 3 (openvpn3-client) with Azure AD token.
 
@@ -331,33 +386,10 @@ async def connect(config: dict, access_token: str) -> dict:
     if not shutil.which("openvpn3"):
         return {"ok": False, "error": "openvpn3 ikke installert. Kjør: sudo apt install openvpn3-client"}
 
-    # Write TLS key from hex in OpenVPN static key format
-    tls_key_path = pathlib.Path("/tmp/azure_vpn_tls.key")
-    if tls_key_hex:
-        hex_clean = tls_key_hex.strip()
-        lines = [hex_clean[i:i+32] for i in range(0, len(hex_clean), 32)]
-        key_text = "-----BEGIN OpenVPN Static key V1-----\n"
-        key_text += "\n".join(lines) + "\n"
-        key_text += "-----END OpenVPN Static key V1-----\n"
-        tls_key_path.write_text(key_text)
-        tls_key_path.chmod(0o644)
-
-    # Build config — openvpn3 uses auth-user-pass without file (piped via stdin)
-    ovpn_lines = [
-        "client", "dev tun", "proto tcp",
-        f"remote {gw} 443",
-        "resolv-retry infinite", "nobind", "persist-tun",
-        "remote-cert-tls server",
-        "auth SHA256", "cipher AES-256-GCM", "data-ciphers AES-256-GCM",
-        "disable-dco", "verb 3",
-        "auth-user-pass",
-        f"tls-auth {tls_key_path} 1",
-    ]
-    if ca_cert:
-        ovpn_lines.append(f"<ca>\n{ca_cert.strip()}\n</ca>")
-
-    conf_path = pathlib.Path("/tmp/azure_vpn3.ovpn")
-    conf_path.write_text("\n".join(ovpn_lines) + "\n")
+    # Build config with the TLS-auth key inlined (no separate key file), and
+    # write it to a private 0600 temp — the inlined key makes the config itself
+    # a secret. Removed in the finally below.
+    conf_path = _write_private(_build_ovpn_config(gw, ca_cert, tls_key_hex), ".ovpn")
 
     # Disconnect any existing session
     kill_proc = await asyncio.create_subprocess_exec(
@@ -381,6 +413,10 @@ async def connect(config: dict, access_token: str) -> dict:
     stdout, stderr = await asyncio.wait_for(
         proc.communicate(input=f"AzureAD\n{access_token}\n".encode()),
         timeout=20)
+
+    # openvpn3 has imported the config into the backend by now; the file (which
+    # holds the inlined TLS-auth key) is no longer needed on disk.
+    conf_path.unlink(missing_ok=True)
 
     output = stdout.decode() + stderr.decode()
     logger.info("openvpn3 output: %s", output[:300])
@@ -416,20 +452,25 @@ async def connect(config: dict, access_token: str) -> dict:
             "sudo", "resolvectl", "dns", "tun0", str(dns).strip(),
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
 
-    # Save refresh token for auto-refresh
+    # Save refresh token for auto-refresh. This is a plaintext copy of a
+    # long-lived secret for a root-run openvpn helper — the app's own copy in
+    # DATA_DIR is encrypted. It goes to a private 0600 temp (not a predictable
+    # /tmp name) and the destination is chmod 600, not 644: the helper runs as
+    # root and has no need to expose it to every local user.
     client_id = config.get("client_id", "")
     tenant_id = config.get("tenant_id", "")
     refresh = _load_refresh_token(client_id, tenant_id)
     if refresh:
-        rt_tmp = pathlib.Path("/tmp/azure_vpn_rt.txt")
-        rt_tmp.write_text(refresh)
-        await (await asyncio.create_subprocess_exec(
-            "sudo", "cp", str(rt_tmp), "/etc/openvpn/msp/refresh_token.txt",
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
-        await (await asyncio.create_subprocess_exec(
-            "sudo", "chmod", "644", "/etc/openvpn/msp/refresh_token.txt",
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
-        rt_tmp.unlink(missing_ok=True)
+        rt_tmp = _write_private(refresh, ".txt")
+        try:
+            await (await asyncio.create_subprocess_exec(
+                "sudo", "cp", str(rt_tmp), "/etc/openvpn/msp/refresh_token.txt",
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
+            await (await asyncio.create_subprocess_exec(
+                "sudo", "chmod", "600", "/etc/openvpn/msp/refresh_token.txt",
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
+        finally:
+            rt_tmp.unlink(missing_ok=True)
 
     return {"ok": True, "interface": "tun0", "local_ip": local_ip}
 
