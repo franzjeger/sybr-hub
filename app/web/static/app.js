@@ -7964,9 +7964,9 @@ async function loadUnifiedDashboard() {
         html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="grow">'+esc(r.service_display)+'</span><span class="vendor">'+esc(r.vendor||'')+'</span><span class="days" style="color:'+_dc+';">'+_dl+'</span></div>';
       });
     } else {
-      html += '<div style="font-size:12px;color:var(--text-dim);padding:6px 0;">Ingen utløper snart</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">Ingen utløper snart</div>';
     }
-    if (_restN) html += '<div style="font-size:11px;color:var(--text-dim);padding-top:8px;border-top:1px solid var(--row-divider);margin-top:2px;">'+_restN+' øvrige (&gt; 90 dager)</div>';
+    if (_restN) html += '<div style="font-size:11px;color:var(--text-muted);padding-top:8px;border-top:1px solid var(--row-divider);margin-top:2px;">'+_restN+' øvrige (&gt; 90 dager)</div>';
     html += '</div>';
   }
 

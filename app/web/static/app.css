@@ -570,6 +570,7 @@
        drop the "Oppdatert" text so Eksport/⟳ still fit. */
     .dash-tabs { overflow-x: auto; gap: 16px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .dash-tabs::-webkit-scrollbar { display: none; }
+    .dash-tabs .dash-tab-btn { flex-shrink: 0; }
     .dash-updated { display: none; }
     .dash-toolbar .field-input[id="overview-search"] { flex: 1; min-width: 140px; }
 
@@ -1284,7 +1285,12 @@
   [data-theme="light"] .slim-table .cust-cell .cdom,
   [data-theme="light"] .slim-table thead th,
   [data-theme="light"] .context-audit,
-  [data-theme="light"] .hdr-search .kbd-chip { color: var(--text-muted); }
+  [data-theme="light"] .hdr-search .kbd-chip,
+  [data-theme="light"] .cd-stat .l,
+  [data-theme="light"] .cd-action-src,
+  [data-theme="light"] .cd-card-title .sub,
+  [data-theme="light"] .cd-row .vendor,
+  [data-theme="light"] .cd-row .mono { color: var(--text-muted); }
   [data-theme="light"] .nav-dropdown-menu-inner { background: var(--bg-card); border-color: var(--border); box-shadow: var(--shadow-lg); }
   [data-theme="light"] .nav-dropdown-menu-inner button { color: var(--text); }
   [data-theme="light"] .nav-dropdown-menu-inner button:hover { background: rgba(29,99,135,0.08); color: var(--blue); }
@@ -1805,7 +1811,9 @@
     .logo img { width: 80px !important; height: 23px !important; }
     .nav { top: 48px; }
 
-    main { padding: 16px 12px; }
+    /* Keep the bottom-nav clearance (this is the last main rule, so it would
+       otherwise reset padding-bottom to 16px and trap the last row). */
+    main { padding: 16px 12px calc(78px + var(--safe-bottom)); }
 
     /* Cards: even tighter */
     .card { padding: 14px 12px; }
