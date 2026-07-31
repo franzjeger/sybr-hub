@@ -495,3 +495,213 @@ async def test_a_group_whose_member_count_failed_is_not_reported_as_empty():
     assert parsed["total"] == 1
     assert parsed["groups"][0]["members_known"] is False
     assert parsed["empty_groups"] == 0, "unknown is not empty"
+
+
+# ── DNS / email security ─────────────────────────────────────────────────────
+#
+# The seam behind CIS 5.2.1 and 5.2.2. The section is careful to keep a failed
+# lookup ("ERROR (...)") apart from an absent record ("MISSING"), and the two
+# controls used to collapse both into a failed control — telling a customer to
+# configure SPF for a domain that may well have it.
+
+
+def _dns_result(domain, spf="OK (-all hardfail)", dmarc="OK (p=reject)"):
+    """The shape _check_domain really returns."""
+    return {
+        "domain": domain, "spf_status": spf, "spf_record": "v=spf1 -all",
+        "dmarc_status": dmarc, "dmarc_record": "v=DMARC1; p=reject;",
+        "dkim_selector1": "CNAME -> selector1._domainkey", "dkim_selector2": "MISSING",
+        "dkim_third_party": {}, "mta_sts": "MISSING",
+    }
+
+
+async def _run_dns(monkeypatch, results):
+    from app.modules.m365_audit.sections import dns as dns_mod
+
+    async def fake_check(client, domain):
+        return next(r for r in results if r["domain"] == domain)
+
+    monkeypatch.setattr(dns_mod, "_check_domain", fake_check)
+    section = dns_mod.DnsSection(_tmp(), [r["domain"] for r in results])
+    await _run(section)
+    return _read(section.out_dir, "26_email_dns_spf_dmarc.txt")
+
+
+@pytest.mark.asyncio
+async def test_dns_statuses_survive_the_round_trip(monkeypatch):
+    text = await _run_dns(monkeypatch, [_dns_result("example.no")])
+
+    parsed = g._parse_spf_dmarc(text)
+    assert len(parsed) == 1
+    assert parsed[0]["domain"] == "example.no"
+    assert "OK" in parsed[0]["spf"]
+    assert "reject" in parsed[0]["dmarc"].lower() or "OK" in parsed[0]["dmarc"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_lookup_reaches_the_control_as_unverifiable(monkeypatch):
+    """End to end: a SERVFAIL must not become "configure SPF"."""
+    text = await _run_dns(monkeypatch, [
+        _dns_result("example.no", spf="ERROR (SERVFAIL)", dmarc="ERROR (SERVFAIL)"),
+    ])
+
+    parsed = g._parse_spf_dmarc(text)
+    assert parsed[0]["spf"].startswith("ERROR")
+
+    rows = {c["cis_id"]: c for c in
+            g._build_compliance_map({"spf_dmarc": parsed, "file_contents": {}})
+            if c["cis_id"] in ("5.2.1", "5.2.2")}
+    assert rows["5.2.1"]["status"] == "info"
+    assert rows["5.2.2"]["status"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_a_genuinely_absent_record_still_fails_the_control(monkeypatch):
+    """The guard must not turn a real finding into a shrug."""
+    text = await _run_dns(monkeypatch, [
+        _dns_result("example.no", spf="MISSING", dmarc="MISSING"),
+    ])
+
+    parsed = g._parse_spf_dmarc(text)
+    rows = {c["cis_id"]: c for c in
+            g._build_compliance_map({"spf_dmarc": parsed, "file_contents": {}})
+            if c["cis_id"] in ("5.2.1", "5.2.2")}
+    assert rows["5.2.1"]["status"] == "fail"
+    assert rows["5.2.2"]["status"] == "fail"
+
+
+@pytest.mark.asyncio
+async def test_each_domain_is_graded_separately(monkeypatch):
+    """One broken lookup must not drag a healthy domain down with it."""
+    text = await _run_dns(monkeypatch, [
+        _dns_result("good.no"),
+        _dns_result("broken.no", spf="ERROR (timeout)", dmarc="ERROR (timeout)"),
+    ])
+
+    parsed = g._parse_spf_dmarc(text)
+    assert {d["domain"] for d in parsed} == {"good.no", "broken.no"}
+
+    spf_rows = [c for c in g._build_compliance_map({"spf_dmarc": parsed, "file_contents": {}})
+                if c["cis_id"] == "5.2.1"]
+    by_domain = {r["title"].split("— ")[-1]: r["status"] for r in spf_rows}
+    assert by_domain["good.no"] == "pass"
+    assert by_domain["broken.no"] == "info"
+
+
+# ── Exchange ─────────────────────────────────────────────────────────────────
+#
+# This section takes its input from the PowerShell helper rather than Graph, so
+# the seam is the same but the fake is a dict of records. It held the connector
+# count that read three where the tenant had one: a single record spread over
+# three lines, counted as three, and printed on the customer-facing report.
+
+
+def _exchange(exo_data):
+    from app.modules.m365_audit.sections.exchange import ExchangeSection
+
+    return ExchangeSection(_tmp(), exo_data, ["example.no"], graph=_FakeGraph({}))
+
+
+@pytest.mark.asyncio
+async def test_a_single_connector_is_counted_once(monkeypatch):
+    """One record, three lines. It was read as three connectors."""
+    section = _exchange({"connectors": [
+        {"Name": "Inbound from scanner", "ConnectorType": "OnPremises",
+         "Enabled": True, "SmartHosts": "10.0.0.5"},
+    ]})
+    section._save_connectors()
+
+    fc = {"22_exchange_connectors.txt": _read(section.out_dir, "22_exchange_connectors.txt")}
+    assert g._parse_exchange_overview(fc)["connectors"] == 1
+
+
+@pytest.mark.asyncio
+async def test_several_connectors_are_all_counted():
+    section = _exchange({"connectors": [
+        {"Name": "A", "Enabled": True},
+        {"Name": "B", "Enabled": False},
+        {"Name": "C", "Enabled": True},
+    ]})
+    section._save_connectors()
+
+    fc = {"22_exchange_connectors.txt": _read(section.out_dir, "22_exchange_connectors.txt")}
+    assert g._parse_exchange_overview(fc)["connectors"] == 3
+
+
+@pytest.mark.asyncio
+async def test_no_connectors_reads_back_as_none():
+    section = _exchange({"connectors": []})
+    section._save_connectors()
+
+    fc = {"22_exchange_connectors.txt": _read(section.out_dir, "22_exchange_connectors.txt")}
+    assert g._parse_exchange_overview(fc)["connectors"] == 0
+
+
+@pytest.mark.asyncio
+async def test_inbox_rules_finding_is_counted_from_the_renamed_file():
+    """The collector signals this finding by renaming the file, not by its
+    contents, and the report read only the all-clear name."""
+    section = _exchange({"inbox_rules_external": [
+        {"Name": "Send to Gmail", "Mailbox": "anna@example.no",
+         "ForwardTo": "anna@gmail.com", "Enabled": True},
+        {"Name": "Copy out", "Mailbox": "bjorn@example.no",
+         "ForwardTo": "bjorn@outlook.com", "Enabled": True},
+    ]})
+    section._save_inbox_rules()
+
+    written = list(section.out_dir.glob("29_*.txt"))
+    assert len(written) == 1
+    assert written[0].name.endswith("_WARN.txt"), "a finding renames the file"
+
+    fc = {written[0].name: _read(section.out_dir, written[0].name)}
+    assert g._parse_exchange_overview(fc)["inbox_rules_external"] == 2
+
+
+@pytest.mark.asyncio
+async def test_no_inbox_rules_writes_the_all_clear_name_and_counts_zero():
+    section = _exchange({"inbox_rules_external": []})
+    section._save_inbox_rules()
+
+    written = list(section.out_dir.glob("29_*.txt"))
+    assert len(written) == 1
+    assert not written[0].name.endswith("_WARN.txt")
+
+    fc = {written[0].name: _read(section.out_dir, written[0].name)}
+    assert g._parse_exchange_overview(fc)["inbox_rules_external"] == 0
+
+
+@pytest.mark.asyncio
+async def test_transport_rules_survive_the_round_trip():
+    section = _exchange({"transport_rules": [
+        {"Name": "Scanner spam-bypass", "State": "Enabled",
+         "Description": "A description that\nwraps across lines"},
+        {"Name": "External warning", "State": "Enabled", "Description": "short"},
+    ]})
+    section._save_transport_rules()
+
+    fc = {"21_exchange_transport_rules.txt":
+          _read(section.out_dir, "21_exchange_transport_rules.txt")}
+    assert g._parse_exchange_overview(fc)["transport_rules"] == 2, (
+        "a wrapped description must not read as extra rules"
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_connector_whose_fields_are_lower_case_is_still_one_record():
+    """What the helper actually returned on a live tenant.
+
+    The record was {"outbound": ..., "inbound": ...} — lower case — and the
+    multi-line detector required a capitalised field name, so the file was read
+    as a plain table and its one connector counted as three lines of one. That
+    number is printed on the customer-facing report.
+
+    The first version of the test above used capitalised keys and let a
+    mutation reverting the fix pass, which is the same assumption-as-fixture
+    trap these tests exist to close.
+    """
+    section = _exchange({"connectors": [{"outbound": "N/A", "inbound": "N/A"}]})
+    section._save_connectors()
+
+    text = _read(section.out_dir, "22_exchange_connectors.txt")
+    assert "outbound: N/A" in text, "lower case is what the helper produces"
+    assert g._parse_exchange_overview({"22_exchange_connectors.txt": text})["connectors"] == 1
