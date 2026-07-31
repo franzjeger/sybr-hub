@@ -191,24 +191,38 @@ class IdentitySecuritySection(BaseSection):
     # ── Cross-Tenant Access Policy ────────────────────────────────────────────
 
     async def _collect_cross_tenant_policy(self) -> None:
+        # "default" is a relationship on crossTenantAccessPolicy, not a
+        # property of it: a GET on the policy itself returns only displayName
+        # and allowedCloudEndpoints. Reading data["default"] therefore found
+        # nothing on every tenant, and both settings below have been "N/A"
+        # since they were written — which reads as "not configured" rather than
+        # "never fetched". The configuration lives on its own endpoint.
         try:
-            data = await self.graph.get("policies/crossTenantAccessPolicy")
+            default = await self.graph.get("policies/crossTenantAccessPolicy/default")
         except Exception as ex:
             self._save("18c_cross_tenant_access_policy.txt", f"Error: {ex}\n")
             self._warn(f"Cross-tenant access policy fetch failed: {ex}")
             return
 
-        default = data.get("default", {})
-        b2b_in  = default.get("b2bCollaborationInbound", {})
-        b2b_out = default.get("b2bCollaborationOutbound", {})
+        b2b_in  = default.get("b2bCollaborationInbound") or {}
+        b2b_out = default.get("b2bCollaborationOutbound") or {}
+        dc_in   = default.get("b2bDirectConnectInbound") or {}
 
+        def access(setting: dict) -> str:
+            value = (setting.get("usersAndGroups") or {}).get("accessType")
+            return "N/A" if value is None else str(value)
+
+        is_default = default.get("isServiceDefault")
         lines = [
             "=" * 70,
             "  CROSS-TENANT ACCESS POLICY",
             "=" * 70,
             "  Default Settings:",
-            f"    B2B Collab Inbound  : {b2b_in.get('usersAndGroups', {}).get('accessType', 'N/A')}",
-            f"    B2B Collab Outbound : {b2b_out.get('usersAndGroups', {}).get('accessType', 'N/A')}",
+            f"    B2B Collab Inbound     : {access(b2b_in)}",
+            f"    B2B Collab Outbound    : {access(b2b_out)}",
+            f"    B2B Direct Connect In  : {access(dc_in)}",
+            f"    System Default         : "
+            f"{'N/A' if is_default is None else str(is_default).lower()}",
             "=" * 70,
             "",
         ]

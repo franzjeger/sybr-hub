@@ -477,3 +477,89 @@ def test_requiring_mfa_of_legacy_clients_counts_as_blocking():
     fc = {"08_conditional_access.txt": _ca(
         ("enabled", "Legacy auth requires MFA", "mfa", "exchangeActiveSync, other"))}
     assert _ctrl(fc, "5.1.1")["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# Three files the collectors had written since the sections existed, and no
+# parser ever read. Their signals are unambiguous, so they are now graded.
+# ---------------------------------------------------------------------------
+
+def _grade(fc, cid, **ctx):
+    from app.reports.generator import _build_compliance_map
+    rows = [c for c in _build_compliance_map({"file_contents": fc, **ctx}) if c["cis_id"] == cid]
+    assert rows, f"{cid} missing"
+    return rows[0]
+
+
+SD_ON = "  SMART LOCKOUT & SECURITY DEFAULTS\n  Security Defaults Enabled       : True\n"
+SD_OFF = "  SMART LOCKOUT & SECURITY DEFAULTS\n  Security Defaults Enabled       : False\n"
+
+
+def test_security_defaults_on_is_baseline_protection():
+    assert _grade({"31b_smart_lockout.txt": SD_ON}, "1.1.7")["status"] == "pass"
+
+
+def test_security_defaults_off_with_conditional_access_is_the_recommended_state():
+    """Turning them off is correct once CA is in place, so the flag alone
+    cannot decide this."""
+    row = _grade({"31b_smart_lockout.txt": SD_OFF}, "1.1.7",
+                 ca={"has_data": True, "enabled": 4})
+    assert row["status"] == "pass"
+
+
+def test_security_defaults_off_with_no_conditional_access_is_a_failure():
+    row = _grade({"31b_smart_lockout.txt": SD_OFF}, "1.1.7",
+                 ca={"has_data": True, "enabled": 0})
+    assert row["status"] == "fail"
+
+
+def test_security_defaults_unreadable_is_not_a_verdict():
+    assert _grade({"31b_smart_lockout.txt": "  NOTE: nothing here\n"}, "1.1.7")["status"] == "info"
+
+
+def test_access_reviews_absent_without_p2_describes_the_licence():
+    """Access reviews need Entra ID P2; failing a tenant that cannot buy the
+    feature is a finding about the price list, not the configuration."""
+    fc = {"07d_access_reviews.txt": "  ACCESS REVIEW DEFINITIONS  (0 total)\n"}
+    row = _grade(fc, "1.1.8", licenses=[{"part": "SPB", "used": 40, "total": 40}])
+    assert row["status"] == "info"
+    assert "P2" in row["detail"]
+
+
+def test_access_reviews_absent_with_p2_is_a_real_gap():
+    fc = {"07d_access_reviews.txt": "  ACCESS REVIEW DEFINITIONS  (0 total)\n"}
+    row = _grade(fc, "1.1.8", licenses=[{"part": "AAD_PREMIUM_P2", "used": 5, "total": 10}])
+    assert row["status"] == "warn"
+
+
+def test_access_reviews_present_passes():
+    fc = {"07d_access_reviews.txt": "  ACCESS REVIEW DEFINITIONS  (2 total)\n"}
+    assert _grade(fc, "1.1.8", licenses=[{"part": "AAD_PREMIUM_P2", "used": 5, "total": 10}])["status"] == "pass"
+
+
+def test_anonymous_links_are_a_finding_whatever_the_tenant_setting():
+    fc = {"25_onedrive_sharing.txt": "  Drives scanned : 3\n  'Anyone' links       : 2\n"}
+    row = _grade(fc, "7.2.4")
+    assert row["status"] == "fail"
+    assert "2" in row["detail"]
+
+
+def test_no_anonymous_links_passes():
+    fc = {"25_onedrive_sharing.txt": "  Drives scanned : 1\n  'Anyone' links       : 0\n"}
+    assert _grade(fc, "7.2.4")["status"] == "pass"
+
+
+def test_missing_onedrive_data_is_not_a_pass():
+    assert _grade({}, "7.2.4")["status"] == "info"
+
+
+def test_security_defaults_off_with_no_ca_data_is_not_a_failure():
+    """Absence of the CA file must not manufacture a finding.
+
+    Whether Security Defaults being off is acceptable depends entirely on
+    what Conditional Access is doing. With that file missing there is no
+    verdict to give — the first version of this control called it a failure,
+    which the partial-audit test caught.
+    """
+    row = _grade({"31b_smart_lockout.txt": SD_OFF}, "1.1.7")   # no ca in context
+    assert row["status"] == "info"

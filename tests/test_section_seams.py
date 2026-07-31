@@ -705,3 +705,57 @@ async def test_a_connector_whose_fields_are_lower_case_is_still_one_record():
     text = _read(section.out_dir, "22_exchange_connectors.txt")
     assert "outbound: N/A" in text, "lower case is what the helper produces"
     assert g._parse_exchange_overview({"22_exchange_connectors.txt": text})["connectors"] == 1
+
+
+# ── Cross-tenant access ──────────────────────────────────────────────────────
+#
+# Third instance of the same shape as the SharePoint settings: a value read off
+# a response that never carried it. "default" is a relationship on
+# crossTenantAccessPolicy, not a property, so a GET on the policy returns only
+# displayName and allowedCloudEndpoints — and both settings read "N/A" on every
+# tenant since the day they were written.
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_settings_come_from_the_default_endpoint():
+    from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
+
+    graph = _FakeGraph({}, {
+        # What a GET on the policy itself actually returns.
+        "policies/crossTenantAccessPolicy/default": {
+            "isServiceDefault": False,
+            "b2bCollaborationInbound": {"usersAndGroups": {"accessType": "allowed"}},
+            "b2bCollaborationOutbound": {"usersAndGroups": {"accessType": "blocked"}},
+            "b2bDirectConnectInbound": {"usersAndGroups": {"accessType": "blocked"}},
+        },
+        "policies/crossTenantAccessPolicy": {"displayName": "X", "allowedCloudEndpoints": []},
+    })
+    section = IdentitySecuritySection(_tmp(), graph, global_admin_ids=[])
+    await section._collect_cross_tenant_policy()
+
+    text = _read(section.out_dir, "18c_cross_tenant_access_policy.txt")
+    assert "B2B Collab Inbound     : allowed" in text
+    assert "B2B Collab Outbound    : blocked" in text
+    assert "System Default         : false" in text
+
+
+@pytest.mark.asyncio
+async def test_the_policy_container_alone_would_yield_nothing():
+    """Guards the actual regression: reading the wrong endpoint.
+
+    The container carries no settings, so a collector pointed at it can only
+    ever write N/A — indistinguishable from a tenant that has not configured
+    cross-tenant access.
+    """
+    from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
+
+    graph = _FakeGraph({}, {
+        "policies/crossTenantAccessPolicy": {"displayName": "X", "allowedCloudEndpoints": []},
+    })
+    section = IdentitySecuritySection(_tmp(), graph, global_admin_ids=[])
+    await section._collect_cross_tenant_policy()
+
+    text = _read(section.out_dir, "18c_cross_tenant_access_policy.txt")
+    assert "B2B Collab Inbound     : N/A" in text, (
+        "with no default endpoint answering, N/A is the honest output"
+    )

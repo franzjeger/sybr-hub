@@ -27,13 +27,18 @@ from app.reports.generator import build_report_context
 from tests.audit_fixture import FULL_AUDIT
 
 # Derived from the synthetic healthy tenant in tests/audit_fixture.py.
+#
+# Last moved when 1.1.7, 1.1.8 and 7.2.4 were added — three signals the
+# collectors had been writing since their sections existed and no parser read.
+# Total 31 -> 34, and the fixture gained the three files so the healthy tenant
+# passes them rather than reporting them unverifiable.
 GOLDEN = {
     "ca_enabled": 4,
-    "compliance_assessed": 27,
+    "compliance_assessed": 30,
     "compliance_info": 4,
-    "compliance_pass": 26,
-    "compliance_pct": 96.0,
-    "compliance_total": 31,
+    "compliance_pass": 29,
+    "compliance_pct": 97.0,
+    "compliance_total": 34,
     "exchange_connectors": 0,
     "exchange_transport_rules": 0,
     "ga_count": 3,

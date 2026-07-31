@@ -3152,6 +3152,10 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
               "iso_id": "A.5.18", "iso_name": "Access rights"},
     "1.1.6": {"nist_id": "PR.AA-1", "nist_name": "Identities and credentials are managed",
               "iso_id": "A.5.16", "iso_name": "Identity management"},
+    "1.1.7": {"nist_id": "PR.AA-3", "nist_name": "Users, services, and hardware are authenticated",
+              "iso_id": "A.8.5",  "iso_name": "Secure authentication"},
+    "1.1.8": {"nist_id": "PR.AA-5", "nist_name": "Access permissions are managed",
+              "iso_id": "A.5.18", "iso_name": "Access rights"},
     "1.2.1": {"nist_id": "PR.AA-3", "nist_name": "Users, services, and hardware are authenticated",
               "iso_id": "A.8.5",  "iso_name": "Secure authentication"},
     "1.4":   {"nist_id": "ID.RA-1", "nist_name": "Asset vulnerabilities are identified",
@@ -3193,6 +3197,8 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
               "iso_id": "A.8.1",  "iso_name": "User endpoint devices"},
     # ── SharePoint & Data ──
     "7.2.1": {"nist_id": "PR.DS-5", "nist_name": "Protections against data leaks are implemented",
+              "iso_id": "A.5.14", "iso_name": "Information transfer"},
+    "7.2.4": {"nist_id": "PR.DS-5", "nist_name": "Protections against data leaks are implemented",
               "iso_id": "A.5.14", "iso_name": "Information transfer"},
     "7.2.2": {"nist_id": "PR.DS-5", "nist_name": "Protections against data leaks are implemented",
               "iso_id": "A.8.12", "iso_name": "Data leakage prevention"},
@@ -3257,6 +3263,8 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "1.1.4": ("08_conditional_access.txt",),
     "1.1.5": ("07b_pim_eligible_assignments.txt", "32_pim_roles.txt"),
     "1.1.6": ("07c_emergency_access_check.txt",),
+    "1.1.7": ("31b_smart_lockout.txt", "08_conditional_access.txt"),
+    "1.1.8": ("07d_access_reviews.txt",),
     "1.2.1": ("31_password_protection.txt",),
     "1.4":   ("09_secure_score.txt",),
     "2.1":   ("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
@@ -3279,6 +3287,7 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "7.2.1": ("15b_sharepoint_settings.txt",),
     "7.2.2": ("19e_purview_retention_policies.txt",),
     "7.2.3": ("15b_sharepoint_settings.txt",),
+    "7.2.4": ("25_onedrive_sharing.txt",),
     "8.1.1": ("16c_teams_external_access.txt",),
     "8.1.2": ("30b_teams_guest_access.txt",),
     "9.1":   ("19_entra_audit_log_admin_activity.txt",),
@@ -3832,6 +3841,76 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     else:
         add("5.1.1", "Ensure legacy authentication is blocked", t.cis_cat_identity, "fail",
             "Ingen aktivert CA-policy blokkerer eldre autentisering")
+
+    # 1.1.7 Security Defaults. Collected since the section was written and
+    # never graded: 31b_smart_lockout.txt records whether they are on, and a
+    # tenant with neither Security Defaults nor a Conditional Access policy has
+    # no baseline sign-in protection at all. Disabling them is correct once CA
+    # is in place, which is why the CA count is part of the verdict rather than
+    # this flag alone.
+    lockout_text = fc.get("31b_smart_lockout.txt", "")
+    sd_raw = ""
+    for line in lockout_text.splitlines():
+        if "security defaults" in line.lower() and ":" in line:
+            sd_raw = line.split(":", 1)[1].strip().lower()
+            break
+    if sd_raw not in ("true", "false"):
+        add("1.1.7", "Ensure baseline sign-in protection is in place", t.cis_cat_identity,
+            "info", _CANNOT_VERIFY + "Security Defaults-status utilgjengelig")
+    elif sd_raw == "true":
+        add("1.1.7", "Ensure baseline sign-in protection is in place", t.cis_cat_identity,
+            "pass", "Security Defaults er aktivert")
+    elif not ca.get("has_data"):
+        # Security Defaults are off, and whether that is fine depends entirely
+        # on the Conditional Access side. Without it there is no verdict to
+        # give: calling it a failure would manufacture a finding out of a
+        # missing file, which is what the partial-audit test caught here.
+        add("1.1.7", "Ensure baseline sign-in protection is in place", t.cis_cat_identity,
+            "info", _CANNOT_VERIFY + "Security Defaults er av, men CA-data er utilgjengelig")
+    elif ca.get("enabled", 0) > 0:
+        add("1.1.7", "Ensure baseline sign-in protection is in place", t.cis_cat_identity,
+            "pass", f"Security Defaults er av, men {ca.get('enabled')} CA-policyer er aktive")
+    else:
+        add("1.1.7", "Ensure baseline sign-in protection is in place", t.cis_cat_identity,
+            "fail", "Verken Security Defaults eller aktive CA-policyer")
+
+    # 1.1.8 Access reviews. Also collected and never graded. Gated on P2:
+    # without an assigned seat there is nothing to configure, so "none found"
+    # describes the licence rather than the tenant.
+    reviews_text = fc.get("07d_access_reviews.txt", "")
+    reviews = _parse_banner_count(reviews_text)
+    if not reviews_text.strip() or reviews_text.strip().startswith("Error:"):
+        add("1.1.8", "Ensure access reviews are configured", t.cis_cat_identity, "info",
+            _CANNOT_VERIFY + "data om tilgangsgjennomganger utilgjengelig")
+    elif reviews:
+        add("1.1.8", "Ensure access reviews are configured", t.cis_cat_identity, "pass",
+            f"{reviews} tilgangsgjennomgang(er) definert")
+    elif _lacks(capabilities, "entra_p2"):
+        add("1.1.8", "Ensure access reviews are configured", t.cis_cat_identity, "info",
+            _CANNOT_VERIFY + "tilgangsgjennomganger krever Entra ID P2, som ingen bruker har")
+    else:
+        add("1.1.8", "Ensure access reviews are configured", t.cis_cat_identity, "warn",
+            "Ingen tilgangsgjennomganger definert")
+
+    # 7.2.4 Anonymous sharing links. 25_onedrive_sharing.txt counts them and
+    # nothing read it. An "Anyone" link needs no sign-in, so one is a finding
+    # regardless of how the tenant-level sharing capability is set.
+    od_text = fc.get("25_onedrive_sharing.txt", "")
+    anyone = None
+    for line in od_text.splitlines():
+        if "'anyone' links" in line.lower() and ":" in line:
+            tail = line.split(":", 1)[1].strip()
+            anyone = int(tail) if tail.isdigit() else None
+            break
+    if anyone is None:
+        add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
+            _CANNOT_VERIFY + "OneDrive-delingsdata utilgjengelig")
+    elif anyone == 0:
+        add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "pass",
+            "Ingen anonyme delingslenker funnet")
+    else:
+        add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "fail",
+            f"{anyone} anonym(e) delingslenke(r) — tilgjengelig uten pålogging")
 
     # 7.2.3 SharePoint's own legacy protocols — what 5.1.1 used to measure
     # under the wrong name. The parser returns legacy_auth=True only when the

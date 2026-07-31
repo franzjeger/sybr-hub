@@ -14,6 +14,35 @@ Keep it healthy. If you add a section here, add a genuinely compliant one.
 from __future__ import annotations
 
 FULL_AUDIT: dict[str, str] = {
+    # Baseline sign-in protection: Security Defaults off is the correct state
+    # for a tenant running Conditional Access, which this one does.
+    "31b_smart_lockout.txt": (
+        "=" * 70 + "\n"
+        "  SMART LOCKOUT & SECURITY DEFAULTS\n"
+        + "=" * 70 + "\n"
+        "  Security Defaults Enabled       : False\n"
+        + "=" * 70 + "\n"
+    ),
+    "07d_access_reviews.txt": (
+        "=" * 70 + "\n"
+        "  ACCESS REVIEW DEFINITIONS  (2 total)\n"
+        + "=" * 70 + "\n"
+        "  Review Name              Status     Recurrence   Created\n"
+        "  " + "-" * 66 + "\n"
+        "  Guest access review      InProgress monthly      2026-01-01\n"
+        "  Admin role review        InProgress quarterly    2026-01-01\n"
+        + "=" * 70 + "\n"
+    ),
+    "25_onedrive_sharing.txt": (
+        "=" * 70 + "\n"
+        "  ONEDRIVE / SHAREPOINT EXTERNAL SHARING AUDIT\n"
+        + "=" * 70 + "\n"
+        "  Drives scanned       : 12\n"
+        "  Total shared items   : 3\n"
+        "  'Anyone' links       : 0\n"
+        "  External user shares : 0\n"
+        + "=" * 70 + "\n"
+    ),
     "01_tenant.txt": (
         "TENANT INFORMATION\n"
         "==================\n"
