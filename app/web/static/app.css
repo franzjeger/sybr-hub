@@ -566,6 +566,13 @@
     /* KPIs to two columns. */
     .kpi-row { grid-template-columns: 1fr 1fr; }
 
+    /* Dashboard tabs scroll horizontally rather than overflowing the phone;
+       drop the "Oppdatert" text so Eksport/⟳ still fit. */
+    .dash-tabs { overflow-x: auto; gap: 16px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .dash-tabs::-webkit-scrollbar { display: none; }
+    .dash-updated { display: none; }
+    .dash-toolbar .field-input[id="overview-search"] { flex: 1; min-width: 140px; }
+
     /* Customer table → touch cards: grade tile + name/meta, status pill right;
        numeric columns and the ⋯ menu drop away (tap the card for detail). */
     .overview-table-wrap { overflow: visible; max-height: none; border: none; background: none; }
