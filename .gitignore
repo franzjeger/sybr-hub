@@ -8,8 +8,15 @@ audit_cert.pfx
 *.key
 
 # ── Claude Code session data ──────────────────────────────────────────────
-.claude/
+# Contents rather than the directory: git will not re-include a path whose
+# parent is excluded, so ".claude/" would make the negation below dead.
+.claude/*
 memory/
+# Agent definitions are shared tooling, not session state. They carry the
+# operational rules for this repo — do not restart during an audit, the
+# service worker caches /static/, every string goes in ui_i18n.json in both
+# languages — and are worth having on every technician's machine.
+!.claude/agents/
 
 # ── OS / IDE ──────────────────────────────────────────────────────────────
 .DS_Store
