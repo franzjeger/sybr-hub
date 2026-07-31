@@ -603,12 +603,77 @@ def _parse_ca_policies(text: str) -> dict:
             elif "reportonly" in l.replace(" ", ""):
                 report_only += 1
     total = enabled + disabled + report_only
+    legacy = _parse_ca_legacy_auth_block(text)
     return {
         "enabled": enabled,
         "disabled": disabled,
         "report_only": report_only,
         "has_data": audit_succeeded or total > 0,
+        "blocks_legacy_auth": legacy["blocks"],
+        "has_client_app_data": legacy["collected"],
     }
+
+
+# Legacy client apps in Graph's vocabulary. A policy scoped to these and
+# nothing else is a legacy-authentication block; one scoped to "all" is a
+# broad policy that happens to include them, which is a different thing and
+# deliberately not counted.
+_LEGACY_CLIENT_APPS = {"exchangeactivesync", "other"}
+
+# Grant controls a legacy client cannot satisfy. "block" is the modern way to
+# write it. "mfa" has the same effect and predates the block control: legacy
+# protocols have no way to perform a second factor, so the grant can never be
+# met and the sign-in is refused. Grading that tenant as a failure would be a
+# false finding about a tenant that has in fact closed the hole.
+_LEGACY_DENYING_GRANTS = {"block", "mfa"}
+
+
+def _parse_ca_legacy_auth_block(text: str) -> dict:
+    """Whether an enabled CA policy blocks legacy authentication.
+
+    Read from the policy's own client-app scope and grant control, not from
+    its name. A policy called "Block legacy authentication" is evidence of
+    what someone intended to build, not of what it does — and the tenant this
+    was written against has one that is Microsoft-managed, so the name is not
+    even the administrator's word for it.
+
+    "collected" separates a tenant that has no such policy from an audit taken
+    before the client-app scope was written to the section file at all. Without
+    that the control would read every older audit as a failure.
+    """
+    blocks = False
+    collected = False
+    state = ""
+    grants: list[str] = []
+    apps: set[str] = set()
+
+    def verdict() -> bool:
+        # Scoped to legacy clients only, and blocking. A policy covering "all"
+        # client apps is not a legacy-auth block even though it catches them.
+        return (
+            state == "enabled"
+            and bool(apps)
+            and apps <= _LEGACY_CLIENT_APPS
+            and bool(set(grants) & _LEGACY_DENYING_GRANTS)
+        )
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        low = stripped.lower()
+        if low.startswith("["):
+            blocks = blocks or verdict()
+            state = low[1:].split("]")[0].strip()
+            grants, apps = [], set()
+        elif low.startswith("grant controls:"):
+            grants = [g.strip().lower() for g in stripped.split(":", 1)[1].split(",")]
+        elif low.startswith("client apps:"):
+            collected = True
+            value = stripped.split(":", 1)[1].strip()
+            if value.lower() != "not specified":
+                apps = {a.strip().lower() for a in value.split(",") if a.strip()}
+
+    blocks = blocks or verdict()
+    return {"blocks": blocks, "collected": collected}
 
 
 def _parse_admin_roles(text: str) -> dict:
@@ -3040,6 +3105,8 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
               "iso_id": "A.5.14", "iso_name": "Information transfer"},
     "7.2.2": {"nist_id": "PR.DS-5", "nist_name": "Protections against data leaks are implemented",
               "iso_id": "A.8.12", "iso_name": "Data leakage prevention"},
+    "7.2.3": {"nist_id": "PR.AA-3", "nist_name": "Users, services, and hardware are authenticated",
+              "iso_id": "A.8.5",  "iso_name": "Secure authentication"},
     # ── Teams ──
     "8.1.1": {"nist_id": "PR.AA-5", "nist_name": "Access permissions are managed",
               "iso_id": "A.5.14", "iso_name": "Information transfer"},
@@ -3113,13 +3180,14 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
               "29_exchange_inbox_rules_external_fwd_WARN.txt"),
     "4.5":   ("27_exchange_defender_policies.txt",),
     "4.6":   ("27_exchange_defender_policies.txt",),
-    "5.1.1": ("15b_sharepoint_settings.txt",),
+    "5.1.1": ("08_conditional_access.txt",),
     "5.2.1": ("26_email_dns_spf_dmarc.txt",),
     "5.2.2": ("26_email_dns_spf_dmarc.txt",),
     "5.2.3": ("26_email_dns_spf_dmarc.txt",),
     "6.1.1": ("11_intune_compliance_policies.txt", "10_intune_devices_count.txt"),
     "7.2.1": ("15b_sharepoint_settings.txt",),
     "7.2.2": ("19e_purview_retention_policies.txt",),
+    "7.2.3": ("15b_sharepoint_settings.txt",),
     "8.1.1": ("16c_teams_external_access.txt",),
     "8.1.2": ("30b_teams_guest_access.txt",),
     "9.1":   ("19_entra_audit_log_admin_activity.txt",),
@@ -3647,20 +3715,48 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
 
     # ═══ 5. EMAIL AUTHENTICATION ═══
 
-    # 5.1.1 Legacy auth blocked. The sharepoint parser returns legacy_auth=True
-    # only when the settings dict contains "legacy auth: true"; if the audit
-    # never reached SharePoint admin settings, the field defaults to False and
-    # the control would silently report "pass" — a false attestation. Gate on
-    # has_data so missing input is reported as info instead.
-    if not sp.get("has_data"):
+    # 5.1.1 Legacy authentication blocked in Entra.
+    #
+    # This used to read SharePoint's legacy-auth protocol flag. The two are
+    # different settings on different services: a tenant can block legacy
+    # authentication tenant-wide with a Conditional Access policy and still
+    # have SharePoint's own protocols enabled, or the reverse. So the control
+    # attested to something it had not measured, and nothing anywhere checked
+    # the Entra side — the single highest-value hardening step in a tenant.
+    #
+    # The verdict comes from the policy's client-app scope and grant control,
+    # never its display name. SharePoint's flag is now its own control below.
+    if not ca.get("has_data"):
         add("5.1.1", "Ensure legacy authentication is blocked", t.cis_cat_identity, "info",
-            "Kan ikke verifiseres — SharePoint-tenant-innstillinger utilgjengelig")
-    elif sp.get("legacy_auth"):
-        add("5.1.1", "Ensure legacy authentication is blocked", t.cis_cat_identity, "fail",
-            t.cis_legacy_auth_enabled)
-    else:
+            _CANNOT_VERIFY + "Conditional Access-data utilgjengelig")
+    elif not ca.get("has_client_app_data"):
+        # An audit taken before the client-app scope was collected. Reading
+        # that absence as a failure would fail every tenant on old output.
+        add("5.1.1", "Ensure legacy authentication is blocked", t.cis_cat_identity, "info",
+            _CANNOT_VERIFY + "auditen er kjørt før klientapp-omfang ble samlet inn — "
+            "kjør en ny audit")
+    elif ca.get("blocks_legacy_auth"):
         add("5.1.1", "Ensure legacy authentication is blocked", t.cis_cat_identity, "pass",
-            t.cis_legacy_auth_disabled)
+            "En aktivert CA-policy blokkerer eldre klienter (exchangeActiveSync, other)")
+    else:
+        add("5.1.1", "Ensure legacy authentication is blocked", t.cis_cat_identity, "fail",
+            "Ingen aktivert CA-policy blokkerer eldre autentisering")
+
+    # 7.2.3 SharePoint's own legacy protocols — what 5.1.1 used to measure
+    # under the wrong name. The parser returns legacy_auth=True only when the
+    # settings dict says so; if the audit never reached SharePoint admin
+    # settings the field defaults to False and this would silently pass, so it
+    # gates on has_data.
+    if not sp.get("has_data"):
+        add("7.2.3", "Ensure legacy authentication protocols are disabled in SharePoint",
+            t.cis_cat_data, "info",
+            _CANNOT_VERIFY + "SharePoint-tenant-innstillinger utilgjengelig")
+    elif sp.get("legacy_auth"):
+        add("7.2.3", "Ensure legacy authentication protocols are disabled in SharePoint",
+            t.cis_cat_data, "fail", t.cis_legacy_auth_enabled)
+    else:
+        add("7.2.3", "Ensure legacy authentication protocols are disabled in SharePoint",
+            t.cis_cat_data, "pass", t.cis_legacy_auth_disabled)
 
     # 5.2.1/5.2.2/5.2.3 SPF, DMARC, DKIM per domain
     for d in spf:
@@ -4228,7 +4324,11 @@ def build_report_context(
 ) -> dict:
     from app.core.encryption import encrypted_read_text
     file_contents: dict[str, str] = {}
-    failed_sections: list[str] = []
+    # Named apart from the "failed_sections" context key, which is a count of
+    # sections whose collector reported failure. A section can report success
+    # and still write an error into its file, so the two disagree on exactly
+    # the tenants this list exists for.
+    error_files: list[str] = []
     for f in sorted(out_dir.glob("*.txt")):
         try:
             text = encrypted_read_text(f)
@@ -4244,7 +4344,7 @@ def build_report_context(
             # "cannot be verified — data unavailable". The failure itself is
             # still reported: the section carries it as a warning.
             log.warning("Section %s holds an error rather than data — not parsed", f.name)
-            failed_sections.append(f.name)
+            error_files.append(f.name)
             text = ""
         file_contents[f.name] = text
 
@@ -4391,6 +4491,25 @@ def build_report_context(
     context["compliance_pct"] = compliance_pct
     context["show_nist"] = frameworks in ("cis+nist", "all")
     context["show_iso"]  = frameworks in ("cis+iso", "all")
+
+    # Which collected files held an error, and which controls they leave
+    # unverified. The verdicts themselves already say "cannot be verified";
+    # nothing said why, because the evidence links deliberately skip a file
+    # whose contents were blanked, so a failed file is the one case that
+    # cites nothing. Read out of _EVIDENCE_MAP in the opposite direction,
+    # and intersected with the controls the table actually lists so this
+    # never points at a row that is not there.
+    shown_ids = {c["cis_id"] for c in compliance}
+    context["error_files"] = [
+        {
+            "name": name,
+            "controls": sorted(
+                cis_id for cis_id, files in _EVIDENCE_MAP.items()
+                if name in files and cis_id in shown_ids
+            ),
+        }
+        for name in error_files
+    ]
 
     # Per-category compliance summary
     cat_summary: dict[str, dict] = {}

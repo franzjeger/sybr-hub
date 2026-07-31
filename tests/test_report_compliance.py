@@ -366,3 +366,114 @@ def test_the_guest_control_points_at_the_file_it_reads():
     fc = {"30b_teams_guest_access.txt": "  Allow Invites From       : Everyone (most open)\n"}
     row = [r for r in _build_compliance_map({"file_contents": fc}) if r["cis_id"] == "8.1.2"][0]
     assert row["evidence"] == ["30b_teams_guest_access.txt"]
+
+
+# ---------------------------------------------------------------------------
+# 5.1.1 claimed to check that legacy authentication was blocked, and measured
+# SharePoint's legacy-protocol flag instead. Two different settings on two
+# different services — and nothing anywhere checked the Entra side.
+# ---------------------------------------------------------------------------
+
+def _ca(*policies):
+    """Build a section file in the collector's own format."""
+    lines = ["=" * 120, "  CONDITIONAL ACCESS POLICIES", "=" * 120,
+             "  State        Policy Name      Users   Groups   Apps", "  " + "-" * 116]
+    for state, name, grants, apps in policies:
+        lines.append(f"  [{state:<10}] {name:<45} All  -  All")
+        lines.append(f"               Grant controls: {grants}")
+        lines.append(f"               Client apps: {apps}")
+    return "\n".join(lines) + "\n"
+
+
+def _ctrl(fc, cid):
+    """Parse the files the way build_report_context does, then grade."""
+    from app.reports.generator import (
+        _build_compliance_map, _parse_ca_policies, _parse_sharepoint_settings,
+    )
+    ctx = {
+        "file_contents": fc,
+        "ca": _parse_ca_policies(fc.get("08_conditional_access.txt", "")),
+        "sharepoint": _parse_sharepoint_settings(
+            fc.get("15b_sharepoint_settings.txt", ""), fc.get("15_sharepoint_sites.txt", "")),
+    }
+    rows = [r for r in _build_compliance_map(ctx) if r["cis_id"] == cid]
+    assert rows, f"{cid} missing"
+    return rows[0]
+
+
+def test_legacy_auth_block_recognised_from_client_app_scope():
+    fc = {"08_conditional_access.txt": _ca(
+        ("enabled", "Block legacy authentication", "block", "exchangeActiveSync, other"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "pass"
+
+
+def test_no_legacy_block_is_a_failure():
+    fc = {"08_conditional_access.txt": _ca(
+        ("enabled", "All users require MFA", "mfa", "all"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "fail"
+
+
+def test_a_disabled_legacy_policy_does_not_count():
+    fc = {"08_conditional_access.txt": _ca(
+        ("disabled", "Block legacy authentication", "block", "exchangeActiveSync, other"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "fail"
+
+
+def test_the_name_alone_proves_nothing():
+    """A policy named for the job but scoped to all clients and granting MFA."""
+    fc = {"08_conditional_access.txt": _ca(
+        ("enabled", "Block legacy authentication", "mfa", "all"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "fail"
+
+
+def test_audit_without_client_app_scope_cannot_be_verified():
+    """Older output has no "Client apps:" line; that is not a failure."""
+    old = ("=" * 120 + "\n  CONDITIONAL ACCESS POLICIES\n" + "=" * 120 + "\n"
+           "  [enabled   ] Block legacy authentication   All  -  All\n"
+           "               Grant controls: block\n")
+    assert _ctrl({"08_conditional_access.txt": old}, "5.1.1")["status"] == "info"
+
+
+def test_sharepoint_legacy_protocols_kept_as_their_own_control():
+    fc = {"15b_sharepoint_settings.txt": "  Legacy Auth: true\n  Sharing: ExternalUserSharingOnly\n"}
+    row = _ctrl(fc, "7.2.3")
+    assert row["status"] == "fail"
+    assert row["evidence"] == ["15b_sharepoint_settings.txt"]
+
+
+def test_the_two_controls_read_different_files():
+    from app.reports.generator import _EVIDENCE_MAP
+    assert _EVIDENCE_MAP["5.1.1"] == ("08_conditional_access.txt",)
+    assert _EVIDENCE_MAP["7.2.3"] == ("15b_sharepoint_settings.txt",)
+
+
+def test_a_broad_block_policy_is_not_a_legacy_auth_block():
+    """Scoped to every client app, so it is some other policy entirely.
+
+    This is the case that decides whether the verdict reads the client-app
+    scope at all; without it a mutation removing that check passed the suite.
+    """
+    fc = {"08_conditional_access.txt": _ca(("enabled", "Block all access", "block", "all"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "fail"
+
+
+def test_legacy_scope_without_a_denying_grant_is_a_failure():
+    """Legacy clients targeted, but the policy only demands a compliant device.
+
+    Pairs with the test above: this one decides whether the grant control is
+    read. A mutation ignoring it passed the suite until this existed.
+    """
+    fc = {"08_conditional_access.txt": _ca(
+        ("enabled", "Legacy clients", "compliantDevice", "exchangeActiveSync, other"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "fail"
+
+
+def test_requiring_mfa_of_legacy_clients_counts_as_blocking():
+    """The older way of writing it, and it does close the hole.
+
+    Legacy protocols cannot perform a second factor, so the grant can never be
+    satisfied. Failing such a tenant would be a false finding.
+    """
+    fc = {"08_conditional_access.txt": _ca(
+        ("enabled", "Legacy auth requires MFA", "mfa", "exchangeActiveSync, other"))}
+    assert _ctrl(fc, "5.1.1")["status"] == "pass"

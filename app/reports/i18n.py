@@ -1079,6 +1079,24 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
               "{skipped} could not be assessed for lack of data, and count "
               "neither as passed nor as findings.",
     },
+    "error_files_heading": {
+        "no": "Seksjoner som ikke kunne leses",
+        "en": "Sections that could not be read",
+    },
+    "error_files_desc": {
+        "no": "Disse filene inneholdt en feilmelding i stedet for data, og ble derfor "
+              "ikke tolket. Kontrollene som er listet ved siden av hver fil er merket "
+              "«Kan ikke verifiseres» av denne grunnen, og ikke fordi konfigurasjonen "
+              "er funnet mangelfull. Innsamlingen bør kjøres på nytt for disse.",
+        "en": "These files held an error message instead of data and were not parsed. "
+              "The controls listed beside each file read as not verifiable for that "
+              "reason, and not because the configuration was found wanting. "
+              "Collection should be re-run for these.",
+    },
+    "error_files_affects": {
+        "no": "Kontroller:",
+        "en": "Controls:",
+    },
     "cis_id": {
         "no": "CIS ID",
         "en": "CIS ID",

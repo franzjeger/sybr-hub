@@ -153,6 +153,21 @@ class ConditionalAccessSection(BaseSection):
             if controls:
                 lines.append(f"  {'':>12} Grant controls: {', '.join(controls)}")
 
+            # Which client applications the policy applies to. Blocking legacy
+            # authentication is one of the highest-value settings in a tenant,
+            # and it is expressed here: a policy that blocks exchangeActiveSync
+            # and "other" is the one doing it. Without this line the report had
+            # no way to tell, and the control that claimed to check it was
+            # reading a SharePoint flag instead.
+            #
+            # Always written, even when empty, so a report can tell an audit
+            # that found nothing from one taken before this was collected.
+            client_apps = cond.get("clientAppTypes") or []
+            lines.append(
+                f"  {'':>12} Client apps: "
+                f"{', '.join(client_apps) if client_apps else 'not specified'}"
+            )
+
             # Check for emergency access exclusions
             exc_users = cond.get("users", {}).get("excludeUsers", [])
             exc_groups = cond.get("users", {}).get("excludeGroups", [])

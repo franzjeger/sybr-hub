@@ -718,24 +718,32 @@ class TestComplianceAntiSpamNotSilent:
 
 
 class TestComplianceLegacyAuthDataGap:
-    """CIS 5.1.1 used to silently report 'pass' when SharePoint settings
-    weren't collected (legacy_auth defaulted to False → 'legacy auth
-    blocked: PASS'). Add a has_data check so missing input is reported."""
+    """SharePoint's legacy-protocol flag, and the guard on missing input.
+
+    This used to be graded as CIS 5.1.1, "Ensure legacy authentication is
+    blocked" — a control about Entra, answered with a SharePoint setting. The
+    SharePoint question is now 7.2.3 under its own name and 5.1.1 reads
+    Conditional Access, so these move with the behaviour they describe.
+
+    The guard they pin is unchanged and still worth pinning: legacy_auth
+    defaults to False, so without a has_data check an audit that never reached
+    SharePoint admin settings reported a pass.
+    """
 
     def test_missing_sharepoint_data_reports_info(self):
-        ctrl = [c for c in _build_compliance_map(_ctx()) if c["cis_id"] == "5.1.1"]
+        ctrl = [c for c in _build_compliance_map(_ctx()) if c["cis_id"] == "7.2.3"]
         assert ctrl[0]["status"] == "info"
 
     def test_legacy_auth_enabled_reports_fail(self):
         ctrl = [c for c in _build_compliance_map(
             _ctx(sharepoint={"has_data": True, "legacy_auth": True})
-        ) if c["cis_id"] == "5.1.1"]
+        ) if c["cis_id"] == "7.2.3"]
         assert ctrl[0]["status"] == "fail"
 
     def test_legacy_auth_disabled_reports_pass(self):
         ctrl = [c for c in _build_compliance_map(
             _ctx(sharepoint={"has_data": True, "legacy_auth": False})
-        ) if c["cis_id"] == "5.1.1"]
+        ) if c["cis_id"] == "7.2.3"]
         assert ctrl[0]["status"] == "pass"
 
 
