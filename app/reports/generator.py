@@ -3156,6 +3156,8 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
               "iso_id": "A.8.5",  "iso_name": "Secure authentication"},
     "1.1.8": {"nist_id": "PR.AA-5", "nist_name": "Access permissions are managed",
               "iso_id": "A.5.18", "iso_name": "Access rights"},
+    "1.1.9": {"nist_id": "PR.AA-5", "nist_name": "Access permissions are managed",
+              "iso_id": "A.5.14", "iso_name": "Information transfer"},
     "1.2.1": {"nist_id": "PR.AA-3", "nist_name": "Users, services, and hardware are authenticated",
               "iso_id": "A.8.5",  "iso_name": "Secure authentication"},
     "1.4":   {"nist_id": "ID.RA-1", "nist_name": "Asset vulnerabilities are identified",
@@ -3265,6 +3267,7 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "1.1.6": ("07c_emergency_access_check.txt",),
     "1.1.7": ("31b_smart_lockout.txt", "08_conditional_access.txt"),
     "1.1.8": ("07d_access_reviews.txt",),
+    "1.1.9": ("18c_cross_tenant_access_policy.txt",),
     "1.2.1": ("31_password_protection.txt",),
     "1.4":   ("09_secure_score.txt",),
     "2.1":   ("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
@@ -3891,6 +3894,39 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     else:
         add("1.1.8", "Ensure access reviews are configured", t.cis_cat_identity, "warn",
             "Ingen tilgangsgjennomganger definert")
+
+    # 1.1.9 Cross-tenant access. Collected since the section was written and
+    # only readable at all since the collector was pointed at the right
+    # endpoint; both values had been "N/A" on every tenant before that.
+    #
+    # Inbound and outbound B2B collaboration being allowed is not a finding.
+    # It is how most organisations work, and grading it as a failure would
+    # tell a customer to break their own collaboration. Two things are worth
+    # saying: B2B direct connect inbound lets external organisations into
+    # Teams shared channels without a guest account, and a tenant still on
+    # Microsoft's system default has never made a decision here at all.
+    xt_text = fc.get("18c_cross_tenant_access_policy.txt", "")
+    xt = {}
+    for line in xt_text.splitlines():
+        if ":" in line and not line.strip().startswith("="):
+            k, v = line.split(":", 1)
+            xt[k.strip().lower()] = v.strip().lower()
+    dc_in = xt.get("b2b direct connect in", "")
+    service_default = xt.get("system default", "")
+
+    if not xt_text.strip() or xt_text.strip().startswith("Error:") or not dc_in:
+        add("1.1.9", "Ensure cross-tenant access settings are reviewed", t.cis_cat_identity,
+            "info", _CANNOT_VERIFY + "kryssleie-innstillinger utilgjengelig")
+    elif dc_in == "allowed":
+        add("1.1.9", "Ensure cross-tenant access settings are reviewed", t.cis_cat_identity,
+            "warn", "B2B direct connect inn er tillatt — eksterne organisasjoner kan nå "
+                    "delte Teams-kanaler uten gjestekonto")
+    elif service_default == "true":
+        add("1.1.9", "Ensure cross-tenant access settings are reviewed", t.cis_cat_identity,
+            "warn", "Kjører Microsofts systemstandard — kryssleie-tilgang er aldri vurdert")
+    else:
+        add("1.1.9", "Ensure cross-tenant access settings are reviewed", t.cis_cat_identity,
+            "pass", "Kryssleie-tilgang er konfigurert, og direct connect inn er ikke tillatt")
 
     # 7.2.4 Anonymous sharing links. 25_onedrive_sharing.txt counts them and
     # nothing read it. An "Anyone" link needs no sign-in, so one is a finding

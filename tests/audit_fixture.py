@@ -14,6 +14,19 @@ Keep it healthy. If you add a section here, add a genuinely compliant one.
 from __future__ import annotations
 
 FULL_AUDIT: dict[str, str] = {
+    # Cross-tenant access, configured rather than left on the system default,
+    # with direct connect inbound closed.
+    "18c_cross_tenant_access_policy.txt": (
+        "=" * 70 + "\n"
+        "  CROSS-TENANT ACCESS POLICY\n"
+        + "=" * 70 + "\n"
+        "  Default Settings:\n"
+        "    B2B Collab Inbound     : allowed\n"
+        "    B2B Collab Outbound    : allowed\n"
+        "    B2B Direct Connect In  : blocked\n"
+        "    System Default         : false\n"
+        + "=" * 70 + "\n"
+    ),
     # Baseline sign-in protection: Security Defaults off is the correct state
     # for a tenant running Conditional Access, which this one does.
     "31b_smart_lockout.txt": (

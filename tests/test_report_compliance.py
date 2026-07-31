@@ -563,3 +563,59 @@ def test_security_defaults_off_with_no_ca_data_is_not_a_failure():
     """
     row = _grade({"31b_smart_lockout.txt": SD_OFF}, "1.1.7")   # no ca in context
     assert row["status"] == "info"
+
+
+# ---------------------------------------------------------------------------
+# Cross-tenant access. Allowed B2B collaboration is how most organisations
+# work; grading it as a failure would tell a customer to break their own
+# collaboration. Only two things here are worth saying.
+# ---------------------------------------------------------------------------
+
+def _xt(dc_in="blocked", service_default="false", inbound="allowed"):
+    return {"18c_cross_tenant_access_policy.txt": (
+        "=" * 70 + "\n  CROSS-TENANT ACCESS POLICY\n" + "=" * 70 + "\n"
+        "  Default Settings:\n"
+        f"    B2B Collab Inbound     : {inbound}\n"
+        f"    B2B Collab Outbound    : allowed\n"
+        f"    B2B Direct Connect In  : {dc_in}\n"
+        f"    System Default         : {service_default}\n"
+        + "=" * 70 + "\n"
+    )}
+
+
+def test_allowed_b2b_collaboration_is_not_a_finding():
+    """It is normal and required; the control must not punish it."""
+    row = _grade(_xt(inbound="allowed"), "1.1.9")
+    assert row["status"] == "pass"
+
+
+def test_direct_connect_inbound_is_flagged():
+    row = _grade(_xt(dc_in="allowed"), "1.1.9")
+    assert row["status"] == "warn"
+    assert "direct connect" in row["detail"].lower()
+
+
+def test_a_tenant_still_on_the_system_default_has_not_decided():
+    row = _grade(_xt(service_default="true"), "1.1.9")
+    assert row["status"] == "warn"
+    assert "systemstandard" in row["detail"].lower()
+
+
+def test_direct_connect_outranks_the_system_default_notice():
+    """Both apply; the specific exposure is the one to lead with."""
+    row = _grade(_xt(dc_in="allowed", service_default="true"), "1.1.9")
+    assert "direct connect" in row["detail"].lower()
+
+
+def test_missing_cross_tenant_data_is_not_a_verdict():
+    assert _grade({}, "1.1.9")["status"] == "info"
+
+
+def test_the_old_all_na_output_reads_as_unverifiable():
+    """What every tenant produced before the collector was pointed at the
+    right endpoint. It must not be graded as a configured state."""
+    old = {"18c_cross_tenant_access_policy.txt": (
+        "  CROSS-TENANT ACCESS POLICY\n  Default Settings:\n"
+        "    B2B Collab Inbound  : N/A\n    B2B Collab Outbound : N/A\n"
+    )}
+    assert _grade(old, "1.1.9")["status"] == "info"

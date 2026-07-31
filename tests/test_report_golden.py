@@ -31,14 +31,16 @@ from tests.audit_fixture import FULL_AUDIT
 # Last moved when 1.1.7, 1.1.8 and 7.2.4 were added — three signals the
 # collectors had been writing since their sections existed and no parser read.
 # Total 31 -> 34, and the fixture gained the three files so the healthy tenant
-# passes them rather than reporting them unverifiable.
+# passes them rather than reporting them unverifiable. Then 34 -> 35 with 1.1.9,
+# cross-tenant access, whose source file was only readable once the collector
+# was pointed at the right endpoint.
 GOLDEN = {
     "ca_enabled": 4,
-    "compliance_assessed": 30,
+    "compliance_assessed": 31,
     "compliance_info": 4,
-    "compliance_pass": 29,
+    "compliance_pass": 30,
     "compliance_pct": 97.0,
-    "compliance_total": 34,
+    "compliance_total": 35,
     "exchange_connectors": 0,
     "exchange_transport_rules": 0,
     "ga_count": 3,
