@@ -217,7 +217,7 @@
       </button>
 
       <!-- Sybrt assistant — a global tool, so an icon button rather than a nav slot. -->
-      <button class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" data-i18n-alt="sybrt_4" data-i18n-alt="sybrt_5" alt="Sybrt"></button>
+      <button class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" alt="Sybrt"></button>
 
       <!-- One status chip: server-live dot, with a VPN prefix when a tunnel is up.
            Merges the old vpn-header-badge + conn-status pair. Polls /api/health. -->
@@ -970,10 +970,10 @@
             <div id="email-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label" for="input-smtp-server" data-i18n="lbl_smtp_server">SMTP-server</label>
               <input class="field-input" id="input-smtp-server" type="text" placeholder="smtp.office365.com">
-              <label class="field-label" for="input-smtp-port" style="margin-top:10px;" data-i18n="lbl_port" data-i18n="lbl_port">Port</label>
+              <label class="field-label" for="input-smtp-port" style="margin-top:10px;" data-i18n="lbl_port">Port</label>
               <input class="field-input" id="input-smtp-port" type="number" value="587" placeholder="587 (TLS) / 465 (SSL)">
               <label class="field-label" for="input-smtp-user" style="margin-top:10px;" data-i18n="lbl_username">Brukernavn</label>
-              <input class="field-input" id="input-smtp-user" type="text" data-i18n-placeholder="bruker_firma_no" data-i18n-placeholder="bruker_firma_no_2" data-i18n-placeholder="ph_user_at_company" data-i18n-placeholder="ph_user_at_company" placeholder="bruker@firma.no">
+              <input class="field-input" id="input-smtp-user" type="text" data-i18n-placeholder="bruker_firma_no" placeholder="bruker@firma.no">
               <label class="field-label" for="input-smtp-password" style="margin-top:10px;" data-i18n="lbl_password">Passord</label>
               <input class="field-input" id="input-smtp-password" type="password" data-i18n-placeholder="smtp_passord" placeholder="SMTP-passord">
               <label class="field-label" for="input-smtp-from" style="margin-top:10px;" data-i18n="lbl_sender_address">Avsenderadresse</label>

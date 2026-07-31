@@ -18,13 +18,16 @@ ones are invisible to a detector that keys on æøå.
 
 from __future__ import annotations
 
+import collections
 import html as htmlmod
+import importlib.util
 import pathlib
 import json
 import re
 
 import pytest
 
+ROOT = pathlib.Path(".")
 STATIC = pathlib.Path("app/web/static")
 
 # Not translatable: product and vendor names, keyboard hints, bare numbers and
@@ -200,6 +203,68 @@ def text_shown_to_a_person(script: str) -> list[tuple[int, str]]:
             continue
         found.append((js[: m.start()].count("\n") + 1, m.group(3)))
     return found
+
+
+_IDENT_END = re.compile(r"[A-Za-z0-9_$\)\]]$")
+
+
+def broken_t_calls(js: str) -> list[tuple[int, str]]:
+    """t() sequences that a browser paints as characters instead of calling.
+
+    i18n_extract emits >' + t('key') + '< : close the string, call t(), reopen.
+    That only closes anything when the surrounding string is single-quoted.
+    Inside a template literal the quotes are ordinary characters, so the whole
+    sequence stays in the string and the page shows ' + t('audit_2') + '.
+
+    Six of those shipped while every test was green, because every detector
+    here looked for text that was *missing* a t() and none looked for one that
+    had been put somewhere it could not run.
+    """
+    out: list[tuple[int, str]] = []
+    stack: list[str] = []           # ' " ` or { for a ${ } hole
+    i, n = 0, len(js)
+    while i < n:
+        c = js[i]
+        cur = stack[-1] if stack else None
+        if cur in ("'", '"', "`"):
+            if c == "\\":
+                i += 2; continue
+            if c == cur:
+                stack.pop(); i += 1; continue
+            if cur == "`" and c == "$" and js[i + 1:i + 2] == "{":
+                stack.append("{"); i += 2; continue
+            m = re.compile(r"""['"]\s*\+\s*t\(\s*['"]([a-z0-9_]+)['"]""").match(js, i)
+            if m:
+                out.append((js[:i].count("\n") + 1, m.group(1)))
+            i += 1; continue
+        # code
+        if js.startswith("//", i):
+            j = js.find("\n", i); i = n if j < 0 else j; continue
+        if js.startswith("/*", i):
+            j = js.find("*/", i); i = n if j < 0 else j + 2; continue
+        if c == "/":
+            # Regex literal or division, told apart by what precedes it.
+            before = js[:i].rstrip()
+            if before and not _IDENT_END.search(before):
+                j = i + 1
+                while j < n:
+                    if js[j] == "\\": j += 2; continue
+                    if js[j] == "[":
+                        while j < n and js[j] != "]":
+                            j += 2 if js[j] == "\\" else 1
+                    if js[j] == "/": break
+                    if js[j] == "\n": break
+                    j += 1
+                i = j + 1; continue
+            i += 1; continue
+        if c in ("'", '"', "`"):
+            stack.append(c); i += 1; continue
+        if c == "{" and stack and stack[-1] == "{":
+            stack.append("{"); i += 1; continue
+        if c == "}" and stack and stack[-1] == "{":
+            stack.pop(); i += 1; continue
+        i += 1
+    return out
 
 
 # Ceilings. Lower them as batches land; never raise them.
@@ -429,3 +494,63 @@ def test_no_norwegian_literal_outside_t(script: str) -> None:
         f"{len(found)} Norwegian literals in {script}, budget "
         f"{BUDGET_JS_NORWEGIAN}:\n{_report(found)}"
     )
+
+
+@pytest.mark.parametrize("script", _SCRIPTS)
+def test_no_t_call_is_stranded_inside_a_string(script: str) -> None:
+    """The counterpart to every other check here.
+
+    Those look for text that never reached t(). This looks for a t() put
+    somewhere it cannot run — and six of those shipped to the browser with the
+    whole suite green, painting ' + t('audit_2') + ' on the customer list.
+    """
+    found = broken_t_calls((STATIC / script).read_text())
+    assert not found, (
+        f"{len(found)} t() calls rendered as text in {script}:\n{_report(found)}"
+    )
+
+
+def test_the_applier_knows_which_string_it_is_editing() -> None:
+    """i18n_extract picks the replacement form from the surrounding quote.
+
+    Getting this wrong is not a near miss — it puts characters on the customer
+    list. The regex-literal case is here because a /'/ in the source desynced
+    an earlier version of this scanner and made everything after it wrong.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "i18n_extract", ROOT / "scripts" / "i18n_extract.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    enclosing = module._enclosing_quote
+
+    cases = [
+        ("var a = 'x>HER<y';", "'"),
+        ("var a = `x>HER<y`;", "`"),
+        ('var a = "x>HER<y";', '"'),
+        ("var a = `${b}x>HER<y`;", "`"),
+        ("var a = 'q' + `x>HER<y`;", "`"),
+        ("var a = 1; // >HER<", None),
+        ("var a = 'it\\'s' + `x>HER<y`;", "`"),
+        ("var a = x.replace(/'/g,'') + `>HER<`;", "`"),
+    ]
+    for js, want in cases:
+        assert enclosing(js, js.index(">HER<")) == want, js
+
+
+def test_no_element_carries_the_same_marker_twice() -> None:
+    """Running apply-attrs twice used to stack a second marker on the same
+    element instead of recognising the first.
+
+    A duplicate attribute is not a style problem: the browser keeps the first
+    and drops the rest, so the extra keys are dead and the markup is invalid.
+    One img had three data-i18n-alt attributes.
+    """
+    html = (STATIC / "index.html").read_text()
+    offenders = []
+    for m in re.finditer(r"<[a-zA-Z][^>]*>", html):
+        names = re.findall(r"\b(data-i18n(?:-[a-z-]+)?)\s*=", m.group(0))
+        for name, count in collections.Counter(names).items():
+            if count > 1:
+                offenders.append((html[: m.start()].count("\n") + 1, f"{name} x{count}"))
+    assert not offenders, f"duplicate markers:\n{_report(offenders)}"

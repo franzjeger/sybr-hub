@@ -119,10 +119,23 @@ def cmd_apply_attrs(path: str) -> None:
     d = json.loads(I18N.read_text())
     applied = 0
     for key, attr, value, en in rows:
-        # Add the marker beside the attribute it translates, once, and only
-        # where the value still matches.
-        pat = re.compile(rf'({attr}="{re.escape(value)}")')
-        html, count = pat.subn(rf'data-i18n-{attr}="{key}" \1', html, count=1)
+        # Add the marker beside the attribute it translates, once, and only on
+        # a tag that has not been marked for that attribute already. The check
+        # has to be per tag, not per attribute: the marker goes in *front* of
+        # the attribute, so a lookbehind would need to be variable width.
+        # Without it, applying the same plan twice stacked a second marker on
+        # the same element, and one img ended up carrying three
+        # data-i18n-alt attributes, of which a browser honours exactly one.
+        needle = f'{attr}="{value}"'
+        count = 0
+        for m in re.finditer(r"<[a-zA-Z][^<>]*>", html):
+            tag = m.group(0)
+            if needle not in tag or f"data-i18n-{attr}=" in tag:
+                continue
+            fixed = tag.replace(needle, f'data-i18n-{attr}="{key}" {needle}', 1)
+            html = html[: m.start()] + fixed + html[m.end():]
+            count = 1
+            break
         if not count:
             print(f"NOT FOUND, skipped: {key}  {attr}={value[:40]}")
             continue
@@ -217,12 +230,75 @@ def cmd_plan_js(script="app.js") -> None:
         print(f"{key}\t{text}\t")
 
 
-def cmd_apply_js(path: str, script: str = "app.js") -> None:
-    """Turn >Lagre< inside a quoted string into >' + t('btn_save') + '<.
+def _enclosing_quote(js: str, pos: int) -> str | None:
+    """Which string literal, if any, position ``pos`` sits inside.
 
-    Only single-quoted strings are rewritten. A template literal needs
-    ${t(...)} instead, and mixing the two forms silently produces a string
-    containing the word "t(" — so anything else is reported and left alone.
+    This used to be a line in a docstring promising that anything other than a
+    single-quoted string would be "reported and left alone", and nothing ever
+    checked. Six replacements went into template literals, where a ' closes
+    nothing, so the whole sequence stayed inside the string and the browser
+    painted ' + t('audit_2') + ' onto the customer list.
+    """
+    stack: list[str] = []
+    i = 0
+    while i < pos and i < len(js):
+        c = js[i]
+        cur = stack[-1] if stack else None
+        if cur in ("'", '"', "`"):
+            if c == "\\":
+                i += 2
+                continue
+            if c == cur:
+                stack.pop()
+                i += 1
+                continue
+            if cur == "`" and c == "$" and js[i + 1 : i + 2] == "{":
+                stack.append("{")
+                i += 2
+                continue
+            i += 1
+            continue
+        if js.startswith("//", i):
+            j = js.find("\n", i)
+            i = len(js) if j < 0 else j
+            continue
+        if js.startswith("/*", i):
+            j = js.find("*/", i)
+            i = len(js) if j < 0 else j + 2
+            continue
+        if c == "/":
+            # A regex literal holding a quote would otherwise desync everything
+            # after it. Told apart from division by what precedes it.
+            before = js[:i].rstrip()
+            if before and not re.search(r"[A-Za-z0-9_$)\]]$", before):
+                j = i + 1
+                while j < len(js) and js[j] not in ("/", "\n"):
+                    j += 2 if js[j] == "\\" else 1
+                i = j + 1
+                continue
+            i += 1
+            continue
+        if c in ("'", '"', "`"):
+            stack.append(c)
+            i += 1
+            continue
+        if c == "{" and stack and stack[-1] == "{":
+            stack.append("{")
+            i += 1
+            continue
+        if c == "}" and stack and stack[-1] == "{":
+            stack.pop()
+            i += 1
+            continue
+        i += 1
+    top = stack[-1] if stack else None
+    return top if top in ("'", '"', "`") else None
+
+
+def cmd_apply_js(path: str, script: str = "app.js") -> None:
+    """Turn >Lagre< into a t() call in whichever form the surrounding string
+    allows: ``' + t(k) + '`` in a single-quoted string, ``" + t(k) + "`` in a
+    double-quoted one, ``${t(k)}`` in a template literal.
     """
     rows = []
     for line in pathlib.Path(path).read_text().split("\n"):
@@ -249,8 +325,16 @@ def cmd_apply_js(path: str, script: str = "app.js") -> None:
             print(f"NOT FOUND: {key}  {text[:40]}")
             skipped += 1
             continue
-        js = js[:m.start()] + ">" + m.group(1) + "' + t('" + key + "') + '" \
-             + m.group(2) + "<" + js[m.end():]
+        quote = _enclosing_quote(js, m.start())
+        if quote == "`":
+            call = "${t('" + key + "')}"
+        elif quote in ("'", '"'):
+            call = quote + " + t('" + key + "') + " + quote
+        else:
+            print(f"NOT IN A STRING, skipped: {key}  {text[:40]}")
+            skipped += 1
+            continue
+        js = js[:m.start()] + ">" + m.group(1) + call + m.group(2) + "<" + js[m.end():]
         # The source may hold \u00f8 rather than ø. Match on what is written
         # there, but store what it means — otherwise the escape sequence ends
         # up on screen as six literal characters.

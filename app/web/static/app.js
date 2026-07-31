@@ -1488,7 +1488,7 @@ function renderHome(d) {
       <div class="customer-domain">${esc(c.domain)}</div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;">
         <span id="tag-pills-home">${tagPillsHtml(c.tags || [])}</span>
-        <button class="btn btn-ghost" style="padding:1px 6px;font-size:10px;border:1px dashed var(--border);border-radius:10px;" onclick="openTagEditor('${esc(d.active_id)}',JSON.parse(this.dataset.tags))" data-tags="${esc(JSON.stringify(c.tags||[]))}">' + t('tags') + '</button>
+        <button class="btn btn-ghost" style="padding:1px 6px;font-size:10px;border:1px dashed var(--border);border-radius:10px;" onclick="openTagEditor('${esc(d.active_id)}',JSON.parse(this.dataset.tags))" data-tags="${esc(JSON.stringify(c.tags||[]))}">${t('tags')}</button>
       </div>
       <div id="tag-editor-${(d.active_id||'').replace(/[^a-zA-Z0-9_-]/g,'_')}" style="display:none;margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;"></div>
       <div class="meta-row">
@@ -1696,7 +1696,7 @@ function renderDashboard(d) {
         </div>
         <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
           <div style="font-size:28px;font-weight:700;color:${metricColor(m.secure_score_pct, [75, 50])};">${m.secure_score_pct?.toFixed(0) || 0}%</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">' + t('secure_score_2') + '</div>
+          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('secure_score_2')}</div>
           ${trend('secure_score_pct', 'SS', false)}
         </div>
         <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
@@ -4818,7 +4818,7 @@ function pickITGlueOrg(orgs) {
     backdrop.className = 'modal-backdrop open';
     backdrop.innerHTML = `
       <div class="modal" style="max-height:80vh;overflow-y:auto;">
-        <div class="modal-title" data-i18n="hdr_itglue_org_picker">' + t('velg_it_glue_organisasjon') + '</div>
+        <div class="modal-title" data-i18n="hdr_itglue_org_picker">${t('hdr_itglue_org_picker')}</div>
         <div class="modal-desc">${t('msg_select_org_upload','Select which organization to upload data to.')}</div>
         <input class="field-input" id="itglue-org-search" type="text" placeholder="${t('placeholder_search','Search...')}" style="margin-bottom:12px;">
         <div id="itglue-org-list" style="max-height:300px;overflow-y:auto;"></div>
@@ -5572,7 +5572,7 @@ function renderCustomers(customers, activeId) {
           <div style="display:flex;gap:var(--space-2);flex-shrink:0;" onclick="event.stopPropagation();">
             ${isActive
               ? (configured
-                ? `<button class="btn btn-success btn-sm" onclick="startAudit()">' + t('audit_2') + '</button>`
+                ? `<button class="btn btn-success btn-sm" onclick="startAudit()">${t('audit_2')}</button>`
                 : `<button class="btn btn-primary btn-sm" onclick="startSetup()">${t('btn_setup','Sett opp')}</button>`)
               : `<button class="btn btn-primary btn-sm" onclick="switchCustomer('${esc(c._id)}')">${t('btn_activate')}</button>`
             }
@@ -6799,7 +6799,7 @@ async function loadCustomerDetail(customerId) {
       </div>
       <div class="card" style="text-align:center;padding:var(--space-5);">
         <div style="position:relative;width:80px;height:80px;margin:0 auto var(--space-2);"><canvas id="gauge-ss"></canvas></div>
-        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">' + t('secure_score_2') + '</div>
+        <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">${t('secure_score_2')}</div>
       </div>
     </div>
 
@@ -6815,7 +6815,7 @@ async function loadCustomerDetail(customerId) {
           <span style="color:var(--text-muted);">${t('lbl_users')}</span><span style="font-weight:600;">${hasM ? (m.total_users || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_without_mfa')}</span><span style="font-weight:600;color:${hasM && m.users_no_mfa > 0 ? 'var(--red)' : 'var(--text)'};">${hasM ? (m.users_no_mfa || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_ca_policies')}</span><span style="font-weight:600;">${hasM ? (m.ca_policies_enabled || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">' + t('intune') + '</span><span style="font-weight:600;">${hasM && m.intune_compliance_pct !== undefined ? m.intune_compliance_pct.toFixed(0)+'%' : '-'}</span>
+          <span style="color:var(--text-muted);">${t('intune')}</span><span style="font-weight:600;">${hasM && m.intune_compliance_pct !== undefined ? m.intune_compliance_pct.toFixed(0)+'%' : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_last_audit')}</span><span style="font-weight:600;">${cust.last_audit ? cust.last_audit.substring(0,10) : '-'}${cust.last_audit ? (() => { try { var d = new Date(cust.last_audit.replace(/_/g,'T').substring(0,16)); var days = Math.floor((Date.now()-d.getTime())/86400000); return ' <span style="color:var(--text-dim);font-weight:400;">(' + days + 'd)</span>'; } catch(e) { return ''; } })() : ''}</span>
           <span style="color:var(--text-muted);">${t('lbl_warnings','Warnings')}</span><span style="font-weight:600;color:${hasM && m.total_warns > 0 ? 'var(--orange)' : 'var(--text)'};">${hasM ? (m.total_warns || 0) : '-'}</span>
         </div>
