@@ -155,7 +155,7 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 # real: the detector was counting t("key", "fallback") arguments and comments.
 # The one that remains is a multi-line string the regex mis-reads, kept rather
 # than special-cased so the next reader sees the limit of the measurement.
-BUDGET_TEXT_NODES = 158
+BUDGET_TEXT_NODES = 143
 BUDGET_ATTRIBUTES = 74
 BUDGET_JS_NORWEGIAN = 1
 

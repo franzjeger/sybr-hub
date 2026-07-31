@@ -970,7 +970,7 @@
             <div id="email-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label" for="input-smtp-server" data-i18n="lbl_smtp_server">SMTP-server</label>
               <input class="field-input" id="input-smtp-server" type="text" placeholder="smtp.office365.com">
-              <label class="field-label" for="input-smtp-port" style="margin-top:10px;" data-i18n="lbl_port">Port</label>
+              <label class="field-label" for="input-smtp-port" style="margin-top:10px;" data-i18n="lbl_port" data-i18n="lbl_port">Port</label>
               <input class="field-input" id="input-smtp-port" type="number" value="587" placeholder="587 (TLS) / 465 (SSL)">
               <label class="field-label" for="input-smtp-user" style="margin-top:10px;" data-i18n="lbl_username">Brukernavn</label>
               <input class="field-input" id="input-smtp-user" type="text" placeholder="bruker@firma.no">
@@ -1077,30 +1077,30 @@
               <button class="btn btn-primary" onclick="toggleIntegConfig('fg-api-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
             </div>
             <div id="fg-api-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
-              <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.</p>
-              <p style="font-size:11px;color:var(--orange);margin-bottom:12px;">Lagres per aktiv kunde — bytt kunde først hvis du vil konfigurere en annen FortiGate.</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;" data-i18n="fg_intro">Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.</p>
+              <p style="font-size:11px;color:var(--orange);margin-bottom:12px;" data-i18n="fg_per_customer_note">Lagres per aktiv kunde — bytt kunde først hvis du vil konfigurere en annen FortiGate.</p>
               <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Generer API-token på FortiGate: <strong>System → Administrators → Create New → REST API Admin</strong></p>
               <!-- Factory bootstrap -->
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
-                <div style="font-weight:600;font-size:12px;margin-bottom:6px;">Ny FortiGate? Automatisk oppsett</div>
+                <div style="font-weight:600;font-size:12px;margin-bottom:6px;" data-i18n="fg_bootstrap_title">Ny FortiGate? Automatisk oppsett</div>
                 <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Kobler til med fabrikkinnstillinger (admin / tomt passord), setter sterkt passord, aktiverer hardening og oppretter REST API-nøkkel automatisk.</p>
-                <label class="field-label" for="fg-bootstrap-host">FortiGate IP</label>
+                <label class="field-label" for="fg-bootstrap-host" data-i18n="lbl_fortigate_ip">FortiGate IP</label>
                 <input class="field-input" id="fg-bootstrap-host" type="text" placeholder="192.168.1.99">
-                <label class="field-label" for="fg-bootstrap-hostname" style="margin-top:8px;">Hostname (valgfritt)</label>
+                <label class="field-label" for="fg-bootstrap-hostname" style="margin-top:8px;" data-i18n="lbl_hostname_optional">Hostname (valgfritt)</label>
                 <input class="field-input" id="fg-bootstrap-hostname" type="text" placeholder="FW-Kundenavn">
                 <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
-                  <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="fgBootstrap()" id="btn-fg-bootstrap">Sett opp FortiGate</button>
+                  <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="fgBootstrap()" id="btn-fg-bootstrap" data-i18n="btn_setup_fortigate">Sett opp FortiGate</button>
                   <span id="fg-bootstrap-status" style="font-size:11px;color:var(--text-muted);"></span>
                 </div>
                 <div id="fg-bootstrap-result" style="display:none;margin-top:12px;background:var(--bg-card);border:1px solid var(--green);border-radius:6px;padding:12px;"></div>
               </div>
-              <label class="field-label" for="fg-api-host">Host / IP</label>
+              <label class="field-label" for="fg-api-host" data-i18n="lbl_host_ip">Host / IP</label>
               <input class="field-input" id="fg-api-host" type="text" placeholder="f.eks. 192.168.1.1 eller fw.kunde.no">
               <label class="field-label" for="fg-api-port" style="margin-top:10px;">Port</label>
               <input class="field-input" id="fg-api-port" type="number" value="443" placeholder="443">
-              <label class="field-label" for="fg-api-token" style="margin-top:10px;">API-token</label>
+              <label class="field-label" for="fg-api-token" style="margin-top:10px;" data-i18n="lbl_api_token">API-token</label>
               <input class="field-input" id="fg-api-token" type="password" placeholder="FortiGate REST API token">
-              <label class="field-label" for="fg-api-vdom" style="margin-top:10px;">VDOM (valgfritt)</label>
+              <label class="field-label" for="fg-api-vdom" style="margin-top:10px;" data-i18n="lbl_vdom_optional">VDOM (valgfritt)</label>
               <input class="field-input" id="fg-api-vdom" type="text" value="root" placeholder="root">
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="fgApiTest()" data-i18n="btn_test_connection">Test tilkobling</button>
@@ -1108,7 +1108,7 @@
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="fgApiSave()" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="fgDownloadCredentials()" title="Last ned admin-passord og API-token for aktiv kunde">Last ned credentials</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="fgDownloadCredentials()" title="Last ned admin-passord og API-token for aktiv kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
                 <span id="fg-api-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -1130,18 +1130,18 @@
               <button class="btn btn-primary" onclick="toggleIntegConfig('unifi-sm-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
             </div>
             <div id="unifi-sm-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
-              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Koble til UniFi Site Manager for å hente alle siter og enheter sentralt. Du kan bruke enten API-nøkkel (anbefalt) eller SSO-innlogging.</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;" data-i18n="unifi_intro">Koble til UniFi Site Manager for å hente alle siter og enheter sentralt. Du kan bruke enten API-nøkkel (anbefalt) eller SSO-innlogging.</p>
               <!-- API Key method -->
               <div style="margin-bottom:16px;">
-                <label class="field-label" for="unifi-sm-apikey">API-nøkkel</label>
+                <label class="field-label" for="unifi-sm-apikey" data-i18n="lbl_api_key">API-nøkkel</label>
                 <input class="field-input" id="unifi-sm-apikey" type="password" placeholder="UniFi Site Manager API key">
                 <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Generer nøkkel via <strong>unifi.ui.com → Settings → API</strong></div>
               </div>
               <!-- Controller direct access -->
               <details style="margin-bottom:12px;">
-                <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:8px;">Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)</summary>
+                <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:8px;" data-i18n="unifi_controller_access">Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)</summary>
                 <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en <strong>Organization API key</strong> fra unifi.ui.com, eller direkte tilgang til kontrolleren.</p>
-                <label class="field-label" for="unifi-sm-ctrl-host">Kontroller-URL (valgfritt)</label>
+                <label class="field-label" for="unifi-sm-ctrl-host" data-i18n="lbl_controller_url_optional">Kontroller-URL (valgfritt)</label>
                 <input class="field-input" id="unifi-sm-ctrl-host" type="text" placeholder="f.eks. https://sybr.unihosted.com">
                 <label class="field-label" for="unifi-sm-ctrl-user" style="margin-top:10px;">Brukernavn</label>
                 <input class="field-input" id="unifi-sm-ctrl-user" type="text" placeholder="Lokal kontroller-bruker">
@@ -1193,7 +1193,7 @@
               <!-- API key mode -->
               <div id="claude-mode-api">
                 <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Hent API-nøkkel fra <strong>console.anthropic.com</strong>. Betales per token.</p>
-                <label class="field-label" for="claude-api-key">API-nøkkel</label>
+                <label class="field-label" for="claude-api-key" data-i18n="lbl_api_key">API-nøkkel</label>
                 <input class="field-input" id="claude-api-key" type="password" placeholder="sk-ant-...">
               </div>
 

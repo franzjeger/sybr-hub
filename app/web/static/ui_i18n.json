@@ -1765,7 +1765,20 @@
     "api_group_audit": "Audit",
     "api_group_browser": "Nettleser",
     "api_group_tls": "TLS-sertifikater",
-    "msg_api_auth_note": "Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL:"
+    "msg_api_auth_note": "Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL:",
+    "fg_intro": "Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.",
+    "fg_per_customer_note": "Lagres per aktiv kunde — bytt kunde først hvis du vil konfigurere en annen FortiGate.",
+    "fg_bootstrap_title": "Ny FortiGate? Automatisk oppsett",
+    "lbl_fortigate_ip": "FortiGate IP",
+    "lbl_hostname_optional": "Hostname (valgfritt)",
+    "btn_setup_fortigate": "Sett opp FortiGate",
+    "lbl_host_ip": "Host / IP",
+    "lbl_api_token": "API-token",
+    "lbl_vdom_optional": "VDOM (valgfritt)",
+    "btn_download_credentials": "Last ned credentials",
+    "unifi_intro": "Koble til UniFi Site Manager for å hente alle siter og enheter sentralt. Du kan bruke enten API-nøkkel (anbefalt) eller SSO-innlogging.",
+    "unifi_controller_access": "Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)",
+    "lbl_controller_url_optional": "Kontroller-URL (valgfritt)"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -3533,6 +3546,19 @@
     "api_group_audit": "Audit",
     "api_group_browser": "Browser",
     "api_group_tls": "TLS certificates",
-    "msg_api_auth_note": "All endpoints require a JWT bearer token except public paths. Base URL:"
+    "msg_api_auth_note": "All endpoints require a JWT bearer token except public paths. Base URL:",
+    "fg_intro": "Connect to the FortiGate REST API for a live dashboard, config backup and compliance checks.",
+    "fg_per_customer_note": "Stored per active customer. Switch customer first if you want to configure a different FortiGate.",
+    "fg_bootstrap_title": "New FortiGate? Automatic setup",
+    "lbl_fortigate_ip": "FortiGate IP",
+    "lbl_hostname_optional": "Hostname (optional)",
+    "btn_setup_fortigate": "Set up FortiGate",
+    "lbl_host_ip": "Host / IP",
+    "lbl_api_token": "API token",
+    "lbl_vdom_optional": "VDOM (optional)",
+    "btn_download_credentials": "Download credentials",
+    "unifi_intro": "Connect to UniFi Site Manager to fetch all sites and devices centrally. You can also use a controller directly.",
+    "unifi_controller_access": "Controller access (for WLAN, VLAN and client details)",
+    "lbl_controller_url_optional": "Controller URL (optional)"
   }
 }

@@ -33,6 +33,7 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **i18n:**
+- FortiGate- og UniFi-panelene hentet inn: 15 nøkler, skjemaetiketter og hjelpetekst. Budsjettet 158 → 143.
 - API-referansepanelet hentet inn: 9 nye nøkler. Målingen ble samtidig rettet — 82 av strengene den talte var endepunktsignaturer og leverandørnavn, altså kode, ikke språk. Budsjettet 251 → 158, hvorav bare 11 er reelt hentet inn.
 - Navigasjonsmenyen, innloggingsskjemaet og rapportvisningen hentet inn: 29 nye nøkler, 32 strenger. Tekstnodebudsjettet ned fra 283 til 251.
 - **Tre elementer viste nøkkelnavnet sitt til brukeren.** `data-i18n="btn_export"` uten oppføring i språkfila gir bokstavelig «btn_export» på skjermen, siden `translatePage` kaller `t()` uten fallback. En test fanger det nå.
