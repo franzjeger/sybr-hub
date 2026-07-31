@@ -155,7 +155,7 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 # real: the detector was counting t("key", "fallback") arguments and comments.
 # The one that remains is a multi-line string the regex mis-reads, kept rather
 # than special-cased so the next reader sees the limit of the measurement.
-BUDGET_TEXT_NODES = 143
+BUDGET_TEXT_NODES = 121
 BUDGET_ATTRIBUTES = 74
 BUDGET_JS_NORWEGIAN = 1
 
@@ -270,3 +270,16 @@ def test_every_key_used_in_the_markup_exists():
     used = set(re.findall(r'data-i18n(?:-[a-z-]+)?="([^"]+)"', html))
     missing = sorted(k for k in used if k not in d["no"])
     assert not missing, f"markup references keys that do not exist: {missing}"
+
+
+def test_a_translated_span_does_not_hold_the_spacing_around_it():
+    """textContent replacement drops whatever whitespace the span held.
+
+    A sentence split around an inline <strong> or <code> keeps its prose in
+    spans. If the trailing space lives inside the span, translating the page
+    removes it and the words run into the brand: "fraconsole.anthropic.com".
+    The space belongs in the markup between the elements.
+    """
+    html = (STATIC / "index.html").read_text()
+    bad = re.findall(r'<span data-i18n="([^"]+)">(?:\s[^<]*|[^<]*\s)</span>', html)
+    assert not bad, f"spans holding their own padding: {bad[:8]}"

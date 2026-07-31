@@ -1079,11 +1079,11 @@
             <div id="fg-api-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;" data-i18n="fg_intro">Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.</p>
               <p style="font-size:11px;color:var(--orange);margin-bottom:12px;" data-i18n="fg_per_customer_note">Lagres per aktiv kunde — bytt kunde først hvis du vil konfigurere en annen FortiGate.</p>
-              <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Generer API-token på FortiGate: <strong>System → Administrators → Create New → REST API Admin</strong></p>
+              <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;"><span data-i18n="fg_token_hint_before">Generer API-token på FortiGate:</span> <strong>System → Administrators → Create New → REST API Admin</strong></p>
               <!-- Factory bootstrap -->
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
                 <div style="font-weight:600;font-size:12px;margin-bottom:6px;" data-i18n="fg_bootstrap_title">Ny FortiGate? Automatisk oppsett</div>
-                <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Kobler til med fabrikkinnstillinger (admin / tomt passord), setter sterkt passord, aktiverer hardening og oppretter REST API-nøkkel automatisk.</p>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;" data-i18n="fg_bootstrap_note">Kobler til med fabrikkinnstillinger (admin / tomt passord), setter sterkt passord, aktiverer hardening og oppretter REST API-nøkkel automatisk.</p>
                 <label class="field-label" for="fg-bootstrap-host" data-i18n="lbl_fortigate_ip">FortiGate IP</label>
                 <input class="field-input" id="fg-bootstrap-host" type="text" placeholder="192.168.1.99">
                 <label class="field-label" for="fg-bootstrap-hostname" style="margin-top:8px;" data-i18n="lbl_hostname_optional">Hostname (valgfritt)</label>
@@ -1096,7 +1096,7 @@
               </div>
               <label class="field-label" for="fg-api-host" data-i18n="lbl_host_ip">Host / IP</label>
               <input class="field-input" id="fg-api-host" type="text" placeholder="f.eks. 192.168.1.1 eller fw.kunde.no">
-              <label class="field-label" for="fg-api-port" style="margin-top:10px;">Port</label>
+              <label class="field-label" for="fg-api-port" style="margin-top:10px;" data-i18n="lbl_port">Port</label>
               <input class="field-input" id="fg-api-port" type="number" value="443" placeholder="443">
               <label class="field-label" for="fg-api-token" style="margin-top:10px;" data-i18n="lbl_api_token">API-token</label>
               <input class="field-input" id="fg-api-token" type="password" placeholder="FortiGate REST API token">
@@ -1135,7 +1135,7 @@
               <div style="margin-bottom:16px;">
                 <label class="field-label" for="unifi-sm-apikey" data-i18n="lbl_api_key">API-nøkkel</label>
                 <input class="field-input" id="unifi-sm-apikey" type="password" placeholder="UniFi Site Manager API key">
-                <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Generer nøkkel via <strong>unifi.ui.com → Settings → API</strong></div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:4px;"><span data-i18n="unifi_key_hint_before">Generer nøkkel via</span> <strong>unifi.ui.com → Settings → API</strong></div>
               </div>
               <!-- Controller direct access -->
               <details style="margin-bottom:12px;">
@@ -1143,9 +1143,9 @@
                 <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en <strong>Organization API key</strong> fra unifi.ui.com, eller direkte tilgang til kontrolleren.</p>
                 <label class="field-label" for="unifi-sm-ctrl-host" data-i18n="lbl_controller_url_optional">Kontroller-URL (valgfritt)</label>
                 <input class="field-input" id="unifi-sm-ctrl-host" type="text" placeholder="f.eks. https://sybr.unihosted.com">
-                <label class="field-label" for="unifi-sm-ctrl-user" style="margin-top:10px;">Brukernavn</label>
+                <label class="field-label" for="unifi-sm-ctrl-user" style="margin-top:10px;" data-i18n="lbl_username_label">Brukernavn</label>
                 <input class="field-input" id="unifi-sm-ctrl-user" type="text" placeholder="Lokal kontroller-bruker">
-                <label class="field-label" for="unifi-sm-ctrl-pass" style="margin-top:10px;">Passord</label>
+                <label class="field-label" for="unifi-sm-ctrl-pass" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
                 <input class="field-input" id="unifi-sm-ctrl-pass" type="password" placeholder="Kontroller-passord">
                 <div style="display:flex;gap:8px;margin-top:8px;">
                   <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmTestController()" data-i18n="btn_test_connection">Test tilkobling</button>
@@ -1184,32 +1184,32 @@
               <button class="btn btn-primary" onclick="toggleIntegConfig('claude-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
             </div>
             <div id="claude-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
-              <label class="field-label">Tilkoblingsmetode</label>
+              <label class="field-label" data-i18n="lbl_connection_method">Tilkoblingsmetode</label>
               <select class="field-input" id="claude-mode" onchange="claudeModeChanged()" style="padding:8px 12px;margin-bottom:12px;">
-                <option value="api">API-nøkkel (pay-as-you-go)</option>
-                <option value="cli">Claude Max / Pro (subscription via CLI)</option>
+                <option value="api" data-i18n="opt_claude_api_key">API-nøkkel (pay-as-you-go)</option>
+                <option value="cli" data-i18n="opt_claude_subscription">Claude Max / Pro (subscription via CLI)</option>
               </select>
 
               <!-- API key mode -->
               <div id="claude-mode-api">
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Hent API-nøkkel fra <strong>console.anthropic.com</strong>. Betales per token.</p>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"><span data-i18n="claude_key_hint_before">Hent API-nøkkel fra</span> <strong>console.anthropic.com</strong><span data-i18n="claude_key_hint_after">. Betales per token.</span></p>
                 <label class="field-label" for="claude-api-key" data-i18n="lbl_api_key">API-nøkkel</label>
                 <input class="field-input" id="claude-api-key" type="password" placeholder="sk-ant-...">
               </div>
 
               <!-- CLI/subscription mode -->
               <div id="claude-mode-cli" style="display:none;">
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Bruker din Claude Max/Pro-subscription via <code>claude</code> CLI. Ingen ekstra kostnad per forespørsel.</p>
-                <p style="font-size:11px;color:var(--orange);margin-bottom:8px;">Merk: CLI-modus er tregere enn API (ny prosess per melding) og har ikke verktøy-støtte. API-modus anbefales for best opplevelse.</p>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"><span data-i18n="claude_cli_hint_before">Bruker din Claude Max/Pro-subscription via</span> <code>claude</code> <span data-i18n="claude_cli_hint_after">CLI. Ingen ekstra kostnad per forespørsel.</span></p>
+                <p style="font-size:11px;color:var(--orange);margin-bottom:8px;" data-i18n="msg_claude_cli_note">Merk: CLI-modus er tregere enn API (ny prosess per melding) og har ikke verktøy-støtte. API-modus anbefales for best opplevelse.</p>
                 <div id="claude-cli-status" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-muted);margin-bottom:8px;" data-i18n="msg_checking_cli">Sjekker CLI...</div>
                 <button class="btn btn-ghost" onclick="claudeCheckCli()" style="padding:4px 12px;font-size:11px;margin-bottom:8px;" data-i18n="btn_check_cli">Sjekk CLI-status</button>
               </div>
 
-              <label class="field-label" style="margin-top:10px;" for="claude-model">Modell</label>
+              <label class="field-label" style="margin-top:10px;" for="claude-model" data-i18n="lbl_model">Modell</label>
               <select class="field-input" id="claude-model" style="padding:8px 12px;">
-                <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (anbefalt)</option>
-                <option value="claude-opus-4-20250514">Claude Opus 4 (mest kapabel)</option>
-                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (raskest)</option>
+                <option value="claude-sonnet-4-20250514" data-i18n="opt_model_sonnet">Claude Sonnet 4 (anbefalt)</option>
+                <option value="claude-opus-4-20250514" data-i18n="opt_model_opus">Claude Opus 4 (mest kapabel)</option>
+                <option value="claude-haiku-4-5-20251001" data-i18n="opt_model_haiku">Claude Haiku 4.5 (raskest)</option>
               </select>
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="claudeSaveSettings()" data-i18n="btn_save">Lagre</button>
@@ -1217,10 +1217,10 @@
                 <span id="claude-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
               <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text-dim);">
-                <div style="font-weight:600;margin-bottom:4px;">AI-assistenten har tilgang til:</div>
+                <div style="font-weight:600;margin-bottom:4px;" data-i18n="msg_ai_has_access_to">AI-assistenten har tilgang til:</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
-                  <span>• SSH-verter og nøkler</span>
-                  <span>• VPN-tilkoblinger</span>
+                  <span data-i18n="msg_ai_access_ssh">• SSH-verter og nøkler</span>
+                  <span data-i18n="msg_ai_access_vpn">• VPN-tilkoblinger</span>
                   <span>• FortiGate-brannmurer</span>
                   <span>• UniFi-enheter og siter</span>
                   <span>• CIS compliance-sjekk</span>
@@ -1290,7 +1290,7 @@
             <div id="uniweb-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label">E-post</label>
               <input class="field-input" id="input-uniweb-email" type="text" placeholder="bruker@firma.no">
-              <label class="field-label" style="margin-top:10px;">Passord</label>
+              <label class="field-label" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
               <input class="field-input" id="input-uniweb-password" type="password" placeholder="Uniweb-passord">
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" onclick="uniwebSaveConfig()" style="padding:6px 14px;font-size:12px;">Lagre</button>
