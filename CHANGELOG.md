@@ -33,6 +33,9 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **i18n:**
+- Navigasjonsmenyen, innloggingsskjemaet og rapportvisningen hentet inn: 29 nye nøkler, 32 strenger. Tekstnodebudsjettet ned fra 283 til 251.
+- **Tre elementer viste nøkkelnavnet sitt til brukeren.** `data-i18n="btn_export"` uten oppføring i språkfila gir bokstavelig «btn_export» på skjermen, siden `translatePage` kaller `t()` uten fallback. En test fanger det nå.
+- Skjermleser-etikettene i innloggingsskjemaet var hardkodet, og var de eneste `sr-only`-etikettene i appen.
 - **Hardkodet tekst er nå en testfeil, ikke en vane.** Rundt 400 strenger står fortsatt i markupen og skriptene, samlet opp over lang tid og lagt til av hvert redesign. `tests/test_i18n_coverage.py` teller dem og feiler hvis tallet vokser, så en batch om gangen kan hentes inn uten at grunnen gis tilbake.
 - **`translatePage` håndterte aldri `aria-label` og `alt`.** Å merke dem gjorde ingenting, så norsk der var permanent uoversettelig — usynlig for seende og fastlåst for alle som bruker skjermleser.
 - 22 nye nøkler for det nye dashbord-kortet fra redesignet, som kom med hardkodet norsk: «Krever handling», «Ikke konfigurert», «Se audit», «Ingen utløper snart» og flere.

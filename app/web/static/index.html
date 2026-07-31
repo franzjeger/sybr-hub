@@ -64,11 +64,11 @@
 <div id="report-viewer-modal" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);flex-direction:column;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);background:var(--bg-card);flex-shrink:0;">
     <div style="display:flex;align-items:center;gap:var(--space-3);">
-      <span style="font-size:var(--font-md);font-weight:700;">&#128196; Rapport</span>
+      <span style="font-size:var(--font-md);font-weight:700;">&#128196; <span data-i18n="hdr_report">Rapport</span></span>
       <span id="report-viewer-title" style="font-size:var(--font-sm);color:var(--text-muted);"></span>
     </div>
     <div style="display:flex;gap:var(--space-2);">
-      <a id="report-viewer-link" href="#" target="_blank" class="btn btn-ghost btn-sm">&#8599; Ny fane</a>
+      <a id="report-viewer-link" href="#" target="_blank" class="btn btn-ghost btn-sm">&#8599; <span data-i18n="btn_new_tab">Ny fane</span></a>
       <button class="btn btn-ghost btn-sm" onclick="closeReportViewer()">&#10005; <span data-i18n="btn_close">Lukk</span></button>
     </div>
   </div>
@@ -86,19 +86,19 @@
     <!-- Setup form (first run) -->
     <div id="auth-setup-form" style="display:none;">
       <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;" data-i18n="msg_create_admin">Opprett admin-konto for å komme i gang.</p>
-      <label for="setup-username" class="sr-only">Brukernavn</label>
+      <label for="setup-username" class="sr-only" data-i18n="lbl_username">Brukernavn</label>
       <input id="setup-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
-      <label for="setup-displayname" class="sr-only">Visningsnavn</label>
+      <label for="setup-displayname" class="sr-only" data-i18n="lbl_display_name_label">Visningsnavn</label>
       <input id="setup-displayname" type="text" data-i18n-placeholder="lbl_display_name" placeholder="Visningsnavn" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
-      <label for="setup-password" class="sr-only">Passord</label>
+      <label for="setup-password" class="sr-only" data-i18n="lbl_password">Passord</label>
       <input id="setup-password" type="password" data-i18n-placeholder="placeholder_password_min8" placeholder="Passord (min. 8 tegn)" autocomplete="new-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter')doSetup()">
       <button onclick="doSetup()" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_create_admin">Opprett admin</button>
     </div>
     <!-- Login form -->
     <div id="auth-login-form" style="display:none;">
-      <label for="login-username" class="sr-only">Brukernavn</label>
+      <label for="login-username" class="sr-only" data-i18n="lbl_username">Brukernavn</label>
       <input id="login-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
-      <label for="login-password" class="sr-only">Passord</label>
+      <label for="login-password" class="sr-only" data-i18n="lbl_password">Passord</label>
       <input id="login-password" type="password" data-i18n-placeholder="lbl_password" placeholder="Passord" autocomplete="current-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter')doLogin()">
       <button onclick="doLogin()" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_login">Logg inn</button>
     </div>
@@ -122,22 +122,22 @@
         <div class="nav-dropdown-menu"><div class="navdd-panel">
           <button class="navdd-item" onclick="showView('customers')">
             <span class="navdd-ic">&#9638;</span>
-            <span class="navdd-txt"><span class="navdd-label">Kundeoversikt <span class="navdd-kbd">Ctrl+3</span></span><span class="navdd-desc">Alle kunder med risiko, MFA og MRR</span></span>
+            <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_customer_overview">Kundeoversikt</span> <span class="navdd-kbd">Ctrl+3</span></span><span class="navdd-desc" data-i18n="nav_customer_overview_desc">Alle kunder med risiko, MFA og MRR</span></span>
           </button>
           <button class="navdd-item" onclick="showView('home')">
             <span class="navdd-ic">&#9729;</span>
-            <span class="navdd-txt"><span class="navdd-label">M365-status <span class="navdd-kbd">Ctrl+2</span></span><span class="navdd-desc">Status og filer for aktiv kunde</span></span>
+            <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_m365_status">M365-status</span> <span class="navdd-kbd">Ctrl+2</span></span><span class="navdd-desc" data-i18n="nav_m365_status_desc">Status og filer for aktiv kunde</span></span>
           </button>
           <button class="navdd-item" onclick="showView('history')">
             <span class="navdd-ic">&#9636;</span>
-            <span class="navdd-txt"><span class="navdd-label">Audit-historikk <span class="navdd-kbd">Ctrl+5</span></span><span class="navdd-desc">Tidligere kj&#248;ringer og rapporter</span></span>
+            <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_audit_history">Audit-historikk</span> <span class="navdd-kbd">Ctrl+5</span></span><span class="navdd-desc" data-i18n="nav_audit_history_desc">Tidligere kj&#248;ringer og rapporter</span></span>
           </button>
           <button class="navdd-item" onclick="showView('setup')">
             <span class="navdd-ic">&#8853;</span>
-            <span class="navdd-txt"><span class="navdd-label">Ny kunde</span><span class="navdd-desc">Registrer og koble til integrasjoner</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_new_customer">Ny kunde</span><span class="navdd-desc" data-i18n="nav_new_customer_desc">Registrer og koble til integrasjoner</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-foot" onclick="openLatestReport()"><span class="navdd-ic">&#8599;</span>&#197;pne siste rapport for aktiv kunde</button>
+          <button class="navdd-foot" onclick="openLatestReport()"><span class="navdd-ic">&#8599;</span><span data-i18n="nav_open_latest_report">&#197;pne siste rapport for aktiv kunde</span></button>
         </div></div>
       </div>
 
@@ -146,22 +146,22 @@
         <div class="nav-dropdown-menu"><div class="navdd-panel">
           <button class="navdd-item" onclick="showView('network')">
             <span class="navdd-ic">&#9635;</span>
-            <span class="navdd-txt"><span class="navdd-label">FortiGate / UniFi</span><span class="navdd-desc">Enheter, firmware og policy-audit</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_fortigate_unifi">FortiGate / UniFi</span><span class="navdd-desc" data-i18n="nav_fortigate_unifi_desc">Enheter, firmware og policy-audit</span></span>
           </button>
           <button class="navdd-item" onclick="showView('vpn')">
             <span class="navdd-ic">&#8644;</span>
-            <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc">Tunneler mot kundenett &#8212; status og tilkobling</span></span>
+            <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc" data-i18n="nav_vpn_tunnels_desc">Tunneler mot kundenett &#8212; status og tilkobling</span></span>
           </button>
           <button class="navdd-item" onclick="showView('tls')">
             <span class="navdd-ic">&#10003;</span>
-            <span class="navdd-txt"><span class="navdd-label">TLS-monitor</span><span class="navdd-desc">Sertifikater som utl&#248;per</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_tls_monitor">TLS-monitor</span><span class="navdd-desc" data-i18n="nav_tls_monitor_desc">Sertifikater som utl&#248;per</span></span>
           </button>
           <button class="navdd-item" onclick="showView('tailscale')">
             <span class="navdd-ic">&#8734;</span>
-            <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc">Mesh-tilgang og noder</span></span>
+            <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc" data-i18n="nav_mesh_desc">Mesh-tilgang og noder</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-foot" onclick="showView('provision')"><span class="navdd-ic">&#9881;</span>Provisjonering &#8212; nytt kundenett</button>
+          <button class="navdd-foot" onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
         </div></div>
       </div>
 
@@ -170,22 +170,22 @@
         <div class="nav-dropdown-menu"><div class="navdd-panel">
           <button class="navdd-item" onclick="showView('hosts')">
             <span class="navdd-ic">&#8997;</span>
-            <span class="navdd-txt"><span class="navdd-label">Fjernaksess</span><span class="navdd-desc">Hosts, RDP og WebRemote-lenker</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_remote_access2">Fjernaksess</span><span class="navdd-desc" data-i18n="nav_remote_access_desc">Hosts, RDP og WebRemote-lenker</span></span>
           </button>
           <button class="navdd-item" onclick="showView('ssh')">
             <span class="navdd-ic" style="font-family:var(--mono);font-size:11px;">&gt;_</span>
-            <span class="navdd-txt"><span class="navdd-label">Terminal / SSH</span><span class="navdd-desc">&#216;kter og SSH-n&#248;kler</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_terminal_ssh">Terminal / SSH</span><span class="navdd-desc" data-i18n="nav_terminal_ssh_desc">&#216;kter og SSH-n&#248;kler</span></span>
           </button>
           <button class="navdd-item" onclick="showView('browser')">
             <span class="navdd-ic">&#9707;</span>
-            <span class="navdd-txt"><span class="navdd-label">Nettleser</span><span class="navdd-desc">Proxy mot kundens interne grensesnitt</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_browser2">Nettleser</span><span class="navdd-desc" data-i18n="nav_browser_desc">Proxy mot kundens interne grensesnitt</span></span>
           </button>
           <button class="navdd-item" onclick="showView('workshop')">
             <span class="navdd-ic">&#9998;</span>
-            <span class="navdd-txt"><span class="navdd-label">Workshop</span><span class="navdd-desc">Skjema og sjekklister</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_workshop2">Workshop</span><span class="navdd-desc" data-i18n="nav_workshop_desc">Skjema og sjekklister</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-foot" onclick="showView('docs')"><span class="navdd-ic">?</span>Dokumentasjon og endringslogg</button>
+          <button class="navdd-foot" onclick="showView('docs')"><span class="navdd-ic">?</span><span data-i18n="nav_docs_desc">Dokumentasjon og endringslogg</span></button>
         </div></div>
       </div>
 

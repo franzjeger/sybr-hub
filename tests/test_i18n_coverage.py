@@ -34,10 +34,16 @@ _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5}
 
 
 def _markup_without_scripts() -> str:
+    """Blank out scripts and styles, keeping every newline.
+
+    Deleting them shifted every line number after the first <script>, so the
+    failure message pointed at the wrong place — which is most of the value of
+    the message. Replacing each block with its own newlines keeps offsets true.
+    """
     src = (STATIC / "index.html").read_text()
     return re.sub(
         r"<script\b.*?</script>|<style\b.*?</style>|<title\b.*?</title>",
-        "", src, flags=re.S,
+        lambda m: "\n" * m.group(0).count("\n"), src, flags=re.S,
     )
 
 
@@ -107,7 +113,7 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 # real: the detector was counting t("key", "fallback") arguments and comments.
 # The one that remains is a multi-line string the regex mis-reads, kept rather
 # than special-cased so the next reader sees the limit of the measurement.
-BUDGET_TEXT_NODES = 283
+BUDGET_TEXT_NODES = 251
 BUDGET_ATTRIBUTES = 74
 BUDGET_JS_NORWEGIAN = 1
 
@@ -206,3 +212,19 @@ def test_the_languages_have_the_same_keys():
     only_no = set(d["no"]) - set(d["en"])
     only_en = set(d["en"]) - set(d["no"])
     assert not only_no and not only_en, f"no-only: {sorted(only_no)[:5]}, en-only: {sorted(only_en)[:5]}"
+
+
+def test_every_key_used_in_the_markup_exists():
+    """translatePage calls t(key) with no fallback, and t returns the key when
+    it finds nothing — so a missing entry puts "btn_export" on screen as text.
+
+    Three were doing exactly that, on the integrations panel and the renewals
+    placeholder.
+    """
+    import json
+
+    d = json.loads((STATIC / "ui_i18n.json").read_text())
+    html = (STATIC / "index.html").read_text()
+    used = set(re.findall(r'data-i18n(?:-[a-z-]+)?="([^"]+)"', html))
+    missing = sorted(k for k in used if k not in d["no"])
+    assert not missing, f"markup references keys that do not exist: {missing}"
