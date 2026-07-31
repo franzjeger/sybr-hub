@@ -131,25 +131,48 @@ async def favicon() -> Response:
 
 _SW_VERSION = re.compile(r"const CACHE_VERSION = '[^']*'")
 
+# The files a browser holds on to. Hashing their bytes means any deploy that
+# changes them evicts the cache, whether or not anyone bumped a version.
+_CACHED_ASSETS = ("app.js", "app.css", "index.html", "ui_i18n.json")
+
+
+def _static_digest() -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    for name in _CACHED_ASSETS:
+        path = _STATIC_DIR / name
+        if path.exists():
+            h.update(path.read_bytes())
+    return h.hexdigest()[:12]
+
+
+
 
 # Registered before the catch-all below, which would otherwise serve sw.js
 # verbatim — FastAPI matches routes in registration order.
 @router.get("/static/sw.js")
 async def service_worker() -> Response:
-    """Serve the worker with CACHE_VERSION pinned to the running build.
+    """Serve the worker with CACHE_VERSION pinned to the served assets.
 
     Everything under /static/ is cached cache-first, and the worker only evicts
     when CACHE_VERSION changes. Left as a literal in the file it went stale —
-    it still read v10.6.0 at app version 10.10.12 — which means a shipped
-    front-end fix never reached a browser that had already loaded the app once.
-    Deriving it here makes every release evict, without anyone remembering to
-    bump a string.
+    it still read v10.6.0 at app version 10.10.12 — so it was changed to derive
+    from the app version instead.
+
+    That was not enough. A release bumps the version; a deploy usually does
+    not. A dozen front-end fixes shipped in one day under app version 10.10.12
+    all landed on browsers that went on serving the app.js they already had —
+    confirmed by asking a live page whether a function it should have had was
+    there, and finding the old one. So the version is no longer the whole
+    signal: the digest of what is actually being served is.
     """
     from app.core.version import get_version
 
     source = (_STATIC_DIR / "sw.js").read_text(encoding="utf-8")
     source = _SW_VERSION.sub(
-        f"const CACHE_VERSION = 'msptoolkit-{get_version()}'", source, count=1
+        f"const CACHE_VERSION = 'msptoolkit-{get_version()}-{_static_digest()}'",
+        source, count=1,
     )
     return Response(
         source,

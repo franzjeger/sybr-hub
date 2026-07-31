@@ -690,8 +690,13 @@ def test_service_worker_cache_version_tracks_the_build(client):
     """
     from app.core.version import get_version
 
+    from app.web.routes.frontend import _static_digest
+
     body = client.get("/static/sw.js").text
-    assert f"const CACHE_VERSION = 'msptoolkit-{get_version()}'" in body
+    # Version *and* a digest of the served assets: a release bumps the former,
+    # a deploy usually does not, and a dozen front-end fixes shipped under one
+    # version otherwise never evict.
+    assert f"const CACHE_VERSION = 'msptoolkit-{get_version()}-{_static_digest()}'" in body
     # And the worker script itself must not be cacheable, or the browser never
     # sees the new version in the first place.
     assert "no-cache" in client.get("/static/sw.js").headers.get("cache-control", "")
@@ -802,3 +807,35 @@ def test_a_skipped_section_is_not_announced_as_a_failure():
     src = pathlib.Path("app/web/static/app.js").read_text()
     assert "r.error && r.status === 'failed'" in src, "failures gate on status"
     assert "r.error && r.status === 'skipped'" in src, "skips get their own group"
+
+
+def test_the_cache_version_changes_when_a_static_file_changes():
+    """A release bumps the app version; a deploy usually does not.
+
+    Twelve front-end fixes shipped in one day under app version 10.10.12, and
+    every browser that had loaded the app once went on serving the app.js it
+    already had. Deriving the cache key from the version alone could not evict
+    them, so it now includes a digest of the bytes actually served.
+    """
+    import pathlib
+
+    from app.web.routes import frontend
+
+    before = frontend._static_digest()
+    app_js = pathlib.Path("app/web/static/app.js")
+    original = app_js.read_bytes()
+    try:
+        app_js.write_bytes(original + b"\n// touched\n")
+        assert frontend._static_digest() != before, (
+            "a changed asset must produce a new cache key"
+        )
+    finally:
+        app_js.write_bytes(original)
+    assert frontend._static_digest() == before, "and revert to the old one"
+
+
+def test_the_cache_version_covers_every_cached_asset():
+    """Missing one means a change to it never reaches a warm browser."""
+    from app.web.routes import frontend
+
+    assert set(frontend._CACHED_ASSETS) >= {"app.js", "app.css", "index.html"}
