@@ -1701,10 +1701,10 @@
     <div id="docs-repo" class="docs-tab-pane">
       <div style="display:grid;grid-template-columns:260px 1fr;gap:var(--space-4);min-height:420px;">
         <div id="docs-repo-tree" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);background:var(--bg-card);font-size:13px;max-height:75vh;overflow:auto;">
-          <div style="color:var(--text-muted);">Laster …</div>
+          <div style="color:var(--text-muted);" data-i18n="msg_loading_ellipsis">Laster …</div>
         </div>
         <div id="docs-repo-content" class="markdown-body" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);background:var(--bg-card);min-height:420px;max-height:75vh;overflow:auto;font-size:14px;line-height:1.6;">
-          <div style="color:var(--text-muted);">&larr; Velg en fil i treet til venstre.</div>
+          <div style="color:var(--text-muted);" data-i18n="msg_select_file_in_tree">&larr; Velg en fil i treet til venstre.</div>
         </div>
       </div>
     </div>
@@ -1712,22 +1712,22 @@
     <!-- Tab: API -->
     <div id="docs-api" class="docs-tab-pane" style="display:none;">
       <div class="card">
-        <h3 style="font-size:var(--font-md);font-weight:700;margin-bottom:var(--space-3);">REST API-endepunkter &mdash; v9.2.0</h3>
-        <p style="font-size:var(--font-sm);color:var(--text-muted);margin-bottom:var(--space-3);">Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL: <code>https://&lt;server&gt;:8099/api</code></p>
+        <h3 style="font-size:var(--font-md);font-weight:700;margin-bottom:var(--space-3);"><span data-i18n="hdr_rest_endpoints">REST API-endepunkter</span> &mdash; v9.2.0</h3>
+        <p style="font-size:var(--font-sm);color:var(--text-muted);margin-bottom:var(--space-3);"><span data-i18n="msg_api_auth_note">Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL:</span> <code>https://&lt;server&gt;:8099/api</code></p>
         <div style="font-family:var(--mono);font-size:var(--font-xs);line-height:2.2;color:var(--text-muted);">
 
-          <strong style="color:var(--blue);">Auth (/api/auth/*)</strong><br>
+          <strong style="color:var(--blue);"><span data-i18n="api_group_auth">Auth</span> (/api/auth/*)</strong><br>
           POST /auth/login &middot; POST /auth/setup &middot; POST /auth/refresh &middot; POST /auth/logout<br>
           GET /auth/status &middot; GET /auth/me &middot; POST /auth/me/password<br>
           GET /auth/users &middot; POST /auth/users &middot; PUT /auth/users/{id} &middot; DELETE /auth/users/{id}<br><br>
 
-          <strong style="color:var(--blue);">Kunder (/api/customers/*)</strong><br>
+          <strong style="color:var(--blue);"><span data-i18n="api_group_customers">Kunder</span> (/api/customers/*)</strong><br>
           GET /customers &middot; POST /customers/switch &middot; POST /customers/register &middot; POST /customers/delete<br>
           GET /customer/notes &middot; POST /customer/notes &middot; GET /customer/tags &middot; POST /customer/tags<br>
           POST /customers/import-itglue &middot; POST /customer/wipe &middot; POST /customer/renew<br>
           GET /customer/{id}/unified &middot; GET /search/customers<br><br>
 
-          <strong style="color:var(--blue);">Audit (/api/audit/*)</strong><br>
+          <strong style="color:var(--blue);"><span data-i18n="api_group_audit">Audit</span> (/api/audit/*)</strong><br>
           GET /audit/stream (SSE) &middot; GET /audit/bulk &middot; POST /audit/cancel<br>
           POST /audit/validate-permissions &middot; GET /audit/sections<br>
           GET /audit/scope &middot; POST /audit/scope &middot; GET /audit/presets &middot; POST /audit/presets &middot; DELETE /audit/presets/{name}<br>
@@ -1753,7 +1753,7 @@
           POST /rdp/start &middot; POST /rdp/stop &middot; GET /rdp/status &middot; POST /rdp/clipboard<br>
           POST /rdp/launch (via SSH-ruter)<br><br>
 
-          <strong style="color:var(--blue);">Nettleser (/api/browser/*)</strong><br>
+          <strong style="color:var(--blue);"><span data-i18n="api_group_browser">Nettleser</span> (/api/browser/*)</strong><br>
           POST /browser/start &middot; POST /browser/navigate &middot; POST /browser/stop &middot; GET /browser/status<br><br>
 
           <strong style="color:var(--blue);">FortiGate (/api/fortigate/*)</strong><br>
@@ -1791,7 +1791,7 @@
           POST /customers/import-itglue &middot; POST /itglue/upload/audit<br>
           GET /itglue/available-reports &middot; POST /itglue/upload/reports &middot; POST /itglue/upload/credentials<br><br>
 
-          <strong style="color:var(--blue);">TLS-sertifikater (/api/tls/*)</strong><br>
+          <strong style="color:var(--blue);"><span data-i18n="api_group_tls">TLS-sertifikater</span> (/api/tls/*)</strong><br>
           GET /tls/auto-discover &middot; POST /tls/check &middot; POST /tls/scan<br><br>
 
           <strong style="color:var(--blue);">Claude AI (/api/claude/*)</strong><br>

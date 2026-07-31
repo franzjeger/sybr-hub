@@ -29,8 +29,41 @@ _NOT_TEXT = {
     "SYBR", "MSP Toolkit", "SYBR — MSP Toolkit", "ESC", "IT Glue", "M365",
     "GDAP", "UniFi", "FortiGate", "Tailscale", "ALSO Cloud", "Uniweb", "MRR",
     "CSV", "PDF", "HTML", "API", "SSH", "RDP", "VPN", "DNS", "TLS", "AI",
+    "Swagger ↗", "Claude AI",
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
+
+# Code, not language. The API reference panel lists sixty-odd endpoint
+# signatures — "GET /audit/stream (SSE) · POST /audit/cancel" — which are
+# identifiers a reader matches against the server, not prose. Counting them put
+# the largest cluster in the file at 74 strings when 8 were translatable, and
+# "fixing" them would have meant sixty keys whose two languages are the same
+# URLs.
+_CODE_RE = re.compile(
+    r"^(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|WS)\s|"      # a request line
+    r"^/[a-z0-9{}/_.-]+$|"                                     # a bare path
+    r"^https?://|"                                             # a URL
+    r"^[a-z_]+\([^)]*\)$|"                                     # a function signature
+    r"^\(/api/[a-z_]+/\*\)$|"                                  # a path left beside a translated word
+    r"^[—–-]\s*v?\d+[\d.]*$"                                   # a version fragment, likewise
+)
+
+
+# "FortiGate (/api/fortigate/*)" — a vendor name and a path, neither of which
+# translates. "Kunder (/api/customers/*)" does, so the name is checked against
+# the brand list rather than the shape being trusted on its own.
+_HEADING_RE = re.compile(r"^(.+?)\s*\(/api/[a-z_]+/\*\)$")
+
+
+def _is_code(text: str) -> bool:
+    if _CODE_RE.match(text):
+        return True
+    heading = _HEADING_RE.match(text)
+    if heading and (heading.group(1) in _NOT_TEXT or _NOT_TEXT_RE.match(heading.group(1))):
+        return True
+    # A line of endpoints joined by the separator this panel uses.
+    parts = [p.strip() for p in text.split("·") if p.strip()]
+    return len(parts) > 1 and all(_CODE_RE.match(p) for p in parts)
 
 
 def _markup_without_scripts() -> str:
@@ -54,6 +87,8 @@ def untranslated_text_nodes() -> list[tuple[int, str]]:
     for m in re.finditer(r">([^<>]*[A-Za-zÆØÅæøå][^<>]*)<", clean):
         text = htmlmod.unescape(m.group(1)).strip()
         if not text or len(text) < 2 or text in _NOT_TEXT or _NOT_TEXT_RE.match(text):
+            continue
+        if _is_code(text):
             continue
         tag = clean[clean.rfind("<", 0, m.start()):m.start() + 1]
         if "data-i18n" in tag:
@@ -109,11 +144,18 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 
 # Ceilings. Lower them as batches land; never raise them.
 #
+# text nodes went 251 -> 158, but only 11 of that were strings brought into
+# ui_i18n.json. The other 82 were never translatable: the API reference lists
+# sixty-odd endpoint signatures, and its section headings are vendor names
+# beside a path. Counting them made the largest cluster in the file look like
+# 74 strings when 8 were real, and "fixing" them would have produced sixty keys
+# whose two languages are identical URLs.
+#
 # js literals went 56 -> 1 in one commit, but only 9 of those 56 were ever
 # real: the detector was counting t("key", "fallback") arguments and comments.
 # The one that remains is a multi-line string the regex mis-reads, kept rather
 # than special-cased so the next reader sees the limit of the measurement.
-BUDGET_TEXT_NODES = 251
+BUDGET_TEXT_NODES = 158
 BUDGET_ATTRIBUTES = 74
 BUDGET_JS_NORWEGIAN = 1
 

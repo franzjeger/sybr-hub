@@ -1756,7 +1756,16 @@
     "hdr_report": "Rapport",
     "btn_export": "Eksport",
     "msg_click_load_renewals": "Klikk for å laste fornyelsesdata",
-    "msg_not_configured": "Ikke konfigurert"
+    "msg_not_configured": "Ikke konfigurert",
+    "msg_loading_ellipsis": "Laster …",
+    "msg_select_file_in_tree": "← Velg en fil i treet til venstre.",
+    "hdr_rest_endpoints": "REST API-endepunkter",
+    "api_group_auth": "Auth",
+    "api_group_customers": "Kunder",
+    "api_group_audit": "Audit",
+    "api_group_browser": "Nettleser",
+    "api_group_tls": "TLS-sertifikater",
+    "msg_api_auth_note": "Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL:"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -3515,6 +3524,15 @@
     "hdr_report": "Report",
     "btn_export": "Export",
     "msg_click_load_renewals": "Click to load renewal data",
-    "msg_not_configured": "Not configured"
+    "msg_not_configured": "Not configured",
+    "msg_loading_ellipsis": "Loading …",
+    "msg_select_file_in_tree": "← Select a file in the tree on the left.",
+    "hdr_rest_endpoints": "REST API endpoints",
+    "api_group_auth": "Auth",
+    "api_group_customers": "Customers",
+    "api_group_audit": "Audit",
+    "api_group_browser": "Browser",
+    "api_group_tls": "TLS certificates",
+    "msg_api_auth_note": "All endpoints require a JWT bearer token except public paths. Base URL:"
   }
 }
