@@ -2329,7 +2329,6 @@ function handleProgress(d) {
       <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}<div class="detail-expand" style="display:none;"></div></td>`;
     tbody.appendChild(tr);
     sectionRows[name] = tr;
-    sectionTotal = Object.keys(sectionRows).length; // auto-grow total
   }
 
   const terminal = ['done', 'skipped', 'failed'];
@@ -2434,6 +2433,7 @@ var _auditProgressTimer = null;
 
 function startAuditProgressPolling() {
   stopAuditProgressPolling();
+  pollAuditProgress();  // don't wait 2s for the first honest denominator
   _auditProgressTimer = setInterval(pollAuditProgress, 2000);
 }
 
@@ -2451,6 +2451,15 @@ async function pollAuditProgress() {
     if (ind && ind.style.display !== 'none') {
       ind.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> '
         + 'Audit ' + d.progress + '% — ' + esc(d.current_section);
+    }
+    // The audit view's own bar used to derive its total from the sections that
+    // had already announced themselves, so it read n / n after every section
+    // and sat at 100% for the whole run. The server knows the real section
+    // list; take the denominator from it and let the SSE handler move the
+    // numerator between polls.
+    if (typeof d.total_sections === 'number' && d.total_sections > 0) {
+      sectionTotal = d.total_sections;
+      if (currentView === 'audit') updateProgress(d.completed, sectionTotal);
     }
     // Update floating progress bar (shown on non-audit views)
     _showAuditProgressBar(d);

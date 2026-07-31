@@ -741,3 +741,26 @@ def test_client_reads_the_health_fields_the_server_sends(client):
     read = set(re.findall(r"\bd\.([A-Za-z_]+)", monitor))
     unknown = read - set(body)
     assert not unknown, f"app.js reads {sorted(unknown)} from /api/health, which returns {sorted(body)}"
+
+
+def test_the_audit_bar_does_not_derive_its_total_from_its_own_rows():
+    """A ratio whose denominator comes from its numerator says nothing.
+
+    The audit view counted the sections that had already announced themselves
+    and used that as the total. Sections run one at a time, so the bar read
+    n / n after every section and sat at 100% for the whole run — while the
+    header, reading the server's figure, correctly said 19%.
+
+    A source-level check, which is all there is without a JS test harness: it
+    can show the pattern is gone, not that the replacement is right. The
+    server's own counting is covered in tests/test_audit_progress.py.
+    """
+    import pathlib
+
+    src = pathlib.Path("app/web/static/app.js").read_text()
+    assert "sectionTotal = Object.keys(sectionRows).length" not in src, (
+        "the total must not be the number of rows rendered so far"
+    )
+    assert "sectionTotal = d.total_sections" in src, (
+        "the total should come from /api/audit/progress"
+    )
