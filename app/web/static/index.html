@@ -212,7 +212,7 @@
       <!-- Search field — opens the command palette (same as ⌘K). -->
       <button class="hdr-search" onclick="toggleCommandPalette()" data-i18n-title="ph_search_or_jump" title="S&#248;k eller hopp til&#8230; (&#8984;K)" data-i18n-aria-label="lbl_search" aria-label="S&#248;k">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <span>S&#248;k eller hopp til&#8230;</span>
+        <span data-i18n="soek_eller_hopp_til">S&#248;k eller hopp til&#8230;</span>
         <span class="kbd-chip">&#8984;K</span>
       </button>
 
@@ -259,10 +259,10 @@
           </div>
           <button class="avatar-item" onclick="closeAvatarMenu();openSettings()"><span class="ic">&#9881;</span><span style="flex:1;" data-i18n="innstillinger">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
           <button class="avatar-item" onclick="toggleTheme()"><span class="ic">&#9680;</span><span style="flex:1;" data-i18n="bytt_tema">Bytt tema</span></button>
-          <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span style="flex:1;">Tastatursnarveier</span><span class="kbd">?</span></button>
-          <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"></path></svg></span><span style="flex:1;">Bytt passord</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span style="flex:1;" data-i18n="tastatursnarveier_2">Tastatursnarveier</span><span class="kbd">?</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"></path></svg></span><span style="flex:1;" data-i18n="bytt_passord">Bytt passord</span></button>
           <button class="avatar-item danger" onclick="doLogout()"><span class="ic">&#8617;</span><span style="flex:1;" data-i18n="logg_ut">Logg ut</span></button>
-          <button class="avatar-foot" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; endringslogg</button>
+          <button class="avatar-foot" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; <span data-i18n="lbl_changelog">endringslogg</span></button>
         </div>
       </div>
 
@@ -312,14 +312,14 @@
         <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-domains')"><span data-i18n="dash_tab_domains">Domener</span></button>
         <button class="dash-tab-btn" onclick="switchDashTab(this,'dash-archive')"><span data-i18n="dash_tab_archive">Rapporter</span></button>
         <div style="flex:1;"></div>
-        <span class="dash-updated" id="dash-updated-wrap" style="display:none;">Oppdatert <span id="dash-updated-time">--:--</span></span>
+        <span class="dash-updated" id="dash-updated-wrap" style="display:none;"><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
         <div class="nav-dropdown">
           <button class="dash-tab-tool accent" data-i18n-title="btn_export" title="Eksport">Eksport &#9662;</button>
           <div class="nav-dropdown-menu" style="left:auto;right:0;"><div class="nav-dropdown-menu-inner">
             <button onclick="dashExportCurrentTab()">CSV</button>
             <button onclick="exportDashboardExcel()">Excel</button>
-            <button onclick="copyOverviewToClipboard()">Kopier tabell</button>
-            <button onclick="generateQBR()">QBR-rapport</button>
+            <button onclick="copyOverviewToClipboard()" data-i18n="kopier_tabell">Kopier tabell</button>
+            <button onclick="generateQBR()" data-i18n="qbr_rapport">QBR-rapport</button>
           </div></div>
         </div>
         <button id="dash-autorefresh-btn" class="dash-tab-tool" onclick="dashToggleAutoRefresh(this)" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
@@ -393,7 +393,7 @@
         <div class="device-code-step" data-i18n="setup_step1">1. Åpne i privat nettleservindu:</div>
         <div style="margin:4px 0 4px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
           <button class="btn btn-primary" id="dc-open-private" onclick="openPrivateBrowser()" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;" data-i18n="btn_open_private_window">
-            <span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> Åpne i privat vindu
+            <span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_open_private_window_label">Åpne i privat vindu</span>
           </button>
           <span id="dc-browser-info" style="font-size:11px; color:var(--text-dim);"></span>
         </div>
@@ -435,7 +435,7 @@
 
       <!-- Progress bar -->
       <div class="progress-row">
-        <span class="progress-label" id="progress-label">0 / 0 seksjoner</span>
+        <span class="progress-label" id="progress-label" data-i18n="seksjoner">0 / 0 seksjoner</span>
         <div class="progress-bar-wrap">
           <div class="progress-bar-fill" id="progress-fill"></div>
         </div>
@@ -626,7 +626,7 @@
         <button class="btn btn-ghost net-sub-btn" data-sub="net-fortigates" onclick="switchNetSub(this,'net-fortigates')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_fortigate">FortiGate</button>
         <button class="btn btn-ghost net-sub-btn" data-sub="net-unifi" onclick="switchNetSub(this,'net-unifi')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_unifi">UniFi</button>
         <button class="btn btn-ghost net-sub-btn" data-sub="net-audit" onclick="switchNetSub(this,'net-audit')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_audit">Audit</button>
-        <button class="btn btn-ghost net-sub-btn" data-sub="net-pentest" onclick="switchNetSub(this,'net-pentest')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;">Pentest</button>
+        <button class="btn btn-ghost net-sub-btn" data-sub="net-pentest" onclick="switchNetSub(this,'net-pentest')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="pentest">Pentest</button>
       </div>
 
       <div id="net-devices" class="net-sub-content">
@@ -641,9 +641,9 @@
       <div id="net-fortigates" class="net-sub-content" style="display:none;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
           <select id="fg-live-interval" onchange="liveSetInterval(this.value)" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
-            <option value="30">30s</option>
-            <option value="60" selected>60s</option>
-            <option value="300">5 min</option>
+            <option value="30" data-i18n="s">30s</option>
+            <option value="60" selected data-i18n="s_2">60s</option>
+            <option value="300" data-i18n="min">5 min</option>
           </select>
           <button class="btn btn-ghost" onclick="fgPollAll()" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
           <div id="fg-live-status" style="margin-left:auto;font-size:12px;color:var(--text-muted);"></div>
@@ -706,7 +706,7 @@
 
       <div id="net-pentest" class="net-sub-content" style="display:none;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <div style="font-size:16px;font-weight:600;">🔓 Pentest</div>
+          <div style="font-size:16px;font-weight:600;" data-i18n="pentest_2">🔓 Pentest</div>
           <span style="font-size:11px;color:var(--text-muted);" data-i18n="pentest_subtitle"></span>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;" data-i18n="pentest_intro"></div>
@@ -939,7 +939,7 @@
               <select class="field-input" id="input-itglue-region" style="padding:8px 12px;">
                 <option value="eu">EU</option>
                 <option value="us">US</option>
-                <option value="au">Australia</option>
+                <option value="au" data-i18n="australia">Australia</option>
               </select>
               <div style="display:flex;gap:8px;margin-top:8px;">
                 <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testITGlue()" data-i18n="btn_test_connection">Test tilkobling</button>
@@ -1027,7 +1027,7 @@
                   <input type="checkbox" id="alert-risk-score-drop" checked>
                   <label for="alert-risk-score-drop" style="font-size:12px;" data-i18n="sched_risk_score_worsened">Risikoscore forverret</label>
                   <input class="field-input" id="alert-risk-score-drop-threshold" type="number" value="5" min="1" max="100" style="width:50px;padding:2px 4px;font-size:11px;" data-i18n-title="tip_threshold_points" title="Terskel (poeng)">
-                  <span style="font-size:11px;color:var(--text-muted);">poeng</span>
+                  <span style="font-size:11px;color:var(--text-muted);" data-i18n="poeng">poeng</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                   <input type="checkbox" id="alert-new-risky-users" checked>
@@ -1041,7 +1041,7 @@
                   <input type="checkbox" id="alert-secure-score-drop" checked>
                   <label for="alert-secure-score-drop" style="font-size:12px;" data-i18n="sched_secure_score_drop">Secure Score nedgang</label>
                   <input class="field-input" id="alert-secure-score-drop-threshold" type="number" value="5" min="1" max="100" style="width:50px;padding:2px 4px;font-size:11px;" data-i18n-title="tip_threshold_points" title="Terskel (poeng)">
-                  <span style="font-size:11px;color:var(--text-muted);">poeng</span>
+                  <span style="font-size:11px;color:var(--text-muted);" data-i18n="poeng_2">poeng</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                   <input type="checkbox" id="alert-new-nsg-warnings" checked>
@@ -1140,7 +1140,7 @@
               <!-- Controller direct access -->
               <details style="margin-bottom:12px;">
                 <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:8px;" data-i18n="unifi_controller_access">Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)</summary>
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en <strong>Organization API key</strong> fra unifi.ui.com, eller direkte tilgang til kontrolleren.</p>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"><span data-i18n="unifi_detail_before">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en</span> <strong>Organization API key</strong> <span data-i18n="unifi_detail_after">fra unifi.ui.com, eller direkte tilgang til kontrolleren.</span></p>
                 <label class="field-label" for="unifi-sm-ctrl-host" data-i18n="lbl_controller_url_optional">Kontroller-URL (valgfritt)</label>
                 <input class="field-input" id="unifi-sm-ctrl-host" type="text" data-i18n-placeholder="f_eks_https_sybr_unihosted" placeholder="f.eks. https://sybr.unihosted.com">
                 <label class="field-label" for="unifi-sm-ctrl-user" style="margin-top:10px;" data-i18n="lbl_username_label">Brukernavn</label>
@@ -1221,12 +1221,12 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
                   <span data-i18n="msg_ai_access_ssh">• SSH-verter og nøkler</span>
                   <span data-i18n="msg_ai_access_vpn">• VPN-tilkoblinger</span>
-                  <span>• FortiGate-brannmurer</span>
-                  <span>• UniFi-enheter og siter</span>
-                  <span>• CIS compliance-sjekk</span>
-                  <span>• Config backup</span>
-                  <span>• Kundeoversikt</span>
-                  <span>• Kommandokjøring (SSH)</span>
+                  <span data-i18n="fortigate_brannmurer">• FortiGate-brannmurer</span>
+                  <span data-i18n="unifi_enheter_og_siter">• UniFi-enheter og siter</span>
+                  <span data-i18n="cis_compliance_sjekk">• CIS compliance-sjekk</span>
+                  <span data-i18n="config_backup">• Config backup</span>
+                  <span data-i18n="kundeoversikt">• Kundeoversikt</span>
+                  <span data-i18n="kommandokjoering_ssh">• Kommandokjøring (SSH)</span>
                 </div>
               </div>
             </div>
@@ -1237,7 +1237,7 @@
               <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#00a651,#00cc66);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;">ALSO</div>
               <div>
                 <div style="font-weight:600;font-size:14px;">ALSO Cloud Marketplace</div>
-                <div style="font-size:12px;color:var(--text-muted);">License management, customer sync, billing</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="license_management_customer_sync_billing">License management, customer sync, billing</div>
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;" id="also-integ-status">
@@ -1248,25 +1248,25 @@
               <button class="btn btn-primary" onclick="toggleIntegConfig('also-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Configure</button>
             </div>
             <div id="also-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
-              <label class="field-label">Username / Email</label>
+              <label class="field-label" data-i18n="username_email">Username / Email</label>
               <input class="field-input" id="input-also-username" type="text" data-i18n-placeholder="user_company_no" placeholder="user@company.no">
-              <label class="field-label" style="margin-top:10px;">Password</label>
+              <label class="field-label" style="margin-top:10px;" data-i18n="password">Password</label>
               <input class="field-input" id="input-also-password" type="password" data-i18n-placeholder="api_password" placeholder="API password">
-              <label class="field-label" style="margin-top:10px;">Country</label>
+              <label class="field-label" style="margin-top:10px;" data-i18n="country">Country</label>
               <select class="field-input" id="input-also-country">
-                <option value="no">Norway</option>
-                <option value="se">Sweden</option>
-                <option value="dk">Denmark</option>
-                <option value="fi">Finland</option>
-                <option value="de">Germany</option>
-                <option value="nl">Netherlands</option>
-                <option value="ch">Switzerland</option>
-                <option value="at">Austria</option>
+                <option value="no" data-i18n="norway">Norway</option>
+                <option value="se" data-i18n="sweden">Sweden</option>
+                <option value="dk" data-i18n="denmark">Denmark</option>
+                <option value="fi" data-i18n="finland">Finland</option>
+                <option value="de" data-i18n="germany">Germany</option>
+                <option value="nl" data-i18n="netherlands">Netherlands</option>
+                <option value="ch" data-i18n="switzerland">Switzerland</option>
+                <option value="at" data-i18n="austria">Austria</option>
               </select>
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" onclick="alsoTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test connection</button>
                 <button class="btn btn-default" onclick="alsoSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Save</button>
-                <button class="btn btn-ghost" onclick="alsoSyncCustomers()" style="padding:6px 14px;font-size:12px;">Sync customers</button>
+                <button class="btn btn-ghost" onclick="alsoSyncCustomers()" style="padding:6px 14px;font-size:12px;" data-i18n="sync_customers">Sync customers</button>
               </div>
               <div id="also-config-msg" style="font-size:12px;margin-top:8px;"></div>
             </div>
@@ -1277,24 +1277,24 @@
               <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#2b5797,#4a8bc2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;">UW</div>
               <div>
                 <div style="font-weight:600;font-size:14px;">Uniweb</div>
-                <div style="font-size:12px;color:var(--text-muted);">Domener, hosting, SSL, e-post</div>
+                <div style="font-size:12px;color:var(--text-muted);" data-i18n="domener_hosting_ssl_e_post">Domener, hosting, SSL, e-post</div>
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;" id="uniweb-integ-status">
               <span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" id="uniweb-integ-dot"></span>
-              <span style="font-size:12px;color:var(--text-muted);" id="uniweb-integ-label">Ikke konfigurert</span>
+              <span style="font-size:12px;color:var(--text-muted);" id="uniweb-integ-label" data-i18n="ikke_konfigurert">Ikke konfigurert</span>
             </div>
             <div style="margin-top:auto;">
-              <button class="btn btn-primary" onclick="toggleIntegConfig('uniweb-config')" style="width:100%;padding:8px;font-size:13px;">Konfigurer</button>
+              <button class="btn btn-primary" onclick="toggleIntegConfig('uniweb-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="konfigurer">Konfigurer</button>
             </div>
             <div id="uniweb-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
-              <label class="field-label">E-post</label>
+              <label class="field-label" data-i18n="e_post">E-post</label>
               <input class="field-input" id="input-uniweb-email" type="text" data-i18n-placeholder="ph_user_at_company" placeholder="bruker@firma.no">
               <label class="field-label" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
               <input class="field-input" id="input-uniweb-password" type="password" data-i18n-placeholder="uniweb_passord" placeholder="Uniweb-passord">
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button class="btn btn-primary" onclick="uniwebSaveConfig()" style="padding:6px 14px;font-size:12px;">Lagre</button>
-                <button class="btn btn-ghost" onclick="uniwebSync()" id="uniweb-sync-btn" style="padding:6px 14px;font-size:12px;">Synkroniser</button>
+                <button class="btn btn-primary" onclick="uniwebSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="lagre">Lagre</button>
+                <button class="btn btn-ghost" onclick="uniwebSync()" id="uniweb-sync-btn" style="padding:6px 14px;font-size:12px;" data-i18n="synkroniser">Synkroniser</button>
               </div>
               <div id="uniweb-config-msg" style="font-size:12px;margin-top:8px;"></div>
               <div id="uniweb-last-sync" style="font-size:11px;color:var(--text-dim);margin-top:4px;"></div>
@@ -1318,9 +1318,9 @@
               <button class="btn btn-primary" onclick="toggleIntegConfig('ts-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
             </div>
             <div id="ts-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
-              <label class="field-label">API Access Token</label>
+              <label class="field-label" data-i18n="api_access_token">API Access Token</label>
               <input class="field-input" id="input-ts-api-key" type="password" placeholder="tskey-api-...">
-              <label class="field-label" style="margin-top:10px;">Tailnet <span style="font-weight:400;color:var(--text-dim);">(valgfritt, standard: -)</span></label>
+              <label class="field-label" style="margin-top:10px;">Tailnet <span style="font-weight:400;color:var(--text-dim);" data-i18n="valgfritt_standard">(valgfritt, standard: -)</span></label>
               <input class="field-input" id="input-ts-tailnet" type="text" placeholder="your-org.github">
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button class="btn btn-primary" onclick="tsTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
@@ -1846,7 +1846,7 @@
       <div class="card-title" data-i18n="hdr_workshop_architecture">Arkitektur — MSP Toolkit-integrasjoner</div>
       <div style="overflow-x:auto;text-align:center;background:var(--bg);border-radius:var(--radius-sm);padding:12px;">
         <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" data-i18n-alt="msp_toolkit_integrasjoner_og_dataflyt" alt="MSP Toolkit — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
-        <div style="display:none;color:var(--text-muted);font-size:12px;padding:20px;" data-i18n="err_architecture_missing">Arkitekturdiagrammet kunne ikke lastes. Sjekk at <code>docs/msp-toolkit-architecture.svg</code> finnes på serveren.</div>
+        <div style="display:none;color:var(--text-muted);font-size:12px;padding:20px;" ><span data-i18n="err_architecture_before">Arkitekturdiagrammet kunne ikke lastes. Sjekk at</span> <code>docs/msp-toolkit-architecture.svg</code> <span data-i18n="err_architecture_after">finnes på serveren.</span></div>
       </div>
     </div>
 
@@ -2153,9 +2153,9 @@
       <button class="more-row" onclick="closeMoreSheet();showView('integrations')"><span class="more-ic">&#9635;</span><span data-i18n="nav_integrations">Integrasjoner</span></button>
       <div class="more-group-title" data-i18n="konto">Konto</div>
       <button class="more-row" onclick="closeMoreSheet();showView('ai')"><span class="more-ic">&#10035;</span><span data-i18n="sybrt_assistent">Sybrt-assistent</span></button>
-      <button class="more-row" onclick="closeMoreSheet();openSettings()"><span class="more-ic">&#9881;</span><span>Innstillinger</span></button>
-      <button class="more-row" onclick="toggleTheme()"><span class="more-ic">&#9680;</span><span>Bytt tema</span></button>
-      <button class="more-row danger" onclick="closeMoreSheet();doLogout()"><span class="more-ic">&#8617;</span><span>Logg ut</span></button>
+      <button class="more-row" onclick="closeMoreSheet();openSettings()"><span class="more-ic">&#9881;</span><span data-i18n="innstillinger_3">Innstillinger</span></button>
+      <button class="more-row" onclick="toggleTheme()"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
+      <button class="more-row danger" onclick="closeMoreSheet();doLogout()"><span class="more-ic">&#8617;</span><span data-i18n="logg_ut_2">Logg ut</span></button>
     </div>
   </div>
 
@@ -2276,8 +2276,8 @@
     <div style="margin-bottom:16px;">
         <label style="font-weight:600;display:block;margin-bottom:6px;" data-i18n="settings_language">Språk</label>
         <select id="input-language" onchange="setLanguage(this.value)" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);width:100%;">
-            <option value="no">Norsk</option>
-            <option value="en">English</option>
+            <option value="no" data-i18n="norsk">Norsk</option>
+            <option value="en" data-i18n="english">English</option>
         </select>
     </div>
 
@@ -2388,9 +2388,9 @@
           <input id="new-user-displayname" class="field-input" type="text" data-i18n-placeholder="placeholder_display_name" placeholder="Display name">
           <input id="new-user-password" class="field-input" type="password" data-i18n-placeholder="placeholder_password" placeholder="Password (min 8)">
           <select id="new-user-role" class="field-input">
-            <option value="viewer">Viewer</option>
-            <option value="technician" selected>Technician</option>
-            <option value="admin">Admin</option>
+            <option value="viewer" data-i18n="viewer">Viewer</option>
+            <option value="technician" selected data-i18n="technician">Technician</option>
+            <option value="admin" data-i18n="admin">Admin</option>
           </select>
         </div>
         <div style="display:flex;gap:var(--space-2);">
@@ -2408,7 +2408,7 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div>
-          <label style="font-weight:600;display:block;margin-bottom:4px;">MFA-dekning</label>
+          <label style="font-weight:600;display:block;margin-bottom:4px;" data-i18n="mfa_dekning">MFA-dekning</label>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_mfa_threshold">Varsler når MFA-dekning er under denne prosenten</div>
           <div style="display:flex;align-items:center;gap:8px;">
             <input id="threshold-mfa" type="number" min="0" max="100" value="80" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
@@ -2417,7 +2417,7 @@
         </div>
 
         <div>
-          <label style="font-weight:600;display:block;margin-bottom:4px;">Secure Score</label>
+          <label style="font-weight:600;display:block;margin-bottom:4px;" data-i18n="secure_score">Secure Score</label>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;" data-i18n="help_ss_threshold">Orange under denne, rød under halvparten</div>
           <div style="display:flex;align-items:center;gap:8px;">
             <input id="threshold-secure-score" type="number" min="0" max="100" value="75" style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
@@ -2589,7 +2589,7 @@
 <!-- Floating audit progress bar (visible from any view while audit runs) -->
 <div id="audit-progress-float" style="display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:10px 18px;min-width:340px;max-width:520px;cursor:pointer;" onclick="showView('audit')">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-    <span style="font-size:12px;font-weight:600;color:var(--text);">Audit</span>
+    <span style="font-size:12px;font-weight:600;color:var(--text);" data-i18n="audit">Audit</span>
     <span class="apf-counts" style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">0 / 0</span>
   </div>
   <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">

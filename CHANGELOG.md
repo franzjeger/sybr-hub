@@ -33,6 +33,8 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **i18n:**
+- **`index.html` er ferdig.** Både tekstnoder og attributter står på null, og begge er mutasjonstestet. Rundt 1940 nøkler, full paritet mellom språkene.
+- To elementer hadde `data-i18n` på en beholder med `<code>` inni. Oversetting satte `textContent` og slettet kodeelementet — teksten overlevde, formateringen ikke.
 - **Alle attributter er ute av markupen.** 65 nøkler for `title`, `placeholder`, `aria-label` og `alt`. Budsjettet 74 → 0.
 - Verktøyet håndterer nå attributter, og genererer ASCII-nøkler. Fem nøkler med `ø` i navnet ble omdøpt.
 - Mobilnavigasjon, kontomeny og de siste API-overskriftene: 24 nøkler. Budsjettet 121 → 90.

@@ -11,7 +11,9 @@ this test works as a ratchet: it counts what is left and fails if the number
 grows. Bring a batch into ui_i18n.json, lower the budget in the same commit,
 and the ground you took cannot be given back.
 
-The budgets are ceilings, not targets. They only ever go down.
+The budgets are ceilings, not targets. They only ever go down. index.html
+reached zero on both counts; app.js still has its own literals, and English
+ones are invisible to a detector that keys on æøå.
 """
 
 from __future__ import annotations
@@ -38,6 +40,17 @@ _NOT_TEXT = {
     "tskey-api-...", "your-org.github", "example.com", "#4d9fb5",
     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "https://outlook.office.com/webhook/...", "Sybrt",
+    # Framework names and modifier keys, printed as-is in every language.
+    "CIS + NIST + ISO", "CIS + NIST CSF", "CIS + ISO 27001", "CIS only",
+    "Ctrl", "Shift", "Alt", "Cmd", "Esc", "Tab", "Excel", "Live", "Tailnet",
+    'VPN\xa0·',   # the VPN chip prefix, non-breaking spaces and all
+    "claude", "ALSO Cloud Marketplace", "Organization API key",
+    # Menu paths inside other vendors' interfaces: the reader retypes them
+    # there, so translating them would send someone looking for a menu that
+    # does not exist.
+    "System → Administrators → Create New → REST API Admin",
+    "unifi.ui.com → Settings → API", "console.anthropic.com",
+    "docs/msp-toolkit-architecture.svg",
     # Log-level filters and grade letters: symbols the UI reads back verbatim.
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
 }
@@ -54,7 +67,7 @@ _CODE_RE = re.compile(
     r"^/[a-z0-9{}/_.-]+$|"                                     # a bare path
     r"^https?://|"                                             # a URL
     r"^[a-z_]+\([^)]*\)$|"                                     # a function signature
-    r"^\(/api/[a-z_]+/\*\)$|"                                  # a path left beside a translated word
+    r"^\(/api/[a-z_]+(?:/\*)?\)$|"                                  # a path left beside a translated word
     r"^[—–-]\s*v?\d+[\d.]*$"                                   # a version fragment, likewise
 )
 
@@ -165,7 +178,7 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 # real: the detector was counting t("key", "fallback") arguments and comments.
 # The one that remains is a multi-line string the regex mis-reads, kept rather
 # than special-cased so the next reader sees the limit of the measurement.
-BUDGET_TEXT_NODES = 90
+BUDGET_TEXT_NODES = 0
 BUDGET_ATTRIBUTES = 0
 BUDGET_JS_NORWEGIAN = 1
 
