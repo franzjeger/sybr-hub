@@ -19,6 +19,7 @@ old, then update the constant in the same commit and say why in the message.
 from __future__ import annotations
 
 import pathlib
+import re
 
 import pytest
 
@@ -95,3 +96,104 @@ def test_a_healthy_tenant_produces_no_unverifiable_headline_metrics(report):
     """The fixture is deliberately complete, so nothing should read as absent."""
     for section in ("mfa", "ca", "admin_roles", "secure_score"):
         assert report[section].get("has_data") is True, f"{section} read as missing"
+
+
+# ---------------------------------------------------------------------------
+# Recommendations carry the same provenance the CIS controls do. These are the
+# customer-facing "do this" items, and until now nothing said which collected
+# file each one was formed from.
+# ---------------------------------------------------------------------------
+
+def test_every_recommendation_names_its_source(report):
+    """Except the ones whose evidence genuinely is not an M365 audit file.
+
+    The Fortigate and UniFi findings come from other modules, and three Azure
+    ones read per-subscription files chosen at run time. Naming a file for
+    those would be a guess, and a citation that does not land is worse than
+    none.
+    """
+    exempt = ("finding-fg-", "finding-uf-")
+    missing = [
+        r.get("finding_id") or r["title"]
+        for r in report["recommendations"]
+        if not r.get("evidence")
+        and not str(r.get("finding_id", "")).startswith(exempt)
+    ]
+    assert not missing, f"recommendations with no source: {missing}"
+
+
+def test_a_recommendation_only_cites_files_the_run_collected(report):
+    for r in report["recommendations"]:
+        for f in r.get("evidence", []):
+            assert f in report["file_contents"], (
+                f"{r.get('finding_id')} cites {f}, which this run has not got"
+            )
+
+
+def test_the_mfa_recommendation_cites_the_mfa_files():
+    """A named case, so the mapping is pinned and not merely non-empty."""
+    from app.reports.generator import _build_recommendations
+
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 3, "pct": 50.0, "total": 6,
+             "users": [], "mfa_registered": 3, "ca_covered": 0},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        file_contents={"04_mfa_methods.txt": "x\n", "04b_mfa_ca_analysis.txt": "y\n"},
+    )
+    mfa_rec = [r for r in recs if r.get("finding_id") == "finding-mfa"][0]
+    assert mfa_rec["evidence"] == ["04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"]
+
+
+def test_a_recommendation_drops_a_file_the_run_did_not_produce():
+    from app.reports.generator import _build_recommendations
+
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 3, "pct": 50.0, "total": 6,
+             "users": [], "mfa_registered": 3, "ca_covered": 0},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        file_contents={"04_mfa_methods.txt": "x\n"},   # no 04b
+    )
+    mfa_rec = [r for r in recs if r.get("finding_id") == "finding-mfa"][0]
+    assert mfa_rec["evidence"] == ["04_mfa_methods.txt"]
+
+
+def test_every_recommendation_in_the_source_declares_a_source_file():
+    """Static, because the dynamic check only sees what a tenant triggers.
+
+    The synthetic tenant is healthy and raises one recommendation, so the test
+    above walks one of twenty-eight — it let a mutation stripping the evidence
+    off the Global Administrator finding pass. This one reads the builder
+    itself, so a new recommendation cannot ship without provenance whether or
+    not any fixture happens to fire it.
+    """
+    import inspect
+
+    from app.reports import generator as gen
+
+    src = inspect.getsource(gen._build_recommendations)
+    exempt = ('"finding-fg-', '"finding-uf-')
+    # Azure recommendations read per-subscription files picked at run time;
+    # naming one would be a guess. They are listed rather than pattern-matched
+    # so adding a third does not silently inherit the exemption.
+    exempt_titles = ('t("rec_advisor_title"', 't("rec_orphaned_title"', 't("rec_backup_title"')
+
+    missing = []
+    for m in re.finditer(r"recs\.append\(\{", src):
+        depth, i = 0, m.end() - 1
+        while i < len(src):                      # find this dict's closing brace
+            if src[i] == "{":
+                depth += 1
+            elif src[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        block = src[m.start():i]
+        if '"evidence"' in block:
+            continue
+        if any(e in block for e in exempt) or any(e in block for e in exempt_titles):
+            continue
+        title = re.search(r'"title":\s*(.+)', block)
+        missing.append(title.group(1)[:60] if title else block[:60])
+
+    assert not missing, f"recommendations with no declared source: {missing}"

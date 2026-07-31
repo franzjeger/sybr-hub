@@ -525,6 +525,16 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
         </div>
       </div>
       {% endif %}
+      {# Which collected file this recommendation was formed from, linked to the
+         appendix section holding it — the same provenance the CIS controls
+         carry. A recommendation a technician cannot trace to its source is one
+         they have to take on faith. #}
+      {% if r.evidence is defined and r.evidence %}
+      <div style="margin-top:4px;font-size:11px;">
+        <span style="color:var(--muted);">{{ t.evidence_label }}</span>
+        {% for f in r.evidence %}<a href="#raw-{{ f }}" style="font-family:var(--mono);color:var(--blue);text-decoration:none;">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
     </td>
     <td class="rec-effort">{{ r.effort }}</td>
   </tr>

@@ -2399,6 +2399,17 @@ def _build_recommendations(
     t = T(lang)
     recs = []
 
+    # Which collected file each recommendation was formed from. Inline rather
+    # than in a lookup table, as the CIS controls use: the key "finding-email"
+    # is shared by two recommendations, and a value sitting in the same dict as
+    # the verdict cannot drift away from the code that produced it.
+    #
+    # Only files this run collected are named, so a citation always points at
+    # something the reader can open.
+    def ev(*names: str) -> list[str]:
+        have = file_contents or {}
+        return [n for n in names if have.get(n, "").strip()]
+
     # Only emit MFA recs if we actually measured MFA. Without data, "0 users
     # without MFA" would suppress the rec even though we don't know the truth.
     if mfa.get("has_data") and mfa.get("no_mfa", 0) > 0:
@@ -2424,6 +2435,7 @@ def _build_recommendations(
                     no_mfa=mfa['no_mfa'])
         recs.append({
             "priority": "critical",
+            "evidence": ev("04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
             "finding_id": "finding-mfa",
             "title": t("rec_mfa_title", count=mfa['no_mfa']),
             "detail": detail,
@@ -2439,6 +2451,7 @@ def _build_recommendations(
             recs.append({
                 "priority": "high",
                 "finding_id": "finding-email",
+                "evidence": ev("26_email_dns_spf_dmarc.txt"),
                 "title": t("rec_dmarc_title", domain=d['domain']),
                 "detail": t.rec_dmarc_detail,
                 "effort": t.rec_effort_low,
@@ -2453,6 +2466,7 @@ def _build_recommendations(
             recs.append({
                 "priority": "high",
                 "finding_id": "finding-email",
+                "evidence": ev("26_email_dns_spf_dmarc.txt"),
                 "title": t("rec_spf_title", domain=d['domain']),
                 "detail": t.rec_spf_detail,
                 "effort": t.rec_effort_low,
@@ -2473,6 +2487,7 @@ def _build_recommendations(
         fwd_count = len(fwd_items) if fwd_items else t.rec_ext_fwd_unknown_count
         recs.append({
             "priority": "critical",
+            "evidence": ev("28b_exchange_external_forwarding_WARN.txt", "28_exchange_mailbox_forwarding.txt"),
             "finding_id": "finding-fwd",
             "title": t("rec_ext_fwd_title", count=fwd_count),
             "detail": t.rec_ext_fwd_detail,
@@ -2502,6 +2517,7 @@ def _build_recommendations(
             title_suffix = t("rec_risky_users_suffix", count=len(risky_items))
             recs.append({
                 "priority": "high",
+                "evidence": ev("18_risky_users.txt", "18d_risk_detections.txt"),
                 "finding_id": "finding-risky",
                 "title": t("rec_risky_users_title", suffix=title_suffix),
                 "detail": t.rec_risky_users_detail,
@@ -2515,6 +2531,7 @@ def _build_recommendations(
         improvements = secure_score["improvements"]
         recs.append({
             "priority": prio,
+            "evidence": ev("09_secure_score.txt"),
             "finding_id": "finding-securescore",
             "title": t("rec_secure_score_title", pct=secure_score['pct'], count=len(improvements)),
             "detail": t("rec_secure_score_detail", pct=secure_score['pct'],
@@ -2528,6 +2545,8 @@ def _build_recommendations(
         if lic["warn"]:
             recs.append({
                 "priority": "medium",
+                "finding_id": "finding-licenses",
+                "evidence": ev("02_licenses.txt"),
                 "title": t("rec_license_title", part=lic['part']),
                 "detail": t("rec_license_detail", used=lic['used'], total=lic['total'], pct=lic['pct']),
                 "effort": t.rec_effort_low,
@@ -2537,6 +2556,7 @@ def _build_recommendations(
     if admin_roles and admin_roles.get("global_admin_count", 0) > 4:
         recs.append({
             "priority": "high",
+            "evidence": ev("07_admin_roles.txt"),
             "finding_id": "finding-ga",
             "title": t("rec_ga_title", count=admin_roles['global_admin_count']),
             "detail": t.rec_ga_detail,
@@ -2549,6 +2569,7 @@ def _build_recommendations(
         prio = "high" if intune.get("compliance_pct", 100) < 50 else "medium"
         recs.append({
             "priority": prio,
+            "evidence": ev("10_intune_devices_count.txt", "10_intune_devices.txt"),
             "finding_id": "finding-intune",
             "title": t("rec_intune_title", count=intune['noncompliant']),
             "detail": t("rec_intune_detail", pct=intune.get('compliance_pct', 0)),
@@ -2565,6 +2586,7 @@ def _build_recommendations(
     if sharepoint and sharepoint.get("has_data") and sharepoint.get("sharing_level") == "warning":
         recs.append({
             "priority": "medium",
+            "evidence": ev("15b_sharepoint_settings.txt"),
             "finding_id": "finding-sp",
             "title": t.rec_sp_sharing_title,
             "detail": t.rec_sp_sharing_detail,
@@ -2576,6 +2598,8 @@ def _build_recommendations(
     if sharepoint and sharepoint.get("has_data") and sharepoint.get("legacy_auth"):
         recs.append({
             "priority": "medium",
+            "finding_id": "finding-sp-legacy",
+            "evidence": ev("15b_sharepoint_settings.txt"),
             "title": t.rec_sp_legacy_title,
             "detail": t.rec_sp_legacy_detail,
             "effort": t.rec_effort_low,
@@ -2587,6 +2611,7 @@ def _build_recommendations(
         apps = oauth["high_privilege_apps"]
         recs.append({
             "priority": "medium",
+            "evidence": ev("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
             "finding_id": "finding-oauth",
             "title": t("rec_oauth_title", count=len(apps)),
             "detail": t.rec_oauth_detail,
@@ -2609,6 +2634,8 @@ def _build_recommendations(
                     nsg_sub_items.append(line.lstrip("\u26a0 ").strip())
         recs.append({
             "priority": "critical",
+            "finding_id": "finding-nsg",
+            "evidence": sorted(nsg_warns),
             "title": t("rec_nsg_title", count=len(nsg_sub_items)),
             "detail": t.rec_nsg_detail,
             "effort": t.rec_effort_medium,
@@ -2676,6 +2703,8 @@ def _build_recommendations(
         if count > 0:
             recs.append({
                 "priority": "medium",
+                "finding_id": "finding-stale",
+                "evidence": ev("03c_stale_accounts_WARN.txt", "03b_stale_accounts.txt"),
                 "title": t("rec_stale_title", count=count),
                 "detail": t.rec_stale_detail,
                 "effort": t.rec_effort_low,
@@ -2726,6 +2755,8 @@ def _build_recommendations(
         if total > 0:
             recs.append({
                 "priority": "high" if expired_count > 0 else "medium",
+                "finding_id": "finding-cred-expiry",
+                "evidence": ev("17c_app_credential_expiry_WARN.txt", "17c_app_credential_expiry.txt"),
                 "title": t("rec_cred_expiry_title", count=total),
                 "detail": t("rec_cred_expiry_detail", expired=expired_count, critical=critical_count),
                 "effort": t.rec_effort_low,
@@ -2747,6 +2778,8 @@ def _build_recommendations(
         suspects = signin_risk["brute_force_suspects"]
         recs.append({
             "priority": "high",
+            "finding_id": "finding-brute-force",
+            "evidence": ev("05b_signin_failures.txt", "05_signin_activity.txt"),
             "title": t("rec_brute_force_title", count=len(suspects)),
             "detail": t.rec_brute_force_detail,
             "effort": t.rec_effort_immediate,
