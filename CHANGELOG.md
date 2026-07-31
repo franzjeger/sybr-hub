@@ -1,3 +1,31 @@
+## v10.12.0 (2026-07-31)
+### Rot-binærene og hemmelighetene på en headless Linux-vert
+
+**Bakgrunn:** Appen skaller ut til privilegerte binærer (`nmap`, `ip`, `resolvectl`, `tee`, `wg-quick`) og lagrer hemmeligheter som om en OS-keyring alltid fantes. Under systemd-enheten — systembruker, `ProtectHome=yes`, ingen D-Bus — holder ingen av antagelsene: keyring *kaster*, og verdier vi ikke kontrollerer (en kundes gateway i PUSH_REPLY, et pentest-mål fra web) når en rot-kommando som argument. Feilene deler én form: en verdi som starter med `-` leses av kommandoen som et flagg, ikke som data.
+
+**Bugfix — argument-injeksjon i rot-kommandoer:**
+- **SMB-enumerering** sendte `host` rett inn i `sudo nmap` med bare en tom-sjekk, mens søsterfunksjonen `port_scan` validerte målet sitt. `host = --script=/tmp/x.nse` kjører en angripers NSE-skript (Lua `os.execute`), `--datadir` peker nmap på angriperens skript, `-oN /sti` skriver en rot-eid fil. Ruten er admin-gated, så det er web-admin → root, ikke anonym RCE — men fortsatt en grense. Målet valideres nå ved modulgrensen, så en fremtidig kaller ikke kan gjeninnføre hullet.
+- **VPN PUSH_REPLY** leste `ifconfig`/`route`/DNS-verdier direkte fra serverens svar og sendte dem til `sudo ip addr add`, `sudo ip route add` og `sudo resolvectl`. Svaret kommer fra kundens gateway — utenfor MSP-ens kontroll og potensielt kompromittert. Hver verdi valideres nå som en ren IPv4/IPv6-adresse, i to lag: parseren forkaster ugyldige tokens, og metodene som bygger `sudo`-kommandoen validerer på nytt, så også operatør-konfig (importerbar fra en upålitelig `.ovpn`) dekkes. En ikke-numerisk `ping`-verdi krasjer ikke lenger tunneloppsettet.
+
+**Bugfix — hemmeligheter i `/tmp`:**
+- **Azure-VPN-oppsettet** la tre hemmeligheter i faste, forutsigbare `/tmp`-filer — TLS-auth-nøkkelen eksplisitt `chmod 644`, refresh-tokenet 644 på målet. Et forutsigbart navn i `/tmp` er et symlink/TOCTOU-mål, og 644 gjør nøkkelen og tokenet lesbare for enhver konto på verten. TLS-nøkkelen er nå inline i konfigen (ingen nøkkelfil), konfig og token går via en `0600` `mkstemp` med uforutsigbart navn, og det lagrede tokenet er `chmod 600`.
+
+**Drift — hemmeligheter uten OS-keyring:**
+- **Masternøkkelen og kunde-hemmelighetene** kalte `keyring.get/set_password` uten vakt. keyring kaster `NoKeyringError` når ingen Secret Service finnes — normaltilstanden på en headless vert, og garantert under systemd-enheten — så oppstart, og senere kundeoppsettet på "Genererer sertifikat", falt med den feilen. Begge faller nå tilbake til det krypterte filbaserte lageret som fantes for akkurat dette; en fungerende keyring har fortsatt forrang.
+- **Null-backenden installeren satte** for å unngå `NoKeyringError` gjorde det verre: den kaster ikke, den *forkaster*. En lagret hemmelighet så vellykket ut og var borte ved neste omstart, uten feil i loggen. `store_secret` leser nå tilbake etter skriving, så en keyring som ikke faktisk lagrer utløser filbackupen — installeren fjerner samtidig innstillingen.
+
+**Avhengigheter:**
+- **`python-nmap`** var en hard avhengighet ingenting importerer — pentest-modulen skaller ut til `nmap`-*binæren* via subprocess. Den gamle `setup.py`-en bygger ikke under nyere setuptools, så `pip install -r requirements.txt` krasjet ved installasjon for en pakke uten kallere. Fjernet.
+
+**Tester:**
+- Argument-injeksjon: option-formede pentest-mål og PUSH_REPLY-tokens forkastes, legitime IP/host/CIDR-mål og -svar passerer, og `enumerate_smb`/`add_route` nekter å starte en subprocess på en flagg-formet verdi. De verifiseres mot den ufiksede koden — de fleste feiler der.
+- Keyring: rundtur med en keyring som kaster *og* med en som stille forkaster; nøkkelen overlever en omstart; en fungerende keyring får forrang og filbackupen skrives ikke unødig.
+- `/tmp`-hemmeligheter: konfig-byggeren inline-r nøkkelen og beholder `key-direction`, og temp-skriveren gir `0600`, uforutsigbare navn og følger ikke en forhåndslagt symlink.
+
+**Merk — trenger vert-validering:** `azure.connect()` krever `openvpn3` og en tun-enhet, så den inline `<tls-auth>`-blokken bør bekreftes med en ekte Azure-VPN-tilkobling på verten før dette merges (PR #4).
+
+---
+
 ## v10.11.0 (2026-07-31)
 ### Rapporten svarer for tallene sine
 
