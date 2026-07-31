@@ -899,3 +899,33 @@ def test_the_count_up_starts_from_what_is_on_screen():
     src = pathlib.Path("app/web/static/app.js").read_text()
     assert "var start = 0, startTime = null;" not in src, "start must not be pinned to 0"
     assert "el._countGeneration" in src, "a superseded loop must stop writing"
+
+
+def test_the_section_table_does_not_re_render_the_findings():
+    """The summary above carries them; the table carried them three times.
+
+    First three as pills, the remainder behind "+n til", and all of them again
+    in an expander — and the two visible renderings were the lossy ones. The
+    table keeps what only it can answer: whether each section ran.
+    """
+    import pathlib
+
+    js = pathlib.Path("app/web/static/app.js").read_text()
+    css = pathlib.Path("app/web/static/app.css").read_text()
+
+    assert "warn-pill" not in js, "findings must not be re-rendered as pills"
+    assert "detail-expand" not in js, "and not a third time in an expander"
+    assert "warn-pill" not in css, "the styles for them are dead once they go"
+
+
+def test_a_section_row_offers_no_affordance_it_cannot_honour():
+    """Every row carried cursor:pointer and a click handler, including the
+    twelve whose detail cell was empty and had nothing behind it."""
+    import pathlib
+
+    js = pathlib.Path("app/web/static/app.js").read_text()
+    i = js.find("const tbody = document.getElementById('section-tbody')")
+    assert i != -1
+    block = js[i:i + 900]
+    assert "cursor:pointer" not in block
+    assert "tr.onclick" not in block

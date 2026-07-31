@@ -33,6 +33,8 @@
 - En test sjekker at hver Graph-egenskap SharePoint-seksjonen ber om faktisk publiseres på v1.0-ressursen.
 
 **Grensesnitt:**
+- **Auditvisningen sa alt to ganger.** Funnlista bærer hele settet, mens tabellen under gjenga de samme funnene i en tapsbehandlet form: tre første som piller, resten bak «+n til», og alle sammen en tredje gang i en utvider. De to synlige gjengivelsene var de ufullstendige. Tabellen er nå redusert til det bare den kan svare på, nemlig om hver seksjon kjørte. Feil og hopp-begrunnelser blir stående, siden de hører til seksjonen og ikke til funnlista.
+- **Radene tilbød en utvidelse tolv av dem ikke hadde noe å vise.** `cursor:pointer` og klikkhåndtereren lå på hver rad uansett innhold.
 - **KPI-tallene på dashbordet** kunne vise feil verdi. Flisene ble tegnet med en literal `0` og sannheten i `data-count`, så tallet en leser så var avhengig av at en animasjon fullførte. Den startet alltid fra null og hadde ingen sperre mot overlappende løkker, så en gjenrendering dro tallet tilbake til null. Målt: «KUNDER 0» over en tabell med én kunde, risiko 23 der sannheten var 52, MFA 42 % der den var 97. Markupen bærer nå verdien, og animasjonen er pynt oppå.
 - Auditresultatet ledes nå av hva kjøringen fant. Tabellen svarte "kjørte alle seksjonene", som er riktig spørsmål mens den kjører, ikke etterpå.
 - Varsler har alvorlighetsgrad, satt av samleren som fant tingen. Fem aktive eksponeringer er merket kritiske.

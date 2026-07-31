@@ -2318,15 +2318,14 @@ function handleProgress(d) {
   } else {
     const tbody = document.getElementById('section-tbody');
     const tr = document.createElement('tr');
-    tr.style.cssText = 'cursor:pointer;transition:background var(--duration-fast);';
-    tr.onmouseover = function(){ this.style.background = 'rgba(77,159,181,0.06)'; };
-    tr.onmouseout = function(){ this.style.background = ''; };
-    tr.onclick = function(){ var d = this.querySelector('.detail-expand'); if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none'; };
+    // No pointer and no expander: the findings live in the summary above, so
+    // there is nothing here to reveal. Every row used to offer the affordance,
+    // including the twelve with an empty detail cell and nothing behind it.
     tr.innerHTML = `
       <td><span class="status-icon ${cls[status] || ''}">${icons[status] || '•'}</span></td>
       <td style="font-weight:500;">${esc(name)}</td>
       <td><span class="status-text ${cls[status] || ''}">${statusLabel(status, labels)}</span></td>
-      <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}<div class="detail-expand" style="display:none;"></div></td>`;
+      <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}</td>`;
     tbody.appendChild(tr);
     sectionRows[name] = tr;
   }
@@ -2432,28 +2431,19 @@ function handleAuditDone(results) {
       tr.querySelector('.status-text').textContent = statusLabel(status, labels);
       tr.querySelector('.status-text').className = `status-text ${cls[status] || ''}`;
 
+      // The summary above carries every finding, labelled with its section.
+      // This table used to carry them too — three times over: the first three
+      // as pills, the remainder behind "+n til", and all of them again in an
+      // expander. Two of those three renderings were lossy, and the lossy ones
+      // were the visible ones.
+      //
+      // So the table keeps only what the summary cannot answer: whether each
+      // section ran. An error or a skip reason belongs to the section rather
+      // than to the findings list, so those stay.
       const detailCell = tr.querySelector('.detail-cell');
-      let extra = '';
-      if (r.warns && r.warns.length > 0) {
-        warns++;
-        const pills = r.warns.slice(0, 3).map(function (w, i) {
-          var crit = (r.warn_levels || [])[i] === 'critical';
-          return `<span class="warn-pill${crit ? ' crit' : ''}">⚠ ${esc(w)}</span>`;
-        }).join('');
-        const more  = r.warns.length > 3 ? `<span class="warn-pill" style="cursor:pointer;">+${r.warns.length - 3} til &#9660;</span>` : '';
-        extra += `<div class="warn-pills">${pills}${more}</div>`;
-      }
-      if (r.error) {
-        extra += `<div class="err-text">${esc(r.error)}</div>`;
-      }
-      // Expandable detail with all warnings
-      var expandHtml = '';
-      if (r.warns && r.warns.length > 0) {
-        expandHtml = '<div style="margin-top:var(--space-2);padding:var(--space-3);background:var(--bg);border-radius:var(--radius-md);font-size:var(--font-xs);">'
-          + r.warns.map(function(w){ return '<div style="padding:3px 0;border-bottom:1px solid var(--border);">⚠ ' + esc(w) + '</div>'; }).join('')
-          + '</div>';
-      }
-      detailCell.innerHTML = extra + '<div class="detail-expand" style="display:none;">' + expandHtml + '</div>';
+      if (r.warns && r.warns.length > 0) warns++;
+      detailCell.innerHTML = r.error ? `<div class="err-text">${esc(r.error)}</div>` : '';
+
     }
 
     if (status === 'done' || status === 'skipped') done++;
