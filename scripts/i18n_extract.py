@@ -267,6 +267,83 @@ def cmd_apply_js(path: str, script: str = "app.js") -> None:
     I18N.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
     print(f"applied {applied}, skipped {skipped}")
 
+
+# A string handed to showToast, confirm or alert is by definition shown to a
+# person. The markup detector cannot see these — they never sit between > and <
+# — so all thirty-four survived four files measuring clean.
+_TOAST = re.compile(
+    r"\b(showToast|confirm|alert)\(\s*(['\"])((?:[^'\"\\\n]|\\.)*)\2"
+)
+
+
+def cmd_plan_toast(script: str) -> None:
+    d = json.loads(I18N.read_text())
+    js = (STATIC / script).read_text()
+    seen: set[str] = set()
+    for m in _TOAST.finditer(js):
+        text = m.group(3)
+        if text in seen or not _translatable(text):
+            continue
+        seen.add(text)
+        key = _slug(text)
+        base, i = key, 2
+        while key in d["no"]:
+            key = f"{base}_{i}"; i += 1
+        print(f"{key}\t{text}\t")
+
+
+def cmd_apply_toast(path: str, script: str) -> None:
+    """showToast('Lagret') -> showToast(t('msg_saved')).
+
+    Padding stays outside the call: 'Linked ' is a concatenation prefix, and a
+    trailing space swallowed into the key renders as one glued-together word in
+    whichever language nobody is testing in.
+    """
+    rows = []
+    for line in pathlib.Path(path).read_text().split("\n"):
+        parts = line.split("\t")
+        if len(parts) < 3 or not parts[2].strip():
+            continue
+        rows.append((parts[0], parts[1], parts[2],
+                     parts[3] if len(parts) > 3 and parts[3].strip() else None))
+
+    target = STATIC / script
+    js = target.read_text()
+    d = json.loads(I18N.read_text())
+    applied = skipped = 0
+    for key, text, en, no_override in rows:
+        body = text.strip()
+        lead = text[:len(text) - len(text.lstrip())]
+        tail = text[len(text.rstrip()):]
+        pat = re.compile(
+            r"\b(showToast|confirm|alert)\(\s*(['\"])" + re.escape(text) + r"\2"
+        )
+        m = pat.search(js)
+        if not m:
+            print(f"NOT FOUND: {key}  {text[:40]}")
+            skipped += 1
+            continue
+        call = f"{m.group(1)}("
+        if lead:
+            call += f"'{lead}' + "
+        call += f"t('{key}')"
+        if tail:
+            call += f" + '{tail}'"
+        js = js[:m.start()] + call + js[m.end():]
+        if no_override:
+            d["no"][key] = no_override
+        else:
+            try:
+                d["no"][key] = body.encode().decode("unicode_escape").encode("latin-1").decode("utf-8")
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                d["no"][key] = body
+        d["en"][key] = en.strip()
+        applied += 1
+    target.write_text(js)
+    I18N.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
+    print(f"applied {applied}, skipped {skipped}")
+
+
 if __name__ == "__main__":
     cmd, *rest = sys.argv[1:]
     if cmd == "list":
@@ -285,5 +362,9 @@ if __name__ == "__main__":
         cmd_plan_js(*rest)
     elif cmd == "apply-js":
         cmd_apply_js(*rest)
+    elif cmd == "plan-toast":
+        cmd_plan_toast(*rest)
+    elif cmd == "apply-toast":
+        cmd_apply_toast(*rest)
     else:
         sys.exit(__doc__)

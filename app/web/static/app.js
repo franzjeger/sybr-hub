@@ -909,7 +909,7 @@ function showView(name) {
   // Check for unsaved settings changes if the settings modal is open
   var settingsModal = document.getElementById('settings-modal');
   if (settingsModal && settingsModal.classList.contains('open') && _settingsDirty && _isSettingsDirty()) {
-    if (!confirm('Du har ulagrede endringer. Vil du forlate siden?')) return;
+    if (!confirm(t('du_har_ulagrede_endringer_vil'))) return;
     _settingsSnapshot = null;
     _settingsDirty = false;
     settingsModal.classList.remove('open');
@@ -3010,7 +3010,7 @@ function _initSettingsDirtyTracking() {
 
 function closeSettings() {
   if (_settingsDirty && _isSettingsDirty()) {
-    if (!confirm('Du har ulagrede endringer. Vil du forlate siden?')) return;
+    if (!confirm(t('du_har_ulagrede_endringer_vil'))) return;
   }
   _settingsSnapshot = null;
   _settingsDirty = false;
@@ -3321,7 +3321,7 @@ async function clearUserCustomers(userId) {
   await apiFetch('/api/auth/users/' + userId + '/customers', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_ids:[]})});
   var panel = document.getElementById('rbac-panel-' + userId);
   if (panel) panel.remove();
-  showToast('Alle kunder tilgjengelig (RBAC fjernet)', 'success', 2000);
+  showToast(t('alle_kunder_tilgjengelig_rbac_fjernet'), 'success', 2000);
 }
 
 function switchSettingsTab(btn, paneId) {
@@ -7849,7 +7849,7 @@ async function loadCustomerLicenses(accountId) {
 
 async function loadUnifiedDashboard() {
   var custId = _customersActiveId;
-  if (!custId) { showToast('No active customer', 'warning'); return; }
+  if (!custId) { showToast(t('err_no_active_customer'), 'warning'); return; }
 
   // Use the home view container
   showView('home');

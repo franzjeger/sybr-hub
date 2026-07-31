@@ -50,6 +50,11 @@
 - **Hardkodet tekst er nå en testfeil, ikke en vane.** Rundt 400 strenger står fortsatt i markupen og skriptene, samlet opp over lang tid og lagt til av hvert redesign. `tests/test_i18n_coverage.py` teller dem og feiler hvis tallet vokser, så en batch om gangen kan hentes inn uten at grunnen gis tilbake.
 - **`translatePage` håndterte aldri `aria-label` og `alt`.** Å merke dem gjorde ingenting, så norsk der var permanent uoversettelig — usynlig for seende og fastlåst for alle som bruker skjermleser.
 - 22 nye nøkler for det nye dashbord-kortet fra redesignet, som kom med hardkodet norsk: «Krever handling», «Ikke konfigurert», «Se audit», «Ingen utløper snart» og flere.
+- **Null hardkodet tekst igjen i markupen og i alle tre skript.** De rundt 400 er hentet inn; sperren står nå på null for tekstnoder, attributter og generert markup, så tallet kan ikke vokse igjen.
+- **Sperren målte feil sted.** Den så bare etter tekst mellom `>` og `<`, og var blind for strenger som sendes til `showToast`, `confirm` og `alert`. Alle fire filene målte rent mens 34 slike sto igjen. De tre funksjonene finnes for å vise ord til et menneske, så et strengargument til dem er brukervendt per konstruksjon, uten noen heuristikk. 14 av dem var engelske, som den norske detektoren aldri kunne se.
+- **To fantomer i selve målingen.** Regexen for norske literaler leste over linjeskift og matchet et anførselstegn mot en kommentar to linjer ned, som holdt liv i et budsjett på 1 som ingen kunne tolke. Og detektoren kuttet treffet til 60 tegn før det ble returnert, slik at enhver streng lengre enn det ikke kunne spores tilbake til kilden sin. Avkortingen hører hjemme i feilmeldingen, ikke i verdien.
+- **Fire arbeidsmøte-titler bar en norsk fallback ved siden av nøkkelen sin,** altså en andre kopi av teksten i kildekoden. Nøklene finnes, så fallbacken er fjernet og erstattet med en test som beviser at de finnes — en sterkere garanti enn en fallback.
+
 - **«Kjør Audit» viste to avspillingsikoner.** Ikonet lå både i markupen og i selve oversettelsesverdien. 86 nøkler har fortsatt ikon bakt inn i verdien, som er presentasjon på feil sted, men bare denne ble faktisk doblet.
 
 **Grensesnitt:**

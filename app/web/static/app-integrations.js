@@ -237,12 +237,14 @@ var _workshopState = { wishlist: [], discussion_notes: {}, followups: [] };
 var _workshopSaveTimer = null;
 var _workshopNextLocalId = -1; // negative until server assigns
 
-// Workshop plan section 6-9 titles (default Norwegian, i18n override).
+// Workshop plan section 6-9 titles. The text lives in ui_i18n.json; a
+// fallback here would be a second copy of the Norwegian, and the keys are
+// asserted to exist by test_i18n_coverage instead.
 var WORKSHOP_SECTIONS = [
-  { id: '6', i18n: 'workshop_section_6', label: 'MSP Toolkit — veien til produksjon' },
-  { id: '7', i18n: 'workshop_section_7', label: 'Hvilken rolle skal MSP Toolkit ha?' },
-  { id: '8', i18n: 'workshop_section_8', label: 'Hvilke funksjoner ønsker vi?' },
-  { id: '9', i18n: 'workshop_section_9', label: 'Hvilke rettigheter skal MSP Toolkit ha?' },
+  { id: '6', i18n: 'workshop_section_6' },
+  { id: '7', i18n: 'workshop_section_7' },
+  { id: '8', i18n: 'workshop_section_8' },
+  { id: '9', i18n: 'workshop_section_9' },
 ];
 
 async function workshopLoad() {
@@ -304,7 +306,7 @@ function _workshopRenderNotes() {
   if (!box) return;
   box.innerHTML = WORKSHOP_SECTIONS.map(function(sec) {
     var val = (_workshopState.discussion_notes || {})[sec.id] || '';
-    var label = t(sec.i18n, sec.label);
+    var label = t(sec.i18n);
     return '<div>'
       + '<div style="font-weight:600;margin-bottom:4px;">§' + sec.id + ' — ' + esc(label) + '</div>'
       + '<textarea id="workshop-note-' + sec.id + '" class="field-input" style="width:100%;min-height:70px;font-family:inherit;font-size:13px;resize:vertical;margin:0;" oninput="workshopNoteChanged(\'' + sec.id + '\', this.value)">' + esc(val) + '</textarea>'
@@ -530,7 +532,7 @@ async function alsoDoImport() {
   var cbs = document.querySelectorAll('.also-import-cb:checked');
   var toImport = [];
   cbs.forEach(function(cb) { toImport.push({name:cb.dataset.name, domain:cb.dataset.domain, also_id:cb.dataset.id}); });
-  if (!toImport.length) { showToast('Nothing selected','warning'); return; }
+  if (!toImport.length) { showToast(t('nothing_selected'),'warning'); return; }
   var d = await apiFetch('/api/also/sync-customers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customers:toImport})});
   if (d && d.ok) {
     showToast(t('msg_imported','Imported') + ' ' + d.imported + ' ' + t('nav_customers').toLowerCase(), 'success', 3000);
@@ -540,7 +542,7 @@ async function alsoDoImport() {
 
 async function alsoLinkMatched() {
   var matches = window._alsoMatchedForLink || [];
-  if (!matches.length) { showToast('No matches to link', 'warning'); return; }
+  if (!matches.length) { showToast(t('no_matches_to_link'), 'warning'); return; }
   var btn = document.getElementById('also-link-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Linking...'; }
 
@@ -554,7 +556,7 @@ async function alsoLinkMatched() {
     body: JSON.stringify({matches: payload})
   });
   if (d && d.ok) {
-    showToast('Linked ' + d.linked + ' customers to ALSO', 'success', 3000);
+    showToast(t('linked') + ' ' + d.linked + ' customers to ALSO', 'success', 3000);
     if (btn) { btn.textContent = '✓ ' + d.linked + ' linked'; btn.style.background = 'var(--green)'; }
   } else {
     showToast(d && d.error ? d.error : 'Linking failed', 'error');
@@ -819,7 +821,7 @@ async function uniwebShowMatch(accountId) {
 async function uniwebDoMatch(accountId) {
   var select = document.getElementById('uniweb-match-select');
   var customerId = select ? select.value : '';
-  if (!customerId) { showToast('Velg en kunde', 'warning'); return; }
+  if (!customerId) { showToast(t('velg_en_kunde'), 'warning'); return; }
 
   var d = await apiFetch('/api/uniweb/match', {
     method: 'POST',
@@ -827,7 +829,7 @@ async function uniwebDoMatch(accountId) {
     body: JSON.stringify({uniweb_account_id: accountId, customer_id: customerId}),
   });
   if (d && d.ok) {
-    showToast('Konto koblet', 'success');
+    showToast(t('konto_koblet'), 'success');
     var modal = document.getElementById('uniweb-match-modal');
     if (modal) modal.remove();
     uniwebLoadAccounts();
@@ -920,7 +922,7 @@ async function uniwebShowImport() {
 
   var unmatched = d.unmatched || [];
   if (unmatched.length === 0) {
-    showToast('Alle kontoer er allerede koblet', 'success');
+    showToast(t('alle_kontoer_er_allerede_koblet'), 'success');
     return;
   }
 
@@ -1069,7 +1071,7 @@ async function uniwebDoImport() {
     });
     if (!d) return;
     if (d.error) {
-      showToast('Feil: ' + d.error, 'error');
+      showToast(t('feil_3') + ' ' + d.error, 'error');
       return;
     }
 
@@ -1090,7 +1092,7 @@ async function uniwebDoImport() {
     }
 
     if (d.imported > 0) {
-      showToast('Importerte ' + d.imported + ' kunde(r) fra Uniweb', 'success', 5000);
+      showToast(t('importerte') + ' ' + d.imported + ' kunde(r) fra Uniweb', 'success', 5000);
 
       // Refresh the main customer list if available
       if (typeof loadCustomers === 'function') {
@@ -1106,12 +1108,12 @@ async function uniwebDoImport() {
       showToast(d.errors.length + ' konto(er) feilet, se detaljer i dialogen', 'warning', 5000);
     } else {
       // All failed
-      showToast('Ingen kontoer ble importert', 'error');
+      showToast(t('ingen_kontoer_ble_importert'), 'error');
     }
 
     uniwebLoadAccounts();
   } catch (e) {
-    showToast('Feil: ' + e.message, 'error');
+    showToast(t('feil_3') + ' ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Importer valgte'; }
   }

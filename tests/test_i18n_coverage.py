@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import html as htmlmod
 import pathlib
+import json
 import re
 
 import pytest
@@ -56,6 +57,11 @@ _NOT_TEXT = {
     # Log-level filters and grade letters: symbols the UI reads back verbatim.
     "&times;", "&bull;",   # a close glyph and a bullet
     "0 : diff", "0 && synced",   # expressions the position regex reads as markup
+    # Protocols, file extensions and product names from the infra views.
+    "PPPoE", "VLANs", "IDS/IPS", "SD-WAN", "WireGuard", "OpenVPN",
+    "FortiGate IPsec (IKEv2)", "Azure P2S VPN", "PSK:", "S/N:", "Model:",
+    ".conf", ".ovpn", ".xml", "both", "localhost:2023", "&#x26F6;",
+    "Installer: npm install -g @anthropic-ai/claude-code",   # a shell command
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
@@ -141,7 +147,7 @@ def untranslated_attributes() -> list[tuple[int, str, str]]:
     return found
 
 
-def norwegian_literals_in_js() -> list[tuple[int, str]]:
+def norwegian_literals_in_js(script: str = "app.js") -> list[tuple[int, str]]:
     """Norwegian text in the scripts that never passes through t().
 
     Two things are deliberately not counted. A fallback — t("key", "Verktøy")
@@ -151,11 +157,15 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 
     English literals are invisible to this, since there is no letter that gives
     them away. It is a floor on the problem, not a measure of it.
+
+    This catches what the markup detector cannot: a string handed to showToast
+    or confirm never sits between > and <, so seventeen of them sat in the two
+    smaller scripts while both files measured clean.
     """
-    js = (STATIC / "app.js").read_text()
+    js = (STATIC / script).read_text()
     lines = js.split("\n")
     found = []
-    for m in re.finditer(r"""(['"])((?:[^'"\\]|\\.)*[ÆØÅæøå][^'"\\]*)\1""", js):
+    for m in re.finditer(r"""(['"])((?:[^'"\\\n]|\\.)*[ÆØÅæøå][^'"\\\n]*)\1""", js):
         line_no = js[:m.start()].count("\n")
         stripped = lines[line_no].strip()
         if stripped.startswith("//") or stripped.startswith("*"):
@@ -165,7 +175,30 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
             continue                              # fallback argument
         if re.search(r"\bt\(\s*$", before):
             continue                              # goes through t()
-        found.append((line_no + 1, m.group(2)[:60]))
+        found.append((line_no + 1, m.group(2)))
+    return found
+
+
+def text_shown_to_a_person(script: str) -> list[tuple[int, str]]:
+    """String literals handed to showToast, confirm or alert.
+
+    Those three functions exist to put words in front of someone, so a literal
+    argument to any of them is user-facing by construction — no heuristic
+    needed. This is the gap the other two detectors could not see: such a
+    string never sits between > and < and need not contain a Norwegian letter,
+    so thirty-four of them, in both languages, survived every file measuring
+    clean. Fourteen were English, which the Norwegian detector is blind to by
+    design.
+    """
+    js = (STATIC / script).read_text()
+    found = []
+    for m in re.finditer(
+        r"""\b(showToast|confirm|alert)\(\s*(['"])((?:[^'"\\\n]|\\.)*)\2""", js
+    ):
+        text = htmlmod.unescape(m.group(3)).strip()
+        if len(text) < 2 or text in _NOT_TEXT or _NOT_TEXT_RE.match(text) or _is_code(text):
+            continue
+        found.append((js[: m.start()].count("\n") + 1, m.group(3)))
     return found
 
 
@@ -180,15 +213,21 @@ def norwegian_literals_in_js() -> list[tuple[int, str]]:
 #
 # js literals went 56 -> 1 in one commit, but only 9 of those 56 were ever
 # real: the detector was counting t("key", "fallback") arguments and comments.
-# The one that remains is a multi-line string the regex mis-reads, kept rather
-# than special-cased so the next reader sees the limit of the measurement.
+# The last one was a phantom too — the pattern spanned a newline and matched a
+# quote on one line against a comment two lines down. A quoted JS string cannot
+# hold a raw newline, so the pattern no longer does either, and the budget is
+# a real zero rather than a carried exception nobody could interpret.
 BUDGET_TEXT_NODES = 0
 BUDGET_ATTRIBUTES = 0
-BUDGET_JS_NORWEGIAN = 1
+BUDGET_JS_NORWEGIAN = 0
 
 
 def _report(items) -> str:
-    return "\n".join("  " + " ".join(str(p) for p in i) for i in items[:15])
+    """Truncate for display only. Doing it in the detector made long strings
+    unmatchable against the source they came from."""
+    return "\n".join(
+        "  " + " ".join(str(p)[:60] for p in i) for i in items[:15]
+    )
 
 
 def test_no_new_hardcoded_text_in_the_markup():
@@ -339,7 +378,7 @@ def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
         src = lines[line_no].strip()
         if src.startswith("//") or src.startswith("*"):
             continue
-        found.append((line_no + 1, text[:60]))
+        found.append((line_no + 1, text))
     return found
 
 
@@ -347,7 +386,7 @@ def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
 BUDGET_JS_PROSE = {
     "app.js": 0,
     "app-integrations.js": 0,
-    "app-infra.js": 336,
+    "app-infra.js": 0,
 }
 
 
@@ -357,4 +396,36 @@ def test_no_new_prose_hard_coded_into_generated_markup(script):
     assert len(found) <= BUDGET_JS_PROSE[script], (
         f"{len(found)} strings baked into markup {script} builds, budget "
         f"{BUDGET_JS_PROSE[script]}. Route them through t():\n{_report(found)}"
+    )
+
+
+def test_the_workshop_section_titles_resolve() -> None:
+    """These are looked up through a variable, so no static check sees them.
+
+    They used to carry a Norwegian fallback beside the key, which is a second
+    copy of the string in the source. Dropping it is only safe while the keys
+    are known to be there."""
+    d = json.loads((STATIC / "ui_i18n.json").read_text())
+    js = (STATIC / "app-integrations.js").read_text()
+    keys = re.findall(r"i18n: '(workshop_section_\d)'", js)
+    assert len(keys) == 4, f"expected four sections, found {keys}"
+    for key in keys:
+        assert key in d["no"] and key in d["en"], f"{key} has no translation"
+
+
+@pytest.mark.parametrize("script", _SCRIPTS)
+def test_no_text_reaches_a_person_without_going_through_t(script: str) -> None:
+    found = text_shown_to_a_person(script)
+    assert not found, (
+        f"{len(found)} hard-coded strings shown to the user in {script}:\n"
+        f"{_report(found)}"
+    )
+
+
+@pytest.mark.parametrize("script", _SCRIPTS)
+def test_no_norwegian_literal_outside_t(script: str) -> None:
+    found = norwegian_literals_in_js(script)
+    assert len(found) <= BUDGET_JS_NORWEGIAN, (
+        f"{len(found)} Norwegian literals in {script}, budget "
+        f"{BUDGET_JS_NORWEGIAN}:\n{_report(found)}"
     )

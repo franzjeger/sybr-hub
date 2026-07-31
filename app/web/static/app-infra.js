@@ -66,7 +66,7 @@ async function hostsLoad() {
   hosts.forEach(function(h) { if (h.group_name) groups[h.group_name] = true; });
   var grpSel = document.getElementById('hosts-filter-group');
   var curGrp = grpSel.value;
-  grpSel.innerHTML = '<option value="">Alle grupper</option>';
+  grpSel.innerHTML = '<option value="">' + t('alle_grupper') + '</option>';
   Object.keys(groups).sort().forEach(function(g) {
     grpSel.innerHTML += '<option value="'+g+'"'+(g===curGrp?' selected':'')+'>'+g+'</option>';
   });
@@ -111,7 +111,7 @@ async function hostsLoad() {
     html += '<button class="btn btn-ghost" onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('btn_edit','Edit') + '</button>';
     html += '<button class="btn btn-ghost" onclick="sshTerminal(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--blue);">SSH</button>';
     html += '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--purple);'+(isDesktop?'':'opacity:0.3;pointer-events:none;')+'" onclick="sshRdp(\''+h.hostname+'\',\''+h.username+'\',\''+h.id+'\')">RDP</button>';
-    html += '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--orange);'+(isNetwork?'':'opacity:0.3;pointer-events:none;')+'" onclick="openWebUI(\'https://'+h.hostname+':'+webPort+'\')">Web UI</button>';
+    html += '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--orange);'+(isNetwork?'':'opacity:0.3;pointer-events:none;')+'" onclick="openWebUI(\'https://'+h.hostname+':'+webPort+'\')">' + t('web_ui') + '</button>';
     html += '<button class="btn btn-ghost" onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);grid-column:span 2;justify-self:start;">' + t('btn_delete','Delete') + '</button>';
     html += '</div>';
 
@@ -127,36 +127,36 @@ function hostsAdd() {
   // Load keys for dropdown
   apiFetch('/api/ssh/keys').then(function(keysData) {
     var keys = (keysData && keysData.keys) || [];
-    var keyOpts = '<option value="">Ingen (bruk passord)</option>';
+    var keyOpts = '<option value="">' + t('ingen_bruk_passord') + '</option>';
     keys.forEach(function(k) { keyOpts += '<option value="'+k.id+'">'+k.name+' ('+k.fingerprint.slice(0,20)+'...)</option>'; });
 
     el.innerHTML = '<div style="max-width:560px;">'
-      + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">Legg til vert</h3>'
+      + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('legg_til_vert') + '</h3>'
 
       // Device type first — determines which fields to show
-      + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Enhetstype</label>'
+      + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('enhetstype') + '</label>'
       + '<select id="host-devtype" onchange="hostsTypeChanged()" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
-      + '<option value="windows">🖥️ Windows Server</option>'
-      + '<option value="linux">🐧 Linux</option>'
-      + '<option value="fortigate">🛡 FortiGate</option>'
-      + '<option value="unifi">📡 UniFi</option>'
-      + '<option value="pfsense">🔒 pfSense</option>'
-      + '<option value="openwrt">📶 OpenWrt</option>'
-      + '<option value="custom">⚙️ Annet</option>'
+      + '<option value="windows">' + t('windows_server') + '</option>'
+      + '<option value="linux">' + t('linux') + '</option>'
+      + '<option value="fortigate">' + t('fortigate') + '</option>'
+      + '<option value="unifi">' + t('unifi') + '</option>'
+      + '<option value="pfsense">' + t('pfsense') + '</option>'
+      + '<option value="openwrt">' + t('openwrt') + '</option>'
+      + '<option value="custom">' + t('annet') + '</option>'
       + '</select>'
 
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Navn</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
       + '<input id="host-label" type="text" placeholder="f.eks. DC01 eller FW-Autostrada" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Hostname / IP</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('hostname_ip') + '</label>'
       + '<input id="host-hostname" type="text" placeholder="f.eks. 10.0.1.5" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;"><span id="host-user-label">Brukernavn</span></label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;"><span id="host-user-label">' + t('brukernavn_2') + '</span></label>'
       + '<input id="host-username" type="text" placeholder="admin" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;"><span id="host-port-label">SSH-port</span></label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;"><span id="host-port-label">' + t('ssh_port') + '</span></label>'
       + '<input id="host-port" type="number" value="22" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Gruppe</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('gruppe') + '</label>'
       + '<input id="host-group" type="text" placeholder="f.eks. produksjon, lab" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Autentisering</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('autentisering') + '</label>'
       + '<select id="host-auth" onchange="hostsAuthChanged()" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
       + '<option value="password">' + t('lbl_password','Password') + '</option>'
       + '<option value="key">' + t('lbl_ssh_key','SSH key') + '</option>'
@@ -164,7 +164,7 @@ function hostsAdd() {
       + '</div>'
 
       // Auth fields
-      + '<div id="host-auth-pass" style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Passord</label>'
+      + '<div id="host-auth-pass" style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('passord_2') + '</label>'
       + '<input id="host-password" type="password" placeholder="' + t('placeholder_password','Password') + '" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       + '<div id="host-auth-key" style="display:none;margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_ssh_key','SSH key') + '</label>'
       + '<select id="host-keyid" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'+keyOpts+'</select></div>'
@@ -271,14 +271,14 @@ async function sshShowKeys() {
   var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" onclick="sshGenKey()" style="padding:6px 14px;font-size:12px;">' + t('btn_generate_key','Generate key') + '</button><button class="btn btn-ghost" onclick="sshImportKey()" style="padding:6px 14px;font-size:12px;">' + t('btn_import_key','Import key') + '</button></div>';
   if (!keys.length) { html += '<p style="color:var(--text-muted);">' + t('msg_no_ssh_keys','No SSH keys created yet.') + '</p>'; }
   else {
-    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:8px;">' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>Fingerprint</th><th>' + t('lbl_created','Created') + '</th><th></th></tr></thead><tbody>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:8px;">' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('fingerprint_2') + '</th><th>' + t('lbl_created','Created') + '</th><th></th></tr></thead><tbody>';
     keys.forEach(function(k) {
       html += '<tr style="border-bottom:1px solid var(--border);">';
       html += '<td style="padding:8px;font-weight:600;">'+k.name+'</td>';
       html += '<td style="padding:8px;text-align:center;"><span style="padding:2px 8px;background:var(--bg);border-radius:4px;font-size:11px;font-family:var(--mono);">'+k.key_type+'</span></td>';
       html += '<td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-muted);">'+k.fingerprint+'</td>';
       html += '<td style="padding:8px;font-size:12px;color:var(--text-muted);">'+k.created_at.slice(0,10)+'</td>';
-      html += '<td style="padding:8px;white-space:nowrap;"><button class="btn btn-ghost" onclick="sshViewKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;">Vis</button> <button class="btn btn-ghost" onclick="sshDeleteKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">Slett</button></td>';
+      html += '<td style="padding:8px;white-space:nowrap;"><button class="btn btn-ghost" onclick="sshViewKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('vis') + '</button> <button class="btn btn-ghost" onclick="sshDeleteKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('slett') + '</button></td>';
       html += '</tr>';
     });
     html += '</tbody></table>';
@@ -290,7 +290,7 @@ function sshGenKey() {
   var el = document.getElementById('ssh-content');
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('hdr_generate_ssh_key','Generate SSH key') + '</h3>'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Navn</label>'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
     + '<input id="ssh-gen-name" type="text" placeholder="f.eks. deploy-key-kunde" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_key_type','Key type') + '</label>'
     + '<select id="ssh-gen-type" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
@@ -328,8 +328,8 @@ async function sshDoGenKey() {
     var resEl = document.getElementById('ssh-gen-result');
     resEl.style.display = 'block';
     resEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="font-size:18px;">&#10003;</span><strong style="color:var(--green);">' + t('msg_key_created','Key created') + '</strong></div>'
-      + '<div style="font-size:12px;margin-bottom:8px;"><strong>Fingerprint:</strong> <span style="font-family:var(--mono);">'+k.fingerprint+'</span></div>'
-      + '<div style="font-size:12px;margin-bottom:8px;"><strong>Type:</strong> '+k.key_type+'</div>'
+      + '<div style="font-size:12px;margin-bottom:8px;"><strong>' + t('fingerprint') + '</strong> <span style="font-family:var(--mono);">'+k.fingerprint+'</span></div>'
+      + '<div style="font-size:12px;margin-bottom:8px;"><strong>' + t('type_3') + '</strong> '+k.key_type+'</div>'
       + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_public_key_copy','Public key (copy to servers):') + '</label>'
       + '<div style="position:relative;"><textarea readonly style="width:100%;height:60px;padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:var(--mono);resize:none;">'+k.public_key+'</textarea>'
       + '<button onclick="navigator.clipboard.writeText(\''+k.public_key.replace(/'/g,"\\'")+'\');showToast(t(\'msg_copied_short\',\'Copied!\'),\'success\',1500);" style="position:absolute;top:4px;right:4px;padding:2px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text-muted);">' + t('btn_copy','Copy') + '</button></div>';
@@ -341,7 +341,7 @@ function sshImportKey() {
   var el = document.getElementById('ssh-content');
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('hdr_import_ssh_key','Import SSH key') + '</h3>'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Navn</label>'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
     + '<input id="ssh-imp-name" type="text" placeholder="f.eks. eksisterende-deploy-key" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_private_key_pem','Private key (PEM or OpenSSH format)') + '</label>'
     + '<textarea id="ssh-imp-pem" rows="8" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:var(--mono);resize:vertical;"></textarea>'
@@ -376,8 +376,8 @@ async function sshDoImportKey() {
     var resEl = document.getElementById('ssh-imp-result');
     resEl.style.display = 'block';
     resEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="font-size:18px;">&#10003;</span><strong style="color:var(--green);">' + t('msg_key_imported','Key imported') + '</strong></div>'
-      + '<div style="font-size:12px;margin-bottom:8px;"><strong>Fingerprint:</strong> <span style="font-family:var(--mono);">'+k.fingerprint+'</span></div>'
-      + '<div style="font-size:12px;margin-bottom:8px;"><strong>Type:</strong> '+k.key_type+'</div>'
+      + '<div style="font-size:12px;margin-bottom:8px;"><strong>' + t('fingerprint') + '</strong> <span style="font-family:var(--mono);">'+k.fingerprint+'</span></div>'
+      + '<div style="font-size:12px;margin-bottom:8px;"><strong>' + t('type_3') + '</strong> '+k.key_type+'</div>'
       + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_public_key_copy','Public key (copy to servers):') + '</label>'
       + '<div style="position:relative;"><textarea readonly style="width:100%;height:60px;padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:var(--mono);resize:none;">'+k.public_key+'</textarea>'
       + '<button onclick="navigator.clipboard.writeText(\''+k.public_key.replace(/'/g,"\\'")+'\');showToast(t(\'msg_copied_short\',\'Copied!\'),\'success\',1500);" style="position:absolute;top:4px;right:4px;padding:2px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text-muted);">' + t('btn_copy','Copy') + '</button></div>';
@@ -392,18 +392,18 @@ async function sshViewKey(keyId) {
   var el = document.getElementById('ssh-content');
   var html = '<div style="max-width:560px;">'
     + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">'
-    + '<button class="btn btn-ghost" onclick="sshShowKeys()" style="padding:4px 10px;font-size:12px;">&larr; Tilbake</button>'
+    + '<button class="btn btn-ghost" onclick="sshShowKeys()" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>'
     + '<h3 style="font-size:15px;font-weight:600;margin:0;">'+k.name+'</h3>'
     + '<span style="padding:2px 8px;background:var(--bg);border-radius:4px;font-size:11px;font-family:var(--mono);">'+k.key_type+'</span>'
     + '</div>'
     + '<div class="card" style="padding:16px;">'
     + '<table style="width:100%;font-size:13px;">'
-    + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);width:120px;">Fingerprint</td><td style="padding:8px;font-family:var(--mono);font-size:11px;">'+k.fingerprint+'</td></tr>'
-    + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);">Type</td><td style="padding:8px;">'+k.key_type+'</td></tr>'
+    + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);width:120px;">' + t('fingerprint_2') + '</td><td style="padding:8px;font-family:var(--mono);font-size:11px;">'+k.fingerprint+'</td></tr>'
+    + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);">' + t('type_3') + '</td><td style="padding:8px;">'+k.key_type+'</td></tr>'
     + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);">' + t('lbl_created','Created') + '</td><td style="padding:8px;">'+k.created_at.slice(0,10)+'</td></tr>';
   if (k.description) html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);">' + t('lbl_description','Description') + '</td><td style="padding:8px;">'+k.description+'</td></tr>';
   html += '</table></div>'
-    + '<div style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Public key</label>'
+    + '<div style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('public_key') + '</label>'
     + '<div style="position:relative;"><textarea readonly style="width:100%;height:60px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:var(--mono);resize:none;">'+k.public_key+'</textarea>'
     + '<button onclick="navigator.clipboard.writeText(\''+k.public_key.replace(/'/g,"\\'")+'\');showToast(t(\'msg_copied_short\',\'Copied!\'),\'success\',1500);" style="position:absolute;top:4px;right:4px;padding:2px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text-muted);">' + t('btn_copy','Copy') + '</button></div></div>';
 
@@ -432,10 +432,10 @@ async function sshShowHosts() {
   var data = await apiFetch('/api/ssh/hosts');
   if (!data) return;
   var hosts = data.hosts || [];
-  var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" onclick="sshAddHost()" style="padding:6px 14px;font-size:12px;">Legg til vert</button><button class="btn btn-ghost" onclick="sshHealthAll()" style="padding:6px 14px;font-size:12px;">Sjekk alle</button></div>';
+  var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" onclick="sshAddHost()" style="padding:6px 14px;font-size:12px;">' + t('legg_til_vert') + '</button><button class="btn btn-ghost" onclick="sshHealthAll()" style="padding:6px 14px;font-size:12px;">' + t('sjekk_alle') + '</button></div>';
   if (!hosts.length) { html += '<p style="color:var(--text-muted);">' + t('msg_no_hosts_short','No hosts registered.') + '</p>'; }
   else {
-    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:8px;">Navn</th><th>Host</th><th>Type</th><th>Gruppe</th><th>' + t('lbl_customer','Customer') + '</th><th>Status</th><th></th></tr></thead><tbody>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:8px;">' + t('navn_2') + '</th><th>' + t('host_2') + '</th><th>' + t('type_3') + '</th><th>' + t('gruppe') + '</th><th>' + t('lbl_customer','Customer') + '</th><th>' + t('status_3') + '</th><th></th></tr></thead><tbody>';
     hosts.forEach(function(h) {
       var statusColor = h.is_reachable === true ? 'var(--green)' : h.is_reachable === false ? 'var(--red)' : 'var(--text-dim)';
       var statusDot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+statusColor+';"></span>';
@@ -448,12 +448,12 @@ async function sshShowHosts() {
       html += '<td style="padding:8px;font-size:12px;">' + (h.customer_id ? '<a href="javascript:void(0)" onclick="overviewSelectCustomer(\'' + h.customer_id + '\')" style="color:var(--blue);text-decoration:none;">' + esc(_custName) + '</a>' : '-') + '</td>';
       html += '<td style="padding:8px;text-align:center;">'+statusDot+'</td>';
       html += '<td style="padding:8px;white-space:nowrap;">';
-      html += '<button class="btn btn-ghost" onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">Rediger</button> ';
+      html += '<button class="btn btn-ghost" onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('rediger') + '</button> ';
       html += '<button class="btn btn-ghost" onclick="sshTerminal(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--blue);">SSH</button> ';
       if (h.device_type === 'windows' || h.device_type === 'linux') {
         html += '<button class="btn btn-ghost" onclick="sshRdp(\''+h.hostname+'\',\''+h.username+'\')" style="padding:2px 8px;font-size:11px;color:var(--purple);">RDP</button> ';
       }
-      html += '<button class="btn btn-ghost" onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">Slett</button>';
+      html += '<button class="btn btn-ghost" onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('slett') + '</button>';
       html += '</td>';
       html += '</tr>';
     });
@@ -466,25 +466,25 @@ function sshAddHost() {
   // Load keys for dropdown
   apiFetch('/api/ssh/keys').then(function(keysData) {
     var keys = (keysData && keysData.keys) || [];
-    var keyOpts = '<option value="">Ingen (bruk passord)</option>';
+    var keyOpts = '<option value="">' + t('ingen_bruk_passord') + '</option>';
     keys.forEach(function(k) { keyOpts += '<option value="'+k.id+'">'+k.name+' ('+k.key_type+' — '+k.fingerprint.slice(0,20)+'...)</option>'; });
 
     var el = document.getElementById('ssh-content');
     el.innerHTML = '<div style="max-width:560px;">'
-      + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">Legg til vertsmaskin</h3>'
+      + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('legg_til_vertsmaskin') + '</h3>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
       // Rad 1: Navn + Hostname
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Navn / Label</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_label') + '</label>'
       + '<input id="ssh-h-label" type="text" placeholder="f.eks. Webserver Prod" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Hostname / IP</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('hostname_ip') + '</label>'
       + '<input id="ssh-h-host" type="text" placeholder="f.eks. 10.0.1.5" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       // Rad 2: Brukernavn + Port
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Brukernavn</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('brukernavn_2') + '</label>'
       + '<input id="ssh-h-user" type="text" value="root" placeholder="root" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Port</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('port_2') + '</label>'
       + '<input id="ssh-h-port" type="number" value="22" min="1" max="65535" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       // Rad 3: Enhetstype + Gruppe
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Enhetstype</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('enhetstype') + '</label>'
       + '<select id="ssh-h-devtype" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
       + '<option value="linux">Linux</option>'
       + '<option value="fortigate">FortiGate</option>'
@@ -492,9 +492,9 @@ function sshAddHost() {
       + '<option value="pfsense">pfSense</option>'
       + '<option value="openwrt">OpenWrt</option>'
       + '<option value="windows">Windows</option>'
-      + '<option value="custom">Annet</option>'
+      + '<option value="custom">' + t('annet') + '</option>'
       + '</select></div>'
-      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Gruppe</label>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('gruppe') + '</label>'
       + '<input id="ssh-h-group" type="text" placeholder="f.eks. produksjon, lab, kunde-x" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       + '</div>'
       // Autentisering
@@ -583,30 +583,30 @@ async function sshEditHost(hostId) {
   // Load keys for dropdown
   var keysData = await apiFetch('/api/ssh/keys');
   var keys = (keysData && keysData.keys) || [];
-  var keyOpts = '<option value="">Ingen (bruk passord)</option>';
+  var keyOpts = '<option value="">' + t('ingen_bruk_passord') + '</option>';
   keys.forEach(function(k) { keyOpts += '<option value="'+k.id+'"'+(k.id===h.auth_key_id?' selected':'')+'>'+k.name+' ('+k.fingerprint.slice(0,20)+'...)</option>'; });
 
   // Use hosts-content if available, else ssh-content
   var el = document.getElementById('hosts-content') || document.getElementById('ssh-content');
   el.innerHTML = '<div style="max-width:560px;">'
-    + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">Rediger vertsmaskin</h3>'
+    + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('rediger_vertsmaskin') + '</h3>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Navn</label>'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
     + '<input id="ssh-e-label" type="text" value="'+h.label+'" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Hostname / IP</label>'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('hostname_ip') + '</label>'
     + '<input id="ssh-e-host" type="text" value="'+h.hostname+'" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Brukernavn</label>'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('brukernavn_2') + '</label>'
     + '<input id="ssh-e-user" type="text" value="'+h.username+'" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Port</label>'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('port_2') + '</label>'
     + '<input id="ssh-e-port" type="number" value="'+h.port+'" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Enhetstype</label>'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('enhetstype') + '</label>'
     + '<select id="ssh-e-devtype" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + ['linux','fortigate','unifi','pfsense','openwrt','windows','custom'].map(function(t){return '<option value="'+t+'"'+(t===h.device_type?' selected':'')+'>'+t+'</option>';}).join('')
     + '</select></div>'
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Gruppe</label>'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('gruppe') + '</label>'
     + '<input id="ssh-e-group" type="text" value="'+(h.group_name||'')+'" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
     + '</div>'
-    + '<div style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Passord</label>'
+    + '<div style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('passord_2') + '</label>'
     + '<input id="ssh-e-pass" type="password" placeholder="(uendret)" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
     + '<div style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_ssh_key','SSH key') + '</label>'
     + '<select id="ssh-e-keyid" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'+keyOpts+'</select></div>'
@@ -787,7 +787,7 @@ async function vpnLoadProfiles() {
         + _vpnStatField('Uptime', stats.uptime)
         + _vpnStatField(t('bc_network','Routes'), stats.route_count ? stats.route_count + ' ' + t('lbl_routes','routes') : null)
         + '</div>'
-        + (stats.remote_subnets && stats.remote_subnets.length ? '<div style="margin-top:var(--space-3);"><div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-1);">Remote subnets</div><div style="padding:var(--space-2) var(--space-3);background:var(--bg);border-radius:var(--radius-sm);font-family:var(--mono);font-size:10px;color:var(--text-muted);">' + stats.remote_subnets.map(function(r){return esc(r)}).join(' &middot; ') + '</div></div>' : '')
+        + (stats.remote_subnets && stats.remote_subnets.length ? '<div style="margin-top:var(--space-3);"><div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-1);">' + t('remote_subnets') + '</div><div style="padding:var(--space-2) var(--space-3);background:var(--bg);border-radius:var(--radius-sm);font-family:var(--mono);font-size:10px;color:var(--text-muted);">' + stats.remote_subnets.map(function(r){return esc(r)}).join(' &middot; ') + '</div></div>' : '')
         + (stats.routes && stats.routes.length ? '<div style="margin-top:var(--space-3);"><div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-1);">' + t('lbl_routes','Routes') + '</div><div style="padding:var(--space-2) var(--space-3);background:var(--bg);border-radius:var(--radius-sm);font-family:var(--mono);font-size:10px;color:var(--text-muted);max-height:80px;overflow-y:auto;">' + stats.routes.map(function(r){return esc(r)}).join('<br>') + '</div></div>' : '')
         + '</div>';
     }
@@ -869,18 +869,18 @@ async function vpnConnectAzure(profileId) {
   // Show PKCE paste-back UI
   var vpnEl = document.getElementById('vpn-content');
   var html = '<div class="card" style="padding:24px;margin-bottom:16px;" id="pkce-panel">';
-  html += '<div style="font-size:16px;font-weight:700;margin-bottom:12px;">Azure VPN — Innlogging</div>';
-  html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">1. Åpne denne lenken i en nettleser (kan være på en annen maskin):</div>';
+  html += '<div style="font-size:16px;font-weight:700;margin-bottom:12px;">' + t('azure_vpn_innlogging') + '</div>';
+  html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">' + t('1_aapne_denne_lenken_i_en_nettleser_kan_') + '</div>';
   html += '<div style="margin-bottom:16px;word-break:break-all;"><a href="'+esc(data.url)+'" target="_blank" style="font-size:13px;color:var(--blue);text-decoration:underline;">'+esc(data.url).substring(0,80)+'...</a>';
-  html += ' <button class="btn btn-ghost btn-sm" onclick="var t=document.createElement(\'textarea\');t.value=this.dataset.url;document.body.appendChild(t);t.select();document.execCommand(\'copy\');document.body.removeChild(t);showToast(\'Kopiert!\',\'success\',1500);" data-url="'+esc(data.url)+'" style="margin-left:8px;">Kopier</button></div>';
-  html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">2. Logg inn med Azure AD. Nettleseren vil prøve å gå til <code>localhost:2023</code> (den vil feile — det er forventet).</div>';
-  html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">3. Kopier hele URLen fra adressefeltet og lim inn her:</div>';
+  html += ' <button class="btn btn-ghost btn-sm" onclick="var t=document.createElement(\'textarea\');t.value=this.dataset.url;document.body.appendChild(t);t.select();document.execCommand(\'copy\');document.body.removeChild(t);showToast(\'Kopiert!\',\'success\',1500);" data-url="'+esc(data.url)+'" style="margin-left:8px;">' + t('kopier') + '</button></div>';
+  html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">' + t('2_logg_inn_med_azure_ad_nettleseren_vil_') + ' <code>localhost:2023</code> ' + t('den_vil_feile_det_er_forventet') + '</div>';
+  html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">' + t('3_kopier_hele_urlen_fra_adressefeltet_og') + '</div>';
   html += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
   html += '<input type="text" id="pkce-callback-url" placeholder="http://localhost:2023/?code=..." style="flex:1;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;">';
-  html += '<button class="btn btn-primary" onclick="pkceComplete(\''+esc(profileId)+'\')">Koble til</button>';
+  html += '<button class="btn btn-primary" onclick="pkceComplete(\''+esc(profileId)+'\')">' + t('koble_til') + '</button>';
   html += '</div>';
   html += '<div id="pkce-status"></div>';
-  html += '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'pkce-panel\').remove();" style="color:var(--text-dim);margin-top:8px;">Avbryt</button>';
+  html += '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'pkce-panel\').remove();" style="color:var(--text-dim);margin-top:8px;">' + t('avbryt_3') + '</button>';
   html += '</div>';
 
   var existingPanel = document.getElementById('pkce-panel');
@@ -890,7 +890,7 @@ async function vpnConnectAzure(profileId) {
 
 async function pkceComplete(profileId) {
   var url = document.getElementById('pkce-callback-url').value.trim();
-  if (!url) { showToast('Lim inn URLen fra nettleseren','error'); return; }
+  if (!url) { showToast(t('lim_inn_urlen_fra_nettleseren'),'error'); return; }
 
   var statusEl = document.getElementById('pkce-status');
   if (statusEl) statusEl.innerHTML = '<div class="loader" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:8px;"></div> Henter token...';
@@ -901,13 +901,13 @@ async function pkceComplete(profileId) {
   });
 
   if (result && result.ok && result.access_token) {
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--green);font-weight:600;">Autentisert! Kobler til VPN...</span>';
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--green);font-weight:600;">' + t('autentisert_kobler_til_vpn') + '</span>';
     var connectResult = await apiFetch('/api/vpn/azure/connect-with-token', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({profile_id:profileId, access_token:result.access_token})
     });
     if (connectResult && connectResult.ok) {
-      showToast('Azure VPN tilkoblet!','success');
+      showToast(t('azure_vpn_tilkoblet'),'success');
     } else {
       showToast(connectResult?.error||'VPN-tilkobling feilet','error');
     }
@@ -992,7 +992,7 @@ function vpnCreateProtocolChanged() {
       + label(t('lbl_dns_servers_optional','DNS servers (optional)'))
       + input('fg-dns', 'f.eks. 10.0.0.1, 10.0.0.2');
   } else if (protocol === 'wireguard') {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_wireguard_recommend_import','For WireGuard we recommend using <strong>Import file</strong> with a .conf file.<br>Or fill in manually:') + '</p>'
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_wireguard_recommend_import','For WireGuard we recommend using <strong>' + t('import_file') + '</strong> ' + t('with_a_conf_file') + '<br>Or fill in manually:') + '</p>'
       + label(t('lbl_private_key','Private key'))
       + input('wg-privkey', t('placeholder_base64_private_key','Base64-encoded private key'), 'password')
       + label(t('lbl_addresses_comma','Addresses (comma-separated)'))
@@ -1006,7 +1006,7 @@ function vpnCreateProtocolChanged() {
       + label('Allowed IPs')
       + input('wg-peer-ips', 'f.eks. 0.0.0.0/0');
   } else if (protocol === 'openvpn') {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_openvpn_recommend_import','For OpenVPN we recommend using <strong>Import file</strong> with an .ovpn file.<br>Or enter connection details:') + '</p>'
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_openvpn_recommend_import','For OpenVPN we recommend using <strong>' + t('import_file') + '</strong> ' + t('with_an_ovpn_file') + '<br>Or enter connection details:') + '</p>'
       + label(t('lbl_username_optional','Username (optional)'))
       + input('ovpn-user', 'VPN-brukernavn')
       + label(t('lbl_password_optional','Password (optional)'))
@@ -1014,7 +1014,7 @@ function vpnCreateProtocolChanged() {
       + label(t('lbl_config_paste_ovpn','Configuration (paste .ovpn content)'))
       + '<textarea id="vpn-c-ovpn-conf" placeholder="client\nremote vpn.server.no 1194\n..." style="width:100%;height:120px;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:var(--mono);"></textarea>';
   } else if (protocol === 'azure') {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_azure_recommend_import','For Azure P2S we recommend using <strong>Import file</strong> with VPN client XML from the Azure portal.') + '</p>'
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_azure_recommend_import','For Azure P2S we recommend using <strong>' + t('import_file') + '</strong> with VPN client XML from the Azure portal.') + '</p>'
       + label('Gateway FQDN')
       + input('az-gw', 'azuregateway-xxx.vpn.azure.com')
       + label('Tenant ID')
@@ -1073,16 +1073,16 @@ async function vpnEditProfile(profileId) {
 
   var el = document.getElementById('vpn-content');
   var html = '<div style="max-width:500px;">'
-    + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">Rediger VPN-profil</h3>'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Navn</label>'
+    + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('rediger_vpn_profil') + '</h3>'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
     + '<input id="vpn-edit-name" type="text" value="'+p.name+'" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Beskrivelse</label>'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('beskrivelse') + '</label>'
     + '<input id="vpn-edit-desc" type="text" value="'+(p.description||'')+'" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
-    + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Protokoll: <strong>'+p.protocol+'</strong></div>';
+    + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">' + t('protokoll') + ' <strong>'+p.protocol+'</strong></div>';
 
   // Protocol-specific fields
   if (p.protocol === 'fortigate_ipsec') {
-    html += '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Host</label>'
+    html += '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('host_2') + '</label>'
       + '<input id="vpn-edit-host" type="text" value="'+(config.host||'')+'" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
       + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_username','Username') + '</label>'
       + '<input id="vpn-edit-user" type="text" value="'+(config.username||'')+'" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
@@ -1100,8 +1100,8 @@ async function vpnEditProfile(profileId) {
     + '<select id="vpn-edit-customer" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"><option value="">-- ' + t('lbl_no_customer','No customer') + ' --</option></select>';
 
   html += '<div style="display:flex;gap:8px;margin-top:16px;">'
-    + '<button class="btn btn-primary" onclick="vpnDoEdit(\''+profileId+'\',\''+p.protocol+'\')" style="padding:8px 20px;font-size:13px;">Lagre</button>'
-    + '<button class="btn btn-ghost" onclick="vpnLoadProfiles()" style="padding:8px 20px;font-size:13px;">Avbryt</button>'
+    + '<button class="btn btn-primary" onclick="vpnDoEdit(\''+profileId+'\',\''+p.protocol+'\')" style="padding:8px 20px;font-size:13px;">' + t('lagre_3') + '</button>'
+    + '<button class="btn btn-ghost" onclick="vpnLoadProfiles()" style="padding:8px 20px;font-size:13px;">' + t('avbryt_3') + '</button>'
     + '</div></div>';
   el.innerHTML = html;
   _populateCustomerSelect('vpn-edit-customer', p.customer_id);
@@ -1265,7 +1265,7 @@ async function fgBackupAll() {
   showToast(t('msg_backing_up_all','Kjører backup på alle FortiGates...'), 'info', 3000);
   var data = await apiFetch('/api/fortigate/backup-all', {method:'POST'});
   if (data) {
-    showToast(data.success + '/' + data.total + ' backup fullført' + (data.failed ? ' — ' + data.failed + ' feilet' : ''), data.failed ? 'warning' : 'success', 5000);
+    showToast(data.success + '/' + data.total + ' ' + t('msg_backup_complete') + (data.failed ? ', ' + data.failed + ' ' + t('msg_backup_failed') : ''), data.failed ? 'warning' : 'success', 5000);
   } else {
     showToast(t('status_error'), 'error');
   }
@@ -1307,7 +1307,7 @@ var _liveDevices = [];
 function liveRenderDevices(devices) {
   _liveDevices = devices;
   var el = document.getElementById('live-devices');
-  if (!devices.length) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;grid-column:1/-1;">Ingen enheter funnet</div>'; return; }
+  if (!devices.length) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;grid-column:1/-1;">' + t('ingen_enheter_funnet') + '</div>'; return; }
   var html = '';
   devices.forEach(function(d, idx) {
     var color = d.status === 'online' ? 'var(--green)' : d.status === 'error' ? 'var(--red)' : 'var(--text-dim)';
@@ -1318,17 +1318,17 @@ function liveRenderDevices(devices) {
     html += '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';"></span>';
     html += '</div>';
     html += '<div style="font-size:12px;color:var(--text-muted);display:grid;grid-template-columns:1fr 1fr;gap:4px;">';
-    html += '<span>Modell: <strong style="color:var(--text);">'+(d.model||'-')+'</strong></span>';
+    html += '<span>' + t('modell') + ' <strong style="color:var(--text);">'+(d.model||'-')+'</strong></span>';
     html += '<span>Firmware: '+(d.firmware||'-')+'</span>';
-    if (d.wan_ip) html += '<span>WAN: <strong style="color:var(--text);">'+d.wan_ip+'</strong></span>';
+    if (d.wan_ip) html += '<span>' + t('wan') + ' <strong style="color:var(--text);">'+d.wan_ip+'</strong></span>';
     if (d.uptime) html += '<span>Uptime: '+d.uptime+'</span>';
     if (d.cpu_pct !== undefined && d.cpu_pct !== null) {
       var cpuColor = d.cpu_pct > 80 ? 'var(--red)' : d.cpu_pct > 50 ? 'var(--orange)' : 'var(--green)';
-      html += '<span>CPU: <span style="color:'+cpuColor+';font-weight:600;">'+d.cpu_pct+'%</span></span>';
+      html += '<span>' + t('cpu') + ' <span style="color:'+cpuColor+';font-weight:600;">'+d.cpu_pct+'%</span></span>';
     }
     if (d.mem_pct !== undefined && d.mem_pct !== null) {
       var memColor = d.mem_pct > 80 ? 'var(--red)' : d.mem_pct > 50 ? 'var(--orange)' : 'var(--green)';
-      html += '<span>Minne: <span style="color:'+memColor+';font-weight:600;">'+d.mem_pct+'%</span></span>';
+      html += '<span>' + t('minne') + ' <span style="color:'+memColor+';font-weight:600;">'+d.mem_pct+'%</span></span>';
     }
     if (d.sessions !== undefined && d.sessions !== null) html += '<span>Sesjoner: '+d.sessions.toLocaleString()+'</span>';
     if (d.vpn_tunnels !== undefined && d.vpn_tunnels !== null) html += '<span>VPN: '+d.vpn_tunnels+' tunnel(er)</span>';
@@ -1351,7 +1351,7 @@ function liveShowDeviceDetail(idx) {
 
   var html = '<div style="grid-column:1/-1;max-width:700px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
-  html += '<button class="btn btn-ghost" onclick="livePollNow()" style="padding:4px 10px;font-size:12px;">&larr; Tilbake</button>';
+  html += '<button class="btn btn-ghost" onclick="livePollNow()" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>';
   html += '<h3 style="font-size:16px;font-weight:700;margin:0;">'+vendorIcon+' '+d.name+'</h3>';
   html += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+color+';"></span>';
   html += '</div>';
@@ -1406,10 +1406,10 @@ function liveShowDeviceDetail(idx) {
     if (ex.interfaces && ex.interfaces.length) {
       html += '<div class="card" style="padding:16px;margin-top:12px;">';
       html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Grensesnitt ('+ex.interfaces.length+')</div>';
-      html += '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">Navn</th><th>IP</th><th>Link</th><th>Hastighet</th></tr></thead><tbody>';
+      html += '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('navn_2') + '</th><th>IP</th><th>' + t('link') + '</th><th>' + t('hastighet') + '</th></tr></thead><tbody>';
       ex.interfaces.forEach(function(i) {
         if (!i.ip || i.ip === '0.0.0.0') return;
-        html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px;font-weight:600;">'+i.name+'</td><td style="padding:4px;font-family:var(--mono);font-size:11px;">'+i.ip+'</td><td style="padding:4px;">'+(i.link?'<span style="color:var(--green);">Up</span>':'<span style="color:var(--red);">Down</span>')+'</td><td style="padding:4px;">'+(i.speed?i.speed+'M':'')+'</td></tr>';
+        html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px;font-weight:600;">'+i.name+'</td><td style="padding:4px;font-family:var(--mono);font-size:11px;">'+i.ip+'</td><td style="padding:4px;">'+(i.link?'<span style="color:var(--green);">' + t('up') + '</span>':'<span style="color:var(--red);">' + t('down') + '</span>')+'</td><td style="padding:4px;">'+(i.speed?i.speed+'M':'')+'</td></tr>';
       });
       html += '</tbody></table></div>';
     }
@@ -1468,8 +1468,8 @@ function liveShowDeviceDetail(idx) {
       html += '<div class="card" style="padding:12px;"><div style="font-size:12px;font-weight:600;margin-bottom:6px;">Admin-kontoer ('+ex.admins.length+')</div>';
       ex.admins.forEach(function(a) {
         var warns = [];
-        if (!a.two_factor) warns.push('<span style="color:var(--orange);">ingen 2FA</span>');
-        if (!a.trusthost) warns.push('<span style="color:var(--orange);">ingen trusthost</span>');
+        if (!a.two_factor) warns.push('<span style="color:var(--orange);">' + t('ingen_fa') + '</span>');
+        if (!a.trusthost) warns.push('<span style="color:var(--orange);">' + t('ingen_trusthost') + '</span>');
         html += '<div style="font-size:11px;padding:2px 0;"><strong>'+a.name+'</strong> ('+a.profile+') '+(warns.length?warns.join(', '):'<span style="color:var(--green);">OK</span>')+'</div>';
       });
       html += '</div>';
@@ -1481,9 +1481,9 @@ function liveShowDeviceDetail(idx) {
   // Action buttons
   if (d.vendor === 'fortigate') {
     html += '<div style="display:flex;gap:8px;margin-top:12px;">';
-    html += '<button class="btn btn-primary" onclick="fgBackupConfig(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">Backup config</button>';
+    html += '<button class="btn btn-primary" onclick="fgBackupConfig(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">' + t('backup_config') + '</button>';
     html += '<button class="btn btn-ghost" onclick="fgShowBackups(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">'+t('btn_backup_history','Backup-historikk')+'</button>';
-    html += '<button class="btn btn-ghost" onclick="fgComplianceCheck(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">CIS-sjekk</button>';
+    html += '<button class="btn btn-ghost" onclick="fgComplianceCheck(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">' + t('cis_sjekk') + '</button>';
     html += '</div>';
     html += '<div id="fg-backup-list-'+d.customer_id+'" style="margin-top:8px;"></div>';
   }
@@ -1558,7 +1558,7 @@ async function fgComplianceCheck(customerId) {
 
   var html = '<div class="card" style="padding:16px;">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  html += '<div style="font-size:13px;font-weight:600;">CIS Compliance</div>';
+  html += '<div style="font-size:13px;font-weight:600;">' + t('cis_compliance') + '</div>';
   html += '<div style="font-size:20px;font-weight:700;color:'+scoreColor+';">'+score+'%</div>';
   html += '</div>';
 
@@ -1569,7 +1569,7 @@ async function fgComplianceCheck(customerId) {
 
   if (findings.length) {
     html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
-    html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">Kontroll</th><th style="text-align:center;padding:6px;">Status</th><th style="text-align:left;padding:6px;">Detaljer</th></tr></thead><tbody>';
+    html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">' + t('kontroll') + '</th><th style="text-align:center;padding:6px;">' + t('status_3') + '</th><th style="text-align:left;padding:6px;">' + t('detaljer') + '</th></tr></thead><tbody>';
     findings.forEach(function(f) {
       var icon = f.status === 'pass' ? '<span style="color:var(--green);">&#10003;</span>' : f.status === 'fail' ? '<span style="color:var(--red);">&#10007;</span>' : '<span style="color:var(--orange);">&#9888;</span>';
       var rowBg = f.status === 'fail' ? 'background:rgba(248,81,73,0.05);' : '';
@@ -1581,7 +1581,7 @@ async function fgComplianceCheck(customerId) {
     });
     html += '</tbody></table>';
   } else {
-    html += '<div style="color:var(--text-muted);">Ingen funn</div>';
+    html += '<div style="color:var(--text-muted);">' + t('ingen_funn') + '</div>';
   }
 
   html += '</div>';
@@ -1638,7 +1638,7 @@ function aiCustomerFilter(query) {
     if (c.domain) html += '<div style="font-size:10px;color:var(--text-muted);">'+c.domain+'</div>';
     html += '</div>';
   });
-  if (count === 0 && q) html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">Ingen treff</div>';
+  if (count === 0 && q) html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">' + t('ingen_treff') + '</div>';
   list.innerHTML = html;
   list.style.display = 'block';
 }
@@ -1774,7 +1774,7 @@ function provisionRenderStep(step) {
       + '<label class="field-label">WAN</label>'
       + '<select id="prov-wan" class="field-input" style="margin-bottom:8px;"><option value="dhcp">DHCP</option><option value="static">' + t('lbl_static','Static') + '</option><option value="pppoe">PPPoE</option></select>'
       + '<div style="display:flex;gap:8px;align-items:end;margin-bottom:8px;">'
-      + '<div style="flex:1;"><label class="field-label">LAN Subnet</label><input id="prov-subnet" type="text" class="field-input" placeholder="10.x.0.0/24" value="' + (_provisionSuggested ? _provisionSuggested.lan_subnet : '192.168.1.0/24') + '"></div>'
+      + '<div style="flex:1;"><label class="field-label">' + t('lan_subnet') + '</label><input id="prov-subnet" type="text" class="field-input" placeholder="10.x.0.0/24" value="' + (_provisionSuggested ? _provisionSuggested.lan_subnet : '192.168.1.0/24') + '"></div>'
       + '<button class="btn btn-ghost btn-sm" onclick="provisionSuggestSubnets()" style="font-size:12px;white-space:nowrap;margin-bottom:1px;">' + t('btn_suggest_subnets','Auto-generer subnets') + '</button>'
       + '</div>'
       + '<label class="field-label">VLANs</label>'
@@ -1791,7 +1791,7 @@ function provisionRenderStep(step) {
   } else if (step === 4) {
     html += '<div style="max-width:500px;">'
       + '<input id="prov-admin-pw" type="password" placeholder="' + t('placeholder_admin_password','Admin password') + '" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);">'
-      + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:8px;"><input type="checkbox" id="prov-webfilter" checked> Web-filter</label>'
+      + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:8px;"><input type="checkbox" id="prov-webfilter" checked> ' + t('web_filter') + '</label>'
       + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:8px;"><input type="checkbox" id="prov-ids" checked> IDS/IPS</label>'
       + '</div>';
   } else if (step === 5) {
@@ -1808,8 +1808,8 @@ function provisionRenderStep(step) {
 
   // Navigation buttons
   html += '<div style="display:flex;gap:8px;margin-top:20px;">';
-  if (step > 1) html += '<button class="btn btn-ghost" onclick="provisionPrevStep('+step+')" style="padding:8px 16px;">Tilbake</button>';
-  if (step < 5) html += '<button class="btn btn-primary" onclick="provisionNextStep('+step+')" style="padding:8px 16px;">Neste</button>';
+  if (step > 1) html += '<button class="btn btn-ghost" onclick="provisionPrevStep('+step+')" style="padding:8px 16px;">' + t('tilbake') + '</button>';
+  if (step < 5) html += '<button class="btn btn-primary" onclick="provisionNextStep('+step+')" style="padding:8px 16px;">' + t('neste_2') + '</button>';
   html += '</div>';
   el.innerHTML = html;
 }
@@ -1838,10 +1838,10 @@ async function provisionLoadSummary() {
   var el = document.getElementById('prov-summary');
   var steps = data.steps || {};
   var html = '<div style="font-size:13px;">';
-  if (steps['1']) html += '<div style="margin-bottom:8px;"><strong>Kunde:</strong> '+(steps['1'].name||'-')+' @ '+(steps['1'].location||'-')+' ('+steps['1'].device_type+')</div>';
-  if (steps['2']) html += '<div style="margin-bottom:8px;"><strong>Nettverk:</strong> WAN='+steps['2'].wan_type+', LAN='+steps['2'].lan_subnet+(steps['2'].vlans?.length ? ', '+steps['2'].vlans.length+' VLANs' : '')+'</div>';
-  if (steps['3']) html += '<div style="margin-bottom:8px;"><strong>Tjenester:</strong> DNS='+(steps['3'].dns_servers||[]).join(',')+', NTP='+(steps['3'].ntp_servers||[]).join(',')+'</div>';
-  if (steps['4']) html += '<div style="margin-bottom:8px;"><strong>Sikkerhet:</strong> Web-filter='+(steps['4'].web_filter?'Ja':t('lbl_no','No'))+', IDS='+(steps['4'].ids_ips?'Ja':t('lbl_no','No'))+'</div>';
+  if (steps['1']) html += '<div style="margin-bottom:8px;"><strong>' + t('kunde_2') + '</strong> '+(steps['1'].name||'-')+' @ '+(steps['1'].location||'-')+' ('+steps['1'].device_type+')</div>';
+  if (steps['2']) html += '<div style="margin-bottom:8px;"><strong>' + t('nettverk') + '</strong> WAN='+steps['2'].wan_type+', LAN='+steps['2'].lan_subnet+(steps['2'].vlans?.length ? ', '+steps['2'].vlans.length+' VLANs' : '')+'</div>';
+  if (steps['3']) html += '<div style="margin-bottom:8px;"><strong>' + t('tjenester') + '</strong> DNS='+(steps['3'].dns_servers||[]).join(',')+', NTP='+(steps['3'].ntp_servers||[]).join(',')+'</div>';
+  if (steps['4']) html += '<div style="margin-bottom:8px;"><strong>' + t('sikkerhet') + '</strong> Web-filter='+(steps['4'].web_filter?'Ja':t('lbl_no','No'))+', IDS='+(steps['4'].ids_ips?'Ja':t('lbl_no','No'))+'</div>';
   html += '</div>';
   el.innerHTML = html;
 }
@@ -1898,7 +1898,7 @@ function provisionRenderVlans(vlans) {
     return;
   }
   var html = '<table style="width:100%;font-size:12px;border-collapse:collapse;">'
-    + '<thead><tr style="text-align:left;color:var(--text-muted);"><th style="padding:4px;">Navn</th><th style="padding:4px;">VLAN ID</th><th style="padding:4px;">Subnet</th><th style="padding:4px;width:30px;"></th></tr></thead><tbody>';
+    + '<thead><tr style="text-align:left;color:var(--text-muted);"><th style="padding:4px;">' + t('navn_2') + '</th><th style="padding:4px;">' + t('vlan_id') + '</th><th style="padding:4px;">' + t('subnet') + '</th><th style="padding:4px;width:30px;"></th></tr></thead><tbody>';
   for (var i = 0; i < _provisionVlans.length; i++) {
     var v = _provisionVlans[i];
     html += '<tr style="border-top:1px solid var(--border);">'
@@ -2002,19 +2002,19 @@ function _renderConfigSummary(s) {
 
   // System
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;margin-bottom:16px;">';
-  html += '<div><strong>Hostname:</strong> ' + esc(s.hostname || '') + '</div>';
-  html += '<div><strong>FortiGate:</strong> ' + esc(s.fortigate_host || '') + ':' + (s.fortigate_port || 443) + '</div>';
-  html += '<div><strong>WAN:</strong> ' + esc(s.wan_interface || '') + ' (' + esc(s.wan_mode || '') + ')</div>';
-  html += '<div><strong>LAN:</strong> ' + esc(s.lan_interface || '') + ' — ' + esc(s.lan_subnet || '') + '</div>';
-  html += '<div><strong>DNS:</strong> ' + esc((s.dns || []).join(', ')) + '</div>';
-  html += '<div><strong>NTP:</strong> ' + esc((s.ntp || []).join(', ')) + '</div>';
+  html += '<div><strong>' + t('hostname') + '</strong> ' + esc(s.hostname || '') + '</div>';
+  html += '<div><strong>' + t('fortigate') + '</strong> ' + esc(s.fortigate_host || '') + ':' + (s.fortigate_port || 443) + '</div>';
+  html += '<div><strong>' + t('wan') + '</strong> ' + esc(s.wan_interface || '') + ' (' + esc(s.wan_mode || '') + ')</div>';
+  html += '<div><strong>' + t('lan') + '</strong> ' + esc(s.lan_interface || '') + ' — ' + esc(s.lan_subnet || '') + '</div>';
+  html += '<div><strong>' + t('dns') + '</strong> ' + esc((s.dns || []).join(', ')) + '</div>';
+  html += '<div><strong>' + t('ntp') + '</strong> ' + esc((s.ntp || []).join(', ')) + '</div>';
   html += '</div>';
 
   // VLANs
   if (s.vlans && s.vlans.length) {
     html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">VLANs</div>';
     html += '<table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:16px;">';
-    html += '<thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);"><th style="padding:4px 8px;">ID</th><th style="padding:4px 8px;">Navn</th><th style="padding:4px 8px;">Interface</th><th style="padding:4px 8px;">Subnet</th><th style="padding:4px 8px;">Gateway</th><th style="padding:4px 8px;">DHCP</th></tr></thead><tbody>';
+    html += '<thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);"><th style="padding:4px 8px;">ID</th><th style="padding:4px 8px;">' + t('navn_3') + '</th><th style="padding:4px 8px;">' + t('interface') + '</th><th style="padding:4px 8px;">' + t('subnet') + '</th><th style="padding:4px 8px;">' + t('gateway_2') + '</th><th style="padding:4px 8px;">DHCP</th></tr></thead><tbody>';
     s.vlans.forEach(function(v) {
       html += '<tr style="border-bottom:1px solid var(--border);">';
       html += '<td style="padding:4px 8px;font-family:var(--mono);">' + v.id + '</td>';
@@ -2032,15 +2032,15 @@ function _renderConfigSummary(s) {
   if (s.vpn) {
     html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">IPsec VPN — ' + esc(s.vpn.name || '') + '</div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:16px;">';
-    html += '<div><strong>Type:</strong> ' + esc(s.vpn.type) + '</div>';
-    html += '<div><strong>WAN:</strong> ' + esc(s.vpn.wan_interface) + '</div>';
-    html += '<div><strong>Kryptering:</strong> ' + esc(s.vpn.proposal) + '</div>';
-    html += '<div><strong>DH-gruppe:</strong> ' + esc(s.vpn.dh_group) + '</div>';
-    html += '<div><strong>Tunnel-pool:</strong> ' + esc(s.vpn.tunnel_pool) + '</div>';
-    html += '<div><strong>Split-tunnel:</strong> ' + esc(s.vpn.split_tunnel) + '</div>';
+    html += '<div><strong>' + t('type_3') + '</strong> ' + esc(s.vpn.type) + '</div>';
+    html += '<div><strong>' + t('wan') + '</strong> ' + esc(s.vpn.wan_interface) + '</div>';
+    html += '<div><strong>' + t('kryptering') + '</strong> ' + esc(s.vpn.proposal) + '</div>';
+    html += '<div><strong>' + t('dh_gruppe') + '</strong> ' + esc(s.vpn.dh_group) + '</div>';
+    html += '<div><strong>' + t('tunnel_pool') + '</strong> ' + esc(s.vpn.tunnel_pool) + '</div>';
+    html += '<div><strong>' + t('split_tunnel') + '</strong> ' + esc(s.vpn.split_tunnel) + '</div>';
     html += '<div style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">';
-    html += '<strong>Bruker:</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;">' + esc(s.vpn.user) + '</code>';
-    html += ' &nbsp; <strong>Passord:</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'Kopiert\',\'success\',1500)">' + esc(s.vpn.user_password) + '</code>';
+    html += '<strong>' + t('bruker') + '</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;">' + esc(s.vpn.user) + '</code>';
+    html += ' &nbsp; <strong>' + t('passord_2') + '</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'Kopiert\',\'success\',1500)">' + esc(s.vpn.user_password) + '</code>';
     html += '</div>';
     html += '<div style="grid-column:1/-1;">';
     html += '<strong>PSK:</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;word-break:break-all;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'Kopiert\',\'success\',1500)">' + esc(s.vpn.psk) + '</code>';
@@ -2049,7 +2049,7 @@ function _renderConfigSummary(s) {
 
   // Security
   if (s.security_profiles) {
-    html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">Sikkerhetsprofiler</div>';
+    html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">' + t('sikkerhetsprofiler') + '</div>';
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">';
     var sp = s.security_profiles;
     for (var k in sp) {
@@ -2185,8 +2185,8 @@ async function dashLoadFortiGates() {
   html += '</div>';
 
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-  html += '<button class="btn btn-ghost" onclick="dashLoadFortiGates()" style="padding:4px 12px;font-size:11px;">Oppdater</button>';
-  html += '<button class="btn btn-primary" onclick="fgBackupAll()" style="padding:4px 12px;font-size:11px;">Backup alle</button>';
+  html += '<button class="btn btn-ghost" onclick="dashLoadFortiGates()" style="padding:4px 12px;font-size:11px;">' + t('oppdater') + '</button>';
+  html += '<button class="btn btn-primary" onclick="fgBackupAll()" style="padding:4px 12px;font-size:11px;">' + t('backup_alle') + '</button>';
   html += '</div>';
 
   // ── Device cards: strict 3-row grid ──
@@ -2259,7 +2259,7 @@ function dashFgDetail(customerId) {
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
     h += '<div style="font-size:14px;font-weight:700;">'+t('hdr_fg_detail','FortiGate Detail')+'</div>';
     h += '<div style="display:flex;gap:8px;align-items:center;">';
-    h += '<button class="btn btn-primary" onclick="fgBackupConfig(\''+customerId+'\')" style="padding:4px 12px;font-size:11px;">Backup config</button>';
+    h += '<button class="btn btn-primary" onclick="fgBackupConfig(\''+customerId+'\')" style="padding:4px 12px;font-size:11px;">' + t('backup_config') + '</button>';
     h += '<button class="btn btn-ghost" onclick="fgShowBackups(\''+customerId+'\')" style="padding:4px 12px;font-size:11px;">'+t('btn_backup_history','Backup-historikk')+'</button>';
     h += '<button class="btn btn-ghost" onclick="document.getElementById(\'fg-detail-'+customerId+'\').remove()" style="padding:2px 8px;font-size:11px;">'+t('btn_close','Close')+'</button>';
     h += '</div></div>';
@@ -2299,7 +2299,7 @@ function dashFgDetail(customerId) {
       h += '</div>';
       if (audit.issues && audit.issues.length) {
         h += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-        h += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px 6px;">Policy</th><th style="text-align:center;padding:4px 6px;">'+t('col_issue','Issue')+'</th><th style="text-align:center;padding:4px 6px;">'+t('col_severity','Severity')+'</th><th style="text-align:left;padding:4px 6px;">'+t('col_detail','Detail')+'</th></tr></thead><tbody>';
+        h += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px 6px;">' + t('policy') + '</th><th style="text-align:center;padding:4px 6px;">'+t('col_issue','Issue')+'</th><th style="text-align:center;padding:4px 6px;">'+t('col_severity','Severity')+'</th><th style="text-align:left;padding:4px 6px;">'+t('col_detail','Detail')+'</th></tr></thead><tbody>';
         audit.issues.forEach(function(iss) {
           var ic = iss.severity==='critical'?'var(--red)':'var(--orange)';
           h += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 6px;font-weight:500;">'+esc(iss.name||'Policy '+iss.policy_id)+'</td><td style="padding:3px 6px;text-align:center;"><span style="font-size:10px;background:var(--bg-tertiary);padding:1px 6px;border-radius:8px;">'+esc(iss.issue)+'</span></td><td style="padding:3px 6px;text-align:center;color:'+ic+';font-weight:600;">'+esc(iss.severity)+'</td><td style="padding:3px 6px;color:var(--text-muted);">'+esc(iss.detail)+'</td></tr>';
@@ -2313,7 +2313,7 @@ function dashFgDetail(customerId) {
     // ── Live device data: interfaces, VPN, DHCP, DNS, admins ──
     if (dev) {
       h += '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">';
-      h += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Live-data</div>';
+      h += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('live_data') + '</div>';
 
       // KPI row
       var liveKpis = [];
@@ -2330,7 +2330,7 @@ function dashFgDetail(customerId) {
       // Interfaces
       if (ex.interfaces && ex.interfaces.length) {
         h += '<div style="font-size:12px;font-weight:600;margin:10px 0 6px;">Grensesnitt ('+ex.interfaces.length+')</div>';
-        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">Navn</th><th>Type</th><th>IP</th><th>Link</th><th>Hastighet</th></tr></thead><tbody>';
+        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('navn_3') + '</th><th>' + t('type_3') + '</th><th>IP</th><th>' + t('link') + '</th><th>' + t('hastighet') + '</th></tr></thead><tbody>';
         ex.interfaces.forEach(function(iface) {
           if (!iface.ip || iface.ip === '0.0.0.0') return;
           var linkColor = iface.link ? 'var(--green)' : 'var(--red)';
@@ -2342,7 +2342,7 @@ function dashFgDetail(customerId) {
       // VPN tunnels
       if (ex.vpn_tunnels && ex.vpn_tunnels.length) {
         h += '<div style="font-size:12px;font-weight:600;margin:12px 0 6px;">VPN-tunneler ('+ex.vpn_tunnels.length+')</div>';
-        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">Navn</th><th>Remote GW</th><th>Status</th></tr></thead><tbody>';
+        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('navn_3') + '</th><th>' + t('remote_gw') + '</th><th>' + t('status_3') + '</th></tr></thead><tbody>';
         ex.vpn_tunnels.forEach(function(v) {
           var vpnColor = v.status === 'up' ? 'var(--green)' : 'var(--red)';
           h += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px;font-weight:600;">'+esc(v.name)+'</td><td style="padding:4px;font-family:var(--mono);font-size:10px;">'+esc(v.remote_gw||'-')+'</td><td style="padding:4px;"><span style="color:'+vpnColor+';">'+(v.status||'unknown')+'</span></td></tr>';
@@ -2353,7 +2353,7 @@ function dashFgDetail(customerId) {
       // SSL VPN active users
       if (ex.ssl_vpn_users && ex.ssl_vpn_users.length) {
         h += '<div style="font-size:12px;font-weight:600;margin:12px 0 6px;">SSL VPN-brukere ('+ex.ssl_vpn_users.length+' aktive)</div>';
-        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">Bruker</th><th>Remote IP</th><th>Tunnel IP</th><th>Varighet</th></tr></thead><tbody>';
+        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('bruker') + '</th><th>' + t('remote_ip') + '</th><th>' + t('tunnel_ip') + '</th><th>' + t('varighet') + '</th></tr></thead><tbody>';
         ex.ssl_vpn_users.forEach(function(u) {
           var dur = u.duration > 3600 ? Math.floor(u.duration/3600)+'t '+Math.floor((u.duration%3600)/60)+'m' : Math.floor(u.duration/60)+'m';
           h += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px;font-weight:500;">'+esc(u.user)+'</td><td style="padding:4px;font-family:var(--mono);font-size:10px;">'+esc(u.remote_ip)+'</td><td style="padding:4px;font-family:var(--mono);font-size:10px;">'+esc(u.tunnel_ip)+'</td><td style="padding:4px;">'+dur+'</td></tr>';
@@ -2373,7 +2373,7 @@ function dashFgDetail(customerId) {
         if (badPolicies.length) h += ' <span style="color:var(--red);font-weight:400;">— '+badPolicies.length+' accept any/any/any</span>';
         if (noProfile.length) h += ' <span style="color:var(--orange);font-weight:400;">— '+noProfile.length+' uten sikkerhetsprofil</span>';
         h += '</div>';
-        h += '<div style="overflow-x:auto;"><table style="width:100%;font-size:10px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:3px;">#</th><th style="text-align:left;padding:3px;">Navn</th><th style="text-align:left;padding:3px;">Inn</th><th style="text-align:left;padding:3px;">Ut</th><th style="text-align:left;padding:3px;">Kilde</th><th style="text-align:left;padding:3px;">Dest</th><th style="text-align:left;padding:3px;">Tjeneste</th><th>Aksjon</th><th>NAT</th><th>Logg</th><th style="text-align:left;padding:3px;">Sikkerhet</th></tr></thead><tbody>';
+        h += '<div style="overflow-x:auto;"><table style="width:100%;font-size:10px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:3px;">#</th><th style="text-align:left;padding:3px;">' + t('navn_4') + '</th><th style="text-align:left;padding:3px;">' + t('inn') + '</th><th style="text-align:left;padding:3px;">' + t('ut') + '</th><th style="text-align:left;padding:3px;">' + t('kilde') + '</th><th style="text-align:left;padding:3px;">' + t('dest') + '</th><th style="text-align:left;padding:3px;">' + t('tjeneste_3') + '</th><th>' + t('aksjon') + '</th><th>NAT</th><th>' + t('logg') + '</th><th style="text-align:left;padding:3px;">' + t('sikkerhet') + '</th></tr></thead><tbody>';
         ex.policies.forEach(function(p) {
           if (p.enabled === false) return; // skip disabled
           var isBad = (p.action==='accept'&&p.src==='all'&&p.dst==='all'&&p.svc==='ALL');
@@ -2381,7 +2381,7 @@ function dashFgDetail(customerId) {
           var isDeny = (p.action==='deny');
           var rowBg = isBad ? 'background:rgba(255,0,0,0.06);' : isDeny ? 'background:rgba(63,185,80,0.04);' : noProf ? 'background:rgba(255,165,0,0.04);' : '';
           var logColor = (p.log==='all'||p.log==='utm') ? 'var(--green)' : p.action==='deny' ? 'var(--text-muted)' : 'var(--red)';
-          var profHtml = isDeny ? '<span style="color:var(--green);">🛡 Segmentering</span>' : (p.profiles&&p.profiles.length) ? p.profiles.map(function(pr){return '<span style="background:rgba(77,159,181,0.15);padding:1px 4px;border-radius:3px;margin:1px;">'+esc(pr)+'</span>';}).join(' ') : '<span style="color:var(--orange);">ingen</span>';
+          var profHtml = isDeny ? '<span style="color:var(--green);">' + t('segmentering') + '</span>' : (p.profiles&&p.profiles.length) ? p.profiles.map(function(pr){return '<span style="background:rgba(77,159,181,0.15);padding:1px 4px;border-radius:3px;margin:1px;">'+esc(pr)+'</span>';}).join(' ') : '<span style="color:var(--orange);">' + t('ingen_2') + '</span>';
           h += '<tr style="border-bottom:1px solid var(--border);'+rowBg+'">';
           h += '<td style="padding:3px;">'+p.id+'</td>';
           h += '<td style="padding:3px;font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</td>';
@@ -2403,7 +2403,7 @@ function dashFgDetail(customerId) {
       // Static routes
       if (ex.static_routes && ex.static_routes.length) {
         h += '<div style="font-size:12px;font-weight:600;margin:12px 0 6px;">Statiske ruter ('+ex.static_routes.length+')</div>';
-        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">Destinasjon</th><th>Gateway</th><th>Interface</th><th>Distanse</th></tr></thead><tbody>';
+        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('destinasjon') + '</th><th>' + t('gateway_2') + '</th><th>' + t('interface') + '</th><th>' + t('distanse') + '</th></tr></thead><tbody>';
         ex.static_routes.forEach(function(r) {
           h += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px;font-family:var(--mono);font-size:10px;">'+esc(r.dst)+'</td><td style="padding:4px;font-family:var(--mono);font-size:10px;">'+esc(r.gateway)+'</td><td style="padding:4px;">'+esc(r.device)+'</td><td style="padding:4px;">'+r.distance+'</td></tr>';
         });
@@ -2413,7 +2413,7 @@ function dashFgDetail(customerId) {
       // SD-WAN status
       if (ex.sdwan && ex.sdwan.members && ex.sdwan.members.length) {
         h += '<div style="font-size:12px;font-weight:600;margin:12px 0 6px;">SD-WAN</div>';
-        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">Interface</th><th>Status</th><th>Latency</th><th>Jitter</th><th>Pakketap</th></tr></thead><tbody>';
+        h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('interface') + '</th><th>' + t('status_3') + '</th><th>' + t('latency') + '</th><th>' + t('jitter') + '</th><th>' + t('pakketap') + '</th></tr></thead><tbody>';
         ex.sdwan.members.forEach(function(m) {
           var sColor = m.status==='up'||m.status==='alive' ? 'var(--green)' : 'var(--red)';
           var plColor = m.packet_loss > 1 ? 'var(--red)' : 'var(--green)';
@@ -2432,7 +2432,7 @@ function dashFgDetail(customerId) {
       }
       if (ex.dns && ex.dns.primary) {
         h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">DNS</div>';
-        h += '<div style="font-size:10px;color:var(--text-muted);">Primær: <strong>'+esc(ex.dns.primary)+'</strong></div>';
+        h += '<div style="font-size:10px;color:var(--text-muted);">' + t('primaer') + ' <strong>'+esc(ex.dns.primary)+'</strong></div>';
         if (ex.dns.secondary) h += '<div style="font-size:10px;color:var(--text-muted);">Sekundær: '+esc(ex.dns.secondary)+'</div>';
         h += '</div>';
       }
@@ -2448,7 +2448,7 @@ function dashFgDetail(customerId) {
         h += '</div>';
       }
       if (ex.license_expiry && Object.keys(ex.license_expiry).length) {
-        h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">FortiGuard-lisenser</div>';
+        h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">' + t('fortiguard_lisenser') + '</div>';
         Object.keys(ex.license_expiry).forEach(function(k) {
           var lic = ex.license_expiry[k];
           var expDate = lic.expires ? new Date(lic.expires * 1000) : null;
@@ -2461,9 +2461,9 @@ function dashFgDetail(customerId) {
       if (ex.log_stats && ex.log_stats.total_bytes) {
         var logPct = ex.log_stats.used_pct || 0;
         var logColor = logPct > 90 ? 'var(--red)' : logPct > 70 ? 'var(--orange)' : 'var(--green)';
-        h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">Logg-lagring</div>';
+        h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">' + t('logg_lagring') + '</div>';
         h += '<div style="font-size:16px;font-weight:700;color:'+logColor+';">'+logPct+'%</div>';
-        h += '<div style="font-size:10px;color:var(--text-muted);">brukt</div>';
+        h += '<div style="font-size:10px;color:var(--text-muted);">' + t('brukt_2') + '</div>';
         h += '</div>';
       }
 
@@ -2528,7 +2528,7 @@ async function claudeSaveSettings() {
   if (mode === 'api' && !key) { msg.innerHTML = '<span style="color:var(--red);">' + t('err_fill_api_key','Enter API key') + '</span>'; return; }
   var data = await apiFetch('/api/claude/settings', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key, mode:mode, model:model})});
   if (data && data.ok) {
-    msg.innerHTML = '<span style="color:var(--green);">Lagret!</span>';
+    msg.innerHTML = '<span style="color:var(--green);">' + t('lagret_3') + '</span>';
     claudeLoadSaved();
   } else {
     msg.innerHTML = '<span style="color:var(--red);">'+(data&&data.error||t('status_error','Error'))+'</span>';
@@ -2557,7 +2557,7 @@ async function fgBootstrap() {
   var status = document.getElementById('fg-bootstrap-status');
   var resultBox = document.getElementById('fg-bootstrap-result');
 
-  if (!host) { showToast('Angi FortiGate IP-adresse', 'warning'); return; }
+  if (!host) { showToast(t('angi_fortigate_ip_adresse'), 'warning'); return; }
 
   btn.disabled = true;
   status.textContent = 'Kobler til ' + host + ' med fabrikkinnstillinger...';
@@ -2571,23 +2571,23 @@ async function fgBootstrap() {
     });
 
     if (d && d.ok) {
-      status.innerHTML = '<span style="color:var(--green);font-weight:600;">Ferdig!</span>';
+      status.innerHTML = '<span style="color:var(--green);font-weight:600;">' + t('ferdig') + '</span>';
       resultBox.style.display = 'block';
       resultBox.innerHTML =
-        '<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--green);">FortiGate konfigurert</div>' +
+        '<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--green);">' + t('fortigate_konfigurert') + '</div>' +
         '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
-        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">Host</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.host) + '</td></tr>' +
-        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">Admin passord</td><td style="padding:4px 8px;"><code style="background:var(--bg);padding:2px 6px;border-radius:4px;user-select:all;font-size:13px;font-weight:600;">' + esc(d.admin_password) + '</code></td></tr>' +
-        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">API-bruker</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.api_admin) + '</td></tr>' +
-        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">API-token</td><td style="padding:4px 8px;"><code style="background:var(--bg);padding:2px 6px;border-radius:4px;user-select:all;font-size:13px;font-weight:600;">' + esc(d.api_token) + '</code></td></tr>' +
+        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">' + t('host_2') + '</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.host) + '</td></tr>' +
+        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">' + t('admin_passord') + '</td><td style="padding:4px 8px;"><code style="background:var(--bg);padding:2px 6px;border-radius:4px;user-select:all;font-size:13px;font-weight:600;">' + esc(d.admin_password) + '</code></td></tr>' +
+        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">' + t('api_bruker') + '</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.api_admin) + '</td></tr>' +
+        '<tr><td style="padding:4px 8px;font-weight:600;white-space:nowrap;">' + t('api_token_2') + '</td><td style="padding:4px 8px;"><code style="background:var(--bg);padding:2px 6px;border-radius:4px;user-select:all;font-size:13px;font-weight:600;">' + esc(d.api_token) + '</code></td></tr>' +
         '</table>' +
         '<div style="margin-top:10px;display:flex;gap:8px;">' +
-        '<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;" onclick="fgBootstrapAutoFill(\'' + esc(d.host) + '\',\'' + esc(d.api_token) + '\')">Fyll inn og lagre</button>' +
-        '<button class="btn btn-default" style="font-size:11px;padding:4px 12px;" onclick="navigator.clipboard.writeText(\'' + esc(d.api_token) + '\');showToast(\'API-token kopiert\',\'success\')">Kopier token</button>' +
+        '<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;" onclick="fgBootstrapAutoFill(\'' + esc(d.host) + '\',\'' + esc(d.api_token) + '\')">' + t('fyll_inn_og_lagre') + '</button>' +
+        '<button class="btn btn-default" style="font-size:11px;padding:4px 12px;" onclick="navigator.clipboard.writeText(\'' + esc(d.api_token) + '\');showToast(\'API-token kopiert\',\'success\')">' + t('kopier_token') + '</button>' +
         '</div>' +
-        '<div style="margin-top:8px;font-size:11px;color:var(--green);">' + (d.persisted ? 'Credentials er lagret i keyring — kan lastes ned via "Last ned credentials" senere.' : 'ADVARSEL: Credentials ble IKKE persistert' + (d.persist_error ? ' (' + esc(d.persist_error) + ')' : '') + ' — lagre passordet et trygt sted nå.') + '</div>';
+        '<div style="margin-top:8px;font-size:11px;color:var(--green);">' + (d.persisted ? t('msg_creds_in_keyring') : t('msg_creds_not_persisted') + (d.persist_error ? ' (' + esc(d.persist_error) + ')' : '') + ' ' + t('msg_save_password_now')) + '</div>';
 
-      showToast('FortiGate bootstrap fullført!', 'success', 6000);
+      showToast(t('fortigate_bootstrap_fullfoert'), 'success', 6000);
     } else {
       status.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : 'Bootstrap feilet') + '</span>';
       if (d && d.steps) {
@@ -2596,16 +2596,16 @@ async function fgBootstrap() {
       // Show password if it was set (partial success)
       if (d && d.admin_password && d.steps && d.steps.some(function(s) { return s.startsWith('password_set') || s.startsWith('reconnect'); })) {
         resultBox.style.display = 'block';
-        var html = '<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--orange);">Delvis fullført — passord ble satt</div>';
+        var html = '<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--orange);">' + t('delvis_fullfoert_passord_ble_satt') + '</div>';
         html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
-        html += '<tr><td style="padding:4px 8px;font-weight:600;">Host</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.host) + '</td></tr>';
-        html += '<tr><td style="padding:4px 8px;font-weight:600;">Admin passord</td><td style="padding:4px 8px;"><code style="background:var(--bg);padding:2px 6px;border-radius:4px;user-select:all;font-size:13px;font-weight:600;">' + esc(d.admin_password) + '</code></td></tr>';
-        if (d.api_admin) html += '<tr><td style="padding:4px 8px;font-weight:600;">API-bruker</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.api_admin) + '</td></tr>';
+        html += '<tr><td style="padding:4px 8px;font-weight:600;">' + t('host_2') + '</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.host) + '</td></tr>';
+        html += '<tr><td style="padding:4px 8px;font-weight:600;">' + t('admin_passord') + '</td><td style="padding:4px 8px;"><code style="background:var(--bg);padding:2px 6px;border-radius:4px;user-select:all;font-size:13px;font-weight:600;">' + esc(d.admin_password) + '</code></td></tr>';
+        if (d.api_admin) html += '<tr><td style="padding:4px 8px;font-weight:600;">' + t('api_bruker') + '</td><td style="padding:4px 8px;font-family:var(--mono);">' + esc(d.api_admin) + '</td></tr>';
         html += '</table>';
         if (d.raw_output) {
-          html += '<div style="margin-top:8px;font-size:11px;color:var(--text-dim);"><strong>Debug output:</strong><pre style="max-height:150px;overflow:auto;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:10px;margin-top:4px;">' + esc(d.raw_output) + '</pre></div>';
+          html += '<div style="margin-top:8px;font-size:11px;color:var(--text-dim);"><strong>' + t('debug_output') + '</strong><pre style="max-height:150px;overflow:auto;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:10px;margin-top:4px;">' + esc(d.raw_output) + '</pre></div>';
         }
-        html += '<div style="margin-top:8px;font-size:11px;color:var(--orange);">Lagre passordet — opprett API-nøkkel manuelt via FortiGate GUI.</div>';
+        html += '<div style="margin-top:8px;font-size:11px;color:var(--orange);">' + t('lagre_passordet_opprett_api_noekkel_manu') + '</div>';
         resultBox.innerHTML = html;
       }
     }
@@ -2632,11 +2632,11 @@ async function fgDownloadCredentials() {
       active = st && st._id;
     } catch (e) {}
   }
-  if (!active) { showToast('Ingen aktiv kunde', 'warning'); return; }
+  if (!active) { showToast(t('err_no_active_customer'), 'warning'); return; }
 
   try {
     var d = await apiFetch('/api/fortigate/credentials/' + encodeURIComponent(active));
-    if (!d || !d.ok) { showToast('Ingen lagrede credentials', 'warning'); return; }
+    if (!d || !d.ok) { showToast(t('ingen_lagrede_credentials'), 'warning'); return; }
 
     var lines = [
       '# FortiGate credentials',
@@ -2667,7 +2667,7 @@ async function fgDownloadCredentials() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('Credentials lastet ned', 'success');
+    showToast(t('credentials_lastet_ned'), 'success');
   } catch (e) {
     showToast(e.message || 'Kunne ikke hente credentials', 'error');
   }
@@ -2763,7 +2763,7 @@ async function dashLoadUnifiAll() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
   var data = await apiFetch('/api/unifi/all');
-  if (!data) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">Kunne ikke hente UniFi-data</div>'; return; }
+  if (!data) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('kunne_ikke_hente_unifi_data') + '</div>'; return; }
 
   var devices = data.devices || [];
   var summary = data.summary || {};
@@ -2800,7 +2800,7 @@ async function dashLoadUnifiAll() {
       html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
       html += '<span style="width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0;"></span>';
       html += '<strong style="flex:1;font-size:14px;margin-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📡 '+esc(d.name||'-')+'</strong>';
-      if (d.source === 'site_manager') html += '<span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px;flex-shrink:0;">Cloud</span>';
+      if (d.source === 'site_manager') html += '<span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px;flex-shrink:0;">' + t('cloud') + '</span>';
       html += '</div>';
 
       // ROW 2 — Subtitle
@@ -2808,13 +2808,13 @@ async function dashLoadUnifiAll() {
 
       // ROW 3 — Stats grid (enriched)
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:12px;color:var(--text-muted);align-content:start;padding-top:6px;">';
-      html += '<span>Modell: <strong style="color:var(--text);">'+(d.model||'-')+'</strong></span>';
+      html += '<span>' + t('modell') + ' <strong style="color:var(--text);">'+(d.model||'-')+'</strong></span>';
       html += '<span>FW: '+(d.firmware||'-')+'</span>';
-      html += '<span>Klienter: <strong>'+(d.clients!=null?d.clients:'-')+'</strong></span>';
+      html += '<span>' + t('klienter') + ' <strong>'+(d.clients!=null?d.clients:'-')+'</strong></span>';
       if (d.source === 'site_manager') {
-        html += '<span>Enheter: <strong>'+(d.device_count||0)+'</strong>'+(d.offline_devices?' <span style="color:var(--red);">('+d.offline_devices+' off)</span>':'')+'</span>';
+        html += '<span>' + t('enheter') + ' <strong>'+(d.device_count||0)+'</strong>'+(d.offline_devices?' <span style="color:var(--red);">('+d.offline_devices+' off)</span>':'')+'</span>';
         html += '<span>Sites: '+(d.site_count||0)+'</span>';
-        if (d.ip) html += '<span>WAN: <code style="font-size:11px;">'+esc(d.ip)+'</code></span>';
+        if (d.ip) html += '<span>' + t('wan') + ' <code style="font-size:11px;">'+esc(d.ip)+'</code></span>';
         if (d.isp) html += '<span>ISP: '+esc(d.isp)+'</span>';
         if (d.uptime) html += '<span>Uptime: '+_formatUptime(d.uptime)+'</span>';
         // Aggregate alerts from sub_sites
@@ -2833,7 +2833,7 @@ async function dashLoadUnifiAll() {
     });
     html += '</div>';
   } else {
-    html += '<div style="color:var(--text-muted);text-align:center;padding:24px;">'+summary.configured_customers+' kunder konfigurert, venter på data...</div>';
+    html += '<div style="color:var(--text-muted);text-align:center;padding:24px;">'+summary.configured_customers+' ' + t('msg_customers_awaiting_data') + '</div>';
   }
 
   el.innerHTML = html;
@@ -2862,34 +2862,34 @@ function dashUnifiDetail(idx) {
   // Header
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
   h += '<div style="font-size:16px;font-weight:700;">📡 '+esc(d.name||'-');
-  if (d.source === 'site_manager') h += ' <span style="font-size:11px;background:var(--blue);color:#fff;padding:2px 8px;border-radius:8px;vertical-align:middle;">Cloud</span>';
+  if (d.source === 'site_manager') h += ' <span style="font-size:11px;background:var(--blue);color:#fff;padding:2px 8px;border-radius:8px;vertical-align:middle;">' + t('cloud') + '</span>';
   h += '</div>';
   h += '<button class="btn btn-ghost" onclick="document.getElementById(\''+panelId+'\').remove()" style="padding:2px 8px;font-size:11px;">'+t('btn_close','Lukk')+'</button>';
   h += '</div>';
 
   // ── Console info grid ──
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 20px;font-size:13px;margin-bottom:16px;">';
-  h += '<div><span style="color:var(--text-muted);">Status:</span> <strong style="color:'+color+';">'+(d.status==='online'?'Online':'Offline')+'</strong></div>';
-  h += '<div><span style="color:var(--text-muted);">Modell:</span> <strong>'+esc(d.model_full||d.model||'-')+'</strong></div>';
-  h += '<div><span style="color:var(--text-muted);">Firmware:</span> '+esc(d.firmware||'-')+'</div>';
-  if (d.app_version) h += '<div><span style="color:var(--text-muted);">App-versjon:</span> '+esc(d.app_version)+'</div>';
-  if (d.ip) h += '<div><span style="color:var(--text-muted);">WAN IP:</span> <code style="font-size:12px;">'+esc(d.ip)+'</code></div>';
-  if (d.mac) h += '<div><span style="color:var(--text-muted);">MAC:</span> <code style="font-size:12px;">'+esc(d.mac)+'</code></div>';
-  if (d.serial) h += '<div><span style="color:var(--text-muted);">Serienr:</span> <code style="font-size:12px;">'+esc(d.serial)+'</code></div>';
-  if (d.isp) h += '<div><span style="color:var(--text-muted);">ISP:</span> '+esc(d.isp)+'</div>';
-  if (d.uptime) h += '<div><span style="color:var(--text-muted);">Uptime:</span> '+_formatUptime(d.uptime)+'</div>';
-  if (d.timezone) h += '<div><span style="color:var(--text-muted);">Tidssone:</span> '+esc(d.timezone)+'</div>';
-  if (d.release_channel) h += '<div><span style="color:var(--text-muted);">Kanal:</span> '+esc(d.release_channel)+'</div>';
-  if (d.version) h += '<div><span style="color:var(--text-muted);">UniFi OS:</span> '+esc(d.version)+'</div>';
-  if (d.hostname) h += '<div><span style="color:var(--text-muted);">Hostname:</span> '+esc(d.hostname)+'</div>';
-  if (d.internal_ip) h += '<div><span style="color:var(--text-muted);">Intern IP:</span> <code style="font-size:12px;">'+esc(d.internal_ip)+'</code></div>';
-  if (d.direct_connect_domain) h += '<div><span style="color:var(--text-muted);">Direct Connect:</span> <code style="font-size:11px;">'+esc(d.direct_connect_domain)+'</code></div>';
-  if (d.country) h += '<div><span style="color:var(--text-muted);">Land:</span> '+esc(d.country)+'</div>';
-  if (d.cpu_id) h += '<div><span style="color:var(--text-muted);">CPU:</span> '+esc(d.cpu_id)+'</div>';
-  if (d.firmware_update) h += '<div><span style="color:var(--orange);">⬆ FW-oppdatering:</span> '+esc(d.firmware_update)+'</div>';
-  if (d.unadopted_devices) h += '<div><span style="color:var(--orange);">Uadopterte enheter:</span> '+d.unadopted_devices+'</div>';
-  if (d.device_error) h += '<div><span style="color:var(--red);">Feilkode:</span> '+d.device_error+'</div>';
-  if (d.is_blocked) h += '<div><span style="color:var(--red);font-weight:600;">⛔ Blokkert</span></div>';
+  h += '<div><span style="color:var(--text-muted);">' + t('status_3') + '</span> <strong style="color:'+color+';">'+(d.status==='online'?'Online':'Offline')+'</strong></div>';
+  h += '<div><span style="color:var(--text-muted);">' + t('modell') + '</span> <strong>'+esc(d.model_full||d.model||'-')+'</strong></div>';
+  h += '<div><span style="color:var(--text-muted);">' + t('firmware_2') + '</span> '+esc(d.firmware||'-')+'</div>';
+  if (d.app_version) h += '<div><span style="color:var(--text-muted);">' + t('app_versjon') + '</span> '+esc(d.app_version)+'</div>';
+  if (d.ip) h += '<div><span style="color:var(--text-muted);">' + t('wan_ip') + '</span> <code style="font-size:12px;">'+esc(d.ip)+'</code></div>';
+  if (d.mac) h += '<div><span style="color:var(--text-muted);">' + t('mac') + '</span> <code style="font-size:12px;">'+esc(d.mac)+'</code></div>';
+  if (d.serial) h += '<div><span style="color:var(--text-muted);">' + t('serienr') + '</span> <code style="font-size:12px;">'+esc(d.serial)+'</code></div>';
+  if (d.isp) h += '<div><span style="color:var(--text-muted);">' + t('isp') + '</span> '+esc(d.isp)+'</div>';
+  if (d.uptime) h += '<div><span style="color:var(--text-muted);">' + t('uptime') + '</span> '+_formatUptime(d.uptime)+'</div>';
+  if (d.timezone) h += '<div><span style="color:var(--text-muted);">' + t('tidssone') + '</span> '+esc(d.timezone)+'</div>';
+  if (d.release_channel) h += '<div><span style="color:var(--text-muted);">' + t('kanal') + '</span> '+esc(d.release_channel)+'</div>';
+  if (d.version) h += '<div><span style="color:var(--text-muted);">' + t('unifi_os') + '</span> '+esc(d.version)+'</div>';
+  if (d.hostname) h += '<div><span style="color:var(--text-muted);">' + t('hostname') + '</span> '+esc(d.hostname)+'</div>';
+  if (d.internal_ip) h += '<div><span style="color:var(--text-muted);">' + t('intern_ip') + '</span> <code style="font-size:12px;">'+esc(d.internal_ip)+'</code></div>';
+  if (d.direct_connect_domain) h += '<div><span style="color:var(--text-muted);">' + t('direct_connect') + '</span> <code style="font-size:11px;">'+esc(d.direct_connect_domain)+'</code></div>';
+  if (d.country) h += '<div><span style="color:var(--text-muted);">' + t('land') + '</span> '+esc(d.country)+'</div>';
+  if (d.cpu_id) h += '<div><span style="color:var(--text-muted);">' + t('cpu') + '</span> '+esc(d.cpu_id)+'</div>';
+  if (d.firmware_update) h += '<div><span style="color:var(--orange);">' + t('fw_oppdatering') + '</span> '+esc(d.firmware_update)+'</div>';
+  if (d.unadopted_devices) h += '<div><span style="color:var(--orange);">' + t('uadopterte_enheter') + '</span> '+d.unadopted_devices+'</div>';
+  if (d.device_error) h += '<div><span style="color:var(--red);">' + t('feilkode') + '</span> '+d.device_error+'</div>';
+  if (d.is_blocked) h += '<div><span style="color:var(--red);font-weight:600;">' + t('blokkert') + '</span></div>';
   h += '</div>';
 
   // ── KPI row ──
@@ -2922,17 +2922,17 @@ function dashUnifiDetail(idx) {
     h += '<div style="overflow-x:auto;">';
     h += '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px;">';
     h += '<thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);font-size:11px;">';
-    h += '<th style="text-align:left;padding:6px 8px;">Site</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">Enheter</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">Klienter</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">WiFi</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">WAN Up</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">Gjester</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">Offline</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">Oppd.</th>';
+    h += '<th style="text-align:left;padding:6px 8px;">' + t('site_2') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('enheter') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('klienter') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('wifi') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('wan_up') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('gjester') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('offline_2') + '</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('oppd') + '</th>';
     h += '<th style="text-align:center;padding:6px 4px;">WAN</th>';
-    h += '<th style="text-align:center;padding:6px 4px;">Varsler</th>';
-    h += '<th style="text-align:left;padding:6px 4px;">Gateway</th>';
+    h += '<th style="text-align:center;padding:6px 4px;">' + t('varsler_3') + '</th>';
+    h += '<th style="text-align:left;padding:6px 4px;">' + t('gateway_2') + '</th>';
     h += '<th style="text-align:left;padding:6px 4px;">ISP</th>';
     h += '</tr></thead><tbody>';
 
@@ -2988,12 +2988,12 @@ function dashUnifiDetail(idx) {
     if (wanCount) avgWanUp = Math.round(avgWanUp * 10 / wanCount) / 10;
 
     h += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;background:var(--bg-input);border-radius:6px;font-size:12px;">';
-    h += '<span>Totalt: <strong>'+totalDev+'</strong> enheter</span>';
-    h += '<span><strong>'+totalCli+'</strong> klienter</span>';
-    if (avgWanUp) { var wC = avgWanUp>=99?'var(--green)':avgWanUp>=95?'var(--orange)':'var(--red)'; h += '<span>WAN uptime: <strong style="color:'+wC+';">'+avgWanUp+'%</strong></span>'; }
-    if (totalOff) h += '<span style="color:var(--red);"><strong>'+totalOff+'</strong> offline</span>';
-    if (totalUpd) h += '<span style="color:var(--orange);"><strong>'+totalUpd+'</strong> ventende oppdateringer</span>';
-    if (totalCrit) h += '<span style="color:var(--red);"><strong>'+totalCrit+'</strong> kritiske varsler</span>';
+    h += '<span>' + t('totalt') + ' <strong>'+totalDev+'</strong> ' + t('enheter_2') + '</span>';
+    h += '<span><strong>'+totalCli+'</strong> ' + t('klienter_2') + '</span>';
+    if (avgWanUp) { var wC = avgWanUp>=99?'var(--green)':avgWanUp>=95?'var(--orange)':'var(--red)'; h += '<span>' + t('wan_uptime') + ' <strong style="color:'+wC+';">'+avgWanUp+'%</strong></span>'; }
+    if (totalOff) h += '<span style="color:var(--red);"><strong>'+totalOff+'</strong> ' + t('offline_2') + '</span>';
+    if (totalUpd) h += '<span style="color:var(--orange);"><strong>'+totalUpd+'</strong> ' + t('ventende_oppdateringer') + '</span>';
+    if (totalCrit) h += '<span style="color:var(--red);"><strong>'+totalCrit+'</strong> ' + t('kritiske_varsler') + '</span>';
     h += '</div>';
   }
 
@@ -3029,15 +3029,15 @@ async function _loadUnifiDevices(panelId, hostId) {
   var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Enheter ('+devs.length+')</div>';
   h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:800px;">';
   h += '<thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);font-size:11px;">';
-  h += '<th style="text-align:left;padding:6px 8px;">Enhet</th>';
-  h += '<th style="text-align:left;padding:6px 4px;">Modell</th>';
+  h += '<th style="text-align:left;padding:6px 8px;">' + t('enhet') + '</th>';
+  h += '<th style="text-align:left;padding:6px 4px;">' + t('modell') + '</th>';
   h += '<th style="text-align:left;padding:6px 4px;">IP</th>';
-  h += '<th style="text-align:center;padding:6px 4px;">Status</th>';
-  h += '<th style="text-align:left;padding:6px 4px;">Type</th>';
+  h += '<th style="text-align:center;padding:6px 4px;">' + t('status_3') + '</th>';
+  h += '<th style="text-align:left;padding:6px 4px;">' + t('type_3') + '</th>';
   h += '<th style="text-align:left;padding:6px 4px;">FW</th>';
-  h += '<th style="text-align:left;padding:6px 4px;">Uptime</th>';
-  h += '<th style="text-align:left;padding:6px 4px;">Adoptert</th>';
-  h += '<th style="text-align:left;padding:6px 4px;">Notat</th>';
+  h += '<th style="text-align:left;padding:6px 4px;">' + t('uptime_2') + '</th>';
+  h += '<th style="text-align:left;padding:6px 4px;">' + t('adoptert') + '</th>';
+  h += '<th style="text-align:left;padding:6px 4px;">' + t('notat') + '</th>';
   h += '</tr></thead><tbody>';
 
   devs.forEach(function(dv) {
@@ -3045,7 +3045,7 @@ async function _loadUnifiDevices(panelId, hostId) {
     var icon = typeIcons[dv.type] || '📦';
     h += '<tr style="border-bottom:1px solid var(--border);">';
     h += '<td style="padding:5px 8px;">'+icon+' <strong>'+esc(dv.name||dv.mac||'-')+'</strong>';
-    if (dv.is_console) h += ' <span style="font-size:10px;background:var(--blue);color:#fff;padding:0 4px;border-radius:4px;">Console</span>';
+    if (dv.is_console) h += ' <span style="font-size:10px;background:var(--blue);color:#fff;padding:0 4px;border-radius:4px;">' + t('console') + '</span>';
     h += '</td>';
     h += '<td style="padding:5px 4px;">'+esc(dv.model||'-')+' <span style="font-size:10px;color:var(--text-dim);">'+esc(dv.model_full||'')+'</span></td>';
     h += '<td style="padding:5px 4px;"><code style="font-size:11px;">'+esc(dv.ip||'-')+'</code></td>';
@@ -3076,7 +3076,7 @@ async function _loadUnifiIspMetrics(panelId) {
   var data = data24h || data7d;
   if (!data || !data.ok || !data.sites || !data.sites.length) { el.innerHTML = ''; return; }
 
-  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">ISP-ytelse</div>';
+  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('isp_ytelse') + '</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;">';
 
   // Build lookup from 7d data for averages
@@ -3093,35 +3093,35 @@ async function _loadUnifiIspMetrics(panelId) {
     h += '<div style="padding:12px;background:var(--bg-input);border-radius:6px;">';
     h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">'+esc(s.isp||'ISP')+'</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px;">';
-    h += '<div style="color:var(--text-dim);font-size:10px;"></div><div style="color:var(--text-dim);font-size:10px;text-align:center;">Siste</div><div style="color:var(--text-dim);font-size:10px;text-align:center;">Snitt 7d</div>';
+    h += '<div style="color:var(--text-dim);font-size:10px;"></div><div style="color:var(--text-dim);font-size:10px;text-align:center;">' + t('siste') + '</div><div style="color:var(--text-dim);font-size:10px;text-align:center;">' + t('snitt_d') + '</div>';
     // Download
-    h += '<div>↓ Download</div>';
-    h += '<div style="text-align:center;"><strong>'+lat.download_mbps+'</strong> Mbps</div>';
+    h += '<div>' + t('download') + '</div>';
+    h += '<div style="text-align:center;"><strong>'+lat.download_mbps+'</strong> ' + t('mbps') + '</div>';
     h += '<div style="text-align:center;color:var(--text-dim);">-</div>';
     // Upload
-    h += '<div>↑ Upload</div>';
-    h += '<div style="text-align:center;"><strong>'+lat.upload_mbps+'</strong> Mbps</div>';
+    h += '<div>' + t('upload') + '</div>';
+    h += '<div style="text-align:center;"><strong>'+lat.upload_mbps+'</strong> ' + t('mbps') + '</div>';
     h += '<div style="text-align:center;color:var(--text-dim);">-</div>';
     // Latency
     var latC = avg.latency_ms > 50 ? 'var(--red)' : avg.latency_ms > 20 ? 'var(--orange)' : 'var(--green)';
     var latC7 = weekAvg.latency_ms > 50 ? 'var(--red)' : weekAvg.latency_ms > 20 ? 'var(--orange)' : 'var(--green)';
-    h += '<div>Latency</div>';
+    h += '<div>' + t('latency') + '</div>';
     h += '<div style="text-align:center;"><span style="color:'+latC+';font-weight:600;">'+avg.latency_ms+'ms</span></div>';
     h += '<div style="text-align:center;">'+(weekAvg.latency_ms?'<span style="color:'+latC7+';">'+weekAvg.latency_ms+'ms</span>':'-')+'</div>';
     // Packet loss
     var plC = avg.packet_loss > 1 ? 'var(--red)' : avg.packet_loss > 0.1 ? 'var(--orange)' : 'var(--green)';
     var plC7 = weekAvg.packet_loss > 1 ? 'var(--red)' : weekAvg.packet_loss > 0.1 ? 'var(--orange)' : 'var(--green)';
-    h += '<div>Pakketap</div>';
+    h += '<div>' + t('pakketap') + '</div>';
     h += '<div style="text-align:center;"><span style="color:'+plC+';font-weight:600;">'+avg.packet_loss+'%</span></div>';
     h += '<div style="text-align:center;">'+(weekAvg.packet_loss!=null?'<span style="color:'+plC7+';">'+weekAvg.packet_loss+'%</span>':'-')+'</div>';
     // Uptime
     var upC = avg.uptime_pct < 99 ? 'var(--red)' : avg.uptime_pct < 99.9 ? 'var(--orange)' : 'var(--green)';
     var upC7 = weekAvg.uptime_pct < 99 ? 'var(--red)' : weekAvg.uptime_pct < 99.9 ? 'var(--orange)' : 'var(--green)';
-    h += '<div>WAN uptime</div>';
+    h += '<div>' + t('wan_uptime_2') + '</div>';
     h += '<div style="text-align:center;"><span style="color:'+upC+';font-weight:600;">'+avg.uptime_pct+'%</span></div>';
     h += '<div style="text-align:center;">'+(weekAvg.uptime_pct?'<span style="color:'+upC7+';">'+weekAvg.uptime_pct+'%</span>':'-')+'</div>';
     h += '</div>';
-    h += '<div style="font-size:10px;color:var(--text-dim);margin-top:6px;">'+s.data_points+' målinger (24t) '+(weekly.data_points?'/ '+weekly.data_points+' (7d)':'')+'</div>';
+    h += '<div style="font-size:10px;color:var(--text-dim);margin-top:6px;">'+s.data_points+' ' + t('msg_measurements_24h') + ' '+(weekly.data_points?'/ '+weekly.data_points+' (7d)':'')+'</div>';
     h += '</div>';
   });
   h += '</div>';
@@ -3141,7 +3141,7 @@ async function _loadUnifiWan(panelId, subSites) {
   results = results.filter(function(r) { return r && r.data && r.data.ok; });
   if (!results.length) { el.innerHTML = ''; return; }
 
-  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">WAN & Gateway-sikkerhet</div>';
+  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('wan_gateway_sikkerhet') + '</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;">';
 
   results.forEach(function(r) {
@@ -3152,7 +3152,7 @@ async function _loadUnifiWan(panelId, subSites) {
     // Gateway security
     if (gw.model) {
       h += '<div style="font-size:12px;margin-bottom:6px;">';
-      h += '<span style="color:var(--text-muted);">Gateway:</span> <strong>'+esc(gw.model)+'</strong>';
+      h += '<span style="color:var(--text-muted);">' + t('gateway') + '</span> <strong>'+esc(gw.model)+'</strong>';
       var idsColor = gw.ids_mode === 'off' ? 'var(--red)' : 'var(--green)';
       h += ' · IDS: <span style="color:'+idsColor+';font-weight:600;">'+esc(gw.ids_mode)+'</span>';
       if (gw.inspection && gw.inspection !== 'off') h += ' · Inspeksjon: <span style="color:var(--green);">'+esc(gw.inspection)+'</span>';
@@ -3197,7 +3197,7 @@ function _formatUptime(secs) {
 
 async function runPentest() {
   var target = document.getElementById('pentest-target').value.trim();
-  if (!target) { showToast('Skriv inn et target', 'error'); return; }
+  if (!target) { showToast(t('skriv_inn_et_target'), 'error'); return; }
   var scanType = document.getElementById('pentest-type').value;
   var scanMode = document.getElementById('pentest-scan-mode').value;
   var el = document.getElementById('pentest-results');
@@ -3208,7 +3208,7 @@ async function runPentest() {
   var data = await apiFetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
 
   if (!data || !data.ok) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">Feil:</strong> ' + esc(data && data.error ? data.error : 'Ukjent feil') + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data && data.error ? data.error : 'Ukjent feil') + '</div>';
     return;
   }
 
@@ -3234,12 +3234,12 @@ function _renderPentestResults(data, el, target) {
 
   // Network info
   if (data.network && data.network.hosts) {
-    html += '<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:12px;font-weight:600;margin-bottom:6px;">Nettverksskanning</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);">'+data.network.host_count+' verter funnet, '+data.network.total_open_ports+' åpne porter</div>';
+    html += '<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:12px;font-weight:600;margin-bottom:6px;">' + t('nettverksskanning') + '</div>';
+    html += '<div style="font-size:11px;color:var(--text-muted);">'+data.network.host_count+' ' + t('msg_hosts_found') + ', '+data.network.total_open_ports+' ' + t('msg_open_ports') + '</div>';
     data.network.hosts.forEach(function(h) {
       html += '<div style="margin-top:8px;font-size:12px;"><strong>'+esc(h.hostname||h.ip)+'</strong> ('+h.port_count+' porter)'+(h.os?' — '+esc(h.os):'')+'</div>';
       if (h.ports.length) {
-        html += '<table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:4px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:3px;">Port</th><th>Tjeneste</th><th>Produkt</th><th>Versjon</th></tr></thead><tbody>';
+        html += '<table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:4px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:3px;">' + t('port_2') + '</th><th>' + t('tjeneste_3') + '</th><th>' + t('produkt') + '</th><th>' + t('versjon') + '</th></tr></thead><tbody>';
         h.ports.forEach(function(p) {
           html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px;font-weight:500;">'+p.port+'/'+p.protocol+'</td><td style="padding:3px;">'+esc(p.service)+'</td><td style="padding:3px;">'+esc(p.product)+'</td><td style="padding:3px;">'+esc(p.version)+'</td></tr>';
         });
@@ -3252,7 +3252,7 @@ function _renderPentestResults(data, el, target) {
   // Web info
   if (data.web && data.web.info) {
     var wi = data.web.info;
-    html += '<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:12px;font-weight:600;margin-bottom:6px;">Websjekk</div>';
+    html += '<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:12px;font-weight:600;margin-bottom:6px;">' + t('websjekk') + '</div>';
     html += '<div style="font-size:11px;color:var(--text-muted);">Status: '+wi.status_code+' | Server: '+esc(wi.server||'-')+' | URL: '+esc(wi.final_url||wi.url)+'</div>';
     html += '</div>';
   }
@@ -3260,7 +3260,7 @@ function _renderPentestResults(data, el, target) {
   // Findings table
   if (findings.length) {
     html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Funn ('+findings.length+')</div>';
-    html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:center;padding:4px;width:70px;">Alvor</th><th style="text-align:left;padding:4px;">Funn</th><th style="text-align:left;padding:4px;">Detalj</th><th style="text-align:left;padding:4px;">Remediation</th><th style="padding:4px;width:90px;"></th></tr></thead><tbody>';
+    html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:center;padding:4px;width:70px;">' + t('alvor') + '</th><th style="text-align:left;padding:4px;">' + t('funn') + '</th><th style="text-align:left;padding:4px;">' + t('detalj') + '</th><th style="text-align:left;padding:4px;">' + t('remediation') + '</th><th style="padding:4px;width:90px;"></th></tr></thead><tbody>';
     findings.forEach(function(f, i) {
       var sc = sevColors[f.severity] || 'var(--text-muted)';
       var rowId = 'pf-' + i;
@@ -3276,12 +3276,12 @@ function _renderPentestResults(data, el, target) {
     });
     html += '</tbody></table></div>';
   } else {
-    html += '<div style="color:var(--green);text-align:center;padding:24px;">✓ Ingen sårbarheter funnet</div>';
+    html += '<div style="color:var(--green);text-align:center;padding:24px;">' + t('ingen_saarbarheter_funnet') + '</div>';
   }
 
   html += '<div style="display:flex;gap:8px;margin-top:16px;">';
-  html += '<button class="btn btn-ghost" onclick="_pentestReport()" style="font-size:11px;">📄 Generer rapport</button>';
-  html += '<button class="btn btn-ghost" onclick="_pentestSave()" style="font-size:11px;">💾 Lagre scan</button>';
+  html += '<button class="btn btn-ghost" onclick="_pentestReport()" style="font-size:11px;">' + t('generer_rapport') + '</button>';
+  html += '<button class="btn btn-ghost" onclick="_pentestSave()" style="font-size:11px;">' + t('lagre_scan') + '</button>';
   html += '</div>';
   html += '<div style="font-size:10px;color:var(--text-dim);margin-top:8px;">Skannet: ' + new Date(data.timestamp).toLocaleString('no-NO') + '</div>';
   el.innerHTML = html;
@@ -3374,13 +3374,13 @@ function _pentestToggleExplain(rowId, idx) {
 
 async function runDnsPentest() {
   var target = document.getElementById('pentest-target').value.trim();
-  if (!target) { showToast('Skriv inn et domene', 'error'); return; }
+  if (!target) { showToast(t('skriv_inn_et_domene'), 'error'); return; }
   var el = document.getElementById('pentest-results');
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">DNS-sikkerhetsscan: ' + esc(target) + '...</div>';
 
   var data = await apiFetch('/api/pentest/dns-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain:target})});
   if (!data || !data.ok) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">Feil:</strong> ' + esc(data&&data.error?data.error:'Ukjent feil') + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data&&data.error?data.error:'Ukjent feil') + '</div>';
     return;
   }
 
@@ -3418,13 +3418,13 @@ async function runDnsPentest() {
 
 async function runCredentialTest() {
   var target = document.getElementById('pentest-target').value.trim();
-  if (!target) { showToast('Skriv inn en host/IP', 'error'); return; }
+  if (!target) { showToast(t('skriv_inn_en_host_ip'), 'error'); return; }
   var el = document.getElementById('pentest-results');
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Tester standard-passord på ' + esc(target) + '...</div>';
 
   var data = await apiFetch('/api/pentest/credential-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
   if (!data || !data.ok) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">Feil:</strong> ' + esc(data&&data.error?data.error:'Ukjent feil') + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data&&data.error?data.error:'Ukjent feil') + '</div>';
     return;
   }
 
@@ -3439,7 +3439,7 @@ async function runCredentialTest() {
 
 async function _pentestReport() {
   var data = window._lastPentestData;
-  if (!data || !data.findings || !data.findings.length) { showToast('Kjør en scan først', 'error'); return; }
+  if (!data || !data.findings || !data.findings.length) { showToast(t('kjoer_en_scan_foerst'), 'error'); return; }
   var target = document.getElementById('pentest-target').value.trim() || 'unknown';
 
   // Open HTML report in new tab
@@ -3454,28 +3454,28 @@ async function _pentestReport() {
     w.document.write(html);
     w.document.close();
   } else {
-    showToast('Kunne ikke generere rapport', 'error');
+    showToast(t('kunne_ikke_generere_rapport'), 'error');
   }
 }
 
 async function _pentestSave() {
   var data = window._lastPentestData;
-  if (!data || !data.findings) { showToast('Kjør en scan først', 'error'); return; }
+  if (!data || !data.findings) { showToast(t('kjoer_en_scan_foerst'), 'error'); return; }
   var target = document.getElementById('pentest-target').value.trim() || 'unknown';
   var r = await apiFetch('/api/pentest/save-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target:target, findings:data.findings, summary:data.summary||data.finding_summary, scan_type:'full'})});
-  if (r && r.ok) showToast('Scan lagret (ID: '+r.scan_id+')', 'success');
-  else showToast('Kunne ikke lagre', 'error');
+  if (r && r.ok) showToast(t('scan_lagret_id') + ' '+r.scan_id+')', 'success');
+  else showToast(t('kunne_ikke_lagre'), 'error');
 }
 
 async function runCmsScan() {
   var target = document.getElementById('pentest-target').value.trim();
-  if (!target) { showToast('Skriv inn en URL', 'error'); return; }
+  if (!target) { showToast(t('skriv_inn_en_url'), 'error'); return; }
   var el = document.getElementById('pentest-results');
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">CMS-skanning: ' + esc(target) + '...</div>';
   var data = await apiFetch('/api/pentest/cms-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:target})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">Feil: ' + esc(data&&data.error?data.error:'Ukjent') + '</div>'; return; }
   var cms = data.cms || {};
-  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>CMS:</strong> ' + esc(cms.cms||'Ingen detektert') + (cms.version ? ' v'+esc(cms.version) : '') + '</div>';
+  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('cms') + '</strong> ' + esc(cms.cms||'Ingen detektert') + (cms.version ? ' v'+esc(cms.version) : '') + '</div>';
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:new Date().toISOString()}, el, target);
   el.innerHTML = html + el.innerHTML;
   window._lastPentestData = data;
@@ -3483,7 +3483,7 @@ async function runCmsScan() {
 
 async function runSmbEnum() {
   var target = document.getElementById('pentest-target').value.trim();
-  if (!target) { showToast('Skriv inn en IP/hostname', 'error'); return; }
+  if (!target) { showToast(t('skriv_inn_en_ip_hostname'), 'error'); return; }
   var el = document.getElementById('pentest-results');
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">SMB-enumerering: ' + esc(target) + '... (kan ta 60s)</div>';
   var data = await apiFetch('/api/pentest/smb-enum', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
@@ -3497,12 +3497,12 @@ async function runSegTest() {
   // Get active customer for auto-test
   var status = await apiFetch('/api/status');
   var custId = status && status.active_id;
-  if (!custId) { showToast('Velg en kunde med FortiGate først', 'error'); return; }
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Tester nettverkssegmentering for aktiv kunde...</div>';
+  if (!custId) { showToast(t('velg_en_kunde_med_fortigate'), 'error'); return; }
+  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('tester_nettverkssegmentering_for_aktiv_kunde') + '</div>';
   var data = await apiFetch('/api/pentest/segmentation-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_id:custId})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">Feil: ' + esc(data&&data.error?data.error:'Ukjent') + '</div>'; return; }
   var s = data.summary||{};
-  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>Segmentering:</strong> ' + s.pass + ' OK, ' + s.fail + ' feilet av ' + s.total_tests + ' tester</div>';
+  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('segmentering') + '</strong> ' + s.pass + ' OK, ' + s.fail + ' feilet av ' + s.total_tests + ' tester</div>';
   _renderPentestResults({ok:true, findings:data.findings||[], summary:{critical:s.critical||0,high:s.high||0,medium:s.medium||0,low:0,info:s.total_tests-(s.critical||0)-(s.high||0)-(s.medium||0),total:data.findings.length}, timestamp:new Date().toISOString()}, el, 'segmentering');
   el.innerHTML = html + el.innerHTML;
   window._lastPentestData = data;
@@ -3764,11 +3764,11 @@ async function unifiSmLoadSites() {
   list.innerHTML = '<div class="loader" style="width:16px;height:16px;margin:8px auto;"></div>';
 
   var data = await apiFetch('/api/unifi/site-manager/sites');
-  if (!data || !data.sites) { list.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">Kunne ikke hente siter</span>'; return; }
+  if (!data || !data.sites) { list.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">' + t('kunne_ikke_hente_siter') + '</span>'; return; }
 
   _unifiSites = data.sites;
   var sites = data.sites;
-  if (!sites.length) { list.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">Ingen siter funnet</span>'; return; }
+  if (!sites.length) { list.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">' + t('ingen_siter_funnet') + '</span>'; return; }
 
   list.innerHTML = _renderSiteTable(sites);
 }
@@ -3840,7 +3840,7 @@ function _renderSiteTable(sites) {
       html += '</div>';
 
       // ROW 2: WAN IP (20px)
-      html += '<div style="font-size:12px;color:var(--text-muted);line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">WAN: <strong style="color:var(--text);">'+(s.wan_ip||'-')+'</strong></div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + t('wan') + ' <strong style="color:var(--text);">'+(s.wan_ip||'-')+'</strong></div>';
 
       // ROW 3: stats grid (1fr) — ALWAYS 6 fields
       html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;font-size:12px;color:var(--text-muted);align-content:start;padding-top:6px;">';
@@ -3869,7 +3869,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
   var el = document.getElementById('dash-sites-content');
   var html = '<div style="max-width:600px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
-  html += '<button class="btn btn-ghost" onclick="dashLoadSites()" style="padding:4px 10px;font-size:12px;">&larr; Tilbake</button>';
+  html += '<button class="btn btn-ghost" onclick="dashLoadSites()" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>';
   html += '<h3 style="font-size:16px;font-weight:700;margin:0;">'+s.name+'</h3>';
   html += '<span style="font-size:12px;color:var(--text-muted);">del av '+host.name+'</span>';
   html += '</div>';
@@ -3897,12 +3897,12 @@ function showSubSiteDetail(hostIdx, subIdx) {
 
   // Enheter-boks
   html += '<div class="card" style="padding:14px;">';
-  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Enheter</div>';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('enheter') + '</div>';
   html += '<table style="width:100%;font-size:12px;">';
-  html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">WiFi AP-er</td><td style="padding:6px;text-align:right;">'+(s.wifi_devices||0)+'</td></tr>';
-  html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">Svitsjer/kabel</td><td style="padding:6px;text-align:right;">'+(s.wired_devices||0)+'</td></tr>';
-  if (s.gateway_devices) html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">Gateway</td><td style="padding:6px;text-align:right;">'+s.gateway_devices+'</td></tr>';
-  html += '<tr style="font-weight:600;"><td style="padding:6px;">Totalt</td><td style="padding:6px;text-align:right;">'+s.device_count+'</td></tr>';
+  html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">' + t('wifi_ap_er') + '</td><td style="padding:6px;text-align:right;">'+(s.wifi_devices||0)+'</td></tr>';
+  html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">' + t('svitsjer_kabel') + '</td><td style="padding:6px;text-align:right;">'+(s.wired_devices||0)+'</td></tr>';
+  if (s.gateway_devices) html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">' + t('gateway_3') + '</td><td style="padding:6px;text-align:right;">'+s.gateway_devices+'</td></tr>';
+  html += '<tr style="font-weight:600;"><td style="padding:6px;">' + t('totalt') + '</td><td style="padding:6px;text-align:right;">'+s.device_count+'</td></tr>';
   html += '</table></div>';
 
   // Klienter-boks
@@ -3912,14 +3912,14 @@ function showSubSiteDetail(hostIdx, subIdx) {
   html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">' + t('lbl_wireless','Wireless') + '</td><td style="padding:6px;text-align:right;">'+(s.wifi_clients||0)+'</td></tr>';
   html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">' + t('lbl_wired','Wired') + '</td><td style="padding:6px;text-align:right;">'+(s.wired_clients||0)+'</td></tr>';
   html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;color:var(--text-muted);">' + t('lbl_guests','Guests') + '</td><td style="padding:6px;text-align:right;">'+(s.guest_count||0)+'</td></tr>';
-  html += '<tr style="font-weight:600;"><td style="padding:6px;">Totalt</td><td style="padding:6px;text-align:right;">'+((s.wifi_clients||0)+(s.wired_clients||0))+'</td></tr>';
+  html += '<tr style="font-weight:600;"><td style="padding:6px;">' + t('totalt') + '</td><td style="padding:6px;text-align:right;">'+((s.wifi_clients||0)+(s.wired_clients||0))+'</td></tr>';
   html += '</table></div>';
 
   html += '</div>';  // grid end
 
   // Status & helsetabell
   html += '<div class="card" style="padding:16px;">';
-  html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">Status</div>';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">' + t('status_3') + '</div>';
   html += '<table style="width:100%;font-size:13px;">';
   var rows = [];
 
@@ -3927,14 +3927,14 @@ function showSubSiteDetail(hostIdx, subIdx) {
   if (s.offline_devices > 0) {
     rows.push(['Offline enheter', '<span style="color:var(--red);font-weight:600;">'+s.offline_devices+'</span> ('+(s.offline_wifi||0)+' WiFi, '+(s.offline_wired||0)+' kabel)']);
   } else {
-    rows.push(['Offline enheter', '<span style="color:var(--green);">Ingen — alt online</span>']);
+    rows.push(['Offline enheter', '<span style="color:var(--green);">' + t('ingen_alt_online') + '</span>']);
   }
 
   // Updates
   if (s.pending_updates > 0) {
     rows.push(['Ventende oppdateringer', '<span style="color:var(--orange);font-weight:600;">'+s.pending_updates+' enhet(er)</span>']);
   } else {
-    rows.push(['Firmware', '<span style="color:var(--green);">Alt oppdatert</span>']);
+    rows.push(['Firmware', '<span style="color:var(--green);">' + t('alt_oppdatert') + '</span>']);
   }
 
   // Alerts
@@ -4122,12 +4122,12 @@ async function _loadSubSiteDevices(host, site) {
   html += '</div></div>';
   html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
   html += '<thead><tr style="border-bottom:1px solid var(--border);background:var(--bg);">';
-  html += '<th style="text-align:left;padding:6px;">Navn</th>';
-  html += '<th style="text-align:left;padding:6px;">Modell</th>';
+  html += '<th style="text-align:left;padding:6px;">' + t('navn_4') + '</th>';
+  html += '<th style="text-align:left;padding:6px;">' + t('modell') + '</th>';
   html += '<th style="text-align:left;padding:6px;">IP</th>';
-  html += '<th style="text-align:center;padding:6px;">Status</th>';
-  html += '<th style="text-align:left;padding:6px;">Firmware</th>';
-  html += '<th style="text-align:left;padding:6px;">Oppetid</th>';
+  html += '<th style="text-align:center;padding:6px;">' + t('status_3') + '</th>';
+  html += '<th style="text-align:left;padding:6px;">' + t('firmware_3') + '</th>';
+  html += '<th style="text-align:left;padding:6px;">' + t('oppetid') + '</th>';
   html += '</tr></thead><tbody>';
   devices.forEach(function(d) {
     var statusColor = d.status === 'online' ? 'var(--green)' : 'var(--red)';
@@ -4135,7 +4135,7 @@ async function _loadSubSiteDevices(host, site) {
     var fwBadge = '';
     if (d.firmware_status === 'updateAvailable') fwBadge = ' <span style="color:var(--orange);font-size:10px;" title="'+d.update_available+'">⬆</span>';
     html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px;font-weight:600;">'+(d.name||d.mac)+(d.is_console?' <span style="font-size:10px;color:var(--blue);">konsoll</span>':'')+'</td>';
+    html += '<td style="padding:6px;font-weight:600;">'+(d.name||d.mac)+(d.is_console?' <span style="font-size:10px;color:var(--blue);">' + t('konsoll_2') + '</span>':'')+'</td>';
     html += '<td style="padding:6px;color:var(--text-muted);">'+d.model+'</td>';
     html += '<td style="padding:6px;font-family:var(--mono);font-size:11px;">'+(d.ip||'-')+'</td>';
     html += '<td style="padding:6px;text-align:center;">'+dot+'</td>';
@@ -4158,16 +4158,16 @@ async function _loadSubSiteWan(site) {
   // WAN interfaces
   if (data.wans && data.wans.length) {
     html += '<div class="card" style="padding:16px;margin-bottom:12px;">';
-    html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">WAN-grensesnitt</div>';
+    html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">' + t('wan_grensesnitt') + '</div>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;">';
     data.wans.forEach(function(w) {
       var uptimeColor = w.uptime_pct >= 99 ? 'var(--green)' : w.uptime_pct >= 95 ? 'var(--orange)' : 'var(--red)';
       html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;">';
       html += '<div style="font-weight:600;margin-bottom:6px;">'+w.name+'</div>';
       html += '<div style="font-size:12px;color:var(--text-muted);display:grid;gap:3px;">';
-      if (w.external_ip) html += '<span>Ekstern IP: <strong style="color:var(--text);">'+w.external_ip+'</strong></span>';
+      if (w.external_ip) html += '<span>' + t('ekstern_ip') + ' <strong style="color:var(--text);">'+w.external_ip+'</strong></span>';
       if (w.isp) html += '<span>ISP: '+w.isp+(w.isp_org ? ' ('+w.isp_org+')' : '')+'</span>';
-      html += '<span>Uptime: <span style="color:'+uptimeColor+';font-weight:600;">'+w.uptime_pct+'%</span></span>';
+      html += '<span>' + t('uptime') + ' <span style="color:'+uptimeColor+';font-weight:600;">'+w.uptime_pct+'%</span></span>';
       if (w.issues && w.issues.length) html += '<span style="color:var(--red);">'+w.issues.length+' problem(er)</span>';
       html += '</div></div>';
     });
@@ -4178,11 +4178,11 @@ async function _loadSubSiteWan(site) {
   if (data.gateway && data.gateway.model) {
     var gw = data.gateway;
     html += '<div class="card" style="padding:16px;">';
-    html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">Gateway & sikkerhet</div>';
+    html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">' + t('gateway_sikkerhet') + '</div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:12px;color:var(--text-muted);">';
-    html += '<span>Modell: <strong style="color:var(--text);">'+gw.model+'</strong></span>';
+    html += '<span>' + t('modell') + ' <strong style="color:var(--text);">'+gw.model+'</strong></span>';
     var idsColor = gw.ids_mode === 'ids' || gw.ids_mode === 'ips' ? 'var(--green)' : 'var(--orange)';
-    html += '<span>IDS/IPS: <span style="color:'+idsColor+';font-weight:600;">'+gw.ids_mode.toUpperCase()+'</span></span>';
+    html += '<span>' + t('ids_ips') + ' <span style="color:'+idsColor+';font-weight:600;">'+gw.ids_mode.toUpperCase()+'</span></span>';
     html += '<span>Inspeksjon: '+gw.inspection+'</span>';
     if (gw.ips_rules) html += '<span>IPS-regler: '+gw.ips_rules.toLocaleString()+'</span>';
     html += '</div></div>';
@@ -4198,7 +4198,7 @@ function showSiteDetail(idx) {
   if (!s) return;
   var html = '<div style="max-width:600px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
-  html += '<button class="btn btn-ghost" onclick="dashLoadSites()" style="padding:4px 10px;font-size:12px;">&larr; Tilbake</button>';
+  html += '<button class="btn btn-ghost" onclick="dashLoadSites()" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>';
   html += '<h3 style="font-size:16px;font-weight:700;margin:0;">'+(s.name||'-')+'</h3>';
   html += '</div>';
 
@@ -4232,12 +4232,12 @@ function showSiteDetail(idx) {
   html += '<div style="margin-top:16px;"><h4 style="font-size:14px;font-weight:600;margin-bottom:8px;">Siter ('+((s.sub_sites && s.sub_sites.length) || 0)+')</h4>';
   html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
   html += '<thead><tr style="border-bottom:1px solid var(--border);background:var(--bg);">'
-    + '<th style="text-align:left;padding:8px;">Kundesite</th>'
-    + '<th style="text-align:center;padding:8px;">Enheter</th>'
-    + '<th style="text-align:center;padding:8px;">Offline</th>'
-    + '<th style="text-align:center;padding:8px;">WiFi</th>'
-    + '<th style="text-align:center;padding:8px;">Kabel</th>'
-    + '<th style="text-align:center;padding:8px;">Gjest</th>'
+    + '<th style="text-align:left;padding:8px;">' + t('kundesite') + '</th>'
+    + '<th style="text-align:center;padding:8px;">' + t('enheter') + '</th>'
+    + '<th style="text-align:center;padding:8px;">' + t('offline_2') + '</th>'
+    + '<th style="text-align:center;padding:8px;">' + t('wifi') + '</th>'
+    + '<th style="text-align:center;padding:8px;">' + t('kabel') + '</th>'
+    + '<th style="text-align:center;padding:8px;">' + t('gjest') + '</th>'
     + '<th style="text-align:center;padding:8px;">WLAN</th>'
     + '</tr></thead><tbody>';
   if (s.sub_sites && s.sub_sites.length) {
@@ -4257,7 +4257,7 @@ function showSiteDetail(idx) {
       totDev+=(sub.device_count||0); totOff+=offVal; totWifi+=(sub.wifi_clients||0); totWired+=(sub.wired_clients||0); totGuest+=(sub.guest_count||0); totWlan+=(sub.wifi_networks||0);
     });
     html += '<tr style="font-weight:700;background:var(--bg);">';
-    html += '<td style="padding:8px;">Totalt</td>';
+    html += '<td style="padding:8px;">' + t('totalt') + '</td>';
     html += '<td style="padding:8px;text-align:center;">'+totDev+'</td>';
     html += '<td style="padding:8px;text-align:center;'+(totOff>0?'color:var(--red);':'')+'">'+totOff+'</td>';
     html += '<td style="padding:8px;text-align:center;">'+totWifi+'</td>';
@@ -4386,7 +4386,7 @@ function termConnect() {
   _termWs = new WebSocket(url);
 
   _termWs.onopen = function() {
-    document.getElementById('term-status').innerHTML = '<span style="color:var(--green);">Tilkoblet</span>';
+    document.getElementById('term-status').innerHTML = '<span style="color:var(--green);">' + t('tilkoblet') + '</span>';
     _xterm.focus();
     _xtermFit.fit();
     _termWs.send(JSON.stringify({type: 'resize', cols: _xterm.cols, rows: _xterm.rows}));
@@ -4405,14 +4405,14 @@ function termConnect() {
 
   _termWs.onclose = function() {
     _xterm.write('\r\n\x1b[90m--- Sesjon avsluttet ---\x1b[0m\r\n');
-    document.getElementById('term-status').innerHTML = '<span style="color:var(--text-muted);">Frakoblet</span>';
+    document.getElementById('term-status').innerHTML = '<span style="color:var(--text-muted);">' + t('frakoblet') + '</span>';
     document.getElementById('term-connect-btn').style.display = 'inline-flex';
     document.getElementById('term-disconnect-btn').style.display = 'none';
     _termWs = null;
   };
 
   _termWs.onerror = function() {
-    document.getElementById('term-status').innerHTML = '<span style="color:var(--red);">Tilkoblingsfeil</span>';
+    document.getElementById('term-status').innerHTML = '<span style="color:var(--red);">' + t('tilkoblingsfeil') + '</span>';
   };
 }
 
@@ -4630,9 +4630,9 @@ function browserInit() {
   el.innerHTML =
     '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">' +
       '<input id="browser-url-input" type="text" placeholder="http://192.168.1.1" style="flex:1;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')browserNavigate();">' +
-      '<button class="btn btn-primary" id="browser-go-btn" onclick="browserNavigate()" style="padding:8px 16px;font-size:13px;">G&aring;</button>' +
-      '<button class="btn btn-success" id="browser-start-btn" onclick="browserStart()" style="padding:8px 16px;font-size:13px;">Start nettleser</button>' +
-      '<button class="btn btn-danger" id="browser-stop-btn" onclick="browserStop()" style="padding:8px 16px;font-size:13px;display:none;">Stopp</button>' +
+      '<button class="btn btn-primary" id="browser-go-btn" onclick="browserNavigate()" style="padding:8px 16px;font-size:13px;">' + t('gaa') + '</button>' +
+      '<button class="btn btn-success" id="browser-start-btn" onclick="browserStart()" style="padding:8px 16px;font-size:13px;">' + t('start_nettleser') + '</button>' +
+      '<button class="btn btn-danger" id="browser-stop-btn" onclick="browserStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('stopp') + '</button>' +
       '<button class="btn btn-ghost" id="browser-fullscreen-btn" onclick="toggleFullscreen(\'browser-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">&#x26F6;</button>' +
       '<span id="browser-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
@@ -4688,7 +4688,7 @@ function _browserShowDirect(token, connectionId) {
     _guacSessions.browser = session;
   }
   var statusEl = document.getElementById('browser-status');
-  if (statusEl) statusEl.innerHTML = '<span style="color:var(--green);">Tilkoblet</span>';
+  if (statusEl) statusEl.innerHTML = '<span style="color:var(--green);">' + t('tilkoblet') + '</span>';
 }
 
 function openWebUI(url) {
@@ -4772,7 +4772,7 @@ async function browserNavigate() {
     return;
   }
 
-  if (status) status.innerHTML = '<span style="color:var(--green);">Tilkoblet</span>';
+  if (status) status.innerHTML = '<span style="color:var(--green);">' + t('tilkoblet') + '</span>';
 }
 
 async function browserStop() {
@@ -4837,13 +4837,13 @@ function rdpInit() {
       '<input id="rdp-port-input" type="text" placeholder="3389" style="width:70px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-user-input" type="text" placeholder="Brukernavn" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-pass-input" type="password" placeholder="Passord" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')rdpStart();">' +
-      '<button class="btn btn-success" id="rdp-start-btn" onclick="rdpStart()" style="padding:8px 16px;font-size:13px;">Koble til</button>' +
-      '<button class="btn btn-danger" id="rdp-stop-btn" onclick="rdpStop()" style="padding:8px 16px;font-size:13px;display:none;">Koble fra</button>' +
+      '<button class="btn btn-success" id="rdp-start-btn" onclick="rdpStart()" style="padding:8px 16px;font-size:13px;">' + t('koble_til') + '</button>' +
+      '<button class="btn btn-danger" id="rdp-stop-btn" onclick="rdpStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('koble_fra') + '</button>' +
       '<button class="btn btn-ghost" id="rdp-fullscreen-btn" onclick="toggleFullscreen(\'rdp-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">&#x26F6;</button>' +
       '<span id="rdp-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
     '<div id="rdp-frame-wrap" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:transparent;position:relative;">' +
-      '<div id="rdp-placeholder" style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 180px);color:#888;font-size:14px;background:var(--bg);">Fyll inn tilkoblingsdetaljer og klikk &laquo;Koble til&raquo;</div>' +
+      '<div id="rdp-placeholder" style="display:flex;align-items:center;justify-content:center;height:calc(100vh - 180px);color:#888;font-size:14px;background:var(--bg);">' + t('fyll_inn_tilkoblingsdetaljer_og_klikk_la') + '</div>' +
       '<div id="rdp-guac-container" style="width:100%;height:calc(100vh - 180px);overflow:hidden;display:none;"></div>' +
     '</div>';
 
@@ -4896,7 +4896,7 @@ function _rdpShowDirect(token, connectionId) {
     _guacSessions.rdp = session;
   }
   var statusEl = document.getElementById('rdp-status');
-  if (statusEl) statusEl.innerHTML = '<span style="color:var(--green);">Tilkoblet</span>';
+  if (statusEl) statusEl.innerHTML = '<span style="color:var(--green);">' + t('tilkoblet') + '</span>';
 }
 
 async function rdpStart() {
@@ -4908,7 +4908,7 @@ async function rdpStart() {
 
   var host = (hostInput.value || '').trim();
   if (!host) {
-    showToast('Vertsnavn er p\u00e5krevd', 'error');
+    showToast(t('vertsnavn_er_paakrevd'), 'error');
     hostInput.focus();
     return;
   }
