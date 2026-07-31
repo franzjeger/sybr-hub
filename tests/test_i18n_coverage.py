@@ -554,3 +554,26 @@ def test_no_element_carries_the_same_marker_twice() -> None:
             if count > 1:
                 offenders.append((html[: m.start()].count("\n") + 1, f"{name} x{count}"))
     assert not offenders, f"duplicate markers:\n{_report(offenders)}"
+
+
+def test_every_key_the_routes_ask_for_resolves() -> None:
+    """ui_t returns the key itself when it cannot translate it.
+
+    That is not a silent degradation: it puts "log_history_deleted" in the
+    activity log where a sentence belongs, which is what the home view showed.
+    Two tables exist for one application, so a key can be added to one and
+    missed in the other without anything failing.
+    """
+    from app.web.i18n import ui_t
+
+    called: dict[str, str] = {}
+    for path in pathlib.Path("app").rglob("*.py"):
+        src = path.read_text(encoding="utf-8")
+        for m in re.finditer(r"""ui_t\(\s*["']([a-z0-9_]+)["']""", src):
+            called[m.group(1)] = f"{path}:{src[: m.start()].count(chr(10)) + 1}"
+
+    assert called, "found no ui_t calls at all — has the helper been renamed?"
+    unresolved = [(where, key) for key, where in sorted(called.items()) if ui_t(key) == key]
+    assert not unresolved, (
+        f"{len(unresolved)} keys render as their own name:\n{_report(unresolved)}"
+    )

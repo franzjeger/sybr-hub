@@ -6,6 +6,10 @@ modules need.
 
 from __future__ import annotations
 
+import json
+from functools import lru_cache
+from pathlib import Path
+
 from fastapi import Request
 
 _UI_STRINGS = {
@@ -118,7 +122,35 @@ def get_ui_lang(request: Request = None) -> str:
     return "no"
 
 
+@lru_cache(maxsize=1)
+def _web_strings() -> dict[str, dict[str, str]]:
+    """The front-end's language file, as a fallback for this module's table.
+
+    There are two translation tables for one application, and they had already
+    drifted: eight keys the routes ask for are only in the JSON, so ``ui_t``
+    handed back the key name and the activity log on the home view read
+    "log_history_deleted" to whoever deleted a run.
+
+    They are not merged here. Six Norwegian and ten English strings say
+    different things in the two tables, several with a ``{placeholder}`` on one
+    side only, so a wholesale merge would silently reword messages that work
+    today. This only covers keys the table below does not define at all.
+    """
+    path = Path(__file__).parent / "static" / "ui_i18n.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"no": {}, "en": {}}
+
+
 def ui_t(key: str, request: Request = None) -> str:
     """Translate a UI string."""
     lang = get_ui_lang(request)
-    return _UI_STRINGS.get(lang, _UI_STRINGS["no"]).get(key, _UI_STRINGS["no"].get(key, key))
+    for table in (_UI_STRINGS.get(lang, {}), _UI_STRINGS["no"]):
+        if key in table:
+            return table[key]
+    web = _web_strings()
+    for table in (web.get(lang, {}), web.get("no", {})):
+        if key in table:
+            return table[key]
+    return key
