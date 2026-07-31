@@ -588,15 +588,25 @@ def _parse_ca_policies(text: str) -> dict:
         # bracket format ("[enabled   ] PolicyName ...")
         if not l or l.startswith("=") or l.startswith("-") or "state" in l and "policy" in l:
             continue
-        if l.startswith("[enabled"):
+        # Report-only first. Graph spells that state
+        # "enabledForReportingButNotEnforced", which starts with "enabled", so
+        # testing for "[enabled" ahead of it swallowed every report-only policy
+        # into the enabled count and left the branch below unreachable. A
+        # tenant staging its Conditional Access in report-only mode — where
+        # nothing is enforced — was reported as having those policies live.
+        if (l.startswith("[reportonly") or l.startswith("[report_only")
+                or l.startswith("[enabledforr")):
+            report_only += 1
+        elif l.startswith("[enabled"):
             enabled += 1
         elif l.startswith("[disabled"):
             disabled += 1
-        elif l.startswith("[reportonly") or l.startswith("[report_only") or l.startswith("[enabledforr"):
-            report_only += 1
         # Legacy pipe format
         elif "|" in line:
-            if "enabled" in l and "disabled" not in l and "reportonly" not in l.replace(" ", ""):
+            squashed = l.replace(" ", "")
+            if ("enabled" in l and "disabled" not in l
+                    and "reportonly" not in squashed
+                    and "enabledforreporting" not in squashed):
                 enabled += 1
             elif "disabled" in l:
                 disabled += 1
