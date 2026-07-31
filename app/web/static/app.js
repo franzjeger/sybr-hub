@@ -2310,7 +2310,7 @@ function handleProgress(d) {
     const tr = sectionRows[name];
     tr.querySelector('.status-icon').textContent = icons[status] || '•';
     tr.querySelector('.status-icon').className = `status-icon ${cls[status] || ''}`;
-    tr.querySelector('.status-text').textContent = labels[status] || status;
+    tr.querySelector('.status-text').textContent = statusLabel(status, labels);
     tr.querySelector('.status-text').className = `status-text ${cls[status] || ''}`;
     if (detail && status === 'failed') {
       tr.querySelector('.detail-cell').innerHTML += `<div class="err-text">${esc(detail)}</div>`;
@@ -2325,7 +2325,7 @@ function handleProgress(d) {
     tr.innerHTML = `
       <td><span class="status-icon ${cls[status] || ''}">${icons[status] || '•'}</span></td>
       <td style="font-weight:500;">${esc(name)}</td>
-      <td><span class="status-text ${cls[status] || ''}">${labels[status] || status}</span></td>
+      <td><span class="status-text ${cls[status] || ''}">${statusLabel(status, labels)}</span></td>
       <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}<div class="detail-expand" style="display:none;"></div></td>`;
     tbody.appendChild(tr);
     sectionRows[name] = tr;
@@ -2346,6 +2346,12 @@ function handleProgress(d) {
 // answer was spread across twenty-six rows — most of them empty, since a
 // section with nothing to report still takes a full row — with the longest
 // lists truncated behind "+n til". Nothing is removed; this sits above it.
+// A section that finished as expected says nothing; the icon already does.
+// "Hoppet over" and "Feilet" keep their words, because those differ.
+function statusLabel(status, labels) {
+  return status === 'done' ? '' : (labels[status] || status);
+}
+
 function renderAuditFindings(results) {
   var box = document.getElementById('audit-findings');
   if (!box) return;
@@ -2416,7 +2422,7 @@ function handleAuditDone(results) {
       // Update icon/status in case last progress event was 'running'
       tr.querySelector('.status-icon').textContent = icons[status] || '•';
       tr.querySelector('.status-icon').className = `status-icon ${cls[status] || ''}`;
-      tr.querySelector('.status-text').textContent = status === 'done' ? '' : (labels[status] || status);
+      tr.querySelector('.status-text').textContent = statusLabel(status, labels);
       tr.querySelector('.status-text').className = `status-text ${cls[status] || ''}`;
 
       const detailCell = tr.querySelector('.detail-cell');

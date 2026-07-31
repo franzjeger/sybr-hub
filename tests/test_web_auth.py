@@ -764,3 +764,26 @@ def test_the_audit_bar_does_not_derive_its_total_from_its_own_rows():
     assert "sectionTotal = d.total_sections" in src, (
         "the total should come from /api/audit/progress"
     )
+
+
+def test_the_status_label_rule_is_applied_at_every_call_site():
+    """Three places write the section status; changing one made it inconsistent.
+
+    The live update, the row template and the final re-render all set it. My
+    first attempt changed only the last, which would have shown "Ferdig"
+    while the audit ran and blank once it finished — worse than either. Found
+    by reading the DOM mid-run rather than trusting that the deploy did what
+    was intended.
+    """
+    import pathlib
+    import re
+
+    src = pathlib.Path("app/web/static/app.js").read_text()
+    assert src.count("function statusLabel(") == 1, "one rule, defined once"
+    # No call site may still take the label straight from the map.
+    stale = re.findall(r"status-text[^\n]*\$\{labels\[status\]", src)
+    stale += re.findall(r"\.status-text'\)\.textContent = labels\[status\]", src)
+    assert not stale, f"call sites bypassing statusLabel: {stale}"
+    # Minus the definition line, which matches the same text.
+    calls = src.count("statusLabel(status, labels)") - src.count("function statusLabel(status, labels)")
+    assert calls == 3, f"expected three call sites, found {calls}"
