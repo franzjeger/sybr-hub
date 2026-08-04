@@ -28,10 +28,27 @@ router = APIRouter()
 
 # ── Profiles ─────────────────────────────────────────────────────────────────
 
+async def _may_use_profile(user: User, profile) -> bool:
+    """Whether *user* may see or connect this VPN profile.
+
+    Profiles carry customer_id (vpn_profiles table), but nothing consulted it,
+    so a technician scoped to one customer could list every tunnel and bring
+    one up into another customer's network. A profile with no customer is
+    shared infrastructure and stays with unrestricted callers only.
+    """
+    from app.core.rbac import check_customer_access, get_accessible_customer_ids
+
+    if profile is None:
+        return False
+    if profile.customer_id:
+        return await check_customer_access(user, profile.customer_id)
+    return await get_accessible_customer_ids(user) is None
+
+
 @router.get("/vpn/profiles")
 async def list_profiles(user: User = Depends(get_current_user)):
     from app.services.vpn_manager import list_profiles
-    profiles = await list_profiles()
+    profiles = [p for p in await list_profiles() if await _may_use_profile(user, p)]
     return {
         "profiles": [
             {
@@ -54,6 +71,8 @@ async def get_profile(profile_id: str, user: User = Depends(get_current_user)):
     profile = await get_profile(profile_id)
     if not profile:
         raise NotFoundError("Profil ikke funnet")
+    if not await _may_use_profile(user, profile):
+        raise AuthError("Du har ikke tilgang til denne VPN-profilen")
     return {
         "profile": {
             "id": profile.id, "name": profile.name,
@@ -132,7 +151,21 @@ async def vpn_connect(
     profile_id: str,
     user: User = Depends(require_role(Role.technician)),
 ):
-    from app.services.vpn_manager import connect
+    from app.core.activity_log import log_activity
+    from app.services.vpn_manager import connect, get_profile
+
+    profile = await get_profile(profile_id)
+    if not profile:
+        raise NotFoundError("Profil ikke funnet")
+    if not await _may_use_profile(user, profile):
+        raise AuthError("Du har ikke tilgang til denne VPN-profilen")
+    # Opening a tunnel into a customer network is worth a record of who did it.
+    log_activity(
+        "vpn_connect",
+        detail=f"Koblet til VPN-profil {profile.name} ({profile_id})",
+        customer=profile.customer_id or "",
+        user=user.username,
+    )
     result = await connect(profile_id)
     return result
 

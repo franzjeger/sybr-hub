@@ -96,8 +96,15 @@ async def list_history(user: User = _auth):
     if not audit_dir.exists():
         return {"history": history}
 
+    # This listing is what hands out the paths /audit_data serves, so it has
+    # to be scoped too — otherwise it stays a directory of every customer's
+    # runs, and the guard downstream just turns enumeration into 403s.
+    from app.core.rbac import check_audit_path_access
+
     for customer_dir in sorted(audit_dir.iterdir()):
         if not customer_dir.is_dir():
+            continue
+        if not await check_audit_path_access(user, customer_dir.name):
             continue
         customer_name = customer_dir.name.replace("_", " ")
         for run_dir in sorted(customer_dir.iterdir(), reverse=True):
@@ -234,13 +241,21 @@ async def delete_history_runs(request: Request, user: User = _auth):
     deleted = []
     errors = []
 
+    from app.core.rbac import check_audit_path_access
+
     for p_str in paths:
         p = Path(p_str)
         # Security: ensure path is inside audit_dir
         try:
-            p.resolve().relative_to(audit_dir.resolve())
+            rel = p.resolve().relative_to(audit_dir.resolve())
         except ValueError:
             errors.append(f"{p_str}: ugyldig sti")
+            continue
+        # Containment is not ownership. The equivalent archive route is
+        # admin-only; this one deleted any customer's audit history for any
+        # authenticated caller.
+        if not await check_audit_path_access(user, str(rel)):
+            errors.append(f"{p_str}: ingen tilgang")
             continue
         if not p.exists() or not p.is_dir():
             errors.append(f"{p_str}: finnes ikke")
@@ -282,6 +297,10 @@ async def delete_customer_history(request: Request, user: User = _auth):
         target.resolve().relative_to(audit_dir.resolve())
     except ValueError:
         raise AuthError(ui_t("err_invalid_path", request))
+
+    from app.core.rbac import check_audit_path_access
+    if not await check_audit_path_access(user, customer_dir_name):
+        raise AuthError("Du har ikke tilgang til denne kunden")
 
     if not target.exists() or not target.is_dir():
         raise NotFoundError(ui_t("err_customer_not_found", request))

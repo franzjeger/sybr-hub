@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.core.config import AUDIT_DIR
 from app.models.user import User
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import get_current_user, require_audit_path_access
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -207,16 +207,25 @@ async def branding(filename: str) -> Response:
 
 @router.get("/audit_data/{path:path}")
 async def serve_audit_data(
-    path: str, _user: User = Depends(get_current_user)
+    path: str, user: User = Depends(require_audit_path_access())
 ) -> Response:
     """Serve a generated audit artefact, decrypting it on the way out.
 
-    Guarded explicitly: this hands back decrypted customer audit data, and it
-    sits outside ``/api`` where the router-level dependency does not reach.
+    Two separate guards, because they answer different questions.
+    ``_safe_child`` stops the path escaping the audit root; it says nothing
+    about *whose* data is inside it. The first path segment is the customer's
+    directory, so without ``require_audit_path_access`` any authenticated
+    account could read every customer's decrypted reports and raw tenant dumps
+    — and /api/history and /api/reports/archive hand out the exact paths.
+
+    Resolved through get_audit_dir() rather than the AUDIT_DIR constant: that
+    constant is bound at import, so after an operator changes the audit
+    directory in Settings this kept serving the old tree until a restart.
     """
+    from app.core.config import get_audit_dir
     from app.core.encryption import encrypted_read_bytes
 
-    file_path = _safe_child(AUDIT_DIR, path)
+    file_path = _safe_child(get_audit_dir(), path)
     if file_path is None:
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     if not file_path.is_file():

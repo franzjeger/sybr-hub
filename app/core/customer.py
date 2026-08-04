@@ -295,3 +295,39 @@ class CustomerManager:
             shutil.copy2(str(legacy_cert), str(CustomerManager.get_cert_path(cid)))
         CustomerManager.set_active(cid)
         return cid
+
+
+# ── Audit-tree naming ────────────────────────────────────────────────────────
+# The audit tree is laid out as <audit_dir>/<customer-dir-name>/<timestamp>/…,
+# so the first path segment is the customer selector. That transform was
+# open-coded in eight places (collector, scheduler, reports, dashboards, also,
+# itglue) and UniFi used a different one, which is how a route that serves
+# files out of this tree ended up with no way to tell whose data it was
+# handing back. One definition, used by writers and by the access check.
+
+def customer_dir_name(customer_name: str) -> str:
+    """Canonical directory name for a customer's audit output."""
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in customer_name or "")
+
+
+def _legacy_customer_dir_name(customer_name: str) -> str:
+    """The variant UniFi used to write (spaces only). Read-compatibility."""
+    return (customer_name or "unknown").replace(" ", "_")
+
+
+def customers_for_dir_name(segment: str) -> list[dict]:
+    """Every customer whose audit directory is named *segment*.
+
+    Returns a list, not a single customer, because the transform is lossy:
+    "Acme A/S" and "Acme A S" both become "Acme_A_S". Callers must treat more
+    than one match as "requires access to all of them" rather than picking the
+    first, or the collision becomes a way to read someone else's data.
+    """
+    if not segment:
+        return []
+    out = []
+    for c in CustomerManager.list_customers():
+        name = c.get("CustomerName", "")
+        if segment in (customer_dir_name(name), _legacy_customer_dir_name(name)):
+            out.append(c)
+    return out

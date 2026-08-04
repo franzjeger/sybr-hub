@@ -14,11 +14,21 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
+from app.core.activity_log import log_activity
 from app.models.user import Role, User
 from app.web.middleware.auth import get_current_user_ws
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _may_open_host(actor: User, host) -> bool:
+    """Whether *actor* may reach this host. See ssh.py for the same rule."""
+    from app.core.rbac import check_customer_access, get_accessible_customer_ids
+
+    if host.customer_id:
+        return await check_customer_access(actor, host.customer_id)
+    return await get_accessible_customer_ids(actor) is None
 
 
 @router.websocket("/ws/terminal")
@@ -71,8 +81,13 @@ async def terminal_websocket(
         return
 
     if mode == "ssh":
-        await _handle_ssh_terminal(websocket)
+        await _handle_ssh_terminal(websocket, user)
     else:
+        log_activity(
+            "terminal_local_opened",
+            detail="Åpnet lokalt skall på hub-verten",
+            user=user.username,
+        )
         await _handle_local_terminal(websocket)
 
 
@@ -143,8 +158,12 @@ async def _handle_local_terminal(websocket: WebSocket):
             logger.debug("Failed to terminate shell process %d: %s", pid, e)
 
 
-async def _handle_ssh_terminal(websocket: WebSocket):
-    """SSH interactive session via asyncssh piped through WebSocket."""
+async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
+    """SSH interactive session via asyncssh piped through WebSocket.
+
+    ``actor`` is the authenticated hub user, as distinct from the ``user``
+    local below, which is the SSH login name on the target host.
+    """
     import asyncssh
 
     host_id = websocket.query_params.get("host_id", "")
@@ -163,6 +182,26 @@ async def _handle_ssh_terminal(websocket: WebSocket):
             await websocket.send_json({"type": "output", "data": f"\r\nHost {host_id} ikke funnet.\r\n"})
             await websocket.close()
             return
+        # Opening a shell on a host is the most invasive thing this product
+        # does, and it resolves the host's stored credential to do it. Same
+        # tenancy rule as every other route that touches a host.
+        if not await _may_open_host(actor, h):
+            logger.info(
+                "403 host-access: user=%s host=%s customer=%s (terminal)",
+                actor.username, host_id, h.customer_id,
+            )
+            await websocket.send_json({
+                "type": "output",
+                "data": "\r\n*** Tilgang nektet — du har ikke tilgang til denne hosten ***\r\n",
+            })
+            await websocket.close(code=4003, reason="No access to this host")
+            return
+        log_activity(
+            "terminal_ssh_opened",
+            detail=f"Åpnet SSH-økt mot {h.label or h.hostname} ({host_id})",
+            customer=h.customer_id or "",
+            user=actor.username,
+        )
         host = h.hostname
         port = h.port
         user = h.username

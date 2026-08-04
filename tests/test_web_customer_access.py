@@ -90,6 +90,58 @@ def test_every_customer_scoped_route_enforces_access(app):
     )
 
 
+def test_every_host_scoped_route_enforces_access(app):
+    """A route naming a {host_id} reaches one customer's device, so it is
+    customer-scoped even though the path never says "customer".
+
+    This test exists because the one above could not have caught the gap it is
+    named for. Selecting routes by the literal string "{customer_id}" made the
+    guard's coverage a property of URL spelling: hosts identify their customer
+    through ssh_hosts.customer_id, so the entire SSH surface — stored device
+    passwords, batch exec, key push, the interactive terminal — sat outside
+    both the guard and the test that was supposed to enforce it.
+    """
+    from tests.fastapi_introspect import has_dependency_named
+
+    scoped = [(p, r) for p, r in _iter_api_routes(app) if "{host_id}" in p]
+    assert scoped, "expected routes with a {host_id} segment"
+
+    unscoped = [
+        f"{sorted(r.methods)} {p}"
+        for p, r in scoped
+        if not has_dependency_named(r, "require_host_access")
+    ]
+    assert not unscoped, (
+        "host-scoped routes not enforcing host access:\n  " + "\n  ".join(unscoped)
+    )
+
+
+def test_every_audit_path_route_enforces_access(app):
+    """Routes serving the audit tree name the customer as a path segment.
+
+    Same blind spot, different spelling: /audit_data/{path:path} hands back
+    decrypted audit artefacts, and the first segment of that path is the
+    customer's directory.
+    """
+    from tests.fastapi_introspect import has_dependency_named
+
+    scoped = [
+        (p, r)
+        for p, r in _iter_api_routes(app)
+        if "{path:path}" in p and "audit" in p
+    ]
+    assert scoped, "expected the audit_data route to be present"
+
+    unscoped = [
+        f"{sorted(r.methods)} {p}"
+        for p, r in scoped
+        if not has_dependency_named(r, "require_audit_path_access")
+    ]
+    assert not unscoped, (
+        "audit-tree routes not enforcing customer access:\n  " + "\n  ".join(unscoped)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Enforcement
 # ---------------------------------------------------------------------------

@@ -656,16 +656,24 @@ async def export_csv():
 
 
 @router.post("/export/excel")
-async def export_dashboard_excel():
-    """Export all customers with metrics as Excel-compatible CSV (UTF-8 BOM, semicolon delimiter)."""
+async def export_dashboard_excel(user: User = Depends(get_current_user)):
+    """Export the caller's customers with metrics as Excel-compatible CSV.
+
+    Took no user argument at all, so it exported every customer's audit
+    metrics — grade, score, MFA coverage, admin counts — to anyone logged in,
+    and wrote the cross-customer result to disk in plaintext besides.
+    """
     import csv
     import io
 
     from app.core.config import get_audit_dir
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_read_json
+    from app.core.rbac import filter_customers, get_accessible_customer_ids
 
-    customers = CustomerManager.list_customers()
+    customers = filter_customers(
+        CustomerManager.list_customers(), await get_accessible_customer_ids(user)
+    )
     audit_dir = get_audit_dir()
 
     headers = [
@@ -836,12 +844,18 @@ async def list_report_archive(user: User = Depends(get_current_user)):
     if not audit_dir.exists():
         return {"customers": [], "total_reports": 0, "total_size_mb": 0}
 
+    # Scoped: this listing is what tells a caller which paths exist under the
+    # audit tree, and /audit_data serves them.
+    from app.core.rbac import check_audit_path_access
+
     customers: list[dict] = []
     total_reports = 0
     total_size = 0
 
     for customer_dir in sorted(audit_dir.iterdir()):
         if not customer_dir.is_dir():
+            continue
+        if not await check_audit_path_access(user, customer_dir.name):
             continue
         runs: list[dict] = []
         for run_dir in sorted(customer_dir.iterdir(), reverse=True):

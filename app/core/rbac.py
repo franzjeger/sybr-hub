@@ -121,3 +121,33 @@ async def get_user_customer_ids(user_id: str) -> list[str]:
             (user_id,),
         ) as cur:
             return [r[0] for r in await cur.fetchall()]
+
+
+async def check_audit_path_access(user: User, path: str) -> bool:
+    """Whether *user* may touch this path inside the audit tree.
+
+    The audit tree stores each customer's runs under a directory named after
+    the customer, so the first segment is the customer selector. Routes that
+    serve or delete files out of that tree were guarded by authentication
+    alone, which let any logged-in account read every customer's decrypted
+    reports and raw tenant dumps by walking the paths that /api/history and
+    /api/reports/archive hand out.
+
+    Fails closed: a segment that matches no customer is refused for anyone who
+    is not unrestricted, and a segment that matches several customers (the
+    directory transform is lossy) requires access to all of them.
+    """
+    from app.core.customer import customers_for_dir_name
+
+    allowed = await get_accessible_customer_ids(user)
+    if allowed is None:
+        return True  # admin or explicit all-customers grant
+
+    segment = str(path).replace("\\", "/").lstrip("/").split("/", 1)[0]
+    matches = customers_for_dir_name(segment)
+    if not matches:
+        logger.info(
+            "403 audit-path: user=%s segment=%r matches no customer", user.username, segment
+        )
+        return False
+    return all(c.get("_id") in allowed for c in matches)
