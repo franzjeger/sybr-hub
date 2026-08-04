@@ -95,6 +95,14 @@ class OneDriveSharingSection(BaseSection):
             f"  Total shared items   : {len(all_shared_items)}",
             f"  'Anyone' links       : {len(anyone_links)}",
             f"  External user shares : {len(external_shares)}",
+            # State the scope in the file, because the number above is only as
+            # broad as the query behind it. This reads drives/{id}/root/
+            # permissions — the permissions on the drive root itself. A link
+            # shared on a file inside a folder is not visible here, so a zero
+            # is "none at the root", not "none in the tenant". The compliance
+            # control keys off this line rather than attesting to a clean
+            # tenant on a scan that never looked.
+            "  Scan scope           : drive roots only (items within folders not enumerated)",
             "",
         ]
 

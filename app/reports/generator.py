@@ -772,7 +772,14 @@ def _parse_admin_roles(text: str) -> dict:
                 roles.append({"role": cols[0], "user": cols[1], "email": cols[-1]})
             elif len(cols) >= 2:
                 roles.append({"role": cols[0], "user": " ".join(cols[1:-1]) if len(cols) > 2 else cols[1], "email": cols[-1]})
-    ga_count = sum(1 for r in roles if r["role"] == "Global Administrator")
+    # Graph's displayName for the global admin role is "Company Administrator"
+    # — the collector says so at groups_roles.py:10 and counts both. Matching
+    # only the friendly name meant a tenant that reports the legacy one had
+    # ga_count == 0: CIS 1.1.3 emitted no row at all, because every branch
+    # tests a count that could not be reached, and the admin-sprawl penalty
+    # silently dropped out of the risk score.
+    _GA_ROLE_NAMES = ("Global Administrator", "Company Administrator")
+    ga_count = sum(1 for r in roles if r["role"] in _GA_ROLE_NAMES)
     role_counts: dict[str, int] = {}
     for r in roles:
         role_counts[r["role"]] = role_counts.get(r["role"], 0) + 1
@@ -780,7 +787,7 @@ def _parse_admin_roles(text: str) -> dict:
         [{"role": k, "count": v} for k, v in role_counts.items()],
         key=lambda x: (-x["count"], x["role"]),
     )
-    global_admin_users = [r for r in roles if r["role"] == "Global Administrator"]
+    global_admin_users = [r for r in roles if r["role"] in _GA_ROLE_NAMES]
     return {
         "roles": roles,
         "global_admin_count": ga_count,
@@ -1255,6 +1262,19 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
             if not stripped or stripped.startswith("=") or stripped.startswith("-"):
                 continue
             if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
+                continue
+            # The collector puts the event count in its banner —
+            # "SIGN-IN ACTIVITY  (last 30 days — 1234 events)" — which carries
+            # no "key: value" colon, so the branch below never saw it and the
+            # fallback set total_signins to the number of rendered rows. That
+            # is the user count, so "Total sign-ins" and "Unique users" came
+            # out identical while the real figure sat unread in the file.
+            _banner = re.search(r'\(.*?([\d,]+)\s+events\)', stripped)
+            if _banner:
+                try:
+                    result["total_signins"] = int(_banner.group(1).replace(",", ""))
+                except ValueError:
+                    pass
                 continue
             if ":" in stripped:
                 key, val = stripped.split(":", 1)
@@ -3778,11 +3798,18 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("4.1", "Ensure mailbox audit logging is enabled", t.cis_cat_email, "info",
             "Kunne ikke fastslå audit-status fra org-config")
 
-    # 4.2 Anti-phishing. _section_ran, not .strip(): an "Error: access denied"
-    # stub is non-empty and would otherwise attest that policies exist.
+    # 4.2 Anti-phishing. Three states, not two. _section_ran only says a
+    # reading exists; it does not say the tenant has any policies. A file
+    # reading "(0 entries)" over "(none)" is a real reading of an unprotected
+    # tenant, and grading it "pass" attested to protection that is not there.
     if _section_ran(fc, "23_exchange_antiphish.txt"):
-        add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "pass",
-            "Anti-phishing-policyer er konfigurert")
+        _antiphish_n = _count_data_lines(fc.get("23_exchange_antiphish.txt", ""))
+        if _antiphish_n > 0:
+            add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "pass",
+                f"{_antiphish_n} anti-phishing-policy(er) konfigurert")
+        else:
+            add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "fail",
+                "Ingen anti-phishing-policyer konfigurert")
     else:
         # An absent 23_ file is the Exchange section not running, not a tenant
         # without anti-phishing policies.
@@ -3795,8 +3822,13 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # an empty file was not — an absent 24_ file means the Exchange section
     # did not run, and "no policies" and "no data" are different claims.
     if _section_ran(fc, "24_exchange_antispam.txt"):
-        add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "pass",
-            "Anti-spam-policyer er konfigurert")
+        _antispam_n = _count_data_lines(fc.get("24_exchange_antispam.txt", ""))
+        if _antispam_n > 0:
+            add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "pass",
+                f"{_antispam_n} anti-spam-policy(er) konfigurert")
+        else:
+            add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "fail",
+                "Ingen anti-spam-policyer konfigurert")
     else:
         add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "info",
             _CANNOT_VERIFY + "anti-spam-data utilgjengelig "
@@ -4001,9 +4033,20 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
             tail = line.split(":", 1)[1].strip()
             anyone = int(tail) if tail.isdigit() else None
             break
+    # A zero here is only as broad as the scan behind it. The collector reads
+    # permissions on each drive's *root*, so a link on a file inside a folder
+    # never appears — and "we found none where we looked" is not the same
+    # claim as "this tenant has none". A find is still a find, so a non-zero
+    # count fails as before; a zero from a root-only scan reports what was
+    # actually established instead of attesting to a clean tenant.
+    _od_root_only = "drive roots only" in od_text
     if anyone is None:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
             _CANNOT_VERIFY + "OneDrive-delingsdata utilgjengelig")
+    elif anyone == 0 and _od_root_only:
+        add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
+            "Ingen anonyme delingslenker på stasjonsrøttene — filer inne i mapper "
+            "er ikke gjennomsøkt, så fravær er ikke bekreftet for hele tenanten")
     elif anyone == 0:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "pass",
             "Ingen anonyme delingslenker funnet")
