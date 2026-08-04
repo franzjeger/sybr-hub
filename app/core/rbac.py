@@ -137,13 +137,34 @@ async def check_audit_path_access(user: User, path: str) -> bool:
     is not unrestricted, and a segment that matches several customers (the
     directory transform is lossy) requires access to all of them.
     """
+    from pathlib import Path
+
+    from app.core.config import get_audit_dir
     from app.core.customer import customers_for_dir_name
 
     allowed = await get_accessible_customer_ids(user)
     if allowed is None:
         return True  # admin or explicit all-customers grant
 
-    segment = str(path).replace("\\", "/").lstrip("/").split("/", 1)[0]
+    # Resolve before selecting the customer segment. Taking the first segment
+    # of the raw string judged a different file than the one that gets opened:
+    # the containment check downstream resolves the path, so "Alpha/../Beta"
+    # presented an allowed first segment while reading — and, through the
+    # delete routes, removing — Beta's directory. Resolving here makes both
+    # guards agree on the same file, and covers "..", absolute paths, encoded
+    # separators and symlinks in one move.
+    audit_dir = get_audit_dir().resolve()
+    candidate = Path(str(path).replace("\\", "/"))
+    target = candidate.resolve() if candidate.is_absolute() else (audit_dir / candidate).resolve()
+    try:
+        rel = target.relative_to(audit_dir)
+    except ValueError:
+        logger.info("403 audit-path: user=%s path=%r escapes the audit tree", user.username, str(path))
+        return False
+    if not rel.parts:
+        return False
+
+    segment = rel.parts[0]
     matches = customers_for_dir_name(segment)
     if not matches:
         logger.info(

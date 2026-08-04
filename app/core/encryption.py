@@ -463,8 +463,24 @@ def import_master_key(b64_key: str) -> bool:
         log.warning("import_master_key: decoded key has wrong length (%d, expected 32)", len(raw))
         return False
 
+    # Preserve any backup that still unwraps here before overwriting it.
+    # force=True is needed — replacing a stale blob is the point of an import —
+    # but "decodes to 32 bytes" is not evidence that this is the *right* key,
+    # and on a headless install these files are the key's only home. A
+    # mistyped or wrong-install key would otherwise be accepted silently and
+    # take the real one with it, leaving nothing for the startup check to
+    # notice because the new blob wraps cleanly under this host's passphrase.
+    for path in _backup_locations():
+        if path.exists() and _backup_is_readable(path):
+            try:
+                prev = path.with_suffix(path.suffix + ".prev")
+                prev.write_text(path.read_text())
+                prev.chmod(0o600)
+                log.info("Existing key backup preserved at %s", prev)
+            except Exception as e:
+                log.warning("Could not preserve existing key backup %s: %s", path, e)
+
     _cached_key = raw
-    # force=True: replacing a stale, unreadable blob is the point of an import.
     _save_key_backups(b64_key, force=True)
     try:
         keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, b64_key)

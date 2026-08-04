@@ -126,15 +126,113 @@ def _parse_user_counts(text: str) -> dict:
     return result
 
 
-def _parse_mfa(text: str, ca_analysis_text: str, results: list[SectionResult]) -> dict:
+# Column offsets of the MFA table, which the collector writes as
+#   f"  {name:<35} {upn:<45} {mfa:>5} {ca:>4} {ca_excl:>8}  {methods}"
+_MFA_COLS = {
+    "display_name": (2, 37),
+    "upn": (38, 83),
+    "mfa": (84, 89),
+    "ca": (90, 94),
+    "ca_excl": (95, 103),
+}
+
+
+def _mfa_user_records(json_text: str, table_text: str) -> list[dict]:
+    """Per-user MFA rows, preferring the collector's machine-readable sidecar.
+
+    The table is fixed-width, and the collector truncates the display name to
+    exactly the column width before padding it to that same width. At 35
+    characters the padding disappears, one space separates name from UPN, and
+    a reader that splits on runs of two-or-more spaces merges the two — every
+    subsequent field shifts left by one, so the MFA column is read out of the
+    CA column and the headline coverage figure is wrong in either direction. A
+    doubled space inside a name ("Ola  Nordmann") shifts it the other way.
+
+    So: use 04_mfa_methods.json when it is there, and for runs recorded before
+    it existed, slice the table by column offset instead of by whitespace.
+    """
+    if json_text.strip():
+        try:
+            data = json.loads(json_text)
+            users = data.get("users")
+            if isinstance(users, list):
+                return users
+        except (ValueError, AttributeError):
+            pass  # fall through to the table
+
+    records: list[dict] = []
+    for line in table_text.splitlines():
+        stripped = line.strip()
+        if (not stripped or stripped.startswith("=") or stripped.startswith("-")
+                or "Display Name" in stripped or "MFA METHOD" in stripped
+                or stripped.startswith("NOTE:")):
+            continue
+
+        if "|" in stripped:
+            # Pipe-delimited: "Name | UPN | MFA:YES | CA:YES | CA_EXCL:NO"
+            parts = [p.strip() for p in stripped.split("|")]
+            if not any(p.startswith("MFA:") for p in parts):
+                continue
+            rec = {
+                "display_name": parts[0] if parts else "",
+                "upn": parts[1] if len(parts) > 1 else "",
+                "mfa_registered": False, "ca_covered": False,
+                "ca_excluded": False, "methods": [],
+            }
+            for p in parts:
+                if p.startswith("MFA:"):
+                    rec["mfa_registered"] = "YES" in p
+                elif p.startswith("CA:"):
+                    rec["ca_covered"] = "YES" in p
+                elif p.startswith(("CA_EXCL:", "EXCL:")):
+                    rec["ca_excluded"] = "YES" in p
+            records.append(rec)
+            continue
+
+        def _col(key: str, _line: str = line) -> str:
+            start, end = _MFA_COLS[key]
+            return _line[start:end].strip()
+
+        mfa_tok = _col("mfa")
+        if mfa_tok not in ("YES", "NO", "?"):
+            # Not the known layout — fall back to the old split so an
+            # unrecognised historical format still yields something.
+            cols = re.split(r'\s{2,}', stripped)
+            if len(cols) < 3 or not any(c.strip() in ("YES", "NO") for c in cols[2:]):
+                continue
+            records.append({
+                "display_name": cols[0].strip(),
+                "upn": cols[1].strip() if len(cols) > 1 else "",
+                "mfa_registered": "YES" in cols[2],
+                "ca_covered": len(cols) > 3 and "YES" in cols[3],
+                "ca_excluded": len(cols) > 4 and "YES" in cols[4],
+                "methods": [],
+            })
+            continue
+
+        records.append({
+            "display_name": _col("display_name"),
+            "upn": _col("upn"),
+            # "?" is unknown, not "no MFA" — see the collector.
+            "mfa_registered": None if mfa_tok == "?" else mfa_tok == "YES",
+            "ca_covered": _col("ca") == "YES",
+            "ca_excluded": _col("ca_excl") == "YES",
+            "methods": [],
+        })
+    return records
+
+
+def _parse_mfa(
+    text: str,
+    ca_analysis_text: str,
+    results: list[SectionResult],
+    json_text: str = "",
+) -> dict:
     """Parse MFA coverage from mfa_methods.txt and CA analysis.
 
     A user is 'MFA covered' if they have MFA methods registered
     OR are covered by a Conditional Access policy that enforces MFA.
     """
-    # Parse MFA methods report — supports multiple formats:
-    # 1. Pipe-delimited: "Name | UPN | MFA:YES | Methods: ..."
-    # 2. Column-aligned:  "Name  UPN  YES  YES  NO  Methods"
     total = 0
     mfa_registered = 0
     ca_covered = 0
@@ -142,47 +240,13 @@ def _parse_mfa(text: str, ca_analysis_text: str, results: list[SectionResult]) -
     fully_unprotected = 0
     effectively_covered = 0
 
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("=") or stripped.startswith("-") or "Display Name" in stripped or "MFA METHOD" in stripped:
-            continue
-
-        has_mfa = False
-        has_ca = False
-        is_excluded = False
-
-        if "|" in stripped:
-            # Pipe-delimited format: "Name | UPN | MFA:YES | CA:YES | ..."
-            parts = [p.strip() for p in stripped.split("|")]
-            for p in parts:
-                if p.startswith("MFA:"):
-                    has_mfa = "YES" in p
-                elif p.startswith("CA:"):
-                    has_ca = "YES" in p
-                elif p.startswith("CA_EXCL:") or p.startswith("EXCL:"):
-                    is_excluded = "YES" in p
-            # Old format without CA column: "Name | UPN | MFA:YES | Methods: ..."
-            if any(p.startswith("MFA:") for p in parts):
-                total += 1
-            else:
-                continue
-        else:
-            # Space-aligned columnar format
-            cols = re.split(r'\s{2,}', stripped)
-            if len(cols) < 3:
-                continue
-            # Look for YES/NO in the columns
-            found_yn = False
-            for c in cols[2:]:
-                if c.strip() in ("YES", "NO"):
-                    found_yn = True
-                    break
-            if not found_yn:
-                continue
-            total += 1
-            has_mfa = "YES" in cols[2] if len(cols) > 2 else False
-            has_ca = "YES" in cols[3] if len(cols) > 3 else False
-            is_excluded = "YES" in cols[4] if len(cols) > 4 else False
+    for rec in _mfa_user_records(json_text, text):
+        total += 1
+        # None is "could not be determined". Counting it as False is what
+        # turns a throttled run into a page of false "no MFA" findings.
+        has_mfa = rec.get("mfa_registered") is True
+        has_ca = bool(rec.get("ca_covered"))
+        is_excluded = bool(rec.get("ca_excluded"))
 
         if has_mfa:
             mfa_registered += 1
@@ -2414,20 +2478,19 @@ def _build_recommendations(
     # without MFA" would suppress the rec even though we don't know the truth.
     if mfa.get("has_data") and mfa.get("no_mfa", 0) > 0:
         # Build list of unprotected users from the MFA file
-        unprotected = []
+        # Same records as the coverage figures above, so the customer-facing
+        # list of unprotected users cannot disagree with the percentage. The
+        # split-based reader here named protected users as unprotected, with
+        # the UPN shifted into the parenthesis.
         fc = file_contents or {}
-        for line in fc.get("04_mfa_methods.txt", "").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("=") or stripped.startswith("-") or "Display Name" in stripped or "MFA METHOD" in stripped:
-                continue
-            cols = re.split(r'\s{2,}', stripped)
-            if len(cols) >= 5:
-                has_mfa_col = "YES" in cols[2] if len(cols) > 2 else False
-                has_ca_col = "YES" in cols[3] if len(cols) > 3 else False
-                if not has_mfa_col and not has_ca_col:
-                    upn = cols[1].strip() if len(cols) > 1 else cols[0]
-                    name = cols[0].strip()
-                    unprotected.append(f"{name} ({upn})")
+        unprotected = [
+            f"{r.get('display_name', '')} ({r.get('upn', '')})"
+            for r in _mfa_user_records(
+                fc.get("04_mfa_methods.json", ""), fc.get("04_mfa_methods.txt", "")
+            )
+            # Only name someone whose status we actually know.
+            if r.get("mfa_registered") is False and not r.get("ca_covered")
+        ]
 
         detail = t("rec_mfa_detail",
                     registered=mfa.get('mfa_registered', 0),
@@ -4567,7 +4630,7 @@ def build_report_context(
 
     secure_score = _parse_secure_score(fc("09_secure_score.txt"))
     users        = _parse_user_counts(fc("03_users_count.txt"))
-    mfa          = _parse_mfa(fc("04_mfa_methods.txt"), fc("04b_mfa_ca_analysis.txt"), results)
+    mfa          = _parse_mfa(fc("04_mfa_methods.txt"), fc("04b_mfa_ca_analysis.txt"), results, fc("04_mfa_methods.json"))
     licenses     = _parse_licenses(fc("02_licenses.txt"))
     license_optimization = _analyze_license_optimization(licenses, file_contents, lang=lang)
     spf_dmarc    = _parse_spf_dmarc(fc("26_email_dns_spf_dmarc.txt"))

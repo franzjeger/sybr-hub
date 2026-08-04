@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.core.exceptions import (
-    AuthError,
     ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
@@ -72,7 +72,7 @@ async def get_profile(profile_id: str, user: User = Depends(get_current_user)):
     if not profile:
         raise NotFoundError("Profil ikke funnet")
     if not await _may_use_profile(user, profile):
-        raise AuthError("Du har ikke tilgang til denne VPN-profilen")
+        raise ForbiddenError("Du har ikke tilgang til denne VPN-profilen")
     return {
         "profile": {
             "id": profile.id, "name": profile.name,
@@ -158,7 +158,7 @@ async def vpn_connect(
     if not profile:
         raise NotFoundError("Profil ikke funnet")
     if not await _may_use_profile(user, profile):
-        raise AuthError("Du har ikke tilgang til denne VPN-profilen")
+        raise ForbiddenError("Du har ikke tilgang til denne VPN-profilen")
     # Opening a tunnel into a customer network is worth a record of who did it.
     log_activity(
         "vpn_connect",

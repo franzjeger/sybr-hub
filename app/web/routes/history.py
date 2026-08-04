@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import (
     AuthError,
+    ForbiddenError,
     ConflictError,
     IntegrationError,
     NotFoundError,
@@ -300,7 +301,7 @@ async def delete_customer_history(request: Request, user: User = _auth):
 
     from app.core.rbac import check_audit_path_access
     if not await check_audit_path_access(user, customer_dir_name):
-        raise AuthError("Du har ikke tilgang til denne kunden")
+        raise ForbiddenError("Du har ikke tilgang til denne kunden")
 
     if not target.exists() or not target.is_dir():
         raise NotFoundError(ui_t("err_customer_not_found", request))

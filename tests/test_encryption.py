@@ -289,3 +289,35 @@ def test_absent_keyring_is_not_logged_as_a_problem(caplog):
     with caplog.at_level(logging.DEBUG, logger="app.core.encryption"):
         _log_keyring_absence("read the master key", keyring.errors.KeyringError("locked"))
     assert [r.levelno for r in caplog.records] == [logging.WARNING]
+
+
+def test_the_suite_never_writes_the_operators_real_key_backups():
+    """A guard on the test harness itself.
+
+    Mocking the keyring left _save_key_backups writing to DATA_DIR,
+    CONFIG_DIR and ~/.msp_toolkit_key_backup, so simply running the suite
+    replaced the operator's master key with a throwaway one — silently, since
+    the replacement is wrapped under the same host passphrase and reads back
+    fine. The next real start then adopts it and every stored credential
+    fails with InvalidTag.
+    """
+    from pathlib import Path
+
+    import app.core.encryption as enc
+
+    real = {
+        Path.home() / ".msp_toolkit_key_backup",
+    }
+    locations = set(enc._backup_locations())
+    assert locations, "the autouse fixture must supply a redirected location"
+    assert not (locations & real), f"the suite writes real key backups: {locations & real}"
+
+    # Resolving a key must not create the real one either.
+    before = (Path.home() / ".msp_toolkit_key_backup").exists()
+    enc._get_or_create_master_key()
+    after_mtime = None
+    if before:
+        after_mtime = (Path.home() / ".msp_toolkit_key_backup").stat().st_mtime
+    enc._get_or_create_master_key()
+    if before:
+        assert (Path.home() / ".msp_toolkit_key_backup").stat().st_mtime == after_mtime

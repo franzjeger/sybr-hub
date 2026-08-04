@@ -20,6 +20,15 @@ _GRAPH_BETA = "https://graph.microsoft.com/beta"
 _SCOPE      = "https://graph.microsoft.com/.default"
 
 
+class GraphPermissionError(Exception):
+    """Graph refused a collection with 401/403.
+
+    Its own type because the caller must not treat it as "no results". A
+    section that catches this records itself as failed, which is what puts
+    "could not be measured" in the report instead of a zero.
+    """
+
+
 class GraphClient:
     """Async Graph API client. Use as an async context manager."""
 
@@ -130,6 +139,20 @@ class GraphClient:
                 else:
                     raise
             params = None                             # params only on first request
+            # _get answers a permission failure with {"error": 401|403}, which
+            # has no "value" key — so this used to extend by nothing, find no
+            # nextLink, and return an empty list. "You may not read this" then
+            # became indistinguishable from "the tenant has none of these", and
+            # a section would report a measured zero: no risky OAuth grants, no
+            # active Defender alerts, and a clean CIS pass on evidence nobody
+            # was ever allowed to see. Raise, so the section is recorded as
+            # failed and the report says the truth — that it does not know.
+            if isinstance(data, dict) and data.get("error") in (401, 403):
+                raise GraphPermissionError(
+                    f"Graph refused {path} with {data['error']} — the app registration is "
+                    f"missing a permission or admin consent. Detail: "
+                    f"{str(data.get('detail', ''))[:200]}"
+                )
             items.extend(data.get(key, []))
             url = data.get("@odata.nextLink", "")
             page_count += 1

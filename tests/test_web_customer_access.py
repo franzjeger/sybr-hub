@@ -216,3 +216,53 @@ async def test_credentials_endpoint_is_admin_only(client):
     token = await _token_for("tech", Role.technician, customers=["acme"])
     resp = client.get("/api/fortigate/credentials/acme", headers=_h(token))
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# The audit-tree guard must judge the file that actually gets opened
+# ---------------------------------------------------------------------------
+
+
+async def test_the_audit_path_guard_resolves_before_picking_the_customer(tmp_path, monkeypatch):
+    """A first path segment is not the same thing as a destination.
+
+    The containment check downstream resolves the path; this guard read the
+    raw string. So "Alpha/../Beta/run/f.txt" presented an allowed segment
+    while reading — and through the delete routes, removing — Beta's data.
+    """
+    from app.core import rbac
+    from app.core.rbac import check_audit_path_access
+
+    audit_dir = tmp_path / "audits"
+    (audit_dir / "AlphaCorp" / "run1").mkdir(parents=True)
+    (audit_dir / "BetaBank" / "run1").mkdir(parents=True)
+    monkeypatch.setattr("app.core.config.get_audit_dir", lambda: audit_dir)
+
+    monkeypatch.setattr(
+        rbac, "get_accessible_customer_ids", _mock_async({"alpha"})
+    )
+    monkeypatch.setattr(
+        "app.core.customer.customers_for_dir_name",
+        lambda seg: {"AlphaCorp": [{"_id": "alpha"}], "BetaBank": [{"_id": "beta"}]}.get(seg, []),
+    )
+
+    class _U:
+        username = "tech"
+
+    user = _U()
+    assert await check_audit_path_access(user, "AlphaCorp/run1") is True
+    for escape in (
+        "AlphaCorp/../BetaBank/run1",
+        "AlphaCorp/../BetaBank",
+        "AlphaCorp/./../BetaBank/run1",
+        "BetaBank/run1",
+        "../etc",
+        "/etc/passwd",
+    ):
+        assert await check_audit_path_access(user, escape) is False, escape
+
+
+def _mock_async(value):
+    async def _f(_user):
+        return value
+    return _f

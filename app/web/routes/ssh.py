@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
-    AuthError,
     ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
@@ -70,7 +70,7 @@ async def _assert_hosts_in_scope(user: User, host_ids: list[str]) -> None:
     for hid in host_ids or []:
         if not await _may_see_host(user, await get_host(hid)):
             logger.info("403 host-access: user=%s host=%s", user.username, hid)
-            raise AuthError("Du har ikke tilgang til en eller flere av disse hostene")
+            raise ForbiddenError("Du har ikke tilgang til en eller flere av disse hostene")
 
 
 # ── Keys ─────────────────────────────────────────────────────────────────────
@@ -338,7 +338,7 @@ async def create_host(
 
     from app.services.ssh_manager import create_host
     if body.customer_id and not await check_customer_access(user, body.customer_id):
-        raise AuthError("Du har ikke tilgang til denne kunden")
+        raise ForbiddenError("Du har ikke tilgang til denne kunden")
     host = await create_host(
         label=body.label, hostname=body.hostname, username=body.username,
         port=body.port, password=body.password,
@@ -514,7 +514,7 @@ async def rdp_launch(request: Request, user: User = Depends(require_role(Role.te
         # /ssh/hosts/{id}/password performs, so it carries the same check.
         if not await _may_see_host(user, await get_host(host_id)):
             logger.info("403 host-access: user=%s host=%s (rdp)", user.username, host_id)
-            raise AuthError("Du har ikke tilgang til denne hosten")
+            raise ForbiddenError("Du har ikke tilgang til denne hosten")
         password = _load_host_password(host_id) or ""
 
     # Ensure GUI apps can find the display (Wayland/X11)
