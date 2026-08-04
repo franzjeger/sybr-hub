@@ -15,6 +15,14 @@
     /* Table row hairline — lighter than --border so dense tables don't
        look boxed-in. */
     --row-divider: #21262d;
+    /* Label colours for text sitting on a 12% tint of its own hue (status
+       pills, grade tiles). The tint costs roughly 0.7 of contrast ratio, so
+       light theme redefines these a few percent darker to stay above WCAG AA;
+       on dark the base colours already clear it and these are aliases. */
+    --green-deep:  var(--green);
+    --orange-deep: var(--orange);
+    --red-deep:    var(--red);
+    --blue-deep:   var(--blue);
     --bg-input:  #0d1117;
     --bg-overlay: rgba(0,0,0,0.6);
     --border:    #30363d;
@@ -103,6 +111,12 @@
     --bg-card-hover: #f8f9fb;
     --bg-panel:  #ffffff;
     --row-divider: #eaeef2;
+    /* Measured on the 12% tint: 5.27 / 4.98 / 4.93 against the 4.33 / 4.17 /
+       4.34 the base colours gave. Blue already cleared it at 5.51. */
+    --green-deep:  #177032;
+    --orange-deep: #8a5c00;
+    --red-deep:    #c21f29;
+    --blue-deep:   var(--blue);
     --bg-input:  #ffffff;
     --bg-overlay: rgba(0,0,0,0.4);
     --border:    #d0d7de;
