@@ -106,12 +106,15 @@ class TestPlaintextFallback:
 # ── Headless Linux: no Secret Service ─────────────────────────────────────────
 
 
-def test_master_key_survives_a_keyring_that_raises(tmp_path, monkeypatch):
-    """keyring raises NoKeyringError when no Secret Service provider exists —
-    the normal state on a headless box, and guaranteed under the systemd unit
-    (system user, ProtectHome=yes, no D-Bus session). That exception used to
-    escape _get_or_create_master_key and take the process with it, leaving the
-    file-backup recovery chain below it unreachable.
+def _isolate_key_store(tmp_path, monkeypatch):
+    """Point the key backups at tmp_path and kill the keyring.
+
+    Patching ``enc.DATA_DIR`` does nothing: ``_backup_locations()`` imports the
+    directories from ``app.core.config`` on every call, and ``enc`` has no such
+    attribute — so ``raising=False`` silently made the patch a no-op and these
+    tests wrote real master-key backups into the developer's data dir and home
+    directory. Patch the function that produces the paths instead, which cannot
+    fail quietly.
     """
     import keyring.errors
 
@@ -123,8 +126,22 @@ def test_master_key_survives_a_keyring_that_raises(tmp_path, monkeypatch):
     monkeypatch.setattr("keyring.get_password", _boom)
     monkeypatch.setattr("keyring.set_password", _boom)
     monkeypatch.setattr(enc, "_cached_key", None)
-    monkeypatch.setattr(enc, "DATA_DIR", tmp_path / "data", raising=False)
-    monkeypatch.setattr(enc, "CONFIG_DIR", tmp_path / "conf", raising=False)
+    monkeypatch.delenv(enc._ENV_MASTER_KEY, raising=False)
+    monkeypatch.delenv(enc._ENV_MASTER_KEY_FILE, raising=False)
+
+    locations = [tmp_path / "data" / ".key", tmp_path / "conf" / ".key"]
+    monkeypatch.setattr(enc, "_backup_locations", lambda: list(locations))
+    return enc, locations
+
+
+def test_master_key_survives_a_keyring_that_raises(tmp_path, monkeypatch):
+    """keyring raises NoKeyringError when no Secret Service provider exists —
+    the normal state on a headless box, and guaranteed under the systemd unit
+    (system user, ProtectHome=yes, no D-Bus session). That exception used to
+    escape _get_or_create_master_key and take the process with it, leaving the
+    file-backup recovery chain below it unreachable.
+    """
+    enc, _ = _isolate_key_store(tmp_path, monkeypatch)
 
     blob = enc.encrypt_text("hemmelig")
     assert blob.startswith(enc._MAGIC_V2)
@@ -134,23 +151,120 @@ def test_master_key_survives_a_keyring_that_raises(tmp_path, monkeypatch):
 def test_the_key_persists_across_a_restart_without_a_keyring(tmp_path, monkeypatch):
     """Second boot must recover the same key from the file backups, or every
     previously encrypted audit becomes unreadable."""
-    import keyring.errors
+    enc, _ = _isolate_key_store(tmp_path, monkeypatch)
 
-    import app.core.encryption as enc
-
-    def _boom(*a, **k):
-        raise keyring.errors.NoKeyringError("no backend")
-
-    monkeypatch.setattr("keyring.get_password", _boom)
-    monkeypatch.setattr("keyring.set_password", _boom)
-    monkeypatch.setattr(enc, "DATA_DIR", tmp_path / "data", raising=False)
-    monkeypatch.setattr(enc, "CONFIG_DIR", tmp_path / "conf", raising=False)
-
-    monkeypatch.setattr(enc, "_cached_key", None)
     blob = enc.encrypt_text("hemmelig")
 
     monkeypatch.setattr(enc, "_cached_key", None)   # simulate a restart
     assert enc.decrypt_bytes(blob).decode() == "hemmelig"
+
+
+# ── Host identity changes under encrypted data ───────────────────────────────
+
+
+def test_a_hostname_change_refuses_to_mint_a_new_key(tmp_path, monkeypatch):
+    """The DR procedure in the installer is restore-to-a-new-host.
+
+    The backups are wrapped with a passphrase derived from hostname and
+    /etc/machine-id, so on the new host they no longer unwrap. Minting a
+    replacement there is silent one-way data loss: every customer credential
+    and audit archive stays encrypted under a key nobody holds. Refuse instead.
+    """
+    import pytest
+
+    enc, locations = _isolate_key_store(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-AAAA")
+    blob = enc.encrypt_text("kundehemmelighet")
+    before = {p: p.read_text() for p in locations if p.exists()}
+    assert before, "the first boot should have written key backups"
+
+    # Reboot as a different machine.
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-BBBB")
+
+    with pytest.raises(enc.MasterKeyUnavailableError) as exc:
+        enc.decrypt_bytes(blob)
+    assert "hostname" in str(exc.value).lower()
+
+    # And crucially, it must not have overwritten the only copies of the key.
+    after = {p: p.read_text() for p in locations if p.exists()}
+    assert after == before, "an unreadable backup must never be overwritten"
+
+    # Restoring the old identity restores access — which is only true because
+    # the blobs above survived.
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-AAAA")
+    assert enc.decrypt_bytes(blob).decode() == "kundehemmelighet"
+
+
+def test_importing_a_key_works_without_a_keyring(tmp_path, monkeypatch):
+    """The Settings "restore key" flow is the recovery path for the case above.
+
+    It called keyring.set_password() before adopting the key, and
+    NoKeyringError subclasses KeyringError — so on precisely the headless hosts
+    that need recovery it returned False having done nothing.
+    """
+    import base64
+
+    enc, locations = _isolate_key_store(tmp_path, monkeypatch)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-AAAA")
+
+    # Data encrypted by the old host, whose key we still hold out of band.
+    original = enc._get_or_create_master_key()
+    blob = enc.encrypt_text("kundehemmelighet")
+    exported = base64.urlsafe_b64encode(original).decode()
+
+    # New host: different passphrase, backups unreadable, cache cold.
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-BBBB")
+
+    assert enc.import_master_key(exported) is True
+    assert enc.decrypt_bytes(blob).decode() == "kundehemmelighet"
+
+    # And it persisted, so the next boot on this host needs no second import.
+    monkeypatch.setattr(enc, "_cached_key", None)
+    assert enc.decrypt_bytes(blob).decode() == "kundehemmelighet"
+    assert any(p.exists() for p in locations)
+
+
+def test_the_env_override_frees_the_key_from_host_identity(tmp_path, monkeypatch):
+    """So a box can be rebuilt from scratch with the key held in a secret manager."""
+    import base64
+
+    enc, _ = _isolate_key_store(tmp_path, monkeypatch)
+    key = base64.urlsafe_b64encode(bytes(range(32))).decode()
+
+    monkeypatch.setenv(enc._ENV_MASTER_KEY, key)
+    blob = enc.encrypt_text("kundehemmelighet")
+
+    # A totally different host, no backups at all — still readable.
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "somewhere-else")
+    monkeypatch.setattr(enc, "_backup_locations", list)
+    assert enc.decrypt_bytes(blob).decode() == "kundehemmelighet"
+
+
+def test_a_key_file_override_is_read_from_disk(tmp_path, monkeypatch):
+    import base64
+
+    enc, _ = _isolate_key_store(tmp_path, monkeypatch)
+    key_file = tmp_path / "master.key"
+    key_file.write_text(base64.urlsafe_b64encode(bytes(range(32))).decode() + "\n")
+
+    monkeypatch.setenv(enc._ENV_MASTER_KEY_FILE, str(key_file))
+    assert enc._get_or_create_master_key() == bytes(range(32))
+
+
+def test_a_malformed_env_key_fails_loudly_rather_than_minting(tmp_path, monkeypatch):
+    """A typo'd override must not silently fall through to a brand-new key."""
+    import pytest
+
+    enc, _ = _isolate_key_store(tmp_path, monkeypatch)
+    monkeypatch.setenv(enc._ENV_MASTER_KEY, "not-valid-base64!!")
+
+    with pytest.raises(enc.MasterKeyUnavailableError):
+        enc._get_or_create_master_key()
 
 
 def test_absent_keyring_is_not_logged_as_a_problem(caplog):

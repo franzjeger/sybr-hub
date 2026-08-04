@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.core.database import close_pool, run_migrations
+from app.core.encryption import verify_master_key_available
 from app.core.exceptions import ToolkitError
 from app.core.version import get_version
 from app.web.middleware.auth import AuthMiddleware
@@ -96,6 +97,13 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("Sybr HUB starting — version %s", get_version())
     # Attach the /api/logs ring buffer before anything interesting is logged.
     frontend.install_log_capture()
+    # Resolve the master key before serving anything. The key is otherwise
+    # resolved lazily on first use, so a host that can no longer unwrap its own
+    # key backups would serve traffic and then fail somewhere deep in a
+    # request. Fail fast instead: MasterKeyUnavailableError carries the
+    # remediation, and stopping here is what stops a new key being minted over
+    # recoverable data.
+    verify_master_key_available()
     await run_migrations()
     yield
     # Dispose pooled connections explicitly. aiosqlite runs a non-daemon

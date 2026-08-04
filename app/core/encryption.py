@@ -27,6 +27,25 @@ _AAD = b"MSPToolkit-v2"  # Associated authenticated data — prevents ciphertext
 
 _cached_key: Optional[bytes] = None
 
+# Operator-supplied key, in the style of the MSP_DATA_DIR / MSP_CONFIG_DIR
+# overrides in config.py. This is the escape hatch from host-identity binding:
+# _machine_passphrase() ties the file backups to hostname + machine-id, so a
+# VM clone, a reimage or a restore-to-new-host — the documented DR procedure —
+# leaves them unreadable. Point one of these at a key held in your secret
+# manager and the box can be rebuilt from scratch.
+_ENV_MASTER_KEY = "SYBR_MASTER_KEY"           # base64 key, directly
+_ENV_MASTER_KEY_FILE = "SYBR_MASTER_KEY_FILE"  # path to a file holding one
+
+
+class MasterKeyUnavailableError(Exception):
+    """A key backup exists but could not be unwrapped on this host.
+
+    Deliberately not a ToolkitError: this must never be mapped to an HTTP
+    status and answered politely. It means the data on disk is encrypted with
+    a key we cannot currently derive, and the only safe move is to refuse to
+    start rather than mint a replacement and overwrite the evidence.
+    """
+
 
 def _backup_locations() -> list:
     """Return all locations where the master key backup should be stored."""
@@ -55,8 +74,21 @@ def _machine_passphrase() -> str:
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
-def _save_key_backups(b64_key: str) -> None:
-    """Save master key to multiple backup locations, encrypted with machine passphrase."""
+def _backup_is_readable(path: Path) -> bool:
+    """Whether the backup at ``path`` unwraps with this host's passphrase."""
+    return _read_one_backup(path) is not None
+
+
+def _save_key_backups(b64_key: str, *, force: bool = False) -> None:
+    """Save master key to multiple backup locations, encrypted with machine passphrase.
+
+    A backup we cannot currently unwrap is never overwritten unless ``force``
+    is set. That file may be the last copy of a key that is still recoverable
+    — restore the old hostname or /etc/machine-id and it unwraps again — so
+    writing a freshly minted key over it turns a recoverable state into
+    permanent data loss. ``force=True`` is for the deliberate act of importing
+    a known-good key, where replacing the stale blob is the whole point.
+    """
     import json
 
     from cryptography.hazmat.primitives import hashes
@@ -75,6 +107,13 @@ def _save_key_backups(b64_key: str) -> None:
 
     for path in _backup_locations():
         try:
+            if not force and path.exists() and not _backup_is_readable(path):
+                log.error(
+                    "Refusing to overwrite the unreadable key backup at %s — it may "
+                    "still hold a recoverable key for this data. Restore the original "
+                    "hostname/machine-id, or import the key deliberately.", path,
+                )
+                continue
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(blob)
             path.chmod(0o600)
@@ -82,8 +121,8 @@ def _save_key_backups(b64_key: str) -> None:
             log.warning("Failed to save key backup to %s: %s", path, e)
 
 
-def _try_restore_from_backup() -> bytes | None:
-    """Try to restore master key from any backup location."""
+def _read_one_backup(path: Path) -> bytes | None:
+    """Unwrap a single key backup, or None if absent/corrupt/wrong host."""
     import base64
     import json
 
@@ -91,34 +130,78 @@ def _try_restore_from_backup() -> bytes | None:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-    passphrase = _machine_passphrase().encode()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+        if data.get("v") == 2:
+            # New encrypted format
+            salt = bytes.fromhex(data["s"])
+            nonce = bytes.fromhex(data["n"])
+            ct = bytes.fromhex(data["ct"])
+            kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
+            wrap_key = kdf.derive(_machine_passphrase().encode())
+            aesgcm = AESGCM(wrap_key)
+            b64_key = aesgcm.decrypt(nonce, ct, None).decode()
+            key = base64.urlsafe_b64decode(b64_key)
+        else:
+            # Legacy plaintext format
+            key = base64.urlsafe_b64decode(data["key"])
+        return key if len(key) == 32 else None
+    except Exception as e:
+        log.debug("Key backup at %s unreadable: %s", path, e)
+        return None
 
+
+def _try_restore_from_backup() -> bytes | None:
+    """Try to restore master key from any backup location."""
     for path in _backup_locations():
-        if path.exists():
-            try:
-                data = json.loads(path.read_text())
-                if data.get("v") == 2:
-                    # New encrypted format
-                    salt = bytes.fromhex(data["s"])
-                    nonce = bytes.fromhex(data["n"])
-                    ct = bytes.fromhex(data["ct"])
-                    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
-                    wrap_key = kdf.derive(passphrase)
-                    aesgcm = AESGCM(wrap_key)
-                    b64_key = aesgcm.decrypt(nonce, ct, None).decode()
-                    key = base64.urlsafe_b64decode(b64_key)
-                else:
-                    # Legacy plaintext format
-                    key = base64.urlsafe_b64decode(data["key"])
-                if len(key) == 32:
-                    # Routine on a headless install — the backups are the
-                    # primary store there, not a fallback from a bad state.
-                    log.debug("Master key read from backup: %s", path)
-                    return key
-            except Exception as e:
-                log.debug("Key backup at %s unreadable: %s", path, e)
-                continue
+        key = _read_one_backup(path)
+        if key is not None:
+            # Routine on a headless install — the backups are the primary
+            # store there, not a fallback from a bad state.
+            log.debug("Master key read from backup: %s", path)
+            return key
     return None
+
+
+def _unreadable_backups() -> list:
+    """Backup files that exist but do not unwrap on this host.
+
+    The difference between this being empty and non-empty is the difference
+    between a first run (safe to mint a key) and a host whose identity changed
+    under encrypted data (never safe to mint a key).
+    """
+    return [p for p in _backup_locations() if p.exists() and _read_one_backup(p) is None]
+
+
+def _key_from_env() -> bytes | None:
+    """Master key supplied by the operator, if any. Highest precedence."""
+    import base64
+
+    b64 = os.environ.get(_ENV_MASTER_KEY)
+    src = _ENV_MASTER_KEY
+    if not b64:
+        key_file = os.environ.get(_ENV_MASTER_KEY_FILE)
+        if not key_file:
+            return None
+        src = f"{_ENV_MASTER_KEY_FILE}={key_file}"
+        try:
+            b64 = Path(key_file).read_text().strip()
+        except Exception as e:
+            raise MasterKeyUnavailableError(
+                f"{src} is set but the file could not be read: {e}"
+            ) from e
+    try:
+        raw = base64.urlsafe_b64decode(b64.strip())
+    except Exception as e:
+        raise MasterKeyUnavailableError(f"{src} is not valid base64: {e}") from e
+    if len(raw) != 32:
+        raise MasterKeyUnavailableError(
+            f"{src} decoded to {len(raw)} bytes, expected 32"
+        )
+    log.info("Master key taken from %s", src)
+    return raw
 
 
 def _log_keyring_absence(action: str, exc: Exception) -> None:
@@ -154,6 +237,14 @@ def _get_or_create_master_key() -> bytes:
 
     import base64
 
+    # 0. Operator-supplied key wins over everything. This is what makes the
+    #    install portable: nothing below survives a change of hostname or
+    #    machine-id, and this does.
+    from_env = _key_from_env()
+    if from_env is not None:
+        _cached_key = from_env
+        return _cached_key
+
     # 1. Try OS keyring.
     #
     # Guarded, because keyring *raises* NoKeyringError when no Secret Service
@@ -187,9 +278,29 @@ def _get_or_create_master_key() -> bytes:
         _save_key_backups(b64)
         return _cached_key
 
-    # 3. No key and no backups — first run, or total loss. This one stays loud:
-    # if backups existed and we still got here, everything encrypted with the
-    # old key has just become unreadable.
+    # 3. Nothing recovered. Before minting, establish which of the two very
+    #    different situations this is.
+    #
+    #    Backups present but unreadable means the host's identity changed under
+    #    encrypted data — a VM clone, a reimage, a restore to a new host, or a
+    #    plain `hostnamectl set-hostname`. Minting here would be silent,
+    #    one-way data loss: every customer credential and audit archive on this
+    #    box stays encrypted under a key nobody holds, and the old wrapped key
+    #    gets overwritten by the new one. Refuse, and say exactly how to fix it.
+    stale = _unreadable_backups()
+    if stale:
+        raise MasterKeyUnavailableError(
+            "Master key backups exist but none could be unwrapped on this host: "
+            + ", ".join(str(p) for p in stale)
+            + ". The wrapping passphrase is derived from the hostname and "
+            "/etc/machine-id, so this normally means one of those changed. "
+            "Restore the previous hostname and /etc/machine-id, or supply the "
+            f"key directly via {_ENV_MASTER_KEY} / {_ENV_MASTER_KEY_FILE}, or "
+            "import it in Settings. Refusing to create a new key, which would "
+            "make the existing encrypted data permanently unreadable."
+        )
+
+    # 4. No key and no backups anywhere — a genuine first run.
     log.warning("No master key found in the keyring or any backup — creating a NEW key")
     _cached_key = os.urandom(32)
     b64 = base64.urlsafe_b64encode(_cached_key).decode()
@@ -204,6 +315,18 @@ def _get_or_create_master_key() -> bytes:
     log.info("New master key created and backed up")
 
     return _cached_key
+
+
+def verify_master_key_available() -> None:
+    """Resolve the master key once at startup.
+
+    Every encrypt/decrypt call resolves the key lazily, so without this a host
+    whose identity changed surfaces the problem as a 500 in the middle of
+    whichever request happened to touch encrypted data first — long after the
+    point where an operator could act on it. Called from the app lifespan so
+    the process fails fast and loudly instead.
+    """
+    _get_or_create_master_key()
 
 
 def is_encrypted(data: bytes) -> bool:
@@ -319,23 +442,36 @@ def export_master_key() -> str:
 
 
 def import_master_key(b64_key: str) -> bool:
-    """Validate and store a base64-encoded master key. Returns True on success."""
+    """Validate and store a base64-encoded master key. Returns True on success.
+
+    Order matters. This used to call keyring.set_password() first and adopt the
+    key second, so on a headless host — where the systemd unit guarantees no
+    Secret Service — NoKeyringError (a KeyringError subclass) aborted the whole
+    function and returned False with nothing adopted. That silently broke the
+    product's only recovery path, on exactly the installs that need it: the
+    Settings "restore key" flow and the ZIP restore. Adopt the key and write
+    the file backups first; the keyring is a bonus, not a precondition.
+    """
     import base64
     global _cached_key
     try:
         raw = base64.urlsafe_b64decode(b64_key)
-        if len(raw) != 32:
-            log.warning("import_master_key: decoded key has wrong length (%d, expected 32)", len(raw))
-            return False
-        keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, b64_key)
-        _cached_key = raw
-        return True
     except (ValueError, TypeError) as e:
         log.warning("import_master_key: base64 decode failed: %s", e)
         return False
-    except keyring.errors.KeyringError as e:
-        log.exception("import_master_key: keyring set_password failed: %s", e)
+    if len(raw) != 32:
+        log.warning("import_master_key: decoded key has wrong length (%d, expected 32)", len(raw))
         return False
+
+    _cached_key = raw
+    # force=True: replacing a stale, unreadable blob is the point of an import.
+    _save_key_backups(b64_key, force=True)
+    try:
+        keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, b64_key)
+    except Exception as e:
+        _log_keyring_absence("store the imported master key", e)
+    log.info("Master key imported and backed up")
+    return True
 
 
 def wrap_master_key(password: str) -> str:
