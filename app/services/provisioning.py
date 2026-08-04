@@ -189,11 +189,24 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "") -> dict:
         except Exception:
             return ""
 
-    # Host
-    host = (target_host
-            or customer_step.get("target_host")
-            or active_cfg.get("FortiGateHost")
-            or "")
+    # Host.
+    #
+    # A caller-supplied target_host used to win outright, while the admin
+    # password and API token below still came from the *customer's* keyring —
+    # so pointing a deploy at an attacker-controlled address exfiltrated a
+    # stored firewall credential. Once a customer has a configured FortiGate,
+    # that is the only address its credentials may travel to. A request naming
+    # a different one is refused rather than silently redirected. Provisioning
+    # a customer that has no configured host yet (the bootstrap case) still
+    # accepts an explicit address, because there is nothing stored to leak.
+    configured = active_cfg.get("FortiGateHost") or ""
+    requested = target_host or customer_step.get("target_host") or ""
+    if configured and requested and requested != configured:
+        raise ValueError(
+            f"Kan ikke deploye til {requested}: kunden er konfigurert med "
+            f"{configured}. Endre kundens FortiGate-adresse først."
+        )
+    host = requested or configured or ""
 
     # Port — bootstrap hardens admin-sport to 8443, that's the default
     raw_port = (customer_step.get("port")

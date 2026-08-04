@@ -372,12 +372,26 @@ async def _connect_to_host(host: SshHost) -> SshSession:
         except Exception as e:
             logger.warning("Failed to load private key %s: %s", host.auth_key_id, e)
 
+    # SshSession.connect takes `client_keys` (asyncssh key objects), not a
+    # `private_key` PEM string. Passing the latter raised TypeError on every
+    # call — including password-auth hosts, since the keyword was unexpected
+    # regardless of its value — and each caller swallowed it into a per-host
+    # {"ok": False, "error": ...}, so host test, batch exec, key push, key
+    # revoke and health check have never worked. Convert the PEM properly.
+    client_keys = None
+    if private_key:
+        import asyncssh
+        try:
+            client_keys = [asyncssh.import_private_key(private_key)]
+        except Exception as e:
+            logger.warning("Could not parse private key for host %s: %s", host.id, e)
+
     return await SshSession.connect(
         hostname=host.hostname,
         port=host.port,
         username=host.username,
         password=password,
-        private_key=private_key,
+        client_keys=client_keys,
     )
 
 
