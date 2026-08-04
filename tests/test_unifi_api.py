@@ -104,6 +104,12 @@ class TestSetInformUrlValidation:
             "http://10.0.0.1/inform?x=1",
             "file:///etc/passwd/inform",
             "http:// /inform",
+            # urlparse defers the port parse to attribute access and then
+            # raises a plain ValueError. Both of these used to reach the global
+            # handler as a 500 "internal error" rather than a 400 telling the
+            # technician what was wrong with their input.
+            "http://10.0.0.1:99999/inform",
+            "http://10.0.0.1:abc/inform",
         ],
     )
     def test_metacharacters_and_odd_schemes_are_refused(self, bad):
@@ -122,6 +128,10 @@ class TestSetInformUrlValidation:
             # path would have rejected it.
             ("https://unifi.example.no/proxy/network/inform",
              "https://unifi.example.no/proxy/network/inform"),
+            # urlparse strips the brackets off an IPv6 literal, so rebuilding
+            # from .hostname alone emitted http://::1:8080/inform — an address
+            # the device cannot resolve.
+            ("http://[fd00::1]:8080/inform", "http://[fd00::1]:8080/inform"),
         ],
     )
     def test_legitimate_urls_still_work(self, raw, expected):

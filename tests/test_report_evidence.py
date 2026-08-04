@@ -16,7 +16,7 @@ from app.reports.generator import (
     _parse_signin_risk,
     build_report_context,
 )
-from tests.audit_fixture import FULL_AUDIT, _entry_block
+from tests.audit_fixture import FULL_AUDIT, _admin_role_table, _entry_block
 
 
 @pytest.fixture()
@@ -88,6 +88,64 @@ class TestGlobalAdminsUnderTheNameGraphActuallyUses:
             "  Global Administrator                     Ola Nordmann    ola@acme.no\n"
         )
         assert _parse_admin_roles(text)["global_admin_count"] == 1
+
+
+class TestTheAdminTableIsReadAtItsRealColumnOffsets:
+    """The collector writes f"  {role:<40} {display:<30} {upn:<45}" and appends a
+    last-sign-in column when it has the users list. Splitting on whitespace runs
+    then put a timestamp in the email field and the email in the user field, and
+    a 30-character display name collapsed into the UPN column outright. The
+    global-admin *count* survived — the role is the first column either way —
+    so nothing failed loudly; the report just named the wrong people.
+    """
+
+    def test_the_signin_column_does_not_become_the_email(self):
+        text = _admin_role_table([
+            ("Global Administrator", "Ola Nordmann", "ola@acme.no", "2026-03-20 14:30"),
+            ("Global Administrator", "Break Glass", "bg@acme.no", "Aldri"),
+        ])
+        out = _parse_admin_roles(text)
+        assert out["global_admin_count"] == 2
+        assert [r["email"] for r in out["global_admin_users"]] == ["ola@acme.no", "bg@acme.no"]
+        assert [r["user"] for r in out["global_admin_users"]] == ["Ola Nordmann", "Break Glass"]
+
+    def test_a_display_name_that_fills_its_column_does_not_swallow_the_upn(self):
+        # Exactly 30 characters: the collector truncates to the column width and
+        # pads to the column width, so there is a single space before the UPN.
+        name = "Aleksandra Wiśniewska-Nordman"[:30].ljust(30, "x")
+        assert len(name) == 30
+        text = _admin_role_table([
+            ("Global Administrator", name, "aleksandra@acme.no", "2026-03-20 14:30"),
+        ])
+        [row] = _parse_admin_roles(text)["global_admin_users"]
+        assert row["user"] == name
+        assert row["email"] == "aleksandra@acme.no"
+
+    def test_a_role_name_too_long_for_its_column_keeps_the_columns_aligned(self):
+        # "Azure Information Protection Administrator" is 42 characters. Padded
+        # to 40 it emits no separator at all, which shifts every later field and
+        # leaves a single space between the role and the user — nothing a reader
+        # can undo. The collector now truncates it to its column width, as it
+        # already did for the display name, so the row stays parseable.
+        text = _admin_role_table([
+            ("Azure Information Protection Administrator", "Per Hansen",
+             "per@acme.no", "2026-03-20 14:30"),
+        ])
+        [row] = _parse_admin_roles(text)["roles"]
+        assert row["role"] == "Azure Information Protection Administrat"
+        assert row["user"] == "Per Hansen"
+        assert row["email"] == "per@acme.no"
+
+    def test_an_unpadded_legacy_file_is_still_read_correctly(self):
+        # Audit directories written before the truncation land here: the role
+        # overflows, so every later field shifts right and there is a single
+        # space where the separator should be. The display column is still
+        # padded to 30, so the UPN's position fixes the two columns before it.
+        line = f"  {'Azure Information Protection Administrator':<40} {'Per Hansen':<30} {'per@acme.no':<45} 2026-03-20 14:30"
+        [row] = _parse_admin_roles("ADMIN ROLE ASSIGNMENTS\n" + line + "\n")["roles"]
+        assert row["role"] == "Azure Information Protection Administrator"
+        assert row["user"] == "Per Hansen"
+        assert row["email"] == "per@acme.no"
 
 
 class TestSignInTotalIsNotJustTheUserCount:

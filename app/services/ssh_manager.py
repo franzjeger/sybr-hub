@@ -33,6 +33,11 @@ from app.services.ssh_connection import SshSession
 
 logger = logging.getLogger(__name__)
 
+# Ceiling on simultaneous SSH connections for the fan-out helpers. These
+# paths raised TypeError on every call until recently, so nothing bounded
+# them; now they genuinely open sockets to customer machines.
+_MAX_CONCURRENT_HOSTS = 10
+
 SSH_KEYS_DIR = DATA_DIR / "ssh_keys"
 
 
@@ -631,41 +636,74 @@ async def _revoke_via_sftp(session: SshSession, pub_line: str) -> None:
     await session.exec(f"chmod 600 {shlex.quote(ak_path)}", timeout=5)
 
 
+def _revoke_script(ak_path: str, pub_line: str) -> str:
+    """Shell script that removes *pub_line* from *ak_path*.
+
+    Two things the previous one-liner got wrong, both of them on the customer's
+    machine:
+
+     * ``grep -vF`` exits 1 when nothing matches — which here means the file
+       held only the key being revoked, the most ordinary revoke there is.
+       Chained with ``&&`` that skipped the replacement and reported "revoke
+       failed" on exactly the case that mattered. Only rc >= 2 is a grep error.
+     * The staging file was ``mktemp /tmp/...``, created as the *login* user,
+       and the sudo variant then ``sudo mv``-ed it over
+       /root/.ssh/authorized_keys — handing an unprivileged account ownership
+       of root's key file, which lets it authorise any key it likes and makes
+       sshd's StrictModes refuse the file at the same time. Staging beside the
+       target keeps the replacement atomic, on the same filesystem, and owned
+       by whoever is running the script.
+    """
+    q_ak = shlex.quote(ak_path)
+    b64 = base64.b64encode(pub_line.strip().encode("utf-8")).decode("ascii")
+    return (
+        f'tmp={q_ak}.revoke.$$\n'
+        f'grep -vF "$(printf \'%s\' {b64} | base64 -d)" {q_ak} > "$tmp"\n'
+        f'rc=$?\n'
+        f'if [ "$rc" -gt 1 ]; then rm -f "$tmp"; exit "$rc"; fi\n'
+        f'chmod 600 "$tmp" && mv "$tmp" {q_ak}\n'
+    )
+
+
+def _sh_script_command(script: str, *, sudo: bool = False) -> str:
+    """Wrap a multi-line script so it survives one trip through the remote shell.
+
+    Base64 for the same reason the key material uses it: the script then
+    contains no quoting the outer shell can misread, and there is exactly one
+    level of interpretation to reason about.
+    """
+    b64 = base64.b64encode(script.encode("utf-8")).decode("ascii")
+    runner = "sudo sh" if sudo else "sh"
+    return f"printf '%s' {b64} | base64 -d | {runner}"
+
+
 async def _revoke_via_exec(session: SshSession, pub_line: str) -> None:
     home = await session.get_home()
     ak_path = f"{home}/.ssh/authorized_keys"
-    q_ak = shlex.quote(ak_path)
 
-    check = await session.exec(f"test -f {q_ak}", timeout=5)
+    check = await session.exec(f"test -f {shlex.quote(ak_path)}", timeout=5)
     if check.exit_code != 0:
         return
 
-    b64 = base64.b64encode(pub_line.strip().encode("utf-8")).decode("ascii")
-    cmd = (
-        f'tmp=$(mktemp /tmp/.ak_revoke_XXXXXX) && '
-        f'grep -vF "$(printf \'%s\' {b64} | base64 -d)" {q_ak} > "$tmp" '
-        f'&& mv "$tmp" {q_ak} && chmod 600 {q_ak}'
+    result = await session.exec(
+        _sh_script_command(_revoke_script(ak_path, pub_line)), timeout=15
     )
-    result = await session.exec(cmd, timeout=15)
     if result.exit_code != 0:
         raise RuntimeError(f"Revoke failed (rc={result.exit_code}): {result.stderr}")
 
 
 async def _revoke_with_sudo(session: SshSession, pub_line: str) -> None:
     target_file = "/root/.ssh/authorized_keys"
-    q_file = shlex.quote(target_file)
 
-    check = await session.exec(f"sudo test -f {q_file}", timeout=5)
+    check = await session.exec(f"sudo test -f {shlex.quote(target_file)}", timeout=5)
     if check.exit_code != 0:
         return
 
-    b64 = base64.b64encode(pub_line.strip().encode("utf-8")).decode("ascii")
-    cmd = (
-        f'tmp=$(mktemp /tmp/.ak_revoke_XXXXXX) && '
-        f'sudo grep -vF "$(printf \'%s\' {b64} | base64 -d)" {q_file} > "$tmp" '
-        f'&& sudo mv "$tmp" {q_file} && sudo chmod 600 {q_file}'
+    # The whole script runs under sudo, so the staging file is created by root
+    # in root's own .ssh — the ownership never leaves root's hands.
+    result = await session.exec(
+        _sh_script_command(_revoke_script(target_file, pub_line), sudo=True), timeout=15
     )
-    result = await session.exec(cmd, timeout=15)
     if result.exit_code != 0:
         raise RuntimeError(f"Sudo revoke failed (rc={result.exit_code}): {result.stderr}")
 
@@ -701,7 +739,15 @@ async def batch_exec(
                 exit_code=-1, stdout="", stderr="", error=str(e),
             )
 
-    return list(await asyncio.gather(*[_run_one(hid) for hid in host_ids]))
+    # Same bound as health_check: a batch over the whole estate would otherwise
+    # open one connection per host at once.
+    sem = asyncio.Semaphore(_MAX_CONCURRENT_HOSTS)
+
+    async def _bounded(hid: str) -> ExecResult:
+        async with sem:
+            return await _run_one(hid)
+
+    return list(await asyncio.gather(*[_bounded(hid) for hid in host_ids]))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -738,7 +784,17 @@ async def health_check(host_ids: list[str]) -> list[dict]:
                 await conn.commit()
             return {"host_id": hid, "host_label": host.label, "reachable": False, "error": str(e)}
 
-    return list(await asyncio.gather(*[_check_one(hid) for hid in host_ids]))
+    # Bounded. This path did no network I/O at all until _connect_to_host was
+    # fixed, so an unbounded gather was harmless; now one request opens an SSH
+    # connection per host simultaneously across the estate. The MFA collector
+    # bounds its own fan-out the same way.
+    sem = asyncio.Semaphore(_MAX_CONCURRENT_HOSTS)
+
+    async def _bounded(hid: str) -> dict:
+        async with sem:
+            return await _check_one(hid)
+
+    return list(await asyncio.gather(*[_bounded(hid) for hid in host_ids]))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

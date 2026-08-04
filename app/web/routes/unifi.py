@@ -97,9 +97,17 @@ def _validated_inform_url(raw: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValidationError("Controller URL må bruke http eller https")
-    if not parsed.hostname:
+    try:
+        hostname, port = parsed.hostname, parsed.port
+    except ValueError as e:
+        # urlparse defers parsing the port until the attribute is read, and
+        # then raises plain ValueError — "x:99999" and "x:abc" both reached the
+        # global handler as a 500 "internal error" instead of telling the
+        # technician their URL was malformed.
+        raise ValidationError(f"Ugyldig port i controller URL: {e}") from e
+    if not hostname:
         raise ValidationError("Controller URL mangler vertsnavn")
-    validate_host(parsed.hostname, "controller_url")
+    validate_host(hostname, "controller_url")
     if parsed.query or parsed.fragment or parsed.params:
         raise ValidationError("Controller URL kan ikke inneholde query eller fragment")
     # Restrict the path to unreserved URL characters. Without this, a path like
@@ -108,9 +116,13 @@ def _validated_inform_url(raw: str) -> str:
     # accept a string that is obviously not an inform endpoint.
     if not re.fullmatch(r"[A-Za-z0-9._~/-]*/inform", parsed.path):
         raise ValidationError("Controller URL må peke på /inform")
-    port = f":{parsed.port}" if parsed.port else ""
+    # urlparse strips the brackets off an IPv6 literal, so rebuilding from
+    # .hostname alone turns http://[::1]:8443/inform into http://::1:8443/inform
+    # — which the device cannot resolve and which no longer round-trips.
+    netloc_host = f"[{hostname}]" if ":" in hostname else hostname
+    port_part = f":{port}" if port else ""
     # Rebuild from the parsed parts so nothing outside them survives.
-    return f"{parsed.scheme}://{parsed.hostname}{port}{parsed.path}"
+    return f"{parsed.scheme}://{netloc_host}{port_part}{parsed.path}"
 
 
 @router.post("/unifi/set-inform")

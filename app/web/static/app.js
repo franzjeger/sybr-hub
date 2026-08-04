@@ -4089,6 +4089,10 @@ async function unifiDeviceSetInform(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({...creds, controller_url: url})
     });
+    // apiFetch returns null on any HTTP error and has already told the user
+    // why. Reading .ok off it throws a TypeError, which the catch below then
+    // reports as a second, meaningless toast on top of the real one.
+    if (!d) return;
 
     if (d.ok) {
       showToast(t('msg_inform_sent').replace('{host}', host) + ' — ' + (d.output || 'OK'), 'success', 8000);
@@ -4106,6 +4110,7 @@ async function unifiDeviceReboot(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) return;
 
     if (d.ok) showToast(d.output || t('msg_device_rebooting'), 'success');
     else showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
@@ -4135,6 +4140,12 @@ async function unifiDeviceConfig(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) {
+      // apiFetch already reported the failure; clear the "Loading…" placeholder
+      // so the card does not sit spinning forever.
+      if (targetEl) targetEl.innerHTML = '';
+      return;
+    }
 
     if (d.ok && d.config) {
       // Auto-save backup
@@ -4178,10 +4189,13 @@ async function runSubnetScan() {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({subnet: subnet})
     });
+    if (!d) { box.innerHTML = ''; return; }
 
     if (d.error) { box.innerHTML = '<div class="alert alert-error">' + esc(d.error) + '</div>'; return; }
 
-    if (d.found.length === 0) {
+    // A scan that returned nothing at all is not the same as a scan that found
+    // no devices; treat a missing list as an empty one rather than throwing.
+    if (!d.found || d.found.length === 0) {
       box.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:13px;">' + t('msg_no_devices_found','No devices found in') + ' ' + esc(subnet) + '</div>';
       return;
     }
@@ -4293,6 +4307,7 @@ async function doScanSetInform(host, url) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({...creds, controller_url: url})
     });
+    if (!d) return;
     if (d.ok) {
       showToast(t('msg_inform_sent').replace('{host}', host) + ' — ' + (d.output || 'OK'), 'success', 8000);
     } else {
@@ -4313,6 +4328,7 @@ async function scanDeviceConfig(host, rowId) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) { row.style.display = 'none'; cell.innerHTML = ''; return; }
     if (d.ok && d.config) {
       apiFetch('/api/network/save-config-backup', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -4339,6 +4355,7 @@ async function scanDeviceReboot(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) return;
     if (d.ok) showToast(d.output || t('msg_device_rebooting'), 'success');
     else showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
   } catch (e) { showToast(t('status_error') + ': ' + e.message, 'error'); }

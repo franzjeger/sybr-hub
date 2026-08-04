@@ -472,13 +472,28 @@ def import_master_key(b64_key: str) -> bool:
     # notice because the new blob wraps cleanly under this host's passphrase.
     for path in _backup_locations():
         if path.exists() and _backup_is_readable(path):
+            # Never clobber an existing .prev. Retrying with another candidate
+            # is the natural response to a bad import, and a second attempt
+            # would otherwise overwrite the preserved original with the first
+            # wrong key — leaving the real one in none of the files. Written
+            # as a sibling name rather than with_suffix(), which on a dotfile
+            # like ".master_key_backup" treats the whole name as a suffix.
+            prev = path.parent / (path.name + ".prev")
+            if prev.exists():
+                log.info("Keeping the earlier preserved key at %s", prev)
+                continue
             try:
-                prev = path.with_suffix(path.suffix + ".prev")
                 prev.write_text(path.read_text())
                 prev.chmod(0o600)
                 log.info("Existing key backup preserved at %s", prev)
             except Exception as e:
-                log.warning("Could not preserve existing key backup %s: %s", path, e)
+                # Refuse rather than proceed: the next step overwrites this
+                # file, and without the copy that is one-way.
+                log.error("Could not preserve existing key backup %s: %s", path, e)
+                raise MasterKeyUnavailableError(
+                    f"Refusing to import: the existing key backup at {path} could "
+                    f"not be preserved first ({e})."
+                ) from e
 
     _cached_key = raw
     _save_key_backups(b64_key, force=True)

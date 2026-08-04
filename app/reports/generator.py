@@ -239,9 +239,13 @@ def _parse_mfa(
     ca_excluded = 0
     fully_unprotected = 0
     effectively_covered = 0
+    unknown = 0
 
-    for rec in _mfa_user_records(json_text, text):
+    records = _mfa_user_records(json_text, text)
+    for rec in records:
         total += 1
+        if rec.get("mfa_registered") is None:
+            unknown += 1
         # None is "could not be determined". Counting it as False is what
         # turns a throttled run into a page of false "no MFA" findings.
         has_mfa = rec.get("mfa_registered") is True
@@ -287,54 +291,48 @@ def _parse_mfa(
         if total == 0:
             total = ca_analysis_covered
 
-    pct = (effectively_covered / total * 100) if total > 0 else 0
-    no_mfa = total - effectively_covered
+    # Users whose method lookup failed are unknown, not unprotected, so they
+    # are excluded from both the headline count and its denominator. Counting
+    # them as missing MFA made the figure say five users lack it while the
+    # recommendation — which only names users whose status is known — listed
+    # none of them, and it turns a throttled run into a page of false
+    # findings. The count is still reported separately so it is not hidden.
+    measured = max(0, total - unknown)
+    pct = (effectively_covered / measured * 100) if measured > 0 else 0
+    no_mfa = max(0, measured - effectively_covered)
 
     # Build per-user detail list for drill-down
+    # Built from the same records as the figures above. This loop kept its own
+    # whitespace splitter after the coverage counts moved off it, so the report
+    # printed a red "1 user without MFA" directly above a table listing two —
+    # one of them with MFA registered, and with the literal "YES" rendered
+    # under the e-mail column, because every field had shifted by one. Both
+    # readers used to be wrong in the same way and agreed; fixing only one is
+    # what made the contradiction visible on the page.
     users_detail: list[dict] = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("=") or stripped.startswith("-") or "Display Name" in stripped or "MFA METHOD" in stripped:
-            continue
-        if "|" in stripped:
-            parts = [p.strip() for p in stripped.split("|")]
-            u_has_mfa = any("YES" in p for p in parts if p.startswith("MFA:"))
-            u_has_ca = any("YES" in p for p in parts if p.startswith("CA:"))
-            u_excluded = any("YES" in p for p in parts if p.startswith("CA_EXCL:") or p.startswith("EXCL:"))
-            u_methods = ""
-            for p in parts:
-                if p.startswith("Methods:"):
-                    u_methods = p.replace("Methods:", "").strip()
-            u_name = parts[0] if parts else ""
-            u_upn = parts[1] if len(parts) > 1 else ""
-        else:
-            cols = re.split(r'\s{2,}', stripped)
-            if len(cols) < 3:
-                continue
-            found_yn = any(c.strip() in ("YES", "NO") for c in cols[2:])
-            if not found_yn:
-                continue
-            u_name = cols[0].strip()
-            u_upn = cols[1].strip() if len(cols) > 1 else ""
-            u_has_mfa = "YES" in cols[2] if len(cols) > 2 else False
-            u_has_ca = "YES" in cols[3] if len(cols) > 3 else False
-            u_excluded = "YES" in cols[4] if len(cols) > 4 else False
-            u_methods = cols[5].strip() if len(cols) > 5 else ""
-
-        u_protected = u_has_mfa or (u_has_ca and not u_excluded)
+    for rec in records:
+        u_has_mfa = rec.get("mfa_registered") is True
+        u_has_ca = bool(rec.get("ca_covered"))
+        u_excluded = bool(rec.get("ca_excluded"))
+        u_methods = ", ".join(rec.get("methods") or [])
         users_detail.append({
-            "name": u_name,
-            "upn": u_upn,
+            "name": rec.get("display_name", ""),
+            "upn": rec.get("upn", ""),
             "has_mfa": u_has_mfa,
             "has_ca": u_has_ca,
             "ca_excluded": u_excluded,
             "methods": u_methods if u_methods and u_methods != "(none)" else "",
-            "protected": u_protected,
+            # A user whose lookup failed is unknown, not unprotected — keep
+            # them out of the "these people have no MFA" table.
+            "unknown": rec.get("mfa_registered") is None,
+            "protected": u_has_mfa or (u_has_ca and not u_excluded),
         })
 
     return {
         "covered": effectively_covered,
         "total": total,
+        "measured": measured,
+        "unknown": unknown,
         "pct": round(pct, 1),
         "no_mfa": max(0, no_mfa),
         "mfa_registered": mfa_registered,
@@ -750,6 +748,61 @@ def _parse_ca_legacy_auth_block(text: str) -> dict:
     return {"blocks": blocks, "collected": collected}
 
 
+# The collector writes fixed-width columns — groups_roles.py:186 —
+#   f"  {role:<40} {display:<30} {upn:<45}"
+# with an optional last-sign-in column appended when it has the users list.
+# Splitting on runs of whitespace loses to that format twice over: a display
+# name of exactly 30 characters leaves a single space before the UPN, and the
+# sign-in column means the *last* field is a timestamp rather than an email —
+# so "@" in cols[-1] is False and every assignment came back with the user and
+# email fields shifted one column to the left. Slice by the offsets instead.
+_ADMIN_ROLE_SPAN    = (2, 42)
+_ADMIN_DISPLAY_SPAN = (43, 73)
+_ADMIN_UPN_SPAN     = (74, 119)
+_ADMIN_DISPLAY_WIDTH = _ADMIN_DISPLAY_SPAN[1] - _ADMIN_DISPLAY_SPAN[0]
+_UPN_TOKEN_RE = re.compile(r'\S+@\S+')
+
+
+def _admin_role_record(line: str) -> dict | None:
+    """Slice one fixed-width assignment line, or None if it is not one.
+
+    Two shapes are accepted. The first is the collector's own, sliced at its
+    column offsets. The second is a file written before the collector truncated
+    the role name to its width: an over-long role eats its own padding and
+    shifts every later field right, but the *display* column is still padded to
+    30, so the UPN's position still fixes where the two columns before it begin.
+    """
+    if len(line) < _ADMIN_UPN_SPAN[0] or not line.startswith("  "):
+        return None
+
+    def _record(role_end: int, upn_start: int) -> dict | None:
+        role = line[2:role_end].strip()
+        display = line[upn_start - _ADMIN_DISPLAY_WIDTH - 1:upn_start - 1].strip()
+        upn = line[upn_start:upn_start + 45].strip()
+        if not role or "@" not in upn:
+            return None
+        return {"role": role, "user": display, "email": upn}
+
+    # The column separators have to actually be separators before the offsets
+    # mean anything.
+    if line[_ADMIN_ROLE_SPAN[1]] == " " and line[_ADMIN_DISPLAY_SPAN[1]] == " ":
+        fixed = _record(_ADMIN_ROLE_SPAN[1], _ADMIN_UPN_SPAN[0])
+        if fixed:
+            return fixed
+
+    # Shifted row: anchor on the UPN and count back over the padded display
+    # column. The sign-in column never contains "@", so the last such token on
+    # the line is the UPN.
+    tokens = _UPN_TOKEN_RE.findall(line)
+    if not tokens:
+        return None
+    upn_start = line.rfind(tokens[-1])
+    sep = upn_start - _ADMIN_DISPLAY_WIDTH - 2
+    if sep < 2 or line[sep] != " " or line[upn_start - 1] != " ":
+        return None
+    return _record(sep, upn_start)
+
+
 def _parse_admin_roles(text: str) -> dict:
     roles: list[dict] = []
     for line in text.splitlines():
@@ -764,8 +817,19 @@ def _parse_admin_roles(text: str) -> dict:
                 roles.append({"role": parts[0], "user": parts[1], "email": parts[2]})
             continue
 
-        # Format 2: columnar "Role                User                email@domain"
+        # Format 2: the collector's own fixed-width columns.
+        fixed = _admin_role_record(line)
+        if fixed:
+            roles.append(fixed)
+            continue
+
+        # Format 3: any other columnar "Role   User   email@domain" layout.
         cols = re.split(r'\s{2,}', stripped)
+        # Drop a trailing sign-in column so the email stays last for the tests
+        # below — the fixed-width path above handles the collector's own lines,
+        # but a role or UPN long enough to overflow its column lands here.
+        if len(cols) >= 4 and "@" not in cols[-1] and "@" in cols[-2]:
+            cols = cols[:-1]
         if len(cols) >= 3:
             # Last column should look like an email or UPN
             if "@" in cols[-1]:
@@ -4646,7 +4710,12 @@ def build_report_context(
     # and still write an error into its file, so the two disagree on exactly
     # the tenants this list exists for.
     error_files: list[str] = []
-    for f in sorted(out_dir.glob("*.txt")):
+    # .json as well as .txt: the MFA collector writes a machine-readable
+    # sidecar next to its rendered table, and globbing only *.txt meant the
+    # reader never saw it and silently fell back to parsing the table on every
+    # single run — so the sidecar that exists to make the figures reliable was
+    # dead weight. Error-payload blanking below applies to both.
+    for f in sorted([*out_dir.glob("*.txt"), *out_dir.glob("*.json")]):
         try:
             text = encrypted_read_text(f)
         except Exception:

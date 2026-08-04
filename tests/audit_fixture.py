@@ -34,6 +34,23 @@ def _mfa_table(rows: list[tuple[str, str, str, str, str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _admin_role_table(rows: list[tuple[str, str, str, str]]) -> str:
+    """Render the admin-role table exactly as the collector does.
+
+    Mirrors app/modules/m365_audit/sections/groups_roles.py, *including* the
+    last-sign-in column it appends whenever the users list is available — the
+    column that made the last field a timestamp rather than an email. Fixtures
+    used a narrower home-made layout that happened to keep the email last, so
+    the suite never saw the shift.
+    """
+    header = f"  {'Role':<40} {'Display Name':<30} {'UPN':<45} Siste innlogging"
+    lines = ["=" * 130, "  ADMIN ROLE ASSIGNMENTS", "=" * 130, header, "  " + "-" * 126]
+    for role, display, upn, signin in rows:
+        lines.append(f"  {role[:40]:<40} {display[:30]:<30} {upn[:45]:<45} {signin}")
+    lines += ["=" * 130, ""]
+    return "\n".join(lines)
+
+
 def _entry_block(title: str, entries: list[dict]) -> str:
     """Render a section block the way app/modules/m365_audit/sections/exchange.py does."""
     lines = ["=" * 80, f"  {title}  ({len(entries)} entries)", "=" * 80]
@@ -89,6 +106,10 @@ FULL_AUDIT: dict[str, str] = {
         "  Total shared items   : 3\n"
         "  'Anyone' links       : 0\n"
         "  External user shares : 0\n"
+        # The collector states its own scope here. Without the line the report
+        # reads the zero above as "no anonymous links in the tenant" — a branch
+        # production can no longer reach, so the fixture must carry it.
+        "  Scan scope           : drive roots only (items within folders not enumerated)\n"
         + "=" * 70 + "\n"
     ),
     "01_tenant.txt": (
@@ -158,15 +179,14 @@ FULL_AUDIT: dict[str, str] = {
         "Windows Baseline         Windows     Yes\n"
         "iOS Baseline             iOS         Yes\n"
     ),
-    "07_admin_roles.txt": (
-        "ADMIN ROLE ASSIGNMENTS\n"
-        "======================\n"
-        "Role                     User            Email\n"
-        "Global Administrator     Ola Nordmann    ola@acme.no\n"
-        "Global Administrator     Kari Nordmann   kari@acme.no\n"
-        "Global Administrator     Break Glass     bg@acme.no\n"
-        "Security Administrator   Per Hansen      per@acme.no\n"
-    ),
+    "07_admin_roles.txt": _admin_role_table([
+        ("Global Administrator", "Ola Nordmann", "ola@acme.no", "2026-03-20 14:30"),
+        ("Global Administrator", "Kari Nordmann", "kari@acme.no", "2026-03-19 09:05"),
+        # Break-glass accounts are meant to sit unused; the collector writes
+        # "Aldri" for them, which is another non-email final column.
+        ("Global Administrator", "Break Glass", "bg@acme.no", "Aldri"),
+        ("Security Administrator", "Per Hansen", "per@acme.no", "2026-03-21 08:00"),
+    ]),
     "07b_pim_eligible_assignments.txt": (
         "PIM ELIGIBLE ROLE ASSIGNMENTS (4 total)\n"
         "=======================================\n"
@@ -404,15 +424,10 @@ _BROKEN_OVERRIDES: dict[str, str] = {
         "Enable Safe Attachments                        8.0%   High\n"
     ),
     # Seven global admins.
-    "07_admin_roles.txt": (
-        "ADMIN ROLE ASSIGNMENTS\n"
-        "======================\n"
-        "Role                     User            Email\n"
-        + "".join(
-            f"Global Administrator     Admin {i}        admin{i}@acme.no\n"
-            for i in range(1, 8)
-        )
-    ),
+    "07_admin_roles.txt": _admin_role_table([
+        ("Global Administrator", f"Admin {i}", f"admin{i}@acme.no", "2026-03-20 14:30")
+        for i in range(1, 8)
+    ]),
     "10_intune_devices_count.txt": (
         "INTUNE DEVICE COUNT\n"
         "===================\n"

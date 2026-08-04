@@ -418,7 +418,13 @@ async def exec_command(
 # ── Health check ─────────────────────────────────────────────────────────────
 
 @router.post("/ssh/hosts/health")
-async def health_check(request: Request, user: User = Depends(get_current_user)):
+async def health_check(
+    request: Request,
+    # Opens a real SSH connection to every host in scope — that is an action on
+    # customer infrastructure, not a read, so it sits at the same floor as the
+    # other host operations rather than at viewer.
+    user: User = Depends(require_role(Role.technician)),
+):
     from app.services.ssh_manager import health_check, list_hosts
     body = await request.json()
     host_ids = body.get("host_ids")

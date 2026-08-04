@@ -191,22 +191,51 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "") -> dict:
 
     # Host.
     #
-    # A caller-supplied target_host used to win outright, while the admin
-    # password and API token below still came from the *customer's* keyring —
+    # A caller-supplied target_host used to win outright while the admin
+    # password and API token below still came from the *customer's* keyring,
     # so pointing a deploy at an attacker-controlled address exfiltrated a
-    # stored firewall credential. Once a customer has a configured FortiGate,
-    # that is the only address its credentials may travel to. A request naming
-    # a different one is refused rather than silently redirected. Provisioning
-    # a customer that has no configured host yet (the bootstrap case) still
-    # accepts an explicit address, because there is nothing stored to leak.
-    configured = active_cfg.get("FortiGateHost") or ""
-    requested = target_host or customer_step.get("target_host") or ""
-    if configured and requested and requested != configured:
-        raise ValueError(
-            f"Kan ikke deploye til {requested}: kunden er konfigurert med "
-            f"{configured}. Endre kundens FortiGate-adresse først."
+    # stored firewall credential. Reading those secrets directly needs admin
+    # plus customer access and is activity-logged; deploy needs only
+    # technician, which made this the cheaper route to the same material.
+    #
+    # The guard keys on whether a *stored credential* will be used, not on
+    # whether a host happens to be configured. Those are independent:
+    # /fortigate/save writes FortiGateHost unconditionally from the request
+    # body, so an omitted "host" field blanks it while the keyring secrets
+    # stay — and a host-keyed check would then wave the request through.
+    #
+    # Only the body-supplied override is constrained. The wizard's own Step 1
+    # "Target host" is the operator typing an address into the form in front
+    # of them, which is the documented precedence and not the exfiltration
+    # path; constraining it too broke provisioning a replacement unit on its
+    # management IP.
+    configured = (active_cfg.get("FortiGateHost") or "").strip()
+    wizard_host = (customer_step.get("target_host") or "").strip()
+    requested = (target_host or "").strip()
+
+    stored_secret_in_play = bool(
+        (not customer_step.get("api_token") and _from_keyring("fortigate_api_token"))
+        or (
+            not customer_step.get("password")
+            and not security_step.get("admin_password")
+            and _from_keyring("fortigate_admin_password")
         )
-    host = requested or configured or ""
+    )
+    if requested and stored_secret_in_play:
+        # Compare case-insensitively: hostnames are not case-sensitive, and a
+        # 400 over "FW.ACME.NO" vs "fw.acme.no" is a false refusal.
+        if not configured:
+            raise ValueError(
+                "Kan ikke deploye til en oppgitt adresse med kundens lagrede "
+                "FortiGate-legitimasjon når kunden ikke har en konfigurert "
+                "adresse. Sett kundens FortiGate-adresse først."
+            )
+        if requested.casefold() != configured.casefold():
+            raise ValueError(
+                f"Kan ikke deploye til {requested}: kunden er konfigurert med "
+                f"{configured}. Endre kundens FortiGate-adresse først."
+            )
+    host = requested or wizard_host or configured or ""
 
     # Port — bootstrap hardens admin-sport to 8443, that's the default
     raw_port = (customer_step.get("port")
