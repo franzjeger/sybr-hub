@@ -3452,14 +3452,23 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "1.2.1": ("31_password_protection.txt",),
     "1.4":   ("09_secure_score.txt",),
     "2.1":   ("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
-    "2.1.2": ("17c_app_credential_expiry.txt", "17c_app_credential_expiry_WARN.txt"),
+    # 17_app_registrations.txt is not incidental here: it is what separates
+    # "no expired credentials" from "the section never ran", so the verdict is
+    # formed from it as much as from the expiry files.
+    "2.1.2": ("17_app_registrations.txt",
+              "17c_app_credential_expiry.txt", "17c_app_credential_expiry_WARN.txt"),
     "3.1.1": ("19d_purview_dlp_policies.txt",),
     "3.2.1": ("19c_purview_sensitivity_labels.txt",),
     "4.1":   ("27c_exchange_org_config.txt",),
     "4.2":   ("23_exchange_antiphish.txt",),
     "4.3":   ("24_exchange_antispam.txt",),
+    # The two WARN files carry the finding; the two plain files are what say
+    # the scan ran at all, and the "pass" branch is formed from those. Listing
+    # only three of the four meant a technician tracing a pass was shown every
+    # file except the one that produced it.
     "4.4":   ("28_exchange_mailbox_forwarding.txt",
               "28b_exchange_external_forwarding_WARN.txt",
+              "29_exchange_inbox_rules_external_fwd.txt",
               "29_exchange_inbox_rules_external_fwd_WARN.txt"),
     "4.5":   ("27_exchange_defender_policies.txt",),
     "4.6":   ("27_exchange_defender_policies.txt",),

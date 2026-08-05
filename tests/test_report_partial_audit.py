@@ -39,7 +39,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.reports.generator import build_report_context, save_audit_metrics
+from app.reports.generator import (
+    _EVIDENCE_MAP,
+    build_report_context,
+    save_audit_metrics,
+)
 from tests.audit_fixture import FULL_AUDIT
 
 
@@ -157,4 +161,34 @@ def test_removing_a_file_never_creates_a_finding(baseline, tmp_path, removed, mo
     assert not violations, (
         f"removing {removed} made the report say {len(violations)} new thing(s):\n  "
         + "\n  ".join(violations)
+    )
+
+
+# ── The other half of the invariant ───────────────────────────────────────────
+#
+# The check above catches a report that gets *louder* on less evidence. It
+# cannot catch one that stays exactly as reassuring — a control still reading
+# "pass" when the file behind it is gone, because "we found nothing bad" and
+# "we could not look" produce the same silence. That is the shape behind most
+# of what this branch pulled out of the report: a measured zero standing in for
+# an unmeasured one.
+#
+# _EVIDENCE_MAP already declares which files each verdict is formed from, and a
+# sibling test requires every control to appear in it. That declaration is what
+# makes this mechanical: remove exactly what a control says it reads, and the
+# control must stop claiming anything.
+
+
+@pytest.mark.parametrize("cis_id", sorted(_EVIDENCE_MAP))
+def test_a_control_stops_claiming_when_its_own_evidence_is_gone(baseline, tmp_path, cis_id):
+    declared = set(_EVIDENCE_MAP[cis_id])
+    partial = {k: v for k, v in FULL_AUDIT.items() if k not in declared}
+    after = {cid: st for (cid, _t), st in _statuses(_render(tmp_path, partial)).items()}
+    got = after.get(cis_id)
+    if got is None:
+        return  # emitting no row at all is a valid way to claim nothing
+    assert got == "info", (
+        f"CIS {cis_id} still reports {got!r} with none of its declared evidence "
+        f"present ({', '.join(sorted(declared))}). A verdict that survives the "
+        f"removal of everything it reads was not formed from that evidence."
     )
