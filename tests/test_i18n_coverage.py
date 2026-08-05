@@ -353,7 +353,7 @@ BUDGET_JS_NORWEGIAN = {
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 128,
-    "app-integrations.js": 22,
+    "app-integrations.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
