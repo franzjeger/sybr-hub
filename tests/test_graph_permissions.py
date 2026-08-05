@@ -100,3 +100,33 @@ def test_every_declared_permission_has_something_that_uses_it():
     assert not unmapped, (
         f"no probe for {unmapped} — add one so an unused grant cannot hide"
     )
+
+
+def test_get_report_builds_a_url_it_can_actually_request():
+    """It named _GRAPH_BASE, which does not exist in that module.
+
+    The constant is _GRAPH_V1. Nothing caught it because the usage-report
+    tests exercise the parser against fixture text, and the only code path
+    that touches this line is a live Graph call — so the section shipped and
+    failed on a real tenant with NameError, not with anything about Graph.
+    """
+    import asyncio
+
+    from app.modules.m365_audit.graph_client import GraphClient
+
+    seen: dict = {}
+
+    async def _fake_get(url, params=None, extra_headers=None):
+        seen["url"] = url
+        seen["params"] = params
+        return {"value": [{"userPrincipalName": "a@b.no"}]}
+
+    client = GraphClient.__new__(GraphClient)
+    client._get = _fake_get
+
+    rows = asyncio.run(client.get_report("getOffice365ActiveUserDetail", "D90"))
+
+    assert rows and rows[0]["userPrincipalName"] == "a@b.no"
+    assert seen["url"].startswith("https://graph.microsoft.com/v1.0/reports/")
+    assert "(period='D90')" in seen["url"]
+    assert seen["params"] == {"$format": "application/json"}

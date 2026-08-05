@@ -66,7 +66,7 @@
     "btn_run_all_customers": "Kjør audit (klargjorte kunder)",
     "msg_skipped_unconfigured": "{count} ukonfigurerte kunder hoppet over",
     "btn_go_home": "← Gå til hjem",
-    "btn_open_private_window": "🔒 Åpne i privat vindu",
+    "btn_open_private_window": "Åpner i en ny fane i nettleseren din",
     "btn_import_key": "Importer nøkkel",
     "btn_encrypt_existing": "🔐 Krypter eksisterende data",
     "btn_backup_key": "Sikkerhetskopier nøkkel",
@@ -705,7 +705,7 @@
     "activity_backup_created": "Backup opprettet",
     "activity_backup_restored": "Backup gjenopprettet",
     "setup_login_required": "🔑 Innlogging kreves",
-    "setup_step1": "1. Åpne i privat nettleservindu:",
+    "setup_step1": "1. Åpne påloggingssiden:",
     "setup_step2": "2. Skriv inn koden (klikk for å kopiere):",
     "setup_open_manually": "Eller åpne manuelt: ",
     "setup_login_global_admin": "⚡ Logg inn som Global Admin, vent deretter her.",
@@ -1938,7 +1938,7 @@
     "err_architecture_after": "finnes på serveren.",
     "unifi_detail_before": "For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en",
     "unifi_detail_after": "fra unifi.ui.com, eller direkte tilgang til kontrolleren.",
-    "btn_open_private_window_label": "Åpne i privat vindu",
+    "btn_open_private_window_label": "Åpne påloggingssiden",
     "secure_score_2": "Secure Score",
     "open": "Open",
     "in_progress": "In Progress",
@@ -2625,7 +2625,10 @@
     "inf_token_copied": "API-token kopiert",
     "inf_copied_excl": "Kopiert!",
     "inf_unknown": "Ukjent",
-    "integ_doc_empty": "dokumentet er tomt eller finnes ikke"
+    "integ_doc_empty": "dokumentet er tomt eller finnes ikke",
+    "setup_opened_in_tab": "Åpnet i ny fane",
+    "setup_popup_blocked": "Nettleseren blokkerte fanen — bruk lenken under",
+    "setup_private_hint": "Tips: bruk et privat vindu (Ctrl+Shift+P / Cmd+Shift+N) hvis du allerede er logget inn med en annen konto."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -2694,7 +2697,7 @@
     "btn_run_all_customers": "Run Audit (configured customers)",
     "msg_skipped_unconfigured": "{count} unconfigured customers skipped",
     "btn_go_home": "← Go to Home",
-    "btn_open_private_window": "🔒 Open in Private Window",
+    "btn_open_private_window": "Opens in a new tab in your browser",
     "btn_import_key": "Import Key",
     "btn_encrypt_existing": "🔐 Encrypt Existing Data",
     "btn_backup_key": "Backup Key",
@@ -3333,7 +3336,7 @@
     "activity_backup_created": "Backup created",
     "activity_backup_restored": "Backup restored",
     "setup_login_required": "🔑 Login Required",
-    "setup_step1": "1. Open in a private browser window:",
+    "setup_step1": "1. Open the sign-in page:",
     "setup_step2": "2. Enter the code (click to copy):",
     "setup_open_manually": "Or open manually: ",
     "setup_login_global_admin": "⚡ Log in as Global Admin, then wait here.",
@@ -4566,7 +4569,7 @@
     "err_architecture_after": "exists on the server.",
     "unifi_detail_before": "To fetch detailed per-site information (WLAN names, VLANs, clients) you need either an",
     "unifi_detail_after": "from unifi.ui.com, or direct access to the controller.",
-    "btn_open_private_window_label": "Open in a private window",
+    "btn_open_private_window_label": "Open the sign-in page",
     "secure_score_2": "Secure Score",
     "open": "Open",
     "in_progress": "In progress",
@@ -5253,6 +5256,9 @@
     "inf_token_copied": "API token copied",
     "inf_copied_excl": "Copied!",
     "inf_unknown": "Unknown",
-    "integ_doc_empty": "the document is empty or does not exist"
+    "integ_doc_empty": "the document is empty or does not exist",
+    "setup_opened_in_tab": "Opened in a new tab",
+    "setup_popup_blocked": "Your browser blocked the tab — use the link below",
+    "setup_private_hint": "Tip: use a private window (Ctrl+Shift+P / Cmd+Shift+N) if you are already signed in with another account."
   }
 }

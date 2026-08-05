@@ -390,10 +390,10 @@
       <!-- Device code card — hidden until device code arrives -->
       <div class="device-code-card" id="device-code-card">
         <div class="device-code-title" data-i18n="setup_login_required">🔑 Innlogging kreves</div>
-        <div class="device-code-step" data-i18n="setup_step1">1. Åpne i privat nettleservindu:</div>
+        <div class="device-code-step" data-i18n="setup_step1">1. Åpne påloggingssiden:</div>
         <div style="margin:4px 0 4px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
           <button class="btn btn-primary" id="dc-open-private" onclick="openPrivateBrowser()" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;" data-i18n="btn_open_private_window">
-            <span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_open_private_window_label">Åpne i privat vindu</span>
+            <span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_open_private_window_label">Åpne påloggingssiden</span>
           </button>
           <span id="dc-browser-info" style="font-size:11px; color:var(--text-dim);"></span>
         </div>
@@ -401,6 +401,7 @@
           <span style="font-size:11px; color:var(--text-dim);" data-i18n="setup_open_manually">Eller åpne manuelt: </span>
           <a id="dc-url" href="#" target="_blank" style="color:var(--text-dim);font-family:var(--mono);font-size:11px;"></a>
         </div>
+        <div style="font-size:11px;color:var(--text-muted);margin:4px 0 8px;" data-i18n="setup_private_hint">Tips: bruk et privat vindu (Ctrl+Shift+P / Cmd+Shift+N) hvis du allerede er logget inn med en annen konto.</div>
         <div class="device-code-step" data-i18n="setup_step2">2. Skriv inn koden (klikk for å kopiere):</div>
         <div class="device-code-value" id="dc-code" onclick="copyCode()" data-i18n-title="tip_click_to_copy" title="Klikk for å kopiere">——</div>
         <div class="code-hint" id="dc-copy-hint" data-i18n="msg_click_to_copy">Klikk på koden for å kopiere til utklippstavlen</div>
