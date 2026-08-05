@@ -1581,6 +1581,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ingen Intune-enheter funnet",
         "en": "No Intune devices found",
     },
+    # Distinct from the line above on purpose: "none found" is a measurement,
+    # "not measured" is the absence of one, and a reader acts on them
+    # differently. The sentence that follows names which refusal it was.
+    "intune_not_measured": {
+        "no": "Intune-data kunne ikke hentes. ",
+        "en": "Intune data could not be collected. ",
+    },
     "no_intune_desc": {
         "no": "Enten er Intune ikke konfigurert, eller sa har appen ikke tilstrekkelige rettigheter.",
         "en": "Either Intune is not configured, or the app does not have sufficient permissions.",

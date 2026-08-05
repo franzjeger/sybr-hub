@@ -1024,7 +1024,11 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 {% endif %}
 {% else %}
+{% if intune and intune.unavailable %}
+<div class="alert warning"><strong>{{ t.intune_not_measured }}</strong>{{ intune.unavailable_reason or t.no_intune_desc }}</div>
+{% else %}
 <div class="alert info"><strong>{{ t.no_intune_devices }}</strong>{{ t.no_intune_desc }}</div>
+{% endif %}
 {% endif %}
 
 </div><!-- /tab-devices -->

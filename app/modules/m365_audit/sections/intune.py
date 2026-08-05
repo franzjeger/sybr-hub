@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
-from app.modules.m365_audit.graph_client import GraphClient
+from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
 
 
 class IntuneSection(BaseSection):
@@ -14,6 +14,7 @@ class IntuneSection(BaseSection):
     def __init__(self, out_dir: Path, graph: GraphClient, progress_cb=None):
         super().__init__(out_dir, progress_cb)
         self.graph = graph
+        self._failures: list[str] = []
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -23,12 +24,66 @@ class IntuneSection(BaseSection):
             await self._collect_config_profiles()
             await self._collect_apps()
             await self._collect_autopilot()
-            self._report(SectionStatus.DONE)
+            # Each collector needs its own DeviceManagement permission, so one
+            # refusal says nothing about the other four — they all run, and
+            # what was readable is still collected. But the section must not
+            # end DONE when part of it could not be read: that is what let a
+            # 403 reach the report as "no Intune devices found".
+            if self._failures:
+                self._report(SectionStatus.FAILED, "; ".join(self._failures)[:500])
+            else:
+                self._report(SectionStatus.DONE)
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result
 
     # ── Managed Devices ───────────────────────────────────────────────────────
+
+    # Endpoint → the permission that grants it, so a refusal names the consent
+    # to check rather than leaving a reader to guess which of the four
+    # DeviceManagement* roles this particular call needed.
+    _TITLE = {
+        "10_intune_devices.txt": "INTUNE MANAGED DEVICES",
+        "11_intune_compliance_policies.txt": "INTUNE COMPLIANCE POLICIES",
+        "12_intune_config_profiles.txt": "INTUNE CONFIGURATION PROFILES",
+        "13_intune_apps.txt": "INTUNE MANAGED APPS",
+        "14_intune_autopilot.txt": "INTUNE AUTOPILOT DEVICES",
+    }
+
+    _PERMISSION = {
+        "10_intune_devices.txt": "DeviceManagementManagedDevices.Read.All",
+        "11_intune_compliance_policies.txt": "DeviceManagementConfiguration.Read.All",
+        "12_intune_config_profiles.txt": "DeviceManagementConfiguration.Read.All",
+        "13_intune_apps.txt": "DeviceManagementApps.Read.All",
+        "14_intune_autopilot.txt": "DeviceManagementServiceConfig.Read.All",
+    }
+
+    def _reason(self, filename: str, err: Exception) -> str:
+        """One line naming the cause, for the report to print verbatim."""
+        if isinstance(err, GraphPermissionError):
+            if err.is_licence_gap:
+                return (f"Graph refused this collection with {err.status}, reporting a "
+                        "licence gap: the tenant does not have the Intune SKU this "
+                        "endpoint requires. Granting a permission will not change that.")
+            perm = self._PERMISSION.get(filename, "the matching DeviceManagement permission")
+            return (f"Graph refused this collection with {err.status}: the app "
+                    f"registration is missing {perm} or its admin consent.")
+        return f"The collection failed before it could be read: {err}"
+
+    def _save_unavailable(self, filename: str, err: Exception) -> None:
+        """Record why the data is missing, in a form the report can read back."""
+        lines = [
+            "=" * 80,
+            f"  {self._TITLE[filename]}  (not available)",
+            "=" * 80,
+            "",
+            f"  {self._reason(filename, err)}",
+        ]
+        if isinstance(err, GraphPermissionError) and (err.code or err.message):
+            lines += ["", f"  Graph said: {err.code} — {err.message}"[:300]]
+        lines += ["", "  Error details for troubleshooting:", f"    {err}", "", "=" * 80, ""]
+        self._save(filename, "\n".join(lines))
+        self._failures.append(self._reason(filename, err))
 
     async def _collect_devices(self) -> None:
         try:
@@ -37,7 +92,7 @@ class IntuneSection(BaseSection):
                 params={"$top": "999"},
             )
         except Exception as ex:
-            self._save("10_intune_devices.txt", f"Error: {ex}\n")
+            self._save_unavailable("10_intune_devices.txt", ex)
             self._warn(f"Intune managed devices fetch failed: {ex}")
             return
 
@@ -101,7 +156,7 @@ class IntuneSection(BaseSection):
                 params={"$top": "999"},
             )
         except Exception as ex:
-            self._save("11_intune_compliance_policies.txt", f"Error: {ex}\n")
+            self._save_unavailable("11_intune_compliance_policies.txt", ex)
             self._warn(f"Intune compliance policies fetch failed: {ex}")
             return
 
@@ -131,7 +186,7 @@ class IntuneSection(BaseSection):
                 params={"$top": "999"},
             )
         except Exception as ex:
-            self._save("12_intune_config_profiles.txt", f"Error: {ex}\n")
+            self._save_unavailable("12_intune_config_profiles.txt", ex)
             self._warn(f"Intune configuration profiles fetch failed: {ex}")
             return
 
@@ -161,7 +216,7 @@ class IntuneSection(BaseSection):
                 params={"$top": "999"},
             )
         except Exception as ex:
-            self._save("13_intune_apps.txt", f"Error: {ex}\n")
+            self._save_unavailable("13_intune_apps.txt", ex)
             self._warn(f"Intune mobile apps fetch failed: {ex}")
             return
 
@@ -190,7 +245,7 @@ class IntuneSection(BaseSection):
                 params={"$top": "999"},
             )
         except Exception as ex:
-            self._save("14_intune_autopilot.txt", f"Error: {ex}\n")
+            self._save_unavailable("14_intune_autopilot.txt", ex)
             self._warn(f"Intune Autopilot devices fetch failed: {ex}")
             return
 
