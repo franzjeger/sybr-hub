@@ -5,6 +5,62 @@ not listed here are backwards-compatible.
 
 ---
 
+## Unreleased — three new Graph permissions, and figures that used to be wrong
+
+### Grant three permissions, drop two
+
+`REQUIRED_GRAPH_PERMISSIONS` changed, and existing app registrations will not
+have the additions until someone consents to them.
+
+**Added.** `Device.Read.All` for the Entra device register, `Reports.Read.All`
+for the usage reports, `SensitivityLabels.Read.All` for the labels endpoint
+that replaced the one Microsoft withdrew.
+
+**Removed.** `InformationProtectionPolicy.Read.All`, which governed that
+withdrawn endpoint, and `PrivilegedAssignmentSchedule.Read.AzureADGroup`,
+which nothing has ever called for.
+
+Press **Check Permissions** on the customer card. It names what is missing.
+Until the new ones are consented to, the sections that need them report a
+refusal rather than an empty result — which is the point, but it does mean a
+section going from silent to failed is progress, not a regression.
+
+### Figures that changed without the tenant changing
+
+Re-run an audit before comparing anything to a stored figure. Several numbers
+were wrong in ways that make old reports and old trend lines untrustworthy:
+
+- **MFA coverage could exceed 100%.** A user whose method lookup failed was
+  removed from the denominator and, if a CA policy covered them, left in the
+  numerator. Fonnafly read 102%. It reads 99.5% on the same evidence.
+- **MFA coverage now names its two halves.** The headline still counts a user
+  as covered when a CA policy forces MFA at sign-in, registered method or not.
+  The registration percentage is printed beside it, because 99.5% coverage sat
+  on the same page as "42 users have no MFA methods" with nothing to
+  reconcile them.
+- **"Ingen Intune-enheter funnet" was sometimes a refusal.** A tenant with
+  devices and no enrolment read the same as a tenant with no devices. The
+  Entra register is collected now and the gap is reported; CIS 6.1.1 fails
+  where devices exist and none are managed, where it used to record info.
+- **Reports that could not be read no longer score.** Purview labels, Intune
+  and password protection each produced findings from files that were never
+  fetched. Findings from those sections in reports generated before this
+  release may be drawn from data that does not exist.
+
+### Behaviour changes
+
+- **`/api/open-private` is gone.** It ran a browser process on the server —
+  headless, and a different machine from the operator's. The page opens the
+  tab itself now. A web page cannot open a private window; the UI says so
+  rather than claiming otherwise.
+- **No third-party CDN.** xterm, chart.js, marked, DOMPurify and the icon font
+  are served from `static/vendor/`. Installs behind a proxy that allow-listed
+  `cdn.jsdelivr.net` can drop that rule.
+- **Usage Reports is a new section** and appears in the scope selector. It
+  reads a 90-day window and reports licensed accounts with no activity.
+
+---
+
 ## Unreleased — authentication, RBAC and transport hardening
 
 Four things change how a running install behaves. The first two can stop the

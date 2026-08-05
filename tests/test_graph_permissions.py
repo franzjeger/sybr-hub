@@ -203,3 +203,36 @@ def test_a_plain_403_is_still_reported_as_missing_consent():
     assert err.is_service_refusal is False
     assert err.is_licence_gap is False
     assert "missing a permission or admin consent" in str(err)
+
+
+def test_the_section_name_list_matches_the_sections_that_run():
+    """The scope selector is driven by a hand-written list of names.
+
+    It is a second list of what the collector builds, and Usage Reports had
+    already been left out of it: the section ran on every audit and could not
+    be deselected, because the picker did not know it existed.
+    """
+    import re
+
+    from app.modules.m365_audit.collector import AuditCollector
+
+    declared = set(AuditCollector.GRAPH_SECTION_NAMES) | set(AuditCollector.AZURE_SECTION_NAMES)
+
+    src = pathlib.Path("app/modules/m365_audit/collector.py").read_text()
+    constructed = set(re.findall(r"(\w+Section)\(", src))
+    assert constructed, "no sections found — the pattern no longer matches"
+
+    # Section classes carry the display name the picker uses.
+    import importlib
+
+    built: set[str] = set()
+    for cls_name in constructed:
+        for mod in pathlib.Path("app/modules/m365_audit/sections").glob("*.py"):
+            module = importlib.import_module(f"app.modules.m365_audit.sections.{mod.stem}")
+            cls = getattr(module, cls_name, None)
+            if cls is not None and getattr(cls, "name", None):
+                built.add(cls.name)
+                break
+
+    missing = sorted(built - declared)
+    assert not missing, f"sections that run but the picker cannot see: {missing}"
