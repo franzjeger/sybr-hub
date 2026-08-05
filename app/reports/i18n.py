@@ -1584,6 +1584,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # Distinct from the line above on purpose: "none found" is a measurement,
     # "not measured" is the absence of one, and a reader acts on them
     # differently. The sentence that follows names which refusal it was.
+    "no_intune_but_entra": {
+        "no": "Enheter finnes, men ingen er enrollet i Intune. ",
+        "en": "Devices exist, but none are enrolled in Intune. ",
+    },
+    "no_intune_but_entra_desc": {
+        "no": "Entra ID kjenner disse enhetene uten at Intune administrerer dem",
+        "en": "Entra ID knows these devices, but Intune does not manage them",
+    },
+    "unmanaged_endpoints": {
+        "no": "Uadministrerte endepunkter. ",
+        "en": "Unmanaged endpoints. ",
+    },
+    "unmanaged_endpoints_desc": {
+        "no": "Registrert i Entra ID, men ikke administrert av Intune",
+        "en": "Registered in Entra ID but not managed by Intune",
+    },
     "intune_not_measured": {
         "no": "Intune-data kunne ikke hentes. ",
         "en": "Intune data could not be collected. ",
@@ -2082,6 +2098,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "cis_compliance_partial": {
         "no": "{pct:.0f}% samsvar \u2014 {noncompliant} ikke-samsvarende",
         "en": "{pct:.0f}% compliance \u2014 {noncompliant} non-compliant",
+    },
+    "cis_entra_devices_unmanaged": {
+        "no": "{total} enheter registrert i Entra ID, ingen enrollet i Intune \u2014 ingen compliance-policy gjelder for dem",
+        "en": "{total} devices registered in Entra ID, none enrolled in Intune \u2014 no compliance policy applies to them",
     },
     "cis_no_intune": {
         "no": "Ingen Intune-enheter funnet",

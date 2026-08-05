@@ -897,6 +897,41 @@ def _first_prose_line(text: str) -> str:
     return ""
 
 
+def _parse_entra_devices(count_text: str, detail_text: str) -> dict:
+    """The directory's own device register, beside the Intune one.
+
+    Its whole purpose is the gap between the two counts: devices the tenant
+    has, minus devices Intune manages, is the unmanaged-endpoint finding. With
+    only the Intune figure, a tenant with forty joined machines and no
+    enrolment read as "no devices found".
+    """
+    result = {"total": 0, "managed": 0, "unmanaged": 0, "enabled": 0,
+              "has_data": False, "unavailable": False, "unavailable_reason": ""}
+    if _evidence_unavailable(count_text) and _evidence_unavailable(detail_text):
+        if (count_text or detail_text or "").strip():
+            result["unavailable"] = True
+            result["unavailable_reason"] = (
+                _first_prose_line(detail_text) or _first_prose_line(count_text)
+            )
+        return result
+
+    for line in (count_text or "").splitlines():
+        if ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key = key.strip().lower()
+        try:
+            v = int(val.strip())
+        except ValueError:
+            continue
+        if key in ("total", "managed", "unmanaged", "enabled"):
+            result[key] = v
+            result["has_data"] = True
+    if not result["has_data"] and "ENTRA REGISTERED DEVICES" in (detail_text or ""):
+        result["has_data"] = True
+    return result
+
+
 def _parse_intune_devices(count_text: str, detail_text: str) -> dict:
     result = {"total": 0, "windows": 0, "ios": 0, "android": 0, "macos": 0,
               "compliant": 0, "noncompliant": 0, "unknown": 0,
@@ -4325,6 +4360,13 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         # about the tenant, and this control has no evidence for it.
         add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "info",
             _CANNOT_VERIFY + (intune.get("unavailable_reason") or "Intune-data utilgjengelig"))
+    elif not has_policies and not has_devices and intune.get("entra_total", 0) > 0:
+        # The directory knows devices; Intune manages none of them. That is not
+        # "no devices found" — it is every endpoint in the tenant sitting
+        # outside compliance management, which is the failure this control is
+        # for. Reporting it as info was an artefact of only ever asking Intune.
+        add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "fail",
+            t("cis_entra_devices_unmanaged", total=intune["entra_total"]))
     elif not has_policies and not has_devices:
         add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "info",
             t.cis_no_intune)
@@ -4843,6 +4885,15 @@ def build_report_context(
     ca           = _parse_ca_policies(fc("08_conditional_access.txt"))
     admin_roles  = _parse_admin_roles(fc("07_admin_roles.txt"))
     intune       = _parse_intune_devices(fc("10_intune_devices_count.txt"), fc("10_intune_devices.txt"))
+    entra_devices = _parse_entra_devices(fc("15_entra_devices_count.txt"), fc("15_entra_devices.txt"))
+    # The claim the Intune figure alone cannot make. Only stated when both
+    # sides were actually read: an unmanaged count derived from a refusal is
+    # the same mistake in a new place.
+    if entra_devices.get("has_data") and intune.get("has_data"):
+        intune["entra_total"] = entra_devices["total"]
+        intune["entra_unmanaged"] = max(
+            0, entra_devices["total"] - intune.get("total", 0)
+        )
     sharepoint   = _parse_sharepoint_settings(fc("15b_sharepoint_settings.txt"), fc("15_sharepoint_sites.txt"), lang=lang)
     oauth        = _parse_oauth_grants(fc("17b_oauth_consent_grants.txt"), fc("17_app_registrations.txt"))
     groups       = _parse_groups(fc("06_groups.txt"))
@@ -4908,6 +4959,7 @@ def build_report_context(
         "ca":              ca,
         "admin_roles":     admin_roles,
         "intune":          intune,
+        "entra_devices":   entra_devices,
         "sharepoint":      sharepoint,
         "oauth":           oauth,
         "groups":          groups,

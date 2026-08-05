@@ -1,4 +1,4 @@
-"""Section 10–14 — Intune: Devices, Compliance, Config Profiles, Apps, Autopilot."""
+"""Section 10–15 — Intune, plus the Entra device register it is measured against."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ class IntuneSection(BaseSection):
             await self._collect_config_profiles()
             await self._collect_apps()
             await self._collect_autopilot()
+            await self._collect_entra_devices()
             # Each collector needs its own DeviceManagement permission, so one
             # refusal says nothing about the other four — they all run, and
             # what was readable is still collected. But the section must not
@@ -48,6 +49,7 @@ class IntuneSection(BaseSection):
         "12_intune_config_profiles.txt": "INTUNE CONFIGURATION PROFILES",
         "13_intune_apps.txt": "INTUNE MANAGED APPS",
         "14_intune_autopilot.txt": "INTUNE AUTOPILOT DEVICES",
+        "15_entra_devices.txt": "ENTRA REGISTERED DEVICES",
     }
 
     _PERMISSION = {
@@ -56,6 +58,7 @@ class IntuneSection(BaseSection):
         "12_intune_config_profiles.txt": "DeviceManagementConfiguration.Read.All",
         "13_intune_apps.txt": "DeviceManagementApps.Read.All",
         "14_intune_autopilot.txt": "DeviceManagementServiceConfig.Read.All",
+        "15_entra_devices.txt": "Device.Read.All",
     }
 
     def _reason(self, filename: str, err: Exception) -> str:
@@ -267,3 +270,84 @@ class IntuneSection(BaseSection):
             )
         lines += ["=" * 100, ""]
         self._save("14_intune_autopilot.txt", "\n".join(lines))
+
+    # ── Entra device register ─────────────────────────────────────────────────
+
+    async def _collect_entra_devices(self) -> None:
+        """Every device the directory knows, enrolled in Intune or not.
+
+        Intune answers "which devices do we manage". It cannot answer "does
+        this tenant have devices at all", and the two were being conflated: a
+        tenant with forty machines joined to Entra and none enrolled read as
+        "Ingen Intune-enheter funnet", which is true and sends a technician
+        looking for the wrong thing. The gap between these two counts is the
+        finding — unmanaged endpoints — and it was invisible.
+        """
+        try:
+            devices = await self.graph.get_all(
+                "devices",
+                params={
+                    "$top": "999",
+                    "$select": (
+                        "displayName,operatingSystem,operatingSystemVersion,trustType,"
+                        "isCompliant,isManaged,accountEnabled,"
+                        "approximateLastSignInDateTime"
+                    ),
+                },
+            )
+        except Exception as ex:
+            self._save_unavailable("15_entra_devices.txt", ex)
+            self._warn(f"Entra devices fetch failed: {ex}")
+            return
+
+        total = len(devices)
+        managed = sum(1 for d in devices if d.get("isManaged") is True)
+        unmanaged = sum(1 for d in devices if d.get("isManaged") is not True)
+        enabled = sum(1 for d in devices if d.get("accountEnabled") is not False)
+
+        by_trust: dict[str, int] = {}
+        for d in devices:
+            by_trust[d.get("trustType") or "Unknown"] = (
+                by_trust.get(d.get("trustType") or "Unknown", 0) + 1
+            )
+
+        header = (
+            f"  {'Device Name':<35} {'OS':<14} {'OS Ver':<14} "
+            f"{'Trust':<12} {'Managed':<8} {'Enabled':<8} Last Sign-in"
+        )
+        lines = [
+            "=" * 120,
+            f"  ENTRA REGISTERED DEVICES  ({total} total)",
+            "=" * 120,
+            header,
+            "  " + "-" * 116,
+        ]
+        for d in sorted(devices, key=lambda x: (x.get("displayName") or "").lower()):
+            lines.append(
+                f"  {(d.get('displayName') or '')[:35]:<35} "
+                f"{(d.get('operatingSystem') or '')[:14]:<14} "
+                f"{(d.get('operatingSystemVersion') or '')[:14]:<14} "
+                f"{(d.get('trustType') or '')[:12]:<12} "
+                f"{('yes' if d.get('isManaged') else 'no'):<8} "
+                f"{('yes' if d.get('accountEnabled') is not False else 'no'):<8} "
+                f"{(d.get('approximateLastSignInDateTime') or 'N/A')[:19]}"
+            )
+        lines += ["=" * 120, ""]
+        self._save("15_entra_devices.txt", "\n".join(lines))
+
+        count_lines = [
+            "ENTRA DEVICE COUNT SUMMARY",
+            f"Total: {total}",
+            f"Managed: {managed}",
+            f"Unmanaged: {unmanaged}",
+            f"Enabled: {enabled}",
+        ]
+        for trust, n in sorted(by_trust.items()):
+            count_lines.append(f"Trust {trust}: {n}")
+        self._save("15_entra_devices_count.txt", "\n".join(count_lines))
+
+        if unmanaged:
+            self._warn(
+                f"{unmanaged} of {total} Entra-registered devices are not "
+                f"managed by Intune"
+            )
