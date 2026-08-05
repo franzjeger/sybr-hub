@@ -45,6 +45,7 @@ class AuditCollector:
         "Defender for Office 365",
         "OneDrive Sharing",
         "Compliance Score",
+        "Usage Reports",
     ]
 
     AZURE_SECTION_NAMES = [

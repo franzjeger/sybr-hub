@@ -16,6 +16,7 @@ app/
     server.py               create_app(): middleware, exception handler, routers
     middleware/             auth (JWT + RBAC), rate limiting
     routes/                 auth, hub, vpn, fortigate, unifi
+    static/                 the SPA; vendor/ holds the third-party JS and CSS
   core/                     cross-cutting concerns, no HTTP knowledge
     auth.py                 password hashing, JWT, sessions, user CRUD
     rbac.py                 per-customer access checks
@@ -34,7 +35,7 @@ app/
     dns_checker.py          SPF / DKIM / DMARC / MTA-STS over live DNS
     remediation.py          per-customer remediation tracking
   modules/                  audit collectors
-    m365_audit/             26 sections, CIS / NIST CSF / ISO 27001 mapped
+    m365_audit/             27 sections, CIS / NIST CSF / ISO 27001 mapped
     fortigate_audit/        policy and admin audit
     unifi_audit/            device, firmware and subnet scanning
   integrations/             write-side clients (autotask, itglue, myitprocess, rmm)
@@ -127,6 +128,95 @@ and the running event loop. Both parts matter:
 
 If you add code that opens connections outside `get_db()`, make sure it closes
 them. A leaked connection does not fail loudly; it hangs shutdown.
+
+## A refusal is not a zero
+
+The rule the audit pipeline is built around, and the one most often broken
+before it was written down. It applies at four places in a row, and the
+failure looks the same at each: a collector cannot read something, the
+absence is stored as an empty result, and everything downstream treats that
+emptiness as a measurement of the tenant.
+
+The shape it takes:
+
+```python
+except Exception:
+    devices = []          # ← "we could not look" is now "there are none"
+```
+
+What that produced in practice: "Ingen Intune-enheter funnet" on a tenant
+whose consent was fine and whose Intune service was simply not subscribed;
+a CIS control recording a clean finding on evidence it had been refused;
+"Custom banned password list is not configured" printed beside the 400 that
+prevented the list from ever being read.
+
+The four places, and what each must do:
+
+1. **Collector.** Let `GraphPermissionError` reach the section, and write a
+   `(not available)` block naming the cause. `GraphPermissionError` already
+   separates a licence gap, a service refusal and a missing consent — see
+   below. A section that could not read part of itself ends `FAILED`, even
+   if the rest succeeded.
+2. **Reader.** `_is_error_payload` blanks a stub before the parsers see it,
+   which is what keeps a raw Graph status out of the customer report. Keep
+   the `Error:` opening for anything a customer might see.
+3. **Parser.** `_evidence_unavailable` recognises both shapes. Set
+   `has_data=False` and carry the reason; never derive a count from a file
+   that was not read.
+4. **Scoring and controls.** Guard on `has_data` before scoring. A control
+   with no evidence reports that it cannot verify — it does not pass and it
+   does not fail.
+
+There is a test at each boundary. When adding a collector, add one there too:
+the mistake is easy to reintroduce and silent when you do.
+
+### Telling refusals apart
+
+A 401 or 403 from Graph is three different problems wearing one status code,
+and each needs the opposite response:
+
+| signal in the body | meaning | what to do |
+|---|---|---|
+| `Authentication_RequestFromNonPremiumTenant`, "premium licence" | the tenant lacks the Entra tier | buy or ignore; consent will not help |
+| a `manage.microsoft.com` URL, nested `ErrorCode: Forbidden` | the service behind the endpoint declined | check the subscription, not the grant |
+| anything else | the app registration is missing a role or its consent | grant it |
+
+`GraphPermissionError` sets `is_licence_gap` and `is_service_refusal` from
+the response body. Do not infer any of this from the status code alone: Intune
+answers a tenant with no subscription with a 401 whose text is a Forbidden
+from a different service entirely.
+
+## Front-end assets
+
+`static/` is served by the app, not by a build step. Two things follow.
+
+**No third-party CDN.** xterm, chart.js, marked, DOMPurify and the icon font
+live in `static/vendor/` and are served from the app. A console holding every
+customer's credentials should not execute script from a host outside the
+tailnet, and the terminal and charts have to work during an outage, which is
+when the operator needs them and when a route out may not exist.
+
+**The cache key is a digest, not a version.** `sw.js` serves `/static/`
+cache-first, so a changed file is only picked up when `CACHE_VERSION` changes.
+That value is rewritten at request time from the app version plus a hash of
+every asset `index.html` references — read out of the markup, so it cannot
+drift from what the page actually loads. Do not add a hand-maintained list of
+assets beside it.
+
+## User-facing text
+
+Every string a person reads goes through `t()` and lives in
+`static/ui_i18n.json` in both languages. `tests/test_i18n_coverage.py` holds
+the detectors and a per-script budget; all seven scripts read zero on all
+three counts, and the budgets only ever go down.
+
+The detectors are worth understanding before trusting them. Each has been
+wrong in a way that made the codebase look clean: one looked at three of the
+seven scripts, one required an æ, ø or å before calling a string Norwegian,
+and one skipped any string containing the quote character it was not
+delimited by — which is most of a file that builds markup. If a count reads
+zero, confirm the detector can see the file before believing it.
+
 
 ## Testing
 

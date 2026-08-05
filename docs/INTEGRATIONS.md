@@ -39,10 +39,49 @@ delegation through GDAP (`AuthMode: gdap`).
 **Secrets** (keyring): `client_secret`, `cert_password`. For GDAP:
 `partner_client_id`, `partner_client_secret` under the `gdap` tenant key.
 
-**Permissions.** The required Graph application permissions are listed in
-`app/core/config.py::REQUIRED_GRAPH_PERMISSIONS`. First-run setup requests the
-delegated scopes in `SETUP_SCOPES` to create the registration, then the audit
-runs application-only.
+**Permissions.** `app/core/config.py::REQUIRED_GRAPH_PERMISSIONS` is the single
+source. `GraphClient.REQUIRED_PERMISSIONS` imports it, and `setup_helper.ps1`
+is handed it on stdin — the array still in that script is a fallback for an
+older caller, and a test asserts it has not drifted. Add a permission in one
+place only; adding it in two of the three grants a consent nothing validates,
+or demands one the wizard never asks for.
+
+First-run setup requests the delegated scopes in `SETUP_SCOPES` to create the
+registration, then the audit runs application-only.
+
+`validate_permissions()` compares what is granted against that list and names
+the difference. It is what the "Check Permissions" button calls, and it is the
+first thing to run when a section reports a permission problem — it answers in
+seconds what reading an error body guesses at.
+
+A permission nobody calls for is privilege the tool need not hold. A test maps
+each declared permission to the resource it governs and fails on any that
+nothing requests; `PrivilegedAssignmentSchedule.Read.AzureADGroup` sat in all
+three lists for a long time while PIM-for-groups was never queried, so every
+install asked its customers to consent to a read it never performed.
+
+**Endpoints that are not where you would expect.** Each of these was measured
+against a live tenant, and each had been guessed wrong at least once. Verify
+before changing them:
+
+| what | endpoint | note |
+|---|---|---|
+| Directory settings | `v1.0/groupSettings` | `settings` is the beta alias; on v1.0 it is not a segment and answers 400 |
+| Sensitivity labels | `beta/security/dataSecurityAndGovernance/sensitivityLabels` | the `informationProtection` path is gone; needs `SensitivityLabels.Read.All` — plural, the singular role exists too and is a different thing |
+| Usage reports | `v1.0/reports/get*(period='D90')` | CSV only. `$format=application/json` is refused with "JSON format is not supported" |
+| Entra devices | `v1.0/devices` | what the tenant *has*, as against `deviceManagement/managedDevices` for what Intune manages |
+
+**Usage reports carry two traps.** They answer CSV behind a 302 to storage, so
+the request must follow redirects, and the column headings are prose that
+`_report_key` folds to the camelCase the JSON form uses. Separately, the admin
+centre can conceal user names in these reports; the counts stay accurate but
+the principal names come back as opaque identifiers. The collector detects
+that from the rows and says so, so nobody reads the hashes as corrupt output.
+
+**Intune answers 401 on a tenant with no subscription**, with a body that is a
+`Forbidden` from `manage.microsoft.com` rather than anything from Graph's auth
+layer. That is not a consent problem and `validate_permissions()` will show
+the DeviceManagement roles granted. Check the licences.
 
 **PowerShell 7 is required** for the Exchange Online section and for first-run
 app registration — those go through `exo_collector.ps1` and `setup_helper.ps1`
