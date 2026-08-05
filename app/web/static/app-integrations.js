@@ -97,7 +97,7 @@ async function docsRepoLoad() {
       : 'USER_GUIDE.md';
     docsRepoOpen(defaultDoc);
   } catch (e) {
-    treeBox.innerHTML = '<div style="color:var(--color-danger);">Kunne ikke laste docs: ' + esc(String(e)) + '</div>';
+    treeBox.innerHTML = '<div style="color:var(--color-danger);">' + t('integ_docs_load_failed','Kunne ikke laste dokumentasjon') + ': ' + esc(String(e)) + '</div>';
   }
 }
 
@@ -136,7 +136,7 @@ async function docsRepoOpen(path) {
       el.style.background = el.getAttribute('data-docs-path') === path ? 'rgba(77,159,181,0.18)' : '';
     });
   } catch (e) {
-    content.innerHTML = '<div style="color:var(--color-danger);">Kunne ikke åpne dokumentet: ' + esc(String(e)) + '</div>';
+    content.innerHTML = '<div style="color:var(--color-danger);">' + t('integ_doc_open_failed','Kunne ikke åpne dokumentet') + ': ' + esc(String(e)) + '</div>';
   }
 }
 
@@ -582,10 +582,10 @@ async function uniwebSaveConfig() {
   if (d && d.ok) {
     msg.innerHTML = '<span style="color:var(--green);">' + t('lagret_2') + '</span>';
     document.getElementById('uniweb-integ-dot').style.background = 'var(--green)';
-    document.getElementById('uniweb-integ-label').textContent = 'Konfigurert';
+    document.getElementById('uniweb-integ-label').textContent = t('integ_configured','Konfigurert');
     document.getElementById('uniweb-integ-label').style.color = 'var(--green)';
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : 'Feil') + '</span>';
+    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('integ_error','Feil')) + '</span>';
   }
 }
 
@@ -632,8 +632,8 @@ async function uniwebSync() {
   if (d && d.ok) {
     uniwebPollStatus();
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : 'Feil') + '</span>';
-    if (btn) { btn.disabled = false; btn.textContent = 'Synkroniser'; }
+    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('integ_error','Feil')) + '</span>';
+    if (btn) { btn.disabled = false; btn.textContent = t('integ_sync','Synkroniser'); }
     _uniwebSyncStart = null;
   }
 }
@@ -691,7 +691,7 @@ async function uniwebPollStatus() {
       html += '<div class="uniweb-sync-row" style="margin-top:4px;">';
       html += '<span class="uniweb-sync-label">Domener funnet: ' + d.domains_found + '</span>';
       if (d.errors_count > 0) {
-        html += '<span class="uniweb-sync-label" style="color:var(--orange);">Feil: ' + d.errors_count + '</span>';
+        html += '<span class="uniweb-sync-label" style="color:var(--orange);">' + t('integ_error','Feil') + ': ' + d.errors_count + '</span>';
       }
       html += '</div>';
     }
@@ -729,7 +729,7 @@ async function uniwebPollStatus() {
       msg.innerHTML = html;
     }
 
-    if (btn) { btn.disabled = false; btn.textContent = 'Synkroniser'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('integ_sync','Synkroniser'); }
     if (d.last_sync) {
       document.getElementById('uniweb-last-sync').textContent = 'Sist synkronisert: ' + new Date(d.last_sync).toLocaleString('nb-NO');
     }
@@ -752,7 +752,7 @@ async function uniwebLoadAccounts() {
   var matchedCount = d.total - unmatchedCount;
   var unmatchedBadge = '';
   if (unmatchedCount > 0) {
-    unmatchedBadge = ' <span style="display:inline-block;background:var(--orange);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;">' + unmatchedCount + ' av ' + d.total + ' kunder ikke koblet</span>';
+    unmatchedBadge = ' <span style="display:inline-block;background:var(--orange);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;">' + unmatchedCount + ' ' + t('integ_of','av') + ' ' + d.total + ' ' + t('integ_customers_unlinked','kunder ikke koblet') + '</span>';
   }
 
   var html = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">Kontoer (' + d.total + ')' + unmatchedBadge + '</div>';
@@ -790,7 +790,7 @@ async function uniwebLoadAccounts() {
   // Add "Importer kunder" button if there are unmatched accounts
   if (unmatchedCount > 0) {
     html += '<div style="margin-top:10px;">';
-    html += '<button class="btn btn-primary" onclick="uniwebShowImport()" style="padding:6px 14px;font-size:12px;">Importer kunder fra Uniweb (' + unmatchedCount + ')</button>';
+    html += '<button class="btn btn-primary" onclick="uniwebShowImport()" style="padding:6px 14px;font-size:12px;">' + t('integ_import_from_uniweb','Importer kunder fra Uniweb') + ' (' + unmatchedCount + ')</button>';
     html += '</div>';
   }
 
@@ -834,7 +834,7 @@ async function uniwebDoMatch(accountId) {
     if (modal) modal.remove();
     uniwebLoadAccounts();
   } else {
-    showToast(d && d.error ? d.error : 'Feil', 'error');
+    showToast(d && d.error ? d.error : t('integ_error','Feil'), 'error');
   }
 }
 
@@ -850,7 +850,7 @@ async function uniwebShowDetail(accountId) {
   html += '</div>';
 
   if (d.customer_name) {
-    html += '<div style="margin-bottom:12px;font-size:12px;color:var(--green);">Koblet til: ' + esc(d.customer_name) + '</div>';
+    html += '<div style="margin-bottom:12px;font-size:12px;color:var(--green);">' + t('integ_linked_to','Koblet til') + ': ' + esc(d.customer_name) + '</div>';
   }
 
   // Domains
@@ -938,13 +938,13 @@ async function uniwebShowImport() {
   html += '<button class="btn btn-ghost" onclick="uniwebCloseImport()" style="padding:4px 8px;font-size:14px;">X</button>';
   html += '</div>';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  html += '<div style="font-size:12px;color:var(--text-muted);">' + unmatched.length + ' Uniweb-kontoer som ikke er koblet til en MSP-kunde. Valgte kontoer opprettes som nye kunder.</div>';
+  html += '<div style="font-size:12px;color:var(--text-muted);">' + unmatched.length + ' ' + t('integ_unmatched_hint','Uniweb-kontoer som ikke er koblet til en MSP-kunde. Valgte kontoer opprettes som nye kunder.') + '</div>';
   html += '</div>';
-  html += '<div id="uniweb-import-counter" style="font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:10px;">0 av ' + unmatched.length + ' valgt</div>';
+  html += '<div id="uniweb-import-counter" style="font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:10px;">0 ' + t('integ_of','av') + ' ' + unmatched.length + ' ' + t('integ_selected','valgt') + '</div>';
 
   // Search + select all
   html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">';
-  html += '<input type="text" id="uniweb-import-search" class="field-input" placeholder="Sok..." style="flex:1;min-width:150px;padding:6px 12px;font-size:12px;" oninput="uniwebFilterImport()">';
+  html += '<input type="text" id="uniweb-import-search" class="field-input" placeholder="' + t('integ_search','Søk ...') + '" style="flex:1;min-width:150px;padding:6px 12px;font-size:12px;" oninput="uniwebFilterImport()">';
   html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="uniweb-import-select-all" onchange="uniwebToggleAllImport(this.checked)"> ' + t('velg_alle') + '</label>';
   html += '</div>';
 
@@ -1038,7 +1038,7 @@ function uniwebUpdateImportBtn() {
   // Update selection counter
   var counter = document.getElementById('uniweb-import-counter');
   if (counter) {
-    counter.textContent = checked + ' av ' + total + ' valgt';
+    counter.textContent = checked + ' ' + t('integ_of','av') + ' ' + total + ' ' + t('integ_selected','valgt');
     counter.style.color = checked > 0 ? 'var(--blue)' : 'var(--text-muted)';
   }
 }
@@ -1053,7 +1053,7 @@ async function uniwebDoImport() {
   if (ids.length === 0) return;
 
   // Confirmation step
-  var confirmMsg = 'Er du sikker pa at du vil importere ' + ids.length + ' kunde' + (ids.length > 1 ? 'r' : '') + '?';
+  var confirmMsg = t('integ_confirm_import','Er du sikker på at du vil importere') + ' ' + ids.length + ' ' + (ids.length > 1 ? t('integ_customers_lc','kunder') : t('integ_customer_lc','kunde')) + '?';
   if (!confirm(confirmMsg)) return;
 
   var btn = document.getElementById('uniweb-import-btn');
@@ -1078,7 +1078,7 @@ async function uniwebDoImport() {
     // Show per-account errors if any
     if (d.errors && d.errors.length > 0) {
       if (errBox) {
-        var errHtml = '<div style="font-weight:600;margin-bottom:6px;color:var(--red);">' + d.errors.length + ' konto(er) kunne ikke importeres:</div>';
+        var errHtml = '<div style="font-weight:600;margin-bottom:6px;color:var(--red);">' + d.errors.length + ' ' + t('integ_accounts_failed','konto(er) kunne ikke importeres') + ':</div>';
         d.errors.forEach(function(err) {
           if (typeof err === 'object') {
             errHtml += '<div style="padding:2px 0;">&bull; <strong>' + esc(err.name) + '</strong>: ' + esc(err.reason) + '</div>';
@@ -1092,7 +1092,7 @@ async function uniwebDoImport() {
     }
 
     if (d.imported > 0) {
-      showToast(t('importerte') + ' ' + d.imported + ' kunde(r) fra Uniweb', 'success', 5000);
+      showToast(t('importerte') + ' ' + d.imported + ' ' + t('integ_customers_from_uniweb','kunde(r) fra Uniweb'), 'success', 5000);
 
       // Refresh the main customer list if available
       if (typeof loadCustomers === 'function') {
@@ -1105,7 +1105,7 @@ async function uniwebDoImport() {
       uniwebCloseImport();
     } else if (d.imported > 0) {
       // Partial success — keep modal open to show errors, but refresh accounts table
-      showToast(d.errors.length + ' konto(er) feilet, se detaljer i dialogen', 'warning', 5000);
+      showToast(d.errors.length + ' ' + t('integ_accounts_failed_detail','konto(er) feilet, se detaljer i dialogen'), 'warning', 5000);
     } else {
       // All failed
       showToast(t('ingen_kontoer_ble_importert'), 'error');
@@ -1433,7 +1433,7 @@ async function uniwebCheckStatus() {
   if (!d) return;
   if (d.configured) {
     document.getElementById('uniweb-integ-dot').style.background = 'var(--green)';
-    document.getElementById('uniweb-integ-label').textContent = 'Konfigurert';
+    document.getElementById('uniweb-integ-label').textContent = t('integ_configured','Konfigurert');
     document.getElementById('uniweb-integ-label').style.color = 'var(--green)';
     // Load settings into fields
     var settings = await apiFetch('/api/settings');
@@ -1561,7 +1561,7 @@ async function itgluePushCustomer(customerId) {
       showToast(t('msg_itglue_sync_customer_ok', 'Dokumentasjon pushet til IT Glue') + ' (' + types + ')', 'success', 4000);
     }
     if (errors.length > 0) {
-      showToast(t('msg_itglue_sync_customer_fail', 'Kunne ikke synkronisere til IT Glue') + ': ' + errors.length + ' feil', 'warning', 4000);
+      showToast(t('msg_itglue_sync_customer_fail', 'Kunne ikke synkronisere til IT Glue') + ': ' + errors.length + ' ' + t('integ_errors_lc','feil'), 'warning', 4000);
     }
     if (synced.length === 0 && errors.length === 0) {
       showToast(t('msg_itglue_no_org_mapped', 'Ingen IT Glue-organisasjon koblet til denne kunden'), 'warning');
