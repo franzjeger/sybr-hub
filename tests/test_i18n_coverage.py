@@ -12,8 +12,18 @@ grows. Bring a batch into ui_i18n.json, lower the budget in the same commit,
 and the ground you took cannot be given back.
 
 The budgets are ceilings, not targets. They only ever go down. index.html
-reached zero on both counts; app.js still has its own literals, and English
-ones are invisible to a detector that keys on æøå.
+reached zero on both counts and stayed there.
+
+The scripts read zero for a while too, and that zero was an artefact. The
+detector looked at three of the seven files index.html loads, required an æ, ø
+or å before it would call a string Norwegian, and — through a character class
+that excluded both quote characters — skipped any string containing the quote
+it was not delimited by. Since these scripts build markup, and markup carries
+style="…", that last one hid most of them: two whole files measured clean while
+"Feil ved tilkobling" sat in the toolbar. All seven are measured now, a word
+list stands beside the letters, and the budgets below are what is actually
+there. English literals remain invisible to the Norwegian detector by
+construction; text_shown_to_a_person is what catches those.
 """
 
 from __future__ import annotations
@@ -68,6 +78,26 @@ _NOT_TEXT = {
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
+
+# What makes a string Norwegian: one of the three letters, or a word that
+# exists in Norwegian and not in English. Words shared with English are kept
+# out on purpose — see norwegian_literals_in_js for why the shape of this list
+# matters more than its length.
+_NORWEGIAN_RE = re.compile(
+    r"[æøåÆØÅ]|\b(?:ikke|lagre|slett|sletter|slettet|kunde|kunder|velg|valgt|feil|"
+    r"lukk|avbryt|bruker|brukere|brukernavn|passord|ingen|finnes|kjorer|kjort|hent|"
+    r"henter|hentet|oppdater|oppdatert|endre|endret|sok|soker|vis|skjul|varsel|"
+    r"varsler|rapport|rapporter|siste|antall|dager|mangler|manglende|ukjent|krever|"
+    r"angi|apne|apnet|ferdig|startet|fullfort|mislyktes|prov|igjen|tilbake|neste|"
+    r"forrige|enheter|enhet|eller|med|som|har|kan|ma|til|fra|av|og|er|den|det|denne|"
+    r"dette|na|nar|hvis|alle|legg|lagt|laster|lastet|kobler|koblet|tilkoblet|"
+    r"frakoblet|aktiver|aktivert|deaktiver|deaktivert|opprett|opprettet|kopier|"
+    r"kopiert|navn|dato|konfigurert|handling|se)\b",
+    re.IGNORECASE,
+)
+
+# snake_case with no spaces is an i18n key being passed around, not its text.
+_KEY_RE = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)+$")
 
 # Code, not language. The API reference panel lists sixty-odd endpoint
 # signatures — "GET /audit/stream (SSE) · POST /audit/cancel" — which are
@@ -164,11 +194,30 @@ def norwegian_literals_in_js(script: str = "app.js") -> list[tuple[int, str]]:
     This catches what the markup detector cannot: a string handed to showToast
     or confirm never sits between > and <, so seventeen of them sat in the two
     smaller scripts while both files measured clean.
+
+    It used to require an æ, ø or å in the string, which is a narrow floor
+    indeed: "Feil ved tilkobling", "Vis alle" and "Dager igjen" carry none, so
+    the budget read zero while that text sat in the toolbar. A word list now
+    stands beside the letters. Every word on it is Norwegian and nothing else —
+    "for", "type", "status", "total" and "her" are all English too and are
+    deliberately absent, because a false positive here means wrapping English
+    in t() and inventing a key for it.
     """
     js = (STATIC / script).read_text()
     lines = js.split("\n")
     found = []
-    for m in re.finditer(r"""(['"])((?:[^'"\\\n]|\\.)*[ÆØÅæøå][^'"\\\n]*)\1""", js):
+    # (?!\1) rather than [^'"]: a single-quoted string may hold double quotes
+    # and almost every one here does, because these scripts build markup and
+    # markup carries style="…". Excluding both quote characters meant every
+    # such string was skipped, which is why two whole files measured zero.
+    for m in re.finditer(r"""(['"])((?:(?!\1)[^\\\n]|\\.)*)\1""", js):
+        text = m.group(2).strip()
+        if len(text) < 3 or not _NORWEGIAN_RE.search(text):
+            continue
+        if text in _NOT_TEXT or _NOT_TEXT_RE.match(text) or _is_code(text):
+            continue
+        if _KEY_RE.match(text):                   # an i18n key, not its text
+            continue
         line_no = js[:m.start()].count("\n")
         stripped = lines[line_no].strip()
         if stripped.startswith("//") or stripped.startswith("*"):
@@ -284,7 +333,33 @@ def broken_t_calls(js: str) -> list[tuple[int, str]]:
 # a real zero rather than a carried exception nobody could interpret.
 BUDGET_TEXT_NODES = 0
 BUDGET_ATTRIBUTES = 0
-BUDGET_JS_NORWEGIAN = 0
+# Per script, because they come down one file at a time. The single 0 that
+# stood here was true only of what the detector could see: it required an æ, ø
+# or å and refused any string containing the other quote character, so files
+# built entirely out of markup measured clean. These are the numbers once it
+# can see them. Only ever down.
+BUDGET_JS_NORWEGIAN = {
+    "app.js": 21,
+    "app-also.js": 27,
+    "app-dashboard.js": 12,
+    "app-infra.js": 128,
+    "app-integrations.js": 22,
+    "app-tailscale.js": 2,
+    "app-tls.js": 2,
+}
+
+# Strings handed straight to showToast/confirm/alert. Norwegian and English
+# alike — the mirror of the problem above is an English literal that a
+# Norwegian UI shows in English.
+BUDGET_JS_PERSON = {
+    "app.js": 0,
+    "app-also.js": 7,
+    "app-dashboard.js": 0,
+    "app-infra.js": 0,
+    "app-integrations.js": 0,
+    "app-tailscale.js": 4,
+    "app-tls.js": 0,
+}
 
 
 def _report(items) -> str:
@@ -311,9 +386,14 @@ def test_no_new_hardcoded_attributes():
 
 
 def test_no_new_norwegian_literals_in_the_scripts():
-    found = norwegian_literals_in_js()
-    assert len(found) <= BUDGET_JS_NORWEGIAN, (
-        f"{len(found)} Norwegian literals outside t(), budget {BUDGET_JS_NORWEGIAN}:\n{_report(found)}"
+    """The whole front end at once. Called with no argument this measured
+    app.js alone, so a literal added to any of the other six was not counted
+    here at all."""
+    total = sum(len(norwegian_literals_in_js(s)) for s in _SCRIPTS)
+    ceiling = sum(BUDGET_JS_NORWEGIAN.values())
+    assert total <= ceiling, (
+        f"{total} Norwegian literals outside t() across the scripts, "
+        f"budget {ceiling}"
     )
 
 
@@ -323,15 +403,24 @@ def test_the_budgets_are_not_stale():
     If a batch lands without the ceiling coming down with it, this says so
     rather than letting the slack hide the next regression.
     """
-    for name, budget, found in (
-        ("text nodes", BUDGET_TEXT_NODES, untranslated_text_nodes()),
-        ("attributes", BUDGET_ATTRIBUTES, untranslated_attributes()),
-        ("js literals", BUDGET_JS_NORWEGIAN, norwegian_literals_in_js()),
-    ):
-        slack = budget - len(found)
+    checks = [
+        ("text nodes", BUDGET_TEXT_NODES, len(untranslated_text_nodes())),
+        ("attributes", BUDGET_ATTRIBUTES, len(untranslated_attributes())),
+    ]
+    for script in _SCRIPTS:
+        checks += [
+            (f"js literals {script}", BUDGET_JS_NORWEGIAN[script],
+             len(norwegian_literals_in_js(script))),
+            (f"js prose {script}", BUDGET_JS_PROSE[script],
+             len(prose_in_generated_markup(script))),
+            (f"js shown {script}", BUDGET_JS_PERSON[script],
+             len(text_shown_to_a_person(script))),
+        ]
+    for name, budget, count in checks:
+        slack = budget - count
         assert slack <= 10, (
-            f"{name}: budget {budget} but only {len(found)} remain — "
-            f"lower it to {len(found)} in the commit that fixed them"
+            f"{name}: budget {budget} but only {count} remain — "
+            f"lower it to {count} in the commit that fixed them"
         )
 
 
@@ -419,7 +508,17 @@ def test_a_translated_span_does_not_hold_the_spacing_around_it():
 # Every script that builds markup. app.js was measured first and cleared; the
 # other two were never looked at, and app-infra.js turned out to hold more than
 # app.js did.
-_SCRIPTS = ("app.js", "app-integrations.js", "app-infra.js")
+# Every script index.html loads. It was three, and the four it left out
+# were not measured by any check in this file.
+_SCRIPTS = (
+    "app.js",
+    "app-also.js",
+    "app-dashboard.js",
+    "app-infra.js",
+    "app-integrations.js",
+    "app-tailscale.js",
+    "app-tls.js",
+)
 
 
 def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
@@ -448,10 +547,14 @@ def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
 
 
 # Ceilings, per script. Same rule as the others: only ever down.
-BUDGET_JS_PROSE = {
+BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app.js": 0,
-    "app-integrations.js": 0,
+    "app-also.js": 19,
+    "app-dashboard.js": 9,
     "app-infra.js": 0,
+    "app-integrations.js": 0,
+    "app-tailscale.js": 40,
+    "app-tls.js": 5,
 }
 
 
@@ -481,18 +584,20 @@ def test_the_workshop_section_titles_resolve() -> None:
 @pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_text_reaches_a_person_without_going_through_t(script: str) -> None:
     found = text_shown_to_a_person(script)
-    assert not found, (
-        f"{len(found)} hard-coded strings shown to the user in {script}:\n"
-        f"{_report(found)}"
+    budget = BUDGET_JS_PERSON[script]
+    assert len(found) <= budget, (
+        f"{len(found)} hard-coded strings shown to the user in {script}, "
+        f"budget {budget}:\n{_report(found)}"
     )
 
 
 @pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_norwegian_literal_outside_t(script: str) -> None:
     found = norwegian_literals_in_js(script)
-    assert len(found) <= BUDGET_JS_NORWEGIAN, (
+    budget = BUDGET_JS_NORWEGIAN[script]
+    assert len(found) <= budget, (
         f"{len(found)} Norwegian literals in {script}, budget "
-        f"{BUDGET_JS_NORWEGIAN}:\n{_report(found)}"
+        f"{budget}:\n{_report(found)}"
     )
 
 
