@@ -1592,6 +1592,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Entra ID kjenner disse enhetene uten at Intune administrerer dem",
         "en": "Entra ID knows these devices, but Intune does not manage them",
     },
+    "idle_licences": {
+        "no": "Lisenser uten aktivitet. ",
+        "en": "Licences with no activity. ",
+    },
+    "idle_licences_desc": {
+        "no": "{count} lisensierte brukere har ingen registrert aktivitet siste {days} dager",
+        "en": "{count} licensed users have no recorded activity in the last {days} days",
+    },
+    "usage_names_concealed": {
+        "no": "Brukernavn er anonymisert i bruksrapportene for denne tenanten \u2014 tallene stemmer, men navnene kan ikke knyttes til personer.",
+        "en": "User names are concealed in this tenant's usage reports \u2014 the counts are accurate, but the names cannot be matched to people.",
+    },
     "unmanaged_endpoints": {
         "no": "Uadministrerte endepunkter. ",
         "en": "Unmanaged endpoints. ",

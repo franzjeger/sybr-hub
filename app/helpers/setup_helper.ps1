@@ -193,7 +193,8 @@ $fallbackPerms = @(
     'DeviceManagementManagedDevices.Read.All','DeviceManagementServiceConfig.Read.All',
     'Device.Read.All','Directory.Read.All','Group.Read.All',
     'IdentityRiskyUser.Read.All',
-    'Organization.Read.All','Policy.Read.All','RoleManagement.Read.Directory',
+    'Organization.Read.All','Policy.Read.All','Reports.Read.All',
+    'RoleManagement.Read.Directory',
     'SecurityEvents.Read.All','Sites.Read.All','SharePointTenantSettings.Read.All',
     'User.Read.All','UserAuthenticationMethod.Read.All',
     'InformationProtectionPolicy.Read.All','AccessReview.Read.All','SecurityAlert.Read.All'

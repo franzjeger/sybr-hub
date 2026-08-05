@@ -752,6 +752,9 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 7. Licenses ── -->
 <a name="lisenser"></a><h2 id="lisenser">{{ t.license_overview }}</h2>
+{% if usage and usage.has_data and usage.licensed_idle > 0 %}
+<div class="alert warning"><strong>{{ t.idle_licences }}</strong>{{ t.idle_licences_desc.format(count=usage.licensed_idle, days=usage.period_days) }}{% if usage.concealed %} — {{ t.usage_names_concealed }}{% endif %}</div>
+{% endif %}
 {% if licenses %}
 <table>
   <tr><th>{{ t.sku_product }}</th><th style="text-align:right;">{{ t.used }}</th><th style="text-align:right;">{{ t.total }}</th><th style="width:120px;">{{ t.utilization }}</th><th>{{ t.status }}</th></tr>

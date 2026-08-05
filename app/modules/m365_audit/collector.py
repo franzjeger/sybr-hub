@@ -182,6 +182,7 @@ class AuditCollector:
 
     def _build_graph_sections(self, graph: GraphClient, verified_domains: list[str]) -> list[BaseSection]:
         from app.modules.m365_audit.sections.apps_oauth import AppsOAuthSection
+        from app.modules.m365_audit.sections.usage_reports import UsageReportsSection
         from app.modules.m365_audit.sections.compliance_score import ComplianceScoreSection
         from app.modules.m365_audit.sections.conditional_access import ConditionalAccessSection
         from app.modules.m365_audit.sections.defender_office import DefenderOfficeSection
@@ -235,6 +236,7 @@ class AuditCollector:
             DefenderOfficeSection(self.out_dir, graph, self.progress_cb),
             OneDriveSharingSection(self.out_dir, graph, self.progress_cb),
             ComplianceScoreSection(self.out_dir, graph, self.progress_cb),
+            UsageReportsSection(self.out_dir, graph, self.progress_cb),
         ]
 
     def _build_azure_sections(self, sub_id: str, sub_name: str, multi: bool = False) -> list[BaseSection]:
