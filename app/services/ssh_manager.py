@@ -383,6 +383,12 @@ async def _connect_to_host(host: SshHost) -> SshSession:
     # regardless of its value — and each caller swallowed it into a per-host
     # {"ok": False, "error": ...}, so host test, batch exec, key push, key
     # revoke and health check have never worked. Convert the PEM properly.
+    #
+    # None here is load-bearing and is *not* the careless value it looks like.
+    # asyncssh reads None as "offer nothing, and no agent either"; an empty
+    # list — or omitting the argument — falls through to load_default_keypairs()
+    # and offers the hub's own ~/.ssh identity to the customer's device. Do not
+    # "tidy" this to [].
     client_keys = None
     if private_key:
         import asyncssh

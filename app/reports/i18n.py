@@ -1315,6 +1315,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Innloggingsanalyse",
         "en": "Sign-in Analysis",
     },
+    "signin_no_data_license": {
+        "no": "Innloggingsloggen kunne ikke hentes: den krever Microsoft Entra ID P1 "
+              "(eller P2), og tenanten har ikke den lisensen. Uten den finnes det ingen "
+              "sporbarhet på pålogginger, mislykkede forsøk eller mistenkelig aktivitet.",
+        "en": "The sign-in log could not be retrieved: it requires Microsoft Entra ID P1 "
+              "(or P2), and this tenant does not have that licence. Without it there is no "
+              "record of sign-ins, failed attempts or suspicious activity.",
+    },
+    "signin_no_data_not_collected": {
+        "no": "Innloggingsloggen ble ikke hentet i denne auditen. Sannsynlig årsak: "
+              "app-registreringen mangler AuditLog.Read.All eller admin-samtykke. "
+              "Merk at endepunktet i tillegg krever Microsoft Entra ID P1.",
+        "en": "The sign-in log was not retrieved in this audit. Likely cause: the app "
+              "registration lacks AuditLog.Read.All or its admin consent. Note that the "
+              "endpoint additionally requires Microsoft Entra ID P1.",
+    },
     "total_signins": {
         "no": "Totalt p\u00e5logginger",
         "en": "Total Sign-ins",

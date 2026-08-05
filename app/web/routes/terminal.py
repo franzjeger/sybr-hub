@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _fail(websocket: WebSocket, message: str, code: int = 4000) -> None:
+    """Tell the client why, then close. A silent close reads as a network fault."""
+    await websocket.send_json({"type": "output", "data": f"\r\n*** {message} ***\r\n"})
+    await websocket.close(code=code, reason=message[:120])
+
+
 async def _may_open_host(actor: User, host) -> bool:
     """Whether *actor* may reach this host. See ssh.py for the same rule."""
     from app.core.rbac import check_customer_access, get_accessible_customer_ids
@@ -169,7 +175,14 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
     host_id = websocket.query_params.get("host_id", "")
     host = websocket.query_params.get("host", "")
     user = websocket.query_params.get("user", "root")
-    port = int(websocket.query_params.get("port", "22"))
+    try:
+        port = int(websocket.query_params.get("port", "22") or "22")
+    except ValueError:
+        # The websocket is already accepted, so an unhandled ValueError here
+        # closes the connection with no explanation at all.
+        await websocket.send_json({"type": "output", "data": "\r\nUgyldig port.\r\n"})
+        await websocket.close(code=4000, reason="Invalid port")
+        return
 
     # Resolve host from database if host_id provided
     password = None
@@ -205,13 +218,49 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
         host = h.hostname
         port = h.port
         user = h.username
+        # A credential that will not load is a configuration fault to report,
+        # not something to connect without. Continuing left asyncssh with
+        # neither a password nor a key and the session died at the far end
+        # with "Permission denied", which sends the technician looking at the
+        # customer's host for a problem that is on this one.
         if h.auth_method == AuthMethod.password:
             password = _load_host_password(h.id)
+            if not password:
+                await _fail(websocket, "Passordet for denne hosten kunne ikke hentes "
+                                       "— sjekk at det er lagret på nytt.")
+                return
         elif h.auth_method == AuthMethod.key and h.auth_key_id:
             try:
                 private_key = _load_private_key(h.auth_key_id)
             except (ValueError, OSError) as e:
                 logger.warning("Failed to load private key %s for host %s: %s", h.auth_key_id, host_id, e)
+                await _fail(websocket, "Nøkkelen for denne hosten kunne ikke leses.")
+                return
+    elif host:
+        # An address typed straight into the query string belongs to no
+        # customer, so nobody's access grant covers it — the same rule the
+        # host branch applies to a host with no customer_id. This branch used
+        # to run with no tenancy check and no activity entry at all: a shell
+        # opened on an arbitrary address left no trace of who or where.
+        from app.core.rbac import get_accessible_customer_ids
+
+        if await get_accessible_customer_ids(actor) is not None:
+            logger.info(
+                "403 ad-hoc terminal: user=%s host=%s (restricted to specific customers)",
+                actor.username, host,
+            )
+            await _fail(
+                websocket,
+                "Tilgang nektet — du kan bare åpne terminal mot hoster som er "
+                "registrert på en kunde du har tilgang til.",
+                code=4003,
+            )
+            return
+        log_activity(
+            "terminal_ssh_opened",
+            detail=f"Åpnet SSH-økt mot ad hoc-adresse {user}@{host}:{port}",
+            user=actor.username,
+        )
 
     if not host:
         await websocket.send_json({"type": "output", "data": "\r\nIngen host angitt.\r\n"})
@@ -229,6 +278,12 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
         # and refuses a *changed* key, which is exactly the MITM signal.
         from app.services.ssh_connection import open_verified_connection
 
+        # client_keys=None is load-bearing and is *not* the careless value it
+        # looks like. asyncssh treats None as "offer nothing, and no agent
+        # either"; an empty list or an omitted argument falls through to
+        # load_default_keypairs(), which reads the hub's own ~/.ssh — so the
+        # hub's identity would be offered to every customer device that
+        # happened to trust it, unlogged and configured by nobody. Keep None.
         conn = await open_verified_connection(
             hostname=host,
             username=user,

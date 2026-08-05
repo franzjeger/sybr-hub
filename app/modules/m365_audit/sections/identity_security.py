@@ -12,9 +12,36 @@ from pathlib import Path
 from typing import Optional
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
-from app.modules.m365_audit.graph_client import GraphClient
+from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
 
 _HIGH_SEVERITY = {"high", "critical"}
+
+
+def _unavailable_reason(ex: Exception, tier: str) -> str:
+    """Explain a refused premium-gated collection, without guessing.
+
+    These endpoints are gated on the tenant's Entra ID tier *and* on a Graph
+    permission, and Graph answers both with 403. The previous text hedged
+    across the two — "may not have the license, or the API permissions may be
+    insufficient" — which leaves the technician to try both and tells the
+    customer nothing. GraphPermissionError now reads the error code out of the
+    response, so when the tenant has said which it is, say it.
+    """
+    if isinstance(ex, GraphPermissionError) and ex.is_licence_gap:
+        return (
+            f"  Graph reported a licence gap: this tenant does not have {tier},\n"
+            f"  which this data requires."
+        )
+    if isinstance(ex, GraphPermissionError):
+        return (
+            f"  Graph refused the request with {ex.status} without citing a licence,\n"
+            "  so the app registration is missing a permission or its admin consent.\n"
+            f"  Note that the endpoint also requires {tier}."
+        )
+    return (
+        f"  The request failed. This data requires {tier}; the tenant may not have\n"
+        "  it, or the app registration may be missing a permission."
+    )
 
 
 class IdentitySecuritySection(BaseSection):
@@ -75,15 +102,16 @@ class IdentitySecuritySection(BaseSection):
             users = await self.graph.get_all("riskyUsers")
         except Exception as ex:
             err_str = str(ex)
-            if any(k in err_str for k in ("400", "403", "Bad Request", "Forbidden")):
+            if isinstance(ex, GraphPermissionError) or any(
+                k in err_str for k in ("400", "403", "Bad Request", "Forbidden")
+            ):
                 lines = [
                     "=" * 90,
                     "  RISKY USERS  (not available)",
                     "=" * 90,
                     "",
                     "  Risky Users requires Microsoft Entra ID P2 (formerly Azure AD Premium P2).",
-                    "  This tenant may not have the required license, or the API permissions",
-                    "  may be insufficient.",
+                    _unavailable_reason(ex, "Microsoft Entra ID P2"),
                     "",
                     "  Error details for troubleshooting:",
                     f"    {err_str}",
@@ -127,10 +155,14 @@ class IdentitySecuritySection(BaseSection):
             )
         except Exception as ex:
             err = str(ex)
-            if any(k in err for k in ("400", "403", "Forbidden", "Bad Request")):
+            if isinstance(ex, GraphPermissionError) or any(
+                k in err for k in ("400", "403", "Forbidden", "Bad Request")
+            ):
                 self._save(
                     "18d_risk_detections.txt",
+                    "RISK DETECTIONS  (not available)\n"
                     "Risk detections krever Microsoft Entra ID P2 (tidligere Azure AD Premium P2).\n"
+                    f"{_unavailable_reason(ex, 'Microsoft Entra ID P2')}\n"
                     f"Teknisk detalj: {err}\n",
                 )
             else:

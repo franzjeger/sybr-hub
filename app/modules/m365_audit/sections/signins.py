@@ -7,9 +7,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
-from app.modules.m365_audit.graph_client import GraphClient
+from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
 
 _FAILURE_THRESHOLD = 50
+
+# auditLogs/signIns is gated on the tenant's Entra ID tier, not on a Graph
+# permission: AuditLog.Read.All can be granted and consented and the endpoint
+# will still answer 403 on a tenant without P1. Saying so is the difference
+# between an actionable finding — this customer should be on P1 — and sending a
+# technician to look for a consent that is already in place.
+_TIER_REQUIREMENT = "Microsoft Entra ID P1 (or P2)"
 
 
 class SignInsSection(BaseSection):
@@ -18,6 +25,38 @@ class SignInsSection(BaseSection):
     def __init__(self, out_dir: Path, graph: GraphClient, progress_cb=None):
         super().__init__(out_dir, progress_cb)
         self.graph = graph
+
+    def _save_unavailable(self, err: GraphPermissionError) -> None:
+        """Record *why* there is no sign-in data, in both output files.
+
+        Without this the section simply wrote nothing, the report found no
+        file, and the whole sign-in analysis disappeared from the document —
+        not even as "not measured". A reader could not tell it had been tried.
+        """
+        if err.is_licence_gap:
+            cause = [
+                f"  auditLogs/signIns requires {_TIER_REQUIREMENT}, and Graph refused",
+                f"  the request with {err.status} reporting a licence gap — this tenant",
+                "  does not have that tier.",
+            ]
+        else:
+            cause = [
+                f"  Graph refused the request with {err.status}. The app registration is",
+                "  missing AuditLog.Read.All or its admin consent.",
+                "",
+                f"  Note: this endpoint also requires {_TIER_REQUIREMENT}, so granting the",
+                "  permission alone will not make it readable on a tenant without it.",
+            ]
+        detail = ["", "  Error details for troubleshooting:", f"    {err}", ""]
+
+        for name, title, width in (
+            ("05_signin_activity.txt", "SIGN-IN ACTIVITY", 90),
+            ("05b_signin_failures.txt", "SIGN-IN FAILURES", 70),
+        ):
+            self._save(name, "\n".join([
+                "=" * width, f"  {title}  (not available)", "=" * width, "",
+                *cause, *detail, "=" * width, "",
+            ]))
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -121,6 +160,12 @@ class SignInsSection(BaseSection):
             self._save("05b_signin_failures.txt", "\n".join(fail_lines))
 
             self._report(SectionStatus.DONE)
+        except GraphPermissionError as e:
+            # Still FAILED: the tenant's sign-in posture was not measured, and
+            # nothing downstream may read the explanation below as a zero.
+            self._save_unavailable(e)
+            self._warn(str(e))
+            self._report(SectionStatus.FAILED, str(e))
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result

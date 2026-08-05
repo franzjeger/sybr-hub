@@ -1304,6 +1304,13 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
     }
 
 
+# The collector distinguishes "the tenant is not licensed for this" from "the
+# app registration may not read it". Only the first is a finding about the
+# customer; the second is a finding about our own configuration, and a report
+# must not present one as the other.
+_LICENCE_GAP_RE = re.compile(r"licence gap|lisens", re.IGNORECASE)
+
+
 def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
     """Parse sign-in activity and failure data for risk analysis."""
     result: dict = {
@@ -1314,11 +1321,25 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         "top_failure_reasons": [],
         "brute_force_suspects": [],
         "has_data": False,
+        "no_data_reason": None,
     }
 
     # Parse sign-in activity (05_signin_activity.txt)
     signin_text = file_contents.get("05_signin_activity.txt", "")
-    if signin_text.strip():
+    if _evidence_unavailable(signin_text):
+        # The collector writes a "(not available)" block naming the cause.
+        # Reading it as data would have set has_data from its mere presence and
+        # published a tenant with zero sign-ins and zero failures; writing no
+        # file at all — the old behaviour on a 403 — made the whole section
+        # vanish from the document without a word, so a reader could not tell
+        # it had been attempted. Carry the reason instead, and say it.
+        if not signin_text.strip():
+            result["no_data_reason"] = "not_collected"
+        elif _LICENCE_GAP_RE.search(signin_text):
+            result["no_data_reason"] = "license_p1_missing"
+        else:
+            result["no_data_reason"] = "not_collected"
+    elif signin_text.strip():
         users_seen: set[str] = set()
         signin_count = 0
         for line in signin_text.splitlines():
@@ -1371,7 +1392,7 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
 
     # Parse sign-in failures (05b_signin_failures.txt)
     failure_text = file_contents.get("05b_signin_failures.txt", "")
-    if failure_text.strip():
+    if not _evidence_unavailable(failure_text):
         result["has_data"] = True
         failure_users: dict[str, int] = {}
         failure_reasons: dict[str, int] = {}
@@ -2458,7 +2479,7 @@ def _compute_risk(
         score -= min(10, max(5, len(fwd_lines) * 2))
 
     # Risky users (up to 5 pts)
-    if risky_users and "No risky" not in risky_users and "not available" not in risky_users.lower() and "requires" not in risky_users.lower() and risky_users.strip():
+    if risky_users and "No risky" not in risky_users and not _evidence_unavailable(risky_users):
         score -= 5
 
     # Defender alerts (up to 10 pts) — scale with number of alerts
@@ -2643,7 +2664,7 @@ def _build_recommendations(
             "doc_url": "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/outbound-spam-policies-external-email-forwarding",
         })
 
-    if risky_users and "No risky" not in risky_users and "not available" not in risky_users.lower() and "requires" not in risky_users.lower() and risky_users.strip():
+    if risky_users and "No risky" not in risky_users and not _evidence_unavailable(risky_users):
         # Parse risky user entries from columnar format
         risky_items = []
         for line in risky_users.splitlines():
@@ -3368,22 +3389,35 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
 }
 
 
+def _evidence_unavailable(text: str) -> bool:
+    """True when a collector file explains an absence rather than reporting one.
+
+    Collectors write two shapes of non-reading: an ``Error:`` stub, and a
+    "(not available)" block naming a licence or permission gap. Both are prose
+    about why nothing was measured, and neither is evidence of anything about
+    the tenant. This was checked in three places with three slightly different
+    substring tests, and not at all in the fourth.
+    """
+    if not isinstance(text, str):
+        return True
+    stripped = text.strip()
+    if not stripped or stripped.startswith("Error:"):
+        return True
+    low = stripped.lower()
+    return "not available" in low or "requires" in low or "krever" in low
+
+
 def _section_ran(fc: dict, *names: str) -> bool:
     """True when at least one of the named collector outputs is usable.
 
-    A file that is absent, empty, or an "Error:" stub means the section
-    produced no reading. Zero policies in a file that *was* written is a
-    reading — and a completely different claim. Compliance controls kept
-    conflating the two, so a tenant whose Exchange section never ran was
-    attested as having no external forwarding and failed for having no
-    anti-spam policy, on identical evidence: nothing.
+    A file that is absent, empty, an "Error:" stub or a "(not available)"
+    explanation means the section produced no reading. Zero policies in a file
+    that *was* written is a reading — and a completely different claim.
+    Compliance controls kept conflating the two, so a tenant whose Exchange
+    section never ran was attested as having no external forwarding and failed
+    for having no anti-spam policy, on identical evidence: nothing.
     """
-    for name in names:
-        text = fc.get(name, "")
-        stripped = text.strip() if isinstance(text, str) else ""
-        if stripped and not stripped.startswith("Error:"):
-            return True
-    return False
+    return any(not _evidence_unavailable(fc.get(name, "")) for name in names)
 
 
 _CANNOT_VERIFY = "Kan ikke verifiseres — "
@@ -4407,8 +4441,7 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # risk parser already gave us structured counts — use those.
     risky_struct = signin_risk if isinstance(signin_risk, dict) else {}
     risky_text = context.get("risky_users", "") if isinstance(context.get("risky_users"), str) else ""
-    has_risky_data = bool(risky_text.strip()) and not risky_text.strip().startswith("Error:") \
-        and "not available" not in risky_text.lower() and "requires" not in risky_text.lower()
+    has_risky_data = not _evidence_unavailable(risky_text)
 
     if not has_risky_data:
         add("9.3", "Ensure risky user detections are investigated", t.cis_cat_logging, "info",

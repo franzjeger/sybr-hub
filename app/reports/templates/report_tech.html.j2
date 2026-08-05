@@ -621,7 +621,19 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 4b. Sign-in Risk Analysis ── -->
-{% if signin_risk and signin_risk.has_data %}
+{% if signin_risk and signin_risk.no_data_reason %}
+{# Say why rather than dropping the section. A missing heading reads as "there
+   was nothing to report"; the truth is that nothing could be measured, and on
+   a licence gap that is itself a finding about the customer. #}
+<h2 id="paalogging">{{ t.signin_analysis }}</h2>
+<p style="color:#888;font-style:italic;">
+  {%- if signin_risk.no_data_reason == 'license_p1_missing' -%}
+    {{ t.signin_no_data_license }}
+  {%- else -%}
+    {{ t.signin_no_data_not_collected }}
+  {%- endif -%}
+</p>
+{% elif signin_risk and signin_risk.has_data %}
 <h2 id="paalogging">{{ t.signin_analysis }}</h2>
 <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
   <div class="stat-box blue"><div class="num">{{ signin_risk.total_signins }}</div><div class="lbl">{{ t.total_signins }}</div></div>
