@@ -131,20 +131,64 @@ async def favicon() -> Response:
 
 _SW_VERSION = re.compile(r"const CACHE_VERSION = '[^']*'")
 
-# The files a browser holds on to. Hashing their bytes means any deploy that
-# changes them evicts the cache, whether or not anyone bumped a version.
-_CACHED_ASSETS = ("app.js", "app.css", "index.html", "ui_i18n.json")
+# Assets index.html pulls in itself, so the set cannot drift from what the page
+# actually loads. It used to be a hand-written four — app.js, app.css,
+# index.html, ui_i18n.json — which left the other six front-end bundles out of
+# the digest entirely. A release touching only one of those (Build 7a rewrote
+# app-dashboard.js) produced an unchanged CACHE_VERSION, so the worker kept
+# serving the copy it already had. Build 7a only escaped that because it
+# happened to also touch app.css and ui_i18n.json.
+# json before js: the alternation is ordered, and "js" would otherwise match
+# inside manifest.json and hand back a manifest.js that does not exist.
+_ASSET_REF = re.compile(r"/static/([A-Za-z0-9_./-]+\.(?:json|css|js))")
+
+# Hashing bytes is not free and sw.js is fetched on every navigation, so the
+# result is memoised against each file's (mtime_ns, size). A deploy changes
+# both, which is the same signal the digest is there to catch.
+_digest_cache: dict[tuple, str] = {}
+
+
+def _digest_inputs() -> list[Path]:
+    index = _STATIC_DIR / "index.html"
+    if not index.exists():
+        return []
+    paths = [index]
+    seen = {index}
+    for ref in _ASSET_REF.findall(index.read_text(encoding="utf-8", errors="replace")):
+        path = _safe_child(_STATIC_DIR, ref)
+        if path is not None and path.is_file() and path not in seen:
+            seen.add(path)
+            paths.append(path)
+    # ui_i18n.json is fetched by app.js rather than referenced in the markup,
+    # so the scan above cannot see it.
+    extra = _STATIC_DIR / "ui_i18n.json"
+    if extra.is_file() and extra not in seen:
+        paths.append(extra)
+    return sorted(paths)
 
 
 def _static_digest() -> str:
     import hashlib
 
+    paths = _digest_inputs()
+    try:
+        stamp = tuple((str(p), p.stat().st_mtime_ns, p.stat().st_size) for p in paths)
+    except OSError:
+        stamp = ()
+    if stamp and (hit := _digest_cache.get(stamp)) is not None:
+        return hit
+
     h = hashlib.sha256()
-    for name in _CACHED_ASSETS:
-        path = _STATIC_DIR / name
-        if path.exists():
+    for path in paths:
+        try:
             h.update(path.read_bytes())
-    return h.hexdigest()[:12]
+        except OSError:
+            continue
+    digest = h.hexdigest()[:12]
+    if stamp:
+        _digest_cache.clear()  # only the current deploy's entry is of any use
+        _digest_cache[stamp] = digest
+    return digest
 
 
 

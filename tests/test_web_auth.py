@@ -835,10 +835,54 @@ def test_the_cache_version_changes_when_a_static_file_changes():
 
 
 def test_the_cache_version_covers_every_cached_asset():
-    """Missing one means a change to it never reaches a warm browser."""
+    """Missing one means a change to it never reaches a warm browser.
+
+    This asserted that a hand-written tuple held three names, which is a
+    weaker claim than it looks: the tuple listed four assets while index.html
+    loaded ten, so the six other front-end bundles were absent from the cache
+    key and a release touching only one of them left warm browsers on the copy
+    they already had. The set is now read out of index.html, and so is this.
+    """
+    import pathlib
+    import re
+
     from app.web.routes import frontend
 
-    assert set(frontend._CACHED_ASSETS) >= {"app.js", "app.css", "index.html"}
+    covered = {path.name for path in frontend._digest_inputs()}
+    html = pathlib.Path("app/web/static/index.html").read_text()
+    referenced = {
+        ref.rsplit("/", 1)[-1]
+        for ref in re.findall(r"/static/([A-Za-z0-9_./-]+\.(?:json|css|js))", html)
+    }
+
+    assert referenced, "index.html must load something"
+    assert not referenced - covered, (
+        f"index.html loads these but the cache key ignores them: "
+        f"{sorted(referenced - covered)}"
+    )
+    assert {"app.js", "app.css", "index.html", "ui_i18n.json"} <= covered
+
+
+def test_a_change_to_any_bundle_moves_the_cache_version():
+    """app-dashboard.js was the one that proved the old key too narrow."""
+    import pathlib
+
+    from app.web.routes import frontend
+
+    for name in ("app-dashboard.js", "app-infra.js", "app.css"):
+        asset = pathlib.Path("app/web/static") / name
+        if not asset.is_file():
+            continue
+        before = frontend._static_digest()
+        original = asset.read_bytes()
+        try:
+            asset.write_bytes(original + b"\n/* touched */\n")
+            assert frontend._static_digest() != before, (
+                f"a change to {name} must produce a new cache key"
+            )
+        finally:
+            asset.write_bytes(original)
+        assert frontend._static_digest() == before, "and revert to the old one"
 
 
 def test_the_theme_is_set_before_the_stylesheet_loads():
