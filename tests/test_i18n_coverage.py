@@ -84,6 +84,11 @@ _NOT_TEXT = {
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
 
+# "prov", "ma" and "na" were here as ASCII-folded prøv/må/nå and were dropped:
+# every one of them carries æøå in real Norwegian, so the letter branch already
+# has them, while the folded spellings collided with identifiers — "prov" alone
+# matched a dozen prov-* element ids in the provisioning form.
+#
 # What makes a string Norwegian: one of the three letters, or a word that
 # exists in Norwegian and not in English. Words shared with English are kept
 # out on purpose — see norwegian_literals_in_js for why the shape of this list
@@ -93,9 +98,9 @@ _NORWEGIAN_RE = re.compile(
     r"lukk|avbryt|bruker|brukere|brukernavn|passord|ingen|finnes|kjorer|kjort|hent|"
     r"henter|hentet|oppdater|oppdatert|endre|endret|sok|soker|vis|skjul|varsel|"
     r"varsler|rapport|rapporter|siste|antall|dager|mangler|manglende|ukjent|krever|"
-    r"angi|apne|apnet|ferdig|startet|fullfort|mislyktes|prov|igjen|tilbake|neste|"
-    r"forrige|enheter|enhet|eller|med|som|har|kan|ma|til|fra|av|og|er|den|det|denne|"
-    r"dette|na|nar|hvis|alle|legg|lagt|laster|lastet|kobler|koblet|tilkoblet|"
+    r"angi|apne|apnet|ferdig|startet|fullfort|mislyktes|igjen|tilbake|neste|"
+    r"forrige|enheter|enhet|eller|med|som|har|kan|til|fra|av|og|er|den|det|denne|"
+    r"dette|nar|hvis|alle|legg|lagt|laster|lastet|kobler|koblet|tilkoblet|"
     r"frakoblet|aktiver|aktivert|deaktiver|deaktivert|opprett|opprettet|kopier|"
     r"kopiert|navn|dato|konfigurert|handling|se)\b",
     re.IGNORECASE,
@@ -364,7 +369,7 @@ BUDGET_JS_NORWEGIAN = {
     "app.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
-    "app-infra.js": 128,
+    "app-infra.js": 0,
     "app-integrations.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
