@@ -341,7 +341,7 @@ BUDGET_ATTRIBUTES = 0
 BUDGET_JS_NORWEGIAN = {
     "app.js": 21,
     "app-also.js": 27,
-    "app-dashboard.js": 12,
+    "app-dashboard.js": 0,
     "app-infra.js": 128,
     "app-integrations.js": 22,
     "app-tailscale.js": 0,
@@ -550,7 +550,7 @@ def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
 BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app.js": 0,
     "app-also.js": 19,
-    "app-dashboard.js": 9,
+    "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
     "app-tailscale.js": 0,

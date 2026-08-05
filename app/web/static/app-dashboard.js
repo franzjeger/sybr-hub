@@ -370,7 +370,7 @@ async function dashLoadHealth() {
   var secData = results[0];
   var chainData = results[1];
 
-  if (!secData) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">Failed</div>'; return; }
+  if (!secData) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_load_failed','Kunne ikke laste') + '</div>'; return; }
 
   var customers = secData.customers || [];
   var summary = secData.summary || {};
@@ -619,13 +619,13 @@ async function dashLoadCosts() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
   var data = await apiFetch('/api/dashboard/costs');
-  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">Kunne ikke laste kostnadsdata</div>'; return; }
+  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_costs_load_failed','Kunne ikke laste kostnadsdata') + '</div>'; return; }
 
   var customers = data.customers || [];
   var totals = data.totals || {};
 
   if (customers.length === 0) {
-    el.innerHTML = '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);"><div style="font-size:14px;font-weight:600;margin-bottom:4px;">Ingen kostnadsdata</div><div style="font-size:12px;">Synkroniser ALSO-fornyelser eller Uniweb-kontoer for a se kostnader her.</div></div>';
+    el.innerHTML = '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);"><div style="font-size:14px;font-weight:600;margin-bottom:4px;">' + t('dash_no_cost_data','Ingen kostnadsdata') + '</div><div style="font-size:12px;">' + t('dash_no_cost_hint','Synkroniser ALSO-fornyelser eller Uniweb-kontoer for å se kostnader her.') + '</div></div>';
     return;
   }
 
@@ -637,7 +637,7 @@ async function dashLoadCosts() {
     {label:'Total MRR',           value:_fmtNOK(totals.total_monthly),  color:'var(--blue)'},
     {label:'ALSO MRR',            value:_fmtNOK(totals.also_mrr),       color:'#7c5cfc'},
     {label:'Uniweb manedlig',     value:_fmtNOK(totals.uniweb_monthly), color:'#e67e22'},
-    {label:'Antall kunder',       value:totals.customer_count,           color:'var(--text)'},
+    {label:t('dash_customer_count','Antall kunder'), value:totals.customer_count,           color:'var(--text)'},
   ];
   kpis.forEach(function(k) {
     html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
@@ -693,7 +693,7 @@ async function dashLoadCosts() {
 
   // ── Total row ──
   html += '<tr style="background:var(--bg-tertiary);border-top:2px solid var(--border);font-weight:700;">';
-  html += '<td style="padding:8px;">Totalt ('+totals.customer_count+' kunder)</td>';
+  html += '<td style="padding:8px;">' + t('dash_total','Totalt') + ' ('+totals.customer_count+' ' + t('dash_customers_lc','kunder') + ')</td>';
   html += '<td style="padding:8px;text-align:right;color:#7c5cfc;">'+_fmtNOK(totals.also_mrr)+'</td>';
   html += '<td style="padding:8px;text-align:right;color:#e67e22;">'+_fmtNOK(totals.uniweb_monthly)+'</td>';
   html += '<td style="padding:8px;text-align:right;">'+_fmtNOK(totals.total_monthly)+'</td>';
@@ -706,7 +706,7 @@ async function dashLoadCosts() {
   // ── Legend ──
   html += '<div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-muted);">';
   html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#7c5cfc;margin-right:4px;vertical-align:middle;"></span>ALSO Cloud</span>';
-  html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>Uniweb Hosting</span>';
+  html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>' + t('dash_uniweb_hosting','Uniweb Hosting') + '</span>';
   html += '</div>';
 
   el.innerHTML = html;
@@ -724,11 +724,11 @@ function _fmtNOK(val) {
 async function dashLoadDomains() {
   var el = document.getElementById('dash-domains-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>' +
-    '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px;">Sjekker TLS-sertifikater for alle domener...</div>';
+    '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px;">' + t('dash_checking_tls','Sjekker TLS-sertifikater for alle domener ...') + '</div>';
 
   var data = await apiFetch('/api/dashboard/domains');
   if (!data) {
-    el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">Kunne ikke laste domenedata</div>';
+    el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_domains_load_failed','Kunne ikke laste domenedata') + '</div>';
     return;
   }
 
@@ -743,8 +743,8 @@ async function dashLoadDomains() {
     {label:'Friske', value:s.healthy||0, color:'var(--green)'},
     {label:'Advarsel', value:s.warning||0, color:s.warning>0?'var(--orange)':'var(--text-dim)'},
     {label:'Kritisk', value:s.critical||0, color:s.critical>0?'var(--red)':'var(--text-dim)'},
-    {label:'Mangler SPF', value:s.missing_spf||0, color:s.missing_spf>0?'var(--orange)':'var(--text-dim)'},
-    {label:'Mangler DMARC', value:s.missing_dmarc||0, color:s.missing_dmarc>0?'var(--orange)':'var(--text-dim)'}
+    {label:t('dash_missing_spf','Mangler SPF'), value:s.missing_spf||0, color:s.missing_spf>0?'var(--orange)':'var(--text-dim)'},
+    {label:t('dash_missing_dmarc','Mangler DMARC'), value:s.missing_dmarc||0, color:s.missing_dmarc>0?'var(--orange)':'var(--text-dim)'}
   ];
   kpis.forEach(function(k) {
     html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid ' + k.color + ';height:90px;box-sizing:border-box;">';
@@ -756,14 +756,14 @@ async function dashLoadDomains() {
 
   if (s.ssl_expiring_30d > 0) {
     html += '<div class="card" style="padding:10px 16px;margin-bottom:16px;border-left:3px solid var(--orange);background:rgba(255,165,0,0.05);font-size:12px;color:var(--orange);font-weight:600;">';
-    html += s.ssl_expiring_30d + ' SSL-sertifikat utloper innen 30 dager';
+    html += s.ssl_expiring_30d + ' ' + t('dash_ssl_expiring_30d','SSL-sertifikat utløper innen 30 dager');
     html += '</div>';
   }
 
   if (domains.length === 0) {
     html += '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);">';
-    html += '<div style="font-size:14px;">Ingen domener funnet</div>';
-    html += '<div style="font-size:12px;margin-top:4px;">Synkroniser Uniweb-data for a se domener her.</div>';
+    html += '<div style="font-size:14px;">' + t('dash_no_domains','Ingen domener funnet') + '</div>';
+    html += '<div style="font-size:12px;margin-top:4px;">' + t('dash_no_domains_hint','Synkroniser Uniweb-data for å se domener her.') + '</div>';
     html += '</div>';
     el.innerHTML = html;
     return;
@@ -798,7 +798,7 @@ async function dashLoadDomains() {
       else if (d.ssl.days_remaining < 30) sslColor = 'var(--orange)';
       var sslLabel = d.ssl.days_remaining < 0 ? 'Utlopt' : d.ssl.days_remaining + 'd';
       var gradeStr = d.ssl.grade ? ' ' + d.ssl.grade : '';
-      sslHtml = '<span style="color:' + sslColor + ';font-weight:600;" title="' + esc(d.ssl.issuer || '') + ' — gyldig til ' + esc(d.ssl.valid_until || '') + '">' + sslLabel + gradeStr + '</span>';
+      sslHtml = '<span style="color:' + sslColor + ';font-weight:600;" title="' + esc(d.ssl.issuer || '') + ' — ' + t('dash_valid_until','gyldig til') + ' ' + esc(d.ssl.valid_until || '') + '">' + sslLabel + gradeStr + '</span>';
     } else {
       sslHtml = '<span style="color:var(--text-dim);">—</span>';
     }
@@ -926,7 +926,7 @@ async function dashLoadArchive() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
   var data = await apiFetch('/api/reports/archive');
-  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">Failed</div>'; return; }
+  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_load_failed','Kunne ikke laste') + '</div>'; return; }
 
   var html = '';
 
