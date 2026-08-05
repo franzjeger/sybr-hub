@@ -78,6 +78,12 @@ async def get_settings(user: User = _auth):
         "also_password": "••••••" if settings.get("also_password") else "",
         "also_password_set": bool(settings.get("also_password")),
         "also_country": settings.get("also_country", "no"),
+        "autotask_integration_code": "••••••" if settings.get("autotask_integration_code") else "",
+        "autotask_integration_code_set": bool(settings.get("autotask_integration_code")),
+        "autotask_username": settings.get("autotask_username", ""),
+        "autotask_secret": "••••••" if settings.get("autotask_secret") else "",
+        "autotask_secret_set": bool(settings.get("autotask_secret")),
+        "autotask_zone_url": settings.get("autotask_zone_url", ""),
         "tailscale_api_key": "••••••" if settings.get("tailscale_api_key") else "",
         "tailscale_api_key_set": bool(settings.get("tailscale_api_key")),
         "tailscale_tailnet": settings.get("tailscale_tailnet", "-"),
@@ -177,6 +183,20 @@ async def save_settings(request: Request, user: User = _admin):
         if isinstance(val, str):
             val = val.strip()
         if key == "also_password" and val == "••••••":
+            continue
+        if val:
+            settings[key] = val
+
+    # Autotask PSA — the two secrets keep their masked placeholder out of
+    # storage, the same way ALSO's password does above.
+    for key in (
+        "autotask_integration_code", "autotask_username",
+        "autotask_secret", "autotask_zone_url",
+    ):
+        val = body.get(key, "")
+        if isinstance(val, str):
+            val = val.strip()
+        if key in ("autotask_integration_code", "autotask_secret") and val == "••••••":
             continue
         if val:
             settings[key] = val
