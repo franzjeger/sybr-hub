@@ -2,134 +2,356 @@
 // ALERTS DASHBOARD — MORNING OVERVIEW
 // ═══════════════════════════════════════════════════════════════════
 
+// ── 7a: one merged stream, grouped by urgency, severity as filter chips ──
+//
+// The three sources (credential expiry, licence renewals, Uniweb hosting)
+// used to render as three tables stacked down the page. Nothing merged them,
+// so "what should I do first" meant reading three sortings in turn and
+// holding the answer in your head. They are now one list.
+//
+// The design groups by "I dag" / "Tidligere denne uken", which fits an event
+// feed. These alerts are not events — they are forward-looking state, and the
+// only timestamp on them is a future expiry date. Grouping them under "today"
+// would put a label on the rows that means nothing. The axis that carries the
+// same "act on this first" meaning for state is how soon it bites, so the
+// groups are urgency bands and severity stays where 7a put it: in the chips.
+
+var _notifState = { sev: 'all', source: 'all', customer: 'all' };
+
+// Read state is per-browser. There is no server-side "seen" store, and
+// inventing one that silently disagreed between two technicians' sessions
+// would be worse than saying so — the sidebar states where it lives.
+var _NOTIF_READ_KEY = 'sybr.notif.read';
+
+function _notifRead() {
+  try { return JSON.parse(localStorage.getItem(_NOTIF_READ_KEY) || '[]'); } catch (e) { return []; }
+}
+function _notifIsRead(id) { return _notifRead().indexOf(id) !== -1; }
+function _notifMarkRead(id) {
+  var seen = _notifRead();
+  if (seen.indexOf(id) === -1) { seen.push(id); }
+  // Keep the list from growing without bound as alerts come and go.
+  try { localStorage.setItem(_NOTIF_READ_KEY, JSON.stringify(seen.slice(-500))); } catch (e) { /* private mode */ }
+}
+
+function notifMarkAllRead() {
+  (window._notifItems || []).forEach(function(n) { _notifMarkRead(n.id); });
+  _notifRender();
+}
+
+function notifSetFilter(kind, value) {
+  _notifState[kind] = value;
+  _notifRender();
+}
+
+function notifOpenRules() {
+  // The rules live in Settings, which is where they are actually editable
+  // beyond the on/off the sidebar offers.
+  if (typeof showView === 'function') showView('settings');
+}
+
+// Severity vocabulary, shared by the chips, the dots and the badges so a
+// colour never means two things in one screen.
+var _SEV = {
+  critical: { label: 'Kritisk', color: 'var(--red-deep)',    dot: 'var(--red)',    tint: 'color-mix(in srgb, var(--red) 12%, transparent)' },
+  warning:  { label: 'Advarsel', color: 'var(--orange-deep)', dot: 'var(--orange)', tint: 'color-mix(in srgb, var(--orange) 12%, transparent)' },
+  info:     { label: 'Info',     color: 'var(--text-muted)',  dot: 'var(--text-dim)', tint: 'color-mix(in srgb, var(--text-muted) 12%, transparent)' }
+};
+
+function _notifDays(n) {
+  if (n === null || n === undefined) return '';
+  return n < 0 ? t('lbl_expired', 'Utløpt') : n + ' ' + t('lbl_days_short', 'd');
+}
+
 async function dashLoadAlerts() {
   var el = document.getElementById('dash-alerts-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
-  var data = await apiFetch('/api/dashboard/alerts');
-  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">Failed</div>'; return; }
+  // Three sources, fetched together. Uniweb is optional — a customer without
+  // it configured is not an error, so its failure narrows the stream rather
+  // than emptying the screen.
+  var res = await Promise.all([
+    apiFetch('/api/dashboard/alerts'),
+    apiFetch('/api/uniweb/alerts').catch(function() { return null; }),
+    apiFetch('/api/alerts/config').catch(function() { return null; })
+  ]);
+  var data = res[0], uniweb = res[1], cfg = res[2];
 
-  var html = '';
-
-  // KPI
-  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">';
-  var kpis = [
-    {label:'Total Alerts', value:data.total_alerts, color:data.total_alerts>0?'var(--red)':'var(--green)'},
-    {label:'Critical', value:data.categories.critical, color:data.categories.critical>0?'var(--red)':'var(--text-dim)'},
-    {label:'Warning', value:data.categories.warning, color:data.categories.warning>0?'var(--orange)':'var(--text-dim)'},
-    {label:'Info', value:data.categories.info, color:data.categories.info>0?'var(--blue)':'var(--text-dim)'},
-  ];
-  kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
-    html += '<div style="font-size:22px;font-weight:700;line-height:24px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);line-height:16px;">'+k.label+'</div>';
-    html += '</div>';
-  });
-  html += '</div>';
-
-  if (data.total_alerts === 0) {
-    html += '<div class="card" style="padding:32px;text-align:center;color:var(--green);"><div style="font-size:32px;margin-bottom:8px;">✓</div><div style="font-size:14px;font-weight:600;">All clear!</div><div style="font-size:12px;color:var(--text-muted);">No expiring credentials or renewals within 30 days.</div></div>';
-    el.innerHTML = html;
+  if (!data) {
+    el.innerHTML = '<div class="alert alert-error">' + t('msg_alerts_failed', 'Kunne ikke hente varsler.') + '</div>';
     return;
   }
 
-  // Credential expiry section
-  if (data.credential_expiry.length) {
-    html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-    html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">'+icon('lock',16)+' Credential Expiry ('+data.credential_expiry.length+')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-    html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">Customer</th><th style="text-align:center;padding:6px;">Type</th><th style="text-align:center;padding:6px;">Expires</th><th style="text-align:center;padding:6px;">Days</th><th style="text-align:center;padding:6px;">Severity</th></tr></thead><tbody>';
-    data.credential_expiry.forEach(function(i) {
-      var catColor = i.category === 'critical' ? 'var(--red)' : i.category === 'warning' ? 'var(--orange)' : 'var(--blue)';
-      html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="if(typeof showCustomerDetail===\'function\')showCustomerDetail(\''+esc(i.customer_id||'')+'\',\''+esc(i.customer_name)+'\')" title="'+t('tip_click_customer','Click to view customer')+'">';
-      html += '<td style="padding:6px;font-weight:500;">'+esc(i.customer_name)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-size:11px;">'+esc(i.type)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-size:11px;">'+esc(i.expiry_date)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-weight:700;color:'+catColor+';">'+(i.days_remaining<0?'EXPIRED':i.days_remaining+'d')+'</td>';
-      html += '<td style="padding:6px;text-align:center;"><span style="font-size:10px;font-weight:600;color:#fff;background:'+catColor+';padding:2px 8px;border-radius:10px;">'+esc(i.category)+'</span></td>';
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
-  }
-
-  // Renewal alerts section
-  if (data.renewals.length) {
-    html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-    html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">'+icon('refresh',16)+' License Renewals ('+data.renewals.length+')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-    html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">Customer</th><th style="text-align:left;padding:6px;">Subscription</th><th style="text-align:center;padding:6px;">Expires</th><th style="text-align:center;padding:6px;">Days</th><th style="text-align:center;padding:6px;">Severity</th></tr></thead><tbody>';
-    data.renewals.forEach(function(i) {
-      var catColor = i.category === 'critical' ? 'var(--red)' : i.category === 'warning' ? 'var(--orange)' : 'var(--blue)';
-      html += '<tr style="border-bottom:1px solid var(--border);cursor:pointer;'+(i.handled?'opacity:0.4;':'')+'" onclick="if(typeof showCustomerDetail===\'function\')showCustomerDetail(\''+esc(i.customer_id||'')+'\',\''+esc(i.customer_name)+'\')" title="'+t('tip_click_customer','Click to view customer')+'">';
-      html += '<td style="padding:6px;font-weight:500;">'+esc(i.customer_name)+'</td>';
-      html += '<td style="padding:6px;">'+esc(i.service_name)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-size:11px;">'+esc(i.contract_end)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-weight:700;color:'+catColor+';">'+(i.days_remaining<0?'EXPIRED':i.days_remaining+'d')+'</td>';
-      html += '<td style="padding:6px;text-align:center;"><span style="font-size:10px;font-weight:600;color:#fff;background:'+catColor+';padding:2px 8px;border-radius:10px;">'+esc(i.category)+'</span></td>';
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
-  }
-
-  // Uniweb hosting expiry placeholder — filled async
-  html += '<div id="dash-uniweb-alerts"></div>';
-
-  el.innerHTML = html;
-
-  // Make alert tables sortable
-  el.querySelectorAll('table').forEach(function(t) { makeSortable(t); });
-
-  // Fetch Uniweb alerts async
-  _dashLoadUniwebAlerts();
+  window._notifItems = _notifCollect(data, uniweb);
+  window._notifConfig = cfg;
+  _notifRender();
 }
 
-async function _dashLoadUniwebAlerts() {
-  var container = document.getElementById('dash-uniweb-alerts');
-  if (!container) return;
+// Flatten the three shapes into one. Each item carries the id its read state
+// is keyed on, which has to be stable across reloads — so it is built from
+// what identifies the alert, never from its position in the list.
+function _notifCollect(data, uniweb) {
+  var out = [];
 
-  try {
-    var data = await apiFetch('/api/uniweb/alerts');
-    if (!data || !data.items || data.items.length === 0) return;
-
-    var html = '<div class="card" style="padding:16px;">';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
-    html += '<div style="font-size:14px;font-weight:600;">'+icon('globe',16)+' Hosting / Domener (Uniweb) ('+data.total+')</div>';
-    html += '<div style="font-size:12px;">';
-    if (data.critical > 0) html += '<span style="color:var(--red);font-weight:600;">'+data.critical+' kritisk</span> ';
-    if (data.warning > 0) html += '<span style="color:var(--orange);font-weight:600;">'+data.warning+' advarsel</span>';
-    html += '</div></div>';
-
-    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-    html += '<thead><tr style="border-bottom:1px solid var(--border);">';
-    html += '<th style="text-align:left;padding:6px;">'+t('col_customer','Kunde')+'</th>';
-    html += '<th style="text-align:left;padding:6px;">'+t('col_type','Type')+'</th>';
-    html += '<th style="text-align:left;padding:6px;">'+t('col_element','Element')+'</th>';
-    html += '<th style="text-align:center;padding:6px;">'+t('col_expires','Utløper')+'</th>';
-    html += '<th style="text-align:center;padding:6px;">'+t('col_days','Dager')+'</th>';
-    html += '<th style="text-align:center;padding:6px;">'+t('col_severity','Alvor')+'</th>';
-    html += '</tr></thead><tbody>';
-
-    var typeLabels = {domain: t('lbl_type_domain','Domene'), subscription: t('lbl_type_subscription','Abonnement'), ssl: t('lbl_type_ssl','SSL')};
-    data.items.forEach(function(i) {
-      var catColor = i.category === 'critical' ? 'var(--red)' : i.category === 'warning' ? 'var(--orange)' : '#c9a800';
-      var catLabel = i.category === 'critical' ? 'Kritisk' : i.category === 'warning' ? 'Snart' : 'Kommende';
-      html += '<tr style="border-bottom:1px solid var(--border);">';
-      html += '<td style="padding:6px;font-weight:500;">'+esc(i.customer_name)+'</td>';
-      html += '<td style="padding:6px;font-size:11px;">'+esc(typeLabels[i.type] || i.type)+'</td>';
-      html += '<td style="padding:6px;">'+esc(i.item_name)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-size:11px;">'+esc(i.expiry_date)+'</td>';
-      html += '<td style="padding:6px;text-align:center;font-weight:700;color:'+catColor+';">'+(i.days_remaining<0?'UTLOPT':i.days_remaining+'d')+'</td>';
-      html += '<td style="padding:6px;text-align:center;"><span style="font-size:10px;font-weight:600;color:#fff;background:'+catColor+';padding:2px 8px;border-radius:10px;">'+catLabel+'</span></td>';
-      html += '</tr>';
+  (data.credential_expiry || []).forEach(function(i) {
+    out.push({
+      id: 'cred:' + (i.customer_id || i.customer_name) + ':' + (i.type || '') + ':' + (i.expiry_date || ''),
+      sev: i.category || 'info',
+      title: t('notif_cred_expiry', 'Legitimasjon utløper') + ': ' + (i.type || ''),
+      customer: i.customer_name, customerId: i.customer_id || '',
+      source: t('src_credentials', 'Legitimasjon'),
+      days: i.days_remaining, when: i.expiry_date,
+      action: t('btn_open_customer', 'Åpne kunde'), act: 'customer'
     });
+  });
 
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
-    var uniTable = container.querySelector('table');
-    if (uniTable) makeSortable(uniTable);
-  } catch (e) {
-    // Silently ignore — Uniweb may not be configured
+  (data.renewals || []).forEach(function(i) {
+    out.push({
+      id: 'renew:' + (i.customer_id || i.customer_name) + ':' + (i.service_name || '') + ':' + (i.contract_end || ''),
+      sev: i.category || 'info',
+      title: t('notif_renewal', 'Fornyelse') + ': ' + (i.service_name || ''),
+      customer: i.customer_name, customerId: i.customer_id || '',
+      source: 'ALSO',
+      days: i.days_remaining, when: i.contract_end,
+      handled: !!i.handled,
+      action: t('btn_see_renewal', 'Se fornyelse'), act: 'customer'
+    });
+  });
+
+  var typeLabels = {
+    domain: t('lbl_type_domain', 'Domene'),
+    subscription: t('lbl_type_subscription', 'Abonnement'),
+    ssl: t('lbl_type_ssl', 'SSL')
+  };
+  if (uniweb && uniweb.items) {
+    uniweb.items.forEach(function(i) {
+      out.push({
+        id: 'uniweb:' + (i.customer_name || '') + ':' + (i.type || '') + ':' + (i.item_name || ''),
+        sev: i.category || 'info',
+        title: (typeLabels[i.type] || i.type || '') + ': ' + (i.item_name || ''),
+        customer: i.customer_name, customerId: '',
+        source: 'Uniweb',
+        days: i.days_remaining, when: i.expiry_date,
+        action: t('btn_see_domain', 'Se domene'), act: 'domains'
+      });
+    });
   }
+
+  // Soonest first inside every group, expired at the top.
+  out.sort(function(a, b) {
+    var x = (a.days === null || a.days === undefined) ? 9e9 : a.days;
+    var y = (b.days === null || b.days === undefined) ? 9e9 : b.days;
+    return x - y;
+  });
+  return out;
+}
+
+function _notifRender() {
+  var el = document.getElementById('dash-alerts-content');
+  if (!el) return;
+  var items = window._notifItems || [];
+
+  // Chip counts describe the whole stream, not the filtered view — a chip
+  // that recounted itself after being clicked could never be clicked back.
+  var counts = { all: items.length, critical: 0, warning: 0, info: 0 };
+  var sources = {}, customers = {};
+  items.forEach(function(n) {
+    if (counts[n.sev] !== undefined) counts[n.sev]++;
+    sources[n.source] = 1;
+    if (n.customer) customers[n.customer] = 1;
+  });
+
+  var shown = items.filter(function(n) {
+    return (_notifState.sev === 'all' || n.sev === _notifState.sev)
+        && (_notifState.source === 'all' || n.source === _notifState.source)
+        && (_notifState.customer === 'all' || n.customer === _notifState.customer);
+  });
+
+  var html = '<div class="notif-toolbar">';
+  [['all', t('sev_all', 'Alle')], ['critical', _SEV.critical.label],
+   ['warning', _SEV.warning.label], ['info', _SEV.info.label]].forEach(function(p) {
+    var key = p[0];
+    var col = key === 'all' ? 'var(--text)' : _SEV[key].color;
+    html += '<button class="sev-chip' + (_notifState.sev === key ? ' active' : '') + '"'
+         + ' style="color:' + col + ';" onclick="notifSetFilter(\'sev\',\'' + key + '\')">'
+         + esc(p[1]) + ' <b>' + counts[key] + '</b></button>';
+  });
+  html += _notifSelect('source', t('lbl_source', 'Kilde'), Object.keys(sources));
+  html += _notifSelect('customer', t('col_customer', 'Kunde'), Object.keys(customers));
+  html += '<div style="flex:1;"></div>';
+  html += '<button class="btn btn-default" style="font-size:12px;padding:5px 12px;color:var(--blue);border-color:transparent;" onclick="notifMarkAllRead()">' + t('btn_mark_all_read', 'Marker alle som lest') + '</button>';
+  html += '<button class="btn btn-default" style="font-size:12px;padding:5px 12px;" onclick="notifOpenRules()">'
+       + t('btn_alert_rules', 'Varslingsregler') + '</button>';
+  html += '</div>';
+
+  html += '<div class="notif-grid"><div>';
+  if (!shown.length) {
+    html += '<div class="notif-card" style="text-align:center;padding:40px;color:var(--text-muted);">'
+         + (items.length
+             ? t('msg_no_alerts_in_filter', 'Ingen varsler i dette filteret.')
+             : t('msg_all_clear', 'Ingenting krever handling. Ingen legitimasjon, fornyelser eller domener utløper innen 30 dager.'))
+         + '</div>';
+  } else {
+    // Urgency bands, not calendar days: these alerts describe what is about
+    // to happen, so the useful grouping is how soon.
+    var bands = [
+      { title: t('grp_now', 'Krever handling nå'), test: function(n) { return n.days !== null && n.days !== undefined && n.days <= 7; } },
+      { title: t('grp_month', 'Innen 30 dager'),   test: function(n) { return n.days !== null && n.days !== undefined && n.days > 7; } },
+      { title: t('grp_other', 'Uten frist'),       test: function(n) { return n.days === null || n.days === undefined; } }
+    ];
+    bands.forEach(function(b) {
+      var rows = shown.filter(b.test);
+      if (!rows.length) return;
+      html += '<div style="margin-bottom:20px;"><div class="notif-group-label">' + esc(b.title) + ' (' + rows.length + ')</div>';
+      html += '<div class="notif-list">';
+      rows.forEach(function(n) { html += _notifRow(n); });
+      html += '</div></div>';
+    });
+  }
+  html += '</div>' + _notifSidebar() + '</div>';
+
+  el.innerHTML = html;
+}
+
+function _notifSelect(kind, label, values) {
+  var html = '<select class="field-input" style="font-size:12px;padding:4px 8px;width:auto;"'
+           + ' aria-label="' + esc(label) + '"'
+           + ' onchange="notifSetFilter(\'' + kind + '\',this.value)">';
+  html += '<option value="all"' + (_notifState[kind] === 'all' ? ' selected' : '') + '>'
+       + esc(label) + ': ' + t('lbl_all', 'Alle') + '</option>';
+  values.sort().forEach(function(v) {
+    html += '<option value="' + esc(v) + '"' + (_notifState[kind] === v ? ' selected' : '') + '>' + esc(v) + '</option>';
+  });
+  return html + '</select>';
+}
+
+function _notifRow(n) {
+  var sev = _SEV[n.sev] || _SEV.info;
+  var unread = !_notifIsRead(n.id);
+  var html = '<div class="notif-row' + (unread ? ' unread' : '') + (n.handled ? '" style="opacity:0.5;' : '"') + '>';
+  html += '<span class="notif-dot" style="background:' + sev.dot + ';"></span>';
+  html += '<div class="notif-body">';
+  html += '<div class="notif-head"><span class="notif-title">' + esc(n.title) + '</span>';
+  html += '<span class="notif-sev" style="color:' + sev.color + ';background:' + sev.tint + ';">' + esc(sev.label.toUpperCase()) + '</span>';
+  if (n.days !== null && n.days !== undefined) {
+    html += '<span class="notif-sev" style="color:' + sev.color + ';background:' + sev.tint + ';">' + esc(_notifDays(n.days)) + '</span>';
+  }
+  html += '</div>';
+  html += '<div class="notif-meta">';
+  if (n.customer) html += '<span class="cust">' + esc(n.customer) + '</span>';
+  html += '<span class="src">' + esc(n.source) + '</span>';
+  if (n.when) html += '<span>' + esc(n.when) + '</span>';
+  html += '</div></div>';
+  html += '<div class="notif-actions">';
+  html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;"'
+       + ' onclick="notifAct(\'' + esc(n.id) + '\')">' + esc(n.action) + '</button>';
+  if (unread) {
+    html += '<button class="btn btn-default" style="font-size:11px;padding:4px 8px;"'
+         + ' title="' + t('tip_mark_read', 'Marker som lest') + '"'
+         + ' aria-label="' + t('tip_mark_read', 'Marker som lest') + '"'
+         + ' onclick="notifAct(\'' + esc(n.id) + '\',true)">&#10003;</button>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+// One click both acts and marks read — a technician who has opened the
+// customer has plainly seen the alert.
+function notifAct(id, readOnly) {
+  var n = (window._notifItems || []).filter(function(x) { return x.id === id; })[0];
+  _notifMarkRead(id);
+  if (!readOnly && n) {
+    if (n.act === 'customer' && typeof showCustomerDetail === 'function' && n.customerId) {
+      showCustomerDetail(n.customerId, n.customer);
+      return;
+    }
+    if (n.act === 'domains') {
+      var btn = document.querySelector('.dash-tab-btn[onclick*="dash-domains"]');
+      if (btn) { switchDashTab(btn, 'dash-domains'); return; }
+    }
+  }
+  _notifRender();
+}
+
+// The rule toggles are the real ones from /api/alerts/config, not decoration.
+// Writing them is admin-only server-side, so a technician sees the true state
+// disabled rather than a switch that silently fails.
+function _notifSidebar() {
+  var cfg = window._notifConfig;
+  var isAdmin = (window._currentUser && window._currentUser.role === 'admin');
+  var labels = {
+    ssl_expiry: t('rule_ssl_expiry', 'TLS-sertifikater'),
+    domain_expiry: t('rule_domain_expiry', 'Domener'),
+    fortigate_threats: t('rule_fortigate_threats', 'Brannmur-hendelser'),
+    firmware_outdated: t('rule_firmware', 'Utdatert firmware'),
+    also_license_expiry: t('rule_also', 'Lisensfornyelser'),
+    mfa_coverage: t('rule_mfa', 'MFA-dekning'),
+    pentest_critical: t('rule_pentest', 'Kritiske pentest-funn')
+  };
+
+  var html = '<div class="notif-side"><div class="notif-card"><h4>' + t('hdr_alert_rules', 'Varslingsregler') + '</h4>';
+  if (!cfg) {
+    html += '<div style="font-size:12px;color:var(--text-muted);">'
+         + t('msg_rules_unavailable', 'Kunne ikke hente reglene.') + '</div>';
+  } else {
+    var rules = cfg.rules || {};
+    Object.keys(labels).forEach(function(k) {
+      var on = rules[k] && rules[k].enabled;
+      html += '<label class="rule-row"><span>' + esc(labels[k]) + '</span>'
+           + '<span class="switch"><input type="checkbox"' + (on ? ' checked' : '')
+           + (isAdmin ? '' : ' disabled')
+           + ' onchange="notifToggleRule(\'' + k + '\',this.checked)"'
+           + ' aria-label="' + esc(labels[k]) + '">'
+           + '<span class="track"></span><span class="knob"></span></span></label>';
+    });
+    if (!cfg.enabled) {
+      html += '<div style="font-size:11px;color:var(--orange-deep);margin-top:10px;">'
+           + t('msg_alerts_disabled', 'Automatiske varsler er slått av, så ingen av reglene sender noe. Slå dem på i Innstillinger.')
+           + '</div>';
+    }
+    if (!isAdmin) {
+      html += '<div style="font-size:11px;color:var(--text-dim);margin-top:10px;">'
+           + t('msg_rules_admin_only', 'Bare administratorer kan endre reglene.') + '</div>';
+    }
+  }
+  html += '</div>';
+
+  html += '<div class="notif-card"><h4>' + t('hdr_delivery', 'Levering') + '</h4>';
+  if (cfg) {
+    var chans = [];
+    if (cfg.notify_teams) chans.push('Teams');
+    if (cfg.notify_email && cfg.email_recipient) chans.push(esc(cfg.email_recipient));
+    html += '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;">'
+         + (chans.length
+             ? t('msg_delivery_to', 'Varsler sendes til') + ' ' + chans.join(', ') + '.'
+             : t('msg_delivery_none', 'Ingen kanal er satt opp, så varslene vises bare her.'))
+         + '</div>';
+  }
+  html += '<div style="margin-top:10px;"><button class="btn btn-default" style="font-size:11px;padding:4px 10px;"'
+       + ' onclick="notifOpenRules()">' + t('btn_change_channels', 'Endre kanaler') + '</button></div></div>';
+
+  html += '<div class="notif-card"><h4>' + t('hdr_read_state', 'Lest-status') + '</h4>'
+       + '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;">'
+       + t('msg_read_local', 'Hva du har lest lagres i denne nettleseren. En kollega som åpner den samme listen ser sin egen status.')
+       + '</div></div>';
+
+  return html + '</div>';
+}
+
+async function notifToggleRule(key, on) {
+  var cfg = window._notifConfig;
+  if (!cfg) return;
+  var rules = JSON.parse(JSON.stringify(cfg.rules || {}));
+  rules[key] = Object.assign({}, rules[key] || {}, { enabled: on });
+  var saved = await apiFetch('/api/alerts/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ rules: rules })
+  });
+  // apiFetch has already said why on a failure; put the switch back rather
+  // than leaving it showing a state the server did not accept.
+  if (!saved) { _notifRender(); return; }
+  cfg.rules = rules;
+  showToast(t('msg_rule_saved', 'Regel lagret'), 'success', 2000);
 }
 
 // ═══════════════════════════════════════════════════════════════════
