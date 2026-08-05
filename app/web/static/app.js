@@ -102,7 +102,7 @@ let _lang = localStorage.getItem('ui_lang') || 'no';
 
 async function loadI18n() {
     try {
-        const r = await fetch('/static/ui_i18n.json?v=3026');
+        const r = await fetch('/static/ui_i18n.json?v=3027');
         _i18n = await r.json();
         translatePage();
     } catch (e) {
@@ -8567,9 +8567,14 @@ async function _checkNotifBadge() {
   } catch(e) { /* notification poll — retries periodically */ }
 }
 
-// Close notification dropdown when clicking outside
+// Close notification dropdown when clicking outside.
+// Match the toggles by data attribute, not by aria-label: translatePage()
+// rewrites aria-label from data-i18n-aria-label, so on any locale but
+// Norwegian the selector missed the bell and the same click that opened the
+// dropdown closed it again — the bell looked dead. The attribute also covers
+// the bottom-nav toggle, which the old selector never matched in any locale.
 document.addEventListener('click', function(e) {
-  if (_notifOpen && !e.target.closest('#notif-dropdown') && !e.target.closest('[aria-label="Varsler"]')) {
+  if (_notifOpen && !e.target.closest('#notif-dropdown') && !e.target.closest('[data-notif-toggle]')) {
     _notifOpen = false;
     document.getElementById('notif-dropdown').style.display = 'none';
   }
