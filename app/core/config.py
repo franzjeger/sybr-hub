@@ -70,6 +70,7 @@ REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "DeviceManagementConfiguration.Read.All",
     "DeviceManagementManagedDevices.Read.All",
     "DeviceManagementServiceConfig.Read.All",
+    "Device.Read.All",
     "Directory.Read.All",
     "Group.Read.All",
     "IdentityRiskyUser.Read.All",

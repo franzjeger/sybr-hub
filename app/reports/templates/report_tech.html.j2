@@ -1017,6 +1017,9 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 
 {% if compliance_policies and compliance_policies.strip() %}
+{% if intune.entra_unmanaged is defined and intune.entra_unmanaged > 0 %}
+<div class="alert warning"><strong>{{ t.unmanaged_endpoints }}</strong>{{ t.unmanaged_endpoints_desc }} — {{ intune.entra_unmanaged }} / {{ intune.entra_total }}</div>
+{% endif %}
 <h3>{{ t.compliance_policies_heading }}</h3>
 <div class="data-section">
   <div class="data-header"><span>Intune Compliance Policies</span><span class="fn">11_intune_compliance_policies.txt</span></div>
@@ -1027,7 +1030,11 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% if intune and intune.unavailable %}
 <div class="alert warning"><strong>{{ t.intune_not_measured }}</strong>{{ intune.unavailable_reason or t.no_intune_desc }}</div>
 {% else %}
+{% if entra_devices and entra_devices.has_data and entra_devices.total > 0 %}
+<div class="alert warning"><strong>{{ t.no_intune_but_entra }}</strong>{{ t.no_intune_but_entra_desc }} ({{ entra_devices.total }})</div>
+{% else %}
 <div class="alert info"><strong>{{ t.no_intune_devices }}</strong>{{ t.no_intune_desc }}</div>
+{% endif %}
 {% endif %}
 {% endif %}
 

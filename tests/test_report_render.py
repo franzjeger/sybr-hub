@@ -335,3 +335,48 @@ def test_a_tenant_that_enrols_nothing_still_reads_as_measured(tmp_path):
     assert ctx["intune"]["unavailable"] is False
     assert ctx["intune"]["has_data"] is True, "a measured zero is still a measurement"
     assert ctx["intune"]["total"] == 0
+
+
+def test_devices_without_enrolment_are_not_reported_as_no_devices(tmp_path):
+    """Intune answers "what do we manage", never "does this tenant have any".
+
+    A tenant with machines joined to Entra and none enrolled read as "Ingen
+    Intune-enheter funnet" — true, and it sends a technician looking for a
+    broken connector rather than at forty unmanaged endpoints.
+    """
+    files = {
+        "10_intune_devices_count.txt": "INTUNE DEVICE COUNT SUMMARY\nTotal: 0\n",
+        "10_intune_devices.txt": "=" * 40 + "\n  INTUNE MANAGED DEVICES  (0 total)\n",
+        "15_entra_devices_count.txt": (
+            "ENTRA DEVICE COUNT SUMMARY\nTotal: 40\nManaged: 0\nUnmanaged: 40\nEnabled: 38\n"
+        ),
+        "15_entra_devices.txt": "=" * 40 + "\n  ENTRA REGISTERED DEVICES  (40 total)\n",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["entra_devices"]["total"] == 40
+    assert ctx["entra_devices"]["has_data"] is True
+    assert ctx["intune"]["entra_unmanaged"] == 40
+
+    text = _visible_text(_render_strict(tmp_path, "report_tech.html.j2", files))
+    assert "Ingen Intune-enheter funnet" not in text
+    assert "ingen er enrollet i Intune" in text
+
+
+def test_the_unmanaged_gap_is_not_claimed_from_a_refusal(tmp_path):
+    """An unmanaged count derived from a 403 is the same error relocated."""
+    files = {
+        "10_intune_devices_count.txt": "INTUNE DEVICE COUNT SUMMARY\nTotal: 12\n",
+        "10_intune_devices.txt": "=" * 40 + "\n  INTUNE MANAGED DEVICES  (12 total)\n",
+        "15_entra_devices.txt": (
+            "=" * 40 + "\n  ENTRA REGISTERED DEVICES  (not available)\n" + "=" * 40 + "\n\n"
+            "  Graph refused this collection with 403: the app registration is "
+            "missing Device.Read.All or its admin consent.\n"
+        ),
+        "15_entra_devices_count.txt": "",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["entra_devices"]["unavailable"] is True
+    assert ctx["entra_devices"]["has_data"] is False
+    assert "entra_unmanaged" not in ctx["intune"], (
+        "a gap was computed against a device count that was never read"
+    )

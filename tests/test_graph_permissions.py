@@ -73,6 +73,7 @@ def test_every_declared_permission_has_something_that_uses_it():
         "DeviceManagementConfiguration.Read.All": "deviceCompliancePolicies",
         "DeviceManagementManagedDevices.Read.All": "managedDevices",
         "DeviceManagementServiceConfig.Read.All": "windowsAutopilot",
+        "Device.Read.All": '"devices"',
         "Directory.Read.All": "directoryRoles",
         "Group.Read.All": "groups",
         "IdentityRiskyUser.Read.All": "riskyUsers",
