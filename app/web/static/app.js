@@ -690,6 +690,17 @@ async function doLogout() {
   showLoginView('login');
 }
 
+// A metric that was never measured is null, not undefined — SQLite NULL comes
+// through JSON as null, and `null !== undefined` is true. Every guard here
+// used that test, so an unmeasured figure reached .toFixed and threw "Cannot
+// read properties of null". That became reachable the moment sections started
+// reporting "not measured" instead of a zero, which is the whole point of
+// them: intune_compliance_pct is null on any tenant without Intune.
+function metricPct(value, digits) {
+  if (value === null || value === undefined || value === '' || isNaN(value)) return null;
+  return Number(value).toFixed(digits === undefined ? 0 : digits);
+}
+
 async function apiFetch(url, options, _retryCount) {
   if (_retryCount === undefined) _retryCount = 0;
   var maxRetries = 2;
@@ -5117,7 +5128,7 @@ function renderHistory(runs) {
 
       const escapedPath = esc(run.path.replace(/'/g, "\\'"));
       const canCompare = run.has_metrics !== false;
-      var runTip = canCompare && run.metrics ? t('lbl_grade')+': '+(run.metrics.risk_grade||'-')+' · Score: '+(run.metrics.risk_score||'-')+' · MFA: '+(run.metrics.mfa_coverage_pct !== undefined ? run.metrics.mfa_coverage_pct.toFixed(0)+'%' : '-') : '';
+      var runTip = canCompare && run.metrics ? t('lbl_grade')+': '+(run.metrics.risk_grade||'-')+' · Score: '+(run.metrics.risk_score||'-')+' · MFA: '+(metricPct(run.metrics.mfa_coverage_pct) !== null ? metricPct(run.metrics.mfa_coverage_pct)+'%' : '-') : '';
       html += `
         <tr${canCompare ? '' : ' style="opacity:0.6;"'}${runTip ? ' title="'+esc(runTip)+'"' : ''} style="cursor:pointer;transition:background var(--duration-fast);${canCompare ? '' : 'opacity:0.6;'}" onmouseover="this.style.background='rgba(77,159,181,0.06)'" onmouseout="this.style.background=''">
           <td style="text-align:center;">
@@ -5567,7 +5578,7 @@ function renderCustomers(customers, activeId) {
     var hasMetrics = _om && _om.has_metrics;
     var grade = hasMetrics ? (_om.metrics.risk_grade || '-') : '';
     var gradeColor = {A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[grade] || 'var(--text-dim)';
-    var mfaPct = hasMetrics && _om.metrics.mfa_coverage_pct !== undefined ? _om.metrics.mfa_coverage_pct.toFixed(0) + '%' : '';
+    var mfaPct = hasMetrics && metricPct(_om.metrics.mfa_coverage_pct) !== null ? metricPct(_om.metrics.mfa_coverage_pct) + '%' : '';
     var riskScore = hasMetrics && _om.metrics.risk_score !== undefined ? _om.metrics.risk_score : '';
     var configured = isGdap ? !!c.TenantId : !!(c.TenantId && c.ClientId);
     var statusDot = configured ? (hasMetrics ? '<span style="width:8px;height:8px;border-radius:50%;background:' + gradeColor + ';display:inline-block;"></span>' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" title="' + t('tip_no_audit_run','No audit run') + '"></span>') : '<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;" title="' + t('tip_not_configured','Not configured') + '"></span>';
@@ -6374,8 +6385,8 @@ function renderOverview(customers, activeId) {
       const hasPrev = !!c.prev_metrics;
       const grade = hasM ? (m.risk_grade || '-') : '-';
       const score = hasM ? (m.risk_score !== undefined ? m.risk_score : '-') : '-';
-      const mfa = hasM && m.mfa_coverage_pct !== undefined ? m.mfa_coverage_pct.toFixed(0) + '%' : '-';
-      const ss = hasM && m.secure_score_pct !== undefined ? m.secure_score_pct.toFixed(0) + '%' : '-';
+      const mfa = hasM && metricPct(m.mfa_coverage_pct) !== null ? metricPct(m.mfa_coverage_pct) + '%' : '-';
+      const ss = hasM && metricPct(m.secure_score_pct) !== null ? metricPct(m.secure_score_pct) + '%' : '-';
       const users = hasM && m.total_users !== undefined ? m.total_users : '-';
       const lastAudit = fmtDate(c.last_audit);
       const mfaColor = !hasM || m.mfa_coverage_pct === undefined ? 'var(--text-muted)' : m.mfa_coverage_pct >= 95 ? 'var(--green)' : m.mfa_coverage_pct >= 80 ? 'var(--orange)' : 'var(--red)';
@@ -6616,12 +6627,12 @@ function copyOverviewToClipboard() {
       c.primary_domain || '',
       hasM ? (m.risk_grade || '') : '',
       hasM && m.risk_score !== undefined ? m.risk_score : '',
-      hasM && m.mfa_coverage_pct !== undefined ? m.mfa_coverage_pct.toFixed(1) : '',
-      hasM && m.secure_score_pct !== undefined ? m.secure_score_pct.toFixed(1) : '',
+      hasM && metricPct(m.mfa_coverage_pct, 1) !== null ? metricPct(m.mfa_coverage_pct, 1) : '',
+      hasM && metricPct(m.secure_score_pct, 1) !== null ? metricPct(m.secure_score_pct, 1) : '',
       hasM && m.total_users !== undefined ? m.total_users : '',
       hasM && m.users_no_mfa !== undefined ? m.users_no_mfa : '',
       hasM && m.ca_policies_enabled !== undefined ? m.ca_policies_enabled : '',
-      hasM && m.intune_compliance_pct !== undefined ? m.intune_compliance_pct.toFixed(1) : '',
+      hasM && metricPct(m.intune_compliance_pct, 1) !== null ? metricPct(m.intune_compliance_pct, 1) : '',
       hasM && m.admin_roles_ga_count !== undefined ? m.admin_roles_ga_count : '',
       c.last_audit || '',
       (c.tags || []).join(', '),
@@ -6873,7 +6884,7 @@ async function loadCustomerDetail(customerId) {
           <span style="color:var(--text-muted);">${t('lbl_users')}</span><span style="font-weight:600;">${hasM ? (m.total_users || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_without_mfa')}</span><span style="font-weight:600;color:${hasM && m.users_no_mfa > 0 ? 'var(--red)' : 'var(--text)'};">${hasM ? (m.users_no_mfa || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_ca_policies')}</span><span style="font-weight:600;">${hasM ? (m.ca_policies_enabled || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">${t('intune')}</span><span style="font-weight:600;">${hasM && m.intune_compliance_pct !== undefined ? m.intune_compliance_pct.toFixed(0)+'%' : '-'}</span>
+          <span style="color:var(--text-muted);">${t('intune')}</span><span style="font-weight:600;">${hasM && metricPct(m.intune_compliance_pct) !== null ? metricPct(m.intune_compliance_pct)+'%' : '-'}</span>
           <span style="color:var(--text-muted);">${t('lbl_last_audit')}</span><span style="font-weight:600;">${cust.last_audit ? cust.last_audit.substring(0,10) : '-'}${cust.last_audit ? (() => { try { var d = new Date(cust.last_audit.replace(/_/g,'T').substring(0,16)); var days = Math.floor((Date.now()-d.getTime())/86400000); return ' <span style="color:var(--text-dim);font-weight:400;">(' + days + 'd)</span>'; } catch(e) { return ''; } })() : ''}</span>
           <span style="color:var(--text-muted);">${t('lbl_warnings','Warnings')}</span><span style="font-weight:600;color:${hasM && m.total_warns > 0 ? 'var(--orange)' : 'var(--text)'};">${hasM ? (m.total_warns || 0) : '-'}</span>
         </div>
