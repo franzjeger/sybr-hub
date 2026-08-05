@@ -4058,8 +4058,12 @@ async function saveUniFiDirect() {
   try {
     var d = await apiFetch('/api/unifi/save', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
+      // Only the fields this form owns. The route leaves everything else
+      // alone; it used to reset each unmentioned field to its default, so
+      // saving the device list blanked the customer's controller address.
       body: JSON.stringify({mode: 'direct', devices: _unifiDirectDevices})
     });
+    if (!d) return;
 
     if (d.ok) showToast(t('msg_saved_devices').replace('{count}', _unifiDirectDevices.length), 'success');
     else showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
@@ -4089,6 +4093,10 @@ async function unifiDeviceSetInform(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({...creds, controller_url: url})
     });
+    // apiFetch returns null on any HTTP error and has already told the user
+    // why. Reading .ok off it throws a TypeError, which the catch below then
+    // reports as a second, meaningless toast on top of the real one.
+    if (!d) return;
 
     if (d.ok) {
       showToast(t('msg_inform_sent').replace('{host}', host) + ' — ' + (d.output || 'OK'), 'success', 8000);
@@ -4106,6 +4114,7 @@ async function unifiDeviceReboot(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) return;
 
     if (d.ok) showToast(d.output || t('msg_device_rebooting'), 'success');
     else showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
@@ -4135,6 +4144,12 @@ async function unifiDeviceConfig(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) {
+      // apiFetch already reported the failure; clear the "Loading…" placeholder
+      // so the card does not sit spinning forever.
+      if (targetEl) targetEl.innerHTML = '';
+      return;
+    }
 
     if (d.ok && d.config) {
       // Auto-save backup
@@ -4178,10 +4193,13 @@ async function runSubnetScan() {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({subnet: subnet})
     });
+    if (!d) { box.innerHTML = ''; return; }
 
     if (d.error) { box.innerHTML = '<div class="alert alert-error">' + esc(d.error) + '</div>'; return; }
 
-    if (d.found.length === 0) {
+    // A scan that returned nothing at all is not the same as a scan that found
+    // no devices; treat a missing list as an empty one rather than throwing.
+    if (!d.found || d.found.length === 0) {
       box.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:13px;">' + t('msg_no_devices_found','No devices found in') + ' ' + esc(subnet) + '</div>';
       return;
     }
@@ -4293,6 +4311,7 @@ async function doScanSetInform(host, url) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({...creds, controller_url: url})
     });
+    if (!d) return;
     if (d.ok) {
       showToast(t('msg_inform_sent').replace('{host}', host) + ' — ' + (d.output || 'OK'), 'success', 8000);
     } else {
@@ -4313,6 +4332,7 @@ async function scanDeviceConfig(host, rowId) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) { row.style.display = 'none'; cell.innerHTML = ''; return; }
     if (d.ok && d.config) {
       apiFetch('/api/network/save-config-backup', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -4339,6 +4359,7 @@ async function scanDeviceReboot(host) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(creds)
     });
+    if (!d) return;
     if (d.ok) showToast(d.output || t('msg_device_rebooting'), 'success');
     else showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
   } catch (e) { showToast(t('status_error') + ': ' + e.message, 'error'); }
@@ -6124,10 +6145,10 @@ function renderOverview(customers, activeId) {
   const avgRisk = withMetrics.length > 0
     ? (withMetrics.reduce((s, c) => s + (c.metrics.risk_score || 0), 0) / withMetrics.length).toFixed(0)
     : '-';
-  const needsAttention = withMetrics.filter(c => {
-    const m = c.metrics;
-    return (m.risk_grade === 'D' || m.risk_grade === 'F' || (m.mfa_coverage_pct !== undefined && m.mfa_coverage_pct < 80));
-  }).length;
+  // One definition of "needs following up", used for the KPI tile, the
+  // attention strip and the trend delta below, so they can't drift apart.
+  const _needsAttn = m => !!m && (m.risk_grade === 'D' || m.risk_grade === 'F' || (m.mfa_coverage_pct !== undefined && m.mfa_coverage_pct < 80));
+  const needsAttention = withMetrics.filter(c => _needsAttn(c.metrics)).length;
   const avgMfa = withMetrics.length > 0
     ? (withMetrics.reduce((s, c) => s + (c.metrics.mfa_coverage_pct || 0), 0) / withMetrics.length).toFixed(0)
     : '-';
@@ -6136,6 +6157,38 @@ function renderOverview(customers, activeId) {
     if (!c.last_audit) return true;
     try { return new Date(c.last_audit.replace(/_/g,'T').substring(0,16)) < now30d; } catch(e) { return true; }
   }).length;
+
+  // ── KPI trend chips ────────────────────────────────────────────────────
+  // Deltas are measured over the customers that have BOTH a current and a
+  // previous audit, so a customer audited for the first time this period
+  // shows up as neither an improvement nor a regression. Customer count and
+  // stale-audit count have no previous snapshot to compare against, so those
+  // two tiles carry no chip rather than an invented one.
+  const paired = withMetrics.filter(c => c.prev_metrics);
+  const _avgDelta = key => {
+    if (!paired.length) return null;
+    const cur = paired.reduce((s, c) => s + (c.metrics[key] || 0), 0) / paired.length;
+    const prv = paired.reduce((s, c) => s + (c.prev_metrics[key] || 0), 0) / paired.length;
+    return cur - prv;
+  };
+  const riskDelta = _avgDelta('risk_score');
+  const mfaDelta = _avgDelta('mfa_coverage_pct');
+  const attnDelta = paired.length
+    ? paired.filter(c => _needsAttn(c.metrics)).length - paired.filter(c => _needsAttn(c.prev_metrics)).length
+    : null;
+
+  // Renders nothing for a null or sub-unit delta, so "no change" stays quiet.
+  function trendChip(delta, higherIsBetter, suffix) {
+    if (delta === null || delta === undefined) return '';
+    const d = Math.round(delta);
+    if (d === 0) return '';
+    // Written as an equality rather than a ternary: the i18n prose detector
+    // reads `? d > 0 : d < 0` as a baked-in string.
+    const good = higherIsBetter === (d > 0);
+    const txt = (d > 0 ? '+' : '−') + Math.abs(d) + (suffix || '');
+    return '<span class="kpi-trend" style="color:' + (good ? 'var(--green)' : 'var(--red)') + ';" title="'
+      + esc(t('tip_since_previous_audit', 'Endring siden forrige audit')) + '">' + esc(txt) + '</span>';
+  }
 
   const gradeColor = g => ({A:'#3fb950', B:'#4d9fb5', C:'#d29922', D:'#f85149', F:'#8b0000'}[g] || 'var(--text-muted)');
 
@@ -6227,9 +6280,9 @@ function renderOverview(customers, activeId) {
   summaryHtml += `
     <div class="kpi-row">
       <div class="kpi-card"><div class="kpi-label">${t('lbl_total_customers')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${total}" style="color:var(--text);">${total}</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_risk_score')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" style="color:${avgRisk !== '-' && avgRisk < 50 ? 'var(--red)' : avgRisk !== '-' && avgRisk < 70 ? 'var(--orange)' : 'var(--green)'};">${avgRisk === '-' ? '-' : avgRisk}</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_mfa','MFA-dekning')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="color:${avgMfa !== '-' && avgMfa < 80 ? 'var(--red)' : avgMfa !== '-' && avgMfa < 95 ? 'var(--orange)' : 'var(--green)'};">${avgMfa === '-' ? '-' : avgMfa + '%'}</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">${t('lbl_needs_attention')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${needsAttention}" style="color:${needsAttention > 0 ? 'var(--red)' : 'var(--green)'};">${needsAttention}</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_risk_score')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" style="color:${avgRisk !== '-' && avgRisk < 50 ? 'var(--red)' : avgRisk !== '-' && avgRisk < 70 ? 'var(--orange)' : 'var(--green)'};">${avgRisk === '-' ? '-' : avgRisk}</span>${trendChip(riskDelta, true)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_mfa','MFA-dekning')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="color:${avgMfa !== '-' && avgMfa < 80 ? 'var(--red)' : avgMfa !== '-' && avgMfa < 95 ? 'var(--orange)' : 'var(--green)'};">${avgMfa === '-' ? '-' : avgMfa + '%'}</span>${trendChip(mfaDelta, true, ' pp')}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${t('lbl_needs_attention')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${needsAttention}" style="color:${needsAttention > 0 ? 'var(--red)' : 'var(--green)'};">${needsAttention}</span>${trendChip(attnDelta, false)}</div></div>
       <div class="kpi-card"><div class="kpi-label">${t('lbl_stale_30d','Utdatert >30d')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${staleCount}" style="color:${staleCount > 0 ? 'var(--orange)' : 'var(--green)'};">${staleCount}</span></div></div>
     </div>`;
   var _sumBox = document.getElementById('overview-summary');
@@ -6338,13 +6391,16 @@ function renderOverview(customers, activeId) {
       const mrrVal = _cd.total_monthly || 0;
       const mrrStr = mrrVal > 0 ? mrrVal.toLocaleString('nb-NO', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' kr' : '-';
 
-      // Grade → semantic colour var + derived status pill (frame 1b).
+      // Grade → semantic colour var + derived status pill (frame 1b). The
+      // -deep variant is the label colour: it sits on a 12% tint of its own
+      // hue, which light theme has to compensate for to stay above WCAG AA.
       const _gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[grade] || 'var(--text-muted)';
-      let _stLabel, _stColor;
-      if (grade === 'D' || grade === 'F') { _stLabel = t('status_needs_followup','Trenger oppfølging'); _stColor = 'var(--red)'; }
-      else if (hasM && m.total_warns > 0) { _stLabel = t('status_watch','Følg med'); _stColor = 'var(--orange)'; }
-      else if (hasM) { _stLabel = 'OK'; _stColor = 'var(--green)'; }
-      else { _stLabel = '—'; _stColor = 'var(--text-dim)'; }
+      const _gvd = {A:'var(--green-deep)',B:'var(--blue-deep)',C:'var(--orange-deep)',D:'var(--red-deep)',F:'var(--red-deep)'}[grade] || 'var(--text-muted)';
+      let _stLabel, _stColor, _stDeep;
+      if (grade === 'D' || grade === 'F') { _stLabel = t('status_needs_followup','Trenger oppfølging'); _stColor = 'var(--red)'; _stDeep = 'var(--red-deep)'; }
+      else if (hasM && m.total_warns > 0) { _stLabel = t('status_watch','Følg med'); _stColor = 'var(--orange)'; _stDeep = 'var(--orange-deep)'; }
+      else if (hasM) { _stLabel = 'OK'; _stColor = 'var(--green)'; _stDeep = 'var(--green-deep)'; }
+      else { _stLabel = '—'; _stColor = 'var(--text-dim)'; _stDeep = 'var(--text-muted)'; }
       const _stBg = hasM ? `color-mix(in srgb, ${_stColor} 12%, transparent)` : 'transparent';
       const _domBadges = `${c.has_m365 ? ' <span style="background:var(--blue);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="M365 configured">M365</span>' : ''}${c.has_fortigate ? ' <span style="background:#e8590c;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="FortiGate configured">FG</span>' : ''}${c.has_unifi ? ' <span style="background:#06b6d4;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="UniFi configured">UF</span>' : ''}${!c.has_m365 && !c.has_fortigate && !c.has_unifi ? ' <span style="background:var(--text-dim);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="'+t('filter_needs_setup','Needs setup')+'">?</span>' : ''}`;
       const _warnNote = `${hasM && m.total_warns > 0 ? '<div style="font-size:10px;color:var(--orange);margin-top:2px;">&#9888; ' + m.total_warns + ' ' + t('lbl_warnings','warnings') + '</div>' : ''}${(() => { if (!c.last_audit) return '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+t('lbl_never_audited','Never audited')+'</div>'; try { var _ad = new Date(c.last_audit.replace(/_/g,'T').substring(0,16)); var _da = Math.floor((Date.now()-_ad.getTime())/86400000); if (_da > 30) return '<div style="font-size:10px;color:var(--orange);margin-top:1px;">&#9200; '+_da+'d '+t('lbl_since_audit','since audit')+'</div>'; } catch(e){} return ''; })()}`;
@@ -6355,7 +6411,7 @@ function renderOverview(customers, activeId) {
               title="${t('tip_click_detail_dblclick_audit','Click: details · Double-click: run audit')}">
             <td>
               <div class="cust-cell">
-                <span class="grade-tile" style="color:${_gv};background:color-mix(in srgb, ${_gv} 12%, transparent);border-color:color-mix(in srgb, ${_gv} 40%, transparent);" onclick="event.stopPropagation();filterByGrade('${grade}')" title="${t('tip_click_filter_grade','Click to filter by grade')}">${grade}</span>
+                <span class="grade-tile" style="color:${_gvd};background:color-mix(in srgb, ${_gv} 12%, transparent);border-color:color-mix(in srgb, ${_gv} 40%, transparent);" onclick="event.stopPropagation();filterByGrade('${grade}')" title="${t('tip_click_filter_grade','Click to filter by grade')}">${grade}</span>
                 <span style="min-width:0;">
                   <span class="cname">${esc(c.customer_name)}${activeBadge}</span>
                   <span class="cdom">${esc(c.primary_domain || '')}${_domBadges}</span>
@@ -6363,7 +6419,7 @@ function renderOverview(customers, activeId) {
                 </span>
               </div>
             </td>
-            <td><span class="status-pill" style="color:${_stColor};background:${_stBg};">${_stLabel}</span></td>
+            <td><span class="status-pill" style="color:${_stDeep};background:${_stBg};">${_stLabel}</span></td>
             <td class="num">${score}${hasPrev ? deltaHtml(m, pm, 'risk_score', true) : ''}</td>
             <td class="num" style="color:${mfaColor};">${mfa}${hasPrev ? deltaHtml(m, pm, 'mfa_coverage_pct', true) : ''}</td>
             <td class="num" style="color:${ssColor};">${ss}${hasPrev ? deltaHtml(m, pm, 'secure_score_pct', true) : ''}</td>
@@ -7865,6 +7921,8 @@ async function loadUnifiedDashboard() {
   var a = d.audit || {};
   var _grade = a.risk_grade || '-';
   var _gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[_grade] || 'var(--text-muted)';
+  // Label colour for the tinted hero tile — see --*-deep in app.css.
+  var _gvd = {A:'var(--green-deep)',B:'var(--blue-deep)',C:'var(--orange-deep)',D:'var(--red-deep)',F:'var(--red-deep)'}[_grade] || 'var(--text-muted)';
 
   // ── Hero ──
   var _meta = [];
@@ -7872,7 +7930,7 @@ async function loadUnifiedDashboard() {
   if (d.also_account_id) _meta.push('ALSO ID ' + esc(String(d.also_account_id)));
   if (d.source) _meta.push(esc(d.source));
   html += '<div class="cd-hero">'
-    + '<span class="cd-hero-tile" style="color:'+_gv+';background:color-mix(in srgb, '+_gv+' 12%, transparent);border-color:color-mix(in srgb, '+_gv+' 40%, transparent);">'+esc(_grade)+'</span>'
+    + '<span class="cd-hero-tile" style="color:'+_gvd+';background:color-mix(in srgb, '+_gv+' 12%, transparent);border-color:color-mix(in srgb, '+_gv+' 40%, transparent);">'+esc(_grade)+'</span>'
     + '<span class="cd-hero-id"><span class="cd-hero-name">'+esc(d.customer_name)+' <span class="cd-active-pill">' + t('aktiv_kunde') + '</span></span>'
     + '<span class="cd-hero-meta">'+_meta.join(' · ')+'</span></span>'
     + '<div style="flex:1;"></div>'

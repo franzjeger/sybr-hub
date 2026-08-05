@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -597,6 +598,14 @@ class MFASection(BaseSection):
             # reaches the customer-facing report and the IT Glue asset.
             no_mfa_users = []
             unknown_users = []
+            # Structured records alongside the text table. The report used to
+            # recover these numbers by splitting the rendered table on runs of
+            # two or more spaces, which silently breaks the moment a display
+            # name reaches the column width and its padding disappears — every
+            # field then shifts by one and the headline MFA percentage is
+            # wrong in either direction. The table stays, for humans; the
+            # figures come from here.
+            records: list[dict] = []
             for user, methods in results:
                 name = (user.get("displayName") or "")[:35]
                 upn  = (user.get("userPrincipalName") or "")[:45]
@@ -611,6 +620,16 @@ class MFASection(BaseSection):
                         no_mfa_users.append(upn)
                 ca_str = "YES" if uid in covered_ids else "NO"
                 ca_excl_str = "YES" if uid in excluded_ids else "NO"
+                records.append({
+                    "display_name": user.get("displayName") or "",
+                    "upn": user.get("userPrincipalName") or "",
+                    # None means "could not be determined", which is not the
+                    # same as False and must never be counted as "no MFA".
+                    "mfa_registered": None if methods is None else bool(methods),
+                    "ca_covered": uid in covered_ids,
+                    "ca_excluded": uid in excluded_ids,
+                    "methods": list(methods or []),
+                })
                 lines.append(
                     f"  {name:<35} {upn:<45} {mfa_str:>5} {ca_str:>4} {ca_excl_str:>8}  {method_str}"
                 )
@@ -636,6 +655,7 @@ class MFASection(BaseSection):
                 )
 
             self._save("04_mfa_methods.txt", "\n".join(lines))
+            self._save("04_mfa_methods.json", json.dumps({"users": records}, indent=1))
 
             # ── Save CA analysis report ─────────────────────────────────────
             self._save_ca_analysis(mfa_policies, covered_ids, excluded_ids, group_names, group_info)

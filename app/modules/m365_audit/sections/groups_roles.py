@@ -183,7 +183,13 @@ class AdminRolesSection(BaseSection):
                 for m in members:
                     display = (m.get("displayName") or "")[:30]
                     upn     = m.get("userPrincipalName") or m.get("id") or ""
-                    line = f"  {role_name:<40} {display:<30} {upn:<45}"
+                    # Truncate every field to its column width, the way the
+                    # display name already was. A role name longer than 40
+                    # characters ("Azure Information Protection Administrator"
+                    # is 42) padded to 40 emits *no* separator, so the report's
+                    # column offsets shift and the role and the user run into
+                    # one field with nothing left to tell them apart.
+                    line = f"  {role_name[:40]:<40} {display:<30} {upn[:45]:<45}"
                     if has_signin:
                         last_signin = self._get_last_signin(upn)
                         line += f" {last_signin}"

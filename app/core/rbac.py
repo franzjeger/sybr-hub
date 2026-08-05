@@ -121,3 +121,54 @@ async def get_user_customer_ids(user_id: str) -> list[str]:
             (user_id,),
         ) as cur:
             return [r[0] for r in await cur.fetchall()]
+
+
+async def check_audit_path_access(user: User, path: str) -> bool:
+    """Whether *user* may touch this path inside the audit tree.
+
+    The audit tree stores each customer's runs under a directory named after
+    the customer, so the first segment is the customer selector. Routes that
+    serve or delete files out of that tree were guarded by authentication
+    alone, which let any logged-in account read every customer's decrypted
+    reports and raw tenant dumps by walking the paths that /api/history and
+    /api/reports/archive hand out.
+
+    Fails closed: a segment that matches no customer is refused for anyone who
+    is not unrestricted, and a segment that matches several customers (the
+    directory transform is lossy) requires access to all of them.
+    """
+    from pathlib import Path
+
+    from app.core.config import get_audit_dir
+    from app.core.customer import customers_for_dir_name
+
+    allowed = await get_accessible_customer_ids(user)
+    if allowed is None:
+        return True  # admin or explicit all-customers grant
+
+    # Resolve before selecting the customer segment. Taking the first segment
+    # of the raw string judged a different file than the one that gets opened:
+    # the containment check downstream resolves the path, so "Alpha/../Beta"
+    # presented an allowed first segment while reading — and, through the
+    # delete routes, removing — Beta's directory. Resolving here makes both
+    # guards agree on the same file, and covers "..", absolute paths, encoded
+    # separators and symlinks in one move.
+    audit_dir = get_audit_dir().resolve()
+    candidate = Path(str(path).replace("\\", "/"))
+    target = candidate.resolve() if candidate.is_absolute() else (audit_dir / candidate).resolve()
+    try:
+        rel = target.relative_to(audit_dir)
+    except ValueError:
+        logger.info("403 audit-path: user=%s path=%r escapes the audit tree", user.username, str(path))
+        return False
+    if not rel.parts:
+        return False
+
+    segment = rel.parts[0]
+    matches = customers_for_dir_name(segment)
+    if not matches:
+        logger.info(
+            "403 audit-path: user=%s segment=%r matches no customer", user.username, segment
+        )
+        return False
+    return all(c.get("_id") in allowed for c in matches)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -49,13 +50,23 @@ def _classify_spf(record: str) -> str:
 
 
 def _classify_dmarc(record: str) -> str:
+    """Classify a DMARC record by its *policy* tag.
+
+    Substring matching read the subdomain policy as the domain policy: a
+    record like "v=DMARC1; p=none; sp=reject" contains "p=reject" inside
+    "sp=reject", so a monitor-only domain — the one that is not actually
+    protected — was reported OK and passed CIS 5.2.2. Match the p= tag on a
+    tag boundary instead, and read it before any sp=.
+    """
     if not record:
         return "MISSING"
-    if "p=reject" in record:
+    m = re.search(r'(?:^|;)\s*p\s*=\s*([A-Za-z]+)', record)
+    policy = (m.group(1) or "").lower() if m else ""
+    if policy == "reject":
         return "OK (p=reject)"
-    if "p=quarantine" in record:
+    if policy == "quarantine":
         return "WARN (p=quarantine)"
-    if "p=none" in record:
+    if policy == "none":
         return "WEAK (p=none)"
     return "PRESENT (unknown policy)"
 

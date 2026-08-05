@@ -358,6 +358,74 @@ def require_customer_access(min_role: Role = Role.viewer) -> Callable:
     return _check
 
 
+def require_host_access(min_role: Role = Role.viewer) -> Callable:
+    """Dependency factory for routes scoped to a single SSH/RDP host.
+
+    The per-customer guard above reads ``customer_id`` out of the path, so it
+    only ever attached to routes that spell the customer that way. Hosts name
+    their customer indirectly — ``ssh_hosts.customer_id`` — so the entire SSH
+    surface, which holds device passwords and hands out interactive shells,
+    was left with a role floor and no tenancy check at all.
+
+    A host with no customer is treated as estate-wide infrastructure and
+    restricted to callers who are unrestricted, rather than being open to
+    everyone: the column is optional in the UI, so "unset" must not read as
+    "unowned, therefore free".
+    """
+    role_check = require_role(min_role)
+
+    async def _check(host_id: str, user: User = Depends(role_check)) -> User:
+        from fastapi import HTTPException
+
+        from app.core.rbac import check_customer_access, get_accessible_customer_ids
+        from app.services.ssh_manager import get_host
+
+        host = await get_host(host_id)
+        if host is None:
+            raise HTTPException(status_code=404, detail="Host finnes ikke")
+
+        if host.customer_id:
+            ok = await check_customer_access(user, host.customer_id)
+        else:
+            ok = await get_accessible_customer_ids(user) is None
+
+        if not ok:
+            logger.info(
+                "403 host-access: user=%s host=%s customer=%s",
+                user.username, host_id, host.customer_id,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Du har ikke tilgang til denne hosten",
+            )
+        return user
+
+    return _check
+
+
+def require_audit_path_access(min_role: Role = Role.viewer) -> Callable:
+    """Dependency factory for routes serving files out of the audit tree.
+
+    ``path`` is taken from the route, and its first segment identifies the
+    customer. See ``check_audit_path_access`` for why this fails closed.
+    """
+    role_check = require_role(min_role)
+
+    async def _check(path: str, user: User = Depends(role_check)) -> User:
+        from fastapi import HTTPException
+
+        from app.core.rbac import check_audit_path_access
+
+        if not await check_audit_path_access(user, path):
+            raise HTTPException(
+                status_code=403,
+                detail="Du har ikke tilgang til denne kundens data",
+            )
+        return user
+
+    return _check
+
+
 # Convenience shortcuts
 require_admin = require_role(Role.admin)
 require_technician = require_role(Role.technician)

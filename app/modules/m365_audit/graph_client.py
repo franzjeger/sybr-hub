@@ -7,6 +7,7 @@ Handles automatic pagination, retries, and both v1.0 and beta endpoints.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any, Optional
 
@@ -18,6 +19,68 @@ log = logging.getLogger(__name__)
 _GRAPH_V1   = "https://graph.microsoft.com/v1.0"
 _GRAPH_BETA = "https://graph.microsoft.com/beta"
 _SCOPE      = "https://graph.microsoft.com/.default"
+
+# Graph answers a missing permission and a missing licence with the same 403,
+# but not with the same body. Telling them apart matters because they need
+# opposite responses: one is a consent to grant in the app registration, the
+# other is a SKU the tenant has not bought — and a technician sent looking for
+# a permission that is already there will not find the cause.
+_LICENCE_ERROR_CODES = frozenset({
+    "Authentication_RequestFromNonPremiumTenantOrB2CTenant",
+    "Authentication_RequestFromNonPremiumTenant",
+})
+_LICENCE_MESSAGE_HINTS = ("premium license", "premium licence", "premium tenant")
+
+
+def _graph_error_fields(detail: str) -> tuple[str, str]:
+    """Return ``(code, message)`` from a Graph error body, best-effort."""
+    try:
+        body = json.loads(detail or "{}")
+    except (TypeError, ValueError):
+        return "", ""
+    if not isinstance(body, dict):
+        return "", ""
+    err = body.get("error")
+    if isinstance(err, dict):
+        return str(err.get("code") or ""), str(err.get("message") or "")
+    if isinstance(err, str):
+        return err, str(body.get("error_description") or "")
+    return "", ""
+
+
+class GraphPermissionError(Exception):
+    """Graph refused a collection with 401/403.
+
+    Its own type because the caller must not treat it as "no results". A
+    section that catches this records itself as failed, which is what puts
+    "could not be measured" in the report instead of a zero.
+
+    ``is_licence_gap`` is set only when the response itself says so. An
+    endpoint being licence-gated is a property of the endpoint, not of this
+    refusal, so the section adds that context — this flag stays a report of
+    what the tenant answered.
+    """
+
+    def __init__(self, path: str, status: int, detail: str = "") -> None:
+        self.path = path
+        self.status = status
+        self.detail = detail or ""
+        self.code, self.message = _graph_error_fields(self.detail)
+        haystack = f"{self.code} {self.message}".lower()
+        self.is_licence_gap = (
+            self.code in _LICENCE_ERROR_CODES
+            or any(hint in haystack for hint in _LICENCE_MESSAGE_HINTS)
+        )
+        if self.is_licence_gap:
+            cause = "the tenant does not have the Entra ID licence this endpoint requires"
+        else:
+            cause = "the app registration is missing a permission or admin consent"
+        suffix = (
+            f" {self.code}: {self.message}"[:300]
+            if (self.code or self.message)
+            else f" Detail: {self.detail[:200]}"
+        )
+        super().__init__(f"Graph refused {path} with {status} — {cause}.{suffix}")
 
 
 class GraphClient:
@@ -130,6 +193,18 @@ class GraphClient:
                 else:
                     raise
             params = None                             # params only on first request
+            # _get answers a permission failure with {"error": 401|403}, which
+            # has no "value" key — so this used to extend by nothing, find no
+            # nextLink, and return an empty list. "You may not read this" then
+            # became indistinguishable from "the tenant has none of these", and
+            # a section would report a measured zero: no risky OAuth grants, no
+            # active Defender alerts, and a clean CIS pass on evidence nobody
+            # was ever allowed to see. Raise, so the section is recorded as
+            # failed and the report says the truth — that it does not know.
+            if isinstance(data, dict) and data.get("error") in (401, 403):
+                raise GraphPermissionError(
+                    path, int(data["error"]), str(data.get("detail", ""))
+                )
             items.extend(data.get(key, []))
             url = data.get("@odata.nextLink", "")
             page_count += 1

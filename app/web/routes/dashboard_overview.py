@@ -150,6 +150,11 @@ async def dashboard_trends(user=Depends(get_current_user)):
     """Return historical health score snapshots for sparkline charts."""
     from app.core.database import get_db
 
+    # Every other dashboard endpoint filters on the caller's grants; this one
+    # selected the whole health_snapshots table, so the sparklines carried
+    # every customer's risk and MFA history to anyone logged in.
+    allowed = await get_accessible_customer_ids(user)
+
     trends: dict[str, list[dict]] = {}
     try:
         async with get_db() as db:
@@ -160,6 +165,8 @@ async def dashboard_trends(user=Depends(get_current_user)):
             ) as cur:
                 for row in await cur.fetchall():
                     cid = row["customer_id"]
+                    if allowed is not None and cid not in allowed:
+                        continue
                     if cid not in trends:
                         trends[cid] = []
                     trends[cid].append({

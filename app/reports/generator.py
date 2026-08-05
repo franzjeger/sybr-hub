@@ -126,63 +126,131 @@ def _parse_user_counts(text: str) -> dict:
     return result
 
 
-def _parse_mfa(text: str, ca_analysis_text: str, results: list[SectionResult]) -> dict:
+# Column offsets of the MFA table, which the collector writes as
+#   f"  {name:<35} {upn:<45} {mfa:>5} {ca:>4} {ca_excl:>8}  {methods}"
+_MFA_COLS = {
+    "display_name": (2, 37),
+    "upn": (38, 83),
+    "mfa": (84, 89),
+    "ca": (90, 94),
+    "ca_excl": (95, 103),
+}
+
+
+def _mfa_user_records(json_text: str, table_text: str) -> list[dict]:
+    """Per-user MFA rows, preferring the collector's machine-readable sidecar.
+
+    The table is fixed-width, and the collector truncates the display name to
+    exactly the column width before padding it to that same width. At 35
+    characters the padding disappears, one space separates name from UPN, and
+    a reader that splits on runs of two-or-more spaces merges the two — every
+    subsequent field shifts left by one, so the MFA column is read out of the
+    CA column and the headline coverage figure is wrong in either direction. A
+    doubled space inside a name ("Ola  Nordmann") shifts it the other way.
+
+    So: use 04_mfa_methods.json when it is there, and for runs recorded before
+    it existed, slice the table by column offset instead of by whitespace.
+    """
+    if json_text.strip():
+        try:
+            data = json.loads(json_text)
+            users = data.get("users")
+            if isinstance(users, list):
+                return users
+        except (ValueError, AttributeError):
+            pass  # fall through to the table
+
+    records: list[dict] = []
+    for line in table_text.splitlines():
+        stripped = line.strip()
+        if (not stripped or stripped.startswith("=") or stripped.startswith("-")
+                or "Display Name" in stripped or "MFA METHOD" in stripped
+                or stripped.startswith("NOTE:")):
+            continue
+
+        if "|" in stripped:
+            # Pipe-delimited: "Name | UPN | MFA:YES | CA:YES | CA_EXCL:NO"
+            parts = [p.strip() for p in stripped.split("|")]
+            if not any(p.startswith("MFA:") for p in parts):
+                continue
+            rec = {
+                "display_name": parts[0] if parts else "",
+                "upn": parts[1] if len(parts) > 1 else "",
+                "mfa_registered": False, "ca_covered": False,
+                "ca_excluded": False, "methods": [],
+            }
+            for p in parts:
+                if p.startswith("MFA:"):
+                    rec["mfa_registered"] = "YES" in p
+                elif p.startswith("CA:"):
+                    rec["ca_covered"] = "YES" in p
+                elif p.startswith(("CA_EXCL:", "EXCL:")):
+                    rec["ca_excluded"] = "YES" in p
+            records.append(rec)
+            continue
+
+        def _col(key: str, _line: str = line) -> str:
+            start, end = _MFA_COLS[key]
+            return _line[start:end].strip()
+
+        mfa_tok = _col("mfa")
+        if mfa_tok not in ("YES", "NO", "?"):
+            # Not the known layout — fall back to the old split so an
+            # unrecognised historical format still yields something.
+            cols = re.split(r'\s{2,}', stripped)
+            if len(cols) < 3 or not any(c.strip() in ("YES", "NO") for c in cols[2:]):
+                continue
+            records.append({
+                "display_name": cols[0].strip(),
+                "upn": cols[1].strip() if len(cols) > 1 else "",
+                "mfa_registered": "YES" in cols[2],
+                "ca_covered": len(cols) > 3 and "YES" in cols[3],
+                "ca_excluded": len(cols) > 4 and "YES" in cols[4],
+                "methods": [],
+            })
+            continue
+
+        records.append({
+            "display_name": _col("display_name"),
+            "upn": _col("upn"),
+            # "?" is unknown, not "no MFA" — see the collector.
+            "mfa_registered": None if mfa_tok == "?" else mfa_tok == "YES",
+            "ca_covered": _col("ca") == "YES",
+            "ca_excluded": _col("ca_excl") == "YES",
+            "methods": [],
+        })
+    return records
+
+
+def _parse_mfa(
+    text: str,
+    ca_analysis_text: str,
+    results: list[SectionResult],
+    json_text: str = "",
+) -> dict:
     """Parse MFA coverage from mfa_methods.txt and CA analysis.
 
     A user is 'MFA covered' if they have MFA methods registered
     OR are covered by a Conditional Access policy that enforces MFA.
     """
-    # Parse MFA methods report — supports multiple formats:
-    # 1. Pipe-delimited: "Name | UPN | MFA:YES | Methods: ..."
-    # 2. Column-aligned:  "Name  UPN  YES  YES  NO  Methods"
     total = 0
     mfa_registered = 0
     ca_covered = 0
     ca_excluded = 0
     fully_unprotected = 0
     effectively_covered = 0
+    unknown = 0
 
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("=") or stripped.startswith("-") or "Display Name" in stripped or "MFA METHOD" in stripped:
-            continue
-
-        has_mfa = False
-        has_ca = False
-        is_excluded = False
-
-        if "|" in stripped:
-            # Pipe-delimited format: "Name | UPN | MFA:YES | CA:YES | ..."
-            parts = [p.strip() for p in stripped.split("|")]
-            for p in parts:
-                if p.startswith("MFA:"):
-                    has_mfa = "YES" in p
-                elif p.startswith("CA:"):
-                    has_ca = "YES" in p
-                elif p.startswith("CA_EXCL:") or p.startswith("EXCL:"):
-                    is_excluded = "YES" in p
-            # Old format without CA column: "Name | UPN | MFA:YES | Methods: ..."
-            if any(p.startswith("MFA:") for p in parts):
-                total += 1
-            else:
-                continue
-        else:
-            # Space-aligned columnar format
-            cols = re.split(r'\s{2,}', stripped)
-            if len(cols) < 3:
-                continue
-            # Look for YES/NO in the columns
-            found_yn = False
-            for c in cols[2:]:
-                if c.strip() in ("YES", "NO"):
-                    found_yn = True
-                    break
-            if not found_yn:
-                continue
-            total += 1
-            has_mfa = "YES" in cols[2] if len(cols) > 2 else False
-            has_ca = "YES" in cols[3] if len(cols) > 3 else False
-            is_excluded = "YES" in cols[4] if len(cols) > 4 else False
+    records = _mfa_user_records(json_text, text)
+    for rec in records:
+        total += 1
+        if rec.get("mfa_registered") is None:
+            unknown += 1
+        # None is "could not be determined". Counting it as False is what
+        # turns a throttled run into a page of false "no MFA" findings.
+        has_mfa = rec.get("mfa_registered") is True
+        has_ca = bool(rec.get("ca_covered"))
+        is_excluded = bool(rec.get("ca_excluded"))
 
         if has_mfa:
             mfa_registered += 1
@@ -223,54 +291,48 @@ def _parse_mfa(text: str, ca_analysis_text: str, results: list[SectionResult]) -
         if total == 0:
             total = ca_analysis_covered
 
-    pct = (effectively_covered / total * 100) if total > 0 else 0
-    no_mfa = total - effectively_covered
+    # Users whose method lookup failed are unknown, not unprotected, so they
+    # are excluded from both the headline count and its denominator. Counting
+    # them as missing MFA made the figure say five users lack it while the
+    # recommendation — which only names users whose status is known — listed
+    # none of them, and it turns a throttled run into a page of false
+    # findings. The count is still reported separately so it is not hidden.
+    measured = max(0, total - unknown)
+    pct = (effectively_covered / measured * 100) if measured > 0 else 0
+    no_mfa = max(0, measured - effectively_covered)
 
     # Build per-user detail list for drill-down
+    # Built from the same records as the figures above. This loop kept its own
+    # whitespace splitter after the coverage counts moved off it, so the report
+    # printed a red "1 user without MFA" directly above a table listing two —
+    # one of them with MFA registered, and with the literal "YES" rendered
+    # under the e-mail column, because every field had shifted by one. Both
+    # readers used to be wrong in the same way and agreed; fixing only one is
+    # what made the contradiction visible on the page.
     users_detail: list[dict] = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("=") or stripped.startswith("-") or "Display Name" in stripped or "MFA METHOD" in stripped:
-            continue
-        if "|" in stripped:
-            parts = [p.strip() for p in stripped.split("|")]
-            u_has_mfa = any("YES" in p for p in parts if p.startswith("MFA:"))
-            u_has_ca = any("YES" in p for p in parts if p.startswith("CA:"))
-            u_excluded = any("YES" in p for p in parts if p.startswith("CA_EXCL:") or p.startswith("EXCL:"))
-            u_methods = ""
-            for p in parts:
-                if p.startswith("Methods:"):
-                    u_methods = p.replace("Methods:", "").strip()
-            u_name = parts[0] if parts else ""
-            u_upn = parts[1] if len(parts) > 1 else ""
-        else:
-            cols = re.split(r'\s{2,}', stripped)
-            if len(cols) < 3:
-                continue
-            found_yn = any(c.strip() in ("YES", "NO") for c in cols[2:])
-            if not found_yn:
-                continue
-            u_name = cols[0].strip()
-            u_upn = cols[1].strip() if len(cols) > 1 else ""
-            u_has_mfa = "YES" in cols[2] if len(cols) > 2 else False
-            u_has_ca = "YES" in cols[3] if len(cols) > 3 else False
-            u_excluded = "YES" in cols[4] if len(cols) > 4 else False
-            u_methods = cols[5].strip() if len(cols) > 5 else ""
-
-        u_protected = u_has_mfa or (u_has_ca and not u_excluded)
+    for rec in records:
+        u_has_mfa = rec.get("mfa_registered") is True
+        u_has_ca = bool(rec.get("ca_covered"))
+        u_excluded = bool(rec.get("ca_excluded"))
+        u_methods = ", ".join(rec.get("methods") or [])
         users_detail.append({
-            "name": u_name,
-            "upn": u_upn,
+            "name": rec.get("display_name", ""),
+            "upn": rec.get("upn", ""),
             "has_mfa": u_has_mfa,
             "has_ca": u_has_ca,
             "ca_excluded": u_excluded,
             "methods": u_methods if u_methods and u_methods != "(none)" else "",
-            "protected": u_protected,
+            # A user whose lookup failed is unknown, not unprotected — keep
+            # them out of the "these people have no MFA" table.
+            "unknown": rec.get("mfa_registered") is None,
+            "protected": u_has_mfa or (u_has_ca and not u_excluded),
         })
 
     return {
         "covered": effectively_covered,
         "total": total,
+        "measured": measured,
+        "unknown": unknown,
         "pct": round(pct, 1),
         "no_mfa": max(0, no_mfa),
         "mfa_registered": mfa_registered,
@@ -686,6 +748,61 @@ def _parse_ca_legacy_auth_block(text: str) -> dict:
     return {"blocks": blocks, "collected": collected}
 
 
+# The collector writes fixed-width columns — groups_roles.py:186 —
+#   f"  {role:<40} {display:<30} {upn:<45}"
+# with an optional last-sign-in column appended when it has the users list.
+# Splitting on runs of whitespace loses to that format twice over: a display
+# name of exactly 30 characters leaves a single space before the UPN, and the
+# sign-in column means the *last* field is a timestamp rather than an email —
+# so "@" in cols[-1] is False and every assignment came back with the user and
+# email fields shifted one column to the left. Slice by the offsets instead.
+_ADMIN_ROLE_SPAN    = (2, 42)
+_ADMIN_DISPLAY_SPAN = (43, 73)
+_ADMIN_UPN_SPAN     = (74, 119)
+_ADMIN_DISPLAY_WIDTH = _ADMIN_DISPLAY_SPAN[1] - _ADMIN_DISPLAY_SPAN[0]
+_UPN_TOKEN_RE = re.compile(r'\S+@\S+')
+
+
+def _admin_role_record(line: str) -> dict | None:
+    """Slice one fixed-width assignment line, or None if it is not one.
+
+    Two shapes are accepted. The first is the collector's own, sliced at its
+    column offsets. The second is a file written before the collector truncated
+    the role name to its width: an over-long role eats its own padding and
+    shifts every later field right, but the *display* column is still padded to
+    30, so the UPN's position still fixes where the two columns before it begin.
+    """
+    if len(line) < _ADMIN_UPN_SPAN[0] or not line.startswith("  "):
+        return None
+
+    def _record(role_end: int, upn_start: int) -> dict | None:
+        role = line[2:role_end].strip()
+        display = line[upn_start - _ADMIN_DISPLAY_WIDTH - 1:upn_start - 1].strip()
+        upn = line[upn_start:upn_start + 45].strip()
+        if not role or "@" not in upn:
+            return None
+        return {"role": role, "user": display, "email": upn}
+
+    # The column separators have to actually be separators before the offsets
+    # mean anything.
+    if line[_ADMIN_ROLE_SPAN[1]] == " " and line[_ADMIN_DISPLAY_SPAN[1]] == " ":
+        fixed = _record(_ADMIN_ROLE_SPAN[1], _ADMIN_UPN_SPAN[0])
+        if fixed:
+            return fixed
+
+    # Shifted row: anchor on the UPN and count back over the padded display
+    # column. The sign-in column never contains "@", so the last such token on
+    # the line is the UPN.
+    tokens = _UPN_TOKEN_RE.findall(line)
+    if not tokens:
+        return None
+    upn_start = line.rfind(tokens[-1])
+    sep = upn_start - _ADMIN_DISPLAY_WIDTH - 2
+    if sep < 2 or line[sep] != " " or line[upn_start - 1] != " ":
+        return None
+    return _record(sep, upn_start)
+
+
 def _parse_admin_roles(text: str) -> dict:
     roles: list[dict] = []
     for line in text.splitlines():
@@ -700,15 +817,33 @@ def _parse_admin_roles(text: str) -> dict:
                 roles.append({"role": parts[0], "user": parts[1], "email": parts[2]})
             continue
 
-        # Format 2: columnar "Role                User                email@domain"
+        # Format 2: the collector's own fixed-width columns.
+        fixed = _admin_role_record(line)
+        if fixed:
+            roles.append(fixed)
+            continue
+
+        # Format 3: any other columnar "Role   User   email@domain" layout.
         cols = re.split(r'\s{2,}', stripped)
+        # Drop a trailing sign-in column so the email stays last for the tests
+        # below — the fixed-width path above handles the collector's own lines,
+        # but a role or UPN long enough to overflow its column lands here.
+        if len(cols) >= 4 and "@" not in cols[-1] and "@" in cols[-2]:
+            cols = cols[:-1]
         if len(cols) >= 3:
             # Last column should look like an email or UPN
             if "@" in cols[-1]:
                 roles.append({"role": cols[0], "user": cols[1], "email": cols[-1]})
             elif len(cols) >= 2:
                 roles.append({"role": cols[0], "user": " ".join(cols[1:-1]) if len(cols) > 2 else cols[1], "email": cols[-1]})
-    ga_count = sum(1 for r in roles if r["role"] == "Global Administrator")
+    # Graph's displayName for the global admin role is "Company Administrator"
+    # — the collector says so at groups_roles.py:10 and counts both. Matching
+    # only the friendly name meant a tenant that reports the legacy one had
+    # ga_count == 0: CIS 1.1.3 emitted no row at all, because every branch
+    # tests a count that could not be reached, and the admin-sprawl penalty
+    # silently dropped out of the risk score.
+    _GA_ROLE_NAMES = ("Global Administrator", "Company Administrator")
+    ga_count = sum(1 for r in roles if r["role"] in _GA_ROLE_NAMES)
     role_counts: dict[str, int] = {}
     for r in roles:
         role_counts[r["role"]] = role_counts.get(r["role"], 0) + 1
@@ -716,7 +851,7 @@ def _parse_admin_roles(text: str) -> dict:
         [{"role": k, "count": v} for k, v in role_counts.items()],
         key=lambda x: (-x["count"], x["role"]),
     )
-    global_admin_users = [r for r in roles if r["role"] == "Global Administrator"]
+    global_admin_users = [r for r in roles if r["role"] in _GA_ROLE_NAMES]
     return {
         "roles": roles,
         "global_admin_count": ga_count,
@@ -1169,6 +1304,13 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
     }
 
 
+# The collector distinguishes "the tenant is not licensed for this" from "the
+# app registration may not read it". Only the first is a finding about the
+# customer; the second is a finding about our own configuration, and a report
+# must not present one as the other.
+_LICENCE_GAP_RE = re.compile(r"licence gap|lisens", re.IGNORECASE)
+
+
 def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
     """Parse sign-in activity and failure data for risk analysis."""
     result: dict = {
@@ -1179,11 +1321,25 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         "top_failure_reasons": [],
         "brute_force_suspects": [],
         "has_data": False,
+        "no_data_reason": None,
     }
 
     # Parse sign-in activity (05_signin_activity.txt)
     signin_text = file_contents.get("05_signin_activity.txt", "")
-    if signin_text.strip():
+    if _evidence_unavailable(signin_text):
+        # The collector writes a "(not available)" block naming the cause.
+        # Reading it as data would have set has_data from its mere presence and
+        # published a tenant with zero sign-ins and zero failures; writing no
+        # file at all — the old behaviour on a 403 — made the whole section
+        # vanish from the document without a word, so a reader could not tell
+        # it had been attempted. Carry the reason instead, and say it.
+        if not signin_text.strip():
+            result["no_data_reason"] = "not_collected"
+        elif _LICENCE_GAP_RE.search(signin_text):
+            result["no_data_reason"] = "license_p1_missing"
+        else:
+            result["no_data_reason"] = "not_collected"
+    elif signin_text.strip():
         users_seen: set[str] = set()
         signin_count = 0
         for line in signin_text.splitlines():
@@ -1191,6 +1347,19 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
             if not stripped or stripped.startswith("=") or stripped.startswith("-"):
                 continue
             if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
+                continue
+            # The collector puts the event count in its banner —
+            # "SIGN-IN ACTIVITY  (last 30 days — 1234 events)" — which carries
+            # no "key: value" colon, so the branch below never saw it and the
+            # fallback set total_signins to the number of rendered rows. That
+            # is the user count, so "Total sign-ins" and "Unique users" came
+            # out identical while the real figure sat unread in the file.
+            _banner = re.search(r'\(.*?([\d,]+)\s+events\)', stripped)
+            if _banner:
+                try:
+                    result["total_signins"] = int(_banner.group(1).replace(",", ""))
+                except ValueError:
+                    pass
                 continue
             if ":" in stripped:
                 key, val = stripped.split(":", 1)
@@ -1223,7 +1392,7 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
 
     # Parse sign-in failures (05b_signin_failures.txt)
     failure_text = file_contents.get("05b_signin_failures.txt", "")
-    if failure_text.strip():
+    if not _evidence_unavailable(failure_text):
         result["has_data"] = True
         failure_users: dict[str, int] = {}
         failure_reasons: dict[str, int] = {}
@@ -2310,7 +2479,7 @@ def _compute_risk(
         score -= min(10, max(5, len(fwd_lines) * 2))
 
     # Risky users (up to 5 pts)
-    if risky_users and "No risky" not in risky_users and "not available" not in risky_users.lower() and "requires" not in risky_users.lower() and risky_users.strip():
+    if risky_users and "No risky" not in risky_users and not _evidence_unavailable(risky_users):
         score -= 5
 
     # Defender alerts (up to 10 pts) — scale with number of alerts
@@ -2414,20 +2583,19 @@ def _build_recommendations(
     # without MFA" would suppress the rec even though we don't know the truth.
     if mfa.get("has_data") and mfa.get("no_mfa", 0) > 0:
         # Build list of unprotected users from the MFA file
-        unprotected = []
+        # Same records as the coverage figures above, so the customer-facing
+        # list of unprotected users cannot disagree with the percentage. The
+        # split-based reader here named protected users as unprotected, with
+        # the UPN shifted into the parenthesis.
         fc = file_contents or {}
-        for line in fc.get("04_mfa_methods.txt", "").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("=") or stripped.startswith("-") or "Display Name" in stripped or "MFA METHOD" in stripped:
-                continue
-            cols = re.split(r'\s{2,}', stripped)
-            if len(cols) >= 5:
-                has_mfa_col = "YES" in cols[2] if len(cols) > 2 else False
-                has_ca_col = "YES" in cols[3] if len(cols) > 3 else False
-                if not has_mfa_col and not has_ca_col:
-                    upn = cols[1].strip() if len(cols) > 1 else cols[0]
-                    name = cols[0].strip()
-                    unprotected.append(f"{name} ({upn})")
+        unprotected = [
+            f"{r.get('display_name', '')} ({r.get('upn', '')})"
+            for r in _mfa_user_records(
+                fc.get("04_mfa_methods.json", ""), fc.get("04_mfa_methods.txt", "")
+            )
+            # Only name someone whose status we actually know.
+            if r.get("mfa_registered") is False and not r.get("ca_covered")
+        ]
 
         detail = t("rec_mfa_detail",
                     registered=mfa.get('mfa_registered', 0),
@@ -2496,7 +2664,7 @@ def _build_recommendations(
             "doc_url": "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/outbound-spam-policies-external-email-forwarding",
         })
 
-    if risky_users and "No risky" not in risky_users and "not available" not in risky_users.lower() and "requires" not in risky_users.lower() and risky_users.strip():
+    if risky_users and "No risky" not in risky_users and not _evidence_unavailable(risky_users):
         # Parse risky user entries from columnar format
         risky_items = []
         for line in risky_users.splitlines():
@@ -3221,22 +3389,35 @@ _FRAMEWORK_MAP: dict[str, dict[str, str]] = {
 }
 
 
+def _evidence_unavailable(text: str) -> bool:
+    """True when a collector file explains an absence rather than reporting one.
+
+    Collectors write two shapes of non-reading: an ``Error:`` stub, and a
+    "(not available)" block naming a licence or permission gap. Both are prose
+    about why nothing was measured, and neither is evidence of anything about
+    the tenant. This was checked in three places with three slightly different
+    substring tests, and not at all in the fourth.
+    """
+    if not isinstance(text, str):
+        return True
+    stripped = text.strip()
+    if not stripped or stripped.startswith("Error:"):
+        return True
+    low = stripped.lower()
+    return "not available" in low or "requires" in low or "krever" in low
+
+
 def _section_ran(fc: dict, *names: str) -> bool:
     """True when at least one of the named collector outputs is usable.
 
-    A file that is absent, empty, or an "Error:" stub means the section
-    produced no reading. Zero policies in a file that *was* written is a
-    reading — and a completely different claim. Compliance controls kept
-    conflating the two, so a tenant whose Exchange section never ran was
-    attested as having no external forwarding and failed for having no
-    anti-spam policy, on identical evidence: nothing.
+    A file that is absent, empty, an "Error:" stub or a "(not available)"
+    explanation means the section produced no reading. Zero policies in a file
+    that *was* written is a reading — and a completely different claim.
+    Compliance controls kept conflating the two, so a tenant whose Exchange
+    section never ran was attested as having no external forwarding and failed
+    for having no anti-spam policy, on identical evidence: nothing.
     """
-    for name in names:
-        text = fc.get(name, "")
-        stripped = text.strip() if isinstance(text, str) else ""
-        if stripped and not stripped.startswith("Error:"):
-            return True
-    return False
+    return any(not _evidence_unavailable(fc.get(name, "")) for name in names)
 
 
 _CANNOT_VERIFY = "Kan ikke verifiseres — "
@@ -3271,14 +3452,23 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "1.2.1": ("31_password_protection.txt",),
     "1.4":   ("09_secure_score.txt",),
     "2.1":   ("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
-    "2.1.2": ("17c_app_credential_expiry.txt", "17c_app_credential_expiry_WARN.txt"),
+    # 17_app_registrations.txt is not incidental here: it is what separates
+    # "no expired credentials" from "the section never ran", so the verdict is
+    # formed from it as much as from the expiry files.
+    "2.1.2": ("17_app_registrations.txt",
+              "17c_app_credential_expiry.txt", "17c_app_credential_expiry_WARN.txt"),
     "3.1.1": ("19d_purview_dlp_policies.txt",),
     "3.2.1": ("19c_purview_sensitivity_labels.txt",),
     "4.1":   ("27c_exchange_org_config.txt",),
     "4.2":   ("23_exchange_antiphish.txt",),
     "4.3":   ("24_exchange_antispam.txt",),
+    # The two WARN files carry the finding; the two plain files are what say
+    # the scan ran at all, and the "pass" branch is formed from those. Listing
+    # only three of the four meant a technician tracing a pass was shown every
+    # file except the one that produced it.
     "4.4":   ("28_exchange_mailbox_forwarding.txt",
               "28b_exchange_external_forwarding_WARN.txt",
+              "29_exchange_inbox_rules_external_fwd.txt",
               "29_exchange_inbox_rules_external_fwd_WARN.txt"),
     "4.5":   ("27_exchange_defender_policies.txt",),
     "4.6":   ("27_exchange_defender_policies.txt",),
@@ -3715,11 +3905,18 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("4.1", "Ensure mailbox audit logging is enabled", t.cis_cat_email, "info",
             "Kunne ikke fastslå audit-status fra org-config")
 
-    # 4.2 Anti-phishing. _section_ran, not .strip(): an "Error: access denied"
-    # stub is non-empty and would otherwise attest that policies exist.
+    # 4.2 Anti-phishing. Three states, not two. _section_ran only says a
+    # reading exists; it does not say the tenant has any policies. A file
+    # reading "(0 entries)" over "(none)" is a real reading of an unprotected
+    # tenant, and grading it "pass" attested to protection that is not there.
     if _section_ran(fc, "23_exchange_antiphish.txt"):
-        add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "pass",
-            "Anti-phishing-policyer er konfigurert")
+        _antiphish_n = _count_data_lines(fc.get("23_exchange_antiphish.txt", ""))
+        if _antiphish_n > 0:
+            add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "pass",
+                f"{_antiphish_n} anti-phishing-policy(er) konfigurert")
+        else:
+            add("4.2", "Ensure anti-phishing policies are configured", t.cis_cat_email, "fail",
+                "Ingen anti-phishing-policyer konfigurert")
     else:
         # An absent 23_ file is the Exchange section not running, not a tenant
         # without anti-phishing policies.
@@ -3732,8 +3929,13 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # an empty file was not — an absent 24_ file means the Exchange section
     # did not run, and "no policies" and "no data" are different claims.
     if _section_ran(fc, "24_exchange_antispam.txt"):
-        add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "pass",
-            "Anti-spam-policyer er konfigurert")
+        _antispam_n = _count_data_lines(fc.get("24_exchange_antispam.txt", ""))
+        if _antispam_n > 0:
+            add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "pass",
+                f"{_antispam_n} anti-spam-policy(er) konfigurert")
+        else:
+            add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "fail",
+                "Ingen anti-spam-policyer konfigurert")
     else:
         add("4.3", "Ensure anti-spam policies are configured", t.cis_cat_email, "info",
             _CANNOT_VERIFY + "anti-spam-data utilgjengelig "
@@ -3938,9 +4140,20 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
             tail = line.split(":", 1)[1].strip()
             anyone = int(tail) if tail.isdigit() else None
             break
+    # A zero here is only as broad as the scan behind it. The collector reads
+    # permissions on each drive's *root*, so a link on a file inside a folder
+    # never appears — and "we found none where we looked" is not the same
+    # claim as "this tenant has none". A find is still a find, so a non-zero
+    # count fails as before; a zero from a root-only scan reports what was
+    # actually established instead of attesting to a clean tenant.
+    _od_root_only = "drive roots only" in od_text
     if anyone is None:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
             _CANNOT_VERIFY + "OneDrive-delingsdata utilgjengelig")
+    elif anyone == 0 and _od_root_only:
+        add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
+            "Ingen anonyme delingslenker på stasjonsrøttene — filer inne i mapper "
+            "er ikke gjennomsøkt, så fravær er ikke bekreftet for hele tenanten")
     elif anyone == 0:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "pass",
             "Ingen anonyme delingslenker funnet")
@@ -4237,8 +4450,7 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # risk parser already gave us structured counts — use those.
     risky_struct = signin_risk if isinstance(signin_risk, dict) else {}
     risky_text = context.get("risky_users", "") if isinstance(context.get("risky_users"), str) else ""
-    has_risky_data = bool(risky_text.strip()) and not risky_text.strip().startswith("Error:") \
-        and "not available" not in risky_text.lower() and "requires" not in risky_text.lower()
+    has_risky_data = not _evidence_unavailable(risky_text)
 
     if not has_risky_data:
         add("9.3", "Ensure risky user detections are investigated", t.cis_cat_logging, "info",
@@ -4540,7 +4752,12 @@ def build_report_context(
     # and still write an error into its file, so the two disagree on exactly
     # the tenants this list exists for.
     error_files: list[str] = []
-    for f in sorted(out_dir.glob("*.txt")):
+    # .json as well as .txt: the MFA collector writes a machine-readable
+    # sidecar next to its rendered table, and globbing only *.txt meant the
+    # reader never saw it and silently fell back to parsing the table on every
+    # single run — so the sidecar that exists to make the figures reliable was
+    # dead weight. Error-payload blanking below applies to both.
+    for f in sorted([*out_dir.glob("*.txt"), *out_dir.glob("*.json")]):
         try:
             text = encrypted_read_text(f)
         except Exception:
@@ -4567,7 +4784,7 @@ def build_report_context(
 
     secure_score = _parse_secure_score(fc("09_secure_score.txt"))
     users        = _parse_user_counts(fc("03_users_count.txt"))
-    mfa          = _parse_mfa(fc("04_mfa_methods.txt"), fc("04b_mfa_ca_analysis.txt"), results)
+    mfa          = _parse_mfa(fc("04_mfa_methods.txt"), fc("04b_mfa_ca_analysis.txt"), results, fc("04_mfa_methods.json"))
     licenses     = _parse_licenses(fc("02_licenses.txt"))
     license_optimization = _analyze_license_optimization(licenses, file_contents, lang=lang)
     spf_dmarc    = _parse_spf_dmarc(fc("26_email_dns_spf_dmarc.txt"))

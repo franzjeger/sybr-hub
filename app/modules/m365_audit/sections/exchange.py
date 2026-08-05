@@ -216,6 +216,18 @@ class ExchangeSection(BaseSection):
 
     def _save_anti_phish(self) -> None:
         policies = self._get("anti_phish")
+        # The cmdlet runs with -ErrorAction SilentlyContinue and records its
+        # failure in a separate key, so an empty list means either "no
+        # policies" or "the read failed" — and nothing here used to tell them
+        # apart. EOP ships an undeletable default anti-phish policy, so zero
+        # rows from a connected session is the second case, and the compliance
+        # control now grades a zero as a failure. Write the error through so
+        # it can say "could not verify" instead of accusing the tenant.
+        error = self.exo_data.get("anti_phish_error")
+        if error and not policies:
+            self._save("23_exchange_antiphish.txt",
+                       f"Error: could not collect anti-phishing policies — {error}\n")
+            return
         content  = _section_block(
             "EXCHANGE ANTI-PHISHING POLICIES",
             policies,
@@ -227,6 +239,11 @@ class ExchangeSection(BaseSection):
 
     def _save_anti_spam(self) -> None:
         policies = self._get("anti_spam")
+        error = self.exo_data.get("anti_spam_error")  # see _save_anti_phish
+        if error and not policies:
+            self._save("24_exchange_antispam.txt",
+                       f"Error: could not collect anti-spam policies — {error}\n")
+            return
         content  = _section_block(
             "EXCHANGE ANTI-SPAM POLICIES",
             policies,

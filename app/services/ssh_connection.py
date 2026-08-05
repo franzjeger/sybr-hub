@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from app.core.config import DATA_DIR
@@ -217,6 +218,75 @@ class SshSession:
             stdout=_as_text(result.stdout),
             stderr=_as_text(result.stderr),
         )
+
+    # ── Remote filesystem ────────────────────────────────────────────────────
+    #
+    # ssh_manager's key push and revoke have always called these four methods.
+    # They were never implemented, so every non-sudo push raised AttributeError
+    # in the SFTP strategy, fell through to the exec strategy, and raised it
+    # again on the very first line — the feature could not work at all, and the
+    # per-host result simply reported the AttributeError as the host's error.
+
+    async def get_home(self) -> str:
+        """Return the connected user's home directory on the remote host."""
+        result = await self.exec('printf "%s\\n" "$HOME"', timeout=10)
+        home = result.stdout.strip().splitlines()[0].strip() if result.stdout.strip() else ""
+        if result.exit_code != 0 or not home.startswith("/"):
+            raise IntegrationError(
+                f"Fant ikke hjemmekatalogen til brukeren på {self.hostname}"
+            )
+        return home
+
+    @asynccontextmanager
+    async def _sftp(self):
+        """Open a short-lived SFTP client.
+
+        Devices without an SFTP subsystem — BusyBox, UniFi, OpenWrt — raise
+        here, which is exactly what the exec fallback in ssh_manager expects.
+        """
+        client = await self._conn.start_sftp_client()
+        try:
+            yield client
+        finally:
+            client.exit()
+            try:
+                await client.wait_closed()
+            except Exception as e:  # pragma: no cover - best-effort teardown
+                log.debug("Error closing SFTP client to %s: %s", self.hostname, e)
+
+    async def sftp_mkdir(self, path: str, mode: int = 0o700) -> None:
+        """Create *path*, including parents. Existing directories are fine."""
+        import asyncssh
+
+        async with self._sftp() as sftp:
+            try:
+                await sftp.makedirs(path, mode=mode, exist_ok=True)
+            except asyncssh.SFTPFailure:
+                # Some servers report an existing directory as a plain failure
+                # rather than SFTPFileAlreadyExists; confirm before giving up.
+                if not await sftp.isdir(path):
+                    raise
+
+    async def sftp_read(self, path: str) -> bytes | None:
+        """Return the contents of *path*, or None if it does not exist."""
+        import asyncssh
+
+        async with self._sftp() as sftp:
+            try:
+                async with sftp.open(path, "rb") as f:
+                    return await f.read()
+            except (asyncssh.SFTPNoSuchFile, asyncssh.SFTPNoSuchPath):
+                return None
+
+    async def sftp_write(self, path: str, data: bytes, mode: int = 0o600) -> None:
+        """Write *data* to *path*, replacing whatever is there."""
+        async with self._sftp() as sftp:
+            async with sftp.open(path, "wb") as f:
+                await f.write(data)
+            try:
+                await sftp.chmod(path, mode)
+            except Exception as e:  # pragma: no cover - best-effort
+                log.debug("Could not chmod %s on %s: %s", path, self.hostname, e)
 
 
 def _as_text(value) -> str:

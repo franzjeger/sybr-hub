@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
-    AuthError,
     ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
@@ -25,10 +25,52 @@ from app.models.ssh import (
     KeyPushRequest,
 )
 from app.models.user import Role, User
-from app.web.middleware.auth import get_current_user, require_role
+from app.web.middleware.auth import get_current_user, require_host_access, require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ── Tenancy helpers ──────────────────────────────────────────────────────────
+# Hosts name their customer through ssh_hosts.customer_id rather than a
+# {customer_id} path segment, so none of the per-customer plumbing reached
+# this router. A host with no customer is estate-wide infrastructure and stays
+# visible only to unrestricted callers — "unset" must not read as "unowned,
+# therefore free".
+
+async def _may_see_host(user: User, host) -> bool:
+    from app.core.rbac import check_customer_access, get_accessible_customer_ids
+
+    if host is None:
+        return False
+    if host.customer_id:
+        return await check_customer_access(user, host.customer_id)
+    return await get_accessible_customer_ids(user) is None
+
+
+async def _scope_hosts(user: User, hosts: list) -> list:
+    """Filter a host list down to the ones this caller may see."""
+    from app.core.rbac import get_accessible_customer_ids
+
+    allowed = await get_accessible_customer_ids(user)
+    if allowed is None:
+        return hosts
+    return [h for h in hosts if h.customer_id and h.customer_id in allowed]
+
+
+async def _assert_hosts_in_scope(user: User, host_ids: list[str]) -> None:
+    """Refuse the whole request if any named host is out of scope.
+
+    Whole-request rather than per-host filtering: silently dropping the hosts
+    a caller may not touch would report a batch as successful while some of it
+    never ran, which is worse than a clear refusal.
+    """
+    from app.services.ssh_manager import get_host
+
+    for hid in host_ids or []:
+        if not await _may_see_host(user, await get_host(hid)):
+            logger.info("403 host-access: user=%s host=%s", user.username, hid)
+            raise ForbiddenError("Du har ikke tilgang til en eller flere av disse hostene")
 
 
 # ── Keys ─────────────────────────────────────────────────────────────────────
@@ -176,6 +218,7 @@ async def push_key(
     user: User = Depends(require_role(Role.technician)),
 ):
     from app.services.ssh_manager import push_key
+    await _assert_hosts_in_scope(user, body.host_ids)
     try:
         results = await push_key(key_id, body.host_ids, body.use_sudo, user.id)
         return {"ok": True, "results": results}
@@ -190,6 +233,7 @@ async def revoke_key(
     user: User = Depends(require_role(Role.technician)),
 ):
     from app.services.ssh_manager import revoke_key
+    await _assert_hosts_in_scope(user, body.host_ids)
     try:
         results = await revoke_key(key_id, body.host_ids, body.use_sudo, user.id)
         return {"ok": True, "results": results}
@@ -215,6 +259,9 @@ async def list_hosts(
         device_type=dt,
         customer_id=customer_id or None,
     )
+    # The customer_id query parameter is a caller-supplied *filter*, not a
+    # permission, so the result still has to be scoped to the caller's grants.
+    hosts = await _scope_hosts(user, hosts)
     return {
         "hosts": [
             {
@@ -235,7 +282,7 @@ async def list_hosts(
 
 
 @router.get("/ssh/hosts/{host_id}")
-async def get_host(host_id: str, user: User = Depends(get_current_user)):
+async def get_host(host_id: str, user: User = Depends(require_host_access())):
     from app.services.ssh_manager import get_host
     host = await get_host(host_id)
     if not host:
@@ -259,10 +306,26 @@ async def get_host(host_id: str, user: User = Depends(get_current_user)):
 
 
 @router.get("/ssh/hosts/{host_id}/password")
-async def get_host_password(host_id: str, user: User = Depends(require_role(Role.technician))):
-    """Return stored password for a host (for RDP/connection use)."""
+async def get_host_password(host_id: str, user: User = Depends(require_host_access(Role.admin))):
+    """Return the stored password for a host.
+
+    Admin-only and audited, matching /fortigate/credentials/{customer_id},
+    which is the reference implementation for handing a stored credential back
+    over the API. This route previously answered any technician for any host,
+    and left no record that a device password had been read.
+
+    The RDP flow does not need this: /rdp/launch resolves the password
+    server-side from host_id, so the client never has to hold it.
+    """
+    from app.core.activity_log import log_activity
     from app.services.ssh_manager import _load_host_password
+
     password = _load_host_password(host_id) or ""
+    log_activity(
+        "ssh_password_viewed",
+        detail=f"Leste lagret passord for host {host_id}",
+        user=user.username,
+    )
     return {"password": password}
 
 
@@ -271,7 +334,11 @@ async def create_host(
     body: HostCreateRequest,
     user: User = Depends(require_role(Role.technician)),
 ):
+    from app.core.rbac import check_customer_access
+
     from app.services.ssh_manager import create_host
+    if body.customer_id and not await check_customer_access(user, body.customer_id):
+        raise ForbiddenError("Du har ikke tilgang til denne kunden")
     host = await create_host(
         label=body.label, hostname=body.hostname, username=body.username,
         port=body.port, password=body.password,
@@ -287,7 +354,7 @@ async def create_host(
 async def update_host(
     host_id: str,
     body: HostUpdateRequest,
-    user: User = Depends(require_role(Role.technician)),
+    user: User = Depends(require_host_access(Role.technician)),
 ):
     from app.services.ssh_manager import update_host
     updates = body.model_dump(exclude_none=True)
@@ -300,7 +367,7 @@ async def update_host(
 @router.delete("/ssh/hosts/{host_id}")
 async def delete_host(
     host_id: str,
-    user: User = Depends(require_role(Role.technician)),
+    user: User = Depends(require_host_access(Role.technician)),
 ):
     from app.services.ssh_manager import delete_host
     deleted = await delete_host(host_id)
@@ -310,7 +377,7 @@ async def delete_host(
 
 
 @router.post("/ssh/hosts/{host_id}/test")
-async def test_host(host_id: str, user: User = Depends(get_current_user)):
+async def test_host(host_id: str, user: User = Depends(require_host_access(Role.technician))):
     from app.services.ssh_manager import _connect_to_host
     from app.services.ssh_manager import get_host as _get
     host = await _get(host_id)
@@ -333,6 +400,7 @@ async def exec_command(
     user: User = Depends(require_role(Role.technician)),
 ):
     from app.services.ssh_manager import batch_exec
+    await _assert_hosts_in_scope(user, body.host_ids)
     results = await batch_exec(body.host_ids, body.command, user.id)
     return {
         "results": [
@@ -350,14 +418,23 @@ async def exec_command(
 # ── Health check ─────────────────────────────────────────────────────────────
 
 @router.post("/ssh/hosts/health")
-async def health_check(request: Request, user: User = Depends(get_current_user)):
+async def health_check(
+    request: Request,
+    # Opens a real SSH connection to every host in scope — that is an action on
+    # customer infrastructure, not a read, so it sits at the same floor as the
+    # other host operations rather than at viewer.
+    user: User = Depends(require_role(Role.technician)),
+):
     from app.services.ssh_manager import health_check, list_hosts
     body = await request.json()
     host_ids = body.get("host_ids")
     if not host_ids:
-        # Check all hosts
-        hosts = await list_hosts()
+        # Omitting host_ids fans an SSH connection out across the estate, so
+        # the default set is the caller's hosts, not every host on the box.
+        hosts = await _scope_hosts(user, await list_hosts())
         host_ids = [h.id for h in hosts]
+    else:
+        await _assert_hosts_in_scope(user, host_ids)
     results = await health_check(host_ids)
     return {"results": results}
 
@@ -366,9 +443,14 @@ async def health_check(request: Request, user: User = Depends(get_current_user))
 
 @router.post("/ssh/config/generate")
 async def gen_ssh_config(request: Request, user: User = Depends(get_current_user)):
-    from app.services.ssh_manager import generate_ssh_config
+    from app.services.ssh_manager import generate_ssh_config, list_hosts
     body = await request.json()
     host_ids = body.get("host_ids")
+    if host_ids:
+        await _assert_hosts_in_scope(user, host_ids)
+    else:
+        # Otherwise this exports the whole estate as a ready-made SSH config.
+        host_ids = [h.id for h in await _scope_hosts(user, await list_hosts())]
     config = await generate_ssh_config(host_ids)
     return {"config": config}
 
@@ -379,8 +461,15 @@ async def gen_ssh_config(request: Request, user: User = Depends(get_current_user
 async def ssh_audit_log(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.admin)),
 ):
+    """Every SSH action taken from this hub, across all customers.
+
+    Admin-only rather than scoped: ``ssh_audit_log`` rows record host_label and
+    hostname but neither host_id nor customer_id, so there is nothing reliable
+    to filter on. Restricting the whole log is the fail-closed reading; giving
+    technicians a per-customer view needs the customer stamped on the row.
+    """
     from app.services.ssh_manager import get_audit_log
     entries = await get_audit_log(limit, offset)
     return {
@@ -426,7 +515,12 @@ async def rdp_launch(request: Request, user: User = Depends(require_role(Role.te
     # Load password from host record if host_id provided
     password = body.get("password", "")
     if host_id and not password:
-        from app.services.ssh_manager import _load_host_password
+        from app.services.ssh_manager import _load_host_password, get_host
+        # Resolving a stored credential from an id is exactly the operation
+        # /ssh/hosts/{id}/password performs, so it carries the same check.
+        if not await _may_see_host(user, await get_host(host_id)):
+            logger.info("403 host-access: user=%s host=%s (rdp)", user.username, host_id)
+            raise ForbiddenError("Du har ikke tilgang til denne hosten")
         password = _load_host_password(host_id) or ""
 
     # Ensure GUI apps can find the display (Wayland/X11)

@@ -52,6 +52,23 @@ class AuthError(ToolkitError):
         super().__init__(message, detail=detail)
 
 
+class ForbiddenError(ToolkitError):
+    """Authenticated, but not allowed to touch this thing.
+
+    Separate from AuthError because the two mean opposite things to the
+    client: AuthError is 401, and the frontend treats 401 as an expired
+    session — it refreshes, retries, and on a second 401 clears the token and
+    drops the user at the login screen. Raising it for "you may not see this
+    customer" logged a technician out of the whole application instead of
+    telling them why. Denials that are about authorization use this.
+    """
+    status_code = 403
+    error_type = "forbidden"
+
+    def __init__(self, message: str = "Forbidden", *, detail: str | None = None):
+        super().__init__(message, detail=detail)
+
+
 class IntegrationError(ToolkitError):
     """Upstream service failure (FortiGate API down, UniFi unreachable, etc.)."""
     status_code = 502
