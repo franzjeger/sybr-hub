@@ -147,7 +147,7 @@ function hostsAdd() {
 
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
-      + '<input id="host-label" type="text" placeholder="f.eks. DC01 eller FW-Autostrada" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
+      + '<input id="host-label" type="text" placeholder="' + t('inf_ph_host_label','f.eks. DC01 eller FW-Autostrada') + '" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('hostname_ip') + '</label>'
       + '<input id="host-hostname" type="text" placeholder="f.eks. 10.0.1.5" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;"><span id="host-user-label">' + t('brukernavn_2') + '</span></label>'
@@ -196,13 +196,13 @@ function hostsTypeChanged() {
 
   // Set sensible defaults per device type
   var defaults = {
-    windows:   {port: 22, user: 'administrator', portLabel: 'SSH/RDP-port', userLabel: 'Brukernavn'},
-    linux:     {port: 22, user: 'root', portLabel: 'SSH-port', userLabel: 'Brukernavn'},
-    fortigate: {port: 22, user: 'admin', portLabel: 'SSH-port', userLabel: 'Admin-bruker'},
-    unifi:     {port: 22, user: 'ubnt', portLabel: 'SSH-port', userLabel: 'SSH-bruker'},
-    pfsense:   {port: 22, user: 'admin', portLabel: 'SSH-port', userLabel: 'Admin-bruker'},
-    openwrt:   {port: 22, user: 'root', portLabel: 'SSH-port', userLabel: 'Brukernavn'},
-    custom:    {port: 22, user: '', portLabel: 'Port', userLabel: 'Brukernavn'},
+    windows:   {port: 22, user: 'administrator', portLabel: 'SSH/RDP-port', userLabel: t('inf_username','Brukernavn')},
+    linux:     {port: 22, user: 'root', portLabel: 'SSH-port', userLabel: t('inf_username','Brukernavn')},
+    fortigate: {port: 22, user: 'admin', portLabel: 'SSH-port', userLabel: t('inf_admin_user','Admin-bruker')},
+    unifi:     {port: 22, user: 'ubnt', portLabel: 'SSH-port', userLabel: t('inf_ssh_user','SSH-bruker')},
+    pfsense:   {port: 22, user: 'admin', portLabel: 'SSH-port', userLabel: t('inf_admin_user','Admin-bruker')},
+    openwrt:   {port: 22, user: 'root', portLabel: 'SSH-port', userLabel: t('inf_username','Brukernavn')},
+    custom:    {port: 22, user: '', portLabel: 'Port', userLabel: t('inf_username','Brukernavn')},
   };
   var d = defaults[type] || defaults.custom;
   portEl.value = d.port;
@@ -291,7 +291,7 @@ function sshGenKey() {
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('hdr_generate_ssh_key','Generate SSH key') + '</h3>'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
-    + '<input id="ssh-gen-name" type="text" placeholder="f.eks. deploy-key-kunde" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
+    + '<input id="ssh-gen-name" type="text" placeholder="' + t('inf_ph_keyname','f.eks. deploy-key-kunde') + '" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_key_type','Key type') + '</label>'
     + '<select id="ssh-gen-type" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<option value="ed25519">' + t('opt_ed25519','Ed25519 (recommended — fast, secure, short key)') + '</option>'
@@ -495,7 +495,7 @@ function sshAddHost() {
       + '<option value="custom">' + t('annet') + '</option>'
       + '</select></div>'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('gruppe') + '</label>'
-      + '<input id="ssh-h-group" type="text" placeholder="f.eks. produksjon, lab, kunde-x" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
+      + '<input id="ssh-h-group" type="text" placeholder="' + t('inf_ph_group','f.eks. produksjon, lab, kunde-x') + '" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>'
       + '</div>'
       // Autentisering
       + '<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">'
@@ -872,7 +872,7 @@ async function vpnConnectAzure(profileId) {
   html += '<div style="font-size:16px;font-weight:700;margin-bottom:12px;">' + t('azure_vpn_innlogging') + '</div>';
   html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">' + t('1_aapne_denne_lenken_i_en_nettleser_kan_') + '</div>';
   html += '<div style="margin-bottom:16px;word-break:break-all;"><a href="'+esc(data.url)+'" target="_blank" style="font-size:13px;color:var(--blue);text-decoration:underline;">'+esc(data.url).substring(0,80)+'...</a>';
-  html += ' <button class="btn btn-ghost btn-sm" onclick="var t=document.createElement(\'textarea\');t.value=this.dataset.url;document.body.appendChild(t);t.select();document.execCommand(\'copy\');document.body.removeChild(t);showToast(\'Kopiert!\',\'success\',1500);" data-url="'+esc(data.url)+'" style="margin-left:8px;">' + t('kopier') + '</button></div>';
+  html += ' <button class="btn btn-ghost btn-sm" onclick="var t=document.createElement(\'textarea\');t.value=this.dataset.url;document.body.appendChild(t);t.select();document.execCommand(\'copy\');document.body.removeChild(t);showToast(\'' + t('inf_copied_excl','Kopiert!') + '\',\'success\',1500);" data-url="'+esc(data.url)+'" style="margin-left:8px;">' + t('kopier') + '</button></div>';
   html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">' + t('2_logg_inn_med_azure_ad_nettleseren_vil_') + ' <code>localhost:2023</code> ' + t('den_vil_feile_det_er_forventet') + '</div>';
   html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">' + t('3_kopier_hele_urlen_fra_adressefeltet_og') + '</div>';
   html += '<div style="display:flex;gap:8px;margin-bottom:12px;">';
@@ -893,7 +893,7 @@ async function pkceComplete(profileId) {
   if (!url) { showToast(t('lim_inn_urlen_fra_nettleseren'),'error'); return; }
 
   var statusEl = document.getElementById('pkce-status');
-  if (statusEl) statusEl.innerHTML = '<div class="loader" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:8px;"></div> Henter token...';
+  if (statusEl) statusEl.innerHTML = '<div class="loader" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:8px;"></div> ' + t('inf_fetching_token','Henter token ...') + '';
 
   var result = await apiFetch('/api/vpn/azure/pkce-complete', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -980,11 +980,11 @@ function vpnCreateProtocolChanged() {
 
   if (protocol === 'fortigate_ipsec') {
     el.innerHTML = label('FortiGate Gateway')
-      + input('fg-host', 'Hostname / IP (f.eks. vpn.kunde.no)')
-      + label('Brukernavn (EAP)')
-      + input('fg-user', 'VPN-brukernavn')
-      + label('Passord')
-      + input('fg-pass', 'VPN-passord', 'password')
+      + input('fg-host', t('inf_ph_vpn_host','Hostname / IP (f.eks. vpn.kunde.no)'))
+      + label(t('inf_username_eap','Brukernavn (EAP)'))
+      + input('fg-user', t('inf_vpn_user','VPN-brukernavn'))
+      + label(t('inf_password','Passord'))
+      + input('fg-pass', t('inf_vpn_pass','VPN-passord'), 'password')
       + label('Pre-Shared Key (PSK)')
       + input('fg-psk', 'IKE PSK', 'password')
       + label(t('lbl_split_tunnel_routes','Split-tunnel routes (comma-separated, optional)'))
@@ -1008,9 +1008,9 @@ function vpnCreateProtocolChanged() {
   } else if (protocol === 'openvpn') {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">' + t('msg_openvpn_recommend_import','For OpenVPN we recommend using <strong>' + t('import_file') + '</strong> ' + t('with_an_ovpn_file') + '<br>Or enter connection details:') + '</p>'
       + label(t('lbl_username_optional','Username (optional)'))
-      + input('ovpn-user', 'VPN-brukernavn')
+      + input('ovpn-user', t('inf_vpn_user','VPN-brukernavn'))
       + label(t('lbl_password_optional','Password (optional)'))
-      + input('ovpn-pass', 'VPN-passord', 'password')
+      + input('ovpn-pass', t('inf_vpn_pass','VPN-passord'), 'password')
       + label(t('lbl_config_paste_ovpn','Configuration (paste .ovpn content)'))
       + '<textarea id="vpn-c-ovpn-conf" placeholder="client\nremote vpn.server.no 1194\n..." style="width:100%;height:120px;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:var(--mono);"></textarea>';
   } else if (protocol === 'azure') {
@@ -1331,7 +1331,7 @@ function liveRenderDevices(devices) {
       html += '<span>' + t('minne') + ' <span style="color:'+memColor+';font-weight:600;">'+d.mem_pct+'%</span></span>';
     }
     if (d.sessions !== undefined && d.sessions !== null) html += '<span>Sesjoner: '+d.sessions.toLocaleString()+'</span>';
-    if (d.vpn_tunnels !== undefined && d.vpn_tunnels !== null) html += '<span>VPN: '+d.vpn_tunnels+' tunnel(er)</span>';
+    if (d.vpn_tunnels !== undefined && d.vpn_tunnels !== null) html += '<span>VPN: '+d.vpn_tunnels+' ' + t('inf_tunnels','tunnel(er)') + '</span>';
     if (d.ha_mode && d.ha_mode !== 'Standalone') html += '<span>HA: '+d.ha_mode+'</span>';
     if (d.clients !== undefined && d.clients !== null) html += '<span>Klienter: '+d.clients+'</span>';
     html += '</div>';
@@ -1909,7 +1909,7 @@ function provisionRenderVlans(vlans) {
       + '</tr>';
   }
   html += '</tbody></table>'
-    + '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Hver VLAN får standard policy: VLAN → WAN, NAT, full UTM. Spesialcase (no-UTM, web-only osv.) konfigurerer du i FortiGate-GUI etter generering.</div>';
+    + '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">' + t('inf_vlan_policy_hint','Hver VLAN får standard policy: VLAN → WAN, NAT, full UTM. Spesialcase (no-UTM, web-only osv.) konfigurerer du i FortiGate-GUI etter') + ' generering.</div>';
   el.innerHTML = html;
 }
 
@@ -2040,10 +2040,10 @@ function _renderConfigSummary(s) {
     html += '<div><strong>' + t('split_tunnel') + '</strong> ' + esc(s.vpn.split_tunnel) + '</div>';
     html += '<div style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">';
     html += '<strong>' + t('bruker') + '</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;">' + esc(s.vpn.user) + '</code>';
-    html += ' &nbsp; <strong>' + t('passord_2') + '</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'Kopiert\',\'success\',1500)">' + esc(s.vpn.user_password) + '</code>';
+    html += ' &nbsp; <strong>' + t('passord_2') + '</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'' + t('inf_copied','Kopiert') + '\',\'success\',1500)">' + esc(s.vpn.user_password) + '</code>';
     html += '</div>';
     html += '<div style="grid-column:1/-1;">';
-    html += '<strong>PSK:</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;word-break:break-all;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'Kopiert\',\'success\',1500)">' + esc(s.vpn.psk) + '</code>';
+    html += '<strong>PSK:</strong> <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;cursor:pointer;word-break:break-all;" onclick="navigator.clipboard.writeText(this.textContent);showToast(\'' + t('inf_copied','Kopiert') + '\',\'success\',1500)">' + esc(s.vpn.psk) + '</code>';
     html += '</div></div>';
   }
 
@@ -2090,7 +2090,7 @@ function provisionDownloadSummary() {
   lines.push('');
   lines.push('VLANS');
   lines.push('─'.repeat(60));
-  lines.push('  ' + 'ID'.padEnd(6) + 'Navn'.padEnd(16) + 'Interface'.padEnd(22) + 'Subnet'.padEnd(20) + 'GW');
+  lines.push('  ' + 'ID'.padEnd(6) + t('inf_col_name','Navn').padEnd(16) + 'Interface'.padEnd(22) + 'Subnet'.padEnd(20) + 'GW');
   (s.vlans || []).forEach(function(v) {
     lines.push('  ' + String(v.id).padEnd(6) + (v.name||'').padEnd(16) + (v.interface||'').padEnd(22) + (v.subnet||'').padEnd(20) + (v.gateway||''));
   });
@@ -2098,7 +2098,7 @@ function provisionDownloadSummary() {
   if (s.vpn) {
     lines.push('IPSEC VPN');
     lines.push('─'.repeat(60));
-    lines.push('  Navn:           ' + (s.vpn.name || ''));
+    lines.push('  ' + t('inf_lbl_name','Navn:').padEnd(16) + (s.vpn.name || ''));
     lines.push('  Type:           ' + (s.vpn.type || ''));
     lines.push('  WAN interface:  ' + (s.vpn.wan_interface || ''));
     lines.push('  Kryptering:     ' + (s.vpn.proposal || ''));
@@ -2107,8 +2107,8 @@ function provisionDownloadSummary() {
     lines.push('  Split-tunnel:   ' + (s.vpn.split_tunnel || ''));
     lines.push('');
     lines.push('  ⚠ CREDENTIALS (OPPBEVAR SIKKERT)');
-    lines.push('  Bruker:         ' + (s.vpn.user || ''));
-    lines.push('  Passord:        ' + (s.vpn.user_password || ''));
+    lines.push('  ' + t('inf_lbl_user','Bruker:').padEnd(16) + (s.vpn.user || ''));
+    lines.push('  ' + t('inf_lbl_password','Passord:').padEnd(16) + (s.vpn.user_password || ''));
     lines.push('  PSK:            ' + (s.vpn.psk || ''));
     lines.push('');
   }
@@ -2169,7 +2169,7 @@ async function dashLoadFortiGates() {
   // ── KPI row: fixed-height cards, no justify-content ──
   var html = '<div class="card-grid card-grid--kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">';
   var kpis = [
-    {label:'Brannmurer', value:fgs.length, sub:online+' online'+(errors?' / '+errors+' feil':''), color:'var(--blue)'},
+    {label:'Brannmurer', value:fgs.length, sub:online+' online'+(errors?' / '+errors+' ' + t('inf_errors_lc','feil'):''), color:'var(--blue)'},
     {label:'Snitt CPU', value:avgCpu+'%', sub:'-', color: avgCpu>60?'var(--orange)':'var(--green)'},
     {label:'Snitt minne', value:avgMem+'%', sub:'-', color: avgMem>70?'var(--orange)':'var(--green)'},
     {label:'VPN-tunneler', value:totalVpn, sub:'totalt', color:'var(--purple)'},
@@ -2352,7 +2352,7 @@ function dashFgDetail(customerId) {
 
       // SSL VPN active users
       if (ex.ssl_vpn_users && ex.ssl_vpn_users.length) {
-        h += '<div style="font-size:12px;font-weight:600;margin:12px 0 6px;">SSL VPN-brukere ('+ex.ssl_vpn_users.length+' aktive)</div>';
+        h += '<div style="font-size:12px;font-weight:600;margin:12px 0 6px;">' + t('inf_ssl_vpn_users','SSL VPN-brukere') + ' ('+ex.ssl_vpn_users.length+' aktive)</div>';
         h += '<table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:4px;">' + t('bruker') + '</th><th>' + t('remote_ip') + '</th><th>' + t('tunnel_ip') + '</th><th>' + t('varighet') + '</th></tr></thead><tbody>';
         ex.ssl_vpn_users.forEach(function(u) {
           var dur = u.duration > 3600 ? Math.floor(u.duration/3600)+'t '+Math.floor((u.duration%3600)/60)+'m' : Math.floor(u.duration/60)+'m';
@@ -2433,15 +2433,15 @@ function dashFgDetail(customerId) {
       if (ex.dns && ex.dns.primary) {
         h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">DNS</div>';
         h += '<div style="font-size:10px;color:var(--text-muted);">' + t('primaer') + ' <strong>'+esc(ex.dns.primary)+'</strong></div>';
-        if (ex.dns.secondary) h += '<div style="font-size:10px;color:var(--text-muted);">Sekundær: '+esc(ex.dns.secondary)+'</div>';
+        if (ex.dns.secondary) h += '<div style="font-size:10px;color:var(--text-muted);">' + t('inf_secondary','Sekundær') + ': '+esc(ex.dns.secondary)+'</div>';
         h += '</div>';
       }
       if (ex.admins && ex.admins.length) {
         h += '<div class="card" style="padding:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">Admin-kontoer ('+ex.admins.length+')</div>';
         ex.admins.forEach(function(a){
           var warns = [];
-          if (!a.two_factor) warns.push('ingen 2FA');
-          if (!a.trusthost) warns.push('ingen trusthost');
+          if (!a.two_factor) warns.push(t('inf_no_2fa','ingen 2FA'));
+          if (!a.trusthost) warns.push(t('inf_no_trusthost','ingen trusthost'));
           var warnHtml = warns.length ? ' <span style="color:var(--orange);font-size:9px;">⚠ '+warns.join(', ')+'</span>' : '';
           h += '<div style="font-size:10px;color:var(--text-muted);padding:2px 0;"><strong>'+esc(a.name||'-')+'</strong>'+(a.profile?' ('+esc(a.profile)+')':'')+warnHtml+'</div>';
         });
@@ -2516,7 +2516,7 @@ async function claudeCheckCli() {
   if (data && data.available) {
     el.innerHTML = '<span style="color:var(--green);">✓ Claude CLI funnet — ' + data.version + '</span>';
   } else {
-    el.innerHTML = '<span style="color:var(--red);">✗ ' + (data && data.error ? data.error : 'Claude CLI ikke funnet') + '</span><br><span style="font-size:11px;color:var(--text-dim);">Installer: npm install -g @anthropic-ai/claude-code</span>';
+    el.innerHTML = '<span style="color:var(--red);">✗ ' + (data && data.error ? data.error : t('inf_claude_missing','Claude CLI ikke funnet')) + '</span><br><span style="font-size:11px;color:var(--text-dim);">Installer: npm install -g @anthropic-ai/claude-code</span>';
   }
 }
 
@@ -2560,7 +2560,7 @@ async function fgBootstrap() {
   if (!host) { showToast(t('angi_fortigate_ip_adresse'), 'warning'); return; }
 
   btn.disabled = true;
-  status.textContent = 'Kobler til ' + host + ' med fabrikkinnstillinger...';
+  status.textContent = t('inf_connecting_factory','Kobler til') + ' ' + host + ' ' + t('inf_with_factory_defaults','med fabrikkinnstillinger ...');
   resultBox.style.display = 'none';
 
   try {
@@ -2583,7 +2583,7 @@ async function fgBootstrap() {
         '</table>' +
         '<div style="margin-top:10px;display:flex;gap:8px;">' +
         '<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;" onclick="fgBootstrapAutoFill(\'' + esc(d.host) + '\',\'' + esc(d.api_token) + '\')">' + t('fyll_inn_og_lagre') + '</button>' +
-        '<button class="btn btn-default" style="font-size:11px;padding:4px 12px;" onclick="navigator.clipboard.writeText(\'' + esc(d.api_token) + '\');showToast(\'API-token kopiert\',\'success\')">' + t('kopier_token') + '</button>' +
+        '<button class="btn btn-default" style="font-size:11px;padding:4px 12px;" onclick="navigator.clipboard.writeText(\'' + esc(d.api_token) + '\');showToast(\'' + t('inf_token_copied','API-token kopiert') + '\',\'success\')">' + t('kopier_token') + '</button>' +
         '</div>' +
         '<div style="margin-top:8px;font-size:11px;color:var(--green);">' + (d.persisted ? t('msg_creds_in_keyring') : t('msg_creds_not_persisted') + (d.persist_error ? ' (' + esc(d.persist_error) + ')' : '') + ' ' + t('msg_save_password_now')) + '</div>';
 
@@ -2640,21 +2640,21 @@ async function fgDownloadCredentials() {
 
     var lines = [
       '# FortiGate credentials',
-      '# Kunde:        ' + (d.customer_name || ''),
-      '# Generert:     ' + (d.bootstrapped_at || '(ukjent)'),
-      '# Lastet ned:   ' + new Date().toISOString(),
+      '# ' + t('inf_hdr_customer','Kunde:').padEnd(14) + (d.customer_name || ''),
+      '# Generert:     ' + (d.bootstrapped_at || t('inf_unknown_paren','(ukjent)')),
+      '# ' + t('inf_hdr_downloaded','Lastet ned:').padEnd(14) + new Date().toISOString(),
       '#',
-      '# ADVARSEL: Inneholder hemmeligheter. Slett etter bruk eller lagre kryptert.',
+      '# ' + t('inf_secret_warning','ADVARSEL: Inneholder hemmeligheter. Slett etter bruk eller lagre kryptert.'),
       '',
       'Host:           ' + (d.host || ''),
       'Port (HTTPS):   ' + (d.port || 8443),
       'Admin URL:      https://' + (d.host || '') + ':' + (d.port || 8443),
       '',
       'Admin user:     ' + (d.admin_user || 'admin'),
-      'Admin password: ' + (d.admin_password || '(ikke lagret)'),
+      'Admin password: ' + (d.admin_password || t('inf_not_stored','(ikke lagret)')),
       '',
       'API user:       ' + (d.api_user || 'msp_api_admin'),
-      'API token:      ' + (d.api_token || '(ikke lagret)'),
+      'API token:      ' + (d.api_token || t('inf_not_stored','(ikke lagret)')),
       ''
     ];
     var blob = new Blob([lines.join('\n')], {type: 'text/plain;charset=utf-8'});
@@ -2669,7 +2669,7 @@ async function fgDownloadCredentials() {
     URL.revokeObjectURL(url);
     showToast(t('credentials_lastet_ned'), 'success');
   } catch (e) {
-    showToast(e.message || 'Kunne ikke hente credentials', 'error');
+    showToast(e.message || t('inf_creds_failed','Kunne ikke hente credentials'), 'error');
   }
 }
 
@@ -2769,17 +2769,17 @@ async function dashLoadUnifiAll() {
   var summary = data.summary || {};
 
   if (!devices.length && !summary.configured_customers) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">Ingen UniFi-enheter konfigurert. Legg til under Integrasjoner per kunde.</div>';
+    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('inf_no_unifi','Ingen UniFi-enheter konfigurert. Legg til under Integrasjoner per kunde.') + '</div>';
     return;
   }
 
   // KPI cards
   var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">';
   var kpis = [
-    {label:'Enheter', value:summary.total_devices||0, sub:(summary.online||0)+' online', color:'var(--blue)'},
-    {label:'Online', value:summary.online||0, sub:summary.offline?summary.offline+' offline':'alle oppe', color:summary.offline?'var(--orange)':'var(--green)'},
-    {label:'Klienter', value:summary.total_clients||0, sub:'tilkoblet', color:'var(--purple)'},
-    {label:'Kunder', value:summary.configured_customers||0, sub:'med UniFi', color:'var(--text-muted)'},
+    {label:t('inf_devices','Enheter'), value:summary.total_devices||0, sub:(summary.online||0)+' online', color:'var(--blue)'},
+    {label:'Online', value:summary.online||0, sub:summary.offline?summary.offline+' offline':t('inf_all_up','alle oppe'), color:summary.offline?'var(--orange)':'var(--green)'},
+    {label:'Klienter', value:summary.total_clients||0, sub:t('inf_connected_lc','tilkoblet'), color:'var(--purple)'},
+    {label:t('inf_customers','Kunder'), value:summary.configured_customers||0, sub:t('inf_with_unifi','med UniFi'), color:'var(--text-muted)'},
   ];
   kpis.forEach(function(k) {
     html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';"><div style="font-size:20px;font-weight:700;">'+k.value+'</div><div style="font-size:11px;color:var(--text-muted);">'+k.label+'</div><div style="font-size:10px;color:var(--text-dim);">'+k.sub+'</div></div>';
@@ -2820,7 +2820,7 @@ async function dashLoadUnifiAll() {
         // Aggregate alerts from sub_sites
         var cardCrit = 0;
         if (d.sub_sites) d.sub_sites.forEach(function(ss) { cardCrit += ss.critical_notifications||0; });
-        if (cardCrit) html += '<span style="color:var(--red);grid-column:1/-1;">⚠ '+cardCrit+' kritiske varsler</span>';
+        if (cardCrit) html += '<span style="color:var(--red);grid-column:1/-1;">⚠ '+cardCrit+' ' + t('inf_critical_alerts','kritiske varsler') + '</span>';
         if (d.firmware_update) html += '<span style="color:var(--orange);grid-column:1/-1;">⬆ '+esc(d.firmware_update)+'</span>';
       } else {
         html += '<span>Uptime: '+(d.uptime?_formatUptime(d.uptime):'-')+'</span>';
@@ -2895,7 +2895,7 @@ function dashUnifiDetail(idx) {
   // ── KPI row ──
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:16px;">';
   var kpis = [
-    {l:'Enheter', v:d.device_count||0, c:'var(--blue)'},
+    {l:t('inf_devices','Enheter'), v:d.device_count||0, c:'var(--blue)'},
     {l:'Klienter', v:d.clients||0, c:'var(--purple)'},
     {l:'Sites', v:d.site_count||0, c:'var(--text-muted)'},
   ];
@@ -2911,8 +2911,8 @@ function dashUnifiDetail(idx) {
   if (d.registered || d.last_backup || d.last_connection) {
     h += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text-dim);margin-bottom:16px;">';
     if (d.registered) h += '<span>Registrert: '+new Date(d.registered).toLocaleDateString('no-NO')+'</span>';
-    if (d.last_backup) h += '<span>Siste backup: '+new Date(d.last_backup).toLocaleString('no-NO')+'</span>';
-    if (d.last_connection) h += '<span>Siste tilkobling: '+new Date(d.last_connection).toLocaleString('no-NO')+'</span>';
+    if (d.last_backup) h += '<span>' + t('inf_last_backup','Siste backup') + ': '+new Date(d.last_backup).toLocaleString('no-NO')+'</span>';
+    if (d.last_connection) h += '<span>' + t('inf_last_connection','Siste tilkobling') + ': '+new Date(d.last_connection).toLocaleString('no-NO')+'</span>';
     h += '</div>';
   }
 
@@ -2969,7 +2969,7 @@ function dashUnifiDetail(idx) {
       if (s.isp_org) details.push('ISP org: '+esc(s.isp_org));
       if (s.isp_asn) details.push('ASN: '+esc(s.isp_asn));
       if (s.country) details.push('Land: '+esc(s.country));
-      if (s.internet_issues && s.internet_issues.length) details.push('<span style="color:var(--orange);">⚠ '+s.internet_issues.length+' nettverksproblem(er)</span>');
+      if (s.internet_issues && s.internet_issues.length) details.push('<span style="color:var(--orange);">⚠ '+s.internet_issues.length+' ' + t('inf_network_issues','nettverksproblem(er)') + '</span>');
       if (details.length) {
         h += '<tr style="border-bottom:1px solid var(--border);background:var(--bg-input);">';
         h += '<td colspan="12" style="padding:4px 8px 4px 24px;font-size:11px;color:var(--text-dim);">'+details.join(' · ')+'</td></tr>';
@@ -3026,7 +3026,7 @@ async function _loadUnifiDevices(panelId, hostId) {
   var devs = data.devices;
   var typeIcons = {uap:'📶', usw:'🔌', ugw:'🌐', uxg:'🌐', udm:'🖥', ubb:'🔗'};
 
-  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Enheter ('+devs.length+')</div>';
+  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('inf_devices','Enheter') + ' ('+devs.length+')</div>';
   h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:800px;">';
   h += '<thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);font-size:11px;">';
   h += '<th style="text-align:left;padding:6px 8px;">' + t('enhet') + '</th>';
@@ -3201,14 +3201,14 @@ async function runPentest() {
   var scanType = document.getElementById('pentest-type').value;
   var scanMode = document.getElementById('pentest-scan-mode').value;
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Scanner ' + esc(target) + '... Dette kan ta opptil 5 minutter.</div>';
+  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Scanner ' + esc(target) + '... ' + t('inf_may_take_5min','Dette kan ta opptil 5 minutter.') + '</div>';
 
   var endpoint = scanType === 'port' ? '/api/pentest/port-scan' : scanType === 'web' ? '/api/pentest/web-scan' : '/api/pentest/full-scan';
   var body = scanType === 'web' ? {url: target} : {target: target, scan_type: scanMode};
   var data = await apiFetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
 
   if (!data || !data.ok) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data && data.error ? data.error : 'Ukjent feil') + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data && data.error ? data.error : t('inf_unknown_error','Ukjent feil')) + '</div>';
     return;
   }
 
@@ -3380,7 +3380,7 @@ async function runDnsPentest() {
 
   var data = await apiFetch('/api/pentest/dns-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain:target})});
   if (!data || !data.ok) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data&&data.error?data.error:'Ukjent feil') + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data&&data.error?data.error:t('inf_unknown_error','Ukjent feil')) + '</div>';
     return;
   }
 
@@ -3420,17 +3420,17 @@ async function runCredentialTest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_host_ip'), 'error'); return; }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Tester standard-passord på ' + esc(target) + '...</div>';
+  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('inf_testing_default_pw','Tester standard-passord på') + ' ' + esc(target) + '...</div>';
 
   var data = await apiFetch('/api/pentest/credential-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
   if (!data || !data.ok) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data&&data.error?data.error:'Ukjent feil') + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);"><strong style="color:var(--red);">' + t('feil_2') + '</strong> ' + esc(data&&data.error?data.error:t('inf_unknown_error','Ukjent feil')) + '</div>';
     return;
   }
 
   var findings = data.findings || [];
   if (!findings.length) {
-    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--green);">✓ Ingen standard-passord funnet på ' + esc(target) + '</div>';
+    el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--green);">✓ ' + t('inf_no_default_pw','Ingen standard-passord funnet på') + ' ' + esc(target) + '</div>';
     return;
   }
 
@@ -3473,9 +3473,9 @@ async function runCmsScan() {
   var el = document.getElementById('pentest-results');
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">CMS-skanning: ' + esc(target) + '...</div>';
   var data = await apiFetch('/api/pentest/cms-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:target})});
-  if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">Feil: ' + esc(data&&data.error?data.error:'Ukjent') + '</div>'; return; }
+  if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   var cms = data.cms || {};
-  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('cms') + '</strong> ' + esc(cms.cms||'Ingen detektert') + (cms.version ? ' v'+esc(cms.version) : '') + '</div>';
+  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('cms') + '</strong> ' + esc(cms.cms||t('inf_none_detected','Ingen detektert')) + (cms.version ? ' v'+esc(cms.version) : '') + '</div>';
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:new Date().toISOString()}, el, target);
   el.innerHTML = html + el.innerHTML;
   window._lastPentestData = data;
@@ -3485,9 +3485,9 @@ async function runSmbEnum() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_ip_hostname'), 'error'); return; }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">SMB-enumerering: ' + esc(target) + '... (kan ta 60s)</div>';
+  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">SMB-enumerering: ' + esc(target) + '... ' + t('inf_may_take_60s','(kan ta 60s)') + '</div>';
   var data = await apiFetch('/api/pentest/smb-enum', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
-  if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">Feil: ' + esc(data&&data.error?data.error:'Ukjent') + '</div>'; return; }
+  if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:new Date().toISOString()}, el, target);
   window._lastPentestData = data;
 }
@@ -3500,9 +3500,9 @@ async function runSegTest() {
   if (!custId) { showToast(t('velg_en_kunde_med_fortigate'), 'error'); return; }
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('tester_nettverkssegmentering_for_aktiv_kunde') + '</div>';
   var data = await apiFetch('/api/pentest/segmentation-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_id:custId})});
-  if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">Feil: ' + esc(data&&data.error?data.error:'Ukjent') + '</div>'; return; }
+  if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   var s = data.summary||{};
-  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('segmentering') + '</strong> ' + s.pass + ' OK, ' + s.fail + ' feilet av ' + s.total_tests + ' tester</div>';
+  var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('segmentering') + '</strong> ' + s.pass + ' OK, ' + s.fail + ' ' + t('inf_failed_of','feilet av') + ' ' + s.total_tests + ' tester</div>';
   _renderPentestResults({ok:true, findings:data.findings||[], summary:{critical:s.critical||0,high:s.high||0,medium:s.medium||0,low:0,info:s.total_tests-(s.critical||0)-(s.high||0)-(s.medium||0),total:data.findings.length}, timestamp:new Date().toISOString()}, el, 'segmentering');
   el.innerHTML = html + el.innerHTML;
   window._lastPentestData = data;
@@ -3595,7 +3595,7 @@ async function dashLoadSites() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
   var data = await apiFetch('/api/unifi/site-manager/sites');
   if (!data || !data.sites) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">Ingen siter tilgjengelig. Konfigurer UniFi Site Manager under Integrasjoner.</div>';
+    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('inf_no_sites','Ingen siter tilgjengelig. Konfigurer UniFi Site Manager under Integrasjoner.') + '</div>';
     return;
   }
   _unifiSites = data.sites;
@@ -3803,7 +3803,7 @@ function _renderSiteTable(sites) {
       html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
       html += '<strong style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;" title="'+sub.name+'">'+sub.name+'</strong>';
       if (sub.offline_devices > 0) html += '<span style="font-size:10px;color:var(--red);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:8px;">'+sub.offline_devices+' offline</span>';
-      if (sub.critical_notifications > 0) html += '<span style="font-size:10px;color:var(--orange);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:6px;">'+sub.critical_notifications+' varsel</span>';
+      if (sub.critical_notifications > 0) html += '<span style="font-size:10px;color:var(--orange);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:6px;">'+sub.critical_notifications+' ' + t('inf_alert_sg','varsel') + '</span>';
       html += '</div>';
 
       // ROW 2: stats (1fr)
@@ -3871,7 +3871,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
   html += '<button class="btn btn-ghost" onclick="dashLoadSites()" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>';
   html += '<h3 style="font-size:16px;font-weight:700;margin:0;">'+s.name+'</h3>';
-  html += '<span style="font-size:12px;color:var(--text-muted);">del av '+host.name+'</span>';
+  html += '<span style="font-size:12px;color:var(--text-muted);">' + t('inf_part_of','del av') + ' '+host.name+'</span>';
   html += '</div>';
 
   // Status cards row
@@ -3925,14 +3925,14 @@ function showSubSiteDetail(hostIdx, subIdx) {
 
   // Offline
   if (s.offline_devices > 0) {
-    rows.push(['Offline enheter', '<span style="color:var(--red);font-weight:600;">'+s.offline_devices+'</span> ('+(s.offline_wifi||0)+' WiFi, '+(s.offline_wired||0)+' kabel)']);
+    rows.push([t('inf_offline_devices','Offline enheter'), '<span style="color:var(--red);font-weight:600;">'+s.offline_devices+'</span> ('+(s.offline_wifi||0)+' WiFi, '+(s.offline_wired||0)+' kabel)']);
   } else {
-    rows.push(['Offline enheter', '<span style="color:var(--green);">' + t('ingen_alt_online') + '</span>']);
+    rows.push([t('inf_offline_devices','Offline enheter'), '<span style="color:var(--green);">' + t('ingen_alt_online') + '</span>']);
   }
 
   // Updates
   if (s.pending_updates > 0) {
-    rows.push(['Ventende oppdateringer', '<span style="color:var(--orange);font-weight:600;">'+s.pending_updates+' enhet(er)</span>']);
+    rows.push([t('inf_pending_updates','Ventende oppdateringer'), '<span style="color:var(--orange);font-weight:600;">'+s.pending_updates+' ' + t('inf_devices_paren','enhet(er)') + '</span>']);
   } else {
     rows.push(['Firmware', '<span style="color:var(--green);">' + t('alt_oppdatert') + '</span>']);
   }
@@ -3986,7 +3986,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
     var devEl = document.getElementById('subsite-devices');
     if (devEl && s.device_count > 0) {
       var dhtml = '<div class="card" style="padding:16px;">';
-      dhtml += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">Enheter ('+s.device_count+')</div>';
+      dhtml += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">' + t('inf_devices','Enheter') + ' ('+s.device_count+')</div>';
       dhtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">';
       var types = [
         {label:'WiFi AP', count:s.wifi_devices||0, icon:'📡'},
@@ -4075,7 +4075,7 @@ async function _loadSubSiteLiveData(siteName) {
       }
       h += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 6px;">'+esc(c.hostname||c.name||c.mac||'-')+'</td><td style="padding:3px 6px;font-family:var(--mono);font-size:10px;">'+esc(c.ip||'-')+'</td><td style="padding:3px 6px;text-align:center;">'+typeIcon+'</td><td style="padding:3px 6px;text-align:center;">'+sigHtml+'</td><td style="padding:3px 6px;font-size:10px;color:var(--text-muted);">'+esc(c.connected_to||'-')+'</td></tr>';
     });
-    if (clients.length > 50) h += '<tr><td colspan="5" style="padding:6px;text-align:center;color:var(--text-muted);font-size:10px;">... og '+(clients.length-50)+' til</td></tr>';
+    if (clients.length > 50) h += '<tr><td colspan="5" style="padding:6px;text-align:center;color:var(--text-muted);font-size:10px;">... ' + t('inf_and_more','og') + ' '+(clients.length-50)+' ' + t('inf_more_suffix','til') + '</td></tr>';
     h += '</tbody></table></div>';
   } else {
     h += '<div style="font-size:11px;color:var(--text-muted);">'+t('msg_no_client_data','No client data available — check UniFi controller config on customer.')+'</div>';
@@ -4116,7 +4116,7 @@ async function _loadSubSiteDevices(host, site) {
 
   var html = '<div class="card" style="padding:16px;">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
-  html += '<div style="font-size:13px;font-weight:600;">Enheter ('+devices.length+')</div>';
+  html += '<div style="font-size:13px;font-weight:600;">' + t('inf_devices','Enheter') + ' ('+devices.length+')</div>';
   html += '<div style="font-size:12px;color:var(--text-muted);">'+online+' online';
   if (offline > 0) html += ', <span style="color:var(--red);">'+offline+' offline</span>';
   html += '</div></div>';
@@ -4168,7 +4168,7 @@ async function _loadSubSiteWan(site) {
       if (w.external_ip) html += '<span>' + t('ekstern_ip') + ' <strong style="color:var(--text);">'+w.external_ip+'</strong></span>';
       if (w.isp) html += '<span>ISP: '+w.isp+(w.isp_org ? ' ('+w.isp_org+')' : '')+'</span>';
       html += '<span>' + t('uptime') + ' <span style="color:'+uptimeColor+';font-weight:600;">'+w.uptime_pct+'%</span></span>';
-      if (w.issues && w.issues.length) html += '<span style="color:var(--red);">'+w.issues.length+' problem(er)</span>';
+      if (w.issues && w.issues.length) html += '<span style="color:var(--red);">'+w.issues.length+' ' + t('inf_problems','problem(er)') + '</span>';
       html += '</div></div>';
     });
     html += '</div></div>';
@@ -4216,12 +4216,12 @@ function showSiteDetail(idx) {
     ['MAC',             s.mac || '-'],
     ['Serienummer',     s.serial || '-'],
     ['ISP',             s.isp || '-'],
-    ['Enheter',         devHtml],
+    [t('inf_devices','Enheter'), devHtml],
     ['Klienter',        s.client_count != null ? s.client_count : '-'],
     ['Siter',           s.site_count != null ? s.site_count : '-'],
     ['Registrert',      s.registered ? new Date(s.registered).toLocaleDateString('no-NO') : '-'],
-    ['Siste backup',    s.last_backup ? new Date(s.last_backup).toLocaleString('no-NO') : '-'],
-    ['Siste tilkobling',s.last_connection ? new Date(s.last_connection).toLocaleString('no-NO') : '-'],
+    [t('inf_last_backup','Siste backup'), s.last_backup ? new Date(s.last_backup).toLocaleString('no-NO') : '-'],
+    [t('inf_last_connection','Siste tilkobling'),s.last_connection ? new Date(s.last_connection).toLocaleString('no-NO') : '-'],
   ];
   rows.forEach(function(r) {
     html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;color:var(--text-muted);width:140px;">'+r[0]+'</td><td style="padding:8px;">'+r[1]+'</td></tr>';
@@ -4730,7 +4730,7 @@ async function browserStart() {
   });
 
   if (!data || !data.ok) {
-    if (status) status.innerHTML = '<span style="color:var(--red);">' + esc(data && data.error ? data.error : 'Feil ved start') + '</span>';
+    if (status) status.innerHTML = '<span style="color:var(--red);">' + esc(data && data.error ? data.error : t('inf_start_failed','Feil ved start')) + '</span>';
     return;
   }
 
@@ -4768,7 +4768,7 @@ async function browserNavigate() {
   });
 
   if (!data || !data.ok) {
-    if (status) status.innerHTML = '<span style="color:var(--red);">' + esc(data && data.error ? data.error : 'Feil') + '</span>';
+    if (status) status.innerHTML = '<span style="color:var(--red);">' + esc(data && data.error ? data.error : t('inf_error','Feil')) + '</span>';
     return;
   }
 
@@ -4835,8 +4835,8 @@ function rdpInit() {
     '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">' +
       '<input id="rdp-host-input" type="text" placeholder="Vert (f.eks. 192.168.1.10)" style="flex:2;min-width:160px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-port-input" type="text" placeholder="3389" style="width:70px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
-      '<input id="rdp-user-input" type="text" placeholder="Brukernavn" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
-      '<input id="rdp-pass-input" type="password" placeholder="Passord" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')rdpStart();">' +
+      '<input id="rdp-user-input" type="text" placeholder="' + t('inf_ph_username','Brukernavn') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
+      '<input id="rdp-pass-input" type="password" placeholder="' + t('inf_ph_password','Passord') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')rdpStart();">' +
       '<button class="btn btn-success" id="rdp-start-btn" onclick="rdpStart()" style="padding:8px 16px;font-size:13px;">' + t('koble_til') + '</button>' +
       '<button class="btn btn-danger" id="rdp-stop-btn" onclick="rdpStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('koble_fra') + '</button>' +
       '<button class="btn btn-ghost" id="rdp-fullscreen-btn" onclick="toggleFullscreen(\'rdp-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">&#x26F6;</button>' +
@@ -4925,7 +4925,7 @@ async function rdpStart() {
     }
   } catch(e) {}
 
-  if (status) status.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></div> Kobler til...';
+  if (status) status.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></div> ' + t('inf_connecting','Kobler til ...') + '';
 
   var data = await apiFetch('/api/rdp/start', {
     method: 'POST',
@@ -4934,7 +4934,7 @@ async function rdpStart() {
   });
 
   if (!data || !data.ok) {
-    if (status) status.innerHTML = '<span style="color:var(--red);">' + esc(data && data.error ? data.error : 'Feil ved tilkobling') + '</span>';
+    if (status) status.innerHTML = '<span style="color:var(--red);">' + esc(data && data.error ? data.error : t('inf_connect_failed','Feil ved tilkobling')) + '</span>';
     return;
   }
 
@@ -4951,7 +4951,7 @@ async function rdpStop() {
   var placeholder = document.getElementById('rdp-placeholder');
   var guacContainer = document.getElementById('rdp-guac-container');
 
-  if (status) status.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></div> Kobler fra...';
+  if (status) status.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></div> ' + t('inf_disconnecting','Kobler fra ...') + '';
 
   // Destroy Guacamole session
   if (_guacSessions.rdp) {
