@@ -28,9 +28,16 @@ HTML = STATIC / "index.html"
 I18N = STATIC / "ui_i18n.json"
 
 # Elements whose whole content is one run of text can be tagged directly.
+#
+# The lookahead skips elements whose *text* is already tagged, which is
+# data-i18n= and nothing else. It used to read `data-i18n`, which also matched
+# data-i18n-title, data-i18n-aria-label and the rest — so an element with a
+# translated tooltip and untranslated text was invisible to this tool. That is
+# how the export button kept saying "Eksport" on an English UI while the
+# extractor reported nothing left to do.
 _SIMPLE = re.compile(
     r"<(label|option|button|p|div|span|h1|h2|h3|h4|strong|summary|td|th|li)"
-    r"\b(?![^>]*data-i18n)([^>]*)>([^<>]*[A-Za-zÆØÅæøå][^<>]*)</\1>"
+    r"\b(?![^>]*data-i18n\s*=)([^>]*)>([^<>]*[A-Za-zÆØÅæøå][^<>]*)</\1>"
 )
 
 
