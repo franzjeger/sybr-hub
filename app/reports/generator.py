@@ -897,6 +897,46 @@ def _first_prose_line(text: str) -> str:
     return ""
 
 
+def _parse_usage(summary_text: str, detail_text: str) -> dict:
+    """Licence usage, which the licence inventory alone cannot report.
+
+    subscribedSkus says how many seats are assigned. It says nothing about
+    whether anyone signed into them, and "106 of 106 assigned" reads as
+    healthy right up until you learn a fifth of them have not been touched
+    in a quarter.
+    """
+    result = {"total": 0, "active": 0, "no_activity": 0, "licensed_idle": 0,
+              "period_days": 90, "concealed": False,
+              "has_data": False, "unavailable": False, "unavailable_reason": ""}
+    if _evidence_unavailable(summary_text) and _evidence_unavailable(detail_text):
+        if (summary_text or detail_text or "").strip():
+            result["unavailable"] = True
+            result["unavailable_reason"] = (
+                _first_prose_line(detail_text) or _first_prose_line(summary_text)
+            )
+        return result
+
+    fields = {
+        "total": "total", "active users": "active", "no activity": "no_activity",
+        "licensed without activity": "licensed_idle", "period days": "period_days",
+    }
+    for line in (summary_text or "").splitlines():
+        if ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key, val = key.strip().lower(), val.strip()
+        if key == "names concealed":
+            result["concealed"] = val.lower() == "yes"
+            result["has_data"] = True
+        elif key in fields:
+            try:
+                result[fields[key]] = int(val)
+                result["has_data"] = True
+            except ValueError:
+                pass
+    return result
+
+
 def _parse_entra_devices(count_text: str, detail_text: str) -> dict:
     """The directory's own device register, beside the Intune one.
 
@@ -4886,6 +4926,7 @@ def build_report_context(
     admin_roles  = _parse_admin_roles(fc("07_admin_roles.txt"))
     intune       = _parse_intune_devices(fc("10_intune_devices_count.txt"), fc("10_intune_devices.txt"))
     entra_devices = _parse_entra_devices(fc("15_entra_devices_count.txt"), fc("15_entra_devices.txt"))
+    usage        = _parse_usage(fc("16_usage_summary.txt"), fc("16_usage_active_users.txt"))
     # The claim the Intune figure alone cannot make. Only stated when both
     # sides were actually read: an unmanaged count derived from a refusal is
     # the same mistake in a new place.
@@ -4960,6 +5001,7 @@ def build_report_context(
         "admin_roles":     admin_roles,
         "intune":          intune,
         "entra_devices":   entra_devices,
+        "usage":           usage,
         "sharepoint":      sharepoint,
         "oauth":           oauth,
         "groups":          groups,

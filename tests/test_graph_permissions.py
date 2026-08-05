@@ -79,6 +79,7 @@ def test_every_declared_permission_has_something_that_uses_it():
         "IdentityRiskyUser.Read.All": "riskyUsers",
         "Organization.Read.All": "organization",
         "Policy.Read.All": "policies",
+        "Reports.Read.All": "getOffice365ActiveUserDetail",
         "RoleManagement.Read.Directory": "roleManagement",
         "SecurityEvents.Read.All": "secureScores",
         "Sites.Read.All": "sites",

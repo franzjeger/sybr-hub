@@ -380,3 +380,47 @@ def test_the_unmanaged_gap_is_not_claimed_from_a_refusal(tmp_path):
     assert "entra_unmanaged" not in ctx["intune"], (
         "a gap was computed against a device count that was never read"
     )
+
+
+def test_idle_licences_are_named_beside_the_inventory(tmp_path):
+    """"106 of 106 assigned" reads as healthy. It is not a usage figure."""
+    files = {
+        "02_licenses.txt": (
+            "=" * 60 + "\n  LICENSE INVENTORY\n" + "=" * 60 + "\n"
+            "  SKU / Part Number      Used  Total    Pct  Status\n"
+            "  EXCHANGESTANDARD        106    106   100%\n"
+        ),
+        "16_usage_summary.txt": (
+            "MICROSOFT 365 USAGE SUMMARY\nPeriod days: 90\nTotal: 106\nDeleted: 0\n"
+            "Active users: 83\nNo activity: 23\nLicensed without activity: 23\n"
+            "Names concealed: no\n"
+        ),
+        "16_usage_active_users.txt": "=" * 40 + "\n  MICROSOFT 365 ACTIVE USERS  (last 90 days, 106 rows)\n",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["usage"]["licensed_idle"] == 23
+    assert ctx["usage"]["has_data"] is True
+    assert ctx["usage"]["concealed"] is False
+
+    text = _visible_text(_render_strict(tmp_path, "report_tech.html.j2", files))
+    assert "23" in text and "ingen registrert aktivitet" in text
+
+
+def test_a_refused_usage_report_claims_no_idle_licences(tmp_path):
+    files = {
+        "16_usage_summary.txt": "",
+        "16_usage_active_users.txt": (
+            "=" * 40 + "\n  MICROSOFT 365 ACTIVE USERS  (not available)\n" + "=" * 40 + "\n\n"
+            "  Graph refused this collection with 403. The app registration is "
+            "missing Reports.Read.All or its admin consent.\n"
+        ),
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["usage"]["unavailable"] is True
+    assert ctx["usage"]["has_data"] is False
+    assert ctx["usage"]["licensed_idle"] == 0
+
+    text = _visible_text(_render_strict(tmp_path, "report_tech.html.j2", files))
+    assert "ingen registrert aktivitet" not in text, (
+        "an idle-licence claim was made from a report that was never read"
+    )

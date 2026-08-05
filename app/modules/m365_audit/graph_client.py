@@ -151,6 +151,35 @@ class GraphClient:
         url  = f"{base}/{path.lstrip('/')}"
         return await self._get(url, params=params, extra_headers=extra_headers)
 
+
+    async def get_report(self, name: str, period: str = "D90") -> list[dict]:
+        """A Microsoft 365 usage report, as rows.
+
+        These endpoints answer CSV by default, behind a 302 to a storage URL —
+        the shared client does not follow redirects and would hand the
+        redirect body to json(). $format=application/json returns the rows
+        directly and needs neither.
+
+        The period is part of the path, not a query parameter, which is why
+        this cannot go through get_all.
+        """
+        url = f"{_GRAPH_BASE}/reports/{name}(period='{period}')"
+        data = await self._get(url, params={"$format": "application/json"})
+        if isinstance(data, dict) and data.get("error") in (401, 403):
+            raise GraphPermissionError(
+                f"reports/{name}", int(data["error"]), str(data.get("detail", ""))
+            )
+        rows = data.get("value", []) if isinstance(data, dict) else []
+        # Graph pages these like any other collection once they are large.
+        next_url = data.get("@odata.nextLink", "") if isinstance(data, dict) else ""
+        pages = 0
+        while next_url and pages < 50:
+            more = await self._get(next_url)
+            rows.extend(more.get("value", []))
+            next_url = more.get("@odata.nextLink", "")
+            pages += 1
+        return rows
+
     async def get_all(
         self,
         path: str,
