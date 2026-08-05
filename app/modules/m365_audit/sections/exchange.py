@@ -379,7 +379,7 @@ class ExchangeSection(BaseSection):
     async def _collect_sensitivity_labels(self) -> None:
         try:
             labels = await self.graph.get_all(
-                "security/informationProtection/sensitivityLabels",
+                "security/dataSecurityAndGovernance/sensitivityLabels",
                 beta=True,
                 params={"$top": "999"},
             )
@@ -392,13 +392,17 @@ class ExchangeSection(BaseSection):
             # is tenant-side provisioning or a moved beta path has to be
             # settled against Graph's reference, not guessed here.
             hint = ""
-            if "404" in str(ex) or "Not Found" in str(ex):
+            if "InsufficientGraphPermissions" in str(ex) or "403" in str(ex):
+                hint = (
+                    "  This endpoint needs SensitivityLabels.Read.All. "
+                    "InformationProtectionPolicy.Read.All\n"
+                    "  does not cover it — the two are separate app roles.\n"
+                )
+            elif "404" in str(ex) or "Not Found" in str(ex):
                 hint = (
                     "  Not a consent problem: a missing permission is refused with "
-                    "401 or 403.\n"
-                    "  Either this tenant has no Information Protection provisioning, "
-                    "or the\n  beta path has moved. Verify the endpoint against the "
-                    "Microsoft Graph\n  reference before changing it.\n"
+                    "401 or 403.\n  Not Found means the path is not a resource on "
+                    "this endpoint version.\n"
                 )
             self._save(
                 "19c_purview_sensitivity_labels.txt", f"Error: {ex}\n{hint}"

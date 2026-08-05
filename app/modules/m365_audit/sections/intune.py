@@ -68,6 +68,10 @@ class IntuneSection(BaseSection):
                 return (f"Graph refused this collection with {err.status}, reporting a "
                         "licence gap: the tenant does not have the Intune SKU this "
                         "endpoint requires. Granting a permission will not change that.")
+            if err.is_service_refusal:
+                return (f"The Intune service refused this collection ({err.status}). "
+                        "The DeviceManagement permission is not the problem — check "
+                        "whether this tenant has an Intune subscription at all.")
             perm = self._PERMISSION.get(filename, "the matching DeviceManagement permission")
             return (f"Graph refused this collection with {err.status}: the app "
                     f"registration is missing {perm} or its admin consent.")
