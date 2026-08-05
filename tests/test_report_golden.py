@@ -35,17 +35,18 @@ from tests.audit_fixture import FULL_AUDIT
 # cross-tenant access, whose source file was only readable once the collector
 # was pointed at the right endpoint.
 #
-# Then 7.2.4 moved pass -> info (assessed 31 -> 30, pass 30 -> 29, info 4 -> 5).
-# The OneDrive collector reads permissions on drive roots only, so its zero
-# anonymous links means "none at the root", not "none in the tenant". It now
-# states that scope in the file and the control reports it rather than passing
-# the tenant on a scan that never looked inside a folder. The healthy fixture
-# gained the same scope line, so this is the branch production actually reaches.
+# 7.2.4 moved pass -> info and back. The OneDrive collector used to read
+# permissions on drive roots only — and only the root site's libraries at that
+# — so its zero anonymous links meant "none where we looked", and the control
+# was made to say so. The collector now walks every site's drives and every
+# user's OneDrive to a bounded depth and states the coverage it achieved, so a
+# scan that actually finished can pass again. The healthy fixture reports a
+# complete scan; a refused drive or a limit hit still holds the pass back.
 GOLDEN = {
     "ca_enabled": 4,
-    "compliance_assessed": 30,
-    "compliance_info": 5,
-    "compliance_pass": 29,
+    "compliance_assessed": 31,
+    "compliance_info": 4,
+    "compliance_pass": 30,
     "compliance_pct": 97.0,
     "compliance_total": 35,
     "exchange_connectors": 0,

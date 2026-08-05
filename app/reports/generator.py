@@ -3505,6 +3505,19 @@ def _labelled_value(text: str, label: str) -> str:
         value = rest[1:].strip()
         return "" if value.upper() in ("N/A", "NA", "-", "") else value
     return ""
+
+
+def _labelled_int(text: str, label: str) -> int | None:
+    """``_labelled_value`` for a count. None when absent or not a number.
+
+    None and 0 are different claims — "the file does not say" versus "the scan
+    looked and found none" — so this never folds one into the other.
+    """
+    value = _labelled_value(text, label)
+    try:
+        return int(value.replace(",", "").split()[0])
+    except (ValueError, IndexError):
+        return None
 _NOT_LICENSED = "Ikke lisensiert — "
 
 # Which SKU part numbers carry which capability. Only the ones a CIS control
@@ -4134,29 +4147,32 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # nothing read it. An "Anyone" link needs no sign-in, so one is a finding
     # regardless of how the tenant-level sharing capability is set.
     od_text = fc.get("25_onedrive_sharing.txt", "")
-    anyone = None
-    for line in od_text.splitlines():
-        if "'anyone' links" in line.lower() and ":" in line:
-            tail = line.split(":", 1)[1].strip()
-            anyone = int(tail) if tail.isdigit() else None
-            break
-    # A zero here is only as broad as the scan behind it. The collector reads
-    # permissions on each drive's *root*, so a link on a file inside a folder
-    # never appears — and "we found none where we looked" is not the same
-    # claim as "this tenant has none". A find is still a find, so a non-zero
-    # count fails as before; a zero from a root-only scan reports what was
-    # actually established instead of attesting to a clean tenant.
-    _od_root_only = "drive roots only" in od_text
+    anyone = _labelled_int(od_text, "'Anyone' links")
+    # A zero here is only as broad as the scan behind it, so the collector
+    # states its own coverage and this reads it rather than assuming. A find is
+    # still a find — a non-zero count fails however partial the scan was — but
+    # "we found none where we looked" only becomes "this tenant has none" when
+    # the scan reached every drive without hitting a limit.
+    _od_refused = _labelled_int(od_text, "Drives refused") or 0
+    _od_scope = _labelled_value(od_text, "Scan scope")
+    _od_complete = _od_scope.startswith("complete") and _od_refused == 0
+    _od_scanned = _labelled_int(od_text, "Drives scanned") or 0
     if anyone is None:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
             _CANNOT_VERIFY + "OneDrive-delingsdata utilgjengelig")
-    elif anyone == 0 and _od_root_only:
+    elif anyone == 0 and not _od_complete:
+        why = []
+        if _od_refused:
+            why.append(f"{_od_refused} stasjon(er) kunne ikke leses")
+        if _od_scope and not _od_scope.startswith("complete"):
+            why.append("søket nådde grensene sine før det var ferdig")
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "info",
-            "Ingen anonyme delingslenker på stasjonsrøttene — filer inne i mapper "
-            "er ikke gjennomsøkt, så fravær er ikke bekreftet for hele tenanten")
+            "Ingen anonyme delingslenker funnet i det som ble gjennomsøkt, men "
+            + (" og ".join(why) or "omfanget av søket er ukjent")
+            + " — fravær er ikke bekreftet for hele tenanten")
     elif anyone == 0:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "pass",
-            "Ingen anonyme delingslenker funnet")
+            f"Ingen anonyme delingslenker funnet i {_od_scanned} stasjon(er)")
     else:
         add("7.2.4", "Ensure anonymous sharing links are not in use", t.cis_cat_data, "fail",
             f"{anyone} anonym(e) delingslenke(r) — tilgjengelig uten pålogging")

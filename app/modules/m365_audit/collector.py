@@ -233,7 +233,11 @@ class AuditCollector:
             PIMSection(self.out_dir, graph, self.progress_cb),
             DnsSection(self.out_dir, verified_domains, self.progress_cb),
             DefenderOfficeSection(self.out_dir, graph, self.progress_cb),
-            OneDriveSharingSection(self.out_dir, graph, self.progress_cb),
+            # users_ref lets it reach every user's OneDrive without fetching
+            # the directory a second time. UsersSection runs first and shares
+            # the list by reference, the same way MFA and AdminRoles do.
+            OneDriveSharingSection(self.out_dir, graph, self.progress_cb,
+                                   users_ref=users_sec.users),
             ComplianceScoreSection(self.out_dir, graph, self.progress_cb),
         ]
 

@@ -106,10 +106,15 @@ FULL_AUDIT: dict[str, str] = {
         "  Total shared items   : 3\n"
         "  'Anyone' links       : 0\n"
         "  External user shares : 0\n"
-        # The collector states its own scope here. Without the line the report
-        # reads the zero above as "no anonymous links in the tenant" — a branch
-        # production can no longer reach, so the fixture must carry it.
-        "  Scan scope           : drive roots only (items within folders not enumerated)\n"
+        # The collector states its own coverage here, and the compliance
+        # control reads it. A healthy tenant is one whose scan actually
+        # finished: every drive readable, no limit hit. Without these lines the
+        # report would be grading a branch production cannot reach.
+        "  Drives refused       : 0\n"
+        "  Folders examined     : 96\n"
+        "  Items examined       : 1204\n"
+        "  Graph requests used  : 121 of 1500\n"
+        "  Scan scope           : complete (depth 3, max 40 folders per drive)\n"
         + "=" * 70 + "\n"
     ),
     "01_tenant.txt": (

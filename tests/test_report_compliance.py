@@ -544,9 +544,46 @@ def test_anonymous_links_are_a_finding_whatever_the_tenant_setting():
     assert "2" in row["detail"]
 
 
-def test_no_anonymous_links_passes():
+def _od(anyone=0, refused=0, scope="complete (depth 3, max 40 folders per drive)"):
+    return {"25_onedrive_sharing.txt": (
+        "  Drives scanned       : 12\n"
+        f"  'Anyone' links       : {anyone}\n"
+        f"  Drives refused       : {refused}\n"
+        f"  Scan scope           : {scope}\n"
+    )}
+
+
+def test_no_anonymous_links_passes_when_the_scan_finished():
+    row = _grade(_od(), "7.2.4")
+    assert row["status"] == "pass"
+    assert "12" in row["detail"], "the pass should say how much was covered"
+
+
+def test_a_drive_that_could_not_be_read_holds_the_pass_back():
+    """A zero is only as broad as the scan. A refused drive is a drive whose
+    sharing the audit knows nothing about, so absence is not established."""
+    row = _grade(_od(refused=2), "7.2.4")
+    assert row["status"] == "info"
+    assert "2" in row["detail"]
+
+
+def test_a_scan_that_hit_its_limits_holds_the_pass_back():
+    row = _grade(_od(scope="partial (depth 3, max 40 folders per drive)"), "7.2.4")
+    assert row["status"] == "info"
+
+
+def test_a_find_is_a_find_even_on_a_partial_scan():
+    """Whatever the coverage, a link that needs no sign-in was actually found."""
+    row = _grade(_od(anyone=3, refused=5, scope="partial (depth 3)"), "7.2.4")
+    assert row["status"] == "fail"
+    assert "3" in row["detail"]
+
+
+def test_a_file_with_no_coverage_lines_is_not_a_pass():
+    """Output from a collector that never stated its scope. Silence about
+    coverage is not evidence of coverage."""
     fc = {"25_onedrive_sharing.txt": "  Drives scanned : 1\n  'Anyone' links       : 0\n"}
-    assert _grade(fc, "7.2.4")["status"] == "pass"
+    assert _grade(fc, "7.2.4")["status"] == "info"
 
 
 def test_missing_onedrive_data_is_not_a_pass():
