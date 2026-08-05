@@ -15,7 +15,7 @@ async function tsTestConnection() {
       })
     });
     if (d && d.ok) {
-      msg.innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_connection_verified','Connection verified') + ' — ' + d.device_count + ' enheter</span>';
+      msg.innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_connection_verified','Connection verified') + ' — ' + d.device_count + ' ' + t('ts_devices_suffix','enheter') + '</span>';
       document.getElementById('ts-integ-dot').style.background = 'var(--green)';
       document.getElementById('ts-integ-label').textContent = d.device_count + ' devices';
       document.getElementById('ts-integ-label').style.color = 'var(--green)';
@@ -135,19 +135,19 @@ async function tsLoadDevices() {
 
     // ROW 3 — Data (1fr): 2-col stats grid, ALWAYS 8 fields
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:12px;color:var(--text-muted);align-content:start;padding-top:6px;">';
-    html += '<span>OS: <strong style="color:var(--text);">'+(d.os||'-')+'</strong></span>';
-    html += '<span>Version: '+(d.client_version ? d.client_version.split('-')[0] : '-')+'</span>';
-    html += '<span>Hostname: <span style="font-family:var(--mono);font-size:11px;">'+esc(d.hostname||'-')+'</span></span>';
-    html += '<span>Status: <span style="color:'+color+';font-weight:600;">'+(d.online ? t('ts_online','Online') : t('ts_offline','Offline'))+'</span></span>';
+    html += '<span>' + t('ts_lbl_os','OS') + ': <strong style="color:var(--text);">'+(d.os||'-')+'</strong></span>';
+    html += '<span>' + t('ts_lbl_version','Versjon') + ': '+(d.client_version ? d.client_version.split('-')[0] : '-')+'</span>';
+    html += '<span>' + t('ts_lbl_hostname','Vertsnavn') + ': <span style="font-family:var(--mono);font-size:11px;">'+esc(d.hostname||'-')+'</span></span>';
+    html += '<span>' + t('ts_lbl_status','Status') + ': <span style="color:'+color+';font-weight:600;">'+(d.online ? t('ts_online','Online') : t('ts_offline','Offline'))+'</span></span>';
     var lastSeenHtml = d.online ? t('ts_now','now') : (d.last_seen_ago || '-');
     html += '<span>' + t('ts_last_seen','Last seen') + ': '+lastSeenHtml+'</span>';
     var keyHtml = '-';
-    if (d.key_expiry_disabled) { keyHtml = '<span style="color:var(--text-dim);">disabled</span>'; }
+    if (d.key_expiry_disabled) { keyHtml = '<span style="color:var(--text-dim);">' + t('ts_key_expiry_off','deaktivert') + '</span>'; }
     else if (d.key_days_left != null) { var keyColor = d.key_days_left < 7 ? 'var(--red)' : d.key_days_left < 30 ? 'var(--orange)' : 'var(--green)'; keyHtml = '<span style="color:'+keyColor+';font-weight:600;">'+d.key_days_left+'d</span>'; }
-    html += '<span>Key: '+keyHtml+'</span>';
+    html += '<span>' + t('ts_lbl_key','Nøkkel') + ': '+keyHtml+'</span>';
     var tagHtml = '-';
     if (d.tags && d.tags.length) { tagHtml = d.tags.map(function(tg){return '<span style="font-size:10px;padding:1px 5px;background:var(--bg);border-radius:3px;">'+esc(tg.replace('tag:',''))+'</span>';}).join(' '); }
-    html += '<span style="grid-column:span 2;">Tags: '+tagHtml+'</span>';
+    html += '<span style="grid-column:span 2;">' + t('ts_lbl_tags','Tagger') + ': '+tagHtml+'</span>';
     html += '</div>';
 
     html += '</div>';
@@ -179,26 +179,26 @@ async function tsShowDetail(idx) {
   html += '<div><div style="font-size:16px;font-weight:700;">'+esc(displayName)+'</div>';
   html += '<div style="font-size:12px;color:var(--text-muted);font-family:var(--mono);">'+(d.tailscale_ip||'-')+' — '+esc(d.user||'-')+'</div></div>';
   html += '</div>';
-  html += '<button class="btn btn-ghost" onclick="document.getElementById(\'ts-detail-panel\').style.display=\'none\'" style="padding:4px 10px;font-size:12px;">✕ Lukk</button>';
+  html += '<button class="btn btn-ghost" onclick="document.getElementById(\'ts-detail-panel\').style.display=\'none\'" style="padding:4px 10px;font-size:12px;">✕ ' + t('ts_close','Lukk') + '</button>';
   html += '</div>';
 
   // ── Info grid ──
   html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;color:var(--text-muted);margin-bottom:16px;">';
-  html += '<span>Status: <strong style="color:'+color+';">'+(d.online?'Online':'Offline')+'</strong></span>';
-  html += '<span>OS: <strong style="color:var(--text);">'+esc(d.os||'-')+'</strong></span>';
+  html += '<span>' + t('ts_lbl_status','Status') + ': <strong style="color:'+color+';">'+(d.online?t('ts_online','Online'):t('ts_offline','Offline'))+'</strong></span>';
+  html += '<span>' + t('ts_lbl_os','OS') + ': <strong style="color:var(--text);">'+esc(d.os||'-')+'</strong></span>';
   html += '<span>Version: '+esc(d.client_version||'-')+'</span>';
-  html += '<span>Hostname: <span style="font-family:var(--mono);">'+esc(d.hostname||'-')+'</span></span>';
-  html += '<span>Name: <span style="font-family:var(--mono);">'+esc(d.name||'-')+'</span></span>';
-  html += '<span>Node ID: <span style="font-family:var(--mono);font-size:11px;">'+esc(d.node_id||d.id||'-')+'</span></span>';
+  html += '<span>' + t('ts_lbl_hostname','Vertsnavn') + ': <span style="font-family:var(--mono);">'+esc(d.hostname||'-')+'</span></span>';
+  html += '<span>' + t('ts_lbl_name','Navn') + ': <span style="font-family:var(--mono);">'+esc(d.name||'-')+'</span></span>';
+  html += '<span>' + t('ts_lbl_node_id','Node-ID') + ': <span style="font-family:var(--mono);font-size:11px;">'+esc(d.node_id||d.id||'-')+'</span></span>';
   html += '<span>' + t('ts_last_seen','Last seen') + ': '+(d.online ? t('ts_now','now') : (d.last_seen_ago||'-'))+'</span>';
-  html += '<span>Created: '+(d.created ? d.created.slice(0,10) : '-')+'</span>';
-  html += '<span>Authorized: '+(d.authorized ? '<span style="color:var(--green);">Yes</span>' : '<span style="color:var(--orange);">No</span>')+'</span>';
-  html += '<span>Key expiry: '+(d.key_expiry_disabled ? 'Disabled' : d.key_expiry ? d.key_expiry.slice(0,10)+' ('+d.key_days_left+'d)' : '-')+'</span>';
-  html += '<span>Exit node: '+(d.is_exit_node ? '<span style="color:var(--purple);">Yes</span>' : 'No')+'</span>';
-  html += '<span>Blocks incoming: '+(d.blocks_incoming ? 'Yes' : 'No')+'</span>';
+  html += '<span>' + t('ts_lbl_created','Opprettet') + ': '+(d.created ? d.created.slice(0,10) : '-')+'</span>';
+  html += '<span>' + t('ts_lbl_authorized','Autorisert') + ': '+(d.authorized ? '<span style="color:var(--green);">' + t('ts_yes','Ja') + '</span>' : '<span style="color:var(--orange);">' + t('ts_no','Nei') + '</span>')+'</span>';
+  html += '<span>' + t('ts_lbl_key_expiry','Nøkkelutløp') + ': '+(d.key_expiry_disabled ? t('ts_disabled','Deaktivert') : d.key_expiry ? d.key_expiry.slice(0,10)+' ('+d.key_days_left+'d)' : '-')+'</span>';
+  html += '<span>' + t('ts_lbl_exit_node','Exit node') + ': '+(d.is_exit_node ? '<span style="color:var(--purple);">' + t('ts_yes','Ja') + '</span>' : t('ts_no','Nei'))+'</span>';
+  html += '<span>' + t('ts_lbl_blocks_incoming','Blokkerer innkommende') + ': '+(d.blocks_incoming ? t('ts_yes','Ja') : t('ts_no','Nei'))+'</span>';
   // All IPs
   if (d.addresses && d.addresses.length > 1) {
-    html += '<span style="grid-column:span 3;">All IPs: <span style="font-family:var(--mono);font-size:11px;">'+d.addresses.map(function(a){return esc(a);}).join(', ')+'</span></span>';
+    html += '<span style="grid-column:span 3;">' + t('ts_lbl_all_ips','Alle IP-er') + ': <span style="font-family:var(--mono);font-size:11px;">'+d.addresses.map(function(a){return esc(a);}).join(', ')+'</span></span>';
   }
   html += '</div>';
 
@@ -207,43 +207,43 @@ async function tsShowDetail(idx) {
 
   // Rename
   html += '<div style="display:flex;align-items:center;gap:4px;">';
-  html += '<input id="ts-rename-'+idx+'" type="text" value="'+esc(d.given_name || d.hostname || '')+'" placeholder="Display name" style="width:160px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;">';
-  html += '<button class="btn btn-primary" onclick="tsRenameDevice(\''+d.id+'\','+idx+')" style="padding:4px 10px;font-size:11px;">Rename</button>';
+  html += '<input id="ts-rename-'+idx+'" type="text" value="'+esc(d.given_name || d.hostname || '')+'" placeholder="' + t('ts_ph_display_name','Visningsnavn') + '" style="width:160px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;">';
+  html += '<button class="btn btn-primary" onclick="tsRenameDevice(\''+d.id+'\','+idx+')" style="padding:4px 10px;font-size:11px;">' + t('ts_rename','Gi nytt navn') + '</button>';
   html += '</div>';
 
   // Authorize toggle
   if (!d.authorized) {
-    html += '<button class="btn btn-primary" onclick="tsAuthorizeDevice(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;color:#fff;background:var(--green);">Authorize</button>';
+    html += '<button class="btn btn-primary" onclick="tsAuthorizeDevice(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;color:#fff;background:var(--green);">' + t('ts_authorize','Autoriser') + '</button>';
   } else {
-    html += '<button class="btn btn-ghost" onclick="tsAuthorizeDevice(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">Deauthorize</button>';
+    html += '<button class="btn btn-ghost" onclick="tsAuthorizeDevice(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">' + t('ts_deauthorize','Fjern autorisering') + '</button>';
   }
 
   // Key expiry toggle
   if (d.key_expiry_disabled) {
-    html += '<button class="btn btn-ghost" onclick="tsToggleKeyExpiry(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">Enable key expiry</button>';
+    html += '<button class="btn btn-ghost" onclick="tsToggleKeyExpiry(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">' + t('ts_enable_key_expiry','Slå på nøkkelutløp') + '</button>';
   } else {
-    html += '<button class="btn btn-ghost" onclick="tsToggleKeyExpiry(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;">Disable key expiry</button>';
+    html += '<button class="btn btn-ghost" onclick="tsToggleKeyExpiry(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;">' + t('ts_disable_key_expiry','Slå av nøkkelutløp') + '</button>';
   }
 
   // Remove
-  html += '<button class="btn btn-ghost" onclick="tsRemoveDevice(\''+d.id+'\')" style="padding:4px 12px;font-size:11px;color:var(--red);margin-left:auto;">Remove device</button>';
+  html += '<button class="btn btn-ghost" onclick="tsRemoveDevice(\''+d.id+'\')" style="padding:4px 12px;font-size:11px;color:var(--red);margin-left:auto;">' + t('ts_remove_device','Fjern enhet') + '</button>';
   html += '</div>';
 
   // ── Subnet Routes ──
   html += '<div style="margin-bottom:16px;">';
-  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Subnet Routes</div>';
-  html += '<div id="ts-routes-'+idx+'"><div class="loader" style="width:14px;height:14px;display:inline-block;"></div> Loading routes...</div>';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('ts_subnet_routes','Subnett-ruter') + '</div>';
+  html += '<div id="ts-routes-'+idx+'"><div class="loader" style="width:14px;height:14px;display:inline-block;"></div> ' + t('ts_loading_routes','Laster ruter ...') + '</div>';
   html += '</div>';
 
   // ── Tags editor ──
   html += '<div>';
-  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Tags</div>';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('ts_tags_heading','Tagger') + '</div>';
   var currentTags = (d.tags || []).map(function(tg){return tg.replace('tag:','');}).join(', ');
   html += '<div style="display:flex;gap:8px;align-items:center;">';
-  html += '<input id="ts-tags-'+idx+'" type="text" value="'+esc(currentTags)+'" placeholder="tag1, tag2 (without tag: prefix)" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;">';
-  html += '<button class="btn btn-primary" onclick="tsUpdateTags(\''+d.id+'\','+idx+')" style="padding:4px 12px;font-size:11px;">Save tags</button>';
+  html += '<input id="ts-tags-'+idx+'" type="text" value="'+esc(currentTags)+'" placeholder="' + t('ts_ph_tags','tag1, tag2 (uten tag:-prefiks)') + '" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;">';
+  html += '<button class="btn btn-primary" onclick="tsUpdateTags(\''+d.id+'\','+idx+')" style="padding:4px 12px;font-size:11px;">' + t('ts_save_tags','Lagre tagger') + '</button>';
   html += '</div>';
-  html += '<div style="font-size:10px;color:var(--text-dim);margin-top:4px;">Comma-separated. The tag: prefix is added automatically.</div>';
+  html += '<div style="font-size:10px;color:var(--text-dim);margin-top:4px;">' + t('ts_tags_hint','Kommaseparert. tag:-prefikset legges til automatisk.') + '</div>';
   html += '</div>';
 
   html += '<div id="ts-detail-msg" style="margin-top:10px;font-size:12px;"></div>';
@@ -259,12 +259,12 @@ async function tsLoadRoutes(deviceId, idx) {
   if (!el) return;
   var data = await apiFetch('/api/tailscale/device/'+deviceId+'/routes');
   if (!data || data.error) {
-    el.innerHTML = '<span style="font-size:12px;color:var(--text-dim);">No routes advertised</span>';
+    el.innerHTML = '<span style="font-size:12px;color:var(--text-dim);">' + t('ts_no_routes','Ingen ruter annonsert') + '</span>';
     return;
   }
   var routes = data.routes || [];
   if (!routes.length) {
-    el.innerHTML = '<span style="font-size:12px;color:var(--text-dim);">No routes advertised by this device</span>';
+    el.innerHTML = '<span style="font-size:12px;color:var(--text-dim);">' + t('ts_no_routes_device','Ingen ruter annonsert av denne enheten') + '</span>';
     return;
   }
 
@@ -273,16 +273,16 @@ async function tsLoadRoutes(deviceId, idx) {
     var isExit = r.is_exit_node;
     var label = isExit ? '🚪 Exit node ('+r.route+')' : '🔀 '+r.route;
     var statusColor = r.enabled ? 'var(--green)' : 'var(--text-dim)';
-    var statusText = r.enabled ? 'Approved' : 'Pending';
+    var statusText = r.enabled ? t('ts_route_approved','Godkjent') : t('ts_route_pending','Venter');
 
     html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">';
     html += '<span style="font-family:var(--mono);font-size:12px;flex:1;">'+esc(label)+'</span>';
     html += '<span style="font-size:11px;color:'+statusColor+';font-weight:600;">'+statusText+'</span>';
 
     if (r.enabled) {
-      html += '<button class="btn btn-ghost" onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',false)" style="padding:2px 8px;font-size:10px;color:var(--red);">Disable</button>';
+      html += '<button class="btn btn-ghost" onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',false)" style="padding:2px 8px;font-size:10px;color:var(--red);">' + t('ts_route_disable','Deaktiver') + '</button>';
     } else {
-      html += '<button class="btn btn-primary" onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',true)" style="padding:2px 8px;font-size:10px;">Approve</button>';
+      html += '<button class="btn btn-primary" onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',true)" style="padding:2px 8px;font-size:10px;">' + t('ts_route_approve','Godkjenn') + '</button>';
     }
     html += '</div>';
   });
@@ -318,7 +318,7 @@ async function tsRenameDevice(deviceId, idx) {
   var d = await apiFetch('/api/tailscale/device/'+deviceId+'/name', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})
   });
-  if (d && d.ok) { showToast('Device renamed', 'success'); tsLoadDevices(); }
+  if (d && d.ok) { showToast(t('ts_device_renamed','Enhet fikk nytt navn'), 'success'); tsLoadDevices(); }
   else { showToast(d && d.error || 'Failed', 'error'); }
 }
 
@@ -326,7 +326,7 @@ async function tsAuthorizeDevice(deviceId, authorized) {
   var d = await apiFetch('/api/tailscale/device/'+deviceId+'/authorize', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({authorized:authorized})
   });
-  if (d && d.ok) { showToast(authorized ? 'Device authorized' : 'Device deauthorized', 'success'); tsLoadDevices(); }
+  if (d && d.ok) { showToast(authorized ? t('ts_device_authorized','Enhet autorisert') : t('ts_device_deauthorized','Autorisering fjernet'), 'success'); tsLoadDevices(); }
   else { showToast(d && d.error || 'Failed', 'error'); }
 }
 
@@ -334,14 +334,14 @@ async function tsToggleKeyExpiry(deviceId, disabled) {
   var d = await apiFetch('/api/tailscale/device/'+deviceId+'/key', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disabled:disabled})
   });
-  if (d && d.ok) { showToast(disabled ? 'Key expiry disabled' : 'Key expiry enabled', 'success'); tsLoadDevices(); }
+  if (d && d.ok) { showToast(disabled ? t('ts_key_expiry_disabled','Nøkkelutløp slått av') : t('ts_key_expiry_enabled','Nøkkelutløp slått på'), 'success'); tsLoadDevices(); }
   else { showToast(d && d.error || 'Failed', 'error'); }
 }
 
 async function tsRemoveDevice(deviceId) {
-  if (!confirm('Remove this device from the tailnet? This cannot be undone.')) return;
+  if (!confirm(t('ts_confirm_remove','Fjerne denne enheten fra tailnettet? Dette kan ikke angres.'))) return;
   var d = await apiFetch('/api/tailscale/device/'+deviceId, {method:'DELETE'});
-  if (d && d.ok) { showToast('Device removed', 'success'); document.getElementById('ts-detail-panel').style.display='none'; tsLoadDevices(); }
+  if (d && d.ok) { showToast(t('ts_device_removed','Enhet fjernet'), 'success'); document.getElementById('ts-detail-panel').style.display='none'; tsLoadDevices(); }
   else { showToast(d && d.error || 'Failed', 'error'); }
 }
 
@@ -351,7 +351,7 @@ async function tsUpdateTags(deviceId, idx) {
   var d = await apiFetch('/api/tailscale/device/'+deviceId+'/tags', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tags:tags})
   });
-  if (d && d.ok) { showToast('Tags updated', 'success'); tsLoadDevices(); }
+  if (d && d.ok) { showToast(t('ts_tags_updated','Tagger oppdatert'), 'success'); tsLoadDevices(); }
   else { showToast(d && d.error || 'Failed', 'error'); }
 }
 
@@ -365,20 +365,20 @@ async function tsShowKeys() {
   if (!data || data.error) { panel.innerHTML = '<div style="color:var(--red);font-size:12px;">'+esc(data && data.error || 'Error')+'</div>'; return; }
 
   var keys = data.keys || [];
-  if (!keys.length) { panel.innerHTML = '<div class="card" style="padding:16px;font-size:12px;color:var(--text-muted);">No auth keys found.</div>'; return; }
+  if (!keys.length) { panel.innerHTML = '<div class="card" style="padding:16px;font-size:12px;color:var(--text-muted);">' + t('ts_no_auth_keys','Ingen auth-nøkler funnet.') + '</div>'; return; }
 
   var html = '<div class="card" style="padding:16px;">';
   html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">' + t('ts_auth_keys','Auth Keys') + ' ('+keys.length+')</div>';
   html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">ID</th><th style="text-align:left;padding:6px;">Description</th><th style="text-align:center;padding:6px;">Days left</th><th style="text-align:center;padding:6px;">Revoked</th><th></th></tr></thead><tbody>';
+  html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">ID</th><th style="text-align:left;padding:6px;">' + t('ts_col_description','Beskrivelse') + '</th><th style="text-align:center;padding:6px;">' + t('ts_col_days_left','Dager igjen') + '</th><th style="text-align:center;padding:6px;">' + t('ts_col_revoked','Tilbakekalt') + '</th><th></th></tr></thead><tbody>';
   keys.forEach(function(k) {
     var daysColor = k.days_left === null ? 'var(--text-dim)' : k.days_left < 7 ? 'var(--red)' : k.days_left < 30 ? 'var(--orange)' : 'var(--green)';
     html += '<tr style="border-bottom:1px solid var(--border);">';
     html += '<td style="padding:6px;font-family:var(--mono);font-size:11px;">'+esc(k.id.slice(0,12))+'...</td>';
     html += '<td style="padding:6px;">'+esc(k.description||'-')+'</td>';
     html += '<td style="padding:6px;text-align:center;"><span style="color:'+daysColor+';font-weight:600;">'+(k.days_left!=null?k.days_left:'-')+'</span></td>';
-    html += '<td style="padding:6px;text-align:center;">'+(k.revoked?'<span style="color:var(--red);">Yes</span>':'No')+'</td>';
-    html += '<td style="padding:6px;"><button class="btn btn-ghost" onclick="tsRevokeKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">Revoke</button></td>';
+    html += '<td style="padding:6px;text-align:center;">'+(k.revoked?'<span style="color:var(--red);">' + t('ts_yes','Ja') + '</span>':t('ts_no','Nei'))+'</td>';
+    html += '<td style="padding:6px;"><button class="btn btn-ghost" onclick="tsRevokeKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('ts_revoke','Tilbakekall') + '</button></td>';
     html += '</tr>';
   });
   html += '</tbody></table></div>';
@@ -391,15 +391,15 @@ function tsShowCreateKey() {
   var html = '<div class="card" style="padding:16px;">';
   html += '<div style="font-size:13px;font-weight:600;margin-bottom:12px;">' + t('ts_create_key','Create auth key') + '</div>';
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
-  html += '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Description</label>';
-  html += '<input id="ts-key-desc" type="text" placeholder="e.g. onboarding-acme" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>';
-  html += '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Expiry (hours)</label>';
+  html += '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('ts_lbl_key_desc','Beskrivelse') + '</label>';
+  html += '<input id="ts-key-desc" type="text" placeholder="' + t('ts_ph_key_desc','f.eks. onboarding-acme') + '" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>';
+  html += '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('ts_lbl_expiry_hours','Utløp (timer)') + '</label>';
   html += '<input id="ts-key-expiry" type="number" value="24" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>';
   html += '</div>';
   html += '<div style="display:flex;gap:12px;margin-top:10px;">';
-  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-reusable"> Reusable</label>';
-  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-ephemeral"> Ephemeral</label>';
-  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-preauth" checked> Pre-authorized</label>';
+  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-reusable"> ' + t('ts_reusable','Gjenbrukbar') + '</label>';
+  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-ephemeral"> ' + t('ts_ephemeral','Kortlevd') + '</label>';
+  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-preauth" checked> ' + t('ts_preauthorized','Forhåndsautorisert') + '</label>';
   html += '</div>';
   html += '<div style="display:flex;gap:8px;margin-top:12px;">';
   html += '<button class="btn btn-primary" onclick="tsDoCreateKey()" style="padding:6px 16px;font-size:12px;">' + t('btn_create','Create') + '</button>';
