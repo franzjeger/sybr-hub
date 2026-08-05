@@ -109,3 +109,27 @@ def test_the_viewer_never_opens_a_document_it_has_not_seen_listed():
     assert "_docsFileList(data.root)" in js, (
         "the default is not being chosen from what the listing offered"
     )
+
+
+def test_the_swagger_link_points_at_the_app_s_own_docs_url():
+    """The link is a second copy of a URL FastAPI already decides.
+
+    It read /api/docs, which is the prefix the in-app documentation router
+    sits behind — /api/docs/list and /api/docs/file exist there, the bare path
+    does not. So the button 404'd, and the only clue was that nothing opened.
+    """
+    import pathlib
+    import re
+
+    from app.web.server import create_app
+
+    docs_url = create_app().docs_url
+    assert docs_url, "the app serves no OpenAPI UI at all"
+
+    html = pathlib.Path("app/web/static/index.html").read_text()
+    links = re.findall(r'<a href="([^"]+)"[^>]*>Swagger', html)
+    assert links, "the Swagger button is gone"
+    for href in links:
+        assert href == docs_url, (
+            f"button points at {href!r}, app serves the UI at {docs_url!r}"
+        )
