@@ -286,3 +286,52 @@ def test_an_unmeasured_purview_count_is_not_shown_as_zero(tmp_path):
     text = _visible_text(_render_strict(tmp_path, "report_customer.html.j2", files))
     assert "Ikke m\u00e5lt" in text, "the customer report still presents the gap as a measurement"
     assert "404" not in text and "Client error" not in text
+
+
+def test_a_refused_intune_read_is_not_reported_as_no_devices(tmp_path):
+    """403 and "this tenant enrols nothing" must not print the same sentence.
+
+    The Intune collectors caught every exception, wrote "Error: ..." to the
+    evidence file and returned, so the section still finished DONE and the
+    report fell through to "Ingen Intune-enheter funnet — enten er Intune
+    ikke konfigurert, eller så har appen ikke tilstrekkelige rettigheter."
+    Graph had already said which of those two it was: GraphPermissionError
+    reads the error code and separates a missing consent from a licence gap,
+    and two other sections use it. That sentence was an exception nobody let
+    out.
+    """
+    files = {
+        "10_intune_devices.txt": (
+            "=" * 80 + "\n  INTUNE MANAGED DEVICES  (not available)\n" + "=" * 80 + "\n\n"
+            "  Graph refused this collection with 403: the app registration is missing "
+            "DeviceManagementManagedDevices.Read.All or its admin consent.\n\n"
+            "  Graph said: Authorization_RequestDenied — Insufficient privileges.\n"
+        ),
+        "10_intune_devices_count.txt": "",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+
+    assert ctx["intune"]["unavailable"] is True
+    assert ctx["intune"]["has_data"] is False, "a refusal must not count as a reading"
+    assert ctx["intune"]["total"] == 0
+    assert "DeviceManagementManagedDevices.Read.All" in ctx["intune"]["unavailable_reason"]
+
+    text = _visible_text(_render_strict(tmp_path, "report_tech.html.j2", files))
+    assert "Ingen Intune-enheter funnet" not in text, (
+        "the report still presents a refusal as a measured absence"
+    )
+    assert "DeviceManagementManagedDevices.Read.All" in text
+
+
+def test_a_tenant_that_enrols_nothing_still_reads_as_measured(tmp_path):
+    """The counterpart. A real zero must not be dressed up as a failure."""
+    files = {
+        "10_intune_devices_count.txt": "INTUNE DEVICE COUNT SUMMARY\nTotal: 0\nWindows: 0\n",
+        "10_intune_devices.txt": (
+            "=" * 80 + "\n  INTUNE MANAGED DEVICES  (0 total)\n" + "=" * 80 + "\n"
+        ),
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["intune"]["unavailable"] is False
+    assert ctx["intune"]["has_data"] is True, "a measured zero is still a measurement"
+    assert ctx["intune"]["total"] == 0

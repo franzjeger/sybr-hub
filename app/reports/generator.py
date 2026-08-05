@@ -863,10 +863,30 @@ def _parse_admin_roles(text: str) -> dict:
     }
 
 
+def _first_prose_line(text: str) -> str:
+    """The first sentence under a "(not available)" banner.
+
+    The collector writes the cause there — which permission, or which licence
+    — so the report can say it instead of offering the reader a guess between
+    two possibilities the audit had already told apart.
+    """
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if not stripped or set(stripped) == {"="}:
+            continue
+        if "(not available)" in stripped.lower():
+            continue
+        if stripped.lower().startswith(("error details", "graph said")):
+            continue
+        return stripped
+    return ""
+
+
 def _parse_intune_devices(count_text: str, detail_text: str) -> dict:
     result = {"total": 0, "windows": 0, "ios": 0, "android": 0, "macos": 0,
               "compliant": 0, "noncompliant": 0, "unknown": 0,
-              "compliance_pct": 0.0, "devices": []}
+              "compliance_pct": 0.0, "devices": [],
+              "unavailable": False, "unavailable_reason": ""}
 
     # Track whether the audit produced a parseable report at all — even a
     # zero-device tenant gets the "INTUNE DEVICE COUNT SUMMARY" banner from
@@ -874,6 +894,16 @@ def _parse_intune_devices(count_text: str, detail_text: str) -> dict:
     # Intune-enrolled devices would be reported as "Intune-data utilgjengelig"
     # in data_quality_issues, when in fact the audit completed fine and
     # measured zero devices.
+    # A refusal is not a zero. The collector writes this marker when Graph
+    # would not answer, and names the cause on the line below it; without
+    # reading it back, "403 Forbidden" and "this tenant enrols nothing" are
+    # the same empty file, and the report printed the same sentence for both.
+    if _evidence_unavailable(detail_text) and _evidence_unavailable(count_text):
+        result["unavailable"] = True
+        result["unavailable_reason"] = _first_prose_line(detail_text) or _first_prose_line(count_text)
+        result["has_data"] = False
+        return result
+
     audit_succeeded = False
     if "INTUNE DEVICE COUNT" in count_text or "INTUNE MANAGED DEVICES" in detail_text:
         audit_succeeded = True
@@ -4267,16 +4297,23 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # at the policy file too. A tenant with policies + low %% gets partial;
     # a tenant with no policies at all gets fail regardless of %.
     policy_text = fc.get("11_intune_compliance_policies.txt", "")
-    has_policies = (
-        bool(policy_text.strip())
-        and not policy_text.strip().startswith("Error:")
-        and _count_data_lines(policy_text) > 0
-    )
+    # _evidence_unavailable, not a startswith("Error:") of its own: a refusal
+    # is also written as a "(not available)" block naming the permission, and
+    # that block has prose in it. Counting its lines as policies would turn
+    # "we were not allowed to look" into "policies are configured" — the
+    # inversion of the failure this control exists to catch.
+    policies_unreadable = _evidence_unavailable(policy_text)
+    has_policies = not policies_unreadable and _count_data_lines(policy_text) > 0
     has_devices = intune.get("has_data") and intune.get("total", 0) > 0
-    if not has_policies and not has_devices:
+    if intune.get("unavailable") and not has_policies:
+        # Graph refused the device read. "No Intune devices found" is a claim
+        # about the tenant, and this control has no evidence for it.
+        add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "info",
+            _CANNOT_VERIFY + (intune.get("unavailable_reason") or "Intune-data utilgjengelig"))
+    elif not has_policies and not has_devices:
         add("6.1.1", "Ensure device compliance policies are configured", t.cis_cat_devices, "info",
             t.cis_no_intune)
-    elif not has_policies and not _section_ran(fc, "11_intune_compliance_policies.txt"):
+    elif not has_policies and policies_unreadable:
         # Devices enrolled but the policy file was never written. "No
         # compliance policies configured" and "we could not read the
         # compliance policies" are the same absence here, and only one of
