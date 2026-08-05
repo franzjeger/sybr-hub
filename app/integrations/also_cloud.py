@@ -19,6 +19,8 @@ from typing import Optional
 
 import httpx
 
+from app.integrations.http_retry import send_with_retry
+
 logger = logging.getLogger(__name__)
 
 # Country → base URL mapping
@@ -71,10 +73,14 @@ class AlsoCloudClient:
 
     async def authenticate(self) -> str:
         """Get a session token."""
-        resp = await self._client.post(
-            f"{self.base_url}/GetSessionToken",
-            json={"username": self.username, "password": self.password},
-            headers={"Content-Type": "application/json"},
+        # The token call too: throttled here, every later call fails with it.
+        resp = await send_with_retry(
+            lambda: self._client.post(
+                    f"{self.base_url}/GetSessionToken",
+                    json={"username": self.username, "password": self.password},
+                    headers={"Content-Type": "application/json"},
+                ),
+            method="POST", target="ALSO GetSessionToken",
         )
         resp.raise_for_status()
         token = resp.text.strip().strip('"')
@@ -138,10 +144,16 @@ class AlsoCloudClient:
             "Authenticate": f"CCPSessionId {self._session_token}",
         }
         t0 = time.monotonic()
-        resp = await self._client.post(
-            f"{self.base_url}/{endpoint}",
-            json=payload,
-            headers=headers,
+        # Every ALSO call is a POST, reads included, so only throttling is
+        # retried here — a 5xx could be a half-applied write and this client
+        # cannot tell which endpoints those are.
+        resp = await send_with_retry(
+            lambda: self._client.post(
+                f"{self.base_url}/{endpoint}",
+                json=payload,
+                headers=headers,
+            ),
+            method="POST", target=f"ALSO {endpoint}",
         )
         elapsed_ms = round((time.monotonic() - t0) * 1000)
 
@@ -155,10 +167,13 @@ class AlsoCloudClient:
             await self.authenticate()
             headers["Authenticate"] = f"CCPSessionId {self._session_token}"
             t0 = time.monotonic()
-            resp = await self._client.post(
-                f"{self.base_url}/{endpoint}",
-                json=payload,
-                headers=headers,
+            resp = await send_with_retry(
+                lambda: self._client.post(
+                    f"{self.base_url}/{endpoint}",
+                    json=payload,
+                    headers=headers,
+                ),
+                method="POST", target=f"ALSO {endpoint} (after re-auth)",
             )
             elapsed_ms = round((time.monotonic() - t0) * 1000)
 

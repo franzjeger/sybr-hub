@@ -17,6 +17,8 @@ from typing import Optional
 
 import httpx
 
+from app.integrations.http_retry import send_with_retry
+
 logger = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
@@ -58,12 +60,16 @@ class PartnerCenterClient:
     async def _acquire_token(self, scope: str) -> str:
         """Acquire an OAuth2 client_credentials token for the given scope."""
         url = _TOKEN_URL.format(tenant=self._tenant_id)
-        resp = await self._client.post(url, data={
-            "grant_type": "client_credentials",
-            "client_id": self._client_id,
-            "client_secret": self._client_secret,
-            "scope": scope,
-        })
+        # Token endpoint: a 429 here takes the whole client down.
+        resp = await send_with_retry(
+            lambda: self._client.post(url, data={
+                    "grant_type": "client_credentials",
+                    "client_id": self._client_id,
+                    "client_secret": self._client_secret,
+                    "scope": scope,
+                }),
+            method="POST", target="Partner Center token",
+        )
         resp.raise_for_status()
         data = resp.json()
 
@@ -104,7 +110,10 @@ class PartnerCenterClient:
         }
 
         for attempt in range(3):
-            resp = await self._client.get(url, headers=headers, params=params)
+            resp = await send_with_retry(
+                lambda: self._client.get(url, headers=headers, params=params),
+                method="GET", target=f"Partner Center {url}",
+            )
 
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 5))
@@ -135,7 +144,10 @@ class PartnerCenterClient:
         }
 
         for attempt in range(3):
-            resp = await self._client.get(url, headers=headers, params=params)
+            resp = await send_with_retry(
+                lambda: self._client.get(url, headers=headers, params=params),
+                method="GET", target=f"Partner Center {url}",
+            )
 
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 5))

@@ -18,6 +18,8 @@ from typing import Optional
 
 import httpx
 
+from app.integrations.http_retry import send_with_retry
+
 _BASE_URLS = {
     "us": "https://api.itglue.com",
     "eu": "https://api.eu.itglue.com",
@@ -51,12 +53,20 @@ class ITGlueClient:
     # ── Generic helpers ──────────────────────────────────────────────────────
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
-        r = await self._client.get(path, params=params)
+        r = await send_with_retry(
+            lambda: self._client.get(path, params=params),
+            method="GET", target=f"IT Glue GET {path}",
+        )
         r.raise_for_status()
         return r.json()
 
     async def _post(self, path: str, payload: dict) -> dict:
-        r = await self._client.post(path, json=payload)
+        # Throttling is retried; a 5xx is not. A repeated upload that the
+        # server had already applied leaves two documents behind.
+        r = await send_with_retry(
+            lambda: self._client.post(path, json=payload),
+            method="POST", target=f"IT Glue POST {path}",
+        )
         if r.status_code >= 400:
             detail = r.text[:500] if r.text else ""
             raise httpx.HTTPStatusError(
@@ -67,7 +77,10 @@ class ITGlueClient:
         return r.json()
 
     async def _patch(self, path: str, payload: dict) -> dict:
-        r = await self._client.patch(path, json=payload)
+        r = await send_with_retry(
+            lambda: self._client.patch(path, json=payload),
+            method="PATCH", target=f"IT Glue PATCH {path}",
+        )
         r.raise_for_status()
         return r.json()
 
