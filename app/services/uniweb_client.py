@@ -2,6 +2,25 @@
 
 Scrapes customer data from uniweb.no using pychrome (CDP) for read-only
 integration. Uses headless Chromium to handle JSF/PrimeFaces.
+
+**This has no API contract.** Uniweb can change its markup without notice and
+without a version number, so every selector here is a guess that was true
+once. Two consequences shape the code below.
+
+A parse that finds nothing must not answer "nothing is there". Every reader
+here used to `return []` on any failure, which turned "the page changed" into
+"this customer has no domains" — and a technician acting on that would be
+acting on a scrape that never ran. The readers raise UniwebScrapeError now,
+and the callers report it as a failure rather than an empty result.
+
+Worse than an exception is a parse that half-works. Partner accounts are
+recognised by a JSF component id, and JSF renumbers those whenever a
+component is added earlier in the page. If that id changes, no account looks
+like a partner, the sub-customers underneath are never visited, and
+list_accounts returns a shorter list with no error at all. That one cannot be
+detected from the page alone, so it is surfaced instead: the result carries
+how many partner rows were recognised, and zero of them on a partner account
+is the thing to go and check.
 """
 
 from __future__ import annotations
@@ -19,10 +38,22 @@ import pychrome
 
 logger = logging.getLogger(__name__)
 
+
+class UniwebScrapeError(Exception):
+    """The page did not look like the one this scraper parses.
+
+    Its own type so a caller cannot mistake it for an empty result — that
+    mistake is the reason it exists.
+    """
+
 LOGIN_URL = "https://uniweb.no/controlpanel/login/"
 PRINCIPAL_URL = "https://uniweb.no/controlpanel/principal/?showExpanded=true"
 BASE_URL = "https://uniweb.no/controlpanel"
 PAGE_LOAD_WAIT = 2
+
+# A JSF-generated component id. JSF renumbers these when a component is added
+# earlier in the page, and nothing announces it — see the module docstring.
+_PARTNER_BUTTON_MARKER = "j_idt87"
 
 
 class UniwebClient:
@@ -155,17 +186,24 @@ class UniwebClient:
     # ── Account listing ─────────────────────────────────────────────────────
 
     def list_accounts(self) -> list[dict]:
-        """List all accounts including sub-customers under partner accounts."""
+        """All accounts, including sub-customers under partner accounts.
+
+        Raises UniwebScrapeError when the account table is not on the page.
+        An empty list from here means Uniweb showed a table with no rows.
+        """
         if not self._logged_in:
-            return []
+            raise UniwebScrapeError("Not logged in to Uniweb.")
 
         try:
             self._nav(PRINCIPAL_URL, wait=3)
 
-            # Get direct accounts from the table
+            # The container is reported separately from the rows: a missing
+            # table is a changed page, an empty one is an answer.
             raw = self._js("""
             (function() {
-                var rows = document.querySelectorAll('#accountForm\\\\:grants tbody tr');
+                var table = document.querySelector('#accountForm\\\\:grants tbody');
+                if (!table) { return JSON.stringify({found: false, accounts: []}); }
+                var rows = table.querySelectorAll('tr');
                 var accounts = [];
                 rows.forEach(function(row, idx) {
                     var cells = row.querySelectorAll('td');
@@ -183,12 +221,37 @@ class UniwebClient:
                         });
                     }
                 });
-                return JSON.stringify(accounts);
+                return JSON.stringify({found: true, accounts: accounts});
             })()
             """)
 
-            accounts = json.loads(raw) if raw else []
-            logger.info("Found %d direct accounts", len(accounts))
+            if not raw:
+                raise UniwebScrapeError(
+                    "The account page returned nothing — Uniweb may have "
+                    "changed its markup, or the session was dropped."
+                )
+            parsed = json.loads(raw)
+            if not parsed.get("found"):
+                raise UniwebScrapeError(
+                    "The account table (#accountForm:grants) is not on the "
+                    "page. This is a markup change, not an empty account list."
+                )
+            accounts = parsed.get("accounts", [])
+            partner_rows = sum(1 for a in accounts if a.get("is_partner"))
+            logger.info(
+                "Found %d direct accounts (%d recognised as partner)",
+                len(accounts), partner_rows,
+            )
+            if accounts and partner_rows == 0:
+                # Not proof of anything — a tenant may hold no partner
+                # accounts — but if one is expected this is where it went.
+                logger.warning(
+                    "No account matched the partner marker %r. If partner "
+                    "accounts are expected, their sub-customers are being "
+                    "skipped silently: JSF renumbers these ids.",
+                    _PARTNER_BUTTON_MARKER,
+                )
+            self.last_partner_rows = partner_rows
 
             # For partner accounts, get sub-customers
             all_accounts = []
@@ -202,9 +265,11 @@ class UniwebClient:
             logger.info("Total accounts (including sub-customers): %d", len(all_accounts))
             return all_accounts
 
+        except UniwebScrapeError:
+            raise
         except Exception as e:
             logger.error("Failed to list accounts: %s", e, exc_info=True)
-            return []
+            raise UniwebScrapeError(f"Could not read the account list: {e}") from e
 
     def _get_partner_sub_customers(self, partner: dict) -> list[dict]:
         """Click partner account button, extract sub-customers from modal."""
@@ -509,9 +574,13 @@ class UniwebClient:
             logger.debug("DNS for %s: %d records", domain, len(records))
             return records
 
+        except UniwebScrapeError:
+            raise
         except Exception as e:
-            logger.debug("Failed to scrape DNS for %s: %s", domain, e)
-            return []
+            logger.warning("Failed to scrape DNS for %s: %s", domain, e)
+            raise UniwebScrapeError(
+                f"Could not read DNS for {domain} — the page may have changed: {e}"
+            ) from e
 
     def scrape_account_data(self) -> dict:
         """Scrape all data for the currently selected account."""
@@ -613,9 +682,13 @@ class UniwebClient:
             logger.debug("Section %s: %d rows", path, len(rows))
             return rows
 
+        except UniwebScrapeError:
+            raise
         except Exception as e:
-            logger.debug("Failed to scrape %s: %s", path, e)
-            return []
+            logger.warning("Failed to scrape section %s: %s", path, e)
+            raise UniwebScrapeError(
+                f"Could not read section {path} — the page may have changed: {e}"
+            ) from e
 
     # ── Full sync ───────────────────────────────────────────────────────────
 
@@ -650,12 +723,15 @@ class UniwebClient:
                     if is_sub:
                         self._ensure_on_principal()
                 else:
-                    acct["data"] = {"domains": [], "subscriptions": [], "ssl": [], "email": [], "hosting": []}
-                    logger.warning("  FAILED — Could not enter account, skipped data scraping")
+                    # No data key at all. Filling it with empty lists made
+                    # "we could not open this account" render as "this
+                    # customer has no domains", which is a claim about them.
+                    acct["unavailable"] = "Could not enter the account page."
+                    logger.warning("  FAILED — could not enter account, not scraped")
                     failed += 1
             except Exception as e:
                 logger.error("  ERROR syncing %s: %s", acct["name"], e)
-                acct["data"] = {"domains": [], "subscriptions": [], "ssl": [], "email": [], "hosting": []}
+                acct["unavailable"] = str(e)[:300]
                 failed += 1
 
             results.append(acct)
