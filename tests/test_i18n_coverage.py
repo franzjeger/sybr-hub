@@ -344,7 +344,7 @@ BUDGET_JS_NORWEGIAN = {
     "app-dashboard.js": 12,
     "app-infra.js": 128,
     "app-integrations.js": 22,
-    "app-tailscale.js": 2,
+    "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
 
@@ -357,7 +357,7 @@ BUDGET_JS_PERSON = {
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
-    "app-tailscale.js": 4,
+    "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
 
@@ -553,7 +553,7 @@ BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app-dashboard.js": 9,
     "app-infra.js": 0,
     "app-integrations.js": 0,
-    "app-tailscale.js": 40,
+    "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
 
