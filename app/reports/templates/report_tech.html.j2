@@ -391,6 +391,9 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <div class="metric">
       <div class="num" style="color:{% if mfa.pct >= 95 %}var(--green){% elif mfa.pct >= 80 %}var(--orange){% else %}var(--red){% endif %}">{{ mfa.pct | round(0) | int }}%</div>
       <div class="lbl">{{ t.mfa_coverage }}</div>
+      {% if mfa.enforced_only is defined and mfa.enforced_only > 0 %}
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">{{ t.mfa_registered_note.format(pct=mfa.registered_pct | round(0) | int, n=mfa.enforced_only) }}</div>
+      {% endif %}
       <div class="pbar-wrap" style="margin-top:6px;">
         <div class="pbar-fill {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}" style="width:{{ mfa.pct }}%"></div>
       </div>

@@ -343,8 +343,19 @@ def _parse_mfa(
             "protected": u_has_mfa or (u_has_ca and not u_excluded),
         })
 
+    # Two different claims, reported apart. "Coverage" counts a user as
+    # protected when an enabled CA policy will force MFA at sign-in, whether
+    # or not they have ever registered a method — defensible, since the
+    # account cannot be reached with a password alone. But it reads as
+    # "everyone has MFA set up", and on the tenant this was written against
+    # 47 of the 185 covered users had no method registered at all. The report
+    # said 99.5% coverage on the same page as "42 users have no MFA methods",
+    # and a reader could not reconcile the two. Both numbers are now named.
+    registered_pct = round(mfa_registered / measured * 100, 1) if measured else 0.0
     return {
         "covered": effectively_covered,
+        "registered_pct": registered_pct,
+        "enforced_only": max(0, effectively_covered - mfa_registered),
         "total": total,
         "measured": measured,
         "unknown": unknown,

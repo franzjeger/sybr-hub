@@ -1577,6 +1577,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Samsvarspolicyer",
         "en": "Compliance Policies",
     },
+    # Coverage counts a CA-enforced user as protected even with no method
+    # registered. That is defensible and it is not what "MFA coverage" sounds
+    # like, so the registration figure is named beside it.
+    "mfa_registered_note": {
+        "no": "{pct}% har registrert en MFA-metode \u2014 {n} dekkes kun av Conditional Access",
+        "en": "{pct}% have registered an MFA method \u2014 {n} are covered by Conditional Access alone",
+    },
     "no_intune_devices": {
         "no": "Ingen Intune-enheter funnet",
         "en": "No Intune devices found",

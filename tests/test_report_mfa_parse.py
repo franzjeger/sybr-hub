@@ -157,3 +157,34 @@ def test_a_user_with_no_signal_at_all_is_still_unknown():
     assert result["measured"] == 9
     assert result["covered"] == 9
     assert result["pct"] == 100.0
+
+
+def test_registration_and_enforcement_are_reported_apart():
+    """99.5% coverage printed above "42 users have no MFA methods".
+
+    Coverage counts a user as protected when an enabled CA policy forces MFA
+    at sign-in, registered method or not. That is a defensible claim about the
+    account — it cannot be reached with a password alone — but it is not what
+    "MFA coverage" sounds like, and on the tenant this was written against 47
+    of the 185 covered users had never registered anything. Both figures are
+    now named, so the headline and the warning stop contradicting each other.
+    """
+    rows = [_row(f"Reg {i}", f"r{i}@x.no", "YES", "YES", "NO", "app") for i in range(6)]
+    rows += [_row(f"CA {i}", f"c{i}@x.no", "NO", "YES", "NO", "") for i in range(4)]
+    result = _parse_mfa(HEADER + "\n" + "\n".join(rows), "", [])
+
+    assert result["measured"] == 10
+    assert result["covered"] == 10
+    assert result["pct"] == 100.0, "enforcement really does cover all ten"
+
+    assert result["mfa_registered"] == 6
+    assert result["registered_pct"] == 60.0, "and only six of them have a method"
+    assert result["enforced_only"] == 4
+
+
+def test_the_two_figures_agree_when_everyone_has_registered():
+    rows = [_row(f"Reg {i}", f"r{i}@x.no", "YES", "YES", "NO", "app") for i in range(5)]
+    result = _parse_mfa(HEADER + "\n" + "\n".join(rows), "", [])
+    assert result["pct"] == 100.0
+    assert result["registered_pct"] == 100.0
+    assert result["enforced_only"] == 0
