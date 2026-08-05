@@ -163,7 +163,7 @@ class GraphClient:
         The period is part of the path, not a query parameter, which is why
         this cannot go through get_all.
         """
-        url = f"{_GRAPH_BASE}/reports/{name}(period='{period}')"
+        url = f"{_GRAPH_V1}/reports/{name}(period='{period}')"
         data = await self._get(url, params={"$format": "application/json"})
         if isinstance(data, dict) and data.get("error") in (401, 403):
             raise GraphPermissionError(

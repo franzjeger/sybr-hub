@@ -1986,24 +1986,26 @@ function showDeviceCode(d) {
   openPrivateBrowser();
 }
 
-async function openPrivateBrowser() {
+// Open the sign-in URL in the operator's own browser.
+//
+// This used to POST to /api/open-private, which ran subprocess.Popen on the
+// *server*. The server is headless and the technician is on a different
+// machine entirely, so the button spawned a browser process nobody could
+// see, then reported "Firefox (privat)" — the browser the server happened
+// to have, not the one the reader was sitting in front of.
+//
+// A page cannot open a private window: browsers refuse that deliberately,
+// and no flag or API changes it. So this opens a normal tab and the UI says
+// plainly that a private session is the reader's own step. Being honest
+// about it beats a button that claims something it never did.
+function openPrivateBrowser() {
   if (!_deviceCodeUrl) return;
-  const info = document.getElementById('dc-browser-info');
-  info.textContent = t('setup_opening');
-  try {
-    const d = await apiFetch('/api/open-private', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: _deviceCodeUrl})
-    });
-
-    if (d.ok) {
-      info.textContent = '✓ ' + d.browser;
-    } else {
-      info.textContent = '⚠ ' + (d.error || t('err_could_not_open'));
-    }
-  } catch(e) {
-    info.textContent = '⚠ ' + t('err_error_opening');
+  var info = document.getElementById('dc-browser-info');
+  var win = window.open(_deviceCodeUrl, '_blank', 'noopener,noreferrer');
+  if (info) {
+    info.textContent = win
+      ? t('setup_opened_in_tab', 'Åpnet i ny fane')
+      : t('setup_popup_blocked', 'Nettleseren blokkerte fanen — bruk lenken under');
   }
 }
 
