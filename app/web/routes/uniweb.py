@@ -83,7 +83,7 @@ async def _run_sync(email: str, password: str) -> None:
     _sync_status["sync_start_time"] = datetime.now(timezone.utc).isoformat()
 
     try:
-        from app.services.uniweb_client import UniwebClient
+        from app.services.uniweb_client import UniwebClient, UniwebScrapeError
 
         def _do_sync():
             client = UniwebClient()
@@ -92,8 +92,15 @@ async def _run_sync(email: str, password: str) -> None:
                     raise RuntimeError("Innlogging til Uniweb feilet")
 
                 # List accounts first for progress tracking
-                accounts = client.list_accounts()
+                try:
+                    accounts = client.list_accounts()
+                except UniwebScrapeError as exc:
+                    # Not zero accounts. The page did not parse, and a sync
+                    # that reports "0 customers" here would look like a
+                    # successful run against an empty portal.
+                    raise RuntimeError(f"Uniweb: {exc}") from exc
                 _sync_status["total_accounts"] = len(accounts)
+                _sync_status["partner_rows"] = getattr(client, "last_partner_rows", None)
                 _sync_status["current_account"] = "Henter kontoliste..."
 
                 results = []
@@ -101,11 +108,21 @@ async def _run_sync(email: str, password: str) -> None:
                     _sync_status["accounts_synced"] = i
                     _sync_status["current_account"] = acct.get("name", "?")
 
-                    if client.select_account(acct):
-                        acct["data"] = client.scrape_account_data()
-                        _sync_status["domains_found"] += len(acct["data"].get("domains", []))
-                    else:
-                        acct["data"] = {"domains": [], "subscriptions": [], "ssl": [], "email": [], "hosting": []}
+                    # An account that could not be read gets no data key.
+                    # Writing empty lists made "we could not open this page"
+                    # indistinguishable from "this customer has no domains",
+                    # and the second is a claim about the customer.
+                    try:
+                        if client.select_account(acct):
+                            acct["data"] = client.scrape_account_data()
+                            _sync_status["domains_found"] += len(
+                                acct["data"].get("domains", [])
+                            )
+                        else:
+                            acct["unavailable"] = "Could not enter the account page."
+                            _sync_status["errors_count"] += 1
+                    except UniwebScrapeError as exc:
+                        acct["unavailable"] = str(exc)[:300]
                         _sync_status["errors_count"] += 1
 
                     results.append(acct)
