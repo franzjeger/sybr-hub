@@ -36,11 +36,19 @@ class PasswordProtectionSection(BaseSection):
         enforce_on_prem = None
         mode = None
 
+        # groupSettings, not settings. "settings" is the beta alias; on v1.0
+        # it is not a segment at all and answered 400 on every run, so this
+        # list was always empty and everything below it was reasoning about
+        # nothing. Measured against a live tenant: v1.0/groupSettings and
+        # beta/settings return the same directory settings, and this client
+        # defaults to v1.0.
+        settings_read = False
         try:
             settings_list = await self.graph.get_all(
-                "settings",
+                "groupSettings",
                 params={"$top": "999"},
             )
+            settings_read = True
         except Exception as ex:
             settings_list = []
             self._warn(f"Directory settings fetch failed: {ex}")
@@ -99,6 +107,17 @@ class PasswordProtectionSection(BaseSection):
             ]
             if not has_custom:
                 self._warn("Custom banned password list is not configured — consider adding org-specific terms")
+        elif not settings_read:
+            # The read failed. "Not configured" is a claim about the tenant and
+            # there is no evidence for it — the warning that used to fire here
+            # appeared beside the fetch failure in the same run, telling a
+            # reader to go and add banned passwords on the strength of a 400.
+            lines += [
+                "  Directory settings could not be read, so password protection",
+                "  settings were not measured. This is not a finding about the",
+                "  tenant — see the fetch error recorded for this section.",
+                "",
+            ]
         else:
             lines += [
                 "  Password protection settings not found via directory settings.",
