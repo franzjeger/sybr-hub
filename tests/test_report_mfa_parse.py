@@ -119,3 +119,41 @@ def test_the_collector_and_the_reader_agree_on_the_layout():
     assert line[slice(*_MFA_COLS["mfa"])].strip() == "YES"
     assert line[slice(*_MFA_COLS["ca"])].strip() == "NO"
     assert line[slice(*_MFA_COLS["ca_excl"])].strip() == "YES"
+
+
+def test_coverage_cannot_exceed_a_hundred_percent():
+    """The dashboard read "Avg MFA 102%", which is not a coverage figure.
+
+    A user whose method lookup returned nothing was counted as unknown and
+    removed from the denominator. If a Conditional Access policy covered that
+    same user they were also counted as effectively covered — so they stayed
+    in the numerator. One such user in a fifty-user tenant is 102%.
+
+    The two sets have to be the same set. A CA policy enforcing MFA settles a
+    user's protection whichever way the method lookup went, so such a user is
+    determined, not unknown.
+    """
+    rows = [_row(f"User {i}", f"u{i}@x.no", "YES", "NO", "NO", "app") for i in range(49)]
+    # the method lookup failed for this one, but CA covers them
+    rows.append(_row("Ghost", "ghost@x.no", "?", "YES", "NO", ""))
+    result = _parse_mfa(HEADER + "\n" + "\n".join(rows), "", [])
+
+    assert result["pct"] <= 100, f"coverage read {result['pct']}%"
+    assert result["covered"] <= result["measured"], (
+        "the numerator counts users the denominator does not"
+    )
+    assert result["unknown"] == 0, "CA coverage settles this user's state"
+    assert result["pct"] == 100.0
+    assert result["no_mfa"] == 0
+
+
+def test_a_user_with_no_signal_at_all_is_still_unknown():
+    """The counterpart: nothing determined means nothing determined."""
+    rows = [_row(f"User {i}", f"u{i}@x.no", "YES", "NO", "NO", "app") for i in range(9)]
+    rows.append(_row("Ghost", "ghost@x.no", "?", "NO", "NO", ""))
+    result = _parse_mfa(HEADER + "\n" + "\n".join(rows), "", [])
+
+    assert result["unknown"] == 1
+    assert result["measured"] == 9
+    assert result["covered"] == 9
+    assert result["pct"] == 100.0
