@@ -345,7 +345,7 @@ BUDGET_JS_NORWEGIAN = {
     "app-infra.js": 128,
     "app-integrations.js": 22,
     "app-tailscale.js": 2,
-    "app-tls.js": 2,
+    "app-tls.js": 0,
 }
 
 # Strings handed straight to showToast/confirm/alert. Norwegian and English
@@ -554,7 +554,7 @@ BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app-infra.js": 0,
     "app-integrations.js": 0,
     "app-tailscale.js": 40,
-    "app-tls.js": 5,
+    "app-tls.js": 0,
 }
 
 
