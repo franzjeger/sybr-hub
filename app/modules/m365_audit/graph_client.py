@@ -59,6 +59,35 @@ def _graph_error_fields(detail: str) -> tuple[str, str]:
     return "", ""
 
 
+def _report_key(column: str) -> str:
+    """"User Principal Name" -> "userPrincipalName"."""
+    joined = "".join(part for part in column.split())
+    return joined[:1].lower() + joined[1:] if joined else joined
+
+
+def _report_row(row: dict) -> dict:
+    """One CSV row, typed the way the JSON form of these reports is.
+
+    "True"/"False" are strings in CSV and booleans in JSON, and Assigned
+    Products is a plus-separated string where JSON gives an array. A caller
+    that checks `is True` or iterates the products should not have to know
+    which shape it got.
+    """
+    out: dict = {}
+    for column, value in row.items():
+        if column is None:
+            continue
+        key = _report_key(column)
+        text = (value or "").strip()
+        if key == "assignedProducts":
+            out[key] = [p.strip() for p in text.split("+") if p.strip()]
+        elif text in ("True", "False"):
+            out[key] = text == "True"
+        else:
+            out[key] = text
+    return out
+
+
 class GraphPermissionError(Exception):
     """Graph refused a collection with 401/403.
 
@@ -173,30 +202,49 @@ class GraphClient:
     async def get_report(self, name: str, period: str = "D90") -> list[dict]:
         """A Microsoft 365 usage report, as rows.
 
-        These endpoints answer CSV by default, behind a 302 to a storage URL —
-        the shared client does not follow redirects and would hand the
-        redirect body to json(). $format=application/json returns the rows
-        directly and needs neither.
+        These endpoints answer CSV behind a 302 to storage, and the shared
+        client does not follow redirects. Asking for JSON instead is not an
+        option: Graph replies "JSON format is not supported" with a 400, which
+        is what this method did on its first outing. So the CSV is fetched and
+        parsed here.
+
+        Its columns are headings meant for a spreadsheet — "User Principal
+        Name", "Exchange Last Activity Date" — and _report_key folds them to
+        the camelCase Graph uses for the same fields elsewhere, so a caller
+        reads userPrincipalName either way.
 
         The period is part of the path, not a query parameter, which is why
         this cannot go through get_all.
         """
+        import csv
+        import io
+
+        if self._http is None:
+            raise RuntimeError("GraphClient is not entered — use as async context manager")
+
         url = f"{_GRAPH_V1}/reports/{name}(period='{period}')"
-        data = await self._get(url, params={"$format": "application/json"})
-        if isinstance(data, dict) and data.get("error") in (401, 403):
-            raise GraphPermissionError(
-                f"reports/{name}", int(data["error"]), str(data.get("detail", ""))
-            )
-        rows = data.get("value", []) if isinstance(data, dict) else []
-        # Graph pages these like any other collection once they are large.
-        next_url = data.get("@odata.nextLink", "") if isinstance(data, dict) else ""
-        pages = 0
-        while next_url and pages < 50:
-            more = await self._get(next_url)
-            rows.extend(more.get("value", []))
-            next_url = more.get("@odata.nextLink", "")
-            pages += 1
-        return rows
+        last_status = None
+        for attempt in range(3):
+            hdrs = await self._headers()
+            hdrs["Accept"] = "text/csv"
+            resp = await self._http.get(url, headers=hdrs, follow_redirects=True)
+            last_status = resp.status_code
+            if resp.status_code == 429:
+                retry_after = resp.headers.get("Retry-After")
+                wait = int(retry_after) if retry_after else min(2 ** attempt, 30)
+                log.warning("Graph throttled — waiting %ds", wait)
+                await asyncio.sleep(wait)
+                continue
+            if resp.status_code in (401, 403):
+                raise GraphPermissionError(f"reports/{name}", resp.status_code, resp.text)
+            resp.raise_for_status()
+            # utf-8-sig: the report opens with a BOM, which would otherwise
+            # ride along on the first column name and break every lookup.
+            text = resp.content.decode("utf-8-sig", errors="replace")
+            return [_report_row(row) for row in csv.DictReader(io.StringIO(text))]
+        raise RuntimeError(
+            f"Graph report {name} failed after 3 attempts (last status: {last_status})"
+        )
 
     async def get_all(
         self,

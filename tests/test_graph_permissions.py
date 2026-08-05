@@ -102,34 +102,71 @@ def test_every_declared_permission_has_something_that_uses_it():
     )
 
 
-def test_get_report_builds_a_url_it_can_actually_request():
-    """It named _GRAPH_BASE, which does not exist in that module.
+def test_get_report_reads_the_csv_these_endpoints_actually_return():
+    """It asked for JSON. Graph answers "JSON format is not supported", 400.
 
-    The constant is _GRAPH_V1. Nothing caught it because the usage-report
-    tests exercise the parser against fixture text, and the only code path
-    that touches this line is a live Graph call — so the section shipped and
-    failed on a real tenant with NameError, not with anything about Graph.
+    Measured against a live tenant: getOffice365ActiveUserDetail serves CSV
+    behind a redirect and refuses $format=application/json outright. The URL
+    was wrong too — _GRAPH_BASE for a constant named _GRAPH_V1 — and neither
+    showed up in tests, because the only code path that touches either is a
+    real request.
     """
     import asyncio
 
     from app.modules.m365_audit.graph_client import GraphClient
 
+    CSV = (
+        "\ufeffReport Refresh Date,User Principal Name,Is Deleted,"
+        "Exchange Last Activity Date,OneDrive Last Activity Date,Assigned Products\r\n"
+        "2026-08-01,a@b.no,False,2026-07-31,,EXCHANGE ONLINE (PLAN 1)+TEAMS\r\n"
+        "2026-08-01,c@d.no,True,,,\r\n"
+    )
+
+    class _Resp:
+        status_code = 200
+        headers: dict = {}
+        content = CSV.encode("utf-8")
+
+        def raise_for_status(self):
+            return None
+
     seen: dict = {}
 
-    async def _fake_get(url, params=None, extra_headers=None):
-        seen["url"] = url
-        seen["params"] = params
-        return {"value": [{"userPrincipalName": "a@b.no"}]}
+    class _Http:
+        async def get(self, url, headers=None, follow_redirects=False, **kw):
+            seen["url"] = url
+            seen["accept"] = (headers or {}).get("Accept")
+            seen["follow"] = follow_redirects
+            return _Resp()
 
     client = GraphClient.__new__(GraphClient)
-    client._get = _fake_get
+    client._http = _Http()
+
+    async def _headers():
+        return {}
+
+    client._headers = _headers
 
     rows = asyncio.run(client.get_report("getOffice365ActiveUserDetail", "D90"))
 
-    assert rows and rows[0]["userPrincipalName"] == "a@b.no"
-    assert seen["url"].startswith("https://graph.microsoft.com/v1.0/reports/")
-    assert "(period='D90')" in seen["url"]
-    assert seen["params"] == {"$format": "application/json"}
+    assert seen["url"] == (
+        "https://graph.microsoft.com/v1.0/reports/"
+        "getOffice365ActiveUserDetail(period='D90')"
+    )
+    assert seen["accept"] == "text/csv"
+    assert seen["follow"] is True, "the report redirects to storage"
+
+    assert len(rows) == 2
+    # the BOM must not ride along on the first column name
+    assert rows[0]["reportRefreshDate"] == "2026-08-01"
+    assert rows[0]["userPrincipalName"] == "a@b.no"
+    # "True"/"False" are strings in CSV and booleans in the JSON form
+    assert rows[0]["isDeleted"] is False
+    assert rows[1]["isDeleted"] is True
+    # and Assigned Products is an array there, a plus-separated string here
+    assert rows[0]["assignedProducts"] == ["EXCHANGE ONLINE (PLAN 1)", "TEAMS"]
+    assert rows[1]["assignedProducts"] == []
+    assert rows[0]["oneDriveLastActivityDate"] == ""
 
 
 def test_an_intune_service_refusal_is_not_reported_as_missing_consent():
