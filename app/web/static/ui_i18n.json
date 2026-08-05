@@ -2405,7 +2405,12 @@
     "lbl_customers": "Kunder",
     "lbl_date": "Dato",
     "msg_deleted": "Slettet",
-    "msg_qbr_generated": "QBR-rapport åpnet — bruk Ctrl+P for å lagre som PDF"
+    "msg_qbr_generated": "QBR-rapport åpnet — bruk Ctrl+P for å lagre som PDF",
+    "tls_auto_discover": "Auto-oppdag",
+    "tls_discovery_hint": "Samler endepunkter fra SSH-verter, FortiGate og UniFi-konfigurasjoner.",
+    "tls_connect_failed": "Feil ved tilkobling",
+    "tls_scanning_hosts": "Skanner konfigurerte verter ...",
+    "tls_none_on_hosts": "Ingen TLS-endepunkter funnet blant de konfigurerte vertene."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -4813,6 +4818,11 @@
     "lbl_customers": "Customers",
     "lbl_date": "Date",
     "msg_deleted": "Deleted",
-    "msg_qbr_generated": "QBR report opened — use Ctrl+P to save as PDF"
+    "msg_qbr_generated": "QBR report opened — use Ctrl+P to save as PDF",
+    "tls_auto_discover": "Auto-discover",
+    "tls_discovery_hint": "Collects endpoints from SSH hosts, FortiGate and UniFi configurations.",
+    "tls_connect_failed": "Connection failed",
+    "tls_scanning_hosts": "Scanning configured hosts...",
+    "tls_none_on_hosts": "No TLS endpoints found in configured hosts."
   }
 }

@@ -25,10 +25,10 @@ function tlsLoadView() {
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
   html += '<div style="font-size:14px;font-weight:600;">' + t('tls_scan_batch','Scan all customer endpoints') + '</div>';
   html += '<div style="display:flex;gap:8px;">';
-  html += '<button class="btn" onclick="tlsAutoDiscover()" id="tls-discover-btn" style="padding:6px 16px;font-size:12px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;">Auto-discover</button>';
+  html += '<button class="btn" onclick="tlsAutoDiscover()" id="tls-discover-btn" style="padding:6px 16px;font-size:12px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;">' + t('tls_auto_discover','Auto-oppdag') + '</button>';
   html += '<button class="btn btn-primary" onclick="tlsScanAll()" id="tls-scan-btn" style="padding:6px 16px;font-size:12px;">' + t('tls_check','Check') + '</button>';
   html += '</div></div>';
-  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Samler endepunkter fra SSH-verter, FortiGate og UniFi-konfigurasjoner.</div>';
+  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">' + t('tls_discovery_hint','Samler endepunkter fra SSH-verter, FortiGate og UniFi-konfigurasjoner.') + '</div>';
   html += '<div id="tls-discovered" style="margin-bottom:8px;"></div>';
   html += '<div id="tls-batch-result"></div>';
   html += '</div>';
@@ -47,7 +47,7 @@ async function tlsCheckSingle() {
   el.innerHTML = '<div class="loader" style="width:16px;height:16px;display:inline-block;vertical-align:middle;"></div> <span style="color:var(--text-muted);font-size:12px;">' + t('tls_scanning','Scanning...') + '</span>';
 
   var data = await apiFetch('/api/tls/check', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:host, port:port})});
-  if (!data) { el.innerHTML = '<span style="color:var(--red);">Feil ved tilkobling</span>'; return; }
+  if (!data) { el.innerHTML = '<span style="color:var(--red);">' + t('tls_connect_failed','Feil ved tilkobling') + '</span>'; return; }
   el.innerHTML = _tlsRenderSingleResult(data);
 }
 
@@ -90,14 +90,14 @@ async function tlsAutoDiscover() {
   var el = document.getElementById('tls-discovered');
   btn.disabled = true;
   btn.textContent = 'Discovering...';
-  el.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></div> <span style="color:var(--text-muted);font-size:12px;">Scanning configured hosts...</span>';
+  el.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></div> <span style="color:var(--text-muted);font-size:12px;">' + t('tls_scanning_hosts','Skanner konfigurerte verter ...') + '</span>';
 
   var data = await apiFetch('/api/tls/auto-discover');
   btn.disabled = false;
   btn.textContent = 'Auto-discover';
 
   if (!data || !data.endpoints || !data.endpoints.length) {
-    el.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">No TLS endpoints found in configured hosts.</span>';
+    el.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">' + t('tls_none_on_hosts','Ingen TLS-endepunkter funnet blant de konfigurerte vertene.') + '</span>';
     _tlsDiscoveredEndpoints = null;
     return;
   }
