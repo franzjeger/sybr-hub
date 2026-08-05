@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import (
     AuthError,
     ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
@@ -280,8 +281,10 @@ async def unifi_save(
     user: User = Depends(require_role(Role.technician)),
 ):
     """Save UniFi config for the active customer."""
+    from app.core.activity_log import log_activity
     from app.core.credentials import store_secret
     from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
 
     body = await request.json()
     active = CustomerManager.get_active()
@@ -289,14 +292,30 @@ async def unifi_save(
         raise ValidationError("Ingen aktiv kunde")
 
     cust_id = active["_id"]
+    # The active customer is process-global: whoever switched last decides what
+    # it means for everyone. Writing to it needs the same check as naming it.
+    if not await check_customer_access(user, cust_id):
+        raise ForbiddenError("Du har ikke tilgang til denne kunden")
     config = CustomerManager.get_customer(cust_id)
     if not config:
         raise NotFoundError("Kunde ikke funnet")
 
-    config["UniFiMode"] = body.get("mode", "controller")  # "controller" or "direct"
-    config["UniFiHost"] = body.get("host", "").strip()
-    config["UniFiIsUniFiOS"] = body.get("is_unifi_os", False)
-    config["UniFiSite"] = body.get("site", "default")
+    # Absent means "leave alone". Writing each field unconditionally from the
+    # body meant a partial save reset everything it did not mention — the same
+    # defect as /fortigate/save, where an omitted host blanked the address
+    # while the stored controller credentials stayed behind.
+    old_host = (config.get("UniFiHost") or "").strip()
+    if body.get("mode") is not None:
+        config["UniFiMode"] = str(body["mode"]) or "controller"  # "controller" or "direct"
+    if body.get("host") is not None:
+        host = str(body["host"]).strip()
+        if host:
+            validate_host(host, "host")
+        config["UniFiHost"] = host
+    if body.get("is_unifi_os") is not None:
+        config["UniFiIsUniFiOS"] = bool(body["is_unifi_os"])
+    if body.get("site") is not None:
+        config["UniFiSite"] = str(body["site"]).strip() or "default"
 
     # Save direct devices list (always update when mode is direct)
     devices = body.get("devices", [])
@@ -312,6 +331,14 @@ async def unifi_save(
 
     save_data = {k: v for k, v in config.items() if not k.startswith("_")}
     CustomerManager.save_customer(save_data)
+
+    new_host = (config.get("UniFiHost") or "").strip()
+    detail = f"Lagret UniFi-oppsett for {active.get('CustomerName', cust_id)}"
+    if new_host != old_host:
+        detail += f" — adresse endret fra {old_host or '(ingen)'} til {new_host or '(ingen)'}"
+    if password:
+        detail += " — nytt passord lagret"
+    log_activity("unifi_save", detail=detail, customer=cust_id, user=user.username)
 
     return {"ok": True}
 

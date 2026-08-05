@@ -4058,8 +4058,12 @@ async function saveUniFiDirect() {
   try {
     var d = await apiFetch('/api/unifi/save', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
+      // Only the fields this form owns. The route leaves everything else
+      // alone; it used to reset each unmentioned field to its default, so
+      // saving the device list blanked the customer's controller address.
       body: JSON.stringify({mode: 'direct', devices: _unifiDirectDevices})
     });
+    if (!d) return;
 
     if (d.ok) showToast(t('msg_saved_devices').replace('{count}', _unifiDirectDevices.length), 'success');
     else showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');

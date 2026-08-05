@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import (
     AuthError,
     ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
@@ -50,10 +51,19 @@ async def fortigate_test(request: Request, user: User = Depends(get_current_user
 
 
 @router.post("/fortigate/save")
-async def fortigate_save(request: Request, user: User = Depends(get_current_user)):
+async def fortigate_save(
+    request: Request,
+    # Was get_current_user, so a viewer could rewrite which address a
+    # customer's firewall credentials travel to and store a new API token
+    # under that customer. The sibling /unifi/save has always been technician.
+    user: User = Depends(require_role(Role.technician)),
+):
     """Save FortiGate config for the active customer."""
+    from app.core.activity_log import log_activity
     from app.core.credentials import store_secret
     from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
+    from app.core.validation import validate_host
 
     body = await request.json()
     active = CustomerManager.get_active()
@@ -61,15 +71,49 @@ async def fortigate_save(request: Request, user: User = Depends(get_current_user
         raise ValidationError("Ingen aktiv kunde")
 
     cust_id = active["_id"]
+    # The active customer is process-global, not per-session: whoever switched
+    # last decides what "active" means for everyone. Writing to it therefore
+    # needs the same access check as naming a customer outright.
+    if not await check_customer_access(user, cust_id):
+        raise ForbiddenError("Du har ikke tilgang til denne kunden")
     config = CustomerManager.get_customer(cust_id)
     if not config:
         raise NotFoundError("Kunde ikke funnet")
 
-    # Update network fields
-    config["FortiGateHost"] = body.get("host", "").strip()
-    config["FortiGatePort"] = int(body.get("port", 443))
-    config["FortiGateVDOM"] = body.get("vdom", "root")
-    config["FortiGateVerifySSL"] = body.get("verify_ssl", True)
+    # Update network fields.
+    #
+    # Every one of these used to be written unconditionally from the body, so a
+    # request that omitted a field reset it: no "host" blanked FortiGateHost, no
+    # "port" dropped a hardened 8443 back to 443, no "verify_ssl" turned
+    # certificate checking back on. The blanking matters most — the keyring
+    # secrets survive it, which leaves a customer holding firewall credentials
+    # with no address recorded for them, and that is exactly the state
+    # provisioning now has to refuse. Absent means "leave alone"; only a field
+    # that is actually present is written.
+    # A null is treated as absent too, so a form that always serialises every
+    # key does not depend on which of them it managed to fill in. An empty
+    # *string* host is the one deliberate clear, since that is the only way to
+    # unset an address on purpose.
+    old_host = (config.get("FortiGateHost") or "").strip()
+    if body.get("host") is not None:
+        host = str(body["host"]).strip()
+        if host:
+            validate_host(host, "host")
+        config["FortiGateHost"] = host
+    raw_port = body.get("port")
+    if raw_port is not None and str(raw_port).strip() != "":
+        try:
+            port = int(raw_port)
+        except (TypeError, ValueError) as e:
+            # int("abc") used to reach the client as a 500 "internal error".
+            raise ValidationError(f"Ugyldig port: {raw_port!r}") from e
+        if not 1 <= port <= 65535:
+            raise ValidationError(f"Port må være mellom 1 og 65535, ikke {port}")
+        config["FortiGatePort"] = port
+    if body.get("vdom") is not None:
+        config["FortiGateVDOM"] = str(body["vdom"]).strip() or "root"
+    if body.get("verify_ssl") is not None:
+        config["FortiGateVerifySSL"] = bool(body["verify_ssl"])
 
     # Save token to keyring
     token = body.get("api_token", "").strip()
@@ -79,6 +123,16 @@ async def fortigate_save(request: Request, user: User = Depends(get_current_user
     # Save config (strip internal fields)
     save_data = {k: v for k, v in config.items() if not k.startswith("_")}
     CustomerManager.save_customer(save_data)
+
+    new_host = (config.get("FortiGateHost") or "").strip()
+    detail = f"Lagret FortiGate-oppsett for {active.get('CustomerName', cust_id)}"
+    if new_host != old_host:
+        # The one change worth being able to reconstruct afterwards: it decides
+        # where this customer's stored firewall credentials are sent.
+        detail += f" — adresse endret fra {old_host or '(ingen)'} til {new_host or '(ingen)'}"
+    if token:
+        detail += " — nytt API-token lagret"
+    log_activity("fortigate_save", detail=detail, customer=cust_id, user=user.username)
 
     return {"ok": True}
 
@@ -257,16 +311,31 @@ async def fortigate_bootstrap(
     from app.core.activity_log import log_activity
     from app.core.credentials import store_secret
     from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
+    from app.core.validation import validate_host
     from app.services.fortigate_api import factory_bootstrap
 
     body = await request.json()
     host = body.get("host", "").strip()
-    ssh_port = int(body.get("ssh_port", 22))
+    try:
+        ssh_port = int(body.get("ssh_port") or 22)
+    except (TypeError, ValueError) as e:
+        raise ValidationError(f"Ugyldig ssh_port: {body.get('ssh_port')!r}") from e
     hostname = body.get("hostname", "").strip() or None
     api_admin_name = body.get("api_admin_name", "msp_api_admin").strip()
 
     if not host:
         raise ValidationError("host (IP-adresse) er påkrevd")
+    validate_host(host, "host")
+
+    # The success path overwrites this customer's stored API token and admin
+    # password with the newly minted ones. On the wrong customer that is a
+    # destructive write against credentials the caller may not be allowed near,
+    # and the active customer is process-global — whoever switched last picks
+    # it for everyone.
+    active = CustomerManager.get_active()
+    if active and not await check_customer_access(user, active["_id"]):
+        raise ForbiddenError("Du har ikke tilgang til den aktive kunden")
 
     result = await factory_bootstrap(
         host=host,
@@ -275,9 +344,11 @@ async def fortigate_bootstrap(
         api_admin_name=api_admin_name,
     )
 
-    # Persist credentials so they can be recovered later (e.g. PC crash)
+    # Persist credentials so they can be recovered later (e.g. PC crash).
+    # Deliberately the *same* `active` the access check above ran against:
+    # re-reading a process global after a long-running SSH bootstrap would let
+    # another session's customer switch land between the check and the write.
     if result.get("ok"):
-        active = CustomerManager.get_active()
         if active:
             cust_id = active["_id"]
             cust_name = active.get("CustomerName", "")
