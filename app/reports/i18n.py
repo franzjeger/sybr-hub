@@ -945,6 +945,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Sensitivitetsmerker",
         "en": "Sensitivity Labels",
     },
+    # Shown in place of a count when the collector could not reach the data.
+    # A zero and an unasked question look the same on a report otherwise.
+    "not_measured": {
+        "no": "Ikke m\u00e5lt",
+        "en": "Not measured",
+    },
+    "not_measured_note": {
+        "no": "Kunne ikke hentes fra Microsoft 365. Tallet er ikke null, det er ukjent.",
+        "en": "Could not be retrieved from Microsoft 365. The figure is unknown, not zero.",
+    },
     "dlp_policies": {
         "no": "DLP-policyer",
         "en": "DLP Policies",

@@ -259,3 +259,30 @@ def test_a_null_run_does_not_become_a_trend_delta(tmp_path):
         assert key not in ctx.get("trends", {}), (
             f"{key} produced a delta against an unknown previous value"
         )
+
+
+def test_an_unmeasured_purview_count_is_not_shown_as_zero(tmp_path):
+    """A count of nought and a count never taken must not read alike.
+
+    Fonnafly's runs get a 404 from the sensitivity-label endpoint. The reader
+    blanks an errored section before any parser sees it, which stops the error
+    being parsed as data — but it also leaves the customer report printing a
+    brand-coloured 0 under "Sensitivitetsmerker", which reads as "you have
+    none" rather than "we could not look". The technical report lists the
+    errored sections outright; this one had nothing.
+    """
+    files = {
+        "19c_purview_sensitivity_labels.txt": (
+            "Error: Client error '404 Not Found' for url "
+            "'https://graph.microsoft.com/beta/security/informationProtection/"
+            "sensitivityLabels'"
+        ),
+        "19d_purview_dlp_policies.txt": "  POLICY NAME    STATUS\n  Default DLP    Enabled",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["purview"]["sensitivity_labels_unavailable"] is True
+    assert ctx["purview"]["dlp_unavailable"] is False, "a section that worked was marked unavailable"
+
+    text = _visible_text(_render_strict(tmp_path, "report_customer.html.j2", files))
+    assert "Ikke m\u00e5lt" in text, "the customer report still presents the gap as a measurement"
+    assert "404" not in text and "Client error" not in text

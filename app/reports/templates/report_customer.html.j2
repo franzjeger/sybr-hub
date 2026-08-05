@@ -1319,16 +1319,16 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 
 <div class="metrics">
   <div class="metric-card">
-    <div class="num brand">{{ purview.sensitivity_label_count }}</div>
-    <div class="lbl">{{ t.sensitivity_labels }}</div>
+    <div class="num brand">{% if purview.sensitivity_labels_unavailable %}<span style="color:var(--muted);" title="{{ t.not_measured_note }}">&ndash;</span>{% else %}{{ purview.sensitivity_label_count }}{% endif %}</div>
+    <div class="lbl">{{ t.sensitivity_labels }}{% if purview.sensitivity_labels_unavailable %}<br><span style="font-size:10px;color:var(--muted);">{{ t.not_measured }}</span>{% endif %}</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ purview.dlp_policy_count }}</div>
-    <div class="lbl">{{ t.dlp_policies }}</div>
+    <div class="num brand">{% if purview.dlp_unavailable %}<span style="color:var(--muted);" title="{{ t.not_measured_note }}">&ndash;</span>{% else %}{{ purview.dlp_policy_count }}{% endif %}</div>
+    <div class="lbl">{{ t.dlp_policies }}{% if purview.dlp_unavailable %}<br><span style="font-size:10px;color:var(--muted);">{{ t.not_measured }}</span>{% endif %}</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ purview.retention_policy_count }}</div>
-    <div class="lbl">{{ t.retention_policies }}</div>
+    <div class="num brand">{% if purview.retention_unavailable %}<span style="color:var(--muted);" title="{{ t.not_measured_note }}">&ndash;</span>{% else %}{{ purview.retention_policy_count }}{% endif %}</div>
+    <div class="lbl">{{ t.retention_policies }}{% if purview.retention_unavailable %}<br><span style="font-size:10px;color:var(--muted);">{{ t.not_measured }}</span>{% endif %}</div>
   </div>
 </div>
 

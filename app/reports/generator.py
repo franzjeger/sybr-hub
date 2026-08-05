@@ -4939,6 +4939,21 @@ def build_report_context(
         for name in error_files
     ]
 
+    # A count of nought and a count never taken read the same on a report, and
+    # a customer cannot tell "you have no sensitivity labels" from "we could
+    # not look". The technical report lists the errored sections outright; the
+    # customer report showed a brand-coloured 0 with nothing beside it.
+    #
+    # The flag has to be set from error_files rather than inside the parser:
+    # the reader blanks an errored file before any parser sees it, so by the
+    # time _parse_purview runs, the evidence that the fetch failed is gone.
+    for flag, section in (
+        ("sensitivity_labels_unavailable", "19c_purview_sensitivity_labels.txt"),
+        ("dlp_unavailable", "19d_purview_dlp_policies.txt"),
+        ("retention_unavailable", "19e_purview_retention_policies.txt"),
+    ):
+        context["purview"][flag] = section in error_files
+
     # Per-category compliance summary
     cat_summary: dict[str, dict] = {}
     for c in compliance:

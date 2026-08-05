@@ -4,6 +4,8 @@
 **Bakgrunn:** En gjennomgang av datagrunnlaget mot anbefalingene avdekket at flere vurderinger var bygget på felt som aldri ble samlet inn, og at rapporten ikke kunne spores tilbake til rådataene. Feilene delte én form: Graph protesterer ikke på en egenskap du staver feil, den utelater den, og "N/A" leses som "ikke konfigurert".
 
 **Bugfix — vurderinger uten grunnlag:**
+- **Kunderapporten viste «0 sensitivitetsmerker» der sannheten var «ikke målt».** Fonnaflys kjøringer får 404 fra Purview-endepunktet. Leseren blanker en feilet seksjon før noen parser ser den, som er riktig og hindrer at feilen tolkes som data, men det etterlot en merkefarget 0 under overskriften uten forbehold. Den tekniske rapporten lister feilede seksjoner rett ut, kunderapporten hadde ingenting. Nå vises en strek og «Ikke målt» i stedet for et tall. Flagget settes fra `error_files` og ikke i parseren, for på det tidspunktet er beviset for at hentingen feilet allerede borte.
+
 - **CIS 7.2.3 (SharePoint legacy-protokoller)** besto på enhver tenant uansett innstilling. Parseren leste `legacy auth` fra en fil samleren aldri skrev. Feltet hentes nå (`isLegacyAuthProtocolsEnabled`), og fravær er en tredje tilstand i stedet for `false`.
 - **"Uadministrerte enheter"** i den tekniske rapporten meldte alltid "Blokkert/Begrenset" uten at noe hadde sett etter. Hos Fonnafly var sannheten det motsatte.
 - **Kryssleie-tilgang** viste `N/A` på begge feltene siden dagen de ble skrevet. `default` er en relasjon på `crossTenantAccessPolicy`, ikke en egenskap, så samleren leste et objekt som aldri fantes i svaret.
