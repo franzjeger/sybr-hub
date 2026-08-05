@@ -89,16 +89,35 @@ async function docsRepoLoad() {
     if (!data || !data.root) throw new Error('no tree');
     treeBox.innerHTML = _docsRenderTree(data.root, 0);
     _docsRepoTreeLoaded = true;
-    // Auto-open a sensible default so the right pane isn't empty.
-    // Norwegian users get the Norwegian quick-start; everyone else
-    // gets the full English user guide.
-    var defaultDoc = (typeof _lang !== 'undefined' && _lang === 'no')
-      ? 'no/HURTIGSTART.md'
-      : 'USER_GUIDE.md';
-    docsRepoOpen(defaultDoc);
+    // Auto-open a sensible default so the right pane isn't empty — chosen
+    // from what the tree actually offers. It used to name USER_GUIDE.md, or
+    // no/HURTIGSTART.md on a Norwegian UI, and docs/ holds neither: every
+    // visit to this tab opened on "Could not open the document", with a
+    // working list of files beside it.
+    var offered = _docsFileList(data.root);
+    var preferred = (typeof _lang !== 'undefined' && _lang === 'no')
+      ? ['no/HURTIGSTART.md', 'README.md']
+      : ['USER_GUIDE.md', 'README.md'];
+    var defaultDoc = null;
+    for (var i = 0; i < preferred.length && !defaultDoc; i++) {
+      if (offered.indexOf(preferred[i]) !== -1) defaultDoc = preferred[i];
+    }
+    if (!defaultDoc && offered.length) defaultDoc = offered[0];
+    if (defaultDoc) docsRepoOpen(defaultDoc);
   } catch (e) {
     treeBox.innerHTML = '<div style="color:var(--color-danger);">' + t('integ_docs_load_failed','Kunne ikke laste dokumentasjon') + ': ' + esc(String(e)) + '</div>';
   }
+}
+
+// Every file path in the tree, depth-first, in the order the tree shows them.
+function _docsFileList(node) {
+  if (!node) return [];
+  if (node.type === 'file') return [node.path];
+  var out = [];
+  (node.children || []).forEach(function(c) {
+    out = out.concat(_docsFileList(c));
+  });
+  return out;
 }
 
 function _docsRenderTree(node, depth) {

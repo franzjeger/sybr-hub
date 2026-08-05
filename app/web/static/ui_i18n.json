@@ -2624,7 +2624,8 @@
     "inf_copied": "Kopiert",
     "inf_token_copied": "API-token kopiert",
     "inf_copied_excl": "Kopiert!",
-    "inf_unknown": "Ukjent"
+    "inf_unknown": "Ukjent",
+    "integ_doc_empty": "dokumentet er tomt eller finnes ikke"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5251,6 +5252,7 @@
     "inf_copied": "Copied",
     "inf_token_copied": "API token copied",
     "inf_copied_excl": "Copied!",
-    "inf_unknown": "Unknown"
+    "inf_unknown": "Unknown",
+    "integ_doc_empty": "the document is empty or does not exist"
   }
 }
