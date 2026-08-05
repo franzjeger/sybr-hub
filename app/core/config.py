@@ -55,7 +55,14 @@ def get_audit_dir() -> Path:
 # doesn't break; nothing in app/ uses it any more.
 AUDIT_DIR = get_audit_dir()
 
-# Graph permissions required for audit
+# Graph permissions required for audit. The single source: GraphClient
+# validates against this list, and setup_helper.ps1 is handed it on stdin
+# rather than carrying its own copy. It was written out three times — here, in
+# GraphClient, and in the PowerShell that actually grants the consent — with a
+# "keep in sync" comment standing in for a mechanism. They happened to agree,
+# which is the state a drift hazard is in right up until it isn't: adding a
+# permission to two of the three grants a consent nothing checks, or requires
+# one the wizard never asks for.
 REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "AuditLog.Read.All",
     "Application.Read.All",
@@ -74,7 +81,6 @@ REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "SharePointTenantSettings.Read.All",
     "User.Read.All",
     "UserAuthenticationMethod.Read.All",
-    "PrivilegedAssignmentSchedule.Read.AzureADGroup",
     "InformationProtectionPolicy.Read.All",
     "AccessReview.Read.All",
     "SecurityAlert.Read.All",

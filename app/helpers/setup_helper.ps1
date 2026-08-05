@@ -3,7 +3,8 @@
 # Uses Microsoft.Graph.Authentication for reliable delegated auth + admin-consent.
 # Azure ARM role assignment still uses a separate raw device-code token.
 #
-# Input  : JSON on stdin   { cert_der_b64, cert_expiry, cert_start, app_name }
+# Input  : JSON on stdin   { cert_der_b64, cert_expiry, cert_start, app_name,
+#                            required_permissions[] }
 # Output : structured lines on stdout
 #   [STEP] <message>
 #   [DEVICE_CODE_1] url=<url> code=<code>     <- Graph / M365 auth
@@ -27,6 +28,8 @@ try {
     $certExpiry = $inp.cert_expiry
     $certStart  = $inp.cert_start
     $appName    = if ($inp.app_name) { $inp.app_name } else { 'MSP Toolkit Audit' }
+    # Handed in by the caller so this file is not a third copy of the list.
+    $permsIn    = $inp.required_permissions
 } catch {
     out-err "Failed to read input: $_"
 }
@@ -184,7 +187,7 @@ $graphSP.appRoles |
     Where-Object { $_.allowedMemberTypes -contains 'Application' } |
     ForEach-Object { $graphRoles[$_.value] = $_.id }
 
-$requiredPerms = @(
+$fallbackPerms = @(
     'AuditLog.Read.All','Application.Read.All',
     'DeviceManagementApps.Read.All','DeviceManagementConfiguration.Read.All',
     'DeviceManagementManagedDevices.Read.All','DeviceManagementServiceConfig.Read.All',
@@ -192,9 +195,16 @@ $requiredPerms = @(
     'Organization.Read.All','Policy.Read.All','RoleManagement.Read.Directory',
     'SecurityEvents.Read.All','Sites.Read.All','SharePointTenantSettings.Read.All',
     'User.Read.All','UserAuthenticationMethod.Read.All',
-    'PrivilegedAssignmentSchedule.Read.AzureADGroup',
     'InformationProtectionPolicy.Read.All','AccessReview.Read.All','SecurityAlert.Read.All'
 )
+
+# The caller passes the list it also validates against; the literal above is
+# only reached when an older caller sends nothing, and grants a consent that
+# would then not match what GraphClient checks for.
+$requiredPerms = if ($permsIn -and $permsIn.Count -gt 0) { @($permsIn) } else {
+    out-step 'Advarsel: ingen tillatelsesliste mottatt — bruker innebygd fallback'
+    $fallbackPerms
+}
 
 $graphAccess = $requiredPerms |
     Where-Object { $graphRoles.ContainsKey($_) } |

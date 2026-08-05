@@ -12,6 +12,8 @@ import logging
 from typing import Any, Optional
 
 import httpx
+
+from app.core.config import REQUIRED_GRAPH_PERMISSIONS
 from azure.core.credentials_async import AsyncTokenCredential
 
 log = logging.getLogger(__name__)
@@ -244,35 +246,11 @@ class GraphClient:
 
     # ── Permission validation ──────────────────────────────────────────────────
 
-    # The canonical list of Graph application permissions the audit requires.
-    # Sourced from setup_helper.ps1 — keep in sync.
-    REQUIRED_PERMISSIONS: list[str] = [
-        "AuditLog.Read.All",
-        "Application.Read.All",
-        "DeviceManagementApps.Read.All",
-        "DeviceManagementConfiguration.Read.All",
-        "DeviceManagementManagedDevices.Read.All",
-        "DeviceManagementServiceConfig.Read.All",
-        "Directory.Read.All",
-        "Group.Read.All",
-        "IdentityRiskyUser.Read.All",
-        "Organization.Read.All",
-        "Policy.Read.All",
-        "RoleManagement.Read.Directory",
-        "SecurityEvents.Read.All",
-        "Sites.Read.All",
-        "SharePointTenantSettings.Read.All",
-        "User.Read.All",
-        "UserAuthenticationMethod.Read.All",
-        "PrivilegedAssignmentSchedule.Read.AzureADGroup",
-        "InformationProtectionPolicy.Read.All",
-        "AccessReview.Read.All",
-        "SecurityAlert.Read.All",
-    ]
+    # Imported, not restated. See REQUIRED_GRAPH_PERMISSIONS for why.
+    REQUIRED_PERMISSIONS: list[str] = list(REQUIRED_GRAPH_PERMISSIONS)
 
     # Permissions that merely degrade results (non-critical).
     _WARN_ONLY_PERMISSIONS: set[str] = {
-        "PrivilegedAssignmentSchedule.Read.AzureADGroup",
         "InformationProtectionPolicy.Read.All",
         "AccessReview.Read.All",
         "SecurityAlert.Read.All",

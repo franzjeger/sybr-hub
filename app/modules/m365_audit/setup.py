@@ -30,7 +30,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
-from app.core.config import AUDIT_APP_NAME
+from app.core.config import REQUIRED_GRAPH_PERMISSIONS, AUDIT_APP_NAME
 from app.core.credentials import (
     generate_cert_password,
     save_cert,
@@ -89,6 +89,8 @@ class FirstRunSetup:
             "cert_expiry":  cert_expiry_iso,
             "cert_start":   cert_start_iso,
             "app_name":     AUDIT_APP_NAME,
+            # The helper grants exactly what GraphClient later checks for.
+            "required_permissions": list(REQUIRED_GRAPH_PERMISSIONS),
         }).encode()
 
         # app/helpers/*.ps1 has never been committed to the repository, so a
