@@ -384,7 +384,25 @@ class ExchangeSection(BaseSection):
                 params={"$top": "999"},
             )
         except Exception as ex:
-            self._save("19c_purview_sensitivity_labels.txt", f"Error: {ex}\n")
+            # Keep the "Error:" shape the reader blanks on — a 404 body must
+            # not reach the customer report — but say what the status means.
+            # A missing permission is refused with 401 or 403; Not Found says
+            # the path is not a resource on this endpoint version, so sending
+            # a technician to check consent wastes the trip. Whether the fix
+            # is tenant-side provisioning or a moved beta path has to be
+            # settled against Graph's reference, not guessed here.
+            hint = ""
+            if "404" in str(ex) or "Not Found" in str(ex):
+                hint = (
+                    "  Not a consent problem: a missing permission is refused with "
+                    "401 or 403.\n"
+                    "  Either this tenant has no Information Protection provisioning, "
+                    "or the\n  beta path has moved. Verify the endpoint against the "
+                    "Microsoft Graph\n  reference before changing it.\n"
+                )
+            self._save(
+                "19c_purview_sensitivity_labels.txt", f"Error: {ex}\n{hint}"
+            )
             self._warn(f"Sensitivity labels fetch failed: {ex}")
             return
 

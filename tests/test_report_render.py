@@ -424,3 +424,21 @@ def test_a_refused_usage_report_claims_no_idle_licences(tmp_path):
     assert "ingen registrert aktivitet" not in text, (
         "an idle-licence claim was made from a report that was never read"
     )
+
+
+def test_the_404_hint_stays_out_of_the_customer_report():
+    """The evidence file explains the status; the customer never sees it.
+
+    A 404 is neither a permission gap nor a licence gap, and the collector now
+    says so in the file a technician opens. That text keeps the "Error:" shape
+    the reader blanks on, so it reaches the technical evidence and no further —
+    the customer report must not print a Graph status code.
+    """
+    import pathlib
+
+    src = pathlib.Path("app/modules/m365_audit/sections/exchange.py").read_text()
+    assert '19c_purview_sensitivity_labels.txt", f"Error: {ex}' in src, (
+        "the stub no longer starts with Error:, so the reader will not blank it "
+        "and the status would reach the customer report"
+    )
+    assert "401 or 403" in src, "the hint no longer explains what a 404 is not"
