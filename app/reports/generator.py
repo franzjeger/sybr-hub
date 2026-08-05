@@ -244,13 +244,21 @@ def _parse_mfa(
     records = _mfa_user_records(json_text, text)
     for rec in records:
         total += 1
-        if rec.get("mfa_registered") is None:
-            unknown += 1
         # None is "could not be determined". Counting it as False is what
         # turns a throttled run into a page of false "no MFA" findings.
         has_mfa = rec.get("mfa_registered") is True
         has_ca = bool(rec.get("ca_covered"))
         is_excluded = bool(rec.get("ca_excluded"))
+        covered = has_mfa or (has_ca and not is_excluded)
+
+        # Unknown means the user's protection could not be established. A
+        # failed method lookup on its own does not mean that: a Conditional
+        # Access policy enforcing MFA settles the question whichever way the
+        # lookup went. Counting such a user as unknown *and* as covered put
+        # them in the numerator and took them out of the denominator, which
+        # is how this read 102%.
+        if rec.get("mfa_registered") is None and not covered:
+            unknown += 1
 
         if has_mfa:
             mfa_registered += 1
@@ -260,7 +268,7 @@ def _parse_mfa(
             ca_excluded += 1
         if not has_mfa and not has_ca:
             fully_unprotected += 1
-        if has_mfa or (has_ca and not is_excluded):
+        if covered:
             effectively_covered += 1
 
     # Also parse CA analysis for coverage stats if available
@@ -298,6 +306,13 @@ def _parse_mfa(
     # none of them, and it turns a throttled run into a page of false
     # findings. The count is still reported separately so it is not hidden.
     measured = max(0, total - unknown)
+    # Every record counted as covered is one whose state was determined, so it
+    # is inside `measured` by construction and this cannot exceed 100. The
+    # assertion is the invariant, not a clamp: a clamp would have shown 100%
+    # here and left the two sets quietly disagreeing.
+    assert effectively_covered <= measured or measured == 0, (
+        f"MFA numerator {effectively_covered} exceeds denominator {measured}"
+    )
     pct = (effectively_covered / measured * 100) if measured > 0 else 0
     no_mfa = max(0, measured - effectively_covered)
 
