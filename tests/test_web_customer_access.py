@@ -167,10 +167,18 @@ async def test_technician_cannot_read_an_unassigned_customer(client, path):
 
 
 async def test_technician_can_read_an_assigned_customer(client):
-    """The assigned customer must get past RBAC (404/400 from the handler is fine)."""
+    """The assigned customer must get past RBAC.
+
+    What the handler answers next is its own business — /api/hub 404s for a
+    customer that is not on disk, and this fixture creates none. The assertion
+    read == 200, which held only while that route was a stub returning a fixed
+    shape for any id at all. Reaching the handler is what proves RBAC allowed
+    it; a 403 is what would prove otherwise.
+    """
     token = await _token_for("tech", Role.technician, customers=["acme"])
     resp = client.get("/api/hub/acme", headers=_h(token))
-    assert resp.status_code == 200
+    assert resp.status_code not in (401, 403), resp.text
+    assert resp.status_code in (200, 404)
 
 
 async def test_unassigned_technician_is_refused(client):
@@ -183,12 +191,16 @@ async def test_all_customers_grant_reaches_any_customer(client):
     user = await create_user("tech", GOOD_PASSWORD, "Tech", role=Role.technician)
     await set_all_customers(user.id, True)
     token = await create_access_token(user)
-    assert client.get("/api/hub/anything", headers=_h(token)).status_code == 200
+    resp = client.get("/api/hub/anything", headers=_h(token))
+    assert resp.status_code not in (401, 403), resp.text
+    assert resp.status_code in (200, 404)
 
 
 async def test_admin_bypasses_customer_scoping(client):
     token = await _token_for("admin", Role.admin)
-    assert client.get("/api/hub/any-customer", headers=_h(token)).status_code == 200
+    resp = client.get("/api/hub/any-customer", headers=_h(token))
+    assert resp.status_code not in (401, 403), resp.text
+    assert resp.status_code in (200, 404)
 
 
 async def test_role_floor_still_applies_alongside_customer_scoping(client):
