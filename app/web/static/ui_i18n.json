@@ -2468,7 +2468,23 @@
     "ts_confirm_remove": "Fjerne denne enheten fra tailnettet? Dette kan ikke angres.",
     "ts_device_removed": "Enhet fjernet",
     "ts_tags_updated": "Tagger oppdatert",
-    "ts_devices_suffix": "enheter"
+    "ts_devices_suffix": "enheter",
+    "dash_load_failed": "Kunne ikke laste",
+    "dash_costs_load_failed": "Kunne ikke laste kostnadsdata",
+    "dash_no_cost_data": "Ingen kostnadsdata",
+    "dash_no_cost_hint": "Synkroniser ALSO-fornyelser eller Uniweb-kontoer for å se kostnader her.",
+    "dash_customer_count": "Antall kunder",
+    "dash_total": "Totalt",
+    "dash_customers_lc": "kunder",
+    "dash_uniweb_hosting": "Uniweb Hosting",
+    "dash_checking_tls": "Sjekker TLS-sertifikater for alle domener ...",
+    "dash_domains_load_failed": "Kunne ikke laste domenedata",
+    "dash_missing_spf": "Mangler SPF",
+    "dash_missing_dmarc": "Mangler DMARC",
+    "dash_ssl_expiring_30d": "SSL-sertifikat utløper innen 30 dager",
+    "dash_no_domains": "Ingen domener funnet",
+    "dash_no_domains_hint": "Synkroniser Uniweb-data for å se domener her.",
+    "dash_valid_until": "gyldig til"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -4939,6 +4955,22 @@
     "ts_confirm_remove": "Remove this device from the tailnet? This cannot be undone.",
     "ts_device_removed": "Device removed",
     "ts_tags_updated": "Tags updated",
-    "ts_devices_suffix": "devices"
+    "ts_devices_suffix": "devices",
+    "dash_load_failed": "Could not load",
+    "dash_costs_load_failed": "Could not load cost data",
+    "dash_no_cost_data": "No cost data",
+    "dash_no_cost_hint": "Sync ALSO renewals or Uniweb accounts to see costs here.",
+    "dash_customer_count": "Customers",
+    "dash_total": "Total",
+    "dash_customers_lc": "customers",
+    "dash_uniweb_hosting": "Uniweb Hosting",
+    "dash_checking_tls": "Checking TLS certificates for all domains...",
+    "dash_domains_load_failed": "Could not load domain data",
+    "dash_missing_spf": "Missing SPF",
+    "dash_missing_dmarc": "Missing DMARC",
+    "dash_ssl_expiring_30d": "SSL certificate expiring within 30 days",
+    "dash_no_domains": "No domains found",
+    "dash_no_domains_hint": "Sync Uniweb data to see domains here.",
+    "dash_valid_until": "valid until"
   }
 }
