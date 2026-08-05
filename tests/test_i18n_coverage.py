@@ -76,6 +76,11 @@ _NOT_TEXT = {
     ".conf", ".ovpn", ".xml", "both", "localhost:2023", "&#x26F6;",
     "Installer: npm install -g @anthropic-ai/claude-code",   # a shell command
     "INFO+", "WARNING+", "ERROR+", "DEBUG+", "A+", "A-", "B+", "B-", "C+", "C-",
+    # Customer tag vocabulary. TAG_COLORS is keyed by the tag string as it is
+    # stored against the customer, so these are lookup keys, not labels —
+    # translating one would return the fallback colour for every customer
+    # already carrying it. The map holds both languages for the same reason.
+    "Ny kunde", "New customer", "Prioritert", "Priority", "Proveperiode",
 }
 _NOT_TEXT_RE = re.compile(r"^(?:[\W\d_]+|Ctrl\+\S+|⌘\S*|v?\d+[\d.]*|[A-Z]{2,5})$")
 
@@ -228,6 +233,13 @@ def norwegian_literals_in_js(script: str = "app.js") -> list[tuple[int, str]]:
             continue
         if _KEY_RE.match(text):                   # an i18n key, not its text
             continue
+        # These scripts build markup, so a quote inside an HTML attribute ends
+        # a "string" the tokenizer thought it was in, and the next one starts
+        # mid-concatenation: title="' + t('tip_x','Klikk …') + ' captures a
+        # t() call as though it were a literal. If a t() call is inside it,
+        # the text did go through translation.
+        if re.search(r"\bt\(\s*['\"]", text):
+            continue
         line_no = js[:m.start()].count("\n")
         stripped = lines[line_no].strip()
         if stripped.startswith("//") or stripped.startswith("*"):
@@ -349,7 +361,7 @@ BUDGET_ATTRIBUTES = 0
 # built entirely out of markup measured clean. These are the numbers once it
 # can see them. Only ever down.
 BUDGET_JS_NORWEGIAN = {
-    "app.js": 21,
+    "app.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 128,

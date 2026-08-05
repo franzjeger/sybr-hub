@@ -2540,7 +2540,21 @@
     "integ_accounts_failed_detail": "konto(er) feilet, se detaljer i dialogen",
     "integ_errors_lc": "feil",
     "integ_sync": "Synkroniser",
-    "integ_customers_unlinked": "kunder ikke koblet"
+    "integ_customers_unlinked": "kunder ikke koblet",
+    "tip_mfa_share": "Andel brukere med tofaktorautentisering aktivert",
+    "rbac_customers_selected": "kunder valgt",
+    "rbac_all_customers": "Alle kunder (RBAC ikke konfigurert)",
+    "rbac_customers_assigned": "kunder tildelt",
+    "rbac_full_access": "Full tilgang (ingen restriksjoner)",
+    "lbl_error": "Feil",
+    "lbl_customers_lc": "kunder",
+    "st_configured_2": "Konfigurert",
+    "st_not_configured_2": "Ikke konfigurert",
+    "st_not_linked": "Ikke koblet",
+    "unit_day": "dag",
+    "unit_days": "dager",
+    "unit_ago": "siden",
+    "lbl_last_updated": "Sist oppdatert"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5083,6 +5097,20 @@
     "integ_accounts_failed_detail": "account(s) failed — see details in the dialog",
     "integ_errors_lc": "errors",
     "integ_sync": "Synchronise",
-    "integ_customers_unlinked": "customers not linked"
+    "integ_customers_unlinked": "customers not linked",
+    "tip_mfa_share": "Share of users with two-factor authentication enabled",
+    "rbac_customers_selected": "customers selected",
+    "rbac_all_customers": "All customers (RBAC not configured)",
+    "rbac_customers_assigned": "customers assigned",
+    "rbac_full_access": "Full access (no restrictions)",
+    "lbl_error": "Error",
+    "lbl_customers_lc": "customers",
+    "st_configured_2": "Configured",
+    "st_not_configured_2": "Not configured",
+    "st_not_linked": "Not linked",
+    "unit_day": "day",
+    "unit_days": "days",
+    "unit_ago": "ago",
+    "lbl_last_updated": "Last updated"
   }
 }

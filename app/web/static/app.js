@@ -1689,7 +1689,7 @@ function renderDashboard(d) {
           <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_risk_grade')}</div>
           <div style="font-size:13px;font-weight:600;color:var(--text-muted);">${m.risk_score}/100 ${trend('risk_score', 'score', false)}</div>
         </div>
-        <div class="tooltip" data-tip="Andel brukere med tofaktorautentisering aktivert" style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
+        <div class="tooltip" data-tip="${t('tip_mfa_share','Andel brukere med tofaktorautentisering aktivert')}" style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
           <div style="font-size:28px;font-weight:700;color:${metricColor(m.mfa_coverage_pct, [95, 80])};">${m.mfa_coverage_pct?.toFixed(0) || 0}%</div>
           <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_mfa_coverage')}</div>
           ${trend('mfa_coverage_pct', 'MFA', false)}
@@ -3291,7 +3291,7 @@ async function editUserCustomers(userId, displayName) {
   var hasAny = Object.keys(accessSet).length > 0;
 
   var html = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">Kundetilgang for ' + esc(displayName) + '</div>';
-  html += '<div style="margin-bottom:8px;font-size:11px;color:var(--text-muted);">' + (hasAny ? Object.keys(accessSet).length + ' kunder valgt' : 'Alle kunder (RBAC ikke konfigurert)') + '</div>';
+  html += '<div style="margin-bottom:8px;font-size:11px;color:var(--text-muted);">' + (hasAny ? Object.keys(accessSet).length + ' ' + t('rbac_customers_selected','kunder valgt') : t('rbac_all_customers','Alle kunder (RBAC ikke konfigurert)')) + '</div>';
   html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px;">';
   customers.customers.forEach(function(c) {
     var cid = c._id || '';
@@ -3314,7 +3314,7 @@ async function saveUserCustomers(userId) {
   panel.querySelectorAll('.rbac-cb:checked').forEach(function(cb) { ids.push(cb.dataset.cid); });
   await apiFetch('/api/auth/users/' + userId + '/customers', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_ids:ids})});
   panel.remove();
-  showToast(ids.length ? ids.length + ' kunder tildelt' : 'Full tilgang (ingen restriksjoner)', 'success', 2000);
+  showToast(ids.length ? ids.length + ' ' + t('rbac_customers_assigned','kunder tildelt') : t('rbac_full_access','Full tilgang (ingen restriksjoner)'), 'success', 2000);
 }
 
 async function clearUserCustomers(userId) {
@@ -3695,7 +3695,7 @@ async function loadNetworkDevices() {
     html += '<input class="field-input" id="input-uf-host" type="text" placeholder="https://192.168.1.1:8443" value="' + esc((d.unifi && d.unifi.host) || '') + '">';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
     html += '<div><label class="field-label">' + t('brukernavn') + '</label><input class="field-input" id="input-uf-user" type="text" placeholder="admin"></div>';
-    html += '<div><label class="field-label">' + t('passord') + '</label><input class="field-input" id="input-uf-pass" type="password" placeholder="Passord"></div>';
+    html += '<div><label class="field-label">' + t('passord') + '</label><input class="field-input" id="input-uf-pass" type="password" placeholder="' + t('passord') + '"></div>';
     html += '</div>';
     html += '<label class="field-label" style="margin-top:8px;">' + t('site') + '</label>';
     html += '<input class="field-input" id="input-uf-site" type="text" value="' + esc((d.unifi && d.unifi.site) || 'default') + '" placeholder="default">';
@@ -3942,7 +3942,7 @@ async function runNetworkQuickAudit() {
               ];
               // Wireless fields
               if (dev.ssid_list && dev.ssid_list.length > 1) {
-                fields.push(['SSID-er', dev.ssid_list.join(', ')]);
+                fields.push([t('lbl_ssids','SSID-er'), dev.ssid_list.join(', ')]);
               } else if (dev.essid) {
                 fields.push(['SSID', dev.essid]);
               }
@@ -4468,7 +4468,7 @@ async function testUniFi() {
     if (d.ok) {
       res.innerHTML = '<span style="color:var(--green);">OK — ' + d.sites + ' site(s) (' + esc(d.controller_type) + '): ' + esc((d.site_names||[]).join(', ')) + '</span>';
     } else {
-      res.innerHTML = '<span style="color:var(--red);">Feil: ' + esc(d.error) + '</span>';
+      res.innerHTML = '<span style="color:var(--red);">' + t('lbl_error','Feil') + ': ' + esc(d.error) + '</span>';
     }
   } catch (e) {
     res.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
@@ -5933,7 +5933,7 @@ async function loadIntegrationHealthStrip() {
   // configured flag, optional extra label shown on hover/under the name.
   var items = [
     { key: 'gdap',         label: 'M365 (GDAP)', configured: !!settings.gdap_configured,
-      detail: settings.gdap_customer_count ? (settings.gdap_customer_count + ' kunder') : '' },
+      detail: settings.gdap_customer_count ? (settings.gdap_customer_count + ' ' + t('lbl_customers_lc','kunder')) : '' },
     { key: 'fortigate',    label: 'FortiGate',   configured: !!settings.fortigate_configured,
       taskId: 'fortigate_backup' },
     { key: 'unifi',        label: 'UniFi',       configured: !!settings.unifi_site_manager_api_key_set },
@@ -7951,11 +7951,11 @@ async function loadUnifiedDashboard() {
   if (d.m365 && d.m365.secret_status === 'expired') { _m365c = 'var(--red)'; _m365l = t('st_secret_expired'); }
   else if (d.m365 && d.m365.secret_status === 'warning') { _m365c = 'var(--orange)'; _m365l = t('st_secret_days_left').replace('{days}', d.m365.secret_days_left); }
   var _fgc = d.fortigate ? 'var(--green)' : 'var(--text-dim)';
-  var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || 'Konfigurert') : 'Ikke konfigurert';
+  var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
   var _ufc = d.unifi ? 'var(--green)' : 'var(--text-dim)';
-  var _ufl = d.unifi ? (d.unifi.UniFiHost || 'Konfigurert') : 'Ikke konfigurert';
+  var _ufl = d.unifi ? (d.unifi.UniFiHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
   var _aoc = d.also ? 'var(--green)' : 'var(--text-dim)';
-  var _aol = d.also ? (d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'kr') : '')) : 'Ikke koblet';
+  var _aol = d.also ? (d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'kr') : '')) : t('st_not_linked','Ikke koblet');
   if (d.also && (d.also.expired > 0 || d.also.expiring_90d > 0)) { _aoc = d.also.expired > 0 ? 'var(--red)' : 'var(--orange)'; }
   var _sshN = d.ssh_hosts ? d.ssh_hosts.length : 0;
   var _sshc = _sshN > 0 ? 'var(--green)' : 'var(--text-dim)';
@@ -7965,7 +7965,7 @@ async function loadUnifiedDashboard() {
     + _cdChip('UniFi', _ufc, _ufl)
     + _cdChip('ALSO', _aoc, _aol, {onclick:"loadCustomerLicensesFromActive()"})
     + _cdChip(t('lbl_ssh_hosts'), _sshc, (_sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none')), {onclick:"showView('hosts')"})
-    + _cdChip('Hosting', 'var(--text-dim)', 'Laster…', {id:'unified-uniweb-status'})
+    + _cdChip('Hosting', 'var(--text-dim)', t('st_loading','Laster…'), {id:'unified-uniweb-status'})
     + '</div>';
 
   // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
@@ -8067,7 +8067,7 @@ async function _unifiedLoadUniwebCard(custId) {
     if (!uw || !uw.matched) {
       if (statusEl) {
         statusEl.style.borderTopColor = 'var(--text-dim)';
-        statusEl.querySelector('div:last-child').textContent = 'Ikke koblet';
+        statusEl.querySelector('div:last-child').textContent = t('st_not_linked','Ikke koblet');
         statusEl.querySelector('div:last-child').style.color = 'var(--text-dim)';
       }
       return;
@@ -8105,7 +8105,7 @@ async function _unifiedLoadUniwebCard(custId) {
         if (diff < 60) return 'akkurat n\u00e5';
         if (diff < 3600) return Math.floor(diff/60) + ' min siden';
         if (diff < 86400) return Math.floor(diff/3600) + (Math.floor(diff/3600) === 1 ? ' time' : ' timer') + ' siden';
-        if (diff < 604800) return Math.floor(diff/86400) + (Math.floor(diff/86400) === 1 ? ' dag' : ' dager') + ' siden';
+        if (diff < 604800) return Math.floor(diff/86400) + (Math.floor(diff/86400) === 1 ? ' ' + t('unit_day','dag') : ' ' + t('unit_days','dager')) + ' ' + t('unit_ago','siden');
         return d.toLocaleDateString('nb-NO', {day:'2-digit',month:'short',year:'numeric'});
       } catch(e) { return dateStr; }
     }
@@ -8129,7 +8129,7 @@ async function _unifiedLoadUniwebCard(custId) {
     h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">';
     h += '<div style="font-size:11px;color:var(--text-muted);">' + esc(uw.account_name) + (uw.account_id ? ' \u00b7 ID: ' + esc(uw.account_id) : '') + '</div>';
     if (uw.last_sync) {
-      h += '<div style="font-size:10px;color:var(--text-dim);" title="' + esc(new Date(uw.last_sync).toLocaleString('nb-NO')) + '">Sist oppdatert: ' + _uwRelativeTime(uw.last_sync) + '</div>';
+      h += '<div style="font-size:10px;color:var(--text-dim);" title="' + esc(new Date(uw.last_sync).toLocaleString('nb-NO')) + '">' + t('lbl_last_updated','Sist oppdatert') + ': ' + _uwRelativeTime(uw.last_sync) + '</div>';
     }
     h += '</div></div>';
 
@@ -8284,7 +8284,7 @@ async function _unifiedLoadUniwebCard(custId) {
     cardEl.innerHTML = h;
   } catch (e) {
     if (statusEl) {
-      statusEl.querySelector('div:last-child').textContent = 'Feil';
+      statusEl.querySelector('div:last-child').textContent = t('lbl_error','Feil');
       statusEl.querySelector('div:last-child').style.color = 'var(--red)';
     }
   }
