@@ -30,11 +30,11 @@ function _setRenewalFilter(key) {
 
 async function dashLoadRenewals() {
   var el = document.getElementById('dash-renewals-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Laster fornyelser...</div>';
+  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_loading_renewals','Laster fornyelser ...') + '</div>';
 
   var data = await apiFetch('/api/also/renewals?days=365');
   if (!data) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12px;">ALSO Cloud ikke tilgjengelig</div>'
+    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12px;">' + t('also_unavailable','ALSO Cloud ikke tilgjengelig') + '</div>'
       + '<div id="dash-uniweb-renewals" style="margin-top:16px;"><div class="loader" style="width:16px;height:16px;margin:16px auto;"></div></div>';
     _loadUniwebRenewals();
     return;
@@ -277,16 +277,16 @@ async function _loadUniwebRenewals() {
 
     // Section header
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-    html += '<div style="font-size:14px;font-weight:600;color:var(--text);">Uniweb-fornyelser</div>';
-    html += '<button class="btn btn-ghost" onclick="_loadUniwebRenewals()" style="padding:4px 12px;font-size:11px;">Oppdater</button>';
+    html += '<div style="font-size:14px;font-weight:600;color:var(--text);">' + t('also_uniweb_renewals','Uniweb-fornyelser') + '</div>';
+    html += '<button class="btn btn-ghost" onclick="_loadUniwebRenewals()" style="padding:4px 12px;font-size:11px;">' + t('also_refresh','Oppdater') + '</button>';
     html += '</div>';
 
     // Render each urgency group
     var groups = [
-      {label:'Kritisk', subtitle:'Utløper innen 7 dager', items:kritisk, color:'var(--red)', bgTint:'rgba(255,59,48,0.06)'},
-      {label:'Snart', subtitle:'Utløper innen 30 dager', items:snart, color:'var(--orange)', bgTint:'rgba(255,149,0,0.06)'},
-      {label:'Kommende', subtitle:'Utløper innen 90 dager', items:kommende, color:'#c9a800', bgTint:'rgba(201,168,0,0.06)'},
-      {label:'Langsiktig', subtitle:'90–365 dager', items:langt, color:'var(--green)', bgTint:'rgba(59,185,80,0.06)'},
+      {label:'Kritisk', subtitle:t('also_exp_7d','Utløper innen 7 dager'), items:kritisk, color:'var(--red)', bgTint:'rgba(255,59,48,0.06)'},
+      {label:'Snart', subtitle:t('also_exp_30d','Utløper innen 30 dager'), items:snart, color:'var(--orange)', bgTint:'rgba(255,149,0,0.06)'},
+      {label:'Kommende', subtitle:t('also_exp_90d','Utløper innen 90 dager'), items:kommende, color:'#c9a800', bgTint:'rgba(201,168,0,0.06)'},
+      {label:'Langsiktig', subtitle:t('also_exp_365d','90–365 dager'), items:langt, color:'var(--green)', bgTint:'rgba(59,185,80,0.06)'},
     ];
 
     groups.forEach(function(g) {
@@ -301,11 +301,11 @@ async function _loadUniwebRenewals() {
 
       html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
       html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
-      html += '<th style="text-align:left;padding:7px 10px;">Kunde</th>';
-      html += '<th style="text-align:left;padding:7px 10px;">Type</th>';
-      html += '<th style="text-align:left;padding:7px 10px;">Navn</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">Utlopsdato</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">Dager igjen</th>';
+      html += '<th style="text-align:left;padding:7px 10px;">' + t('also_col_customer','Kunde') + '</th>';
+      html += '<th style="text-align:left;padding:7px 10px;">' + t('also_col_type','Type') + '</th>';
+      html += '<th style="text-align:left;padding:7px 10px;">' + t('also_col_name','Navn') + '</th>';
+      html += '<th style="text-align:center;padding:7px 10px;">' + t('also_col_expiry','Utløpsdato') + '</th>';
+      html += '<th style="text-align:center;padding:7px 10px;">' + t('also_col_days_left','Dager igjen') + '</th>';
       html += '</tr></thead><tbody>';
 
       g.items.forEach(function(item, idx) {
@@ -327,24 +327,24 @@ async function _loadUniwebRenewals() {
 
     container.innerHTML = html;
   } catch (e) {
-    container.innerHTML = '<div class="card" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">Kunne ikke laste Uniweb-fornyelser. Sjekk at Uniweb er konfigurert.</div>';
+    container.innerHTML = '<div class="card" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_uniweb_load_failed','Kunne ikke laste Uniweb-fornyelser. Sjekk at Uniweb er konfigurert.') + '</div>';
   }
 }
 
 async function alsoDownloadPDF() {
-  showToast('Genererer PDF...', 'info', 3000);
+  showToast(t('also_generating_pdf','Genererer PDF ...'), 'info', 3000);
   try {
     var resp = await fetch('/api/also/renewals/report?days=365', {
       headers: {'Authorization': 'Bearer ' + _authToken}
     });
-    if (!resp.ok) { showToast('PDF-generering feilet: ' + resp.status, 'error'); return; }
+    if (!resp.ok) { showToast(t('also_pdf_failed','PDF-generering feilet') + ': ' + resp.status, 'error'); return; }
     var blob = await resp.blob();
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'renewal_report_' + new Date().toISOString().slice(0,10) + '.pdf';
     a.click();
     URL.revokeObjectURL(a.href);
-  } catch(e) { showToast('PDF-feil: ' + e.message, 'error'); }
+  } catch(e) { showToast(t('also_pdf_error','PDF-feil') + ': ' + e.message, 'error'); }
 }
 
 function alsoToggleAll(checked) {
@@ -353,7 +353,7 @@ function alsoToggleAll(checked) {
 
 async function alsoBulkHandled() {
   var cbs = document.querySelectorAll('.renewal-cb:checked');
-  if (!cbs.length) { showToast('Ingenting valgt', 'warning'); return; }
+  if (!cbs.length) { showToast(t('also_nothing_selected','Ingenting valgt'), 'warning'); return; }
   var promises = [];
   cbs.forEach(function(cb) {
     promises.push(apiFetch('/api/also/renewals/' + cb.dataset.id + '/handle', {
@@ -361,13 +361,13 @@ async function alsoBulkHandled() {
     }));
   });
   await Promise.all(promises);
-  showToast(cbs.length + ' markert som h\u00e5ndtert', 'success');
+  showToast(cbs.length + ' ' + t('also_marked_handled','markert som håndtert'), 'success');
   dashLoadRenewals();
 }
 
 function alsoExportCSV() {
   var data = _lastRenewals;
-  if (!data || !data.length) { showToast('Ingen data \u00e5 eksportere', 'warning'); return; }
+  if (!data || !data.length) { showToast(t('also_nothing_to_export','Ingen data å eksportere'), 'warning'); return; }
   // CSV headers kept in English for data processing
   var lines = ['Customer,Product,Vendor,Term,Qty,Unit Price,Monthly,Renewal Date,Days Left,Status,Handled,Notes'];
   data.forEach(function(r) {
@@ -391,7 +391,7 @@ function alsoExportCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = 'renewals_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
-  showToast('CSV eksportert', 'success', 1500);
+  showToast(t('also_csv_exported','CSV eksportert'), 'success', 1500);
 }
 
 async function alsoToggleHandled(renewalId, handled) {
@@ -406,7 +406,7 @@ async function alsoSaveNote(renewalId, notes) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({handled: document.querySelector('input[onchange*="'+renewalId+'"]') ? 1 : 0, notes: notes})
   });
-  showToast('Notat lagret', 'success', 1500);
+  showToast(t('also_note_saved','Notat lagret'), 'success', 1500);
 }
 
 var _renewalScanTimer = null;
@@ -423,7 +423,7 @@ async function alsoRenewalScan() {
     + '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'
     + '<div id="renewal-scan-bar" style="width:0%;height:100%;background:var(--blue);border-radius:3px;transition:width 0.5s;"></div></div>'
     + '<span id="renewal-scan-pct" style="font-size:11px;color:var(--text-muted);min-width:40px;">0%</span></div>'
-    + '<div id="renewal-scan-detail" style="font-size:11px;color:var(--text-dim);">Starter...</div></div>';
+    + '<div id="renewal-scan-detail" style="font-size:11px;color:var(--text-dim);">' + t('also_starting','Starter ...') + '</div></div>';
 
   // Start polling progress
   _renewalScanTimer = setInterval(async function() {
@@ -435,7 +435,7 @@ async function alsoRenewalScan() {
     var detail = document.getElementById('renewal-scan-detail');
     if (bar) bar.style.width = pct + '%';
     if (pctEl) pctEl.textContent = pct + '%';
-    if (detail) detail.textContent = p.current ? 'Skanner: ' + p.current + ' (' + (p.scanned+1) + '/' + p.total + ')' : (p.done ? 'Ferdig' : 'Starter...');
+    if (detail) detail.textContent = p.current ? t('also_scanning','Skanner') + ': ' + p.current + ' (' + (p.scanned+1) + '/' + p.total + ')' : (p.done ? t('also_done','Ferdig') : t('also_starting','Starter ...'));
     if (p.done && _renewalScanTimer) { clearInterval(_renewalScanTimer); _renewalScanTimer = null; }
   }, 1500);
 
@@ -449,11 +449,11 @@ async function alsoRenewalScan() {
     if (bar) bar.style.width = '100%';
 
     if (remaining > 0) {
-      btn.textContent = 'Skann neste batch (' + remaining + ' gjenst\u00e5r)';
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 Skannet '+d.scanned+' \u00b7 '+d.already_cached+' allerede bufret \u00b7 '+remaining+' gjenst\u00e5r'+(d.errors?' \u00b7 <span style="color:var(--orange);">'+d.errors+' feil</span>':'')+'</span>';
+      btn.textContent = t('also_scan_next_batch','Skann neste batch') + ' (' + remaining + ' ' + t('also_remaining','gjenstår') + ')';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_scanned','Skannet') + ' '+d.scanned+' \u00b7 '+d.already_cached+' ' + t('also_already_cached','allerede bufret') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+d.errors+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
     } else {
       btn.textContent = t('btn_sync','Sync');
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 Alle '+d.total_linked+' kunder ferdig bufret</span>';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all','Alle') + ' '+d.total_linked+' ' + t('also_customers_cached','kunder ferdig bufret') + '</span>';
     }
     return d;
   } else {
@@ -469,7 +469,7 @@ async function alsoRefreshApiStats() {
   var s = await apiFetch('/api/also/api-stats');
   if (!s || !s.total_calls) { el.textContent = 'API: 0 kall'; return; }
   el.innerHTML = 'API: <strong>'+s.total_calls+'</strong> kall \u00b7 '+s.last_1min+'/min \u00b7 '+s.last_5min+'/5min \u00b7 snitt '+s.avg_response_ms+'ms'
-    + (s.errors > 0 ? ' \u00b7 <span style="color:var(--red);">'+s.errors+' feil</span>' : '');
+    + (s.errors > 0 ? ' \u00b7 <span style="color:var(--red);">'+s.errors+' ' + t('also_errors','feil') + '</span>' : '');
 }
 
 var _priceScanTimer = null;
@@ -478,14 +478,14 @@ async function alsoPriceScan() {
   var btn = document.getElementById('renewal-scan-btn');
   var msg = document.getElementById('renewal-scan-msg');
   btn.disabled = true;
-  btn.textContent = 'Henter priser...';
+  btn.textContent = t('also_fetching_prices','Henter priser ...');
 
   msg.innerHTML = '<div style="margin-top:4px;">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
     + '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'
     + '<div id="price-scan-bar" style="width:0%;height:100%;background:var(--green);border-radius:3px;transition:width 0.5s;"></div></div>'
     + '<span id="price-scan-pct" style="font-size:11px;color:var(--text-muted);min-width:40px;">0%</span></div>'
-    + '<div id="price-scan-detail" style="font-size:11px;color:var(--text-dim);">Henter priser...</div></div>';
+    + '<div id="price-scan-detail" style="font-size:11px;color:var(--text-dim);">' + t('also_fetching_prices','Henter priser ...') + '</div></div>';
 
   _priceScanTimer = setInterval(async function() {
     var p = await apiFetch('/api/also/price-scan/progress');
@@ -496,7 +496,7 @@ async function alsoPriceScan() {
     var detail = document.getElementById('price-scan-detail');
     if (bar) bar.style.width = pct + '%';
     if (pctEl) pctEl.textContent = pct + '%';
-    if (detail) detail.textContent = p.current ? '\ud83d\udcb0 ' + p.current + ' (' + (p.scanned+1) + '/' + p.total + ')' : (p.done ? 'Ferdig' : 'Starter...');
+    if (detail) detail.textContent = p.current ? '\ud83d\udcb0 ' + p.current + ' (' + (p.scanned+1) + '/' + p.total + ')' : (p.done ? t('also_done','Ferdig') : t('also_starting','Starter ...'));
     if (p.done && _priceScanTimer) { clearInterval(_priceScanTimer); _priceScanTimer = null; }
   }, 1500);
 
@@ -510,11 +510,11 @@ async function alsoPriceScan() {
     if (bar) bar.style.width = '100%';
 
     if (remaining > 0) {
-      btn.textContent = 'Neste prisbatch (' + remaining + ' gjenst\u00e5r)';
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 Priset '+d.scanned+' abonnementer \u00b7 '+remaining+' gjenst\u00e5r'+(d.errors?' \u00b7 <span style="color:var(--orange);">'+d.errors+' feil</span>':'')+'</span>';
+      btn.textContent = t('also_next_price_batch','Neste prisbatch') + ' (' + remaining + ' ' + t('also_remaining','gjenstår') + ')';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_priced','Priset') + ' '+d.scanned+' ' + t('also_subscriptions_lc','abonnementer') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+d.errors+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
     } else {
       btn.textContent = t('btn_sync','Sync');
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 Alle abonnementer priset</span>';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all_priced','Alle abonnementer priset') + '</span>';
     }
     return d;
   } else {

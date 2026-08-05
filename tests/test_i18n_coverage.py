@@ -124,6 +124,16 @@ _HEADING_RE = re.compile(r"^(.+?)\s*\(/api/[a-z_]+/\*\)$")
 def _is_code(text: str) -> bool:
     if _CODE_RE.match(text):
         return True
+    # The markup scan looks for text between > and <, which in a script also
+    # matches across the halves of a comparison: "d.days_remaining >= 0 && d"
+    # is read as the text "= 0 && d". A logical operator is never prose.
+    if "&&" in text or "||" in text:
+        return True
+    # A \uXXXX escape read as source text. The detector sees the six
+    # characters, not the glyph they stand for, so the "u" makes it look like
+    # a word.
+    if re.fullmatch(r"(?:\\u[0-9a-fA-F]{4}|\s)+", text):
+        return True
     heading = _HEADING_RE.match(text)
     if heading and (heading.group(1) in _NOT_TEXT or _NOT_TEXT_RE.match(heading.group(1))):
         return True
@@ -340,7 +350,7 @@ BUDGET_ATTRIBUTES = 0
 # can see them. Only ever down.
 BUDGET_JS_NORWEGIAN = {
     "app.js": 21,
-    "app-also.js": 27,
+    "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 128,
     "app-integrations.js": 22,
@@ -353,7 +363,7 @@ BUDGET_JS_NORWEGIAN = {
 # Norwegian UI shows in English.
 BUDGET_JS_PERSON = {
     "app.js": 0,
-    "app-also.js": 7,
+    "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
@@ -549,7 +559,7 @@ def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
 # Ceilings, per script. Same rule as the others: only ever down.
 BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app.js": 0,
-    "app-also.js": 19,
+    "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
