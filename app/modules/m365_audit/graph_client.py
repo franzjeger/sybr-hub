@@ -33,6 +33,15 @@ _LICENCE_ERROR_CODES = frozenset({
 })
 _LICENCE_MESSAGE_HINTS = ("premium license", "premium licence", "premium tenant")
 
+# Intune answers through its own service, and Graph passes that answer back
+# wrapped in a 401 with code UnknownError. The body is the giveaway: a
+# manage.microsoft.com URL and a nested ErrorCode of Forbidden. Measured on a
+# tenant where all four DeviceManagement roles were granted and consented, so
+# reporting it as missing consent sends a technician to look at a grant that
+# is already there. What it actually means is that the service will not answer
+# for this tenant — most often because there is no Intune subscription.
+_SERVICE_REFUSAL_HINTS = ("manage.microsoft.com", '"errorcode":"forbidden"')
+
 
 def _graph_error_fields(detail: str) -> tuple[str, str]:
     """Return ``(code, message)`` from a Graph error body, best-effort."""
@@ -73,8 +82,17 @@ class GraphPermissionError(Exception):
             self.code in _LICENCE_ERROR_CODES
             or any(hint in haystack for hint in _LICENCE_MESSAGE_HINTS)
         )
+        self.is_service_refusal = any(
+            hint in self.detail.lower() for hint in _SERVICE_REFUSAL_HINTS
+        )
         if self.is_licence_gap:
             cause = "the tenant does not have the Entra ID licence this endpoint requires"
+        elif self.is_service_refusal:
+            cause = (
+                "the service behind this endpoint refused the request — the "
+                "permission is not the problem; the tenant most likely has no "
+                "subscription for it"
+            )
         else:
             cause = "the app registration is missing a permission or admin consent"
         suffix = (
@@ -280,7 +298,7 @@ class GraphClient:
 
     # Permissions that merely degrade results (non-critical).
     _WARN_ONLY_PERMISSIONS: set[str] = {
-        "InformationProtectionPolicy.Read.All",
+        "SensitivityLabels.Read.All",
         "AccessReview.Read.All",
         "SecurityAlert.Read.All",
     }

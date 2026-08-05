@@ -83,9 +83,9 @@ REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "SharePointTenantSettings.Read.All",
     "User.Read.All",
     "UserAuthenticationMethod.Read.All",
-    "InformationProtectionPolicy.Read.All",
     "AccessReview.Read.All",
     "SecurityAlert.Read.All",
+    "SensitivityLabels.Read.All",
 ]
 
 GRAPH_APP_ID  = "00000003-0000-0000-c000-000000000000"  # Microsoft Graph

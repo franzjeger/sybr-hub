@@ -86,7 +86,7 @@ def test_every_declared_permission_has_something_that_uses_it():
         "SharePointTenantSettings.Read.All": "admin/sharepoint",
         "User.Read.All": "users",
         "UserAuthenticationMethod.Read.All": "authentication/methods",
-        "InformationProtectionPolicy.Read.All": "informationProtection",
+        "SensitivityLabels.Read.All": "dataSecurityAndGovernance",
         "AccessReview.Read.All": "accessReviews",
         "SecurityAlert.Read.All": "alerts_v2",
     }
@@ -130,3 +130,39 @@ def test_get_report_builds_a_url_it_can_actually_request():
     assert seen["url"].startswith("https://graph.microsoft.com/v1.0/reports/")
     assert "(period='D90')" in seen["url"]
     assert seen["params"] == {"$format": "application/json"}
+
+
+def test_an_intune_service_refusal_is_not_reported_as_missing_consent():
+    """Measured against a tenant with all four DeviceManagement roles granted.
+
+    Graph wraps the Intune service's own refusal in a 401 with code
+    UnknownError, and the body carries a manage.microsoft.com URL with a
+    nested ErrorCode of Forbidden. Read as a permission failure it sends a
+    technician to inspect a grant that is already there; what it means is
+    that the service will not answer for this tenant at all.
+    """
+    from app.modules.m365_audit.graph_client import GraphPermissionError
+
+    body = (
+        '{"error":{"code":"UnknownError","message":"{\\"ErrorCode\\":\\"Forbidden\\",'
+        '\\"Message\\":\\"... Url: https://proxy.msub09.manage.microsoft.com/DeviceFE/'
+        'StatelessDeviceFEService/deviceManagement/managedDevices\\"}"}}'
+    )
+    err = GraphPermissionError("deviceManagement/managedDevices", 401, body)
+
+    assert err.is_service_refusal is True
+    assert err.is_licence_gap is False
+    assert "permission is not the problem" in str(err)
+    assert "admin consent" not in str(err)
+
+
+def test_a_plain_403_is_still_reported_as_missing_consent():
+    """The counterpart: a real permission refusal must keep saying so."""
+    from app.modules.m365_audit.graph_client import GraphPermissionError
+
+    body = '{"error":{"code":"Authorization_RequestDenied","message":"Insufficient privileges."}}'
+    err = GraphPermissionError("users", 403, body)
+
+    assert err.is_service_refusal is False
+    assert err.is_licence_gap is False
+    assert "missing a permission or admin consent" in str(err)
