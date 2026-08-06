@@ -71,7 +71,7 @@ async def _live_policies(customer_id: str) -> tuple[list[dict], bool]:
         raise ValidationError(f"No customer {customer_id!r}")
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
 
-    async with GraphClient(auth) as client:
+    async with GraphClient(auth.credential) as client:
         policies = await client.get_all(CA_PATH)
         try:
             check = await client.validate_permissions()
@@ -162,7 +162,7 @@ async def apply_deployment(
 
     saved: list[dict] = []
     try:
-        async with GraphClient(auth) as client:
+        async with GraphClient(auth.credential) as client:
             result = await apply_plan(client, plan, live, snapshot=saved.extend)
     except DeployError as exc:
         logger.warning(
