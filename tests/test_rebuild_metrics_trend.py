@@ -102,20 +102,24 @@ def test_the_full_metrics_blob_travels_with_the_row(db, audits):
     assert json.loads(_rows(db)[0]["metrics_json"])["risk_grade"] == "B"
 
 
-def test_a_customer_with_no_surviving_runs_is_left_alone(db, audits):
-    """Its rows are the last trace of something that was cleaned up."""
+def test_rows_from_a_run_directory_that_is_gone_are_left_alone(db, audits):
+    """Its rows are the last trace of something that was cleaned up.
+
+    They share a customer_id with the live rows — the tenant id — so the link
+    that matters is the name derived from the run directory.
+    """
     conn = sqlite3.connect(db)
     conn.execute(
         "INSERT INTO audit_metrics (customer_id, customer_name, audit_date, created_at) "
-        "VALUES ('gone','Gone','2026-01-01T00:00:00Z','x')"
+        "VALUES ('acme','Gone','2026-01-01T00:00:00Z','x')"
     )
     conn.commit()
     conn.close()
 
     result = rebuild.rebuild(db, rebuild.rows_from_runs(audits, {"Acme": "acme"}), apply=True)
 
-    assert result["left_alone"] == 1
-    assert any(r["customer_id"] == "gone" for r in _rows(db))
+    assert result["left_alone"] == 1, "a run directory that no longer exists lost its row"
+    assert any(r["customer_name"] == "Gone" for r in _rows(db))
 
 
 def test_a_run_whose_metrics_will_not_read_is_skipped_not_fatal(audits, capsys):
