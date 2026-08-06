@@ -150,7 +150,7 @@ a CIS control recording a clean finding on evidence it had been refused;
 "Custom banned password list is not configured" printed beside the 400 that
 prevented the list from ever being read.
 
-The four places, and what each must do:
+The six places, and what each must do:
 
 1. **Collector.** Let `GraphPermissionError` reach the section, and write a
    `(not available)` block naming the cause. `GraphPermissionError` already
@@ -166,6 +166,21 @@ The four places, and what each must do:
 4. **Scoring and controls.** Guard on `has_data` before scoring. A control
    with no evidence reports that it cannot verify — it does not pass and it
    does not fail.
+5. **Baselines.** Every check in `app/baselines/*.json` declares
+   `measured_when`. A check whose guard is false reports `not_measured`, and
+   conformance is quoted over the checks that *were* assessed with the rest
+   counted beside it. Nothing assessed at all gives `conformance_pct: None`,
+   not `0` — zero conformance is a verdict and the absence of one is not.
+6. **Drift.** `compute_drift` returns `None` totals, never `0`, when there was
+   nothing to compare against. A first run, a predecessor that predates
+   snapshots and a snapshot that will not decrypt all look identical to a
+   clean diff otherwise — and "no policies were removed" is exactly the
+   reassurance a reader acts on.
+
+Layers 5 and 6 are belt and braces on each other by design: the drift check
+in the baseline carries `measured_when: drift.measured`, *and* the field it
+reads is `None` when unmeasured. Either alone would be correct. Both means
+the next person to write a check cannot get it wrong by forgetting the guard.
 
 There is a test at each boundary. When adding a collector, add one there too:
 the mistake is easy to reintroduce and silent when you do.
@@ -185,6 +200,100 @@ and each needs the opposite response:
 the response body. Do not infer any of this from the status code alone: Intune
 answers a tenant with no subscription with a 401 whose text is a Forbidden
 from a different service entirely.
+
+## Baselines, snapshots and drift
+
+Three things that share one set of files.
+
+**Snapshots.** Every audit stores the tenant's Conditional Access policies,
+named locations and Intune profiles under `<run>/policy_snapshots/`, exactly
+as Graph returned them, encrypted like every other artefact. The audit
+evidence beside them is trimmed to a width a person reads, and a trimmed
+policy cannot be put back — so the two files serve different readers and both
+are kept. Restore is deliberately absent: it writes into a customer's tenant,
+and every Graph permission this app asks for ends in `.Read.All`.
+`tests/test_policy_backup.py` asserts that no route in that module is
+anything but a GET.
+
+**Drift** (`app/core/policy_drift.py`) compares a run's snapshots with the
+newest *earlier* run that captured any — skipping empty ones, so one failed
+audit does not cost the comparison. Only ids, display names and changed
+*field names* travel; never field values, because a policy body carries group
+memberships and exclusion lists and a drift summary is read in places a
+policy dump should not appear.
+
+**Baselines** (`app/baselines/*.json`) are what Sybr requires of a customer it
+runs, as opposed to what CIS recommends in general. A baseline is data, not
+code: a check names a dotted path through the report context, a comparison, a
+severity, and one sentence of rationale written for the customer. Arguing
+about a threshold does not mean touching the evaluator.
+
+To add or change a check:
+
+1. Add it to the JSON with a `measured_when` guard naming the `has_data` flag
+   (or equivalent) for the evidence it reads.
+2. **Bump `version`.** The version is what lets last year's report still be
+   read against the requirements that applied then. Changing the checks
+   without it silently rewrites old verdicts.
+3. Run `tests/test_baseline.py`. It builds a real report context from an
+   empty run and asserts every `path` and `measured_when` resolves — two
+   checks in the first draft named fields that existed nowhere, and the guard
+   would have reported them `not_measured` forever: safe, and silently
+   useless.
+
+`SYBR_BASELINE` overrides which baseline is the house standard. It is an
+environment variable rather than a stored setting because reports are built
+by the scheduler as well as by a request, and the two must not be able to
+disagree about which standard judged a run.
+
+Where it surfaces: the customer report carries a Sybr Standard section ahead
+of the CIS one (what we require, then what the benchmark says) with drift
+below it; the technical report carries drift with ids under Conditional
+Access; the customer card shows conformance and the change list, reading the
+same two endpoints the report reads.
+
+## Which customer are we talking to
+
+`active.txt`, the global config slot and the global certificate path together
+answer "which tenant is this process working on". They are process-global,
+stored on disk, and read by roughly two dozen routes — notes, tags, audit
+scope, the dashboard, the IT-Glue and FortiGate lookups.
+
+**A background job must never write them.** The scheduler used to: each
+iteration switched the active customer, copied that customer's config and
+certificate into the global slots, audited whatever the globals then said,
+and restored the original at the end. For the length of a cycle — minutes per
+tenant, hours in total — every technician's requests were reading a variable
+the scheduler was rewriting. A note saved during a cycle landed on whichever
+customer the scheduler had reached. And because an audit reads the customer
+*name* and the customer *credentials* as two separate reads of that global, a
+switch landing between them files one tenant's findings under another
+customer's name.
+
+The correct pattern is the one the bulk-audit route has always used, and it
+needs no globals at all:
+
+```python
+full_cust = CustomerManager.get_customer(cust_id)
+auth = get_auth_for_customer(full_cust, CustomerManager.get_cert_path(cust_id))
+collector = AuditCollector(auth=auth, out_dir=make_output_dir(cust_name))
+```
+
+Everything downstream already takes the customer explicitly —
+`make_output_dir`, `build_report_context` and the report/email step all do.
+Use `get_auth_for_customer` rather than `AuthManager.from_config`; it is also
+the only one of the two with a GDAP branch.
+
+`tests/test_scheduler_isolation.py` makes `set_active`, `save_config` and the
+certificate copy raise, so a background job that reaches for a global fails
+loudly in CI rather than quietly in production.
+
+**What this does not fix.** Two technicians still share one active customer:
+switching customer is a global act, so notes, tags and the dashboard follow
+whoever switched last. That is the product's current single-active-customer
+model, and changing it means per-session customer context — an API change,
+not a bug fix. The remaining window is click-versus-click and seconds wide,
+where the old one was cycle-long.
 
 ## Front-end assets
 

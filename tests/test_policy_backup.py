@@ -128,9 +128,9 @@ def test_the_diff_reports_what_moved(client, auth, audit_root):
         "/api/policy-backup/Acme/diff/run1/run2/conditional_access_policies",
         headers=auth,
     ).json()
-    assert d["added"] == ["c"]
-    assert d["removed"] == ["b"]
-    assert d["changed"] == [{"id": "a", "fields": ["state"]}]
+    assert d["added"] == [{"id": "c", "name": "Three"}]
+    assert d["removed"] == [{"id": "b", "name": "Two"}]
+    assert d["changed"] == [{"id": "a", "name": "One", "fields": ["state"]}]
     assert d["unchanged"] == 0
 
 

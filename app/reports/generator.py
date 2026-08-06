@@ -4882,6 +4882,47 @@ def _render_radar_svg(categories: dict) -> str:
 
 # ── Context builder ────────────────────────────────────────────────────────────
 
+def _drift_for(out_dir: Path) -> dict:
+    """Policy drift for this run, or a stated reason there is none to show.
+
+    Wrapped for the same reason load_previous_metrics is: drift is an
+    enhancement to the report, and the report is the deliverable. A snapshot
+    that will not decrypt must cost the comparison, never the document.
+
+    The fallback is the module's own "not measured" shape rather than an empty
+    diff — an empty diff reads as "nothing changed", which is a claim about
+    the tenant made on the strength of an exception.
+    """
+    from app.core.policy_drift import compute_drift, unmeasured
+
+    try:
+        return compute_drift(out_dir)
+    except Exception as e:
+        log.warning("Drift comparison failed for %s: %s", out_dir.name, e)
+        return unmeasured("The comparison against the previous run could not be completed.")
+
+
+def _baseline_for(context: dict) -> dict | None:
+    """Judge the finished context against the house standard.
+
+    Returns None when there is no baseline to judge by — a malformed or
+    missing document is a fault in our configuration, and the report says
+    nothing rather than inventing a verdict from it. The template omits the
+    section entirely in that case.
+    """
+    from app.core.baseline import BaselineError, default_baseline_id, evaluate
+
+    baseline_id = default_baseline_id()
+    try:
+        return evaluate(baseline_id, context)
+    except BaselineError as e:
+        log.warning("Baseline %s could not judge this run: %s", baseline_id, e)
+        return None
+    except Exception as e:
+        log.warning("Baseline %s raised while judging this run: %s", baseline_id, e)
+        return None
+
+
 def build_report_context(
     customer_name: str,
     org_domain:    str,
@@ -5157,6 +5198,14 @@ def build_report_context(
     context["remediation_done"] = remediation_done
     context["remediation_total"] = remediation_total
     context["remediation_pct"] = round(remediation_done / remediation_total * 100) if remediation_total else 0
+
+    # ── Drift, then the standard that reads it ─────────────────────────────
+    # Last, and in this order. The baseline evaluates paths through the
+    # finished context, so every key it can name must already be set — drift
+    # included, since a check on "no policy disappeared since last audit" is
+    # exactly the kind a versioned standard should carry.
+    context["drift"] = _drift_for(out_dir)
+    context["baseline"] = _baseline_for(context)
 
     save_audit_metrics(out_dir, context)
 

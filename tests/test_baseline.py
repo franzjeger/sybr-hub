@@ -127,26 +127,60 @@ def test_the_shipped_baseline_is_well_formed():
         assert check.get("severity") in ("critical", "high", "medium")
 
 
-def test_every_shipped_check_reads_a_path_the_report_actually_produces():
-    """Measured against the real context keys, not against intent.
+def test_every_shipped_check_reads_a_path_the_report_actually_produces(tmp_path):
+    """Measured against a real context, not against intent.
 
     Two checks in the first draft named paths that resolve on no tenant at
     all: intune.entra_unmanaged is only set when both the Intune and Entra
     sides were read, so it was absent on exactly the tenants the check was
     for. The guard would have reported them not_measured forever — safe, and
     silently useless.
+
+    This builds a context the way the report does, from an empty run. Every
+    parser lands in its no-data branch, which is the harshest case: a path
+    that survives that exists unconditionally, and the ones that led to this
+    test do not. The earlier version of this test grepped generator.py for the
+    leaf name, and quietly stopped covering anything the moment a context key
+    began life in another module — which the drift check promptly did.
     """
-    import re
+    from app.core.baseline import _MISSING, _resolve
+    from app.reports.generator import build_report_context
+
+    run = tmp_path / "Acme" / "2026-01-01_0000"
+    run.mkdir(parents=True)
+    context = build_report_context("Acme", "", run, [], lang="no")
 
     doc = load_baseline("sybr-standard")
-    generator = pathlib.Path("app/reports/generator.py").read_text()
-
     for check in doc["checks"]:
-        leaf = check["path"].split(".")[-1]
-        assert re.search(rf'["\']{re.escape(leaf)}["\']', generator), (
-            f"{check['id']} reads {check['path']}, and {leaf!r} appears nowhere "
-            f"in the report generator"
-        )
+        for label, path in (("path", check["path"]), ("measured_when", check["measured_when"])):
+            assert not isinstance(_resolve(context, path), type(_MISSING)), (
+                f"{check['id']} names {label} {path!r}, which resolves nowhere in "
+                f"a report context — the check can never do anything"
+            )
+
+
+def test_an_unmeasured_drift_reaches_the_baseline_as_none_not_zero(tmp_path):
+    """The belt under the measured_when guard.
+
+    drift.removed_total is None on a run with nothing to compare against, so
+    a check reading it reports not_measured even if whoever wrote that check
+    forgot the guard. Were it 0, the same check would report "no policy was
+    removed" — a reassurance derived from never having looked.
+    """
+    from app.reports.generator import build_report_context
+
+    run = tmp_path / "Acme" / "2026-01-01_0000"
+    run.mkdir(parents=True)
+    context = build_report_context("Acme", "", run, [], lang="no")
+
+    assert context["drift"]["measured"] is False
+    assert context["drift"]["removed_total"] is None
+
+    verdict = evaluate_check(
+        {"id": "x", "path": "drift.removed_total", "op": "eq", "value": 0},
+        context,
+    )
+    assert verdict["status"] == NOT_MEASURED
 
 
 def test_a_duplicate_check_id_is_refused(tmp_path, monkeypatch):

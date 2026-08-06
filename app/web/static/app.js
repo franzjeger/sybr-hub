@@ -6872,6 +6872,8 @@ async function loadCustomerDetail(customerId) {
       </div>
     </div>
 
+    <div id="customer-baseline-panel"></div>
+
     <div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">
       <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">${t('lbl_trend')}</div>
       <div style="position:relative;height:250px;"><canvas id="chart-customer-trend"></canvas></div>
@@ -6901,6 +6903,7 @@ async function loadCustomerDetail(customerId) {
   // Render gauge charts + trend chart + remediation
   setTimeout(function() { _renderGauges(score, hasM ? m.mfa_coverage_pct : null, hasM ? m.secure_score_pct : null); }, 50);
   _loadCustomerTrendChart(customerId);
+  _loadCustomerBaselineCard(customerId);
 
   // Add remediation panel below existing content
   var remDiv = document.createElement('div');
@@ -6955,6 +6958,116 @@ async function loadCustomerDetail(customerId) {
   infraDiv.id = 'customer-infra-panel';
   box.appendChild(infraDiv);
   _loadCustomerInfraCard(customerId);
+}
+
+// ── Sybr Standard on the customer card ──────────────────────────────────────
+// Two questions a technician opening a customer asks first: how far is this
+// tenant from what we require, and did anything move since last time. The
+// answers come from the same two endpoints the report reads, so the card and
+// the PDF can never disagree.
+//
+// The card never invents a verdict. A requirement whose evidence was not
+// collected is shown as not assessed and kept out of the percentage, and a
+// customer with nothing to compare against is told that rather than shown a
+// reassuring zero.
+function _baselineStatusPill(status) {
+  if (status === 'pass') return '<span style="color:var(--green);">&#10003;</span>';
+  if (status === 'fail') return '<span style="color:var(--red);">&#10007;</span>';
+  return '<span style="color:var(--text-dim);">&#8211;</span>';
+}
+
+async function _loadCustomerBaselineCard(customerId) {
+  var el = document.getElementById('customer-baseline-panel');
+  if (!el) return;
+
+  var results = await Promise.all([
+    apiFetch('/api/baselines/default/evaluate/' + encodeURIComponent(customerId) + '/latest').catch(function(){ return null; }),
+    apiFetch('/api/policy-backup/' + encodeURIComponent(customerId) + '/drift').catch(function(){ return null; })
+  ]);
+  var b = results[0], drift = results[1];
+  if (!b) { el.style.display = 'none'; return; }
+  if (!b.baseline) {
+    // A customer with no audit yet. Say so quietly rather than showing an
+    // empty card or, worse, a zero.
+    el.innerHTML = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);color:var(--text-dim);font-size:var(--font-sm);">'
+      + esc(b.reason || t('msg_baseline_no_run','No audit run to measure against yet.')) + '</div>';
+    return;
+  }
+
+  var pct = b.conformance_pct;
+  var pctColor = pct === null || pct === undefined ? 'var(--text-dim)'
+    : (pct >= 90 ? 'var(--green)' : (pct >= 70 ? 'var(--orange)' : 'var(--red)'));
+  var pctText = pct === null || pct === undefined ? '&#8212;' : (pct + ' %');
+
+  var html = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);margin-bottom:var(--space-4);">';
+  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">'
+        + esc(b.baseline.name) + ' ' + esc(b.baseline.version) + '</div>';
+  html += '<div style="display:flex;align-items:baseline;gap:var(--space-2);">'
+        + '<span style="font-size:var(--font-2xl);font-weight:800;color:' + pctColor + ';">' + pctText + '</span>'
+        + '<span style="font-size:var(--font-xs);color:var(--text-muted);">' + t('lbl_conformance','conformance') + '</span></div>';
+  html += '</div>';
+
+  // What the percentage is a percentage of. Showing it without this invites
+  // the reader to assume every requirement was measured.
+  if (b.assessed === 0) {
+    html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-3);">'
+          + t('msg_baseline_nothing_assessed','No requirement could be assessed on this run. That describes the collection, not the tenant.') + '</div>';
+  } else {
+    html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-3);">'
+          + t('msg_baseline_basis','{passed} of {assessed} assessed requirements met')
+              .replace('{passed}', b.passed).replace('{assessed}', b.assessed)
+          + (b.not_measured ? ' &middot; ' + t('msg_baseline_skipped','{n} not assessed').replace('{n}', b.not_measured) : '')
+          + '</div>';
+  }
+
+  html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+  (b.checks || []).forEach(function(c) {
+    var dim = c.status === 'not_measured';
+    html += '<tr style="border-bottom:1px solid var(--border);">';
+    html += '<td style="padding:6px 8px 6px 0;width:20px;">' + _baselineStatusPill(c.status) + '</td>';
+    html += '<td style="padding:6px 0;' + (dim ? 'color:var(--text-dim);' : '') + '">' + esc(c.title) + '</td>';
+    html += '<td style="padding:6px 0;text-align:right;color:var(--text-muted);">' + esc(c.detail || '') + '</td>';
+    html += '</tr>';
+  });
+  html += '</table>';
+
+  // ── Drift ──
+  html += '<div style="margin-top:var(--space-4);padding-top:var(--space-4);border-top:1px solid var(--border);">';
+  html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">'
+        + t('hdr_policy_drift','Changes since previous audit') + '</div>';
+  if (!drift || !drift.measured) {
+    html += '<div style="font-size:var(--font-xs);color:var(--text-dim);">'
+          + esc((drift && drift.reason) || t('msg_drift_not_measured','Not compared.')) + '</div>';
+  } else if (!drift.added_total && !drift.removed_total && !drift.changed_total) {
+    html += '<div style="font-size:var(--font-xs);color:var(--text-muted);">'
+          + t('msg_drift_quiet','No policy changed since {run}.').replace('{run}', esc(drift.compared_with)) + '</div>';
+  } else {
+    html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-2);">'
+          + t('msg_drift_summary','Compared with {run}: {added} added, {removed} removed, {changed} changed.')
+              .replace('{run}', esc(drift.compared_with)).replace('{added}', drift.added_total)
+              .replace('{removed}', drift.removed_total).replace('{changed}', drift.changed_total)
+          + '</div>';
+    html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+    (drift.snapshots || []).forEach(function(s) {
+      if (!s.comparable) return;
+      var rows = [];
+      (s.removed || []).forEach(function(p){ rows.push([t('lbl_removed','Removed'), 'var(--red)', p, '']); });
+      (s.changed || []).forEach(function(p){ rows.push([t('lbl_changed','Changed'), 'var(--orange)', p, (p.fields||[]).join(', ')]); });
+      (s.added   || []).forEach(function(p){ rows.push([t('lbl_added','Added'), 'var(--green)', p, '']); });
+      rows.forEach(function(r) {
+        html += '<tr style="border-bottom:1px solid var(--border);">'
+              + '<td style="padding:5px 8px 5px 0;color:' + r[1] + ';white-space:nowrap;">' + r[0] + '</td>'
+              + '<td style="padding:5px 0;">' + esc(r[2].name || t('lbl_unnamed','(unnamed)')) + '</td>'
+              + '<td style="padding:5px 0;text-align:right;color:var(--text-dim);">' + esc(r[3]) + '</td>'
+              + '</tr>';
+      });
+    });
+    html += '</table>';
+  }
+  html += '</div></div>';
+
+  el.innerHTML = html;
 }
 
 // ── Customer Infrastructure Card ────────────────────────────────────────────

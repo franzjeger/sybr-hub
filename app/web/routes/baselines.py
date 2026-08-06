@@ -12,7 +12,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from app.core.baseline import BaselineError, evaluate, list_baselines
+from app.core.baseline import (
+    BaselineError,
+    default_baseline_id,
+    evaluate,
+    list_baselines,
+)
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.user import User
 from app.web.middleware.auth import get_current_user, require_customer_access
@@ -23,7 +28,17 @@ logger = logging.getLogger(__name__)
 
 @router.get("/baselines")
 async def get_baselines(user: User = Depends(get_current_user)) -> dict[str, Any]:
-    return {"baselines": list_baselines()}
+    """Every baseline on disk, with the house standard marked.
+
+    A caller that wants "whatever we currently require" should not have to
+    hardcode which document that is — it asks for the id "default" and gets
+    the same answer the report generator used.
+    """
+    default = default_baseline_id()
+    return {
+        "default": default,
+        "baselines": [{**b, "is_default": b["id"] == default} for b in list_baselines()],
+    }
 
 
 @router.get("/baselines/{baseline_id}/evaluate/{customer_id}/{run}")
@@ -44,14 +59,35 @@ async def evaluate_baseline(
     from app.core.config import get_audit_dir
     from app.reports.generator import build_report_context
 
+    if baseline_id == "default":
+        baseline_id = default_baseline_id()
+
     root = get_audit_dir() / customer_id
-    run_dir = (root / run).resolve()
-    try:
-        run_dir.relative_to(root.resolve())
-    except ValueError:
-        raise NotFoundError("No such run")
-    if not run_dir.is_dir():
-        raise NotFoundError(f"No audit run {run!r} for {customer_id!r}")
+    if run == "latest":
+        # Runs are timestamp-named, so newest is last lexically. "latest" is
+        # safe as a sentinel precisely because no real run can be called that.
+        runs = sorted(p for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
+        if not runs:
+            # 200, not 404. A customer we have not audited yet is a state, not
+            # a bad request — and the customer card calls this on every open,
+            # so a 404 here means an error toast in a technician's face for a
+            # customer who is simply new.
+            return {
+                "customer_id": customer_id,
+                "run": None,
+                "evaluated": False,
+                "reason": "This customer has no audit runs yet.",
+            }
+        run_dir = runs[-1]
+        run = run_dir.name
+    else:
+        run_dir = (root / run).resolve()
+        try:
+            run_dir.relative_to(root.resolve())
+        except ValueError:
+            raise NotFoundError("No such run")
+        if not run_dir.is_dir():
+            raise NotFoundError(f"No audit run {run!r} for {customer_id!r}")
 
     context = build_report_context(customer_id, "", run_dir, [], lang="no")
     try:
@@ -61,4 +97,5 @@ async def evaluate_baseline(
 
     result["customer_id"] = customer_id
     result["run"] = run
+    result["evaluated"] = True
     return result

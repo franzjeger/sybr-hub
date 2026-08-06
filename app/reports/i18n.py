@@ -1056,6 +1056,106 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "... and {count} more types",
     },
 
+    # ── Sybr Standard (baseline) & policy drift ──
+    "baseline_label": {
+        "no": "Vår standard",
+        "en": "Our standard",
+    },
+    "baseline_intro": {
+        "no": "CIS beskriver god praksis i bransjen. Denne delen viser hva Sybr "
+              "krever av en kunde vi drifter — et krav kan derfor være strengere "
+              "enn CIS på identitet og mildere der det forutsetter lisenser dere "
+              "ikke nødvendigvis har. Versjonsnummeret står på standarden, slik at "
+              "en rapport fra i fjor fortsatt kan leses mot kravene som gjaldt da.",
+        "en": "CIS describes good practice in general. This section shows what Sybr "
+              "requires of a customer we run — a requirement may therefore be "
+              "stricter than CIS on identity and milder where it assumes licences "
+              "you may not hold. The standard carries a version, so last year's "
+              "report can still be read against the requirements that applied then.",
+    },
+    "baseline_conformance": {
+        "no": "Etterlevelse",
+        "en": "Conformance",
+    },
+    "baseline_met": {
+        "no": "Oppfylt",
+        "en": "Met",
+    },
+    "baseline_deviation": {
+        "no": "Avvik",
+        "en": "Deviation",
+    },
+    "baseline_requirement": {
+        "no": "Krav",
+        "en": "Requirement",
+    },
+    "baseline_why": {
+        "no": "Hvorfor kravet finnes",
+        "en": "Why the requirement exists",
+    },
+    "baseline_basis": {
+        "no": "Prosenten er regnet av {assessed} av {total} krav. {skipped} kunne "
+              "ikke vurderes fordi datagrunnlaget mangler, og teller verken som "
+              "oppfylt eller som avvik.",
+        "en": "The percentage is based on {assessed} of {total} requirements. "
+              "{skipped} could not be assessed for lack of data, and count neither "
+              "as met nor as deviations.",
+    },
+    "baseline_nothing_assessed": {
+        "no": "Ingen av kravene kunne vurderes i denne kjøringen. Det sier noe om "
+              "innsamlingen, ikke om tenanten — og derfor oppgis ingen prosent.",
+        "en": "Not one requirement could be assessed in this run. That says "
+              "something about the collection, not about the tenant — so no "
+              "percentage is quoted.",
+    },
+    "sev_critical": {"no": "Kritisk", "en": "Critical"},
+    "sev_high":     {"no": "Høy",     "en": "High"},
+    "sev_medium":   {"no": "Middels", "en": "Medium"},
+
+    "drift_heading": {
+        "no": "Endringer siden forrige gjennomgang",
+        "en": "Changes since the previous review",
+    },
+    "drift_intro": {
+        "no": "Sikkerhetspolicyene sammenlignes med forrige gjennomgang. En policy "
+              "som forsvinner senker sjelden Secure Score merkbart og varsles ikke "
+              "av Microsoft — den er bare borte. Derfor står endringene her, enten "
+              "de er tilsiktet eller ikke.",
+        "en": "The security policies are compared with the previous review. A policy "
+              "that disappears rarely moves the Secure Score noticeably and raises no "
+              "alert from Microsoft — it is simply gone. So changes are listed here, "
+              "whether they were intended or not.",
+    },
+    "drift_summary": {
+        "no": "Sammenlignet med gjennomgangen {run}: {added} lagt til, {removed} "
+              "fjernet, {changed} endret.",
+        "en": "Compared with the {run} review: {added} added, {removed} removed, "
+              "{changed} changed.",
+    },
+    "drift_quiet": {
+        "no": "Ingen av policyene er endret siden gjennomgangen {run}.",
+        "en": "None of the policies have changed since the {run} review.",
+    },
+    "drift_not_measured": {
+        "no": "Ikke sammenlignet",
+        "en": "Not compared",
+    },
+    "drift_added": {"no": "Lagt til", "en": "Added"},
+    "drift_removed": {"no": "Fjernet", "en": "Removed"},
+    "drift_changed": {"no": "Endret", "en": "Changed"},
+    "drift_fields": {
+        "no": "Felter som er endret",
+        "en": "Fields changed",
+    },
+    "drift_policy": {
+        "no": "Policy",
+        "en": "Policy",
+    },
+    "drift_unnamed": {
+        "no": "(uten navn)",
+        "en": "(unnamed)",
+    },
+
     # ── CIS Compliance section ──
     "cis_benchmark": {
         "no": "CIS Benchmark",
