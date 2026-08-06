@@ -1778,7 +1778,11 @@ function renderRemediation(recs, statuses) {
   let done = 0, inProgress = 0, ignored = 0, openCount = 0;
   const rows = recs.map(function(rec, idx) {
     const title = rec.title || rec.name || 'Rec #' + (idx+1);
-    const st = statuses[title] || {};
+    // Keyed on the language-independent id. It used to be the rendered title,
+    // so marking an item done in Norwegian left it open again in English.
+    // Runs from before ids existed fall back to the title they were stored under.
+    const recId = rec.rec_id || title;
+    const st = statuses[recId] || statuses[title] || {};
     const curStatus = st.status || 'open';
     const notes = st.notes || '';
     const priority = rec.priority || 'medium';
@@ -1788,19 +1792,19 @@ function renderRemediation(recs, statuses) {
     else if (curStatus === 'ignored') ignored++;
     else openCount++;
 
-    return '<div class="rem-row" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px;" data-title="' + esc(title) + '">'
+    return '<div class="rem-row" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px;" data-rec-id="' + esc(recId) + '">'
       + '<span style="font-weight:700;color:' + (priorityColors[priority] || 'var(--text-dim)') + ';font-size:12px;min-width:18px;text-align:center;padding-top:2px;" title="' + esc(priority) + '">' + (priorityIcons[priority] || '~') + '</span>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-weight:600;font-size:13px;margin-bottom:2px;">' + esc(title) + '</div>'
       + (rec.detail ? '<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">' + esc(rec.detail.substring(0,120)) + (rec.detail.length > 120 ? '...' : '') + '</div>' : '')
       + '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">'
-      + '<select class="rem-status-select" data-rec-title="' + esc(title) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;">'
+      + '<select class="rem-status-select" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;">'
       + '<option value="open"' + (curStatus==='open'?' selected':'') + '>' + t('open') + '</option>'
       + '<option value="in_progress"' + (curStatus==='in_progress'?' selected':'') + '>' + t('in_progress') + '</option>'
       + '<option value="done"' + (curStatus==='done'?' selected':'') + '>' + t('done') + '</option>'
       + '<option value="ignored"' + (curStatus==='ignored'?' selected':'') + '>' + t('ignored') + '</option>'
       + '</select>'
-      + '<input type="text" class="rem-notes-input" data-rec-title="' + esc(title) + '" placeholder="' + t('tip_notes_placeholder_rem') + '" value="' + esc(notes) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex:1;min-width:80px;" />'
+      + '<input type="text" class="rem-notes-input" placeholder="' + t('tip_notes_placeholder_rem') + '" value="' + esc(notes) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex:1;min-width:80px;" />'
       + '</div></div>'
       + '<span class="rem-status-badge" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;background:' + statusBg[curStatus] + ';color:' + statusColors[curStatus] + ';border:1px solid ' + statusColors[curStatus] + '30;">' + statusLabels[curStatus] + '</span>'
       + '</div>';
@@ -1813,17 +1817,17 @@ function renderRemediation(recs, statuses) {
   const html = '<div class="card" id="remediation-card" style="margin-top:16px;">'
     + '<div class="card-title">'
     + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
-    + ' Remediation'
-    + '<span style="margin-left:auto;font-size:11px;color:var(--text-dim);font-weight:400;">' + addressed + '/' + total + ' addressed (' + pct + '%)</span>'
+    + ' ' + t('hdr_remediation','Remediering')
+    + '<span style="margin-left:auto;font-size:11px;color:var(--text-dim);font-weight:400;">' + t('msg_rem_addressed','{done}/{total} addressed ({pct}%)').replace('{done}',addressed).replace('{total}',total).replace('{pct}',pct) + '</span>'
     + '</div>'
     + '<div style="margin-bottom:12px;">'
     + '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:4px;">'
-    + '<span>' + pct + '% addressed</span>'
+    + '<span>' + t('msg_rem_addressed_pct','{pct}% addressed').replace('{pct}',pct) + '</span>'
     + '<span style="display:flex;gap:10px;">'
-    + '<span style="color:var(--red);">' + openCount + ' open</span>'
-    + '<span style="color:var(--orange);">' + inProgress + ' in progress</span>'
-    + '<span style="color:var(--green);">' + done + ' done</span>'
-    + '<span style="color:var(--text-dim);">' + ignored + ' ignored</span>'
+    + '<span style="color:var(--red);">' + openCount + ' ' + t('status_open','Åpen').toLowerCase() + '</span>'
+    + '<span style="color:var(--orange);">' + inProgress + ' ' + t('status_in_progress','Pågår').toLowerCase() + '</span>'
+    + '<span style="color:var(--green);">' + done + ' ' + t('status_done_label','Utført').toLowerCase() + '</span>'
+    + '<span style="color:var(--text-dim);">' + ignored + ' ' + t('status_ignored','Ignorert').toLowerCase() + '</span>'
     + '</span></div>'
     + '<div style="height:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;overflow:hidden;display:flex;">'
     + (done > 0 ? '<div style="width:' + (done/total*100) + '%;background:var(--green);"></div>' : '')
@@ -1846,7 +1850,7 @@ function renderRemediation(recs, statuses) {
 
 async function updateRemediation(el) {
   const row = el.closest('.rem-row');
-  const title = row.dataset.title;
+  const recId = row.dataset.recId;
   const select = row.querySelector('.rem-status-select');
   const notesInput = row.querySelector('.rem-notes-input');
   const status = select.value;
@@ -1856,12 +1860,12 @@ async function updateRemediation(el) {
     const d = await apiFetch('/api/remediation/update', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({title: title, status: status, notes: notes}),
+      body: JSON.stringify({rec_id: recId, status: status, notes: notes}),
     });
 
     if (d.ok) {
       const badge = row.querySelector('.rem-status-badge');
-      const labels = {open:'Open', in_progress:'In Progress', done:'Done', ignored:'Ignored'};
+      const labels = {open: t('status_open','Åpen'), in_progress: t('status_in_progress','Pågår'), done: t('status_done_label','Utført'), ignored: t('status_ignored','Ignorert')};
       const colors = {open:'var(--red)', in_progress:'var(--orange)', done:'var(--green)', ignored:'var(--text-dim)'};
       const bgs = {open:'#f8514915', in_progress:'#d2992215', done:'#3fb95015', ignored:'#8b949e15'};
       badge.textContent = labels[status];
@@ -2716,11 +2720,15 @@ async function loadRemediationPanel(containerId) {
       + '<div style="background:var(--bg);border-radius:var(--radius-sm);height:6px;margin-bottom:var(--space-4);overflow:hidden;">'
       + '<div style="height:100%;width:' + pct + '%;background:var(--green);border-radius:var(--radius-sm);transition:width 0.4s;"></div></div>';
 
-    keys.forEach(function(title) {
-      var item = items[title];
+    keys.forEach(function(recId) {
+      var item = items[recId];
       var st = item.status || 'open';
+      // The stored key is an id now; the server resolves it back to a sentence
+      // in the reader's language. An id shown raw means the finding no longer
+      // appears in the latest run.
+      var title = item.title || recId;
       html += '<div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--border);">'
-        + '<span style="font-size:14px;flex-shrink:0;cursor:pointer;" onclick="cycleRemediation(\'' + esc(title).replace(/'/g,"\\'") + '\',\'' + st + '\')" title="' + t('tip_click_change_status','Klikk for å endre status') + '">' + statusIcons[st] + '</span>'
+        + '<span style="font-size:14px;flex-shrink:0;cursor:pointer;" onclick="cycleRemediation(\'' + esc(recId).replace(/'/g,"\\'") + '\',\'' + st + '\')" title="' + t('tip_click_change_status','Klikk for å endre status') + '">' + statusIcons[st] + '</span>'
         + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:var(--font-sm);' + (st==='done'?'text-decoration:line-through;color:var(--text-dim);':'') + '">' + esc(title) + '</div>'
         + (item.notes ? '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:2px;">' + esc(item.notes) + '</div>' : '')
@@ -2731,10 +2739,10 @@ async function loadRemediationPanel(containerId) {
   } catch(e) { el.innerHTML = ''; }
 }
 
-async function cycleRemediation(title, currentStatus) {
+async function cycleRemediation(recId, currentStatus) {
   var cycle = {open:'in_progress', in_progress:'done', done:'ignored', ignored:'open'};
   var next = cycle[currentStatus] || 'open';
-  await apiFetch('/api/remediation', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title, status:next})});
+  await apiFetch('/api/remediation', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({rec_id:recId, status:next})});
   loadRemediationPanel('remediation-panel');
 }
 

@@ -268,6 +268,46 @@ below it; the technical report carries drift with ids under Conditional
 Access; the customer card shows conformance and the change list, reading the
 same two endpoints the report reads.
 
+## Recommendations outlive the language they were written in
+
+A recommendation is produced once, when the audit runs, and read for months
+afterwards. Storing only the finished sentence meant a run collected in
+Norwegian showed Norwegian to an English reader forever, and the only way out
+was to run the audit again — a strange thing to ask of a report about last
+month.
+
+`T` returns `Localised`, a `str` subclass carrying the key and params it was
+built from. It *is* the text: templates, f-strings and `json.dumps` treat it as
+an ordinary string, which is why this needed no change at any of the
+twenty-eight places a recommendation is built. `_label_recommendations` reads
+the key and params back off it, so the sentence and its recipe cannot drift
+apart — they are the same object.
+
+`save_audit_metrics` persists both, and `/api/dashboard` rebuilds the text in
+the requesting language. A run from before this carries no recipe and keeps its
+stored words, which beats a blank line.
+
+**Identity is separate from wording.** Remediation state used to be keyed on
+the rendered title, so an operator who marked something done in Norwegian found
+it open again in English — the same finding under a name the database had never
+seen. Each recommendation now carries `rec_id`, built from the title key plus
+only those params that name *which* thing it is about:
+
+```python
+_REC_IDENTITY_PARAMS = ("domain", "part", "category", "sku", "name")
+```
+
+A count is deliberately excluded. "3 users without MFA" and "5 users without
+MFA" are one finding at two moments, and an id that moved with the number would
+undo every item an operator had marked done. `tests/test_recommendation_identity.py`
+holds both halves: the id is identical across languages, and unchanged when the
+count moves.
+
+Rows store the id, so `/api/remediation` resolves it back to a sentence from
+the latest run. An id shown raw in the panel means the finding no longer
+appears — kept rather than hidden, because the note attached to it is worth
+more than the tidiness.
+
 ## Which customer are we talking to
 
 `active.txt`, the global config slot and the global certificate path together

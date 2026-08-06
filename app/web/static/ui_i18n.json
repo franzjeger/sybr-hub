@@ -2698,7 +2698,9 @@
     "drift_nothing_comparable": "Ingen snapshot i denne kjøringen kunne sammenlignes med {run}.",
     "drift_comparison_failed": "Sammenligningen mot forrige kjøring kunne ikke fullføres.",
     "drift_predecessor_lacked_snapshot": "{run} fanget ikke {name}.",
-    "drift_snapshot_unreadable": "{name} kunne ikke leses for sammenligning."
+    "drift_snapshot_unreadable": "{name} kunne ikke leses for sammenligning.",
+    "msg_rem_addressed": "{done}/{total} håndtert ({pct} %)",
+    "msg_rem_addressed_pct": "{pct} % håndtert"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5399,6 +5401,8 @@
     "drift_nothing_comparable": "No snapshot in this run could be compared with {run}.",
     "drift_comparison_failed": "The comparison against the previous run could not be completed.",
     "drift_predecessor_lacked_snapshot": "{run} did not capture {name}.",
-    "drift_snapshot_unreadable": "{name} could not be read for comparison."
+    "drift_snapshot_unreadable": "{name} could not be read for comparison.",
+    "msg_rem_addressed": "{done}/{total} addressed ({pct}%)",
+    "msg_rem_addressed_pct": "{pct}% addressed"
   }
 }

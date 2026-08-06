@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.core.exceptions import (
     AuthError,
@@ -20,6 +20,7 @@ from app.core.exceptions import (
 )
 from app.core.rbac import check_customer_access, filter_customers, get_accessible_customer_ids
 from app.models.user import Role
+from app.web.i18n import get_ui_lang
 from app.web.middleware.auth import get_current_user, require_customer_access
 
 logger = logging.getLogger(__name__)
@@ -29,8 +30,41 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
+def relocalise_recommendations(metrics: dict, lang: str) -> dict:
+    """Rebuild each recommendation's text in the reader's language.
+
+    A recommendation is written once, when the audit runs, and read for months
+    afterwards — so the language it was collected in is not the language the
+    reader wants. Runs from before this carry no recipe; their stored text is
+    kept as it is, which is the honest answer rather than a blank line.
+    """
+    from app.reports.i18n import T
+
+    recs = metrics.get("recommendations")
+    if not isinstance(recs, list):
+        return metrics
+    t = T(lang)
+    rebuilt = []
+    for rec in recs:
+        if not isinstance(rec, dict):
+            continue
+        out = dict(rec)
+        for field in ("title", "detail"):
+            key = rec.get(f"{field}_key")
+            if key:
+                try:
+                    out[field] = str(t(key, **(rec.get(f"{field}_params") or {})))
+                except (KeyError, IndexError):
+                    # A stored param set that no longer matches its template.
+                    # The stored sentence is stale in one language; a crash
+                    # would lose the whole dashboard.
+                    logger.warning("Could not re-render recommendation %r", key)
+        rebuilt.append(out)
+    return {**metrics, "recommendations": rebuilt}
+
+
 @router.get("/dashboard")
-async def get_dashboard():
+async def get_dashboard(request: Request):
     """Return dashboard metrics from the latest audit run."""
     from app.core.config import get_audit_dir
     from app.core.credentials import load_config
@@ -66,7 +100,7 @@ async def get_dashboard():
                 "has_data": True,
                 "customer": customer_name,
                 "run_date": run_dir.name,
-                "metrics": metrics,
+                "metrics": relocalise_recommendations(metrics, get_ui_lang(request)),
                 "previous": prev_metrics,
             }
 
