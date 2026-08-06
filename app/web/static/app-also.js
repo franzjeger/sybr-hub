@@ -415,7 +415,7 @@ async function alsoRenewalScan() {
   var btn = document.getElementById('renewal-scan-btn');
   var msg = document.getElementById('renewal-scan-msg');
   btn.disabled = true;
-  btn.textContent = 'Skanner...';
+  btn.textContent = t('msg_scanning','Scanning …');
 
   // Show progress bar
   msg.innerHTML = '<div style="margin-top:4px;">'
@@ -467,7 +467,7 @@ async function alsoRefreshApiStats() {
   var el = document.getElementById('also-api-stats');
   if (!el) return;
   var s = await apiFetch('/api/also/api-stats');
-  if (!s || !s.total_calls) { el.textContent = 'API: 0 kall'; return; }
+  if (!s || !s.total_calls) { el.textContent = t('msg_api_zero_calls','API: 0 calls'); return; }
   el.innerHTML = 'API: <strong>'+s.total_calls+'</strong> kall \u00b7 '+s.last_1min+'/min \u00b7 '+s.last_5min+'/5min \u00b7 snitt '+s.avg_response_ms+'ms'
     + (s.errors > 0 ? ' \u00b7 <span style="color:var(--red);">'+s.errors+' ' + t('also_errors','feil') + '</span>' : '');
 }

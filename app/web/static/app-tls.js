@@ -89,12 +89,12 @@ async function tlsAutoDiscover() {
   var btn = document.getElementById('tls-discover-btn');
   var el = document.getElementById('tls-discovered');
   btn.disabled = true;
-  btn.textContent = 'Discovering...';
+  btn.textContent = t('msg_discovering','Discovering …');
   el.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></div> <span style="color:var(--text-muted);font-size:12px;">' + t('tls_scanning_hosts','Skanner konfigurerte verter ...') + '</span>';
 
   var data = await apiFetch('/api/tls/auto-discover');
   btn.disabled = false;
-  btn.textContent = 'Auto-discover';
+  btn.textContent = t('btn_auto_discover','Auto-discover');
 
   if (!data || !data.endpoints || !data.endpoints.length) {
     el.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">' + t('tls_none_on_hosts','Ingen TLS-endepunkter funnet blant de konfigurerte vertene.') + '</span>';

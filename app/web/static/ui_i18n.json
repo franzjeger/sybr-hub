@@ -2700,7 +2700,17 @@
     "drift_predecessor_lacked_snapshot": "{run} fanget ikke {name}.",
     "drift_snapshot_unreadable": "{name} kunne ikke leses for sammenligning.",
     "msg_rem_addressed": "{done}/{total} håndtert ({pct} %)",
-    "msg_rem_addressed_pct": "{pct} % håndtert"
+    "msg_rem_addressed_pct": "{pct} % håndtert",
+    "msg_linking": "Kobler …",
+    "msg_syncing": "Synkroniserer …",
+    "btn_link_all": "Koble alle",
+    "lbl_last_synced": "Sist synkronisert",
+    "msg_discovering": "Oppdager …",
+    "btn_auto_discover": "Auto-oppdag",
+    "lbl_audit": "Audit",
+    "filter_grade_df": "Karakter D/F",
+    "msg_api_zero_calls": "API: 0 kall",
+    "hdr_set_inform": "Set-Inform"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5403,6 +5413,16 @@
     "drift_predecessor_lacked_snapshot": "{run} did not capture {name}.",
     "drift_snapshot_unreadable": "{name} could not be read for comparison.",
     "msg_rem_addressed": "{done}/{total} addressed ({pct}%)",
-    "msg_rem_addressed_pct": "{pct}% addressed"
+    "msg_rem_addressed_pct": "{pct}% addressed",
+    "msg_linking": "Linking …",
+    "msg_syncing": "Synchronising …",
+    "btn_link_all": "Link all",
+    "lbl_last_synced": "Last synced",
+    "msg_discovering": "Discovering …",
+    "btn_auto_discover": "Auto-discover",
+    "lbl_audit": "Audit",
+    "filter_grade_df": "Grade D/F",
+    "msg_api_zero_calls": "API: 0 calls",
+    "hdr_set_inform": "Set-Inform"
   }
 }

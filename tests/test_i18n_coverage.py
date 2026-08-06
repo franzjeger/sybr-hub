@@ -107,6 +107,14 @@ _NORWEGIAN_RE = re.compile(
 )
 
 # snake_case with no spaces is an i18n key being passed around, not its text.
+_T_CALL = re.compile(
+    r"""\bt\(\s*(['"])[A-Za-z0-9_.]+\1\s*(?:,\s*(['"])(?:\\.|(?!\2).)*\2\s*)?\)"""
+)
+
+# A run of letters that could be a sentence. Excludes selectors, colours, paths
+# and anything starting with punctuation or a digit.
+_WORDLIKE = re.compile(r"^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9 '\u2019\-\u2014:,.!?()/%\u2026]*$")
+
 _KEY_RE = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)+$")
 
 # Code, not language. The API reference panel lists sixty-odd endpoint
@@ -281,6 +289,107 @@ def text_shown_to_a_person(script: str) -> list[tuple[int, str]]:
     return found
 
 
+
+# Words that are the same in both languages because they are not really words:
+# device classes, threat categories and product names as they appear in the
+# vendors' own consoles. Translating "Access Point" or "Botnet" would make the
+# interface harder to match against FortiGate's or UniFi's, not easier. Listed
+# by value rather than matched by pattern, so the exemption cannot quietly
+# widen.
+_TECHNICAL_VOCABULARY = frozenset({
+    "Access Point", "Gateway", "Gateway/FW", "Switch", "Client", "Server",
+    "IPS", "Antivirus", "Botnet", "Web Filter", "Firewall", "VPN", "DNS",
+    "WireGuard", "OpenVPN", "FortiGate", "FortiGate IPsec", "FortiGate SSL",
+    "UniFi", "Tailscale", "Guacamole", "Autotask", "IT Glue", "Uniweb",
+    "Microsoft", "Azure", "Azure P2S", "Azure P2S VPN", "M365", "Intune",
+    "SSH hosts", "Set-Inform", "Auto-discover",
+})
+
+_DOM_TEXT_SINK = re.compile(
+    r"""\.(textContent|innerText|placeholder)\s*=\s*(['"])((?:\\.|(?!\2).)*)\2"""
+)
+
+
+def literals_assigned_to_the_page(script: str) -> list[tuple[int, str]]:
+    """String literals written straight into an element's text.
+
+    User-facing by construction, exactly as the showToast detector is: you do
+    not assign to ``textContent`` for any reason other than putting words in
+    front of someone. No heuristic, and so no judgement call about whether a
+    given string is prose.
+
+    This is the third gap. The first two detectors read markup and Norwegian
+    literals; the showToast one reads three named functions. A button whose
+    label is set in JavaScript passes all three — ``btn.textContent =
+    'Synkroniserer...'`` sits in no markup, is not an argument to anything, and
+    was Norwegian in an English interface for as long as it existed.
+    """
+    js = (STATIC / script).read_text()
+    masked = _T_CALL.sub(lambda m: " " * len(m.group(0)), js)
+    found = []
+    for m in _DOM_TEXT_SINK.finditer(masked):
+        text = htmlmod.unescape(m.group(3)).strip()
+        if (
+            len(text) < 3
+            or text in _NOT_TEXT
+            or text in _TECHNICAL_VOCABULARY
+            or _NOT_TEXT_RE.match(text)
+            or _is_code(text)
+            or not _WORDLIKE.match(text)
+        ):
+            continue
+        found.append((masked[: m.start()].count("\n") + 1, text))
+    return found
+
+
+_LABEL_TABLE = re.compile(
+    r"""\b(?:const|let|var)\s+(\w*(?:[Ll]abel|[Tt]ext|[Tt]itle|[Mm]essage|[Mm]sg|"""
+    r"""[Cc]aption|[Hh]eading)s?)\s*=\s*\{"""
+)
+
+
+def literals_in_a_table_of_labels(script: str) -> list[tuple[int, str]]:
+    """Bare strings inside an object whose name says it holds display text.
+
+    The shape that hid the last one: a lookup table from an enum to a word,
+    read later into the page. The literal is not near a DOM call, not inside
+    markup, and not an argument — it is a value in an object literal, which
+    every other detector walks straight past.
+
+    ``const labels = {open:'Open', in_progress:'In Progress', ...}`` sat four
+    lines below an identical table built correctly out of t() calls, and shipped
+    English into a Norwegian interface. Naming is the signal here rather than
+    construction, which is weaker — so the exemption list beside it is by value,
+    not by pattern.
+    """
+    js = (STATIC / script).read_text()
+    masked = _T_CALL.sub(lambda m: " " * len(m.group(0)), js)
+    found = []
+    for m in _LABEL_TABLE.finditer(masked):
+        start = masked.index("{", m.end() - 1)
+        depth = 0
+        end = start
+        for i in range(start, min(start + 2000, len(masked))):
+            depth += (masked[i] == "{") - (masked[i] == "}")
+            end = i
+            if depth == 0:
+                break
+        line = masked[:start].count("\n") + 1
+        for value in re.finditer(r"""[:,]\s*(['"])((?:\\.|(?!\1).)*)\1""", masked[start : end + 1]):
+            text = htmlmod.unescape(value.group(2)).strip()
+            if (
+                len(text) < 3
+                or text in _NOT_TEXT
+                or text in _TECHNICAL_VOCABULARY
+                or _NOT_TEXT_RE.match(text)
+                or _is_code(text)
+                or not _WORDLIKE.match(text)
+            ):
+                continue
+            found.append((line, f"{m.group(1)}: {text}"))
+    return found
+
+
 _IDENT_END = re.compile(r"[A-Za-z0-9_$\)\]]$")
 
 
@@ -388,6 +497,31 @@ BUDGET_JS_PERSON = {
     "app-tls.js": 0,
 }
 
+
+
+# Literals written straight into the page, and literals sitting in a table of
+# labels. Both start at zero: the fifteen and thirteen that existed were fixed
+# in the same change that added the detectors, which is the only honest moment
+# to set a budget to zero.
+BUDGET_JS_DOM_TEXT = {
+    "app.js": 0,
+    "app-also.js": 0,
+    "app-dashboard.js": 0,
+    "app-infra.js": 0,
+    "app-integrations.js": 0,
+    "app-tailscale.js": 0,
+    "app-tls.js": 0,
+}
+
+BUDGET_JS_LABEL_TABLES = {
+    "app.js": 0,
+    "app-also.js": 0,
+    "app-dashboard.js": 0,
+    "app-infra.js": 0,
+    "app-integrations.js": 0,
+    "app-tailscale.js": 0,
+    "app-tls.js": 0,
+}
 
 def _report(items) -> str:
     """Truncate for display only. Doing it in the detector made long strings
@@ -809,4 +943,32 @@ def test_the_reason_code_tuples_have_not_drifted_from_the_source():
     assert not undeclared, (
         f"these reason codes are emitted but not declared, so nothing checks "
         f"that they are translated: {undeclared}"
+    )
+
+
+@pytest.mark.parametrize("script", sorted(BUDGET_JS_DOM_TEXT))
+def test_no_new_literals_written_straight_into_the_page(script):
+    """A button label set in JavaScript is in no markup and no function call.
+
+    It passed every other detector here, and stayed Norwegian in an English
+    interface for as long as it existed.
+    """
+    hits = literals_assigned_to_the_page(script)
+    assert len(hits) <= BUDGET_JS_DOM_TEXT[script], (
+        f"{script}: {len(hits)} literals assigned to the page "
+        f"(budget {BUDGET_JS_DOM_TEXT[script]}):\n{_report(hits)}"
+    )
+
+
+@pytest.mark.parametrize("script", sorted(BUDGET_JS_LABEL_TABLES))
+def test_no_new_label_tables_built_from_bare_strings(script):
+    """The shape that hid the last one — an enum-to-word lookup.
+
+    It sat four lines below an identical table built correctly out of t()
+    calls, and shipped English into a Norwegian interface.
+    """
+    hits = literals_in_a_table_of_labels(script)
+    assert len(hits) <= BUDGET_JS_LABEL_TABLES[script], (
+        f"{script}: {len(hits)} bare strings in a table of labels "
+        f"(budget {BUDGET_JS_LABEL_TABLES[script]}):\n{_report(hits)}"
     )

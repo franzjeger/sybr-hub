@@ -1206,7 +1206,7 @@ function vpnShowFileInfo(files) {
   } else if (_vpnImportFiles.type === 'wireguard') type = 'WireGuard (.conf)';
   else if (_vpnImportFiles.type === 'openvpn') type = 'OpenVPN (.ovpn)';
 
-  document.getElementById('vpn-file-type').textContent = 'Type: ' + type;
+  document.getElementById('vpn-file-type').textContent = t('lbl_type','Type') + ': ' + type;
   document.getElementById('vpn-import-btn').disabled = false;
 
   // Combine content for import
@@ -2511,7 +2511,7 @@ function claudeModeChanged() {
 
 async function claudeCheckCli() {
   var el = document.getElementById('claude-cli-status');
-  el.textContent = 'Sjekker...';
+  el.textContent = t('msg_checking','Checking …');
   var data = await apiFetch('/api/claude/cli-status');
   if (data && data.available) {
     el.innerHTML = '<span style="color:var(--green);">✓ Claude CLI funnet — ' + data.version + '</span>';
