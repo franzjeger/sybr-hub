@@ -563,7 +563,7 @@ async function alsoLinkMatched() {
   var matches = window._alsoMatchedForLink || [];
   if (!matches.length) { showToast(t('no_matches_to_link'), 'warning'); return; }
   var btn = document.getElementById('also-link-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Linking...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('msg_linking','Linking …'); }
 
   var payload = matches.map(function(c) {
     return {toolkit_id: c.match.toolkit_id, also_id: c.also_id};
@@ -579,7 +579,7 @@ async function alsoLinkMatched() {
     if (btn) { btn.textContent = '✓ ' + d.linked + ' linked'; btn.style.background = 'var(--green)'; }
   } else {
     showToast(d && d.error ? d.error : 'Linking failed', 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Link all'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('btn_link_all','Link all'); }
   }
 }
 
@@ -644,7 +644,7 @@ async function uniwebSync() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
   msg.innerHTML = '<span style="color:var(--text-muted);">' + t('starter_synkronisering') + '</span>';
-  if (btn) { btn.disabled = true; btn.textContent = 'Synkroniserer...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('msg_syncing','Synchronising …'); }
   _uniwebSyncStart = Date.now();
 
   var d = await apiFetch('/api/uniweb/sync', {method: 'POST'});
@@ -750,7 +750,7 @@ async function uniwebPollStatus() {
 
     if (btn) { btn.disabled = false; btn.textContent = t('integ_sync','Synkroniser'); }
     if (d.last_sync) {
-      document.getElementById('uniweb-last-sync').textContent = 'Sist synkronisert: ' + new Date(d.last_sync).toLocaleString('nb-NO');
+      document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + new Date(d.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO');
     }
     uniwebLoadAccounts();
   }
@@ -1076,7 +1076,7 @@ async function uniwebDoImport() {
   if (!confirm(confirmMsg)) return;
 
   var btn = document.getElementById('uniweb-import-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Importerer...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('msg_importing','Importing …'); }
 
   // Hide any previous errors
   var errBox = document.getElementById('uniweb-import-errors');
@@ -1134,7 +1134,7 @@ async function uniwebDoImport() {
   } catch (e) {
     showToast(t('feil_3') + ' ' + e.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Importer valgte'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('btn_import_selected','Import selected'); }
   }
 }
 
@@ -1463,7 +1463,7 @@ async function uniwebCheckStatus() {
       if (passField && settings.uniweb_password_set) passField.value = '••••••';
     }
     if (d.last_sync) {
-      document.getElementById('uniweb-last-sync').textContent = 'Sist synkronisert: ' + new Date(d.last_sync).toLocaleString('nb-NO');
+      document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + new Date(d.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO');
     }
     uniwebLoadAccounts();
   }

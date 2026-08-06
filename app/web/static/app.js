@@ -2569,7 +2569,7 @@ function updateProgress(done, total) {
   document.getElementById('progress-pct').textContent = pct + '%';
   document.getElementById('progress-label').textContent = t('audit_sections_count').replace('{done}', done).replace('{total}', total);
   // Update browser tab title with progress
-  if (auditRunning) document.title = 'Audit ' + pct + '% — ' + _origTitle;
+  if (auditRunning) document.title = t('lbl_audit','Audit') + ' ' + pct + '% — ' + _origTitle;
   else document.title = _origTitle;
 }
 
@@ -4302,7 +4302,7 @@ async function scanDeviceSetInform(host) {
     { label: 'unifi.sybr.no', url: 'http://unifi.sybr.no:8080/inform' }
   ];
   // Use the confirm modal infrastructure to show preset + custom URL picker
-  document.getElementById('confirm-modal-title').textContent = 'Set-Inform — ' + host;
+  document.getElementById('confirm-modal-title').textContent = t('hdr_set_inform','Set-Inform') + ' \u2014 ' + host;
   var bodyEl = document.getElementById('confirm-modal-body');
   var pickHtml = '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">';
   for (var p of presets) {
@@ -6121,7 +6121,7 @@ function filterOverview() {
     var badges = [];
     if (search) badges.push('<span style="background:var(--blue-dark);color:var(--blue);padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);cursor:pointer;" onclick="document.getElementById(\'overview-search\').value=\'\';filterOverview();">&#10005; &quot;' + esc(search) + '&quot;</span>');
     if (filter !== 'all') {
-      var fLabels = {has_m365:'M365', has_fortigate:'FortiGate', needs_setup:t('filter_needs_setup','Needs setup'), mfa80:'MFA < 80%', riskdf:'Grade D/F', noaudit:t('filter_no_audit'), stale:t('filter_stale_audit','Stale audit')};
+      var fLabels = {has_m365:'M365', has_fortigate:'FortiGate', needs_setup:t('filter_needs_setup','Needs setup'), mfa80:'MFA < 80%', riskdf:t('filter_grade_df','Grade D/F'), noaudit:t('filter_no_audit'), stale:t('filter_stale_audit','Stale audit')};
       badges.push('<span style="background:var(--blue-dark);color:var(--blue);padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);cursor:pointer;" onclick="document.getElementById(\'overview-filter\').value=\'all\';filterOverview();">&#10005; ' + (fLabels[filter]||filter) + '</span>');
     }
     if (_gradeFilter) badges.push('<span style="background:var(--blue-dark);color:var(--blue);padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);cursor:pointer;" onclick="_gradeFilter=\'\';filterOverview();">&#10005; ' + t('lbl_grade') + ': ' + _gradeFilter + '</span>');

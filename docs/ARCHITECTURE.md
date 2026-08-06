@@ -285,7 +285,14 @@ apart — they are the same object.
 
 `save_audit_metrics` persists both, and `/api/dashboard` rebuilds the text in
 the requesting language. A run from before this carries no recipe and keeps its
-stored words, which beats a blank line.
+stored words, which beats a blank line —
+`scripts/backfill_recommendation_recipes.py` gives those runs the recipe
+without re-auditing the tenant, since recommendations are a pure function of
+the audit files already on disk. It adds `rec_id` and the four recipe fields
+and **nothing else**: the stored sentence stays exactly as written, because an
+audit run is a record of what we said on a day, and rephrasing it to whatever
+today's code would say is an edit of that record rather than a repair. It is a
+dry run until `--apply`.
 
 **Identity is separate from wording.** Remediation state used to be keyed on
 the rendered title, so an operator who marked something done in Norwegian found
@@ -378,6 +385,30 @@ Forty-five keys had accumulated that way, in both directions, with every
 detector passing: they measure whether a string is routed through `t()`, not
 whether routing it accomplished anything. A separate test now checks that
 every key a script names exists in both languages.
+
+Four detectors, and each exists because the ones before it were blind to
+something:
+
+| detector | what it reads | the gap it closed |
+|---|---|---|
+| `untranslated_text_nodes` | markup between `>` and `<` | — |
+| `norwegian_literals_in_js` | Norwegian literals in scripts | text built in JS, not markup |
+| `text_shown_to_a_person` | args to `showToast`/`confirm`/`alert` | strings with no Norwegian letter |
+| `literals_assigned_to_the_page` | literals assigned to `textContent` | a button label set in JS is in no markup and no call |
+| `literals_in_a_table_of_labels` | bare strings in a `*Labels` object | a value in an object literal is near nothing |
+
+The first three are user-facing *by construction* — you do not assign to
+`textContent` or call `showToast` for any other reason — which is what keeps
+them free of judgement calls. The label-table one leans on naming instead,
+which is weaker, so the exemption list beside it (`_TECHNICAL_VOCABULARY`) is
+by value rather than by pattern: "Access Point" and "Botnet" are how the
+vendors' own consoles spell them, and translating them would make the
+interface harder to match against, not easier.
+
+A broad "any word-like literal not passed to `t()`" detector was tried first
+and abandoned: 913 hits across the scripts, overwhelmingly SVG path data and
+CSS values. A budget on that number could only ever be noise, and a budget
+nobody reads is worse than no budget.
 
 Backend-generated text is not covered by any of the detectors, which read
 JavaScript only. Anything a route or a core module returns for display must
