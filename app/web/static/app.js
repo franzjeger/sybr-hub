@@ -496,7 +496,14 @@ async function checkAuth() {
       }
       showLoginView('login'); return;
     }
-    if (me.ok) { _currentUser = await me.json(); hideLoginView(); updateUserDisplay(); _postAuthInit(); }
+    if (me.ok) {
+      // /auth/me answers {user: {...}}. Storing the envelope meant every read
+      // of _currentUser.role and _currentUser.display_name was undefined, so
+      // the avatar has been showing "?" for as long as it has existed.
+      var _me = await me.json();
+      _currentUser = _me.user || _me;
+      hideLoginView(); updateUserDisplay(); _postAuthInit();
+    }
   } catch(e) { console.error('Request failed:', e); showLoginView('login'); }
 }
 
@@ -613,6 +620,26 @@ function updateUserDisplay() {
   // Legacy hidden element — kept so any remaining reference resolves.
   var el = document.getElementById('user-display');
   if (el) el.textContent = initials;
+  applyWriteCapability();
+}
+
+// ── Read-only accounts ───────────────────────────────────────────────────────
+// The server decides; this only stops the interface offering what it will
+// refuse. Anything marked data-write is hidden without the capability, and a
+// badge says why rather than leaving someone hunting for a menu that is gone.
+function canWrite() {
+  return !!(_currentUser && _currentUser.can_write);
+}
+
+function applyWriteCapability() {
+  var write = canWrite();
+  document.body.classList.toggle('is-readonly', !write);
+  var badge = document.getElementById('readonly-badge');
+  if (badge) {
+    badge.style.display = write ? 'none' : '';
+    badge.title = t('tip_readonly', 'Your account has read access. Changes require write.');
+    badge.textContent = t('lbl_readonly', 'Read-only');
+  }
 }
 
 // ── Avatar account menu ──────────────────────────────────────────────────────

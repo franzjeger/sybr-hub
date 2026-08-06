@@ -34,6 +34,11 @@
   })();
 </script>
 <link rel="stylesheet" href="/static/app.css?v=1016">
+<style>
+/* Hidden rather than disabled: an account without the capability is not
+   meant to see the door, and a greyed-out button invites a support ticket. */
+body.is-readonly [data-write] { display: none !important; }
+</style>
 </head>
 <body>
 <div id="toast-container" class="toast-container"></div>
@@ -115,6 +120,7 @@
     </div>
     <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" data-i18n-aria-label="meny" aria-label="Meny">&#9776;</button>
     <nav class="nav" id="main-nav">
+      <span id="readonly-badge" style="display:none;align-self:center;margin-right:10px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-dark,#1e3a4a);color:var(--blue,#4d9fb5);border:1px solid rgba(77,159,181,0.35);"></span>
       <button class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" data-i18n-title="dashboard_ctrl" title="Dashboard (Ctrl+1)">Dashboard</button>
 
       <div class="nav-dropdown">
@@ -161,7 +167,7 @@
             <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc" data-i18n="nav_mesh_desc">Mesh-tilgang og noder</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-foot" onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
+          <button class="navdd-foot" data-write onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
         </div></div>
       </div>
 
@@ -285,7 +291,7 @@
     <button class="context-ghost" onclick="openLatestReport()" data-i18n="btn_open_report">Rapport</button>
     <button class="context-ghost" onclick="showView('history')" data-i18n="nav_history">Historikk</button>
     <button id="active-bar-licenses-btn" class="context-ghost" onclick="loadCustomerLicensesFromActive()" style="display:none;" data-i18n="nav_licenses">Licenses</button>
-    <button class="btn btn-sm" onclick="showView('audit')" style="padding:6px 14px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r audit</button>
+    <button class="btn btn-sm" data-write onclick="showView('audit')" style="padding:6px 14px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r audit</button>
 
     <!-- Quick-switcher dropdown — switch active customer from any view -->
     <div id="active-customer-switcher" style="display:none;position:absolute;top:46px;left:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);z-index:50;min-width:340px;max-height:420px;flex-direction:column;padding:8px;">

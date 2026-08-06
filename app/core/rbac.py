@@ -59,6 +59,25 @@ async def get_accessible_customer_ids(user: User) -> Optional[set[str]]:
     return {r[0] for r in rows}
 
 
+async def set_can_write(user_id: str, enabled: bool) -> None:
+    """Grant or revoke the system-wide write capability for one user.
+
+    Revoking is the interesting direction: an account left without it can read
+    the whole toolkit and change none of it, which is the default every account
+    starts from. Logged at warning level either way — this is the switch that
+    decides whether somebody can alter anything at all.
+    """
+    async with get_db() as conn:
+        await conn.execute(
+            "UPDATE users SET can_write = ? WHERE id = ?",
+            (1 if enabled else 0, user_id),
+        )
+        await conn.commit()
+    logger.warning(
+        "can_write %s for user %s", "granted" if enabled else "revoked", user_id
+    )
+
+
 async def set_tenant_write(user_id: str, enabled: bool) -> None:
     """Grant or revoke the tenant-write capability for one user.
 

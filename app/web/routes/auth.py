@@ -280,6 +280,17 @@ async def auth_update_user(
     # Handled separately from the fields above, and only when the caller
     # actually sent it. A capability that can be turned on by a request that
     # meant to rename someone is not one you can reason about afterwards.
+    if body.can_write is not None:
+        from app.core.rbac import set_can_write
+
+        await set_can_write(user_id, body.can_write)
+        log_activity(
+            "write_granted" if body.can_write else "write_revoked",
+            user=admin.username,
+            detail=f"target={updated.username}",
+        )
+        updated = await get_user_by_id(user_id)
+
     if body.tenant_write is not None:
         from app.core.rbac import set_tenant_write
 
@@ -414,5 +425,6 @@ def _public_user(user: User) -> dict:
         "role": user.role.value,
         # Surfaced so the UI can show which accounts hold it. It is the one
         # capability here that reaches outside this tool.
+        "can_write": bool(getattr(user, "can_write", False)),
         "tenant_write": bool(getattr(user, "tenant_write", False)),
     }

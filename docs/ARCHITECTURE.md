@@ -89,6 +89,50 @@ a route up; a test asserts every other route carries an auth dependency.
 - Tokens are also set as `HttpOnly` cookies with `SameSite=Strict`. There is
   no separate CSRF token; `SameSite` is the defence for the cookie path.
 
+## Write is a grant, not a role
+
+Every account is read-only. Changing anything needs `can_write`, and that is a
+per-user grant nobody inherits — admins included, because a capability implied
+by a role is not a capability.
+
+Enforced in `middleware/write_guard.py`, not on the routes. There are 163
+mutating endpoints; a decorator on each is 163 chances to forget one, and the
+forgotten one is the one that matters. A request that changes something is
+denied *unless nothing exempted it*.
+
+So the interesting content of that module is the exemption table, and it is
+meant to be read rather than scrolled past. Four groups, a sentence of
+reasoning each:
+
+| group | why it stays open |
+|---|---|
+| `SESSION` | login, logout, refresh, first-run setup, and changing your own password — none can depend on a capability the account may not have |
+| `NAVIGATION` | switching customer changes what you are looking at, not what is; gating it leaves a read-only account able to read one tenant |
+| `LOOKUPS` | a question with a body too big for a query string — DNS, TLS, connection tests |
+| `DOCUMENTS` | producing a report to read; archive *deletion* is not here |
+
+Matching is exact, never by prefix: a prefix rule silently covers whatever is
+added underneath it later. A test asserts every exemption names a route that
+actually exists, and another caps the list at a size somebody will still read —
+once it needs scrolling, default-deny has quietly become default-allow.
+
+Two capabilities, layered:
+
+- `can_write` — change Sybr HUB: notes, tags, hosts, settings, users.
+- `tenant_write` — change a customer's Microsoft tenant. Requires `can_write`
+  underneath it: an account that may not save a note here has no business
+  changing configuration there.
+
+**The migration turns it off for everyone**, which means the first grant cannot
+be made through the interface — granting is itself a write.
+`scripts/grant_write.py` is that key, and it ships in the same change, because
+a lock with no key is not a security model but an outage.
+
+The interface hides `[data-write]` elements from an account without the
+capability and shows a read-only badge instead of leaving somebody hunting for
+a menu that is gone. That is cosmetic: the server refuses regardless, and the
+marking so far covers the main entry points rather than every button.
+
 ## Authorization
 
 Two independent checks:

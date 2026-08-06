@@ -54,6 +54,7 @@ class User(BaseModel):
     #
     # Read stays the default for every account. This is the exception, granted
     # one user at a time and revocable on its own.
+    can_write: bool = False
     tenant_write: bool = False
 
 
@@ -96,6 +97,7 @@ class UserUpdate(BaseModel):
     role: Optional[Role] = None
     is_active: Optional[bool] = None
     # None means "not sent" — only an explicit true/false changes it.
+    can_write: Optional[bool] = None
     tenant_write: Optional[bool] = None
 
 

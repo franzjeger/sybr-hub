@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.auth import create_access_token, create_user
+from app.core.auth import create_access_token, create_user, get_user_by_id
 from app.core.database import run_migrations
 from app.models.user import Role
 from app.web.middleware.auth import _reset_users_exist_cache
@@ -59,6 +59,10 @@ def customer(tmp_path, monkeypatch):
 @pytest.fixture()
 async def auth():
     user = await create_user("hubop", GOOD_PASSWORD, "Hub Op", role=Role.admin)
+    from app.core.rbac import set_can_write
+
+    await set_can_write(user.id, True)
+    user = await get_user_by_id(user.id)
     return {"Authorization": f"Bearer {await create_access_token(user)}"}
 
 
