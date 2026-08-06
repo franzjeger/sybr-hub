@@ -502,6 +502,7 @@ async function checkAuth() {
       // the avatar has been showing "?" for as long as it has existed.
       var _me = await me.json();
       _currentUser = _me.user || _me;
+      if (_me.write_exempt) _writeExempt = _me.write_exempt;
       hideLoginView(); updateUserDisplay(); _postAuthInit();
     }
   } catch(e) { console.error('Request failed:', e); showLoginView('login'); }
@@ -728,9 +729,31 @@ function metricPct(value, digits) {
   return Number(value).toFixed(digits === undefined ? 0 : digits);
 }
 
+// Paths the server keeps open without the write capability. Sent by /auth/me
+// rather than restated here — a second copy of the rule is the one that goes
+// stale, and it would go stale in the direction of offering something the
+// server refuses.
+var _writeExempt = [];
+
+function _wouldBeRefused(url, options) {
+  var method = ((options && options.method) || 'GET').toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+  if (canWrite()) return false;
+  var path = String(url).split('?')[0].replace(/\/$/, '');
+  return _writeExempt.indexOf(path) === -1;
+}
+
 async function apiFetch(url, options, _retryCount) {
   if (_retryCount === undefined) _retryCount = 0;
   var maxRetries = 2;
+  // Answered here as well as by the server. Marking every control that writes
+  // is possible for the ones in the markup and unbounded for the ones built at
+  // runtime, so this is the half that cannot be forgotten: a read-only account
+  // gets told why, instead of a button that appears to do nothing.
+  if (_wouldBeRefused(url, options)) {
+    showToast(t('err_readonly_account', 'Your account has read access. Changes require write.'), 'warning', 4000);
+    return null;
+  }
   // Inject auth header
   if (!options) options = {};
   if (!options.headers) options.headers = {};

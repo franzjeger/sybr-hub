@@ -128,10 +128,23 @@ be made through the interface — granting is itself a write.
 `scripts/grant_write.py` is that key, and it ships in the same change, because
 a lock with no key is not a security model but an outage.
 
-The interface hides `[data-write]` elements from an account without the
-capability and shows a read-only badge instead of leaving somebody hunting for
-a menu that is gone. That is cosmetic: the server refuses regardless, and the
-marking so far covers the main entry points rather than every button.
+The interface does the same thing twice, and the split matters.
+
+`apiFetch` refuses a mutating call the account cannot make and says why. That
+half cannot be forgotten, because every request goes through it — which is what
+makes it the load-bearing one: most controls are built at runtime out of
+`innerHTML`, so there is no list of them to mark and never will be.
+
+`data-write` hides the controls that live in `index.html`, so the interface
+does not show a button whose only outcome is a toast. That half *can* be
+forgotten, so `tests/test_write_controls_are_marked.py` maps each handler to
+the endpoints its function calls and fails on any that writes without the
+attribute. Adding a control without marking it fails there rather than in front
+of a customer.
+
+The client never keeps its own copy of the exemption list — `/auth/me` sends
+the middleware's own set. A second copy would go stale in exactly one
+direction: offering something the server refuses.
 
 ## Authorization
 
