@@ -2803,6 +2803,32 @@ def get_translations(lang: str = "no") -> dict[str, str]:
     return result
 
 
+class Localised(str):
+    """A rendered string that remembers how it was rendered.
+
+    It *is* the text — templates, f-strings, ``json.dumps`` and every existing
+    consumer treat it as an ordinary ``str`` and nothing downstream changes.
+    What it adds is the key and the values it was built from, so a reader in
+    another language can have the same sentence rebuilt for them.
+
+    That matters because a recommendation is written once, when the audit runs,
+    and read for months afterwards. Storing only the finished sentence meant an
+    audit collected in Norwegian showed Norwegian to an English reader forever,
+    and the only way out was to run the audit again. The alternative — passing
+    a key and a params dict explicitly at all twenty-eight places a
+    recommendation is built — is twenty-eight chances for the two to drift
+    apart. Here they cannot: the string and its recipe are the same object.
+    """
+
+    __slots__ = ("key", "params")
+
+    def __new__(cls, text: str, key: str, params: dict) -> "Localised":
+        obj = super().__new__(cls, text)
+        obj.key = key
+        obj.params = params
+        return obj
+
+
 class T:
     """Translation helper that can be passed to Jinja2 templates.
 
@@ -2816,10 +2842,9 @@ class T:
     def __getattr__(self, key: str) -> str:
         if key.startswith("_"):
             raise AttributeError(key)
-        return self._strings.get(key, key)
+        return Localised(self._strings.get(key, key), key, {})
 
     def __call__(self, key: str, **kwargs) -> str:
         template = self._strings.get(key, key)
-        if kwargs:
-            return template.format(**kwargs)
-        return template
+        text = template.format(**kwargs) if kwargs else template
+        return Localised(text, key, kwargs)

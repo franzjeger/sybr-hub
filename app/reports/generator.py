@@ -3213,7 +3213,7 @@ def _build_recommendations(
     for i, rec in enumerate(recs):
         rec["rec_index"] = i + 1
 
-    return recs
+    return _label_recommendations(recs)
 
 
 # ── Trend comparison ──────────────────────────────────────────────────────────
@@ -3268,8 +3268,21 @@ def save_audit_metrics(out_dir: Path, context: dict) -> None:
         ),
         "network_default_creds": (unifi or {}).get("default_creds_count") if unifi else None,
         "network_outdated_fw": (unifi or {}).get("outdated_firmware_count") if unifi else None,
+        # The rendered text *and* the recipe for it. The text keeps every
+        # existing reader working; the recipe lets a reader in the other
+        # language have the sentence rebuilt without re-running the audit.
         "recommendations": [
-            {"priority": r.get("priority", ""), "title": r.get("title", ""), "detail": r.get("detail", ""), "effort": r.get("effort", "")}
+            {
+                "rec_id": r.get("rec_id", ""),
+                "priority": r.get("priority", ""),
+                "title": str(r.get("title", "")),
+                "detail": str(r.get("detail", "")),
+                "effort": str(r.get("effort", "")),
+                "title_key": r.get("title_key", ""),
+                "title_params": r.get("title_params", {}),
+                "detail_key": r.get("detail_key", ""),
+                "detail_params": r.get("detail_params", {}),
+            }
             for r in context.get("recommendations", [])
         ],
     }
@@ -3330,6 +3343,50 @@ def _save_metrics_to_db(out_dir: Path, metrics: dict) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# Params that name *which* thing a recommendation is about, as opposed to how
+# much of it there is. "fonnafly.com" identifies a finding; "3 mailboxes" is how
+# big it is this week. Only the former may enter the id, or marking an item done
+# would come undone the moment the count moved.
+_REC_IDENTITY_PARAMS = ("domain", "part", "category", "sku", "name")
+
+
+def _label_recommendations(recs: list[dict]) -> list[dict]:
+    """Give each recommendation a stable id and the recipe for its own text.
+
+    The id is language-independent so remediation state survives a language
+    change — it used to be keyed on the rendered title, which meant an operator
+    who marked something done in Norwegian would find it open again in English.
+
+    The key and params come off the Localised strings the builder already
+    produced, so there is nothing to keep in step by hand.
+    """
+    from app.reports.i18n import Localised
+
+    seen: dict[str, int] = {}
+    for rec in recs:
+        for field in ("title", "detail"):
+            value = rec.get(field)
+            if isinstance(value, Localised):
+                rec[f"{field}_key"] = value.key
+                rec[f"{field}_params"] = dict(value.params)
+
+        base = rec.get("title_key") or rec.get("finding_id") or "rec"
+        params = rec.get("title_params") or {}
+        rec_id = ":".join(
+            [base]
+            + [str(params[k]) for k in _REC_IDENTITY_PARAMS if params.get(k) not in (None, "")]
+        )
+        # Two recommendations from one key with nothing to tell them apart is a
+        # bug in the builder, but a silently shared id would merge their
+        # remediation state, so they are separated and the collision logged.
+        seen[rec_id] = seen.get(rec_id, 0) + 1
+        if seen[rec_id] > 1:
+            log.warning("Recommendation id %r is not unique - disambiguating", rec_id)
+            rec_id = f"{rec_id}#{seen[rec_id]}"
+        rec["rec_id"] = rec_id
+    return recs
 
 
 def load_previous_metrics(out_dir: Path) -> dict | None:
