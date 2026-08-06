@@ -87,25 +87,27 @@ def rebuild(db_path: Path, rows: list[dict], apply: bool) -> dict:
     conn.row_factory = sqlite3.Row
     try:
         existing = [dict(r) for r in conn.execute(
-            "SELECT customer_id, audit_date FROM audit_metrics"
+            "SELECT customer_id, customer_name, audit_date FROM audit_metrics"
         )]
-        wanted = {(r["customer_id"], r["audit_date"]) for r in rows}
-        customers = {r["customer_id"] for r in rows}
-        # A row for a customer we rebuilt, at a date no run carries, is a
-        # duplicate or a stale reading. A row for a customer we have no runs
-        # for at all is the last trace of something and is left alone.
-        orphans = [
-            e for e in existing
-            if e["customer_id"] not in customers
-        ]
+        wanted = {(r["customer_name"], r["audit_date"]) for r in rows}
+        customers = {r["customer_name"] for r in rows}
+        # Matched on the customer *name*, because that is what links a row to a
+        # run: _save_metrics_to_db derives it from the run directory, while
+        # customer_id comes from whatever the active config held at the time.
+        # Here that is the tenant id, and three different names share it —
+        # including two from run directories long since deleted.
+        orphans = [e for e in existing if e["customer_name"] not in customers]
         replaced = [
             e for e in existing
-            if e["customer_id"] in customers and (e["customer_id"], e["audit_date"]) not in wanted
+            if e["customer_name"] in customers
+            and (e["customer_name"], e["audit_date"]) not in wanted
         ]
 
         if apply:
-            for customer_id in customers:
-                conn.execute("DELETE FROM audit_metrics WHERE customer_id = ?", (customer_id,))
+            for customer_name in customers:
+                conn.execute(
+                    "DELETE FROM audit_metrics WHERE customer_name = ?", (customer_name,)
+                )
             conn.executemany(
                 "INSERT INTO audit_metrics (customer_id, customer_name, audit_date, "
                 + ", ".join(COLUMNS)
@@ -141,7 +143,7 @@ def main() -> int:
     for cust in CustomerManager.list_customers():
         real = cust.get("CustomerName", "")
         safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in real)
-        ids[safe] = cust.get("_id", "") or cust.get("TenantId", "")
+        ids[safe] = cust.get("TenantId", "") or cust.get("_id", "")
 
     root = get_audit_dir()
     if not root.is_dir():
