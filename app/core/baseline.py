@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pathlib
 from typing import Any
 
@@ -38,6 +39,19 @@ BASELINE_DIR = pathlib.Path(__file__).parent.parent / "baselines"
 PASS = "pass"
 FAIL = "fail"
 NOT_MEASURED = "not_measured"
+
+DEFAULT_BASELINE_ID = "sybr-standard"
+
+
+def default_baseline_id() -> str:
+    """The standard every report is measured against unless told otherwise.
+
+    An environment variable rather than a stored setting: a report is built by
+    the scheduler as well as by a request, and the two must not be able to
+    disagree about which standard judged a run. The version travelling in the
+    result is what keeps last year's verdict readable after the bar moves.
+    """
+    return (os.environ.get("SYBR_BASELINE") or "").strip() or DEFAULT_BASELINE_ID
 
 
 class BaselineError(Exception):

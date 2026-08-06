@@ -400,6 +400,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% if purview and purview.has_data %}<li><a href="#databeskyttelse">{{ t.data_protection }}</a></li>{% endif %}
     <li><a href="#azure">{{ t.azure_infrastructure }}</a></li>
     {% if network and network.has_data %}<li><a href="#nettverk">{{ t.section_network }}</a></li>{% endif %}
+    {% if baseline %}<li><a href="#standard">{{ t.baseline_label }}</a></li>{% endif %}
     {% if compliance %}<li><a href="#compliance">CIS {{ t.compliance }}</a></li>{% endif %}
     <li><a href="#miljo">{{ t.environment_overview }}</a></li>
   </ol>
@@ -1653,6 +1654,104 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── Compliance ── -->
+{# ── Sybr Standard ──────────────────────────────────────────────────────────
+   Placed before the CIS section on purpose: what we require, then what the
+   industry benchmark says. A customer who reads only the first block should
+   have read the one they can be held to. #}
+{% if baseline %}
+<div class="section-label" style="margin-top:56px;" id="standard">{{ t.baseline_label }}</div>
+<h2><a href="#standard" class="section-anchor">{{ baseline.baseline.name }} {{ baseline.baseline.version }}</a></h2>
+<p class="section-intro">{{ t.baseline_intro }}</p>
+
+<div class="metrics" style="margin-bottom:24px;">
+  <div class="metric-card">
+    {# No percentage when nothing could be assessed. 0 % would be a verdict,
+       and the absence of a verdict is not one. #}
+    <div class="num {% if baseline.conformance_pct is none %}{% elif baseline.conformance_pct >= 90 %}green{% elif baseline.conformance_pct >= 70 %}orange{% else %}red{% endif %}"
+         {% if baseline.conformance_pct is none %}style="color:var(--text-dim);"{% endif %}>
+      {% if baseline.conformance_pct is none %}&mdash;{% else %}{{ baseline.conformance_pct }} %{% endif %}
+    </div>
+    <div class="lbl">{{ t.baseline_conformance }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num green">{{ baseline.passed }}</div>
+    <div class="lbl">{{ t.baseline_met }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num red">{{ baseline.failed }}</div>
+    <div class="lbl">{{ t.baseline_deviation }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="num" style="color:var(--text-dim);">{{ baseline.not_measured }}</div>
+    <div class="lbl">{{ t.not_assessed }}</div>
+  </div>
+</div>
+
+{% if baseline.assessed == 0 %}
+<p class="section-intro" style="margin-top:-12px;">{{ t.baseline_nothing_assessed }}</p>
+{% elif baseline.not_measured %}
+<p class="section-intro" style="margin-top:-12px;">{{ t('baseline_basis', assessed=baseline.assessed, total=baseline.total_checks, skipped=baseline.not_measured) }}</p>
+{% endif %}
+
+<div class="env-card">
+  <table class="email-table">
+    <tr><th>{{ t.baseline_requirement }}</th><th>{{ t.status }}</th><th>{{ t.details }}</th></tr>
+    {% for c in baseline.checks %}
+    <tr>
+      <td>
+        {{ c.title }}
+        {# The rationale earns its place where there is something to fix. #}
+        {% if c.status == 'fail' and c.why %}
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;">{{ c.why }}</div>
+        {% endif %}
+      </td>
+      <td>
+        {% if c.status == 'pass' %}<span class="status-pill ok">{{ t.baseline_met }}</span>
+        {% elif c.status == 'fail' %}<span class="status-pill {% if c.severity == 'critical' %}critical{% else %}warning{% endif %}">{{ t.baseline_deviation }}</span>
+        {% else %}<span class="status-pill" style="background:#dbeafe;color:#1e40af;">{{ t.not_assessed }}</span>{% endif %}
+      </td>
+      <td style="font-size:11px;color:var(--muted);">{{ c.detail }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{# ── Policy drift ──────────────────────────────────────────────────────── #}
+{% if drift %}
+<h3 style="margin-top:32px;">{{ t.drift_heading }}</h3>
+<p class="section-intro">{{ t.drift_intro }}</p>
+{% if not drift.measured %}
+<div class="env-card">
+  <p style="margin:0;font-size:13px;color:var(--muted);">
+    <strong>{{ t.drift_not_measured }}.</strong> {{ drift.reason }}
+  </p>
+</div>
+{% elif drift.added_total == 0 and drift.removed_total == 0 and drift.changed_total == 0 %}
+<div class="env-card">
+  <p style="margin:0;font-size:13px;color:var(--muted);">{{ t('drift_quiet', run=drift.compared_with) }}</p>
+</div>
+{% else %}
+<p class="section-intro" style="margin-top:-12px;">{{ t('drift_summary', run=drift.compared_with, added=drift.added_total, removed=drift.removed_total, changed=drift.changed_total) }}</p>
+<div class="env-card">
+  <table class="email-table">
+    <tr><th>{{ t.status }}</th><th>{{ t.drift_policy }}</th><th>{{ t.drift_fields }}</th></tr>
+    {% for s in drift.snapshots %}{% if s.comparable %}
+      {% for p in s.removed %}
+      <tr><td><span class="status-pill critical">{{ t.drift_removed }}</span></td><td>{{ p.name or t.drift_unnamed }}</td><td style="font-size:11px;color:var(--muted);">&mdash;</td></tr>
+      {% endfor %}
+      {% for p in s.changed %}
+      <tr><td><span class="status-pill warning">{{ t.drift_changed }}</span></td><td>{{ p.name or t.drift_unnamed }}</td><td style="font-size:11px;color:var(--muted);">{{ p.fields | join(', ') }}</td></tr>
+      {% endfor %}
+      {% for p in s.added %}
+      <tr><td><span class="status-pill ok">{{ t.drift_added }}</span></td><td>{{ p.name or t.drift_unnamed }}</td><td style="font-size:11px;color:var(--muted);">&mdash;</td></tr>
+      {% endfor %}
+    {% endif %}{% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endif %}
+
 {% if compliance %}
 <div class="section-label" style="margin-top:56px;" id="compliance">{{ t.compliance }}</div>
 <h2><a href="#compliance" class="section-anchor">{{ t.cis_benchmark }}</a></h2>

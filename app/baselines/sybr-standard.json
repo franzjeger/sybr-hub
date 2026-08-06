@@ -1,6 +1,6 @@
 {
   "id": "sybr-standard",
-  "version": "2026.1",
+  "version": "2026.2",
   "name": "Sybr Standard",
   "description": "Hva Sybr krever av en kunde vi drifter. Strengere enn CIS på identitet, mildere på det som krever lisenser kunden ikke nødvendigvis har.",
   "checks": [
@@ -83,6 +83,16 @@
       "value": 0,
       "measured_when": "exchange.has_data",
       "severity": "critical"
+    },
+    {
+      "id": "no-policy-removed",
+      "title": "Ingen sikkerhetspolicy er fjernet siden forrige audit",
+      "why": "En policy som forsvinner senker ikke Secure Score nevneverdig og utløser ingen varsling hos Microsoft. Den er borte, og alt den beskyttet er ubeskyttet fra det øyeblikket — som regel oppdaget først ved neste hendelse. Avvik her betyr ikke nødvendigvis feil: det betyr at noen må bekrefte at fjerningen var tilsiktet.",
+      "path": "drift.removed_total",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "drift.measured",
+      "severity": "high"
     }
   ]
 }

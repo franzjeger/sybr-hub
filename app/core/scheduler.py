@@ -66,16 +66,30 @@ class AuditScheduler:
             await self._run_single_customer_audit()
 
     async def _run_single_customer_audit(self):
-        """Run an audit for the currently active customer only."""
+        """Run an audit for the currently active customer only.
+
+        This mode reads the active-customer globals rather than being handed a
+        customer, which is what "audit the active customer" means — but it
+        must still not run alongside a manual audit, or two collectors compete
+        for Graph quota and both write into the same progress map.
+        """
         from app.core.credentials import load_config
         from app.modules.m365_audit.auth import AuthManager
         from app.modules.m365_audit.collector import AuditCollector, make_output_dir
+        from app.web import state
 
         cfg = load_config()
         if not cfg:
             return
 
         customer_name = cfg.get("CustomerName", "Ukjent")
+
+        async with state.audit_lock:
+            if state.audit_running:
+                log.info("Scheduled audit skipped: an audit is already running")
+                return
+            state.audit_running = True
+
         log.info("Scheduled audit starting for %s", customer_name)
 
         try:
@@ -104,30 +118,71 @@ class AuditScheduler:
         except Exception as e:
             log.error("Scheduled audit failed: %s", e)
             await self._send_webhook(f"⚠️ Scheduled audit failed for {customer_name}: {e}")
+        finally:
+            state.audit_running = False
 
     async def _run_all_customers_audit(self):
-        """Rotate through all customers, audit each one, and restore the original active customer."""
-        import shutil
+        """Audit every configured customer in turn, touching no global state.
 
-        from app.core.credentials import cert_path as get_cert_path
-        from app.core.credentials import save_config
+        This used to work by *switching* to each customer: write active.txt,
+        copy that customer's config into the one global slot, copy their
+        certificate over the one global certificate, audit whatever the
+        globals then said, and restore the original at the end.
+
+        Which meant that for the length of a cycle — minutes per tenant,
+        potentially hours in total — "which customer is active" was a shared
+        variable being rewritten under everyone else. Every route that reads
+        the active customer reads those same globals: notes, tags, audit
+        scope, the dashboard, the IT-Glue and FortiGate lookups. A technician
+        with customer A open, saving a note during a cycle, wrote it into
+        whichever customer the scheduler had reached. Silently, and for hours
+        at a time. Worse and rarer: the audit reads the customer *name* and
+        the customer *credentials* as two separate reads of that global, so a
+        switch landing between them files tenant B's findings under customer
+        A — the one failure this tool cannot afford, because every downstream
+        claim it makes is "this is your tenant".
+
+        The bulk-audit route has always done it correctly (see
+        ``routes/audit.py``): build an AuthManager from the customer record
+        directly and pass it in. Nothing downstream ever needed the globals —
+        ``make_output_dir``, ``build_report_context`` and
+        ``_auto_report_and_email`` all take the customer explicitly. The
+        switching was doing nothing except creating the hazard.
+
+        Two things fall out of using the customer record directly. Customers
+        without TenantId and ClientId are skipped rather than attempted, as
+        bulk already does. And GDAP customers now work: ``from_config`` had no
+        GDAP branch, so every scheduled audit of a GDAP tenant failed, while
+        the same customer audited manually was fine.
+        """
         from app.core.customer import CustomerManager
-        from app.modules.m365_audit.auth import AuthManager
+        from app.modules.m365_audit.auth import get_auth_for_customer
         from app.modules.m365_audit.collector import AuditCollector, make_output_dir
         from app.reports.generator import build_report_context
+        # Imported here, not at module scope: core reaching into web state is
+        # a layering compromise made deliberately. A lock of its own in core
+        # would not serialise against the manual audit route, which is the
+        # only thing this needs to serialise against.
+        from app.web import state
 
-        # Remember original active customer to restore afterwards
-        original_active_id = CustomerManager.get_active_id()
-
-        customers = CustomerManager.list_customers()
-        if not customers:
+        all_customers = CustomerManager.list_customers()
+        if not all_customers:
             log.warning("Scheduled audit: no customers registered, skipping")
+            return
+
+        customers = [c for c in all_customers if c.get("TenantId") and c.get("ClientId")]
+        unconfigured = len(all_customers) - len(customers)
+        if unconfigured:
+            log.info("Scheduled audit: skipping %d unconfigured customer(s)", unconfigured)
+        if not customers:
+            log.warning("Scheduled audit: no customer is configured for auditing, skipping")
             return
 
         total = len(customers)
         log.info("Scheduled audit cycle starting for %d customer(s)", total)
         audited: list[str] = []
         failed: list[str] = []
+        skipped: list[str] = []
 
         for idx, cust in enumerate(customers):
             cust_id = cust.get("_id", "")
@@ -135,32 +190,32 @@ class AuditScheduler:
 
             log.info("Scheduled audit [%d/%d]: %s", idx + 1, total, cust_name)
 
-            # ── Switch to this customer ──
             try:
                 full_cust = CustomerManager.get_customer(cust_id)
                 if not full_cust:
                     log.warning("Customer %s not found, skipping", cust_name)
                     failed.append(f"{cust_name} (ikke funnet)")
                     continue
-
-                CustomerManager.set_active(cust_id)
-                config_to_save = {k: v for k, v in full_cust.items() if not k.startswith("_")}
-                save_config(config_to_save)
-
-                # Copy certificate for this customer
-                cert_path = CustomerManager.get_cert_path(cust_id)
-                if cert_path.exists():
-                    shutil.copy2(str(cert_path), str(get_cert_path()))
+                auth = get_auth_for_customer(full_cust, CustomerManager.get_cert_path(cust_id))
             except Exception as e:
-                log.error("Failed to switch to customer %s: %s", cust_name, e)
-                failed.append(f"{cust_name} (bytte feilet: {e})")
+                log.error("Auth setup failed for customer %s: %s", cust_name, e)
+                failed.append(f"{cust_name} (autentisering feilet: {e})")
                 continue
 
-            # ── Run audit for this customer ──
+            # Claimed per customer rather than for the whole cycle. Holding it
+            # across every tenant would lock a technician out of running an
+            # audit by hand for as long as the cycle lasts, which is the kind
+            # of guard people work around.
+            async with state.audit_lock:
+                if state.audit_running:
+                    log.info("Skipping %s this cycle: an audit is already running", cust_name)
+                    skipped.append(f"{cust_name} (audit pagikk)")
+                    continue
+                state.audit_running = True
+
             try:
                 self._log_activity("audit_started", f"Planlagt audit startet ({idx+1}/{total})", cust_name)
 
-                auth = AuthManager.from_config()
                 out_dir = make_output_dir(cust_name)
                 collector = AuditCollector(auth=auth, out_dir=out_dir)
                 results = await collector.run()
@@ -186,23 +241,13 @@ class AuditScheduler:
                 log.error("Scheduled audit failed for %s: %s", cust_name, e)
                 failed.append(f"{cust_name} ({e})")
                 await self._send_webhook(f"⚠️ Scheduled audit failed for {cust_name}: {e}")
-
-        # ── Restore original active customer ──
-        if original_active_id:
-            try:
-                CustomerManager.set_active(original_active_id)
-                orig_cust = CustomerManager.get_customer(original_active_id)
-                if orig_cust:
-                    config_to_save = {k: v for k, v in orig_cust.items() if not k.startswith("_")}
-                    save_config(config_to_save)
-                    cert_path = CustomerManager.get_cert_path(original_active_id)
-                    if cert_path.exists():
-                        shutil.copy2(str(cert_path), str(get_cert_path()))
-            except Exception as e:
-                log.error("Failed to restore original active customer: %s", e)
+            finally:
+                state.audit_running = False
 
         # ── Summary ──
         summary_parts = [f"Planlagt audit-syklus fullfort: {len(audited)}/{total} OK"]
+        if skipped:
+            summary_parts.append(f"Hoppet over: {', '.join(skipped)}")
         if failed:
             summary_parts.append(f"Feilet: {', '.join(failed)}")
         summary_msg = ". ".join(summary_parts)

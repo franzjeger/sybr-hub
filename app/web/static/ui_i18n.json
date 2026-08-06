@@ -2628,7 +2628,20 @@
     "integ_doc_empty": "dokumentet er tomt eller finnes ikke",
     "setup_opened_in_tab": "Åpnet i ny fane",
     "setup_popup_blocked": "Nettleseren blokkerte fanen — bruk lenken under",
-    "setup_private_hint": "Tips: bruk et privat vindu (Ctrl+Shift+P / Cmd+Shift+N) hvis du allerede er logget inn med en annen konto."
+    "setup_private_hint": "Tips: bruk et privat vindu (Ctrl+Shift+P / Cmd+Shift+N) hvis du allerede er logget inn med en annen konto.",
+    "lbl_conformance": "etterlevelse",
+    "msg_baseline_nothing_assessed": "Ingen krav kunne vurderes i denne kjøringen. Det beskriver innsamlingen, ikke tenanten.",
+    "msg_baseline_basis": "{passed} av {assessed} vurderte krav oppfylt",
+    "msg_baseline_skipped": "{n} ikke vurdert",
+    "hdr_policy_drift": "Endringer siden forrige audit",
+    "msg_drift_not_measured": "Ikke sammenlignet.",
+    "msg_drift_quiet": "Ingen policy er endret siden {run}.",
+    "msg_drift_summary": "Sammenlignet med {run}: {added} lagt til, {removed} fjernet, {changed} endret.",
+    "lbl_removed": "Fjernet",
+    "lbl_changed": "Endret",
+    "lbl_added": "Lagt til",
+    "lbl_unnamed": "(uten navn)",
+    "msg_baseline_no_run": "Ingen audit-kjøring å måle mot ennå."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5259,6 +5272,19 @@
     "integ_doc_empty": "the document is empty or does not exist",
     "setup_opened_in_tab": "Opened in a new tab",
     "setup_popup_blocked": "Your browser blocked the tab — use the link below",
-    "setup_private_hint": "Tip: use a private window (Ctrl+Shift+P / Cmd+Shift+N) if you are already signed in with another account."
+    "setup_private_hint": "Tip: use a private window (Ctrl+Shift+P / Cmd+Shift+N) if you are already signed in with another account.",
+    "lbl_conformance": "conformance",
+    "msg_baseline_nothing_assessed": "Not one requirement could be assessed on this run. That describes the collection, not the tenant.",
+    "msg_baseline_basis": "{passed} of {assessed} assessed requirements met",
+    "msg_baseline_skipped": "{n} not assessed",
+    "hdr_policy_drift": "Changes since previous audit",
+    "msg_drift_not_measured": "Not compared.",
+    "msg_drift_quiet": "No policy changed since {run}.",
+    "msg_drift_summary": "Compared with {run}: {added} added, {removed} removed, {changed} changed.",
+    "lbl_removed": "Removed",
+    "lbl_changed": "Changed",
+    "lbl_added": "Added",
+    "lbl_unnamed": "(unnamed)",
+    "msg_baseline_no_run": "No audit run to measure against yet."
   }
 }
