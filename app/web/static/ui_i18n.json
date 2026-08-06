@@ -2765,7 +2765,14 @@
     "btn_save_adoption": "Lagre valg",
     "msg_nothing_to_adopt": "Ingenting å overta — hver policy i standarden blir opprettet.",
     "msg_adoption_saved": "Valg lagret",
-    "msg_adopts": "Overtar «{name}» og gir den nytt navn"
+    "msg_adopts": "Overtar «{name}» og gir den nytt navn",
+    "btn_request_consent": "Logg inn som Global Admin og gi tillatelsen",
+    "msg_consent_step1": "Åpne denne siden og logg inn som Global Admin i kundens tenant:",
+    "msg_consent_step2": "Skriv inn denne koden:",
+    "msg_consent_waiting": "Venter på at innloggingen fullføres …",
+    "msg_consent_failed": "Innloggingen ble ikke fullført.",
+    "msg_consent_already": "Tillatelsen var allerede gitt.",
+    "msg_consent_done": "Tillatelse gitt. Kjør planen på nytt."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5533,6 +5540,13 @@
     "btn_save_adoption": "Save choices",
     "msg_nothing_to_adopt": "Nothing to take over — every policy in the standard will be created.",
     "msg_adoption_saved": "Choices saved",
-    "msg_adopts": "Takes over «{name}» and renames it"
+    "msg_adopts": "Takes over «{name}» and renames it",
+    "btn_request_consent": "Sign in as Global Admin and grant it",
+    "msg_consent_step1": "Open this page and sign in as a Global Admin of the customer tenant:",
+    "msg_consent_step2": "Enter this code:",
+    "msg_consent_waiting": "Waiting for the sign-in to complete...",
+    "msg_consent_failed": "The sign-in did not complete.",
+    "msg_consent_already": "The permission was already granted.",
+    "msg_consent_done": "Permission granted. Re-run the plan."
   }
 }

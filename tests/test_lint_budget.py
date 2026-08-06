@@ -131,3 +131,22 @@ def test_a_newly_clean_file_counts_as_an_improvement(monkeypatch, capsys):
 
     assert lint_budget.check() == 0
     assert "1 newly clean" in capsys.readouterr().out
+
+
+def test_update_refuses_to_record_a_regression(monkeypatch, capsys, tmp_path):
+    """The command that maintains the ratchet must not be the one that undoes it.
+
+    It was: running --update after dirtying a file made the new, worse state
+    the baseline. That happened within an hour of the budget existing, to me.
+    """
+    monkeypatch.setattr(lint_budget, "current", lambda: (10, {"app/clean.py": 1}))
+    monkeypatch.setattr(lint_budget, "_tracked_files", lambda: {"app/clean.py"})
+    monkeypatch.setattr(
+        lint_budget, "load_budget", lambda: {"total": 9, "clean_files": ["app/clean.py"]}
+    )
+    target = tmp_path / "lint_budget.json"
+    monkeypatch.setattr(lint_budget, "BUDGET_FILE", target)
+
+    assert lint_budget.update() == 1
+    assert not target.exists(), "a worse state was recorded"
+    assert "Refusing to record" in capsys.readouterr().out

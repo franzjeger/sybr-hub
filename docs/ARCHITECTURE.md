@@ -334,6 +334,28 @@ policy excludes a break-glass group whose id differs per tenant, and an
 unfilled placeholder is an exclusion that excludes nobody inside a policy that
 applies to everybody. Rendering refuses while one is unset.
 
+### Asking for the permission
+
+Sybr HUB holds twenty-two Graph permissions and every one ends in `.Read.All`.
+It deliberately does **not** hold `AppRoleAssignment.ReadWrite.All`, so it
+cannot widen its own access — the property that keeps a compromised toolkit
+from becoming a way into every customer's tenant. A test asserts the app-only
+set never gains one of the four escalation permissions.
+
+That leaves one honest route to a write permission: a Global Admin signs in and
+grants it. `modules/m365_audit/consent.py` is that flow, in the product rather
+than as a page of portal instructions. Device code, because the operator is
+usually not at the machine the toolkit runs on, and because first-run setup
+already works that way. The delegated token lives for one grant and is never
+stored.
+
+Two things have to happen and the portal does them together, which makes them
+easy to conflate: *declaring* puts the permission on the registration, and
+*assigning* is the consent that makes it real. A registration declaring what
+nobody assigned still reports missing consent — the exact state this exists to
+leave behind. Both halves are idempotent, because re-running after an
+interruption is the ordinary case.
+
 This needs `Policy.ReadWrite.ConditionalAccess`, which is deliberately **not**
 in `REQUIRED_GRAPH_PERMISSIONS` — an MSP that never deploys should not see a
 consent gap reported on every audit for a power it does not want. The plan

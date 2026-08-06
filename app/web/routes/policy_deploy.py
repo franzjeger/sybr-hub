@@ -48,6 +48,12 @@ from app.core.policy_adoption import (
 from app.core.policy_restore import RestoreError, list_sources, load_source
 from app.core.policy_templates import TemplateError, annotations, list_templates, render
 from app.models.user import User
+from app.modules.m365_audit.consent import (
+    ConsentError,
+    complete_device_flow,
+    grant_application_permission,
+    start_device_flow,
+)
 from app.modules.m365_audit.policy_deploy import (
     CA_PATH,
     WRITE_PERMISSION,
@@ -209,6 +215,105 @@ async def apply_deployment(
         "policy_deployed",
         detail=f"{template_id}: {len(result['applied'])} applied, {len(result['failed'])} failed",
         customer=customer.get("CustomerName", customer_id) if customer else customer_id,
+        user=user.username,
+    )
+    return result
+
+
+# ── Asking for the permission this cannot grant itself ───────────────────────
+
+# One pending sign-in per customer, in memory. It is a device-code flow with a
+# lifetime of minutes; persisting it would mean storing a half-finished
+# authentication, which is worth less than re-running a step that takes seconds.
+_PENDING: dict[str, dict] = {}
+
+
+@router.post("/policy-deploy/{customer_id}/consent/start")
+async def start_consent(
+    customer_id: str,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Begin an interactive sign-in for a Global Admin.
+
+    Sybr HUB holds no permission that can widen its own access — deliberately,
+    since that is what keeps a compromised toolkit from becoming a way into
+    every customer's tenant. So the only honest route to a write permission is
+    somebody with the authority signing in and granting it, and this is that,
+    in the product rather than as portal instructions.
+    """
+    from app.core.customer import CustomerManager
+
+    customer = CustomerManager.get_customer(customer_id)
+    if not customer:
+        raise ValidationError(f"No customer {customer_id!r}")
+    tenant_id = str(customer.get("TenantId", ""))
+    if not tenant_id:
+        raise ValidationError(f"{customer_id!r} has no tenant id")
+
+    try:
+        flow = start_device_flow(tenant_id)
+    except ConsentError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    _PENDING[customer_id] = flow
+    logger.warning(
+        "consent sign-in started: user=%s customer=%s", user.username, customer_id
+    )
+    return {
+        "user_code": flow.get("user_code"),
+        "verification_uri": flow.get("verification_uri"),
+        "expires_in": flow.get("expires_in"),
+        "message": flow.get("message"),
+    }
+
+
+@router.post("/policy-deploy/{customer_id}/consent/complete")
+async def complete_consent(
+    customer_id: str,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Wait for the sign-in, then declare and assign the permission.
+
+    Two things, and the portal doing them together makes them easy to conflate:
+    declaring puts the permission on the registration, assigning is the consent
+    that makes it real. A registration that declares what nobody assigned still
+    reports missing consent.
+    """
+    import asyncio
+
+    from app.core.customer import CustomerManager
+
+    flow = _PENDING.get(customer_id)
+    if not flow:
+        raise ValidationError("No sign-in is pending for this customer. Start one first.")
+
+    customer = CustomerManager.get_customer(customer_id) or {}
+    tenant_id = str(customer.get("TenantId", ""))
+    client_id = str(customer.get("ClientId", ""))
+    if not client_id:
+        raise ValidationError(f"{customer_id!r} has no client id")
+
+    try:
+        # msal blocks while polling, so it goes to a thread rather than holding
+        # the event loop for the length of somebody typing a code.
+        token = await asyncio.to_thread(complete_device_flow, tenant_id, flow)
+        result = await grant_application_permission(token, client_id, WRITE_PERMISSION)
+    except ConsentError as exc:
+        raise ValidationError(str(exc)) from exc
+    finally:
+        _PENDING.pop(customer_id, None)
+
+    logger.warning(
+        "consent granted: user=%s customer=%s permission=%s declared=%s assigned=%s",
+        user.username, customer_id, WRITE_PERMISSION,
+        result["declared"], result["assigned"],
+    )
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "graph_permission_granted",
+        detail=f"{WRITE_PERMISSION} for {client_id}",
+        customer=customer.get("CustomerName", customer_id),
         user=user.username,
     )
     return result

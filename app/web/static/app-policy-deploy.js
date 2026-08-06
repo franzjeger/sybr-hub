@@ -72,6 +72,53 @@ function _pdForm() {
   return html;
 }
 
+// ── Asking for the permission ───────────────────────────────────────────────
+// Sybr HUB cannot grant itself a write permission — it holds nothing that can
+// widen its own access, which is what keeps a compromised toolkit from becoming
+// a way into every customer's tenant. So a Global Admin signs in here, and the
+// grant happens under their authority rather than the application's.
+
+async function policyConsentStart() {
+  var box = document.getElementById('pd-consent');
+  if (!box) return;
+  box.innerHTML = '<div class="loader" style="width:18px;height:18px;margin:12px 0;"></div>';
+
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/consent/start', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (!d || !d.user_code) { box.innerHTML = ''; return; }
+
+  var html = '<div style="margin-top:var(--space-3);padding:var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg);">';
+  html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:6px;">'
+       + t('msg_consent_step1', 'Open this page and sign in as a Global Admin of the customer tenant:') + '</div>';
+  html += '<div><a href="' + esc(d.verification_uri) + '" target="_blank" rel="noopener noreferrer" style="color:var(--blue);">'
+       + esc(d.verification_uri) + '</a></div>';
+  html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin:10px 0 4px;">'
+       + t('msg_consent_step2', 'Enter this code:') + '</div>';
+  html += '<div style="font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:2px;">'
+       + esc(d.user_code) + '</div>';
+  html += '<div id="pd-consent-status" style="font-size:var(--font-xs);color:var(--text-dim);margin-top:10px;">'
+       + t('msg_consent_waiting', 'Waiting for the sign-in to complete...') + '</div>';
+  html += '</div>';
+  box.innerHTML = html;
+
+  // The server blocks on the device-code poll, so this single request is the
+  // wait — no polling loop of our own to get wrong.
+  var r = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/consent/complete', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  var status = document.getElementById('pd-consent-status');
+  if (!r) { if (status) status.textContent = t('msg_consent_failed', 'The sign-in did not complete.'); return; }
+
+  if (status) {
+    status.style.color = 'var(--green)';
+    status.textContent = r.already_complete
+      ? t('msg_consent_already', 'The permission was already granted.')
+      : t('msg_consent_done', 'Permission granted. Re-run the plan.');
+  }
+  showToast(t('msg_consent_done', 'Permission granted. Re-run the plan.'), 'success', 5000);
+}
+
 // ── Adopting what the customer already has ──────────────────────────────────
 // The suggestions are a shortlist. Nothing here reaches a plan until the
 // operator ticks a box and saves, because a policy overwritten by a fuzzy
@@ -311,7 +358,9 @@ function _pdRenderPlan(plan) {
     html += '<div class="alert alert-error" style="margin-bottom:var(--space-4);"><strong>'
          + t('hdr_missing_consent', 'Consent missing') + '.</strong> '
          + t('msg_missing_consent', 'This tenant has not consented to Policy.ReadWrite.ConditionalAccess. The plan is shown, and nothing can be applied.')
-         + '</div>';
+         + '<div style="margin-top:var(--space-3);"><button class="btn btn-primary" onclick="policyConsentStart()">'
+         + t('btn_request_consent', 'Sign in as Global Admin and grant it') + '</button></div>'
+         + '<div id="pd-consent"></div></div>';
   }
 
   if (!plan.changes.length) {

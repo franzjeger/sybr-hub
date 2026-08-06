@@ -339,3 +339,75 @@ def test_every_adoption_route_carries_the_tenant_guard():
         assert any(n == guarded for n in names), f"{path} is unguarded"
 
     assert checked == 3, f"expected three adoption routes, inspected {checked}"
+
+
+# ── Asking for the permission ────────────────────────────────────────────────
+
+async def test_starting_a_consent_sign_in_needs_the_tenant_capability(client):
+    """It leads to widening what this application may do in a customer tenant."""
+    auth = await _auth("writer", write=True)
+
+    assert client.post("/api/policy-deploy/acme/consent/start", headers=auth).status_code == 403
+
+
+async def test_completing_a_consent_needs_it_too(client):
+    auth = await _auth("reader")
+
+    assert client.post("/api/policy-deploy/acme/consent/complete", headers=auth).status_code == 403
+
+
+async def test_completing_without_a_pending_sign_in_says_so(client):
+    auth = await _auth("deployer", write=True, tenant=True)
+
+    r = client.post("/api/policy-deploy/acme/consent/complete", headers=auth)
+
+    assert r.status_code in (400, 422)
+
+
+def test_the_consent_routes_carry_the_tenant_guard():
+    from app.web.middleware.auth import require_tenant_write
+    from app.web.routes.policy_deploy import router
+
+    guarded = getattr(require_tenant_write(), "__qualname__", "")
+    checked = 0
+    for route in router.routes:
+        if "consent" not in getattr(route, "path", ""):
+            continue
+        checked += 1
+        names = [
+            getattr(d.call, "__qualname__", "")
+            for d in getattr(route, "dependant", None).dependencies
+        ] if getattr(route, "dependant", None) else []
+        assert any(n == guarded for n in names), f"{route.path} is unguarded"
+
+    assert checked == 2, f"expected two consent routes, inspected {checked}"
+
+
+def test_the_toolkit_still_cannot_widen_its_own_access():
+    """The property this whole flow exists because of.
+
+    If AppRoleAssignment.ReadWrite.All ever appears in what the app asks for
+    app-only, a compromised Sybr HUB becomes a way into every customer tenant,
+    and none of the guards elsewhere in this module matter.
+    """
+    from app.core.config import REQUIRED_GRAPH_PERMISSIONS
+
+    # Named rather than pattern-matched. A first draft flagged
+    # RoleManagement.Read.Directory — a read permission — on the substring
+    # "RoleManagement", which is how a guard starts crying wolf and gets
+    # deleted by whoever is trying to ship something.
+    ESCALATION = {
+        "AppRoleAssignment.ReadWrite.All",
+        "Application.ReadWrite.All",
+        "RoleManagement.ReadWrite.Directory",
+        "Directory.ReadWrite.All",
+    }
+    granted = set(REQUIRED_GRAPH_PERMISSIONS)
+
+    assert not (granted & ESCALATION), (
+        f"the app-only set can now widen its own access: {sorted(granted & ESCALATION)}"
+    )
+    writes = sorted(p for p in granted if ".ReadWrite." in p or p.endswith(".Write"))
+    assert not writes, (
+        f"the app-only set is meant to be read-only; it now asks for: {writes}"
+    )
