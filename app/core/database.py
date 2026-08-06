@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -51,6 +51,31 @@ async def _add_all_customers_column(conn: aiosqlite.Connection) -> None:
         return
     await conn.execute(
         "ALTER TABLE users ADD COLUMN all_customers INTEGER NOT NULL DEFAULT 1"
+    )
+
+
+async def _add_tenant_write_column(conn: aiosqlite.Connection) -> None:
+    """Add users.tenant_write, defaulting every account to *off*.
+
+    Note the default, and how it differs from all_customers above. That one
+    defaulted to 1 because existing installs already behaved as if it were
+    set, and flipping it would have locked people out. Nobody has ever been
+    able to write into a customer tenant from here, so 0 is what preserves
+    behaviour — and it is also the safe direction. A capability that arrives
+    switched on for every existing account is not a capability, it is a
+    change of blast radius announced in a release note.
+
+    This is deliberately not a role. Administering Sybr HUB and changing
+    configuration inside somebody's Microsoft tenant are different powers with
+    different consequences, and rolling them together would mean every admin
+    got the second one by accident on the day it shipped.
+    """
+    async with conn.execute("PRAGMA table_info(users)") as cur:
+        columns = {row[1] for row in await cur.fetchall()}
+    if "tenant_write" in columns:
+        return
+    await conn.execute(
+        "ALTER TABLE users ADD COLUMN tenant_write INTEGER NOT NULL DEFAULT 0"
     )
 
 
@@ -355,6 +380,11 @@ _MIGRATIONS: list = [
         14,
         "Explicit all-customers grant — replaces 'no rows means unrestricted' in RBAC",
         _add_all_customers_column,
+    ),
+    (
+        15,
+        "Tenant-write capability — off for everyone, granted per user, never implied by a role",
+        _add_tenant_write_column,
     ),
 ]
 

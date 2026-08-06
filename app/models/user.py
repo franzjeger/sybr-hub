@@ -45,6 +45,16 @@ class User(BaseModel):
     # Blanket grant to every customer, independent of customer_access rows.
     # Defaults to False so a user built without it is scoped, not unrestricted.
     all_customers: bool = False
+    # May push configuration into a customer's Microsoft tenant.
+    #
+    # Not part of Role, on purpose. Administering Sybr HUB and changing
+    # settings inside somebody else's tenant are different powers: the first
+    # is about this tool, the second reaches a customer's production. Rolling
+    # them together would hand the second to every admin the day it shipped.
+    #
+    # Read stays the default for every account. This is the exception, granted
+    # one user at a time and revocable on its own.
+    tenant_write: bool = False
 
 
 class TokenPayload(BaseModel):
@@ -85,6 +95,8 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     role: Optional[Role] = None
     is_active: Optional[bool] = None
+    # None means "not sent" — only an explicit true/false changes it.
+    tenant_write: Optional[bool] = None
 
 
 class PasswordChange(BaseModel):
