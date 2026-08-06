@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -52,6 +52,28 @@ async def _add_all_customers_column(conn: aiosqlite.Connection) -> None:
     await conn.execute(
         "ALTER TABLE users ADD COLUMN all_customers INTEGER NOT NULL DEFAULT 1"
     )
+
+
+async def _add_can_write_column(conn: aiosqlite.Connection) -> None:
+    """Add users.can_write, defaulting every account to *off*.
+
+    The system-wide half of the same idea as tenant_write below: read is what
+    an account can do, and changing anything is a grant somebody made. It
+    covers Sybr HUB itself — notes, tags, hosts, settings, users — while
+    tenant_write stays the narrower power to write into a customer's Microsoft
+    tenant, and now requires this one as well.
+
+    Off for every existing account, admins included, because a capability that
+    arrives switched on is not a capability. That has a consequence worth
+    stating plainly: immediately after this migration nobody can grant it
+    through the interface either, since granting is itself a write. That is
+    what scripts/grant_write.py is for, and why it exists in the same change
+    rather than being left for later.
+    """
+    cur = await conn.execute("PRAGMA table_info(users)")
+    columns = {row[1] for row in await cur.fetchall()}
+    if "can_write" not in columns:
+        await conn.execute("ALTER TABLE users ADD COLUMN can_write INTEGER NOT NULL DEFAULT 0")
 
 
 async def _add_tenant_write_column(conn: aiosqlite.Connection) -> None:
@@ -385,6 +407,11 @@ _MIGRATIONS: list = [
         15,
         "Tenant-write capability — off for everyone, granted per user, never implied by a role",
         _add_tenant_write_column,
+    ),
+    (
+        16,
+        "System-wide write capability — read is the default for every account, admins included",
+        _add_can_write_column,
     ),
 ]
 

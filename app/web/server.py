@@ -22,6 +22,7 @@ from app.core.exceptions import ToolkitError
 from app.core.version import get_version
 from app.web.middleware.auth import AuthMiddleware
 from app.web.middleware.rate_limit import RateLimitMiddleware
+from app.web.middleware.write_guard import WriteGuardMiddleware
 from app.web.routes import (
     also,
     audit,
@@ -135,6 +136,12 @@ def create_app() -> FastAPI:
     # middleware outermost. Rate limiting has to sit outside authentication
     # so a flood of unauthenticated requests is rejected before it costs us
     # a database round-trip per request.
+    #
+    # The write guard is registered first so it runs innermost — it needs the
+    # account AuthMiddleware attaches, and asking "may this account change
+    # anything" before knowing which account it is would answer the wrong
+    # question. Final order: rate limit, authenticate, then the write guard.
+    app.add_middleware(WriteGuardMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
 

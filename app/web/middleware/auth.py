@@ -337,7 +337,7 @@ def require_tenant_write(min_role: Role = Role.technician) -> Callable:
          business here whatever else they hold;
       2. access to *this* customer, so the capability does not become a
          skeleton key across the estate;
-      3. the tenant_write capability itself.
+      3. both capabilities: can_write, and tenant_write on top of it.
 
     The third is the point. Sybr HUB is read-mostly by design and every Graph
     permission it asks for ends in .Read.All, so until now "write" was
@@ -354,7 +354,10 @@ def require_tenant_write(min_role: Role = Role.technician) -> Callable:
     access_check = require_customer_access(min_role)
 
     async def _check(customer_id: str, user: User = Depends(access_check)) -> User:
-        if not getattr(user, "tenant_write", False):
+        # can_write as well: writing into a customer's tenant is the far end of
+        # writing at all, and an account that may not save a note here has no
+        # business changing configuration there.
+        if not (getattr(user, "can_write", False) and getattr(user, "tenant_write", False)):
             from fastapi import HTTPException
 
             logger.warning(

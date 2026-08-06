@@ -2710,7 +2710,9 @@
     "lbl_audit": "Audit",
     "filter_grade_df": "Karakter D/F",
     "msg_api_zero_calls": "API: 0 kall",
-    "hdr_set_inform": "Set-Inform"
+    "hdr_set_inform": "Set-Inform",
+    "lbl_readonly": "Lesetilgang",
+    "tip_readonly": "Kontoen din har lesetilgang. Endringer krever skrivetilgang."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5423,6 +5425,8 @@
     "lbl_audit": "Audit",
     "filter_grade_df": "Grade D/F",
     "msg_api_zero_calls": "API: 0 calls",
-    "hdr_set_inform": "Set-Inform"
+    "hdr_set_inform": "Set-Inform",
+    "lbl_readonly": "Read-only",
+    "tip_readonly": "Your account has read access. Changes require write."
   }
 }

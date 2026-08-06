@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.core.auth import create_access_token, create_user
 from app.core.database import run_migrations
-from app.core.rbac import grant_access, set_all_customers, set_tenant_write
+from app.core.rbac import grant_access, set_all_customers, set_can_write, set_tenant_write
 from app.models.user import Role, User
 from app.web.middleware.auth import _reset_users_exist_cache, require_tenant_write
 from app.web.server import create_app
@@ -72,6 +72,9 @@ def _h(token: str) -> dict:
 
 async def _user(name: str, role: Role, *, write: bool, customers=("acme",)):
     u = await create_user(name, GOOD_PASSWORD, name.title(), role=role)
+    # can_write is the system-wide floor tenant_write now stands on; these
+    # tests are about the tenant capability, not about the floor.
+    await set_can_write(u.id, True)
     for cid in customers:
         await grant_access(u.id, cid)
     if write:
@@ -158,5 +161,6 @@ async def test_the_column_defaults_to_off_in_the_schema():
 async def test_an_account_created_normally_has_it_off():
     """Belt and braces: the default reaches the object, not just the column."""
     user = await create_user("fresh", GOOD_PASSWORD, "Fresh", role=Role.admin)
+    await set_can_write(user.id, True)
     assert user.tenant_write is False
     assert (await _lookup("fresh")).tenant_write is False

@@ -85,14 +85,25 @@ def stored(monkeypatch):
     return record
 
 
-async def _token(role: Role = Role.technician, *, all_customers: bool = True) -> str:
+async def _token(
+    role: Role = Role.technician, *, all_customers: bool = True, can_write: bool = True
+) -> str:
     user = await create_user(
-        username=f"user-{role.value}-{all_customers}",
+        username=f"user-{role.value}-{all_customers}-{can_write}",
         password="Test1234!xyz",
         display_name="User",
         role=role,
         all_customers=all_customers,
     )
+    # These tests save integration settings, which is a write. The capability
+    # defaults to off for every account, so a token that is going to POST has
+    # to carry it.
+    if can_write:
+        from app.core.auth import get_user_by_id
+        from app.core.rbac import set_can_write
+
+        await set_can_write(user.id, True)
+        user = await get_user_by_id(user.id)
     return await create_access_token(user)
 
 
