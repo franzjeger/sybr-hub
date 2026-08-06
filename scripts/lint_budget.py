@@ -88,11 +88,17 @@ def check() -> int:
     if failed:
         return 1
 
-    if total < budget["total"] or len(set(per_file) & tracked) < len(
-        tracked - set(budget["clean_files"])
-    ):
+    clean_now = {f for f in tracked if per_file.get(f, 0) == 0}
+    newly_clean = sorted(clean_now - set(budget["clean_files"]))
+
+    if total < budget["total"] or newly_clean:
+        parts = []
+        if total < budget["total"]:
+            parts.append(f"{budget['total']} -> {total} finding(s)")
+        if newly_clean:
+            parts.append(f"{len(newly_clean)} newly clean file(s)")
         print(
-            f"Lint debt improved: {budget['total']} -> {total}. "
+            f"Lint debt improved: {', '.join(parts)}. "
             f"Run `python scripts/lint_budget.py --update` to record it."
         )
     else:

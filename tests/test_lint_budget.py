@@ -100,3 +100,34 @@ def test_ci_blocks_on_it():
 
     assert "lint_budget.py" in step
     assert "continue-on-error" not in step.split("- name:")[0]
+
+
+def test_it_does_not_claim_an_improvement_that_did_not_happen(monkeypatch, capsys):
+    """It reported "improved: 1140 -> 1140" on an unchanged tree.
+
+    A message that says improvement when nothing improved is the noise that
+    teaches people to stop reading the output — which is most of what a budget
+    is for.
+    """
+    monkeypatch.setattr(lint_budget, "current", lambda: (9, {"app/legacy.py": 9}))
+    monkeypatch.setattr(
+        lint_budget, "_tracked_files", lambda: {"app/legacy.py", "app/clean.py"}
+    )
+    monkeypatch.setattr(
+        lint_budget, "load_budget",
+        lambda: {"total": 9, "clean_files": ["app/clean.py"]},
+    )
+
+    assert lint_budget.check() == 0
+    assert "unchanged" in capsys.readouterr().out
+
+
+def test_a_newly_clean_file_counts_as_an_improvement(monkeypatch, capsys):
+    monkeypatch.setattr(lint_budget, "current", lambda: (9, {"app/legacy.py": 9}))
+    monkeypatch.setattr(
+        lint_budget, "_tracked_files", lambda: {"app/legacy.py", "app/fixed.py"}
+    )
+    monkeypatch.setattr(lint_budget, "load_budget", lambda: {"total": 9, "clean_files": []})
+
+    assert lint_budget.check() == 0
+    assert "1 newly clean" in capsys.readouterr().out
