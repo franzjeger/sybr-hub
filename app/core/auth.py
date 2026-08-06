@@ -677,4 +677,5 @@ def _row_to_user(row) -> User:
         is_active=bool(row["is_active"]),
         # Tolerate a row read before migration 14 has run.
         all_customers=bool(row["all_customers"]) if "all_customers" in keys else False,
+        tenant_write=bool(row["tenant_write"]) if "tenant_write" in keys else False,
     )

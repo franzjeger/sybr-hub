@@ -59,6 +59,26 @@ async def get_accessible_customer_ids(user: User) -> Optional[set[str]]:
     return {r[0] for r in rows}
 
 
+async def set_tenant_write(user_id: str, enabled: bool) -> None:
+    """Grant or revoke the tenant-write capability for one user.
+
+    Logged either way, at warning level. A capability that reaches a
+    customer's production is one where "who turned this on, and when" gets
+    asked, and the answer should be in the log without anyone having planned
+    for the question.
+    """
+    async with get_db() as conn:
+        await conn.execute(
+            "UPDATE users SET tenant_write = ? WHERE id = ?",
+            (int(enabled), user_id),
+        )
+        await conn.commit()
+    logger.warning(
+        "Tenant-write capability %s user %s",
+        "GRANTED to" if enabled else "REVOKED from", user_id,
+    )
+
+
 async def set_all_customers(user_id: str, allowed: bool) -> None:
     """Grant or revoke the blanket all-customers access for a user."""
     async with get_db() as conn:

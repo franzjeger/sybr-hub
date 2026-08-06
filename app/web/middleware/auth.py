@@ -328,6 +328,54 @@ def require_role_ws(min_role: Role) -> Callable:
     return _check
 
 
+def require_tenant_write(min_role: Role = Role.technician) -> Callable:
+    """Dependency factory for anything that changes a customer's tenant.
+
+    Three checks, and all three have to pass:
+
+      1. the role floor — technician by default, because a viewer has no
+         business here whatever else they hold;
+      2. access to *this* customer, so the capability does not become a
+         skeleton key across the estate;
+      3. the tenant_write capability itself.
+
+    The third is the point. Sybr HUB is read-mostly by design and every Graph
+    permission it asks for ends in .Read.All, so until now "write" was
+    impossible rather than forbidden — a distinction that stops being
+    comforting the moment the first write endpoint lands. Making it an
+    explicit per-user grant means the default stays read for everyone,
+    including admins, and turning it on is a decision somebody made rather
+    than a side effect of a role they already had.
+
+    Every refusal and every use is logged. This is the boundary where a
+    mistake reaches a customer's production, so the log should be able to
+    answer "who did that" without anyone having anticipated the question.
+    """
+    access_check = require_customer_access(min_role)
+
+    async def _check(customer_id: str, user: User = Depends(access_check)) -> User:
+        if not getattr(user, "tenant_write", False):
+            from fastapi import HTTPException
+
+            logger.warning(
+                "403 tenant-write: user=%s customer=%s role=%s",
+                user.username, customer_id, user.role.value,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Denne handlingen skriver til kundens tenant og krever "
+                    "skrivetilgang. Kontoen din har lesetilgang."
+                ),
+            )
+        logger.warning(
+            "tenant-write exercised: user=%s customer=%s", user.username, customer_id
+        )
+        return user
+
+    return _check
+
+
 def require_customer_access(min_role: Role = Role.viewer) -> Callable:
     """Dependency factory for routes scoped to a single customer.
 
