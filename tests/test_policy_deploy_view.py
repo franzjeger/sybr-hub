@@ -75,3 +75,24 @@ def test_the_screen_reads_state_the_application_actually_keeps():
     for name in ("_customersActiveId", "_allCustomers"):
         assert name in js
         assert f"var {name}" in app, f"{name} is not a variable app.js declares"
+
+
+def test_the_restore_panel_is_reachable_from_the_same_screen():
+    """An engine with no controls deploys nothing, and a rollback nobody can
+    reach is worse than none — it is a promise the interface does not keep."""
+    js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
+
+    assert "policyRestoreLoad()" in js.split("function policyDeployLoad")[1].split("}")[0] or \
+        "policyRestoreLoad();" in js
+    assert 'id="pd-restore"' in js
+
+
+def test_a_rollback_still_goes_through_a_plan():
+    """The one path where somebody writes into production without reading what
+    changes would be the one they take when most rushed."""
+    js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
+
+    assert "policy-restore/" in js and "/plan" in js
+    apply_fn = js.split("async function policyRestoreApply")[1]
+    assert "fingerprint: _pdRestore.fingerprint" in apply_fn
+    assert "showTypedConfirm" in apply_fn

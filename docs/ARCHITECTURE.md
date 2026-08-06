@@ -293,6 +293,20 @@ recomputing would confirm whatever the tenant looks like then, which is exactly
 the state nobody reviewed. The break-glass field starts empty and gates the
 button, because an unfilled exclusion excludes nobody.
 
+**Restore is the same two requests pointed at a stored state.** Two kinds of
+source: restore points, written immediately before a deployment and holding
+exactly what it replaced, and audit snapshots, which are older and answer "what
+did this tenant look like last Tuesday" rather than "undo what I just did".
+
+It shares every rail rather than getting gentler ones, including the lockout
+guard — a deliberate trade. A stored policy that targets everyone with no
+exclusion was presumably working when captured, so refusing it is inconvenient;
+but "it worked before" is not a guarantee it works now, and a restore path that
+waives the guard is a deployment path that waives it, one POST away. Policies
+added since the source was captured are left alone unless asked for: a restore
+that removed them would roll back other people's work as well as the
+deployment.
+
 Templates live in `app/policy_templates/*.json`, the same shape as baselines
 and for the same reason. Placeholders are required, never defaulted: every
 policy excludes a break-glass group whose id differs per tenant, and an

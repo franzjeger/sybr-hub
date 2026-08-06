@@ -229,3 +229,65 @@ def test_no_caller_hands_graphclient_an_auth_manager():
     assert not offenders, (
         "GraphClient takes a credential, not an AuthManager:\n  " + "\n  ".join(offenders)
     )
+
+
+# ── Restore, behind the same two locks ───────────────────────────────────────
+
+RESTORE = {"kind": "deployment", "ref": "2026-08-06_101500"}
+
+
+async def test_listing_restore_sources_needs_the_tenant_capability(client):
+    """The list is a map of when this tenant changed, which a read-only
+    account has no need for."""
+    auth = await _auth("writer", write=True)
+
+    assert client.get("/api/policy-restore/acme/sources", headers=auth).status_code == 403
+
+
+async def test_planning_a_restore_needs_both_locks(client):
+    auth = await _auth("reader")
+
+    assert client.post("/api/policy-restore/acme/plan", headers=auth, json=RESTORE).status_code == 403
+
+
+async def test_applying_a_restore_needs_both_locks(client):
+    auth = await _auth("writer", write=True)
+
+    r = client.post(
+        "/api/policy-restore/acme/apply", headers=auth, json={**RESTORE, "fingerprint": "x"}
+    )
+
+    assert r.status_code == 403
+
+
+async def test_a_restore_without_a_fingerprint_is_refused(client):
+    """Same rule as a deployment: the confirmation is tied to the state that
+    was reviewed."""
+    auth = await _auth("deployer", write=True, tenant=True)
+
+    r = client.post("/api/policy-restore/acme/apply", headers=auth, json=RESTORE)
+
+    assert r.status_code in (400, 422)
+
+
+def test_every_restore_route_carries_the_tenant_guard_too():
+    """The module now holds six routes that reach a customer tenant. The one
+    added without the guard is the one that matters, so this checks all of
+    them by inspection rather than by eye."""
+    from app.web.middleware.auth import require_tenant_write
+    from app.web.routes.policy_deploy import router
+
+    guarded = getattr(require_tenant_write(), "__qualname__", "")
+    checked = 0
+    for route in router.routes:
+        path = getattr(route, "path", "")
+        if "policy-restore" not in path:
+            continue
+        checked += 1
+        names = [
+            getattr(d.call, "__qualname__", "")
+            for d in getattr(route, "dependant", None).dependencies
+        ] if getattr(route, "dependant", None) else []
+        assert any(n == guarded for n in names), f"{path} is unguarded"
+
+    assert checked == 3, f"expected three restore routes, inspected {checked}"
