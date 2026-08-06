@@ -24,16 +24,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 async def _run(args) -> int:
-    from app.core.database import close_all_pools, get_db, run_migrations
+    from app.core.database import get_db, run_migrations
     from app.core.rbac import set_can_write, set_tenant_write
 
     await run_migrations()
 
-    async with get_db() as conn:
-        async with conn.execute(
-            "SELECT id, username, role, can_write, tenant_write FROM users ORDER BY username"
-        ) as cur:
-            users = [dict(r) for r in await cur.fetchall()]
+    async with get_db() as conn, conn.execute(
+        "SELECT id, username, role, can_write, tenant_write FROM users ORDER BY username"
+    ) as cur:
+        users = [dict(r) for r in await cur.fetchall()]
 
     if args.list or not args.user:
         print(f"{'username':22} {'role':12} {'write':7} {'tenant_write'}")

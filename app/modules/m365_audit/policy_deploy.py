@@ -178,12 +178,11 @@ def lockout_risk(body: dict) -> str | None:
         # Report-only and disabled policies cannot lock anyone out of anything.
         return None
 
-    if "all" in include and not excluded:
-        if _grants_a_blocking_control(body):
-            return (
-                "Targets all users, excludes nobody, and grants a control that "
-                "can fail. Exclude a break-glass account before enabling this."
-            )
+    if "all" in include and not excluded and _grants_a_blocking_control(body):
+        return (
+            "Targets all users, excludes nobody, and grants a control that "
+            "can fail. Exclude a break-glass account before enabling this."
+        )
     return None
 
 

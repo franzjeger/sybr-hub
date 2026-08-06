@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -36,7 +36,7 @@ def timestamp_from_run_name(name: str) -> str | None:
         return None
     y, mo, d, h, mi = (int(x) for x in m.groups())
     try:
-        return datetime(y, mo, d, h, mi, tzinfo=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime(y, mo, d, h, mi, tzinfo=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         return None
 
