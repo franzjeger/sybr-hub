@@ -268,6 +268,41 @@ below it; the technical report carries drift with ids under Conditional
 Access; the customer card shows conformance and the change list, reading the
 same two endpoints the report reads.
 
+## The runs are the record; audit_metrics is a cache of them
+
+Each run directory holds the evidence and `_audit_metrics.json`, the figures
+parsed from it. The `audit_metrics` table holds one row per run so a trend can
+be charted without re-parsing everything. When the two disagree, the run wins.
+
+They had drifted three ways, and the fixes are in `scripts/`:
+
+- **A row per write, not per run.** `save_audit_metrics` runs when an audit
+  finishes *and* when a report is generated from it, so most runs appeared two
+  or three times — sixty rows for twenty-one runs.
+- **Readings frozen at parse time.** A row keeps whatever the parsers said on
+  the day, so a fixed parser never reaches it. Two rows here recorded MFA
+  coverage of 101.6% and 100.5%, from a bug since fixed. A trend mixing
+  readings from before and after a fix describes which day each point was
+  parsed on, not the tenant.
+- **`audit_date` is the save time**, minutes after the run it belongs to, so a
+  row cannot be matched back to its run by time alone.
+
+`rebuild_metrics_trend.py` rebuilds the table from the runs: one row per run,
+dated from the run directory, holding what the current parsers read from
+evidence that has not changed. Rows for a customer with no surviving runs are
+left alone — they are the last trace of something.
+
+This is a repair a derived table can take and a record cannot. Correcting
+`_audit_metrics.json` in place is a different act, and
+`repair_metrics_timestamps.py` is deliberately narrow for that reason: it
+restores one field whose value is recoverable exactly from the run's own name.
+
+Every reader of `audit_metrics` today takes the newest row per customer
+(`ORDER BY audit_date DESC LIMIT 1`, or the equivalent first-wins loop in the
+security report), so the older rows were charting nothing. That is why this is
+tidiness rather than a fix — worth doing because an impossible figure sitting
+in a table is a trap for whoever writes the next chart.
+
 ## Recommendations outlive the language they were written in
 
 A recommendation is produced once, when the audit runs, and read for months
