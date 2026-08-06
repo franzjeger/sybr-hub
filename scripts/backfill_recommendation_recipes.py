@@ -39,7 +39,12 @@ def _rebuild(run_dir: Path, customer_name: str, lang: str) -> list[dict]:
     """The recommendations this run's files produce under today's code."""
     from app.reports.generator import build_report_context
 
-    context = build_report_context(customer_name, "", run_dir, [], lang=lang)
+    # persist_metrics=False is what makes a dry run dry. Without it this
+    # rebuild *is* a write: build_report_context ends by saving the metrics it
+    # just computed, so walking every run to inspect it rewrote all of them.
+    context = build_report_context(
+        customer_name, "", run_dir, [], lang=lang, persist_metrics=False
+    )
     return context.get("recommendations", []) or []
 
 
