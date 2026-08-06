@@ -36,6 +36,7 @@ async function policyDeployLoad() {
   _pdTemplates = d.templates;
   _pdPlan = null;
   el.innerHTML = _pdForm();
+  policyRestoreLoad();
 }
 
 function _pdForm() {
@@ -65,8 +66,108 @@ function _pdForm() {
 
   html += '<button class="btn btn-primary" id="pd-plan-btn" disabled onclick="policyDeployPlan()">'
        + t('btn_plan', 'Show plan') + '</button>';
-  html += '</div><div id="pd-plan"></div>';
+  html += '</div><div id="pd-plan"></div><div id="pd-restore"></div>';
   return html;
+}
+
+// ── Putting it back ─────────────────────────────────────────────────────────
+// The same two steps. A rollback that skipped the plan would be the one path
+// where somebody writes into production without reading what changes — which
+// is exactly the moment they are most rushed.
+
+async function policyRestoreLoad() {
+  var el = document.getElementById('pd-restore');
+  if (!el) return;
+  var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/sources');
+  if (!d || !d.sources || !d.sources.length) { el.innerHTML = ''; return; }
+
+  var html = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">';
+  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-2);">'
+       + t('hdr_restore', 'Restore') + '</div>';
+  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">'
+       + t('msg_restore_intro', 'Put the tenant back to a stored state. Restore points are taken immediately before a deployment; audit snapshots are older and coarser.') + '</div>';
+  html += '<select id="pd-restore-source" style="width:100%;padding:8px;margin-bottom:var(--space-3);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
+  d.sources.forEach(function(s) {
+    var kind = s.kind === 'deployment' ? t('lbl_before_deploy', 'before a deployment') : t('lbl_audit_run', 'audit run');
+    html += '<option value="' + esc(s.kind) + '|' + esc(s.ref) + '">'
+         + esc(s.captured_at) + ' — ' + kind + ' (' + s.count + ' ' + t('lbl_policies', 'policies') + ')</option>';
+  });
+  html += '</select>';
+  html += '<button class="btn btn-ghost" onclick="policyRestorePlan()">' + t('btn_plan_restore', 'Show restore plan') + '</button>';
+  html += '<div id="pd-restore-plan"></div></div>';
+  el.innerHTML = html;
+}
+
+function _pdRestoreChoice() {
+  var v = (document.getElementById('pd-restore-source') || {}).value || '';
+  var parts = v.split('|');
+  return { kind: parts[0], ref: parts.slice(1).join('|') };
+}
+
+async function policyRestorePlan() {
+  var box = document.getElementById('pd-restore-plan');
+  box.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:16px auto;"></div>';
+  _pdPlan = null;
+
+  var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/plan', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(_pdRestoreChoice()),
+  });
+  if (!d) { box.innerHTML = ''; return; }
+  _pdRestore = d;
+  box.innerHTML = _pdRenderRestorePlan(d);
+}
+
+var _pdRestore = null;
+
+function _pdRenderRestorePlan(plan) {
+  if (plan.missing_consent) {
+    return '<div class="alert alert-error" style="margin-top:var(--space-3);"><strong>'
+      + t('hdr_missing_consent', 'Consent missing') + '.</strong> ' + t('msg_missing_consent', '') + '</div>';
+  }
+  if (!plan.changes.length) {
+    return '<div style="margin-top:var(--space-3);color:var(--text-muted);font-size:var(--font-xs);">'
+      + t('msg_already_matches', 'The tenant already matches this stored state.') + '</div>';
+  }
+  var html = '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;margin-top:var(--space-3);">';
+  plan.changes.forEach(function(c) {
+    var colour = c.refused ? 'var(--red)' : (c.action === 'delete' ? 'var(--orange)' : 'var(--green)');
+    var label = c.refused ? t('lbl_refused', 'Refused') : t('lbl_action_' + c.action, c.action);
+    html += '<tr style="border-bottom:1px solid var(--border);vertical-align:top;">'
+      + '<td style="padding:6px 10px 6px 0;color:' + colour + ';font-weight:600;white-space:nowrap;">' + esc(label) + '</td>'
+      + '<td style="padding:6px 0;">' + esc(c.name)
+      + (c.refused ? '<div style="color:var(--red);margin-top:2px;">' + esc(c.refused) + '</div>' : '')
+      + '</td></tr>';
+  });
+  html += '</table>';
+  html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" ' + (plan.applicable ? '' : 'disabled ')
+       + 'onclick="policyRestoreApply()">' + t('btn_apply_restore', 'Restore {n} policy change(s)').replace('{n}', plan.applicable) + '</button>';
+  return html;
+}
+
+async function policyRestoreApply() {
+  if (!_pdRestore) return;
+  var name = _pdCustomerName() || 'RESTORE';
+  if (typeof showTypedConfirm === 'function') {
+    var ok = await showTypedConfirm(
+      name,
+      t('dlg_confirm_restore', 'Restore {n} policy change(s) on {customer}?')
+        .replace('{n}', _pdRestore.applicable).replace('{customer}', name),
+      t('dlg_restore_warning', 'This writes into the customer Microsoft tenant. A restore point of the current state is taken first.')
+    );
+    if (!ok) return;
+  }
+  var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/apply', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      kind: _pdRestore.source.kind, ref: _pdRestore.source.ref,
+      // The state that was reviewed, not the one that exists at this instant.
+      fingerprint: _pdRestore.fingerprint,
+    }),
+  });
+  if (!d) return;
+  showToast(t('msg_restore_done', 'Restore finished'), 'success', 4000);
+  policyDeployLoad();
 }
 
 // A GUID, checked here only to catch a paste that went wrong. The server and

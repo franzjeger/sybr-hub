@@ -2746,7 +2746,17 @@
     "hdr_result": "Resultat",
     "msg_restore_point": "Et gjenopprettingspunkt med policyene slik de var ble skrevet før noe ble endret.",
     "msg_deploy_done": "Utrulling fullført",
-    "drift_fields": "Felter som er endret"
+    "drift_fields": "Felter som er endret",
+    "hdr_restore": "Gjenoppretting",
+    "msg_restore_intro": "Sett tenanten tilbake til en lagret tilstand. Gjenopprettingspunkter tas rett før en utrulling; audit-snapshots er eldre og grovere.",
+    "lbl_before_deploy": "før en utrulling",
+    "lbl_audit_run": "audit-kjøring",
+    "btn_plan_restore": "Vis gjenopprettingsplan",
+    "msg_already_matches": "Tenanten samsvarer allerede med denne lagrede tilstanden.",
+    "btn_apply_restore": "Gjenopprett {n} endring(er)",
+    "dlg_confirm_restore": "Gjenopprett {n} policyendring(er) på {customer}?",
+    "dlg_restore_warning": "Dette skriver inn i kundens Microsoft-tenant. Et gjenopprettingspunkt av nåværende tilstand tas først.",
+    "msg_restore_done": "Gjenoppretting fullført"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5495,6 +5505,16 @@
     "hdr_result": "Result",
     "msg_restore_point": "A restore point holding the policies as they were was written before anything changed.",
     "msg_deploy_done": "Deployment finished",
-    "drift_fields": "Fields changed"
+    "drift_fields": "Fields changed",
+    "hdr_restore": "Restore",
+    "msg_restore_intro": "Put the tenant back to a stored state. Restore points are taken immediately before a deployment; audit snapshots are older and coarser.",
+    "lbl_before_deploy": "before a deployment",
+    "lbl_audit_run": "audit run",
+    "btn_plan_restore": "Show restore plan",
+    "msg_already_matches": "The tenant already matches this stored state.",
+    "btn_apply_restore": "Restore {n} policy change(s)",
+    "dlg_confirm_restore": "Restore {n} policy change(s) on {customer}?",
+    "dlg_restore_warning": "This writes into the customer Microsoft tenant. A restore point of the current state is taken first.",
+    "msg_restore_done": "Restore finished"
   }
 }

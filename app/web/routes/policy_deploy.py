@@ -1,4 +1,4 @@
-"""Deploying Conditional Access policies into a customer's tenant.
+"""Deploying Conditional Access policies into a customer's tenant, and undoing it.
 
 The first routes in this application that change something outside it, and the
 only ones behind ``require_tenant_write``. That dependency has existed since
@@ -16,8 +16,15 @@ count. It changes nothing.
 have moved since, it refuses: the operator approved a change to a state that no
 longer exists, and applying anyway would overwrite whatever moved it.
 
-Both require ``tenant_write``, which requires ``can_write``, which is off by
-default for every account. And both need the customer's own consent to
+Restore is the same two requests pointed at a stored state instead of a
+template, and deliberately shares every rail rather than getting gentler ones.
+A restore path that waived the lockout guard would be a deployment path that
+waived it, one POST away — so restoring a policy that would lock the tenant out
+is refused exactly as deploying one is, and the operator fixes the exclusion
+first.
+
+All of them require ``tenant_write``, which requires ``can_write``, which is off
+by default for every account. And both need the customer's own consent to
 ``Policy.ReadWrite.ConditionalAccess``, which is a different party's decision —
 reported separately so nobody goes to argue with the wrong one.
 """
@@ -30,6 +37,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import ValidationError
+from app.core.policy_restore import RestoreError, list_sources, load_source
 from app.core.policy_templates import TemplateError, annotations, list_templates, render
 from app.models.user import User
 from app.modules.m365_audit.policy_deploy import (
@@ -182,6 +190,123 @@ async def apply_deployment(
     log_activity(
         "policy_deployed",
         detail=f"{template_id}: {len(result['applied'])} applied, {len(result['failed'])} failed",
+        customer=customer.get("CustomerName", customer_id) if customer else customer_id,
+        user=user.username,
+    )
+    return result
+
+
+# ── Putting a tenant back ────────────────────────────────────────────────────
+
+@router.get("/policy-restore/{customer_id}/sources")
+async def restore_sources(
+    customer_id: str,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """States this customer could be put back to, newest first.
+
+    Behind the capability rather than readable by anyone: the list is a map of
+    when this tenant changed, which is not something a read-only account needs.
+    """
+    return {
+        "customer_id": customer_id,
+        "sources": [s.as_dict() for s in list_sources(customer_id)],
+    }
+
+
+async def _restore_plan(customer_id: str, body: dict) -> tuple[Plan, list[dict]]:
+    """Shared by plan and apply, so the two cannot drift into disagreeing."""
+    kind = str(body.get("kind", "")).strip()
+    ref = str(body.get("ref", "")).strip()
+    if not kind or not ref:
+        raise ValidationError("Both a restore source kind and its reference are required")
+
+    try:
+        desired = load_source(customer_id, kind, ref)
+    except RestoreError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    live, missing_consent = await _live_policies(customer_id)
+    plan = build_plan(
+        customer_id, live, desired,
+        allow_delete=bool(body.get("allow_delete")),
+        missing_consent=missing_consent,
+    )
+    return plan, live
+
+
+@router.post("/policy-restore/{customer_id}/plan")
+async def plan_restore(
+    customer_id: str,
+    request: Request,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """What putting the tenant back to this state would do. Changes nothing.
+
+    Policies created since the source was captured are left alone unless
+    allow_delete is set. A restore that silently removed everything added since
+    would be a rollback of other people's work as well as of the deployment.
+    """
+    body = await request.json()
+    plan, _ = await _restore_plan(customer_id, body)
+    logger.warning(
+        "restore plan: user=%s customer=%s source=%s/%s changes=%d refused=%d",
+        user.username, customer_id, body.get("kind"), body.get("ref"),
+        len(plan.applicable), len(plan.refused),
+    )
+    payload = plan.as_dict()
+    payload["source"] = {"kind": body.get("kind"), "ref": body.get("ref")}
+    return payload
+
+
+@router.post("/policy-restore/{customer_id}/apply")
+async def apply_restore(
+    customer_id: str,
+    request: Request,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Carry out a restore that was reviewed, against the tenant it was read from."""
+    from app.core.customer import CustomerManager
+    from app.modules.m365_audit.auth import get_auth_for_customer
+    from app.modules.m365_audit.graph_client import GraphClient
+
+    body = await request.json()
+    supplied = str(body.get("fingerprint", "")).strip()
+    if not supplied:
+        raise ValidationError("The fingerprint of the reviewed plan is required")
+
+    plan, live = await _restore_plan(customer_id, body)
+    plan.fingerprint = supplied
+
+    customer = CustomerManager.get_customer(customer_id)
+    auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
+
+    saved: list[dict] = []
+    try:
+        async with auth as entered, GraphClient(entered.credential) as client:
+            # A restore point of its own, so undoing the undo is possible. The
+            # state being restored *from* is worth keeping too.
+            result = await apply_plan(client, plan, live, snapshot=saved.extend)
+    except DeployError as exc:
+        logger.warning(
+            "restore refused: user=%s customer=%s: %s", user.username, customer_id, exc
+        )
+        raise ValidationError(str(exc)) from exc
+
+    if saved:
+        _store_restore_point(customer_id, saved)
+
+    logger.warning(
+        "restore applied: user=%s customer=%s source=%s/%s applied=%d failed=%d",
+        user.username, customer_id, body.get("kind"), body.get("ref"),
+        len(result["applied"]), len(result["failed"]),
+    )
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "policy_restored",
+        detail=f"{body.get('kind')}/{body.get('ref')}: "
+               f"{len(result['applied'])} applied, {len(result['failed'])} failed",
         customer=customer.get("CustomerName", customer_id) if customer else customer_id,
         user=user.username,
     )
