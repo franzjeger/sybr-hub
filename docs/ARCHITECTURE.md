@@ -228,10 +228,20 @@ code: a check names a dotted path through the report context, a comparison, a
 severity, and one sentence of rationale written for the customer. Arguing
 about a threshold does not mean touching the evaluator.
 
+**No layer here emits prose.** A check returns a `reason_code` and the values
+behind it; the report template and the browser build the sentence. The first
+version wrote English sentences into `detail` while the baseline document
+carried Norwegian-only titles, so one card showed both languages at once and
+neither could be translated — and every i18n detector passed, because they
+read JavaScript and this was a JSON document and a Python f-string. Titles and
+rationales are `{"no": ..., "en": ...}`; `load_baseline` refuses a document
+missing either.
+
 To add or change a check:
 
 1. Add it to the JSON with a `measured_when` guard naming the `has_data` flag
-   (or equivalent) for the evidence it reads.
+   (or equivalent) for the evidence it reads, and `title`/`why` in both
+   languages.
 2. **Bump `version`.** The version is what lets last year's report still be
    read against the requirements that applied then. Changing the checks
    without it silently rewrites old verdicts.
@@ -240,6 +250,12 @@ To add or change a check:
    checks in the first draft named fields that existed nowhere, and the guard
    would have reported them `not_measured` forever: safe, and silently
    useless.
+
+A new reason code means a new entry in `REASON_CODES` in the module that
+emits it, plus a `bl_`/`drift_` string in **both** `app/reports/i18n.py` and
+`static/ui_i18n.json`, in both languages. `tests/test_i18n_coverage.py`
+enforces all of that: an untranslated code renders as nothing at all, which is
+worse than the wrong language.
 
 `SYBR_BASELINE` overrides which baseline is the house standard. It is an
 environment variable rather than a stored setting because reports are built
@@ -315,7 +331,17 @@ assets beside it.
 ## User-facing text
 
 Every string a person reads goes through `t()` and lives in
-`static/ui_i18n.json` in both languages. `tests/test_i18n_coverage.py` holds
+`static/ui_i18n.json` in both languages — and the key has to *be* there.
+`t('status_watch', 'Følg med')` renders the fallback when the key is missing,
+so the Norwegian UI looks perfect while the English one says "Følg med".
+Forty-five keys had accumulated that way, in both directions, with every
+detector passing: they measure whether a string is routed through `t()`, not
+whether routing it accomplished anything. A separate test now checks that
+every key a script names exists in both languages.
+
+Backend-generated text is not covered by any of the detectors, which read
+JavaScript only. Anything a route or a core module returns for display must
+carry a code the presentation translates — see the baselines section above. `tests/test_i18n_coverage.py` holds
 the detectors and a per-script budget; all seven scripts read zero on all
 three counts, and the budgets only ever go down.
 

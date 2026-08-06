@@ -4899,7 +4899,7 @@ def _drift_for(out_dir: Path) -> dict:
         return compute_drift(out_dir)
     except Exception as e:
         log.warning("Drift comparison failed for %s: %s", out_dir.name, e)
-        return unmeasured("The comparison against the previous run could not be completed.")
+        return unmeasured("comparison_failed")
 
 
 def _baseline_for(context: dict) -> dict | None:

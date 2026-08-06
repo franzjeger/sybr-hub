@@ -22,6 +22,14 @@ that judges them is not going to reintroduce it.
 
 Baselines are data, not code. A new one is a JSON file, which is what lets a
 technician argue about the threshold without touching the evaluator.
+
+**Nothing here is prose a person reads.** A check returns a ``reason_code``
+and the values behind it; the report template and the browser turn that into
+a sentence in the reader's own language. The first version of this module
+wrote English sentences into ``detail`` while the baseline document carried
+Norwegian titles, so one card showed both languages at once and neither could
+be translated. A core module that emits finished text has picked a language
+on behalf of every caller.
 """
 
 from __future__ import annotations
@@ -35,6 +43,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 BASELINE_DIR = pathlib.Path(__file__).parent.parent / "baselines"
+
+# Every reason a check can give, as a code. The presentation layers translate
+# these; tests/test_i18n_coverage.py asserts both tables carry all of them in
+# both languages, and that this tuple has not drifted from the source.
+REASON_CODES = ("met", "unmet", "guard_unset", "field_absent", "incomparable")
 
 PASS = "pass"
 FAIL = "fail"
@@ -86,9 +99,24 @@ class _Missing:
 _MISSING = _Missing()
 
 
+LANGUAGES = ("no", "en")
+
+
+def localised(value: Any, lang: str) -> str:
+    """Pick one language out of a baseline's {"no": ..., "en": ...} field."""
+    if isinstance(value, dict):
+        return str(value.get(lang) or value.get("no") or "")
+    return str(value or "")
+
+
 def _truthy(value: Any) -> bool:
     return not isinstance(value, _Missing) and bool(value)
 
+
+_OP_SYMBOL = {
+    "gte": "\u2265", "gt": ">", "lte": "\u2264", "lt": "<",
+    "eq": "=", "ne": "\u2260", "is_true": "=", "is_false": "=",
+}
 
 _OPERATORS = {
     "gte": lambda a, b: a >= b,
@@ -100,24 +128,27 @@ _OPERATORS = {
 }
 
 
-def evaluate_check(check: dict, context: dict) -> dict:
-    """Judge one check against one audit's context."""
+def evaluate_check(check: dict, context: dict, lang: str = "no") -> dict:
+    """Judge one check against one audit's context.
+
+    Returns a ``reason_code`` and the values behind it rather than a sentence.
+    Formatting belongs to whoever knows the reader's language.
+    """
     check_id = check.get("id", "?")
     result = {
         "id": check_id,
-        "title": check.get("title", check_id),
-        "why": check.get("why", ""),
+        "title": localised(check.get("title"), lang) or check_id,
+        "why": localised(check.get("why"), lang),
         "severity": check.get("severity", "medium"),
         "status": NOT_MEASURED,
-        "detail": "",
+        "reason_code": "",
+        "params": {},
     }
 
     guard = check.get("measured_when")
     if guard and not _truthy(_resolve(context, guard)):
-        result["detail"] = (
-            f"Not assessed: {guard} is not set, so the evidence this check "
-            f"reads was never collected."
-        )
+        result["reason_code"] = "guard_unset"
+        result["params"] = {"guard": guard}
         return result
 
     actual = _resolve(context, check["path"])
@@ -126,38 +157,38 @@ def evaluate_check(check: dict, context: dict) -> dict:
         # and then did not carry the field. That is a defect in the collector
         # or a renamed key, and calling it a failure would blame the customer
         # for it.
-        result["detail"] = (
-            f"Not assessed: {check['path']} was absent from the audit, though "
-            f"the section reported data. This is a collector problem, not a "
-            f"finding about the tenant."
-        )
+        result["reason_code"] = "field_absent"
+        result["params"] = {"path": check["path"]}
         return result
 
     op = check.get("op", "eq")
     if op == "is_true":
-        ok, expected = bool(actual) is True, "true"
+        ok, expected = bool(actual) is True, True
     elif op == "is_false":
-        ok, expected = bool(actual) is False, "false"
+        ok, expected = bool(actual) is False, False
     elif op in _OPERATORS:
         expected = check["value"]
         try:
             ok = _OPERATORS[op](actual, expected)
         except TypeError:
-            result["detail"] = (
-                f"Not assessed: {check['path']} is {actual!r}, which cannot be "
-                f"compared with {expected!r}."
-            )
+            result["reason_code"] = "incomparable"
+            result["params"] = {
+                "path": check["path"], "actual": actual, "expected": expected,
+            }
             return result
     else:
         raise BaselineError(f"Check {check_id!r} uses unknown operator {op!r}")
 
     result["status"] = PASS if ok else FAIL
+    result["path"] = check["path"]
     result["actual"] = actual
-    result["expected"] = f"{op} {expected}"
-    result["detail"] = (
-        f"{check['path']} is {actual}" if ok
-        else f"{check['path']} is {actual}, the baseline requires {op} {expected}"
-    )
+    result["op"] = op
+    result["expected"] = expected
+    result["reason_code"] = "met" if ok else "unmet"
+    result["params"] = {
+        "path": check["path"], "actual": actual,
+        "op": _OP_SYMBOL.get(op, op), "expected": expected,
+    }
     return result
 
 
@@ -176,10 +207,26 @@ def load_baseline(baseline_id: str) -> dict:
         if check["id"] in seen:
             raise BaselineError(f"Duplicate check id {check['id']!r} in {baseline_id!r}")
         seen.add(check["id"])
+
+    # Both languages, or the document does not load. A baseline that speaks
+    # one language shows that language to every reader, and the cheapest
+    # moment to catch that is before anybody sees the card. Checked after the
+    # structural pass, so a duplicate id is not reported as a translation
+    # problem.
+    for check in doc["checks"]:
+        for field in ("title", "why"):
+            value = check.get(field)
+            if not isinstance(value, dict) or not all(
+                str(value.get(lang, "")).strip() for lang in LANGUAGES
+            ):
+                raise BaselineError(
+                    f"Check {check['id']!r} in {baseline_id!r} must carry {field!r} "
+                    f"in each of {', '.join(LANGUAGES)}"
+                )
     return doc
 
 
-def list_baselines() -> list[dict]:
+def list_baselines(lang: str = "no") -> list[dict]:
     out = []
     for path in sorted(BASELINE_DIR.glob("*.json")):
         try:
@@ -189,12 +236,13 @@ def list_baselines() -> list[dict]:
             continue
         out.append({
             "id": doc["id"], "version": doc["version"], "name": doc["name"],
-            "description": doc.get("description", ""), "checks": len(doc["checks"]),
+            "description": localised(doc.get("description"), lang),
+            "checks": len(doc["checks"]),
         })
     return out
 
 
-def evaluate(baseline_id: str, context: dict) -> dict:
+def evaluate(baseline_id: str, context: dict, lang: str = "no") -> dict:
     """Judge one audit against one baseline.
 
     Conformance is quoted over the checks that could be assessed. The rest are
@@ -202,7 +250,7 @@ def evaluate(baseline_id: str, context: dict) -> dict:
     third of it could not be read is describing the audit, not the tenant.
     """
     doc = load_baseline(baseline_id)
-    results = [evaluate_check(c, context) for c in doc["checks"]]
+    results = [evaluate_check(c, context, lang) for c in doc["checks"]]
 
     passed = [r for r in results if r["status"] == PASS]
     failed = [r for r in results if r["status"] == FAIL]
@@ -212,7 +260,7 @@ def evaluate(baseline_id: str, context: dict) -> dict:
     return {
         "baseline": {
             "id": doc["id"], "version": doc["version"], "name": doc["name"],
-            "description": doc.get("description", ""),
+            "description": localised(doc.get("description"), lang),
         },
         "conformance_pct": round(len(passed) / assessed * 100, 1) if assessed else None,
         "passed": len(passed),

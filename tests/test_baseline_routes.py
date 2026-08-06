@@ -87,7 +87,7 @@ def test_a_customer_with_no_runs_answers_200_not_404(client, auth, audit_root):
     assert r.status_code == 200
     body = r.json()
     assert body["evaluated"] is False
-    assert body["reason"]
+    assert body["reason_code"] == "no_runs"
     assert "conformance_pct" not in body, "no verdict without a run to judge"
 
 

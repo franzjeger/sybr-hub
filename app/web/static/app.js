@@ -6970,6 +6970,17 @@ async function loadCustomerDetail(customerId) {
 // collected is shown as not assessed and kept out of the percentage, and a
 // customer with nothing to compare against is told that rather than shown a
 // reassuring zero.
+// Reason codes carry their values separately, so the sentence is assembled
+// in the reader's language rather than shipped from the server in one.
+function _reason(prefix, code, params) {
+  var out = t(prefix + code, '');
+  if (!out) return '';
+  Object.keys(params || {}).forEach(function(k) {
+    out = out.split('{' + k + '}').join(String(params[k]));
+  });
+  return out;
+}
+
 function _baselineStatusPill(status) {
   if (status === 'pass') return '<span style="color:var(--green);">&#10003;</span>';
   if (status === 'fail') return '<span style="color:var(--red);">&#10007;</span>';
@@ -6981,7 +6992,7 @@ async function _loadCustomerBaselineCard(customerId) {
   if (!el) return;
 
   var results = await Promise.all([
-    apiFetch('/api/baselines/default/evaluate/' + encodeURIComponent(customerId) + '/latest').catch(function(){ return null; }),
+    apiFetch('/api/baselines/default/evaluate/' + encodeURIComponent(customerId) + '/latest?lang=' + _lang).catch(function(){ return null; }),
     apiFetch('/api/policy-backup/' + encodeURIComponent(customerId) + '/drift').catch(function(){ return null; })
   ]);
   var b = results[0], drift = results[1];
@@ -6990,7 +7001,7 @@ async function _loadCustomerBaselineCard(customerId) {
     // A customer with no audit yet. Say so quietly rather than showing an
     // empty card or, worse, a zero.
     el.innerHTML = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);color:var(--text-dim);font-size:var(--font-sm);">'
-      + esc(b.reason || t('msg_baseline_no_run','No audit run to measure against yet.')) + '</div>';
+      + esc(_reason('drift_', b.reason_code, {}) || t('msg_baseline_no_run','No audit run to measure against yet.')) + '</div>';
     return;
   }
 
@@ -7027,7 +7038,7 @@ async function _loadCustomerBaselineCard(customerId) {
     html += '<tr style="border-bottom:1px solid var(--border);">';
     html += '<td style="padding:6px 8px 6px 0;width:20px;">' + _baselineStatusPill(c.status) + '</td>';
     html += '<td style="padding:6px 0;' + (dim ? 'color:var(--text-dim);' : '') + '">' + esc(c.title) + '</td>';
-    html += '<td style="padding:6px 0;text-align:right;color:var(--text-muted);">' + esc(c.detail || '') + '</td>';
+    html += '<td style="padding:6px 0;text-align:right;color:var(--text-muted);">' + esc(_reason('bl_', c.reason_code, c.params)) + '</td>';
     html += '</tr>';
   });
   html += '</table>';
@@ -7038,7 +7049,7 @@ async function _loadCustomerBaselineCard(customerId) {
         + t('hdr_policy_drift','Changes since previous audit') + '</div>';
   if (!drift || !drift.measured) {
     html += '<div style="font-size:var(--font-xs);color:var(--text-dim);">'
-          + esc((drift && drift.reason) || t('msg_drift_not_measured','Not compared.')) + '</div>';
+          + esc((drift && _reason('drift_', drift.reason_code, drift.reason_params)) || t('msg_drift_not_measured','Not compared.')) + '</div>';
   } else if (!drift.added_total && !drift.removed_total && !drift.changed_total) {
     html += '<div style="font-size:var(--font-xs);color:var(--text-muted);">'
           + t('msg_drift_quiet','No policy changed since {run}.').replace('{run}', esc(drift.compared_with)) + '</div>';

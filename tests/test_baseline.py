@@ -26,7 +26,7 @@ from app.core.baseline import (
 )
 
 CHECK = {
-    "id": "mfa", "title": "MFA", "path": "mfa.registered_pct",
+    "id": "mfa", "title": {"no": "MFA", "en": "MFA"}, "path": "mfa.registered_pct",
     "op": "gte", "value": 95, "measured_when": "mfa.has_data",
     "severity": "high",
 }
@@ -41,7 +41,8 @@ def test_a_tenant_below_the_bar_fails():
     ctx = {"mfa": {"has_data": True, "registered_pct": 75.3}}
     r = evaluate_check(CHECK, ctx)
     assert r["status"] == FAIL
-    assert "75.3" in r["detail"] and "95" in r["detail"]
+    assert r["reason_code"] == "unmet"
+    assert (r["params"]["actual"], r["params"]["expected"]) == (75.3, 95)
 
 
 def test_evidence_that_was_never_collected_is_not_a_failure():
@@ -54,7 +55,7 @@ def test_evidence_that_was_never_collected_is_not_a_failure():
     ctx = {"mfa": {"has_data": False}}
     r = evaluate_check(CHECK, ctx)
     assert r["status"] == NOT_MEASURED
-    assert "never collected" in r["detail"]
+    assert r["reason_code"] == "guard_unset"
 
 
 def test_a_missing_field_is_not_a_failure_either():
@@ -66,7 +67,7 @@ def test_a_missing_field_is_not_a_failure_either():
     ctx = {"mfa": {"has_data": True}}
     r = evaluate_check(CHECK, ctx)
     assert r["status"] == NOT_MEASURED
-    assert "collector problem" in r["detail"]
+    assert r["reason_code"] == "field_absent"
 
 
 def test_a_null_figure_is_not_a_zero():
@@ -88,9 +89,12 @@ def test_conformance_is_quoted_over_what_was_assessed(tmp_path, monkeypatch):
     doc = {
         "id": "t", "version": "1", "name": "T",
         "checks": [
-            {"id": "a", "path": "x.v", "op": "gte", "value": 1, "measured_when": "x.ok"},
-            {"id": "b", "path": "x.v", "op": "gte", "value": 999, "measured_when": "x.ok"},
-            {"id": "c", "path": "y.v", "op": "gte", "value": 1, "measured_when": "y.ok"},
+            {"id": "a", "path": "x.v", "op": "gte", "value": 1, "measured_when": "x.ok",
+             "title": {"no": "A", "en": "A"}, "why": {"no": "-", "en": "-"}},
+            {"id": "b", "path": "x.v", "op": "gte", "value": 999, "measured_when": "x.ok",
+             "title": {"no": "B", "en": "B"}, "why": {"no": "-", "en": "-"}},
+            {"id": "c", "path": "y.v", "op": "gte", "value": 1, "measured_when": "y.ok",
+             "title": {"no": "C", "en": "C"}, "why": {"no": "-", "en": "-"}},
         ],
     }
     (tmp_path / "t.json").write_text(json.dumps(doc))
@@ -123,7 +127,13 @@ def test_the_shipped_baseline_is_well_formed():
             f"{check['id']} has no guard — it would fail a tenant on evidence "
             f"nobody read"
         )
-        assert check.get("why"), f"{check['id']} has no rationale for the customer"
+        for lang in ("no", "en"):
+            assert str(check["why"].get(lang, "")).strip(), (
+                f"{check['id']} has no rationale for a {lang} reader"
+            )
+            assert str(check["title"].get(lang, "")).strip(), (
+                f"{check['id']} has no title for a {lang} reader"
+            )
         assert check.get("severity") in ("critical", "high", "medium")
 
 
