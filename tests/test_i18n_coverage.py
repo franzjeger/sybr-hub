@@ -480,6 +480,7 @@ BUDGET_JS_NORWEGIAN = {
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
+    "app-policy-deploy.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
@@ -493,6 +494,7 @@ BUDGET_JS_PERSON = {
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
+    "app-policy-deploy.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
@@ -509,6 +511,7 @@ BUDGET_JS_DOM_TEXT = {
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
+    "app-policy-deploy.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
@@ -519,6 +522,7 @@ BUDGET_JS_LABEL_TABLES = {
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
+    "app-policy-deploy.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
@@ -714,6 +718,7 @@ BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app-dashboard.js": 0,
     "app-infra.js": 0,
     "app-integrations.js": 0,
+    "app-policy-deploy.js": 0,
     "app-tailscale.js": 0,
     "app-tls.js": 0,
 }
