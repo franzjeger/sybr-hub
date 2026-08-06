@@ -2712,7 +2712,14 @@
     "msg_api_zero_calls": "API: 0 kall",
     "hdr_set_inform": "Set-Inform",
     "lbl_readonly": "Lesetilgang",
-    "tip_readonly": "Kontoen din har lesetilgang. Endringer krever skrivetilgang."
+    "tip_readonly": "Kontoen din har lesetilgang. Endringer krever skrivetilgang.",
+    "lbl_cap_write": "Skriv",
+    "lbl_cap_tenant": "Tenant",
+    "tip_cap_write": "Kan endre ting i Sybr HUB. Av som standard for hver konto.",
+    "tip_cap_tenant": "Kan skrive inn i en kundes Microsoft-tenant. Krever Skriv.",
+    "tip_customer_access": "Kundetilgang",
+    "msg_capability_granted": "Tilgang gitt",
+    "msg_capability_revoked": "Tilgang fjernet"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5427,6 +5434,13 @@
     "msg_api_zero_calls": "API: 0 calls",
     "hdr_set_inform": "Set-Inform",
     "lbl_readonly": "Read-only",
-    "tip_readonly": "Your account has read access. Changes require write."
+    "tip_readonly": "Your account has read access. Changes require write.",
+    "lbl_cap_write": "Write",
+    "lbl_cap_tenant": "Tenant",
+    "tip_cap_write": "May change anything in Sybr HUB. Off by default for every account.",
+    "tip_cap_tenant": "May write into a customer Microsoft tenant. Requires Write.",
+    "tip_customer_access": "Customer access",
+    "msg_capability_granted": "Access granted",
+    "msg_capability_revoked": "Access revoked"
   }
 }

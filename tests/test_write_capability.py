@@ -201,3 +201,61 @@ async def test_tenant_write_needs_write_underneath_it(client):
     with pytest.raises(Exception) as exc:
         await check(customer_id="acme", user=refreshed)
     assert "403" in str(exc.value) or "skriv" in str(exc.value).lower()
+
+
+# ── Granting from the interface ──────────────────────────────────────────────
+
+async def test_the_user_list_reports_both_capabilities(client):
+    """The administration screen cannot show a toggle for a field it is not sent.
+
+    It was not: the API accepted can_write and tenant_write on the way in and
+    the screen rendered neither, so from the interface the whole model was
+    invisible — which reads exactly like nothing having changed.
+    """
+    auth, _ = await _account(write=True)
+    await _account("other", Role.technician)
+
+    users = client.get("/api/auth/users", headers=auth).json()["users"]
+
+    assert all("can_write" in u and "tenant_write" in u for u in users)
+
+
+async def test_an_admin_with_write_can_grant_it(client):
+    auth, _ = await _account(write=True)
+    _, target = await _account("target", Role.technician)
+
+    r = client.put(f"/api/auth/users/{target.id}", headers=auth, json={"can_write": True})
+
+    assert r.status_code == 200
+    assert (await get_user_by_id(target.id)).can_write is True
+
+
+async def test_revoking_write_takes_the_tenant_capability_with_it(client):
+    """The interface sends both, because the pair is the thing being decided."""
+    auth, _ = await _account(write=True)
+    _, target = await _account("target", Role.technician)
+    await set_can_write(target.id, True)
+    await set_tenant_write(target.id, True)
+
+    client.put(
+        f"/api/auth/users/{target.id}", headers=auth,
+        json={"can_write": False, "tenant_write": False},
+    )
+
+    refreshed = await get_user_by_id(target.id)
+    assert (refreshed.can_write, refreshed.tenant_write) == (False, False)
+
+
+async def test_an_admin_without_write_cannot_grant_itself_write(client):
+    """The property that makes scripts/grant_write.py necessary.
+
+    Granting is a write, so an estate where nobody holds the capability cannot
+    hand out the first one through the interface. That is deliberate, and it is
+    why the key ships from the server side.
+    """
+    auth, me = await _account(role=Role.admin, write=False)
+
+    r = client.put(f"/api/auth/users/{me.id}", headers=auth, json={"can_write": True})
+
+    assert r.status_code == 403
+    assert (await get_user_by_id(me.id)).can_write is False

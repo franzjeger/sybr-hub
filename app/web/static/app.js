@@ -3266,7 +3266,8 @@ async function loadUsers() {
         + '<option value="technician"' + (u.role==='technician'?' selected':'') + '>' + t('technician_2') + '</option>'
         + '<option value="admin"' + (u.role==='admin'?' selected':'') + '>' + t('admin_2') + '</option>'
         + '</select>'
-        + '<button class="btn btn-ghost btn-sm" onclick="editUserCustomers(\'' + esc(u.id) + '\',\'' + esc(u.display_name) + '\')" title="Kundetilgang">🔑</button>'
+        + _capabilityToggles(u)
+        + '<button class="btn btn-ghost btn-sm" onclick="editUserCustomers(\'' + esc(u.id) + '\',\'' + esc(u.display_name) + '\')" title="' + t('tip_customer_access','Customer access') + '">🔑</button>'
         + (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deleteUser(\'' + esc(u.id) + '\',\'' + esc(u.username) + '\')">&#128465;</button>' : '')
         + '</div>';
     }).join('');
@@ -3291,6 +3292,37 @@ async function createUser() {
   } else {
     msg.innerHTML = '<span style="color:var(--red);">' + (d && d.error ? esc(d.error) : t('status_error')) + '</span>';
   }
+}
+
+// Two capabilities, shown as what they are: grants, not part of the role.
+// tenant_write is disabled until write is on, mirroring the server — it stands
+// on can_write, and an account that may not save a note here has no business
+// changing configuration in a customer's tenant.
+function _capabilityToggles(u) {
+  var write = !!u.can_write, tenant = !!u.tenant_write;
+  return '<label style="display:flex;align-items:center;gap:4px;font-size:var(--font-xs);color:var(--text-muted);cursor:pointer;white-space:nowrap;" title="' + t('tip_cap_write','May change anything in Sybr HUB. Off by default for every account.') + '">'
+    + '<input type="checkbox"' + (write ? ' checked' : '') + ' onchange="setUserCapability(\'' + esc(u.id) + '\',\'can_write\',this.checked)"> ' + t('lbl_cap_write','Write')
+    + '</label>'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:var(--font-xs);color:' + (write ? 'var(--text-muted)' : 'var(--text-dim)') + ';cursor:' + (write ? 'pointer' : 'not-allowed') + ';white-space:nowrap;" title="' + t('tip_cap_tenant','May write into a customer Microsoft tenant. Requires Write.') + '">'
+    + '<input type="checkbox"' + (tenant ? ' checked' : '') + (write ? '' : ' disabled') + ' onchange="setUserCapability(\'' + esc(u.id) + '\',\'tenant_write\',this.checked)"> ' + t('lbl_cap_tenant','Tenant')
+    + '</label>';
+}
+
+async function setUserCapability(userId, field, enabled) {
+  var body = {};
+  body[field] = enabled;
+  // Taking write away takes the tenant capability with it. Leaving it set on
+  // an account that may not write at all is a state nobody should have to
+  // reason about, and the server would refuse it anyway.
+  if (field === 'can_write' && !enabled) body.tenant_write = false;
+
+  var d = await apiFetch('/api/auth/users/' + userId, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+  });
+  if (d && d.ok) {
+    showToast(enabled ? t('msg_capability_granted','Access granted') : t('msg_capability_revoked','Access revoked'), 'success', 2000);
+  }
+  loadUsers();
 }
 
 async function changeUserRole(userId, newRole) {
