@@ -4987,7 +4987,24 @@ def build_report_context(
     results:       list[SectionResult],
     lang:          str = "no",
     frameworks:    str = "all",
+    persist_metrics: bool = True,
 ) -> dict:
+    """Parse one audit run into everything a report or a reader needs.
+
+    ``persist_metrics`` exists because this function writes. It ends by saving
+    _audit_metrics.json and inserting a row in audit_metrics, which is right
+    when an audit has just produced the run and wrong for everybody else — and
+    "everybody else" grew: the baselines endpoint builds a context to *read*
+    one, and so does anything that scores an old run.
+
+    Left as it was, a customer card rewrote that run's stored metrics on every
+    open, stamping it with the current time. It also cost twenty-one duplicate
+    trend rows in one second when a maintenance script walked every run.
+
+    Pass False from any caller that is reading. The default stays True so an
+    audit that has just finished keeps recording itself without having to
+    remember to ask.
+    """
     from app.core.encryption import encrypted_read_text
     file_contents: dict[str, str] = {}
     # Named apart from the "failed_sections" context key, which is a count of
@@ -5264,7 +5281,8 @@ def build_report_context(
     context["drift"] = _drift_for(out_dir)
     context["baseline"] = _baseline_for(context)
 
-    save_audit_metrics(out_dir, context)
+    if persist_metrics:
+        save_audit_metrics(out_dir, context)
 
     return context
 

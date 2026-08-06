@@ -97,7 +97,11 @@ async def evaluate_baseline(
             raise NotFoundError(f"No audit run {run!r} for {customer_id!r}")
 
     lang = get_ui_lang(request)
-    context = build_report_context(customer_id, "", run_dir, [], lang=lang)
+    # Reading, not producing. Without this the card rewrote the run's stored
+    # metrics — with the current time as its timestamp — on every open.
+    context = build_report_context(
+        customer_id, "", run_dir, [], lang=lang, persist_metrics=False
+    )
     try:
         result = evaluate(baseline_id, context, lang)
     except BaselineError as exc:
