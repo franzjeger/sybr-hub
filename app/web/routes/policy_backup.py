@@ -39,6 +39,7 @@ from app.core.policy_drift import (
     diff_items,
     read_snapshot,
     snapshots_in,
+    unmeasured,
 )
 from app.models.user import User
 from app.web.middleware.auth import require_customer_access
@@ -98,17 +99,7 @@ async def latest_drift(
     """
     runs = _customer_runs(customer_id)
     if not runs:
-        return {
-            "customer_id": customer_id,
-            "run": None,
-            "measured": False,
-            "reason": "This customer has no audit runs yet.",
-            "compared_with": None,
-            "snapshots": [],
-            "added_total": None,
-            "removed_total": None,
-            "changed_total": None,
-        }
+        return {"customer_id": customer_id, "run": None, **unmeasured("no_runs")}
     latest = runs[0]
     return {"customer_id": customer_id, "run": latest.name, **compute_drift(latest)}
 

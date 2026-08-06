@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.core.baseline import (
     BaselineError,
@@ -20,6 +20,7 @@ from app.core.baseline import (
 )
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.user import User
+from app.web.i18n import get_ui_lang
 from app.web.middleware.auth import get_current_user, require_customer_access
 
 router = APIRouter()
@@ -27,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/baselines")
-async def get_baselines(user: User = Depends(get_current_user)) -> dict[str, Any]:
+async def get_baselines(
+    request: Request, user: User = Depends(get_current_user)
+) -> dict[str, Any]:
     """Every baseline on disk, with the house standard marked.
 
     A caller that wants "whatever we currently require" should not have to
@@ -37,12 +40,16 @@ async def get_baselines(user: User = Depends(get_current_user)) -> dict[str, Any
     default = default_baseline_id()
     return {
         "default": default,
-        "baselines": [{**b, "is_default": b["id"] == default} for b in list_baselines()],
+        "baselines": [
+            {**b, "is_default": b["id"] == default}
+            for b in list_baselines(get_ui_lang(request))
+        ],
     }
 
 
 @router.get("/baselines/{baseline_id}/evaluate/{customer_id}/{run}")
 async def evaluate_baseline(
+    request: Request,
     baseline_id: str,
     customer_id: str,
     run: str,
@@ -76,7 +83,7 @@ async def evaluate_baseline(
                 "customer_id": customer_id,
                 "run": None,
                 "evaluated": False,
-                "reason": "This customer has no audit runs yet.",
+                "reason_code": "no_runs",
             }
         run_dir = runs[-1]
         run = run_dir.name
@@ -89,9 +96,10 @@ async def evaluate_baseline(
         if not run_dir.is_dir():
             raise NotFoundError(f"No audit run {run!r} for {customer_id!r}")
 
-    context = build_report_context(customer_id, "", run_dir, [], lang="no")
+    lang = get_ui_lang(request)
+    context = build_report_context(customer_id, "", run_dir, [], lang=lang)
     try:
-        result = evaluate(baseline_id, context)
+        result = evaluate(baseline_id, context, lang)
     except BaselineError as exc:
         raise ValidationError(str(exc)) from exc
 

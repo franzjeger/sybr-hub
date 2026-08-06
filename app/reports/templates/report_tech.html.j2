@@ -840,7 +840,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <h3>{{ t.drift_heading }}</h3>
 {% if not drift or not drift.measured %}
 <div class="alert"><strong>{{ t.drift_not_measured }}.</strong>
-  {{ drift.reason if drift else t.no_data }}</div>
+  {{ t('drift_' ~ drift.reason_code, **drift.reason_params) if drift else t.no_data }}</div>
 {% elif drift.added_total == 0 and drift.removed_total == 0 and drift.changed_total == 0 %}
 <div class="alert ok"><strong>&#x2713;</strong> {{ t('drift_quiet', run=drift.compared_with) }}</div>
 {% else %}
@@ -866,7 +866,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% endfor %}
 </table>
 {% elif not s.comparable %}
-<div class="alert"><strong>{{ s.name }}:</strong> {{ s.reason }}</div>
+<div class="alert"><strong>{{ s.name }}:</strong> {{ t('drift_' ~ s.reason_code, **s.reason_params) }}</div>
 {% endif %}
 {% endfor %}
 {% endif %}

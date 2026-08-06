@@ -43,7 +43,7 @@ def test_a_first_run_is_not_measured_rather_than_drift_free(tmp_path):
     d = compute_drift(run)
 
     assert d["measured"] is False
-    assert "first measurement" in d["reason"]
+    assert d["reason_code"] == "no_earlier_snapshots"
     assert d["removed_total"] is None, "0 would read as 'no policy was removed'"
     assert d["added_total"] is None
     assert d["changed_total"] is None
@@ -73,7 +73,7 @@ def test_a_predecessor_without_that_snapshot_is_not_a_clean_diff(tmp_path):
 
     assert d["measured"] is False, "nothing comparable means nothing measured"
     assert d["snapshots"][0]["comparable"] is False
-    assert "did not capture" in d["snapshots"][0]["reason"]
+    assert d["snapshots"][0]["reason_code"] == "predecessor_lacked_snapshot"
 
 
 def test_a_snapshot_that_will_not_read_costs_the_comparison_not_the_report(tmp_path):

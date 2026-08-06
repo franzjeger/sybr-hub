@@ -751,3 +751,62 @@ def test_every_key_a_script_asks_for_exists_in_both_languages():
     assert not missing, (
         f"{len(missing)} t() calls name a key that does not exist:\n{_report(missing)}"
     )
+
+
+def test_every_reason_code_the_backend_emits_is_translated_in_both_tables():
+    """The baseline card showed Norwegian titles beside English detail lines.
+
+    Both came from code I wrote: the titles from the baseline JSON, which was
+    Norwegian-only, and the detail from the evaluator, which formatted English
+    sentences. Neither passed through a translation table, so neither could be
+    translated, and every detector in this file was blind to both — they read
+    JavaScript, and this was a JSON document and a Python f-string.
+
+    The fix was to stop emitting prose from the core: a check returns a
+    reason_code and the values behind it, and the report template and the
+    browser each build the sentence. This holds the other half of that — a
+    code with no translation renders as nothing at all, which is worse than
+    the wrong language.
+    """
+    import json
+
+    from app.core.baseline import REASON_CODES as BASELINE_CODES
+    from app.core.policy_drift import REASON_CODES as DRIFT_CODES
+    from app.reports.i18n import TRANSLATIONS
+
+    ui = json.loads((STATIC / "ui_i18n.json").read_text(encoding="utf-8"))
+
+    missing: list[tuple[str, str]] = []
+    for prefix, codes in (("bl_", BASELINE_CODES), ("drift_", DRIFT_CODES)):
+        for code in codes:
+            key = prefix + code
+            for lang in ("no", "en"):
+                if not str(ui.get(lang, {}).get(key, "")).strip():
+                    missing.append(("ui_i18n.json", f"{key} ({lang})"))
+                if not str(TRANSLATIONS.get(key, {}).get(lang, "")).strip():
+                    missing.append(("reports/i18n.py", f"{key} ({lang})"))
+
+    assert not missing, f"{len(missing)} reason codes render as nothing:\n{_report(missing)}"
+
+
+def test_the_reason_code_tuples_have_not_drifted_from_the_source():
+    """A tuple nobody updates is a guard that stops guarding."""
+    declared = set()
+    emitted = set()
+    for module, name in (
+        ("app/core/baseline.py", "REASON_CODES"),
+        ("app/core/policy_drift.py", "REASON_CODES"),
+    ):
+        src = pathlib.Path(module).read_text(encoding="utf-8")
+        block = re.search(rf"{name} = \(([^)]*)\)", src, re.S).group(1)
+        declared |= set(re.findall(r'"([a-z_]+)"', block))
+        body = src[src.index(")", src.index(name)) :]
+        emitted |= set(re.findall(r'reason_code"?\]?\s*[:=]\s*"([a-z_]+)"', body))
+        emitted |= set(re.findall(r'unmeasured\(\s*"([a-z_]+)"', body))
+
+    emitted.discard("")
+    undeclared = sorted(emitted - declared)
+    assert not undeclared, (
+        f"these reason codes are emitted but not declared, so nothing checks "
+        f"that they are translated: {undeclared}"
+    )

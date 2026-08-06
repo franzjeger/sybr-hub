@@ -2686,7 +2686,19 @@
     "msg_starting_azure_login": "Starter Azure-pålogging …",
     "status_needs_followup": "Trenger oppfølging",
     "status_watch": "Følg med",
-    "err_paste_private_key": "Lim inn den private nøkkelen"
+    "err_paste_private_key": "Lim inn den private nøkkelen",
+    "bl_met": "{path} er {actual}",
+    "bl_unmet": "{path} er {actual} — kravet er {op} {expected}",
+    "bl_guard_unset": "Ikke vurdert: {guard} er ikke satt, så grunnlaget denne sjekken leser ble aldri samlet inn.",
+    "bl_field_absent": "Ikke vurdert: {path} manglet i auditen selv om seksjonen meldte at den hadde data. Det er en feil hos oss, ikke et funn om tenanten.",
+    "bl_incomparable": "Ikke vurdert: {path} er {actual}, som ikke lar seg sammenligne med {expected}.",
+    "drift_no_runs": "Denne kunden har ingen audit-kjøringer ennå.",
+    "drift_no_snapshots_in_run": "Denne kjøringen fanget ingen policy-snapshots, så det fantes ingenting å sammenligne.",
+    "drift_no_earlier_snapshots": "Ingen tidligere kjøring for denne kunden har policy-snapshots, så dette er første måling — ikke en sammenligning.",
+    "drift_nothing_comparable": "Ingen snapshot i denne kjøringen kunne sammenlignes med {run}.",
+    "drift_comparison_failed": "Sammenligningen mot forrige kjøring kunne ikke fullføres.",
+    "drift_predecessor_lacked_snapshot": "{run} fanget ikke {name}.",
+    "drift_snapshot_unreadable": "{name} kunne ikke leses for sammenligning."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5375,6 +5387,18 @@
     "msg_starting_azure_login": "Starting Azure login …",
     "status_needs_followup": "Needs follow-up",
     "status_watch": "Watch",
-    "err_paste_private_key": "Paste the private key"
+    "err_paste_private_key": "Paste the private key",
+    "bl_met": "{path} is {actual}",
+    "bl_unmet": "{path} is {actual} — the requirement is {op} {expected}",
+    "bl_guard_unset": "Not assessed: {guard} is not set, so the evidence this check reads was never collected.",
+    "bl_field_absent": "Not assessed: {path} was absent from the audit even though the section reported data. That is a fault on our side, not a finding about the tenant.",
+    "bl_incomparable": "Not assessed: {path} is {actual}, which cannot be compared with {expected}.",
+    "drift_no_runs": "This customer has no audit runs yet.",
+    "drift_no_snapshots_in_run": "This run captured no policy snapshots, so there was nothing to compare.",
+    "drift_no_earlier_snapshots": "No earlier run of this customer holds policy snapshots, so this is a first measurement rather than a comparison.",
+    "drift_nothing_comparable": "No snapshot in this run could be compared with {run}.",
+    "drift_comparison_failed": "The comparison against the previous run could not be completed.",
+    "drift_predecessor_lacked_snapshot": "{run} did not capture {name}.",
+    "drift_snapshot_unreadable": "{name} could not be read for comparison."
   }
 }

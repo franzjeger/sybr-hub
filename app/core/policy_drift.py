@@ -23,6 +23,10 @@ A baseline check reading ``drift.removed_total`` reports not_measured on a
 ``None`` even if whoever wrote the check forgot its ``measured_when`` guard.
 The guard is still there; this is the belt under it.
 
+Nothing here is prose a person reads: an unmeasured comparison carries a
+``reason_code`` and the values behind it, and the report and the browser turn
+that into a sentence in the reader's own language.
+
 This module holds the comparison itself. ``routes/policy_backup.py`` exposes
 it over HTTP and ``reports/generator.py`` puts it in the report — one
 implementation, two readers, so drift in a report and drift in the API can
@@ -39,6 +43,18 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 SNAPSHOT_DIR = "policy_snapshots"
+
+# Every reason a comparison can decline to be one. See baseline.REASON_CODES.
+# "no_runs" is raised by the routes, for a customer with no audits at all.
+REASON_CODES = (
+    "no_runs",
+    "no_snapshots_in_run",
+    "no_earlier_snapshots",
+    "nothing_comparable",
+    "comparison_failed",
+    "predecessor_lacked_snapshot",
+    "snapshot_unreadable",
+)
 
 # Fields Graph rewrites on its own. Reporting them as drift trains a reader to
 # skim the diff, which is how a real change goes unread.
@@ -154,7 +170,7 @@ def previous_run_with_snapshots(out_dir: Path) -> Path | None:
     return earlier[-1] if earlier else None
 
 
-def unmeasured(reason: str) -> dict[str, Any]:
+def unmeasured(reason_code: str, **params: Any) -> dict[str, Any]:
     """The shape of "we could not compare", with totals None rather than 0.
 
     Public because the report generator needs to produce it too when the
@@ -163,7 +179,8 @@ def unmeasured(reason: str) -> dict[str, Any]:
     """
     return {
         "measured": False,
-        "reason": reason,
+        "reason_code": reason_code,
+        "reason_params": params,
         "compared_with": None,
         "snapshots": [],
         "added_total": None,
@@ -176,16 +193,11 @@ def compute_drift(out_dir: Path) -> dict[str, Any]:
     """Compare one run's policy snapshots against the previous run's."""
     current = snapshots_in(out_dir)
     if not current:
-        return unmeasured(
-            "This run captured no policy snapshots, so there was nothing to compare."
-        )
+        return unmeasured("no_snapshots_in_run")
 
     previous = previous_run_with_snapshots(out_dir)
     if previous is None:
-        return unmeasured(
-            "No earlier run of this customer holds policy snapshots, so this is "
-            "the first measurement rather than a comparison."
-        )
+        return unmeasured("no_earlier_snapshots")
 
     per_snapshot: list[dict[str, Any]] = []
     for name in current:
@@ -195,7 +207,8 @@ def compute_drift(out_dir: Path) -> dict[str, Any]:
             per_snapshot.append({
                 "name": name,
                 "comparable": False,
-                "reason": f"{previous.name} did not capture {name}.",
+                "reason_code": "predecessor_lacked_snapshot",
+                "reason_params": {"run": previous.name, "name": name},
             })
             continue
         try:
@@ -209,22 +222,22 @@ def compute_drift(out_dir: Path) -> dict[str, Any]:
             per_snapshot.append({
                 "name": name,
                 "comparable": False,
-                "reason": f"{name} could not be read for comparison.",
+                "reason_code": "snapshot_unreadable",
+                "reason_params": {"name": name},
             })
             continue
         per_snapshot.append({"name": name, "comparable": True, **diff_items(before, after)})
 
     comparable = [s for s in per_snapshot if s.get("comparable")]
     if not comparable:
-        result = unmeasured(
-            f"No snapshot in this run could be compared with {previous.name}."
-        )
+        result = unmeasured("nothing_comparable", run=previous.name)
         result["snapshots"] = per_snapshot
         return result
 
     return {
         "measured": True,
-        "reason": "",
+        "reason_code": "",
+        "reason_params": {},
         "compared_with": previous.name,
         "snapshots": per_snapshot,
         "added_total": sum(len(s["added"]) for s in comparable),

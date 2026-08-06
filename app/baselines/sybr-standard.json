@@ -2,12 +2,21 @@
   "id": "sybr-standard",
   "version": "2026.2",
   "name": "Sybr Standard",
-  "description": "Hva Sybr krever av en kunde vi drifter. Strengere enn CIS på identitet, mildere på det som krever lisenser kunden ikke nødvendigvis har.",
+  "description": {
+    "no": "Hva Sybr krever av en kunde vi drifter. Strengere enn CIS på identitet, mildere på det som krever lisenser kunden ikke nødvendigvis har.",
+    "en": "What Sybr requires of a customer we run. Stricter than CIS on identity, milder on what needs licences the customer may not hold."
+  },
   "checks": [
     {
       "id": "mfa-registered",
-      "title": "Minst 95 % av brukerne har registrert en MFA-metode",
-      "why": "En Conditional Access-policy tvinger MFA ved pålogging, men en bruker uten registrert metode møter en registreringsprompt i stedet for en innlogging — ofte i det øyeblikket de har dårligst tid.",
+      "title": {
+        "no": "Minst 95 % av brukerne har registrert en MFA-metode",
+        "en": "At least 95% of users have registered an MFA method"
+      },
+      "why": {
+        "no": "En Conditional Access-policy tvinger MFA ved pålogging, men en bruker uten registrert metode møter en registreringsprompt i stedet for en innlogging — ofte i det øyeblikket de har dårligst tid.",
+        "en": "A Conditional Access policy forces MFA at sign-in, but a user with no registered method meets a registration prompt instead of a login — usually at the moment they have least time for it."
+      },
       "path": "mfa.registered_pct",
       "op": "gte",
       "value": 95,
@@ -16,8 +25,14 @@
     },
     {
       "id": "mfa-enforced",
-      "title": "Ingen brukere står helt uten MFA-dekning",
-      "why": "En konto som verken har metode eller dekkes av en policy nås med passord alene.",
+      "title": {
+        "no": "Ingen brukere står helt uten MFA-dekning",
+        "en": "No user is left entirely without MFA coverage"
+      },
+      "why": {
+        "no": "En konto som verken har metode eller dekkes av en policy nås med passord alene.",
+        "en": "An account with neither a method nor a policy covering it is reached with a password alone."
+      },
       "path": "mfa.no_mfa",
       "op": "eq",
       "value": 0,
@@ -26,8 +41,14 @@
     },
     {
       "id": "ca-policies-exist",
-      "title": "Minst tre aktiverte Conditional Access-policyer",
-      "why": "Én policy dekker sjelden både pålogging, enhetstilstand og eldre autentisering.",
+      "title": {
+        "no": "Minst tre aktiverte Conditional Access-policyer",
+        "en": "At least three enabled Conditional Access policies"
+      },
+      "why": {
+        "no": "Én policy dekker sjelden både pålogging, enhetstilstand og eldre autentisering.",
+        "en": "One policy rarely covers sign-in, device state and legacy authentication all at once."
+      },
       "path": "ca.enabled",
       "op": "gte",
       "value": 3,
@@ -36,8 +57,14 @@
     },
     {
       "id": "secure-score",
-      "title": "Microsoft Secure Score over 65 %",
-      "why": "Under dette nivået mangler tenanten som regel flere av Microsofts egne standardanbefalinger.",
+      "title": {
+        "no": "Microsoft Secure Score over 65 %",
+        "en": "Microsoft Secure Score above 65%"
+      },
+      "why": {
+        "no": "Under dette nivået mangler tenanten som regel flere av Microsofts egne standardanbefalinger.",
+        "en": "Below that level a tenant is usually missing several of Microsoft's own default recommendations."
+      },
       "path": "secure_score.pct",
       "op": "gte",
       "value": 65,
@@ -46,8 +73,14 @@
     },
     {
       "id": "global-admins",
-      "title": "Høyst fire globale administratorer",
-      "why": "Microsoft anbefaler to til fire. Hver ekstra er en konto med full kontroll som må sikres like godt som den første.",
+      "title": {
+        "no": "Høyst fire globale administratorer",
+        "en": "At most four global administrators"
+      },
+      "why": {
+        "no": "Microsoft anbefaler to til fire. Hver ekstra er en konto med full kontroll som må sikres like godt som den første.",
+        "en": "Microsoft recommends two to four. Each extra one is an account with full control that must be secured as well as the first."
+      },
       "path": "admin_roles.global_admin_count",
       "op": "lte",
       "value": 4,
@@ -56,8 +89,14 @@
     },
     {
       "id": "devices-managed",
-      "title": "Ingen enheter registrert i Entra ID uten å administreres av Intune",
-      "why": "En enhet katalogen kjenner, men ingen styrer, får tilgang til data uten at compliance-policyer gjelder for den.",
+      "title": {
+        "no": "Ingen enheter registrert i Entra ID uten å administreres av Intune",
+        "en": "No device registered in Entra ID goes unmanaged by Intune"
+      },
+      "why": {
+        "no": "En enhet katalogen kjenner, men ingen styrer, får tilgang til data uten at compliance-policyer gjelder for den.",
+        "en": "A device the directory knows but nobody governs reaches data without compliance policies applying to it."
+      },
       "path": "entra_devices.unmanaged",
       "op": "eq",
       "value": 0,
@@ -66,8 +105,14 @@
     },
     {
       "id": "idle-licences",
-      "title": "Høyst fem lisensierte brukere uten aktivitet på 90 dager",
-      "why": "Sovende lisenser er både en kostnad kunden bærer og kontoer ingen ser etter.",
+      "title": {
+        "no": "Høyst fem lisensierte brukere uten aktivitet på 90 dager",
+        "en": "At most five licensed users with no activity in 90 days"
+      },
+      "why": {
+        "no": "Sovende lisenser er både en kostnad kunden bærer og kontoer ingen ser etter.",
+        "en": "Dormant licences are both a cost the customer carries and accounts nobody watches."
+      },
       "path": "usage.licensed_idle",
       "op": "lte",
       "value": 5,
@@ -76,8 +121,14 @@
     },
     {
       "id": "external-forwarding",
-      "title": "Ingen postbokser videresender til eksterne adresser",
-      "why": "Ekstern videresending er den vanligste måten en kompromittert konto tapper e-post over tid uten å bli oppdaget.",
+      "title": {
+        "no": "Ingen postbokser videresender til eksterne adresser",
+        "en": "No mailbox forwards to an external address"
+      },
+      "why": {
+        "no": "Ekstern videresending er den vanligste måten en kompromittert konto tapper e-post over tid uten å bli oppdaget.",
+        "en": "External forwarding is the most common way a compromised account drains mail over time without being noticed."
+      },
       "path": "exchange.forwarding_count",
       "op": "eq",
       "value": 0,
@@ -86,8 +137,14 @@
     },
     {
       "id": "no-policy-removed",
-      "title": "Ingen sikkerhetspolicy er fjernet siden forrige audit",
-      "why": "En policy som forsvinner senker ikke Secure Score nevneverdig og utløser ingen varsling hos Microsoft. Den er borte, og alt den beskyttet er ubeskyttet fra det øyeblikket — som regel oppdaget først ved neste hendelse. Avvik her betyr ikke nødvendigvis feil: det betyr at noen må bekrefte at fjerningen var tilsiktet.",
+      "title": {
+        "no": "Ingen sikkerhetspolicy er fjernet siden forrige audit",
+        "en": "No security policy has been removed since the previous audit"
+      },
+      "why": {
+        "no": "En policy som forsvinner senker ikke Secure Score nevneverdig og utløser ingen varsling hos Microsoft. Den er borte, og alt den beskyttet er ubeskyttet fra det øyeblikket — som regel oppdaget først ved neste hendelse. Avvik her betyr ikke nødvendigvis feil: det betyr at noen må bekrefte at fjerningen var tilsiktet.",
+        "en": "A policy that disappears barely moves the Secure Score and raises no alert from Microsoft. It is gone, and everything it protected is unprotected from that moment — usually discovered at the next incident. A deviation here does not necessarily mean something is wrong: it means somebody must confirm the removal was intended."
+      },
       "path": "drift.removed_total",
       "op": "eq",
       "value": 0,

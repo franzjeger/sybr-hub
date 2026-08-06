@@ -1056,6 +1056,56 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "... and {count} more types",
     },
 
+    # ── Baseline & drift reason codes (one vocabulary, shared with ui_i18n.json) ──
+    "bl_met": {
+        "no": '{path} er {actual}',
+        "en": '{path} is {actual}',
+    },
+    "bl_unmet": {
+        "no": '{path} er {actual} — kravet er {op} {expected}',
+        "en": '{path} is {actual} — the requirement is {op} {expected}',
+    },
+    "bl_guard_unset": {
+        "no": 'Ikke vurdert: {guard} er ikke satt, så grunnlaget denne sjekken leser ble aldri samlet inn.',
+        "en": 'Not assessed: {guard} is not set, so the evidence this check reads was never collected.',
+    },
+    "bl_field_absent": {
+        "no": 'Ikke vurdert: {path} manglet i auditen selv om seksjonen meldte at den hadde data. Det er en feil hos oss, ikke et funn om tenanten.',
+        "en": 'Not assessed: {path} was absent from the audit even though the section reported data. That is a fault on our side, not a finding about the tenant.',
+    },
+    "bl_incomparable": {
+        "no": 'Ikke vurdert: {path} er {actual}, som ikke lar seg sammenligne med {expected}.',
+        "en": 'Not assessed: {path} is {actual}, which cannot be compared with {expected}.',
+    },
+    "drift_no_runs": {
+        "no": 'Denne kunden har ingen audit-kjøringer ennå.',
+        "en": 'This customer has no audit runs yet.',
+    },
+    "drift_no_snapshots_in_run": {
+        "no": 'Denne kjøringen fanget ingen policy-snapshots, så det fantes ingenting å sammenligne.',
+        "en": 'This run captured no policy snapshots, so there was nothing to compare.',
+    },
+    "drift_no_earlier_snapshots": {
+        "no": 'Ingen tidligere kjøring for denne kunden har policy-snapshots, så dette er første måling — ikke en sammenligning.',
+        "en": 'No earlier run of this customer holds policy snapshots, so this is a first measurement rather than a comparison.',
+    },
+    "drift_nothing_comparable": {
+        "no": 'Ingen snapshot i denne kjøringen kunne sammenlignes med {run}.',
+        "en": 'No snapshot in this run could be compared with {run}.',
+    },
+    "drift_comparison_failed": {
+        "no": 'Sammenligningen mot forrige kjøring kunne ikke fullføres.',
+        "en": 'The comparison against the previous run could not be completed.',
+    },
+    "drift_predecessor_lacked_snapshot": {
+        "no": '{run} fanget ikke {name}.',
+        "en": '{run} did not capture {name}.',
+    },
+    "drift_snapshot_unreadable": {
+        "no": '{name} kunne ikke leses for sammenligning.',
+        "en": '{name} could not be read for comparison.',
+    },
+
     # ── Sybr Standard (baseline) & policy drift ──
     "baseline_label": {
         "no": "Vår standard",

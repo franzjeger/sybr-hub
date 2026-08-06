@@ -1710,7 +1710,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
         {% elif c.status == 'fail' %}<span class="status-pill {% if c.severity == 'critical' %}critical{% else %}warning{% endif %}">{{ t.baseline_deviation }}</span>
         {% else %}<span class="status-pill" style="background:#dbeafe;color:#1e40af;">{{ t.not_assessed }}</span>{% endif %}
       </td>
-      <td style="font-size:11px;color:var(--muted);">{{ c.detail }}</td>
+      <td style="font-size:11px;color:var(--muted);">{{ t('bl_' ~ c.reason_code, **c.params) }}</td>
     </tr>
     {% endfor %}
   </table>
@@ -1723,7 +1723,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% if not drift.measured %}
 <div class="env-card">
   <p style="margin:0;font-size:13px;color:var(--muted);">
-    <strong>{{ t.drift_not_measured }}.</strong> {{ drift.reason }}
+    <strong>{{ t.drift_not_measured }}.</strong> {{ t('drift_' ~ drift.reason_code, **drift.reason_params) }}
   </p>
 </div>
 {% elif drift.added_total == 0 and drift.removed_total == 0 and drift.changed_total == 0 %}
