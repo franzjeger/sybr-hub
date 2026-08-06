@@ -155,7 +155,28 @@ async def test_the_tenant_is_read_through_the_credential_not_the_auth_manager(mo
     sentinel = object()
 
     class _Auth:
-        credential = sentinel
+        """Refuses its credential until entered, exactly as AuthManager does.
+
+        The first version of this stub exposed it as a plain attribute, which
+        is what I assumed the contract was. The test passed and production
+        raised "AuthManager not entered as async context manager" — a stub that
+        encodes the assumption rather than the contract tests nothing.
+        """
+
+        entered = False
+
+        async def __aenter__(self):
+            self.entered = True
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        @property
+        def credential(self):
+            if not self.entered:
+                raise RuntimeError("AuthManager not entered as async context manager")
+            return sentinel
 
     class _Graph:
         def __init__(self, credential, *a, **kw):
@@ -180,13 +201,15 @@ async def test_the_tenant_is_read_through_the_credential_not_the_auth_manager(mo
     monkeypatch.setattr(
         "app.core.customer.CustomerManager.get_cert_path", staticmethod(lambda cid: "cert")
     )
+    made = _Auth()
     monkeypatch.setattr(
-        "app.modules.m365_audit.auth.get_auth_for_customer", lambda c, p: _Auth()
+        "app.modules.m365_audit.auth.get_auth_for_customer", lambda c, p: made
     )
     monkeypatch.setattr("app.modules.m365_audit.graph_client.GraphClient", _Graph)
 
     policies, missing_consent = await mod._live_policies("acme")
 
+    assert made.entered, "the AuthManager was never entered, so it owns no credential yet"
     assert seen["credential"] is sentinel, "GraphClient was handed the AuthManager itself"
     assert policies == []
     assert missing_consent is True, "no granted roles means the write permission is absent"

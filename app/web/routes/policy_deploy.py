@@ -71,14 +71,17 @@ async def _live_policies(customer_id: str) -> tuple[list[dict], bool]:
         raise ValidationError(f"No customer {customer_id!r}")
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
 
-    async with GraphClient(auth.credential) as client:
-        policies = await client.get_all(CA_PATH)
-        try:
-            check = await client.validate_permissions()
-            granted = set(check.get("granted") or [])
-        except Exception as exc:
-            logger.warning("Could not read granted permissions for %s: %s", customer_id, exc)
-            granted = set()
+    async with auth as entered:
+        async with GraphClient(entered.credential) as client:
+            policies = await client.get_all(CA_PATH)
+            try:
+                check = await client.validate_permissions()
+                granted = set(check.get("granted") or [])
+            except Exception as exc:
+                logger.warning(
+                    "Could not read granted permissions for %s: %s", customer_id, exc
+                )
+                granted = set()
     return list(policies), WRITE_PERMISSION not in granted
 
 
@@ -162,8 +165,9 @@ async def apply_deployment(
 
     saved: list[dict] = []
     try:
-        async with GraphClient(auth.credential) as client:
-            result = await apply_plan(client, plan, live, snapshot=saved.extend)
+        async with auth as entered:
+            async with GraphClient(entered.credential) as client:
+                result = await apply_plan(client, plan, live, snapshot=saved.extend)
     except DeployError as exc:
         logger.warning(
             "policy apply refused: user=%s customer=%s: %s", user.username, customer_id, exc
