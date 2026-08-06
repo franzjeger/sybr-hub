@@ -262,6 +262,42 @@ from a different service entirely.
 
 Three things that share one set of files.
 
+## Deploying policies into a customer tenant
+
+The half that writes, and the only routes in this application that change
+anything outside it. `require_tenant_write` existed for months and guarded
+nothing until these arrived — a gate standing in a field.
+
+Two requests, deliberately. `/plan` reads the tenant, renders the template
+against it and returns what would change, including what it refuses and why,
+with each policy's rationale attached: a plan that says "3 policies will be
+created" is not one anybody can consent to. `/apply` takes the fingerprint
+that plan returned, and refuses if the tenant's policies have moved since —
+the operator approved a change to a state that no longer exists, and applying
+anyway overwrites whatever moved it.
+
+Four rails, and they refuse rather than warn:
+
+| rail | why |
+|---|---|
+| **Lockout guard** | a policy targeting All users, excluding nobody, granting a control that can fail is the accident that ends tenants. Recovery is a support case with Microsoft measured in days. There is no override flag, because the flag would be clicked by the same hand |
+| **Report-only on arrival** | a new policy lands `enabledForReportingButNotEnforced`, so you learn it would have blocked the finance department before it does |
+| **Restore point first** | taken at the moment of the write, not borrowed from the last audit — a restore point from six hours ago describes a tenant that no longer exists |
+| **No deletion unless asked** | a policy in the tenant and not in the standard is far more often something the customer added on purpose |
+
+Templates live in `app/policy_templates/*.json`, the same shape as baselines
+and for the same reason. Placeholders are required, never defaulted: every
+policy excludes a break-glass group whose id differs per tenant, and an
+unfilled placeholder is an exclusion that excludes nobody inside a policy that
+applies to everybody. Rendering refuses while one is unset.
+
+This needs `Policy.ReadWrite.ConditionalAccess`, which is deliberately **not**
+in `REQUIRED_GRAPH_PERMISSIONS` — an MSP that never deploys should not see a
+consent gap reported on every audit for a power it does not want. The plan
+reads the granted roles and reports `missing_consent` separately from the
+capability check, so nobody goes to argue with the wrong party: `tenant_write`
+is ours to grant, the Graph consent is the customer's.
+
 **Snapshots.** Every audit stores the tenant's Conditional Access policies,
 named locations and Intune profiles under `<run>/policy_snapshots/`, exactly
 as Graph returned them, encrypted like every other artefact. The audit
