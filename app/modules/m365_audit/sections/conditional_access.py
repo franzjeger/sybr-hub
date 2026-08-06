@@ -72,6 +72,10 @@ class ConditionalAccessSection(BaseSection):
             return
 
         self.policies = policies  # store for downstream use (MFA analysis)
+        self._save_snapshot(
+            "conditional_access_policies", policies,
+            source="identity/conditionalAccess/policies",
+        )
 
         # Resolve group IDs to names for readability
         group_ids: set[str] = set()
@@ -197,6 +201,10 @@ class ConditionalAccessSection(BaseSection):
             locs = await self.graph.get_all(
                 "identity/conditionalAccess/namedLocations",
                 params={"$top": "999"},
+            )
+            self._save_snapshot(
+                "named_locations", locs,
+                source="identity/conditionalAccess/namedLocations",
             )
         except Exception as ex:
             self._save(

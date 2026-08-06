@@ -162,6 +162,9 @@ class IntuneSection(BaseSection):
                 "deviceManagement/deviceCompliancePolicies",
                 params={"$top": "999"},
             )
+            self._save_snapshot(
+                "intune_compliance_policies", policies, source="deviceManagement/deviceCompliancePolicies",
+            )
         except Exception as ex:
             self._save_unavailable("11_intune_compliance_policies.txt", ex)
             self._warn(f"Intune compliance policies fetch failed: {ex}")
@@ -191,6 +194,9 @@ class IntuneSection(BaseSection):
             profiles = await self.graph.get_all(
                 "deviceManagement/deviceConfigurations",
                 params={"$top": "999"},
+            )
+            self._save_snapshot(
+                "intune_configuration_profiles", profiles, source="deviceManagement/deviceConfigurations",
             )
         except Exception as ex:
             self._save_unavailable("12_intune_config_profiles.txt", ex)
