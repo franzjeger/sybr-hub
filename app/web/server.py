@@ -36,6 +36,7 @@ from app.web.routes import (
     baselines,
     docs,
     policy_backup,
+    policy_deploy,
     fortigate,
     frontend,
     gdap,
@@ -77,6 +78,7 @@ _API_ROUTERS = (
     ("baselines", baselines),
     ("docs", docs),
     ("policy_backup", policy_backup),
+    ("policy_deploy", policy_deploy),
     ("workshop", workshop),
     ("backup", backup),
     # Connectivity — the toolkit reaches customer-internal devices over these.
