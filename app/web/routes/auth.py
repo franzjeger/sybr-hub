@@ -184,7 +184,15 @@ async def auth_logout(
 
 @router.get("/auth/me")
 async def auth_me(user: User = Depends(get_current_user)) -> dict:
-    return {"user": _public_user(user)}
+    """The account, and the paths that stay open without write.
+
+    The list travels rather than being restated in JavaScript. A client-side
+    copy of it would be a second source of truth for the one question the
+    middleware exists to answer, and the copy is the one that goes stale.
+    """
+    from app.web.middleware.write_guard import ALLOWED_WITHOUT_WRITE
+
+    return {"user": _public_user(user), "write_exempt": sorted(ALLOWED_WITHOUT_WRITE)}
 
 
 @router.post("/auth/change-password")

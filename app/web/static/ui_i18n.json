@@ -2719,7 +2719,8 @@
     "tip_cap_tenant": "Kan skrive inn i en kundes Microsoft-tenant. Krever Skriv.",
     "tip_customer_access": "Kundetilgang",
     "msg_capability_granted": "Tilgang gitt",
-    "msg_capability_revoked": "Tilgang fjernet"
+    "msg_capability_revoked": "Tilgang fjernet",
+    "err_readonly_account": "Kontoen din har lesetilgang. Endringer krever skrivetilgang."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5441,6 +5442,7 @@
     "tip_cap_tenant": "May write into a customer Microsoft tenant. Requires Write.",
     "tip_customer_access": "Customer access",
     "msg_capability_granted": "Access granted",
-    "msg_capability_revoked": "Access revoked"
+    "msg_capability_revoked": "Access revoked",
+    "err_readonly_account": "Your account has read access. Changes require write."
   }
 }
