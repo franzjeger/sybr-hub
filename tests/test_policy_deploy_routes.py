@@ -134,3 +134,75 @@ def test_the_router_carries_the_tenant_guard_on_every_mutating_route():
             f"{sorted(methods)} {route.path} changes a customer tenant without "
             f"require_tenant_write"
         )
+
+
+# ── Behind the locks ─────────────────────────────────────────────────────────
+
+async def test_the_tenant_is_read_through_the_credential_not_the_auth_manager(monkeypatch):
+    """The bug the guard tests could never have found.
+
+    Every test above stops at a 403, so nothing exercised the Graph call behind
+    them — and it was constructed with the AuthManager rather than its
+    credential, which every other caller in the codebase gets right. It would
+    have failed on the first real deployment with AttributeError: 'AuthManager'
+    object has no attribute 'get_token'.
+
+    Locks tested thoroughly, and the thing behind them not at all.
+    """
+    import app.web.routes.policy_deploy as mod
+
+    seen: dict = {}
+    sentinel = object()
+
+    class _Auth:
+        credential = sentinel
+
+    class _Graph:
+        def __init__(self, credential, *a, **kw):
+            seen["credential"] = credential
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get_all(self, path):
+            return []
+
+        async def validate_permissions(self):
+            return {"granted": []}
+
+    monkeypatch.setattr(
+        "app.core.customer.CustomerManager.get_customer",
+        staticmethod(lambda cid: {"CustomerName": "Acme", "TenantId": "t", "ClientId": "c"}),
+    )
+    monkeypatch.setattr(
+        "app.core.customer.CustomerManager.get_cert_path", staticmethod(lambda cid: "cert")
+    )
+    monkeypatch.setattr(
+        "app.modules.m365_audit.auth.get_auth_for_customer", lambda c, p: _Auth()
+    )
+    monkeypatch.setattr("app.modules.m365_audit.graph_client.GraphClient", _Graph)
+
+    policies, missing_consent = await mod._live_policies("acme")
+
+    assert seen["credential"] is sentinel, "GraphClient was handed the AuthManager itself"
+    assert policies == []
+    assert missing_consent is True, "no granted roles means the write permission is absent"
+
+
+def test_no_caller_hands_graphclient_an_auth_manager():
+    """The same slip, guarded across the codebase rather than in one route."""
+    import pathlib
+    import re
+
+    offenders = []
+    for path in pathlib.Path("app").rglob("*.py"):
+        for m in re.finditer(r"GraphClient\(\s*(\w+)\s*[,)]", path.read_text(encoding="utf-8")):
+            if m.group(1) in {"auth", "auth_manager"}:
+                offenders.append(f"{path}: GraphClient({m.group(1)})")
+
+    assert not offenders, (
+        "GraphClient takes a credential, not an AuthManager:\n  " + "\n  ".join(offenders)
+    )
