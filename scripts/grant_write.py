@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 async def _run(args) -> int:
-    from app.core.database import get_db, run_migrations
+    from app.core.database import close_all_pools, get_db, run_migrations
     from app.core.rbac import set_can_write, set_tenant_write
 
     await run_migrations()
@@ -73,6 +73,22 @@ async def _run(args) -> int:
     return 0
 
 
+async def _run_and_close(args) -> int:
+    """aiosqlite's worker threads are not daemons.
+
+    Left running they hang interpreter exit — the script does its work, prints
+    nothing because stdout is still buffered, and looks like it froze on the
+    first query. tests/conftest.py disposes them for exactly this reason; a
+    one-shot script has to do the same.
+    """
+    from app.core.database import close_all_pools
+
+    try:
+        return await _run(args)
+    finally:
+        await close_all_pools()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--user")
@@ -80,7 +96,7 @@ def main() -> int:
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--tenant-write", action="store_true", dest="tenant_write")
     parser.add_argument("--revoke", action="store_true")
-    return asyncio.run(_run(parser.parse_args()))
+    return asyncio.run(_run_and_close(parser.parse_args()))
 
 
 if __name__ == "__main__":
