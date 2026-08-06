@@ -74,12 +74,18 @@ jobs:
       - name: Ruff format check
         run: ruff format --check .
         continue-on-error: true
-      # Non-blocking for now — baseline has existing lint debt we don't want to
-      # paper over in a lockstep reformat. Remove continue-on-error when the
-      # debt is worked down.
-      - name: Ruff lint
+      # Informational: the inherited debt is ~1100 findings and a lockstep
+      # reformat would bury every real change under whitespace for a month.
+      - name: Ruff lint (informational)
         run: ruff check .
         continue-on-error: true
+
+      # Blocking, and the reason the step above can stay informational. The
+      # budget records the total and the set of files that are already clean;
+      # neither may get worse. So the debt is paid down at whatever pace suits,
+      # while anything written from today is clean on arrival.
+      - name: Lint budget
+        run: python scripts/lint_budget.py
 
   security:
     name: pip-audit

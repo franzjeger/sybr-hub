@@ -71,17 +71,14 @@ async def _live_policies(customer_id: str) -> tuple[list[dict], bool]:
         raise ValidationError(f"No customer {customer_id!r}")
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
 
-    async with auth as entered:
-        async with GraphClient(entered.credential) as client:
-            policies = await client.get_all(CA_PATH)
-            try:
-                check = await client.validate_permissions()
-                granted = set(check.get("granted") or [])
-            except Exception as exc:
-                logger.warning(
-                    "Could not read granted permissions for %s: %s", customer_id, exc
-                )
-                granted = set()
+    async with auth as entered, GraphClient(entered.credential) as client:
+        policies = await client.get_all(CA_PATH)
+        try:
+            check = await client.validate_permissions()
+            granted = set(check.get("granted") or [])
+        except Exception as exc:
+            logger.warning("Could not read granted permissions for %s: %s", customer_id, exc)
+            granted = set()
     return list(policies), WRITE_PERMISSION not in granted
 
 
@@ -165,9 +162,8 @@ async def apply_deployment(
 
     saved: list[dict] = []
     try:
-        async with auth as entered:
-            async with GraphClient(entered.credential) as client:
-                result = await apply_plan(client, plan, live, snapshot=saved.extend)
+        async with auth as entered, GraphClient(entered.credential) as client:
+            result = await apply_plan(client, plan, live, snapshot=saved.extend)
     except DeployError as exc:
         logger.warning(
             "policy apply refused: user=%s customer=%s: %s", user.username, customer_id, exc
@@ -199,12 +195,12 @@ def _store_restore_point(customer_id: str, policies: list[dict]) -> None:
     to the deployment and not to an audit that happened to precede it.
     """
     import json
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
     from app.core.config import get_audit_dir
     from app.core.encryption import encrypted_write_text
 
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y-%m-%d_%H%M%S")
     directory = get_audit_dir() / customer_id / "policy_restore_points"
     directory.mkdir(parents=True, exist_ok=True)
     encrypted_write_text(
