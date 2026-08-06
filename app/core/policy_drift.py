@@ -51,7 +51,18 @@ NOISY_FIELDS = {
 
 # Snapshot names in the order a reader cares about them, most security-relevant
 # first. Anything not listed still appears, after these.
-_ORDER = ["conditional_access", "named_locations", "intune_configuration", "intune_compliance"]
+#
+# These must be the names the collectors actually write. The first version of
+# this list invented three of the four, which put conditional_access_policies —
+# the one a reader should see first — last, because an unrecognised name sorts
+# to the end. It looked right in a test that used the same invented names.
+# test_policy_drift.py now checks the list against the collectors' own literals.
+_ORDER = [
+    "conditional_access_policies",
+    "named_locations",
+    "intune_configuration_profiles",
+    "intune_compliance_policies",
+]
 
 
 def index_by_id(items: list[dict]) -> dict[str, dict]:

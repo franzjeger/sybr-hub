@@ -197,7 +197,30 @@ def test_a_later_run_is_never_compared_against(tmp_path):
 def test_the_most_security_relevant_snapshot_is_listed_first(tmp_path):
     """A reader who stops after the first block should have read the CA policies."""
     run = tmp_path / "r"
-    for name in ("intune_compliance", "named_locations", "conditional_access"):
+    for name in ("intune_compliance_policies", "named_locations", "conditional_access_policies"):
         _write(tmp_path, "r", name, [])
 
-    assert snapshots_in(run)[0] == "conditional_access"
+    assert snapshots_in(run)[0] == "conditional_access_policies"
+
+
+def test_the_ordering_list_names_snapshots_the_collectors_actually_write():
+    """The ordering is a hint, and a hint about a name nothing produces is dead.
+
+    The first version invented three of the four names, so the unrecognised
+    conditional_access_policies sorted last — the exact opposite of the intent,
+    and invisible because the test used the same invented names. Read the
+    literals out of the collectors instead of restating them.
+    """
+    import re
+
+    from app.core.policy_drift import _ORDER
+
+    written = set()
+    for path in pathlib.Path("app/modules/m365_audit/sections").glob("*.py"):
+        written |= set(re.findall(
+            r'_save_snapshot\(\s*["\']([a-z_]+)["\']', path.read_text(encoding="utf-8")
+        ))
+
+    assert written, "no _save_snapshot call found — did the collectors move?"
+    unknown = [n for n in _ORDER if n not in written]
+    assert not unknown, f"_ORDER names snapshots nothing writes: {unknown} (written: {sorted(written)})"

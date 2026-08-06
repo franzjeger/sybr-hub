@@ -709,3 +709,45 @@ def test_every_key_the_routes_ask_for_resolves() -> None:
     assert not unresolved, (
         f"{len(unresolved)} keys render as their own name:\n{_report(unresolved)}"
     )
+
+
+def test_every_key_a_script_asks_for_exists_in_both_languages():
+    """A fallback is a safety net, not a translation.
+
+    The Python side has the same check above, and there it is easy: ui_t
+    renders the key itself when it cannot resolve it, so a missing key shows
+    up as "log_history_deleted" in the interface and somebody reports it.
+
+    The JS side hides it. `t('status_watch', 'Følg med')` renders the fallback
+    when the key is absent — so the Norwegian UI looks perfect, the English UI
+    quietly says "Følg med", and every detector in this file passes because
+    the string *is* routed through t(). Forty-five keys had accumulated that
+    way: ten showing Norwegian to an English reader, thirty-five showing
+    English to a Norwegian one.
+
+    The budget tests measure whether a string goes through t(). This measures
+    whether that accomplished anything.
+    """
+    import json
+
+    strings = json.loads(
+        (STATIC / "ui_i18n.json").read_text(encoding="utf-8")
+    )
+
+    # The literal must be the whole argument: t('activity_' + key) builds its
+    # key at runtime, and the prefix is not one to look up.
+    call = re.compile(r"""\bt\(\s*(['"])([A-Za-z0-9_.]+)\1\s*(?=[,)])""")
+
+    missing: list[tuple[str, str]] = []
+    for js in sorted(STATIC.glob("*.js")):
+        src = js.read_text(encoding="utf-8")
+        for m in call.finditer(src):
+            key = m.group(2)
+            absent = [lang for lang in ("no", "en") if key not in strings[lang]]
+            if absent:
+                line = src[: m.start()].count("\n") + 1
+                missing.append((f"{js.name}:{line}", f"{key} (missing in {'+'.join(absent)})"))
+
+    assert not missing, (
+        f"{len(missing)} t() calls name a key that does not exist:\n{_report(missing)}"
+    )
