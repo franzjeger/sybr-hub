@@ -1,0 +1,88 @@
+{
+  "id": "sybr-standard",
+  "version": "2026.1",
+  "name": "Sybr Standard",
+  "description": "Hva Sybr krever av en kunde vi drifter. Strengere enn CIS på identitet, mildere på det som krever lisenser kunden ikke nødvendigvis har.",
+  "checks": [
+    {
+      "id": "mfa-registered",
+      "title": "Minst 95 % av brukerne har registrert en MFA-metode",
+      "why": "En Conditional Access-policy tvinger MFA ved pålogging, men en bruker uten registrert metode møter en registreringsprompt i stedet for en innlogging — ofte i det øyeblikket de har dårligst tid.",
+      "path": "mfa.registered_pct",
+      "op": "gte",
+      "value": 95,
+      "measured_when": "mfa.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "mfa-enforced",
+      "title": "Ingen brukere står helt uten MFA-dekning",
+      "why": "En konto som verken har metode eller dekkes av en policy nås med passord alene.",
+      "path": "mfa.no_mfa",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "mfa.has_data",
+      "severity": "critical"
+    },
+    {
+      "id": "ca-policies-exist",
+      "title": "Minst tre aktiverte Conditional Access-policyer",
+      "why": "Én policy dekker sjelden både pålogging, enhetstilstand og eldre autentisering.",
+      "path": "ca.enabled",
+      "op": "gte",
+      "value": 3,
+      "measured_when": "ca.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "secure-score",
+      "title": "Microsoft Secure Score over 65 %",
+      "why": "Under dette nivået mangler tenanten som regel flere av Microsofts egne standardanbefalinger.",
+      "path": "secure_score.pct",
+      "op": "gte",
+      "value": 65,
+      "measured_when": "secure_score.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "global-admins",
+      "title": "Høyst fire globale administratorer",
+      "why": "Microsoft anbefaler to til fire. Hver ekstra er en konto med full kontroll som må sikres like godt som den første.",
+      "path": "admin_roles.global_admin_count",
+      "op": "lte",
+      "value": 4,
+      "measured_when": "admin_roles.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "devices-managed",
+      "title": "Ingen enheter registrert i Entra ID uten å administreres av Intune",
+      "why": "En enhet katalogen kjenner, men ingen styrer, får tilgang til data uten at compliance-policyer gjelder for den.",
+      "path": "entra_devices.unmanaged",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "entra_devices.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "idle-licences",
+      "title": "Høyst fem lisensierte brukere uten aktivitet på 90 dager",
+      "why": "Sovende lisenser er både en kostnad kunden bærer og kontoer ingen ser etter.",
+      "path": "usage.licensed_idle",
+      "op": "lte",
+      "value": 5,
+      "measured_when": "usage.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "external-forwarding",
+      "title": "Ingen postbokser videresender til eksterne adresser",
+      "why": "Ekstern videresending er den vanligste måten en kompromittert konto tapper e-post over tid uten å bli oppdaget.",
+      "path": "exchange.forwarding_count",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "exchange.has_data",
+      "severity": "critical"
+    }
+  ]
+}
