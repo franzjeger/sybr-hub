@@ -82,11 +82,15 @@ class Change:
     policy_id: str | None = None
     fields: list[str] = field(default_factory=list)
     refused: str | None = None
+    # Set when this update is the standard taking over a policy the customer
+    # already had. Carried so the plan can say "adopting «Block legacy
+    # authentication»" rather than showing a rename with no explanation.
+    adopts: str | None = None
 
     def as_dict(self) -> dict:
         return {
             "action": self.action, "name": self.name, "policy_id": self.policy_id,
-            "fields": self.fields, "refused": self.refused,
+            "fields": self.fields, "refused": self.refused, "adopts": self.adopts,
         }
 
 
@@ -200,18 +204,28 @@ def build_plan(
     *,
     allow_delete: bool = False,
     missing_consent: bool = False,
+    adopt: dict[str, str] | None = None,
 ) -> Plan:
     """Compare what the tenant has with what we want it to have.
 
-    Matched on displayName rather than id: a template has no id until it exists
-    in a tenant, and the same standard deployed to twenty customers is twenty
-    different ids for one policy.
+    Matched on displayName, which is right for a tenant we set up and wrong for
+    every tenant we inherit: a template has no id until it exists somewhere,
+    and the same standard across twenty customers is twenty ids for one policy.
+
+    ``adopt`` is how an inherited tenant is handled — a confirmed mapping from
+    template name to the id of a policy the customer already has. The standard
+    then *updates* that policy instead of creating a second one beside it, and
+    the rename shows up in the changed fields like any other change, because it
+    is one.
 
     Deletion is off unless asked for. A policy present in the tenant and absent
     from the standard is far more often something the customer added on purpose
     than something we should remove.
     """
+    adopt = adopt or {}
     by_name = {str(p.get("displayName", "")): p for p in live}
+    by_id = {str(p.get("id", "")): p for p in live}
+    adopted_ids = set(adopt.values())
     changes: list[Change] = []
 
     for want in desired:
@@ -220,7 +234,24 @@ def build_plan(
             raise DeployError("A policy without a displayName cannot be matched or reported")
         body = strip_server_fields(want)
         refusal = lockout_risk(body)
-        current = by_name.get(name)
+
+        adopted_id = adopt.get(name)
+        if adopted_id:
+            current = by_id.get(adopted_id)
+            if current is None:
+                # Falling back to a create here would produce exactly the
+                # duplicate adoption exists to avoid, at the moment somebody
+                # believed they had avoided it.
+                raise DeployError(
+                    f"{name!r} is set to adopt policy {adopted_id!r}, which is not "
+                    f"in this tenant. Re-check the adoption mapping."
+                )
+        else:
+            current = by_name.get(name)
+            # A policy already spoken for by an adoption is not also a
+            # name-match for something else.
+            if current is not None and str(current.get("id", "")) in adopted_ids:
+                current = None
 
         if current is None:
             changes.append(Change(
@@ -234,11 +265,16 @@ def build_plan(
         changes.append(Change(
             action=UPDATE, name=name, body=body,
             policy_id=str(current.get("id")), fields=fields, refused=refusal,
+            adopts=str(current.get("displayName", "")) if adopted_id else None,
         ))
 
     if allow_delete:
         wanted_names = {str(p.get("displayName", "")) for p in desired}
         for name, current in sorted(by_name.items()):
+            # An adopted policy is the standard's now, whatever it is still
+            # called at this moment.
+            if str(current.get("id", "")) in adopted_ids:
+                continue
             if name not in wanted_names:
                 changes.append(Change(
                     action=DELETE, name=name, body={},

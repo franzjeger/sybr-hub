@@ -96,3 +96,44 @@ def test_a_rollback_still_goes_through_a_plan():
     apply_fn = js.split("async function policyRestoreApply")[1]
     assert "fingerprint: _pdRestore.fingerprint" in apply_fn
     assert "showTypedConfirm" in apply_fn
+
+
+def test_adoption_has_controls_on_the_same_screen():
+    """Four features now; the first shipped without a screen and deployed
+    nothing. A mapping nobody can confirm adopts nothing."""
+    js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
+
+    assert "policyAdoptionLoad" in js
+    assert "policyAdoptionSave" in js
+    assert 'id="pd-adopt"' in js
+
+
+def test_nothing_is_adopted_until_it_is_saved():
+    """The suggestions are a shortlist. A select that defaulted to the best
+    candidate would adopt by heuristic, which is the whole thing this avoids."""
+    js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
+    panel = js.split("async function policyAdoptionLoad")[1].split("async function policyAdoptionSave")[0]
+
+    assert "opt_create_new" in panel
+    # The "create new" option is emitted before any candidate, so it is the one
+    # selected unless a *previously confirmed* mapping says otherwise.
+    assert panel.index("opt_create_new") < panel.index("candidates.forEach")
+    assert "confirmed[name] === c.policy_id" in panel
+
+
+def test_changing_the_mapping_discards_the_plan():
+    """A plan built against the old mapping describes changes that are no
+    longer the ones that would happen."""
+    js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
+    save = js.split("async function policyAdoptionSave")[1]
+
+    assert "_pdPlan = null" in save
+
+
+def test_the_plan_says_when_a_change_takes_over_an_existing_policy():
+    """A rename with no explanation is the change somebody approves without
+    understanding."""
+    js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
+
+    assert "c.adopts" in js
+    assert "msg_adopts" in js

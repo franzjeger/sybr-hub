@@ -2756,7 +2756,16 @@
     "btn_apply_restore": "Gjenopprett {n} endring(er)",
     "dlg_confirm_restore": "Gjenopprett {n} policyendring(er) på {customer}?",
     "dlg_restore_warning": "Dette skriver inn i kundens Microsoft-tenant. Et gjenopprettingspunkt av nåværende tilstand tas først.",
-    "msg_restore_done": "Gjenoppretting fullført"
+    "msg_restore_done": "Gjenoppretting fullført",
+    "btn_check_existing": "Sjekk eksisterende policyer",
+    "hdr_adoption": "Eksisterende policyer",
+    "msg_adoption_intro": "Tenanten kan allerede ha en policy som gjør samme jobb under et annet navn. Velger du den, overtar standarden den og gir den nytt navn — i stedet for å legge en ny ved siden av. Forslag matches på hva en policy gjør, aldri på ordlyden, og ingenting overtas før du lagrer.",
+    "msg_no_candidate": "Ingenting i tenanten ligner på denne. Den blir opprettet.",
+    "opt_create_new": "Opprett en ny policy",
+    "btn_save_adoption": "Lagre valg",
+    "msg_nothing_to_adopt": "Ingenting å overta — hver policy i standarden blir opprettet.",
+    "msg_adoption_saved": "Valg lagret",
+    "msg_adopts": "Overtar «{name}» og gir den nytt navn"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5515,6 +5524,15 @@
     "btn_apply_restore": "Restore {n} policy change(s)",
     "dlg_confirm_restore": "Restore {n} policy change(s) on {customer}?",
     "dlg_restore_warning": "This writes into the customer Microsoft tenant. A restore point of the current state is taken first.",
-    "msg_restore_done": "Restore finished"
+    "msg_restore_done": "Restore finished",
+    "btn_check_existing": "Check existing policies",
+    "hdr_adoption": "Existing policies",
+    "msg_adoption_intro": "The tenant may already have a policy doing the same job under another name. Choosing it means the standard takes it over and renames it, instead of adding a second one beside it. Suggestions are matched on what a policy does, never on its wording — nothing is adopted until you save.",
+    "msg_no_candidate": "Nothing in the tenant resembles this. It will be created.",
+    "opt_create_new": "Create a new policy",
+    "btn_save_adoption": "Save choices",
+    "msg_nothing_to_adopt": "Nothing to take over — every policy in the standard will be created.",
+    "msg_adoption_saved": "Choices saved",
+    "msg_adopts": "Takes over «{name}» and renames it"
   }
 }
