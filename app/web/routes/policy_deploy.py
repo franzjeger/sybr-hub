@@ -37,6 +37,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import ValidationError
+from app.core.policy_adoption import (
+    AdoptionError,
+    describe,
+    load_mapping,
+    save_mapping,
+    suggest,
+    validate,
+)
 from app.core.policy_restore import RestoreError, list_sources, load_source
 from app.core.policy_templates import TemplateError, annotations, list_templates, render
 from app.models.user import User
@@ -118,10 +126,15 @@ async def plan_deployment(
         raise ValidationError(str(exc)) from exc
 
     live, missing_consent = await _live_policies(customer_id)
+    try:
+        adopt = load_mapping(customer_id)
+    except AdoptionError as exc:
+        raise ValidationError(str(exc)) from exc
     plan = build_plan(
         customer_id, live, desired,
         allow_delete=bool(body.get("allow_delete")),
         missing_consent=missing_consent,
+        adopt=adopt,
     )
     logger.warning(
         "policy plan: user=%s customer=%s template=%s changes=%d refused=%d",
@@ -155,10 +168,15 @@ async def apply_deployment(
         raise ValidationError(str(exc)) from exc
 
     live, missing_consent = await _live_policies(customer_id)
+    try:
+        adopt = load_mapping(customer_id)
+    except AdoptionError as exc:
+        raise ValidationError(str(exc)) from exc
     plan = build_plan(
         customer_id, live, desired,
         allow_delete=bool(body.get("allow_delete")),
         missing_consent=missing_consent,
+        adopt=adopt,
     )
     # The fingerprint the operator approved, not the one just computed. If the
     # tenant moved between reviewing and confirming, these differ and
@@ -194,6 +212,92 @@ async def apply_deployment(
         user=user.username,
     )
     return result
+
+
+# ── Adopting what the customer already has ───────────────────────────────────
+
+@router.post("/policy-deploy/{customer_id}/adoption/suggest")
+async def suggest_adoption(
+    customer_id: str,
+    request: Request,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Candidates for each policy in the standard, best first.
+
+    A shortlist for a person. Nothing here reaches a plan until somebody
+    confirms it through the endpoint below — matching by heuristic and then
+    overwriting is the silent destruction every other guard here prevents.
+    """
+    body = await request.json()
+    template_id = str(body.get("template", "")).strip()
+    if not template_id:
+        raise ValidationError("No template named")
+    try:
+        desired = render(template_id, body.get("values") or {})
+    except TemplateError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    live, _ = await _live_policies(customer_id)
+    return {
+        "customer_id": customer_id,
+        "suggestions": suggest(desired, live),
+        "confirmed": describe(load_mapping(customer_id), live),
+    }
+
+
+@router.get("/policy-deploy/{customer_id}/adoption")
+async def get_adoption(
+    customer_id: str,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """What this customer has already agreed the standard takes over."""
+    live, _ = await _live_policies(customer_id)
+    return {"customer_id": customer_id, "confirmed": describe(load_mapping(customer_id), live)}
+
+
+@router.put("/policy-deploy/{customer_id}/adoption")
+async def set_adoption(
+    customer_id: str,
+    request: Request,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Confirm which existing policies the standard takes over.
+
+    Validated against both sides before it is stored: a mapping naming a policy
+    the standard does not contain, or one the tenant no longer has, would fail
+    later at the worst moment — during a deployment somebody is watching.
+    """
+    body = await request.json()
+    template_id = str(body.get("template", "")).strip()
+    mapping = {str(k): str(v) for k, v in (body.get("mapping") or {}).items() if v}
+    if not template_id:
+        raise ValidationError("No template named")
+
+    try:
+        desired = render(template_id, body.get("values") or {})
+    except TemplateError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    live, _ = await _live_policies(customer_id)
+    try:
+        validate(mapping, desired, live)
+    except AdoptionError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    save_mapping(customer_id, mapping)
+    logger.warning(
+        "adoption confirmed: user=%s customer=%s adopted=%d",
+        user.username, customer_id, len(mapping),
+    )
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "policy_adoption_set",
+        detail=f"{template_id}: {len(mapping)} policy/policies adopted",
+        customer=customer_id,
+        user=user.username,
+    )
+    return {"ok": True, "confirmed": describe(mapping, live)}
 
 
 # ── Putting a tenant back ────────────────────────────────────────────────────

@@ -291,3 +291,51 @@ def test_every_restore_route_carries_the_tenant_guard_too():
         assert any(n == guarded for n in names), f"{path} is unguarded"
 
     assert checked == 3, f"expected three restore routes, inspected {checked}"
+
+
+# ── Adoption, behind the same locks ──────────────────────────────────────────
+
+async def test_suggesting_adoptions_needs_the_tenant_capability(client):
+    auth = await _auth("writer", write=True)
+
+    r = client.post("/api/policy-deploy/acme/adoption/suggest", headers=auth, json=BODY)
+
+    assert r.status_code == 403
+
+
+async def test_confirming_an_adoption_needs_the_tenant_capability(client):
+    """It decides which of the customer's policies we start overwriting."""
+    auth = await _auth("writer", write=True)
+
+    r = client.put(
+        "/api/policy-deploy/acme/adoption", headers=auth, json={**BODY, "mapping": {}}
+    )
+
+    assert r.status_code == 403
+
+
+async def test_reading_the_confirmed_adoptions_needs_it_too(client):
+    auth = await _auth("reader")
+
+    assert client.get("/api/policy-deploy/acme/adoption", headers=auth).status_code == 403
+
+
+def test_every_adoption_route_carries_the_tenant_guard():
+    """Three more routes that decide what happens to a customer's policies."""
+    from app.web.middleware.auth import require_tenant_write
+    from app.web.routes.policy_deploy import router
+
+    guarded = getattr(require_tenant_write(), "__qualname__", "")
+    checked = 0
+    for route in router.routes:
+        path = getattr(route, "path", "")
+        if "adoption" not in path:
+            continue
+        checked += 1
+        names = [
+            getattr(d.call, "__qualname__", "")
+            for d in getattr(route, "dependant", None).dependencies
+        ] if getattr(route, "dependant", None) else []
+        assert any(n == guarded for n in names), f"{path} is unguarded"
+
+    assert checked == 3, f"expected three adoption routes, inspected {checked}"

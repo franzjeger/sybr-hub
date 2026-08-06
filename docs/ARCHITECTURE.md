@@ -293,6 +293,27 @@ recomputing would confirm whatever the tenant looks like then, which is exactly
 the state nobody reviewed. The break-glass field starts empty and gates the
 button, because an unfilled exclusion excludes nobody.
 
+**Adoption is how an inherited tenant is handled.** The plan matches template
+to tenant by display name, which is right for a tenant we set up and wrong for
+every tenant we take over: five sensible policies under five names nobody at
+Sybr chose, so deploying the standard beside them yields ten policies where
+five were meant, and overlapping Conditional Access is harder to reason about
+than no deployment at all.
+
+`suggest` scores a live policy against a template one on *what it does* — the
+controls granted, who is covered, which client apps are caught — and returns
+candidates with their reasons. "All users require MFA" and "Sybr — Require MFA
+for all users" share no words a matcher could use and are the same policy;
+two policies both called "MFA" can be nothing alike.
+
+It is a shortlist for a person and never an input to a plan. Adoption is an
+explicit mapping, confirmed once per customer and stored, and adopting renames:
+the policy takes the standard's name so every later comparison is the ordinary
+one, and the rename appears in the plan's changed fields because it is a real
+change. A mapping whose target has since been deleted raises rather than
+falling back to a create — that fallback would produce the duplicate adoption
+exists to prevent, at the moment somebody believed they had prevented it.
+
 **Restore is the same two requests pointed at a stored state.** Two kinds of
 source: restore points, written immediately before a deployment and holding
 exactly what it replaced, and audit snapshots, which are older and answer "what

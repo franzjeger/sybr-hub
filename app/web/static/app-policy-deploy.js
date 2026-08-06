@@ -64,10 +64,95 @@ function _pdForm() {
   html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin:6px 0 var(--space-4);">'
        + t('msg_break_glass_help', 'Every policy in the standard excludes this group. It must hold at least one account that can never be locked out.') + '</div>';
 
+  html += '<button class="btn btn-ghost" id="pd-adopt-btn" disabled onclick="policyAdoptionLoad()" style="margin-right:var(--space-2);">'
+       + t('btn_check_existing', 'Check existing policies') + '</button>';
   html += '<button class="btn btn-primary" id="pd-plan-btn" disabled onclick="policyDeployPlan()">'
        + t('btn_plan', 'Show plan') + '</button>';
-  html += '</div><div id="pd-plan"></div><div id="pd-restore"></div>';
+  html += '</div><div id="pd-adopt"></div><div id="pd-plan"></div><div id="pd-restore"></div>';
   return html;
+}
+
+// ── Adopting what the customer already has ──────────────────────────────────
+// The suggestions are a shortlist. Nothing here reaches a plan until the
+// operator ticks a box and saves, because a policy overwritten by a fuzzy
+// match is a production incident with a plausible-sounding cause.
+
+function _pdValues() {
+  return { break_glass_group: document.getElementById('pd-breakglass').value.trim() };
+}
+
+async function policyAdoptionLoad() {
+  var el = document.getElementById('pd-adopt');
+  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:16px auto;"></div>';
+
+  var body = { template: document.getElementById('pd-template').value, values: _pdValues() };
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/adoption/suggest', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+  });
+  if (!d) { el.innerHTML = ''; return; }
+
+  var confirmed = {};
+  (d.confirmed || []).forEach(function(c) { confirmed[c.template] = c.policy_id; });
+
+  var html = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">';
+  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-2);">'
+       + t('hdr_adoption', 'Existing policies') + '</div>';
+  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">'
+       + t('msg_adoption_intro', 'The tenant may already have a policy doing the same job under another name. Choosing it means the standard takes it over and renames it, instead of adding a second one beside it. Suggestions are matched on what a policy does, never on its wording — nothing is adopted until you save.')
+       + '</div>';
+
+  var any = false;
+  Object.keys(d.suggestions || {}).forEach(function(name) {
+    var candidates = d.suggestions[name] || [];
+    html += '<div style="padding:var(--space-3) 0;border-bottom:1px solid var(--border);">';
+    html += '<div style="font-weight:600;font-size:var(--font-xs);">' + esc(name) + '</div>';
+    if (!candidates.length && !confirmed[name]) {
+      html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:2px;">'
+           + t('msg_no_candidate', 'Nothing in the tenant resembles this. It will be created.') + '</div>';
+    } else {
+      any = true;
+      html += '<select data-adopt="' + esc(name) + '" style="width:100%;margin-top:6px;padding:6px;font-size:var(--font-xs);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">';
+      html += '<option value="">' + t('opt_create_new', 'Create a new policy') + '</option>';
+      candidates.forEach(function(c) {
+        var sel = confirmed[name] === c.policy_id ? ' selected' : '';
+        html += '<option value="' + esc(c.policy_id) + '"' + sel + '>'
+             + esc(c.display_name) + ' [' + esc(c.state) + '] — ' + esc(c.reasons.join('; ')) + '</option>';
+      });
+      html += '</select>';
+    }
+    html += '</div>';
+  });
+
+  html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" onclick="policyAdoptionSave()">'
+       + t('btn_save_adoption', 'Save choices') + '</button>';
+  if (!any) {
+    html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:var(--space-2);">'
+         + t('msg_nothing_to_adopt', 'Nothing to take over — every policy in the standard will be created.') + '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function policyAdoptionSave() {
+  var mapping = {};
+  document.querySelectorAll('[data-adopt]').forEach(function(sel) {
+    if (sel.value) mapping[sel.getAttribute('data-adopt')] = sel.value;
+  });
+
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/adoption', {
+    method: 'PUT', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      template: document.getElementById('pd-template').value,
+      values: _pdValues(),
+      mapping: mapping,
+    }),
+  });
+  if (!d || !d.ok) return;
+  showToast(t('msg_adoption_saved', 'Choices saved'), 'success', 3000);
+  // The plan is stale the moment the mapping changes, so it goes.
+  var plan = document.getElementById('pd-plan');
+  if (plan) plan.innerHTML = '';
+  _pdPlan = null;
 }
 
 // ── Putting it back ─────────────────────────────────────────────────────────
@@ -176,8 +261,11 @@ var _GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function _pdValidate() {
   var v = (document.getElementById('pd-breakglass') || {}).value || '';
-  var btn = document.getElementById('pd-plan-btn');
-  if (btn) btn.disabled = !_GUID.test(v.trim());
+  var ok = _GUID.test(v.trim());
+  ['pd-plan-btn', 'pd-adopt-btn'].forEach(function(id) {
+    var b = document.getElementById(id);
+    if (b) b.disabled = !ok;
+  });
 }
 
 async function policyDeployPlan() {
@@ -240,6 +328,10 @@ function _pdRenderPlan(plan) {
     html += '<td style="padding:8px 10px 8px 0;white-space:nowrap;color:' + colour + ';font-weight:600;">' + esc(label) + '</td>';
     html += '<td style="padding:8px 0;">';
     html += '<div style="font-weight:600;">' + esc(c.name) + '</div>';
+    if (c.adopts) {
+      html += '<div style="color:var(--blue);margin-top:2px;">'
+           + t('msg_adopts', 'Takes over «{name}» and renames it').replace('{name}', esc(c.adopts)) + '</div>';
+    }
     if (c.why) html += '<div style="color:var(--text-dim);margin-top:2px;">' + esc(c.why) + '</div>';
     if (c.fields && c.fields.length) {
       html += '<div style="color:var(--text-muted);margin-top:4px;">' + t('drift_fields', 'Fields changed') + ': ' + esc(c.fields.join(', ')) + '</div>';
