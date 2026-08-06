@@ -33,6 +33,7 @@ from app.web.routes import (
     dashboard_ws,
     autotask,
     docs,
+    policy_backup,
     fortigate,
     frontend,
     gdap,
@@ -72,6 +73,7 @@ _API_ROUTERS = (
     ("history", history),
     ("autotask", autotask),
     ("docs", docs),
+    ("policy_backup", policy_backup),
     ("workshop", workshop),
     ("backup", backup),
     # Connectivity — the toolkit reaches customer-internal devices over these.

@@ -75,6 +75,43 @@ class BaseSection(ABC):
         encrypted_write_text(path, content)
         self.result.files.append(filename)
 
+    # Snapshots are the backup half of the audit. The .txt files beside them
+    # are evidence — columns trimmed to a width a person reads — and a trimmed
+    # policy cannot be put back. These carry the objects exactly as Graph gave
+    # them, which is the only form a restore could ever use.
+    #
+    # SNAPSHOT_DIR keeps them apart from the evidence files so a reader
+    # scanning a run cannot mistake one for the other, and so the backup set
+    # is enumerable without knowing which sections happen to produce one.
+    SNAPSHOT_DIR = "policy_snapshots"
+
+    def _save_snapshot(self, name: str, items: list, *, source: str) -> None:
+        """Store raw objects as a restorable snapshot.
+
+        `source` is the endpoint they came from, recorded because a snapshot
+        that cannot say where it came from cannot be put back with any
+        confidence — and because when an endpoint moves, as several did, the
+        old snapshots should still say which one they used.
+        """
+        import json
+        from datetime import UTC, datetime
+
+        from app.core.encryption import encrypted_write_text
+
+        envelope = {
+            "snapshot": name,
+            "source": source,
+            "captured_at": datetime.now(UTC).isoformat(),
+            "count": len(items),
+            "items": items,
+        }
+        directory = self.out_dir / self.SNAPSHOT_DIR
+        directory.mkdir(parents=True, exist_ok=True)
+        encrypted_write_text(
+            directory / f"{name}.json", json.dumps(envelope, indent=1, default=str)
+        )
+        self.result.files.append(f"{self.SNAPSHOT_DIR}/{name}.json")
+
     def _warn(self, msg: str, level: str = "warn") -> None:
         """Record a finding. level is "critical", "warn" or "info".
 
