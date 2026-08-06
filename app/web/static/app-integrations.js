@@ -6,7 +6,7 @@ var _navParentMap = {
   'home': 'customers', 'customers': 'customers', 'history': 'customers',
   'hosts': 'remote', 'terminal': 'remote', 'rdp': 'remote',
   'network': 'network', 'vpn': 'network', 'tls': 'network', 'tailscale': 'network',
-  'ssh': 'tools', 'browser': 'tools', 'provision': 'tools',
+  'ssh': 'tools', 'browser': 'tools', 'provision': 'tools', 'policy-deploy': 'tools',
 };
 
 var _origShowView = showView;
@@ -32,6 +32,7 @@ showView = function(name) {
     if (ts) ts.focus();
   }
   else if (name === 'tls') tlsLoadView();
+  else if (name === 'policy-deploy') policyDeployLoad();
   else if (name === 'tailscale') tsLoadView();
   else if (name === 'browser') browserInit();
   else if (name === 'rdp') rdpInit();

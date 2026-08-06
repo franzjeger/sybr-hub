@@ -285,6 +285,14 @@ Four rails, and they refuse rather than warn:
 | **Restore point first** | taken at the moment of the write, not borrowed from the last audit — a restore point from six hours ago describes a tenant that no longer exists |
 | **No deletion unless asked** | a policy in the tenant and not in the standard is far more often something the customer added on purpose |
 
+The screen is `app-policy-deploy.js`, reached from Tools. It shows what the
+API returns and adds nothing: the refusals with their reason, each policy's
+rationale, and the consent state. The confirmation carries the fingerprint the
+plan was *read* against rather than one computed at the moment of the click —
+recomputing would confirm whatever the tenant looks like then, which is exactly
+the state nobody reviewed. The break-glass field starts empty and gates the
+button, because an unfilled exclusion excludes nobody.
+
 Templates live in `app/policy_templates/*.json`, the same shape as baselines
 and for the same reason. Placeholders are required, never defaulted: every
 policy excludes a break-glass group whose id differs per tenant, and an
