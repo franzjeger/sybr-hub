@@ -129,11 +129,30 @@ async def test_applying_against_a_changed_tenant_is_refused():
     their work with a plan made before it.
     """
     live = [{"id": "1", "displayName": "One", "state": ENABLED, "modifiedDateTime": "t1"}]
-    plan = build_plan("acme", live, [_policy("Two")])
+    reviewed = build_plan("acme", live, [_policy("Two")])
     moved = [{"id": "1", "displayName": "One", "state": DISABLED_STATE, "modifiedDateTime": "t2"}]
+    # What apply rebuilds against the tenant as it now stands.
+    rebuilt = build_plan("acme", moved, [_policy("Two")])
 
-    with pytest.raises(DeployError, match="no longer exists"):
-        await apply_plan(_Client(), plan, moved)
+    with pytest.raises(DeployError, match="no longer describes"):
+        await apply_plan(_Client(), rebuilt, moved, approved=reviewed.fingerprint)
+
+
+async def test_the_intent_moving_is_refused_as_well_as_the_tenant():
+    """The gap a tenant-only hash left open.
+
+    Operator A reviews a plan that says CREATE. Operator B confirms an adoption
+    mapping. A clicks apply, and the tool PATCHes a policy A never saw — the
+    tenant check green, because the tenant had not moved.
+    """
+    live = [{"id": "1", "displayName": "Theirs", "state": ENABLED, "modifiedDateTime": "t"}]
+    reviewed = build_plan("acme", live, [_policy("Ours")])
+    with_adoption = build_plan("acme", live, [_policy("Ours")], adopt={"Ours": "1"})
+
+    assert reviewed.fingerprint != with_adoption.fingerprint
+
+    with pytest.raises(DeployError, match="no longer describes"):
+        await apply_plan(_Client(), with_adoption, live, approved=reviewed.fingerprint)
 
 
 DISABLED_STATE = "disabled"
@@ -144,7 +163,7 @@ async def test_an_unchanged_tenant_applies():
     plan = build_plan("acme", live, [_policy("Two")])
     client = _Client()
 
-    result = await apply_plan(client, plan, live)
+    result = await apply_plan(client, plan, live, approved=plan.fingerprint)
 
     assert len(result["applied"]) == 1
     assert client.calls[0][0] == "POST"
@@ -201,12 +220,33 @@ def test_nothing_is_deleted_unless_asked():
     assert build_plan("acme", live, []).changes == []
 
 
-def test_deletion_when_asked_for_names_the_policy():
+def test_deletion_names_one_policy_at_a_time():
+    """It used to be a boolean, so one tick planned the removal of every policy
+    the standard does not contain — a mass un-protection event behind a
+    checkbox."""
+    live = [{**_policy("Theirs"), "id": "1"}, {**_policy("Also theirs"), "id": "2"}]
+
+    plan = build_plan("acme", live, [], delete=["1"])
+
+    assert [(c.action, c.name, c.policy_id) for c in plan.changes] == [(DELETE, "Theirs", "1")]
+
+
+def test_what_the_standard_does_not_contain_is_reported_not_removed():
+    """Shown so an operator can see it and choose; choosing means naming it."""
     live = [{**_policy("Theirs"), "id": "1"}]
 
-    change = build_plan("acme", live, [], allow_delete=True).changes[0]
+    plan = build_plan("acme", live, [])
 
-    assert (change.action, change.name, change.policy_id) == (DELETE, "Theirs", "1")
+    assert plan.changes == []
+    assert plan.unmanaged == [{"policy_id": "1", "name": "Theirs", "state": REPORT_ONLY}]
+
+
+def test_deleting_something_that_is_not_unmanaged_is_refused():
+    """A stale id from an older plan must not delete whatever holds it now."""
+    live = [{**_policy("Ours"), "id": "1"}]
+
+    with pytest.raises(DeployError, match="not an unmanaged policy"):
+        build_plan("acme", live, [_policy("Ours")], delete=["1"])
 
 
 def test_a_policy_without_a_name_is_refused_outright():
@@ -271,7 +311,7 @@ async def test_what_is_about_to_be_replaced_is_snapshotted_first():
     plan = build_plan("acme", live, [_policy("One", state=ENABLED, exclude_groups=["bg"])])
     taken: list = []
 
-    await apply_plan(_Client(), plan, live, snapshot=taken.extend)
+    await apply_plan(_Client(), plan, live, approved=plan.fingerprint, snapshot=taken.extend)
 
     assert taken and taken[0]["displayName"] == "One"
 

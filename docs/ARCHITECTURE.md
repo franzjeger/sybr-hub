@@ -300,6 +300,25 @@ invisible from inside:
   empty one all satisfied the rail with an exclusion that excludes nobody. The
   plan now resolves it and counts its members.
 
+Three more from the same review, fixed here:
+
+- **The fingerprint hashed the tenant, not the intent.** Apply rebuilds the
+  plan from inputs the tenant hash never covered — the adoption mapping is
+  loaded fresh from disk, the template could have been edited. So operator A
+  reviews a plan saying CREATE, operator B confirms an adoption, A clicks
+  apply, and a policy A never saw is PATCHed with the tenant check green.
+  `plan_fingerprint` now covers the rendered standard, the mapping and the
+  deletions alongside the tenant.
+- **Restore could not undo an adoption.** Adopting renames the policy and the
+  snapshot holds the old name, so a name-matched restore created a duplicate —
+  or, with deletion approved, removed the adopted policy and left the mapping
+  pointing at a dead id, hard-failing every plan afterwards. A desired policy
+  carrying an id the tenant still has now matches on that id, which is what a
+  snapshot always carries and a template never does.
+- **`allow_delete` was one boolean for every policy in the tenant.** Deletion
+  now names ids one at a time, and everything the standard does not contain is
+  reported as `unmanaged` so an operator can see it and choose.
+
 Four rails, and they refuse rather than warn:
 
 | rail | why |
