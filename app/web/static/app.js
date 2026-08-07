@@ -503,6 +503,8 @@ async function checkAuth() {
       var _me = await me.json();
       _currentUser = _me.user || _me;
       if (_me.write_exempt) _writeExempt = _me.write_exempt;
+      _features = _me.features || [];
+      _allowedViews = _me.views || [];
       hideLoginView(); updateUserDisplay(); _postAuthInit();
     }
   } catch(e) { console.error('Request failed:', e); showLoginView('login'); }
@@ -632,9 +634,23 @@ function canWrite() {
   return !!(_currentUser && _currentUser.can_write);
 }
 
+function applyFeatureVisibility() {
+  // Marked elements name a feature; unmarked ones are visible to anyone who
+  // signed in. Same shape as data-write, and deliberately a separate attribute:
+  // "may change things" and "may reach this at all" are different questions and
+  // conflating them is how one of them stops being asked.
+  document.querySelectorAll('[data-feature]').forEach(function(el) {
+    el.style.display = hasFeature(el.getAttribute('data-feature')) ? '' : 'none';
+  });
+  document.querySelectorAll('[data-view-gate]').forEach(function(el) {
+    el.style.display = canOpenView(el.getAttribute('data-view-gate')) ? '' : 'none';
+  });
+}
+
 function applyWriteCapability() {
   var write = canWrite();
   document.body.classList.toggle('is-readonly', !write);
+  applyFeatureVisibility();
   var badge = document.getElementById('readonly-badge');
   if (badge) {
     badge.style.display = write ? 'none' : '';
@@ -734,6 +750,23 @@ function metricPct(value, digits) {
 // stale, and it would go stale in the direction of offering something the
 // server refuses.
 var _writeExempt = [];
+
+// What this account reaches, resolved by the server. The interface holds no
+// copy of the rules — it hides what is not in these lists, so a screen cannot
+// drift from the route it leads to.
+var _features = [];
+var _allowedViews = [];
+
+function hasFeature(key) {
+  // Empty until /auth/me answers. Hiding everything for that instant is the
+  // right way round: showing a control and taking it away reads as a bug, and
+  // offering one that will 403 reads as a broken tool.
+  return _features.indexOf(key) !== -1;
+}
+
+function canOpenView(name) {
+  return _allowedViews.indexOf(name) !== -1;
+}
 
 function _wouldBeRefused(url, options) {
   var method = ((options && options.method) || 'GET').toUpperCase();

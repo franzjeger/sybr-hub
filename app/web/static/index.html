@@ -121,24 +121,24 @@ body.is-readonly [data-write] { display: none !important; }
     <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" data-i18n-aria-label="meny" aria-label="Meny">&#9776;</button>
     <nav class="nav" id="main-nav">
       <span id="readonly-badge" style="display:none;align-self:center;margin-right:10px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-dark,#1e3a4a);color:var(--blue,#4d9fb5);border:1px solid rgba(77,159,181,0.35);"></span>
-      <button class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" data-i18n-title="dashboard_ctrl" title="Dashboard (Ctrl+1)">Dashboard</button>
+      <button data-view-gate="overview" class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" data-i18n-title="dashboard_ctrl" title="Dashboard (Ctrl+1)">Dashboard</button>
 
       <div class="nav-dropdown">
-        <button class="nav-btn nav-caret" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" data-i18n-title="kunder_ctrl" title="Kunder (Ctrl+3)">Kunder</button>
+        <button data-view-gate="customers" class="nav-btn nav-caret" id="nav-customers" onclick="showView('customers')" data-i18n="nav_customers" data-i18n-title="kunder_ctrl" title="Kunder (Ctrl+3)">Kunder</button>
         <div class="nav-dropdown-menu"><div class="navdd-panel">
-          <button class="navdd-item" onclick="showView('customers')">
+          <button data-view-gate="customers" class="navdd-item" onclick="showView('customers')">
             <span class="navdd-ic">&#9638;</span>
             <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_customer_overview">Kundeoversikt</span> <span class="navdd-kbd">Ctrl+3</span></span><span class="navdd-desc" data-i18n="nav_customer_overview_desc">Alle kunder med risiko, MFA og MRR</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('home')">
+          <button data-view-gate="home" class="navdd-item" onclick="showView('home')">
             <span class="navdd-ic">&#9729;</span>
             <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_m365_status">M365-status</span> <span class="navdd-kbd">Ctrl+2</span></span><span class="navdd-desc" data-i18n="nav_m365_status_desc">Status og filer for aktiv kunde</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('history')">
+          <button data-view-gate="history" class="navdd-item" onclick="showView('history')">
             <span class="navdd-ic">&#9636;</span>
             <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_audit_history">Audit-historikk</span> <span class="navdd-kbd">Ctrl+5</span></span><span class="navdd-desc" data-i18n="nav_audit_history_desc">Tidligere kj&#248;ringer og rapporter</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('setup')">
+          <button data-view-gate="setup" class="navdd-item" onclick="showView('setup')">
             <span class="navdd-ic">&#8853;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_new_customer">Ny kunde</span><span class="navdd-desc" data-i18n="nav_new_customer_desc">Registrer og koble til integrasjoner</span></span>
           </button>
@@ -148,64 +148,64 @@ body.is-readonly [data-write] { display: none !important; }
       </div>
 
       <div class="nav-dropdown">
-        <button class="nav-btn nav-caret" id="nav-network" onclick="showView('network')" data-i18n="nav_network">Nettverk</button>
+        <button data-view-gate="network" class="nav-btn nav-caret" id="nav-network" onclick="showView('network')" data-i18n="nav_network">Nettverk</button>
         <div class="nav-dropdown-menu"><div class="navdd-panel">
-          <button class="navdd-item" onclick="showView('network')">
+          <button data-view-gate="network" class="navdd-item" onclick="showView('network')">
             <span class="navdd-ic">&#9635;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_fortigate_unifi">FortiGate / UniFi</span><span class="navdd-desc" data-i18n="nav_fortigate_unifi_desc">Enheter, firmware og policy-audit</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('vpn')">
+          <button data-view-gate="vpn" class="navdd-item" onclick="showView('vpn')">
             <span class="navdd-ic">&#8644;</span>
             <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc" data-i18n="nav_vpn_tunnels_desc">Tunneler mot kundenett &#8212; status og tilkobling</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('tls')">
+          <button data-view-gate="tls" class="navdd-item" onclick="showView('tls')">
             <span class="navdd-ic">&#10003;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_tls_monitor">TLS-monitor</span><span class="navdd-desc" data-i18n="nav_tls_monitor_desc">Sertifikater som utl&#248;per</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('tailscale')">
+          <button data-view-gate="tailscale" class="navdd-item" onclick="showView('tailscale')">
             <span class="navdd-ic">&#8734;</span>
             <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc" data-i18n="nav_mesh_desc">Mesh-tilgang og noder</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-item" data-write onclick="showView('policy-deploy')">
+          <button data-view-gate="policy-deploy" class="navdd-item" data-write onclick="showView('policy-deploy')">
             <span class="navdd-ic">&#128272;</span>
             <span><span data-i18n="nav_policy_deploy">Policy-utrulling</span><br><small data-i18n="nav_policy_deploy_desc">Rull ut Conditional Access-standarden</small></span>
           </button>
-          <button class="navdd-foot" data-write onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
+          <button data-view-gate="provision" class="navdd-foot" data-write onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
         </div></div>
       </div>
 
       <div class="nav-dropdown">
-        <button class="nav-btn nav-caret" id="nav-tools" onclick="showView('hosts')" data-i18n="nav_tools">Verkt&#248;y</button>
+        <button data-view-gate="hosts" class="nav-btn nav-caret" id="nav-tools" onclick="showView('hosts')" data-i18n="nav_tools">Verkt&#248;y</button>
         <div class="nav-dropdown-menu"><div class="navdd-panel">
-          <button class="navdd-item" onclick="showView('hosts')">
+          <button data-view-gate="hosts" class="navdd-item" onclick="showView('hosts')">
             <span class="navdd-ic">&#8997;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_remote_access2">Fjernaksess</span><span class="navdd-desc" data-i18n="nav_remote_access_desc">Hosts, RDP og WebRemote-lenker</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('ssh')">
+          <button data-view-gate="ssh" class="navdd-item" onclick="showView('ssh')">
             <span class="navdd-ic" style="font-family:var(--mono);font-size:11px;">&gt;_</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_terminal_ssh">Terminal / SSH</span><span class="navdd-desc" data-i18n="nav_terminal_ssh_desc">&#216;kter og SSH-n&#248;kler</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('browser')">
+          <button data-view-gate="browser" class="navdd-item" onclick="showView('browser')">
             <span class="navdd-ic">&#9707;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_browser2">Nettleser</span><span class="navdd-desc" data-i18n="nav_browser_desc">Proxy mot kundens interne grensesnitt</span></span>
           </button>
-          <button class="navdd-item" onclick="showView('workshop')">
+          <button data-view-gate="workshop" class="navdd-item" onclick="showView('workshop')">
             <span class="navdd-ic">&#9998;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_workshop2">Workshop</span><span class="navdd-desc" data-i18n="nav_workshop_desc">Skjema og sjekklister</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-foot" onclick="showView('docs')"><span class="navdd-ic">?</span><span data-i18n="nav_docs_desc">Dokumentasjon og endringslogg</span></button>
+          <button data-view-gate="docs" class="navdd-foot" onclick="showView('docs')"><span class="navdd-ic">?</span><span data-i18n="nav_docs_desc">Dokumentasjon og endringslogg</span></button>
         </div></div>
       </div>
 
-      <button class="nav-btn" id="nav-integrations" onclick="showView('integrations')" data-i18n="nav_integrations">Integrasjoner</button>
+      <button data-view-gate="integrations" class="nav-btn" id="nav-integrations" onclick="showView('integrations')" data-i18n="nav_integrations">Integrasjoner</button>
 
       <!-- Hidden nav IDs so showView() active-highlighting keeps working for
            child/moved views (Fjernaksess, Workshop, VPN, etc.). -->
       <button class="nav-btn" id="nav-remote" style="display:none;"></button>
       <button class="nav-btn" id="nav-workshop" style="display:none;"></button>
-      <button class="nav-btn" id="nav-logs" onclick="showView('logs')" style="display:none;" data-i18n="nav_logs">Logg</button>
+      <button data-view-gate="logs" class="nav-btn" id="nav-logs" onclick="showView('logs')" style="display:none;" data-i18n="nav_logs">Logg</button>
       <button class="nav-btn" id="nav-m365" style="display:none;"></button>
       <button class="nav-btn" id="nav-home" style="display:none;"></button>
       <button class="nav-btn" id="nav-history" style="display:none;"></button>
@@ -215,7 +215,7 @@ body.is-readonly [data-write] { display: none !important; }
       <button class="nav-btn" id="nav-terminal" style="display:none;"></button>
       <button class="nav-btn" id="nav-provision" style="display:none;"></button>
       <button class="nav-btn" id="nav-browser" style="display:none;"></button>
-      <button class="nav-btn" id="nav-docs" style="display:none;" onclick="showView('docs')" data-i18n="nav_docs">Docs</button>
+      <button data-view-gate="docs" class="nav-btn" id="nav-docs" style="display:none;" onclick="showView('docs')" data-i18n="nav_docs">Docs</button>
       <button class="nav-btn" id="nav-customer-detail" style="display:none;"></button>
     </nav>
     <div class="header-right">
@@ -227,18 +227,18 @@ body.is-readonly [data-write] { display: none !important; }
       </button>
 
       <!-- Sybrt assistant — a global tool, so an icon button rather than a nav slot. -->
-      <button class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" alt="Sybrt"></button>
+      <button data-view-gate="ai" class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" alt="Sybrt"></button>
 
       <!-- One status chip: server-live dot, with a VPN prefix when a tunnel is up.
            Merges the old vpn-header-badge + conn-status pair. Polls /api/health. -->
-      <button class="status-chip" id="conn-status" onclick="showView('vpn')" data-i18n-title="live" title="Live" style="display:none;">
+      <button data-view-gate="vpn" class="status-chip" id="conn-status" onclick="showView('vpn')" data-i18n-title="live" title="Live" style="display:none;">
         <span class="dot" id="conn-status-dot"></span>
         <span id="vpn-chip-prefix" style="display:none;">VPN&#160;&#183;&#160;</span>
         <span id="conn-status-label">Live</span>
       </button>
 
       <!-- Audit-running indicator (visible only while an audit runs). -->
-      <button id="audit-running-indicator" onclick="showView('audit')" data-i18n-title="tip_audit_running_click" title="Audit kjører — klikk for å se status"
+      <button data-view-gate="audit" id="audit-running-indicator" onclick="showView('audit')" data-i18n-title="tip_audit_running_click" title="Audit kjører — klikk for å se status"
         style="display:none;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:600;color:#fff;background:var(--blue);border:none;border-radius:20px;cursor:pointer;animation:pulse 1.5s infinite;">
         <span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span>
         <span data-i18n="msg_audit_running_indicator">Audit kjører</span>
@@ -293,9 +293,9 @@ body.is-readonly [data-write] { display: none !important; }
     <span id="active-customer-last-audit" class="context-audit"></span>
     <div style="flex:1;"></div>
     <button class="context-ghost" onclick="openLatestReport()" data-i18n="btn_open_report">Rapport</button>
-    <button class="context-ghost" onclick="showView('history')" data-i18n="nav_history">Historikk</button>
+    <button data-view-gate="history" class="context-ghost" onclick="showView('history')" data-i18n="nav_history">Historikk</button>
     <button id="active-bar-licenses-btn" class="context-ghost" onclick="loadCustomerLicensesFromActive()" style="display:none;" data-i18n="nav_licenses">Licenses</button>
-    <button class="btn btn-sm" data-write onclick="showView('audit')" style="padding:6px 14px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r audit</button>
+    <button data-view-gate="audit" class="btn btn-sm" data-write onclick="showView('audit')" style="padding:6px 14px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r audit</button>
 
     <!-- Quick-switcher dropdown — switch active customer from any view -->
     <div id="active-customer-switcher" style="display:none;position:absolute;top:46px;left:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);z-index:50;min-width:340px;max-height:420px;flex-direction:column;padding:8px;">
@@ -371,9 +371,9 @@ body.is-readonly [data-write] { display: none !important; }
     <!-- ════════════ M365 SUB-TAB BAR (injected above home/files/audit views) ════════════ -->
     <div id="m365-subtab-bar" style="display:none;margin-bottom:20px;border-bottom:1px solid var(--border);">
       <div style="display:flex;gap:4px;">
-        <button class="btn btn-ghost m365-sub-btn" data-sub="home" onclick="showView('home')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="m365_tab_status">Status</button>
-        <button class="btn btn-ghost m365-sub-btn" data-sub="files" onclick="showView('files')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="nav_files">Filer</button>
-        <button class="btn btn-ghost m365-sub-btn" data-sub="audit" onclick="showView('audit')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="m365_tab_audit">Audit</button>
+        <button data-view-gate="home" class="btn btn-ghost m365-sub-btn" data-sub="home" onclick="showView('home')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="m365_tab_status">Status</button>
+        <button data-view-gate="files" class="btn btn-ghost m365-sub-btn" data-sub="files" onclick="showView('files')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="nav_files">Filer</button>
+        <button data-view-gate="audit" class="btn btn-ghost m365-sub-btn" data-sub="audit" onclick="showView('audit')" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="m365_tab_audit">Audit</button>
       </div>
     </div>
 
@@ -391,7 +391,7 @@ body.is-readonly [data-write] { display: none !important; }
     <!-- ════════════ SETUP VIEW ════════════ -->
     <div class="view" id="view-setup">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-        <button class="btn btn-ghost" onclick="showView('home')" style="padding:6px 10px;" data-i18n="btn_back">
+        <button data-view-gate="home" class="btn btn-ghost" onclick="showView('home')" style="padding:6px 10px;" data-i18n="btn_back">
           ← Tilbake
         </button>
         <div style="font-size:18px;font-weight:700;" data-i18n="hdr_setup_new_customer">Sett opp ny kunde</div>
@@ -845,7 +845,7 @@ body.is-readonly [data-write] { display: none !important; }
     <!-- ════════════ HISTORY-REPORT VIEW ════════════ -->
     <div class="view" id="view-history-report">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-        <button class="btn btn-ghost" onclick="showView('history')" style="padding:6px 10px;" data-i18n="btn_back">
+        <button data-view-gate="history" class="btn btn-ghost" onclick="showView('history')" style="padding:6px 10px;" data-i18n="btn_back">
           ← Tilbake
         </button>
         <div>
@@ -2130,15 +2130,15 @@ body.is-readonly [data-write] { display: none !important; }
 
   <!-- ── Mobile bottom tab bar (frame 4a) — replaces the hamburger drawer on phones ── -->
   <nav class="bottom-nav" id="bottom-nav" data-i18n-aria-label="hovedmeny" aria-label="Hovedmeny">
-    <button class="bnav-item active" data-bnav="dashboard" onclick="showView('overview')">
+    <button data-view-gate="overview" class="bnav-item active" data-bnav="dashboard" onclick="showView('overview')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
       <span data-i18n="nav_dashboard">Dashboard</span>
     </button>
-    <button class="bnav-item" data-bnav="customers" onclick="showView('customers')">
+    <button data-view-gate="customers" class="bnav-item" data-bnav="customers" onclick="showView('customers')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
       <span data-i18n="nav_customers">Kunder</span>
     </button>
-    <button class="bnav-item" data-bnav="network" onclick="showView('network')">
+    <button data-view-gate="network" class="bnav-item" data-bnav="network" onclick="showView('network')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
       <span data-i18n="nav_network">Nettverk</span>
     </button>

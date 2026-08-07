@@ -657,6 +657,12 @@ async def authenticate(username: str, password: str) -> Optional[User]:
     user = await get_user_by_username(username)
     if user and not user.is_active:
         return None
+    if user and user.is_system:
+        # An account with no human behind it is an identity for attribution and
+        # locking, not a second way through the front door. Refused after the
+        # password check so this reveals nothing a wrong password would not.
+        logger.warning("Refused interactive sign-in for system account %r", username)
+        return None
     if user:
         await update_last_login(user.id)
     return user
@@ -677,6 +683,7 @@ def _row_to_user(row) -> User:
         is_active=bool(row["is_active"]),
         # Tolerate a row read before migration 14 has run.
         all_customers=bool(row["all_customers"]) if "all_customers" in keys else False,
+        is_system=bool(row["is_system"]) if "is_system" in keys else False,
         can_write=bool(row["can_write"]) if "can_write" in keys else False,
         tenant_write=bool(row["tenant_write"]) if "tenant_write" in keys else False,
     )

@@ -100,7 +100,28 @@ async def delete_profile(profile_id) -> bool:
 
 # ── Connect / Disconnect ──
 
-async def connect(profile_id: str) -> dict:
+def owner_of(profile_id: str) -> str:
+    """Who opened this tunnel, or an empty string."""
+    return str((_connections.get(profile_id) or {}).get("owned_by") or "")
+
+
+def system_held() -> list[str]:
+    """Profile ids currently held open by the system account.
+
+    The collectors keep tunnels up to read statistics from customer sites. A
+    technician tearing one down mid-collection breaks something nobody is
+    watching, so the routes refuse while this is non-empty and say which.
+    """
+    from app.core.system_user import USERNAME
+
+    return sorted(
+        pid for pid, conn in _connections.items()
+        if str(conn.get("owned_by") or "") == USERNAME
+        and conn.get("state") in (VpnState.connected, VpnState.connecting)
+    )
+
+
+async def connect(profile_id: str, *, owned_by: str = "") -> dict:
     async with _registry_lock:
         if _is_connected(profile_id):
             return {"ok": False, "error": "This profile is already connected."}
@@ -110,7 +131,10 @@ async def connect(profile_id: str) -> dict:
             return {"ok": False, "error": "Profile not found"}
 
         # Register connection as connecting
-        _connections[profile_id] = {"state": VpnState.connecting, "interface": None, "lock": asyncio.Lock()}
+        _connections[profile_id] = {
+            "state": VpnState.connecting, "interface": None,
+            "lock": asyncio.Lock(), "owned_by": owned_by,
+        }
 
     config = json.loads(profile.config) if isinstance(profile.config, str) else profile.config
     secrets = _load_secrets(profile_id)

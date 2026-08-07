@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -52,6 +52,26 @@ async def _add_all_customers_column(conn: aiosqlite.Connection) -> None:
     await conn.execute(
         "ALTER TABLE users ADD COLUMN all_customers INTEGER NOT NULL DEFAULT 1"
     )
+
+
+async def _add_is_system_column(conn: aiosqlite.Connection) -> None:
+    """Add users.is_system — an account the toolkit acts as, not a person.
+
+    It exists so that work nobody is watching has an identity of its own. VPN
+    tunnels held open to pull statistics from customer sites were previously
+    opened under whichever technician happened to click, which made the
+    activity log wrong about who did what and meant one person's session owned
+    infrastructure everybody depended on.
+
+    A system account cannot sign in. ``authenticate`` refuses it outright,
+    because an account with no human behind it and no password is otherwise a
+    standing invitation — the point is an identity for attribution and locking,
+    not a second way through the front door.
+    """
+    cur = await conn.execute("PRAGMA table_info(users)")
+    columns = {row[1] for row in await cur.fetchall()}
+    if "is_system" not in columns:
+        await conn.execute("ALTER TABLE users ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0")
 
 
 async def _add_can_write_column(conn: aiosqlite.Connection) -> None:
@@ -412,6 +432,11 @@ _MIGRATIONS: list = [
         16,
         "System-wide write capability — read is the default for every account, admins included",
         _add_can_write_column,
+    ),
+    (
+        17,
+        "System account — an identity for work nobody is watching, which cannot sign in",
+        _add_is_system_column,
     ),
 ]
 

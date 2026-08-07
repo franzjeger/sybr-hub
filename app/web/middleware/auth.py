@@ -26,8 +26,8 @@ limiting, runs for a WebSocket handshake::
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Callable, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from fastapi import Depends, Request, WebSocket, WebSocketException
 from fastapi.responses import JSONResponse
@@ -190,7 +190,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def _extract_token(request: Request) -> Optional[str]:
+def _extract_token(request: Request) -> str | None:
     """Extract JWT from Authorization header or session cookie."""
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
@@ -207,7 +207,7 @@ def _setup_user() -> User:
         username="setup",
         display_name="Initial Setup",
         role=Role.admin,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         is_active=True,
     )
 
@@ -218,7 +218,7 @@ async def get_current_user(request: Request) -> User:
     Raises 401 if not authenticated.  The AuthMiddleware must run first
     to populate ``request.state.user``.
     """
-    user: Optional[User] = getattr(request.state, "user", None)
+    user: User | None = getattr(request.state, "user", None)
     if user:
         return user
 
@@ -259,7 +259,7 @@ def require_role(min_role: Role) -> Callable:
 _WS_TOKEN_PREFIX = "access_token."
 
 
-def _extract_ws_token(websocket: WebSocket) -> Optional[str]:
+def _extract_ws_token(websocket: WebSocket) -> str | None:
     """Pull the access token off a handshake: cookie, subprotocol, then query.
 
     Cookie first because it is the only channel that does not end up in an
@@ -322,6 +322,38 @@ def require_role_ws(min_role: Role) -> Callable:
             )
             raise WebSocketException(
                 code=1008, reason=f"Requires {min_role.value} role or higher"
+            )
+        return user
+
+    return _check
+
+
+def require_feature(key: str) -> Callable:
+    """Dependency factory for a named feature.
+
+    Preferred over a bare require_role: the requirement then lives in one table
+    the interface also reads, so a screen cannot offer what a route refuses.
+    Asking for a feature that does not exist raises at import rather than
+    granting access to everybody, which is the failure a typo would otherwise
+    produce here.
+    """
+    from app.core.features import allows, get
+
+    feature = get(key)
+
+    async def _check(user: User = Depends(get_current_user)) -> User:
+        if not allows(user, feature):
+            from fastapi import HTTPException
+
+            logger.warning(
+                "403 feature: user=%s role=%s feature=%s",
+                user.username, getattr(user.role, "value", user.role), key,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Kontoen din har ikke tilgang til denne delen av verktøyet."
+                ),
             )
         return user
 

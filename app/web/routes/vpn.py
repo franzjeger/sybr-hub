@@ -144,6 +144,30 @@ async def delete_profile(
     return {"ok": True}
 
 
+async def _refuse_if_system_holds_tunnels() -> None:
+    """Refuse a manual VPN action while the collectors are using the link.
+
+    A hard refusal rather than a hidden menu. Hiding it leaves the server
+    willing, so an old browser tab or a direct call still tears down a tunnel
+    something depends on — the guard would exist only where somebody looked for
+    it. The message names the profiles so it is actionable rather than a wall.
+    """
+    from app.services.vpn_manager import get_profile, system_held
+
+    held = system_held()
+    if not held:
+        return
+    names = []
+    for pid in held:
+        profile = await get_profile(pid)
+        names.append(getattr(profile, "name", None) or pid)
+    raise ForbiddenError(
+        "Systemkontoen holder VPN-tunneler åpne for statistikkinnhenting: "
+        + ", ".join(names)
+        + ". Vent til innhentingen er ferdig, eller stopp den planlagte jobben først."
+    )
+
+
 # ── Connect / Disconnect ────────────────────────────────────────────────────
 
 @router.post("/vpn/connect/{profile_id}")
@@ -154,6 +178,7 @@ async def vpn_connect(
     from app.core.activity_log import log_activity
     from app.services.vpn_manager import connect, get_profile
 
+    await _refuse_if_system_holds_tunnels()
     profile = await get_profile(profile_id)
     if not profile:
         raise NotFoundError("Profil ikke funnet")
@@ -166,12 +191,13 @@ async def vpn_connect(
         customer=profile.customer_id or "",
         user=user.username,
     )
-    result = await connect(profile_id)
+    result = await connect(profile_id, owned_by=user.username)
     return result
 
 
 @router.post("/vpn/disconnect")
 async def vpn_disconnect(request: Request, user: User = Depends(require_role(Role.technician))):
+    await _refuse_if_system_holds_tunnels()
     from app.services.vpn_manager import disconnect
     try:
         body = await request.json()
@@ -185,6 +211,8 @@ async def vpn_disconnect(request: Request, user: User = Depends(require_role(Rol
 @router.post("/vpn/force-disconnect")
 async def vpn_force_disconnect(user: User = Depends(require_role(Role.technician))):
     """Force disconnect — kill VPN processes and reset state."""
+    # Guarded too, or it is simply the way around the guard on disconnect.
+    await _refuse_if_system_holds_tunnels()
     import subprocess
 
     from app.services import vpn_manager

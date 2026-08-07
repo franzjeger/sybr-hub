@@ -1,10 +1,11 @@
 {
-  "total": 1140,
+  "total": 1135,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
     "app/core/baseline.py",
     "app/core/exceptions.py",
+    "app/core/features.py",
     "app/core/policy_adoption.py",
     "app/core/policy_drift.py",
     "app/core/policy_restore.py",
@@ -44,6 +45,7 @@
     "app/web/__init__.py",
     "app/web/i18n.py",
     "app/web/middleware/__init__.py",
+    "app/web/middleware/auth.py",
     "app/web/middleware/rate_limit.py",
     "app/web/middleware/write_guard.py",
     "app/web/routes/__init__.py",
@@ -74,6 +76,7 @@
     "tests/test_credentials_headless.py",
     "tests/test_db_pool.py",
     "tests/test_docs_routes.py",
+    "tests/test_features.py",
     "tests/test_grant_write_script.py",
     "tests/test_graph_licence_gate.py",
     "tests/test_hub_endpoint.py",

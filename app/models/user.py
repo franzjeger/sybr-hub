@@ -54,6 +54,7 @@ class User(BaseModel):
     #
     # Read stays the default for every account. This is the exception, granted
     # one user at a time and revocable on its own.
+    is_system: bool = False
     can_write: bool = False
     tenant_write: bool = False
 
