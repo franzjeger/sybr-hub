@@ -207,12 +207,13 @@ async def test_the_tenant_is_read_through_the_credential_not_the_auth_manager(mo
     )
     monkeypatch.setattr("app.modules.m365_audit.graph_client.GraphClient", _Graph)
 
-    policies, missing_consent = await mod._live_policies("acme")
+    policies, missing_consent, group_problem = await mod._live_policies("acme")
 
     assert made.entered, "the AuthManager was never entered, so it owns no credential yet"
     assert seen["credential"] is sentinel, "GraphClient was handed the AuthManager itself"
     assert policies == []
     assert missing_consent is True, "no granted roles means the write permission is absent"
+    assert group_problem is None, "no group was named, so nothing to verify"
 
 
 def test_no_caller_hands_graphclient_an_auth_manager():

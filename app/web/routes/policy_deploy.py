@@ -61,6 +61,7 @@ from app.modules.m365_audit.policy_deploy import (
     Plan,
     apply_plan,
     build_plan,
+    verify_exclusion_group,
 )
 from app.web.i18n import get_ui_lang
 from app.web.middleware.auth import get_current_user, require_tenant_write
@@ -78,7 +79,9 @@ async def get_templates(
     return {"templates": list_templates(get_ui_lang(request))}
 
 
-async def _live_policies(customer_id: str) -> tuple[list[dict], bool]:
+async def _live_policies(
+    customer_id: str, *, verify_group: str = ""
+) -> tuple[list[dict], bool, str | None]:
     """The tenant's Conditional Access policies, and whether we may write them.
 
     Consent is read from the granted app roles rather than inferred from a
@@ -101,7 +104,10 @@ async def _live_policies(customer_id: str) -> tuple[list[dict], bool]:
         except Exception as exc:
             logger.warning("Could not read granted permissions for %s: %s", customer_id, exc)
             granted = set()
-    return list(policies), WRITE_PERMISSION not in granted
+        group_problem = (
+            await verify_exclusion_group(client, verify_group) if verify_group else None
+        )
+    return list(policies), WRITE_PERMISSION not in granted, group_problem
 
 
 def _plan_payload(plan: Plan, template_id: str, lang: str) -> dict[str, Any]:
@@ -131,7 +137,13 @@ async def plan_deployment(
     except TemplateError as exc:
         raise ValidationError(str(exc)) from exc
 
-    live, missing_consent = await _live_policies(customer_id)
+    live, missing_consent, group_problem = await _live_policies(
+        customer_id, verify_group=str(values.get("break_glass_group", ""))
+    )
+    if group_problem:
+        # Every rail here rests on the exclusion naming somebody who can still
+        # sign in. Nothing checked it until now.
+        raise ValidationError(group_problem)
     try:
         adopt = load_mapping(customer_id)
     except AdoptionError as exc:
@@ -173,7 +185,13 @@ async def apply_deployment(
     except TemplateError as exc:
         raise ValidationError(str(exc)) from exc
 
-    live, missing_consent = await _live_policies(customer_id)
+    live, missing_consent, group_problem = await _live_policies(
+        customer_id, verify_group=str(values.get("break_glass_group", ""))
+    )
+    if group_problem:
+        # Every rail here rests on the exclusion naming somebody who can still
+        # sign in. Nothing checked it until now.
+        raise ValidationError(group_problem)
     try:
         adopt = load_mapping(customer_id)
     except AdoptionError as exc:
@@ -192,18 +210,23 @@ async def apply_deployment(
     customer = CustomerManager.get_customer(customer_id)
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
 
+    # Written by the callback rather than collected and stored afterwards: a
+    # crash between the first PATCH and the end of this function would
+    # otherwise leave writes on a tenant and no restore point on disk, which is
+    # exactly when the promise matters.
     saved: list[dict] = []
     try:
         async with auth as entered, GraphClient(entered.credential) as client:
-            result = await apply_plan(client, plan, live, snapshot=saved.extend)
+            def _keep(policies: list[dict]) -> None:
+                saved.extend(policies)
+                _store_restore_point(customer_id, policies)
+
+            result = await apply_plan(client, plan, live, snapshot=_keep)
     except DeployError as exc:
         logger.warning(
             "policy apply refused: user=%s customer=%s: %s", user.username, customer_id, exc
         )
         raise ValidationError(str(exc)) from exc
-
-    if saved:
-        _store_restore_point(customer_id, saved)
 
     logger.warning(
         "policy apply: user=%s customer=%s applied=%d failed=%d",
@@ -342,7 +365,7 @@ async def suggest_adoption(
     except TemplateError as exc:
         raise ValidationError(str(exc)) from exc
 
-    live, _ = await _live_policies(customer_id)
+    live, _, _ = await _live_policies(customer_id)
     return {
         "customer_id": customer_id,
         "suggestions": suggest(desired, live),
@@ -356,7 +379,7 @@ async def get_adoption(
     user: User = Depends(require_tenant_write()),
 ) -> dict[str, Any]:
     """What this customer has already agreed the standard takes over."""
-    live, _ = await _live_policies(customer_id)
+    live, _, _ = await _live_policies(customer_id)
     return {"customer_id": customer_id, "confirmed": describe(load_mapping(customer_id), live)}
 
 
@@ -383,7 +406,7 @@ async def set_adoption(
     except TemplateError as exc:
         raise ValidationError(str(exc)) from exc
 
-    live, _ = await _live_policies(customer_id)
+    live, _, _ = await _live_policies(customer_id)
     try:
         validate(mapping, desired, live)
     except AdoptionError as exc:
@@ -435,7 +458,7 @@ async def _restore_plan(customer_id: str, body: dict) -> tuple[Plan, list[dict]]
     except RestoreError as exc:
         raise ValidationError(str(exc)) from exc
 
-    live, missing_consent = await _live_policies(customer_id)
+    live, missing_consent, _ = await _live_policies(customer_id)
     plan = build_plan(
         customer_id, live, desired,
         allow_delete=bool(body.get("allow_delete")),
@@ -490,20 +513,25 @@ async def apply_restore(
     customer = CustomerManager.get_customer(customer_id)
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
 
+    # Written by the callback rather than collected and stored afterwards: a
+    # crash between the first PATCH and the end of this function would
+    # otherwise leave writes on a tenant and no restore point on disk, which is
+    # exactly when the promise matters.
     saved: list[dict] = []
     try:
         async with auth as entered, GraphClient(entered.credential) as client:
             # A restore point of its own, so undoing the undo is possible. The
             # state being restored *from* is worth keeping too.
-            result = await apply_plan(client, plan, live, snapshot=saved.extend)
+            def _keep(policies: list[dict]) -> None:
+                saved.extend(policies)
+                _store_restore_point(customer_id, policies)
+
+            result = await apply_plan(client, plan, live, snapshot=_keep)
     except DeployError as exc:
         logger.warning(
             "restore refused: user=%s customer=%s: %s", user.username, customer_id, exc
         )
         raise ValidationError(str(exc)) from exc
-
-    if saved:
-        _store_restore_point(customer_id, saved)
 
     logger.warning(
         "restore applied: user=%s customer=%s source=%s/%s applied=%d failed=%d",

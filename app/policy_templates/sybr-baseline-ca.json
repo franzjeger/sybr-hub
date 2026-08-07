@@ -1,6 +1,6 @@
 {
   "id": "sybr-baseline-ca",
-  "version": "2026.1",
+  "version": "2026.2",
   "name": {
     "no": "Sybr grunnsikring — Conditional Access",
     "en": "Sybr baseline — Conditional Access"
@@ -11,8 +11,8 @@
   },
   "requires": {
     "break_glass_group": {
-      "no": "Gruppe som unntas fra alle policyer — må inneholde minst én konto som aldri låses ute",
-      "en": "Group excluded from every policy — must hold at least one account that can never be locked out"
+      "no": "Gruppe som unntas fra alle policyer — må finnes i tenanten og inneholde minst én konto som aldri låses ute",
+      "en": "Group excluded from every policy — must exist in the tenant and hold at least one account that can never be locked out"
     }
   },
   "policies": [
@@ -41,14 +41,24 @@
             "7be44c8a-adaf-4e2a-84d6-ab2649e08a13",
             "e8611ab8-c189-46e8-94e1-60213ab1f814"
           ],
-          "excludeGroups": ["{{break_glass_group}}"]
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
         },
-        "applications": { "includeApplications": ["All"] },
-        "clientAppTypes": ["all"]
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
       },
       "grantControls": {
         "operator": "OR",
-        "builtInControls": ["mfa"]
+        "builtInControls": [
+          "mfa"
+        ]
       }
     },
     {
@@ -60,15 +70,31 @@
       },
       "conditions": {
         "users": {
-          "includeUsers": ["All"],
-          "excludeGroups": ["{{break_glass_group}}"]
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ],
+          "excludeRoles": [
+            "d29b2b05-8046-44ba-8758-1e26182fcf32"
+          ]
         },
-        "applications": { "includeApplications": ["All"] },
-        "clientAppTypes": ["exchangeActiveSync", "other"]
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "exchangeActiveSync",
+          "other"
+        ]
       },
       "grantControls": {
         "operator": "OR",
-        "builtInControls": ["block"]
+        "builtInControls": [
+          "block"
+        ]
       }
     },
     {
@@ -80,15 +106,30 @@
       },
       "conditions": {
         "users": {
-          "includeUsers": ["All"],
-          "excludeGroups": ["{{break_glass_group}}"]
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ],
+          "excludeRoles": [
+            "d29b2b05-8046-44ba-8758-1e26182fcf32"
+          ]
         },
-        "applications": { "includeApplications": ["All"] },
-        "clientAppTypes": ["all"]
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
       },
       "grantControls": {
         "operator": "OR",
-        "builtInControls": ["mfa"]
+        "builtInControls": [
+          "mfa"
+        ]
       }
     }
   ]

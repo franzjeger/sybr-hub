@@ -290,3 +290,164 @@ async def test_the_snapshot_is_taken_before_anything_is_sent():
     await apply_plan(_Recording(), plan, live, snapshot=lambda _: order.append("snapshot"))
 
     assert order == ["snapshot", "write"]
+
+
+# ── What an adversarial read of this module found ────────────────────────────
+
+def test_adopting_does_not_wipe_conditions_the_template_never_mentions():
+    """The worst one, and it was real.
+
+    Graph replaces an included complex property wholesale. PATCHing a template's
+    conditions — users, applications, clientAppTypes — would clear whatever the
+    live policy had beside them: the customer's excludeUsers, their trusted
+    locations, their risk levels. On an adopted MFA policy that is the directory
+    sync account losing its exclusion, silently, during an operation the plan
+    described as "conditions changed".
+    """
+    live = {
+        "id": "1", "displayName": "Their MFA", "state": REPORT_ONLY,
+        "modifiedDateTime": "t",
+        "conditions": {
+            "users": {"includeUsers": ["All"], "excludeUsers": ["sync-account"],
+                      "excludeGroups": ["bg"]},
+            "locations": {"excludeLocations": ["trusted-office"]},
+            "signInRiskLevels": ["high"],
+        },
+        "grantControls": {"operator": "OR", "builtInControls": ["mfa"],
+                          "authenticationStrength": {"id": "strength-1"}},
+    }
+    template = _policy("Sybr — MFA", exclude_groups=["bg"])
+
+    change = build_plan("acme", [live], [template], adopt={"Sybr — MFA": "1"}).changes[0]
+
+    users = change.body["conditions"]["users"]
+    assert users["excludeUsers"] == ["sync-account"], "the sync account lost its exclusion"
+    assert change.body["conditions"]["locations"]["excludeLocations"] == ["trusted-office"]
+    assert change.body["conditions"]["signInRiskLevels"] == ["high"]
+    assert change.body["grantControls"]["authenticationStrength"] == {"id": "strength-1"}
+
+
+def test_what_the_template_does_say_still_wins():
+    """Merging must not mean the standard is advisory."""
+    live = {
+        "id": "1", "displayName": "Theirs", "state": "disabled", "modifiedDateTime": "t",
+        "conditions": {"users": {"includeUsers": ["someone"], "excludeGroups": []}},
+        "grantControls": {"operator": "OR", "builtInControls": []},
+    }
+    template = _policy("Sybr — MFA", include=["All"], exclude_groups=["bg"])
+
+    change = build_plan("acme", [live], [template], adopt={"Sybr — MFA": "1"}).changes[0]
+
+    assert change.body["conditions"]["users"]["includeUsers"] == ["All"]
+    assert change.body["grantControls"]["builtInControls"] == ["mfa"]
+
+
+def test_the_plan_shows_before_and_after_not_just_a_field_name():
+    """"conditions changed" is the field name of an object holding somebody's
+    exclusions. Nobody can consent to that."""
+    live = {**_policy("Theirs", state="disabled"), "id": "1", "modifiedDateTime": "t"}
+    template = _policy("Sybr — MFA", state=REPORT_ONLY)
+
+    change = build_plan("acme", [live], [template], adopt={"Sybr — MFA": "1"}).changes[0]
+
+    assert change.diff["state"]["before"] == "disabled"
+    assert change.diff["state"]["after"] == REPORT_ONLY
+    assert change.diff["displayName"]["before"] == "Theirs"
+
+
+def test_a_redeploy_never_switches_an_enabled_policy_back_to_report_only():
+    """Templates ship report-only so a human enables after review. A routine
+    re-deploy that PATCHed the state back would un-enforce the baseline
+    tenant-wide — the quiet inverse of a lockout, on the second-most-routine
+    operation this tool has.
+    """
+    live = {**_policy("Sybr — MFA", state=ENABLED), "id": "1", "modifiedDateTime": "t"}
+    template = _policy("Sybr — MFA", state=REPORT_ONLY)
+
+    plan = build_plan("acme", [live], [template])
+
+    assert plan.changes == [], "the enabled policy was pushed back to report-only"
+
+
+def test_weakening_is_possible_when_asked_for_explicitly():
+    live = {**_policy("Sybr — MFA", state=ENABLED), "id": "1", "modifiedDateTime": "t"}
+    template = _policy("Sybr — MFA", state=REPORT_ONLY)
+
+    plan = build_plan("acme", [live], [template], allow_weakening=True)
+
+    assert plan.changes[0].body["state"] == REPORT_ONLY
+
+
+@pytest.mark.parametrize("condition,expected", [
+    ({"includeUsers": ["All"]}, True),
+    ({"includeRoles": ["62e90394-69f5-4237-9190-012177145e10"]}, True),
+    ({"includeGroups": ["all-staff"]}, True),
+    ({"includeUsers": ["one-person"]}, False),
+])
+def test_every_way_of_saying_everyone_is_caught(condition, expected):
+    """The rail read includeUsers only, so a policy over every administrator
+    role sailed through — the exact accident it exists for, invisible because
+    "all" is not in an empty set."""
+    body = {
+        "displayName": "x", "state": ENABLED,
+        "conditions": {"users": {**condition, "excludeGroups": []}},
+        "grantControls": {"operator": "OR", "builtInControls": ["mfa"]},
+    }
+
+    assert (lockout_risk(body) is not None) is expected
+
+
+def test_authentication_strength_counts_as_a_control_that_can_fail():
+    """The modern form lives beside builtInControls rather than inside it, so
+    reading only builtInControls made the strictest policy Microsoft offers
+    invisible to this check."""
+    body = {
+        "displayName": "x", "state": ENABLED,
+        "conditions": {"users": {"includeUsers": ["All"], "excludeGroups": []}},
+        "grantControls": {"operator": "OR", "builtInControls": None,
+                          "authenticationStrength": {"id": "phishing-resistant"}},
+    }
+
+    assert lockout_risk(body) is not None
+
+
+async def test_a_break_glass_group_that_does_not_exist_is_caught():
+    """The one assumption every rail here rests on, and nothing checked it.
+
+    Graph accepts an unresolvable GUID in excludeGroups without complaint, so a
+    typo, another customer's id, or a deleted group all produce a non-empty
+    exclusion list — and lockout_risk is then permanently satisfied by an
+    exclusion that excludes nobody.
+    """
+    from app.modules.m365_audit.policy_deploy import verify_exclusion_group
+
+    class _Missing:
+        async def get(self, path, **kw):
+            raise RuntimeError("404")
+
+    assert "does not exist" in (await verify_exclusion_group(_Missing(), "nope"))
+
+
+async def test_an_empty_break_glass_group_is_caught():
+    """Excluding a group with no members is the same as excluding nothing."""
+    from app.modules.m365_audit.policy_deploy import verify_exclusion_group
+
+    class _Empty:
+        async def get(self, path, **kw):
+            if path.endswith("/members"):
+                return {"value": []}
+            return {"id": "g1", "displayName": "Break glass"}
+
+    assert "is empty" in (await verify_exclusion_group(_Empty(), "g1"))
+
+
+async def test_a_populated_break_glass_group_passes():
+    from app.modules.m365_audit.policy_deploy import verify_exclusion_group
+
+    class _Good:
+        async def get(self, path, **kw):
+            if path.endswith("/members"):
+                return {"value": [{"id": "u1"}]}
+            return {"id": "g1", "displayName": "Break glass"}
+
+    assert await verify_exclusion_group(_Good(), "g1") is None
