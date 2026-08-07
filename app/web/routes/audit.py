@@ -498,6 +498,21 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
 
 # ── API: Audit progress polling ──────────────────────────────────────────────
 
+_IDLE_PROGRESS = {"progress": 0, "current_section": "", "total_sections": 0, "completed": 0}
+
+
+def _with_running(info: dict) -> dict:
+    """Progress, plus whether an audit is actually running.
+
+    Without this the client cannot tell "no audit" from "an audit that has not
+    reported a section yet" — both are zeros. It guessed, kept a local flag,
+    and the flag outlived the run: the badge stayed lit and the reconnect loop
+    kept calling the *start* endpoint, which started a fresh audit every time.
+    The server knows; let it say so.
+    """
+    return {**info, "running": bool(state.audit_running)}
+
+
 @router.get("/audit/progress/{customer_id}")
 async def get_audit_progress(
     customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
@@ -505,11 +520,11 @@ async def get_audit_progress(
     """Return current audit progress for the given customer (or 'active')."""
     info = state.audit_progress.get(customer_id)
     if info:
-        return info
+        return _with_running(info)
     # If no customer_id match, check if there's exactly one running audit
     if not info and len(state.audit_progress) == 1:
-        return next(iter(state.audit_progress.values()))
-    return {"progress": 0, "current_section": "", "total_sections": 0, "completed": 0}
+        return _with_running(next(iter(state.audit_progress.values())))
+    return _with_running(_IDLE_PROGRESS)
 
 
 @router.get("/audit/progress")
@@ -519,10 +534,10 @@ async def get_audit_progress_active(user: User = Depends(get_current_user)):
     active_id = CustomerManager.get_active_id() or "active"
     info = state.audit_progress.get(active_id)
     if info:
-        return info
+        return _with_running(info)
     if len(state.audit_progress) == 1:
-        return next(iter(state.audit_progress.values()))
-    return {"progress": 0, "current_section": "", "total_sections": 0, "completed": 0}
+        return _with_running(next(iter(state.audit_progress.values())))
+    return _with_running(_IDLE_PROGRESS)
 
 
 # ── API: Audit cancel ─────────────────────────────────────────────────────────

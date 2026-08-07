@@ -13,6 +13,25 @@ function icon(name, size) {
     globe:     'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
     server:    'M20 3H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6H4V5h16v4zm0 4H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6H4v-4h16v4zM6 7.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0zm0 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z',
     shield:    'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z',
+    // Used by the command palette and the navigation menus. Emoji were used
+    // here once; they render in the font's own colours and at the font's own
+    // weight, so a single 🔒 beside a row of line icons is the one thing on
+    // the screen the design language does not reach.
+    grid:      'M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z',
+    users:     'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+    cloud:     'M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z',
+    calendar:  'M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z',
+    monitor:   'M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z',
+    link:      'M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z',
+    gear:      'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
+    sparkle:   'M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z',
+    plug:      'M16 7V3h-2v4h-4V3H8v4H6v6l4 4v4h4v-4l4-4V7h-2z',
+    palette:   'M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01a1.49 1.49 0 0 1 1.14-2.49H16a5 5 0 0 0 5-5c0-4.42-4.03-8-9-8zm-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z',
+    play:      'M8 5v14l11-7L8 5z',
+    chart:     'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
+    building:  'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z',
+    clock:     'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
+    search:    'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   };
   var d = paths[name];
   if (!d) return '';
@@ -321,7 +340,7 @@ function _renderCmdResults(query) {
           results.push({
             label: rc.customer_name,
             hint: rc.primary_domain || '',
-            icon: '&#128337;',
+            icon: icon('clock', 16),
             action: function(){ overviewSelectCustomer(rid); },
             type: 'recent'
           });
@@ -332,23 +351,23 @@ function _renderCmdResults(query) {
 
   // Pages / Navigation
   var pages = [
-    {label:'Dashboard',       action:function(){showView('overview')},  section:t('nav_dashboard'), icon:'&#9634;'},
-    {label:t('nav_customers','Customers'), action:function(){showView('customers')}, section:t('nav_customers'), icon:'&#128101;'},
-    {label:t('nav_m365_status'),     action:function(){showView('home')},      section:t('nav_customers'), icon:'&#9729;'},
-    {label:t('nav_history','History'), action:function(){showView('history')},    section:t('nav_customers'), icon:'&#128197;'},
-    {label:t('bc_hosts_ssh','Hosts'), action:function(){showView('hosts')},      section:t('nav_remote_access','Fjernaksess'),    icon:'&#128421;'},
-    {label:t('bc_network','FortiGate / UniFi'), action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:'&#127760;'},
-    {label:'VPN',             action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:'&#128274;'},
-    {label:'TLS Monitor',     action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:'&#128274;'},
-    {label:'Nettleser',       action:function(){showView('browser')},    section:t('nav_tools','Verktøy'),    icon:'&#127760;'},
-    {label:'Tailscale',       action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:'&#128279;'},
-    {label:t('bc_provisioning','Provisjonering'), action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:'&#9881;'},
-    {label:'Sybrt',           action:function(){showView('ai')},         section:'',                 icon:'&#129302;'},
-    {label:t('nav_integrations','Integrations'), action:function(){showView('integrations')},section:'',                icon:'&#128268;'},
-    {label:t('bc_log','Log'), action:function(){showView('logs')},        section:'',                icon:'&#128196;'},
-    {label:t('hdr_settings','Settings'), action:function(){openSettings()}, section:'',                icon:'&#9881;'},
-    {label:t('tab_users','Users'),     action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:'&#128101;'},
-    {label:t('hdr_branding','Branding'), action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[1],'stab-branding')},100)}, section:t('hdr_settings'), icon:'&#127912;'},
+    {label:t('nav_dashboard','Dashboard'), action:function(){showView('overview')},  section:t('nav_dashboard'), icon:icon('grid',16)},
+    {label:t('nav_customers','Customers'), action:function(){showView('customers')}, section:t('nav_customers'), icon:icon('users',16)},
+    {label:t('nav_m365_status'),     action:function(){showView('home')},      section:t('nav_customers'), icon:icon('cloud',16)},
+    {label:t('nav_history','History'), action:function(){showView('history')},    section:t('nav_customers'), icon:icon('calendar',16)},
+    {label:t('bc_hosts_ssh','Hosts'), action:function(){showView('hosts')},      section:t('nav_remote_access','Fjernaksess'),    icon:icon('monitor',16)},
+    {label:t('bc_network','FortiGate / UniFi'), action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:icon('globe',16)},
+    {label:'VPN',             action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:icon('lock',16)},
+    {label:'TLS Monitor',     action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:icon('shield',16)},
+    {label:t('nav_browser2','Browser'), action:function(){showView('browser')}, section:t('nav_tools','Verktøy'),    icon:icon('globe',16)},
+    {label:'Tailscale',       action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:icon('link',16)},
+    {label:t('bc_provisioning','Provisjonering'), action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:icon('gear',16)},
+    {label:'Sybrt',           action:function(){showView('ai')},         section:'',                 icon:icon('sparkle',16)},
+    {label:t('nav_integrations','Integrations'), action:function(){showView('integrations')},section:'',                icon:icon('plug',16)},
+    {label:t('bc_log','Log'), action:function(){showView('logs')},        section:'',                icon:icon('document',16)},
+    {label:t('hdr_settings','Settings'), action:function(){openSettings()}, section:'',                icon:icon('gear',16)},
+    {label:t('tab_users','Users'),     action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:icon('users',16)},
+    {label:t('hdr_branding','Branding'), action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[1],'stab-branding')},100)}, section:t('hdr_settings'), icon:icon('palette',16)},
   ];
   pages.forEach(function(p) {
     if (!q || p.label.toLowerCase().includes(q) || (p.section||'').toLowerCase().includes(q))
@@ -357,9 +376,9 @@ function _renderCmdResults(query) {
 
   // Actions
   var actions = [
-    {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:'&#9654;'},
-    {label:t('hdr_settings')||'Innstillinger',      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:'&#9881;'},
-    {label:t('btn_export_excel')||'Eksporter Excel', action:function(){exportDashboardExcel()},                      hint:'',             icon:'&#128202;'},
+    {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:icon('play',16)},
+    {label:t('hdr_settings','Settings'),      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:icon('gear',16)},
+    {label:t('btn_export_excel','Export Excel'), action:function(){exportDashboardExcel()},                    hint:'',             icon:icon('chart',16)},
   ];
   if (q) {
     actions.forEach(function(a) {
@@ -374,7 +393,7 @@ function _renderCmdResults(query) {
         results.push({
           label: c.customer_name,
           hint: c.primary_domain || '',
-          icon: '&#127970;',
+          icon: icon('building', 16),
           action: function(){ apiFetch('/api/customers/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:c._id})}).then(function(){showView('home');loadStatus();}); },
           type: 'customer'
         });
@@ -389,7 +408,7 @@ function _renderCmdResults(query) {
         results.push({
           label: w.length > 80 ? w.substring(0,77)+'...' : w,
           hint: t('lbl_finding','Funn'),
-          icon: '&#9888;',
+          icon: icon('warning', 16),
           action: function(){ showView('home'); },
           type: 'finding'
         });
@@ -410,7 +429,7 @@ function _renderCmdResults(query) {
         lastType = r.type;
       }
       html += '<div class="cmd-item" tabindex="-1" onclick="closeCommandPalette();(' + '_cmdActions['+i+']' + ')()" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-5);cursor:pointer;transition:background 0.1s;border-radius:0;">'
-        + '<span style="font-size:16px;width:24px;text-align:center;flex-shrink:0;">' + r.icon + '</span>'
+        + '<span style="width:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">' + r.icon + '</span>'
         + '<span style="flex:1;font-size:var(--font-base);color:var(--text);">' + esc(r.label) + '</span>'
         + (r.hint ? '<span style="font-size:var(--font-xs);color:var(--text-dim);">' + esc(r.hint) + '</span>' : '')
         + '</div>';
@@ -1088,7 +1107,45 @@ function showView(name) {
     claudeLoadSaved();
   } else if (name === 'logs') {
     loadLogs();
+  } else if (name === 'audit') {
+    // Opening a view must never start work. Reconcile with the server instead:
+    // the badge and this screen should show what is actually running, not what
+    // some tab believed when it was last looked at.
+    _reconcileAuditState();
+  } else if (name === 'setup') {
+    _renderSetupIdle();
   }
+}
+
+// The one authority on whether an audit is running is the server. A client
+// flag that outlives its run leaves a badge lit with nothing behind it.
+async function _reconcileAuditState() {
+  try {
+    var d = await apiFetch('/api/audit/progress');
+    if (!d || d.running === undefined) return;   // older server: leave as-is
+    if (d.running && !auditRunning) {
+      // Started elsewhere — another tab, a schedule, another technician.
+      auditRunning = true;
+      var ind = document.getElementById('audit-running-indicator');
+      if (ind) ind.style.display = 'flex';
+      startAuditProgressPolling();
+      _watchAuditUntilServerIdle();
+    } else if (!d.running && auditRunning) {
+      _finishAuditWithoutStream();
+    } else if (!d.running) {
+      _clearStaleAuditBadge();
+    }
+  } catch (_) { /* offline: say nothing rather than claim either state */ }
+}
+
+function _clearStaleAuditBadge() {
+  auditRunning = false;
+  stopAuditProgressPolling();
+  _hideAuditProgressBar();
+  var ind = document.getElementById('audit-running-indicator');
+  if (ind) ind.style.display = 'none';
+  var back = document.getElementById('audit-back-btn');
+  if (back) back.disabled = false;
 }
 
 function switchNetSub(btn, tabId) {
@@ -2011,8 +2068,67 @@ async function renewCreds() {
 }
 
 // ── Setup flow ─────────────────────────────────────────────────────────────────
+// Whether a setup run is in flight. Without it, landing on this view showed an
+// empty "Progress" box with no form, no button and no explanation — a screen
+// that could only be understood by somebody who already knew it was a log.
+var _setupRunning = false;
+
+// The parts of the view that only make sense once a run has started.
+function _setupProgressCard() {
+  var log = document.getElementById('setup-log');
+  return log ? log.closest('.card') : null;
+}
+
+// What this screen looks like before anybody has asked for anything.
+function _renderSetupIdle() {
+  if (_setupRunning) return;   // a run owns the screen; leave it alone
+
+  var view = document.getElementById('view-setup');
+  if (!view) return;
+  var card = _setupProgressCard();
+  if (card) card.style.display = 'none';
+  var dc = document.getElementById('device-code-card');
+  if (dc) dc.classList.remove('visible');
+  var result = document.getElementById('setup-result-area');
+  if (result) result.innerHTML = '';
+
+  var intro = document.getElementById('setup-intro');
+  if (!intro) {
+    intro = document.createElement('div');
+    intro.id = 'setup-intro';
+    intro.className = 'card';
+    var anchor = card || result;
+    if (anchor) view.insertBefore(intro, anchor); else view.appendChild(intro);
+  }
+  intro.style.display = '';
+  intro.innerHTML =
+      '<div class="card-title">' + esc(t('setup_intro_title')) + '</div>'
+    + '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">'
+    +   esc(t('setup_intro_body'))
+    + '</div>'
+    + '<div style="font-size:13px;color:var(--text-muted);line-height:1.9;margin-bottom:20px;">'
+    +   '<div>' + icon('check', 14) + ' ' + esc(t('setup_intro_step_auth')) + '</div>'
+    +   '<div>' + icon('check', 14) + ' ' + esc(t('setup_intro_step_cert')) + '</div>'
+    +   '<div>' + icon('check', 14) + ' ' + esc(t('setup_intro_step_save')) + '</div>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
+    +   '<button data-write class="btn btn-primary" onclick="startSetup()">'
+    +     esc(t('btn_start_setup')) + '</button>'
+    +   '<span style="font-size:12px;color:var(--text-dim);">' + esc(t('setup_intro_needs_ga')) + '</span>'
+    + '</div>';
+
+  // The button is a write action; re-run the gate so a read-only user sees the
+  // explanation without an action they cannot take.
+  if (typeof applyWriteCapability === 'function') applyWriteCapability();
+}
+
 function startSetup() {
+  _setupRunning = true;   // before showView, so it does not render the idle state
   showView('setup');
+  var intro = document.getElementById('setup-intro');
+  if (intro) intro.style.display = 'none';
+  var card = _setupProgressCard();
+  if (card) card.style.display = '';
   document.getElementById('setup-log').innerHTML = '';
   document.getElementById('device-code-card').classList.remove('visible');
   document.getElementById('setup-result-area').innerHTML = '';
@@ -2036,6 +2152,7 @@ function startSetup() {
           else if (d.type === 'device_code') showDeviceCode(d);
           else if (d.type === 'error') appendSetupLog({step:'ERROR',status:'error',msg:d.msg});
           else if (d.type === 'done') {
+            _setupRunning = false;
             hideDeviceCode();
             if (d.success) {
               apiFetch('/api/customers/register', {method:'POST'});
@@ -2050,6 +2167,7 @@ function startSetup() {
       }
     }
   }).catch(function(e) {
+    _setupRunning = false;
     appendSetupLog({step:'NET',status:'error',msg:t('err_lost_connection')+': '+e.message});
   });
 }
@@ -2379,30 +2497,68 @@ async function startAudit() {
 // while auditRunning is true. Operator can navigate away and back to
 // reset; closing the browser doesn't stop the server-side audit.
 async function _runAuditStreamWithReconnect(streamUrl) {
-  let attempt = 0;
-  while (auditRunning) {
-    let backoff = Math.min(2000 * Math.pow(2, attempt), 32000);
-    const ok = await _attemptAuditStream(streamUrl);
-    if (!auditRunning) return;     // audit ended cleanly mid-stream
-    if (ok === 'done') return;     // stream signalled completion
-    attempt += 1;
-    if (typeof showToast === 'function') {
-      showToast(
-        t('msg_audit_reconnecting', 'Mistet kontakt med audit-strømmen — gjenoppretter om {s}s')
-          .replace('{s}', Math.round(backoff / 1000)),
-        'warning', backoff,
-      );
-    }
-    await new Promise(r => setTimeout(r, backoff));
+  // GET /audit/stream *starts* an audit — it does not attach to a running one.
+  // So it may be called exactly once, here. The loop that used to live in this
+  // function called it again on every dropped connection, believing it was
+  // reconnecting; each "reconnect" launched a fresh audit against the
+  // customer's tenant. It ran four audits in five minutes and left the running
+  // badge lit for good, because the loop's exit condition was the very flag
+  // the next iteration set again.
+  //
+  // A lost connection is a lost *view*, not a lost audit: the run continues on
+  // the server. So recovery means going back to watching it.
+  const ok = await _attemptAuditStream(streamUrl);
+  if (ok === 'done' || !auditRunning) return;
+  await _watchAuditUntilServerIdle();
+}
+
+// Follow a run we can no longer see, until the server says it is over.
+async function _watchAuditUntilServerIdle() {
+  if (typeof showToast === 'function') {
+    showToast(t('msg_audit_stream_lost'), 'warning', 8000);
   }
+  setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
+
+  while (auditRunning) {
+    await new Promise(r => setTimeout(r, 3000));
+    let d = null;
+    try {
+      d = await apiFetch('/api/audit/progress');
+    } catch (_) {
+      continue;  // the server is unreachable; keep watching rather than guess
+    }
+    // Only an explicit false ends the watch. An older server that does not
+    // send `running` leaves it undefined, and guessing "finished" there would
+    // reintroduce exactly the wrong-by-assumption bug this replaced.
+    if (d && d.running === false) {
+      _finishAuditWithoutStream();
+      return;
+    }
+  }
+}
+
+// The audit ended while we were not watching. We never received the results
+// payload, but the server wrote them to disk, so reload rather than invent.
+function _finishAuditWithoutStream() {
+  auditRunning = false;
+  document.title = _origTitle;
+  stopAuditProgressPolling();
+  _hideAuditProgressBar();
+  var ind = document.getElementById('audit-running-indicator');
+  if (ind) ind.style.display = 'none';
+  var back = document.getElementById('audit-back-btn');
+  if (back) back.disabled = false;
+  setAuditStatus('<span style="color:var(--orange)">' + t('msg_audit_done_stream_lost') + '</span>');
+  if (typeof loadStatus === 'function') loadStatus();
 }
 
 async function _attemptAuditStream(streamUrl) {
   try {
     const resp = await fetch(streamUrl, {headers: {'Authorization': 'Bearer ' + _authToken}});
     if (!resp.ok) {
-      // 409 = audit already running on server (we lost the stream but
-      // the server kept the audit alive — let the reconnect loop wait).
+      // 409 = an audit is already running. Nothing was started by this call,
+      // and there is no way to attach to the existing run's stream, so fall
+      // through to watching its progress.
       if (resp.status === 409) return false;
       setAuditStatus('<span style="color:var(--red)">✗ HTTP '+resp.status+'</span>');
       return 'done';
@@ -5436,7 +5592,7 @@ async function openITGlueImport() {
       var o = orgs[i];
       var exists = existingNames.has(o.name.toLowerCase());
       html += '<tr class="itglue-import-row" data-name="' + esc(o.name.toLowerCase()) + '"' + (exists ? ' style="opacity:0.4;"' : '') + '>';
-      html += '<td style="text-align:center;"><input type="checkbox" class="itglue-import-cb" data-idx="' + i + '" ' + (exists ? 'disabled title="Allerede importert"' : '') + ' onchange="updateITGlueImportBtn()" style="width:15px;height:15px;cursor:pointer;"></td>';
+      html += '<td style="text-align:center;"><input type="checkbox" class="itglue-import-cb" data-idx="' + i + '" ' + (exists ? 'disabled title="' + esc(t('msg_already_imported')) + '"' : '') + ' onchange="updateITGlueImportBtn()" style="width:15px;height:15px;cursor:pointer;"></td>';
       html += '<td style="font-weight:500;">' + esc(o.name) + '</td>';
       html += '<td style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">' + esc(o.id) + '</td>';
       html += '<td style="font-size:11px;color:var(--text-muted);">' + (exists ? '<span style="color:var(--green);">' + t('msg_already_exists') + '</span>' : '') + '</td>';

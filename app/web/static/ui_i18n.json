@@ -2780,7 +2780,18 @@
     "dlg_confirm_enforce": "Start håndheving av «{name}»?",
     "dlg_enforce_warning": "Fra dette øyeblikket avviser policyen pålogginger. Et gjenopprettingspunkt tas først.",
     "msg_enforced": "Policyen håndheves nå",
-    "dlg_revoke_own_write": "Dette fjerner din egen skrivetilgang. Å gi den tilbake er selv en skriving, så du får ikke gjort det herfra — det krever grant_write-skriptet på serveren. Fortsette?"
+    "dlg_revoke_own_write": "Dette fjerner din egen skrivetilgang. Å gi den tilbake er selv en skriving, så du får ikke gjort det herfra — det krever grant_write-skriptet på serveren. Fortsette?",
+    "msg_audit_stream_lost": "Mistet den direkte visningen. Auditen kjører videre på serveren — følger den.",
+    "msg_audit_running_no_stream": "Auditen kjører — følger den uten direkte visning",
+    "msg_audit_done_stream_lost": "Auditen ble ferdig mens den direkte visningen var borte. Resultatet er lastet på nytt.",
+    "setup_intro_title": "Sett opp ny kunde",
+    "setup_intro_body": "Dette registrerer en ny kunde ved å logge inn i kundens Microsoft 365-tenant og opprette tilgangen Sybr HUB trenger for å lese miljøet. Ingenting endres hos kunden ut over tilgangen som opprettes.",
+    "setup_intro_step_auth": "Du logger inn i kundens tenant med en engangskode",
+    "setup_intro_step_cert": "Det opprettes en appregistrering med et sertifikat",
+    "setup_intro_step_save": "Tilgangen lagres kryptert, og kunden blir tilgjengelig i oversikten",
+    "setup_intro_needs_ga": "Krever Global Administrator i kundens tenant",
+    "btn_import_customers_itglue": "Importer kunder",
+    "msg_already_imported": "Allerede importert"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5563,6 +5574,17 @@
     "dlg_confirm_enforce": "Start enforcing «{name}»?",
     "dlg_enforce_warning": "From this moment the policy turns sign-ins away. A restore point is taken first.",
     "msg_enforced": "Policy is now enforced",
-    "dlg_revoke_own_write": "This removes your own write access. Granting it back is itself a write, so you will not be able to do it from here — it needs the grant_write script on the server. Continue?"
+    "dlg_revoke_own_write": "This removes your own write access. Granting it back is itself a write, so you will not be able to do it from here — it needs the grant_write script on the server. Continue?",
+    "msg_audit_stream_lost": "Lost the live view. The audit is still running on the server — following it.",
+    "msg_audit_running_no_stream": "Audit running — following it without the live view",
+    "msg_audit_done_stream_lost": "The audit finished while the live view was gone. The result has been reloaded.",
+    "setup_intro_title": "Set up new customer",
+    "setup_intro_body": "This registers a new customer by signing in to their Microsoft 365 tenant and creating the access Sybr HUB needs to read the environment. Nothing else in the customer tenant is changed.",
+    "setup_intro_step_auth": "You sign in to the customer tenant with a one-time code",
+    "setup_intro_step_cert": "An app registration with a certificate is created",
+    "setup_intro_step_save": "The access is stored encrypted and the customer appears in the overview",
+    "setup_intro_needs_ga": "Requires Global Administrator in the customer tenant",
+    "btn_import_customers_itglue": "Import customers",
+    "msg_already_imported": "Already imported"
   }
 }
