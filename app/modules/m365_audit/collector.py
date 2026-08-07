@@ -33,6 +33,7 @@ class AuditCollector:
         "Admin Roles",
         "Secure Score",
         "Intune",
+        "Entra Devices",
         "SharePoint",
         "Microsoft Teams",
         "App Registrations & OAuth",
@@ -190,6 +191,7 @@ class AuditCollector:
         from app.modules.m365_audit.sections.dns import DnsSection
         from app.modules.m365_audit.sections.groups_roles import AdminRolesSection, GroupsSection
         from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
+        from app.modules.m365_audit.sections.entra_devices import EntraDevicesSection
         from app.modules.m365_audit.sections.intune import IntuneSection
         from app.modules.m365_audit.sections.licenses import LicensesSection
         from app.modules.m365_audit.sections.onedrive_sharing import OneDriveSharingSection
@@ -222,6 +224,7 @@ class AuditCollector:
             admin_sec,
             SecureScoreSection(self.out_dir, graph, self.progress_cb),
             IntuneSection(self.out_dir, graph, self.progress_cb),
+            EntraDevicesSection(self.out_dir, graph, self.progress_cb),
             SharePointSection(self.out_dir, graph, self.progress_cb),
             TeamsSection(self.out_dir, graph, self.progress_cb),
             AppsOAuthSection(self.out_dir, graph, self.progress_cb),
