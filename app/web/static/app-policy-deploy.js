@@ -36,6 +36,7 @@ async function policyDeployLoad() {
   _pdTemplates = d.templates;
   _pdPlan = null;
   el.innerHTML = _pdForm();
+  policyEnforceLoad();
   policyRestoreLoad();
 }
 
@@ -68,7 +69,8 @@ function _pdForm() {
        + t('btn_check_existing', 'Check existing policies') + '</button>';
   html += '<button class="btn btn-primary" id="pd-plan-btn" disabled onclick="policyDeployPlan()">'
        + t('btn_plan', 'Show plan') + '</button>';
-  html += '</div><div id="pd-adopt"></div><div id="pd-plan"></div><div id="pd-restore"></div>';
+  html += '</div><div id="pd-adopt"></div><div id="pd-plan"></div>'
+       + '<div id="pd-enforce"></div><div id="pd-restore"></div>';
   return html;
 }
 
@@ -200,6 +202,61 @@ async function policyAdoptionSave() {
   var plan = document.getElementById('pd-plan');
   if (plan) plan.innerHTML = '';
   _pdPlan = null;
+}
+
+// ── Turning report-only into enforced ───────────────────────────────────────
+// The step that was missing. A policy lands report-only so somebody can read
+// what it would have blocked; acting on that reading used to mean the Entra
+// portal — half the lifecycle living elsewhere, and the half where a policy
+// starts turning sign-ins away.
+
+async function policyEnforceLoad() {
+  var el = document.getElementById('pd-enforce');
+  if (!el) return;
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/report-only');
+  if (!d || !d.policies || !d.policies.length) { el.innerHTML = ''; return; }
+
+  var html = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">';
+  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-2);">'
+       + t('hdr_enforce', 'Report-only policies') + '</div>';
+  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">'
+       + t('msg_enforce_intro', 'These are live but block nobody. Read the sign-in logs in Entra to see who they would have stopped, then enforce.') + '</div>';
+  html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+  d.policies.forEach(function(p) {
+    html += '<tr style="border-bottom:1px solid var(--border);vertical-align:top;">';
+    html += '<td style="padding:8px 0;">' + esc(p.name);
+    if (p.refused) {
+      html += '<div style="color:var(--red);margin-top:2px;">' + esc(p.refused) + '</div>';
+    }
+    html += '</td><td style="padding:8px 0;text-align:right;white-space:nowrap;">';
+    if (p.refused) {
+      html += '<span style="color:var(--text-dim);">' + t('lbl_cannot_enforce', 'Cannot enforce') + '</span>';
+    } else {
+      html += '<button class="btn btn-ghost btn-sm" onclick="policyEnforce(\'' + esc(p.policy_id) + '\',\'' + esc(p.name).replace(/'/g,"\\'") + '\')">'
+           + t('btn_enforce', 'Enforce') + '</button>';
+    }
+    html += '</td></tr>';
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
+async function policyEnforce(policyId, name) {
+  if (typeof showTypedConfirm === 'function') {
+    var ok = await showTypedConfirm(
+      name,
+      t('dlg_confirm_enforce', 'Start enforcing «{name}»?').replace('{name}', name),
+      t('dlg_enforce_warning', 'From this moment the policy turns sign-ins away. A restore point is taken first.')
+    );
+    if (!ok) return;
+  }
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/enable', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({policy_id: policyId}),
+  });
+  if (!d || !d.ok) return;
+  showToast(t('msg_enforced', 'Policy is now enforced'), 'success', 4000);
+  policyEnforceLoad();
 }
 
 // ── Putting it back ─────────────────────────────────────────────────────────

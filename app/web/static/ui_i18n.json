@@ -2772,7 +2772,15 @@
     "msg_consent_waiting": "Venter på at innloggingen fullføres …",
     "msg_consent_failed": "Innloggingen ble ikke fullført.",
     "msg_consent_already": "Tillatelsen var allerede gitt.",
-    "msg_consent_done": "Tillatelse gitt. Kjør planen på nytt."
+    "msg_consent_done": "Tillatelse gitt. Kjør planen på nytt.",
+    "hdr_enforce": "Policyer i rapporteringsmodus",
+    "msg_enforce_intro": "Disse er aktive, men blokkerer ingen. Les påloggingsloggene i Entra for å se hvem de ville stoppet, og håndhev deretter.",
+    "btn_enforce": "Håndhev",
+    "lbl_cannot_enforce": "Kan ikke håndheves",
+    "dlg_confirm_enforce": "Start håndheving av «{name}»?",
+    "dlg_enforce_warning": "Fra dette øyeblikket avviser policyen pålogginger. Et gjenopprettingspunkt tas først.",
+    "msg_enforced": "Policyen håndheves nå",
+    "dlg_revoke_own_write": "Dette fjerner din egen skrivetilgang. Å gi den tilbake er selv en skriving, så du får ikke gjort det herfra — det krever grant_write-skriptet på serveren. Fortsette?"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5547,6 +5555,14 @@
     "msg_consent_waiting": "Waiting for the sign-in to complete...",
     "msg_consent_failed": "The sign-in did not complete.",
     "msg_consent_already": "The permission was already granted.",
-    "msg_consent_done": "Permission granted. Re-run the plan."
+    "msg_consent_done": "Permission granted. Re-run the plan.",
+    "hdr_enforce": "Report-only policies",
+    "msg_enforce_intro": "These are live but block nobody. Read the sign-in logs in Entra to see who they would have stopped, then enforce.",
+    "btn_enforce": "Enforce",
+    "lbl_cannot_enforce": "Cannot enforce",
+    "dlg_confirm_enforce": "Start enforcing «{name}»?",
+    "dlg_enforce_warning": "From this moment the policy turns sign-ins away. A restore point is taken first.",
+    "msg_enforced": "Policy is now enforced",
+    "dlg_revoke_own_write": "This removes your own write access. Granting it back is itself a write, so you will not be able to do it from here — it needs the grant_write script on the server. Continue?"
   }
 }

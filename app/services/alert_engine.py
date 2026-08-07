@@ -74,6 +74,11 @@ DEFAULT_ALERT_CONFIG: dict[str, Any] = {
         "also_license_expiry": {"enabled": True, "days": 14},
         "mfa_coverage": {"enabled": True, "threshold": 80},
         "pentest_critical": {"enabled": True},
+        # A removed Conditional Access policy barely moves the Secure Score and
+        # raises no alert from Microsoft. Drift has been computed at every
+        # audit since the snapshots landed and nobody was told — the finding
+        # sat in a report waiting for somebody to open it.
+        "policy_drift": {"enabled": True, "alert_on_changed": False},
     },
 }
 
@@ -302,6 +307,85 @@ async def _check_also_license_expiry(days_threshold: int) -> list[dict]:
     return alerts
 
 
+
+async def _check_policy_drift(alert_on_changed: bool = False) -> list[dict]:
+    """Security policies that moved since the previous audit.
+
+    The one this codebase most needed. A tenant can hold the same Secure Score
+    for six months while somebody disables the policy requiring MFA for
+    administrators: Microsoft raises nothing, the score barely notices, and the
+    only record was a section of a report nobody had reason to open.
+
+    Removals are critical and changes are optional, because they are different
+    news. A policy that is gone is gone; a policy whose fields moved is usually
+    somebody working, and alerting on every edit is how an alert channel
+    becomes something people mute.
+
+    Drift that could not be measured is silent. "No policy was removed" and
+    "there was nothing to compare against" are different claims, and only the
+    first is worth waking somebody for.
+    """
+    alerts: list[dict] = []
+    try:
+        from app.core.config import get_audit_dir
+        from app.core.customer import CustomerManager
+        from app.core.policy_drift import compute_drift
+
+        names = {}
+        for c in CustomerManager.list_customers():
+            real = c.get("CustomerName", "")
+            safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in real)
+            names[safe] = real or safe
+
+        root = get_audit_dir()
+        if not root.is_dir():
+            return alerts
+
+        for customer_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+            runs = sorted((p for p in customer_dir.iterdir() if p.is_dir()), reverse=True)
+            if not runs:
+                continue
+            drift = compute_drift(runs[0])
+            if not drift.get("measured"):
+                # Nothing to compare against is not "nothing changed".
+                continue
+
+            customer = names.get(customer_dir.name, customer_dir.name)
+            for snapshot in drift.get("snapshots", []):
+                if not snapshot.get("comparable"):
+                    continue
+                for policy in snapshot.get("removed", []):
+                    alerts.append({
+                        "type": "policy_drift",
+                        "severity": "critical",
+                        "customer": customer,
+                        "item": policy.get("name") or policy.get("id", ""),
+                        "detail": (
+                            f"Sikkerhetspolicyen «{policy.get('name') or policy.get('id')}» "
+                            f"er fjernet siden {drift.get('compared_with')}."
+                        ),
+                        "days_remaining": 0,
+                    })
+                if not alert_on_changed:
+                    continue
+                for policy in snapshot.get("changed", []):
+                    alerts.append({
+                        "type": "policy_drift",
+                        "severity": "warning",
+                        "customer": customer,
+                        "item": policy.get("name") or policy.get("id", ""),
+                        "detail": (
+                            f"«{policy.get('name') or policy.get('id')}» er endret siden "
+                            f"{drift.get('compared_with')}: "
+                            f"{', '.join(policy.get('fields', []))}."
+                        ),
+                        "days_remaining": 0,
+                    })
+    except Exception as exc:
+        logger.warning("Alert check policy_drift failed: %s", exc)
+    return alerts
+
+
 async def _check_mfa_coverage(threshold: float) -> list[dict]:
     """Check audit metrics for MFA coverage below threshold."""
     alerts: list[dict] = []
@@ -379,6 +463,10 @@ async def _check_pentest_critical() -> list[dict]:
 # ── Recommendation text enrichment ──────────────────────────────────────────
 
 _RECOMMENDATIONS: dict[str, str] = {
+    "policy_drift": (
+        "Bekreft at fjerningen var tilsiktet. Var den ikke det, kan policyen "
+        "settes tilbake fra siste gjenopprettingspunkt under Policy-utrulling."
+    ),
     "ssl_expiry": "Forny sertifikatet med certbot/Let's Encrypt, eller kontakt CA-en din. Sett opp automatisk fornyelse.",
     "domain_expiry": "Forny domenet hos registraren. Aktiver auto-renew for å unngå at domenet utløper.",
     "fortigate_threats": "Gjennomgå IPS/AV-loggene på FortiGate. Vurder å blokkere kilde-IP og oppdater signaturer.",
@@ -570,6 +658,11 @@ async def run_alert_check() -> dict:
     if rules.get("mfa_coverage", {}).get("enabled"):
         threshold = rules["mfa_coverage"].get("threshold", 80)
         all_alerts.extend(await _check_mfa_coverage(threshold))
+
+    if rules.get("policy_drift", {}).get("enabled", True):
+        all_alerts.extend(
+            await _check_policy_drift(rules["policy_drift"].get("alert_on_changed", False))
+        )
 
     # Pentest critical findings (from recent saved scans)
     if rules.get("pentest_critical", {}).get("enabled", True):
