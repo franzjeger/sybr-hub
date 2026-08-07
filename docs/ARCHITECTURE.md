@@ -140,6 +140,23 @@ Created on demand rather than by a migration. A migration that inserted a
 privileged account into every existing install should be a decision somebody
 made.
 
+**The job it exists for** is `services/site_collector.py`: for every VPN
+profile bound to a customer, bring the tunnel up as `sybr-system`, run the
+network audit that already reads a FortiGate and a UniFi controller, store the
+result beside that customer's audits, bring the tunnel down.
+
+One site at a time, and that is not a performance oversight — customer sites
+overlap on RFC1918, so two tunnels up at once means routes fighting and the
+collector reading whichever site won. The tunnel comes down in a `finally`, and
+again in a sweep at the end for anything the loop did not reach: a collector
+that dies holding a tunnel leaves the toolkit inside somebody's network with
+nobody aware of it. A profile a human is already using is skipped, because a
+background job that disconnects somebody mid-session to gather statistics has
+its priorities backwards. And a site where the tunnel came up but nothing
+answered is recorded as a failure rather than an empty reading — "no devices"
+and "nobody answered" are different claims, which is the mistake this codebase
+keeps finding.
+
 **VPN locks while it holds tunnels.** `system_held()` lists the profiles it has
 open or coming up, and connect, disconnect, force-disconnect and profile
 deletion refuse while that is non-empty, naming the profiles so the message is
