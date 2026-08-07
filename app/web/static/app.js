@@ -3365,6 +3365,16 @@ function _capabilityToggles(u) {
 }
 
 async function setUserCapability(userId, field, enabled) {
+  // Removing your own write access is one of the few actions in here that
+  // cannot be undone from in here — granting is itself a write, so the account
+  // that gives it away needs somebody at a shell to get it back.
+  var self = _currentUser && (_currentUser.id === userId);
+  if (self && field === 'can_write' && !enabled) {
+    var ok = confirm(t('dlg_revoke_own_write',
+      'This removes your own write access. Granting it back is itself a write, so you will not be able to do it from here — it needs the grant_write script on the server. Continue?'));
+    if (!ok) { loadUsers(); return; }
+  }
+
   var body = {};
   body[field] = enabled;
   // Taking write away takes the tenant capability with it. Leaving it set on

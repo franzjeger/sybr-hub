@@ -241,6 +241,124 @@ async def apply_deployment(
     return result
 
 
+# ── Turning report-only into enforced ────────────────────────────────────────
+
+@router.post("/policy-deploy/{customer_id}/enable")
+async def enable_policy(
+    customer_id: str,
+    request: Request,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Move one report-only policy to enforced.
+
+    The step that was missing. Templates land report-only so a human can read
+    what they would have blocked, and until now the only way to act on that
+    reading was the Entra portal — half the lifecycle living somewhere else,
+    and the half where somebody decides to start blocking people.
+
+    One policy at a time and named by id, because "enable the standard" is a
+    sentence somebody says quickly and this is the moment a policy starts
+    turning sign-ins away.
+
+    The lockout rail is checked against the policy *as it would be enforced*,
+    which is the only state where it means anything: every policy passes it
+    while report-only.
+    """
+    from app.core.customer import CustomerManager
+    from app.modules.m365_audit.auth import get_auth_for_customer
+    from app.modules.m365_audit.graph_client import GraphClient
+    from app.modules.m365_audit.policy_deploy import (
+        ENABLED,
+        REPORT_ONLY,
+        lockout_risk,
+        strip_server_fields,
+    )
+
+    body = await request.json()
+    policy_id = str(body.get("policy_id", "")).strip()
+    if not policy_id:
+        raise ValidationError("Which policy? Name it by id.")
+
+    live, missing_consent, _ = await _live_policies(customer_id)
+    if missing_consent:
+        raise ValidationError(
+            f"This tenant has not consented to {WRITE_PERMISSION}. Nothing was sent."
+        )
+
+    current = next((p for p in live if str(p.get("id")) == policy_id), None)
+    if current is None:
+        raise ValidationError(f"No policy {policy_id!r} in this tenant.")
+    if current.get("state") == ENABLED:
+        return {"ok": True, "already_enabled": True, "name": current.get("displayName")}
+    if current.get("state") != REPORT_ONLY:
+        raise ValidationError(
+            "Only a report-only policy can be enabled from here. This one is "
+            f"{current.get('state')!r}, which is a different decision."
+        )
+
+    enforced = {**strip_server_fields(current), "state": ENABLED}
+    refusal = lockout_risk(enforced)
+    if refusal:
+        # Every policy passes the rail while report-only. This is the first
+        # moment it has anything to say, and it is the moment that matters.
+        raise ValidationError(refusal)
+
+    customer = CustomerManager.get_customer(customer_id)
+    auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
+    async with auth as entered, GraphClient(entered.credential) as client:
+        # A restore point first: enabling is the change most likely to need
+        # undoing in a hurry.
+        _store_restore_point(customer_id, [current])
+        await client.patch(f"{CA_PATH}/{policy_id}", {"state": ENABLED})
+
+    logger.warning(
+        "policy enabled: user=%s customer=%s policy=%r",
+        user.username, customer_id, current.get("displayName"),
+    )
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "policy_enabled",
+        detail=f"{current.get('displayName')} er nå håndhevet",
+        customer=customer.get("CustomerName", customer_id) if customer else customer_id,
+        user=user.username,
+    )
+    return {"ok": True, "name": current.get("displayName"), "state": ENABLED}
+
+
+@router.get("/policy-deploy/{customer_id}/report-only")
+async def list_report_only(
+    customer_id: str,
+    user: User = Depends(require_tenant_write()),
+) -> dict[str, Any]:
+    """Policies waiting for somebody to decide they should start blocking."""
+    from app.modules.m365_audit.policy_deploy import (
+        ENABLED,
+        REPORT_ONLY,
+        lockout_risk,
+        strip_server_fields,
+    )
+
+    live, missing_consent, _ = await _live_policies(customer_id)
+    waiting = []
+    for policy in live:
+        if policy.get("state") != REPORT_ONLY:
+            continue
+        enforced = {**strip_server_fields(policy), "state": ENABLED}
+        waiting.append({
+            "policy_id": str(policy.get("id", "")),
+            "name": str(policy.get("displayName", "")),
+            # Shown before the click rather than after, so the reason a policy
+            # cannot be enforced is visible while somebody is deciding.
+            "refused": lockout_risk(enforced),
+        })
+    return {
+        "customer_id": customer_id,
+        "missing_consent": missing_consent,
+        "policies": sorted(waiting, key=lambda p: p["name"]),
+    }
+
+
 # ── Asking for the permission this cannot grant itself ───────────────────────
 
 # One pending sign-in per customer, in memory. It is a device-code flow with a

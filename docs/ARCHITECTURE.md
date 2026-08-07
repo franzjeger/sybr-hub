@@ -398,6 +398,25 @@ Three more from the same review, fixed here:
   now names ids one at a time, and everything the standard does not contain is
   reported as `unmanaged` so an operator can see it and choose.
 
+**Enabling is a separate step, on purpose.** Templates land report-only so a
+human can read what they would have blocked; acting on that reading used to
+mean the Entra portal, so half the lifecycle lived elsewhere — the half where a
+policy starts turning sign-ins away. `POST /policy-deploy/{id}/enable` takes one
+policy id at a time, because "enable the standard" is a sentence somebody says
+quickly. The lockout rail is evaluated against the policy *as it would be
+enforced*, which is the only state where it means anything: every policy passes
+it while report-only. A restore point is taken first, since enabling is the
+change most likely to need undoing in a hurry.
+
+**Drift is alerted, not just computed.** `_check_policy_drift` in the alert
+engine reports a removed policy as critical, per customer, with the restore
+route named in the recommendation. Changed policies are silent unless asked
+for: a policy that is gone is gone, while a policy whose fields moved is
+usually somebody working, and alerting on every edit is how a channel becomes
+something people mute. Drift that could not be measured wakes nobody — "no
+policy was removed" and "there was nothing to compare against" are different
+claims.
+
 Four rails, and they refuse rather than warn:
 
 | rail | why |
