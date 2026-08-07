@@ -22,9 +22,9 @@ from app.core.policy_restore import (
 from app.modules.m365_audit.policy_deploy import build_plan, lockout_risk
 
 
-def _policy(name, *, state="enabledForReportingButNotEnforced", exclude=("bg",)):
+def _policy(name, *, pid=None, state="enabledForReportingButNotEnforced", exclude=("bg",)):
     return {
-        "id": f"id-{name}", "displayName": name, "state": state,
+        "id": pid or f"id-{name}", "displayName": name, "state": state,
         "conditions": {"users": {"includeUsers": ["All"], "excludeGroups": list(exclude)}},
         "grantControls": {"operator": "OR", "builtInControls": ["mfa"]},
     }
@@ -167,12 +167,36 @@ def test_policies_added_since_are_left_alone_by_default(audits):
     assert plan.changes == []
 
 
-def test_removing_what_was_added_is_possible_when_asked(audits):
-    _point(audits, "Acme", "2026-08-06_101500", [_policy("One")])
-    live = [{**_policy("One"), "modifiedDateTime": "t"}, {**_policy("Added"), "modifiedDateTime": "t"}]
+def test_removing_what_was_added_is_possible_when_named(audits):
+    _point(audits, "Acme", "2026-08-06_101500", [_policy("One", pid="id-One")])
+    live = [
+        {**_policy("One", pid="id-One"), "modifiedDateTime": "t"},
+        {**_policy("Added", pid="id-Added"), "modifiedDateTime": "t"},
+    ]
 
     plan = build_plan(
-        "Acme", live, load_source("Acme", DEPLOYMENT, "2026-08-06_101500"), allow_delete=True
+        "Acme", live, load_source("Acme", DEPLOYMENT, "2026-08-06_101500"),
+        delete=["id-Added"],
     )
 
     assert [(c.action, c.name) for c in plan.changes] == [("delete", "Added")]
+
+
+def test_a_restore_matches_by_id_so_it_can_undo_an_adoption(audits):
+    """Adopting renamed the policy; the snapshot holds the old name.
+
+    Name-matching would create a duplicate under the old name beside the
+    Sybr-named one — or, with deletion approved, remove the adopted policy and
+    leave the stored mapping pointing at a dead id, hard-failing every plan
+    after that.
+    """
+    _point(audits, "Acme", "2026-08-06_101500", [_policy("All users require MFA", pid="p1")])
+    live = [{**_policy("Sybr — Require MFA for all users", pid="p1"), "modifiedDateTime": "t"}]
+
+    plan = build_plan("Acme", live, load_source("Acme", DEPLOYMENT, "2026-08-06_101500"))
+
+    assert len(plan.changes) == 1
+    change = plan.changes[0]
+    assert change.action == "update", "a duplicate would have been created"
+    assert change.policy_id == "p1"
+    assert change.diff["displayName"]["after"] == "All users require MFA"

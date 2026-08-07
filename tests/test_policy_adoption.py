@@ -133,12 +133,10 @@ def test_an_adopted_policy_is_not_also_deleted_as_unknown():
     ours = _p("Sybr — Require MFA for all users")
     theirs = _p("All users require MFA", pid="1")
 
-    plan = build_plan(
-        "acme", [theirs], [ours],
-        adopt={"Sybr — Require MFA for all users": "1"}, allow_delete=True,
-    )
+    plan = build_plan("acme", [theirs], [ours], adopt={"Sybr — Require MFA for all users": "1"})
 
     assert DELETE not in [c.action for c in plan.changes]
+    assert plan.unmanaged == [], "an adopted policy is not unmanaged"
 
 
 def test_an_adopted_policy_is_not_also_a_name_match_for_another():

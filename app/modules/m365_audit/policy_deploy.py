@@ -113,6 +113,9 @@ class Plan:
     changes: list[Change]
     fingerprint: str
     missing_consent: bool = False
+    # Policies in the tenant the standard does not contain. Reported, never
+    # acted on: deleting one means naming its id in `delete`.
+    unmanaged: list[dict] = field(default_factory=list)
 
     @property
     def applicable(self) -> list[Change]:
@@ -130,6 +133,7 @@ class Plan:
             "changes": [c.as_dict() for c in self.changes],
             "applicable": len(self.applicable),
             "refused": len(self.refused),
+            "unmanaged": self.unmanaged,
         }
 
 
@@ -153,6 +157,33 @@ def fingerprint(policies: list[dict]) -> str:
             key=lambda p: str(p.get("id")),
         ),
         sort_keys=True,
+    )
+    return hashlib.sha256(material.encode()).hexdigest()[:32]
+
+
+def plan_fingerprint(
+    live: list[dict], desired: list[dict], adopt: dict, delete: list[str]
+) -> str:
+    """What the operator approved: this tenant *and* this change to it.
+
+    Hashing the tenant alone was not enough. The plan is recomputed at apply
+    time from inputs the tenant hash does not cover — the adoption mapping is
+    loaded fresh from disk, and the template could be edited between the two
+    requests. So: operator A reviews a plan that says CREATE, operator B
+    confirms an adoption mapping, A clicks apply, and the tool PATCHes a policy
+    A never saw, with the tenant check green because the tenant had not moved.
+
+    Now the fingerprint moves when the intent moves, and apply refuses.
+    """
+    material = json.dumps(
+        {
+            "tenant": fingerprint(live),
+            "desired": [strip_server_fields(p) for p in desired],
+            "adopt": dict(sorted(adopt.items())),
+            "delete": sorted(delete),
+        },
+        sort_keys=True,
+        default=str,
     )
     return hashlib.sha256(material.encode()).hexdigest()[:32]
 
@@ -296,7 +327,7 @@ def build_plan(
     live: list[dict],
     desired: list[dict],
     *,
-    allow_delete: bool = False,
+    delete: list[str] | None = None,
     missing_consent: bool = False,
     adopt: dict[str, str] | None = None,
     allow_weakening: bool = False,
@@ -307,17 +338,28 @@ def build_plan(
     every tenant we inherit: a template has no id until it exists somewhere,
     and the same standard across twenty customers is twenty ids for one policy.
 
+    Except when the desired policy carries an id that the tenant still has —
+    which is a restore, since a snapshot records what Graph returned. Matching
+    a restore by name cannot undo an adoption: adopting renamed the policy, the
+    snapshot holds the old name, and name-matching would create a duplicate
+    under it, or with deletion approved would remove the adopted policy and
+    leave the stored mapping pointing at a dead id, hard-failing every plan
+    after that until somebody hand-edited an encrypted file.
+
     ``adopt`` is how an inherited tenant is handled — a confirmed mapping from
     template name to the id of a policy the customer already has. The standard
     then *updates* that policy instead of creating a second one beside it, and
     the rename shows up in the changed fields like any other change, because it
     is one.
 
-    Deletion is off unless asked for. A policy present in the tenant and absent
-    from the standard is far more often something the customer added on purpose
-    than something we should remove.
+    ``delete`` names the policy ids to remove, one at a time. It used to be a
+    boolean, which meant a single tick planned the deletion of *every* policy in
+    the tenant the standard does not contain — a mass un-protection event behind
+    one checkbox. Everything not in the standard is now reported as unmanaged so
+    an operator can see it and choose, and choosing means naming it.
     """
     adopt = adopt or {}
+    delete = list(delete or [])
     by_name = {str(p.get("displayName", "")): p for p in live}
     by_id = {str(p.get("id", "")): p for p in live}
     adopted_ids = set(adopt.values())
@@ -330,8 +372,14 @@ def build_plan(
         body = strip_server_fields(want)
         refusal = lockout_risk(body)
 
+        # A restore carries the id the policy had when it was captured. If the
+        # tenant still has it, that is the policy this is about — whatever it
+        # has since been renamed to.
+        own_id = str(want.get("id", ""))
         adopted_id = adopt.get(name)
-        if adopted_id:
+        if own_id and own_id in by_id and not adopted_id:
+            current = by_id[own_id]
+        elif adopted_id:
             current = by_id.get(adopted_id)
             if current is None:
                 # Falling back to a create here would produce exactly the
@@ -376,24 +424,44 @@ def build_plan(
             diff=field_diff(current, merged, fields),
         ))
 
-    if allow_delete:
-        wanted_names = {str(p.get("displayName", "")) for p in desired}
-        for name, current in sorted(by_name.items()):
-            # An adopted policy is the standard's now, whatever it is still
-            # called at this moment.
-            if str(current.get("id", "")) in adopted_ids:
-                continue
-            if name not in wanted_names:
+    wanted_names = {str(p.get("displayName", "")) for p in desired}
+    wanted_ids = {str(p.get("id", "")) for p in desired if p.get("id")}
+    unmanaged: list[dict] = []
+    for name, current in sorted(by_name.items()):
+        # An adopted policy is the standard's now, whatever it is still called
+        # at this moment; so is one a restore matched by id under a new name.
+        policy_id = str(current.get("id", ""))
+        if policy_id in adopted_ids or policy_id in wanted_ids or name in wanted_names:
+            continue
+        unmanaged.append({
+            "policy_id": str(current.get("id", "")),
+            "name": name,
+            "state": str(current.get("state", "")),
+        })
+
+    if delete:
+        known = {u["policy_id"] for u in unmanaged}
+        for policy_id in delete:
+            if policy_id not in known:
+                raise DeployError(
+                    f"Policy {policy_id!r} was named for deletion but is not an "
+                    f"unmanaged policy in this tenant. Re-check the plan."
+                )
+        wanted = set(delete)
+        for current in live:
+            policy_id = str(current.get("id", ""))
+            if policy_id in wanted:
                 changes.append(Change(
-                    action=DELETE, name=name, body={},
-                    policy_id=str(current.get("id")),
+                    action=DELETE, name=str(current.get("displayName", "")),
+                    body={}, policy_id=policy_id,
                 ))
 
     return Plan(
         customer_id=customer_id,
         changes=changes,
-        fingerprint=fingerprint(live),
+        fingerprint=plan_fingerprint(live, desired, adopt, delete),
         missing_consent=missing_consent,
+        unmanaged=unmanaged,
     )
 
 
@@ -450,6 +518,7 @@ async def apply_plan(
     plan: Plan,
     live_now: list[dict],
     *,
+    approved: str = "",
     snapshot=None,
 ) -> dict[str, Any]:
     """Carry out a plan, or refuse because the tenant moved.
@@ -464,12 +533,16 @@ async def apply_plan(
             f"Nothing was sent."
         )
 
-    current = fingerprint(live_now)
-    if current != plan.fingerprint:
+    # `plan` was rebuilt from live inputs a moment ago, so its fingerprint is
+    # what would happen now. `approved` is what the operator read. Comparing
+    # the two catches the tenant moving *and* the intent moving — the plan is
+    # recomputed from an adoption mapping and a template file that another
+    # request could have changed in between.
+    if approved and approved != plan.fingerprint:
         raise DeployError(
-            "The tenant's policies changed after this plan was made, so the "
-            "plan describes a state that no longer exists. Re-plan and review "
-            "the differences before applying."
+            "This plan no longer describes what would happen. Either the "
+            "tenant's policies changed, or the standard or its adoption "
+            "mapping did. Re-plan and review the differences before applying."
         )
 
     if snapshot is not None:

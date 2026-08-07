@@ -150,7 +150,7 @@ async def plan_deployment(
         raise ValidationError(str(exc)) from exc
     plan = build_plan(
         customer_id, live, desired,
-        allow_delete=bool(body.get("allow_delete")),
+        delete=[str(i) for i in (body.get("delete") or [])],
         missing_consent=missing_consent,
         adopt=adopt,
     )
@@ -198,14 +198,10 @@ async def apply_deployment(
         raise ValidationError(str(exc)) from exc
     plan = build_plan(
         customer_id, live, desired,
-        allow_delete=bool(body.get("allow_delete")),
+        delete=[str(i) for i in (body.get("delete") or [])],
         missing_consent=missing_consent,
         adopt=adopt,
     )
-    # The fingerprint the operator approved, not the one just computed. If the
-    # tenant moved between reviewing and confirming, these differ and
-    # apply_plan refuses — which is the whole point of carrying it.
-    plan.fingerprint = supplied_fingerprint
 
     customer = CustomerManager.get_customer(customer_id)
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
@@ -221,7 +217,9 @@ async def apply_deployment(
                 saved.extend(policies)
                 _store_restore_point(customer_id, policies)
 
-            result = await apply_plan(client, plan, live, snapshot=_keep)
+            result = await apply_plan(
+                    client, plan, live, approved=supplied_fingerprint, snapshot=_keep
+                )
     except DeployError as exc:
         logger.warning(
             "policy apply refused: user=%s customer=%s: %s", user.username, customer_id, exc
@@ -461,7 +459,7 @@ async def _restore_plan(customer_id: str, body: dict) -> tuple[Plan, list[dict]]
     live, missing_consent, _ = await _live_policies(customer_id)
     plan = build_plan(
         customer_id, live, desired,
-        allow_delete=bool(body.get("allow_delete")),
+        delete=[str(i) for i in (body.get("delete") or [])],
         missing_consent=missing_consent,
     )
     return plan, live
@@ -508,7 +506,6 @@ async def apply_restore(
         raise ValidationError("The fingerprint of the reviewed plan is required")
 
     plan, live = await _restore_plan(customer_id, body)
-    plan.fingerprint = supplied
 
     customer = CustomerManager.get_customer(customer_id)
     auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
@@ -526,7 +523,9 @@ async def apply_restore(
                 saved.extend(policies)
                 _store_restore_point(customer_id, policies)
 
-            result = await apply_plan(client, plan, live, snapshot=_keep)
+            result = await apply_plan(
+                    client, plan, live, approved=supplied, snapshot=_keep
+                )
     except DeployError as exc:
         logger.warning(
             "restore refused: user=%s customer=%s: %s", user.username, customer_id, exc
