@@ -255,6 +255,37 @@ class AuditScheduler:
         if failed:
             await self._send_webhook(f"⚠️ {summary_msg}")
 
+    async def _collect_customer_sites(self):
+        """Visit each customer site over VPN and read what is there.
+
+        Runs as the system account, one site at a time, and leaves no tunnel
+        open — see services/site_collector.py for why each of those matters.
+        Failures are per-site and reported in the summary rather than raised:
+        one customer's VPN being down is not a reason to skip the rest.
+        """
+        from app.services.site_collector import collect_all
+
+        try:
+            summary = await collect_all()
+        except Exception as exc:
+            log.error("Site collection failed outright: %s", exc)
+            await self._send_webhook(f"⚠️ Site collection failed: {exc}")
+            return
+
+        if summary["failed"]:
+            unreachable = [
+                r["profile_name"] for r in summary["results"] if r["outcome"] == "failed"
+            ]
+            await self._send_webhook(
+                f"⚠️ Site collection: {summary['collected']}/{summary['sites']} read. "
+                f"No data from: {', '.join(unreachable)}"
+            )
+        self._log_activity(
+            "site_collection",
+            f"{summary['collected']} av {summary['sites']} lokasjoner lest",
+            "",
+        )
+
     async def _scan_also_renewals(self):
         """Scan a batch of ALSO-linked customers for renewal data.
 
