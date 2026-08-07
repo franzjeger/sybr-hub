@@ -1,3 +1,20 @@
+## Ikke utgitt
+### Fargeemoji ut av grensesnittet
+
+**Bakgrunn:** Fargeemoji rendres i fontens egne farger og sin egen vekt. Én 🔒 ved siden av en rad monokrome ikoner er det eneste på skjermen designspråket ikke rekker, og Filer-fanen hadde ni av dem rett under hverandre.
+
+**Endret:**
+- Kortoverskrifter og knapper i Filer-fanen, søkefeltet i kommandopaletten, overskriften i rapportvisningen og pentest-overskriften bruker nå SVG-linjeikoner i nøyaktig samme form som `icon()` produserer. Ikonene arver farge gjennom `currentColor` og virker derfor i begge temaene.
+- Policy-utrulling i nav-nedtrekket fikk en monokrom geometrisk glyf (`&#8650;`) som passer søsknene sine. Den var den eneste ekte emojien i navigasjonen.
+- Den skjulte tema-knappen i headeren bruker `◐` og `◑` i stedet for 🌙 og ☀️, samme glyf som den synlige veksleren i kontomenyen.
+
+**Det som måtte til for at fiksen ble ekte:**
+- Emojiene lå i `ui_i18n.json`, ikke bare i markupen. `translatePage()` setter `textContent` fra nøkkelen, så emojien ble skrevet inn igjen ved hver oversettelse. Å fjerne den fra `index.html` alene ville ikke endret noe på skjermen. Prefikset er strippet fra elleve nøkler i begge språk. Ordene er uendret.
+- Den samme `textContent`-skrivingen sletter et ikon som ligger inne i et `data-i18n`-element. Ikonet ligger derfor utenfor, med nøkkelen på et `<span>` rundt bare teksten, slik `hdr_report` allerede var bygget.
+- `uploadToITGlue()` skrev `btn.textContent` i åtte tilstandsskifter og ville spist ikonet ved første klikk. Nye `setButtonLabel()` skriver til etikett-spanet og lar ikonet stå.
+
+**Nye navn i `icon()`:** `folder`, `key`, `unlock`.
+
 ## v10.11.0 (2026-07-31)
 ### Rapporten svarer for tallene sine
 

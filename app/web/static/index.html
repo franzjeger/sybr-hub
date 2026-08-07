@@ -58,7 +58,7 @@ body.is-readonly [data-write] { display: none !important; }
 <div id="cmd-palette" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg-overlay);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;padding-top:min(20vh,160px);" onclick="if(event.target===this)closeCommandPalette()">
   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);width:560px;max-width:95vw;box-shadow:var(--shadow-xl);overflow:hidden;animation:modal-slide-in var(--duration-normal) var(--ease-out);">
     <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);">
-      <span style="color:var(--text-dim);font-size:16px;">&#128269;</span>
+      <span class="ic" style="width:16px;height:16px;color:var(--text-dim);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></span>
       <input id="cmd-input" type="text" data-i18n-placeholder="placeholder_cmd_search" placeholder="Søk i kunder, sider, handlinger..." autocomplete="off" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--font-md);font-family:inherit;">
       <kbd style="font-size:var(--font-xs);color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px 6px;font-family:var(--mono);">ESC</kbd>
     </div>
@@ -69,7 +69,7 @@ body.is-readonly [data-write] { display: none !important; }
 <div id="report-viewer-modal" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);flex-direction:column;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);background:var(--bg-card);flex-shrink:0;">
     <div style="display:flex;align-items:center;gap:var(--space-3);">
-      <span style="font-size:var(--font-md);font-weight:700;">&#128196; <span data-i18n="hdr_report">Rapport</span></span>
+      <span style="font-size:var(--font-md);font-weight:700;"><span class="ic" style="width:16px;height:16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> <span data-i18n="hdr_report">Rapport</span></span>
       <span id="report-viewer-title" style="font-size:var(--font-sm);color:var(--text-muted);"></span>
     </div>
     <div style="display:flex;gap:var(--space-2);">
@@ -168,7 +168,7 @@ body.is-readonly [data-write] { display: none !important; }
           </button>
           <div class="navdd-sep"></div>
           <button data-view-gate="policy-deploy" class="navdd-item" data-write onclick="showView('policy-deploy')">
-            <span class="navdd-ic">&#128272;</span>
+            <span class="navdd-ic">&#8650;</span>
             <span><span data-i18n="nav_policy_deploy">Policy-utrulling</span><br><small data-i18n="nav_policy_deploy_desc">Rull ut Conditional Access-standarden</small></span>
           </button>
           <button data-view-gate="provision" class="navdd-foot" data-write onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
@@ -277,7 +277,7 @@ body.is-readonly [data-write] { display: none !important; }
       </div>
 
       <!-- Legacy controls kept hidden so existing JS references never null out. -->
-      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">🌙</button>
+      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">&#9680;</button>
       <span id="user-display" style="display:none;"></span>
     </div>
   </header>
@@ -399,7 +399,7 @@ body.is-readonly [data-write] { display: none !important; }
 
       <!-- Device code card — hidden until device code arrives -->
       <div class="device-code-card" id="device-code-card">
-        <div class="device-code-title" data-i18n="setup_login_required">🔑 Innlogging kreves</div>
+        <div class="device-code-title" data-i18n="setup_login_required">Innlogging kreves</div>
         <div class="device-code-step" data-i18n="setup_step1">1. Åpne påloggingssiden:</div>
         <div style="margin:4px 0 4px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
           <button class="btn btn-primary" id="dc-open-private" onclick="openPrivateBrowser()" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;" data-i18n="btn_open_private_window">
@@ -535,13 +535,13 @@ body.is-readonly [data-write] { display: none !important; }
           </div>
           <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_export">Eksport</div>
           <div class="btn-row" style="margin-bottom:10px;">
-            <button class="btn btn-default" onclick="exportCSV()" data-i18n="btn_csv_export">
-              📊 CSV-eksport
+            <button class="btn btn-default" onclick="exportCSV()">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span> <span data-i18n="btn_csv_export">CSV-eksport</span>
             </button>
           </div>
           <div class="btn-row">
-            <button data-write class="btn btn-default" onclick="openFolder()" data-i18n="btn_open_folder">
-              📂 Åpne mappe
+            <button data-write class="btn btn-default" onclick="openFolder()">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span> <span data-i18n="btn_open_folder">Åpne mappe</span>
             </button>
           </div>
         </div>
@@ -559,7 +559,7 @@ body.is-readonly [data-write] { display: none !important; }
 
       <div id="files-no-customer" style="display:none;">
         <div style="text-align:center;padding:48px 0;color:var(--text-muted);">
-          <div style="font-size:32px;margin-bottom:12px;">📁</div>
+          <div style="margin-bottom:12px;"><span class="ic" style="width:32px;height:32px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span></div>
           <div style="font-size:14px;" data-i18n="files_no_customer">Ingen kunde valgt.</div>
           <div style="font-size:13px;margin-top:8px;" data-i18n="files_select_customer">Velg en kunde fra kundelisten først.</div>
         </div>
@@ -568,61 +568,61 @@ body.is-readonly [data-write] { display: none !important; }
       <div id="files-content" style="display:none;">
         <!-- Credentials -->
         <div class="card">
-          <div class="card-title" data-i18n="hdr_connection_info">🔐 Tilkoblingsinformasjon</div>
+          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span><span data-i18n="hdr_connection_info">Tilkoblingsinformasjon</span></div>
           <div id="files-creds" style="font-size:13px;"></div>
           <div class="btn-row" style="margin-top:12px;">
-            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon" data-i18n="btn_upload_to_itglue">
-              ☁ Last opp til IT-Glue
+            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_to_itglue">Last opp til IT-Glue</span>
             </button>
           </div>
         </div>
 
         <!-- Certificate -->
         <div class="card">
-          <div class="card-title" data-i18n="hdr_certificate">📜 Sertifikat</div>
+          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></span><span data-i18n="hdr_certificate">Sertifikat</span></div>
           <div id="files-cert" style="font-size:13px;"></div>
           <div class="btn-row" style="margin-top:12px;">
-            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon" data-i18n="btn_upload_to_itglue">
-              ☁ Last opp til IT-Glue
+            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_to_itglue">Last opp til IT-Glue</span>
             </button>
           </div>
         </div>
 
         <!-- Audit Reports -->
         <div class="card">
-          <div class="card-title" data-i18n="hdr_audit_reports">📊 Audit-rapporter</div>
+          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span><span data-i18n="hdr_audit_reports">Audit-rapporter</span></div>
           <div id="files-reports" style="font-size:13px;"></div>
           <div class="btn-row" style="margin-top:12px;">
-            <button class="btn btn-default" onclick="uploadReportsToITGlue(this)" style="font-size:12px;" data-i18n="btn_upload_reports_itglue">
-              ☁ Last opp rapporter til IT Glue
+            <button class="btn btn-default" onclick="uploadReportsToITGlue(this)" style="font-size:12px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_reports_itglue">Last opp rapporter til IT Glue</span>
             </button>
-            <button data-write class="btn btn-default" id="btn-open-reports-folder" onclick="openReportsFolder()" style="font-size:12px;" data-i18n="btn_open_folder">
-              📂 Åpne mappe
+            <button data-write class="btn btn-default" id="btn-open-reports-folder" onclick="openReportsFolder()" style="font-size:12px;">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span> <span data-i18n="btn_open_folder">Åpne mappe</span>
             </button>
           </div>
         </div>
 
         <!-- Audit Raw Data -->
         <div class="card">
-          <div class="card-title" data-i18n="hdr_audit_raw_data">🗂 Audit-data (radata)</div>
+          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span><span data-i18n="hdr_audit_raw_data">Audit-data (radata)</span></div>
           <div id="files-rawdata" style="font-size:13px;"></div>
           <div class="btn-row" style="margin-top:12px;">
-            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon" data-i18n="btn_upload_to_itglue">
-              ☁ Last opp til IT-Glue
+            <button class="btn btn-default" onclick="uploadToITGlue(this)" style="font-size:12px;" data-i18n-title="tip_future_feature" title="Fremtidig funksjon">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_to_itglue">Last opp til IT-Glue</span>
             </button>
           </div>
         </div>
 
         <!-- Encryption -->
         <div class="card tooltip" data-tip="Alle kundedata krypteres med AES-256 p&#229; disk" data-i18n-title="tip_encryption">
-          <div class="card-title" data-i18n="hdr_encryption_card">🔒 Kryptering</div>
+          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span><span data-i18n="hdr_encryption_card">Kryptering</span></div>
           <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
             <span data-i18n="msg_all_files_encrypted">Alle nye filer krypteres automatisk med AES-256-GCM. Krypteringsnøkkelen lagres i OS-nøkkelringen.</span>
             <span data-i18n="msg_encrypt_existing_desc">Bruk knappen under for å kryptere eksisterende data som ble opprettet før kryptering ble aktivert.</span>
           </div>
           <div class="btn-row">
-            <button data-write class="btn btn-primary" onclick="migrateEncryption()" style="font-size:12px;" id="btn-migrate-encrypt" data-i18n="btn_encrypt_existing">
-              🔐 Krypter eksisterende data
+            <button data-write class="btn btn-primary" onclick="migrateEncryption()" style="font-size:12px;" id="btn-migrate-encrypt">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_encrypt_existing">Krypter eksisterende data</span>
             </button>
             <span id="migrate-encrypt-result" style="font-size:12px;color:var(--text-muted);"></span>
           </div>
@@ -717,7 +717,7 @@ body.is-readonly [data-write] { display: none !important; }
 
       <div id="net-pentest" class="net-sub-content" style="display:none;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <div style="font-size:16px;font-weight:600;" data-i18n="pentest_2">🔓 Pentest</div>
+          <div style="font-size:16px;font-weight:600;"><span class="ic" style="width:16px;height:16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span> <span data-i18n="pentest_2">Pentest</span></div>
           <span style="font-size:11px;color:var(--text-muted);" data-i18n="pentest_subtitle"></span>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;" data-i18n="pentest_intro"></div>
@@ -900,13 +900,13 @@ body.is-readonly [data-write] { display: none !important; }
           </div>
           <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_export">Eksport</div>
           <div class="btn-row" style="margin-bottom:10px;">
-            <button class="btn btn-default" onclick="exportCSV()" data-i18n="btn_csv_export">
-              📊 CSV-eksport
+            <button class="btn btn-default" onclick="exportCSV()">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span> <span data-i18n="btn_csv_export">CSV-eksport</span>
             </button>
           </div>
           <div class="btn-row">
-            <button data-write class="btn btn-default" onclick="openFolder()" data-i18n="btn_open_folder">
-              📂 Åpne mappe
+            <button data-write class="btn btn-default" onclick="openFolder()">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span> <span data-i18n="btn_open_folder">Åpne mappe</span>
             </button>
           </div>
         </div>

@@ -32,12 +32,29 @@ function icon(name, size) {
     building:  'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z',
     clock:     'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
     search:    'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+    // Added for the files view, which carried 📂 📁 🗂 🔐 🔓 as emoji.
+    folder:    'M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z',
+    key:       'M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
+    unlock:    'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
   };
   var d = paths[name];
   if (!d) return '';
   return '<span class="ic" style="width:'+s+'px;height:'+s+'px;">'
     + '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">'
     + '<path d="'+d+'"/></svg></span>';
+}
+
+// Sets a button's label without discarding the icon in front of it. Buttons
+// that carry one are markup of the form
+//   <button><span class="ic">…svg…</span><span data-i18n="key">Label</span></button>
+// and btn.textContent = '…' flattens both spans into a bare string, so the
+// icon disappeared the first time the button changed state and never came
+// back. Writing to the label span leaves the icon alone.
+function setButtonLabel(btn, text) {
+  if (!btn) return;
+  var label = btn.querySelector('[data-i18n]');
+  if (label) label.textContent = text;
+  else btn.textContent = text;
 }
 
 // ── Reusable sortable table utility ──────────────────────────────────────────
@@ -643,6 +660,10 @@ function updateUserDisplay() {
   var el = document.getElementById('user-display');
   if (el) el.textContent = initials;
   applyWriteCapability();
+  // An audit may already be running — started by a schedule, another tab, or
+  // another technician. Ask rather than assume; the badge should reflect the
+  // server on every load, not only when somebody opens the audit view.
+  if (typeof _reconcileAuditState === 'function') _reconcileAuditState();
 }
 
 // ── Read-only accounts ───────────────────────────────────────────────────────
@@ -659,11 +680,23 @@ function applyFeatureVisibility() {
   // "may change things" and "may reach this at all" are different questions and
   // conflating them is how one of them stops being asked.
   document.querySelectorAll('[data-feature]').forEach(function(el) {
-    el.style.display = hasFeature(el.getAttribute('data-feature')) ? '' : 'none';
+    _setGated(el, hasFeature(el.getAttribute('data-feature')));
   });
   document.querySelectorAll('[data-view-gate]').forEach(function(el) {
-    el.style.display = canOpenView(el.getAttribute('data-view-gate')) ? '' : 'none';
+    _setGated(el, canOpenView(el.getAttribute('data-view-gate')));
   });
+}
+
+// A gate answers "may this be seen at all", never "is this showing right now".
+// Writing style.display='' on everything allowed answered the second question
+// too, and wiped out whatever the element's own state had decided. The audit
+// badge carries a view gate and hides itself when no audit is running, so
+// every page load un-hid it and announced a run that was not happening —
+// nav-logs, nav-docs and the connection chip are all state-driven the same way.
+// Hiding via a class leaves that state untouched, and !important still beats
+// an inline display on the elements a user genuinely may not see.
+function _setGated(el, allowed) {
+  el.classList.toggle('gated-hidden', !allowed);
 }
 
 function applyWriteCapability() {
@@ -1128,14 +1161,85 @@ async function _reconcileAuditState() {
       auditRunning = true;
       var ind = document.getElementById('audit-running-indicator');
       if (ind) ind.style.display = 'flex';
+      _showAuditRunningChrome();
       startAuditProgressPolling();
-      _watchAuditUntilServerIdle();
-    } else if (!d.running && auditRunning) {
+      _watchAuditUntilServerIdle(true);   // we never had a stream to lose
+    } else if (d.running) {
+      _showAuditRunningChrome();
+    } else if (auditRunning) {
       _finishAuditWithoutStream();
-    } else if (!d.running) {
+    } else {
       _clearStaleAuditBadge();
+      if (currentView === 'audit') _renderAuditIdle();
     }
   } catch (_) { /* offline: say nothing rather than claim either state */ }
+}
+
+// The audit view's markup is written as though you can only ever arrive
+// mid-run: a spinner, "Starting audit…", "0 / 0 sections", 0%. Open it when
+// nothing is running and it announces a run that does not exist. These two
+// functions give it the state it never had.
+function _auditChrome() {
+  return [
+    document.getElementById('audit-status-bar'),
+    document.querySelector('#view-audit .progress-row'),
+    document.getElementById('section-table') ? document.getElementById('section-table').closest('.card') : null,
+  ];
+}
+
+function _showAuditRunningChrome() {
+  var idle = document.getElementById('audit-idle');
+  if (idle) idle.style.display = 'none';
+  _auditChrome().forEach(function(el) { if (el) el.style.display = ''; });
+}
+
+async function _renderAuditIdle() {
+  var view = document.getElementById('view-audit');
+  if (!view || auditRunning) return;
+
+  // Nothing is running, so the running chrome is a lie. Put it away.
+  _auditChrome().forEach(function(el) { if (el) el.style.display = 'none'; });
+  var tbody = document.getElementById('section-tbody');
+  if (tbody && !tbody.children.length) {
+    var findings = document.getElementById('audit-findings');
+    if (findings) findings.style.display = 'none';
+  }
+
+  var idle = document.getElementById('audit-idle');
+  if (!idle) {
+    idle = document.createElement('div');
+    idle.id = 'audit-idle';
+    idle.className = 'card';
+    var bar = document.getElementById('audit-status-bar');
+    if (bar && bar.parentNode) bar.parentNode.insertBefore(idle, bar); else view.appendChild(idle);
+  }
+  idle.style.display = '';
+
+  var when = '';
+  try {
+    var dash = await apiFetch('/api/dashboard');
+    if (dash && dash.run_date) when = String(dash.run_date).substring(0, 16).replace('T', ' ');
+  } catch (_) { /* the last run's date is a nicety, not a precondition */ }
+
+  idle.innerHTML =
+      '<div class="card-title">' + esc(t('hdr_audit_idle')) + '</div>'
+    + '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">'
+    +   esc(t('msg_audit_idle_body'))
+    + '</div>'
+    + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">'
+    +   esc(t('lbl_last_audit')) + ': '
+    +   '<strong style="color:var(--text);">' + esc(when || t('lbl_never')) + '</strong>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    +   '<button data-write class="btn btn-primary" onclick="startAudit()">'
+    +     icon('play', 14) + ' ' + esc(t('btn_run_audit')) + '</button>'
+    +   '<button class="btn btn-default" onclick="showView(\'home\')">'
+    +     esc(t('btn_see_last_result')) + '</button>'
+    +   '<button class="btn btn-default" onclick="showView(\'history\')">'
+    +     esc(t('nav_history', 'History')) + '</button>'
+    + '</div>';
+
+  if (typeof applyWriteCapability === 'function') applyWriteCapability();
 }
 
 function _clearStaleAuditBadge() {
@@ -2474,6 +2578,7 @@ async function startAudit() {
   window._auditSectionCount = 0;
 
   showView('audit');
+  _showAuditRunningChrome();
   document.getElementById('audit-back-btn').disabled = true;
   auditRunning = true;
   var _ari = document.getElementById('audit-running-indicator'); if (_ari) _ari.style.display = 'flex';
@@ -2513,8 +2618,19 @@ async function _runAuditStreamWithReconnect(streamUrl) {
 }
 
 // Follow a run we can no longer see, until the server says it is over.
-async function _watchAuditUntilServerIdle() {
-  if (typeof showToast === 'function') {
+var _auditWatching = false;
+async function _watchAuditUntilServerIdle(quiet) {
+  if (_auditWatching) return;   // one watcher is enough; two would race
+  _auditWatching = true;
+  try {
+    await _watchAuditLoop(quiet);
+  } finally {
+    _auditWatching = false;
+  }
+}
+
+async function _watchAuditLoop(quiet) {
+  if (!quiet && typeof showToast === 'function') {
     showToast(t('msg_audit_stream_lost'), 'warning', 8000);
   }
   setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
@@ -5093,24 +5209,24 @@ async function uploadToITGlue(btn) {
   // Get organizations list
   if (!_itglueOrgCache) {
     btn.disabled = true;
-    btn.textContent = t('msg_fetching_orgs');
+    setButtonLabel(btn, t('msg_fetching_orgs'));
     try {
       const d = await apiFetch('/api/itglue/organizations', {method: 'POST'});
       _itglueOrgCache = d.organizations || [];
     } catch(e) {
       showToast(t('err_error_fetching_orgs').replace('{msg}', e.message), 'error');
       btn.disabled = false;
-      btn.textContent = t('btn_upload_to_itglue');
+      setButtonLabel(btn, t('btn_upload_to_itglue'));
       return;
     }
   }
 
   // Show org picker
   const orgId = await pickITGlueOrg(_itglueOrgCache);
-  if (!orgId) { btn.disabled = false; btn.textContent = t('btn_upload_to_itglue'); return; }
+  if (!orgId) { btn.disabled = false; setButtonLabel(btn, t('btn_upload_to_itglue')); return; }
 
   btn.disabled = true;
-  btn.textContent = t('btn_uploading');
+  setButtonLabel(btn, t('btn_uploading'));
 
   try {
     const endpoint = uploadType === 'credentials' ? '/api/itglue/upload/credentials' : '/api/itglue/upload/audit';
@@ -5120,17 +5236,17 @@ async function uploadToITGlue(btn) {
     });
     const d = await r.json();
     if (d.ok) {
-      btn.textContent = t('msg_uploaded_success');
+      setButtonLabel(btn, t('msg_uploaded_success'));
       btn.style.color = 'var(--green)';
-      setTimeout(() => { btn.textContent = t('btn_upload_to_itglue'); btn.style.color = ''; btn.disabled = false; }, 3000);
+      setTimeout(() => { setButtonLabel(btn, t('btn_upload_to_itglue')); btn.style.color = ''; btn.disabled = false; }, 3000);
     } else {
       showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
-      btn.textContent = t('btn_upload_to_itglue');
+      setButtonLabel(btn, t('btn_upload_to_itglue'));
       btn.disabled = false;
     }
   } catch(e) {
     showToast(t('status_error') + ': ' + e.message, 'error');
-    btn.textContent = t('btn_upload_to_itglue');
+    setButtonLabel(btn, t('btn_upload_to_itglue'));
     btn.disabled = false;
   }
 }
@@ -9021,13 +9137,15 @@ function applyTheme(theme) {
   const footerLogo = document.getElementById('footer-logo');
 
   if (theme === 'light') {
-    btn.textContent = '☀️';
+    // Half-filled circles, the same glyph family as the visible theme toggle
+    // in the avatar menu. This button was the last emoji left in the header.
+    btn.textContent = '◑';
     btn.title = t('tip_switch_dark_theme', 'Bytt til mørkt tema');
     // Light mode: use dark logo on transparent bg
     if (headerLogo) headerLogo.src = '/branding/300 x 86.png';
     if (footerLogo) { footerLogo.src = '/branding/300 x 86.png'; footerLogo.style.opacity = '0.6'; }
   } else {
-    btn.textContent = '🌙';
+    btn.textContent = '◐';
     btn.title = t('tip_switch_light_theme', 'Bytt til lyst tema');
     // Dark mode: use white logo on teal bg
     if (headerLogo) headerLogo.src = '/branding/SYBR_3.png';

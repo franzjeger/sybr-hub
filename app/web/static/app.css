@@ -2114,3 +2114,12 @@
   /* ── Inline SVG icons ── */
   .ic { display: inline-block; vertical-align: middle; flex-shrink: 0; }
   .ic svg { display: block; fill: currentColor; }
+
+  /* ── Access gating ──
+     Applied by _setGated() to anything the signed-in user may not reach.
+     A gate must only ever hide: elements that keep themselves hidden until
+     their own state says otherwise (the audit-running badge, the connection
+     chip, the optional nav tabs) were being revealed by the gate writing an
+     empty display over their inline one. !important so the gate still wins
+     over an inline display on what a user genuinely may not see. */
+  .gated-hidden { display: none !important; }
