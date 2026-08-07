@@ -89,6 +89,34 @@ a route up; a test asserts every other route carries an auth dependency.
 - Tokens are also set as `HttpOnly` cookies with `SameSite=Strict`. There is
   no separate CSRF token; `SameSite` is the defence for the cookie path.
 
+## What an account can reach
+
+Roles were applied a route at a time. 84 of 331 endpoints carried a
+`require_role`, the interface hid nothing at all, and the two facts compounded:
+a viewer saw the whole menu, clicked into things, and met a wall — or met no
+wall, because the route needing the check was one of the 247 without one.
+
+Decorating the remaining 247 is 247 chances to forget one. `core/features.py`
+names the *features* instead — a thing a person goes to do, with the role floor
+and any capability it needs, and the views it owns. Routes ask the table what
+they require via `require_feature`; `/auth/me` sends the list this account
+resolves to; the interface hides `data-view-gate` and `data-feature` elements
+that are not in it.
+
+One source, two readers. The screen cannot drift from the rule it displays
+because it does not hold a copy of it — a test asserts `_features` is only ever
+assigned from the server's answer.
+
+Three tests keep the table honest rather than decorative: every view in
+`index.html` belongs to exactly one feature, every navigation control is gated
+on the view it opens, and the gate names the view the button *actually* opens.
+Asking for a feature that does not exist raises rather than granting access —
+the worst failure a table like this could have is a silent yes.
+
+This is a different axis from `can_write` below, deliberately kept separate:
+"may reach this at all" and "may change things" are different questions, and
+conflating them is how one of them stops being asked.
+
 ## Write is a grant, not a role
 
 Every account is read-only. Changing anything needs `can_write`, and that is a

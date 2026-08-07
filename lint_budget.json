@@ -1,5 +1,5 @@
 {
-  "total": 1140,
+  "total": 1135,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -44,6 +44,7 @@
     "app/web/__init__.py",
     "app/web/i18n.py",
     "app/web/middleware/__init__.py",
+    "app/web/middleware/auth.py",
     "app/web/middleware/rate_limit.py",
     "app/web/middleware/write_guard.py",
     "app/web/routes/__init__.py",
