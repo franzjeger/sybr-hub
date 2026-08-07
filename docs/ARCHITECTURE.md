@@ -276,6 +276,30 @@ that plan returned, and refuses if the tenant's policies have moved since —
 the operator approved a change to a state that no longer exists, and applying
 anyway overwrites whatever moved it.
 
+An adversarial read of this module before it ever ran against a tenant found
+four real defects in it. They are fixed, and worth recording because each was
+invisible from inside:
+
+- **PATCH replaces a complex property wholesale.** Sending a template's
+  `conditions` would have cleared whatever the live policy had beside them —
+  the customer's `excludeUsers`, trusted locations, risk levels. On an adopted
+  MFA policy that is the directory sync account losing its exclusion, silently,
+  under a plan that said "conditions changed". `merge_into` now merges the
+  standard into the live body, and the plan carries a before/after per field so
+  the reader sees values rather than key names. The cost, stated: a standard
+  cannot *remove* something this way, which is the safer direction to be wrong.
+- **A re-deploy un-enforced the baseline.** Templates ship report-only so a
+  human enables after review; the next deployment diffed `state` and PATCHed it
+  back. `would_weaken` makes state raise-only unless explicitly overridden.
+- **The lockout rail read `includeUsers` only**, so a policy over every
+  administrator *role* — the shape of our own template — passed, because "all"
+  is not in an empty set. It now covers roles and groups, and counts
+  `authenticationStrength` as a control that can fail.
+- **Nothing checked the break-glass group.** Graph accepts an unresolvable GUID
+  in `excludeGroups`, so a typo, another customer's id, a deleted group or an
+  empty one all satisfied the rail with an exclusion that excludes nobody. The
+  plan now resolves it and counts its members.
+
 Four rails, and they refuse rather than warn:
 
 | rail | why |
@@ -333,6 +357,28 @@ and for the same reason. Placeholders are required, never defaulted: every
 policy excludes a break-glass group whose id differs per tenant, and an
 unfilled placeholder is an exclusion that excludes nobody inside a policy that
 applies to everybody. Rendering refuses while one is unset.
+
+### Asking for the permission
+
+Sybr HUB holds twenty-two Graph permissions and every one ends in `.Read.All`.
+It deliberately does **not** hold `AppRoleAssignment.ReadWrite.All`, so it
+cannot widen its own access — the property that keeps a compromised toolkit
+from becoming a way into every customer's tenant. A test asserts the app-only
+set never gains one of the four escalation permissions.
+
+That leaves one honest route to a write permission: a Global Admin signs in and
+grants it. `modules/m365_audit/consent.py` is that flow, in the product rather
+than as a page of portal instructions. Device code, because the operator is
+usually not at the machine the toolkit runs on, and because first-run setup
+already works that way. The delegated token lives for one grant and is never
+stored.
+
+Two things have to happen and the portal does them together, which makes them
+easy to conflate: *declaring* puts the permission on the registration, and
+*assigning* is the consent that makes it real. A registration declaring what
+nobody assigned still reports missing consent — the exact state this exists to
+leave behind. Both halves are idempotent, because re-running after an
+interruption is the ordinary case.
 
 This needs `Policy.ReadWrite.ConditionalAccess`, which is deliberately **not**
 in `REQUIRED_GRAPH_PERMISSIONS` — an MSP that never deploys should not see a

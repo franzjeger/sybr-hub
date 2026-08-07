@@ -55,6 +55,13 @@ WRITE_PERMISSION = "Policy.ReadWrite.ConditionalAccess"
 
 CREATE, UPDATE, DELETE = "create", "update", "delete"
 
+# How enforced each state is. A deployment may raise a policy's state and, by
+# default, never lower it: templates ship report-only so a human can review the
+# impact and then enable in the portal, and a routine re-deploy that PATCHed
+# the state back would silently switch that protection off tenant-wide. The
+# second-most-routine operation this tool has must not un-enforce a baseline.
+_ENFORCEMENT = {"disabled": 0, "enabledForReportingButNotEnforced": 1, "enabled": 2}
+
 # States a policy can be in. Report-only is the one new policies get.
 ENABLED = "enabled"
 REPORT_ONLY = "enabledForReportingButNotEnforced"
@@ -82,6 +89,9 @@ class Change:
     policy_id: str | None = None
     fields: list[str] = field(default_factory=list)
     refused: str | None = None
+    # Before and after per changed field, so "conditions changed" is not the
+    # whole of what somebody approves. Only populated for updates.
+    diff: dict = field(default_factory=dict)
     # Set when this update is the standard taking over a policy the customer
     # already had. Carried so the plan can say "adopting «Block legacy
     # authentication»" rather than showing a rename with no explanation.
@@ -91,6 +101,7 @@ class Change:
         return {
             "action": self.action, "name": self.name, "policy_id": self.policy_id,
             "fields": self.fields, "refused": self.refused, "adopts": self.adopts,
+            "diff": self.diff,
         }
 
 
@@ -153,6 +164,12 @@ def _grants_a_blocking_control(body: dict) -> bool:
     built_in = {str(c).lower() for c in (controls.get("builtInControls") or [])}
     if "block" in built_in:
         return True
+    # authenticationStrength is the modern form and lives beside builtInControls
+    # rather than inside it — phishing-resistant MFA fails for an unenrolled
+    # user exactly as plain MFA does, and reading only builtInControls made the
+    # strictest policy Microsoft offers invisible to this check.
+    if controls.get("authenticationStrength"):
+        return True
     # Anything that can fail for a user who has not enrolled locks them out
     # just as thoroughly as an explicit block.
     return bool(built_in & {"mfa", "compliantdevice", "domainjoineddevice", "approvedapplication"})
@@ -171,7 +188,9 @@ def lockout_risk(body: dict) -> str | None:
     """
     conditions = body.get("conditions") or {}
     users = conditions.get("users") or {}
-    include = {str(u).lower() for u in (users.get("includeUsers") or [])}
+    include_users = {str(u).lower() for u in (users.get("includeUsers") or [])}
+    include_roles = [r for r in (users.get("includeRoles") or []) if r]
+    include_groups = [g for g in (users.get("includeGroups") or []) if g]
     excluded = (
         (users.get("excludeUsers") or [])
         + (users.get("excludeGroups") or [])
@@ -182,12 +201,80 @@ def lockout_risk(body: dict) -> str | None:
         # Report-only and disabled policies cannot lock anyone out of anything.
         return None
 
-    if "all" in include and not excluded and _grants_a_blocking_control(body):
+    if not _grants_a_blocking_control(body):
+        return None
+    if excluded:
+        return None
+
+    # Three ways to say "everyone who matters", and the first draft read only
+    # the first. A policy over every administrator role with no exclusion is
+    # the every-admin-locked-out accident this exists for, and it was invisible
+    # because "all" is not in an empty includeUsers set.
+    if "all" in include_users:
         return (
             "Targets all users, excludes nobody, and grants a control that "
             "can fail. Exclude a break-glass account before enabling this."
         )
+    if include_roles:
+        return (
+            f"Targets {len(include_roles)} directory role(s) with no exclusion, "
+            f"and grants a control that can fail. Every holder of those roles is "
+            f"one enrolment problem from being locked out. Exclude a break-glass "
+            f"account before enabling this."
+        )
+    if include_groups:
+        return (
+            f"Targets {len(include_groups)} group(s) with no exclusion, and "
+            f"grants a control that can fail. Exclude a break-glass account "
+            f"before enabling this — a group can hold every administrator."
+        )
     return None
+
+
+def merge_into(current: dict, desired: dict) -> dict:
+    """The body to PATCH: what the standard says, over what the tenant has.
+
+    Graph replaces an included complex property wholesale, so PATCHing a
+    template's ``conditions`` — users, applications, clientAppTypes and nothing
+    else — clears whatever the live policy had beside them: the customer's
+    excludeUsers, their trusted-location conditions, their risk levels, their
+    device filters. On an adopted MFA policy that is the sync account losing its
+    exclusion, silently, during an operation described to the operator as
+    "conditions changed".
+
+    So the standard is merged into the live body rather than sent in its place.
+    A key the template names wins; a key it does not name survives untouched.
+
+    The cost, stated because it is real: a standard cannot *remove* something
+    this way. Taking a stray exclusion off an adopted policy is a deliberate
+    edit somebody makes, not a side effect of deploying. That is the safer
+    direction to be wrong in.
+    """
+    out = dict(current)
+    for key, value in desired.items():
+        if isinstance(value, dict) and isinstance(current.get(key), dict):
+            out[key] = merge_into(current[key], value)
+        else:
+            out[key] = value
+    return strip_server_fields(out)
+
+
+def field_diff(current: dict, desired: dict, fields: list[str]) -> dict[str, dict]:
+    """Before and after for each changed field, for the person approving.
+
+    A plan that says "conditions changed" is not something anybody can consent
+    to — it is the field name of a complex object with a customer's exclusions
+    inside it. Adoption is the case that needs this: the operator is deciding
+    whether the standard may take over a policy somebody else configured, and
+    they cannot decide that from a list of key names.
+
+    Values travel here, unlike in a drift summary, because this reader holds
+    tenant_write and is about to change the very object being shown.
+    """
+    return {
+        f: {"before": current.get(f), "after": desired.get(f)}
+        for f in fields
+    }
 
 
 # ── Building a plan ──────────────────────────────────────────────────────────
@@ -195,6 +282,13 @@ def lockout_risk(body: dict) -> str | None:
 def _changed_fields(current: dict, desired: dict) -> list[str]:
     keys = (set(strip_server_fields(current)) | set(desired)) - _SERVER_OWNED
     return sorted(k for k in keys if current.get(k) != desired.get(k))
+
+
+def would_weaken(current: dict, desired: dict) -> bool:
+    """True when applying this would make a live policy less enforced."""
+    return _ENFORCEMENT.get(str(desired.get("state")), 1) < _ENFORCEMENT.get(
+        str(current.get("state")), 1
+    )
 
 
 def build_plan(
@@ -205,6 +299,7 @@ def build_plan(
     allow_delete: bool = False,
     missing_consent: bool = False,
     adopt: dict[str, str] | None = None,
+    allow_weakening: bool = False,
 ) -> Plan:
     """Compare what the tenant has with what we want it to have.
 
@@ -259,13 +354,26 @@ def build_plan(
             ))
             continue
 
-        fields = _changed_fields(current, body)
+        # Merged, never substituted — see merge_into. The refusal is judged on
+        # what would actually be sent, not on the template in isolation.
+        merged = merge_into(current, body)
+        refusal = lockout_risk(merged) or refusal
+        fields = _changed_fields(current, merged)
         if not fields:
             continue
+        if not allow_weakening and would_weaken(current, merged):
+            # Templates ship report-only so a human can enable after review. A
+            # re-deploy that put the state back would switch that protection
+            # off, which is the quiet inverse of a lockout.
+            merged["state"] = current.get("state")
+            fields = _changed_fields(current, merged)
+            if not fields:
+                continue
         changes.append(Change(
-            action=UPDATE, name=name, body=body,
+            action=UPDATE, name=name, body=merged,
             policy_id=str(current.get("id")), fields=fields, refused=refusal,
             adopts=str(current.get("displayName", "")) if adopted_id else None,
+            diff=field_diff(current, merged, fields),
         ))
 
     if allow_delete:
@@ -299,6 +407,40 @@ def as_report_only(policy: dict) -> dict:
     if out.get("state") == ENABLED:
         out["state"] = REPORT_ONLY
     return out
+
+
+async def verify_exclusion_group(client, group_id: str) -> str | None:
+    """Why this break-glass group cannot be relied on, or None.
+
+    Every rail here rests on one assumption: the excluded group contains
+    somebody who can still sign in. Nothing checked it. Graph accepts an
+    unresolvable GUID in excludeGroups without complaint, so a typo, another
+    customer's id — the exact nightmare the template docstring names — a deleted
+    group or a valid but *empty* one all produce a non-empty exclusion list, and
+    ``lockout_risk`` is then permanently satisfied by an exclusion that excludes
+    nobody. Across twenty customers with copy-pasted GUIDs this happens.
+
+    Checked at plan time, where a Graph client is already open.
+    """
+    try:
+        group = await client.get(f"groups/{group_id}")
+    except Exception:
+        return (
+            f"The break-glass group {group_id} does not exist in this tenant. "
+            f"An exclusion naming it excludes nobody."
+        )
+    if not group or not group.get("id"):
+        return f"The break-glass group {group_id} could not be read."
+    try:
+        members = await client.get(f"groups/{group_id}/members", params={"$top": "1"})
+    except Exception:
+        return f"The members of break-glass group {group_id} could not be read."
+    if not (members or {}).get("value"):
+        return (
+            f"The break-glass group «{group.get('displayName', group_id)}» is empty. "
+            f"Excluding it excludes nobody, which is the same as excluding nothing."
+        )
+    return None
 
 
 # ── Applying it ──────────────────────────────────────────────────────────────

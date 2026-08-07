@@ -107,6 +107,16 @@ def check() -> int:
 
 
 def update() -> int:
+    """Record an improvement — and refuse to record anything else.
+
+    Without this, the command that maintains the ratchet is the one that
+    undoes it: run --update after dirtying a file and the new, worse state
+    becomes the baseline. It happened within an hour of the budget existing.
+    """
+    if check() != 0:
+        print("\nRefusing to record a worse state. Fix the above, then update.")
+        return 1
+
     total, per_file = current()
     tracked = _tracked_files()
     clean = sorted(f for f in tracked if per_file.get(f, 0) == 0)
