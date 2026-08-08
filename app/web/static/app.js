@@ -57,6 +57,40 @@ function setButtonLabel(btn, text) {
   else btn.textContent = text;
 }
 
+// CSP migration: static controls use named data attributes instead of inline
+// JavaScript. Keep an explicit map — never eval an attribute or expose every
+// global function as a callable DOM action.
+var _delegatedClickHandlers = Object.freeze({
+  closeReportViewer: function() { return closeReportViewer(); },
+  doSetup: function() { return doSetup(); },
+  doLogin: function() { return doLogin(); },
+  toggleMobileNav: function() { return toggleMobileNav(); },
+  openLatestReport: function() { return openLatestReport(); },
+  toggleCommandPalette: function() { return toggleCommandPalette(); },
+  toggleNotifications: function() { return toggleNotifications(); },
+  markAllNotificationsRead: function() { return markAllNotificationsRead(); },
+  promptPwaInstall: function() { return promptPwaInstall(); },
+  toggleTheme: function() { return toggleTheme(); },
+  doLogout: function() { return doLogout(); },
+  openChangelogModal: function() { return openChangelogModal(); },
+  loadCustomerLicensesFromActive: function() { return loadCustomerLicensesFromActive(); },
+  dashExportCurrentTab: function() { return dashExportCurrentTab(); },
+  exportDashboardExcel: function() { return exportDashboardExcel(); },
+  copyOverviewToClipboard: function() { return copyOverviewToClipboard(); },
+  generateQBR: function() { return generateQBR(); },
+  closeSettings: function() { return closeSettings(); },
+  closePermissionsModal: function() { return closePermissionsModal(); },
+  closeShortcutsModal: function() { return closeShortcutsModal(); },
+  closeChangelogModal: function() { return closeChangelogModal(); },
+});
+
+document.addEventListener('click', function(event) {
+  var control = event.target.closest('[data-click-handler]');
+  if (!control) return;
+  var handler = _delegatedClickHandlers[control.getAttribute('data-click-handler')];
+  if (handler) handler();
+});
+
 // ── Reusable sortable table utility ──────────────────────────────────────────
 function makeSortable(tableEl) {
   if (!tableEl) return;

@@ -60,7 +60,7 @@
     </div>
     <div style="display:flex;gap:var(--space-2);">
       <a id="report-viewer-link" href="#" target="_blank" class="btn btn-ghost btn-sm">&#8599; <span data-i18n="btn_new_tab">Ny fane</span></a>
-      <button class="btn btn-ghost btn-sm" onclick="closeReportViewer()">&#10005; <span data-i18n="btn_close">Lukk</span></button>
+      <button class="btn btn-ghost btn-sm" data-click-handler="closeReportViewer">&#10005; <span data-i18n="btn_close">Lukk</span></button>
     </div>
   </div>
   <iframe id="report-viewer-iframe" style="flex:1;border:none;width:100%;background:#fff;"></iframe>
@@ -83,7 +83,7 @@
       <input id="setup-displayname" type="text" data-i18n-placeholder="lbl_display_name" placeholder="Visningsnavn" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
       <label for="setup-password" class="sr-only" data-i18n="lbl_password">Passord</label>
       <input id="setup-password" type="password" data-i18n-placeholder="placeholder_password_min8" placeholder="Passord (min. 8 tegn)" autocomplete="new-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter')doSetup()">
-      <button onclick="doSetup()" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_create_admin">Opprett admin</button>
+      <button data-click-handler="doSetup" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_create_admin">Opprett admin</button>
     </div>
     <!-- Login form -->
     <div id="auth-login-form" style="display:none;">
@@ -91,7 +91,7 @@
       <input id="login-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
       <label for="login-password" class="sr-only" data-i18n="lbl_password">Passord</label>
       <input id="login-password" type="password" data-i18n-placeholder="lbl_password" placeholder="Passord" autocomplete="current-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter')doLogin()">
-      <button onclick="doLogin()" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_login">Logg inn</button>
+      <button data-click-handler="doLogin" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_login">Logg inn</button>
     </div>
   </div>
 </div>
@@ -104,7 +104,7 @@
       <img id="header-logo-dark" class="logo-dark" src="/branding/sybr_logo_dark_matched.png" alt="SYBR" width="100" height="29">
       <img id="header-logo-light" class="logo-light" src="/branding/300 x 86.png" alt="SYBR" width="100" height="29">
     </div>
-    <button class="hamburger" id="hamburger-btn" onclick="toggleMobileNav()" data-i18n-aria-label="meny" aria-label="Meny">&#9776;</button>
+    <button class="hamburger" id="hamburger-btn" data-click-handler="toggleMobileNav" data-i18n-aria-label="meny" aria-label="Meny">&#9776;</button>
     <nav class="nav" id="main-nav">
       <span id="readonly-badge" style="display:none;align-self:center;margin-right:10px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-dark,#1e3a4a);color:var(--blue,#4d9fb5);border:1px solid rgba(77,159,181,0.35);"></span>
       <button data-view-gate="overview" class="nav-btn" id="nav-overview" onclick="showView('overview')" data-i18n="nav_dashboard" data-i18n-title="dashboard_ctrl" title="Dashboard (Ctrl+1)">Dashboard</button>
@@ -129,7 +129,7 @@
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_new_customer">Ny kunde</span><span class="navdd-desc" data-i18n="nav_new_customer_desc">Registrer og koble til integrasjoner</span></span>
           </button>
           <div class="navdd-sep"></div>
-          <button class="navdd-foot" onclick="openLatestReport()"><span class="navdd-ic">&#8599;</span><span data-i18n="nav_open_latest_report">&#197;pne siste rapport for aktiv kunde</span></button>
+          <button class="navdd-foot" data-click-handler="openLatestReport"><span class="navdd-ic">&#8599;</span><span data-i18n="nav_open_latest_report">&#197;pne siste rapport for aktiv kunde</span></button>
         </div></div>
       </div>
 
@@ -206,7 +206,7 @@
     </nav>
     <div class="header-right">
       <!-- Search field — opens the command palette (same as ⌘K). -->
-      <button class="hdr-search" onclick="toggleCommandPalette()" data-i18n-title="ph_search_or_jump" title="S&#248;k eller hopp til&#8230; (&#8984;K)" data-i18n-aria-label="lbl_search" aria-label="S&#248;k">
+      <button class="hdr-search" data-click-handler="toggleCommandPalette" data-i18n-title="ph_search_or_jump" title="S&#248;k eller hopp til&#8230; (&#8984;K)" data-i18n-aria-label="lbl_search" aria-label="S&#248;k">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <span data-i18n="soek_eller_hopp_til">S&#248;k eller hopp til&#8230;</span>
         <span class="kbd-chip">&#8984;K</span>
@@ -232,18 +232,18 @@
 
       <!-- Notifications bell -->
       <div style="position:relative;display:inline-block;">
-        <button id="notif-bell" data-notif-toggle onclick="toggleNotifications()" data-i18n-aria-label="varsler_2" aria-label="Varsler" data-i18n-title="varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
+        <button id="notif-bell" data-notif-toggle data-click-handler="toggleNotifications" data-i18n-aria-label="varsler_2" aria-label="Varsler" data-i18n-title="varsler" title="Varsler" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
         <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;max-height:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;z-index:150;animation:dropdown-in var(--duration-fast) var(--ease-out);">
           <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:var(--font-sm);font-weight:600;" data-i18n="hdr_notifications">Varsler</span>
-            <button class="btn btn-ghost btn-sm" onclick="markAllNotificationsRead()" data-i18n="btn_mark_all_read" style="font-size:var(--font-xs);">Merk alle som lest</button>
+            <button class="btn btn-ghost btn-sm" data-click-handler="markAllNotificationsRead" data-i18n="btn_mark_all_read" style="font-size:var(--font-xs);">Merk alle som lest</button>
           </div>
           <div id="notif-list" style="overflow-y:auto;max-height:360px;"></div>
         </div>
       </div>
 
       <!-- PWA install (conditional). -->
-      <button id="pwa-install-btn" onclick="promptPwaInstall()" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
+      <button id="pwa-install-btn" data-click-handler="promptPwaInstall" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
 
       <!-- Avatar + account menu: settings, theme, shortcuts, password, logout, version. -->
       <div style="position:relative;display:inline-block;">
@@ -254,16 +254,16 @@
             <span class="email" id="avatar-email"></span>
           </div>
           <button class="avatar-item" onclick="closeAvatarMenu();openSettings()"><span class="ic">&#9881;</span><span style="flex:1;" data-i18n="innstillinger">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
-          <button class="avatar-item" onclick="toggleTheme()"><span class="ic">&#9680;</span><span style="flex:1;" data-i18n="bytt_tema">Bytt tema</span></button>
+          <button class="avatar-item" data-click-handler="toggleTheme"><span class="ic">&#9680;</span><span style="flex:1;" data-i18n="bytt_tema">Bytt tema</span></button>
           <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span style="flex:1;" data-i18n="tastatursnarveier_2">Tastatursnarveier</span><span class="kbd">?</span></button>
           <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"></path></svg></span><span style="flex:1;" data-i18n="bytt_passord">Bytt passord</span></button>
-          <button class="avatar-item danger" onclick="doLogout()"><span class="ic">&#8617;</span><span style="flex:1;" data-i18n="logg_ut">Logg ut</span></button>
-          <button class="avatar-foot" onclick="openChangelogModal()" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; <span data-i18n="lbl_changelog">endringslogg</span></button>
+          <button class="avatar-item danger" data-click-handler="doLogout"><span class="ic">&#8617;</span><span style="flex:1;" data-i18n="logg_ut">Logg ut</span></button>
+          <button class="avatar-foot" data-click-handler="openChangelogModal" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; <span data-i18n="lbl_changelog">endringslogg</span></button>
         </div>
       </div>
 
       <!-- Legacy controls kept hidden so existing JS references never null out. -->
-      <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">&#9680;</button>
+      <button class="theme-toggle" data-click-handler="toggleTheme" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">&#9680;</button>
       <span id="user-display" style="display:none;"></span>
     </div>
   </header>
@@ -278,9 +278,9 @@
     </div>
     <span id="active-customer-last-audit" class="context-audit"></span>
     <div style="flex:1;"></div>
-    <button class="context-ghost" onclick="openLatestReport()" data-i18n="btn_open_report">Rapport</button>
+    <button class="context-ghost" data-click-handler="openLatestReport" data-i18n="btn_open_report">Rapport</button>
     <button data-view-gate="history" class="context-ghost" onclick="showView('history')" data-i18n="nav_history">Historikk</button>
-    <button id="active-bar-licenses-btn" class="context-ghost" onclick="loadCustomerLicensesFromActive()" style="display:none;" data-i18n="nav_licenses">Licenses</button>
+    <button id="active-bar-licenses-btn" class="context-ghost" data-click-handler="loadCustomerLicensesFromActive" style="display:none;" data-i18n="nav_licenses">Licenses</button>
     <button data-view-gate="audit" class="btn btn-sm" data-write onclick="showView('audit')" style="padding:6px 14px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-i18n="btn_run_audit">Kj&#248;r audit</button>
 
     <!-- Quick-switcher dropdown — switch active customer from any view -->
@@ -312,10 +312,10 @@
         <div class="nav-dropdown">
           <button class="dash-tab-tool accent" data-i18n-title="btn_export" title="Eksport"><span data-i18n="btn_export">Eksport</span> &#9662;</button>
           <div class="nav-dropdown-menu" style="left:auto;right:0;"><div class="nav-dropdown-menu-inner">
-            <button onclick="dashExportCurrentTab()">CSV</button>
-            <button onclick="exportDashboardExcel()">Excel</button>
-            <button onclick="copyOverviewToClipboard()" data-i18n="kopier_tabell">Kopier tabell</button>
-            <button onclick="generateQBR()" data-i18n="qbr_rapport">QBR-rapport</button>
+            <button data-click-handler="dashExportCurrentTab">CSV</button>
+            <button data-click-handler="exportDashboardExcel">Excel</button>
+            <button data-click-handler="copyOverviewToClipboard" data-i18n="kopier_tabell">Kopier tabell</button>
+            <button data-click-handler="generateQBR" data-i18n="qbr_rapport">QBR-rapport</button>
           </div></div>
         </div>
         <button id="dash-autorefresh-btn" class="dash-tab-tool" onclick="dashToggleAutoRefresh(this)" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
@@ -2130,7 +2130,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
       <span data-i18n="nav_network">Nettverk</span>
     </button>
-    <button class="bnav-item" data-notif-toggle data-bnav="alerts" onclick="toggleNotifications()">
+    <button class="bnav-item" data-notif-toggle data-bnav="alerts" data-click-handler="toggleNotifications">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
       <span data-i18n="hdr_notifications">Varsler</span>
       <span class="bnav-badge" id="bnav-alerts-badge" style="display:none;"></span>
@@ -2163,7 +2163,7 @@
       <div class="more-group-title" data-i18n="konto">Konto</div>
       <button class="more-row" onclick="closeMoreSheet();showView('ai')"><span class="more-ic">&#10035;</span><span data-i18n="sybrt_assistent">Sybrt-assistent</span></button>
       <button class="more-row" onclick="closeMoreSheet();openSettings()"><span class="more-ic">&#9881;</span><span data-i18n="innstillinger_3">Innstillinger</span></button>
-      <button class="more-row" onclick="toggleTheme()"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
+      <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
       <button class="more-row danger" onclick="closeMoreSheet();doLogout()"><span class="more-ic">&#8617;</span><span data-i18n="logg_ut_2">Logg ut</span></button>
     </div>
   </div>
@@ -2175,7 +2175,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:var(--space-4);">
       <span id="footer-stats" style="font-size:9px;color:var(--text-dim);opacity:0.5;"></span>
-      <kbd onclick="toggleCommandPalette()" style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono);cursor:pointer;" data-i18n-title="lbl_quick_search" title="Hurtigsøk">&#8984;K</kbd>
+      <kbd data-click-handler="toggleCommandPalette" style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono);cursor:pointer;" data-i18n-title="lbl_quick_search" title="Hurtigsøk">&#8984;K</kbd>
       <span style="font-size:var(--font-xs);color:var(--text-dim);">?</span>
       <span class="version" id="footer-version" style="font-size:10px;opacity:0.4;"></span>
     </div>
@@ -2521,7 +2521,7 @@
     <div id="settings-msg" style="margin-top:10px;font-size:13px;min-height:20px;"></div>
 
     <div class="modal-actions">
-      <button class="btn btn-default" onclick="closeSettings()" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-default" data-click-handler="closeSettings" data-i18n="btn_cancel">Avbryt</button>
       <button class="btn btn-default" onclick="resetAuditDir()" data-i18n="btn_reset_default">Tilbakestill til standard</button>
       <button data-write class="btn btn-primary" onclick="saveSettings()" data-i18n="btn_save">Lagre</button>
     </div>
@@ -2539,7 +2539,7 @@
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-default" onclick="closePermissionsModal()" data-i18n="btn_close">Lukk</button>
+      <button class="btn btn-default" data-click-handler="closePermissionsModal" data-i18n="btn_close">Lukk</button>
     </div>
   </div>
 </div>
@@ -2567,7 +2567,7 @@
       <li><span class="shortcut-desc" data-i18n="shortcut_show_shortcuts">Vis snarveier</span><span class="shortcut-keys"><kbd>?</kbd></span></li>
     </ul>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeShortcutsModal()" data-i18n="btn_close">Lukk</button>
+      <button class="btn btn-ghost" data-click-handler="closeShortcutsModal" data-i18n="btn_close">Lukk</button>
     </div>
   </div>
 </div>
@@ -2581,7 +2581,7 @@
       <p style="color:var(--text-dim);" data-i18n="msg_loading">Laster...</p>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeChangelogModal()" data-i18n="btn_close">Lukk</button>
+      <button class="btn btn-ghost" data-click-handler="closeChangelogModal" data-i18n="btn_close">Lukk</button>
     </div>
   </div>
 </div>

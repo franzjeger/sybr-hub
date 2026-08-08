@@ -6,20 +6,12 @@ Split from dashboard.py for maintainability.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 
-from app.core.exceptions import (
-    AuthError,
-    ConflictError,
-    IntegrationError,
-    NotFoundError,
-    ValidationError,
-)
 from app.core.rbac import filter_customers, get_accessible_customer_ids
 from app.web import state
-from app.web.i18n import ui_t
 from app.web.middleware.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -29,10 +21,10 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 # ── Files ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/files")
 async def get_files():
     """List customer files: cert, config, reports, raw audit data."""
-    import os
 
     from app.core.config import AUDIT_DIR
     from app.core.customer import CustomerManager
@@ -61,7 +53,9 @@ async def get_files():
         "encrypted": True,
     }
 
-    sanitized_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in customer_name).replace(" ", "_")
+    sanitized_name = "".join(
+        c if c.isalnum() or c in "-_ " else "_" for c in customer_name
+    ).replace(" ", "_")
     audit_base = AUDIT_DIR / sanitized_name
     reports: list[dict] = []
     if audit_base.exists():
@@ -70,11 +64,15 @@ async def get_files():
                 for f in sorted(run_dir.iterdir()):
                     if f.suffix in (".html", ".pdf"):
                         size_kb = f.stat().st_size / 1024
-                        size_str = f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
-                        reports.append({
-                            "name": f"{run_dir.name}/{f.name}",
-                            "size": size_str,
-                        })
+                        size_str = (
+                            f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
+                        )
+                        reports.append(
+                            {
+                                "name": f"{run_dir.name}/{f.name}",
+                                "size": size_str,
+                            }
+                        )
 
     runs = 0
     latest = ""
@@ -88,7 +86,11 @@ async def get_files():
             for f in rd.rglob("*"):
                 if f.is_file():
                     total_bytes += f.stat().st_size
-    total_size = f"{total_bytes/1024:.0f} KB" if total_bytes < 1048576 else f"{total_bytes/1048576:.1f} MB"
+    total_size = (
+        f"{total_bytes / 1024:.0f} KB"
+        if total_bytes < 1048576
+        else f"{total_bytes / 1048576:.1f} MB"
+    )
 
     return {
         "has_customer": True,
@@ -105,6 +107,7 @@ async def get_files():
 
 
 # ── Status ────────────────────────────────────────────────────────────────────
+
 
 @router.get("/status")
 async def get_status():
@@ -124,13 +127,14 @@ async def get_status():
         if val:
             try:
                 dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
-                days = (dt - datetime.now(timezone.utc)).days
+                days = (dt - datetime.now(UTC)).days
                 if days < 30:
                     warns.append(f"{label} expires in {days} days!")
             except ValueError:
                 pass
 
     from app.core.customer import CustomerManager
+
     active_id = CustomerManager.get_active_id()
     tags = CustomerManager.get_tags(active_id) if active_id else []
 
@@ -138,18 +142,19 @@ async def get_status():
     tenant_id = cfg.get("TenantId", "")
     if tenant_id and cfg.get("ClientId"):
         from app.core.credentials import get_secret
+
         has_credentials = bool(get_secret(tenant_id, "client_secret"))
 
     return {
         "has_config": True,
         "has_credentials": has_credentials,
         "customer": {
-            "name":       cfg.get("CustomerName",  "Unknown"),
-            "domain":     cfg.get("PrimaryDomain", ""),
+            "name": cfg.get("CustomerName", "Unknown"),
+            "domain": cfg.get("PrimaryDomain", ""),
             "setup_date": cfg.get("SetupDate", "")[:10],
-            "warns":      warns,
-            "tags":       tags,
-            "tenant_id":  tenant_id,
+            "warns": warns,
+            "tags": tags,
+            "tenant_id": tenant_id,
         },
         "active_id": active_id or "",
         "audit_running": state.audit_running,
@@ -158,6 +163,7 @@ async def get_status():
 
 
 # ── Latest report ────────────────────────────────────────────────────────────
+
 
 @router.get("/latest-report")
 async def get_latest_report():
@@ -182,17 +188,26 @@ async def get_latest_report():
         for f in run_dir.iterdir():
             if f.suffix == ".html" and "report" in f.name.lower():
                 rel = f.relative_to(AUDIT_DIR)
-                return {"has_report": True, "url": f"/audit_data/{rel}", "filename": f.name, "run": run_dir.name}
+                return {
+                    "has_report": True,
+                    "url": f"/audit_data/{rel}",
+                    "filename": f.name,
+                    "run": run_dir.name,
+                }
 
     return {"has_report": False}
 
 
 # ── Customer actions ──────────────────────────────────────────────────────────
 
+
 @router.post("/customer/wipe")
 async def customer_wipe():
-    from app.core.credentials import load_config, wipe_customer
-    cfg = load_config()
+    from app.core.credentials import load_global_config, wipe_customer
+
+    # This endpoint resets setup staging.  The authenticated user's active
+    # customer is durable registry data and must not be treated as staging.
+    cfg = load_global_config()
     if cfg:
         wipe_customer(cfg.get("TenantId", ""))
     return {"ok": True}
@@ -205,9 +220,10 @@ async def customer_renew():
         delete_all_secrets,
         delete_cert,
         delete_config,
-        load_config,
+        load_global_config,
     )
-    cfg = load_config()
+
+    cfg = load_global_config()
     if cfg:
         delete_all_secrets(cfg.get("TenantId", ""))
     delete_config()
@@ -217,6 +233,7 @@ async def customer_renew():
 
 
 # ── Expiry check ──────────────────────────────────────────────────────────────
+
 
 @router.get("/expiry/check")
 async def check_expiry(user=Depends(get_current_user)):
@@ -235,7 +252,7 @@ async def check_expiry(user=Depends(get_current_user)):
                 continue
             try:
                 dt = datetime.fromisoformat(iso_val.replace("Z", "+00:00"))
-                days = (dt - datetime.now(timezone.utc)).days
+                days = (dt - datetime.now(UTC)).days
             except ValueError:
                 continue
 
@@ -250,25 +267,27 @@ async def check_expiry(user=Depends(get_current_user)):
             else:
                 category = "ok"
 
-            items.append({
-                "customer_name": customer_name,
-                "customer_id": c.get("_id", ""),
-                "type": cred_type,
-                "expiry_date": iso_val[:10],
-                "days_remaining": days,
-                "category": category,
-            })
+            items.append(
+                {
+                    "customer_name": customer_name,
+                    "customer_id": c.get("_id", ""),
+                    "type": cred_type,
+                    "expiry_date": iso_val[:10],
+                    "days_remaining": days,
+                    "category": category,
+                }
+            )
 
     order = {"expired": 0, "critical": 1, "warning": 2, "notice": 3, "ok": 4}
     items.sort(key=lambda x: (order.get(x["category"], 9), x["days_remaining"]))
 
     summary = {
-        "expired":  len([i for i in items if i["category"] == "expired"]),
+        "expired": len([i for i in items if i["category"] == "expired"]),
         "critical": len([i for i in items if i["category"] == "critical"]),
-        "warning":  len([i for i in items if i["category"] == "warning"]),
-        "notice":   len([i for i in items if i["category"] == "notice"]),
-        "ok":       len([i for i in items if i["category"] == "ok"]),
-        "total":    len(items),
+        "warning": len([i for i in items if i["category"] == "warning"]),
+        "notice": len([i for i in items if i["category"] == "notice"]),
+        "ok": len([i for i in items if i["category"] == "ok"]),
+        "total": len(items),
     }
 
     return {"items": items, "summary": summary}

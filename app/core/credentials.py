@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import secrets
+from contextlib import suppress
 from pathlib import Path
-from typing import Optional
 
 import keyring
 
@@ -52,10 +51,8 @@ def _fallback_save(data: dict[str, str]) -> None:
 
     _FALLBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
     encrypted_write_json(_FALLBACK_PATH, data)
-    try:
+    with suppress(OSError):
         os.chmod(_FALLBACK_PATH, 0o600)
-    except OSError:
-        pass
 
 
 def _keyring_stored(k: str, value: str) -> bool:
@@ -93,10 +90,10 @@ def store_secret(tenant_id: str, name: str, value: str) -> None:
     _secret_cache[k] = value
 
 
-_secret_cache: dict[str, Optional[str]] = {}
+_secret_cache: dict[str, str | None] = {}
 
 
-def get_secret(tenant_id: str, name: str) -> Optional[str]:
+def get_secret(tenant_id: str, name: str) -> str | None:
     k = _key(tenant_id, name)
     if k in _secret_cache and _secret_cache[k] is not None:
         return _secret_cache[k]
@@ -121,11 +118,9 @@ def get_secret(tenant_id: str, name: str) -> Optional[str]:
 def delete_secret(tenant_id: str, name: str) -> None:
     k = _key(tenant_id, name)
     _secret_cache.pop(k, None)
-    try:
+    # Includes PasswordDeleteError (not stored) and NoKeyringError.
+    with suppress(Exception):
         keyring.delete_password(_SERVICE, k)
-    except Exception:
-        # Includes PasswordDeleteError (not stored) and NoKeyringError.
-        pass
     data = _fallback_load()
     if data.pop(k, None) is not None:
         _fallback_save(data)
@@ -152,21 +147,51 @@ def config_path() -> Path:
 
 
 def config_exists() -> bool:
-    if _DEFAULT_CONFIG_PATH.exists():
+    path = _request_config_path()
+    if path.exists():
         return True
-    if _LEGACY_CONFIG_PATH.exists():
+    if path == _DEFAULT_CONFIG_PATH and _LEGACY_CONFIG_PATH.exists():
         _migrate_legacy_file(_LEGACY_CONFIG_PATH, _DEFAULT_CONFIG_PATH)
         return True
     return False
 
 
-def load_config() -> Optional[dict]:
+def load_config() -> dict | None:
+    path = _request_config_path()
+    if path == _DEFAULT_CONFIG_PATH:
+        return load_global_config()
+    if not path.exists():
+        return None
+    from app.core.encryption import encrypted_read_json
+    return encrypted_read_json(path)
+
+
+def load_global_config() -> dict | None:
+    """Read the non-web staging/legacy config explicitly.
+
+    Migration and the TUI need this path even when invoked during an
+    authenticated request. Normal web routes must use :func:`load_config`.
+    """
     if not _DEFAULT_CONFIG_PATH.exists() and _LEGACY_CONFIG_PATH.exists():
         _migrate_legacy_file(_LEGACY_CONFIG_PATH, _DEFAULT_CONFIG_PATH)
     if not _DEFAULT_CONFIG_PATH.exists():
         return None
     from app.core.encryption import encrypted_read_json
+
     return encrypted_read_json(_DEFAULT_CONFIG_PATH)
+
+
+def _request_config_path() -> Path:
+    """Resolve reads through the authenticated user's active customer."""
+    from app.core.customer import CustomerManager, has_request_customer_scope
+
+    if has_request_customer_scope():
+        active_id = CustomerManager.get_active_id()
+        if active_id:
+            return CustomerManager.get_customer_dir(active_id) / "config.json"
+        # Never fall through to another process/user's legacy selection.
+        return DATA_DIR / ".no-active-customer"
+    return _DEFAULT_CONFIG_PATH
 
 
 def save_config(data: dict) -> None:
@@ -186,13 +211,26 @@ _LEGACY_CERT_PATH = Path("audit_cert.pfx")
 
 
 def cert_path() -> Path:
+    from app.core.customer import CustomerManager, has_request_customer_scope
+
+    if has_request_customer_scope():
+        active_id = CustomerManager.get_active_id()
+        if active_id:
+            return CustomerManager.get_cert_path(active_id)
+        return DATA_DIR / ".no-active-customer.pfx"
+    return _DEFAULT_CERT_PATH
+
+
+def global_cert_path() -> Path:
+    """Return the non-web staging/legacy certificate path explicitly."""
     return _DEFAULT_CERT_PATH
 
 
 def cert_exists() -> bool:
-    if _DEFAULT_CERT_PATH.exists():
+    path = cert_path()
+    if path.exists():
         return True
-    if _LEGACY_CERT_PATH.exists():
+    if path == _DEFAULT_CERT_PATH and _LEGACY_CERT_PATH.exists():
         _migrate_legacy_file(_LEGACY_CERT_PATH, _DEFAULT_CERT_PATH)
         return True
     return False
@@ -203,13 +241,14 @@ def save_cert(pfx_bytes: bytes) -> None:
     encrypted_write_bytes(_DEFAULT_CERT_PATH, pfx_bytes)
 
 
-def load_cert_bytes() -> Optional[bytes]:
-    if not _DEFAULT_CERT_PATH.exists() and _LEGACY_CERT_PATH.exists():
+def load_cert_bytes() -> bytes | None:
+    path = cert_path()
+    if path == _DEFAULT_CERT_PATH and not path.exists() and _LEGACY_CERT_PATH.exists():
         _migrate_legacy_file(_LEGACY_CERT_PATH, _DEFAULT_CERT_PATH)
-    if not _DEFAULT_CERT_PATH.exists():
+    if not path.exists():
         return None
     from app.core.encryption import encrypted_read_bytes
-    return encrypted_read_bytes(_DEFAULT_CERT_PATH)
+    return encrypted_read_bytes(path)
 
 
 def delete_cert() -> None:
@@ -246,7 +285,7 @@ def generate_cert_password() -> str:
 _GDAP_CONFIG_PATH = DATA_DIR / "gdap_config.json"
 
 
-def load_gdap_config() -> Optional[dict]:
+def load_gdap_config() -> dict | None:
     """Load the encrypted GDAP partner configuration."""
     if not _GDAP_CONFIG_PATH.exists():
         return None

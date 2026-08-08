@@ -5,6 +5,18 @@ Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Aktiv kunde er isolert per bruker
+
+- Autentiserte requests binder brukeridentitet og gjeldende kundetilganger i
+  et `ContextVar`. Aktiv kunde lagres i en kryptert, brukerhash-basert fil og
+  lekker ikke lenger mellom samtidige teknikere.
+- Manglende brukervalg faller aldri tilbake til legacy `active.txt`. Tilgang
+  som trekkes tilbake etter valg gjør konteksten ugyldig umiddelbart.
+- Konfig- og sertifikatlesing følger samme request-kontekst. Bytte av kunde
+  kopierer ikke lenger data inn i prosessglobale config-/sertifikatplasser.
+- 26 statiske inline-klikkhandlere er flyttet til en eksplisitt delegert
+  allowlist uten `eval`; CSP-handlerbudsjettet er redusert fra 834 til 808.
+
 ### Nettleser-, CI- og driftsgrensene håndheves
 
 - CSP tillater ikke lenger inline `<script>`- eller `<style>`-elementer i

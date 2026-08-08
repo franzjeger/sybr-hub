@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import (
-    AuthError,
     ConflictError,
-    IntegrationError,
+    ForbiddenError,
     NotFoundError,
     ValidationError,
 )
@@ -39,6 +38,7 @@ async def list_customers(user: User = Depends(get_current_user)):
     tags_cache = {cid: CustomerManager.get_tags(cid) for cid in cids}
     for c in customers:
         cid = c.get("_id", "")
+        c["is_active"] = cid == active_id
         c["_has_notes"] = (CustomerManager.get_customer_dir(cid) / "notes.md").exists()
         c["_tags"] = tags_cache.get(cid, [])
     return {"customers": customers, "active_id": active_id}
@@ -53,20 +53,8 @@ async def switch_customer(request: Request, user: User = Depends(get_current_use
     if not customer:
         raise NotFoundError(ui_t("err_customer_not_found", request))
     if not await check_customer_access(user, customer_id):
-        raise AuthError("Ingen tilgang til denne kunden")
+        raise ForbiddenError("Ingen tilgang til denne kunden")
     CustomerManager.set_active(customer_id)
-
-    # Update the active config/cert files
-    from app.core.credentials import cert_path as get_cert_path
-    from app.core.credentials import save_cert, save_config
-    config_to_save = {k: v for k, v in customer.items() if not k.startswith("_")}
-    save_config(config_to_save)
-    # GDAP customers have no per-customer cert — skip cert copy
-    if customer.get("AuthMode") != "gdap":
-        cust_cert = CustomerManager.get_cert_path(customer_id)
-        if cust_cert.exists():
-            import shutil
-            shutil.copy2(str(cust_cert), str(get_cert_path()))
 
     from app.core.activity_log import log_activity
     log_activity("customer_switched", customer=customer.get("CustomerName", ""), user=user.username)
@@ -122,7 +110,7 @@ async def add_manual_customer(request: Request, user: User = Depends(get_current
         "InitialDomain": "",
         "AppObjectId": "",
         "SubscriptionId": "",
-        "SetupDate": datetime.now(timezone.utc).isoformat(),
+        "SetupDate": datetime.now(UTC).isoformat(),
         "SecretExpiry": "",
         "CertExpiry": "",
         "Source": "manual",
@@ -145,14 +133,17 @@ async def add_manual_customer(request: Request, user: User = Depends(get_current
 @router.post("/customers/register")
 async def register_customer(user: User = Depends(get_current_user)):
     """Register the current config as a customer in the multi-tenant registry."""
-    from app.core.credentials import cert_path, load_config
+    from app.core.credentials import global_cert_path, load_global_config
     from app.core.customer import CustomerManager
-    cfg = load_config()
+    # Setup writes to the process-wide staging slot.  Never resolve this read
+    # through the caller's currently selected customer: doing so would
+    # re-register that customer instead of the one setup just created.
+    cfg = load_global_config()
     if not cfg:
         raise ValidationError(ui_t("err_no_config_to_register"))
     cid = CustomerManager.save_customer(cfg)
     # Copy cert
-    cp = cert_path()
+    cp = global_cert_path()
     if cp.exists():
         import shutil
         shutil.copy2(str(cp), str(CustomerManager.get_cert_path(cid)))
@@ -180,7 +171,7 @@ async def get_customer_notes(user: User = Depends(get_current_user)):
         notes = encrypted_read_text(notes_path)
         import os
         mtime = os.path.getmtime(notes_path)
-        last_saved = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+        last_saved = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
     return {"notes": notes, "last_saved": last_saved}
 
 
@@ -197,7 +188,7 @@ async def save_customer_notes(request: Request, user: User = Depends(get_current
     encrypted_write_text(notes_path, notes)
     import os
     mtime = os.path.getmtime(notes_path)
-    last_saved = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+    last_saved = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
     return {"ok": True, "last_saved": last_saved}
 
 
@@ -222,6 +213,8 @@ async def set_customer_tags(request: Request, user: User = Depends(get_current_u
         customer_id = CustomerManager.get_active_id()
     if not customer_id:
         raise ValidationError(ui_t("err_no_active_customer", request))
+    if not await check_customer_access(user, customer_id):
+        raise ForbiddenError("Ingen tilgang til denne kunden")
     tags = body.get("tags", [])
     if not isinstance(tags, list):
         raise ValidationError("tags må være en liste")
