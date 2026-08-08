@@ -500,16 +500,14 @@ function dismissToast(el) {
 }
 
 // ── apiFetch wrapper ──────────────────────────────────────────────────────────
-// ── Auth token management ──
-var _authToken = localStorage.getItem('msptk_token') || '';
-var _refreshToken = localStorage.getItem('msptk_refresh') || '';
+// Authentication is cookie-only in the browser. The HttpOnly tokens cannot
+// be read by injected JavaScript and do not survive in localStorage dumps.
 var _currentUser = null;
 
-function setAuth(accessToken, refreshToken) {
-  _authToken = accessToken || '';
-  _refreshToken = refreshToken || '';
-  if (accessToken) { localStorage.setItem('msptk_token', accessToken); } else { localStorage.removeItem('msptk_token'); }
-  if (refreshToken) { localStorage.setItem('msptk_refresh', refreshToken); } else { localStorage.removeItem('msptk_refresh'); }
+function setAuth() {
+  // Remove credentials left by versions that persisted bearer tokens.
+  localStorage.removeItem('msptk_token');
+  localStorage.removeItem('msptk_refresh');
 }
 
 async function checkAuth() {
@@ -521,17 +519,15 @@ async function checkAuth() {
     // setup form came back even straight after it had succeeded — and the
     // second attempt then failed with "Oppsett er allerede fullført".
     if (data.setup_required) { showLoginView('setup'); return; }
-    if (!_authToken) { showLoginView('login'); return; }
-    // Validate token
-    var me = await fetch('/api/auth/me', {headers:{'Authorization':'Bearer '+_authToken}});
+    // Validate the HttpOnly access cookie.
+    var me = await fetch('/api/auth/me');
     if (me.status === 401) {
-      // Try refresh
-      if (_refreshToken) {
-        var ref = await fetch('/api/auth/refresh', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({refresh_token:_refreshToken})});
-        if (ref.ok) { var d = await ref.json(); setAuth(d.access_token, d.refresh_token); return hideLoginView(); }
-      }
-      showLoginView('login'); return;
+      // The refresh token is another HttpOnly cookie; no token enters JS.
+      var ref = await fetch('/api/auth/refresh', {method:'POST'});
+      if (!ref.ok) { showLoginView('login'); return; }
+      me = await fetch('/api/auth/me');
     }
+    if (!me.ok) { showLoginView('login'); return; }
     if (me.ok) {
       // /auth/me answers {user: {...}}. Storing the envelope meant every read
       // of _currentUser.role and _currentUser.display_name was undefined, so
@@ -755,7 +751,7 @@ async function doLogin() {
     var res = await fetch('/api/auth/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     if (!res.ok) { var err = await res.json(); showToast(err.error||t('err_login_failed','Login failed'),'error'); return; }
     var data = await res.json();
-    setAuth(data.access_token, data.refresh_token);
+    setAuth();
     hideLoginView();
     checkAuth();
   } catch(e) { console.error('Request failed:', e); showToast(t('err_login_failed','Login failed'),'error'); }
@@ -771,7 +767,7 @@ async function doSetup() {
     var res = await fetch('/api/auth/setup', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,display_name:n})});
     if (!res.ok) { var err = await res.json(); showToast(err.error||t('err_setup_failed','Setup failed'),'error'); return; }
     var data = await res.json();
-    setAuth(data.access_token, data.refresh_token);
+    setAuth();
     hideLoginView();
     _postAuthInit();
     showToast(t('msg_admin_created','Admin account created!'),'success');
@@ -839,12 +835,8 @@ async function apiFetch(url, options, _retryCount) {
     showToast(t('err_readonly_account', 'Your account has read access. Changes require write.'), 'warning', 4000);
     return null;
   }
-  // Inject auth header
   if (!options) options = {};
   if (!options.headers) options.headers = {};
-  if (_authToken && !options.headers['Authorization']) {
-    options.headers['Authorization'] = 'Bearer ' + _authToken;
-  }
   try {
     var r = await fetch(url, options);
     if (r.ok) {
@@ -871,10 +863,10 @@ async function apiFetch(url, options, _retryCount) {
       return null;
     }
     if (r.status === 401) {
-      // Token expired — try refresh once
-      if (_refreshToken && _retryCount === 0) {
-        var ref = await fetch('/api/auth/refresh', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:_refreshToken})});
-        if (ref.ok) { var d = await ref.json(); setAuth(d.access_token, d.refresh_token); return apiFetch(url, options, _retryCount+1); }
+      // Access cookie expired — refresh once using the HttpOnly refresh cookie.
+      if (_retryCount === 0) {
+        var ref = await fetch('/api/auth/refresh', {method:'POST'});
+        if (ref.ok) { return apiFetch(url, options, _retryCount+1); }
       }
       setAuth(null, null);
       showLoginView('login');
@@ -2237,8 +2229,7 @@ function startSetup() {
   document.getElementById('device-code-card').classList.remove('visible');
   document.getElementById('setup-result-area').innerHTML = '';
 
-  // Use fetch with auth header instead of EventSource (which can't send Authorization)
-  fetch('/api/setup/stream', {headers: {'Authorization': 'Bearer ' + _authToken}}).then(async function(resp) {
+  fetch('/api/setup/stream').then(async function(resp) {
     if (!resp.ok) { appendSetupLog({step:'NET',status:'error',msg:'HTTP '+resp.status}); return; }
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
@@ -2670,7 +2661,7 @@ function _finishAuditWithoutStream() {
 
 async function _attemptAuditStream(streamUrl) {
   try {
-    const resp = await fetch(streamUrl, {headers: {'Authorization': 'Bearer ' + _authToken}});
+    const resp = await fetch(streamUrl);
     if (!resp.ok) {
       // 409 = an audit is already running. Nothing was started by this call,
       // and there is no way to attach to the existing run's stream, so fall
@@ -3107,7 +3098,7 @@ async function exportCSV() {
     : document.getElementById('report-result');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_csv');
   try {
-    const r = await fetch('/api/report/csv', { method: 'POST', headers: {'Authorization': 'Bearer ' + _authToken} });
+    const r = await fetch('/api/report/csv', { method: 'POST' });
     if (!r.ok) {
       try { const d = await r.json(); area.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`; } catch(_) { area.innerHTML = '<div class="alert alert-error">' + t('err_export_failed','Export failed') + '</div>'; }
       return;
@@ -7003,7 +6994,7 @@ async function _loadSparklines() {
 // ── Dashboard Excel Export & Clipboard Copy ─────────────────────────────────
 async function exportDashboardExcel() {
   try {
-    const r = await fetch('/api/export/excel', {method: 'POST', headers: {'Authorization': 'Bearer ' + _authToken}});
+    const r = await fetch('/api/export/excel', {method: 'POST'});
     if (!r.ok) { showToast(t('err_export_failed'), 'error'); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
@@ -7080,7 +7071,7 @@ function startBulkAudit() {
   var _ari_b = document.getElementById('audit-running-indicator');
   if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.style.display = 'flex'; }
   var totalCustomers = 0, completedCustomers = 0, customerSectionsDone = 0, customerSectionsTotal = 0;
-  fetch('/api/audit/bulk', {headers: {'Authorization': 'Bearer ' + _authToken}}).then(async function(resp) {
+  fetch('/api/audit/bulk').then(async function(resp) {
     if (!resp.ok) { document.getElementById('bulk-overall-status').innerHTML = '<span style="color:var(--red)">HTTP '+resp.status+'</span>'; return; }
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
@@ -9762,29 +9753,11 @@ window.addEventListener('scroll', function() {
 });
 
 // ── Session timeout warning ─────────────────────────────────────────────────
-var _sessionRefreshing = false;
-function _checkSessionTimeout() {
-  if (!_authToken || _sessionRefreshing) return;
-  try {
-    var payload = JSON.parse(atob(_authToken.split('.')[1]));
-    var remaining = payload.exp - Math.floor(Date.now() / 1000);
-    // Auto-refresh when <5 min remaining — no user action needed
-    if (remaining < 300 && remaining > 0 && _refreshToken) {
-      _sessionRefreshing = true;
-      fetch('/api/auth/refresh', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({refresh_token: _refreshToken})
-      }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.access_token) {
-          setAuth(d.access_token, d.refresh_token);
-        }
-        _sessionRefreshing = false;
-      }).catch(function() { _sessionRefreshing = false; });
-    }
-  } catch(e) { /* session check — retries every 30s */ }
-}
-setInterval(_checkSessionTimeout, 30000);
+// Refresh shortly before the one-hour access cookie expires. The refresh
+// cookie remains HttpOnly; a failed refresh is handled by the next API call.
+setInterval(function() {
+  if (_currentUser) fetch('/api/auth/refresh', {method:'POST'}).catch(function(){});
+}, 50 * 60 * 1000);
 
 // ── Onboarding guide ────────────────────────────────────────────────────────
 (function() {

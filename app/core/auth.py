@@ -566,6 +566,53 @@ async def create_user(
     )
 
 
+async def create_initial_admin(
+    username: str,
+    password: str,
+    display_name: str,
+    email: Optional[str] = None,
+) -> User:
+    """Atomically create the only account permitted during first-run setup."""
+    from app.core.exceptions import ConflictError, ValidationError
+
+    pw_err = validate_password(password)
+    if pw_err:
+        raise ValidationError(pw_err)
+    user_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    pw_hash = hash_password(password)
+
+    async with get_db() as conn:
+        try:
+            # A reserved write lock serializes this check across processes, not
+            # merely across coroutines in one Uvicorn worker.
+            await conn.execute("BEGIN IMMEDIATE")
+            async with conn.execute("SELECT 1 FROM users LIMIT 1") as cur:
+                if await cur.fetchone() is not None:
+                    raise ConflictError("Oppsett er allerede fullført")
+            await conn.execute(
+                """INSERT INTO users
+                   (id, username, display_name, email, password_hash, role,
+                    created_at, is_active, all_customers)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)""",
+                (user_id, username, display_name, email, pw_hash, Role.admin.value, now),
+            )
+            await conn.commit()
+        except Exception:
+            await conn.rollback()
+            raise
+
+    return User(
+        id=user_id,
+        username=username,
+        display_name=display_name,
+        email=email,
+        role=Role.admin,
+        created_at=datetime.fromisoformat(now),
+        is_active=True,
+    )
+
+
 ALLOWED_USER_FIELDS = {"display_name", "email", "role", "is_active"}
 
 

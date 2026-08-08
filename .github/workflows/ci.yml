@@ -107,9 +107,5 @@ jobs:
       # anything, and `continue-on-error` reported that as success. Letting pip
       # resolve the tree also means transitive dependencies get audited, which
       # is where most CVEs actually live.
-      #
-      # Still non-blocking: the baseline is not clean (see docs/UPGRADING.md).
-      # Flip `continue-on-error` to false once it is.
       - name: Scan dependencies for known CVEs
-        continue-on-error: true
         run: pip-audit -r requirements.txt --strict

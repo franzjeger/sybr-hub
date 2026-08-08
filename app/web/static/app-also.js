@@ -334,9 +334,7 @@ async function _loadUniwebRenewals() {
 async function alsoDownloadPDF() {
   showToast(t('also_generating_pdf','Genererer PDF ...'), 'info', 3000);
   try {
-    var resp = await fetch('/api/also/renewals/report?days=365', {
-      headers: {'Authorization': 'Bearer ' + _authToken}
-    });
+    var resp = await fetch('/api/also/renewals/report?days=365');
     if (!resp.ok) { showToast(t('also_pdf_failed','PDF-generering feilet') + ': ' + resp.status, 'error'); return; }
     var blob = await resp.blob();
     var a = document.createElement('a');

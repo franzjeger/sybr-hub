@@ -7,12 +7,9 @@ import os
 
 from cryptography.exceptions import UnsupportedAlgorithm
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
-    ConflictError,
     ForbiddenError,
-    IntegrationError,
     NotFoundError,
     ValidationError,
 )
@@ -503,25 +500,29 @@ async def rdp_launch(request: Request, user: User = Depends(require_role(Role.te
     from pathlib import Path
 
     body = await request.json()
-    host = body.get("host", "").strip()
-    username = body.get("username", "").strip()
-    port = body.get("port", 3389)
+    host_id = body.get("host_id", "").strip()
+    if not host_id:
+        raise ValidationError("Velg en registrert host")
+
+    from app.services.ssh_manager import _load_host_password, get_host
+    host_record = await get_host(host_id)
+    if not await _may_see_host(user, host_record):
+        logger.info("403 host-access: user=%s host=%s (rdp)", user.username, host_id)
+        raise ForbiddenError("Du har ikke tilgang til denne hosten")
+
+    host = host_record.hostname
+    username = body.get("username", "").strip() or host_record.username
+    try:
+        port = int(body.get("port", 3389))
+    except (TypeError, ValueError):
+        raise ValidationError("Ugyldig RDP-port") from None
+    if not 1 <= port <= 65535:
+        raise ValidationError("Ugyldig RDP-port")
     domain = body.get("domain", "")
-    host_id = body.get("host_id", "")
 
-    if not host:
-        raise ValidationError("Host er påkrevd")
-
-    # Load password from host record if host_id provided
-    password = body.get("password", "")
-    if host_id and not password:
-        from app.services.ssh_manager import _load_host_password, get_host
-        # Resolving a stored credential from an id is exactly the operation
-        # /ssh/hosts/{id}/password performs, so it carries the same check.
-        if not await _may_see_host(user, await get_host(host_id)):
-            logger.info("403 host-access: user=%s host=%s (rdp)", user.username, host_id)
-            raise ForbiddenError("Du har ikke tilgang til denne hosten")
-        password = _load_host_password(host_id) or ""
+    # Resolve the credential server-side so it never needs to be returned to
+    # the browser merely to start an RDP session.
+    password = body.get("password", "") or _load_host_password(host_id) or ""
 
     # Ensure GUI apps can find the display (Wayland/X11)
     gui_env = os.environ.copy()

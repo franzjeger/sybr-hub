@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "sybr-hub"
 version = "0.1.0"
 description = "Read-mostly aggregator for MSP technicians — M365 audit + Autotask + IT Glue + myITprocess + RMM in one place."
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.11"
 # Kept in sync with requirements.txt, which stays the canonical list for
 # `pip install -r`. Anything imported by app/ belongs here too, otherwise
@@ -14,6 +14,9 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.111.0,<1.0",
     "uvicorn[standard]>=0.30.0,<1.0",
+    "python-multipart>=0.0.7,<1.0",
+    "websockets>=12.0,<15.0",
+    "textual>=0.60.0,<2.0",
     "httpx>=0.27.0,<1.0",
     "msal>=1.28.0,<2.0",
     "azure-identity>=1.16.0,<2.0",
@@ -27,28 +30,51 @@ dependencies = [
     "azure-mgmt-recoveryservicesbackup>=8.0.0,<10.0",
     "azure-mgmt-loganalytics>=13.0.0,<14.0",
     "azure-mgmt-desktopvirtualization>=1.0.0,<2.0",
+    "azure-mgmt-costmanagement>=4.0.0,<5.0",
+    "azure-mgmt-authorization>=4.0.0,<5.0",
+    "azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0",
     "keyring>=24.3.0,<26.0",
-    "cryptography>=44.0.0,<46.0",
+    "cryptography>=50.0.0,<51.0",
     "jinja2>=3.1.4,<4.0",
-    "weasyprint>=64.0,<67.0",
+    "weasyprint>=69.0,<70.0",
+    "nh3>=0.3.6,<0.4",
     "asyncssh>=2.14.0,<3.0",
     "aiosqlite>=0.20.0,<1.0",
     "argon2-cffi>=25.1.0,<26.0",
     "PyJWT[crypto]>=2.9.0,<3.0",
     "dnspython>=2.6.0,<3.0",
+    "pyOpenSSL>=26.4.0,<27.0",
+    "pychrome>=0.2.4,<1.0",
+    "anthropic>=0.40.0,<1.0",
     "platformdirs>=4.2.0,<5.0",
     "pydantic>=2.7.0,<3.0",
+    "six>=1.16.0,<2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0,<9.0",
-    "pytest-asyncio>=0.23.0,<1.0",
+    "pytest>=9.1.1,<10.0",
+    "pytest-asyncio>=1.4.0,<2.0",
     "ruff",
 ]
 
 [project.scripts]
 sybr-hub = "main:run"
+
+[tool.setuptools]
+py-modules = ["main"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+app = [
+    "baselines/*.json",
+    "helpers/*.ps1",
+    "policy_templates/*.json",
+    "reports/templates/*",
+    "web/static/*",
+    "web/static/icons/*",
+    "web/static/vendor/*",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -641,21 +641,13 @@ async function sshDoEditHost(hostId) {
 
 async function sshRdp(hostname, username, hostId) {
   // Navigate to RDP view and pre-fill host details
+  _rdpPendingHostId = hostId || '';
   showView('rdp');
   setTimeout(function() {
     var hostInput = document.getElementById('rdp-host-input');
     var userInput = document.getElementById('rdp-user-input');
-    if (hostInput) hostInput.value = hostname;
+    if (hostInput && hostId) hostInput.value = hostId;
     if (userInput) userInput.value = username || '';
-    // Fetch stored password for RDP
-    if (hostId) {
-      apiFetch('/api/ssh/hosts/' + hostId + '/password').then(function(d) {
-        if (d && d.password) {
-          var passInput = document.getElementById('rdp-pass-input');
-          if (passInput) passInput.value = d.password;
-        }
-      });
-    }
   }, 200);
   return;
   // Legacy code below — kept for reference
@@ -1690,7 +1682,7 @@ async function aiSend() {
   try {
     var resp = await fetch('/api/claude/message', {
       method: 'POST',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer '+_authToken},
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({message:msg, conversation_id:_aiConversationId, customer_id:custId||'', focus:focus||'general'})
     });
     if (!resp.ok) { try { var e = await resp.json(); document.getElementById(replyId+'-text').textContent = t('status_error','Error')+': '+e.error; } catch(_) { document.getElementById(replyId+'-text').textContent = t('err_http_error','Error: HTTP') + ' '+resp.status; } return; }
@@ -3445,7 +3437,7 @@ async function _pentestReport() {
   // Open HTML report in new tab
   var resp = await fetch('/api/pentest/report', {
     method: 'POST',
-    headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+_authToken},
+    headers: {'Content-Type':'application/json'},
     body: JSON.stringify({target:target, findings:data.findings, summary:data.summary||data.finding_summary, format:'html'})
   });
   if (resp.ok) {
@@ -4360,7 +4352,7 @@ function termConnect() {
 
   var mode = document.getElementById('term-mode').value;
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  var url = proto + '//' + location.host + '/api/ws/terminal?token=' + encodeURIComponent(_authToken) + '&mode=' + mode;
+  var url = proto + '//' + location.host + '/api/ws/terminal?mode=' + mode;
 
   if (mode === 'ssh') {
     var hostId = document.getElementById('term-host-select').value;
@@ -4823,6 +4815,7 @@ document.addEventListener('fullscreenchange', function() {
 // ═══════════════════════════════════════════════════════════════════
 
 var _rdpRunning = false;
+var _rdpPendingHostId = '';
 
 function rdpInit() {
   var el = document.getElementById('rdp-content');
@@ -4833,7 +4826,7 @@ function rdpInit() {
 
   el.innerHTML =
     '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">' +
-      '<input id="rdp-host-input" type="text" placeholder="Vert (f.eks. 192.168.1.10)" style="flex:2;min-width:160px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
+      '<select id="rdp-host-input" style="flex:2;min-width:200px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;"><option value="">' + t('rdp_select_host','Velg registrert host ...') + '</option></select>' +
       '<input id="rdp-port-input" type="text" placeholder="3389" style="width:70px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-user-input" type="text" placeholder="' + t('inf_ph_username','Brukernavn') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-pass-input" type="password" placeholder="' + t('inf_ph_password','Passord') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')rdpStart();">' +
@@ -4848,6 +4841,25 @@ function rdpInit() {
     '</div>';
 
   // Check if a session is already running
+  apiFetch('/api/ssh/hosts').then(function(data) {
+    var select = document.getElementById('rdp-host-input');
+    if (!select || !data || !Array.isArray(data.hosts)) return;
+    data.hosts.forEach(function(host) {
+      var option = document.createElement('option');
+      option.value = host.id;
+      option.textContent = (host.label || host.hostname) + ' — ' + host.hostname;
+      option.dataset.username = host.username || '';
+      select.appendChild(option);
+    });
+    if (_rdpPendingHostId) select.value = _rdpPendingHostId;
+    select.addEventListener('change', function() {
+      var selected = select.options[select.selectedIndex];
+      var userInput = document.getElementById('rdp-user-input');
+      if (userInput && selected && selected.dataset.username) {
+        userInput.value = selected.dataset.username;
+      }
+    });
+  });
   rdpCheckStatus();
 }
 
@@ -4906,8 +4918,8 @@ async function rdpStart() {
   var userInput = document.getElementById('rdp-user-input');
   var passInput = document.getElementById('rdp-pass-input');
 
-  var host = (hostInput.value || '').trim();
-  if (!host) {
+  var hostId = (hostInput.value || '').trim();
+  if (!hostId) {
     showToast(t('vertsnavn_er_paakrevd'), 'error');
     hostInput.focus();
     return;
@@ -4930,7 +4942,7 @@ async function rdpStart() {
   var data = await apiFetch('/api/rdp/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({host: host, port: port, username: username, password: password})
+    body: JSON.stringify({host_id: hostId, port: port, username: username, password: password})
   });
 
   if (!data || !data.ok) {
@@ -4971,4 +4983,3 @@ async function rdpStop() {
   if (placeholder) placeholder.style.display = 'flex';
   if (status) status.innerHTML = '';
 }
-
