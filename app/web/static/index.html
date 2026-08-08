@@ -1165,6 +1165,16 @@
                 </div>
                 <div id="unifi-sm-sites-list" style="max-height:300px;overflow-y:auto;"></div>
               </div>
+              <!-- Controller coverage: the cloud key stops at counts, so this
+                   says which customers still need a controller login before
+                   clients and firewall policy can be read at all. -->
+              <div id="unifi-sm-coverage" class="sm-coverage">
+                <div class="sm-coverage__head">
+                  <div class="sm-coverage__title" data-i18n="lbl_controller_coverage">Controller-tilgang</div>
+                  <button class="btn btn-ghost sm-coverage__refresh" data-click-handler="unifiSmLoadCoverage" data-i18n="btn_refresh">Oppdater</button>
+                </div>
+                <div id="unifi-sm-coverage-list"></div>
+              </div>
             </div>
           </div>
           <!-- Claude AI card -->

@@ -3805,6 +3805,10 @@ function _unifiSmAuthSuccess() {
   _unifiSm2faToken = '';
   _unifiSm2faCustomerId = '';
   unifiSmLoadSites();
+  // Coverage does not depend on the cloud key — it reads stored controller
+  // logins — but this is the moment the operator is looking at UniFi access,
+  // which is when "these customers still need a login" is worth reading.
+  unifiSmLoadCoverage();
 }
 
 async function unifiSmTestController() {
@@ -3855,6 +3859,44 @@ async function unifiSmLoadSaved() {
 }
 
 var _unifiSites = []; // cache for use in dashboard
+
+// The cloud key answers for the whole account but stops at counts — it has no
+// clients endpoint, and the Network API behind a console is not reachable
+// through it. Everything past that needs a controller login stored against the
+// customer, and this is the only place that says where one is missing.
+async function unifiSmLoadCoverage() {
+  var list = document.getElementById('unifi-sm-coverage-list');
+  if (!list) return;
+  list.innerHTML = '<div class="loader"></div>';
+
+  var data = await apiFetch('/api/unifi/controller-coverage');
+  if (!data || !data.ok) { list.innerHTML = ''; return; }
+
+  var LABEL = {
+    full: t('lbl_access_full','Full tilgang'),
+    host_only: t('lbl_access_needs_login','Mangler innlogging'),
+    none: t('lbl_access_none','Ingen UniFi'),
+    direct: t('lbl_access_direct','Direkte enheter')
+  };
+
+  var h = '<div class="sm-coverage__summary">'
+        + data.with_full_access + ' ' + t('lbl_of','av') + ' ' + data.total + ' '
+        + t('lbl_with_full_access','med full tilgang')
+        + (data.needs_credentials
+            ? ' \u00b7 <strong>' + data.needs_credentials + ' ' + t('lbl_needs_login_short','mangler innlogging') + '</strong>'
+            : '')
+        + '</div><div class="sm-coverage__list">';
+
+  (data.customers || []).forEach(function(c) {
+    h += '<div class="sm-coverage__row">';
+    h += '<span class="sm-coverage__name">' + esc(c.name || c.customer_id) + '</span>';
+    h += '<span class="sm-coverage__state--' + esc(c.state) + '">' + esc(LABEL[c.state] || c.state) + '</span>';
+    if (c.reason) h += '<span class="sm-coverage__reason">' + esc(c.reason) + '</span>';
+    h += '</div>';
+  });
+
+  list.innerHTML = h + '</div>';
+}
 
 async function unifiSmLoadSites() {
   var container = document.getElementById('unifi-sm-sites');

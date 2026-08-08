@@ -166,6 +166,7 @@ var _delegatedClickHandlers = Object.freeze({
   tsSaveConfig: function() { return tsSaveConfig(); },
   tsTestConnection: function() { return tsTestConnection(); },
   unifiSmAuth: function() { return unifiSmAuth(); },
+  unifiSmLoadCoverage: function() { return unifiSmLoadCoverage(); },
   unifiSmLoadSites: function() { return unifiSmLoadSites(); },
   unifiSmSave: function() { return unifiSmSave(); },
   unifiSmSaveController: function() { return unifiSmSaveController(); },
