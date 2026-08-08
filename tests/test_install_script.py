@@ -6,6 +6,13 @@ from pathlib import Path
 
 INSTALLER = Path("scripts/install-cachyos.sh").read_text(encoding="utf-8")
 
+# The commands alone, with comment lines dropped. An invariant phrased as "this
+# flag must be absent" is otherwise broken by the comment that explains why it
+# was removed — naming a flag in prose is not using it.
+INSTALLER_COMMANDS = "\n".join(
+    line for line in INSTALLER.splitlines() if not line.lstrip().startswith("#")
+)
+
 
 def test_installer_creates_the_required_key_wrap_credential():
     assert "SECRET_DIR=/etc/sybr-hub-secrets" in INSTALLER
@@ -35,5 +42,5 @@ def test_installer_keeps_history_deep_enough_to_reach_a_tag():
     # to the fallback on the first deploy after every release — and a shallow
     # repository stays shallow through an ordinary fetch, so an existing
     # install has to be deepened explicitly.
-    assert "--depth 1" not in INSTALLER
-    assert "--unshallow" in INSTALLER
+    assert "--depth 1" not in INSTALLER_COMMANDS
+    assert "--unshallow" in INSTALLER_COMMANDS
