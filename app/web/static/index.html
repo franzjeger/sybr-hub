@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
-<title>SYBR — MSP Toolkit</title>
+<title>Sybr HUB</title>
 <link rel="stylesheet" href="/static/vendor/xterm.min.css">
 <link rel="stylesheet" href="/static/vendor/lucide.min.css">
 <script defer src="/static/vendor/xterm.min.js"></script>
@@ -71,7 +71,7 @@
     <div style="text-align:center;margin-bottom:24px;">
       <img class="logo-dark" src="/branding/sybr_logo_transparent.png" alt="SYBR" style="height:44px;margin:0 auto var(--space-3);">
       <img class="logo-light" src="/branding/300 x 86.png" alt="SYBR" style="height:44px;margin:0 auto var(--space-3);">
-      <h2 style="font-size:var(--font-lg);font-weight:700;color:var(--text);">MSP Toolkit</h2>
+      <h2 style="font-size:var(--font-lg);font-weight:700;color:var(--text);">Sybr HUB</h2>
       <div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:var(--space-1);" id="login-version"></div>
     </div>
     <!-- Setup form (first run) -->
@@ -1523,7 +1523,7 @@
       <div id="integ-wiki" class="integ-tab-content" style="display:none;">
         <div style="margin-bottom:32px;">
           <div style="font-size:15px;font-weight:600;color:var(--blue);margin-bottom:8px;" data-i18n="hdr_integration_guide">Integrasjonsguide</div>
-          <p style="font-size:13px;color:var(--text-muted);line-height:1.7;max-width:800px;" data-i18n="integ_guide_desc">Komplett teknisk dokumentasjon for alle integrasjoner i SYBR MSP Toolkit — hva som fungerer, hva som er mulig, begrensninger, og hvordan API-ene kommuniserer.</p>
+          <p style="font-size:13px;color:var(--text-muted);line-height:1.7;max-width:800px;" data-i18n="integ_guide_desc">Komplett teknisk dokumentasjon for alle integrasjoner i Sybr HUB — hva som fungerer, hva som er mulig, begrensninger, og hvordan API-ene kommuniserer.</p>
         </div>
 
         <!-- ═══════════ ITGLUE ═══════════ -->
@@ -1672,7 +1672,7 @@
 
         <!-- ═══════════ REST API ═══════════ -->
         <div class="card" style="margin-bottom:20px;">
-          <div class="card-title"><span style="background:var(--purple);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_advanced">Avansert</span> <span data-i18n="wiki_title_rest_api">MSP Toolkit REST API — egendefinerte integrasjoner</span></div>
+          <div class="card-title"><span style="background:var(--purple);color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;" data-i18n="status_advanced">Avansert</span> <span data-i18n="wiki_title_rest_api">Sybr HUB REST API — egendefinerte integrasjoner</span></div>
           <div id="wiki-rest-api-body" class="wiki-md-body" style="font-size:13px;line-height:1.8;color:var(--text);">
             <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
           </div>
@@ -1836,15 +1836,15 @@
   <!-- ════════════ WORKSHOP VIEW ════════════ -->
   <div class="view" id="view-workshop" style="max-width:1400px;">
     <div style="margin-bottom:24px;">
-      <div style="font-size:18px;font-weight:700;margin-bottom:8px;" data-i18n="hdr_workshop">MSP Toolkit — Workshop</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px;" data-i18n="hdr_workshop">Sybr HUB — Workshop</div>
       <p style="font-size:13px;color:var(--text-muted);max-width:900px;line-height:1.6;" data-i18n="workshop_intro">Dedikert arbeidsrom for workshop: plan, innspill og oppfølging. Endringer lagres automatisk på serveren og deles mellom alle som har siden åpen (last siden for å se andres input).</p>
     </div>
 
     <!-- Architecture diagram — visual reference for the "Oversikt"-seksjonen i workshop-planen -->
     <div class="card" style="margin-bottom:16px;padding:16px;">
-      <div class="card-title" data-i18n="hdr_workshop_architecture">Arkitektur — MSP Toolkit-integrasjoner</div>
+      <div class="card-title" data-i18n="hdr_workshop_architecture">Arkitektur — Sybr HUB-integrasjoner</div>
       <div style="overflow-x:auto;text-align:center;background:var(--bg);border-radius:var(--radius-sm);padding:12px;">
-        <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" data-i18n-alt="msp_toolkit_integrasjoner_og_dataflyt" alt="MSP Toolkit — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+        <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" data-i18n-alt="msp_toolkit_integrasjoner_og_dataflyt" alt="Sybr HUB — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
         <div style="display:none;color:var(--text-muted);font-size:12px;padding:20px;" ><span data-i18n="err_architecture_before">Arkitekturdiagrammet kunne ikke lastes. Sjekk at</span> <code>docs/msp-toolkit-architecture.svg</code> <span data-i18n="err_architecture_after">finnes på serveren.</span></div>
       </div>
     </div>
@@ -2171,7 +2171,7 @@
   <footer style="display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-6);">
     <div style="display:flex;align-items:center;gap:var(--space-2);">
       <img id="footer-logo" src="/branding/300 x 86.png" alt="SYBR" style="height:18px;opacity:0.4;">
-      <span style="font-size:var(--font-xs);color:var(--text-dim);">MSP Toolkit</span>
+      <span style="font-size:var(--font-xs);color:var(--text-dim);">Sybr HUB</span>
     </div>
     <div style="display:flex;align-items:center;gap:var(--space-4);">
       <span id="footer-stats" style="font-size:9px;color:var(--text-dim);opacity:0.5;"></span>

@@ -3021,7 +3021,7 @@ function handleAuditDone(results) {
 
   // Browser notification if tab is hidden
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-    new Notification('SYBR MSP Toolkit', {
+    new Notification('Sybr HUB', {
       body: t('msg_audit_complete','Audit complete').replace('{count}', results.length) + ' — ' + elapsedStr,
       icon: '/branding/sybr_logo_transparent.png',
     });
@@ -3900,7 +3900,7 @@ async function applyBranding() {
     // Company name in header
     if (b.company_name) {
       var titleEl = document.querySelector('title');
-      if (titleEl) titleEl.textContent = b.company_name + ' — MSP Toolkit';
+      if (titleEl) titleEl.textContent = b.company_name + ' — Sybr HUB';
     }
   } catch(e) { /* branding is non-critical */ }
 }
@@ -6053,7 +6053,7 @@ function renderCustomers(customers, activeId) {
     box.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">&#127970;</div>
-        <div class="empty-title" style="margin-bottom:var(--space-6);">${t('onboarding_title','Kom i gang med MSP Toolkit')}</div>
+        <div class="empty-title" style="margin-bottom:var(--space-6);">${t('onboarding_title','Kom i gang med Sybr HUB')}</div>
         <div style="display:flex;gap:var(--space-6);justify-content:center;flex-wrap:wrap;margin-bottom:var(--space-6);">
           <div style="text-align:center;max-width:180px;">
             <div style="width:48px;height:48px;line-height:48px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:var(--font-lg);margin:0 auto var(--space-3);">1</div>
@@ -9830,7 +9830,7 @@ function _showPwaInstallHelp() {
   var html = '' +
     '<div class="modal-backdrop open" id="pwa-help-modal" onclick="if(event.target===this)document.getElementById(\'pwa-help-modal\').style.display=\'none\'" style="display:flex;">' +
       '<div class="modal" style="max-width:380px;">' +
-        '<div class="modal-title" style="display:flex;align-items:center;gap:8px;">&#11123; ' + esc(t('pwa_help_title', 'Installer MSP Toolkit som app')) + '</div>' +
+        '<div class="modal-title" style="display:flex;align-items:center;gap:8px;">&#11123; ' + esc(t('pwa_help_title', 'Installer Sybr HUB som app')) + '</div>' +
         bodyHtml +
         '<div class="modal-actions">' +
           '<button class="btn btn-primary" onclick="document.getElementById(\'pwa-help-modal\').style.display=\'none\'">' + esc(t('btn_ok', 'OK')) + '</button>' +
@@ -9894,7 +9894,7 @@ setInterval(function() {
 (function() {
   if (localStorage.getItem('onboarding_done')) return;
   var steps = [
-    { title: t('onboarding_welcome_title', 'Velkommen!'), text: t('onboarding_welcome_text', 'Velkommen til MSP Toolkit! La oss komme i gang.') },
+    { title: t('onboarding_welcome_title', 'Velkommen!'), text: t('onboarding_welcome_text', 'Velkommen til Sybr HUB! La oss komme i gang.') },
     { title: t('onboarding_add_customer_title', 'Legg til kunde'), text: t('onboarding_add_customer_text', 'Legg til din første kunde via Kunder → + Ny kunde') },
     { title: t('onboarding_run_audit_title', 'Kjør audit'), text: t('onboarding_run_audit_text', 'Kjør en audit fra Hjem-siden') },
     { title: t('onboarding_results_title', 'Se resultater'), text: t('onboarding_results_text', 'Se resultater i Dashboard og generer rapporter') }
