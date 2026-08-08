@@ -1160,3 +1160,123 @@ async def get_controller_summary(customer_id: str) -> dict[str, Any]:
         }
     finally:
         await client.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. API diagnostics — discover response shapes without handling the key
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The Site Manager documentation is rendered client-side and cannot be read by
+# a fetch, and the response shapes have drifted from what this module was
+# written against — get_isp_metrics was parsing entry["data"]["wan"], found
+# nothing, and rendered a full grid of zeros. Guessing the next path is how
+# that happens twice.
+#
+# So: ask the live API what it returns, and report only the *shape*. Key names
+# and value types are schema; they are safe to show. Values are customer data
+# and never leave this function. That distinction is the whole design.
+
+
+_SHAPE_MAX_DEPTH = 6
+_SHAPE_MAX_KEYS = 400
+
+
+def _type_name(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int):
+        return "int"
+    if isinstance(value, float):
+        return "float"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def describe_shape(
+    value: Any,
+    path: str = "",
+    out: dict[str, str] | None = None,
+    depth: int = 0,
+) -> dict[str, str]:
+    """Map dotted key paths to value types, carrying no values across.
+
+    A list is described by its first element under a ``[]`` segment, with its
+    length recorded on the list itself — enough to tell "no readings" from "a
+    reading full of nulls", which is exactly the distinction that was lost.
+    """
+    if out is None:
+        out = {}
+    if len(out) >= _SHAPE_MAX_KEYS or depth > _SHAPE_MAX_DEPTH:
+        return out
+
+    if isinstance(value, dict):
+        if path:
+            out[path] = "object"
+        for key in sorted(value):
+            child = f"{path}.{key}" if path else key
+            describe_shape(value[key], child, out, depth + 1)
+    elif isinstance(value, list):
+        out[path or "(root)"] = f"array[{len(value)}]"
+        if value:
+            describe_shape(value[0], f"{path}[]", out, depth + 1)
+    else:
+        out[path or "(root)"] = _type_name(value)
+    return out
+
+
+async def probe_site_manager_api() -> dict[str, Any]:
+    """Probe the Site Manager endpoints and report status and response shape.
+
+    Returns no field values — only paths, types and counts. The API key is read
+    from the store, used, and never echoed.
+    """
+    token = _resolve_token(None, None)
+    if not token:
+        return {"ok": False, "error": "Ingen API-nøkkel tilgjengelig"}
+
+    headers = _build_api_headers(token)
+    auth_scheme = "Bearer" if "Authorization" in headers else "X-API-KEY"
+
+    probes = [
+        ("hosts", _UI_HOSTS_URL),
+        ("sites", _UI_SITES_URL),
+        ("devices", _UI_DEVICES_URL),
+        ("isp-metrics/5m", f"{_UI_ISP_METRICS_URL}/5m?duration=24h"),
+        ("isp-metrics/1h", f"{_UI_ISP_METRICS_URL}/1h?duration=7d"),
+    ]
+
+    results: list[dict[str, Any]] = []
+    async with httpx.AsyncClient(timeout=60.0) as http:
+        for name, url in probes:
+            entry: dict[str, Any] = {"name": name, "url": url.split("?")[0]}
+            try:
+                r = await http.get(url, headers=headers)
+                entry["status"] = r.status_code
+                if r.status_code != 200:
+                    # The body may name the reason (bad key, no permission).
+                    # It may also carry data, so only its shape is reported.
+                    try:
+                        entry["shape"] = describe_shape(r.json())
+                    except Exception:
+                        entry["shape"] = {}
+                    entry["ok"] = False
+                else:
+                    payload = r.json()
+                    entry["ok"] = True
+                    entry["shape"] = describe_shape(payload)
+                    data = payload.get("data") if isinstance(payload, dict) else payload
+                    entry["count"] = len(data) if isinstance(data, list) else None
+            except Exception as e:
+                entry["ok"] = False
+                entry["status"] = None
+                entry["error"] = type(e).__name__
+            results.append(entry)
+
+    return {"ok": True, "auth_scheme": auth_scheme, "probes": results}

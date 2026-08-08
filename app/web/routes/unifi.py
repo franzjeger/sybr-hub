@@ -647,6 +647,27 @@ async def unifi_sm_isp_metrics(
     return result
 
 
+# ── Site Manager: API diagnostics ────────────────────────────────────────────
+
+@router.get("/unifi/sm/diagnostics")
+async def unifi_sm_diagnostics(
+    _admin: User = Depends(require_role(Role.admin)),
+):
+    """Report which Site Manager endpoints answer, and the shape they return.
+
+    Admin-only. The response carries key paths, value types and counts — never
+    field values, and never the API key. It exists because the vendor
+    documentation is client-rendered and unreadable by a fetch, so the only
+    reliable source for the response shape is the live API. Parsing this API
+    against an assumed shape is what produced a panel of zeros.
+    """
+    from app.services.unifi_api import probe_site_manager_api
+    result = await probe_site_manager_api()
+    if not result.get("ok"):
+        raise ValidationError(result.get("error", "Diagnostics unavailable"))
+    return result
+
+
 # ── Site Manager: WAN details per site ───────────────────────────────────────
 
 @router.get("/unifi/sm/site/{site_id}/wan")
