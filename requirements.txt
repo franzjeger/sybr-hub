@@ -41,15 +41,17 @@ azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0
 keyring>=24.3.0,<26.0
 
 # Cryptography (cert generation, JWT signing via PyJWT[crypto])
-# Bumped floor to 44.x — earlier 42.x is no longer receiving security
-# updates and several transitive deps (PyJWT, weasyprint) require >= 43.
-cryptography>=44.0.0,<46.0
+# 50.0.0 clears the 2026 advisories reported by pip-audit. Keep this aligned
+# with pyOpenSSL, whose 26.4 line is the first to support cryptography 49+.
+cryptography>=50.0.0,<51.0
 
 # Reports
 jinja2>=3.1.4,<4.0
-# weasyprint 64+ ships meaningful PDF rendering fixes; keep <67 to dodge
-# the not-yet-released breaking-change line.
-weasyprint>=64.0,<67.0
+weasyprint>=69.0,<70.0
+
+# Sanitizes third-party HTML before it can be rendered by the same-origin web
+# proxy. Regex URL rewriting is not an HTML security boundary.
+nh3>=0.3.6,<0.4
 
 # SSH (UniFi direct device access, FortiGate CLI)
 asyncssh>=2.14.0,<3.0
@@ -75,7 +77,7 @@ dnspython>=2.6.0,<3.0
 # setuptools — an install-time crash for a package with no callers.
 # TLS auditing needs the low-level handshake control pyOpenSSL exposes and
 # the stdlib ssl module does not.
-pyOpenSSL>=24.0.0,<26.0
+pyOpenSSL>=26.4.0,<27.0
 
 # Uniweb hosting portal has no API — the client drives a headless Chrome
 # over the DevTools protocol.
@@ -90,5 +92,5 @@ pydantic>=2.7.0,<3.0
 six>=1.16.0,<2.0
 
 # Testing
-pytest>=8.0.0,<9.0
-pytest-asyncio>=0.23.0,<1.0
+pytest>=9.1.1,<10.0
+pytest-asyncio>=1.4.0,<2.0

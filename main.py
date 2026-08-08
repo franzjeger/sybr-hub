@@ -1,7 +1,7 @@
 """Sybr HUB entry point.
 
 Run with:
-    python main.py                  # uses defaults (https://0.0.0.0:8099)
+    python main.py                  # uses defaults (http://0.0.0.0:8099)
     SYBR_HUB_HOST=127.0.0.1 python main.py
     SYBR_HUB_PORT=9000 python main.py
 """

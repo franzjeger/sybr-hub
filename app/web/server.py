@@ -10,8 +10,8 @@ the app exposes.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -22,21 +22,20 @@ from app.core.exceptions import ToolkitError
 from app.core.version import get_version
 from app.web.middleware.auth import AuthMiddleware
 from app.web.middleware.rate_limit import RateLimitMiddleware
+from app.web.middleware.security_headers import SecurityHeadersMiddleware
 from app.web.middleware.write_guard import WriteGuardMiddleware
 from app.web.routes import (
     also,
     audit,
     auth,
+    autotask,
     backup,
+    baselines,
     claude,
     customers,
     dashboard,
     dashboard_ws,
-    autotask,
-    baselines,
     docs,
-    policy_backup,
-    policy_deploy,
     fortigate,
     frontend,
     gdap,
@@ -45,6 +44,8 @@ from app.web.routes import (
     hub,
     itglue,
     pentest,
+    policy_backup,
+    policy_deploy,
     provisioning,
     proxy,
     reports,
@@ -142,10 +143,13 @@ def create_app() -> FastAPI:
     # The write guard is registered first so it runs innermost — it needs the
     # account AuthMiddleware attaches, and asking "may this account change
     # anything" before knowing which account it is would answer the wrong
-    # question. Final order: rate limit, authenticate, then the write guard.
+    # question. Security headers wrap every layer so even rate-limit and auth
+    # failures receive the browser baseline. Final order: security headers,
+    # rate limit, authenticate, then the write guard.
     app.add_middleware(WriteGuardMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     @app.exception_handler(ToolkitError)
     async def _toolkit_error_handler(

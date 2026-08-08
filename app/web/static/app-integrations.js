@@ -198,12 +198,8 @@ var WIKI_CARDS = [
 var _wikiLoadedLang = null;
 
 async function _wikiProbeDoc(path) {
-  var headers = {};
-  if (typeof _authToken !== 'undefined' && _authToken) {
-    headers['Authorization'] = 'Bearer ' + _authToken;
-  }
   try {
-    var r = await fetch('/api/docs/file?path=' + encodeURIComponent(path), { headers: headers });
+    var r = await fetch('/api/docs/file?path=' + encodeURIComponent(path));
     if (!r.ok) return null;
     var data = await r.json();
     return (data && data.content) ? data : null;

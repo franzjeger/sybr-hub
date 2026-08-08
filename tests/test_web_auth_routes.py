@@ -7,13 +7,18 @@ token afterwards.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
-from app.core.auth import create_user, delete_user_sessions
+from app.core.auth import create_initial_admin, create_user, delete_user_sessions
 from app.core.database import run_migrations
+from app.core.exceptions import ConflictError
 from app.models.user import Role
 from app.web.middleware.auth import _reset_users_exist_cache
+from app.web.routes.auth import _cookie_secure
 from app.web.server import create_app
 
 GOOD_PASSWORD = "Test1234!xyz"
@@ -67,6 +72,34 @@ def test_status_reports_setup_required_on_a_fresh_install(client):
     assert resp.json()["setup_required"] is True
 
 
+def test_browser_security_headers_are_present(client):
+    resp = client.get("/api/auth/status")
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-frame-options"] == "SAMEORIGIN"
+    assert resp.headers["referrer-policy"] == "no-referrer"
+    assert "object-src 'none'" in resp.headers["content-security-policy"]
+    assert resp.headers["cache-control"] == "no-store"
+
+
+def test_http_cookie_exception_is_limited_to_loopback(monkeypatch):
+    monkeypatch.delenv("SYBR_COOKIE_SECURE", raising=False)
+
+    def request(client_host: str, host: str) -> Request:
+        return Request({
+            "type": "http",
+            "scheme": "http",
+            "method": "GET",
+            "path": "/",
+            "query_string": b"",
+            "headers": [(b"host", host.encode())],
+            "client": (client_host, 12345),
+            "server": (host, 80),
+        })
+
+    assert _cookie_secure(request("127.0.0.1", "localhost")) is False
+    assert _cookie_secure(request("192.0.2.10", "hub.example.com")) is True
+
+
 def test_setup_creates_the_first_admin_and_returns_tokens(client):
     resp = client.post("/api/auth/setup", json=_setup_payload())
     assert resp.status_code == 200, resp.text
@@ -81,6 +114,16 @@ def test_setup_is_refused_once_an_account_exists(client):
     resp = client.post("/api/auth/setup", json=_setup_payload(username="second"))
     assert resp.status_code == 409
     assert resp.json()["error_type"] == "conflict"
+
+
+async def test_simultaneous_setup_creates_exactly_one_admin():
+    results = await asyncio.gather(
+        create_initial_admin("admin-a", GOOD_PASSWORD, "Admin A"),
+        create_initial_admin("admin-b", GOOD_PASSWORD, "Admin B"),
+        return_exceptions=True,
+    )
+    assert sum(not isinstance(result, Exception) for result in results) == 1
+    assert sum(isinstance(result, ConflictError) for result in results) == 1
 
 
 def test_setup_enforces_the_password_policy(client):

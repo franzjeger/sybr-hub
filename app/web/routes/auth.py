@@ -10,7 +10,10 @@ both a scripted client and a browser front-end can use the same endpoints.
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import logging
+import os
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -22,6 +25,7 @@ from app.core.auth import (
     blacklist_token,
     change_password,
     create_access_token,
+    create_initial_admin,
     create_refresh_token,
     create_session,
     create_user,
@@ -59,16 +63,45 @@ router = APIRouter()
 
 _ACCESS_MAX_AGE = ACCESS_TOKEN_EXPIRE_MINUTES * 60
 _REFRESH_MAX_AGE = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
+_setup_lock = asyncio.Lock()
 
 
-def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
+def _cookie_secure(request: Request) -> bool:
+    """Require Secure cookies except for an explicitly local HTTP quick-start."""
+    override = os.environ.get("SYBR_COOKIE_SECURE")
+    if override is not None:
+        return override == "1"
+    if request.url.scheme == "https":
+        return True
+    if request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip() == "https":
+        return True
+
+    def is_loopback(value: str) -> bool:
+        try:
+            return ipaddress.ip_address(value).is_loopback
+        except ValueError:
+            return value.lower() in {"localhost", "testclient"}
+
+    client_is_loopback = bool(request.client and is_loopback(request.client.host))
+    host_is_loopback = is_loopback(request.url.hostname or "")
+    return not (client_is_loopback and host_is_loopback)
+
+
+def _set_auth_cookies(
+    response: Response, access: str, refresh: str, request: Request,
+) -> None:
     """Attach both tokens as HttpOnly cookies.
 
     ``samesite="strict"`` is what stops a third-party page from driving the
     state-changing endpoints with the browser's cookie attached — the app has
     no separate CSRF token, so this is the CSRF defence.
     """
-    common = {"httponly": True, "secure": True, "samesite": "strict", "path": "/"}
+    common = {
+        "httponly": True,
+        "secure": _cookie_secure(request),
+        "samesite": "strict",
+        "path": "/",
+    }
     response.set_cookie("access_token", access, max_age=_ACCESS_MAX_AGE, **common)
     response.set_cookie("refresh_token", refresh, max_age=_REFRESH_MAX_AGE, **common)
 
@@ -94,24 +127,23 @@ async def auth_status() -> dict:
 @router.post("/auth/setup")
 async def auth_setup(body: SetupRequest, request: Request, response: Response) -> dict:
     """Create the first admin account. Refuses once any account exists."""
-    if await get_user_count() > 0:
-        raise ConflictError("Oppsett er allerede fullført")
+    # Avoid duplicate Argon2 work inside one process; create_initial_admin also
+    # takes a SQLite write lock, which closes the race across workers.
+    async with _setup_lock:
+        user = await create_initial_admin(
+            username=body.username,
+            password=body.password,
+            display_name=body.display_name,
+            email=body.email,
+        )
 
-    user = await create_user(
-        username=body.username,
-        password=body.password,
-        display_name=body.display_name,
-        role=Role.admin,
-        email=body.email,
-    )
-
-    # Close the first-run window immediately for this process, so no request
-    # can slip through the setup path between here and the next DB read.
-    from app.web.middleware.auth import users_exist
-    await users_exist()
+        # Close the first-run window immediately for this process, so no
+        # request can slip through the setup path between here and the next DB read.
+        from app.web.middleware.auth import users_exist
+        await users_exist()
 
     tokens = await _issue_tokens(user, request)
-    _set_auth_cookies(response, tokens.access_token, tokens.refresh_token)
+    _set_auth_cookies(response, tokens.access_token, tokens.refresh_token, request)
     logger.info("Initial admin account created: %s", user.username)
     return {"ok": True, "user": _public_user(user), **tokens.model_dump()}
 
@@ -130,7 +162,7 @@ async def auth_login(body: LoginRequest, request: Request, response: Response) -
         raise AuthError("Feil brukernavn eller passord")
 
     tokens = await _issue_tokens(user, request)
-    _set_auth_cookies(response, tokens.access_token, tokens.refresh_token)
+    _set_auth_cookies(response, tokens.access_token, tokens.refresh_token, request)
     return {"ok": True, "user": _public_user(user), **tokens.model_dump()}
 
 
@@ -155,7 +187,7 @@ async def auth_refresh(request: Request, response: Response) -> dict:
     access = await create_access_token(user, session_id=payload.session_id)
     response.set_cookie(
         "access_token", access, max_age=_ACCESS_MAX_AGE,
-        httponly=True, secure=True, samesite="strict", path="/",
+        httponly=True, secure=_cookie_secure(request), samesite="strict", path="/",
     )
     return {
         "ok": True,

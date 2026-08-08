@@ -58,7 +58,9 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Open <https://localhost:8099/>.
+Open <http://localhost:8099/>. Plain HTTP authentication is accepted only for
+loopback quick-start; use TLS (or the Tailscale HTTPS setup in the installer)
+for access from another machine.
 
 For production deployment behind systemd: see
 [`scripts/sybr-hub.service`](scripts/sybr-hub.service) — edit the
