@@ -91,6 +91,7 @@
     "tests/test_ci_policy.py",
     "tests/test_consent_grant.py",
     "tests/test_credentials_headless.py",
+    "tests/test_customer_context_isolation.py",
     "tests/test_db_pool.py",
     "tests/test_docs_routes.py",
     "tests/test_entra_devices_section.py",

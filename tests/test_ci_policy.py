@@ -35,3 +35,8 @@ def test_ci_covers_merge_queue_and_manual_recovery():
 def test_security_jobs_have_timeouts_and_read_only_default_permissions():
     assert "permissions:\n  contents: read" in WORKFLOW
     assert WORKFLOW.count("timeout-minutes:") >= 3
+
+
+def test_test_matrix_installs_the_async_test_plugin():
+    """Installing only the production package silently disables async tests."""
+    assert "python -m pip install '.[dev]' pytest-timeout" in WORKFLOW
