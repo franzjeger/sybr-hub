@@ -9817,8 +9817,10 @@ setInterval(function() {
     const label = v.version.startsWith('v') ? v.version : 'v' + v.version;
     const hdr = document.getElementById('header-version');
     const ftr = document.getElementById('footer-version');
+    const apiLabel = document.getElementById('api-version-label');
     if (hdr) hdr.textContent = label;
     if (ftr) ftr.textContent = label;
+    if (apiLabel) apiLabel.textContent = '— ' + label;
   } catch (e) { /* keep fallback text */ }
 })();
 // ── Log / Troubleshooting ─────────────────────────────────────────────────────

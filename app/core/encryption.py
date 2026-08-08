@@ -10,13 +10,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
+from contextlib import suppress
 from pathlib import Path
-from typing import Optional
 
 import keyring
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 log = logging.getLogger(__name__)
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 _KEYRING_SERVICE = "MSPToolkit"
 _KEYRING_KEY = "master_encryption_key"
@@ -25,7 +26,7 @@ _MAGIC_V2 = b"MSPTK\x02"  # v2 header: includes AAD for integrity binding
 _NONCE_LEN = 12  # 96-bit nonce for AES-GCM
 _AAD = b"MSPToolkit-v2"  # Associated authenticated data — prevents ciphertext swapping
 
-_cached_key: Optional[bytes] = None
+_cached_key: bytes | None = None
 
 # Operator-supplied key, in the style of the MSP_DATA_DIR / MSP_CONFIG_DIR
 # overrides in config.py. This is the escape hatch from host-identity binding:
@@ -35,6 +36,10 @@ _cached_key: Optional[bytes] = None
 # manager and the box can be rebuilt from scratch.
 _ENV_MASTER_KEY = "SYBR_MASTER_KEY"           # base64 key, directly
 _ENV_MASTER_KEY_FILE = "SYBR_MASTER_KEY_FILE"  # path to a file holding one
+_ENV_KEY_WRAP_SECRET = "SYBR_KEY_WRAP_SECRET"
+_ENV_KEY_WRAP_SECRET_FILE = "SYBR_KEY_WRAP_SECRET_FILE"
+_BACKUP_AAD_V3 = b"Sybr-HUB-master-key-backup-v3"
+_MIN_WRAP_SECRET_BYTES = 32
 
 
 class MasterKeyUnavailableError(Exception):
@@ -60,7 +65,12 @@ def _backup_locations() -> list:
 
 
 def _machine_passphrase() -> str:
-    """Derive a machine-specific passphrase for encrypting key backups."""
+    """Derive the legacy v2 wrapping input from public machine identity.
+
+    This is retained solely to read and migrate existing backups. Hostname and
+    machine-id are not secrets, so v2 prevents accidental disclosure but does
+    not provide meaningful protection to an attacker who can copy the file.
+    """
     import hashlib
     import platform
     import socket
@@ -74,13 +84,66 @@ def _machine_passphrase() -> str:
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
+def _key_wrap_secret() -> bytes | None:
+    """Return an operator-managed secret used to wrap local key backups.
+
+    The file form is preferred for services because it avoids placing the
+    secret directly in the unit definition. A configured-but-unreadable or
+    weak secret is an error: silently falling back to public machine identity
+    would create backups with much weaker protection than the operator asked
+    for.
+    """
+    value = os.environ.get(_ENV_KEY_WRAP_SECRET)
+    source = _ENV_KEY_WRAP_SECRET
+    if value is not None:
+        secret = value.encode("utf-8")
+    else:
+        secret_file = os.environ.get(_ENV_KEY_WRAP_SECRET_FILE)
+        if not secret_file:
+            return None
+        source = f"{_ENV_KEY_WRAP_SECRET_FILE}={secret_file}"
+        try:
+            secret = Path(secret_file).read_bytes().strip()
+        except Exception as e:
+            raise MasterKeyUnavailableError(
+                f"{source} is set but the key-wrapping secret could not be read: {e}"
+            ) from e
+
+    if len(secret) < _MIN_WRAP_SECRET_BYTES:
+        raise MasterKeyUnavailableError(
+            f"{source} must contain at least {_MIN_WRAP_SECRET_BYTES} bytes"
+        )
+    return secret
+
+
+def _atomic_private_write(path: Path, data: bytes) -> None:
+    """Atomically replace ``path`` with a private, fully flushed file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as handle:
+            fd = -1
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+        path.chmod(0o600)
+    except Exception:
+        if fd >= 0:
+            os.close(fd)
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
 def _backup_is_readable(path: Path) -> bool:
     """Whether the backup at ``path`` unwraps with this host's passphrase."""
     return _read_one_backup(path) is not None
 
 
 def _save_key_backups(b64_key: str, *, force: bool = False) -> None:
-    """Save master key to multiple backup locations, encrypted with machine passphrase.
+    """Save the master key to multiple encrypted backup locations.
 
     A backup we cannot currently unwrap is never overwritten unless ``force``
     is set. That file may be the last copy of a key that is still recoverable
@@ -89,21 +152,49 @@ def _save_key_backups(b64_key: str, *, force: bool = False) -> None:
     permanent data loss. ``force=True`` is for the deliberate act of importing
     a known-good key, where replacing the stale blob is the whole point.
     """
-    import json
-
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-    passphrase = _machine_passphrase().encode()
     salt = os.urandom(16)
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
-    wrap_key = kdf.derive(passphrase)
+    secret = _key_wrap_secret()
+    if secret is not None:
+        version = 3
+        iterations = 1_000_000
+        aad = _BACKUP_AAD_V3
+        wrapping_input = secret
+    else:
+        # Backward-compatible degraded mode for desktop/headless installs that
+        # have not configured an external secret yet. Be explicit: machine-id
+        # is public metadata, not a cryptographic secret.
+        version = 2
+        iterations = 100_000
+        aad = None
+        wrapping_input = _machine_passphrase().encode()
+        log.warning(
+            "Master-key file backups use legacy machine-identity wrapping, which "
+            "does not protect a copied backup. Configure %s (preferred) or %s "
+            "to migrate them to password-protected v3 backups.",
+            _ENV_KEY_WRAP_SECRET_FILE,
+            _ENV_KEY_WRAP_SECRET,
+        )
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iterations,
+    )
+    wrap_key = kdf.derive(wrapping_input)
     nonce = os.urandom(12)
     aesgcm = AESGCM(wrap_key)
-    ct = aesgcm.encrypt(nonce, b64_key.encode(), None)
-    # Store salt + nonce + ciphertext as hex
-    blob = json.dumps({"v": 2, "s": salt.hex(), "n": nonce.hex(), "ct": ct.hex()})
+    ct = aesgcm.encrypt(nonce, b64_key.encode(), aad)
+    blob_data = {
+        "v": version,
+        "s": salt.hex(),
+        "n": nonce.hex(),
+        "ct": ct.hex(),
+    }
+    if version == 3:
+        blob_data.update({"kdf": "pbkdf2-sha256", "i": iterations})
+    blob = json.dumps(blob_data, separators=(",", ":")).encode("utf-8")
 
     for path in _backup_locations():
         try:
@@ -115,8 +206,7 @@ def _save_key_backups(b64_key: str, *, force: bool = False) -> None:
                 )
                 continue
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(blob)
-            path.chmod(0o600)
+            _atomic_private_write(path, blob)
         except Exception as e:
             log.warning("Failed to save key backup to %s: %s", path, e)
 
@@ -134,20 +224,37 @@ def _read_one_backup(path: Path) -> bytes | None:
         return None
     try:
         data = json.loads(path.read_text())
-        if data.get("v") == 2:
-            # New encrypted format
+        version = data.get("v")
+        if version in (2, 3):
             salt = bytes.fromhex(data["s"])
             nonce = bytes.fromhex(data["n"])
             ct = bytes.fromhex(data["ct"])
-            kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
-            wrap_key = kdf.derive(_machine_passphrase().encode())
+            if version == 3:
+                secret = _key_wrap_secret()
+                if secret is None:
+                    return None
+                if data.get("kdf") != "pbkdf2-sha256" or data.get("i") != 1_000_000:
+                    return None
+                wrapping_input = secret
+                iterations = 1_000_000
+                aad = _BACKUP_AAD_V3
+            else:
+                wrapping_input = _machine_passphrase().encode()
+                iterations = 100_000
+                aad = None
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iterations,
+            )
+            wrap_key = kdf.derive(wrapping_input)
             aesgcm = AESGCM(wrap_key)
-            b64_key = aesgcm.decrypt(nonce, ct, None).decode()
+            b64_key = aesgcm.decrypt(nonce, ct, aad).decode()
             key = base64.urlsafe_b64decode(b64_key)
         else:
             # Legacy plaintext format
             key = base64.urlsafe_b64decode(data["key"])
         return key if len(key) == 32 else None
+    except MasterKeyUnavailableError:
+        raise
     except Exception as e:
         log.debug("Key backup at %s unreadable: %s", path, e)
         return None
@@ -289,14 +396,24 @@ def _get_or_create_master_key() -> bytes:
     #    gets overwritten by the new one. Refuse, and say exactly how to fix it.
     stale = _unreadable_backups()
     if stale:
+        has_v3 = False
+        for path in stale:
+            with suppress(Exception):
+                has_v3 = has_v3 or json.loads(path.read_text()).get("v") == 3
+        recovery = (
+            f"Configure the original {_ENV_KEY_WRAP_SECRET_FILE} / "
+            f"{_ENV_KEY_WRAP_SECRET}, or supply the key directly via "
+            f"{_ENV_MASTER_KEY} / {_ENV_MASTER_KEY_FILE}"
+            if has_v3
+            else
+            "Restore the previous hostname and /etc/machine-id, or supply the "
+            f"key directly via {_ENV_MASTER_KEY} / {_ENV_MASTER_KEY_FILE}"
+        )
         raise MasterKeyUnavailableError(
             "Master key backups exist but none could be unwrapped on this host: "
             + ", ".join(str(p) for p in stale)
-            + ". The wrapping passphrase is derived from the hostname and "
-            "/etc/machine-id, so this normally means one of those changed. "
-            "Restore the previous hostname and /etc/machine-id, or supply the "
-            f"key directly via {_ENV_MASTER_KEY} / {_ENV_MASTER_KEY_FILE}, or "
-            "import it in Settings. Refusing to create a new key, which would "
+            + ". " + recovery + ", or import it in Settings. Refusing to create "
+            "a new key, which would "
             "make the existing encrypted data permanently unreadable."
         )
 
@@ -483,8 +600,7 @@ def import_master_key(b64_key: str) -> bool:
                 log.info("Keeping the earlier preserved key at %s", prev)
                 continue
             try:
-                prev.write_text(path.read_text())
-                prev.chmod(0o600)
+                _atomic_private_write(prev, path.read_bytes())
                 log.info("Existing key backup preserved at %s", prev)
             except Exception as e:
                 # Refuse rather than proceed: the next step overwrites this
@@ -535,10 +651,9 @@ def unwrap_master_key(wrapped: str, password: str) -> bool:
     """
     import base64
 
+    from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
-    from cryptography.exceptions import InvalidTag
 
     try:
         raw = base64.urlsafe_b64decode(wrapped)

@@ -128,6 +128,8 @@ def _isolate_key_store(tmp_path, monkeypatch):
     monkeypatch.setattr(enc, "_cached_key", None)
     monkeypatch.delenv(enc._ENV_MASTER_KEY, raising=False)
     monkeypatch.delenv(enc._ENV_MASTER_KEY_FILE, raising=False)
+    monkeypatch.delenv(enc._ENV_KEY_WRAP_SECRET, raising=False)
+    monkeypatch.delenv(enc._ENV_KEY_WRAP_SECRET_FILE, raising=False)
 
     locations = [tmp_path / "data" / ".key", tmp_path / "conf" / ".key"]
     monkeypatch.setattr(enc, "_backup_locations", lambda: list(locations))
@@ -196,6 +198,62 @@ def test_a_hostname_change_refuses_to_mint_a_new_key(tmp_path, monkeypatch):
     monkeypatch.setattr(enc, "_cached_key", None)
     monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-AAAA")
     assert enc.decrypt_bytes(blob).decode() == "kundehemmelighet"
+
+
+def test_external_wrap_secret_survives_a_hostname_change(tmp_path, monkeypatch):
+    """A copied v3 backup is bound to an operator secret, not public host metadata."""
+    import stat
+
+    enc, locations = _isolate_key_store(tmp_path, monkeypatch)
+    monkeypatch.setenv(enc._ENV_KEY_WRAP_SECRET, "s" * 32)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-AAAA")
+
+    blob = enc.encrypt_text("kundehemmelighet")
+    assert all(json.loads(path.read_text())["v"] == 3 for path in locations)
+    assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in locations)
+
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setattr(enc, "_machine_passphrase", lambda: "host-BBBB")
+    assert enc.decrypt_bytes(blob).decode() == "kundehemmelighet"
+
+
+def test_v3_backup_requires_the_original_wrap_secret(tmp_path, monkeypatch):
+    import pytest
+
+    enc, locations = _isolate_key_store(tmp_path, monkeypatch)
+    monkeypatch.setenv(enc._ENV_KEY_WRAP_SECRET, "a" * 32)
+    enc._get_or_create_master_key()
+    before = {path: path.read_bytes() for path in locations}
+
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setenv(enc._ENV_KEY_WRAP_SECRET, "b" * 32)
+    with pytest.raises(enc.MasterKeyUnavailableError) as exc:
+        enc._get_or_create_master_key()
+
+    assert "SYBR_KEY_WRAP_SECRET" in str(exc.value)
+    assert {path: path.read_bytes() for path in locations} == before
+
+
+def test_configuring_wrap_secret_migrates_v2_backups_to_v3(tmp_path, monkeypatch):
+    enc, locations = _isolate_key_store(tmp_path, monkeypatch)
+    original = enc._get_or_create_master_key()
+    assert all(json.loads(path.read_text())["v"] == 2 for path in locations)
+
+    monkeypatch.setattr(enc, "_cached_key", None)
+    monkeypatch.setenv(enc._ENV_KEY_WRAP_SECRET, "m" * 32)
+    assert enc._get_or_create_master_key() == original
+    assert all(json.loads(path.read_text())["v"] == 3 for path in locations)
+
+
+def test_short_wrap_secret_fails_instead_of_downgrading(tmp_path, monkeypatch):
+    import pytest
+
+    enc, locations = _isolate_key_store(tmp_path, monkeypatch)
+    monkeypatch.setenv(enc._ENV_KEY_WRAP_SECRET, "too-short")
+
+    with pytest.raises(enc.MasterKeyUnavailableError):
+        enc._get_or_create_master_key()
+    assert not any(path.exists() for path in locations)
 
 
 def test_importing_a_key_works_without_a_keyring(tmp_path, monkeypatch):

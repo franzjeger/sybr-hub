@@ -1,3 +1,9 @@
+# Endringslogg
+
+Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
+`v10.x` nedenfor dokumenterer den importerte MSP-Toolkit-auditmotorens historikk
+og er ikke Sybr HUB-pakkeversjoner.
+
 ## Ikke utgitt
 ### Fargeemoji ut av grensesnittet
 

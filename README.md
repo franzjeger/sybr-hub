@@ -44,7 +44,9 @@ clicks the corresponding button.
 
 - Replace your RMM, ticketing system, or documentation tool
 - Auto-create tickets, auto-remediate, or take any action on its own
-- Implement remote control (it deep-links to your RMM's WebRemote)
+- Replace your RMM. Sybr HUB supports scoped web RDP and an isolated remote
+  browser through Apache Guacamole, while provider-specific WebRemote remains
+  a deep-link into the existing RMM.
 - Store anything in the cloud (everything runs on your own host)
 
 ## Quick start
@@ -77,7 +79,7 @@ For production deployment behind systemd: see
 
 ## Status
 
-**Pre-1.0** — the audit layer and report generator are battle-tested
+**Pre-1.0 (v0.1.0)** — the audit layer and report generator are battle-tested
 (carried forward from MSP-Toolkit-V2 v10.10.12, validated against
 multiple real Microsoft 365 tenants). The integration write-side
 (Autotask, myITprocess, RMM) is scaffolded but not yet wired —

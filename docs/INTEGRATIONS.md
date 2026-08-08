@@ -70,6 +70,16 @@ before changing them:
 | Sensitivity labels | `beta/security/dataSecurityAndGovernance/sensitivityLabels` | the `informationProtection` path is gone; needs `SensitivityLabels.Read.All` — plural, the singular role exists too and is a different thing |
 | Usage reports | `v1.0/reports/get*(period='D90')` | CSV only. `$format=application/json` is refused with "JSON format is not supported" |
 | Entra devices | `v1.0/devices` | what the tenant *has*, as against `deviceManagement/managedDevices` for what Intune manages |
+| OneDrive discovery (app-only) | `v1.0/users/{id}/drives` | the singular `/drive` endpoint does not support application permissions |
+
+**OneDrive / SharePoint sharing coverage is bounded and explicit.** The audit
+discovers every site collection's drives plus every directory user's drives,
+then walks folders with `$expand=permissions`. Defaults are depth 3, 40 opened
+folders per drive and 1500 actual outbound Graph attempts, including pagination
+and throttling retries. The section records discovery failures, unreadable
+drives/folders and limit hits. CIS 7.2.4 only passes on a clean zero when all of
+those coverage fields say the scan completed; a found anonymous link still
+fails even when the rest of the scan was partial.
 
 **Usage reports carry two traps.** They answer CSV behind a 302 to storage, so
 the request must follow redirects, and the column headings are prose that

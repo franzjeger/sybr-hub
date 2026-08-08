@@ -10,7 +10,11 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
-__version__ = "10.10.12"
+# Sybr HUB's product version. The imported MSP-Toolkit audit layer had its own
+# 10.x lineage; using that value here made the API, reports and package metadata
+# disagree about which product was running. pyproject.toml reads this attribute
+# dynamically, making this the single release-version source.
+__version__ = "0.1.0"
 
 # ── Cached build info with TTL ────────────────────────────────────────────
 _build_info_cache: dict | None = None

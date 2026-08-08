@@ -13,7 +13,7 @@
 // Bump CACHE_VERSION on every release so old cached JS/CSS/HTML gets
 // purged in the activate handler.
 
-const CACHE_VERSION = 'msptoolkit-v10.10.12';
+const CACHE_VERSION = 'msptoolkit-v0.1.0';
 const PRECACHE = [
   '/',
   '/static/offline.html',

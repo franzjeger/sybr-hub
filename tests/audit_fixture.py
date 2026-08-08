@@ -106,10 +106,15 @@ FULL_AUDIT: dict[str, str] = {
         "  Total shared items   : 3\n"
         "  'Anyone' links       : 0\n"
         "  External user shares : 0\n"
-        # The collector states its own scope here. Without the line the report
-        # reads the zero above as "no anonymous links in the tenant" — a branch
-        # production can no longer reach, so the fixture must carry it.
-        "  Scan scope           : drive roots only (items within folders not enumerated)\n"
+        # A healthy synthetic tenant represents a scan that reached every
+        # discovered drive and nested folder without exhausting its budget.
+        "  Drives refused       : 0\n"
+        "  Discovery failures   : 0\n"
+        "  Folder failures      : 0\n"
+        "  Folders examined     : 96\n"
+        "  Items examined       : 1204\n"
+        "  Graph requests used  : 121 of 1500\n"
+        "  Scan scope           : complete (depth 3, max 40 folders per drive)\n"
         + "=" * 70 + "\n"
     ),
     "01_tenant.txt": (

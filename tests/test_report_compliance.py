@@ -544,9 +544,40 @@ def test_anonymous_links_are_a_finding_whatever_the_tenant_setting():
     assert "2" in row["detail"]
 
 
-def test_no_anonymous_links_passes():
+def _onedrive_evidence(anyone=0, refused=0, discovery=0, folders=0, scope="complete"):
+    return {"25_onedrive_sharing.txt": (
+        "  Drives scanned       : 12\n"
+        f"  'Anyone' links       : {anyone}\n"
+        f"  Drives refused       : {refused}\n"
+        f"  Discovery failures   : {discovery}\n"
+        f"  Folder failures      : {folders}\n"
+        f"  Scan scope           : {scope} (depth 3)\n"
+    )}
+
+
+def test_no_anonymous_links_passes_only_for_a_complete_scan():
+    row = _grade(_onedrive_evidence(), "7.2.4")
+    assert row["status"] == "pass"
+    assert "12" in row["detail"]
+
+
+@pytest.mark.parametrize("evidence", [
+    _onedrive_evidence(refused=1),
+    _onedrive_evidence(discovery=1),
+    _onedrive_evidence(folders=1),
+    _onedrive_evidence(scope="partial"),
+])
+def test_a_clean_verdict_is_held_back_by_any_coverage_gap(evidence):
+    assert _grade(evidence, "7.2.4")["status"] == "info"
+
+
+def test_a_finding_still_fails_on_a_partial_scan():
+    assert _grade(_onedrive_evidence(anyone=2, refused=1), "7.2.4")["status"] == "fail"
+
+
+def test_legacy_output_without_coverage_is_not_a_pass():
     fc = {"25_onedrive_sharing.txt": "  Drives scanned : 1\n  'Anyone' links       : 0\n"}
-    assert _grade(fc, "7.2.4")["status"] == "pass"
+    assert _grade(fc, "7.2.4")["status"] == "info"
 
 
 def test_missing_onedrive_data_is_not_a_pass():
