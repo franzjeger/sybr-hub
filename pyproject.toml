@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -65,8 +65,13 @@ sybr-hub = "main:run"
 py-modules = ["main"]
 include-package-data = true
 
-[tool.setuptools.dynamic]
-version = {attr = "app.core.version.__version__"}
+# The git tag is the release version. Nothing in the tree restates it, so a
+# release is `git tag` and nothing else — no literal to forget. A build writes
+# the resolved value into app/core/_version.py, which is gitignored and absent
+# from a plain source checkout; app/core/version.py falls through to
+# `git describe` there, which is how the deployed host resolves it.
+[tool.setuptools_scm]
+version_file = "app/core/_version.py"
 
 [tool.setuptools.package-data]
 app = [

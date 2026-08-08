@@ -10,15 +10,36 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
-# Sybr HUB's product version. The imported MSP-Toolkit audit layer had its own
-# 10.x lineage; using that value here made the API, reports and package metadata
-# disagree about which product was running. pyproject.toml reads this attribute
-# dynamically, making this the single release-version source.
-#
-# tests/test_version_consistency.py couples this to the service worker's
-# CACHE_VERSION literal — bump app/web/static/sw.js in the same commit, or the
-# suite fails.
-__version__ = "1.0.0"
+def _resolve_static_version() -> str:
+    """The version for when git cannot answer.
+
+    The git tag is the single release source. setuptools-scm writes the
+    resolved value into ``app/core/_version.py`` at build time, and an
+    installed distribution carries the same value in its metadata. A plain
+    source checkout — which is how the service is deployed — has neither, and
+    ``get_build_info`` reads ``git describe`` there, so this last resort only
+    has to be well-formed rather than accurate.
+
+    The imported MSP-Toolkit audit layer had its own 10.x lineage; using that
+    value here made the API, reports and package metadata disagree about which
+    product was running.
+    """
+    try:
+        from app.core._version import version  # written by setuptools-scm
+
+        return version
+    except Exception:
+        pass
+    try:
+        from importlib.metadata import version as _distribution_version
+
+        return _distribution_version("sybr-hub")
+    except Exception:
+        pass
+    return "0.0.0"
+
+
+__version__ = _resolve_static_version()
 
 # ── Cached build info with TTL ────────────────────────────────────────────
 _build_info_cache: dict | None = None

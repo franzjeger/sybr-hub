@@ -38,6 +38,9 @@ dist/
 build/
 .eggs/
 *.spec
+# Written by setuptools-scm at build time from the git tag. Tracking it would
+# reintroduce exactly the hand-maintained release literal it replaces.
+app/core/_version.py
 
 # ── Logs ──────────────────────────────────────────────────────────────────
 *.log

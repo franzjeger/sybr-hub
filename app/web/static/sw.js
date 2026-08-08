@@ -10,10 +10,13 @@
 //   /guacamole/*     network-only — live RDP/VNC proxy
 //   other static     cache-first with network fallback, runtime-populated
 //
-// Bump CACHE_VERSION on every release so old cached JS/CSS/HTML gets
-// purged in the activate handler.
+// CACHE_VERSION below is a placeholder and is never served as written.
+// app/web/routes/frontend.py rewrites it with the live version plus a digest
+// of the static assets, so a changed file purges old caches in the activate
+// handler on its own. Do not hand-bump it: this file is only read directly
+// when serving the raw asset in development.
 
-const CACHE_VERSION = 'msptoolkit-v1.0.0';
+const CACHE_VERSION = 'msptoolkit-vdev';
 const PRECACHE = [
   '/',
   '/static/offline.html',
