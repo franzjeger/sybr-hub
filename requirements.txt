@@ -9,7 +9,7 @@ websockets>=12.0,<18.0
 
 # Terminal UI (app/ui) — a separate entry point from the web service, but
 # kept declared so the tree imports cleanly and the suite can cover it.
-textual>=0.60.0,<2.0
+textual>=0.60.0,<9.0
 
 
 # Microsoft Graph API (httpx-based, no heavy SDK)
