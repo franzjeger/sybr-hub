@@ -5,6 +5,19 @@ Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Installasjonen henter tagger, så den viste versjonen kan løses
+
+- `scripts/install-cachyos.sh` henter nå tagger eksplisitt etter kloning og
+  oppdatering. Både den grunne klonen (`--depth 1`) og enkeltgren-hentingen
+  utelot tagg-referanser, så `git describe --tags` i `app/core/version.py`
+  feilet på hver installasjon og alle flater rapporterte fallback-verdien
+  uansett hvilken utgave som faktisk kjørte.
+- Ingen andre endringer var nødvendige. Web-UI, API, rapporter, TUI,
+  service worker-cachenøkkelen og oppstartsloggen leser allerede
+  `get_version()`, og begynner å vise riktig utgave så snart en tagg finnes.
+- `pyproject.toml` leser `__version__` på byggetidspunktet og kan ikke se git.
+  Den verdien må fortsatt oppdateres per utgave.
+
 ### Audit-resultater, VPN-kontroll og vedlikehold er herdet
 
 - Audit-fremdrift, avbrudd, resultatsett og valgt rapportmappe er isolert per
