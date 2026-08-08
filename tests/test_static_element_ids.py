@@ -6,8 +6,11 @@ taking down every branch below it. That is how a valid UniFi Site Manager API
 key came to fail with a null-property error: the handler read two account
 fields that had been dropped from the card before it reached the key.
 
-A lookup kept behind ``if (el)`` is fine and not counted. Only an immediate
-dereference is, because only that one crashes.
+Only an immediate dereference is counted, so a lookup kept behind ``if (el)``
+passes. The check is deliberately narrow: assigning to a variable and
+dereferencing it further down crashes just as hard, but telling that apart from
+a guarded use needs more than a regex. Catching the blunt case cheaply is worth
+more here than catching every case expensively.
 """
 
 from __future__ import annotations
@@ -20,13 +23,9 @@ VENDORED = {"guacamole.min.js"}
 
 # Known-crashing lookups, kept as an explicit list so the set may shrink and
 # never grow — the same ratchet scripts/lint_budget.py applies to lint debt.
-# These three are the Sybrt AI card: its customer picker and reply pane are
-# read but never rendered, so those handlers throw the moment they run.
-KNOWN_BROKEN = {
-    "ai-customer-list",
-    "ai-customer-search",
-    "ai-reply-text",
-}
+# Empty, and the second test below keeps it that way by failing on a stale
+# entry. Adding one is a deliberate act that has to be argued for in review.
+KNOWN_BROKEN: set[str] = set()
 
 
 def _created_ids() -> set[str]:

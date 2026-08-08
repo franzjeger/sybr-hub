@@ -1631,31 +1631,6 @@ function aiSelectCustomerFromDropdown(sel) {
   document.getElementById('ai-customer').value = id;
 }
 
-function aiCustomerFilter(query) {
-  var list = document.getElementById('ai-customer-list');
-  var q = (query || '').toLowerCase();
-  var html = '<div onclick="aiSelectCustomer(\'all\',\'' + t('lbl_all_customers','All customers') + '\')" style="padding:8px 12px;cursor:pointer;font-size:12px;font-weight:600;border-bottom:1px solid var(--border);" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' + t('lbl_all_customers','All customers') + '</div>';
-  var count = 0;
-  _aiCustomerList.forEach(function(c) {
-    if (q && c.name.toLowerCase().indexOf(q) === -1 && c.domain.toLowerCase().indexOf(q) === -1) return;
-    if (count >= 20) return;
-    count++;
-    html += '<div onclick="aiSelectCustomer(\''+c.id+'\',\''+c.name.replace(/'/g,"\\'")+'\')" style="padding:6px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">';
-    html += '<div style="font-weight:600;">'+c.name+'</div>';
-    if (c.domain) html += '<div style="font-size:10px;color:var(--text-muted);">'+c.domain+'</div>';
-    html += '</div>';
-  });
-  if (count === 0 && q) html += '<div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">' + t('ingen_treff') + '</div>';
-  list.innerHTML = html;
-  list.style.display = 'block';
-}
-
-function aiSelectCustomer(id, name) {
-  document.getElementById('ai-customer').value = id;
-  document.getElementById('ai-customer-search').value = id === 'all' ? '' : name;
-  document.getElementById('ai-customer-list').style.display = 'none';
-}
-
 async function aiSend() {
   var input = document.getElementById('ai-input');
   var msg = input.value.trim();
@@ -1727,7 +1702,12 @@ async function aiSend() {
       msgsEl.scrollTop = msgsEl.scrollHeight;
     }
   } catch(e) {
-    document.getElementById('ai-reply-text').textContent = t('err_network_error','Network error') + ': '+e.message;
+    // The reply pane is created per message as `<replyId>-text` above. There
+    // has never been an 'ai-reply-text' element, so this handler threw a
+    // TypeError of its own and swallowed the network error it exists to
+    // report — leaving the message stuck on its loading spinner.
+    var errEl = document.getElementById(replyId + '-text');
+    if (errEl) errEl.textContent = t('err_network_error','Network error') + ': '+e.message;
   }
 }
 
