@@ -156,6 +156,8 @@
     "tests/test_systemd_unit.py",
     "tests/test_unifi_api.py",
     "tests/test_unifi_api_diagnostics.py",
+    "tests/test_unifi_controller_coverage.py",
+    "tests/test_unifi_devices.py",
     "tests/test_unifi_isp_metrics.py",
     "tests/test_unifi_site_overview.py",
     "tests/test_uniweb_scraper.py",

@@ -647,6 +647,55 @@ async def unifi_sm_isp_metrics(
     return result
 
 
+# ── Controller coverage across the portfolio ─────────────────────────────────
+
+@router.get("/unifi/controller-coverage")
+async def unifi_controller_coverage(user: User = Depends(get_current_user)):
+    """Which customers have a reachable controller, and what each one is missing.
+
+    The cloud key stops at counts — per-site clients, firewall zones and ACLs
+    all need a controller login stored against the customer. That storage has
+    always existed; what did not was a way to see where it is absent, since
+    has_credentials was only ever reported for the active customer.
+
+    Filtered to the customers this user may see, so the answer is scoped to
+    their own portfolio rather than the whole tenant.
+    """
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
+    from app.core.rbac import filter_customers, get_accessible_customer_ids
+    from app.services.unifi_api import (
+        classify_controller_access,
+        summarise_controller_coverage,
+    )
+
+    allowed = await get_accessible_customer_ids(user)
+    customers = filter_customers(CustomerManager.list_customers(), allowed)
+
+    rows = []
+    for cust in customers:
+        cid = cust.get("_id", "")
+        state, reason = classify_controller_access(
+            cust, bool(get_secret(cid, "unifi_username"))
+        )
+        rows.append({
+            "customer_id": cid,
+            "name": cust.get("CustomerName", cid),
+            "state": state,
+            "reason": reason,
+            "host": (cust.get("UniFiHost") or "").strip(),
+            "site": cust.get("UniFiSite", "default"),
+        })
+
+    rows.sort(key=lambda r: (
+        # Fixable gaps first: a stored address with no login is one form away
+        # from working, and is the only state a credential would change.
+        0 if r["state"] == "host_only" else 1,
+        r["name"].lower(),
+    ))
+    return summarise_controller_coverage(rows)
+
+
 # ── Site Manager: site overview ──────────────────────────────────────────────
 
 @router.get("/unifi/sm/sites-overview")
