@@ -1832,7 +1832,7 @@ function renderHome(d) {
   if (!d.has_config) {
     box.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">🏢</div>
+        <div class="empty-icon"></div>
         <div class="empty-title">${t('msg_no_customer_configured')}</div>
         <div class="empty-desc">
           ${t('msg_first_time_setup_desc').replace('\n', '<br>')}
@@ -1846,7 +1846,7 @@ function renderHome(d) {
   let warnsHtml = '';
   if (c.warns && c.warns.length > 0) {
     window._lastAuditWarns = c.warns;
-    const items = c.warns.map(w => `<li>⚠ ${w}</li>`).join('');
+    const items = c.warns.map(w => `<li>${w}</li>`).join('');
     warnsHtml = `<div class="warn-badge"><ul>${items}</ul></div>`;
   }
 
@@ -1882,7 +1882,7 @@ function renderHome(d) {
         <button class="btn btn-ghost" onclick="showView('customers')">${t('btn_switch_customer')}</button>
       </div>` : `
       <div style="padding:14px;margin-bottom:8px;background:rgba(210,153,34,0.1);border:1px solid rgba(210,153,34,0.3);border-radius:8px;font-size:13px;color:var(--orange);">
-        ⚠ ${t('msg_no_m365_configured','This customer does not have M365 access configured yet.')}
+        ${t('msg_no_m365_configured','This customer does not have M365 access configured yet.')}
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="startSetup()">${t('btn_setup_m365','Setup M365 access')}</button>
@@ -2400,7 +2400,7 @@ function startSetup() {
 
 function appendSetupLog(d) {
   const log = document.getElementById('setup-log');
-  const icon = d.status === 'ok' ? '✓' : d.status === 'warn' ? '⚠' : '✗';
+  const icon = d.status === 'ok' ? '✓' : d.status === 'warn' ? '' : '✗';
   const cls  = d.status === 'ok' ? 'ok' : d.status === 'warn' ? 'warn' : 'error';
   const step = d.step ? `[${d.step}]` : '';
   const line = document.createElement('div');
@@ -2829,7 +2829,7 @@ async function _attemptAuditStream(streamUrl) {
             if (d.email_status) {
               var area = document.getElementById('report-result');
               var color = d.email_status.ok ? 'var(--green)' : 'var(--orange)';
-              var icon = d.email_status.ok ? '✓' : '⚠';
+              var icon = d.email_status.ok ? '✓' : '';
               area.innerHTML += '<div class="alert" style="color:'+color+';margin-top:8px;font-size:13px;">'+icon+' '+esc(d.email_status.msg)+'</div>';
             }
             return 'done';
@@ -2859,7 +2859,7 @@ async function _attemptAuditStream(streamUrl) {
 
 function handleProgress(d) {
   const { name, status, detail } = d;
-  const icons = { pending:'⏳', running:'⚡', done:'✓', skipped:'→', failed:'✗' };
+  const icons = { pending:'', running:'', done:'✓', skipped:'→', failed:'✗' };
   const cls   = { pending:'s-pending', running:'s-running', done:'s-done', skipped:'s-skipped', failed:'s-failed' };
   const labels= { pending:t('status_pending'), running:t('status_running'), done:t('status_done'), skipped:t('status_skipped'), failed:t('status_failed') };
 
@@ -2976,7 +2976,7 @@ function handleAuditDone(results) {
   // Update rows with final data (fills in warns and files)
   for (const r of results) {
     const status = r.status;
-    const icons  = { pending:'⏳', running:'⚡', done:'✓', skipped:'→', failed:'✗' };
+    const icons  = { pending:'', running:'', done:'✓', skipped:'→', failed:'✗' };
     const cls    = { pending:'s-pending', running:'s-running', done:'s-done', skipped:'s-skipped', failed:'s-failed' };
     const labels = { pending:t('status_pending'), running:t('status_running'), done:t('status_done'), skipped:t('status_skipped'), failed:t('status_failed') };
 
@@ -3292,25 +3292,25 @@ function esc(str) {
 async function testWebhook() {
   const url = document.getElementById('input-webhook-url').value.trim();
   const result = document.getElementById('webhook-test-result');
-  if (!url) { result.textContent = '❌ ' + t('err_no_url'); return; }
-  result.textContent = '⏳ ' + t('msg_sending');
+  if (!url) { result.textContent = '' + t('err_no_url'); return; }
+  result.textContent = '' + t('msg_sending');
   try {
     const d = await apiFetch('/api/scheduler/test-webhook', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({webhook_url: url})
     });
 
-    result.textContent = d.ok ? t('msg_uploaded_success') : '❌ ' + (d.error || t('status_error'));
+    result.textContent = d.ok ? t('msg_uploaded_success') : '' + (d.error || t('status_error'));
     result.style.color = d.ok ? 'var(--green)' : 'var(--red)';
-  } catch(e) { result.textContent = '❌ ' + e.message; }
+  } catch(e) { result.textContent = '' + e.message; }
 }
 
 // ── Email test ──────────────────────────────────────────────────────────────────
 async function testEmail() {
   const result = document.getElementById('email-test-result');
   const server = document.getElementById('input-smtp-server').value.trim();
-  if (!server) { result.textContent = '❌ ' + t('err_configure_smtp_first'); result.style.color = 'var(--red)'; return; }
-  result.textContent = '⏳ ' + t('msg_sending');
+  if (!server) { result.textContent = '' + t('err_configure_smtp_first'); result.style.color = 'var(--red)'; return; }
+  result.textContent = '' + t('msg_sending');
   result.style.color = 'var(--text-muted)';
   try {
     const d = await apiFetch('/api/email/test', {
@@ -3324,9 +3324,9 @@ async function testEmail() {
         to: document.getElementById('input-email-recipient').value.trim(),
       })
     });
-    result.textContent = d.ok ? '✓ ' + t('btn_test_email') + '!' : '❌ ' + (d.error || t('status_error'));
+    result.textContent = d.ok ? '✓ ' + t('btn_test_email') + '!' : '' + (d.error || t('status_error'));
     result.style.color = d.ok ? 'var(--green)' : 'var(--red)';
-  } catch(e) { result.textContent = '❌ ' + e.message; result.style.color = 'var(--red)'; }
+  } catch(e) { result.textContent = '' + e.message; result.style.color = 'var(--red)'; }
 }
 
 // ── Logo upload ─────────────────────────────────────────────────────────────────
@@ -3717,7 +3717,7 @@ async function loadUsers() {
         + '<option value="admin"' + (u.role==='admin'?' selected':'') + '>' + t('admin_2') + '</option>'
         + '</select>'
         + _capabilityToggles(u)
-        + '<button class="btn btn-ghost btn-sm" onclick="editUserCustomers(\'' + esc(u.id) + '\',\'' + esc(u.display_name) + '\')" title="' + t('tip_customer_access','Customer access') + '">🔑</button>'
+        + '<button class="btn btn-ghost btn-sm" onclick="editUserCustomers(\'' + esc(u.id) + '\',\'' + esc(u.display_name) + '\')" title="' + t('tip_customer_access','Customer access') + '"></button>'
         + (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deleteUser(\'' + esc(u.id) + '\',\'' + esc(u.username) + '\')">&#128465;</button>' : '')
         + '</div>';
     }).join('');
@@ -4060,7 +4060,7 @@ async function restoreBackup() {
         .replace('{certs}', files.certs || 0);
       if (files.database) txt += ' ' + t('msg_restored_db');
       if (files.activity_log) txt += ' ' + t('msg_restored_activity_log');
-      if (d.restart_required) txt += ' ⚠ ' + t('msg_restart_required');
+      if (d.restart_required) txt += ' ' + t('msg_restart_required');
       if (d.warning) {
         msg.style.color = 'var(--orange)';
         txt += ' ADVARSEL: ' + d.warning;
@@ -8509,27 +8509,27 @@ async function loadCustomerLicenses(accountId) {
 
       // NCE products: Monthly if name contains "monthly", otherwise Annual (default NCE term)
       if (nameLower.indexOf('(nce)') !== -1) {
-        if (nameLower.indexOf('monthly') !== -1) { termLabel = 'Monthly'; termIcon = '🔄'; }
-        else { termLabel = 'Annual'; termIcon = '📆'; }
+        if (nameLower.indexOf('monthly') !== -1) { termLabel = 'Monthly'; termIcon = ''; }
+        else { termLabel = 'Annual'; termIcon = ''; }
       }
       // Monthly subscriptions (Letsignit, Printix, etc)
-      else if (nameLower.indexOf('monthly') !== -1) { termLabel = 'Monthly'; termIcon = '🔄'; }
+      else if (nameLower.indexOf('monthly') !== -1) { termLabel = 'Monthly'; termIcon = ''; }
       // Azure Plan / Reserved Instance
       else if (nameLower.indexOf('azure plan') !== -1 && nameLower.indexOf('reserved') === -1) { termLabel = 'Pay-as-you-go'; termIcon = '☁️'; }
-      else if (nameLower.indexOf('reserved') !== -1) { termLabel = 'Reserved'; termIcon = '📆'; }
+      else if (nameLower.indexOf('reserved') !== -1) { termLabel = 'Reserved'; termIcon = ''; }
       // Organization tenant (no term)
-      else if (nameLower.indexOf('tenant') !== -1) { termLabel = 'Tenant'; termIcon = '🏢'; }
+      else if (nameLower.indexOf('tenant') !== -1) { termLabel = 'Tenant'; termIcon = ''; }
       // Adobe yearly
-      else if (nameLower.indexOf('adobe') !== -1) { termLabel = 'Annual'; termIcon = '📆'; }
+      else if (nameLower.indexOf('adobe') !== -1) { termLabel = 'Annual'; termIcon = ''; }
       // Fallback: use ContractEndDate vs now to estimate remaining term
       else if (s.ContractEndDate) {
         var endD = new Date(s.ContractEndDate);
         var nowD = new Date();
         var remMonths = (endD.getFullYear() - nowD.getFullYear()) * 12 + (endD.getMonth() - nowD.getMonth());
-        if (remMonths <= 1) { termLabel = 'Monthly'; termIcon = '🔄'; }
-        else if (remMonths <= 14) { termLabel = 'Annual'; termIcon = '📆'; }
-        else if (remMonths <= 38) { termLabel = '3-Year'; termIcon = '📆'; }
-        else { termLabel = 'Long-term'; termIcon = '📆'; }
+        if (remMonths <= 1) { termLabel = 'Monthly'; termIcon = ''; }
+        else if (remMonths <= 14) { termLabel = 'Annual'; termIcon = ''; }
+        else if (remMonths <= 38) { termLabel = '3-Year'; termIcon = ''; }
+        else { termLabel = 'Long-term'; termIcon = ''; }
       }
 
       // Days until renewal

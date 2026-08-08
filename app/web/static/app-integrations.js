@@ -125,7 +125,7 @@ function _docsRenderTree(node, depth) {
   if (node.type === 'file') {
     var pretty = node.name.replace(/\.md$/i, '').replace(/_/g, ' ');
     var safePath = esc(node.path);
-    return '<div class="docs-tree-file" data-docs-path="' + safePath + '" style="padding:4px 6px;cursor:pointer;border-radius:var(--radius-sm);font-family:var(--mono);font-size:12px;color:var(--text);" onclick="docsRepoOpen(\'' + safePath.replace(/'/g, "\\'") + '\')">📄 ' + esc(pretty) + '</div>';
+    return '<div class="docs-tree-file" data-docs-path="' + safePath + '" style="padding:4px 6px;cursor:pointer;border-radius:var(--radius-sm);font-family:var(--mono);font-size:12px;color:var(--text);" onclick="docsRepoOpen(\'' + safePath.replace(/'/g, "\\'") + '\')">' + esc(pretty) + '</div>';
   }
   // dir
   var label = depth === 0 ? '' : (
@@ -524,7 +524,7 @@ async function alsoSyncCustomers() {
       var unlinked = matched.filter(function(c){return c.also_id && c.match && c.match.toolkit_id;});
       if (unlinked.length > 0) {
         html += '<div style="margin-top:var(--space-3);padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;align-items:center;gap:var(--space-3);">';
-        html += '<span style="font-size:var(--font-sm);flex:1;">🔗 ' + unlinked.length + ' matched customers can be linked to ALSO for license viewing</span>';
+        html += '<span style="font-size:var(--font-sm);flex:1;">' + unlinked.length + ' matched customers can be linked to ALSO for license viewing</span>';
         html += '<button class="btn btn-primary btn-sm" onclick="alsoLinkMatched()" id="also-link-btn">' + t('link_all') + '</button>';
         html += '</div>';
       }

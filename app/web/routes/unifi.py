@@ -647,6 +647,24 @@ async def unifi_sm_isp_metrics(
     return result
 
 
+# ── Site Manager: site overview ──────────────────────────────────────────────
+
+@router.get("/unifi/sm/sites-overview")
+async def unifi_sm_sites_overview(
+    user: User = Depends(get_current_user),
+):
+    """Per-site device and client counts, WAN health and gateway IPS posture.
+
+    One upstream call. /v1/sites already carries all of this; the panel was
+    assembling a thinner version of it from other endpoints.
+    """
+    from app.services.unifi_api import get_site_overview
+    result = await get_site_overview()
+    if not result.get("ok"):
+        raise ValidationError(result.get("error", "Failed to fetch site overview"))
+    return result
+
+
 # ── Site Manager: API diagnostics ────────────────────────────────────────────
 
 @router.get("/unifi/sm/diagnostics")

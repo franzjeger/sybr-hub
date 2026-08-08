@@ -1310,3 +1310,151 @@ async def probe_site_manager_api() -> dict[str, Any]:
             results.append(entry)
 
     return {"ok": True, "auth_scheme": auth_scheme, "probes": results}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. Site overview — the statistics block /v1/sites already returns
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# One call carries device and client counts, firmware debt, WAN uptime per
+# link, external IPs, ISP identity and the gateway's IPS posture for every
+# site. The panel was computing a thinner version of this from other calls.
+
+
+_IPS_POSTURE = {
+    # UniFi reports prevention and detection as different modes and the
+    # difference matters: IDS raises an alert and lets the traffic through.
+    # Reporting both as "enabled" would flatter a gateway that is not blocking
+    # anything.
+    "ips": ("IPS", "ok"),
+    "ids": ("IDS", "warn"),
+    "disabled": ("Disabled", "bad"),
+}
+
+
+def classify_ips_mode(mode: Any) -> tuple[str, str]:
+    """Map a gateway's ipsMode to a label and a severity.
+
+    An unreported mode is Unknown, never Disabled. Two thirds of the sites in a
+    real account report no gateway block at all — rendering those as "IPS off"
+    would invent a security finding per site, the same mistake
+    :func:`wlan_security_label` exists to avoid for open WiFi.
+    """
+    if not isinstance(mode, str) or not mode.strip():
+        return ("Unknown", "unknown")
+    return _IPS_POSTURE.get(mode.strip().lower(), (mode, "unknown"))
+
+
+def summarise_sites(raw: list[dict]) -> list[dict[str, Any]]:
+    """Reduce /v1/sites to one row per site, with the findings made explicit.
+
+    Counts are reported as the API gives them; what this adds is the reading a
+    technician would otherwise do by eye — which sites have devices down,
+    firmware pending, a WAN with logged issues, or a gateway not blocking.
+    """
+    rows: list[dict[str, Any]] = []
+    for site in raw:
+        stats = site.get("statistics") or {}
+        counts = stats.get("counts") or {}
+        gateway = stats.get("gateway") or {}
+        meta = site.get("meta") or {}
+        isp = stats.get("ispInfo") or {}
+
+        wans = []
+        for name, wan in sorted((stats.get("wans") or {}).items()):
+            wan_isp = wan.get("ispInfo") or {}
+            issues = wan.get("wanIssues") or []
+            wans.append({
+                "name": name,
+                "external_ip": wan.get("externalIp"),
+                "uptime_pct": wan.get("wanUptime"),
+                "isp": wan_isp.get("name") or "",
+                "isp_asn": wan_isp.get("asn"),
+                "issue_count": sum(i.get("count", 1) for i in issues),
+                # A logged downtime event is worth more than an issue count:
+                # it is the difference between "degraded" and "was down".
+                "had_downtime": any(i.get("wanDowntime") for i in issues),
+            })
+
+        ips_label, ips_severity = classify_ips_mode(gateway.get("ipsMode"))
+        offline = counts.get("offlineDevice") or 0
+        pending = counts.get("pendingUpdateDevice") or 0
+        critical = counts.get("criticalNotification") or 0
+
+        rows.append({
+            "site_id": site.get("siteId"),
+            "host_id": site.get("hostId"),
+            "name": meta.get("name") or "",
+            "description": meta.get("desc") or "",
+            "timezone": meta.get("timezone") or "",
+            "gateway_mac": meta.get("gatewayMac") or "",
+            "devices": {
+                "total": counts.get("totalDevice") or 0,
+                "offline": offline,
+                "wifi": counts.get("wifiDevice") or 0,
+                "wifi_offline": counts.get("offlineWifiDevice") or 0,
+                "wired": counts.get("wiredDevice") or 0,
+                "wired_offline": counts.get("offlineWiredDevice") or 0,
+                "gateway": counts.get("gatewayDevice") or 0,
+                "gateway_offline": counts.get("offlineGatewayDevice") or 0,
+                "pending_update": pending,
+            },
+            "clients": {
+                "wifi": counts.get("wifiClient") or 0,
+                "wired": counts.get("wiredClient") or 0,
+                "guest": counts.get("guestClient") or 0,
+                "total": (counts.get("wifiClient") or 0) + (counts.get("wiredClient") or 0),
+            },
+            "isp": {
+                "name": isp.get("name") or "",
+                "asn": isp.get("asn"),
+                "organization": isp.get("organization") or "",
+            },
+            "wan_uptime_pct": (stats.get("percentages") or {}).get("wanUptime"),
+            "tx_retry_pct": (stats.get("percentages") or {}).get("txRetry"),
+            "gateway": {
+                "model": gateway.get("shortname") or "",
+                "ips_mode": gateway.get("ipsMode"),
+                "ips_label": ips_label,
+                "ips_severity": ips_severity,
+                "ips_rules": (gateway.get("ipsSignature") or {}).get("rulesCount"),
+                "ips_signature": (gateway.get("ipsSignature") or {}).get("type") or "",
+                "inspection_state": gateway.get("inspectionState") or "",
+            },
+            "wans": wans,
+            # Ordered by how much a technician cares, so a caller can sort on
+            # it without re-deriving the priorities.
+            "findings": [
+                f
+                for f in (
+                    f"{critical} kritiske varsler" if critical else None,
+                    f"{offline} enheter offline" if offline else None,
+                    "gateway blokkerer ikke" if ips_severity == "bad" else None,
+                    "IDS varsler men blokkerer ikke" if ips_severity == "warn" else None,
+                    f"{pending} venter fastvareoppdatering" if pending else None,
+                    "WAN har hatt nedetid" if any(w["had_downtime"] for w in wans) else None,
+                )
+                if f
+            ],
+        })
+    return rows
+
+
+async def get_site_overview() -> dict[str, Any]:
+    """Fetch /v1/sites and reduce it to one summarised row per site."""
+    token = _resolve_token(None, None)
+    if not token:
+        return {"ok": False, "error": "Ingen API-nøkkel tilgjengelig"}
+
+    async with httpx.AsyncClient(timeout=60.0) as http:
+        try:
+            r = await http.get(_UI_SITES_URL, headers=_build_api_headers(token))
+            if r.status_code == 401:
+                return {"ok": False, "error": "API-nøkkel ugyldig"}
+            r.raise_for_status()
+            return {"ok": True, "sites": summarise_sites(r.json().get("data", []))}
+        except httpx.HTTPStatusError as e:
+            return {"ok": False, "error": f"HTTP {e.response.status_code}"}
+        except Exception as e:
+            log.warning("Site overview failed: %s", e)
+            return {"ok": False, "error": str(e)}
