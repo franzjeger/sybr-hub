@@ -819,6 +819,72 @@ async def site_manager_list_sites(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def summarise_devices(raw: list[dict]) -> list[dict[str, Any]]:
+    """Flatten the per-host device payload into one row per device.
+
+    Pure, so the shape can be tested without a network call.
+
+    Note on firmware: ``updateAvailable`` is an empty string on every device in
+    a live account, including the ones whose ``firmwareStatus`` says an update
+    is waiting. It is carried through for compatibility but must not be read as
+    "the version on offer" — ``firmware_status`` is the field with the signal.
+    """
+    from datetime import datetime, timezone
+
+    from app.core.utils import format_uptime
+
+    result: list[dict[str, Any]] = []
+    for host_group in raw:
+        h_name = host_group.get("hostName", "")
+        h_id = host_group.get("hostId", "")
+        for d in host_group.get("devices", []):
+            # An offline device has no startupTime, because it is not up. The
+            # append used to sit inside `if startup:`, so those devices were
+            # dropped from the list entirely — 5 of 260 in a live account, all
+            # of them offline. The sort below promises "offline first"; this
+            # bug is what stopped it ever having anything to promote.
+            uptime_str = ""
+            startup = d.get("startupTime", "")
+            if startup:
+                try:
+                    st = datetime.fromisoformat(startup.replace("Z", "+00:00"))
+                    uptime_str = format_uptime((datetime.now(timezone.utc) - st).total_seconds())
+                except Exception:
+                    pass
+
+            result.append({
+                "host_id": h_id,
+                "host_name": h_name,
+                "id": d.get("id", ""),
+                "mac": d.get("mac", ""),
+                "name": d.get("name", d.get("shortname", "")),
+                "model": d.get("shortname", ""),
+                "model_full": d.get("model", ""),
+                "ip": d.get("ip", ""),
+                "status": d.get("status", "offline"),
+                "firmware": d.get("version", ""),
+                "firmware_status": d.get("firmwareStatus", ""),
+                "update_available": d.get("updateAvailable", ""),
+                "is_console": d.get("isConsole", False),
+                "is_managed": d.get("isManaged", False),
+                "product_line": d.get("productLine", "network"),
+                "note": d.get("note", ""),
+                "uptime": uptime_str,
+                "startup_time": startup,
+                "adoption_time": d.get("adoptionTime", ""),
+            })
+
+    # Offline first, then firmware waiting, then by host and name: the order a
+    # technician reads it in.
+    result.sort(key=lambda x: (
+        0 if x["status"] == "offline" else 1,
+        0 if x["firmware_status"] == "updateAvailable" else 1,
+        x["host_name"].lower(),
+        x["name"].lower(),
+    ))
+    return result
+
+
 async def get_all_devices(host_id: Optional[str] = None) -> dict[str, Any]:
     """Fetch all devices across all hosts/sites from Site Manager API.
 
@@ -843,53 +909,7 @@ async def get_all_devices(host_id: Optional[str] = None) -> dict[str, Any]:
             r.raise_for_status()
 
             raw = r.json().get("data", [])
-            result = []
-            for host_group in raw:
-                h_name = host_group.get("hostName", "")
-                h_id = host_group.get("hostId", "")
-                for d in host_group.get("devices", []):
-                    # Calculate uptime from startupTime
-                    uptime_str = ""
-                    startup = d.get("startupTime", "")
-                    if startup:
-                        try:
-                            from datetime import datetime, timezone
-
-                            from app.core.utils import format_uptime
-                            st = datetime.fromisoformat(startup.replace("Z", "+00:00"))
-                            delta = datetime.now(timezone.utc) - st
-                            uptime_str = format_uptime(delta.total_seconds())
-                        except Exception:
-                            pass
-
-                        result.append({
-                        "host_id": h_id,
-                        "host_name": h_name,
-                        "id": d.get("id", ""),
-                        "mac": d.get("mac", ""),
-                        "name": d.get("name", d.get("shortname", "")),
-                        "model": d.get("shortname", ""),
-                        "model_full": d.get("model", ""),
-                        "ip": d.get("ip", ""),
-                        "status": d.get("status", "offline"),
-                        "firmware": d.get("version", ""),
-                        "firmware_status": d.get("firmwareStatus", ""),
-                        "update_available": d.get("updateAvailable", ""),
-                        "is_console": d.get("isConsole", False),
-                        "is_managed": d.get("isManaged", False),
-                        "product_line": d.get("productLine", "network"),
-                        "note": d.get("note", ""),
-                        "uptime": uptime_str,
-                        "startup_time": startup,
-                        "adoption_time": d.get("adoptionTime", ""),
-                    })
-
-            # Sort: offline first, then by host, then by name
-            result.sort(key=lambda x: (
-                0 if x["status"] == "offline" else 1,
-                x["host_name"].lower(),
-                x["name"].lower(),
-            ))
+            result = summarise_devices(raw)
 
             return {"ok": True, "devices": result, "count": len(result)}
         except httpx.HTTPStatusError as e:
