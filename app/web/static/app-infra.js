@@ -2983,6 +2983,7 @@ function dashUnifiDetail(idx) {
   }
 
   // Placeholders for async-loaded sections
+  h += '<div id="'+panelId+'-overview" style="margin-top:16px;"></div>';
   h += '<div id="'+panelId+'-devices" style="margin-top:16px;"></div>';
   h += '<div id="'+panelId+'-isp" style="margin-top:16px;"></div>';
   h += '<div id="'+panelId+'-wan" style="margin-top:16px;"></div>';
@@ -2994,6 +2995,7 @@ function dashUnifiDetail(idx) {
 
   // ── Async load: devices, ISP metrics, WAN per site ──
   if (d.source === 'site_manager' && d.id) {
+    _loadUnifiSiteOverview(panelId, d.id, d.sub_sites);
     _loadUnifiDevices(panelId, d.id);
     // The ISP endpoint is account-wide. Pass this console's identity so the
     // panel can drop the other customers' sites instead of listing them under
@@ -3044,6 +3046,86 @@ async function _loadUnifiDevices(panelId, hostId) {
     h += '</tr>';
   });
   h += '</tbody></table></div>';
+  el.innerHTML = h;
+}
+
+// Renders the per-site rows from /api/unifi/sm/sites-overview. The endpoint
+// is account-wide like the ISP one, so it is filtered to this console's sites
+// for the same reason: a panel scoped to one customer must not show another's.
+async function _loadUnifiSiteOverview(panelId, hostId, subSites) {
+  var el = document.getElementById(panelId + '-overview');
+  if (!el) return;
+  el.innerHTML = '<div class="loader" style="width:14px;height:14px;margin:8px 0;"></div>';
+
+  var data = await apiFetch('/api/unifi/sm/sites-overview');
+  if (!data || !data.ok || !data.sites) { el.innerHTML = ''; return; }
+
+  var mine = {};
+  if (hostId) mine[hostId] = true;
+  (subSites || []).forEach(function(ss) {
+    if (ss && (ss.site_id || ss.id)) mine[ss.site_id || ss.id] = true;
+  });
+  var rows = Object.keys(mine).length
+    ? data.sites.filter(function(s) { return mine[s.site_id] || mine[s.host_id]; })
+    : data.sites;
+  if (!rows.length) { el.innerHTML = ''; return; }
+
+  var SEV = {ok:'var(--green)', warn:'var(--orange)', bad:'var(--red)', unknown:'var(--text-dim)'};
+
+  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">'
+        + t('lbl_site_overview','Site-oversikt') + ' (' + rows.length + ')</div>';
+
+  rows.forEach(function(s) {
+    var d = s.devices || {}, c = s.clients || {}, g = s.gateway || {};
+    h += '<div style="padding:12px;background:var(--bg-input);border-radius:6px;margin-bottom:10px;">';
+
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+    h += '<strong style="font-size:13px;">' + esc(s.name || s.site_id || '-') + '</strong>';
+    if (g.model) h += '<span style="font-size:10px;color:var(--text-dim);">' + esc(g.model) + '</span>';
+    // Unknown is deliberately grey and unremarkable: two thirds of sites
+    // report no gateway, and a red badge on each would be noise, not signal.
+    h += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid '
+       + (SEV[g.ips_severity] || SEV.unknown) + ';color:' + (SEV[g.ips_severity] || SEV.unknown) + ';">'
+       + esc(g.ips_label || 'Unknown')
+       + (g.ips_rules ? ' · ' + g.ips_rules + ' ' + t('lbl_rules','regler') : '')
+       + '</span>';
+    h += '</div>';
+
+    h += '<div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text-muted);">';
+    h += '<span>' + t('inf_devices','Enheter') + ': <strong style="color:var(--text);">' + d.total + '</strong>'
+       + (d.offline ? ' <span style="color:var(--red);">(' + d.offline + ' offline)</span>' : '') + '</span>';
+    h += '<span>' + t('klienter','Klienter') + ': <strong style="color:var(--text);">' + c.total + '</strong>'
+       + (c.guest ? ' <span style="color:var(--text-dim);">(' + c.guest + ' gjest)</span>' : '') + '</span>';
+    if (s.wan_uptime_pct !== null && s.wan_uptime_pct !== undefined) {
+      h += '<span>' + t('wan_uptime_2','WAN uptime') + ': <strong style="color:'
+         + (s.wan_uptime_pct < 99 ? 'var(--red)' : 'var(--green)') + ';">' + s.wan_uptime_pct + '%</strong></span>';
+    }
+    if (d.pending_update) {
+      h += '<span style="color:var(--orange);">' + d.pending_update + ' ' + t('lbl_pending_update','venter oppdatering') + '</span>';
+    }
+    if (s.isp && s.isp.name) h += '<span>' + esc(s.isp.name) + (s.isp.asn ? ' (AS' + s.isp.asn + ')' : '') + '</span>';
+    h += '</div>';
+
+    (s.wans || []).forEach(function(w) {
+      h += '<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">' + esc(w.name) + ': ';
+      h += (w.external_ip ? '<code>' + esc(w.external_ip) + '</code> ' : '');
+      if (w.uptime_pct !== null && w.uptime_pct !== undefined) h += w.uptime_pct + '% ';
+      // "Was down" outranks an issue count — they are different conversations.
+      if (w.had_downtime) h += '<span style="color:var(--red);">' + t('lbl_had_downtime','har hatt nedetid') + '</span>';
+      else if (w.issue_count) h += '<span style="color:var(--orange);">' + w.issue_count + ' ' + t('lbl_issues','hendelser') + '</span>';
+      h += '</div>';
+    });
+
+    if (s.findings && s.findings.length) {
+      h += '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">';
+      s.findings.forEach(function(f) {
+        h += '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:var(--bg);color:var(--orange);">' + esc(f) + '</span>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+
   el.innerHTML = h;
 }
 

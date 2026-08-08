@@ -157,6 +157,7 @@
     "tests/test_unifi_api.py",
     "tests/test_unifi_api_diagnostics.py",
     "tests/test_unifi_isp_metrics.py",
+    "tests/test_unifi_site_overview.py",
     "tests/test_uniweb_scraper.py",
     "tests/test_utils.py",
     "tests/test_validation.py",
