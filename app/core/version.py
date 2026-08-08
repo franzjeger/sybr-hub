@@ -10,6 +10,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
+
 def _resolve_static_version() -> str:
     """The version for when git cannot answer.
 
