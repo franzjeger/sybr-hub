@@ -80,14 +80,12 @@ async function hostsLoad() {
   var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">';
   hosts.forEach(function(h) {
     var statusColor = h.is_reachable === true ? 'var(--green)' : h.is_reachable === false ? 'var(--red)' : 'var(--text-dim)';
-    var typeIcons = {windows:'🖥️',linux:'🐧',fortigate:'🛡',unifi:'📡',pfsense:'🔒',openwrt:'📶',custom:'⚙️'};
-    var icon = typeIcons[h.device_type] || '⚙️';
 
     html += '<div class="card" style="padding:14px;border-left:3px solid '+statusColor+';display:grid;grid-template-rows:24px 20px 1fr;height:100%;">';
 
     // ROW 1 — Header (24px): label + group badge + status dot
     html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
-    html += '<strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">'+icon+' '+(h.label||'-')+'</strong>';
+    html += '<strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">'+(h.label||'-')+'</strong>';
     html += '<span style="font-size:10px;color:var(--text-dim);padding:1px 6px;background:var(--bg);border-radius:4px;flex-shrink:0;margin-left:6px;">'+(h.group_name||'-')+'</span>';
     html += '<span style="width:8px;height:8px;border-radius:50%;background:'+statusColor+';flex-shrink:0;margin-left:8px;"></span>';
     html += '</div>';
@@ -2997,7 +2995,10 @@ function dashUnifiDetail(idx) {
   // ── Async load: devices, ISP metrics, WAN per site ──
   if (d.source === 'site_manager' && d.id) {
     _loadUnifiDevices(panelId, d.id);
-    _loadUnifiIspMetrics(panelId);
+    // The ISP endpoint is account-wide. Pass this console's identity so the
+    // panel can drop the other customers' sites instead of listing them under
+    // whichever customer happens to be open.
+    _loadUnifiIspMetrics(panelId, d.id, d.sub_sites);
     if (d.sub_sites && d.sub_sites.length) _loadUnifiWan(panelId, d.sub_sites);
   }
 }
@@ -3011,7 +3012,6 @@ async function _loadUnifiDevices(panelId, hostId) {
   if (!data || !data.ok || !data.devices || !data.devices.length) { el.innerHTML = ''; return; }
 
   var devs = data.devices;
-  var typeIcons = {uap:'📶', usw:'🔌', ugw:'🌐', uxg:'🌐', udm:'🖥', ubb:'🔗'};
 
   var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + t('inf_devices','Enheter') + ' ('+devs.length+')</div>';
   h += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:800px;">';
@@ -3029,9 +3029,8 @@ async function _loadUnifiDevices(panelId, hostId) {
 
   devs.forEach(function(dv) {
     var c = dv.status === 'online' ? 'var(--green)' : 'var(--red)';
-    var icon = typeIcons[dv.type] || '📦';
     h += '<tr style="border-bottom:1px solid var(--border);">';
-    h += '<td style="padding:5px 8px;">'+icon+' <strong>'+esc(dv.name||dv.mac||'-')+'</strong>';
+    h += '<td style="padding:5px 8px;"><strong>'+esc(dv.name||dv.mac||'-')+'</strong>';
     if (dv.is_console) h += ' <span style="font-size:10px;background:var(--blue);color:#fff;padding:0 4px;border-radius:4px;">' + t('console') + '</span>';
     h += '</td>';
     h += '<td style="padding:5px 4px;">'+esc(dv.model||'-')+' <span style="font-size:10px;color:var(--text-dim);">'+esc(dv.model_full||'')+'</span></td>';
@@ -3048,7 +3047,7 @@ async function _loadUnifiDevices(panelId, hostId) {
   el.innerHTML = h;
 }
 
-async function _loadUnifiIspMetrics(panelId) {
+async function _loadUnifiIspMetrics(panelId, hostId, subSites) {
   var el = document.getElementById(panelId + '-isp');
   if (!el) return;
   el.innerHTML = '<div class="loader" style="width:14px;height:14px;margin:8px 0;"></div>';
@@ -3070,43 +3069,64 @@ async function _loadUnifiIspMetrics(panelId) {
   var avg7d = {};
   if (data7d && data7d.sites) data7d.sites.forEach(function(s) { avg7d[s.site_id] = s; });
 
-  var sitesToRender = data.sites;
+  // /v1/isp-metrics reports every site in the Site Manager account. Without
+  // this the panel listed all of them under whichever customer was open — one
+  // customer's WAN figures shown on another's page.
+  var mine = {};
+  if (hostId) mine[hostId] = true;
+  (subSites || []).forEach(function(ss) {
+    if (ss && (ss.site_id || ss.id)) mine[ss.site_id || ss.id] = true;
+  });
+  var sitesToRender = Object.keys(mine).length
+    ? data.sites.filter(function(s) { return mine[s.site_id]; })
+    : data.sites;
+  if (!sitesToRender.length) { el.innerHTML = ''; return; }
+
   sitesToRender.forEach(function(s) {
     var lat = s.latest || {};
     var avg = s.averages || {};
     var weekly = avg7d[s.site_id] || {};
     var weekAvg = weekly.averages || {};
 
+    // A missing value renders as a dash in neutral grey. Formatting null as a
+    // number printed "null Mbps"; colouring it printed a red 0% outage on a
+    // link the sites table reports at 100%.
+    function cell(value, unit, colour) {
+      if (value === null || value === undefined) {
+        return '<div style="text-align:center;color:var(--text-dim);">-</div>';
+      }
+      var style = colour ? 'color:'+colour+';font-weight:600;' : 'font-weight:600;';
+      return '<div style="text-align:center;"><span style="'+style+'">'+value+unit+'</span></div>';
+    }
+    function band(value, warn, bad) {
+      if (value === null || value === undefined) return '';
+      return value > bad ? 'var(--red)' : value > warn ? 'var(--orange)' : 'var(--green)';
+    }
+    function uptimeBand(value) {
+      if (value === null || value === undefined) return '';
+      return value < 99 ? 'var(--red)' : value < 99.9 ? 'var(--orange)' : 'var(--green)';
+    }
+
     h += '<div style="padding:12px;background:var(--bg-input);border-radius:6px;">';
-    h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">'+esc(s.isp||'ISP')+'</div>';
+    h += '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">'+esc(s.isp || t('lbl_unknown_isp','Ukjent ISP'))+'</div>';
+    if (!s.has_readings) {
+      h += '<div style="font-size:12px;color:var(--text-dim);">' + t('msg_no_isp_readings','Ingen ISP-målinger for denne siten.') + '</div>';
+      h += '</div>';
+      return;
+    }
     h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px;">';
     h += '<div style="color:var(--text-dim);font-size:10px;"></div><div style="color:var(--text-dim);font-size:10px;text-align:center;">' + t('siste') + '</div><div style="color:var(--text-dim);font-size:10px;text-align:center;">' + t('snitt_d') + '</div>';
-    // Download
-    h += '<div>' + t('download') + '</div>';
-    h += '<div style="text-align:center;"><strong>'+lat.download_mbps+'</strong> ' + t('mbps') + '</div>';
-    h += '<div style="text-align:center;color:var(--text-dim);">-</div>';
-    // Upload
-    h += '<div>' + t('upload') + '</div>';
-    h += '<div style="text-align:center;"><strong>'+lat.upload_mbps+'</strong> ' + t('mbps') + '</div>';
-    h += '<div style="text-align:center;color:var(--text-dim);">-</div>';
-    // Latency
-    var latC = avg.latency_ms > 50 ? 'var(--red)' : avg.latency_ms > 20 ? 'var(--orange)' : 'var(--green)';
-    var latC7 = weekAvg.latency_ms > 50 ? 'var(--red)' : weekAvg.latency_ms > 20 ? 'var(--orange)' : 'var(--green)';
-    h += '<div>' + t('latency') + '</div>';
-    h += '<div style="text-align:center;"><span style="color:'+latC+';font-weight:600;">'+avg.latency_ms+'ms</span></div>';
-    h += '<div style="text-align:center;">'+(weekAvg.latency_ms?'<span style="color:'+latC7+';">'+weekAvg.latency_ms+'ms</span>':'-')+'</div>';
-    // Packet loss
-    var plC = avg.packet_loss > 1 ? 'var(--red)' : avg.packet_loss > 0.1 ? 'var(--orange)' : 'var(--green)';
-    var plC7 = weekAvg.packet_loss > 1 ? 'var(--red)' : weekAvg.packet_loss > 0.1 ? 'var(--orange)' : 'var(--green)';
-    h += '<div>' + t('pakketap') + '</div>';
-    h += '<div style="text-align:center;"><span style="color:'+plC+';font-weight:600;">'+avg.packet_loss+'%</span></div>';
-    h += '<div style="text-align:center;">'+(weekAvg.packet_loss!=null?'<span style="color:'+plC7+';">'+weekAvg.packet_loss+'%</span>':'-')+'</div>';
-    // Uptime
-    var upC = avg.uptime_pct < 99 ? 'var(--red)' : avg.uptime_pct < 99.9 ? 'var(--orange)' : 'var(--green)';
-    var upC7 = weekAvg.uptime_pct < 99 ? 'var(--red)' : weekAvg.uptime_pct < 99.9 ? 'var(--orange)' : 'var(--green)';
-    h += '<div>' + t('wan_uptime_2') + '</div>';
-    h += '<div style="text-align:center;"><span style="color:'+upC+';font-weight:600;">'+avg.uptime_pct+'%</span></div>';
-    h += '<div style="text-align:center;">'+(weekAvg.uptime_pct?'<span style="color:'+upC7+';">'+weekAvg.uptime_pct+'%</span>':'-')+'</div>';
+    h += '<div>' + t('download') + '</div>' + cell(lat.download_mbps, ' ' + t('mbps'), '') + '<div style="text-align:center;color:var(--text-dim);">-</div>';
+    h += '<div>' + t('upload') + '</div>' + cell(lat.upload_mbps, ' ' + t('mbps'), '') + '<div style="text-align:center;color:var(--text-dim);">-</div>';
+    h += '<div>' + t('latency') + '</div>'
+       + cell(avg.latency_ms, 'ms', band(avg.latency_ms, 20, 50))
+       + cell(weekAvg.latency_ms, 'ms', band(weekAvg.latency_ms, 20, 50));
+    h += '<div>' + t('pakketap') + '</div>'
+       + cell(avg.packet_loss, '%', band(avg.packet_loss, 0.1, 1))
+       + cell(weekAvg.packet_loss, '%', band(weekAvg.packet_loss, 0.1, 1));
+    h += '<div>' + t('wan_uptime_2') + '</div>'
+       + cell(avg.uptime_pct, '%', uptimeBand(avg.uptime_pct))
+       + cell(weekAvg.uptime_pct, '%', uptimeBand(weekAvg.uptime_pct));
     h += '</div>';
     h += '<div style="font-size:10px;color:var(--text-dim);margin-top:6px;">'+s.data_points+' ' + t('msg_measurements_24h') + ' '+(weekly.data_points?'/ '+weekly.data_points+' (7d)':'')+'</div>';
     h += '</div>';
