@@ -4,6 +4,32 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 `v10.x` nedenfor dokumenterer den importerte MSP-Toolkit-auditmotorens historikk
 og er ikke Sybr HUB-pakkeversjoner.
 
+## Ikke utgitt
+### Grensesnittet heter Sybr HUB
+
+- Sidetittel, overskriften på admin-kortet, PWA-manifestet, offline-siden og
+  begge språkblokkene i i18n-laget sier nå Sybr HUB.
+- IT Glue-identifikatorene er bevisst uendret: asset-typene og dokumentmappen
+  «MSP Toolkit» navngir levende objekter i kundenes tenanter, og et navnebytte
+  ville opprettet nye og forlatt alt som allerede ligger der. Meldingen om
+  opplastede rapporter beholder derfor også det navnet, siden den beskriver
+  nettopp den mappen.
+
+### Versjonen kommer fra git-taggen
+
+- setuptools-scm eier versjonen. En utgivelse er `git tag` og ingenting annet
+  — ingen literal i treet gjentar den lenger.
+- Service worker-ens `CACHE_VERSION` er nå en eksplisitt plassholder. Den ble
+  aldri servert som skrevet; `frontend.py` skriver den om med levende versjon
+  og en digest av de statiske filene før noen nettleser ser den.
+- CI sjekker ut med `fetch-depth: 0`. Uten det leser setuptools-scm en
+  historikk uten tagger og gir `0.1.devN+g<sha>` i stedet for utgivelsen.
+- Installeren kloner med full historikk og utdyper eksisterende grunne
+  checkouter. `git describe` krever at den taggede commiten er *nåbar*, ikke
+  bare at tagg-refen er hentet, så en grunn checkout kunne bare beskrive en
+  tagg som lå nøyaktig på HEAD. Første deploy etter enhver utgivelse falt
+  derfor tilbake til fallback-versjonen.
+
 ## v1.0.0 (2026-08-08)
 ### Første stabile utgave under Sybr HUB-navnet
 
