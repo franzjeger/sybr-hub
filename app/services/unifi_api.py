@@ -903,6 +903,16 @@ async def get_all_devices(host_id: Optional[str] = None) -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _isp_mean(wans: list[dict], field: str, digits: int) -> float | None:
+    """Average a WAN field across readings, or None when nothing reported it."""
+    values = [w.get(field) for w in wans if w.get(field) is not None]
+    return round(sum(values) / len(values), digits) if values else None
+
+
+def _kbps_to_mbps(value: Any) -> float | None:
+    return round(value / 1000, 1) if isinstance(value, (int, float)) else None
+
+
 async def get_isp_metrics(
     metric_type: str = "1h",
     duration: str = "24h",
@@ -940,25 +950,35 @@ async def get_isp_metrics(
                 latest = entries[-1] if entries else {}
                 wan_data = latest.get("data", {}).get("wan", {})
 
-                # Calculate averages over period
-                latencies = [e.get("data", {}).get("wan", {}).get("avgLatency", 0) for e in entries if e.get("data", {}).get("wan", {}).get("avgLatency")]
-                packet_losses = [e.get("data", {}).get("wan", {}).get("packetLoss", 0) for e in entries if e.get("data", {}).get("wan", {})]
-                uptimes = [e.get("data", {}).get("wan", {}).get("uptime", 100) for e in entries if e.get("data", {}).get("wan", {})]
+                # A missing reading is not a reading of zero. Every field here
+                # used to collapse to 0 when the WAN block was absent, so the
+                # panel rendered a full set of zeros and coloured uptime red —
+                # an outage that was not happening, on a site the sites table
+                # was simultaneously reporting at 100%. None means "no data"
+                # and the UI renders it as a dash.
+                wans = [
+                    e.get("data", {}).get("wan", {})
+                    for e in entries
+                    if e.get("data", {}).get("wan")
+                ]
 
                 sites_summary.append({
                     "site_id": site_id,
-                    "isp": wan_data.get("ispName", ""),
+                    "isp": wan_data.get("ispName") or "",
+                    # Distinguishes "the API returned nothing for this site"
+                    # from "the API returned genuine zeros".
+                    "has_readings": bool(wans),
                     "latest": {
-                        "download_mbps": round(wan_data.get("download_kbps", 0) / 1000, 1),
-                        "upload_mbps": round(wan_data.get("upload_kbps", 0) / 1000, 1),
-                        "latency_ms": wan_data.get("avgLatency", 0),
-                        "packet_loss": wan_data.get("packetLoss", 0),
-                        "uptime_pct": wan_data.get("uptime", 0),
+                        "download_mbps": _kbps_to_mbps(wan_data.get("downloadKbps", wan_data.get("download_kbps"))),
+                        "upload_mbps": _kbps_to_mbps(wan_data.get("uploadKbps", wan_data.get("upload_kbps"))),
+                        "latency_ms": wan_data.get("avgLatency"),
+                        "packet_loss": wan_data.get("packetLoss"),
+                        "uptime_pct": wan_data.get("uptime"),
                     },
                     "averages": {
-                        "latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else 0,
-                        "packet_loss": round(sum(packet_losses) / len(packet_losses), 2) if packet_losses else 0,
-                        "uptime_pct": round(sum(uptimes) / len(uptimes), 1) if uptimes else 0,
+                        "latency_ms": _isp_mean(wans, "avgLatency", 1),
+                        "packet_loss": _isp_mean(wans, "packetLoss", 2),
+                        "uptime_pct": _isp_mean(wans, "uptime", 1),
                     },
                     "data_points": len(entries),
                 })

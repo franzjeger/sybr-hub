@@ -151,6 +151,7 @@
     "tests/test_site_collector.py",
     "tests/test_ssh_key_deploy.py",
     "tests/test_ssh_manager_connect.py",
+    "tests/test_static_element_ids.py",
     "tests/test_system_user.py",
     "tests/test_systemd_unit.py",
     "tests/test_unifi_api.py",
