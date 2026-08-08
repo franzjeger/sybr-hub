@@ -1478,3 +1478,64 @@ async def get_site_overview() -> dict[str, Any]:
         except Exception as e:
             log.warning("Site overview failed: %s", e)
             return {"ok": False, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11. Controller coverage — which customers can actually be reached
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The cloud key answers for the whole account but stops at counts: it has no
+# clients endpoint, and the Network API behind a console is not reachable
+# through it. Everything past that — per-site clients, firewall zones, ACLs —
+# needs a controller login stored against the customer.
+#
+# That storage has existed all along (POST /api/unifi/save). What did not was
+# any way to see where it is missing: has_credentials was reported for the
+# active customer only, one at a time, so "which of my customers can I not
+# audit" could only be answered by clicking through them.
+
+
+_UNIFI_MODE_DIRECT = "direct"
+
+
+def classify_controller_access(customer: dict, has_credentials: bool) -> tuple[str, str]:
+    """Describe what can be collected for a customer, and why not more.
+
+    Returns ``(state, reason)``. The reason is the missing piece, phrased as
+    the next action rather than as a fault — a customer with no UniFi at all is
+    not a gap to fix.
+    """
+    host = (customer.get("UniFiHost") or "").strip()
+    direct = customer.get("UniFiDirectDevices") or []
+    mode = customer.get("UniFiMode", "controller")
+
+    if mode == _UNIFI_MODE_DIRECT and direct:
+        # Direct device access reads the devices themselves; there is no
+        # controller to hold clients or firewall policy.
+        return ("direct", "per-enhet, ingen controller")
+    if not host:
+        return ("none", "ingen controller registrert")
+    if not has_credentials:
+        return ("host_only", "adresse lagret, mangler brukernavn/passord")
+    return ("full", "")
+
+
+def summarise_controller_coverage(rows: list[dict]) -> dict[str, Any]:
+    """Aggregate per-customer access into a portfolio answer.
+
+    ``rows`` are dicts of ``{customer_id, name, state, reason, host, site}``.
+    """
+    by_state: dict[str, int] = {}
+    for row in rows:
+        by_state[row["state"]] = by_state.get(row["state"], 0) + 1
+    # Only the two states that a stored credential would change are actionable.
+    # "none" and "direct" are answers, not gaps.
+    actionable = [r for r in rows if r["state"] == "host_only"]
+    return {
+        "ok": True,
+        "customers": rows,
+        "counts": by_state,
+        "total": len(rows),
+        "with_full_access": by_state.get("full", 0),
+        "needs_credentials": len(actionable),
+    }
