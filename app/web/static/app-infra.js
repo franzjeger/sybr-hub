@@ -3617,10 +3617,24 @@ async function dashLoadSites() {
 var _unifiSm2faToken = '';
 var _unifiSm2faCustomerId = '';
 
+// The email/password fields this was written against are not in the card,
+// which offers an API key and controller access. Reading .value off the
+// missing element threw before the API-key branch could run, so a perfectly
+// good key failed with "Cannot read properties of null (reading 'value')".
+// Read every field defensively: the account flow — and the 2FA handling below,
+// which only applies to it — stays usable if the inputs are ever restored.
+// keepWhitespace for secrets: a password may legitimately begin or end with a
+// space, so it is the one field that must not be trimmed.
+function _unifiSmField(id, keepWhitespace) {
+  var el = document.getElementById(id);
+  if (!el) return '';
+  return keepWhitespace ? el.value : el.value.trim();
+}
+
 async function unifiSmAuth() {
-  var apiKey = document.getElementById('unifi-sm-apikey').value.trim();
-  var email = document.getElementById('unifi-sm-email').value.trim();
-  var pass = document.getElementById('unifi-sm-password').value;
+  var apiKey = _unifiSmField('unifi-sm-apikey');
+  var email = _unifiSmField('unifi-sm-email');
+  var pass = _unifiSmField('unifi-sm-password', true);
 
   if (!apiKey && (!email || !pass)) { showToast(t('err_fill_api_key_or_email','Enter API key or email/password'),'error'); return; }
 
