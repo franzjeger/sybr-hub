@@ -5,7 +5,7 @@ uvicorn[standard]>=0.30.0,<1.0
 # declares File()/Form(), which the backup restore and branding upload do.
 python-multipart>=0.0.7,<1.0
 # Guacamole reverse proxy (remote access) speaks WebSocket to guacd.
-websockets>=12.0,<15.0
+websockets>=12.0,<18.0
 
 # Terminal UI (app/ui) — a separate entry point from the web service, but
 # kept declared so the tree imports cleanly and the suite can cover it.
