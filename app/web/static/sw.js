@@ -1,4 +1,4 @@
-// MSP Toolkit — service worker
+// Sybr HUB — service worker
 //
 // Strategy:
 //   /api/*           network-only (MSP operators must not act on stale

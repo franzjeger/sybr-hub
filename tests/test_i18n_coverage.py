@@ -44,7 +44,7 @@ STATIC = pathlib.Path("app/web/static")
 # acronyms. Listed rather than pattern-matched where a pattern would be too
 # eager, so adding a new brand is a deliberate edit.
 _NOT_TEXT = {
-    "SYBR", "MSP Toolkit", "SYBR — MSP Toolkit", "ESC", "IT Glue", "M365",
+    "SYBR", "Sybr HUB", "MSP Toolkit", "ESC", "IT Glue", "M365",
     "GDAP", "UniFi", "FortiGate", "Tailscale", "ALSO Cloud", "Uniweb", "MRR",
     "CSV", "PDF", "HTML", "API", "SSH", "RDP", "VPN", "DNS", "TLS", "AI",
     "Swagger ↗", "Claude AI",
