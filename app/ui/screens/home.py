@@ -9,6 +9,8 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Label, Static
 
+from app.core.version import get_version
+
 _BANNER = """\
  ███╗   ███╗███████╗██████╗     ████████╗ ██████╗  ██████╗ ██╗      ██╗  ██╗██╗████████╗
  ████╗ ████║██╔════╝██╔══██╗    ╚══██╔══╝██╔═══██╗██╔═══██╗██║      ██║ ██╔╝██║╚══██╔══╝
@@ -17,7 +19,7 @@ _BANNER = """\
  ██║ ╚═╝ ██║███████║██║            ██║   ╚██████╔╝╚██████╔╝███████╗ ██║  ██╗██║   ██║
  ╚═╝     ╚═╝╚══════╝╚═╝            ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝ ╚═╝  ╚═╝╚═╝   ╚═╝"""
 
-_SUBTITLE = "Professional IT Management Platform  •  v0.1.0"
+_SUBTITLE = f"Professional IT Management Platform  •  v{get_version().lstrip('v')}"
 
 
 class ModuleCard(Static):

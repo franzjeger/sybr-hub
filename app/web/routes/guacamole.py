@@ -1,18 +1,19 @@
-"""Reverse proxy to a local Apache Guacamole instance.
+"""Restricted proxy to a local Apache Guacamole instance.
 
 The remote-access screens talk to Guacamole through this app rather than
-reaching it directly, so the operator only has to expose one port. HTTP
-requests are proxied in :func:`guac_proxy`; the display itself runs over the
-WebSocket tunnel in :func:`guac_ws_proxy`.
+reaching it directly, so the operator only has to expose one port. Static
+client assets may be proxied, but Guacamole API and HTTP tunnel access are
+blocked. The display runs over the WebSocket tunnel in
+:func:`guac_ws_proxy`.
 
 ``AuthMiddleware`` is a ``BaseHTTPMiddleware``, which Starlette only runs for
 the ``http`` scope, so it does not see the handshake below. Both routes
 therefore declare their guard explicitly: ``get_current_user`` on the HTTP half
 and ``get_current_user_ws`` on the tunnel.
 
-Note that the ``token`` in the forwarded query string is Guacamole's own
-session token, not ours — it must reach the backend intact or the tunnel cannot
-authenticate. Our token comes from the cookie or the subprotocol.
+The browser presents a Sybr HUB-owned opaque session token. After checking its
+owner and connection identifier, the proxy substitutes the Guacamole token
+server-side; backend administrator credentials never reach the browser.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends
@@ -49,6 +51,12 @@ async def guac_proxy(
     request: Request, path: str, _user: User = Depends(get_current_user)
 ) -> Response:
     """Reverse-proxy one HTTP request to Guacamole."""
+    # The shipped UI uses the local Guacamole JS client and the guarded
+    # WebSocket route below. Exposing Guacamole's REST API here turned the
+    # per-session backend token into an administrator API credential.
+    if path.startswith("api/") or "tunnel" in path:
+        return JSONResponse({"error": "Guacamole API is not exposed"}, status_code=404)
+
     url = f"{_BACKEND}/guacamole/{path}"
     if request.query_params:
         url += "?" + str(request.query_params)
@@ -114,14 +122,44 @@ async def guac_proxy(
 async def guac_ws_proxy(
     websocket: WebSocket,
     path: str,
-    _user: User = Depends(get_current_user_ws),
+    user: User = Depends(get_current_user_ws),
 ) -> None:
     """Relay the Guacamole display tunnel in both directions."""
+    if path != "websocket-tunnel":
+        await websocket.close(code=4404, reason="Unknown Guacamole tunnel")
+        return
+
+    from app.web.routes.proxy import resolve_guacamole_tunnel
+
+    params = {
+        key: value
+        for key, value in websocket.query_params.items()
+        if key in {
+            "token",
+            "GUAC_DATA_SOURCE",
+            "GUAC_ID",
+            "GUAC_TYPE",
+            "GUAC_WIDTH",
+            "GUAC_HEIGHT",
+            "GUAC_DPI",
+        }
+    }
+    backend_token = resolve_guacamole_tunnel(
+        user,
+        params.get("token", ""),
+        params.get("GUAC_ID", ""),
+    )
+    if not backend_token:
+        await websocket.close(code=4403, reason="Guacamole session not owned by user")
+        return
+
+    # Substitute server-side. The browser only ever sees its random opaque
+    # session token and cannot reuse it against Guacamole's REST API.
+    params["token"] = backend_token
     await websocket.accept(subprotocol="guacamole")
 
     ws_url = f"{_WS_BACKEND}/guacamole/{path}"
-    if websocket.query_params:
-        ws_url += "?" + str(websocket.query_params)
+    ws_url += "?" + urlencode(params)
     # Path only: the query string carries Guacamole's session token, and this
     # record is readable through /api/logs by any authenticated role.
     log.info("WS proxy connecting to %s/guacamole/%s", _WS_BACKEND, path)

@@ -115,10 +115,19 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # recoverable data.
     verify_master_key_available()
     await run_migrations()
+    try:
+        await proxy.startup_proxy_resources()
+    except Exception as exc:
+        # Guacamole is optional and may be offline while the rest of the hub is
+        # healthy. Keep serving, but leave a visible cleanup warning.
+        log.warning("Stale Guacamole cleanup could not run at startup: %s", exc)
     yield
-    # Dispose pooled connections explicitly. aiosqlite runs a non-daemon
-    # thread per connection, so leaving them open holds the process open.
-    await close_pool()
+    try:
+        await proxy.shutdown_proxy_resources()
+    finally:
+        # Dispose pooled connections explicitly. aiosqlite runs a non-daemon
+        # thread per connection, so leaving them open holds the process open.
+        await close_pool()
     log.info("Sybr HUB shutting down")
 
 

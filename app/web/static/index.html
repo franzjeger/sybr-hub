@@ -1702,9 +1702,8 @@ body.is-readonly [data-write] { display: none !important; }
     </div>
 
     <!-- Docs tabs — single source of truth is docs/*.md served via
-         /api/docs/list + /api/docs/file. No more duplicated hardcoded
-         sections (those used to drift, e.g. "v9.2.0" stamped in
-         Overview while the app was on v10.6). -->
+         /api/docs/list + /api/docs/file. Do not stamp release numbers into
+         this markup; the live value comes from /api/version. -->
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-5);">
       <button class="btn btn-ghost docs-tab-btn active" onclick="switchDocsTab(this,'docs-repo'); docsRepoLoad();" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;" data-i18n-title="browse_the_documentation_shipped_with" title="Browse the documentation shipped with this version" data-i18n="docs_tab_documentation">Documentation</button>
       <button class="btn btn-ghost docs-tab-btn" onclick="switchDocsTab(this,'docs-api')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n-title="rest_api_endpoints_reference" title="REST API endpoints reference">API</button>
@@ -1726,7 +1725,7 @@ body.is-readonly [data-write] { display: none !important; }
     <!-- Tab: API -->
     <div id="docs-api" class="docs-tab-pane" style="display:none;">
       <div class="card">
-        <h3 style="font-size:var(--font-md);font-weight:700;margin-bottom:var(--space-3);"><span data-i18n="hdr_rest_endpoints">REST API-endepunkter</span> &mdash; v9.2.0</h3>
+        <h3 style="font-size:var(--font-md);font-weight:700;margin-bottom:var(--space-3);"><span data-i18n="hdr_rest_endpoints">REST API-endepunkter</span> <span id="api-version-label"></span></h3>
         <p style="font-size:var(--font-sm);color:var(--text-muted);margin-bottom:var(--space-3);"><span data-i18n="msg_api_auth_note">Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL:</span> <code>https://&lt;server&gt;:8099/api</code></p>
         <div style="font-family:var(--mono);font-size:var(--font-xs);line-height:2.2;color:var(--text-muted);">
 

@@ -247,8 +247,14 @@ with the blanket grant so nobody lost access on upgrade.
   log. AES-256-GCM with a magic header, so plaintext and encrypted files can
   coexist during migration.
 - **OS keyring** holds the master encryption key and per-customer API tokens.
-  The master key is additionally backed up to three locations, wrapped with a
-  machine-derived passphrase.
+  The master key is additionally backed up to three locations. Configure
+  `SYBR_KEY_WRAP_SECRET_FILE` (preferred) or `SYBR_KEY_WRAP_SECRET` to protect
+  those copies with an operator-managed secret; this produces authenticated v3
+  backups that remain recoverable after a hostname or machine-id change.
+  Legacy v2 backups use public machine identity only and are retained for
+  compatibility, not as a strong security boundary. Supplying a wrap secret
+  migrates readable v2 backups to v3 automatically. The independent
+  `SYBR_MASTER_KEY_FILE` override remains the disaster-recovery escape hatch.
 
 ## Connection pooling
 
@@ -264,6 +270,23 @@ and the running event loop. Both parts matter:
 
 If you add code that opens connections outside `get_db()`, make sure it closes
 them. A leaked connection does not fail loudly; it hangs shutdown.
+
+## Guacamole remote-access boundary
+
+RDP and the isolated browser use temporary Guacamole JDBC connections. Those
+rows necessarily contain the target password while the connection is live, so
+they are uniquely named, never updated/reused, deleted on stop and shutdown,
+and swept by instance prefix on the next startup after a crash. Set the stable
+`SYBR_GUAC_INSTANCE_ID` in production so a hostname change does not orphan the
+old prefix.
+
+The browser receives a random Sybr session token, not Guacamole's administrator
+token. The WebSocket route binds that token to the authenticated Sybr user and
+connection ID, then substitutes the backend token server-side. Guacamole's REST
+API and HTTP tunnels are not exposed by the reverse proxy. Deployments that
+require credentials never to enter the Guacamole database should use
+Guacamole's QuickConnect/in-memory extension; the JDBC fallback cannot provide
+that property, only tightly bounded lifetime and crash recovery.
 
 ## A refusal is not a zero
 

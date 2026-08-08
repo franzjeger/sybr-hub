@@ -9,12 +9,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from typing import Any, Optional
 
 import httpx
+from azure.core.credentials_async import AsyncTokenCredential
 
 from app.core.config import REQUIRED_GRAPH_PERMISSIONS
-from azure.core.credentials_async import AsyncTokenCredential
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +133,10 @@ class GraphPermissionError(Exception):
         super().__init__(f"Graph refused {path} with {status} — {cause}.{suffix}")
 
 
+class GraphRequestBudgetExceeded(Exception):
+    """The caller's outbound Graph-request budget has been exhausted."""
+
+
 class GraphClient:
     """Async Graph API client. Use as an async context manager."""
 
@@ -160,7 +165,13 @@ class GraphClient:
 
     # ── Core HTTP ─────────────────────────────────────────────────────────────
 
-    async def _get(self, url: str, params: dict | None = None, extra_headers: dict | None = None) -> dict:
+    async def _get(
+        self,
+        url: str,
+        params: dict | None = None,
+        extra_headers: dict | None = None,
+        before_request: Callable[[], bool] | None = None,
+    ) -> dict:
         if self._http is None:
             raise RuntimeError("GraphClient is not entered — use as async context manager")
         last_status = None
@@ -169,6 +180,10 @@ class GraphClient:
                 hdrs = await self._headers()
                 if extra_headers:
                     hdrs.update(extra_headers)
+                if before_request is not None and not before_request():
+                    raise GraphRequestBudgetExceeded(
+                        f"Graph request budget exhausted before {url}"
+                    )
                 resp = await self._http.get(url, headers=hdrs, params=params)
                 last_status = resp.status_code
                 if resp.status_code == 429:          # throttled
@@ -193,10 +208,23 @@ class GraphClient:
             f"(last status: {last_status})"
         )
 
-    async def get(self, path: str, *, beta: bool = False, params: dict | None = None, extra_headers: dict | None = None) -> dict:
+    async def get(
+        self,
+        path: str,
+        *,
+        beta: bool = False,
+        params: dict | None = None,
+        extra_headers: dict | None = None,
+        before_request: Callable[[], bool] | None = None,
+    ) -> dict:
         base = _GRAPH_BETA if beta else _GRAPH_V1
         url  = f"{base}/{path.lstrip('/')}"
-        return await self._get(url, params=params, extra_headers=extra_headers)
+        return await self._get(
+            url,
+            params=params,
+            extra_headers=extra_headers,
+            before_request=before_request,
+        )
 
 
     async def get_report(self, name: str, period: str = "D90") -> list[dict]:
@@ -254,6 +282,7 @@ class GraphClient:
         params: dict | None = None,
         key: str = "value",
         extra_headers: dict | None = None,
+        before_request: Callable[[], bool] | None = None,
     ) -> list[Any]:
         """Fetch all pages and return combined list."""
         base  = _GRAPH_BETA if beta else _GRAPH_V1
@@ -264,7 +293,15 @@ class GraphClient:
         max_pages = 500
         while url and page_count < max_pages:
             try:
-                data = await self._get(url, params=params, extra_headers=extra_headers)
+                get_kwargs: dict[str, Any] = {
+                    "params": params,
+                    "extra_headers": extra_headers,
+                }
+                # Preserve compatibility with small GraphClient test doubles
+                # and subclasses that override the pre-budget _get signature.
+                if before_request is not None:
+                    get_kwargs["before_request"] = before_request
+                data = await self._get(url, **get_kwargs)
             except httpx.HTTPStatusError as e:
                 # Not every Graph collection accepts $top. /directoryRoles takes
                 # only $select, $filter and $expand; several others are the same,
@@ -285,8 +322,13 @@ class GraphClient:
                 ):
                     retry = {k: v for k, v in params.items() if k != "$top"}
                     log.debug("%s rejected $top — retrying without it", path)
-                    data = await self._get(url, params=retry or None,
-                                           extra_headers=extra_headers)
+                    retry_kwargs: dict[str, Any] = {
+                        "params": retry or None,
+                        "extra_headers": extra_headers,
+                    }
+                    if before_request is not None:
+                        retry_kwargs["before_request"] = before_request
+                    data = await self._get(url, **retry_kwargs)
                 else:
                     raise
             params = None                             # params only on first request

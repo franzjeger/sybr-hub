@@ -238,7 +238,16 @@ class AuditCollector:
             PIMSection(self.out_dir, graph, self.progress_cb),
             DnsSection(self.out_dir, verified_domains, self.progress_cb),
             DefenderOfficeSection(self.out_dir, graph, self.progress_cb),
-            OneDriveSharingSection(self.out_dir, graph, self.progress_cb),
+            # UsersSection runs first and shares the populated list by
+            # reference. This lets the sharing audit enumerate every user's
+            # OneDrive without fetching the directory again.
+            OneDriveSharingSection(
+                self.out_dir,
+                graph,
+                self.progress_cb,
+                users_ref=users_sec.users,
+                users_complete=lambda: users_sec.result.status == SectionStatus.DONE,
+            ),
             ComplianceScoreSection(self.out_dir, graph, self.progress_cb),
             UsageReportsSection(self.out_dir, graph, self.progress_cb),
         ]

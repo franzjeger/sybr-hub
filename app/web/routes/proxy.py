@@ -47,17 +47,22 @@ _MAX_BODY = 10 * 1024 * 1024  # 10 MB
 _ALLOWED_SCHEMES = {"http", "https"}
 _VERIFY_SSL = os.environ.get("MSP_PROXY_VERIFY_SSL", "1") != "0"
 
+def _new_proxy_http_client() -> httpx.AsyncClient:
+    """Build the pooled HTTP client (also used when a test lifespan restarts)."""
+    return httpx.AsyncClient(
+        timeout=_TIMEOUT,
+        # Redirects are handled below so every hop is checked against the SSRF
+        # policy. Letting httpx follow them would allow a public URL to bounce
+        # to localhost, a private network or a cloud metadata endpoint.
+        follow_redirects=False,
+        verify=_VERIFY_SSL,
+        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        headers={"User-Agent": "MSP-Toolkit-Proxy/1.0"},
+    )
+
+
 # Shared httpx client with connection pooling (reused across requests)
-_http_client = httpx.AsyncClient(
-    timeout=_TIMEOUT,
-    # Redirects are handled below so every hop is checked against the SSRF
-    # policy. Letting httpx follow them would allow a public URL to bounce to
-    # localhost, a private network or a cloud metadata endpoint.
-    follow_redirects=False,
-    verify=_VERIFY_SSL,
-    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-    headers={"User-Agent": "MSP-Toolkit-Proxy/1.0"},
-)
+_http_client = _new_proxy_http_client()
 
 # Private/internal IP ranges that must never be proxied
 _BLOCKED_HOSTNAMES = {
@@ -553,13 +558,14 @@ async def browser_start(
             _require_browser_owner(user)
             guac_url = None
             token = _browser_session.get("guac_token")
+            client_token = _browser_session.get("guac_client_token")
             conn_id = _browser_session.get("guac_conn_id")
-            if token and conn_id:
-                guac_url = _guac_client_url(conn_id, token)
+            if client_token and conn_id:
+                guac_url = _guac_client_url(conn_id, client_token)
             return {
                 "ok": True,
                 "guac_url": guac_url,
-                "guac_token": token,
+                "guac_token": client_token,
                 "guac_connection_id": conn_id,
                 "url": _browser_session.get("url", ""),
                 "already_running": True,
@@ -589,6 +595,8 @@ async def browser_start(
         x11vnc_proc = None
         chrome_profile = None
         vnc_password_path = None
+        guac_token = None
+        guac_connection_id = None
 
         def _cleanup_failed_start() -> None:
             if vnc_password_path:
@@ -710,6 +718,8 @@ async def browser_start(
                 _kill_proc(chromium_proc, "chromium")
                 _kill_proc(xvfb_proc, "xvfb")
                 raise IntegrationError("Kunne ikke logge inn på Guacamole")
+            guac_token = token
+            await _retry_pending_guacamole_cleanup()
 
             conn = await _guac_create_vnc_connection(
                 token, docker_host, vnc_port, vnc_password,
@@ -721,7 +731,9 @@ async def browser_start(
                 raise IntegrationError("Kunne ikke opprette VNC-tilkobling i Guacamole")
 
             connection_id = conn["identifier"]
-            guac_url = _guac_client_url(connection_id, token)
+            guac_connection_id = connection_id
+            client_token = secrets.token_urlsafe(32)
+            guac_url = _guac_client_url(connection_id, client_token)
 
             _browser_session = {
                 "xvfb": xvfb_proc,
@@ -731,6 +743,7 @@ async def browser_start(
                 "display": display,
                 "url": target_url,
                 "guac_token": token,
+                "guac_client_token": client_token,
                 "guac_conn_id": connection_id,
                 "chrome_profile": chrome_profile,
                 "chromium_bin": real_chrome,
@@ -745,15 +758,35 @@ async def browser_start(
             return {
                 "ok": True,
                 "guac_url": guac_url,
-                "guac_token": token,
+                "guac_token": client_token,
                 "guac_connection_id": connection_id,
                 "url": target_url,
             }
 
         except FileNotFoundError as exc:
+            if guac_token and guac_connection_id:
+                try:
+                    deleted = await _guac_delete_with_fresh_token(
+                        guac_token, guac_connection_id,
+                    )
+                except Exception as cleanup_exc:
+                    logger.warning("Failed to clean up browser connection: %s", cleanup_exc)
+                    deleted = False
+                if not deleted:
+                    _guac_pending_cleanup[guac_connection_id] = guac_token
             _cleanup_failed_start()
             raise IntegrationError(f"Binar ikke funnet: {exc.filename}") from exc
         except Exception as exc:
+            if guac_token and guac_connection_id:
+                try:
+                    deleted = await _guac_delete_with_fresh_token(
+                        guac_token, guac_connection_id,
+                    )
+                except Exception as cleanup_exc:
+                    logger.warning("Failed to clean up browser connection after start error: %s", cleanup_exc)
+                    deleted = False
+                if not deleted:
+                    _guac_pending_cleanup[guac_connection_id] = guac_token
             _cleanup_failed_start()
             logger.exception("Failed to start remote browser")
             raise IntegrationError(str(exc)) from exc
@@ -820,13 +853,22 @@ async def browser_stop(
         # Delete Guacamole VNC connection first
         token = _browser_session.get("guac_token")
         conn_id = _browser_session.get("guac_conn_id")
+        deleted = True
         if token and conn_id:
             try:
-                await _guac_delete_connection(token, conn_id)
+                deleted = await _guac_delete_with_fresh_token(token, conn_id)
             except Exception as exc:
                 logger.warning("Failed to delete browser Guacamole connection: %s", exc)
+                deleted = False
+            if not deleted:
+                _guac_pending_cleanup[conn_id] = token
 
         result = _stop_browser_session()
+        if not deleted:
+            raise IntegrationError(
+                "Nettleseren ble stoppet, men Guacamole-tilkoblingen kunne ikke slettes; "
+                "opprydding vil prøves på nytt"
+            )
     return result
 
 
@@ -843,17 +885,17 @@ async def browser_status(
         if running and _browser_session.get("owner_user_id") != str(user.id):
             return {"running": False}
         guac_url = None
-        token = None
+        client_token = None
         conn_id = None
         if running:
-            token = _browser_session.get("guac_token")
+            client_token = _browser_session.get("guac_client_token")
             conn_id = _browser_session.get("guac_conn_id")
-            if token and conn_id:
-                guac_url = _guac_client_url(conn_id, token)
+            if client_token and conn_id:
+                guac_url = _guac_client_url(conn_id, client_token)
         return {
             "running": running,
             "guac_url": guac_url,
-            "guac_token": token,
+            "guac_token": client_token,
             "guac_connection_id": conn_id,
             "url": _browser_session.get("url", "") if running else "",
         }
@@ -944,17 +986,68 @@ def _warn_guac_config() -> None:
 # Track per-user Guacamole sessions: {user_id: {token, connection_id}}
 _guac_sessions: dict[str, dict] = {}
 _guac_lock = asyncio.Lock()
+_guac_pending_cleanup: dict[str, str] = {}  # connection_id -> last usable token
+
+# Connections created through the JDBC API persist their parameters (including
+# passwords) in Guacamole's database. Give every connection a unique,
+# instance-owned name so it is never reused and can be removed after a crash.
+_GUAC_INSTANCE = re.sub(
+    r"[^A-Za-z0-9_.-]",
+    "_",
+    os.environ.get("SYBR_GUAC_INSTANCE_ID") or socket.gethostname(),
+)[:48]
+_GUAC_MANAGED_PREFIX = f"Sybr-HUB-Ephemeral-{_GUAC_INSTANCE}-"
+_GUAC_BOOT_PREFIX = f"{_GUAC_MANAGED_PREFIX}{secrets.token_hex(6)}-"
+
+
+def _guac_connection_name(kind: str) -> str:
+    """Return a collision-resistant name owned by this process boot."""
+    return f"{_GUAC_BOOT_PREFIX}{kind}-{secrets.token_hex(8)}"
+
+
+def resolve_guacamole_tunnel(
+    user: User,
+    client_token: str,
+    connection_id: str,
+) -> str | None:
+    """Exchange a user-bound opaque token for the backend Guacamole token.
+
+    The browser must never receive the Guacamole admin token. State reads are
+    intentionally synchronous and atomic within the event loop; route writers
+    replace whole token/id values while holding their respective locks.
+    """
+    user_key = str(user.id)
+    session = _guac_sessions.get(user_key)
+    if session:
+        expected = str(session.get("client_token") or "")
+        if (
+            expected
+            and secrets.compare_digest(client_token, expected)
+            and secrets.compare_digest(connection_id, str(session.get("connection_id") or ""))
+        ):
+            return str(session["token"])
+
+    if _browser_session.get("owner_user_id") == user_key:
+        expected = str(_browser_session.get("guac_client_token") or "")
+        if (
+            expected
+            and secrets.compare_digest(client_token, expected)
+            and secrets.compare_digest(connection_id, str(_browser_session.get("guac_conn_id") or ""))
+        ):
+            return str(_browser_session["guac_token"])
+    return None
 
 
 async def _guac_login() -> str | None:
     """Authenticate with Guacamole and return an auth token, or None."""
     cfg = _get_guac_config()
-    if not cfg["url"] or not cfg["user"]:
+    base = _guac_base()
+    if not base or not cfg["user"]:
         logger.warning("Guacamole login skipped — URL or user not configured")
         return None
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
-            f"{cfg['url']}/api/tokens",
+            f"{base}/api/tokens",
             data={"username": cfg["user"], "password": cfg["pass"]},
         )
         if resp.status_code == 200:
@@ -968,7 +1061,7 @@ async def _guac_create_connection(
     """Create an RDP connection in Guacamole. Returns the connection dict or None."""
     payload = {
         "parentIdentifier": "ROOT",
-        "name": f"MSP-RDP-{host}-{port}",
+        "name": _guac_connection_name("RDP"),
         "protocol": "rdp",
         "parameters": {
             "hostname": host,
@@ -999,24 +1092,6 @@ async def _guac_create_connection(
         if resp.status_code in (200, 201):
             return resp.json()
 
-        # If duplicate name, find existing and reuse it
-        if resp.status_code in (400, 409):
-            logger.info("Guacamole create failed (%d), looking for existing connection", resp.status_code)
-            list_resp = await client.get(
-                f"{_guac_base()}/api/session/data/mysql/connections",
-                params={"token": token},
-            )
-            if list_resp.status_code == 200:
-                for cid, conn in list_resp.json().items():
-                    if conn.get("name") == payload["name"]:
-                        # Update credentials on existing connection
-                        await client.put(
-                            f"{_guac_base()}/api/session/data/mysql/connections/{cid}",
-                            params={"token": token},
-                            json={**payload, "identifier": cid},
-                        )
-                        return {"identifier": cid, "name": conn["name"], "reused": True}
-
         logger.warning("Guacamole create connection failed: %d %s", resp.status_code, resp.text[:200])
     return None
 
@@ -1028,7 +1103,71 @@ async def _guac_delete_connection(token: str, connection_id: str) -> bool:
             f"{_guac_base()}/api/session/data/mysql/connections/{connection_id}",
             params={"token": token},
         )
-        return resp.status_code in (200, 204)
+        # 404 is already clean. Treat authentication failure as retryable by
+        # callers, which can obtain a fresh Guacamole token.
+        return resp.status_code in (200, 204, 404)
+
+
+async def _guac_delete_with_fresh_token(token: str, connection_id: str) -> bool:
+    """Delete a connection, retrying once with a fresh admin token."""
+    if await _guac_delete_connection(token, connection_id):
+        return True
+    fresh = await _guac_login()
+    return bool(fresh and await _guac_delete_connection(fresh, connection_id))
+
+
+async def cleanup_stale_guacamole_connections() -> int:
+    """Delete managed connections left by an earlier Sybr HUB process.
+
+    The JDBC backend stores connection parameters as database name/value pairs,
+    so a process crash otherwise leaves RDP/VNC passwords behind indefinitely.
+    Current-boot names are excluded to avoid touching live sessions.
+    """
+    if not _guac_base():
+        return 0
+    token = await _guac_login()
+    if not token:
+        return 0
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(
+            f"{_guac_base()}/api/session/data/mysql/connections",
+            params={"token": token},
+        )
+    if response.status_code != 200:
+        logger.warning("Could not enumerate stale Guacamole connections: HTTP %d", response.status_code)
+        return 0
+
+    stale = [
+        str(connection_id)
+        for connection_id, connection in response.json().items()
+        if str(connection.get("name") or "").startswith(_GUAC_MANAGED_PREFIX)
+        and not str(connection.get("name") or "").startswith(_GUAC_BOOT_PREFIX)
+    ]
+    deleted = 0
+    for connection_id in stale:
+        try:
+            if await _guac_delete_with_fresh_token(token, connection_id):
+                deleted += 1
+            else:
+                logger.warning("Could not delete stale Guacamole connection %s", connection_id)
+        except Exception as exc:
+            logger.warning("Could not delete stale Guacamole connection %s: %s", connection_id, exc)
+    if deleted:
+        logger.info("Deleted %d stale Sybr HUB Guacamole connection(s)", deleted)
+    return deleted
+
+
+async def _retry_pending_guacamole_cleanup() -> int:
+    """Retry deletions that failed without losing their identifiers."""
+    deleted = 0
+    for connection_id, token in list(_guac_pending_cleanup.items()):
+        try:
+            if await _guac_delete_with_fresh_token(token, connection_id):
+                _guac_pending_cleanup.pop(connection_id, None)
+                deleted += 1
+        except Exception as exc:
+            logger.warning("Pending Guacamole cleanup still failed for %s: %s", connection_id, exc)
+    return deleted
 
 
 async def _guac_connection_exists(token: str, connection_id: str) -> bool:
@@ -1059,10 +1198,9 @@ async def _guac_create_vnc_connection(
 
     Returns the connection dict or None.
     """
-    conn_name = "MSP-Browser"
     payload = {
         "parentIdentifier": "ROOT",
-        "name": conn_name,
+        "name": _guac_connection_name("Browser"),
         "protocol": "vnc",
         "parameters": {
             "hostname": host,
@@ -1085,24 +1223,6 @@ async def _guac_create_vnc_connection(
         )
         if resp.status_code in (200, 201):
             return resp.json()
-
-        # If duplicate name, find existing and reuse it
-        if resp.status_code in (400, 409):
-            logger.info("Guacamole VNC create failed (%d), looking for existing", resp.status_code)
-            list_resp = await client.get(
-                f"{_guac_base()}/api/session/data/mysql/connections",
-                params={"token": token},
-            )
-            if list_resp.status_code == 200:
-                for cid, conn in list_resp.json().items():
-                    if conn.get("name") == conn_name:
-                        # Update parameters on existing connection
-                        await client.put(
-                            f"{_guac_base()}/api/session/data/mysql/connections/{cid}",
-                            params={"token": token},
-                            json={**payload, "identifier": cid},
-                        )
-                        return {"identifier": cid, "name": conn_name, "reused": True}
 
         logger.warning("Guacamole VNC create failed: %d %s", resp.status_code, resp.text[:200])
     return None
@@ -1155,14 +1275,28 @@ async def rdp_start(
                 return {
                     "ok": True,
                     "guac_url": _guac_client_url(
-                        existing["connection_id"], existing["token"],
+                        existing["connection_id"], existing["client_token"],
                     ),
-                    "guac_token": existing["token"],
+                    "guac_token": existing["client_token"],
                     "guac_connection_id": existing["connection_id"],
                     "already_running": True,
                 }
             else:
-                # Stale session — clean up
+                # Stale/expired token does not mean the JDBC connection is
+                # gone. Delete with a fresh admin token before forgetting its
+                # identifier or creating another credential-bearing row.
+                try:
+                    deleted = await _guac_delete_with_fresh_token(
+                        existing["token"], existing["connection_id"],
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to delete stale Guacamole connection: %s", exc)
+                    deleted = False
+                if not deleted:
+                    raise IntegrationError(
+                        "En tidligere Guacamole-tilkobling kunne ikke ryddes; "
+                        "nekter å opprette en ny"
+                    )
                 _guac_sessions.pop(user_key, None)
 
         body = await request.json()
@@ -1186,6 +1320,7 @@ async def rdp_start(
         token = await _guac_login()
         if not token:
             raise IntegrationError("Kunne ikke logge inn på Guacamole")
+        await _retry_pending_guacamole_cleanup()
 
         # 2. Create RDP connection
         conn = await _guac_create_connection(token, host, port, username, password)
@@ -1193,10 +1328,12 @@ async def rdp_start(
             raise IntegrationError("Kunne ikke opprette RDP-tilkobling i Guacamole")
 
         connection_id = conn["identifier"]
-        guac_url = _guac_client_url(connection_id, token)
+        client_token = secrets.token_urlsafe(32)
+        guac_url = _guac_client_url(connection_id, client_token)
 
         _guac_sessions[user_key] = {
             "token": token,
+            "client_token": client_token,
             "connection_id": connection_id,
         }
 
@@ -1208,7 +1345,7 @@ async def rdp_start(
     return {
         "ok": True,
         "guac_url": guac_url,
-        "guac_token": token,
+        "guac_token": client_token,
         "guac_connection_id": connection_id,
     }
 
@@ -1221,14 +1358,24 @@ async def rdp_stop(
     """Stop the remote RDP session by deleting the Guacamole connection."""
     user_key = str(user.id)
     async with _guac_lock:
-        session = _guac_sessions.pop(user_key, None)
-    if not session:
-        return {"ok": True, "msg": "No RDP session running"}
+        session = _guac_sessions.get(user_key)
+        if not session:
+            return {"ok": True, "msg": "No RDP session running"}
 
-    try:
-        await _guac_delete_connection(session["token"], session["connection_id"])
-    except Exception as exc:
-        logger.warning("Failed to delete Guacamole connection: %s", exc)
+        try:
+            deleted = await _guac_delete_with_fresh_token(
+                session["token"], session["connection_id"],
+            )
+        except Exception as exc:
+            logger.warning("Failed to delete Guacamole connection: %s", exc)
+            deleted = False
+        if not deleted:
+            # Keep the identifier so stop/status/shutdown can retry. Returning
+            # success here used to make the credential residue unreachable.
+            raise IntegrationError(
+                "Guacamole-tilkoblingen kunne ikke slettes; opprydding vil prøves på nytt"
+            )
+        _guac_sessions.pop(user_key, None)
 
     return {"ok": True}
 
@@ -1254,14 +1401,22 @@ async def rdp_status(
             alive = False
 
         if not alive:
-            _guac_sessions.pop(user_key, None)
+            try:
+                deleted = await _guac_delete_with_fresh_token(
+                    session["token"], session["connection_id"],
+                )
+            except Exception as exc:
+                logger.warning("Failed to clean stale Guacamole status entry: %s", exc)
+                deleted = False
+            if deleted:
+                _guac_sessions.pop(user_key, None)
 
         return {
             "running": alive,
             "guac_url": _guac_client_url(
-                session["connection_id"], session["token"],
+                session["connection_id"], session["client_token"],
             ) if alive else None,
-            "guac_token": session["token"] if alive else None,
+            "guac_token": session["client_token"] if alive else None,
             "guac_connection_id": session["connection_id"] if alive else None,
         }
 
@@ -1297,3 +1452,48 @@ async def rdp_clipboard(
         logger.warning("Clipboard set via xdotool failed: %s", e)
 
     return {"ok": True}
+
+
+async def shutdown_proxy_resources() -> None:
+    """Best-effort cleanup for application shutdown.
+
+    IDs are retained until a confirmed delete, and the next startup also
+    sweeps instance-owned rows. Together those two paths cover orderly stops,
+    expired Guacamole tokens and abrupt process termination.
+    """
+    async with _guac_lock:
+        for user_key, session in list(_guac_sessions.items()):
+            try:
+                deleted = await _guac_delete_with_fresh_token(
+                    session["token"], session["connection_id"],
+                )
+            except Exception as exc:
+                logger.warning("RDP shutdown cleanup failed for %s: %s", user_key, exc)
+                deleted = False
+            if deleted:
+                _guac_sessions.pop(user_key, None)
+
+    async with _browser_lock:
+        token = _browser_session.get("guac_token")
+        connection_id = _browser_session.get("guac_conn_id")
+        if token and connection_id:
+            try:
+                deleted = await _guac_delete_with_fresh_token(token, connection_id)
+            except Exception as exc:
+                logger.warning("Browser shutdown cleanup failed: %s", exc)
+                deleted = False
+            if not deleted:
+                _guac_pending_cleanup[connection_id] = token
+        _stop_browser_session()
+
+    await _retry_pending_guacamole_cleanup()
+    await _http_client.aclose()
+
+
+async def startup_proxy_resources() -> None:
+    """Initialize pooled resources and sweep crash-left Guacamole rows."""
+    global _http_client
+    if _http_client.is_closed:
+        _http_client = _new_proxy_http_client()
+    _warn_guac_config()
+    await cleanup_stale_guacamole_connections()

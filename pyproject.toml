@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sybr-hub"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Read-mostly aggregator for MSP technicians — M365 audit + Autotask + IT Glue + myITprocess + RMM in one place."
 license = "MIT"
 requires-python = ">=3.11"
@@ -64,6 +64,9 @@ sybr-hub = "main:run"
 [tool.setuptools]
 py-modules = ["main"]
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "app.core.version.__version__"}
 
 [tool.setuptools.package-data]
 app = [
