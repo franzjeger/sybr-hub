@@ -5,6 +5,21 @@ not listed here are backwards-compatible.
 
 ---
 
+## Unreleased — active customer is now per user
+
+Authenticated users no longer share the process-wide `active.txt` selection.
+After upgrade, each user must select a customer once; the server intentionally
+does not copy the legacy selection into every account. Choices are stored
+separately and are filtered through the user's current customer grants on every
+request. Revoking access therefore also invalidates an already selected
+customer.
+
+The TUI, CLI and scheduler's single-customer mode retain the legacy global
+selection because they have no authenticated web user. Background all-customer
+audits continue to receive customer records explicitly and never switch it.
+
+---
+
 ## Unreleased — production credential and VPN privilege boundary
 
 The shipped systemd unit now requires

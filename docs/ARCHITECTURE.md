@@ -674,10 +674,18 @@ more than the tidiness.
 
 ## Which customer are we talking to
 
-`active.txt`, the global config slot and the global certificate path together
-answer "which tenant is this process working on". They are process-global,
-stored on disk, and read by roughly two dozen routes — notes, tags, audit
-scope, the dashboard, the IT-Glue and FortiGate lookups.
+Authenticated web requests bind a user-and-RBAC snapshot in
+`AuthMiddleware`. `CustomerManager` stores each user's active selection under
+`customers/.active/<sha256(user-id)>.txt`; the identifier is encrypted and the
+file is private. `load_config()`, certificate lookup, notes, tags, audit scope,
+dashboards and integration routes resolve through that request context. A
+missing per-user selection never falls back to `active.txt`, and a selection
+whose customer access was revoked resolves to no customer.
+
+`active.txt`, the global config slot and the global certificate path remain
+only as a non-web compatibility context for the TUI, CLI and the scheduler's
+explicit "single active customer" mode. Web switching no longer copies a
+customer's config or certificate into those process-global slots.
 
 **A background job must never write them.** The scheduler used to: each
 iteration switched the active customer, copied that customer's config and
@@ -708,12 +716,10 @@ the only one of the two with a GDAP branch.
 certificate copy raise, so a background job that reaches for a global fails
 loudly in CI rather than quietly in production.
 
-**What this does not fix.** Two technicians still share one active customer:
-switching customer is a global act, so notes, tags and the dashboard follow
-whoever switched last. That is the product's current single-active-customer
-model, and changing it means per-session customer context — an API change,
-not a bug fix. The remaining window is click-versus-click and seconds wide,
-where the old one was cycle-long.
+`tests/test_customer_context_isolation.py` drives two authenticated users with
+different active customers, checks the status/config view for both, exercises
+concurrent task contexts, and then revokes access after selection. This locks
+both isolation and the fail-closed direction.
 
 ## Front-end assets
 

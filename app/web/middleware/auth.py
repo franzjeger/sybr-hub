@@ -187,7 +187,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Attach to request state for downstream dependencies
         request.state.user = user
-        return await call_next(request)
+        from app.core.customer import (
+            bind_request_customer_scope,
+            reset_request_customer_scope,
+        )
+        from app.core.rbac import get_accessible_customer_ids
+
+        allowed = await get_accessible_customer_ids(user)
+        customer_scope = bind_request_customer_scope(user.id, allowed)
+        try:
+            return await call_next(request)
+        finally:
+            reset_request_customer_scope(customer_scope)
 
 
 def _extract_token(request: Request) -> str | None:

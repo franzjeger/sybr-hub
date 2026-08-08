@@ -6,18 +6,64 @@ CustomerManager (multi-tenant registry).
 
 from __future__ import annotations
 
-import json
-import re
+import hashlib
+import logging
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from app.core.config import DATA_DIR
 
 _CUSTOMERS_DIR = DATA_DIR / "customers"
 _CUSTOMERS_DIR.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _RequestCustomerScope:
+    """Identity and RBAC snapshot for one authenticated HTTP request."""
+
+    user_id: str
+    allowed_customer_ids: frozenset[str] | None
+
+
+_request_customer_scope: ContextVar[_RequestCustomerScope | None] = ContextVar(
+    "sybr_request_customer_scope", default=None
+)
+
+
+def bind_request_customer_scope(
+    user_id: str, allowed_customer_ids: set[str] | None
+):
+    """Bind per-user customer selection state for the current async context."""
+    scope = _RequestCustomerScope(
+        user_id=user_id,
+        allowed_customer_ids=(
+            None if allowed_customer_ids is None else frozenset(allowed_customer_ids)
+        ),
+    )
+    return _request_customer_scope.set(scope)
+
+
+def reset_request_customer_scope(token) -> None:
+    """Restore the previous context after an HTTP request completes."""
+    _request_customer_scope.reset(token)
+
+
+def has_request_customer_scope() -> bool:
+    """Whether code is running for an authenticated web user."""
+    return _request_customer_scope.get() is not None
+
+
+def _active_selection_path() -> Path:
+    """Return the current user's selection file, or the CLI legacy file."""
+    scope = _request_customer_scope.get()
+    if scope is None:
+        return _CUSTOMERS_DIR / "active.txt"
+    digest = hashlib.sha256(scope.user_id.encode("utf-8")).hexdigest()
+    return _CUSTOMERS_DIR / ".active" / f"{digest}.txt"
 
 # Tags cache: {customer_id: (tags_list, timestamp)}
 _tags_cache: dict[str, tuple[list[str], float]] = {}
@@ -52,7 +98,7 @@ class CustomerContext:
     cert_path:       Path = field(default_factory=Path)
 
     @classmethod
-    def from_file(cls, path: Path) -> "CustomerContext":
+    def from_file(cls, path: Path) -> CustomerContext:
         from app.core.encryption import encrypted_read_json
         data = encrypted_read_json(path)
         ctx = cls(
@@ -93,21 +139,21 @@ class CustomerContext:
 
     # ── Expiry helpers ────────────────────────────────────────────────────────
 
-    def _days_until(self, iso: str) -> Optional[int]:
+    def _days_until(self, iso: str) -> int | None:
         if not iso:
             return None
         try:
             dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-            return (dt - datetime.now(timezone.utc)).days
+            return (dt - datetime.now(UTC)).days
         except ValueError:
             return None
 
     @property
-    def secret_days_left(self) -> Optional[int]:
+    def secret_days_left(self) -> int | None:
         return self._days_until(self.secret_expiry)
 
     @property
-    def cert_days_left(self) -> Optional[int]:
+    def cert_days_left(self) -> int | None:
         return self._days_until(self.cert_expiry)
 
     @property
@@ -165,7 +211,7 @@ class CustomerManager:
         return [c for c in CustomerManager.list_customers() if c.get("AuthMode", "legacy") != "gdap"]
 
     @staticmethod
-    def get_customer(customer_id: str) -> Optional[dict]:
+    def get_customer(customer_id: str) -> dict | None:
         _validate_customer_id(customer_id)
         d = _CUSTOMERS_DIR / customer_id
         cfg_path = d / "config.json"
@@ -249,34 +295,56 @@ class CustomerManager:
 
     @staticmethod
     def set_active(customer_id: str) -> None:
-        """Set active customer by writing to active.txt."""
+        """Set the active customer for this user (or the non-web context)."""
         _validate_customer_id(customer_id)
-        from app.core.encryption import encrypted_write_text
-        encrypted_write_text(_CUSTOMERS_DIR / "active.txt", customer_id)
+        from app.core.encryption import _atomic_private_write, encrypt_text
+
+        _atomic_private_write(_active_selection_path(), encrypt_text(customer_id))
 
     @staticmethod
-    def get_active_id() -> Optional[str]:
-        p = _CUSTOMERS_DIR / "active.txt"
-        if p.exists():
+    def get_active_id() -> str | None:
+        path = _active_selection_path()
+        if not path.exists():
+            return None
+        try:
             from app.core.encryption import encrypted_read_text
-            return encrypted_read_text(p).strip()
-        return None
+
+            active_id = encrypted_read_text(path).strip()
+            _validate_customer_id(active_id)
+        except Exception as exc:
+            logger.warning("Ignoring unreadable active-customer selection %s: %s", path, exc)
+            return None
+
+        scope = _request_customer_scope.get()
+        if (
+            scope is not None
+            and scope.allowed_customer_ids is not None
+            and active_id not in scope.allowed_customer_ids
+        ):
+            return None
+        if not (_CUSTOMERS_DIR / active_id / "config.json").is_file():
+            return None
+        return active_id
 
     @staticmethod
-    def get_active() -> Optional[dict]:
+    def get_active() -> dict | None:
         active_id = CustomerManager.get_active_id()
         if active_id:
             return CustomerManager.get_customer(active_id)
         return None
 
     @staticmethod
-    def migrate_legacy() -> Optional[str]:
+    def migrate_legacy() -> str | None:
         """Import legacy single-customer config if it exists."""
-        from app.core.credentials import cert_path, config_path, load_config
+        from app.core.credentials import (
+            config_path,
+            global_cert_path,
+            load_global_config,
+        )
         legacy_cfg = config_path()
         if not legacy_cfg.exists():
             return None
-        cfg = load_config()
+        cfg = load_global_config()
         if not cfg:
             return None
         # Check if already migrated
@@ -289,11 +357,17 @@ class CustomerManager:
         # Save to new location
         cid = CustomerManager.save_customer(cfg)
         # Copy cert if exists
-        legacy_cert = cert_path()
+        legacy_cert = global_cert_path()
         if legacy_cert.exists():
             import shutil
             shutil.copy2(str(legacy_cert), str(CustomerManager.get_cert_path(cid)))
-        CustomerManager.set_active(cid)
+        # Legacy migration belongs to the non-web/CLI context. An authenticated
+        # user must select a customer they are allowed to access for themselves.
+        token = _request_customer_scope.set(None)
+        try:
+            CustomerManager.set_active(cid)
+        finally:
+            _request_customer_scope.reset(token)
         return cid
 
 

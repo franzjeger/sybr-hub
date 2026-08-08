@@ -12,8 +12,9 @@ with how they did it:
   "save direct devices" button sends ``{mode, devices}`` and nothing else, and
   therefore blanked the customer's controller host on every click while the
   stored username and password stayed behind.
-* Both take the customer from ``CustomerManager.get_active()`` — a process
-  global — with no access check on it at all.
+* Both take the customer from ``CustomerManager.get_active()``. The active
+  selection is now per-user, but the route still needs an access check so a
+  later RBAC revocation fails closed.
 """
 
 from __future__ import annotations
@@ -206,8 +207,7 @@ class TestWhoMayWriteTheseSettings:
     async def test_a_technician_without_this_customer_is_refused(
         self, client, stored, path
     ):
-        """The active customer is process-global: whoever switched last picks it
-        for everyone, so writing to it needs the same check as naming it."""
+        """A stale selection must not survive revocation as write access."""
         resp = client.post(
             path,
             headers=_hdr(await _token(all_customers=False)),
