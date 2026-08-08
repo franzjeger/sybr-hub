@@ -111,8 +111,8 @@ async function tsLoadDevices() {
   devices.forEach(function(d, idx) {
     var color = d.online ? 'var(--green)' : d.stale_days > 7 ? 'var(--red)' : 'var(--orange)';
     var displayName = d.given_name || d.hostname || d.name || '-';
-    var osIcons = {linux:'🐧', windows:'🖥️', macOS:'🍎', iOS:'📱', android:'🤖', freebsd:'😈'};
-    var icon = osIcons[d.os] || '💻';
+    var osIcons = {linux:'', windows:'', macOS:'', iOS:'', android:'', freebsd:''};
+    var icon = osIcons[d.os] || '';
     var hasRoutes = (d.advertised_routes && d.advertised_routes.length > 0);
 
     html += '<div class="card card-clickable" style="padding:14px;border-left:3px solid '+color+';display:grid;grid-template-rows:24px 20px 1fr;height:100%;cursor:pointer;" onclick="tsShowDetail('+idx+')">';
@@ -121,9 +121,9 @@ async function tsLoadDevices() {
     html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
     html += '<strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">'+icon+' '+esc(displayName)+'</strong>';
     if (d.update_available) html += '<span style="font-size:10px;color:var(--orange);flex-shrink:0;margin-left:6px;" title="Update available">⬆</span>';
-    if (hasRoutes) html += '<span style="font-size:10px;color:var(--blue);flex-shrink:0;margin-left:4px;" title="Subnet router">🔀</span>';
-    if (d.is_exit_node) html += '<span style="font-size:10px;color:var(--purple);flex-shrink:0;margin-left:4px;" title="Exit node">🚪</span>';
-    if (!d.authorized) html += '<span style="font-size:10px;color:var(--orange);flex-shrink:0;margin-left:4px;" title="Not authorized">⚠</span>';
+    if (hasRoutes) html += '<span style="font-size:10px;color:var(--blue);flex-shrink:0;margin-left:4px;" title="Subnet router"></span>';
+    if (d.is_exit_node) html += '<span style="font-size:10px;color:var(--purple);flex-shrink:0;margin-left:4px;" title="Exit node"></span>';
+    if (!d.authorized) html += '<span style="font-size:10px;color:var(--orange);flex-shrink:0;margin-left:4px;" title="Not authorized"></span>';
     html += '<span style="width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0;margin-left:8px;"></span>';
     html += '</div>';
 
@@ -167,8 +167,8 @@ async function tsShowDetail(idx) {
 
   var color = d.online ? 'var(--green)' : 'var(--orange)';
   var displayName = d.given_name || d.hostname || d.name || '-';
-  var osIcons = {linux:'🐧', windows:'🖥️', macOS:'🍎', iOS:'📱', android:'🤖', freebsd:'😈'};
-  var icon = osIcons[d.os] || '💻';
+  var osIcons = {linux:'', windows:'', macOS:'', iOS:'', android:'', freebsd:''};
+  var icon = osIcons[d.os] || '';
 
   var html = '<div class="card" style="padding:20px;border-left:4px solid '+color+';">';
 
@@ -271,7 +271,7 @@ async function tsLoadRoutes(deviceId, idx) {
   var html = '<div style="display:flex;flex-direction:column;gap:6px;">';
   routes.forEach(function(r) {
     var isExit = r.is_exit_node;
-    var label = isExit ? '🚪 Exit node ('+r.route+')' : '🔀 '+r.route;
+    var label = isExit ? 'Exit node ('+r.route+')' : ''+r.route;
     var statusColor = r.enabled ? 'var(--green)' : 'var(--text-dim)';
     var statusText = r.enabled ? t('ts_route_approved','Godkjent') : t('ts_route_pending','Venter');
 

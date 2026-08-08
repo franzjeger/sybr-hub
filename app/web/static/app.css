@@ -2134,3 +2134,38 @@ body.is-readonly [data-write] { display: none !important; }
   color: var(--text-muted);
 }
 .vpn-capability-warning > strong { color: var(--orange); }
+
+/* ── UniFi site overview ──
+   Classes rather than inline styles: scripts/../tests/test_frontend_csp_budget.py
+   caps the inline-style debt, and new markup should not spend that budget.
+   A row is one site; the severity classes carry the gateway's IPS posture,
+   where "unknown" is deliberately quiet — most sites report no gateway and a
+   loud badge on each would crowd out the few that are genuinely disabled. */
+.site-row {
+  padding: var(--space-3);
+  background: var(--bg-input);
+  border-radius: 6px;
+  margin-bottom: var(--space-2);
+}
+.site-row__head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+.site-row__name { font-size: var(--font-sm); }
+.site-row__model { font-size: var(--font-xs); color: var(--text-dim); }
+.site-row__stats { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--font-xs); color: var(--text-muted); }
+.site-row__stats strong { color: var(--text); }
+.site-row__wan { font-size: var(--font-xs); color: var(--text-dim); margin-top: 4px; }
+.site-row__findings { margin-top: var(--space-1); display: flex; flex-wrap: wrap; gap: 6px; }
+.site-row__finding {
+  font-size: var(--font-xs);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--orange);
+}
+.site-badge { font-size: var(--font-xs); padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.site-badge--ok { color: var(--green); }
+.site-badge--warn { color: var(--orange); }
+.site-badge--bad { color: var(--red); }
+.site-badge--unknown { color: var(--text-dim); }
+.is-bad { color: var(--red); }
+.is-warn { color: var(--orange); }
+.is-ok { color: var(--green); }

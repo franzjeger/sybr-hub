@@ -1143,7 +1143,7 @@ function vpnShowImport() {
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">' + t('hdr_import_vpn_profile','Import VPN profile') + '</h3>'
     + '<input id="vpn-import-name" type="text" placeholder="' + t('placeholder_profile_name','Profile name') + '" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<div id="vpn-drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;margin-bottom:12px;transition:border-color 0.2s;" onclick="document.getElementById(\'vpn-file-input\').click()" ondragover="event.preventDefault();this.style.borderColor=\'var(--blue)\'" ondragleave="this.style.borderColor=\'var(--border)\'" ondrop="event.preventDefault();this.style.borderColor=\'var(--border)\';vpnHandleFiles(event.dataTransfer.files)">'
-    + '<div style="font-size:24px;margin-bottom:8px;">📁</div>'
+    + '<div style="font-size:24px;margin-bottom:8px;"></div>'
     + '<div style="color:var(--text-muted);font-size:13px;">' + t('msg_drag_drop_vpn','Drag and drop a') + ' <strong>.conf</strong>, <strong>.ovpn</strong>, ' + t('lbl_or','or') + ' <strong>.xml</strong> ' + t('msg_file_here','file here') + '</div>'
     + '<div style="color:var(--text-dim);font-size:12px;margin-top:4px;">' + t('msg_azure_vpn_select_both','Azure VPN: select <strong>both</strong> XML files (azurevpnconfig.xml + VpnSettings.xml)') + '</div>'
     + '<div style="color:var(--text-dim);font-size:12px;">' + t('msg_or_click_to_select','or click to select file(s)') + '</div>'
@@ -1316,7 +1316,7 @@ function liveRenderDevices(devices) {
   var html = '';
   devices.forEach(function(d, idx) {
     var color = d.status === 'online' ? 'var(--green)' : d.status === 'error' ? 'var(--red)' : 'var(--text-dim)';
-    var vendorIcon = d.vendor === 'fortigate' ? '🛡' : '📡';
+    var vendorIcon = d.vendor === 'fortigate' ? '' : '';
     html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;border-left:3px solid '+color+';cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'" onclick="liveShowDeviceDetail('+idx+')">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
     html += '<strong>'+vendorIcon+' '+d.name+'</strong>';
@@ -1352,7 +1352,7 @@ function liveShowDeviceDetail(idx) {
   if (!d) return;
   var el = document.getElementById('live-devices');
   var color = d.status === 'online' ? 'var(--green)' : 'var(--red)';
-  var vendorIcon = d.vendor === 'fortigate' ? '🛡' : '📡';
+  var vendorIcon = d.vendor === 'fortigate' ? '' : '';
 
   var html = '<div style="grid-column:1/-1;max-width:700px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
@@ -1691,7 +1691,7 @@ async function aiSend() {
         try {
           var evt = JSON.parse(line.slice(6));
           if (evt.type === 'text') replyEl.textContent += (evt.text || evt.content || '');
-          else if (evt.type === 'tool_use') replyEl.innerHTML += '<div style="color:var(--orange);font-size:11px;margin:4px 0;">🔧 '+(evt.tool_name||evt.tool||'?')+'</div>';
+          else if (evt.type === 'tool_use') replyEl.innerHTML += '<div style="color:var(--orange);font-size:11px;margin:4px 0;">'+(evt.tool_name||evt.tool||'?')+'</div>';
           else if (evt.type === 'conversation_id') _aiConversationId = evt.conversation_id || evt.id;
           else if (evt.type === 'done') { var ts=document.getElementById(replyId+'-time'); if(ts) ts.textContent=new Date().toLocaleTimeString('no-NO',{hour:'2-digit',minute:'2-digit'}); }
           else if (evt.type === 'error') replyEl.innerHTML += '<div style="color:var(--red);">' + t('status_error','Error') + ': '+evt.msg+'</div>';
@@ -2091,7 +2091,7 @@ function provisionDownloadSummary() {
     lines.push('  Tunnel-pool:    ' + (s.vpn.tunnel_pool || ''));
     lines.push('  Split-tunnel:   ' + (s.vpn.split_tunnel || ''));
     lines.push('');
-    lines.push('  ⚠ CREDENTIALS (OPPBEVAR SIKKERT)');
+    lines.push('  CREDENTIALS (OPPBEVAR SIKKERT)');
     lines.push('  ' + t('inf_lbl_user','Bruker:').padEnd(16) + (s.vpn.user || ''));
     lines.push('  ' + t('inf_lbl_password','Passord:').padEnd(16) + (s.vpn.user_password || ''));
     lines.push('  PSK:            ' + (s.vpn.psk || ''));
@@ -2182,7 +2182,7 @@ async function dashLoadFortiGates() {
 
     // ROW 1 — Header (24px): hostname + status dot
     html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
-    html += '<strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">🛡 '+(f.hostname||f.host||'-')+'</strong>';
+    html += '<strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">'+(f.hostname||f.host||'-')+'</strong>';
     html += '<span style="width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0;margin-left:8px;"></span>';
     html += '</div>';
 
@@ -2427,7 +2427,7 @@ function dashFgDetail(customerId) {
           var warns = [];
           if (!a.two_factor) warns.push(t('inf_no_2fa','ingen 2FA'));
           if (!a.trusthost) warns.push(t('inf_no_trusthost','ingen trusthost'));
-          var warnHtml = warns.length ? ' <span style="color:var(--orange);font-size:9px;">⚠ '+warns.join(', ')+'</span>' : '';
+          var warnHtml = warns.length ? ' <span style="color:var(--orange);font-size:9px;">'+warns.join(', ')+'</span>' : '';
           h += '<div style="font-size:10px;color:var(--text-muted);padding:2px 0;"><strong>'+esc(a.name||'-')+'</strong>'+(a.profile?' ('+esc(a.profile)+')':'')+warnHtml+'</div>';
         });
         h += '</div>';
@@ -2784,7 +2784,7 @@ async function dashLoadUnifiAll() {
       // ROW 1 — Header
       html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
       html += '<span style="width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0;"></span>';
-      html += '<strong style="flex:1;font-size:14px;margin-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📡 '+esc(d.name||'-')+'</strong>';
+      html += '<strong style="flex:1;font-size:14px;margin-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(d.name||'-')+'</strong>';
       if (d.source === 'site_manager') html += '<span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px;flex-shrink:0;">' + t('cloud') + '</span>';
       html += '</div>';
 
@@ -2805,7 +2805,7 @@ async function dashLoadUnifiAll() {
         // Aggregate alerts from sub_sites
         var cardCrit = 0;
         if (d.sub_sites) d.sub_sites.forEach(function(ss) { cardCrit += ss.critical_notifications||0; });
-        if (cardCrit) html += '<span style="color:var(--red);grid-column:1/-1;">⚠ '+cardCrit+' ' + t('inf_critical_alerts','kritiske varsler') + '</span>';
+        if (cardCrit) html += '<span style="color:var(--red);grid-column:1/-1;">'+cardCrit+' ' + t('inf_critical_alerts','kritiske varsler') + '</span>';
         if (d.firmware_update) html += '<span style="color:var(--orange);grid-column:1/-1;">⬆ '+esc(d.firmware_update)+'</span>';
       } else {
         html += '<span>Uptime: '+(d.uptime?_formatUptime(d.uptime):'-')+'</span>';
@@ -2846,7 +2846,7 @@ function dashUnifiDetail(idx) {
 
   // Header
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-  h += '<div style="font-size:16px;font-weight:700;">📡 '+esc(d.name||'-');
+  h += '<div style="font-size:16px;font-weight:700;">'+esc(d.name||'-');
   if (d.source === 'site_manager') h += ' <span style="font-size:11px;background:var(--blue);color:#fff;padding:2px 8px;border-radius:8px;vertical-align:middle;">' + t('cloud') + '</span>';
   h += '</div>';
   h += '<button class="btn btn-ghost" onclick="document.getElementById(\''+panelId+'\').remove()" style="padding:2px 8px;font-size:11px;">'+t('btn_close','Lukk')+'</button>';
@@ -2954,7 +2954,7 @@ function dashUnifiDetail(idx) {
       if (s.isp_org) details.push('ISP org: '+esc(s.isp_org));
       if (s.isp_asn) details.push('ASN: '+esc(s.isp_asn));
       if (s.country) details.push('Land: '+esc(s.country));
-      if (s.internet_issues && s.internet_issues.length) details.push('<span style="color:var(--orange);">⚠ '+s.internet_issues.length+' ' + t('inf_network_issues','nettverksproblem(er)') + '</span>');
+      if (s.internet_issues && s.internet_issues.length) details.push('<span style="color:var(--orange);">'+s.internet_issues.length+' ' + t('inf_network_issues','nettverksproblem(er)') + '</span>');
       if (details.length) {
         h += '<tr style="border-bottom:1px solid var(--border);background:var(--bg-input);">';
         h += '<td colspan="12" style="padding:4px 8px 4px 24px;font-size:11px;color:var(--text-dim);">'+details.join(' · ')+'</td></tr>';
@@ -3055,7 +3055,7 @@ async function _loadUnifiDevices(panelId, hostId) {
 async function _loadUnifiSiteOverview(panelId, hostId, subSites) {
   var el = document.getElementById(panelId + '-overview');
   if (!el) return;
-  el.innerHTML = '<div class="loader" style="width:14px;height:14px;margin:8px 0;"></div>';
+  el.innerHTML = '<div class="loader"></div>';
 
   var data = await apiFetch('/api/unifi/sm/sites-overview');
   if (!data || !data.ok || !data.sites) { el.innerHTML = ''; return; }
@@ -3070,56 +3070,52 @@ async function _loadUnifiSiteOverview(panelId, hostId, subSites) {
     : data.sites;
   if (!rows.length) { el.innerHTML = ''; return; }
 
-  var SEV = {ok:'var(--green)', warn:'var(--orange)', bad:'var(--red)', unknown:'var(--text-dim)'};
-
-  var h = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">'
-        + t('lbl_site_overview','Site-oversikt') + ' (' + rows.length + ')</div>';
+  var h = '<div class="section-title">' + t('lbl_site_overview','Site-oversikt') + ' (' + rows.length + ')</div>';
 
   rows.forEach(function(s) {
     var d = s.devices || {}, c = s.clients || {}, g = s.gateway || {};
-    h += '<div style="padding:12px;background:var(--bg-input);border-radius:6px;margin-bottom:10px;">';
+    h += '<div class="site-row">';
 
-    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
-    h += '<strong style="font-size:13px;">' + esc(s.name || s.site_id || '-') + '</strong>';
-    if (g.model) h += '<span style="font-size:10px;color:var(--text-dim);">' + esc(g.model) + '</span>';
-    // Unknown is deliberately grey and unremarkable: two thirds of sites
-    // report no gateway, and a red badge on each would be noise, not signal.
-    h += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid '
-       + (SEV[g.ips_severity] || SEV.unknown) + ';color:' + (SEV[g.ips_severity] || SEV.unknown) + ';">'
+    h += '<div class="site-row__head">';
+    h += '<strong class="site-row__name">' + esc(s.name || s.site_id || '-') + '</strong>';
+    if (g.model) h += '<span class="site-row__model">' + esc(g.model) + '</span>';
+    h += '<span class="site-badge site-badge--' + esc(g.ips_severity || 'unknown') + '">'
        + esc(g.ips_label || 'Unknown')
-       + (g.ips_rules ? ' · ' + g.ips_rules + ' ' + t('lbl_rules','regler') : '')
+       + (g.ips_rules ? ' \u00b7 ' + g.ips_rules + ' ' + t('lbl_rules','regler') : '')
        + '</span>';
     h += '</div>';
 
-    h += '<div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text-muted);">';
-    h += '<span>' + t('inf_devices','Enheter') + ': <strong style="color:var(--text);">' + d.total + '</strong>'
-       + (d.offline ? ' <span style="color:var(--red);">(' + d.offline + ' offline)</span>' : '') + '</span>';
-    h += '<span>' + t('klienter','Klienter') + ': <strong style="color:var(--text);">' + c.total + '</strong>'
-       + (c.guest ? ' <span style="color:var(--text-dim);">(' + c.guest + ' gjest)</span>' : '') + '</span>';
+    h += '<div class="site-row__stats">';
+    h += '<span>' + t('inf_devices','Enheter') + ': <strong>' + d.total + '</strong>'
+       + (d.offline ? ' <span class="is-bad">(' + d.offline + ' offline)</span>' : '') + '</span>';
+    h += '<span>' + t('klienter','Klienter') + ': <strong>' + c.total + '</strong>'
+       + (c.guest ? ' <span>(' + c.guest + ' gjest)</span>' : '') + '</span>';
     if (s.wan_uptime_pct !== null && s.wan_uptime_pct !== undefined) {
-      h += '<span>' + t('wan_uptime_2','WAN uptime') + ': <strong style="color:'
-         + (s.wan_uptime_pct < 99 ? 'var(--red)' : 'var(--green)') + ';">' + s.wan_uptime_pct + '%</strong></span>';
+      h += '<span>' + t('wan_uptime_2','WAN uptime') + ': <strong class="'
+         + (s.wan_uptime_pct < 99 ? 'is-bad' : 'is-ok') + '">' + s.wan_uptime_pct + '%</strong></span>';
     }
     if (d.pending_update) {
-      h += '<span style="color:var(--orange);">' + d.pending_update + ' ' + t('lbl_pending_update','venter oppdatering') + '</span>';
+      h += '<span class="is-warn">' + d.pending_update + ' ' + t('lbl_pending_update','venter oppdatering') + '</span>';
     }
     if (s.isp && s.isp.name) h += '<span>' + esc(s.isp.name) + (s.isp.asn ? ' (AS' + s.isp.asn + ')' : '') + '</span>';
     h += '</div>';
 
     (s.wans || []).forEach(function(w) {
-      h += '<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">' + esc(w.name) + ': ';
+      h += '<div class="site-row__wan">' + esc(w.name) + ': ';
       h += (w.external_ip ? '<code>' + esc(w.external_ip) + '</code> ' : '');
       if (w.uptime_pct !== null && w.uptime_pct !== undefined) h += w.uptime_pct + '% ';
-      // "Was down" outranks an issue count — they are different conversations.
-      if (w.had_downtime) h += '<span style="color:var(--red);">' + t('lbl_had_downtime','har hatt nedetid') + '</span>';
-      else if (w.issue_count) h += '<span style="color:var(--orange);">' + w.issue_count + ' ' + t('lbl_issues','hendelser') + '</span>';
+      // "Was down" outranks and suppresses an issue count: they are different
+      // conversations, and showing both invites reading the smaller number as
+      // the whole story.
+      if (w.had_downtime) h += '<span class="is-bad">' + t('lbl_had_downtime','har hatt nedetid') + '</span>';
+      else if (w.issue_count) h += '<span class="is-warn">' + w.issue_count + ' ' + t('lbl_issues','hendelser') + '</span>';
       h += '</div>';
     });
 
     if (s.findings && s.findings.length) {
-      h += '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">';
+      h += '<div class="site-row__findings">';
       s.findings.forEach(function(f) {
-        h += '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:var(--bg);color:var(--orange);">' + esc(f) + '</span>';
+        h += '<span class="site-row__finding">' + esc(f) + '</span>';
       });
       h += '</div>';
     }
@@ -3261,7 +3257,7 @@ async function _loadUnifiWan(panelId, subSites) {
       }
       if (w.issues && w.issues.length) {
         h += '<div style="color:var(--orange);margin-top:2px;">';
-        w.issues.forEach(function(iss) { h += '⚠ '+esc(iss)+'<br>'; });
+        w.issues.forEach(function(iss) { h += ''+esc(iss)+'<br>'; });
         h += '</div>';
       }
       h += '</div>';
@@ -3358,7 +3354,7 @@ function _renderPentestResults(data, el, target) {
       html += '<td style="padding:4px;font-weight:500;">'+esc(f.title)+(f.cve?' <span style="font-size:9px;color:var(--blue);">'+esc(f.cve)+'</span>':'')+'</td>';
       html += '<td style="padding:4px;font-size:10px;color:var(--text-muted);max-width:250px;">'+esc(f.detail||'')+'</td>';
       html += '<td style="padding:4px;font-size:10px;color:var(--text-muted);max-width:250px;">'+esc(f.remediation||'')+'</td>';
-      html += '<td style="padding:4px;text-align:right;"><button class="btn btn-ghost" onclick="_pentestToggleExplain(\''+rowId+'\','+i+')" style="padding:2px 8px;font-size:10px;white-space:nowrap;">'+esc(t('pentest_btn_explain','💡 Explain'))+'</button></td>';
+      html += '<td style="padding:4px;text-align:right;"><button class="btn btn-ghost" onclick="_pentestToggleExplain(\''+rowId+'\','+i+')" style="padding:2px 8px;font-size:10px;white-space:nowrap;">'+esc(t('pentest_btn_explain','Explain'))+'</button></td>';
       html += '</tr>';
       // Hidden explainer row, populated on first toggle
       html += '<tr id="'+rowId+'" style="display:none;"><td colspan="5" style="padding:0;"><div style="background:var(--bg-input);border-left:3px solid '+sc+';padding:12px 16px;font-size:11px;line-height:1.6;"></div></td></tr>';
@@ -3623,7 +3619,7 @@ async function runTlsAudit() {
   var cert = data.certificate || {};
   var cipher = data.cipher || {};
   var topHtml = '<div class="card" style="margin-bottom:12px;padding:14px;">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + esc(t('pentest_tls_status_header','🔐 TLS status')) + ' — ' + esc(host) + ':' + port + '</div>'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">' + esc(t('pentest_tls_status_header','TLS status')) + ' — ' + esc(host) + ':' + port + '</div>'
     + '<div style="margin-bottom:10px;">'
     + pill('TLS 1.0', !!p['TLSv1.0'], false)
     + pill('TLS 1.1', !!p['TLSv1.1'], false)
@@ -3659,7 +3655,7 @@ async function runTakeoverCheck() {
 
   var s = data.summary || {};
   var topHtml = '<div class="card" style="margin-bottom:12px;padding:12px;">'
-    + '<strong>' + esc(t('pentest_takeover_summary','🪝 Takeover check')) + ':</strong> '
+    + '<strong>' + esc(t('pentest_takeover_summary','Takeover check')) + ':</strong> '
     + (data.checked || 0) + ' ' + esc(t('pentest_subdomains_checked','subdomains checked')) + ' — '
     + '<span style="color:#d0021b;">' + (s.critical||0) + ' ' + esc(t('pentest_sev_critical','critical')) + '</span>, '
     + '<span style="color:#f5a623;">' + (s.high||0) + ' ' + esc(t('pentest_sev_high','high')) + '</span>, '
@@ -3667,7 +3663,7 @@ async function runTakeoverCheck() {
     + '</div>';
 
   if (!data.findings || !data.findings.length) {
-    el.innerHTML = topHtml + '<div class="card" style="padding:14px;color:var(--text-muted);">' + esc(t('pentest_takeover_no_findings','No takeover risk found 🎉')) + '</div>';
+    el.innerHTML = topHtml + '<div class="card" style="padding:14px;color:var(--text-muted);">' + esc(t('pentest_takeover_no_findings','No takeover risk found ')) + '</div>';
   } else {
     _renderPentestResults({ok:true, findings:data.findings, summary:{critical:s.critical||0,high:s.high||0,medium:0,low:0,info:s.info||0,total:data.findings.length}, timestamp:data.timestamp}, el, domain);
     el.innerHTML = topHtml + el.innerHTML;
@@ -4092,9 +4088,9 @@ function showSubSiteDetail(hostIdx, subIdx) {
       dhtml += '<div style="font-size:13px;font-weight:600;margin-bottom:10px;">' + t('inf_devices','Enheter') + ' ('+s.device_count+')</div>';
       dhtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">';
       var types = [
-        {label:'WiFi AP', count:s.wifi_devices||0, icon:'📡'},
-        {label:'Svitsj/kabel', count:s.wired_devices||0, icon:'🔌'},
-        {label:'Gateway', count:s.gateway_devices||0, icon:'🛡'},
+        {label:'WiFi AP', count:s.wifi_devices||0, icon:''},
+        {label:'Svitsj/kabel', count:s.wired_devices||0, icon:''},
+        {label:'Gateway', count:s.gateway_devices||0, icon:''},
       ];
       types.forEach(function(t) {
         if (t.count > 0) {
@@ -4170,7 +4166,7 @@ async function _loadSubSiteLiveData(siteName) {
     h += '<div style="max-height:300px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
     h += '<thead><tr style="border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);"><th style="text-align:left;padding:4px 6px;">'+t('col_hostname','Hostname')+'</th><th style="text-align:left;padding:4px 6px;">IP</th><th style="text-align:center;padding:4px 6px;">'+t('col_type','Type')+'</th><th style="text-align:center;padding:4px 6px;">'+t('col_signal','Signal')+'</th><th style="text-align:left;padding:4px 6px;">'+t('col_connected_to','Connected to')+'</th></tr></thead><tbody>';
     clients.slice(0, 50).forEach(function(c) {
-      var typeIcon = c.type === 'wireless' ? '📶' : '🔌';
+      var typeIcon = c.type === 'wireless' ? '' : '';
       var sigHtml = '-';
       if (c.signal && c.type === 'wireless') {
         var sigColor = c.signal > -60 ? 'var(--green)' : c.signal > -75 ? 'var(--orange)' : 'var(--red)';
@@ -4190,7 +4186,7 @@ async function _loadSubSiteLiveData(siteName) {
     if (wifiData.alerts && wifiData.alerts.length) {
       wifiData.alerts.forEach(function(a) {
         var ac = a.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
-        h += '<div style="font-size:11px;color:'+ac+';margin-bottom:2px;">⚠ '+esc(a.message)+'</div>';
+        h += '<div style="font-size:11px;color:'+ac+';margin-bottom:2px;">'+esc(a.message)+'</div>';
       });
     }
     h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px;">';
