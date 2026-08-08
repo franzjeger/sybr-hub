@@ -55,7 +55,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . pytest-timeout
+          python -m pip install '.[dev]' pytest-timeout
           python -m pip check
 
       # --timeout names the offending test and dumps its stack if one hangs;
