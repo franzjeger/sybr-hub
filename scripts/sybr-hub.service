@@ -117,9 +117,9 @@ WantedBy=multi-user.target
 # or grant sudo tee/ip to this web process: a web-app compromise would become
 # root. Under this hardened unit, establish customer tunnels outside Sybr HUB
 # (or through a separately authenticated, narrowly scoped privileged helper)
-# and let the hub consume the resulting routes/interfaces. Backends that need
-# to create interfaces themselves will report an error; the rest of the hub is
-# unaffected.
+# and let the hub consume the resulting routes/interfaces. The API exposes
+# this as mode=external and the UI disables Connect instead of trying commands
+# that cannot succeed; the rest of the hub is unaffected.
 #
 # ── Hardening vs. VPN ───────────────────────────────────────────────────────
 # Creating tunnel interfaces needs privileges the sandbox above withholds.

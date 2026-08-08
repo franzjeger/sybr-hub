@@ -11,7 +11,7 @@ SOURCES = [*STATIC.glob("*.html"), *STATIC.glob("*.js")]
 # The inherited single-page UI generates substantial markup in JavaScript.
 # CSP now distinguishes attributes from executable elements, and these budgets
 # prevent the temporary attribute exceptions from becoming permanent growth.
-INLINE_EVENT_HANDLER_BUDGET = 808
+INLINE_EVENT_HANDLER_BUDGET = 706
 INLINE_STYLE_ATTRIBUTE_BUDGET = 4631
 
 
@@ -53,9 +53,7 @@ def test_delegated_click_handlers_use_an_explicit_allowlist():
         flags=re.DOTALL,
     )
     assert mapping_match, "delegated click-handler allowlist is missing"
-    mapped = set(
-        re.findall(r"^\s*([A-Za-z0-9_$]+):\s*function", mapping_match.group(1), re.M)
-    )
+    mapped = set(re.findall(r"^\s*([A-Za-z0-9_$]+):\s*function", mapping_match.group(1), re.M))
     assert attributes
     assert attributes == mapped
     assert "eval(" not in mapping_match.group(0)

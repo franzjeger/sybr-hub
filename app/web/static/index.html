@@ -388,7 +388,7 @@
         <div class="device-code-title" data-i18n="setup_login_required">Innlogging kreves</div>
         <div class="device-code-step" data-i18n="setup_step1">1. Åpne påloggingssiden:</div>
         <div style="margin:4px 0 4px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <button class="btn btn-primary" id="dc-open-private" onclick="openPrivateBrowser()" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;" data-i18n="btn_open_private_window">
+          <button class="btn btn-primary" id="dc-open-private" data-click-handler="openPrivateBrowser" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;" data-i18n="btn_open_private_window">
             <span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_open_private_window_label">Åpne påloggingssiden</span>
           </button>
           <span id="dc-browser-info" style="font-size:11px; color:var(--text-dim);"></span>
@@ -399,7 +399,7 @@
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin:4px 0 8px;" data-i18n="setup_private_hint">Tips: bruk et privat vindu (Ctrl+Shift+P / Cmd+Shift+N) hvis du allerede er logget inn med en annen konto.</div>
         <div class="device-code-step" data-i18n="setup_step2">2. Skriv inn koden (klikk for å kopiere):</div>
-        <div class="device-code-value" id="dc-code" onclick="copyCode()" data-i18n-title="tip_click_to_copy" title="Klikk for å kopiere">——</div>
+        <div class="device-code-value" id="dc-code" data-click-handler="copyCode" data-i18n-title="tip_click_to_copy" title="Klikk for å kopiere">——</div>
         <div class="code-hint" id="dc-copy-hint" data-i18n="msg_click_to_copy">Klikk på koden for å kopiere til utklippstavlen</div>
         <div class="device-code-note" data-i18n="setup_login_global_admin">⚡ Logg inn som Global Admin, vent deretter her.</div>
       </div>
@@ -415,7 +415,7 @@
     <!-- ════════════ AUDIT VIEW ════════════ -->
     <div class="view" id="view-audit">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-        <button class="btn btn-ghost" id="audit-back-btn" onclick="auditBack()" style="padding:6px 10px;" data-i18n="btn_back">
+        <button class="btn btn-ghost" id="audit-back-btn" data-click-handler="auditBack" style="padding:6px 10px;" data-i18n="btn_back">
           ← Tilbake
         </button>
         <div>
@@ -521,12 +521,12 @@
           </div>
           <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_export">Eksport</div>
           <div class="btn-row" style="margin-bottom:10px;">
-            <button class="btn btn-default" onclick="exportCSV()">
+            <button class="btn btn-default" data-click-handler="exportCSV">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span> <span data-i18n="btn_csv_export">CSV-eksport</span>
             </button>
           </div>
           <div class="btn-row">
-            <button data-write class="btn btn-default" onclick="openFolder()">
+            <button data-write class="btn btn-default" data-click-handler="openFolder">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span> <span data-i18n="btn_open_folder">Åpne mappe</span>
             </button>
           </div>
@@ -539,7 +539,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
         <div style="font-size:18px;font-weight:700;" data-i18n="hdr_files">Filer</div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-default" onclick="loadFiles()" style="font-size:12px;" data-i18n="btn_refresh">↻ Oppdater</button>
+          <button class="btn btn-default" data-click-handler="loadFiles" style="font-size:12px;" data-i18n="btn_refresh">↻ Oppdater</button>
         </div>
       </div>
 
@@ -582,7 +582,7 @@
             <button class="btn btn-default" onclick="uploadReportsToITGlue(this)" style="font-size:12px;">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_reports_itglue">Last opp rapporter til IT Glue</span>
             </button>
-            <button data-write class="btn btn-default" id="btn-open-reports-folder" onclick="openReportsFolder()" style="font-size:12px;">
+            <button data-write class="btn btn-default" id="btn-open-reports-folder" data-click-handler="openReportsFolder" style="font-size:12px;">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span> <span data-i18n="btn_open_folder">Åpne mappe</span>
             </button>
           </div>
@@ -607,7 +607,7 @@
             <span data-i18n="msg_encrypt_existing_desc">Bruk knappen under for å kryptere eksisterende data som ble opprettet før kryptering ble aktivert.</span>
           </div>
           <div class="btn-row">
-            <button data-write class="btn btn-primary" onclick="migrateEncryption()" style="font-size:12px;" id="btn-migrate-encrypt">
+            <button data-write class="btn btn-primary" data-click-handler="migrateEncryption" style="font-size:12px;" id="btn-migrate-encrypt">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_encrypt_existing">Krypter eksisterende data</span>
             </button>
             <span id="migrate-encrypt-result" style="font-size:12px;color:var(--text-muted);"></span>
@@ -642,7 +642,7 @@
             <option value="60" selected data-i18n="s_2">60s</option>
             <option value="300" data-i18n="min">5 min</option>
           </select>
-          <button data-write class="btn btn-ghost" onclick="fgPollAll()" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
+          <button data-write class="btn btn-ghost" data-click-handler="fgPollAll" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
           <div id="fg-live-status" style="margin-left:auto;font-size:12px;color:var(--text-muted);"></div>
         </div>
         <div id="dash-fg-content">
@@ -655,7 +655,7 @@
 
       <div id="net-unifi" class="net-sub-content" style="display:none;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-          <button class="btn btn-ghost" onclick="dashUnifiRefresh()" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
+          <button class="btn btn-ghost" data-click-handler="dashUnifiRefresh" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
           <div id="unifi-live-status" style="margin-left:auto;font-size:12px;color:var(--text-muted);"></div>
         </div>
         <div id="dash-unifi-content">
@@ -671,7 +671,7 @@
       <div id="net-audit" class="net-sub-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="font-size:16px;font-weight:600;" data-i18n="hdr_network_audit">Nettverks-audit</div>
-          <button data-write class="btn btn-primary" onclick="runNetworkQuickAudit()" id="btn-run-network-audit" style="padding:6px 16px;" data-i18n="btn_run_quick_check">Kjør hurtigsjekk</button>
+          <button data-write class="btn btn-primary" data-click-handler="runNetworkQuickAudit" id="btn-run-network-audit" style="padding:6px 16px;" data-i18n="btn_run_quick_check">Kjør hurtigsjekk</button>
         </div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;" data-i18n="msg_quick_check_desc">
           Hurtigsjekk henter system-info, admin-kontoer, brannmurregler og firmware fra konfigurerte enheter.
@@ -687,7 +687,7 @@
               <label class="field-label" data-i18n="lbl_subnet_cidr">Subnet (CIDR)</label>
               <input class="field-input" id="input-scan-subnet" type="text" placeholder="192.168.1.0/24" style="margin-bottom:0;">
             </div>
-            <button data-write class="btn btn-primary" onclick="runSubnetScan()" id="btn-subnet-scan" style="padding:6px 16px;white-space:nowrap;" data-i18n="btn_scan">Skann</button>
+            <button data-write class="btn btn-primary" data-click-handler="runSubnetScan" id="btn-subnet-scan" style="padding:6px 16px;white-space:nowrap;" data-i18n="btn_scan">Skann</button>
           </div>
           <div id="subnet-scan-result" style="margin-top:12px;"></div>
         </div>
@@ -696,7 +696,7 @@
         <div class="card" style="margin-top:16px;">
           <div class="card-title" data-i18n="hdr_config_backups">Konfigurasjon-backups</div>
           <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;" data-i18n="msg_config_backups_desc">Lagrede konfigurasjonsfiler fra nettverksenheter.</div>
-          <button class="btn btn-default" onclick="loadConfigBackups()" style="font-size:12px;padding:4px 12px;margin-bottom:8px;" data-i18n="btn_refresh_list">Oppdater liste</button>
+          <button class="btn btn-default" data-click-handler="loadConfigBackups" style="font-size:12px;padding:4px 12px;margin-bottom:8px;" data-i18n="btn_refresh_list">Oppdater liste</button>
           <div id="config-backups-list"></div>
         </div>
       </div>
@@ -731,7 +731,7 @@
                 <option value="stealth" data-i18n="pentest_port_mode_stealth"></option>
               </select>
             </div>
-            <button class="btn btn-primary" onclick="runPentest()" style="padding:8px 20px;font-size:13px;" data-i18n="pentest_btn_run" data-i18n-title="pentest_btn_run_tip"></button>
+            <button class="btn btn-primary" data-click-handler="runPentest" style="padding:8px 20px;font-size:13px;" data-i18n="pentest_btn_run" data-i18n-title="pentest_btn_run_tip"></button>
           </div>
         </div>
 
@@ -742,8 +742,8 @@
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase1_desc"></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button data-write class="btn btn-ghost" onclick="runDnsPentest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_dns" data-i18n-title="pentest_btn_dns_tip"></button>
-            <button class="btn btn-ghost" onclick="runPentest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_port" data-i18n-title="pentest_btn_port_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runDnsPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_dns" data-i18n-title="pentest_btn_dns_tip"></button>
+            <button class="btn btn-ghost" data-click-handler="runPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_port" data-i18n-title="pentest_btn_port_tip"></button>
           </div>
         </div>
 
@@ -754,11 +754,11 @@
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase2_desc"></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-ghost" onclick="runPentest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_web" data-i18n-title="pentest_btn_web_tip"></button>
-            <button data-write class="btn btn-ghost" onclick="runTlsAudit()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_tls" data-i18n-title="pentest_btn_tls_tip"></button>
-            <button data-write class="btn btn-ghost" onclick="runCmsScan()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_cms" data-i18n-title="pentest_btn_cms_tip"></button>
-            <button data-write class="btn btn-ghost" onclick="runSmbEnum()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_smb" data-i18n-title="pentest_btn_smb_tip"></button>
-            <button data-write class="btn btn-ghost" onclick="runCredentialTest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_creds" data-i18n-title="pentest_btn_creds_tip"></button>
+            <button class="btn btn-ghost" data-click-handler="runPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_web" data-i18n-title="pentest_btn_web_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runTlsAudit" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_tls" data-i18n-title="pentest_btn_tls_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runCmsScan" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_cms" data-i18n-title="pentest_btn_cms_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runSmbEnum" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_smb" data-i18n-title="pentest_btn_smb_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runCredentialTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_creds" data-i18n-title="pentest_btn_creds_tip"></button>
           </div>
         </div>
 
@@ -769,8 +769,8 @@
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase3_desc"></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button data-write class="btn btn-ghost" onclick="runTakeoverCheck()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_takeover" data-i18n-title="pentest_btn_takeover_tip"></button>
-            <button data-write class="btn btn-ghost" onclick="runSegTest()" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_seg" data-i18n-title="pentest_btn_seg_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runTakeoverCheck" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_takeover" data-i18n-title="pentest_btn_takeover_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runSegTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_seg" data-i18n-title="pentest_btn_seg_tip"></button>
           </div>
         </div>
 
@@ -784,9 +784,9 @@
         <div style="font-size:18px;font-weight:700;" data-i18n="hdr_history">Tidligere audit-kjøringer</div>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;" id="compare-bar">
           <button data-write class="btn btn-default" id="btn-delete-selected" style="display:none;padding:6px 12px;font-size:12px;color:var(--red);border-color:var(--red);"
-            onclick="deleteSelectedRuns()" data-i18n="btn_delete_selected">Slett valgte</button>
+            data-click-handler="deleteSelectedRuns" data-i18n="btn_delete_selected">Slett valgte</button>
           <button class="btn btn-primary" id="btn-compare" style="display:none;padding:6px 16px;font-size:13px;background:#1d6387;"
-            onclick="runComparison()" data-i18n="btn_compare_selected">Sammenlign valgte</button>
+            data-click-handler="runComparison" data-i18n="btn_compare_selected">Sammenlign valgte</button>
         </div>
       </div>
       <div id="compare-result" style="display:none;"></div>
@@ -803,10 +803,10 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
         <div style="font-size:18px;font-weight:700;" data-i18n="hdr_customers">Kunder</div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-default" onclick="exportCustomersJSON()" style="font-size:12px;" data-i18n="btn_export_json">Export JSON</button>
-          <button class="btn btn-default" onclick="openITGlueImport()" style="font-size:12px;" data-i18n="btn_import_from_itglue">Importer fra IT Glue</button>
-          <button class="btn btn-default" onclick="openManualCustomer()" style="font-size:12px;" data-i18n="btn_add_manual_customer">+ Legg til manuelt</button>
-          <button data-write class="btn btn-primary" onclick="startSetup()" data-i18n="btn_new_customer">+ Ny kunde</button>
+          <button class="btn btn-default" data-click-handler="exportCustomersJSON" style="font-size:12px;" data-i18n="btn_export_json">Export JSON</button>
+          <button class="btn btn-default" data-click-handler="openITGlueImport" style="font-size:12px;" data-i18n="btn_import_from_itglue">Importer fra IT Glue</button>
+          <button class="btn btn-default" data-click-handler="openManualCustomer" style="font-size:12px;" data-i18n="btn_add_manual_customer">+ Legg til manuelt</button>
+          <button data-write class="btn btn-primary" data-click-handler="startSetup" data-i18n="btn_new_customer">+ Ny kunde</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
@@ -816,9 +816,9 @@
       </div>
       <div id="customers-bulk-bar" style="display:none;padding:var(--space-2) var(--space-4);background:var(--bg-card);border:1px solid var(--blue);border-radius:var(--radius-md);margin-bottom:var(--space-3);display:none;align-items:center;gap:var(--space-3);">
         <span id="customers-bulk-count" style="font-size:var(--font-sm);font-weight:600;color:var(--blue);"></span>
-        <button data-write class="btn btn-ghost btn-sm" onclick="bulkTagCustomers()" data-i18n="btn_tag">Tag</button>
-        <button data-write class="btn btn-danger btn-sm" onclick="bulkDeleteCustomers()" data-i18n="btn_delete">Slett</button>
-        <button class="btn btn-ghost btn-sm" onclick="clearBulkSelection()" style="margin-left:auto;" data-i18n="btn_cancel">Avbryt</button>
+        <button data-write class="btn btn-ghost btn-sm" data-click-handler="bulkTagCustomers" data-i18n="btn_tag">Tag</button>
+        <button data-write class="btn btn-danger btn-sm" data-click-handler="bulkDeleteCustomers" data-i18n="btn_delete">Slett</button>
+        <button class="btn btn-ghost btn-sm" data-click-handler="clearBulkSelection" style="margin-left:auto;" data-i18n="btn_cancel">Avbryt</button>
       </div>
       <div id="customers-content">
         <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
@@ -886,12 +886,12 @@
           </div>
           <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;" data-i18n="lbl_export">Eksport</div>
           <div class="btn-row" style="margin-bottom:10px;">
-            <button class="btn btn-default" onclick="exportCSV()">
+            <button class="btn btn-default" data-click-handler="exportCSV">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span> <span data-i18n="btn_csv_export">CSV-eksport</span>
             </button>
           </div>
           <div class="btn-row">
-            <button data-write class="btn btn-default" onclick="openFolder()">
+            <button data-write class="btn btn-default" data-click-handler="openFolder">
               <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span> <span data-i18n="btn_open_folder">Åpne mappe</span>
             </button>
           </div>
@@ -928,8 +928,8 @@
               <button class="btn btn-primary" onclick="toggleIntegConfig('itglue-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
               <!-- Customer import lived only on the Customers view, which is not
                    where anybody looks for it. The integration's own card is. -->
-              <button data-write class="btn btn-default" onclick="openITGlueImport()" style="width:100%;padding:8px;font-size:12px;" data-i18n="btn_import_customers_itglue">Importer kunder</button>
-              <button data-write class="btn btn-default" id="itglue-sync-doc-btn" onclick="itglueSyncAllDocumentation()" style="width:100%;padding:8px;font-size:12px;" data-i18n="btn_sync_documentation">Synkroniser dokumentasjon</button>
+              <button data-write class="btn btn-default" data-click-handler="openITGlueImport" style="width:100%;padding:8px;font-size:12px;" data-i18n="btn_import_customers_itglue">Importer kunder</button>
+              <button data-write class="btn btn-default" id="itglue-sync-doc-btn" data-click-handler="itglueSyncAllDocumentation" style="width:100%;padding:8px;font-size:12px;" data-i18n="btn_sync_documentation">Synkroniser dokumentasjon</button>
             </div>
             <div id="itglue-sync-status" style="display:none;margin-top:8px;font-size:12px;"></div>
             <div id="itglue-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
@@ -942,11 +942,11 @@
                 <option value="au" data-i18n="australia">Australia</option>
               </select>
               <div style="display:flex;gap:8px;margin-top:8px;">
-                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testITGlue()" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="testITGlue" data-i18n="btn_test_connection">Test tilkobling</button>
                 <span id="itglue-test-result" style="font-size:11px;color:var(--text-muted);"></span>
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="saveITGlueSettings()" data-i18n="btn_save">Lagre</button>
+                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="saveITGlueSettings" data-i18n="btn_save">Lagre</button>
                 <span id="itglue-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -985,11 +985,11 @@
                 <label for="input-email-auto-send" style="font-size:13px;" data-i18n="settings_send_auto_email">Send rapport automatisk etter audit</label>
               </div>
               <div style="display:flex;gap:8px;margin-top:8px;">
-                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testEmail()" data-i18n="btn_test_email">Send testepost</button>
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="testEmail" data-i18n="btn_test_email">Send testepost</button>
                 <span id="email-test-result" style="font-size:11px;color:var(--text-muted);"></span>
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="saveEmailSettings()" data-i18n="btn_save">Lagre</button>
+                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="saveEmailSettings" data-i18n="btn_save">Lagre</button>
                 <span id="email-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -1014,7 +1014,7 @@
               <label class="field-label" for="input-webhook-url" data-i18n="lbl_webhook_url">Webhook-URL (Teams/Slack)</label>
               <input class="field-input" id="input-webhook-url" type="text" placeholder="https://outlook.office.com/webhook/...">
               <div style="display:flex;gap:8px;margin-top:6px;">
-                <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="testWebhook()" data-i18n="btn_test_webhook">Test webhook</button>
+                <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="testWebhook" data-i18n="btn_test_webhook">Test webhook</button>
                 <span id="webhook-test-result" style="font-size:11px;color:var(--text-muted);"></span>
               </div>
               <div id="webhook-event-options" style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);">
@@ -1055,7 +1055,7 @@
                 </div>
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="saveWebhookSettings()" data-i18n="btn_save">Lagre</button>
+                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="saveWebhookSettings" data-i18n="btn_save">Lagre</button>
                 <span id="webhook-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -1089,7 +1089,7 @@
                 <label class="field-label" for="fg-bootstrap-hostname" style="margin-top:8px;" data-i18n="lbl_hostname_optional">Hostname (valgfritt)</label>
                 <input class="field-input" id="fg-bootstrap-hostname" type="text" data-i18n-placeholder="ph_fw_customer_name" placeholder="FW-Kundenavn">
                 <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
-                  <button data-write class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="fgBootstrap()" id="btn-fg-bootstrap" data-i18n="btn_setup_fortigate">Sett opp FortiGate</button>
+                  <button data-write class="btn btn-primary" style="padding:6px 14px;font-size:12px;" data-click-handler="fgBootstrap" id="btn-fg-bootstrap" data-i18n="btn_setup_fortigate">Sett opp FortiGate</button>
                   <span id="fg-bootstrap-status" style="font-size:11px;color:var(--text-muted);"></span>
                 </div>
                 <div id="fg-bootstrap-result" style="display:none;margin-top:12px;background:var(--bg-card);border:1px solid var(--green);border-radius:6px;padding:12px;"></div>
@@ -1103,12 +1103,12 @@
               <label class="field-label" for="fg-api-vdom" style="margin-top:10px;" data-i18n="lbl_vdom_optional">VDOM (valgfritt)</label>
               <input class="field-input" id="fg-api-vdom" type="text" value="root" placeholder="root">
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="fgApiTest()" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="fgApiTest" data-i18n="btn_test_connection">Test tilkobling</button>
                 <span id="fg-api-test-result" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="fgApiSave()" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="fgDownloadCredentials()" data-i18n-title="last_ned_admin_passord_og" title="Last ned admin-passord og API-token for aktiv kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
+                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="fgApiSave" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" data-click-handler="fgDownloadCredentials" data-i18n-title="last_ned_admin_passord_og" title="Last ned admin-passord og API-token for aktiv kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
                 <span id="fg-api-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -1148,20 +1148,20 @@
                 <label class="field-label" for="unifi-sm-ctrl-pass" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
                 <input class="field-input" id="unifi-sm-ctrl-pass" type="password" data-i18n-placeholder="kontroller_passord" placeholder="Kontroller-passord">
                 <div style="display:flex;gap:8px;margin-top:8px;">
-                  <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmTestController()" data-i18n="btn_test_connection">Test tilkobling</button>
-                  <button data-write class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" onclick="unifiSmSaveController()" data-i18n="btn_save">Lagre</button>
+                  <button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" data-click-handler="unifiSmTestController" data-i18n="btn_test_connection">Test tilkobling</button>
+                  <button data-write class="btn btn-ghost" style="padding:4px 12px;font-size:11px;" data-click-handler="unifiSmSaveController" data-i18n="btn_save">Lagre</button>
                   <span id="unifi-sm-ctrl-result" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
                 </div>
               </details>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="unifiSmAuth()" id="unifi-sm-auth-btn" data-i18n="btn_test_connection">Test tilkobling</button>
-                <button data-write class="btn btn-ghost" style="padding:6px 16px;font-size:12px;" onclick="unifiSmSave()" data-i18n="btn_save_key">Lagre nøkkel</button>
+                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="unifiSmAuth" id="unifi-sm-auth-btn" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button data-write class="btn btn-ghost" style="padding:6px 16px;font-size:12px;" data-click-handler="unifiSmSave" data-i18n="btn_save_key">Lagre nøkkel</button>
                 <span id="unifi-sm-auth-result" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
               <div id="unifi-sm-sites" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                   <div style="font-size:13px;font-weight:600;" data-i18n="lbl_your_sites">Dine siter</div>
-                  <button class="btn btn-ghost" onclick="unifiSmLoadSites()" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
+                  <button class="btn btn-ghost" data-click-handler="unifiSmLoadSites" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
                 </div>
                 <div id="unifi-sm-sites-list" style="max-height:300px;overflow-y:auto;"></div>
               </div>
@@ -1202,7 +1202,7 @@
                 <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"><span data-i18n="claude_cli_hint_before">Bruker din Claude Max/Pro-subscription via</span> <code>claude</code> <span data-i18n="claude_cli_hint_after">CLI. Ingen ekstra kostnad per forespørsel.</span></p>
                 <p style="font-size:11px;color:var(--orange);margin-bottom:8px;" data-i18n="msg_claude_cli_note">Merk: CLI-modus er tregere enn API (ny prosess per melding) og har ikke verktøy-støtte. API-modus anbefales for best opplevelse.</p>
                 <div id="claude-cli-status" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-muted);margin-bottom:8px;" data-i18n="msg_checking_cli">Sjekker CLI...</div>
-                <button class="btn btn-ghost" onclick="claudeCheckCli()" style="padding:4px 12px;font-size:11px;margin-bottom:8px;" data-i18n="btn_check_cli">Sjekk CLI-status</button>
+                <button class="btn btn-ghost" data-click-handler="claudeCheckCli" style="padding:4px 12px;font-size:11px;margin-bottom:8px;" data-i18n="btn_check_cli">Sjekk CLI-status</button>
               </div>
 
               <label class="field-label" style="margin-top:10px;" for="claude-model" data-i18n="lbl_model">Modell</label>
@@ -1212,8 +1212,8 @@
                 <option value="claude-haiku-4-5-20251001" data-i18n="opt_model_haiku">Claude Haiku 4.5 (raskest)</option>
               </select>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" onclick="claudeSaveSettings()" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" onclick="claudeTestConnection()" data-i18n="btn_test">Test</button>
+                <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="claudeSaveSettings" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" data-click-handler="claudeTestConnection" data-i18n="btn_test">Test</button>
                 <span id="claude-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
               <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text-dim);">
@@ -1264,9 +1264,9 @@
                 <option value="at" data-i18n="austria">Austria</option>
               </select>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button class="btn btn-primary" onclick="alsoTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test connection</button>
-                <button data-write class="btn btn-default" onclick="alsoSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Save</button>
-                <button class="btn btn-ghost" onclick="alsoSyncCustomers()" style="padding:6px 14px;font-size:12px;" data-i18n="sync_customers">Sync customers</button>
+                <button class="btn btn-primary" data-click-handler="alsoTestConnection" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test connection</button>
+                <button data-write class="btn btn-default" data-click-handler="alsoSaveConfig" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Save</button>
+                <button class="btn btn-ghost" data-click-handler="alsoSyncCustomers" style="padding:6px 14px;font-size:12px;" data-i18n="sync_customers">Sync customers</button>
               </div>
               <div id="also-config-msg" style="font-size:12px;margin-top:8px;"></div>
             </div>
@@ -1293,8 +1293,8 @@
               <label class="field-label" style="margin-top:10px;" data-i18n="lbl_password_label">Passord</label>
               <input class="field-input" id="input-uniweb-password" type="password" data-i18n-placeholder="uniweb_passord" placeholder="Uniweb-passord">
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" onclick="uniwebSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="lagre">Lagre</button>
-                <button data-write class="btn btn-ghost" onclick="uniwebSync()" id="uniweb-sync-btn" style="padding:6px 14px;font-size:12px;" data-i18n="synkroniser">Synkroniser</button>
+                <button data-write class="btn btn-primary" data-click-handler="uniwebSaveConfig" style="padding:6px 14px;font-size:12px;" data-i18n="lagre">Lagre</button>
+                <button data-write class="btn btn-ghost" data-click-handler="uniwebSync" id="uniweb-sync-btn" style="padding:6px 14px;font-size:12px;" data-i18n="synkroniser">Synkroniser</button>
               </div>
               <div id="uniweb-config-msg" style="font-size:12px;margin-top:8px;"></div>
               <div id="uniweb-last-sync" style="font-size:11px;color:var(--text-dim);margin-top:4px;"></div>
@@ -1323,8 +1323,8 @@
               <label class="field-label" style="margin-top:10px;">Tailnet <span style="font-weight:400;color:var(--text-dim);" data-i18n="valgfritt_standard">(valgfritt, standard: -)</span></label>
               <input class="field-input" id="input-ts-tailnet" type="text" placeholder="your-org.github">
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button class="btn btn-primary" onclick="tsTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
-                <button data-write class="btn btn-default" onclick="tsSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-primary" data-click-handler="tsTestConnection" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button data-write class="btn btn-default" data-click-handler="tsSaveConfig" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
               </div>
               <div id="ts-config-msg" style="font-size:12px;margin-top:8px;"></div>
             </div>
@@ -1344,7 +1344,7 @@
             </div>
             <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;">
               <button class="btn btn-primary" onclick="toggleIntegConfig('gdap-config')" style="width:100%;padding:8px;font-size:13px;" data-i18n="btn_configure">Konfigurer</button>
-              <button class="btn btn-default" id="gdap-discover-btn" onclick="gdapDiscoverCustomers()" style="width:100%;padding:8px;font-size:12px;display:none;" data-i18n="gdap_btn_discover">Oppdag kunder</button>
+              <button class="btn btn-default" id="gdap-discover-btn" data-click-handler="gdapDiscoverCustomers" style="width:100%;padding:8px;font-size:12px;display:none;" data-i18n="gdap_btn_discover">Oppdag kunder</button>
             </div>
             <div id="gdap-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <label class="field-label" for="input-gdap-tenant" data-i18n="gdap_lbl_partner_tenant">Partner Tenant ID</label>
@@ -1354,8 +1354,8 @@
               <label class="field-label" for="input-gdap-secret" style="margin-top:10px;" data-i18n="gdap_lbl_client_secret">Client Secret</label>
               <input class="field-input" id="input-gdap-secret" type="password" data-i18n-placeholder="client_secret" placeholder="Client secret">
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" onclick="gdapSaveConfig()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default" onclick="gdapTestConnection()" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
+                <button data-write class="btn btn-primary" data-click-handler="gdapSaveConfig" style="padding:6px 14px;font-size:12px;" data-i18n="btn_save">Lagre</button>
+                <button class="btn btn-default" data-click-handler="gdapTestConnection" style="padding:6px 14px;font-size:12px;" data-i18n="btn_test_connection">Test tilkobling</button>
               </div>
               <div id="gdap-config-msg" style="font-size:12px;margin-top:8px;"></div>
               <div id="gdap-customer-count" style="font-size:12px;margin-top:6px;color:var(--text-muted);"></div>
@@ -1364,7 +1364,7 @@
               <div style="font-weight:600;font-size:13px;margin-bottom:8px;" data-i18n="gdap_lbl_discovered">Oppdagede kunder</div>
               <div id="gdap-discover-list" style="max-height:300px;overflow-y:auto;"></div>
               <div style="display:flex;gap:8px;margin-top:12px;">
-                <button data-write class="btn btn-primary" onclick="gdapImportSelected()" style="padding:6px 14px;font-size:12px;" data-i18n="gdap_btn_import">Importer valgte</button>
+                <button data-write class="btn btn-primary" data-click-handler="gdapImportSelected" style="padding:6px 14px;font-size:12px;" data-i18n="gdap_btn_import">Importer valgte</button>
                 <button class="btn btn-ghost" onclick="document.getElementById('gdap-discover-panel').style.display='none'" style="padding:6px 14px;font-size:12px;" data-i18n="btn_cancel">Avbryt</button>
               </div>
               <div id="gdap-import-msg" style="font-size:12px;margin-top:8px;"></div>
@@ -1436,7 +1436,7 @@
                 </label>
                 <span id="alert-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;"></span>
               </div>
-              <button data-write class="btn btn-primary" onclick="alertRunCheckNow()" style="padding:6px 16px;font-size:12px;" data-i18n="btn_run_check_now">Kjor sjekk na</button>
+              <button data-write class="btn btn-primary" data-click-handler="alertRunCheckNow" style="padding:6px 16px;font-size:12px;" data-i18n="btn_run_check_now">Kjor sjekk na</button>
             </div>
 
             <!-- Notification channels -->
@@ -1513,7 +1513,7 @@
         <div style="margin-top:32px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
             <div style="font-size:16px;font-weight:700;" data-i18n="hdr_scheduled_tasks">Planlagte oppgaver</div>
-            <button class="btn btn-ghost" onclick="taskSchedRefresh()" style="padding:4px 12px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
+            <button class="btn btn-ghost" data-click-handler="taskSchedRefresh" style="padding:4px 12px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
           </div>
           <div id="task-scheduler-table" style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;">
             <div style="padding:16px;color:var(--text-muted);font-size:13px;" data-i18n="msg_loading">Laster...</div>
@@ -1866,7 +1866,7 @@
           <ul id="workshop-wishlist-list" style="list-style:none;padding:0;margin:0 0 12px 0;font-size:13px;"></ul>
           <div style="display:flex;gap:8px;">
             <input id="workshop-wishlist-input" type="text" class="field-input" data-i18n-placeholder="ph_workshop_wishlist" placeholder="Skriv et ønske og trykk Enter ..." style="flex:1;margin:0;" onkeydown="if(event.key==='Enter'){workshopAddWishlist();event.preventDefault();}">
-            <button onclick="workshopAddWishlist()" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
+            <button data-click-handler="workshopAddWishlist" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
           </div>
         </div>
 
@@ -1886,13 +1886,13 @@
             <input id="workshop-followup-text" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_text" placeholder="Handling ..." style="margin:0;min-width:0;" onkeydown="if(event.key==='Enter'){workshopAddFollowup();event.preventDefault();}">
             <input id="workshop-followup-owner" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_owner" placeholder="Eier" style="margin:0;min-width:0;">
             <input id="workshop-followup-due" type="date" class="field-input" style="margin:0;min-width:0;" data-i18n-title="frist" title="Frist">
-            <button onclick="workshopAddFollowup()" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
+            <button data-click-handler="workshopAddFollowup" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
           </div>
         </div>
 
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-dim);">
           <span id="workshop-save-status"></span>
-          <button onclick="workshopLoad()" class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh" data-i18n-title="hent_andres_oppdateringer_fra_serveren" title="Hent andres oppdateringer fra serveren">Oppdater</button>
+          <button data-click-handler="workshopLoad" class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh" data-i18n-title="hent_andres_oppdateringer_fra_serveren" title="Hent andres oppdateringer fra serveren">Oppdater</button>
         </div>
       </div>
     </div>
@@ -1916,9 +1916,9 @@
           <option value="WARNING" selected>WARNING+</option>
           <option value="ERROR" data-i18n="log_errors_only">Kun feil</option>
         </select>
-        <button class="btn btn-ghost" onclick="loadLogs()" style="font-size:12px;padding:5px 12px;" data-i18n="btn_refresh">Oppdater</button>
-        <button class="btn btn-ghost" onclick="copyLogs()" style="font-size:12px;padding:5px 12px;" data-i18n="log_copy">Kopier</button>
-        <button data-write class="btn btn-default" onclick="clearLogs()" style="font-size:12px;padding:5px 12px;color:var(--red);" data-i18n="log_clear">T&#248;m logg</button>
+        <button class="btn btn-ghost" data-click-handler="loadLogs" style="font-size:12px;padding:5px 12px;" data-i18n="btn_refresh">Oppdater</button>
+        <button class="btn btn-ghost" data-click-handler="copyLogs" style="font-size:12px;padding:5px 12px;" data-i18n="log_copy">Kopier</button>
+        <button data-write class="btn btn-default" data-click-handler="clearLogs" style="font-size:12px;padding:5px 12px;color:var(--red);" data-i18n="log_clear">T&#248;m logg</button>
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
           <input type="checkbox" id="log-auto-refresh" onchange="toggleLogAutoRefresh()"> <span data-i18n="log_auto_refresh_3s">Auto-refresh (3s)</span>
         </label>
@@ -1934,8 +1934,8 @@
     <!-- No sub-tabs — SSH/RDP/Terminal accessed from host cards -->
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
       <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_hosts">Verter</h2>
-      <button class="btn btn-primary" onclick="hostsAdd()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_add_host">Legg til vert</button>
-      <button class="btn btn-ghost" onclick="hostsHealthAll()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_check_all">Sjekk alle</button>
+      <button class="btn btn-primary" data-click-handler="hostsAdd" style="padding:6px 16px;font-size:13px;" data-i18n="btn_add_host">Legg til vert</button>
+      <button class="btn btn-ghost" data-click-handler="hostsHealthAll" style="padding:6px 16px;font-size:13px;" data-i18n="btn_check_all">Sjekk alle</button>
       <select id="hosts-filter-type" onchange="hostsLoad()" style="margin-left:auto;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <option value="" data-i18n="opt_all_types">Alle typer</option>
         <option value="windows">Windows</option>
@@ -1961,8 +1961,8 @@
     </div>
     <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_ssh_keys">SSH-nøkler</h2>
     <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <button class="btn btn-primary" onclick="sshShowKeys()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_keys">Nøkler</button>
-      <button class="btn btn-ghost" onclick="sshShowExec()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_run_command">Kjør kommando</button>
+      <button class="btn btn-primary" data-click-handler="sshShowKeys" style="padding:6px 16px;font-size:13px;" data-i18n="btn_keys">Nøkler</button>
+      <button class="btn btn-ghost" data-click-handler="sshShowExec" style="padding:6px 16px;font-size:13px;" data-i18n="btn_run_command">Kjør kommando</button>
     </div>
     <div id="ssh-content">
       <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_select_tab_above">Velg en fane ovenfor</div>
@@ -1973,9 +1973,9 @@
   <div class="view" id="view-vpn">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_vpn_admin">VPN-administrasjon</h2>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
-      <button class="btn btn-primary" onclick="vpnLoadProfiles()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_profiles">Profiler</button>
-      <button class="btn btn-ghost" onclick="vpnShowCreate()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_profile">Ny profil</button>
-      <button class="btn btn-ghost" onclick="vpnShowImport()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_import_file">Importer fil</button>
+      <button class="btn btn-primary" data-click-handler="vpnLoadProfiles" style="padding:6px 16px;font-size:13px;" data-i18n="btn_profiles">Profiler</button>
+      <button class="btn btn-ghost" data-click-handler="vpnShowCreate" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_profile">Ny profil</button>
+      <button class="btn btn-ghost" data-click-handler="vpnShowImport" style="padding:6px 16px;font-size:13px;" data-i18n="btn_import_file">Importer fil</button>
       <div id="vpn-status-badge" style="margin-left:auto;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:var(--bg);border:1px solid var(--border);"></div>
     </div>
     <div id="vpn-content">
@@ -1999,8 +1999,8 @@
         <span style="color:var(--text-dim);font-size:12px;" data-i18n="lbl_or">eller</span>
         <input id="term-host-manual" type="text" data-i18n-placeholder="ph_user_at_host_port" placeholder="bruker@host:port" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;width:180px;">
       </div>
-      <button class="btn btn-primary" onclick="termConnect()" id="term-connect-btn" style="padding:4px 14px;font-size:12px;" data-i18n="vpn_connect">Koble til</button>
-      <button class="btn btn-ghost" onclick="termDisconnect()" id="term-disconnect-btn" style="padding:4px 14px;font-size:12px;display:none;color:var(--red);" data-i18n="vpn_disconnect">Koble fra</button>
+      <button class="btn btn-primary" data-click-handler="termConnect" id="term-connect-btn" style="padding:4px 14px;font-size:12px;" data-i18n="vpn_connect">Koble til</button>
+      <button class="btn btn-ghost" data-click-handler="termDisconnect" id="term-disconnect-btn" style="padding:4px 14px;font-size:12px;display:none;color:var(--red);" data-i18n="vpn_disconnect">Koble fra</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:var(--space-2);">
         <button onclick="termChangeFontSize(-1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:12px;display:flex;align-items:center;justify-content:center;" data-i18n-title="smaller" title="Smaller">A-</button>
         <button onclick="termChangeFontSize(1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:22px;height:22px;font-size:14px;display:flex;align-items:center;justify-content:center;" data-i18n-title="larger" title="Larger">A+</button>
@@ -2083,7 +2083,7 @@
           <!-- Customer list now uses native select -->
         </div>
         <div id="ai-status" style="font-size:12px;color:var(--text-muted);"></div>
-        <button class="btn btn-ghost" onclick="aiClearChat()" style="margin-left:auto;padding:4px 12px;font-size:12px;" data-i18n="btn_new_chat">Ny samtale</button>
+        <button class="btn btn-ghost" data-click-handler="aiClearChat" style="margin-left:auto;padding:4px 12px;font-size:12px;" data-i18n="btn_new_chat">Ny samtale</button>
       </div>
       <div id="ai-messages" style="flex:1;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;font-size:13px;line-height:1.7;">
         <div data-welcome style="color:var(--text-muted);padding:32px;text-align:center;">
@@ -2095,7 +2095,7 @@
       </div>
       <div style="display:flex;gap:8px;">
         <input id="ai-input" type="text" data-i18n-placeholder="placeholder_ai_input" placeholder="Spør AI-assistenten..." style="flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}">
-        <button data-write class="btn btn-primary" onclick="aiSend()" style="padding:10px 20px;font-size:14px;" data-i18n="btn_send">Send</button>
+        <button data-write class="btn btn-primary" data-click-handler="aiSend" style="padding:10px 20px;font-size:14px;" data-i18n="btn_send">Send</button>
       </div>
     </div>
   </div>
@@ -2104,7 +2104,7 @@
   <div class="view" id="view-provision">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_network_provisioning">Nettverksprovisjonering</h2>
     <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <button data-write class="btn btn-primary" onclick="provisionStart()" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_wizard">Ny oppsett-veiviser</button>
+      <button data-write class="btn btn-primary" data-click-handler="provisionStart" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_wizard">Ny oppsett-veiviser</button>
     </div>
     <div id="provision-content">
       <div style="color:var(--text-muted);text-align:center;padding:48px;">
@@ -2135,7 +2135,7 @@
       <span data-i18n="hdr_notifications">Varsler</span>
       <span class="bnav-badge" id="bnav-alerts-badge" style="display:none;"></span>
     </button>
-    <button class="bnav-item" data-bnav="more" onclick="openMoreSheet()">
+    <button class="bnav-item" data-bnav="more" data-click-handler="openMoreSheet">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       <span data-i18n="mer">Mer</span>
     </button>
@@ -2190,7 +2190,7 @@
     <div id="itglue-upload-content" style="margin:16px 0;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn btn-ghost" onclick="document.getElementById('itglue-upload-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
-      <button data-write class="btn btn-primary" id="btn-itglue-upload-go" onclick="executeITGlueUpload()" disabled style="padding:8px 20px;" data-i18n="btn_upload">Last opp</button>
+      <button data-write class="btn btn-primary" id="btn-itglue-upload-go" data-click-handler="executeITGlueUpload" disabled style="padding:8px 20px;" data-i18n="btn_upload">Last opp</button>
     </div>
   </div>
 </div>
@@ -2203,7 +2203,7 @@
     <div id="itglue-org-picker-content" style="margin:16px 0;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn btn-ghost" onclick="document.getElementById('itglue-org-picker-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
-      <button class="btn btn-primary" id="btn-itglue-org-pick" onclick="confirmITGlueOrgPick()" disabled style="padding:8px 20px;" data-i18n="btn_select">Velg</button>
+      <button class="btn btn-primary" id="btn-itglue-org-pick" data-click-handler="confirmITGlueOrgPick" disabled style="padding:8px 20px;" data-i18n="btn_select">Velg</button>
     </div>
   </div>
 </div>
@@ -2218,7 +2218,7 @@
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn btn-ghost" onclick="document.getElementById('itglue-import-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
-      <button data-write class="btn btn-primary" id="btn-itglue-import" onclick="runITGlueImport()" disabled style="padding:8px 20px;" data-i18n="btn_import_selected">Importer valgte</button>
+      <button data-write class="btn btn-primary" id="btn-itglue-import" data-click-handler="runITGlueImport" disabled style="padding:8px 20px;" data-i18n="btn_import_selected">Importer valgte</button>
     </div>
   </div>
 </div>
@@ -2259,7 +2259,7 @@
     <div id="manual-cust-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="document.getElementById('manual-customer-modal').style.display='none';" data-i18n="btn_cancel">Avbryt</button>
-      <button data-write class="btn btn-primary" id="btn-manual-cust-save" onclick="submitManualCustomer()" data-i18n="btn_save">Lagre</button>
+      <button data-write class="btn btn-primary" id="btn-manual-cust-save" data-click-handler="submitManualCustomer" data-i18n="btn_save">Lagre</button>
     </div>
   </div>
 </div>
@@ -2318,7 +2318,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
       <input type="file" id="input-logo-file" accept=".png,.jpg,.jpeg,.svg" style="font-size:12px;">
-      <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="uploadLogo()" data-i18n="btn_upload">Last opp</button>
+      <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="uploadLogo" data-i18n="btn_upload">Last opp</button>
       <span id="logo-upload-msg" style="font-size:11px;color:var(--text-muted);"></span>
     </div>
     <div class="field-hint" data-i18n="settings_logo_hint">PNG, JPG eller SVG. Vises i rapporter og brev. Maks 5 MB.</div>
@@ -2327,7 +2327,7 @@
     <div style="display:flex;align-items:center;gap:var(--space-3);">
       <input type="color" id="input-brand-color" value="#4d9fb5" style="width:40px;height:32px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:transparent;padding:0;">
       <input class="field-input" id="input-brand-color-hex" type="text" placeholder="#4d9fb5" style="width:100px;font-family:var(--mono);font-size:12px;" maxlength="7">
-      <button class="btn btn-ghost btn-sm" onclick="resetBrandColor()" data-i18n="btn_reset">Tilbakestill</button>
+      <button class="btn btn-ghost btn-sm" data-click-handler="resetBrandColor" data-i18n="btn_reset">Tilbakestill</button>
     </div>
     <div class="field-hint" data-i18n="settings_brand_color_hint">Brukes i header, knapper, grafer og navigasjon. Påvirker hele grensesnittet.</div>
     </div>
@@ -2369,7 +2369,7 @@
     <div class="field-hint" id="backup-default-dir"></div>
 
     <div style="display:flex;gap:8px;margin-top:10px;">
-      <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="createBackup()" data-i18n="btn_create_backup">Opprett backup</button>
+      <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" data-click-handler="createBackup" data-i18n="btn_create_backup">Opprett backup</button>
       <span id="backup-create-msg" style="font-size:11px;color:var(--text-muted);"></span>
     </div>
 
@@ -2378,7 +2378,7 @@
     <label class="field-label" for="input-restore-path" data-i18n="lbl_restore_from_backup">Gjenopprett fra backup</label>
     <input class="field-input" id="input-restore-path" type="text" data-i18n-placeholder="placeholder_zip_path" placeholder="Sti til .zip-fil">
     <div style="display:flex;gap:8px;margin-top:6px;">
-      <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="restoreBackup()" data-i18n="btn_restore_backup">Gjenopprett backup</button>
+      <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="restoreBackup" data-i18n="btn_restore_backup">Gjenopprett backup</button>
       <span id="backup-restore-msg" style="font-size:11px;color:var(--text-muted);"></span>
     </div>
 
@@ -2389,7 +2389,7 @@
     <div id="stab-users" class="settings-tab-pane" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">
         <div class="modal-title" style="font-size:14px;margin:0;" data-i18n="hdr_user_management">User Management</div>
-        <button class="btn btn-primary btn-sm" onclick="showAddUserForm()" data-i18n="btn_add_user">Add User</button>
+        <button class="btn btn-primary btn-sm" data-click-handler="showAddUserForm" data-i18n="btn_add_user">Add User</button>
       </div>
       <div id="add-user-form" style="display:none;padding:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-4);">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
@@ -2403,7 +2403,7 @@
           </select>
         </div>
         <div style="display:flex;gap:var(--space-2);">
-          <button data-write class="btn btn-primary btn-sm" onclick="createUser()" data-i18n="btn_create">Create</button>
+          <button data-write class="btn btn-primary btn-sm" data-click-handler="createUser" data-i18n="btn_create">Create</button>
           <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-user-form').style.display='none'" data-i18n="btn_cancel">Cancel</button>
         </div>
         <div id="add-user-msg" style="font-size:var(--font-xs);margin-top:var(--space-2);"></div>
@@ -2479,19 +2479,19 @@
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="backupEncryptionKey()" data-i18n="btn_backup_key">Backup nøkkel</button>
-      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" onclick="showRestoreKeyInput()" data-i18n="btn_restore_key">Gjenopprett nøkkel</button>
+      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="backupEncryptionKey" data-i18n="btn_backup_key">Backup nøkkel</button>
+      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="showRestoreKeyInput" data-i18n="btn_restore_key">Gjenopprett nøkkel</button>
     </div>
 
     <div id="encryption-key-display" style="display:none;margin-bottom:10px;">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;" data-i18n="lbl_master_key">Master-nøkkel (klikk for å kopiere):</div>
-      <code id="encryption-key-value" onclick="copyEncryptionKey()" style="cursor:pointer;font-size:11px;word-break:break-all;display:block;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></code>
+      <code id="encryption-key-value" data-click-handler="copyEncryptionKey" style="cursor:pointer;font-size:11px;word-break:break-all;display:block;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></code>
       <span id="encryption-copy-msg" style="font-size:11px;color:var(--success);"></span>
     </div>
 
     <div id="encryption-restore-input" style="display:none;margin-bottom:10px;">
       <input class="field-input" id="input-restore-key" type="text" data-i18n-placeholder="msg_paste_key_here" placeholder="Lim inn base64-nøkkel her" style="font-size:11px;margin-bottom:6px;">
-      <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="restoreEncryptionKey()" data-i18n="btn_import_key">Importer nøkkel</button>
+      <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" data-click-handler="restoreEncryptionKey" data-i18n="btn_import_key">Importer nøkkel</button>
       <span id="encryption-restore-msg" style="font-size:11px;margin-left:8px;"></span>
     </div>
 
@@ -2522,8 +2522,8 @@
 
     <div class="modal-actions">
       <button class="btn btn-default" data-click-handler="closeSettings" data-i18n="btn_cancel">Avbryt</button>
-      <button class="btn btn-default" onclick="resetAuditDir()" data-i18n="btn_reset_default">Tilbakestill til standard</button>
-      <button data-write class="btn btn-primary" onclick="saveSettings()" data-i18n="btn_save">Lagre</button>
+      <button class="btn btn-default" data-click-handler="resetAuditDir" data-i18n="btn_reset_default">Tilbakestill til standard</button>
+      <button data-write class="btn btn-primary" data-click-handler="saveSettings" data-i18n="btn_save">Lagre</button>
     </div>
   </div>
 </div>

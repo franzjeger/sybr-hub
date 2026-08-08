@@ -1,7 +1,7 @@
 """Tests for input validators guarding config files and device CLIs.
 
 The values covered here previously reached a swanctl config written via
-``sudo tee`` (arbitrary root-owned file write) and a FortiOS CLI session over
+an arbitrary root-owned file write and a FortiOS CLI session over
 SSH (arbitrary firewall commands), unvalidated.
 """
 
@@ -34,16 +34,16 @@ def test_valid_identifiers_pass(value):
 @pytest.mark.parametrize(
     "value",
     [
-        "../../etc/cron.d/pwn",      # path traversal
-        "a/b",                       # path separator
-        "a\\b",                      # windows separator
-        'name" evil "',              # quote break-out
-        "name\nset password x",      # newline → extra CLI command
-        "name; reboot",              # command separator
+        "../../etc/cron.d/pwn",  # path traversal
+        "a/b",  # path separator
+        "a\\b",  # windows separator
+        'name" evil "',  # quote break-out
+        "name\nset password x",  # newline → extra CLI command
+        "name; reboot",  # command separator
         "name with spaces",
         "{braces}",
-        "",                          # empty
-        "-leading-dash",             # must start alphanumeric
+        "",  # empty
+        "-leading-dash",  # must start alphanumeric
     ],
 )
 def test_dangerous_identifiers_are_rejected(value):
@@ -105,7 +105,7 @@ def test_cidr_list_splits_on_commas_and_whitespace():
 
 def test_cidr_list_rejects_trailing_cli_injection():
     with pytest.raises(ValidationError):
-        validate_cidr_list('0.0.0.0/0\n            next\n        end\n    set accprofile x')
+        validate_cidr_list("0.0.0.0/0\n            next\n        end\n    set accprofile x")
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ def test_valid_ssh_key_passes():
 @pytest.mark.parametrize(
     "value",
     [
-        'ssh-ed25519 AAAA" set password "x',   # quote break-out into FortiOS
+        'ssh-ed25519 AAAA" set password "x',  # quote break-out into FortiOS
         "ssh-ed25519 AAAA\nset admintimeout 480",
         "not-a-key",
         "",
@@ -164,7 +164,7 @@ def test_conf_path_stays_inside_conf_dir():
     ["../../etc/cron.d/pwn", "../../../root/.ssh/authorized_keys", "a/b", ""],
 )
 def test_conf_path_refuses_to_escape_conf_dir(conn_name):
-    """Regression: conn_name came from a user profile and was written via sudo tee."""
+    """Regression: conn_name came from a user profile and names a root-owned file."""
     with pytest.raises(ValidationError):
         _conf_path(conn_name)
 
@@ -201,8 +201,13 @@ def test_swanctl_conf_escapes_a_quote_in_the_psk():
         {"host": "10.0.0.1", "username": "u\nid = admin", "password": "p", "psk": "s"},
         {"host": "10.0.0.1", "username": "u", "password": "p\n", "psk": "s"},
         {"host": "10.0.0.1", "username": "u", "password": "p", "psk": "s\nsecret = t"},
-        {"host": "10.0.0.1", "username": "u", "password": "p", "psk": "s",
-         "routes": ["10.0.0.0/24\n        start_action = start"]},
+        {
+            "host": "10.0.0.1",
+            "username": "u",
+            "password": "p",
+            "psk": "s",
+            "routes": ["10.0.0.0/24\n        start_action = start"],
+        },
     ],
 )
 def test_swanctl_conf_rejects_injected_newlines(config):

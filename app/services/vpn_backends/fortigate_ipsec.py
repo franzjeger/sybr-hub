@@ -1,13 +1,13 @@
 """FortiGate IPsec VPN backend using strongSwan swanctl.
 
-Uses sudo for privileged operations (writing config, loading/initiating).
-On production servers, configure passwordless sudo for swanctl commands
-or use the msp-vpn-helper systemd service.
+The manager calls this backend only when the process is already root.  Commands
+therefore run directly: privilege elevation from a web request is never a
+runtime fallback.
 """
+
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
 
 from app.core.exceptions import ValidationError
 from app.core.validation import (
@@ -26,8 +26,8 @@ def _conf_path(conn_name: str) -> Path:
     """Resolve the config path for *conn_name*, refusing to escape CONF_DIR.
 
     ``conn_name`` originates in a user-supplied VPN profile, and the write
-    below may go through ``sudo tee`` — so an unvalidated name is an
-    arbitrary-file-write-as-root primitive. Validate the name, then verify
+    below is root-owned — so an unvalidated name is an arbitrary-file-write
+    primitive. Validate the name, then verify
     the resolved path is still inside CONF_DIR as a second line of defence.
     """
     validate_identifier(conn_name, "conn_name", max_length=32)
@@ -39,44 +39,21 @@ def _conf_path(conn_name: str) -> Path:
 
 async def _run(cmd, timeout=30):
     proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     return proc.returncode or 0, stdout.decode(), stderr.decode()
 
 
-async def _sudo_run(cmd, timeout=30):
-    """Run command with sudo prefix."""
-    return await _run(["sudo"] + cmd, timeout)
-
-
-async def _write_conf(conf_text: str, conn_name: str) -> Optional[str]:
-    """Write swanctl config, trying direct first then sudo."""
+async def _write_conf(conf_text: str, conn_name: str) -> str | None:
+    """Write swanctl config as the already-privileged service process."""
     conf_path = _conf_path(conn_name)
 
-    # Try direct write first
     try:
         conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf_path.write_text(conf_text)
         return None
-    except PermissionError:
-        pass
-
-    # Fallback: write via sudo tee
-    try:
-        await _sudo_run(["mkdir", "-p", str(CONF_DIR)])
-        proc = await asyncio.create_subprocess_exec(
-            "sudo", "tee", str(conf_path),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(conf_text.encode()), timeout=10
-        )
-        if proc.returncode != 0:
-            return f"Kunne ikke skrive config: {stderr.decode()}"
-        return None
-    except Exception as e:
+    except OSError as e:
         return f"Kunne ikke skrive config: {e}"
 
 
@@ -87,26 +64,32 @@ async def connect(config: dict, conn_name: str = "msp-fg") -> dict:
     # Check if swanctl is available
     rc, _, _ = await _run(["which", "swanctl"])
     if rc != 0:
-        return {"ok": False, "error": "strongSwan (swanctl) er ikke installert. Installer med: sudo pacman -S strongswan"}
+        return {
+            "ok": False,
+            "error": "strongSwan (swanctl) er ikke installert. Installer med: sudo pacman -S strongswan",
+        }
 
     # Kill any existing connection with same name first
-    await _sudo_run(["swanctl", "--terminate", "--ike", conn_name], timeout=5)
+    await _run(["swanctl", "--terminate", "--ike", conn_name], timeout=5)
 
     conf = _build_swanctl_conf(config, conn_name)
     err = await _write_conf(conf, conn_name)
     if err:
         return {"ok": False, "error": err}
 
-    rc, out, err = await _sudo_run(["swanctl", "--load-all"])
+    rc, _out, err = await _run(["swanctl", "--load-all"])
     if rc != 0:
         return {"ok": False, "error": f"swanctl load feilet: {err}"}
 
     try:
-        rc, out, err = await _sudo_run(["swanctl", "--initiate", "--child", conn_name], timeout=20)
-    except (asyncio.TimeoutError, TimeoutError):
+        rc, _out, err = await _run(["swanctl", "--initiate", "--child", conn_name], timeout=20)
+    except TimeoutError:
         # Terminate the stuck IKE SA, but keep config for retry
-        await _sudo_run(["swanctl", "--terminate", "--ike", conn_name], timeout=5)
-        return {"ok": False, "error": "Tilkobling timet ut etter 20s — FortiGate svarer ikke. Sjekk host/PSK/ruter."}
+        await _run(["swanctl", "--terminate", "--ike", conn_name], timeout=5)
+        return {
+            "ok": False,
+            "error": "Tilkobling timet ut etter 20s — FortiGate svarer ikke. Sjekk host/PSK/ruter.",
+        }
 
     if rc != 0:
         return {"ok": False, "error": f"swanctl initiate feilet: {err}"}
@@ -126,24 +109,25 @@ async def _install_routes(config: dict, conn_name: str) -> None:
     routes with the correct source IP.
     """
     try:
-        rc, sas_out, _ = await _sudo_run(["swanctl", "--list-sas", "--ike", conn_name], timeout=5)
+        rc, sas_out, _ = await _run(["swanctl", "--list-sas", "--ike", conn_name], timeout=5)
         if rc != 0:
             return
 
         # Parse virtual IP (e.g., [10.212.135.1])
         import re
-        vip_match = re.search(r'\[(\d+\.\d+\.\d+\.\d+)\]', sas_out)
+
+        vip_match = re.search(r"\[(\d+\.\d+\.\d+\.\d+)\]", sas_out)
         if not vip_match:
             return
         vip = vip_match.group(1)
 
         # Get tunnel interface from table 220
-        rc, rt_out, _ = await _sudo_run(["ip", "route", "show", "table", "220"], timeout=5)
+        rc, rt_out, _ = await _run(["ip", "route", "show", "table", "220"], timeout=5)
         if rc != 0:
             return
 
         # Parse interface name (e.g., "dev tmpyf2u2sgl")
-        iface_match = re.search(r'dev (\S+)', rt_out)
+        iface_match = re.search(r"dev (\S+)", rt_out)
         if not iface_match:
             return
         iface = iface_match.group(1)
@@ -153,7 +137,7 @@ async def _install_routes(config: dict, conn_name: str) -> None:
         for route in routes:
             route = route.strip()
             if route and route != "0.0.0.0/0":
-                await _sudo_run(["ip", "route", "replace", route, "dev", iface, "src", vip], timeout=5)
+                await _run(["ip", "route", "replace", route, "dev", iface, "src", vip], timeout=5)
                 logger.debug("Added route: %s via %s src %s", route, iface, vip)
     except Exception as e:
         logger.warning("Failed to install routes: %s", e)
@@ -162,22 +146,19 @@ async def _install_routes(config: dict, conn_name: str) -> None:
 async def disconnect(conn_name: str = "msp-fg") -> dict:
     """Disconnect FortiGate IPsec VPN."""
     conf_path = _conf_path(conn_name)  # validates conn_name before any use
-    await _sudo_run(["swanctl", "--terminate", "--ike", conn_name])
+    await _run(["swanctl", "--terminate", "--ike", conn_name])
 
     # Remove config
-    try:
-        conf_path.unlink(missing_ok=True)
-    except PermissionError:
-        await _sudo_run(["rm", "-f", str(conf_path)])
+    conf_path.unlink(missing_ok=True)
 
-    await _sudo_run(["swanctl", "--load-all"])
+    await _run(["swanctl", "--load-all"])
     logger.info("FortiGate IPsec VPN disconnected: %s", conn_name)
     return {"ok": True}
 
 
 async def get_status(conn_name: str = "msp-fg") -> dict:
     validate_identifier(conn_name, "conn_name", max_length=32)
-    rc, out, err = await _sudo_run(["swanctl", "--list-sas", "--ike", conn_name])
+    rc, out, _err = await _run(["swanctl", "--list-sas", "--ike", conn_name])
     if rc != 0 or not out.strip():
         return {"connected": False}
     return {"connected": True, "raw": out}
@@ -199,7 +180,7 @@ def _build_swanctl_conf(config: dict, conn_name: str) -> str:
     - IKE PSK secret listed before EAP secret
 
     Every interpolated value is validated or escaped first: this text is
-    written to /etc/swanctl/conf.d (potentially via sudo), so an unescaped
+    written to /etc/swanctl/conf.d as root, so an unescaped
     quote or newline in a PSK would let a profile inject config directives.
     """
     validate_identifier(conn_name, "conn_name", max_length=32)

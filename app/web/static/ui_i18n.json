@@ -2796,7 +2796,9 @@
     "hdr_audit_idle": "Ingen audit kjører",
     "msg_audit_idle_body": "En audit leser kundens Microsoft 365- og Azure-miljø og skriver et resultat. Ingenting endres hos kunden.",
     "lbl_never": "aldri",
-    "btn_see_last_result": "Se siste resultat"
+    "btn_see_last_result": "Se siste resultat",
+    "vpn_external_control": "Ekstern VPN-kontroll",
+    "vpn_external_control_desc": "Tunneler må etableres utenfor Sybr HUB på denne verten."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5595,6 +5597,8 @@
     "hdr_audit_idle": "No audit is running",
     "msg_audit_idle_body": "An audit reads the customer Microsoft 365 and Azure environment and writes a result. Nothing in the customer tenant is changed.",
     "lbl_never": "never",
-    "btn_see_last_result": "See last result"
+    "btn_see_last_result": "See last result",
+    "vpn_external_control": "External VPN control",
+    "vpn_external_control_desc": "Tunnels must be established outside Sybr HUB on this host."
   }
 }

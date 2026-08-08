@@ -9,16 +9,15 @@ from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import (
     AuthError,
-    ForbiddenError,
     ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
 )
-from app.models.user import User
+from app.models.user import Role, User
 from app.web import state
 from app.web.i18n import ui_t
-from app.models.user import Role
 from app.web.middleware.auth import get_current_user, require_customer_access
 
 logger = logging.getLogger(__name__)
@@ -36,8 +35,10 @@ async def get_customer_trends(
 ):
     """Return historical audit metrics for a customer, newest first."""
     from app.core.database import get_db
-    async with get_db() as conn:
-        async with conn.execute(
+
+    async with (
+        get_db() as conn,
+        conn.execute(
             """SELECT audit_date, risk_grade, risk_score, mfa_coverage_pct,
                       secure_score_pct, total_users, users_no_mfa,
                       ca_policies_enabled, intune_compliance_pct
@@ -45,14 +46,21 @@ async def get_customer_trends(
                WHERE customer_id = ? OR customer_name = ?
                ORDER BY audit_date DESC LIMIT ?""",
             (customer_id, customer_id, limit),
-        ) as cur:
-            rows = await cur.fetchall()
+        ) as cur,
+    ):
+        rows = await cur.fetchall()
     # Return oldest-first for chart rendering
     entries = [
         {
-            "date": r[0], "risk_grade": r[1], "risk_score": r[2],
-            "mfa_pct": r[3], "secure_score_pct": r[4], "total_users": r[5],
-            "users_no_mfa": r[6], "ca_policies": r[7], "intune_pct": r[8],
+            "date": r[0],
+            "risk_grade": r[1],
+            "risk_score": r[2],
+            "mfa_pct": r[3],
+            "secure_score_pct": r[4],
+            "total_users": r[5],
+            "users_no_mfa": r[6],
+            "ca_policies": r[7],
+            "intune_pct": r[8],
         }
         for r in reversed(rows)
     ]
@@ -63,19 +71,40 @@ async def get_customer_trends(
 async def get_all_trends(user: User = _auth, limit: int = 50):
     """Return latest metrics per customer for dashboard sparklines."""
     from app.core.database import get_db
-    async with get_db() as conn:
-        async with conn.execute(
-            """SELECT customer_id, customer_name, audit_date, risk_grade, risk_score,
-                      mfa_coverage_pct, secure_score_pct
-               FROM audit_metrics
-               ORDER BY audit_date DESC LIMIT ?""",
-            (limit,),
-        ) as cur:
-            rows = await cur.fetchall()
+    from app.core.rbac import get_accessible_customer_ids
+
+    allowed = await get_accessible_customer_ids(user)
+    params: tuple[object, ...]
+    if allowed is None:
+        where = ""
+        params = (limit,)
+    elif not allowed:
+        return {"entries": []}
+    else:
+        placeholders = ", ".join("?" for _ in allowed)
+        where = f"WHERE customer_id IN ({placeholders})"
+        params = (*sorted(allowed), limit)
+
+    async with (
+        get_db() as conn,
+        conn.execute(
+            f"""SELECT customer_id, customer_name, audit_date, risk_grade, risk_score,
+                       mfa_coverage_pct, secure_score_pct
+                FROM audit_metrics
+                {where}
+                ORDER BY audit_date DESC LIMIT ?""",
+            params,
+        ) as cur,
+    ):
+        rows = await cur.fetchall()
     entries = [
         {
-            "customer_id": r[0], "customer_name": r[1], "date": r[2],
-            "risk_grade": r[3], "risk_score": r[4], "mfa_pct": r[5],
+            "customer_id": r[0],
+            "customer_name": r[1],
+            "date": r[2],
+            "risk_grade": r[3],
+            "risk_score": r[4],
+            "mfa_pct": r[5],
             "secure_score_pct": r[6],
         }
         for r in rows
@@ -119,6 +148,7 @@ async def list_history(user: User = _auth):
             if has_metrics:
                 try:
                     from app.core.encryption import encrypted_read_json
+
                     m = encrypted_read_json(run_dir / "_audit_metrics.json")
                     metrics_summary = {
                         "risk_grade": m.get("risk_grade", ""),
@@ -127,14 +157,16 @@ async def list_history(user: User = _auth):
                     }
                 except Exception as e:
                     logger.debug("Failed to read audit metrics: %s", e)
-            history.append({
-                "customer": customer_name,
-                "timestamp": run_dir.name,
-                "path": str(run_dir),
-                "file_count": len(txt_files),
-                "has_metrics": has_metrics,
-                "metrics": metrics_summary,
-            })
+            history.append(
+                {
+                    "customer": customer_name,
+                    "timestamp": run_dir.name,
+                    "path": str(run_dir),
+                    "file_count": len(txt_files),
+                    "has_metrics": has_metrics,
+                    "metrics": metrics_summary,
+                }
+            )
 
     return {"history": history}
 
@@ -142,6 +174,10 @@ async def list_history(user: User = _auth):
 @router.post("/history/load")
 async def load_history(request: Request, user: User = _auth):
     """Load a previous audit run into memory for report generation."""
+    existing = state.get_user_audit(user.id)
+    if existing is not None and existing.running:
+        raise ConflictError(ui_t("err_audit_running", request))
+
     body = await request.json()
     run_path = Path(body.get("path", ""))
 
@@ -149,16 +185,20 @@ async def load_history(request: Request, user: User = _auth):
         raise NotFoundError(ui_t("err_invalid_path", request))
 
     from app.core.config import get_audit_dir
+
     try:
         run_path.resolve().relative_to(get_audit_dir().resolve())
     except ValueError:
-        raise AuthError(ui_t("err_invalid_path", request))
+        raise AuthError(ui_t("err_invalid_path", request)) from None
+
+    from app.core.rbac import check_audit_path_access
+
+    if not await check_audit_path_access(user, str(run_path)):
+        raise ForbiddenError("Ingen tilgang til denne auditkjøringen")
 
     txt_files = sorted(run_path.glob("*.txt"))
     if not txt_files:
         raise ValidationError(ui_t("err_no_data_files", request))
-
-    from app.modules.base import SectionResult, SectionStatus
 
     # Reconstruct results from files on disk
     # Group files by section number prefix (e.g. 01_, 02_, ...)
@@ -166,7 +206,11 @@ async def load_history(request: Request, user: User = _auth):
     for f in txt_files:
         # Extract section prefix: "01_tenant.txt" -> "01"
         parts = f.name.split("_", 1)
-        prefix = parts[0] if parts[0].isdigit() or (len(parts[0]) >= 2 and parts[0][:2].isdigit()) else "99"
+        prefix = (
+            parts[0]
+            if parts[0].isdigit() or (len(parts[0]) >= 2 and parts[0][:2].isdigit())
+            else "99"
+        )
         # Normalize: 07b -> 07, 19c -> 19, etc.
         num = ""
         for ch in prefix:
@@ -179,19 +223,33 @@ async def load_history(request: Request, user: User = _auth):
 
     # Map section numbers to friendly names
     section_names = {
-        "01": "Tenant Info", "02": "Licenses", "03": "Users",
-        "04": "MFA Methods", "05": "Sign-in Activity",
-        "06": "Groups", "07": "Admin Roles & PIM",
-        "08": "Conditional Access", "09": "Secure Score & Auth",
-        "10": "Intune Devices", "11": "Intune Compliance",
-        "13": "Intune Apps", "14": "Intune Autopilot",
-        "15": "SharePoint", "16": "Teams",
-        "17": "Apps & OAuth", "18": "Identity Security",
-        "19": "Defender & Purview", "20": "Exchange Mailboxes",
-        "21": "Exchange Transport Rules", "22": "Exchange Connectors",
-        "23": "Exchange Anti-Phish", "24": "Exchange Anti-Spam",
-        "25": "Exchange DKIM", "26": "Email DNS (SPF/DMARC)",
-        "27": "Exchange Defender Policies", "28": "Mailbox Forwarding",
+        "01": "Tenant Info",
+        "02": "Licenses",
+        "03": "Users",
+        "04": "MFA Methods",
+        "05": "Sign-in Activity",
+        "06": "Groups",
+        "07": "Admin Roles & PIM",
+        "08": "Conditional Access",
+        "09": "Secure Score & Auth",
+        "10": "Intune Devices",
+        "11": "Intune Compliance",
+        "13": "Intune Apps",
+        "14": "Intune Autopilot",
+        "15": "SharePoint",
+        "16": "Teams",
+        "17": "Apps & OAuth",
+        "18": "Identity Security",
+        "19": "Defender & Purview",
+        "20": "Exchange Mailboxes",
+        "21": "Exchange Transport Rules",
+        "22": "Exchange Connectors",
+        "23": "Exchange Anti-Phish",
+        "24": "Exchange Anti-Spam",
+        "25": "Exchange DKIM",
+        "26": "Email DNS (SPF/DMARC)",
+        "27": "Exchange Defender Policies",
+        "28": "Mailbox Forwarding",
         "29": "Inbox Rules",
     }
 
@@ -200,16 +258,36 @@ async def load_history(request: Request, user: User = _auth):
         files = section_map[num]
         name = section_names.get(num, f"Section {num}")
         warns = [f for f in files if "WARN" in f.upper()]
-        results.append({
-            "name": name,
-            "status": "done",
-            "warns": warns,
-            "files": files,
-            "error": None,
-        })
+        results.append(
+            {
+                "name": name,
+                "status": "done",
+                "warns": warns,
+                "files": files,
+                "error": None,
+            }
+        )
 
-    state.audit_results = results
-    state.audit_out_dir = run_path
+    from app.core.customer import CustomerManager, customers_for_dir_name
+
+    matches = customers_for_dir_name(run_path.parent.name)
+    active_id = CustomerManager.get_active_id()
+    active_match = next(
+        (c.get("_id", "") for c in matches if c.get("_id", "") == active_id),
+        "",
+    )
+    if active_match:
+        customer_id = active_match
+    elif len(matches) == 1:
+        customer_id = matches[0].get("_id", "")
+    else:
+        raise ValidationError("Auditmappen kan ikke knyttes entydig til aktiv kunde")
+    state.select_user_audit(
+        user.id,
+        customer_id,
+        out_dir=run_path,
+        results=results,
+    )
 
     # Derive customer name from parent dir
     customer_name = run_path.parent.name.replace("_", " ")
@@ -270,8 +348,13 @@ async def delete_history_runs(request: Request, user: User = _auth):
     # Log activity
     try:
         from app.core.activity_log import log_activity
+
         _user = getattr(getattr(request.state, "user", None), "username", "")
-        log_activity("history_deleted", detail=ui_t("log_history_deleted", request).format(count=len(deleted)), user=_user)
+        log_activity(
+            "history_deleted",
+            detail=ui_t("log_history_deleted", request).format(count=len(deleted)),
+            user=_user,
+        )
     except Exception as e:
         logger.debug("Failed to log history deletion activity: %s", e)
 
@@ -297,9 +380,10 @@ async def delete_customer_history(request: Request, user: User = _auth):
     try:
         target.resolve().relative_to(audit_dir.resolve())
     except ValueError:
-        raise AuthError(ui_t("err_invalid_path", request))
+        raise AuthError(ui_t("err_invalid_path", request)) from None
 
     from app.core.rbac import check_audit_path_access
+
     if not await check_audit_path_access(user, customer_dir_name):
         raise ForbiddenError("Du har ikke tilgang til denne kunden")
 
@@ -312,12 +396,19 @@ async def delete_customer_history(request: Request, user: User = _auth):
         shutil.rmtree(str(target))
     except Exception as e:
         logger.error("Failed to delete history for %s: %s", customer_dir_name, e)
-        raise IntegrationError(ui_t("err_history_delete_failed", request))
+        raise IntegrationError(ui_t("err_history_delete_failed", request)) from e
 
     try:
         from app.core.activity_log import log_activity
+
         _user = getattr(getattr(request.state, "user", None), "username", "")
-        log_activity("history_deleted", detail=ui_t("log_history_deleted_customer", request).format(count=run_count, customer=customer_dir_name.replace("_", " ")), user=_user)
+        log_activity(
+            "history_deleted",
+            detail=ui_t("log_history_deleted_customer", request).format(
+                count=run_count, customer=customer_dir_name.replace("_", " ")
+            ),
+            user=_user,
+        )
     except Exception as e:
         logger.debug("Failed to log customer history deletion activity: %s", e)
 
@@ -343,7 +434,7 @@ async def compare_audits(run1: str, run2: str, user: User = _auth):
         try:
             p.resolve().relative_to(AUDIT_DIR.resolve())
         except ValueError:
-            raise AuthError(f"{label}: {ui_t('err_invalid_path')}")
+            raise AuthError(f"{label}: {ui_t('err_invalid_path')}") from None
 
     metrics1 = encrypted_read_json(path1 / "_audit_metrics.json")
     metrics2 = encrypted_read_json(path2 / "_audit_metrics.json")

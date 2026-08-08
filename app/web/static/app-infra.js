@@ -743,6 +743,7 @@ async function vpnLoadProfiles() {
     badge.style.borderColor = colors[st] || 'var(--border)';
   }
   var profiles = data.profiles || [];
+  var vpnCapabilities = (status && status.capabilities && status.capabilities.protocols) || {};
   var protocolLabels = {
     wireguard: 'WireGuard', openvpn: 'OpenVPN', azure: 'Azure P2S VPN',
     fortigate_ipsec: 'FortiGate IPsec', fortigate: 'FortiGate SSL',
@@ -752,6 +753,16 @@ async function vpnLoadProfiles() {
     fortigate_ipsec: '&#128737;', fortigate: '&#128737;',
   };
   var html = '';
+  var unavailableProtocols = Object.keys(vpnCapabilities).filter(function(protocol) {
+    return vpnCapabilities[protocol] && !vpnCapabilities[protocol].available;
+  });
+  if (unavailableProtocols.length) {
+    var firstUnavailable = vpnCapabilities[unavailableProtocols[0]];
+    html += '<div class="card vpn-capability-warning">'
+      + '<strong>' + t('vpn_external_control','External VPN control') + '</strong><br>'
+      + esc(firstUnavailable.reason || t('vpn_external_control_desc','Tunnels must be established outside Sybr HUB on this host.'))
+      + '</div>';
+  }
   if (!profiles.length) { html = '<div class="empty-state" style="padding:var(--space-8);"><div class="empty-icon">&#128274;</div><div class="empty-title">' + t('msg_no_vpn_profiles','No VPN profiles') + '</div><div class="empty-desc">' + t('msg_import_vpn','Import a .conf, .ovpn or .xml file to add a profile.') + '</div></div>'; }
   else {
     // Connection info summary when connected
@@ -792,6 +803,8 @@ async function vpnLoadProfiles() {
       var isConnecting = myConn && myConn.state === 'connecting';
       var protoLabel = protocolLabels[p.protocol] || p.protocol;
       var protoIcon = protocolIcons[p.protocol] || '&#128274;';
+      var protocolCapability = vpnCapabilities[p.protocol];
+      var mayConnect = !protocolCapability || protocolCapability.available;
       var statusDot = isActive ? '<span style="width:10px;height:10px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 6px var(--green);"></span>'
         : isConnecting ? '<span style="width:10px;height:10px;border-radius:50%;background:var(--orange);display:inline-block;animation:pulse 1.5s infinite;"></span>'
         : '<span style="width:10px;height:10px;border-radius:50%;background:var(--text-dim);display:inline-block;"></span>';
@@ -806,7 +819,9 @@ async function vpnLoadProfiles() {
       } else if (isConnecting) {
         html += '<button class="btn btn-warning btn-sm" onclick="vpnForceDisconnect()">' + t('vpn_cancel','Cancel') + '</button>';
       } else {
-        html += '<button class="btn btn-primary btn-sm" onclick="vpnConnect(\''+p.id+'\')">' + t('vpn_connect','Connect') + '</button>';
+        html += '<button class="btn btn-primary btn-sm" onclick="vpnConnect(\''+p.id+'\')"'
+          + (mayConnect ? '' : ' disabled aria-disabled="true" title="' + esc(protocolCapability.reason || '') + '"')
+          + '>' + t('vpn_connect','Connect') + '</button>';
       }
       html += '<button class="btn btn-ghost btn-sm" onclick="vpnEditProfile(\''+p.id+'\')">' + t('btn_edit','Edit') + '</button>';
       html += '<button class="btn btn-ghost btn-sm" style="color:var(--text-dim);margin-left:auto;" onclick="vpnDeleteProfile(\''+p.id+'\')" title="' + t('btn_delete') + '">&#128465;</button>';

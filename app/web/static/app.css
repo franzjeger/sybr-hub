@@ -2126,3 +2126,11 @@
 /* Hidden rather than disabled: an account without the capability is not
    meant to see the door, and a greyed-out button invites a support ticket. */
 body.is-readonly [data-write] { display: none !important; }
+
+.vpn-capability-warning {
+  border-color: var(--orange);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+.vpn-capability-warning > strong { color: var(--orange); }

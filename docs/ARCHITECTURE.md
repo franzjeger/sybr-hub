@@ -145,6 +145,15 @@ profile bound to a customer, bring the tunnel up as `sybr-system`, run the
 network audit that already reads a FortiGate and a UniFi controller, store the
 result beside that customer's audits, bring the tunnel down.
 
+That connect step is conditional on the host boundary. The shipped systemd
+unit has `NoNewPrivileges=yes` and no `CAP_NET_ADMIN`, so it deliberately
+reports VPN control as `external` and never tries `sudo`. In that deployment
+the route must already exist (created outside the web process); direct tunnel
+control is only available when the running process has the effective
+capability, or root for the strongSwan configuration path. The API and UI use
+the same per-protocol decision, and the service layer repeats it before
+loading profile secrets.
+
 One site at a time, and that is not a performance oversight — customer sites
 overlap on RFC1918, so two tunnels up at once means routes fighting and the
 collector reading whichever site won. The tunnel comes down in a `finally`, and
@@ -720,6 +729,13 @@ loudly in CI rather than quietly in production.
 different active customers, checks the status/config view for both, exercises
 concurrent task contexts, and then revokes access after selection. This locks
 both isolation and the fail-closed direction.
+
+Audit output state follows the same rule. `web/state.py` keeps the selected
+run per user: customer id, run id, progress, cancellation flag, result list and
+output directory travel together. Report, history, email and integration
+routes resolve that context and re-check the path against the caller's current
+RBAC before touching disk. The remaining process-global `audit_running` flag
+only serializes collection; it contains no customer data and grants no access.
 
 ## Front-end assets
 

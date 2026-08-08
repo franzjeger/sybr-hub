@@ -3,6 +3,7 @@
 Uses PKCE authorization-code flow (like SuperManager) with a local
 redirect URI handled by our web server. Opens a popup for MFA login.
 """
+
 import asyncio
 import base64
 import hashlib
@@ -32,9 +33,11 @@ def get_auth_url(config: dict, redirect_uri: str) -> dict:
 
     # PKCE
     code_verifier = secrets.token_urlsafe(64)
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b"=").decode()
+    code_challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+        .rstrip(b"=")
+        .decode()
+    )
 
     state = secrets.token_urlsafe(32)
 
@@ -102,8 +105,11 @@ async def exchange_code(state: str, code: str) -> dict:
                     payload_b64 = id_token.split(".")[1]
                     payload_b64 += "=" * (4 - len(payload_b64) % 4)
                     import json as _json
+
                     claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
-                    upn = claims.get("preferred_username", claims.get("upn", claims.get("email", "")))
+                    upn = claims.get(
+                        "preferred_username", claims.get("upn", claims.get("email", ""))
+                    )
                     if upn:
                         _save_login_hint(client_id, tenant_id, upn)
                 except Exception as e:
@@ -125,6 +131,7 @@ async def exchange_code(state: str, code: str) -> dict:
 # ── Device Code Flow via MSAL (headless servers) ────────────────────────────
 
 _device_code_pending: dict[str, dict] = {}
+
 
 async def start_device_code_flow(config: dict) -> dict:
     """Start device code flow for Azure P2S VPN using MSAL.
@@ -186,9 +193,7 @@ async def _poll_device_code_msal(device_code: str):
 
     loop = asyncio.get_event_loop()
     try:
-        result = await loop.run_in_executor(
-            None, lambda: app.acquire_token_by_device_flow(flow)
-        )
+        result = await loop.run_in_executor(None, lambda: app.acquire_token_by_device_flow(flow))
     except Exception as e:
         pending["status"] = "error"
         pending["error"] = str(e)
@@ -206,7 +211,9 @@ async def _poll_device_code_msal(device_code: str):
     else:
         pending["status"] = "error"
         pending["status"] = "error"
-        pending["error"] = result.get("error_description", result.get("error", "Authentication failed"))
+        pending["error"] = result.get(
+            "error_description", result.get("error", "Authentication failed")
+        )
 
 
 def get_device_code_status(device_code: str) -> dict:
@@ -261,6 +268,7 @@ async def get_token_silent(config: dict) -> str | None:
 def _save_refresh_token(client_id: str, tenant_id: str, token: str):
     from app.core.config import DATA_DIR
     from app.core.encryption import encrypted_write_bytes
+
     token_dir = DATA_DIR / "azure_vpn_tokens"
     token_dir.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
@@ -270,6 +278,7 @@ def _save_refresh_token(client_id: str, tenant_id: str, token: str):
 def _load_refresh_token(client_id: str, tenant_id: str) -> str | None:
     from app.core.config import DATA_DIR
     from app.core.encryption import encrypted_read_bytes
+
     key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
     token_path = DATA_DIR / "azure_vpn_tokens" / f"{key}.token"
     if not token_path.exists():
@@ -284,6 +293,7 @@ def _load_refresh_token(client_id: str, tenant_id: str) -> str | None:
 def _save_login_hint(client_id: str, tenant_id: str, upn: str):
     from app.core.config import DATA_DIR
     from app.core.encryption import encrypted_write_bytes
+
     token_dir = DATA_DIR / "azure_vpn_tokens"
     token_dir.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
@@ -293,6 +303,7 @@ def _save_login_hint(client_id: str, tenant_id: str, upn: str):
 def _load_login_hint(client_id: str, tenant_id: str) -> str:
     from app.core.config import DATA_DIR
     from app.core.encryption import encrypted_read_bytes
+
     key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
     hint_path = DATA_DIR / "azure_vpn_tokens" / f"{key}.hint"
     if not hint_path.exists():
@@ -322,17 +333,24 @@ def _build_ovpn_config(gw: str, ca_cert: str, tls_key_hex: str) -> str:
     else needs access to the key.
     """
     lines = [
-        "client", "dev tun", "proto tcp",
+        "client",
+        "dev tun",
+        "proto tcp",
         f"remote {gw} 443",
-        "resolv-retry infinite", "nobind", "persist-tun",
+        "resolv-retry infinite",
+        "nobind",
+        "persist-tun",
         "remote-cert-tls server",
-        "auth SHA256", "cipher AES-256-GCM", "data-ciphers AES-256-GCM",
-        "disable-dco", "verb 3",
+        "auth SHA256",
+        "cipher AES-256-GCM",
+        "data-ciphers AES-256-GCM",
+        "disable-dco",
+        "verb 3",
         "auth-user-pass",
     ]
     if tls_key_hex and tls_key_hex.strip():
         hex_clean = tls_key_hex.strip()
-        body = "\n".join(hex_clean[i:i + 32] for i in range(0, len(hex_clean), 32))
+        body = "\n".join(hex_clean[i : i + 32] for i in range(0, len(hex_clean), 32))
         lines.append(
             "<tls-auth>\n"
             "-----BEGIN OpenVPN Static key V1-----\n"
@@ -355,6 +373,7 @@ def _write_private(content: str, suffix: str) -> pathlib.Path:
     predict. mkstemp creates the file O_EXCL with mode 0600, owned by us.
     """
     import tempfile
+
     fd, name = tempfile.mkstemp(suffix=suffix, prefix="azvpn_")
     try:
         with os.fdopen(fd, "w") as fh:
@@ -382,7 +401,10 @@ async def connect(config: dict, access_token: str) -> dict:
         return {"ok": False, "error": "Ingen gateway FQDN konfigurert"}
 
     if not shutil.which("openvpn3"):
-        return {"ok": False, "error": "openvpn3 ikke installert. Kjør: sudo apt install openvpn3-client"}
+        return {
+            "ok": False,
+            "error": "openvpn3 ikke installert. Kjør: sudo apt install openvpn3-client",
+        }
 
     # Build config with the TLS-auth key inlined (no separate key file), and
     # write it to a private 0600 temp — the inlined key makes the config itself
@@ -392,26 +414,43 @@ async def connect(config: dict, access_token: str) -> dict:
     try:
         # Disconnect any existing session
         kill_proc = await asyncio.create_subprocess_exec(
-            "openvpn3", "sessions-list",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            "openvpn3",
+            "sessions-list",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
         sessions_out, _ = await kill_proc.communicate()
         for line in sessions_out.decode().split("\n"):
             if "Path:" in line:
                 spath = line.split("Path:")[1].strip()
-                await (await asyncio.create_subprocess_exec(
-                    "openvpn3", "session-manage", "--disconnect", "--path", spath,
-                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
+                await (
+                    await asyncio.create_subprocess_exec(
+                        "openvpn3",
+                        "session-manage",
+                        "--disconnect",
+                        "--path",
+                        spath,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                ).wait()
         await asyncio.sleep(1)
 
         # Start openvpn3 — pipe credentials via stdin
         proc = await asyncio.create_subprocess_exec(
-            "openvpn3", "session-start", "--config", str(conf_path), "--timeout", "15",
+            "openvpn3",
+            "session-start",
+            "--config",
+            str(conf_path),
+            "--timeout",
+            "15",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE)
+            stderr=asyncio.subprocess.PIPE,
+        )
         stdout, stderr = await asyncio.wait_for(
-            proc.communicate(input=f"AzureAD\n{access_token}\n".encode()),
-            timeout=20)
+            proc.communicate(input=f"AzureAD\n{access_token}\n".encode()), timeout=20
+        )
     finally:
         # Remove the inlined TLS-auth key even when a subprocess or timeout
         # fails before OpenVPN has imported the configuration.
@@ -426,8 +465,14 @@ async def connect(config: dict, access_token: str) -> dict:
     # Check tun0
     await asyncio.sleep(2)
     check = await asyncio.create_subprocess_exec(
-        "ip", "addr", "show", "dev", "tun0",
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        "ip",
+        "addr",
+        "show",
+        "dev",
+        "tun0",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
     ip_out, _ = await check.communicate()
 
     if check.returncode != 0 or b"inet " not in ip_out:
@@ -438,38 +483,26 @@ async def connect(config: dict, access_token: str) -> dict:
     logger.info("Azure VPN connected via openvpn3: tun0 = %s", local_ip)
 
     # Set DNS. dns_servers is operator config, but it can be imported from an
-    # untrusted .ovpn — and it reaches `sudo resolvectl` as an argument, where
+    # untrusted .ovpn — and it reaches `resolvectl` as an argument, where
     # a value starting with "-" would be a flag. An IP cannot; validate first.
     import ipaddress
+
     for dns in dns_servers:
         try:
             ipaddress.ip_address(str(dns).strip())
         except ValueError:
             logger.warning("Ignoring invalid DNS server %r from config", dns)
             continue
-        await (await asyncio.create_subprocess_exec(
-            "sudo", "resolvectl", "dns", "tun0", str(dns).strip(),
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
-
-    # Save refresh token for auto-refresh. This is a plaintext copy of a
-    # long-lived secret for a root-run openvpn helper — the app's own copy in
-    # DATA_DIR is encrypted. It goes to a private 0600 temp (not a predictable
-    # /tmp name) and the destination is chmod 600, not 644: the helper runs as
-    # root and has no need to expose it to every local user.
-    client_id = config.get("client_id", "")
-    tenant_id = config.get("tenant_id", "")
-    refresh = _load_refresh_token(client_id, tenant_id)
-    if refresh:
-        rt_tmp = _write_private(refresh, ".txt")
-        try:
-            await (await asyncio.create_subprocess_exec(
-                "sudo", "cp", str(rt_tmp), "/etc/openvpn/msp/refresh_token.txt",
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
-            await (await asyncio.create_subprocess_exec(
-                "sudo", "chmod", "600", "/etc/openvpn/msp/refresh_token.txt",
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
-        finally:
-            rt_tmp.unlink(missing_ok=True)
+        dns_proc = await asyncio.create_subprocess_exec(
+            "resolvectl",
+            "dns",
+            "tun0",
+            str(dns).strip(),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        if await dns_proc.wait() != 0:
+            logger.warning("Could not set DNS on tun0 without privilege elevation")
 
     return {"ok": True, "interface": "tun0", "local_ip": local_ip}
 
@@ -477,22 +510,28 @@ async def connect(config: dict, access_token: str) -> dict:
 async def disconnect() -> dict:
     """Disconnect all openvpn3 sessions."""
     proc = await asyncio.create_subprocess_exec(
-        "openvpn3", "sessions-list",
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        "openvpn3",
+        "sessions-list",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
     out, _ = await proc.communicate()
     disconnected = 0
     for line in out.decode().split("\n"):
         if "Path:" in line:
             spath = line.split("Path:")[1].strip()
-            await (await asyncio.create_subprocess_exec(
-                "openvpn3", "session-manage", "--disconnect", "--path", spath,
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
+            await (
+                await asyncio.create_subprocess_exec(
+                    "openvpn3",
+                    "session-manage",
+                    "--disconnect",
+                    "--path",
+                    spath,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+            ).wait()
             disconnected += 1
-
-    # Also kill any legacy openvpn processes
-    await (await asyncio.create_subprocess_exec(
-        "sudo", "pkill", "-f", "openvpn.*azure",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)).wait()
 
     return {"ok": True, "message": f"Disconnected {disconnected} session(s)"}
 
@@ -500,8 +539,11 @@ async def disconnect() -> dict:
 async def get_status() -> dict:
     """Check openvpn3 session status."""
     proc = await asyncio.create_subprocess_exec(
-        "openvpn3", "sessions-list",
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        "openvpn3",
+        "sessions-list",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
     out, _ = await proc.communicate()
     output = out.decode()
     if "Client connected" in output:
