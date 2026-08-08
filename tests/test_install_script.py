@@ -19,3 +19,12 @@ def test_installer_does_not_rotate_an_existing_wrap_secret():
     creation = INSTALLER.index("secrets.token_urlsafe(48)")
     end = INSTALLER.index("\nfi", creation)
     assert guard < creation < end
+
+
+def test_installer_fetches_tags_so_the_deployed_version_resolves():
+    # app/core/version.py derives the displayed version from `git describe
+    # --tags` and silently falls back to __version__ when no tag is reachable.
+    # Both the --depth 1 clone and the single-branch fetch omit tag refs, so
+    # without an explicit tag fetch every deployment reported the hardcoded
+    # fallback regardless of which release was actually running.
+    assert "fetch --tags" in INSTALLER

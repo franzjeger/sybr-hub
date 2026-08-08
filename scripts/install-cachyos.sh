@@ -81,6 +81,12 @@ else
     sudo -u "$SVC_USER" git clone --depth 1 --branch "$BRANCH" "$REPO" "$PREFIX"
 fi
 
+# app/core/version.py resolves the displayed version with `git describe --tags`
+# and falls back to a hardcoded string when that fails. Neither a --depth 1
+# clone nor a single-branch fetch brings tag refs along, so without this the UI
+# reports the fallback forever, whatever is actually deployed.
+sudo -u "$SVC_USER" git -C "$PREFIX" fetch --tags --force origin
+
 # ── Python environment ────────────────────────────────────────────────────────
 # Arch/CachyOS ships whatever Python is newest (3.14 at time of writing).
 # CI covers 3.11-3.14; the version is reported rather than blocked, since
