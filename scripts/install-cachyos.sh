@@ -72,20 +72,27 @@ chown root:root "$WRAP_SECRET"
 chmod 600 "$WRAP_SECRET"
 
 # ── Source ────────────────────────────────────────────────────────────────────
+# Full history rather than --depth 1. app/core/version.py resolves the release
+# with `git describe --tags`, which needs the tagged commit to be *reachable* —
+# fetching the tag ref alone is not enough. A shallow checkout can therefore
+# only describe a tag sitting exactly on HEAD, so the first deploy after any
+# release silently reported the fallback version instead of the release. The
+# whole history is about 6 MB against a ~600 MB checkout, so there is nothing
+# to save here.
 if [[ -d "$PREFIX/.git" ]]; then
     log "Updating existing checkout"
-    sudo -u "$SVC_USER" git -C "$PREFIX" fetch --depth 1 origin "$BRANCH"
+    sudo -u "$SVC_USER" git -C "$PREFIX" fetch --tags --force origin "$BRANCH"
     sudo -u "$SVC_USER" git -C "$PREFIX" reset --hard "origin/$BRANCH"
+    # Installs made by an earlier version of this script are still shallow, and
+    # a shallow repository stays shallow through an ordinary fetch.
+    if [[ "$(sudo -u "$SVC_USER" git -C "$PREFIX" rev-parse --is-shallow-repository)" == "true" ]]; then
+        log "Deepening the shallow checkout so tags are reachable"
+        sudo -u "$SVC_USER" git -C "$PREFIX" fetch --unshallow --tags origin
+    fi
 else
     log "Cloning $REPO ($BRANCH)"
-    sudo -u "$SVC_USER" git clone --depth 1 --branch "$BRANCH" "$REPO" "$PREFIX"
+    sudo -u "$SVC_USER" git clone --branch "$BRANCH" "$REPO" "$PREFIX"
 fi
-
-# app/core/version.py resolves the displayed version with `git describe --tags`
-# and falls back to a hardcoded string when that fails. Neither a --depth 1
-# clone nor a single-branch fetch brings tag refs along, so without this the UI
-# reports the fallback forever, whatever is actually deployed.
-sudo -u "$SVC_USER" git -C "$PREFIX" fetch --tags --force origin
 
 # ── Python environment ────────────────────────────────────────────────────────
 # Arch/CachyOS ships whatever Python is newest (3.14 at time of writing).
