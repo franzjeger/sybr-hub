@@ -909,8 +909,81 @@ def _isp_mean(wans: list[dict], field: str, digits: int) -> float | None:
     return round(sum(values) / len(values), digits) if values else None
 
 
+def _isp_mean_mbps(wans: list[dict], field: str) -> float | None:
+    """Average a kbps field and return Mbps, or None when nothing reported it."""
+    mean_kbps = _isp_mean(wans, field, 0)
+    return round(mean_kbps / 1000, 1) if mean_kbps is not None else None
+
+
+def _isp_max(wans: list[dict], field: str) -> float | None:
+    """The worst reading in the window, or None when nothing reported it."""
+    values = [w.get(field) for w in wans if w.get(field) is not None]
+    return max(values) if values else None
+
+
 def _kbps_to_mbps(value: Any) -> float | None:
     return round(value / 1000, 1) if isinstance(value, (int, float)) else None
+
+
+def summarise_isp_sites(raw: list[dict]) -> list[dict[str, Any]]:
+    """Reduce the ISP metrics payload to one summary per site.
+
+    Pure, so the shape this parses can be tested without a network call —
+    the previous parser read a path that did not exist and nothing caught
+    it, because the only way to exercise it was against the live API.
+    """
+    # One entry per site, each carrying its readings under "periods".
+    # This used to read entry["data"]["wan"] — a path that does not
+    # exist on a site entry, so wan_data was always {} and every field
+    # collapsed to zero. Confirmed against the live API: the readings
+    # are at entry["periods"][]["data"]["wan"], 283 of them per site
+    # for 5m/24h, and data_points was counting sites rather than
+    # readings, which is why the panel said "1 reading".
+    sites_summary = []
+    for site_entry in raw:
+        site_id = site_entry.get("siteId") or site_entry.get("hostId") or "unknown"
+        wans = [
+            period.get("data", {}).get("wan")
+            for period in site_entry.get("periods") or []
+            if period.get("data", {}).get("wan")
+        ]
+        latest_wan = wans[-1] if wans else {}
+
+        sites_summary.append({
+            "site_id": site_id,
+            "host_id": site_entry.get("hostId"),
+            "isp": latest_wan.get("ispName") or "",
+            "isp_asn": latest_wan.get("ispAsn"),
+            # Distinguishes "the API returned nothing for this site"
+            # from "the API returned genuine zeros".
+            "has_readings": bool(wans),
+            "latest": {
+                "download_mbps": _kbps_to_mbps(latest_wan.get("download_kbps")),
+                "upload_mbps": _kbps_to_mbps(latest_wan.get("upload_kbps")),
+                "latency_ms": latest_wan.get("avgLatency"),
+                "max_latency_ms": latest_wan.get("maxLatency"),
+                "packet_loss": latest_wan.get("packetLoss"),
+                "uptime_pct": latest_wan.get("uptime"),
+            },
+            "averages": {
+                "download_mbps": _isp_mean_mbps(wans, "download_kbps"),
+                "upload_mbps": _isp_mean_mbps(wans, "upload_kbps"),
+                "latency_ms": _isp_mean(wans, "avgLatency", 1),
+                "max_latency_ms": _isp_mean(wans, "maxLatency", 1),
+                "packet_loss": _isp_mean(wans, "packetLoss", 2),
+                "uptime_pct": _isp_mean(wans, "uptime", 1),
+            },
+            "worst": {
+                # A 24-hour average hides a five-minute outage. The
+                # worst reading in the window is what a technician
+                # actually needs to see.
+                "max_latency_ms": _isp_max(wans, "maxLatency"),
+                "packet_loss": _isp_max(wans, "packetLoss"),
+                "downtime": _isp_max(wans, "downtime"),
+            },
+            "data_points": len(wans),
+        })
+    return sites_summary
 
 
 async def get_isp_metrics(
@@ -938,50 +1011,7 @@ async def get_isp_metrics(
 
             raw = r.json().get("data", [])
 
-            # Group by site/host and extract latest + summary
-            by_site: dict[str, list] = {}
-            for entry in raw:
-                site_id = entry.get("siteId", entry.get("hostId", "unknown"))
-                by_site.setdefault(site_id, []).append(entry)
-
-            sites_summary = []
-            for site_id, entries in by_site.items():
-                # Get latest entry
-                latest = entries[-1] if entries else {}
-                wan_data = latest.get("data", {}).get("wan", {})
-
-                # A missing reading is not a reading of zero. Every field here
-                # used to collapse to 0 when the WAN block was absent, so the
-                # panel rendered a full set of zeros and coloured uptime red —
-                # an outage that was not happening, on a site the sites table
-                # was simultaneously reporting at 100%. None means "no data"
-                # and the UI renders it as a dash.
-                wans = [
-                    e.get("data", {}).get("wan", {})
-                    for e in entries
-                    if e.get("data", {}).get("wan")
-                ]
-
-                sites_summary.append({
-                    "site_id": site_id,
-                    "isp": wan_data.get("ispName") or "",
-                    # Distinguishes "the API returned nothing for this site"
-                    # from "the API returned genuine zeros".
-                    "has_readings": bool(wans),
-                    "latest": {
-                        "download_mbps": _kbps_to_mbps(wan_data.get("downloadKbps", wan_data.get("download_kbps"))),
-                        "upload_mbps": _kbps_to_mbps(wan_data.get("uploadKbps", wan_data.get("upload_kbps"))),
-                        "latency_ms": wan_data.get("avgLatency"),
-                        "packet_loss": wan_data.get("packetLoss"),
-                        "uptime_pct": wan_data.get("uptime"),
-                    },
-                    "averages": {
-                        "latency_ms": _isp_mean(wans, "avgLatency", 1),
-                        "packet_loss": _isp_mean(wans, "packetLoss", 2),
-                        "uptime_pct": _isp_mean(wans, "uptime", 1),
-                    },
-                    "data_points": len(entries),
-                })
+            sites_summary = summarise_isp_sites(raw)
 
             return {"ok": True, "sites": sites_summary, "metric_type": metric_type, "duration": duration}
         except httpx.HTTPStatusError as e:
