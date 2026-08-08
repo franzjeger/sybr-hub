@@ -1,10 +1,18 @@
 # Endringslogg
 
-Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
+Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 `v10.x` nedenfor dokumenterer den importerte MSP-Toolkit-auditmotorens historikk
 og er ikke Sybr HUB-pakkeversjoner.
 
-## Ikke utgitt
+## v1.0.0 (2026-08-08)
+### Første stabile utgave under Sybr HUB-navnet
+
+- Produktversjonen er satt til `1.0.0`. `0.1.0` var aldri en modenhetsvurdering,
+  men startverdien fra navnebyttet, og den underkommuniserte en plattform som
+  kjører i produksjon med hele regresjonssuiten grønn.
+- `app/core/version.py` og service worker-ens `CACHE_VERSION` er bumpet i takt,
+  slik `tests/test_version_consistency.py` krever.
+
 ### Installasjonen henter tagger, så den viste versjonen kan løses
 
 - `scripts/install-cachyos.sh` henter nå tagger eksplisitt etter kloning og
