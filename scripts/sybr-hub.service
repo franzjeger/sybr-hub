@@ -57,13 +57,14 @@ Environment=MSP_CONFIG_DIR=/etc/sybr-hub
 Environment=HOME=/var/lib/sybr-hub/home
 
 # Protect local master-key backups with an operator-managed secret. Generate a
-# random value (for example `openssl rand -base64 48`) in a root-only secret
-# directory, then let systemd expose a private read-only credential to the
-# service. Do not store the source beside MSP_DATA_DIR or MSP_CONFIG_DIR.
+# random value (for example `openssl rand -base64 48`) at the path below in a
+# root-only secret directory. The CachyOS installer creates it automatically.
+# systemd exposes a private read-only copy to the service. Do not store the
+# source beside MSP_DATA_DIR or MSP_CONFIG_DIR.
 # Keep an offline copy: losing both this secret and the exported master key
 # makes the encrypted customer data unrecoverable after a host rebuild.
-#LoadCredential=key-wrap.secret:/etc/sybr-hub-secrets/key-wrap.secret
-#Environment=SYBR_KEY_WRAP_SECRET_FILE=%d/key-wrap.secret
+LoadCredential=key-wrap.secret:/etc/sybr-hub-secrets/key-wrap.secret
+Environment=SYBR_KEY_WRAP_SECRET_FILE=%d/key-wrap.secret
 
 # Stable identifier for Guacamole cleanup ownership. Keep this unchanged over
 # host renames/rebuilds so startup can remove JDBC connections left by a crash.
@@ -82,10 +83,14 @@ Environment=HOME=/var/lib/sybr-hub/home
 # This process holds customer credentials, an encryption master key and live
 # VPN tunnels into customer networks. Constrain it accordingly.
 NoNewPrivileges=yes
+UMask=0077
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
@@ -107,34 +112,18 @@ WantedBy=multi-user.target
 
 # ── VPN and privileged commands ─────────────────────────────────────────────
 #
-# The VPN backends shell out to a handful of commands that need root. Rather
-# than running the whole service as root, grant exactly those via sudoers.
-# Create /etc/sudoers.d/sybr-hub (validate with `visudo -c -f`) containing:
-#
-#   Cmnd_Alias SYBR_VPN = /usr/sbin/swanctl, /usr/bin/wg-quick, \
-#                         /usr/sbin/ip, /usr/bin/resolvectl, /usr/bin/tee
-#   sybrhub ALL=(root) NOPASSWD: SYBR_VPN
-#
-# Verify the paths on your distribution first (`command -v swanctl` etc.) —
-# a sudoers rule naming a path that does not exist grants nothing, and one
-# naming a wrapper script may grant more than intended.
-#
-# NOTE: `tee` is used to write strongSwan connection configs into
-# /etc/swanctl/conf.d. It is the broadest entry in that list — sudo tee can
-# write any file as root. The application validates the connection name and
-# confirms the resolved path stays inside that directory before invoking it,
-# but if you do not use FortiGate IPsec, drop /usr/bin/tee from the alias and
-# pre-create /etc/swanctl/conf.d owned by the service user instead.
-#
-# If you do not use the VPN features at all, omit the sudoers file entirely.
-# The VPN routes will return errors; nothing else is affected.
+# NoNewPrivileges=yes deliberately prevents *all* privilege elevation,
+# including sudo even when sudoers says NOPASSWD. Do not weaken that boundary
+# or grant sudo tee/ip to this web process: a web-app compromise would become
+# root. Under this hardened unit, establish customer tunnels outside Sybr HUB
+# (or through a separately authenticated, narrowly scoped privileged helper)
+# and let the hub consume the resulting routes/interfaces. Backends that need
+# to create interfaces themselves will report an error; the rest of the hub is
+# unaffected.
 #
 # ── Hardening vs. VPN ───────────────────────────────────────────────────────
 # Creating tunnel interfaces needs privileges the sandbox above withholds.
-# If tunnels fail to come up, the usual culprits are PrivateDevices=yes
-# (blocks /dev/net/tun) and RestrictAddressFamilies (blocks AF_PACKET).
-# Relax those two specifically rather than dropping the whole block:
-#
-#   PrivateDevices=no
-#   DeviceAllow=/dev/net/tun rw
-#   RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+# PrivateDevices and RestrictAddressFamilies are additional boundaries, but
+# relaxing them alone is not sufficient while NoNewPrivileges stays enabled.
+# Treat a privileged VPN helper as a separate component and threat boundary;
+# do not turn the web service itself into that helper.

@@ -10,17 +10,19 @@ the app exposes.
 from __future__ import annotations
 
 import logging
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, Request
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.core.database import close_pool, run_migrations
 from app.core.encryption import verify_master_key_available
 from app.core.exceptions import ToolkitError
 from app.core.version import get_version
-from app.web.middleware.auth import AuthMiddleware
+from app.web.middleware.auth import AuthMiddleware, get_current_user
 from app.web.middleware.rate_limit import RateLimitMiddleware
 from app.web.middleware.security_headers import SecurityHeadersMiddleware
 from app.web.middleware.write_guard import WriteGuardMiddleware
@@ -61,6 +63,9 @@ from app.web.routes import (
 )
 
 log = logging.getLogger(__name__)
+
+OPENAPI_DOCS_URL = "/docs"
+_SWAGGER_UI_VERSION = "5.32.12"
 
 # Mounted under /api, in the order the operator meets them: authentication,
 # then the customer/audit core, then integrations and connectivity.
@@ -142,7 +147,40 @@ def create_app() -> FastAPI:
         ),
         version=get_version(),
         lifespan=_lifespan,
+        docs_url=None,
+        redoc_url=None,
     )
+
+    @app.get(OPENAPI_DOCS_URL, include_in_schema=False)
+    async def openapi_docs(_user=Depends(get_current_user)):
+        """Serve the authenticated API viewer with immutable asset URLs.
+
+        FastAPI's default uses the mutable ``swagger-ui-dist@5`` major tag.
+        Pin the exact reviewed release and keep its necessary inline bootstrap
+        exception scoped to this path.
+        """
+        base = f"https://cdn.jsdelivr.net/npm/swagger-ui-dist@{_SWAGGER_UI_VERSION}"
+        generated = get_swagger_ui_html(
+            openapi_url=app.openapi_url,
+            title=f"{app.title} - Swagger UI",
+            swagger_js_url=f"{base}/swagger-ui-bundle.js",
+            swagger_css_url=f"{base}/swagger-ui.css",
+            swagger_favicon_url="/static/icons/icon-192.png",
+        )
+        nonce = secrets.token_urlsafe(24)
+        body = generated.body.decode("utf-8").replace(
+            "<script>", f'<script nonce="{nonce}">', 1
+        )
+        response = HTMLResponse(body)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; base-uri 'none'; object-src 'none'; "
+            "frame-ancestors 'self'; form-action 'self'; "
+            f"script-src 'self' https://cdn.jsdelivr.net 'nonce-{nonce}'; "
+            "style-src 'self' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; font-src 'self' data:; "
+            "connect-src 'self'; frame-src 'none'"
+        )
+        return response
 
     # Middleware order matters: Starlette runs the *last* registered
     # middleware outermost. Rate limiting has to sit outside authentication

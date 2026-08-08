@@ -173,9 +173,12 @@ Profiles are stored in the `vpn_profiles` table; profile secrets (private keys,
 PSKs, passwords) are split out and stored encrypted under
 `MSP_DATA_DIR/vpn_secrets/<profile_id>/`.
 
-Several backends need privileged commands. See the sudoers stanza at the
-bottom of [`scripts/sybr-hub.service`](../scripts/sybr-hub.service) — grant
-that narrow set rather than running the service as root.
+Several backends need privileged commands to create interfaces or change
+routes. The production unit intentionally uses `NoNewPrivileges=yes`, so
+`sudo` cannot elevate even with a `NOPASSWD` rule. Establish those tunnels
+outside the web service, or put the privileged operations behind a separately
+authenticated and narrowly scoped helper. Do not grant this web process broad
+`sudo ip`, `sudo tee`, or root access; a web compromise would inherit it.
 
 > **Uploaded OpenVPN profiles are refused if they contain a directive that can
 > execute a program** (`up`, `down`, `plugin`, `script-security`, and the rest

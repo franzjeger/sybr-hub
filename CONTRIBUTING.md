@@ -13,18 +13,18 @@ git clone https://github.com/franzjeger/sybr-hub
 cd sybr-hub
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pip install pytest pytest-asyncio ruff
+python -m pip install . ruff
 ```
 
 ## Tests
 
-The audit-correctness work that produced the validated v0.1.0 layer
-is locked in by **243 regression tests**. Don't merge a PR that
-breaks them, and add new tests for any new behaviour.
+The audit-correctness work that produced the validated v0.1.0 layer is locked
+in by the full regression suite. Do not merge a PR that breaks it, and add new
+tests for any new behaviour. Avoid hard-coding the current test count in docs;
+it changes with every useful fix.
 
 ```bash
-pytest tests/ -q
+python -m pytest -q
 ```
 
 If you're changing parser logic or compliance verdicts: every change
@@ -75,7 +75,14 @@ is a bug we've had at least eight times.
 - Conventional commit style: `fix(area):`, `feat(area):`, `chore:`, `docs:`, `test:`.
 - One logical change per commit. We rebase-merge.
 - Reference the ROADMAP section your work lands in.
-- Include test output (`243 passed`) in the PR description.
+- Include the current full-suite output in the PR description.
+
+Before protecting `main`, configure GitHub to require the stable CI checks
+`pytest (3.11)`, `pytest (3.12)`, `pytest (3.13)`, `pytest (3.14)`, `ruff`, and
+`pip-audit`; also require an up-to-date branch, resolved review conversations,
+and at least one approval. Repository settings are an external control and
+cannot be enforced by workflow YAML alone. The workflow includes a
+`merge_group` trigger so those same checks work with GitHub's merge queue.
 
 ## Author identity
 

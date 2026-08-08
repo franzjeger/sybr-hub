@@ -5,6 +5,23 @@ Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Nettleser-, CI- og driftsgrensene håndheves
+
+- CSP tillater ikke lenger inline `<script>`- eller `<style>`-elementer i
+  applikasjonsskallet. Tema-bootstrap og offline-siden er flyttet til egne,
+  cache-versjonerte filer. Eldre event- og style-attributter er isolert i
+  egne CSP3-direktiver inntil den større markup-migreringen er ferdig.
+- Swagger er fortsatt tilgjengelig for autentiserte brukere, men bruker nå en
+  eksakt versjon av UI-bundle og en tilfeldig CSP-nonce per respons. ReDoc-ruten,
+  `unsafe-inline` og FastAPIs mutable major-tag-standard er fjernet.
+- GitHub Actions er pinnet til full commit-SHA, checkout lagrer ikke
+  push-credential, og CI dekker merge queue, manuell kjøring og `pip check`.
+- systemd-uniten krever nå en root-eid `LoadCredential` for innpakking av
+  master-key-backup, setter `UMask=0077` og aktiverer flere kernel/host-sperrer.
+  CachyOS-installasjonen oppretter hemmeligheten atomisk én gang.
+- Det ikke-fungerende sudoers-rådet er fjernet: `NoNewPrivileges=yes` blokkerer
+  slik elevasjon. Privilegerte VPN-operasjoner må leve utenfor webprosessen.
+
 ### Fargeemoji ut av grensesnittet
 
 **Bakgrunn:** Fargeemoji rendres i fontens egne farger og sin egen vekt. Én 🔒 ved siden av en rad monokrome ikoner er det eneste på skjermen designspråket ikke rekker, og Filer-fanen hadde ni av dem rett under hverandre.

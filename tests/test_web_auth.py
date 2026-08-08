@@ -834,7 +834,7 @@ def test_the_cache_version_changes_when_a_static_file_changes():
     assert frontend._static_digest() == before, "and revert to the old one"
 
 
-def test_the_cache_version_covers_every_cached_asset():
+def test_the_cache_version_covers_every_shell_asset():
     """Missing one means a change to it never reaches a warm browser.
 
     This asserted that a hand-written tuple held three names, which is a
@@ -849,18 +849,34 @@ def test_the_cache_version_covers_every_cached_asset():
     from app.web.routes import frontend
 
     covered = {path.name for path in frontend._digest_inputs()}
-    html = pathlib.Path("app/web/static/index.html").read_text()
+    shells = [
+        pathlib.Path("app/web/static/index.html"),
+        pathlib.Path("app/web/static/offline.html"),
+    ]
     referenced = {
         ref.rsplit("/", 1)[-1]
-        for ref in re.findall(r"/static/([A-Za-z0-9_./-]+\.(?:json|css|js))", html)
+        for shell in shells
+        for ref in re.findall(
+            r"/static/([A-Za-z0-9_./-]+\.(?:json|css|js))",
+            shell.read_text(),
+        )
     }
 
     assert referenced, "index.html must load something"
     assert not referenced - covered, (
-        f"index.html loads these but the cache key ignores them: "
+        f"a shell loads these but the cache key ignores them: "
         f"{sorted(referenced - covered)}"
     )
-    assert {"app.js", "app.css", "index.html", "ui_i18n.json"} <= covered
+    assert {
+        "app.js",
+        "app.css",
+        "index.html",
+        "offline.html",
+        "offline.css",
+        "offline.js",
+        "theme-init.js",
+        "ui_i18n.json",
+    } <= covered
 
 
 def test_a_change_to_any_bundle_moves_the_cache_version():
@@ -895,11 +911,13 @@ def test_the_theme_is_set_before_the_stylesheet_loads():
     import pathlib
 
     html = pathlib.Path("app/web/static/index.html").read_text()
-    theme_script = html.find("data-theme")
+    theme_script = html.find("/static/theme-init.js")
     stylesheet = html.find("/static/app.css")
     assert theme_script != -1 and stylesheet != -1
     assert theme_script < stylesheet, "the theme must be decided before paint"
-    assert "sybr-theme" in html[:stylesheet], "and from the same key app.js uses"
+    source = pathlib.Path("app/web/static/theme-init.js").read_text()
+    assert "sybr-theme" in source, "the bootstrap must use the same key as app.js"
+    assert "data-theme" in source
 
 
 def test_autofilled_fields_keep_the_apps_colours():

@@ -49,8 +49,9 @@ Out of scope:
 ## Built-in safeguards
 
 - Data at rest is AES-256-GCM encrypted (`app/core/encryption.py`)
-- Master key lives in the OS keyring; multi-location backup is
-  written on first use
+- Master key lives in the OS keyring; authenticated multi-location backups are
+  wrapped with an independent operator secret. The production unit receives it
+  through a root-owned systemd credential, not a process environment value.
 - Audit collectors refuse to fabricate a grade when blocking data
   is missing — they return grade `?` rather than guessing
 - Integration write-side endpoints are guarded by FastAPI auth
