@@ -7,7 +7,6 @@ can view and modify.  Admins bypass all checks.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from app.core.database import get_db
 from app.models.user import Role, User
@@ -31,15 +30,17 @@ async def check_customer_access(user: User, customer_id: str) -> bool:
     if user.role == Role.admin or user.all_customers:
         return True
 
-    async with get_db() as conn:
-        async with conn.execute(
+    async with (
+        get_db() as conn,
+        conn.execute(
             "SELECT 1 FROM customer_access WHERE user_id = ? AND customer_id = ?",
             (user.id, customer_id),
-        ) as cur:
-            return await cur.fetchone() is not None
+        ) as cur,
+    ):
+        return await cur.fetchone() is not None
 
 
-async def get_accessible_customer_ids(user: User) -> Optional[set[str]]:
+async def get_accessible_customer_ids(user: User) -> set[str] | None:
     """Return the set of customer IDs this user may access.
 
     Returns None for "no restriction" (admin, or the explicit all-customers
@@ -49,12 +50,14 @@ async def get_accessible_customer_ids(user: User) -> Optional[set[str]]:
     if user.role == Role.admin or user.all_customers:
         return None  # no restriction
 
-    async with get_db() as conn:
-        async with conn.execute(
+    async with (
+        get_db() as conn,
+        conn.execute(
             "SELECT customer_id FROM customer_access WHERE user_id = ?",
             (user.id,),
-        ) as cur:
-            rows = await cur.fetchall()
+        ) as cur,
+    ):
+        rows = await cur.fetchall()
 
     return {r[0] for r in rows}
 
@@ -73,9 +76,7 @@ async def set_can_write(user_id: str, enabled: bool) -> None:
             (1 if enabled else 0, user_id),
         )
         await conn.commit()
-    logger.warning(
-        "can_write %s for user %s", "granted" if enabled else "revoked", user_id
-    )
+    logger.warning("can_write %s for user %s", "granted" if enabled else "revoked", user_id)
 
 
 async def set_tenant_write(user_id: str, enabled: bool) -> None:
@@ -94,7 +95,8 @@ async def set_tenant_write(user_id: str, enabled: bool) -> None:
         await conn.commit()
     logger.warning(
         "Tenant-write capability %s user %s",
-        "GRANTED to" if enabled else "REVOKED from", user_id,
+        "GRANTED to" if enabled else "REVOKED from",
+        user_id,
     )
 
 
@@ -108,7 +110,7 @@ async def set_all_customers(user_id: str, allowed: bool) -> None:
         await conn.commit()
 
 
-def filter_customers(customers: list[dict], allowed: Optional[set[str]]) -> list[dict]:
+def filter_customers(customers: list[dict], allowed: set[str] | None) -> list[dict]:
     """Filter a customer list to only those the user may access.
 
     If *allowed* is None (admin / unconfigured), returns the full list.
@@ -141,9 +143,7 @@ async def revoke_access(user_id: str, customer_id: str) -> None:
 async def set_user_customers(user_id: str, customer_ids: list[str]) -> None:
     """Replace a user's customer access list."""
     async with get_db() as conn:
-        await conn.execute(
-            "DELETE FROM customer_access WHERE user_id = ?", (user_id,)
-        )
+        await conn.execute("DELETE FROM customer_access WHERE user_id = ?", (user_id,))
         for cid in customer_ids:
             await conn.execute(
                 "INSERT INTO customer_access (user_id, customer_id) VALUES (?, ?)",
@@ -154,12 +154,14 @@ async def set_user_customers(user_id: str, customer_ids: list[str]) -> None:
 
 async def get_user_customer_ids(user_id: str) -> list[str]:
     """Return list of customer IDs assigned to a user."""
-    async with get_db() as conn:
-        async with conn.execute(
+    async with (
+        get_db() as conn,
+        conn.execute(
             "SELECT customer_id FROM customer_access WHERE user_id = ?",
             (user_id,),
-        ) as cur:
-            return [r[0] for r in await cur.fetchall()]
+        ) as cur,
+    ):
+        return [r[0] for r in await cur.fetchall()]
 
 
 async def check_audit_path_access(user: User, path: str) -> bool:
@@ -181,10 +183,6 @@ async def check_audit_path_access(user: User, path: str) -> bool:
     from app.core.config import get_audit_dir
     from app.core.customer import customers_for_dir_name
 
-    allowed = await get_accessible_customer_ids(user)
-    if allowed is None:
-        return True  # admin or explicit all-customers grant
-
     # Resolve before selecting the customer segment. Taking the first segment
     # of the raw string judged a different file than the one that gets opened:
     # the containment check downstream resolves the path, so "Alpha/../Beta"
@@ -198,10 +196,16 @@ async def check_audit_path_access(user: User, path: str) -> bool:
     try:
         rel = target.relative_to(audit_dir)
     except ValueError:
-        logger.info("403 audit-path: user=%s path=%r escapes the audit tree", user.username, str(path))
+        logger.info(
+            "403 audit-path: user=%s path=%r escapes the audit tree", user.username, str(path)
+        )
         return False
     if not rel.parts:
         return False
+
+    allowed = await get_accessible_customer_ids(user)
+    if allowed is None:
+        return True  # admin or explicit all-customers grant inside audit root
 
     segment = rel.parts[0]
     matches = customers_for_dir_name(segment)

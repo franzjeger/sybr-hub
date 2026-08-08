@@ -180,6 +180,12 @@ outside the web service, or put the privileged operations behind a separately
 authenticated and narrowly scoped helper. Do not grant this web process broad
 `sudo ip`, `sudo tee`, or root access; a web compromise would inherit it.
 
+`GET /api/vpn/capabilities` reports this boundary per protocol. Connect is
+disabled in the UI when the process lacks the effective capability (or root,
+for strongSwan configuration); the backend repeats the check so an old browser
+or direct API call cannot bypass it. Sybr HUB does not treat `sudo` as a
+runtime fallback under the hardened service.
+
 > **Uploaded OpenVPN profiles are refused if they contain a directive that can
 > execute a program** (`up`, `down`, `plugin`, `script-security`, and the rest
 > of that family). An `.ovpn` file is operator-supplied data, not code, and

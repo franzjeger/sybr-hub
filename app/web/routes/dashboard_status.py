@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends
 
 from app.core.rbac import filter_customers, get_accessible_customer_ids
+from app.models.user import User
 from app.web import state
 from app.web.middleware.auth import get_current_user
 
@@ -110,13 +111,17 @@ async def get_files():
 
 
 @router.get("/status")
-async def get_status():
+async def get_status(user: User = Depends(get_current_user)):
     from app.core.credentials import config_exists, load_config
+    from app.core.customer import CustomerManager
+
+    active_id = CustomerManager.get_active_id()
+    audit_run = state.get_user_audit(user.id, active_id) if active_id else None
 
     if not config_exists():
         return {
             "has_config": False,
-            "audit_running": state.audit_running,
+            "audit_running": bool(audit_run and audit_run.running),
             "setup_running": state.setup_running,
         }
 
@@ -133,9 +138,6 @@ async def get_status():
             except ValueError:
                 pass
 
-    from app.core.customer import CustomerManager
-
-    active_id = CustomerManager.get_active_id()
     tags = CustomerManager.get_tags(active_id) if active_id else []
 
     has_credentials = False
@@ -157,7 +159,7 @@ async def get_status():
             "tenant_id": tenant_id,
         },
         "active_id": active_id or "",
-        "audit_running": state.audit_running,
+        "audit_running": bool(audit_run and audit_run.running),
         "setup_running": state.setup_running,
     }
 

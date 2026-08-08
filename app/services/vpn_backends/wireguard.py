@@ -1,11 +1,11 @@
 """WireGuard VPN backend.
 
-Uses `wg` and `ip` CLI tools. On systems where the web server lacks
-CAP_NET_ADMIN, operations fall back to a privileged helper at
-/usr/local/bin/msp-vpn-helper (if installed).
+Uses `wg` and `ip` CLI tools. The manager refuses the operation before this
+module is called when the process lacks CAP_NET_ADMIN; it never passes private
+keys to an unshipped executable or attempts privilege elevation with sudo.
 """
+
 import asyncio
-import json
 import logging
 import tempfile
 from pathlib import Path
@@ -14,37 +14,28 @@ from app.core.validation import validate_identifier
 
 logger = logging.getLogger(__name__)
 
-HELPER_PATH = Path("/usr/local/bin/msp-vpn-helper")
 
 async def _run(cmd: list[str], timeout: int = 30) -> tuple[int, str, str]:
     """Run a subprocess and return (rc, stdout, stderr)."""
     proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     return proc.returncode or 0, stdout.decode(), stderr.decode()
 
-async def _helper_cmd(action: str, **kwargs) -> dict:
-    """Send a command to the privileged helper."""
-    if not HELPER_PATH.exists():
-        raise RuntimeError("VPN helper not installed at " + str(HELPER_PATH))
-    payload = json.dumps({"action": action, **kwargs})
-    rc, out, err = await _run([str(HELPER_PATH), "--json", payload])
-    if rc != 0:
-        raise RuntimeError(f"Helper failed: {err}")
-    return json.loads(out) if out.strip() else {}
 
 async def connect(config: dict, interface: str = "wg-msp0") -> dict:
-    # Try direct first, fall back to helper
-    try:
-        return await _connect_direct(config, interface)
-    except PermissionError:
-        return await _helper_cmd("wg_connect", config=config, interface=interface)
+    return await _connect_direct(config, interface)
+
 
 async def _connect_direct(config: dict, interface: str) -> dict:
     # Check if wg-quick is available
     rc, _, _ = await _run(["which", "wg-quick"])
     if rc != 0:
-        return {"ok": False, "error": "WireGuard (wg-quick) er ikke installert. Installer med: sudo pacman -S wireguard-tools"}
+        return {
+            "ok": False,
+            "error": "WireGuard (wg-quick) er ikke installert. Installer med: sudo pacman -S wireguard-tools",
+        }
 
     validate_identifier(interface, "interface", max_length=15)
 
@@ -58,35 +49,29 @@ async def _connect_direct(config: dict, interface: str) -> dict:
     conf_path.write_text(_build_conf(config))
     conf_path.chmod(0o600)  # contains the private key
     try:
-        # Try with sudo first (most common case for web server)
-        rc, out, err = await _run(["sudo", "wg-quick", "up", str(conf_path)])
+        rc, _out, err = await _run(["wg-quick", "up", str(conf_path)])
         if rc != 0:
-            # Try without sudo as fallback
-            rc, out, err = await _run(["wg-quick", "up", str(conf_path)])
-            if rc != 0:
-                if "permission" in err.lower() or "operation not permitted" in err.lower():
-                    raise PermissionError(err)
-                return {"ok": False, "error": f"wg-quick up feilet: {err}"}
+            return {"ok": False, "error": f"wg-quick up feilet: {err}"}
         return {"ok": True, "interface": interface}
     finally:
         import shutil
+
         shutil.rmtree(workdir, ignore_errors=True)
+
 
 async def disconnect(interface: str = "wg-msp0") -> dict:
     validate_identifier(interface, "interface", max_length=15)
-    try:
-        rc, out, err = await _run(["wg-quick", "down", interface])
-        if rc != 0 and "not found" not in err.lower():
-            return await _helper_cmd("wg_disconnect", interface=interface)
-        return {"ok": True}
-    except Exception:
-        return await _helper_cmd("wg_disconnect", interface=interface)
+    rc, _out, err = await _run(["wg-quick", "down", interface])
+    if rc != 0 and "not found" not in err.lower():
+        return {"ok": False, "error": f"wg-quick down feilet: {err}"}
+    return {"ok": True}
+
 
 async def get_status(interface: str = "wg-msp0") -> dict:
-    rc, out, err = await _run(["wg", "show", interface, "dump"])
+    rc, out, _err = await _run(["wg", "show", interface, "dump"])
     if rc != 0:
         return {"connected": False}
-    lines = out.strip().split('\n')
+    lines = out.strip().split("\n")
     if len(lines) < 2:
         return {"connected": True, "peers": 0}
     return {
@@ -95,17 +80,19 @@ async def get_status(interface: str = "wg-msp0") -> dict:
         "raw": out,
     }
 
+
 async def get_stats(interface: str = "wg-msp0") -> dict:
-    rc, out, err = await _run(["wg", "show", interface, "transfer"])
+    rc, out, _err = await _run(["wg", "show", interface, "transfer"])
     if rc != 0:
         return {"bytes_sent": 0, "bytes_received": 0}
     total_rx, total_tx = 0, 0
-    for line in out.strip().split('\n'):
-        parts = line.split('\t')
+    for line in out.strip().split("\n"):
+        parts = line.split("\t")
         if len(parts) >= 3:
             total_rx += int(parts[1])
             total_tx += int(parts[2])
     return {"bytes_sent": total_tx, "bytes_received": total_rx}
+
 
 def _build_conf(config: dict) -> str:
     lines = ["[Interface]"]
@@ -120,7 +107,10 @@ def _build_conf(config: dict) -> str:
     private_key = config.get("private_key")
     if not private_key:
         from app.core.exceptions import ValidationError
-        raise ValidationError("WireGuard private key is required but not provided — inject from secrets before building config")
+
+        raise ValidationError(
+            "WireGuard private key is required but not provided — inject from secrets before building config"
+        )
     lines.append(f"PrivateKey = {private_key}")
     for peer in config.get("peers", []):
         lines.append("\n[Peer]")

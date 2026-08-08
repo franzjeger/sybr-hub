@@ -6,23 +6,20 @@ import asyncio
 import json
 import logging
 import traceback
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.core.exceptions import (
-    AuthError,
     ConflictError,
-    IntegrationError,
     NotFoundError,
     ValidationError,
 )
-from app.models.user import User
+from app.models.user import Role, User
 from app.web import state
 from app.web.i18n import ui_t
-from app.models.user import Role
-from app.web.middleware.auth import get_current_user, require_customer_access
+from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +27,23 @@ router = APIRouter()
 
 _BUILTIN_PRESETS = {
     "Full Audit": None,  # None means all sections — resolved at request time
-    "Quick Scan": ["MFA Methods", "Conditional Access", "Admin Roles", "Secure Score", "DNS / Email Security"],
-    "Identity Only": ["Users", "MFA Methods", "Conditional Access", "Admin Roles", "Groups", "Privileged Identity Management"],
+    "Quick Scan": [
+        "MFA Methods",
+        "Conditional Access",
+        "Admin Roles",
+        "Secure Score",
+        "DNS / Email Security",
+    ],
+    "Identity Only": [
+        "Users",
+        "MFA Methods",
+        "Conditional Access",
+        "Admin Roles",
+        "Groups",
+        "Privileged Identity Management",
+    ],
 }
+
 
 class _ProgressTracker:
     """Counts audit sections towards a total the run may turn out to exceed.
@@ -48,7 +59,7 @@ class _ProgressTracker:
     so it widens.
     """
 
-    def __init__(self, sections_filter: Optional[set[str]] = None):
+    def __init__(self, sections_filter: set[str] | None = None):
         from app.modules.m365_audit.collector import AuditCollector
 
         all_sections = AuditCollector.GRAPH_SECTION_NAMES + AuditCollector.AZURE_SECTION_NAMES
@@ -67,8 +78,10 @@ class _ProgressTracker:
         self._current = name
         if len(self._done) > self.total:
             logger.warning(
-                "Audit progress: %d sections completed but %d were expected; "
-                "last section '%s'", len(self._done), self.total, name,
+                "Audit progress: %d sections completed but %d were expected; last section '%s'",
+                len(self._done),
+                self.total,
+                name,
             )
             self.total = len(self._done)
         return self.snapshot()
@@ -86,6 +99,7 @@ class _ProgressTracker:
 
 # ── API: Setup SSE stream ──────────────────────────────────────────────────────
 
+
 @router.get("/setup/stream")
 async def setup_stream(user: User = Depends(get_current_user)):
     if state.setup_running:
@@ -93,7 +107,7 @@ async def setup_stream(user: User = Depends(get_current_user)):
 
     async def generate() -> AsyncGenerator[str, None]:
         state.setup_running = True
-        device_code_pending: Optional[dict] = None
+        device_code_pending: dict | None = None
 
         try:
             from app.modules.m365_audit.setup import FirstRunSetup
@@ -111,10 +125,10 @@ async def setup_stream(user: User = Depends(get_current_user)):
                     device_code_pending = None
 
                 payload = {
-                    "type":   "log",
-                    "step":   event.get("step", ""),
+                    "type": "log",
+                    "step": event.get("step", ""),
                     "status": event.get("status", "ok"),
-                    "msg":    event.get("msg", ""),
+                    "msg": event.get("msg", ""),
                 }
                 yield f"data: {json.dumps(payload)}\n\n"
 
@@ -140,6 +154,7 @@ async def setup_stream(user: User = Depends(get_current_user)):
 
 # ── API: Permission validation ────────────────────────────────────────────────
 
+
 @router.post("/audit/validate-permissions")
 async def validate_permissions(user: User = Depends(get_current_user)):
     """Check that the service principal has the required Graph API permissions."""
@@ -153,13 +168,12 @@ async def validate_permissions(user: User = Depends(get_current_user)):
             auth = AuthManager.from_gdap(cfg["TenantId"])
         else:
             auth = AuthManager.from_config()
-        async with auth:
-            async with GraphClient(auth.credential) as graph:
-                if cfg and cfg.get("AuthMode") == "gdap":
-                    result = await graph.validate_gdap_access()
-                else:
-                    result = await graph.validate_permissions()
-                return result
+        async with auth, GraphClient(auth.credential) as graph:
+            if cfg and cfg.get("AuthMode") == "gdap":
+                result = await graph.validate_gdap_access()
+            else:
+                result = await graph.validate_permissions()
+            return result
     except Exception as e:
         logger.warning("Permission validation failed: %s", e)
         return JSONResponse(
@@ -169,6 +183,7 @@ async def validate_permissions(user: User = Depends(get_current_user)):
 
 
 # ── API: Audit section listing & scope persistence ────────────────────────────
+
 
 @router.get("/audit/sections")
 async def list_audit_sections(user: User = Depends(get_current_user)):
@@ -194,12 +209,14 @@ async def list_audit_sections(user: User = Depends(get_current_user)):
 async def get_audit_scope(user: User = Depends(get_current_user)):
     """Get saved audit scope for the active customer."""
     from app.core.customer import CustomerManager
+
     active_id = CustomerManager.get_active_id()
     if not active_id:
         return {"scope": None}
     scope_path = CustomerManager.get_customer_dir(active_id) / "audit_scope.json"
     if scope_path.exists():
         from app.core.encryption import encrypted_read_json
+
         return {"scope": encrypted_read_json(scope_path)}
     return {"scope": None}
 
@@ -208,32 +225,38 @@ async def get_audit_scope(user: User = Depends(get_current_user)):
 async def save_audit_scope(request: Request, user: User = Depends(get_current_user)):
     """Save audit scope for the active customer."""
     from app.core.customer import CustomerManager
+
     active_id = CustomerManager.get_active_id()
     if not active_id:
         raise ValidationError(ui_t("err_no_active_customer", request))
     body = await request.json()
     scope_path = CustomerManager.get_customer_dir(active_id) / "audit_scope.json"
     from app.core.encryption import encrypted_write_json
+
     encrypted_write_json(scope_path, body)
     return {"ok": True}
 
 
 # ── API: Audit presets ─────────────────────────────────────────────────────────
 
+
 @router.get("/audit/presets")
 async def list_audit_presets(user: User = Depends(get_current_user)):
     """Return built-in + custom presets."""
     from app.core.config import load_app_settings
     from app.modules.m365_audit.collector import AuditCollector
+
     all_names = [s["name"] for s in AuditCollector.get_all_sections()]
 
     presets = []
     for name, sections in _BUILTIN_PRESETS.items():
-        presets.append({
-            "name": name,
-            "sections": sections if sections is not None else all_names,
-            "builtin": True,
-        })
+        presets.append(
+            {
+                "name": name,
+                "sections": sections if sections is not None else all_names,
+                "builtin": True,
+            }
+        )
 
     settings = load_app_settings()
     for name, sections in settings.get("audit_presets", {}).items():
@@ -246,6 +269,7 @@ async def list_audit_presets(user: User = Depends(get_current_user)):
 async def save_audit_preset(request: Request, user: User = Depends(get_current_user)):
     """Save a custom preset."""
     from app.core.config import load_app_settings, save_app_settings
+
     body = await request.json()
     name = (body.get("name") or "").strip()
     sections = body.get("sections", [])
@@ -266,6 +290,7 @@ async def save_audit_preset(request: Request, user: User = Depends(get_current_u
 async def delete_audit_preset(name: str, user: User = Depends(get_current_user)):
     """Delete a custom preset."""
     from app.core.config import load_app_settings, save_app_settings
+
     if name in _BUILTIN_PRESETS:
         raise ValidationError(ui_t("err_preset_builtin"))
 
@@ -281,24 +306,28 @@ async def delete_audit_preset(name: str, user: User = Depends(get_current_user))
 
 # ── API: Audit SSE stream ──────────────────────────────────────────────────────
 
+
 @router.get("/audit/stream")
 async def audit_stream(request: Request, user: User = Depends(get_current_user)):
+    from app.core.customer import CustomerManager
+
+    active_id = CustomerManager.get_active_id()
+    if not active_id:
+        raise ValidationError(ui_t("err_no_active_customer", request))
+
     async with state.audit_lock:
         if state.audit_running:
             raise ConflictError(ui_t("err_audit_running", request))
         state.audit_running = True
-        state.audit_cancel_requested = False
+        audit_run = state.begin_user_audit(user.id, active_id)
 
     # Parse optional sections filter from query string
     sections_param = request.query_params.get("sections", "")
-    sections_filter: Optional[set] = None
+    sections_filter: set | None = None
     if sections_param:
         sections_filter = set(s.strip() for s in sections_param.split(",") if s.strip())
 
     async def generate() -> AsyncGenerator[str, None]:
-        state.audit_results = []
-        state.audit_out_dir = None
-
         try:
             from app.core.credentials import config_exists, get_secret, load_config
             from app.modules.base import SectionStatus
@@ -307,8 +336,7 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
 
             # Pre-flight check: does this customer have credentials?
             if not config_exists():
-                yield f'data: {json.dumps({"type": "error", "msg": ui_t("err_no_customer_config", request)})}\n\n'
-                state.audit_running = False
+                yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_no_customer_config', request)})}\n\n"
                 return
 
             cfg = load_config()
@@ -316,43 +344,41 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
             client_id = cfg.get("ClientId", "") if cfg else ""
 
             if not tenant_id or not client_id:
-                yield f'data: {json.dumps({"type": "error", "msg": ui_t("err_missing_m365_setup", request)})}\n\n'
-                state.audit_running = False
+                yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_missing_m365_setup', request)})}\n\n"
                 return
 
             # Check for client secret in keyring
             secret = get_secret(tenant_id, "client_secret")
             if not secret:
-                yield f'data: {json.dumps({"type": "error", "msg": ui_t("err_missing_m365_secret", request)})}\n\n'
-                state.audit_running = False
+                yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_missing_m365_secret', request)})}\n\n"
                 return
 
             queue: asyncio.Queue = asyncio.Queue()
 
             tracker = _ProgressTracker(sections_filter)
 
-            from app.core.customer import CustomerManager as _CM
-            _active_id = _CM.get_active_id() or "active"
+            audit_run.progress = tracker.snapshot()
 
-            state.audit_progress[_active_id] = tracker.snapshot()
-
-            def progress_cb(name: str, status: SectionStatus, detail: Optional[str]) -> None:
-                state.audit_progress[_active_id] = tracker.record(name, status)
-                queue.put_nowait({
-                    "type":   "progress",
-                    "name":   name,
-                    "status": status.name.lower(),
-                    "detail": detail or "",
-                })
+            def progress_cb(name: str, status: SectionStatus, detail: str | None) -> None:
+                audit_run.progress = tracker.record(name, status)
+                queue.put_nowait(
+                    {
+                        "type": "progress",
+                        "name": name,
+                        "status": status.name.lower(),
+                        "detail": detail or "",
+                    }
+                )
 
             cfg = load_config()
             customer_name = cfg.get("CustomerName", "Ukjent") if cfg else "Ukjent"
             out_dir = make_output_dir(customer_name)
-            state.audit_out_dir = out_dir
+            audit_run.out_dir = out_dir
 
             yield f"data: {json.dumps({'type': 'started', 'customer': customer_name})}\n\n"
 
             from app.core.activity_log import log_activity
+
             log_activity("audit_started", customer=customer_name, user=user.username)
 
             async def run_audit() -> None:
@@ -368,20 +394,22 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                         sections_filter=sections_filter,
                     )
                     results = await collector.run()
-                    queue.put_nowait({
-                        "type": "done",
-                        "results": [
-                            {
-                                "name":  r.name,
-                                "status": r.status.name.lower(),
-                                "warns": r.warns,
-                                "warn_levels": r.warn_levels,
-                                "files": r.files,
-                                "error": r.error,
-                            }
-                            for r in results
-                        ],
-                    })
+                    queue.put_nowait(
+                        {
+                            "type": "done",
+                            "results": [
+                                {
+                                    "name": r.name,
+                                    "status": r.status.name.lower(),
+                                    "warns": r.warns,
+                                    "warn_levels": r.warn_levels,
+                                    "files": r.files,
+                                    "error": r.error,
+                                }
+                                for r in results
+                            ],
+                        }
+                    )
                 except Exception as e:
                     tb = traceback.format_exc()
                     logger.error("Audit failed:\n%s", tb)
@@ -390,13 +418,13 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
             task = asyncio.create_task(run_audit())
 
             while True:
-                if state.audit_cancel_requested:
+                if audit_run.cancel_requested:
                     task.cancel()
                     yield f"data: {json.dumps({'type': 'cancelled', 'msg': ui_t('msg_audit_cancelled', request)})}\n\n"
                     break
                 item = await queue.get()
                 if item["type"] == "done":
-                    state.audit_results = item.get("results", [])
+                    audit_run.results = item.get("results", [])
                     log_activity("audit_completed", customer=customer_name, user=user.username)
 
                     # Always save metrics for dashboard grade/score
@@ -405,12 +433,18 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                         from app.modules.base import SectionResult as _SR2
                         from app.modules.base import SectionStatus as _SS2
                         from app.reports.generator import build_report_context as _brc
+
                         _cfg2 = _lc2() or {}
                         _ro2 = [
-                            _SR2(name=r["name"], status=_SS2[r["status"].upper()],
-                                 warns=r.get("warns", []), warn_levels=r.get("warn_levels", []),
-                                 files=r.get("files", []), error=r.get("error"))
-                            for r in (state.audit_results or [])
+                            _SR2(
+                                name=r["name"],
+                                status=_SS2[r["status"].upper()],
+                                warns=r.get("warns", []),
+                                warn_levels=r.get("warn_levels", []),
+                                files=r.get("files", []),
+                                error=r.get("error"),
+                            )
+                            for r in audit_run.results
                         ]
                         await asyncio.get_event_loop().run_in_executor(
                             None,
@@ -420,7 +454,7 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                                 out_dir=out_dir,
                                 results=results,
                                 lang="no",
-                            )
+                            ),
                         )
                     except Exception as _metrics_exc:
                         logger.warning("Failed to save audit metrics: %s", _metrics_exc)
@@ -428,16 +462,22 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                     # Auto-send email if enabled
                     try:
                         from app.core.email_sender import auto_send_after_audit
+
                         email_err = await asyncio.get_event_loop().run_in_executor(
-                            None, lambda: auto_send_after_audit(state.audit_out_dir)
+                            None, lambda: auto_send_after_audit(audit_run.out_dir)
                         )
                         if email_err:
                             item["email_status"] = {"ok": False, "msg": email_err}
                         elif email_err is None:
                             from app.core.config import load_app_settings as _las
+
                             _s = _las()
                             if _s.get("email_auto_send"):
-                                item["email_status"] = {"ok": True, "msg": "Rapport sendt til " + _s.get("email_default_recipient", "")}
+                                item["email_status"] = {
+                                    "ok": True,
+                                    "msg": "Rapport sendt til "
+                                    + _s.get("email_default_recipient", ""),
+                                }
                     except Exception as email_exc:
                         logger.warning("Auto-send email after audit failed: %s", email_exc)
                         item["email_status"] = {"ok": False, "msg": str(email_exc)}
@@ -448,12 +488,18 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                         from app.modules.base import SectionResult
                         from app.modules.base import SectionStatus as _SS
                         from app.reports.generator import build_report_context
+
                         _cfg = _lc() or {}
                         _results_objs = [
-                            SectionResult(name=r["name"], status=_SS[r["status"].upper()],
-                                          warns=r.get("warns", []), warn_levels=r.get("warn_levels", []),
-                                 files=r.get("files", []), error=r.get("error"))
-                            for r in (state.audit_results or [])
+                            SectionResult(
+                                name=r["name"],
+                                status=_SS[r["status"].upper()],
+                                warns=r.get("warns", []),
+                                warn_levels=r.get("warn_levels", []),
+                                files=r.get("files", []),
+                                error=r.get("error"),
+                            )
+                            for r in audit_run.results
                         ]
                         _ctx = await asyncio.get_event_loop().run_in_executor(
                             None,
@@ -463,7 +509,7 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                                 out_dir=out_dir,
                                 results=results,
                                 lang="no",
-                            )
+                            ),
                         )
                         await _sched._check_and_alert(_ctx, customer_name)
                         await _sched._notify_audit_completed(customer_name, ctx=_ctx)
@@ -473,7 +519,9 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
                         try:
                             await _sched._notify_audit_completed(customer_name)
                         except Exception as e3:
-                            logger.warning("Fallback webhook notification failed for %s: %s", customer_name, e3)
+                            logger.warning(
+                                "Fallback webhook notification failed for %s: %s", customer_name, e3
+                            )
                     yield f"data: {json.dumps(item)}\n\n"
                     break
                 yield f"data: {json.dumps(item)}\n\n"
@@ -486,8 +534,8 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
             logger.error("Audit stream failed: %s", e, exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'msg': str(e)})}\n\n"
         finally:
+            audit_run.running = False
             state.audit_running = False
-            state.audit_progress.pop(_active_id, None)
 
     return StreamingResponse(
         generate(),
@@ -501,7 +549,7 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
 _IDLE_PROGRESS = {"progress": 0, "current_section": "", "total_sections": 0, "completed": 0}
 
 
-def _with_running(info: dict) -> dict:
+def _with_running(run: state.AuditRunContext | None) -> dict:
     """Progress, plus whether an audit is actually running.
 
     Without this the client cannot tell "no audit" from "an audit that has not
@@ -510,7 +558,9 @@ def _with_running(info: dict) -> dict:
     kept calling the *start* endpoint, which started a fresh audit every time.
     The server knows; let it say so.
     """
-    return {**info, "running": bool(state.audit_running)}
+    if run is None:
+        return {**_IDLE_PROGRESS, "running": False}
+    return {**run.progress, "running": run.running, "run_id": run.run_id}
 
 
 @router.get("/audit/progress/{customer_id}")
@@ -518,44 +568,39 @@ async def get_audit_progress(
     customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
 ):
     """Return current audit progress for the given customer (or 'active')."""
-    info = state.audit_progress.get(customer_id)
-    if info:
-        return _with_running(info)
-    # If no customer_id match, check if there's exactly one running audit
-    if not info and len(state.audit_progress) == 1:
-        return _with_running(next(iter(state.audit_progress.values())))
-    return _with_running(_IDLE_PROGRESS)
+    return _with_running(state.get_user_audit(user.id, customer_id))
 
 
 @router.get("/audit/progress")
 async def get_audit_progress_active(user: User = Depends(get_current_user)):
     """Return current audit progress for the active customer."""
     from app.core.customer import CustomerManager
-    active_id = CustomerManager.get_active_id() or "active"
-    info = state.audit_progress.get(active_id)
-    if info:
-        return _with_running(info)
-    if len(state.audit_progress) == 1:
-        return _with_running(next(iter(state.audit_progress.values())))
-    return _with_running(_IDLE_PROGRESS)
+
+    active_id = CustomerManager.get_active_id()
+    return _with_running(state.get_user_audit(user.id, active_id) if active_id else None)
 
 
 # ── API: Audit cancel ─────────────────────────────────────────────────────────
 
+
 @router.post("/audit/cancel")
 async def cancel_audit(user: User = Depends(get_current_user)):
     """Request cancellation of a running audit."""
-    if not state.audit_running:
+    # Cancellation follows ownership, not the currently selected customer. A
+    # user may switch views while their stream is running; that must not strand
+    # an un-cancellable collector, and it still can never target another user.
+    run = state.get_user_audit(user.id)
+    if run is None or not run.running:
         raise ConflictError(ui_t("err_no_audit_running"))
-    state.audit_cancel_requested = True
-    state.audit_running = False
+    run.cancel_requested = True
     return {"ok": True, "msg": ui_t("msg_audit_cancelled")}
 
 
 # ── API: Bulk audit SSE stream ────────────────────────────────────────────────
 
+
 @router.get("/audit/bulk")
-async def bulk_audit_stream(request: Request, user: User = Depends(get_current_user)):
+async def bulk_audit_stream(request: Request, user: User = Depends(require_role(Role.admin))):
     """Run audit for configured customers in parallel, streaming progress via SSE.
 
     Uses asyncio.Semaphore to limit concurrency (default 3) so Microsoft
@@ -576,7 +621,6 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
         try:
             from app.core.customer import CustomerManager
             from app.modules.base import SectionResult, SectionStatus
-            from app.modules.m365_audit.auth import AuthManager
             from app.modules.m365_audit.collector import AuditCollector, make_output_dir
             from app.reports.generator import build_report_context, generate_reports
 
@@ -586,10 +630,7 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
                 return
 
             # Filter to only configured customers (have TenantId + ClientId)
-            customers = [
-                c for c in all_customers
-                if c.get("TenantId") and c.get("ClientId")
-            ]
+            customers = [c for c in all_customers if c.get("TenantId") and c.get("ClientId")]
             skipped_count = len(all_customers) - len(customers)
 
             if not customers:
@@ -613,68 +654,135 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
                     try:
                         full_cust = CustomerManager.get_customer(cust_id)
                         if not full_cust:
-                            progress_queue.put_nowait({"type": "customer_skip", "index": idx, "total": total, "customer": cust_name, "reason": ui_t("err_customer_not_found")})
-                            return {"customer": cust_name, "status": "skipped", "error": ui_t("err_customer_not_found")}
+                            progress_queue.put_nowait(
+                                {
+                                    "type": "customer_skip",
+                                    "index": idx,
+                                    "total": total,
+                                    "customer": cust_name,
+                                    "reason": ui_t("err_customer_not_found"),
+                                }
+                            )
+                            return {
+                                "customer": cust_name,
+                                "status": "skipped",
+                                "error": ui_t("err_customer_not_found"),
+                            }
 
                         cust_cert = CustomerManager.get_cert_path(cust_id)
                         from app.modules.m365_audit.auth import get_auth_for_customer
+
                         auth = get_auth_for_customer(full_cust, cust_cert)
                     except Exception as e:
                         logger.warning("Auth setup failed for customer %s: %s", cust_name, e)
-                        progress_queue.put_nowait({"type": "customer_error", "index": idx, "total": total, "customer": cust_name, "error": str(e)})
+                        progress_queue.put_nowait(
+                            {
+                                "type": "customer_error",
+                                "index": idx,
+                                "total": total,
+                                "customer": cust_name,
+                                "error": str(e),
+                            }
+                        )
                         return {"customer": cust_name, "status": "error", "error": str(e)}
 
-                    progress_queue.put_nowait({"type": "customer_start", "index": idx, "total": total, "customer": cust_name})
+                    progress_queue.put_nowait(
+                        {
+                            "type": "customer_start",
+                            "index": idx,
+                            "total": total,
+                            "customer": cust_name,
+                        }
+                    )
 
                     try:
-                        def progress_cb(name: str, status: SectionStatus, detail: Optional[str], _ci=idx, _ct=total, _cn=cust_name) -> None:
-                            progress_queue.put_nowait({
-                                "type": "progress", "index": _ci, "total": _ct,
-                                "customer": _cn, "name": name,
-                                "status": status.name.lower(), "detail": detail or "",
-                            })
+
+                        def progress_cb(
+                            name: str,
+                            status: SectionStatus,
+                            detail: str | None,
+                            _ci=idx,
+                            _ct=total,
+                            _cn=cust_name,
+                        ) -> None:
+                            progress_queue.put_nowait(
+                                {
+                                    "type": "progress",
+                                    "index": _ci,
+                                    "total": _ct,
+                                    "customer": _cn,
+                                    "name": name,
+                                    "status": status.name.lower(),
+                                    "detail": detail or "",
+                                }
+                            )
 
                         out_dir = make_output_dir(cust_name)
-                        collector = AuditCollector(auth=auth, out_dir=out_dir, progress_cb=progress_cb)
+                        collector = AuditCollector(
+                            auth=auth, out_dir=out_dir, progress_cb=progress_cb
+                        )
                         audit_results_raw = await collector.run()
 
                         # Generate reports
                         results_objs = [
-                            SectionResult(name=r.name, status=r.status, warns=r.warns,
-                                          warn_levels=r.warn_levels, files=r.files, error=r.error)
+                            SectionResult(
+                                name=r.name,
+                                status=r.status,
+                                warns=r.warns,
+                                warn_levels=r.warn_levels,
+                                files=r.files,
+                                error=r.error,
+                            )
                             for r in audit_results_raw
                         ]
                         org_domain = full_cust.get("PrimaryDomain", "")
                         loop = asyncio.get_event_loop()
                         await loop.run_in_executor(
                             None,
-                            lambda _cn=cust_name, _od=org_domain, _odir=out_dir, _ro=results_objs: generate_reports(
-                                customer_name=_cn, org_domain=_od, out_dir=_odir,
-                                results=_ro, formats=["html"], report_type="tech", lang="no",
+                            lambda _cn=cust_name, _od=org_domain, _odir=out_dir, _ro=results_objs: (
+                                generate_reports(
+                                    customer_name=_cn,
+                                    org_domain=_od,
+                                    out_dir=_odir,
+                                    results=_ro,
+                                    formats=["html"],
+                                    report_type="tech",
+                                    lang="no",
+                                )
                             ),
                         )
 
                         ctx = await loop.run_in_executor(
                             None,
-                            lambda _cn=cust_name, _od=org_domain, _odir=out_dir, _ro=results_objs: build_report_context(_cn, _od, _odir, _ro, lang="no"),
+                            lambda _cn=cust_name, _od=org_domain, _odir=out_dir, _ro=results_objs: (
+                                build_report_context(_cn, _od, _odir, _ro, lang="no")
+                            ),
                         )
 
-                        done_count = sum(1 for r in audit_results_raw if r.status == SectionStatus.DONE)
-                        fail_count = sum(1 for r in audit_results_raw if r.status == SectionStatus.FAILED)
+                        done_count = sum(
+                            1 for r in audit_results_raw if r.status == SectionStatus.DONE
+                        )
+                        fail_count = sum(
+                            1 for r in audit_results_raw if r.status == SectionStatus.FAILED
+                        )
 
                         cust_summary = {
-                            "customer": cust_name, "status": "done",
+                            "customer": cust_name,
+                            "status": "done",
                             "grade": ctx.get("risk_grade", "-"),
                             "risk_score": ctx.get("risk_score", 0),
                             "sections_done": done_count,
                             "sections_failed": fail_count,
                             "sections_total": len(audit_results_raw),
                         }
-                        progress_queue.put_nowait({"type": "customer_done", "index": idx, "total": total, **cust_summary})
+                        progress_queue.put_nowait(
+                            {"type": "customer_done", "index": idx, "total": total, **cust_summary}
+                        )
 
                         # Webhooks
                         try:
                             from app.core.scheduler import scheduler as _sched
+
                             await _sched._check_and_alert(ctx, cust_name)
                             await _sched._notify_audit_completed(cust_name, ctx=ctx)
                         except Exception as e:
@@ -684,12 +792,23 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
 
                     except Exception as e:
                         logger.error("Audit failed for %s:\n%s", cust_name, traceback.format_exc())
-                        progress_queue.put_nowait({"type": "customer_error", "index": idx, "total": total, "customer": cust_name, "error": str(e)})
+                        progress_queue.put_nowait(
+                            {
+                                "type": "customer_error",
+                                "index": idx,
+                                "total": total,
+                                "customer": cust_name,
+                                "error": str(e),
+                            }
+                        )
                         try:
                             from app.core.scheduler import scheduler as _sched
+
                             await _sched._send_webhook(f"⚠️ Audit feilet for **{cust_name}**: {e}")
                         except Exception as e2:
-                            logger.warning("Webhook error notification failed for %s: %s", cust_name, e2)
+                            logger.warning(
+                                "Webhook error notification failed for %s: %s", cust_name, e2
+                            )
                         return {"customer": cust_name, "status": "error", "error": str(e)}
 
             # ── Launch all audits and stream progress ──
@@ -703,7 +822,7 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
                     yield f"data: {json.dumps(item)}\n\n"
                     if item.get("type") in ("customer_done", "customer_error", "customer_skip"):
                         finished += 1
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Check for crashed tasks
                     for t in tasks:
                         if t.done() and t.exception():
@@ -716,12 +835,17 @@ async def bulk_audit_stream(request: Request, user: User = Depends(get_current_u
             # Send bulk summary webhook
             try:
                 from app.core.scheduler import scheduler as _sched
+
                 done_custs = [s for s in summary if s.get("status") == "done"]
                 fail_custs = [s for s in summary if s.get("status") == "error"]
                 skip_custs = [s for s in summary if s.get("status") == "skipped"]
-                lines = [f"📋 **Bulk-audit fullført: {len(done_custs)}/{total} OK** ({MAX_CONCURRENT} parallelle)"]
+                lines = [
+                    f"📋 **Bulk-audit fullført: {len(done_custs)}/{total} OK** ({MAX_CONCURRENT} parallelle)"
+                ]
                 for s in done_custs:
-                    lines.append(f"✅ {s['customer']} — Karakter {s.get('grade','-')} (score {s.get('risk_score',0)})")
+                    lines.append(
+                        f"✅ {s['customer']} — Karakter {s.get('grade', '-')} (score {s.get('risk_score', 0)})"
+                    )
                 for s in fail_custs:
                     lines.append(f"❌ {s['customer']} — {s.get('error', 'Ukjent feil')}")
                 for s in skip_custs:

@@ -4,24 +4,19 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
 
 import app.web.state as state
 from app.core.config import load_app_settings
 from app.core.exceptions import (
-    AuthError,
-    ConflictError,
     IntegrationError,
-    NotFoundError,
     ValidationError,
 )
-from app.web.i18n import ui_t
 from app.models.user import Role
+from app.web.i18n import ui_t
 from app.web.middleware.auth import get_current_user, require_customer_access
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -32,6 +27,7 @@ logger = logging.getLogger(__name__)
 async def itglue_test(request: Request):
     """Test IT Glue API connection."""
     from app.integrations.itglue import ITGlueClient
+
     body = await request.json()
     api_key = body.get("api_key", "")
     region = body.get("region", "eu")
@@ -53,6 +49,7 @@ async def itglue_test(request: Request):
 async def itglue_organizations():
     """List IT Glue organizations."""
     from app.integrations.itglue import ITGlueClient
+
     settings = load_app_settings()
     api_key = settings.get("itglue_api_key", "")
     region = settings.get("itglue_region", "eu")
@@ -70,6 +67,7 @@ async def itglue_organizations():
 async def itglue_inspect():
     """Inspect IT Glue Flexible Asset Types and their fields."""
     from app.integrations.itglue import ITGlueClient
+
     settings = load_app_settings()
     api_key = settings.get("itglue_api_key", "")
     region = settings.get("itglue_region", "eu")
@@ -128,21 +126,29 @@ async def import_customers_from_itglue(request: Request):
 
     try:
         from app.core.activity_log import log_activity
+
         _user = getattr(getattr(request.state, "user", None), "username", "")
-        log_activity("itglue_import", detail=f"Importerte {len(imported)} kunde(r) fra IT Glue", user=_user)
+        log_activity(
+            "itglue_import", detail=f"Importerte {len(imported)} kunde(r) fra IT Glue", user=_user
+        )
     except Exception as e:
         logger.warning("Failed to log IT Glue import activity: %s", e)
 
-    return {"ok": True, "imported": len(imported), "skipped": len(skipped),
-            "imported_names": [i["name"] for i in imported],
-            "skipped_names": skipped}
+    return {
+        "ok": True,
+        "imported": len(imported),
+        "skipped": len(skipped),
+        "imported_names": [i["name"] for i in imported],
+        "skipped_names": skipped,
+    }
 
 
 @router.post("/itglue/upload/audit")
-async def itglue_upload_audit(request: Request):
+async def itglue_upload_audit(request: Request, user=Depends(get_current_user)):
     """Upload audit data and report to IT Glue."""
     from app.core.encryption import encrypted_read_json
     from app.integrations.itglue import ITGlueClient
+
     body = await request.json()
     org_id = body.get("org_id")
     if not org_id:
@@ -154,7 +160,7 @@ async def itglue_upload_audit(request: Request):
         region=settings.get("itglue_region", "eu"),
     )
     try:
-        out_dir = _resolve_audit_out_dir()
+        out_dir = await _resolve_audit_out_dir(user)
         if not out_dir:
             raise ValidationError(ui_t("err_no_audit_data"))
 
@@ -172,8 +178,7 @@ async def itglue_upload_audit(request: Request):
         recs = metrics.get("recommendations", [])
         if recs:
             recs_text = "\n".join(
-                f"[{r.get('priority','').upper()}] {r.get('title','')}"
-                for r in recs
+                f"[{r.get('priority', '').upper()}] {r.get('title', '')}" for r in recs
             )
         if metrics.get("risk_grade"):
             exec_summary = (
@@ -194,30 +199,39 @@ async def itglue_upload_audit(request: Request):
         )
 
         from app.core.activity_log import log_activity as _log_itg
+
         _log_itg("itglue_uploaded", detail="audit data")
 
         return {"ok": True, "asset_id": result.get("id")}
     except Exception as e:
         logger.error("IT Glue upload failed: %s", e)
-        raise IntegrationError("IT Glue upload failed")
+        raise IntegrationError("IT Glue upload failed") from e
     finally:
         await client.close()
 
 
-def _resolve_audit_out_dir() -> Optional[Path]:
-    """Return current audit dir, or find latest run for active customer."""
-    if state.audit_out_dir and state.audit_out_dir.exists():
-        return state.audit_out_dir
+async def _resolve_audit_out_dir(user) -> Path | None:
+    """Return only an accessible run for the caller's active customer."""
     # Fallback: find latest audit run for active customer
     try:
         from app.core.config import get_audit_dir
-        from app.core.customer import CustomerManager
+        from app.core.customer import CustomerManager, customer_dir_name
+        from app.core.rbac import check_audit_path_access
+
         active = CustomerManager.get_active()
         if not active:
             return None
+        active_id = active.get("_id", "")
+        selected = state.get_user_audit(user.id, active_id)
+        if (
+            selected
+            and selected.out_dir
+            and selected.out_dir.exists()
+            and await check_audit_path_access(user, str(selected.out_dir))
+        ):
+            return selected.out_dir
         name = active.get("CustomerName", "")
-        sanitized = "".join(c if c.isalnum() or c in "-_ " else "_" for c in name).replace(" ", "_")
-        customer_dir = get_audit_dir() / sanitized
+        customer_dir = get_audit_dir() / customer_dir_name(name)
         if not customer_dir.exists():
             return None
         runs = sorted([d for d in customer_dir.iterdir() if d.is_dir()], reverse=True)
@@ -228,22 +242,22 @@ def _resolve_audit_out_dir() -> Optional[Path]:
 
 
 @router.get("/itglue/available-reports")
-async def itglue_available_reports():
+async def itglue_available_reports(user=Depends(get_current_user)):
     """List HTML/PDF reports available for upload."""
-    out_dir = _resolve_audit_out_dir()
+    out_dir = await _resolve_audit_out_dir(user)
     if not out_dir:
         return {"files": []}
     files = []
     for f in sorted(out_dir.iterdir()):
         if f.suffix.lower() in (".html", ".pdf"):
             size_kb = f.stat().st_size / 1024
-            size_str = f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
+            size_str = f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
             files.append({"name": f.name, "size": size_str, "path": str(f)})
     return {"files": files, "audit_dir": str(out_dir), "audit_date": out_dir.name}
 
 
 @router.post("/itglue/upload/reports")
-async def itglue_upload_reports(request: Request):
+async def itglue_upload_reports(request: Request, user=Depends(get_current_user)):
     """Upload selected audit reports to IT Glue Documents folder."""
     from app.integrations.itglue import ITGlueClient
 
@@ -253,7 +267,7 @@ async def itglue_upload_reports(request: Request):
     if not org_id:
         raise ValidationError("org_id er påkrevd")
 
-    out_dir = _resolve_audit_out_dir()
+    out_dir = await _resolve_audit_out_dir(user)
     if not out_dir:
         raise ValidationError(ui_t("err_no_audit_data"))
 
@@ -277,7 +291,9 @@ async def itglue_upload_reports(request: Request):
                 if fp.exists() and fp.suffix.lower() in (".html", ".pdf"):
                     report_files.append(fp)
         else:
-            report_files = [f for f in sorted(out_dir.iterdir()) if f.suffix.lower() in (".html", ".pdf")]
+            report_files = [
+                f for f in sorted(out_dir.iterdir()) if f.suffix.lower() in (".html", ".pdf")
+            ]
 
         if not report_files:
             raise ValidationError(ui_t("err_no_report_files"))
@@ -291,15 +307,18 @@ async def itglue_upload_reports(request: Request):
 
         try:
             from app.core.activity_log import log_activity
+
             _user = getattr(getattr(request.state, "user", None), "username", "")
-            log_activity("itglue_uploaded", detail=f"{len(uploaded)} rapporter til Documents", user=_user)
+            log_activity(
+                "itglue_uploaded", detail=f"{len(uploaded)} rapporter til Documents", user=_user
+            )
         except Exception as e:
             logger.warning("Failed to log IT Glue upload activity: %s", e)
 
         return {"ok": True, "uploaded": len(uploaded), "files": uploaded}
     except Exception as e:
         logger.error("IT Glue document upload failed: %s", e)
-        raise IntegrationError("IT Glue document upload failed")
+        raise IntegrationError("IT Glue document upload failed") from e
     finally:
         await client.close()
 
@@ -310,6 +329,7 @@ async def itglue_upload_credentials(request: Request):
     from app.core.credentials import get_secret, load_config
     from app.core.customer import CustomerManager
     from app.integrations.itglue import ITGlueClient
+
     body = await request.json()
     org_id = body.get("org_id")
     if not org_id:
@@ -339,7 +359,7 @@ async def itglue_upload_credentials(request: Request):
         return {"ok": True, "asset_id": result.get("id")}
     except Exception as e:
         logger.error("IT Glue credential upload failed: %s", e)
-        raise IntegrationError("IT Glue credential upload failed")
+        raise IntegrationError("IT Glue credential upload failed") from e
     finally:
         await client.close()
 
@@ -365,7 +385,7 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
 
     org_id = int(org_id_str)
     customer_name = cust.get("CustomerName", "Unknown")
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     synced = []
     errors = []
 
@@ -373,13 +393,16 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
     try:
         if cust.get("UniFiHost") or cust.get("FortiGateHost"):
             from app.web.routes.dashboard_infra import _build_network_inventory_for_customer
+
             net_data = await _build_network_inventory_for_customer(cust)
             if net_data:
                 type_id = await client.ensure_network_inventory_type()
                 totals = net_data.get("totals", {})
                 total_devs = (
-                    totals.get("aps", 0) + totals.get("switches", 0)
-                    + totals.get("gateways", 0) + totals.get("firewalls", 0)
+                    totals.get("aps", 0)
+                    + totals.get("switches", 0)
+                    + totals.get("gateways", 0)
+                    + totals.get("firewalls", 0)
                 )
                 # Build device list HTML
                 device_lines = []
@@ -395,7 +418,8 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                         device_lines.append(line)
 
                 outdated = sum(
-                    1 for cat in net_data.get("devices", {}).values()
+                    1
+                    for cat in net_data.get("devices", {}).values()
                     for dev in cat
                     if dev.get("fw_status") in ("warning", "critical")
                 )
@@ -414,24 +438,28 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                     "alerts": alerts_text,
                 }
                 result = await client.upsert_flexible_asset(type_id, org_id, customer_name, traits)
-                synced.append({
-                    "type": "network_inventory",
-                    "asset_id": result.get("id"),
-                    "action": result.get("upserted", "synced"),
-                    "devices": total_devs,
-                })
+                synced.append(
+                    {
+                        "type": "network_inventory",
+                        "asset_id": result.get("id"),
+                        "action": result.get("upserted", "synced"),
+                        "devices": total_devs,
+                    }
+                )
     except Exception as e:
         logger.warning("Network inventory sync failed for %s: %s", customer_id, e)
         errors.append({"type": "network_inventory", "error": str(e)})
 
     # ── 2. Domain Overview (Uniweb) ─────────────────────────────────────────
     try:
-        async with get_db() as db:
-            async with db.execute(
+        async with (
+            get_db() as db,
+            db.execute(
                 "SELECT data_json FROM uniweb_accounts WHERE customer_id = ?",
                 (customer_id,),
-            ) as cur:
-                uniweb_rows = [dict(r) for r in await cur.fetchall()]
+            ) as cur,
+        ):
+            uniweb_rows = [dict(r) for r in await cur.fetchall()]
 
         all_domains = []
         all_ssl = []
@@ -453,8 +481,16 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
 
                 # DNS summary
                 dns_records = dom.get("dns", [])
-                has_spf = any("v=spf1" in (r.get("value", "")).lower() for r in dns_records if r.get("type") == "TXT")
-                has_dmarc = any("v=dmarc1" in (r.get("value", "")).lower() for r in dns_records if r.get("type") == "TXT")
+                has_spf = any(
+                    "v=spf1" in (r.get("value", "")).lower()
+                    for r in dns_records
+                    if r.get("type") == "TXT"
+                )
+                has_dmarc = any(
+                    "v=dmarc1" in (r.get("value", "")).lower()
+                    for r in dns_records
+                    if r.get("type") == "TXT"
+                )
 
                 dns_flags = []
                 if has_spf:
@@ -462,7 +498,9 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                 if has_dmarc:
                     dns_flags.append("DMARC")
 
-                all_domains.append(f"{domain_name} | Exp: {expiry or '?'} | DNS: {', '.join(dns_flags) or 'none'}")
+                all_domains.append(
+                    f"{domain_name} | Exp: {expiry or '?'} | DNS: {', '.join(dns_flags) or 'none'}"
+                )
 
             for ssl in data.get("ssl", []):
                 ssl_dom = ssl.get("domain", "")
@@ -473,7 +511,7 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
 
         if all_domains:
             type_id = await client.ensure_domain_overview_type()
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             expiring_soon = 0
             for row in uniweb_rows:
                 if not row.get("data_json"):
@@ -486,7 +524,7 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                     exp_str = (dom.get("expiry") or "").strip()
                     if exp_str and len(exp_str) >= 10:
                         try:
-                            exp_date = datetime.fromisoformat(exp_str[:10]).replace(tzinfo=timezone.utc)
+                            exp_date = datetime.fromisoformat(exp_str[:10]).replace(tzinfo=UTC)
                             if 0 <= (exp_date - now).days <= 90:
                                 expiring_soon += 1
                         except (ValueError, TypeError):
@@ -501,22 +539,25 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                 "expiring-soon": expiring_soon,
             }
             result = await client.upsert_flexible_asset(type_id, org_id, customer_name, traits)
-            synced.append({
-                "type": "domain_overview",
-                "asset_id": result.get("id"),
-                "action": result.get("upserted", "synced"),
-                "domains": len(all_domains),
-            })
+            synced.append(
+                {
+                    "type": "domain_overview",
+                    "asset_id": result.get("id"),
+                    "action": result.get("upserted", "synced"),
+                    "domains": len(all_domains),
+                }
+            )
     except Exception as e:
         logger.warning("Domain overview sync failed for %s: %s", customer_id, e)
         errors.append({"type": "domain_overview", "error": str(e)})
 
     # ── 3. License Summary (ALSO renewals) ──────────────────────────────────
     try:
-        also_id = cust.get("AlsoAccountId", "")
-        if also_id or True:  # Check DB regardless — customer_id may be linked
-            async with get_db() as db:
-                async with db.execute(
+        cust.get("AlsoAccountId", "")
+        if True:  # Check DB regardless — customer_id may be linked
+            async with (
+                get_db() as db,
+                db.execute(
                     """SELECT r.service_name, r.contract_end, r.account_state,
                               d.quantity, d.unit_price, d.monthly_cost, d.currency
                        FROM also_renewals r
@@ -525,14 +566,15 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                        WHERE r.customer_id = ?
                        ORDER BY r.contract_end ASC""",
                     (customer_id,),
-                ) as cur:
-                    renewals = [dict(r) for r in await cur.fetchall()]
+                ) as cur,
+            ):
+                renewals = [dict(r) for r in await cur.fetchall()]
 
             if renewals:
                 type_id = await client.ensure_license_summary_type()
                 total_mrr = sum(r.get("monthly_cost") or 0 for r in renewals)
                 currency = next((r.get("currency") for r in renewals if r.get("currency")), "NOK")
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
 
                 sub_lines = []
                 expiring_soon = 0
@@ -548,7 +590,7 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                         try:
                             end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
                             if end_dt.tzinfo is None:
-                                end_dt = end_dt.replace(tzinfo=timezone.utc)
+                                end_dt = end_dt.replace(tzinfo=UTC)
                             if 0 <= (end_dt - now).days <= 90:
                                 expiring_soon += 1
                         except (ValueError, TypeError):
@@ -564,13 +606,15 @@ async def _sync_customer_documentation(customer_id: str, client) -> dict:
                     "expiring-soon": expiring_soon,
                 }
                 result = await client.upsert_flexible_asset(type_id, org_id, customer_name, traits)
-                synced.append({
-                    "type": "license_summary",
-                    "asset_id": result.get("id"),
-                    "action": result.get("upserted", "synced"),
-                    "subscriptions": len(renewals),
-                    "mrr": round(total_mrr, 2),
-                })
+                synced.append(
+                    {
+                        "type": "license_summary",
+                        "asset_id": result.get("id"),
+                        "action": result.get("upserted", "synced"),
+                        "subscriptions": len(renewals),
+                        "mrr": round(total_mrr, 2),
+                    }
+                )
     except Exception as e:
         logger.warning("License summary sync failed for %s: %s", customer_id, e)
         errors.append({"type": "license_summary", "error": str(e)})
@@ -606,6 +650,7 @@ async def itglue_sync_documentation(
 
         try:
             from app.core.activity_log import log_activity
+
             _user = getattr(getattr(request.state, "user", None), "username", "")
             synced_types = [s["type"] for s in result.get("synced", [])]
             log_activity(
@@ -619,7 +664,7 @@ async def itglue_sync_documentation(
         return {"ok": True, **result}
     except Exception as e:
         logger.error("IT Glue doc sync failed for %s: %s", customer_id, e)
-        raise IntegrationError(f"IT Glue sync failed: {e}")
+        raise IntegrationError(f"IT Glue sync failed: {e}") from e
     finally:
         await client.close()
 
@@ -656,18 +701,21 @@ async def itglue_sync_all(request: Request):
                     error_count += len(r["errors"])
             except Exception as e:
                 logger.warning("Sync failed for customer %s: %s", cid, e)
-                results.append({
-                    "customer_id": cid,
-                    "customer_name": c.get("CustomerName", "?"),
-                    "synced": [],
-                    "errors": [{"type": "general", "error": str(e)}],
-                })
+                results.append(
+                    {
+                        "customer_id": cid,
+                        "customer_name": c.get("CustomerName", "?"),
+                        "synced": [],
+                        "errors": [{"type": "general", "error": str(e)}],
+                    }
+                )
                 error_count += 1
 
         synced_count = sum(1 for r in results if r.get("synced"))
 
         try:
             from app.core.activity_log import log_activity
+
             _user = getattr(getattr(request.state, "user", None), "username", "")
             log_activity(
                 "itglue_uploaded",
@@ -686,6 +734,6 @@ async def itglue_sync_all(request: Request):
         }
     except Exception as e:
         logger.error("IT Glue bulk sync failed: %s", e)
-        raise IntegrationError(f"IT Glue bulk sync failed: {e}")
+        raise IntegrationError(f"IT Glue bulk sync failed: {e}") from e
     finally:
         await client.close()

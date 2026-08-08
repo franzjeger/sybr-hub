@@ -5,6 +5,27 @@ Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Audit-resultater, VPN-kontroll og vedlikehold er herdet
+
+- Audit-fremdrift, avbrudd, resultatsett og valgt rapportmappe er isolert per
+  bruker og kunde. Historikk, rapporteksport, e-post, IT Glue og status kan
+  ikke lenger lese prosessens sist kjørte audit fra en annen innlogget bruker.
+- Trendoversikten følger kundetilgang, bulk-audit krever administrator, og
+  vertsoperasjonene mappeåpning og SMTP-test er flyttet bak admin-grensen.
+- VPN-kontroll rapporterer nå en eksplisitt capability per protokoll. Under
+  den herdede systemd-uniten vises `external`, Connect deaktiveres, og API-et
+  stopper før profilhemmeligheter lastes. WireGuard forsøker ikke lenger
+  `sudo` eller et ikke-levert hjelpeprogram.
+- VPN-profiler, status, Azure-innlogging og frakobling filtreres etter
+  kundetilgang. Force-disconnect og import av delte profiler krever admin.
+- 102 flere statiske klikkhandlere er flyttet til den eksplisitte CSP-listen;
+  handlerbudsjettet er redusert fra 808 til 706.
+- GitHub Actions er oppdatert til immutable SHA-er for checkout 7.0.1 og
+  setup-python 7.0.0. Testede øvre intervaller for WebSockets og fire Azure
+  SDK-er er utvidet til de aktuelle hovedversjonene.
+- Ruff-gjelden er redusert fra 1068 til 934 funn, og alle endrede Python-filer
+  er rene.
+
 ### Aktiv kunde er isolert per bruker
 
 - Autentiserte requests binder brukeridentitet og gjeldende kundetilganger i

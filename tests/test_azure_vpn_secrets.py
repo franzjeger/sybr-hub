@@ -8,11 +8,11 @@ Fixed names in a world-writable dir are a symlink/TOCTOU target and let any
 local user read the secret from a name they can predict; 0644 leaves the TLS
 key and the token readable by everyone on the host.
 
-The TLS key is now inlined into the config (no key file at all), configs and
-the token transit a private 0600 temp with an unpredictable name, and the
-persisted token is chmod 600. connect() itself needs openvpn3 and a tun
-device, so it is validated on the host; the pure builder and the temp writer
-are covered here.
+The TLS key is now inlined into the config (no key file at all), and configs
+transit a private 0600 temp with an unpredictable name. The redundant
+plaintext refresh-token copy for the old privileged helper is gone. connect()
+itself needs openvpn3 and a tun device, so it is validated on the host; the
+pure builder and the temp writer are covered here.
 """
 
 from __future__ import annotations

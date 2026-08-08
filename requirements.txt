@@ -5,7 +5,7 @@ uvicorn[standard]>=0.30.0,<1.0
 # declares File()/Form(), which the backup restore and branding upload do.
 python-multipart>=0.0.7,<1.0
 # Guacamole reverse proxy (remote access) speaks WebSocket to guacd.
-websockets>=12.0,<15.0
+websockets>=12.0,<18.0
 
 # Terminal UI (app/ui) — a separate entry point from the web service, but
 # kept declared so the tree imports cleanly and the suite can cover it.
@@ -19,12 +19,12 @@ msal>=1.28.0,<2.0
 # Azure SDK
 azure-identity>=1.16.0,<2.0
 azure-mgmt-compute>=30.3.0,<32.0
-azure-mgmt-network>=25.3.0,<27.0
+azure-mgmt-network>=25.3.0,<32.0
 azure-mgmt-resource>=23.1.0,<24.0
-azure-mgmt-storage>=21.1.0,<22.0
+azure-mgmt-storage>=21.1.0,<26.0
 azure-mgmt-monitor>=6.0.1,<7.0
 azure-mgmt-advisor>=9.0.0,<10.0
-azure-mgmt-recoveryservices>=2.5.0,<3.0
+azure-mgmt-recoveryservices>=2.5.0,<5.0
 # Separate distribution from azure-mgmt-recoveryservices — the Azure
 # governance section imports it for backup-policy checks, and without it
 # that check silently degrades to "unavailable".
@@ -33,7 +33,7 @@ azure-mgmt-loganalytics>=13.0.0,<14.0
 azure-mgmt-desktopvirtualization>=1.0.0,<2.0
 # Cost analysis, RBAC role assignments and tenant/subscription enumeration
 # for the Azure governance sections.
-azure-mgmt-costmanagement>=4.0.0,<5.0
+azure-mgmt-costmanagement>=4.0.0,<6.0
 azure-mgmt-authorization>=4.0.0,<5.0
 azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0
 
