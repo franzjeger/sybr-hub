@@ -1,10 +1,31 @@
 # Endringslogg
 
-Sybr HUB følger sin egen pre-1.0-versjonslinje (`0.x`). Oppføringene merket
+Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 `v10.x` nedenfor dokumenterer den importerte MSP-Toolkit-auditmotorens historikk
 og er ikke Sybr HUB-pakkeversjoner.
 
-## Ikke utgitt
+## v1.0.0 (2026-08-08)
+### Første stabile utgave under Sybr HUB-navnet
+
+- Produktversjonen er satt til `1.0.0`. `0.1.0` var aldri en modenhetsvurdering,
+  men startverdien fra navnebyttet, og den underkommuniserte en plattform som
+  kjører i produksjon med hele regresjonssuiten grønn.
+- `app/core/version.py` og service worker-ens `CACHE_VERSION` er bumpet i takt,
+  slik `tests/test_version_consistency.py` krever.
+
+### Installasjonen henter tagger, så den viste versjonen kan løses
+
+- `scripts/install-cachyos.sh` henter nå tagger eksplisitt etter kloning og
+  oppdatering. Både den grunne klonen (`--depth 1`) og enkeltgren-hentingen
+  utelot tagg-referanser, så `git describe --tags` i `app/core/version.py`
+  feilet på hver installasjon og alle flater rapporterte fallback-verdien
+  uansett hvilken utgave som faktisk kjørte.
+- Ingen andre endringer var nødvendige. Web-UI, API, rapporter, TUI,
+  service worker-cachenøkkelen og oppstartsloggen leser allerede
+  `get_version()`, og begynner å vise riktig utgave så snart en tagg finnes.
+- `pyproject.toml` leser `__version__` på byggetidspunktet og kan ikke se git.
+  Den verdien må fortsatt oppdateres per utgave.
+
 ### Audit-resultater, VPN-kontroll og vedlikehold er herdet
 
 - Audit-fremdrift, avbrudd, resultatsett og valgt rapportmappe er isolert per

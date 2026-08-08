@@ -14,7 +14,11 @@ from datetime import datetime, timezone
 # 10.x lineage; using that value here made the API, reports and package metadata
 # disagree about which product was running. pyproject.toml reads this attribute
 # dynamically, making this the single release-version source.
-__version__ = "0.1.0"
+#
+# tests/test_version_consistency.py couples this to the service worker's
+# CACHE_VERSION literal — bump app/web/static/sw.js in the same commit, or the
+# suite fails.
+__version__ = "1.0.0"
 
 # ── Cached build info with TTL ────────────────────────────────────────────
 _build_info_cache: dict | None = None
