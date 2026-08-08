@@ -16,6 +16,8 @@ BRANCH="${SYBR_HUB_BRANCH:-main}"
 PREFIX=/opt/sybr-hub
 DATA_DIR=/var/lib/sybr-hub
 CONF_DIR=/etc/sybr-hub
+SECRET_DIR=/etc/sybr-hub-secrets
+WRAP_SECRET="$SECRET_DIR/key-wrap.secret"
 SVC_USER=sybrhub
 PORT="${SYBR_HUB_PORT:-8099}"
 
@@ -52,6 +54,22 @@ command -v pwsh &>/dev/null || echo "    WARNING: pwsh not found — install it 
 log "Creating service account and directories"
 id -u "$SVC_USER" &>/dev/null || useradd --system --home-dir "$PREFIX" --shell /usr/bin/nologin "$SVC_USER"
 install -d -o "$SVC_USER" -g "$SVC_USER" -m 750 "$PREFIX" "$DATA_DIR" "$CONF_DIR"
+
+# The local recovery copy of the encryption master key must survive a host
+# rebuild without being derivable from public machine identifiers. Keep its
+# independent wrapping secret root-owned and let systemd copy it into the
+# service's private credential directory at start. Never rotate this file
+# without first exporting the master key through the authenticated UI.
+install -d -o root -g root -m 700 "$SECRET_DIR"
+if [[ ! -s "$WRAP_SECRET" ]]; then
+    WRAP_TMP="$(mktemp "$SECRET_DIR/.key-wrap.secret.XXXXXX")"
+    python -c 'import secrets; print(secrets.token_urlsafe(48))' > "$WRAP_TMP"
+    chown root:root "$WRAP_TMP"
+    chmod 600 "$WRAP_TMP"
+    mv -f "$WRAP_TMP" "$WRAP_SECRET"
+fi
+chown root:root "$WRAP_SECRET"
+chmod 600 "$WRAP_SECRET"
 
 # ── Source ────────────────────────────────────────────────────────────────────
 if [[ -d "$PREFIX/.git" ]]; then

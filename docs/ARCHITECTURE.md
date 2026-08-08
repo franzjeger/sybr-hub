@@ -719,11 +719,13 @@ where the old one was cycle-long.
 
 `static/` is served by the app, not by a build step. Two things follow.
 
-**No third-party CDN.** xterm, chart.js, marked, DOMPurify and the icon font
-live in `static/vendor/` and are served from the app. A console holding every
-customer's credentials should not execute script from a host outside the
-tailnet, and the terminal and charts have to work during an outage, which is
-when the operator needs them and when a route out may not exist.
+**No third-party CDN in the application shell.** xterm, chart.js, marked,
+DOMPurify and the icon font live in `static/vendor/` and are served from the
+app. A console holding every customer's credentials should not execute script
+from a host outside the tailnet, and the terminal and charts have to work
+during an outage. The separate, authenticated `/docs` Swagger viewer is the
+only exception: it loads an exact `swagger-ui-dist` release from jsDelivr under
+a path-scoped CSP and uses a fresh nonce for its bootstrap.
 
 **The cache key is a digest, not a version.** `sw.js` serves `/static/`
 cache-first, so a changed file is only picked up when `CACHE_VERSION` changes.

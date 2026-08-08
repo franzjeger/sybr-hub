@@ -2123,3 +2123,6 @@
      empty display over their inline one. !important so the gate still wins
      over an inline display on what a user genuinely may not see. */
   .gated-hidden { display: none !important; }
+/* Hidden rather than disabled: an account without the capability is not
+   meant to see the door, and a greyed-out button invites a support ticket. */
+body.is-readonly [data-write] { display: none !important; }

@@ -69,3 +69,22 @@ def test_the_service_still_binds_to_loopback():
     """Tailscale serve fronts it. Binding 0.0.0.0 would expose it on every
     interface, with no TLS unless SYBR_HUB_SSL_CERT is set."""
     assert "Environment=SYBR_HUB_HOST=127.0.0.1" in UNIT
+
+
+def test_master_key_wrap_secret_uses_a_systemd_credential():
+    assert _settings("LoadCredential") == [
+        "key-wrap.secret:/etc/sybr-hub-secrets/key-wrap.secret"
+    ]
+    assert "SYBR_KEY_WRAP_SECRET_FILE=%d/key-wrap.secret" in _settings("Environment")
+    assert not any(
+        value.startswith("SYBR_KEY_WRAP_SECRET=") for value in _settings("Environment")
+    ), "the secret value itself must never be stored in the unit environment"
+
+
+def test_service_created_files_are_private_by_default():
+    assert _settings("UMask") == ["0077"]
+
+
+def test_unit_does_not_promise_sudo_that_no_new_privileges_blocks():
+    assert "Cmnd_Alias" not in UNIT
+    assert "ALL=(root)" not in UNIT

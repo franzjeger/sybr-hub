@@ -23,22 +23,8 @@
 <!-- Theme before the stylesheet, not after the last line of app.js.
      :root carries the dark palette, and data-theme was only set once app.js
      had finished parsing — so every load painted dark and then flipped. -->
-<script>
-  (function () {
-    try {
-      var t = localStorage.getItem('sybr-theme')
-        || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-              ? 'light' : 'dark');
-      document.documentElement.setAttribute('data-theme', t);
-    } catch (e) { /* private mode — fall through to the default */ }
-  })();
-</script>
+<script src="/static/theme-init.js?v=1001"></script>
 <link rel="stylesheet" href="/static/app.css?v=1016">
-<style>
-/* Hidden rather than disabled: an account without the capability is not
-   meant to see the door, and a greyed-out button invites a support ticket. */
-body.is-readonly [data-write] { display: none !important; }
-</style>
 </head>
 <body>
 <div id="toast-container" class="toast-container"></div>

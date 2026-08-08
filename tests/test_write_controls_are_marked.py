@@ -87,8 +87,9 @@ def test_every_static_control_that_writes_is_marked():
 def test_the_marking_actually_hides_something():
     """The attribute is inert without the rule that acts on it."""
     html = (STATIC / "index.html").read_text(encoding="utf-8")
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
 
-    assert "body.is-readonly [data-write]" in html
+    assert "body.is-readonly [data-write]" in css
     assert html.count("data-write") > 40
 
 

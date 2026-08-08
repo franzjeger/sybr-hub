@@ -1,5 +1,5 @@
 {
-  "total": 1102,
+  "total": 1101,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -60,6 +60,7 @@
     "app/web/routes/autotask.py",
     "app/web/routes/dashboard.py",
     "app/web/routes/docs.py",
+    "app/web/routes/frontend.py",
     "app/web/routes/policy_deploy.py",
     "app/web/routes/proxy.py",
     "app/web/routes/workshop.py",
@@ -91,6 +92,7 @@
     "tests/test_features.py",
     "tests/test_grant_write_script.py",
     "tests/test_graph_licence_gate.py",
+    "tests/test_graph_request_budget.py",
     "tests/test_hub_endpoint.py",
     "tests/test_hub_identity_is_never_offered.py",
     "tests/test_integration_save_routes.py",
@@ -98,6 +100,7 @@
     "tests/test_missing_modules.py",
     "tests/test_no_server_side_browser_launch.py",
     "tests/test_notification_centre.py",
+    "tests/test_onedrive_scan_scope.py",
     "tests/test_packaging.py",
     "tests/test_password_policy.py",
     "tests/test_password_protection.py",

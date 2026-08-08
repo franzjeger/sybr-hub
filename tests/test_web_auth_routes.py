@@ -77,8 +77,24 @@ def test_browser_security_headers_are_present(client):
     assert resp.headers["x-content-type-options"] == "nosniff"
     assert resp.headers["x-frame-options"] == "SAMEORIGIN"
     assert resp.headers["referrer-policy"] == "no-referrer"
-    assert "object-src 'none'" in resp.headers["content-security-policy"]
+    csp = resp.headers["content-security-policy"]
+    assert "object-src 'none'" in csp
+    assert "script-src 'self';" in csp
+    assert "script-src-elem 'self'" in csp
+    assert "script-src-attr 'unsafe-inline'" in csp
+    assert "style-src-elem 'self'" in csp
+    assert "style-src-attr 'unsafe-inline'" in csp
+    assert "cdn.jsdelivr.net" not in csp
     assert resp.headers["cache-control"] == "no-store"
+
+
+def test_openapi_csp_relaxation_is_path_scoped(client):
+    docs_csp = client.get("/docs").headers["content-security-policy"]
+    app_csp = client.get("/").headers["content-security-policy"]
+
+    assert "cdn.jsdelivr.net" in docs_csp
+    assert "'unsafe-inline'" not in docs_csp
+    assert "cdn.jsdelivr.net" not in app_csp
 
 
 def test_http_cookie_exception_is_limited_to_loopback(monkeypatch):

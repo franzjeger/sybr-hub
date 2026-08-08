@@ -28,7 +28,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from app.core.config import AUDIT_DIR
 from app.models.user import User
 from app.web.middleware.auth import get_current_user, require_audit_path_access
 
@@ -131,8 +130,8 @@ async def favicon() -> Response:
 
 _SW_VERSION = re.compile(r"const CACHE_VERSION = '[^']*'")
 
-# Assets index.html pulls in itself, so the set cannot drift from what the page
-# actually loads. It used to be a hand-written four — app.js, app.css,
+# Assets the online and offline shells pull in themselves, so the set cannot
+# drift from what the pages actually load. It used to be a hand-written four — app.js, app.css,
 # index.html, ui_i18n.json — which left the other six front-end bundles out of
 # the digest entirely. A release touching only one of those (Build 7a rewrote
 # app-dashboard.js) produced an unchanged CACHE_VERSION, so the worker kept
@@ -149,16 +148,19 @@ _digest_cache: dict[tuple, str] = {}
 
 
 def _digest_inputs() -> list[Path]:
-    index = _STATIC_DIR / "index.html"
-    if not index.exists():
+    shells = [_STATIC_DIR / "index.html", _STATIC_DIR / "offline.html"]
+    shells = [path for path in shells if path.exists()]
+    if not shells:
         return []
-    paths = [index]
-    seen = {index}
-    for ref in _ASSET_REF.findall(index.read_text(encoding="utf-8", errors="replace")):
-        path = _safe_child(_STATIC_DIR, ref)
-        if path is not None and path.is_file() and path not in seen:
-            seen.add(path)
-            paths.append(path)
+    paths = list(shells)
+    seen = set(shells)
+    for shell in shells:
+        source = shell.read_text(encoding="utf-8", errors="replace")
+        for ref in _ASSET_REF.findall(source):
+            path = _safe_child(_STATIC_DIR, ref)
+            if path is not None and path.is_file() and path not in seen:
+                seen.add(path)
+                paths.append(path)
     # ui_i18n.json is fetched by app.js rather than referenced in the markup,
     # so the scan above cannot see it.
     extra = _STATIC_DIR / "ui_i18n.json"

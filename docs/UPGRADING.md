@@ -5,6 +5,29 @@ not listed here are backwards-compatible.
 
 ---
 
+## Unreleased — production credential and VPN privilege boundary
+
+The shipped systemd unit now requires
+`/etc/sybr-hub-secrets/key-wrap.secret`, owned by root with mode `0600`.
+`scripts/install-cachyos.sh` creates it once and never rotates an existing
+value. Manual installations must create at least 32 random bytes there before
+starting the service. Back it up offline together with an exported master key;
+losing both makes encrypted customer data unrecoverable after a host rebuild.
+
+The unit still enforces `NoNewPrivileges=yes`. Earlier documentation suggested
+a `NOPASSWD` sudoers stanza for VPN commands, but systemd prevents that
+elevation by design. Production deployments must establish privileged tunnels
+outside the web process or use a separate, authenticated helper. Do not remove
+`NoNewPrivileges` merely to make the old stanza work.
+
+The application CSP now rejects inline script and style elements. Legacy
+event/style attributes remain temporarily isolated behind CSP3 attribute-only
+directives. The authenticated Swagger viewer is the sole path-specific external
+script exception; its CDN bundle is pinned to an exact release and its inline
+bootstrap requires a fresh response nonce.
+
+---
+
 ## Unreleased — three new Graph permissions, and figures that used to be wrong
 
 ### Grant three permissions, drop two
@@ -53,9 +76,11 @@ were wrong in ways that make old reports and old trend lines untrustworthy:
   headless, and a different machine from the operator's. The page opens the
   tab itself now. A web page cannot open a private window; the UI says so
   rather than claiming otherwise.
-- **No third-party CDN.** xterm, chart.js, marked, DOMPurify and the icon font
-  are served from `static/vendor/`. Installs behind a proxy that allow-listed
-  `cdn.jsdelivr.net` can drop that rule.
+- **No third-party CDN in the application shell.** xterm, chart.js, marked,
+  DOMPurify and the icon font are served from `static/vendor/`. The separate
+  authenticated Swagger viewer still needs jsDelivr for its exact pinned
+  bundle; installations that block `/docs` at the reverse proxy can remove
+  that egress rule.
 - **Usage Reports is a new section** and appears in the scope selector. It
   reads a 90-day window and reports licensed accounts with no activity.
 

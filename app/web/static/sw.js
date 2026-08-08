@@ -17,6 +17,8 @@ const CACHE_VERSION = 'msptoolkit-v0.1.0';
 const PRECACHE = [
   '/',
   '/static/offline.html',
+  '/static/offline.css',
+  '/static/offline.js',
   '/static/ui_i18n.json',
 ];
 

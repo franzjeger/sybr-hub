@@ -121,10 +121,9 @@ def test_the_swagger_link_points_at_the_app_s_own_docs_url():
     import pathlib
     import re
 
-    from app.web.server import create_app
+    from app.web.server import OPENAPI_DOCS_URL
 
-    docs_url = create_app().docs_url
-    assert docs_url, "the app serves no OpenAPI UI at all"
+    docs_url = OPENAPI_DOCS_URL
 
     html = pathlib.Path("app/web/static/index.html").read_text()
     links = re.findall(r'<a href="([^"]+)"[^>]*>Swagger', html)
@@ -133,3 +132,14 @@ def test_the_swagger_link_points_at_the_app_s_own_docs_url():
         assert href == docs_url, (
             f"button points at {href!r}, app serves the UI at {docs_url!r}"
         )
+
+
+def test_swagger_assets_are_version_pinned(client, auth_headers):
+    response = client.get("/docs", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert "swagger-ui-dist@5.32.12/" in response.text
+    assert "swagger-ui-dist@5/" not in response.text
+    assert "fastapi.tiangolo.com/img/favicon" not in response.text
+    assert '<script nonce="' in response.text
+    assert "'nonce-" in response.headers["content-security-policy"]
+    assert "'unsafe-inline'" not in response.headers["content-security-policy"]

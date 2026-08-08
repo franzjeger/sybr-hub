@@ -66,7 +66,11 @@ for access from another machine.
 
 For production deployment behind systemd: see
 [`scripts/sybr-hub.service`](scripts/sybr-hub.service) — edit the
-`User`/`Group`/`WorkingDirectory` placeholders to match your install.
+`User`/`Group`/`WorkingDirectory` placeholders to match your install. Before
+starting it manually, create `/etc/sybr-hub-secrets/key-wrap.secret` as a
+root-owned `0600` file containing at least 32 random bytes. The CachyOS
+installer creates this credential automatically; keep an offline backup of it
+alongside an exported master key.
 
 ## Documentation
 
