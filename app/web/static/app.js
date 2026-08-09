@@ -1452,6 +1452,12 @@ async function loadIntegrationStatus() {
     if (_alsoU) _alsoU.value = d.also_username || '';
     if (_alsoP) _alsoP.value = d.also_password || '';
     if (_alsoC) _alsoC.value = d.also_country || 'no';
+    // UniFi Site Manager status. It was absent from this block entirely, so it
+    // never counted towards "n/m configured" and its card was left on whatever
+    // unifiSmLoadSaved() painted — blue "key saved" rather than the green every
+    // other integration shows for a stored credential. A key that is stored is
+    // configured here, exactly as it is for IT Glue and the rest.
+    setStatus('unifi-sm-integ-dot', 'unifi-sm-integ-label', !!d.unifi_site_manager_api_key_set); _integCount++; if (d.unifi_site_manager_api_key_set) _integActive++;
     // Tailscale status + populate
     setStatus('ts-integ-dot', 'ts-integ-label', !!d.tailscale_api_key_set); _integCount++; if (d.tailscale_api_key_set) _integActive++;
     var _tsKey = document.getElementById('input-ts-api-key');
