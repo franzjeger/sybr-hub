@@ -251,6 +251,37 @@ async def branding(filename: str) -> Response:
     return FileResponse(path)
 
 
+# The generated report is a standalone document, not part of the application
+# UI, and the application CSP is wrong for it in both directions.
+#
+# style-src-elem 'self' blocks a <style> element, and the report carries all of
+# its layout in two of them. Served under the app policy every rule was
+# dropped: the tech report rendered as unstyled markup — headings in the
+# browser default, the KPI strip as a column of loose numbers — and its search
+# box and tab buttons did nothing, because script-src-elem 'self' had blocked
+# the <script> too. The report is also written to disk and sent to customers,
+# where it looks correct, so the same file renders two different ways
+# depending on who opens it.
+#
+# The other direction matters more. The app policy lets a document reach back
+# to its own origin, and this one is rendered in a same-origin iframe inside
+# the application. It is built from tenant data — display names, mailbox
+# addresses, policy names — so it is exactly the kind of document that should
+# not be trusted with the app's DOM. `sandbox` without allow-same-origin puts
+# it in an opaque origin: its own inline style and script run, and nothing
+# else does. default-src 'none' leaves it no network at all, which also stops
+# the stylesheet's Google Fonts @import from telling Google who opened a
+# confidential audit and when.
+_ARTEFACT_CSP = (
+    "default-src 'none'; "
+    "style-src 'unsafe-inline'; style-src-attr 'unsafe-inline'; "
+    "script-src 'unsafe-inline'; script-src-attr 'unsafe-inline'; "
+    "img-src data: blob:; font-src data:; "
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'self'; "
+    "sandbox allow-scripts allow-popups allow-modals allow-downloads"
+)
+
+
 @router.get("/audit_data/{path:path}")
 async def serve_audit_data(
     path: str, user: User = Depends(require_audit_path_access())
@@ -279,7 +310,10 @@ async def serve_audit_data(
 
     data = encrypted_read_bytes(file_path)
     content_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-    return Response(content=data, media_type=content_type)
+    headers: dict[str, str] = {}
+    if content_type == "text/html":
+        headers["Content-Security-Policy"] = _ARTEFACT_CSP
+    return Response(content=data, media_type=content_type, headers=headers)
 
 
 # ── System endpoints ─────────────────────────────────────────────────────────
