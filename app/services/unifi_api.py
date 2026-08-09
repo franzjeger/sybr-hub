@@ -1674,8 +1674,20 @@ def match_hosts_to_customers(
         and (include_linked or not (c.get("UniFiHostId") or "").strip())
     ]
 
+    # A console already linked to a customer is done. Excluding linked
+    # *customers* alone left the finished consoles hunting through whatever
+    # customers remained and settling on unrelated ones — after linking 19 of
+    # 30, a re-run offered 18 spurious proposals that were pure noise.
+    linked_hosts = {
+        (c.get("UniFiHostId") or "").strip()
+        for c in customers
+        if (c.get("UniFiHostId") or "").strip()
+    }
+
     proposals: list[dict[str, Any]] = []
     for host in hosts:
+        if not include_linked and (host.get("host_id") or host.get("id")) in linked_hosts:
+            continue
         host_name = host.get("name") or ""
         normalised = normalise_org_name(host_name)
 
