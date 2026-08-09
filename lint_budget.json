@@ -124,6 +124,7 @@
     "tests/test_integration_save_routes.py",
     "tests/test_lint_budget.py",
     "tests/test_missing_modules.py",
+    "tests/test_no_emoji_in_ui.py",
     "tests/test_no_server_side_browser_launch.py",
     "tests/test_notification_centre.py",
     "tests/test_onedrive_scan_scope.py",
