@@ -97,7 +97,6 @@ h2 { font-size: 26px; font-weight: 800; color: #1a3148; margin-bottom: 8px; }
   background: white; border: 1px solid var(--border); border-radius: 12px;
   padding: 24px 20px; text-align: center;
 }
-.metric-card .icon { font-size: 24px; margin-bottom: 12px; }
 .metric-card .num { font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
 .metric-card .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .metric-card .sublbl { font-size: 12px; color: var(--muted); margin-top: 6px; }
@@ -123,7 +122,6 @@ h2 { font-size: 26px; font-weight: 800; color: #1a3148; margin-bottom: 8px; }
 .finding.critical { background: var(--red-bg); border: 1px solid var(--red-bd); }
 .finding.warning  { background: var(--orange-bg); border: 1px solid var(--orange-bd); }
 .finding.ok       { background: var(--green-bg); border: 1px solid var(--green-bd); }
-.finding-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
 .finding-body h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
 .finding.critical h4 { color: var(--red); }
 .finding.warning  h4 { color: var(--orange); }
@@ -638,7 +636,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <!-- Metrics row 1 -->
 <div class="metrics">
   <div class="metric-card{% if not users.has_data %} metric-card-invalid{% endif %}">
-    <div class="icon">&#x1F464;</div>
     {% if users.has_data %}
     <div class="num brand">{{ users.total }}</div>
     <div class="lbl">{{ t.total_users_label }}</div>
@@ -650,7 +647,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% endif %}
   </div>
   <div class="metric-card{% if not mfa.has_data %} metric-card-invalid{% endif %}">
-    <div class="icon">&#x1F510;</div>
     {% if mfa.has_data %}
     <div class="num {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}">{{ mfa.pct | round(0) | int }}%</div>
     <div class="lbl">{{ t.mfa_coverage }}</div>
@@ -662,7 +658,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% endif %}
   </div>
   <div class="metric-card">
-    <div class="icon">&#x1F3C6;</div>
     <div class="num {% if secure_score.pct >= 75 %}green{% elif secure_score.pct >= 50 %}orange{% else %}red{% endif %}">{{ secure_score.pct | round(0) | int }}%</div>
     <div class="lbl">{{ t.microsoft_secure_score }}</div>
     <div class="pbar"><div class="pbar-fill {% if secure_score.pct >= 75 %}green{% elif secure_score.pct >= 50 %}orange{% else %}red{% endif %}" style="width:{{ secure_score.pct }}%"></div></div>
@@ -673,21 +668,18 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <div class="metrics" style="margin-bottom:40px;">
   {% if intune and intune.total > 0 %}
   <div class="metric-card">
-    <div class="icon">&#x1F4BB;</div>
     <div class="num {% if intune.compliance_pct >= 90 %}green{% elif intune.compliance_pct >= 70 %}orange{% else %}red{% endif %}">{{ intune.compliance_pct | round(0) | int }}%</div>
     <div class="lbl">{{ t.device_compliance }}</div>
     <div class="pbar"><div class="pbar-fill {% if intune.compliance_pct >= 90 %}green{% elif intune.compliance_pct >= 70 %}orange{% else %}red{% endif %}" style="width:{{ intune.compliance_pct }}%"></div></div>
   </div>
   {% endif %}
   <div class="metric-card">
-    <div class="icon">&#x1F6E1;</div>
     <div class="num brand">{{ ca.enabled }}</div>
     <div class="lbl">{{ t.ca_rules }}</div>
     <div class="sublbl">{{ t('n_report_mode', count=ca.report_only) }}</div>
   </div>
   {% if admin_roles %}
   <div class="metric-card">
-    <div class="icon">&#x1F511;</div>
     <div class="num {% if admin_roles.global_admin_count > 4 %}red{% elif admin_roles.global_admin_count > 2 %}orange{% else %}green{% endif %}">{{ admin_roles.global_admin_count }}</div>
     <div class="lbl">{{ t.global_admins }}</div>
     <div class="sublbl">{{ t('n_role_assignments_total', count=admin_roles.total_assignments) }}</div>
@@ -704,7 +696,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <!-- MFA -->
 {% if not mfa.has_data %}
 <div class="finding warning" id="finding-mfa">
-  <div class="finding-icon">&#x26A0;&#xFE0F;</div>
   <div class="finding-body">
     <h4>{{ t.mfa_data_missing_finding }}</h4>
     <p>{{ t.mfa_data_missing_desc }}</p>
@@ -713,7 +704,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% elif mfa.no_mfa > 0 %}
 <div class="finding critical" id="finding-mfa">
-  <div class="finding-icon">&#x1F513;</div>
   <div class="finding-body">
     <h4>{{ t('mfa_missing_title', count=mfa.no_mfa) }}</h4>
     <p>{{ t.mfa_missing_desc }}</p>
@@ -747,7 +737,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% else %}
 <div class="finding ok">
-  <div class="finding-icon">&#x2705;</div>
   <div class="finding-body">
     <h4>{{ t.mfa_ok_title }}</h4>
     <p>{{ t('mfa_ok_desc', covered=mfa.covered, total=mfa.total) }}</p>
@@ -765,7 +754,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   {% endif %}
 {% endfor %}
 <div class="finding critical" id="finding-fwd">
-  <div class="finding-icon">&#x1F4E4;</div>
   <div class="finding-body">
     <h4>{{ t('ext_fwd_title', count=fwd_entries|length) }}</h4>
     <p>{{ t.ext_fwd_desc }}</p>
@@ -807,7 +795,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   {% endif %}
 {% endfor %}
 <div class="finding warning" id="finding-risky">
-  <div class="finding-icon">&#x26A0;&#xFE0F;</div>
   <div class="finding-body">
     <h4>{{ t('risky_users_title', count=risky_entries|length if risky_entries else '') }}</h4>
     <p>{{ t.risky_users_desc }}</p>
@@ -839,7 +826,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <!-- Admin roles -->
 {% if admin_roles and admin_roles.global_admin_count > 4 %}
 <div class="finding warning" id="finding-ga">
-  <div class="finding-icon">&#x1F511;</div>
   <div class="finding-body">
     <h4>{{ t('ga_accounts_title', count=admin_roles.global_admin_count) }}</h4>
     <p>{{ t.ga_accounts_desc }}</p>
@@ -864,7 +850,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% elif admin_roles and admin_roles.global_admin_count <= 4 %}
 <div class="finding ok">
-  <div class="finding-icon">&#x1F511;</div>
   <div class="finding-body">
     <h4>{{ t('ga_ok_title', count=admin_roles.global_admin_count) }}</h4>
     <p>{{ t.ga_ok_desc }}</p>
@@ -877,7 +862,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% if intune and intune.total > 0 %}
 {% if intune.noncompliant > 0 %}
 <div class="finding {% if intune.compliance_pct < 50 %}critical{% else %}warning{% endif %}" id="finding-intune">
-  <div class="finding-icon">&#x1F4BB;</div>
   <div class="finding-body">
     <h4>{{ t('intune_noncompliant_title', count=intune.noncompliant) }}</h4>
     <p>{{ t('intune_noncompliant_desc', pct=intune.compliance_pct|round(0)|int, total=intune.total) }}</p>
@@ -907,7 +891,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% else %}
 <div class="finding ok">
-  <div class="finding-icon">&#x1F4BB;</div>
   <div class="finding-body">
     <h4>{{ t('intune_all_compliant_title', count=intune.total) }}</h4>
     <p>{{ t.intune_all_compliant_desc }}</p>
@@ -920,7 +903,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <!-- SharePoint sharing -->
 {% if sharepoint and sharepoint.sharing_level == 'warning' %}
 <div class="finding warning" id="finding-sp">
-  <div class="finding-icon">&#x1F4C1;</div>
   <div class="finding-body">
     <h4>{{ t.sp_sharing_open_title }}</h4>
     <p>{{ t('sp_sharing_open_desc', label=sharepoint.sharing_label) }}</p>
@@ -934,7 +916,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% for d in spf_dmarc %}
 {% if 'MISSING' in d.get('spf','') or 'CRITICAL' in d.get('spf','') or 'MISSING' in d.get('dmarc','') or 'WEAK' in d.get('dmarc','') %}
 <div class="finding warning" id="finding-email">
-  <div class="finding-icon">&#x1F4E7;</div>
   <div class="finding-body">
     <h4>{{ t('email_security_title', domain=d.get('domain','')) }}</h4>
     <p>
@@ -951,7 +932,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <!-- Conditional Access -->
 {% if ca.enabled == 0 %}
 <div class="finding warning" id="finding-ca">
-  <div class="finding-icon">&#x1F6A6;</div>
   <div class="finding-body">
     <h4>{{ t.no_ca_title }}</h4>
     <p>{{ t.no_ca_desc }}</p>
@@ -960,7 +940,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% else %}
 <div class="finding ok">
-  <div class="finding-icon">&#x1F6A6;</div>
   <div class="finding-body">
     <h4>{{ t('ca_ok_title', count=ca.enabled) }}</h4>
     <p>{{ t.ca_ok_desc }}</p>
@@ -972,7 +951,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <!-- OAuth high-privilege -->
 {% if oauth and oauth.high_privilege_apps %}
 <div class="finding warning" id="finding-oauth">
-  <div class="finding-icon">&#x1F50C;</div>
   <div class="finding-body">
     <h4>{{ t('oauth_high_priv_title', count=oauth.high_privilege_apps|length) }}</h4>
     <p>{{ t.oauth_high_priv_desc }}</p>
@@ -1001,7 +979,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% if secure_score.pct > 0 %}
 {% if secure_score.pct < 50 %}
 <div class="finding critical" id="finding-securescore">
-  <div class="finding-icon">&#x1F4CA;</div>
   <div class="finding-body">
     <h4>{{ t('secure_score_low_title', pct=secure_score.pct|round(0)|int) }}</h4>
     <p>{{ t.secure_score_low_desc }}</p>
@@ -1011,7 +988,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% elif secure_score.pct < 75 %}
 <div class="finding warning" id="finding-securescore">
-  <div class="finding-icon">&#x1F4CA;</div>
   <div class="finding-body">
     <h4>{{ t('secure_score_mid_title', pct=secure_score.pct|round(0)|int) }}</h4>
     <p>{{ t.secure_score_mid_desc }}</p>
@@ -1021,7 +997,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 {% else %}
 <div class="finding ok">
-  <div class="finding-icon">&#x1F4CA;</div>
   <div class="finding-body">
     <h4>{{ t('secure_score_good_title', pct=secure_score.pct|round(0)|int) }}</h4>
     <p>{{ t.secure_score_good_desc }}</p>
@@ -1249,7 +1224,6 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 
 {% if exchange.external_forwarding %}
 <div class="finding critical">
-  <div class="finding-icon">&#x1F4E4;</div>
   <div class="finding-body">
     <h4>{{ t.ext_fwd_detected_title }}</h4>
     <p>{{ t.ext_fwd_detected_desc }}</p>

@@ -117,7 +117,7 @@
             <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_customer_overview">Kundeoversikt</span> <span class="navdd-kbd">Ctrl+3</span></span><span class="navdd-desc" data-i18n="nav_customer_overview_desc">Alle kunder med risiko, MFA og MRR</span></span>
           </button>
           <button data-view-gate="home" class="navdd-item" onclick="showView('home')">
-            <span class="navdd-ic">&#9729;</span>
+            <span class="navdd-ic"></span>
             <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_m365_status">M365-status</span> <span class="navdd-kbd">Ctrl+2</span></span><span class="navdd-desc" data-i18n="nav_m365_status_desc">Status og filer for aktiv kunde</span></span>
           </button>
           <button data-view-gate="history" class="navdd-item" onclick="showView('history')">
@@ -157,7 +157,7 @@
             <span class="navdd-ic">&#8650;</span>
             <span><span data-i18n="nav_policy_deploy">Policy-utrulling</span><br><small data-i18n="nav_policy_deploy_desc">Rull ut Conditional Access-standarden</small></span>
           </button>
-          <button data-view-gate="provision" class="navdd-foot" data-write onclick="showView('provision')"><span class="navdd-ic">&#9881;</span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
+          <button data-view-gate="provision" class="navdd-foot" data-write onclick="showView('provision')"><span class="navdd-ic"></span><span data-i18n="nav_provisioning_desc">Provisjonering &#8212; nytt kundenett</span></button>
         </div></div>
       </div>
 
@@ -177,7 +177,7 @@
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_browser2">Nettleser</span><span class="navdd-desc" data-i18n="nav_browser_desc">Proxy mot kundens interne grensesnitt</span></span>
           </button>
           <button data-view-gate="workshop" class="navdd-item" onclick="showView('workshop')">
-            <span class="navdd-ic">&#9998;</span>
+            <span class="navdd-ic"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_workshop2">Workshop</span><span class="navdd-desc" data-i18n="nav_workshop_desc">Skjema og sjekklister</span></span>
           </button>
           <div class="navdd-sep"></div>
@@ -243,7 +243,7 @@
       </div>
 
       <!-- PWA install (conditional). -->
-      <button id="pwa-install-btn" data-click-handler="promptPwaInstall" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;">&#11123; <span data-i18n="btn_install_app">Installer</span></button>
+      <button id="pwa-install-btn" data-click-handler="promptPwaInstall" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;"><span data-i18n="btn_install_app">Installer</span></button>
 
       <!-- Avatar + account menu: settings, theme, shortcuts, password, logout, version. -->
       <div style="position:relative;display:inline-block;">
@@ -253,7 +253,7 @@
             <span class="name" id="avatar-name"></span>
             <span class="email" id="avatar-email"></span>
           </div>
-          <button class="avatar-item" onclick="closeAvatarMenu();openSettings()"><span class="ic">&#9881;</span><span style="flex:1;" data-i18n="innstillinger">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
+          <button class="avatar-item" onclick="closeAvatarMenu();openSettings()"><span class="ic"></span><span style="flex:1;" data-i18n="innstillinger">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
           <button class="avatar-item" data-click-handler="toggleTheme"><span class="ic">&#9680;</span><span style="flex:1;" data-i18n="bytt_tema">Bytt tema</span></button>
           <button class="avatar-item" onclick="closeAvatarMenu();openShortcutsModal()"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span style="flex:1;" data-i18n="tastatursnarveier_2">Tastatursnarveier</span><span class="kbd">?</span></button>
           <button class="avatar-item" onclick="closeAvatarMenu();showChangePasswordModal()"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"></path></svg></span><span style="flex:1;" data-i18n="bytt_passord">Bytt passord</span></button>
@@ -2160,19 +2160,19 @@
       <button class="more-row" onclick="closeMoreSheet();showView('hosts')"><span class="more-ic">&#8997;</span><span data-i18n="fjernaksess">Fjernaksess</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('ssh')"><span class="more-ic" style="font-family:var(--mono);font-size:12px;">&gt;_</span><span data-i18n="terminal_ssh">Terminal / SSH</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('browser')"><span class="more-ic">&#9707;</span><span data-i18n="nettleser_2">Nettleser</span></button>
-      <button class="more-row" onclick="closeMoreSheet();showView('workshop')"><span class="more-ic">&#9998;</span><span data-i18n="workshop">Workshop</span></button>
+      <button class="more-row" onclick="closeMoreSheet();showView('workshop')"><span class="more-ic"></span><span data-i18n="workshop">Workshop</span></button>
       <div class="more-group-title" data-i18n="nav_network">Nettverk</div>
       <button class="more-row" onclick="closeMoreSheet();showView('vpn')"><span class="more-ic">&#8644;</span><span>VPN</span><span class="more-meta" id="more-vpn-meta"></span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('tls')"><span class="more-ic">&#10003;</span><span data-i18n="tls_monitor">TLS-monitor</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('tailscale')"><span class="more-ic">&#8734;</span><span>Tailscale</span></button>
-      <button class="more-row" onclick="closeMoreSheet();showView('provision')"><span class="more-ic">&#9881;</span><span data-i18n="provisjonering">Provisjonering</span></button>
+      <button class="more-row" onclick="closeMoreSheet();showView('provision')"><span class="more-ic"></span><span data-i18n="provisjonering">Provisjonering</span></button>
       <div class="more-group-title" data-i18n="nav_customers">Kunder</div>
-      <button class="more-row" onclick="closeMoreSheet();showView('home')"><span class="more-ic">&#9729;</span><span data-i18n="m_status">M365-status</span></button>
+      <button class="more-row" onclick="closeMoreSheet();showView('home')"><span class="more-ic"></span><span data-i18n="m_status">M365-status</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('history')"><span class="more-ic">&#9636;</span><span data-i18n="audit_historikk">Audit-historikk</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('integrations')"><span class="more-ic">&#9635;</span><span data-i18n="nav_integrations">Integrasjoner</span></button>
       <div class="more-group-title" data-i18n="konto">Konto</div>
       <button class="more-row" onclick="closeMoreSheet();showView('ai')"><span class="more-ic">&#10035;</span><span data-i18n="sybrt_assistent">Sybrt-assistent</span></button>
-      <button class="more-row" onclick="closeMoreSheet();openSettings()"><span class="more-ic">&#9881;</span><span data-i18n="innstillinger_3">Innstillinger</span></button>
+      <button class="more-row" onclick="closeMoreSheet();openSettings()"><span class="more-ic"></span><span data-i18n="innstillinger_3">Innstillinger</span></button>
       <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
       <button class="more-row danger" onclick="closeMoreSheet();doLogout()"><span class="more-ic">&#8617;</span><span data-i18n="logg_ut_2">Logg ut</span></button>
     </div>
@@ -2277,7 +2277,7 @@
 <!-- ── Settings modal ── -->
 <div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" data-i18n-aria-label="innstillinger_2" aria-label="Innstillinger" onclick="closeSettingsOnBackdrop(event)">
   <div class="modal" style="width:620px;">
-    <div class="modal-title" data-i18n="hdr_settings">&#9881; Innstillinger</div>
+    <div class="modal-title" data-i18n="hdr_settings">Innstillinger</div>
 
     <!-- Settings tabs -->
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-4);">

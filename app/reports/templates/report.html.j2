@@ -12,7 +12,6 @@
 
 {# ── Cover ──────────────────────────────────────────────────────────────────── #}
 <div class="cover">
-  <div class="logo">🛡️</div>
   <h1>M365 + Azure Security Audit</h1>
   <div class="subtitle">Full Tenant & Infrastructure Assessment</div>
   <div class="meta">
@@ -50,7 +49,7 @@
 {# ── Warnings summary ───────────────────────────────────────────────────────── #}
 {% if warn_files %}
 <div class="alert alert-warn">
-  <strong>⚠ {{ warn_files | length }} Warning File(s) Require Attention</strong>
+  <strong>{{ warn_files | length }} Warning File(s) Require Attention</strong>
   {% for w in warn_files %}
     <div>→ {{ w }}</div>
   {% endfor %}
@@ -60,7 +59,7 @@
 {# ── Defender Alerts ────────────────────────────────────────────────────────── #}
 {% if defender_alerts and 'No active' not in defender_alerts %}
 <div class="alert alert-danger">
-  <strong>🔴 Active Microsoft Defender Alerts Detected</strong>
+  <strong>Active Microsoft Defender Alerts Detected</strong>
   <pre>{{ defender_alerts[:800] }}</pre>
 </div>
 {% endif %}
@@ -68,7 +67,7 @@
 {# ── External Email Forwarding ──────────────────────────────────────────────── #}
 {% if ext_fwd_warn %}
 <div class="alert alert-danger">
-  <strong>🔴 External Mailbox Forwarding Detected</strong>
+  <strong>External Mailbox Forwarding Detected</strong>
   <pre>{{ ext_fwd_warn[:600] }}</pre>
 </div>
 {% endif %}
@@ -76,7 +75,7 @@
 {# ── Inbox Rule External Fwd ────────────────────────────────────────────────── #}
 {% if inbox_rule_warn %}
 <div class="alert alert-danger">
-  <strong>🔴 Inbox Rules Forwarding to External Addresses</strong>
+  <strong>Inbox Rules Forwarding to External Addresses</strong>
   <pre>{{ inbox_rule_warn[:600] }}</pre>
 </div>
 {% endif %}
@@ -84,7 +83,7 @@
 {# ── SPF/DMARC warnings ─────────────────────────────────────────────────────── #}
 {% if spf_dmarc_warn %}
 <div class="alert alert-warn">
-  <strong>⚠ Email Authentication Issues (SPF/DMARC/DKIM)</strong>
+  <strong>Email Authentication Issues (SPF/DMARC/DKIM)</strong>
   <pre>{{ spf_dmarc_warn[:800] }}</pre>
 </div>
 {% endif %}
@@ -92,7 +91,7 @@
 {# ── Risky Users ────────────────────────────────────────────────────────────── #}
 {% if risky_users and 'No risky' not in risky_users %}
 <div class="alert alert-warn">
-  <strong>⚠ Risky Users Detected (Identity Protection)</strong>
+  <strong>Risky Users Detected (Identity Protection)</strong>
   <pre>{{ risky_users[:600] }}</pre>
 </div>
 {% endif %}
@@ -190,7 +189,7 @@
 
 {# ── Warning files full content ─────────────────────────────────────────────── #}
 {% if warn_files %}
-<h2>⚠ Warning Details</h2>
+<h2>Warning Details</h2>
 {% for wf in warn_files %}
   <h3>{{ wf }}</h3>
   <div class="alert alert-warn">

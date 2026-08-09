@@ -72,7 +72,7 @@ async function hostsLoad() {
   });
 
   if (!hosts.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128421;</div><div class="empty-title">' + t('msg_no_hosts','No hosts registered') + '</div><div class="empty-desc">' + t('msg_add_first_host','Click "Add host" to get started.') + '</div><button class="btn btn-primary" onclick="hostsAdd()">' + t('btn_add_host','Add host') + '</button></div>';
+    el.innerHTML = '<div class="empty-state"><div class="empty-title">' + t('msg_no_hosts','No hosts registered') + '</div><div class="empty-desc">' + t('msg_add_first_host','Click "Add host" to get started.') + '</div><button class="btn btn-primary" onclick="hostsAdd()">' + t('btn_add_host','Add host') + '</button></div>';
     return;
   }
 
@@ -747,8 +747,8 @@ async function vpnLoadProfiles() {
     fortigate_ipsec: 'FortiGate IPsec', fortigate: 'FortiGate SSL',
   };
   var protocolIcons = {
-    wireguard: '&#128272;', openvpn: '&#128274;', azure: '&#9729;',
-    fortigate_ipsec: '&#128737;', fortigate: '&#128737;',
+    wireguard: '', openvpn: '', azure: '',
+    fortigate_ipsec: '', fortigate: '',
   };
   var html = '';
   var unavailableProtocols = Object.keys(vpnCapabilities).filter(function(protocol) {
@@ -761,7 +761,7 @@ async function vpnLoadProfiles() {
       + esc(firstUnavailable.reason || t('vpn_external_control_desc','Tunnels must be established outside Sybr HUB on this host.'))
       + '</div>';
   }
-  if (!profiles.length) { html = '<div class="empty-state" style="padding:var(--space-8);"><div class="empty-icon">&#128274;</div><div class="empty-title">' + t('msg_no_vpn_profiles','No VPN profiles') + '</div><div class="empty-desc">' + t('msg_import_vpn','Import a .conf, .ovpn or .xml file to add a profile.') + '</div></div>'; }
+  if (!profiles.length) { html = '<div class="empty-state" style="padding:var(--space-8);"><div class="empty-title">' + t('msg_no_vpn_profiles','No VPN profiles') + '</div><div class="empty-desc">' + t('msg_import_vpn','Import a .conf, .ovpn or .xml file to add a profile.') + '</div></div>'; }
   else {
     // Connection info summary when connected
     if (status && status.state === 'connected') {
@@ -800,7 +800,7 @@ async function vpnLoadProfiles() {
       var isActive = myConn && myConn.state === 'connected';
       var isConnecting = myConn && myConn.state === 'connecting';
       var protoLabel = protocolLabels[p.protocol] || p.protocol;
-      var protoIcon = protocolIcons[p.protocol] || '&#128274;';
+      var protoIcon = protocolIcons[p.protocol] || '';
       var protocolCapability = vpnCapabilities[p.protocol];
       var mayConnect = !protocolCapability || protocolCapability.available;
       var statusDot = isActive ? '<span style="width:10px;height:10px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 6px var(--green);"></span>'
@@ -822,7 +822,7 @@ async function vpnLoadProfiles() {
           + '>' + t('vpn_connect','Connect') + '</button>';
       }
       html += '<button class="btn btn-ghost btn-sm" onclick="vpnEditProfile(\''+p.id+'\')">' + t('btn_edit','Edit') + '</button>';
-      html += '<button class="btn btn-ghost btn-sm" style="color:var(--text-dim);margin-left:auto;" onclick="vpnDeleteProfile(\''+p.id+'\')" title="' + t('btn_delete') + '">&#128465;</button>';
+      html += '<button class="btn btn-ghost btn-sm" style="color:var(--text-dim);margin-left:auto;" onclick="vpnDeleteProfile(\''+p.id+'\')" title="' + t('btn_delete') + '">' + t('btn_delete') + '</button>';
       html += '</div></div>';
     });
     html += '</div>';
@@ -1576,7 +1576,7 @@ async function fgComplianceCheck(customerId) {
     html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
     html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;">' + t('kontroll') + '</th><th style="text-align:center;padding:6px;">' + t('status_3') + '</th><th style="text-align:left;padding:6px;">' + t('detaljer') + '</th></tr></thead><tbody>';
     findings.forEach(function(f) {
-      var icon = f.status === 'pass' ? '<span style="color:var(--green);">&#10003;</span>' : f.status === 'fail' ? '<span style="color:var(--red);">&#10007;</span>' : '<span style="color:var(--orange);">&#9888;</span>';
+      var icon = f.status === 'pass' ? '<span style="color:var(--green);">&#10003;</span>' : f.status === 'fail' ? '<span style="color:var(--red);">&#10007;</span>' : '<span style="color:var(--orange);">!</span>';
       var rowBg = f.status === 'fail' ? 'background:rgba(248,81,73,0.05);' : '';
       html += '<tr style="border-bottom:1px solid var(--border);'+rowBg+'">';
       html += '<td style="padding:6px;font-weight:600;">'+f.title+'</td>';
@@ -4777,7 +4777,7 @@ function browserInit() {
       '<button class="btn btn-primary" id="browser-go-btn" onclick="browserNavigate()" style="padding:8px 16px;font-size:13px;">' + t('gaa') + '</button>' +
       '<button class="btn btn-success" id="browser-start-btn" onclick="browserStart()" style="padding:8px 16px;font-size:13px;">' + t('start_nettleser') + '</button>' +
       '<button class="btn btn-danger" id="browser-stop-btn" onclick="browserStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('stopp') + '</button>' +
-      '<button class="btn btn-ghost" id="browser-fullscreen-btn" onclick="toggleFullscreen(\'browser-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">&#x26F6;</button>' +
+      '<button class="btn btn-ghost" id="browser-fullscreen-btn" onclick="toggleFullscreen(\'browser-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="browser-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
     '<div id="browser-frame-wrap" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:transparent;min-height:500px;position:relative;">' +
@@ -4984,7 +4984,7 @@ function rdpInit() {
       '<input id="rdp-pass-input" type="password" placeholder="' + t('inf_ph_password','Passord') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')rdpStart();">' +
       '<button class="btn btn-success" id="rdp-start-btn" onclick="rdpStart()" style="padding:8px 16px;font-size:13px;">' + t('koble_til') + '</button>' +
       '<button class="btn btn-danger" id="rdp-stop-btn" onclick="rdpStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('koble_fra') + '</button>' +
-      '<button class="btn btn-ghost" id="rdp-fullscreen-btn" onclick="toggleFullscreen(\'rdp-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">&#x26F6;</button>' +
+      '<button class="btn btn-ghost" id="rdp-fullscreen-btn" onclick="toggleFullscreen(\'rdp-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="rdp-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
     '<div id="rdp-frame-wrap" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:transparent;position:relative;">' +
