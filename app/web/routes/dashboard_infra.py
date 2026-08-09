@@ -808,7 +808,12 @@ async def dashboard_security_report(user=Depends(get_current_user)):
                         firmware_outdated = True
                 except (ValueError, IndexError):
                     pass
-            threat_count = 0
+            # Not zero. Nothing here reads a threat log — get_threat_summary()
+            # does that, and this route does not call it. A hardcoded 0 was
+            # rendered as a green "0 threats" for every online firewall, which
+            # is a measurement nobody took. None makes the card omit the
+            # figure, which the frontend already handles.
+            threat_count = None
         elif c.get("FortiGateHost"):
             firmware = "offline"
 
