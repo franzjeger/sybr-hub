@@ -11,6 +11,7 @@ Provides high-level operations on top of the low-level controller/device clients
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from typing import Any, Optional
@@ -429,9 +430,43 @@ _UI_ISP_METRICS_URL = "https://api.ui.com/v1/isp-metrics"
 
 
 # In-memory SSO token cache — avoids re-authenticating on every call.
-# Keyed by (username, store_for_customer); TTL = 1 hour.
-_token_cache: dict[str, Any] = {"token": None, "expires": 0, "result": None}
+#
+# Keyed by the credentials, not by the username. The comment here used to
+# claim (username, store_for_customer) while the code kept one flat slot and
+# compared the username alone, so for an hour after a successful login *any*
+# password under that name came back "ok" without a round-trip to ui.com. The
+# whole job of this function is to say whether these credentials work; the
+# cache made it unable to say no. An operator who mistyped a password saw a
+# green tick, and the cached token was then stored against the customer they
+# were configuring.
+#
+# The password is hashed rather than held: a wrong one must miss the cache,
+# which needs no more than that, and module-level state is the last place a
+# plaintext password should sit.
+_token_cache: dict[str, dict[str, Any]] = {}
 _TOKEN_TTL = 3600  # seconds
+_TOKEN_CACHE_MAX = 32
+
+
+def _sso_cache_key(username: str, password: str) -> str:
+    return hashlib.sha256(f"{username}\0{password}".encode()).hexdigest()
+
+
+def _sso_cache_get(key: str) -> dict[str, Any] | None:
+    entry = _token_cache.get(key)
+    if entry and entry["expires"] > time.monotonic():
+        return entry
+    _token_cache.pop(key, None)
+    return None
+
+
+def _sso_cache_put(key: str, token: str, result: dict[str, Any]) -> None:
+    now = time.monotonic()
+    for stale in [k for k, v in _token_cache.items() if v["expires"] <= now]:
+        del _token_cache[stale]
+    if len(_token_cache) >= _TOKEN_CACHE_MAX:
+        del _token_cache[min(_token_cache, key=lambda k: _token_cache[k]["expires"])]
+    _token_cache[key] = {"token": token, "expires": now + _TOKEN_TTL, "result": result}
 
 
 async def site_manager_authenticate(
@@ -454,14 +489,11 @@ async def site_manager_authenticate(
     """
     # For SSO logins, return cached token if still valid
     if not api_key and username and password:
-        if (
-            _token_cache["token"]
-            and _token_cache["expires"] > time.monotonic()
-            and _token_cache.get("_username") == username
-        ):
+        entry = _sso_cache_get(_sso_cache_key(username, password))
+        if entry:
             log.debug("Returning cached SSO token (expires in %ds)",
-                      int(_token_cache["expires"] - time.monotonic()))
-            cached = _token_cache["result"]
+                      int(entry["expires"] - time.monotonic()))
+            cached = entry["result"]
             # Still honour store_for_customer on cache hit
             if store_for_customer and cached.get("ok"):
                 store_secret(store_for_customer, "ui_cloud_token", cached["token"])
@@ -536,13 +568,7 @@ async def site_manager_authenticate(
                     log.info("Stored ui.com cloud token for customer %s", store_for_customer)
 
                 result = {"ok": True, "token": token, "method": "sso"}
-                # Cache the SSO token
-                _token_cache.update({
-                    "token": token,
-                    "expires": time.monotonic() + _TOKEN_TTL,
-                    "result": result,
-                    "_username": username,
-                })
+                _sso_cache_put(_sso_cache_key(username, password), token, result)
                 return result
 
             # Better error messages for known status codes
