@@ -60,3 +60,39 @@ def test_both_broken_reports_both():
     })
     assert result["has_data"] is False
     assert result["unreadable"] == ["60_fortigate_audit.txt", "61_unifi_audit.txt"]
+
+
+# ── The gap is declared where every other unverifiable input is ──────────────
+
+def _score(network):
+    from app.reports.generator import _compute_risk
+    return _compute_risk(
+        secure_score={"has_data": True, "pct": 80},
+        mfa={"has_data": True, "pct": 100, "no_mfa": 0},
+        spf_dmarc=[], all_warns="", ext_fwd="", risky_users="No risky",
+        defender="No active", admin_roles={}, intune={"has_data": True},
+        sharepoint={}, oauth={}, network=network, lang="no",
+    )
+
+
+def test_an_unreadable_network_file_is_declared_beside_the_score():
+    # data_quality_issues is where every other input this function could not
+    # read is announced. A recommendation further down the report is not the
+    # same thing: the score is what gets quoted to the customer.
+    result = _score({"has_data": False, "unreadable": ["60_fortigate_audit.txt"]})
+    joined = " ".join(result.get("data_quality_issues", []))
+    assert "60_fortigate_audit.txt" in joined
+
+
+def test_it_does_not_invalidate_the_whole_grade():
+    # Network is worth 15 points against MFA's 35. Refusing to grade a tenant
+    # over one corrupt file is heavier than the gap warrants.
+    result = _score({"has_data": False, "unreadable": ["61_unifi_audit.txt"]})
+    assert result.get("score") is not None
+    assert not result.get("blocking_data_gaps")
+
+
+def test_a_customer_with_no_network_audit_raises_nothing():
+    result = _score({"has_data": False, "unreadable": []})
+    joined = " ".join(result.get("data_quality_issues", []))
+    assert "Nettverksaudit" not in joined
