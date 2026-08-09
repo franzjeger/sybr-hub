@@ -7,6 +7,7 @@ JSON file so the same alert is never sent twice in a row.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -228,26 +229,65 @@ async def _check_domain_expiry(days_threshold: int) -> list[dict]:
 
 
 async def _check_fortigate_threats(threshold: int) -> list[dict]:
-    """Check for FortiGate threat spikes above threshold."""
+    """Check for FortiGate threat spikes above threshold.
+
+    This read ``threat_count`` off poll_all_fortigates(), which has never
+    returned that key — not for an online device, not for a failed one. Every
+    firewall therefore counted zero, and the rule, enabled by default since it
+    was written, could not fire. The number it wanted comes from the threat
+    logs, and get_threat_summary() has been fetching them for the FortiGate
+    page all along.
+
+    A device that could not be polled is skipped rather than counted as zero,
+    and one unreachable firewall does not end the sweep.
+    """
     alerts: list[dict] = []
     try:
-        from app.services.fortigate_api import poll_all_fortigates
-        results = await poll_all_fortigates()
-        for fg in results:
-            cust_name = fg.get("customer_name", fg.get("customer_id", "?"))
-            threat_count = fg.get("threat_count", 0)
-            if threat_count and threat_count > threshold:
-                alerts.append({
-                    "type": "fortigate_threats",
-                    "severity": "critical" if threat_count > threshold * 2 else "warning",
-                    "customer": cust_name,
-                    "item": fg.get("hostname", "FortiGate"),
-                    "detail": f"{threat_count} trusler siste 24t (terskel: {threshold})",
-                    "days_remaining": 0,
-                })
+        from app.core.credentials import get_secret
+        from app.core.customer import CustomerManager
+        from app.services.fortigate_api import get_threat_summary
+
+        targets = []
+        for cust in CustomerManager.list_customers():
+            if not cust.get("FortiGateHost"):
+                continue
+            cid = cust.get("_id", cust.get("customer_id", ""))
+            token = get_secret(cid, "fortigate_api_token")
+            if token:
+                targets.append((cust, token))
     except Exception as exc:
         logger.warning("Alert check fortigate_threats failed: %s", exc)
         raise AlertCheckFailed("fortigate_threats") from exc
+
+    sem = asyncio.Semaphore(4)
+
+    async def _one(cust: dict, token: str) -> dict | None:
+        name = cust.get("CustomerName", cust.get("_id", "?"))
+        try:
+            async with sem:
+                summary = await asyncio.wait_for(
+                    get_threat_summary(cust, token, days=1), timeout=30
+                )
+        except Exception as exc:
+            # Unreachable is not "no threats". Reporting zero here is what the
+            # old key did implicitly for every device on every run.
+            logger.warning("Threat log unreadable for %s: %s", name, exc)
+            return None
+        total = (summary or {}).get("summary", {}).get("total", 0)
+        if not total or total <= threshold:
+            return None
+        return {
+            "type": "fortigate_threats",
+            "severity": "critical" if total > threshold * 2 else "warning",
+            "customer": name,
+            "item": cust.get("FortiGateHost", "FortiGate"),
+            "detail": f"{total} trusler siste 24t (terskel: {threshold})",
+            "days_remaining": 0,
+        }
+
+    for found in await asyncio.gather(*(_one(c, t) for c, t in targets)):
+        if found:
+            alerts.append(found)
     return alerts
 
 
