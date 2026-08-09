@@ -615,7 +615,7 @@ function showToastWithRetry(message, retryFn, type) {
   toast.innerHTML = '<div class="toast-body">' + esc(message) +
     '<div class="toast-actions"><button onclick="dismissToast(this.closest(\'.toast\'));(' +
     'window._toastRetryFns[' + _toastRetryId + '])()">' +
-    '' + t('toast_retry') + '</button></div></div>' +
+    t('toast_retry') + '</button></div></div>' +
     '<button class="toast-close" onclick="dismissToast(this.parentNode)" aria-label="' + t('btn_close') + '">&times;</button>';
   if (!window._toastRetryFns) window._toastRetryFns = {};
   window._toastRetryFns[_toastRetryId] = retryFn;
@@ -1760,8 +1760,8 @@ async function _loadHealthGrid() {
       var color = 'var(--text-dim)';
       var status = '';
       if (!isNaN(v)) {
-        if (thresholds.red && v < thresholds.red) { color = 'var(--red)'; status = '&#9888;'; }
-        else if (thresholds.orange && v < thresholds.orange) { color = 'var(--orange)'; status = '&#9888;'; }
+        if (thresholds.red && v < thresholds.red) { color = 'var(--red)'; status = ''; }
+        else if (thresholds.orange && v < thresholds.orange) { color = 'var(--orange)'; status = ''; }
         else { color = 'var(--green)'; status = '&#10003;'; }
       }
       var dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';display:inline-block;"></span>';
@@ -1865,7 +1865,6 @@ function renderHome(d) {
   if (!d.has_config) {
     box.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon"></div>
         <div class="empty-title">${t('msg_no_customer_configured')}</div>
         <div class="empty-desc">
           ${t('msg_first_time_setup_desc').replace('\n', '<br>')}
@@ -3066,7 +3065,7 @@ function handleAuditDone(results) {
       var dash = await apiFetch('/api/dashboard');
       if (dash && dash.metrics && dash.metrics.risk_grade === 'A') {
         _celebrateConfetti();
-        showToast('&#127942; ' + t('msg_grade_a','Grade A — excellent security posture!'), 'success', 5000);
+        showToast('' + t('msg_grade_a','Grade A — excellent security posture!'), 'success', 5000);
       }
     } catch(e) {}
   }, 1500);
@@ -3169,7 +3168,7 @@ async function generateReport(fmt, reportType) {
     }
     if (fmt === 'html' && d.html_url) {
       area.innerHTML = '<div class="alert alert-success" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);">'
-        + '<span>&#9989; ' + esc(label) + '</span>'
+        + '<span>' + esc(label) + '</span>'
         + '<div style="display:flex;gap:var(--space-2);">'
         + '<button class="btn btn-primary btn-sm" onclick="openReportViewer(\'' + d.html_url + '\')">' + t('vis_i_app') + '</button>'
         + '<a href="' + d.html_url + '" target="_blank" class="btn btn-ghost btn-sm">' + t('ny_fane') + '</a>'
@@ -3221,7 +3220,7 @@ async function loadRemediationPanel(containerId) {
       return;
     }
 
-    var statusIcons = {open:'&#9898;', in_progress:'&#128992;', done:'&#9989;', ignored:'&#9899;'};
+    var statusIcons = {open:'\u25CB', in_progress:'\u25D0', done:'\u2713', ignored:'\u2014'};
     var statusLabels = {open:t('status_open','Åpen'), in_progress:t('status_in_progress','Pågår'), done:t('status_done_label','Utført'), ignored:t('status_ignored','Ignorert')};
     var pct = d.pct || 0;
     var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">'
@@ -3610,7 +3609,7 @@ function renderPermissionsResult(d) {
   if (warnings.length > 0) {
     html += '<div style="margin-bottom:12px;">';
     for (const w of warnings) {
-      html += `<div style="font-size:12px;color:var(--orange);padding:3px 0;">&#9888; ${esc(w)}</div>`;
+      html += `<div style="font-size:12px;color:var(--orange);padding:3px 0;">${esc(w)}</div>`;
     }
     html += '</div>';
   }
@@ -3629,7 +3628,7 @@ function renderPermissionsResult(d) {
     if (p.ok) {
       icon = '&#10003;'; color = 'var(--green)';
     } else if (isWarnOnly) {
-      icon = '&#9888;'; color = 'var(--orange)';
+      icon = ''; color = 'var(--orange)';
     } else {
       icon = '&#10007;'; color = 'var(--red)';
     }
@@ -3751,7 +3750,7 @@ async function loadUsers() {
         + '</select>'
         + _capabilityToggles(u)
         + '<button class="btn btn-ghost btn-sm" onclick="editUserCustomers(\'' + esc(u.id) + '\',\'' + esc(u.display_name) + '\')" title="' + t('tip_customer_access','Customer access') + '"></button>'
-        + (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deleteUser(\'' + esc(u.id) + '\',\'' + esc(u.username) + '\')">&#128465;</button>' : '')
+        + (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deleteUser(\'' + esc(u.id) + '\',\'' + esc(u.username) + '\')">' + t('btn_delete') + '</button>' : '')
         + '</div>';
     }).join('');
   } catch(e) { el.innerHTML = ''; }
@@ -4553,7 +4552,7 @@ async function runNetworkQuickAudit() {
                 html += '<div style="margin-top:10px;">';
                 for (var fn of findings) {
                   var fc = fn.sev === 'critical' ? 'var(--red)' : fn.sev === 'warning' ? 'var(--orange)' : fn.sev === 'ok' ? 'var(--green)' : 'var(--text-muted)';
-                  var icon = fn.sev === 'critical' ? '&#9888;' : fn.sev === 'warning' ? '&#9888;' : fn.sev === 'ok' ? '&#10003;' : '&#8505;';
+                  var icon = fn.sev === 'critical' ? '!' : fn.sev === 'warning' ? '!' : fn.sev === 'ok' ? '\u2713' : 'i';
                   html += '<div style="display:flex;gap:6px;align-items:flex-start;padding:5px 8px;border-radius:4px;background:var(--bg);margin-bottom:4px;font-size:12px;">';
                   html += '<span style="color:' + fc + ';flex-shrink:0;">' + icon + '</span>';
                   html += '<span style="color:' + (fn.sev === 'info' ? 'var(--text-muted)' : fc) + ';">' + esc(fn.text) + '</span>';
@@ -5635,7 +5634,6 @@ function renderHistory(runs) {
   if (runs.length === 0) {
     box.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">&#128197;</div>
         <div class="empty-title">${t('msg_no_prev_runs')}</div>
         <div class="empty-desc">${t('msg_run_audit_first')}</div>
         <button class="btn btn-primary" onclick="showView('home')" style="margin-top:var(--space-2);">${t('btn_run_audit')}</button>
@@ -6085,7 +6083,6 @@ function renderCustomers(customers, activeId) {
   if (customers.length === 0) {
     box.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">&#127970;</div>
         <div class="empty-title" style="margin-bottom:var(--space-6);">${t('onboarding_title','Kom i gang med Sybr HUB')}</div>
         <div style="display:flex;gap:var(--space-6);justify-content:center;flex-wrap:wrap;margin-bottom:var(--space-6);">
           <div style="text-align:center;max-width:180px;">
@@ -6126,7 +6123,7 @@ function renderCustomers(customers, activeId) {
     const isGdap = c.AuthMode === 'gdap';
     const gdapBadge = isGdap ? '<span style="background:linear-gradient(135deg,#0078d4,#00bcf2);color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">GDAP</span>' : '';
     const expiryBadge = isGdap ? '' : getExpiryBadgeForCustomer(c._id);
-    const notesBadge = c._has_notes ? '<span style="background:var(--blue-dark);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:11px;border:1px solid rgba(77,159,181,0.3);">&#128221;</span>' : '';
+    const notesBadge = c._has_notes ? '<span style="background:var(--blue-dark);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:11px;border:1px solid rgba(77,159,181,0.3);">' + t('lbl_notes','Notat') + '</span>' : '';
     const cTags = c._tags || [];
     const safeId = c._id.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -6147,7 +6144,7 @@ function renderCustomers(customers, activeId) {
       <div class="card card-clickable" style="margin-bottom:var(--space-3);${activeClass}" onclick="overviewSelectCustomer('${esc(c._id)}')">
         <div style="display:flex;align-items:center;gap:var(--space-4);">
           <input type="checkbox" class="customer-bulk-cb" onclick="event.stopPropagation();toggleBulkCustomer('${esc(c._id)}',this)" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--blue);">
-          <span onclick="event.stopPropagation();toggleFavorite('${esc(c._id)}')" style="cursor:pointer;font-size:18px;flex-shrink:0;transition:transform var(--duration-fast);" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''">${isFav ? '&#11088;' : '&#9734;'}</span>
+          <span onclick="event.stopPropagation();toggleFavorite('${esc(c._id)}')" style="cursor:pointer;font-size:18px;flex-shrink:0;transition:transform var(--duration-fast);" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''">${isFav ? '\u2605' : '\u2606'}</span>
           ${grade ? '<div style="width:42px;height:42px;line-height:42px;border-radius:var(--radius-lg);font-weight:800;font-size:var(--font-lg);color:#fff;background:'+gradeColor+';text-align:center;flex-shrink:0;">'+grade+'</div>' : '<div style="width:42px;height:42px;line-height:42px;border-radius:var(--radius-lg);font-size:var(--font-lg);color:var(--text-dim);background:var(--bg);text-align:center;flex-shrink:0;border:1px dashed var(--border);">?</div>'}
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
@@ -6170,7 +6167,7 @@ function renderCustomers(customers, activeId) {
                 : `<button class="btn btn-primary btn-sm" onclick="startSetup()">${t('btn_setup','Sett opp')}</button>`)
               : `<button class="btn btn-primary btn-sm" onclick="switchCustomer('${esc(c._id)}')">${t('btn_activate')}</button>`
             }
-            <button class="btn btn-ghost btn-sm" style="color:var(--text-dim);" onclick="deleteCustomer('${esc(c._id)}', '${esc(c.CustomerName)}')" title="${t('btn_delete')}">&#128465;</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--text-dim);" onclick="deleteCustomer('${esc(c._id)}', '${esc(c.CustomerName)}')" title="${t('btn_delete')}">${t('btn_delete')}</button>
           </div>
         </div>
         <div id="tag-editor-${safeId}" style="display:none;margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;"></div>
@@ -6892,7 +6889,6 @@ function renderOverview(customers, activeId) {
   if (customers.length === 0) {
     html += `
       <div class="card" style="text-align:center;padding:var(--space-16) var(--space-6);">
-        <div style="font-size:48px;margin-bottom:var(--space-4);opacity:0.4;">&#128101;</div>
         <div style="font-size:var(--font-lg);font-weight:600;color:var(--text);margin-bottom:var(--space-2);">${t('msg_no_customers_registered')}</div>
         <div style="font-size:var(--font-sm);color:var(--text-dim);margin-bottom:var(--space-6);max-width:360px;margin-left:auto;margin-right:auto;">${t('msg_go_to_customers')}</div>
         <button class="btn btn-primary btn-lg" onclick="showView('customers')">${t('btn_add_first_customer')}</button>
@@ -6976,7 +6972,7 @@ function renderOverview(customers, activeId) {
       else { _stLabel = '—'; _stColor = 'var(--text-dim)'; _stDeep = 'var(--text-muted)'; }
       const _stBg = hasM ? `color-mix(in srgb, ${_stColor} 12%, transparent)` : 'transparent';
       const _domBadges = `${c.has_m365 ? ' <span style="background:var(--blue);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="M365 configured">M365</span>' : ''}${c.has_fortigate ? ' <span style="background:#e8590c;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="FortiGate configured">FG</span>' : ''}${c.has_unifi ? ' <span style="background:#06b6d4;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="UniFi configured">UF</span>' : ''}${!c.has_m365 && !c.has_fortigate && !c.has_unifi ? ' <span style="background:var(--text-dim);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="'+t('filter_needs_setup','Needs setup')+'">?</span>' : ''}`;
-      const _warnNote = `${hasM && m.total_warns > 0 ? '<div style="font-size:10px;color:var(--orange);margin-top:2px;">&#9888; ' + m.total_warns + ' ' + t('lbl_warnings','warnings') + '</div>' : ''}${(() => { if (!c.last_audit) return '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+t('lbl_never_audited','Never audited')+'</div>'; try { var _ad = new Date(c.last_audit.replace(/_/g,'T').substring(0,16)); var _da = Math.floor((Date.now()-_ad.getTime())/86400000); if (_da > 30) return '<div style="font-size:10px;color:var(--orange);margin-top:1px;">&#9200; '+_da+'d '+t('lbl_since_audit','since audit')+'</div>'; } catch(e){} return ''; })()}`;
+      const _warnNote = `${hasM && m.total_warns > 0 ? '<div style="font-size:10px;color:var(--orange);margin-top:2px;">' + m.total_warns + ' ' + t('lbl_warnings','warnings') + '</div>' : ''}${(() => { if (!c.last_audit) return '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+t('lbl_never_audited','Never audited')+'</div>'; try { var _ad = new Date(c.last_audit.replace(/_/g,'T').substring(0,16)); var _da = Math.floor((Date.now()-_ad.getTime())/86400000); if (_da > 30) return '<div style="font-size:10px;color:var(--orange);margin-top:1px;">'+_da+'d '+t('lbl_since_audit','since audit')+'</div>'; } catch(e){} return ''; })()}`;
 
       html += `
           <tr onclick="overviewSelectCustomer('${esc(c.customer_id)}')"
@@ -7008,12 +7004,12 @@ function renderOverview(customers, activeId) {
               <div style="position:relative;display:inline-block;" class="row-actions-wrap">
                 <button onclick="event.stopPropagation();toggleRowActions(this)" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-dim);padding:2px 6px;border-radius:var(--radius-sm);transition:background var(--duration-fast);" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">&#8943;</button>
                 <div class="row-actions-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-1) 0;min-width:180px;box-shadow:var(--shadow-lg);z-index:50;animation:dropdown-in var(--duration-fast) var(--ease-out);">
-                  <button onclick="event.stopPropagation();overviewSelectCustomer('${esc(c.customer_id)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#128200; ${t('lbl_details')}</button>
+                  <button onclick="event.stopPropagation();overviewSelectCustomer('${esc(c.customer_id)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">${t('lbl_details')}</button>
                   <button onclick="event.stopPropagation();quickSwitchAndAudit('${esc(c.customer_id)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">${t('btn_run_audit')}</button>
-                  <button onclick="event.stopPropagation();quickSwitchAndView('${esc(c.customer_id)}','history')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#128197; ${t('nav_history')}</button>
-                  <button onclick="event.stopPropagation();window.open('/api/reports/customer-summary/${esc(c.customer_id)}','_blank')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">&#128203; ${t('btn_generate_report')}</button>
+                  <button onclick="event.stopPropagation();quickSwitchAndView('${esc(c.customer_id)}','history')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">${t('nav_history')}</button>
+                  <button onclick="event.stopPropagation();window.open('/api/reports/customer-summary/${esc(c.customer_id)}','_blank')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(77,159,181,0.1)'" onmouseout="this.style.background=''">${t('btn_generate_report')}</button>
                   <div style="border-top:1px solid var(--border);margin:var(--space-1) 0;"></div>
-                  <button onclick="event.stopPropagation();deleteCustomer('${esc(c.customer_id)}','${esc(c.customer_name)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--red);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(248,81,73,0.08)'" onmouseout="this.style.background=''">&#128465; ${t('btn_delete')}</button>
+                  <button onclick="event.stopPropagation();deleteCustomer('${esc(c.customer_id)}','${esc(c.customer_name)}')" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--red);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(248,81,73,0.08)'" onmouseout="this.style.background=''">${t('btn_delete')}</button>
                 </div>
               </div>
             </td>
@@ -7401,16 +7397,16 @@ async function loadCustomerDetail(customerId) {
         <div style="font-size:var(--font-sm);color:var(--text-dim);font-family:var(--mono);">${esc(cust.primary_domain || '')}</div>
       </div>
       <button class="btn btn-primary" onclick="quickSwitchAndAudit('${esc(customerId)}')">${t('btn_run_audit')}</button>
-      <button class="btn btn-ghost" onclick="openLatestReport()" title="${t('btn_open_report','Open report')}">&#128196; ${t('btn_open_report','Report')}</button>
-      <button class="btn btn-ghost" onclick="window.open('/api/reports/customer-summary/${esc(customerId)}','_blank')" title="${t('btn_generate_customer_report','Generate customer report')}">&#128203; ${t('btn_generate_report')}</button>
-      <button class="btn btn-ghost" onclick="copyCustomerSummary()" title="${t('btn_copy_to_clipboard')}">&#128203;</button>
+      <button class="btn btn-ghost" onclick="openLatestReport()" title="${t('btn_open_report','Open report')}">${t('btn_open_report','Report')}</button>
+      <button class="btn btn-ghost" onclick="window.open('/api/reports/customer-summary/${esc(customerId)}','_blank')" title="${t('btn_generate_customer_report','Generate customer report')}">${t('btn_generate_report')}</button>
+      <button class="btn btn-ghost" onclick="copyCustomerSummary()" title="${t('btn_copy_to_clipboard')}">${t('btn_copy_to_clipboard')}</button>
     </div>
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-6);">
-      <button class="btn btn-ghost" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;">&#128200; ${t('nav_dashboard')}</button>
-      <button class="btn btn-ghost" onclick="showView('home')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#9729; ${t('nav_m365_status')}</button>
-      <button class="btn btn-ghost" onclick="showView('history')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#128197; ${t('nav_history')}</button>
-      <button class="btn btn-ghost" onclick="showView('files')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#128196; ${t('nav_files','Filer')}</button>
-      ${cust.also_account_id ? '<button class="btn btn-ghost" onclick="loadCustomerLicenses(\'' + esc(cust.also_account_id) + '\')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">&#128179; ' + t('nav_licenses','Licenses') + '</button>' : ''}
+      <button class="btn btn-ghost" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);font-weight:600;">${t('nav_dashboard')}</button>
+      <button class="btn btn-ghost" onclick="showView('home')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">${t('nav_m365_status')}</button>
+      <button class="btn btn-ghost" onclick="showView('history')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">${t('nav_history')}</button>
+      <button class="btn btn-ghost" onclick="showView('files')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">${t('nav_files','Filer')}</button>
+      ${cust.also_account_id ? '<button class="btn btn-ghost" onclick="loadCustomerLicenses(\'' + esc(cust.also_account_id) + '\')" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);">' + t('nav_licenses','Licenses') + '</button>' : ''}
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);margin-bottom:var(--space-6);">
@@ -7774,7 +7770,7 @@ async function _loadCustomerNetworkInventory(customerId) {
       html += '<div style="margin-bottom:var(--space-4);">';
       for (var i = 0; i < alerts.length; i++) {
         var alertColor = alerts[i].indexOf('outdated') >= 0 ? 'var(--orange)' : alerts[i].indexOf('port usage') >= 0 ? 'var(--orange)' : 'var(--red)';
-        html += '<div style="font-size:var(--font-xs);color:' + alertColor + ';padding:4px 0;">&#9888; ' + esc(alerts[i]) + '</div>';
+        html += '<div style="font-size:var(--font-xs);color:' + alertColor + ';padding:4px 0;">' + esc(alerts[i]) + '</div>';
       }
       html += '</div>';
     }
@@ -7800,7 +7796,7 @@ async function _loadCustomerNetworkInventory(customerId) {
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(ap.name) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(ap.model) + '</td>';
-        html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(ap.firmware) + (ap.fw_status === 'warning' || ap.fw_status === 'critical' ? ' &#9888;' : '') + '</td>';
+        html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(ap.firmware) + (ap.fw_status === 'warning' || ap.fw_status === 'critical' ? '' : '') + '</td>';
         html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (ap.clients || 0) + '</td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:4px;"></span>' + esc(ap.status) + '</td>';
         html += '<td style="padding:4px 8px;min-width:80px;"><div style="background:var(--bg-alt);border-radius:4px;height:6px;overflow:hidden;"><div style="width:' + clientPct + '%;height:100%;background:' + barColor + ';border-radius:4px;"></div></div></td>';
@@ -7830,7 +7826,7 @@ async function _loadCustomerNetworkInventory(customerId) {
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(sw.name) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(sw.model) + '</td>';
-        html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(sw.firmware) + (sw.fw_status === 'warning' || sw.fw_status === 'critical' ? ' &#9888;' : '') + '</td>';
+        html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(sw.firmware) + (sw.fw_status === 'warning' || sw.fw_status === 'critical' ? '' : '') + '</td>';
         html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + sw.ports_used + '/' + sw.ports_total + '</td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:4px;"></span>' + esc(sw.status) + '</td>';
         html += '<td style="padding:4px 8px;min-width:80px;"><div style="background:var(--bg-alt);border-radius:4px;height:6px;overflow:hidden;"><div style="width:' + portPct + '%;height:100%;background:' + barColor + ';border-radius:4px;"></div></div></td>';
@@ -7856,7 +7852,7 @@ async function _loadCustomerNetworkInventory(customerId) {
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(gw.name) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(gw.model) + '</td>';
-        html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(gw.firmware) + (gw.fw_status === 'warning' || gw.fw_status === 'critical' ? ' &#9888;' : '') + '</td>';
+        html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(gw.firmware) + (gw.fw_status === 'warning' || gw.fw_status === 'critical' ? '' : '') + '</td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:4px;"></span>' + esc(gw.status) + '</td>';
         html += '</tr>';
       }
@@ -8171,7 +8167,7 @@ async function _loadUnifiWifiHealthSection(customerId) {
           : a.type === 'high_interference' ? t('lbl_high_interference','High interference')
           : t('lbl_poor_satisfaction','Poor satisfaction');
         html += '<div style="font-size:var(--font-xs);color:' + alertColor + ';padding:2px 0;">';
-        html += '&#9888; <span style="font-weight:600;">' + esc(alertLabel) + ':</span> ' + esc(a.message);
+        html += '<span style="font-weight:600;">' + esc(alertLabel) + ':</span> ' + esc(a.message);
         html += '</div>';
       }
       if (alerts.length > 15) {
@@ -8303,9 +8299,9 @@ async function _loadCustomerActivity(customerName) {
     var d = await apiFetch('/api/activity-log?limit=15&customer=' + encodeURIComponent(customerName));
     var entries = d.entries || [];
     var actionIcons = {
-      audit_started:'&#9654;', audit_completed:'&#9989;', report_generated:'&#128196;',
-      email_sent:'&#9993;', remediation_updated:'&#128736;', backup_created:'&#128190;',
-      customer_switched:'&#128260;', settings_changed:'&#9881;', itglue_uploaded:'&#9729;',
+      audit_started:'\u25B6', audit_completed:'\u2713', report_generated:'',
+      email_sent:'', remediation_updated:'', backup_created:'',
+      customer_switched:'', settings_changed:'', itglue_uploaded:'',
     };
     var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);">'
       + '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">' + t('hdr_activity_log') + '</div>'
@@ -8314,7 +8310,7 @@ async function _loadCustomerActivity(customerName) {
       html += '<div style="font-size:var(--font-sm);color:var(--text-dim);padding:var(--space-2) 0;">' + t('msg_no_notifications','Ingen hendelser') + '</div>';
     } else {
       entries.forEach(function(e) {
-        var icon = actionIcons[e.action] || '&#128276;';
+        var icon = actionIcons[e.action] || '';
         var ts = e.timestamp ? timeAgo(e.timestamp) : '';
         html += '<div style="display:flex;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border);font-size:var(--font-xs);">'
           + '<span style="flex-shrink:0;">' + icon + '</span>'
@@ -8474,7 +8470,7 @@ async function loadCustomerLicenses(accountId) {
 
     if (subs.length === 0) {
       box.innerHTML = '<div class="card" style="padding:var(--space-8);text-align:center;color:var(--text-dim);">'
-        + '<div style="font-size:48px;margin-bottom:var(--space-4);">&#128179;</div>'
+        + '<div style="font-size:48px;margin-bottom:var(--space-4);"></div>'
         + '<div style="font-size:var(--font-lg);font-weight:600;margin-bottom:var(--space-2);">' + t('also_no_licenses','No licenses found') + '</div>'
         + '<div style="font-size:var(--font-sm);">' + t('also_no_licenses_desc','This customer has no active subscriptions in ALSO Cloud.') + '</div>'
         + '</div>';
@@ -8495,7 +8491,7 @@ async function loadCustomerLicenses(accountId) {
     });
 
     var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-3);">'
-      + '<div style="font-size:var(--font-xl);font-weight:700;">&#128179; ' + t('nav_licenses','Licenses') + '</div>'
+      + '<div style="font-size:var(--font-xl);font-weight:700;">' + t('nav_licenses','Licenses') + '</div>'
       + '<div style="display:flex;gap:var(--space-4);">'
       + '<div class="card" style="padding:var(--space-3) var(--space-4);text-align:center;min-width:100px;">'
       + '<div style="font-size:var(--font-2xl);font-weight:800;color:var(--blue);">' + subs.length + '</div>'
@@ -8548,7 +8544,7 @@ async function loadCustomerLicenses(accountId) {
       // Monthly subscriptions (Letsignit, Printix, etc)
       else if (nameLower.indexOf('monthly') !== -1) { termLabel = 'Monthly'; termIcon = ''; }
       // Azure Plan / Reserved Instance
-      else if (nameLower.indexOf('azure plan') !== -1 && nameLower.indexOf('reserved') === -1) { termLabel = 'Pay-as-you-go'; termIcon = '☁️'; }
+      else if (nameLower.indexOf('azure plan') !== -1 && nameLower.indexOf('reserved') === -1) { termLabel = 'Pay-as-you-go'; termIcon = ''; }
       else if (nameLower.indexOf('reserved') !== -1) { termLabel = 'Reserved'; termIcon = ''; }
       // Organization tenant (no term)
       else if (nameLower.indexOf('tenant') !== -1) { termLabel = 'Tenant'; termIcon = ''; }
@@ -8820,7 +8816,7 @@ async function _unifiedLoadUniwebCard(custId) {
     // Header with last updated
     h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
     h += '<div style="display:flex;align-items:center;gap:8px;">';
-    h += '<span style="font-size:18px;">&#127760;</span>';
+    h += '<span style="font-size:18px;"></span>';
     h += '<span style="font-size:14px;font-weight:600;">' + t('hosting_uniweb') + '</span>';
     h += '</div>';
     h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">';
@@ -8857,7 +8853,7 @@ async function _unifiedLoadUniwebCard(custId) {
 
     // Domains table
     if (uw.domains && uw.domains.length) {
-      h += _uwSection('&#127758;', 'Domener');
+      h += _uwSection('', 'Domener');
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
       h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('domene') + '</th>';
@@ -8888,7 +8884,7 @@ async function _unifiedLoadUniwebCard(custId) {
 
     // Subscriptions table
     if (uw.subscriptions && uw.subscriptions.length) {
-      h += _uwSection('&#128230;', 'Abonnementer');
+      h += _uwSection('', 'Abonnementer');
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
       h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('tjeneste') + '</th>';
@@ -8929,7 +8925,7 @@ async function _unifiedLoadUniwebCard(custId) {
 
     // Email table (proper table instead of just count)
     if (uw.email && uw.email.length) {
-      h += _uwSection('&#9993;', 'E-postkontoer (' + uw.email.length + ')');
+      h += _uwSection('', 'E-postkontoer (' + uw.email.length + ')');
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
       h += '<th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-size:10px;">' + t('adresse') + '</th>';
@@ -8958,7 +8954,7 @@ async function _unifiedLoadUniwebCard(custId) {
 
     // SSL certificates
     if (uw.ssl && uw.ssl.length) {
-      h += _uwSection('&#128274;', 'SSL-sertifikater (' + uw.ssl.length + ')');
+      h += _uwSection('', 'SSL-sertifikater (' + uw.ssl.length + ')');
       h += '<details style="font-size:12px;margin-top:2px;"><summary style="cursor:pointer;color:var(--text-muted);font-size:11px;">' + t('vis_detaljer') + '</summary>';
       h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px;">';
       h += '<thead><tr style="border-bottom:1px solid var(--border);">';
@@ -9164,11 +9160,11 @@ async function loadNotifications() {
     entries = entries.filter(function(e) { return !_hideActions.has(e.action); });
 
     var actionIcons = {
-      audit_started: '&#9654;', audit_completed: '&#9989;', report_generated: '&#128196;',
-      customer_added: '&#128101;', itglue_uploaded: '&#9729;',
-      email_sent: '&#9993;', backup_created: '&#128190;',
-      backup_restored: '&#128190;', history_deleted: '&#128465;',
-      remediation_updated: '&#128736;',
+      audit_started: '\u25B6', audit_completed: '\u2713', report_generated: '',
+      customer_added: '', itglue_uploaded: '',
+      email_sent: '', backup_created: '',
+      backup_restored: '', history_deleted: '',
+      remediation_updated: '',
     };
     var actionLabels = {
       audit_started: t('notif_audit_started','Audit started'),
@@ -9191,7 +9187,7 @@ async function loadNotifications() {
       return;
     }
     list.innerHTML = entries.map(function(e) {
-      var icon = actionIcons[e.action] || '&#128276;';
+      var icon = actionIcons[e.action] || '';
       var color = actionColors[e.action] || 'var(--text-muted)';
       var label = actionLabels[e.action] || e.action.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase()});
       var timeStr = e.timestamp ? timeAgo(e.timestamp) : '';
@@ -9863,7 +9859,7 @@ function _showPwaInstallHelp() {
   var html = '' +
     '<div class="modal-backdrop open" id="pwa-help-modal" onclick="if(event.target===this)document.getElementById(\'pwa-help-modal\').style.display=\'none\'" style="display:flex;">' +
       '<div class="modal" style="max-width:380px;">' +
-        '<div class="modal-title" style="display:flex;align-items:center;gap:8px;">&#11123; ' + esc(t('pwa_help_title', 'Installer Sybr HUB som app')) + '</div>' +
+        '<div class="modal-title" style="display:flex;align-items:center;gap:8px;">' + esc(t('pwa_help_title', 'Installer Sybr HUB som app')) + '</div>' +
         bodyHtml +
         '<div class="modal-actions">' +
           '<button class="btn btn-primary" onclick="document.getElementById(\'pwa-help-modal\').style.display=\'none\'">' + esc(t('btn_ok', 'OK')) + '</button>' +
@@ -10090,7 +10086,7 @@ checkAuth();
   var banner = document.createElement('div');
   banner.id = 'offline-banner';
   banner.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc2626;color:#fff;text-align:center;padding:6px 16px;font-size:13px;font-weight:600;transition:transform 0.3s;transform:translateY(-100%);';
-  banner.innerHTML = '&#9888; ' + t('msg_offline','No connection — working offline');
+  banner.innerHTML = '' + t('msg_offline','No connection — working offline');
   document.body.appendChild(banner);
 
   function goOffline() {

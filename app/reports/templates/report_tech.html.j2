@@ -445,7 +445,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
    the rows, not the other way round. #}
 {% if error_files %}
 <div class="alert warning" id="error-files">
-  <strong>&#x26A0; {{ t.error_files_heading }}</strong>
+  <strong>{{ t.error_files_heading }}</strong>
   <p style="margin:0 0 8px;">{{ t.error_files_desc }}</p>
   <ul style="margin:0;padding-left:18px;">
     {% for f in error_files %}
@@ -565,7 +565,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     </td>
     <td style="font-weight:500;">{{ r.name }}</td>
     <td style="font-family:var(--mono);color:var(--muted);">{{ r.files | length }}</td>
-    <td>{% for w in r.warns %}<div style="font-size:11px;color:var(--orange);">&#x26A0; {{ w }}</div>{% endfor %}</td>
+    <td>{% for w in r.warns %}<div style="font-size:11px;color:var(--orange);">{{ w }}</div>{% endfor %}</td>
     <td style="font-size:11px;color:var(--red);">{% if r.error %}{{ r.error[:100] }}{% endif %}</td>
   </tr>
   {% endfor %}
@@ -585,7 +585,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% if mfa.no_mfa > 0 %}
 {% set unprotected = mfa.users | selectattr("protected", "false") | list %}
 <div class="alert critical">
-  <strong>&#x26A0; {{ t('mfa_missing_alert', count=mfa.no_mfa) }}</strong>
+  <strong>{{ t('mfa_missing_alert', count=mfa.no_mfa) }}</strong>
   {% if unprotected %}
   <span class="mfa-toggle" onclick="this.classList.toggle('open');document.getElementById('mfa-detail-tech').classList.toggle('open')">
     <span class="arrow">&#x25B6;</span> {{ t.show_details }}
@@ -646,7 +646,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 {% if signin_risk.brute_force_suspects %}
 <div class="alert critical">
-  <strong>&#x26A0; {{ t.brute_force_warning }}</strong>
+  <strong>{{ t.brute_force_warning }}</strong>
   {{ t.brute_force_desc }}
   {{ signin_risk.brute_force_suspects | join(', ') }}
 </div>
@@ -693,7 +693,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 
 {% if admin_roles.global_admin_count > 4 %}
-<div class="alert warning"><strong>&#x26A0; {{ t('too_many_global_admins', count=admin_roles.global_admin_count) }}</strong>{{ t.too_many_global_admins_desc }}</div>
+<div class="alert warning"><strong>{{ t('too_many_global_admins', count=admin_roles.global_admin_count) }}</strong>{{ t.too_many_global_admins_desc }}</div>
 {% endif %}
 
 <table>
@@ -915,7 +915,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 
 {% if exchange.external_forwarding %}
-<div class="alert critical"><strong>&#x1F534; {{ t.external_fwd_detected }}</strong>{{ t.external_fwd_desc }}</div>
+<div class="alert critical"><strong>{{ t.external_fwd_detected }}</strong>{{ t.external_fwd_desc }}</div>
 {% endif %}
 
 <div class="card">
@@ -1036,7 +1036,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 
 {% if intune.compliance_pct < 80 %}
-<div class="alert warning"><strong>&#x26A0; {{ t('device_compliance_low', pct=intune.compliance_pct|round(0)|int) }}</strong>{{ t('device_compliance_low_desc', non=intune.noncompliant, total=intune.total) }}</div>
+<div class="alert warning"><strong>{{ t('device_compliance_low', pct=intune.compliance_pct|round(0)|int) }}</strong>{{ t('device_compliance_low_desc', non=intune.noncompliant, total=intune.total) }}</div>
 {% else %}
 <div class="alert ok"><strong>&#x2713; {{ t('device_compliance_ok_pct', pct=intune.compliance_pct|round(0)|int) }}</strong></div>
 {% endif %}
@@ -1148,7 +1148,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 
 {% if oauth.high_privilege_apps %}
-<div class="alert warning"><strong>&#x26A0; {{ t.apps_broad_perms_alert }}</strong>{{ oauth.high_privilege_apps | join(', ') }}</div>
+<div class="alert warning"><strong>{{ t.apps_broad_perms_alert }}</strong>{{ oauth.high_privilege_apps | join(', ') }}</div>
 {% endif %}
 
 {% if oauth.admin_consent %}
@@ -1368,7 +1368,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <a name="kritiske"></a><h2 id="kritiske">{{ t.critical_findings }}</h2>
 
 {% if defender_alerts and 'No active' not in defender_alerts and defender_alerts.strip() %}
-<div class="alert critical"><strong>&#x1F534; {{ t.active_defender_alerts }}</strong></div>
+<div class="alert critical"><strong>{{ t.active_defender_alerts }}</strong></div>
 <div class="data-section">
   <div class="data-header"><span>Defender Alerts</span><span class="fn">19b_defender_active_alerts.txt</span></div>
   <div class="data-body">{{ defender_alerts }}</div>
@@ -1376,7 +1376,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 
 {% if ext_fwd_warn and ext_fwd_warn.strip() %}
-<div class="alert critical"><strong>&#x1F534; {{ t.external_fwd_detected }}</strong></div>
+<div class="alert critical"><strong>{{ t.external_fwd_detected }}</strong></div>
 <div class="data-section">
   <div class="data-header"><span>{{ t.external_forwarding }}</span></div>
   <div class="data-body">{{ ext_fwd_warn }}</div>
@@ -1384,7 +1384,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 
 {% if inbox_rule_warn and inbox_rule_warn.strip() %}
-<div class="alert critical"><strong>&#x1F534; {{ t.inbox_rules_ext_fwd_detected }}</strong></div>
+<div class="alert critical"><strong>{{ t.inbox_rules_ext_fwd_detected }}</strong></div>
 <div class="data-section">
   <div class="data-header"><span>{{ t.inbox_rules_ext_fwd_header }}</span></div>
   <div class="data-body">{{ inbox_rule_warn }}</div>
@@ -1392,7 +1392,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 
 {% if risky_users and 'No risky' not in risky_users and risky_users.strip() %}
-<div class="alert warning"><strong>&#x26A0; {{ t.risky_users_idp }}</strong></div>
+<div class="alert warning"><strong>{{ t.risky_users_idp }}</strong></div>
 <div class="data-section">
   <div class="data-header"><span>{{ t.risky_users_header }}</span><span class="fn">18_risky_users.txt</span></div>
   <div class="data-body">{{ risky_users }}</div>
@@ -1404,7 +1404,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <table>
   <tr><th>{{ t.warning_header }}</th></tr>
   {% for w in all_warns %}
-  <tr><td style="color:var(--orange);">&#x26A0; {{ w }}</td></tr>
+  <tr><td style="color:var(--orange);">{{ w }}</td></tr>
   {% endfor %}
 </table>
 {% endif %}

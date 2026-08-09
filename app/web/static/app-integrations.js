@@ -530,7 +530,7 @@ async function alsoSyncCustomers() {
       }
       html += '<details style="margin-top:var(--space-3);font-size:var(--font-xs);"><summary style="cursor:pointer;color:var(--text-muted);">Matched (' + matched.length + ')</summary><div style="max-height:150px;overflow-y:auto;margin-top:var(--space-2);">';
       matched.forEach(function(c) {
-        var icon = c.match.match_type === 'exact_name' ? '&#10003;' : c.match.match_type === 'domain' ? '&#127760;' : '&#8776;';
+        var icon = c.match.match_type === 'exact_name' ? '&#10003;' : c.match.match_type === 'domain' ? '\u25CF' : '&#8776;';
         html += '<div style="padding:2px 0;display:flex;gap:var(--space-2);"><span>' + icon + '</span><span style="flex:1;">' + esc(c.also_name) + '</span><span style="color:var(--text-dim);">&rarr; ' + esc(c.match.toolkit_name) + '</span></div>';
       });
       html += '</div></details>';
@@ -1548,7 +1548,7 @@ async function itglueSyncAllDocumentation() {
     pushBtn.setAttribute('data-itglue-push', customerId);
     pushBtn.onclick = function() { itgluePushCustomer(customerId); };
     pushBtn.style.cssText = 'font-size:12px;';
-    pushBtn.innerHTML = '&#9729; ' + t('btn_push_to_itglue', 'Push til IT Glue');
+    pushBtn.innerHTML = t('btn_push_to_itglue', 'Push til IT Glue');
     header.appendChild(pushBtn);
   });
   observer.observe(detailBox, {childList: true, subtree: true});

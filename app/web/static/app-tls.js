@@ -219,9 +219,9 @@ async function tlsScanAll() {
     } else if (r.expired) {
       statusColor = 'var(--red)'; statusText = t('tls_expired','Expired'); statusIcon = '&#10007;';
     } else if (r.expiring_soon) {
-      statusColor = 'var(--orange)'; statusText = t('tls_expiring_soon','Expiring soon'); statusIcon = '&#9888;';
+      statusColor = 'var(--orange)'; statusText = t('tls_expiring_soon','Expiring soon'); statusIcon = '';
     } else if (r.weak_protocol || r.weak_cipher) {
-      statusColor = 'var(--orange)'; statusText = t('tls_weak','Weak'); statusIcon = '&#9888;';
+      statusColor = 'var(--orange)'; statusText = t('tls_weak','Weak'); statusIcon = '';
     } else {
       statusColor = 'var(--green)'; statusText = t('tls_valid','Valid'); statusIcon = '&#10003;';
     }
