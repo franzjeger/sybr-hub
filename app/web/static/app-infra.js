@@ -3846,15 +3846,16 @@ async function unifiSmSave() {
   if (data && data.ok) { showToast(t('msg_api_key_saved','API key saved'),'success'); }
 }
 
-// Load saved UniFi SM key when integrations view opens
+// Load saved UniFi SM key when integrations view opens.
+//
+// Populates the field only. The card's dot and label belong to the setStatus
+// block in app.js that owns every other integration's status — painting them
+// here as well made two writers of one value, and whichever ran last won.
 async function unifiSmLoadSaved() {
   var data = await apiFetch('/api/settings');
   if (data && data.unifi_site_manager_api_key) {
     var el = document.getElementById('unifi-sm-apikey');
     if (el) { el.value = data.unifi_site_manager_api_key; el.type = 'password'; }
-    document.getElementById('unifi-sm-integ-dot').style.background = 'var(--blue)';
-    document.getElementById('unifi-sm-integ-label').textContent = t('lbl_key_saved','Key saved');
-    document.getElementById('unifi-sm-integ-label').style.color = 'var(--blue)';
   }
 }
 

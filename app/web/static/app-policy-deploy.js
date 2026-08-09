@@ -213,6 +213,11 @@ async function policyAdoptionSave() {
 async function policyEnforceLoad() {
   var el = document.getElementById('pd-enforce');
   if (!el) return;
+  // Both of these build a customer-scoped URL. With no customer the id is an
+  // empty string, so the path collapses to /api/policy-deploy//report-only —
+  // an empty segment matches no route, and the 404 surfaced as a bare "Not
+  // Found" toast on a screen that had not been asked to do anything yet.
+  if (!_pdCustomerId()) { el.innerHTML = ''; return; }
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/report-only');
   if (!d || !d.policies || !d.policies.length) { el.innerHTML = ''; return; }
 
@@ -267,6 +272,11 @@ async function policyEnforce(policyId, name) {
 async function policyRestoreLoad() {
   var el = document.getElementById('pd-restore');
   if (!el) return;
+  // Both of these build a customer-scoped URL. With no customer the id is an
+  // empty string, so the path collapses to /api/policy-deploy//report-only —
+  // an empty segment matches no route, and the 404 surfaced as a bare "Not
+  // Found" toast on a screen that had not been asked to do anything yet.
+  if (!_pdCustomerId()) { el.innerHTML = ''; return; }
   var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/sources');
   if (!d || !d.sources || !d.sources.length) { el.innerHTML = ''; return; }
 
