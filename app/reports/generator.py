@@ -2646,16 +2646,21 @@ def _compute_risk(
     # finding was already here; what was missing is that it said nothing. A
     # tenant without Entra ID P2, or one where the fetch was refused, scored
     # identically to one verified to have no risky users.
-    if risky_users and "No risky" not in risky_users and not _evidence_unavailable(risky_users):
-        score -= 5
-    elif risky_users and risky_users.strip() and _evidence_unavailable(risky_users):
+    _risky_n = _reported_count(risky_users)
+    if _evidence_unavailable(risky_users):
         # Only when the file exists and turned out to be prose. An absent file
         # means the section never ran, and that is already declared by name
         # through unavailable_sections; this branch covers the case that one
         # cannot see — the section reported DONE and one fetch inside it did not.
-        data_quality_issues.append(
-            "Risikobrukere ikke vurdert — krever Entra ID P2 og AuditLog-tilgang"
-        )
+        if risky_users and risky_users.strip():
+            data_quality_issues.append(
+                "Risikobrukere ikke vurdert — krever Entra ID P2 og AuditLog-tilgang"
+            )
+    elif _risky_n is not None:
+        if _risky_n > 0:
+            score -= 5
+    elif risky_users and "No risky" not in risky_users and risky_users.strip():
+        score -= 5
 
     # Defender alerts (up to 10 pts) — scale with number of alerts.
     # The collector writes "Error: {ex}" into this file when the fetch fails,
@@ -2669,13 +2674,17 @@ def _compute_risk(
             data_quality_issues.append(
                 "Defender-varsler utilgjengelig — ingen vurdering av aktive varsler"
             )
-    elif defender and "No active" not in defender and defender.strip():
-        alert_lines = [l for l in defender.strip().splitlines()
-                       if l.strip() and not l.strip().startswith("=") and not l.strip().startswith("-")
-                       and "alert" not in l.strip().lower().split(":")[:1]]
-        alert_count = max(1, len(alert_lines))
-        # 3 pts base + 1 per alert, capped at 10
-        score -= min(10, 3 + alert_count)
+    else:
+        alert_count = _reported_count(defender)
+        if alert_count is None and defender and "No active" not in defender and defender.strip():
+            # No count in the header. Fall back to counting rows, as before.
+            alert_lines = [l for l in defender.strip().splitlines()
+                           if l.strip() and not l.strip().startswith("=")
+                           and not l.strip().startswith("-")]
+            alert_count = max(1, len(alert_lines))
+        if alert_count:
+            # 3 pts base + 1 per alert, capped at 10
+            score -= min(10, 3 + alert_count)
 
     # ── Network security (up to 15 pts) ────────────────────────────
     if network and network.get("has_data"):
@@ -3689,6 +3698,28 @@ def _evidence_unavailable(text: str) -> bool:
     # stub costs points, the miss hides a real finding.
     head = "\n".join(stripped.splitlines()[:12]).lower()
     return "not available" in head or "requires" in head or "krever" in head
+
+
+_HEADER_COUNT = re.compile(r"\((\d+)\s+(?:total|unresolved|found)\)")
+
+
+def _reported_count(text: str) -> int | None:
+    """How many rows the collector says it wrote, taken from its own header.
+
+    Both files that feed a critical-finding penalty carry it: "RISKY USERS
+    (0 total)", "DEFENDER ACTIVE ALERTS  (3 unresolved)". None means the text
+    has no such header and the caller must fall back.
+
+    Counting rendered lines instead charged a tenant for its title and column
+    header. Worse, the sentinels the score actually branched on — "No risky",
+    "No active" — are phrases no collector writes. They exist only in the test
+    fixture, so a clean tenant was charged five points for having no risky
+    users and five more for having no Defender alerts, and one real alert
+    scored one point worse than none. The fixture was written to match the
+    parser rather than the collector, which is why nothing failed.
+    """
+    m = _HEADER_COUNT.search(text or "")
+    return int(m.group(1)) if m else None
 
 
 def _section_ran(fc: dict, *names: str) -> bool:

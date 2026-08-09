@@ -37,6 +37,9 @@ Fix the claim.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from app.reports.generator import (
@@ -191,4 +194,131 @@ def test_a_control_stops_claiming_when_its_own_evidence_is_gone(baseline, tmp_pa
         f"CIS {cis_id} still reports {got!r} with none of its declared evidence "
         f"present ({', '.join(sorted(declared))}). A verdict that survives the "
         f"removal of everything it reads was not formed from that evidence."
+    )
+
+
+# ── The shape collectors actually produce ─────────────────────────────────────
+#
+# Everything above removes files. Collectors do not remove on failure — they
+# write prose into the file: "Error: {ex}", or a "(not available)" block naming
+# the licence or permission that is missing. That is a different input, and the
+# report used to read it differently. Three verdicts were formed from prose:
+# Defender counted an error stub as one active alert and deducted four points;
+# risky users had the guard but announced nothing; and the guard itself matched
+# "requires" anywhere in the file, so one finding whose text used the word made
+# the whole file read as unmeasured and its penalty vanish.
+#
+# The deletion sweep could not see any of them. Removal yields an empty string,
+# which every reader already treats as absent.
+
+_STUB = "Error: HTTP 403 Forbidden\n"
+
+
+@pytest.mark.parametrize("stubbed", sorted(FULL_AUDIT))
+def test_a_failed_fetch_never_creates_a_finding(baseline, tmp_path, stubbed):
+    """A file that explains why it is empty must score as absent, not as read."""
+    ctx = _render(tmp_path, {**FULL_AUDIT, stubbed: _STUB})
+    violations: list[str] = []
+
+    for title in sorted(_titles(ctx) - _titles(baseline)):
+        violations.append(f"invented recommendation: {title}")
+
+    before, after = _statuses(baseline), _statuses(ctx)
+    for key, status in after.items():
+        prev = before.get(key)
+        if prev is not None and status != prev and status != "info":
+            violations.append(f"control {key[0]} ({key[1]}): {prev} → {status}")
+
+    base_score, now_score = baseline["risk"]["score"], ctx["risk"]["score"]
+    if base_score is not None and now_score is not None and now_score < base_score:
+        violations.append(
+            f"score {base_score} → {now_score}: the failure itself cost points"
+        )
+
+    assert not violations, (
+        f"stubbing {stubbed} made the report say {len(violations)} new thing(s):\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_a_wholly_failed_audit_refuses_to_grade():
+    """The end of the same line: every file a stub. Nothing may be claimed."""
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        ctx = _render(Path(tmp), {name: _STUB for name in FULL_AUDIT})
+
+    assert ctx["risk"]["score"] is None
+    assert ctx["risk"]["blocking_data_gaps"]
+    assert _titles(ctx) == set()
+    still_claiming = {k: v for k, v in _statuses(ctx).items() if v != "info"}
+    assert not still_claiming, (
+        "controls formed a verdict from prose explaining why there was no data: "
+        + ", ".join(f"{cid} → {st}" for (cid, _t), st in sorted(still_claiming.items()))
+    )
+
+
+# ── How far the fixture actually reaches ──────────────────────────────────────
+#
+# Every invariant in this file is only as wide as FULL_AUDIT. A collector output
+# the fixture does not contain cannot be removed, cannot be stubbed, and the
+# controls reading it are never exercised in either direction. That is not a
+# hypothetical: 19b_defender_active_alerts.txt is in the fixture, and the one
+# reader that had no guard was found by hand rather than by these sweeps —
+# because the guardless reader also logs nothing, so nothing pointed at it.
+#
+# This does not close the gap; it stops it growing. Adding a collector output
+# the report reads without adding it here now fails, with the name to add.
+
+_FIXTURE_GAPS = {
+    # Read by the report, written by a collector, absent from FULL_AUDIT.
+    "03b_stale_accounts.txt",
+    "04_mfa_methods.json",      # the MFA figures' primary source; the fixture
+                                # only has the text table, so these sweeps
+                                # exercise the fallback parser, not the real one
+    "15_entra_devices.txt",
+    "15_entra_devices_count.txt",
+    "16_teams.txt",
+    "16_usage_active_users.txt",
+    "16_usage_summary.txt",
+    "16b_teams_settings.txt",
+    "17c_app_credential_expiry.txt",
+    "18d_risk_detections.txt",
+    "20_exchange_mailboxes_count.txt",
+    "21_exchange_transport_rules.txt",
+    "22_exchange_connectors.txt",
+    "30b_teams_guest_access.txt",
+    "32_pim_roles.txt",
+}
+
+_OUTPUT = re.compile(r"""["']([0-9]{2}[a-z]?_[a-z0-9_]+\.(?:txt|json))["']""")
+_SAVED = re.compile(r"""_save\(\s*(?:self\._fname\(\s*)?["']([0-9][^"']*\.(?:txt|json))["']""")
+
+
+def test_the_fixture_gap_does_not_grow():
+    root = Path(__file__).resolve().parents[1]
+    written: set[str] = set()
+    for path in (root / "app/modules").rglob("*.py"):
+        if "__pycache__" in str(path):
+            continue
+        written |= set(_SAVED.findall(path.read_text(encoding="utf-8")))
+    read = set(_OUTPUT.findall((root / "app/reports/generator.py").read_text(encoding="utf-8")))
+
+    new = sorted((written & read) - set(FULL_AUDIT) - _FIXTURE_GAPS)
+    assert not new, (
+        "these collector outputs are read by the report but absent from "
+        "tests/audit_fixture.py, so no sweep in this file can reach them:\n  "
+        + "\n  ".join(new)
+        + "\n\nAdd them to FULL_AUDIT with realistic healthy-tenant content, or "
+        "record them in _FIXTURE_GAPS with a reason."
+    )
+
+
+def test_the_recorded_gaps_are_still_gaps():
+    """A ratchet nobody tightens is a comment. When one is closed, drop it."""
+    closed = sorted(_FIXTURE_GAPS & set(FULL_AUDIT))
+    assert not closed, (
+        "these are in the fixture now — remove them from _FIXTURE_GAPS: "
+        + ", ".join(closed)
     )
