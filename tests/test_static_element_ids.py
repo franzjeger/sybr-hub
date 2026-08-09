@@ -40,6 +40,10 @@ def _created_ids() -> set[str]:
         created.update(re.findall(r"""id\s*=\s*\\?['"]([A-Za-z0-9_:-]+)""", text))
         # An id assembled by concatenation, e.g. id="row-' + i + '"
         created.update(re.findall(r"""id\s*=\s*\\?['"]([A-Za-z0-9_:-]+)['"]?\s*\+""", text))
+        # An id passed as an object property and written into markup by a
+        # helper — `_cdChip(..., {id: 'x'})`. Missing this reported a live
+        # element as dangling, and acting on that report deleted working code.
+        created.update(re.findall(r"""\bid\s*:\s*['"]([A-Za-z0-9_:-]+)['"]""", text))
     return created
 
 
@@ -122,3 +126,11 @@ def test_no_javascript_dereferences_a_variable_holding_a_missing_element():
         "which throws at runtime: "
         + ", ".join(f"{n} ({w})" for n, w in sorted(crashing.items()))
     )
+
+
+def test_an_id_passed_as_an_object_property_counts_as_created():
+    # `_cdChip(name, colour, status, {id: 'unified-uniweb-status'})` writes the
+    # id into its markup. Reading only `id="..."` reported that element as
+    # dangling, and the report was acted on: working code was deleted because a
+    # detector did not know a second way of spelling the same thing.
+    assert "unified-uniweb-status" in _created_ids()

@@ -8730,15 +8730,17 @@ async function loadUnifiedDashboard() {
 }
 
 async function _unifiedLoadUniwebCard(custId) {
-  // There has never been a unified-uniweb-status element in the markup. Every
-  // write to it sat behind a null guard, so the card's status never updated and
-  // nothing said so — the code ran, did nothing, and looked successful. cardEl
-  // is what actually renders.
+  var statusEl = document.getElementById('unified-uniweb-status');
   var cardEl = document.getElementById('unified-uniweb-card') || document.getElementById('customer-uniweb-panel');
 
   try {
     var uw = await apiFetch('/api/uniweb/customer/' + encodeURIComponent(custId));
     if (!uw || !uw.matched) {
+      if (statusEl) {
+        statusEl.style.borderTopColor = 'var(--text-dim)';
+        statusEl.querySelector('div:last-child').textContent = t('st_not_linked','Ikke koblet');
+        statusEl.querySelector('div:last-child').style.color = 'var(--text-dim)';
+      }
       return;
     }
 
@@ -8746,6 +8748,11 @@ async function _unifiedLoadUniwebCard(custId) {
     var uwColor = 'var(--green)';
     var uwLabel = (uw.domains ? uw.domains.length : 0) + ' domener';
     if (uw.monthly_total > 0) uwLabel += ' \u00b7 ' + uw.monthly_total.toFixed(0) + ' kr/mnd';
+    if (statusEl) {
+      statusEl.style.borderTopColor = uwColor;
+      statusEl.querySelector('div:last-child').textContent = uwLabel;
+      statusEl.querySelector('div:last-child').style.color = uwColor;
+    }
 
     // Build detail card
     if (!cardEl) return;
@@ -8947,6 +8954,10 @@ async function _unifiedLoadUniwebCard(custId) {
     h += '</div>';
     cardEl.innerHTML = h;
   } catch (e) {
+    if (statusEl) {
+      statusEl.querySelector('div:last-child').textContent = t('lbl_error','Feil');
+      statusEl.querySelector('div:last-child').style.color = 'var(--red)';
+    }
   }
 }
 
