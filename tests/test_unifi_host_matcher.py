@@ -197,3 +197,26 @@ def test_a_blank_host_id_does_not_count_as_linked():
     customers = [{"_id": "c1", "CustomerName": "Acme AS", "UniFiHostId": "   "}]
     [p] = match_hosts_to_customers([_host("Acme-AS")], customers)
     assert p["confidence"] == "high"
+
+
+def test_a_linked_console_is_not_proposed_again():
+    # Excluding linked customers alone left finished consoles hunting through
+    # whatever customers remained: after linking 19 of 30, a re-run offered 18
+    # spurious proposals. A console that is done is done.
+    customers = [
+        {"_id": "c1", "CustomerName": "Acme AS", "UniFiHostId": "h1"},
+        {"_id": "c2", "CustomerName": "Beta AS"},
+    ]
+    proposals = match_hosts_to_customers(
+        [_host("Acme-AS", "h1"), _host("Beta-AS", "h2")], customers
+    )
+    assert [p["host_id"] for p in proposals] == ["h2"]
+
+
+def test_include_linked_brings_the_finished_consoles_back():
+    customers = [{"_id": "c1", "CustomerName": "Acme AS", "UniFiHostId": "h1"}]
+    proposals = match_hosts_to_customers(
+        [_host("Acme-AS", "h1")], customers, include_linked=True
+    )
+    assert len(proposals) == 1
+    assert proposals[0]["confidence"] == "high"
