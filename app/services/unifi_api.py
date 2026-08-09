@@ -1573,7 +1573,12 @@ def normalise_org_name(name: Any) -> str:
     """Lowercase, strip punctuation and drop the legal-form suffix."""
     if not isinstance(name, str):
         return ""
-    cleaned = _re.sub(r"[^\w\s-]", " ", name.lower())
+    # Dots and slashes are dropped rather than spaced, so "A/S" and "Ltd."
+    # survive as single suffix words instead of splintering into letters that
+    # no suffix list can match. Everything else, hyphens included, becomes a
+    # space: "A-Tre" and "A Tre" are the same company written two ways.
+    cleaned = _re.sub(r"[./]", "", name.lower())
+    cleaned = _re.sub(r"[^\w\s]", " ", cleaned).replace("_", " ")
     words = [w for w in cleaned.split() if w]
     while words and words[-1] in _ORG_SUFFIXES:
         words.pop()
