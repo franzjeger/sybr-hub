@@ -650,13 +650,21 @@ async def unifi_sm_isp_metrics(
 # ── Matching cloud sites to customers ────────────────────────────────────────
 
 @router.get("/unifi/site-matches")
-async def unifi_site_matches(user: User = Depends(get_current_user)):
+async def unifi_site_matches(
+    include_linked: bool = False,
+    user: User = Depends(get_current_user),
+):
     """Propose a customer for each console. Writes nothing.
 
     Matched on the console name, not the site name: a site is called "default"
     on 29 of 30 consoles in a live account and an opaque id on the rest, so
     matching on it proposed nothing for 76 of 77. The console carries the name
     a technician typed at adoption.
+
+    Customers already carrying a console are left out, so a re-run proposes
+    only what is still unlinked. Pass ``include_linked=true`` to reconsider
+    everything — a deliberate act, since applying a second console to a
+    customer overwrites the first.
     """
     from app.core.customer import CustomerManager
     from app.core.rbac import filter_customers, get_accessible_customer_ids
@@ -673,7 +681,9 @@ async def unifi_site_matches(user: User = Depends(get_current_user)):
     allowed = await get_accessible_customer_ids(user)
     customers = filter_customers(CustomerManager.list_customers(), allowed)
     return summarise_host_matches(
-        match_hosts_to_customers(listing.get("hosts", []), customers)
+        match_hosts_to_customers(
+            listing.get("hosts", []), customers, include_linked=include_linked
+        )
     )
 
 
