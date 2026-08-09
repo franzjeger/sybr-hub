@@ -2623,12 +2623,34 @@ def _compute_risk(
                      if l.strip() and not l.strip().startswith("=") and not l.strip().startswith("-")]
         score -= min(10, max(5, len(fwd_lines) * 2))
 
-    # Risky users (up to 5 pts)
+    # Risky users (up to 5 pts). The guard against reading a refusal as a
+    # finding was already here; what was missing is that it said nothing. A
+    # tenant without Entra ID P2, or one where the fetch was refused, scored
+    # identically to one verified to have no risky users.
     if risky_users and "No risky" not in risky_users and not _evidence_unavailable(risky_users):
         score -= 5
+    elif risky_users and risky_users.strip() and _evidence_unavailable(risky_users):
+        # Only when the file exists and turned out to be prose. An absent file
+        # means the section never ran, and that is already declared by name
+        # through unavailable_sections; this branch covers the case that one
+        # cannot see — the section reported DONE and one fetch inside it did not.
+        data_quality_issues.append(
+            "Risikobrukere ikke vurdert — krever Entra ID P2 og AuditLog-tilgang"
+        )
 
-    # Defender alerts (up to 10 pts) — scale with number of alerts
-    if defender and "No active" not in defender and defender.strip():
+    # Defender alerts (up to 10 pts) — scale with number of alerts.
+    # The collector writes "Error: {ex}" into this file when the fetch fails,
+    # and that stub is truthy, does not say "No active", and is not empty — so
+    # it counted as one alert and cost four points. A 403 on the Defender
+    # endpoint scored the same as a tenant with a live phishing alert, with
+    # nothing to say the alert was invented. Every other reader of this file
+    # already checks; the score was the one that did not.
+    if _evidence_unavailable(defender):
+        if defender and defender.strip():
+            data_quality_issues.append(
+                "Defender-varsler utilgjengelig — ingen vurdering av aktive varsler"
+            )
+    elif defender and "No active" not in defender and defender.strip():
         alert_lines = [l for l in defender.strip().splitlines()
                        if l.strip() and not l.strip().startswith("=") and not l.strip().startswith("-")
                        and "alert" not in l.strip().lower().split(":")[:1]]
@@ -3640,8 +3662,14 @@ def _evidence_unavailable(text: str) -> bool:
     stripped = text.strip()
     if not stripped or stripped.startswith("Error:"):
         return True
-    low = stripped.lower()
-    return "not available" in low or "requires" in low or "krever" in low
+    # Only in the head. Every collector writes these markers in the title line
+    # or the cause block right under it — the longest is five lines. Searching
+    # the whole file instead meant one genuine finding whose text happened to
+    # say "requires" made the entire file read as unmeasured, which silently
+    # drops its penalty. A miss here is worse than a stub read as data: the
+    # stub costs points, the miss hides a real finding.
+    head = "\n".join(stripped.splitlines()[:12]).lower()
+    return "not available" in head or "requires" in head or "krever" in head
 
 
 def _section_ran(fc: dict, *names: str) -> bool:

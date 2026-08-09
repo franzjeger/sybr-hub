@@ -151,6 +151,7 @@
     "tests/test_report_radar.py",
     "tests/test_report_render.py",
     "tests/test_report_summary.py",
+    "tests/test_report_unavailable_sections.py",
     "tests/test_report_wlan.py",
     "tests/test_site_collector.py",
     "tests/test_ssh_key_deploy.py",
