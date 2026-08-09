@@ -1585,13 +1585,31 @@ def normalise_org_name(name: Any) -> str:
     return " ".join(words)
 
 
+def _is_word_run(haystack: list[str], needle: list[str]) -> bool:
+    """True when *needle* appears in *haystack* as whole consecutive words."""
+    if not needle or len(needle) > len(haystack):
+        return False
+    return any(
+        haystack[i:i + len(needle)] == needle
+        for i in range(len(haystack) - len(needle) + 1)
+    )
+
+
 def score_name_match(left: str, right: str) -> float:
-    """Similarity between two normalised names, on the Uniweb scale."""
+    """Similarity between two normalised names, on the Uniweb scale.
+
+    Containment is tested on whole words, not raw substring. "star bil" is a
+    substring of "star bilskade avd skien" only because *bil* begins
+    *bilskade* — and Star Bil AS and Star Bilskade AS are different companies.
+    A rule that fires inside a word scored that pairing 0.85, which reads as
+    confident, and the resulting link would have been silently wrong.
+    """
     if not left or not right:
         return 0.0
     if left == right:
         return 1.0
-    if left in right or right in left:
+    left_words, right_words = left.split(), right.split()
+    if _is_word_run(right_words, left_words) or _is_word_run(left_words, right_words):
         return 0.85
     return SequenceMatcher(None, left, right).ratio()
 
@@ -1630,7 +1648,7 @@ async def get_hosts_with_names() -> dict[str, Any]:
 
 
 def match_hosts_to_customers(
-    hosts: list[dict], customers: list[dict]
+    hosts: list[dict], customers: list[dict], include_linked: bool = False
 ) -> list[dict[str, Any]]:
     """Propose a customer for each console. Proposes only — writes nothing.
 
@@ -1644,10 +1662,16 @@ def match_hosts_to_customers(
     match" is the answer for one belonging to a customer that was never
     imported, and hiding those would make the list look complete when it is not.
     """
+    # A customer already carrying a console is not a candidate for another one,
+    # the way the Uniweb matcher only considers rows with customer_id IS NULL.
+    # UniFiHostId is a single field: proposing a second console for a customer
+    # that has one means the later apply overwrites the earlier, and nothing
+    # says which link was lost. Re-matching is opt-in for exactly that reason.
     candidates = [
         (c, normalise_org_name(c.get("CustomerName", "")))
         for c in customers
         if normalise_org_name(c.get("CustomerName", ""))
+        and (include_linked or not (c.get("UniFiHostId") or "").strip())
     ]
 
     proposals: list[dict[str, Any]] = []
@@ -1681,6 +1705,22 @@ def match_hosts_to_customers(
             "runner_up_score": round(runner_up, 3),
             "confidence": confidence,
         })
+
+    # Ambiguity was only ever checked one way: is this console's best match
+    # close to its runner-up? Nothing asked the reverse — is this customer also
+    # the best match for another console? Three customers were proposed twice
+    # in a live account, and since UniFiHostId holds one value, accepting both
+    # halves of a pair would have overwritten the first without a word.
+    claimed: dict[str, int] = {}
+    for p in proposals:
+        if p["customer_id"]:
+            claimed[p["customer_id"]] = claimed.get(p["customer_id"], 0) + 1
+    for p in proposals:
+        contested = p["customer_id"] and claimed.get(p["customer_id"], 0) > 1
+        p["contested"] = bool(contested)
+        if contested and p["confidence"] == "high":
+            # Still the best name match — but not one to apply unattended.
+            p["confidence"] = "ambiguous"
 
     # Ambiguous first: they need a human before anything else is worth doing.
     order = {"ambiguous": 0, "low": 1, "high": 2, "none": 3}

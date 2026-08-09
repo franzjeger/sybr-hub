@@ -128,3 +128,72 @@ def test_a_site_style_default_name_matches_nothing():
     # What the old matcher was fed for 29 of 30 consoles.
     [p] = match_hosts_to_customers([_host("default")], [_cust("Acme")])
     assert p["confidence"] == "none"
+
+
+# ── Containment must respect word boundaries ─────────────────────────────────
+
+def test_containment_does_not_fire_inside_a_word():
+    # Star Bil AS and Star Bilskade AS are different companies. Raw substring
+    # containment scored them 0.85 — "confident" — because *bil* begins
+    # *bilskade*, and the resulting link would have been silently wrong.
+    score = score_name_match(
+        normalise_org_name("Star-Bilskade-AS-Avd-Skien"),
+        normalise_org_name("STAR BIL AS"),
+    )
+    assert score < 0.75
+
+
+def test_containment_still_fires_on_whole_words():
+    assert score_name_match(
+        normalise_org_name("Unifi-OS-Sybr-AS"), normalise_org_name("Sybr AS")
+    ) == 0.85
+
+
+def test_an_infrastructure_hostname_is_not_a_customer():
+    # "unifi.sybr.no" collapses to one word, so "sybr" is inside it but not a
+    # word of it. It is a DNS name, not a company.
+    assert score_name_match(
+        normalise_org_name("unifi.sybr.no"), normalise_org_name("Sybr AS")
+    ) < 0.75
+
+
+# ── One customer cannot own two consoles by accident ─────────────────────────
+
+def test_a_customer_wanted_by_two_consoles_is_contested():
+    # UniFiHostId holds one value, so accepting both halves would overwrite the
+    # first without a word. Neither is auto-applicable.
+    proposals = match_hosts_to_customers(
+        [_host("Acme-AS", "h1"), _host("Acme-AS-Avdeling", "h2")],
+        [_cust("Acme AS")],
+    )
+    contested = [p for p in proposals if p["customer_id"]]
+    assert len(contested) == 2
+    assert all(p["contested"] for p in contested)
+    assert all(p["confidence"] == "ambiguous" for p in contested)
+
+
+def test_an_uncontested_match_is_not_flagged():
+    [p] = match_hosts_to_customers([_host("Acme-AS")], [_cust("Acme AS")])
+    assert p["contested"] is False
+    assert p["confidence"] == "high"
+
+
+# ── Re-running does not re-propose what is already linked ────────────────────
+
+def test_a_linked_customer_is_not_offered_again():
+    customers = [{"_id": "c1", "CustomerName": "Acme AS", "UniFiHostId": "h9"}]
+    [p] = match_hosts_to_customers([_host("Acme-AS")], customers)
+    assert p["confidence"] == "none"
+    assert p["customer_id"] == ""
+
+
+def test_include_linked_reconsiders_everything():
+    customers = [{"_id": "c1", "CustomerName": "Acme AS", "UniFiHostId": "h9"}]
+    [p] = match_hosts_to_customers([_host("Acme-AS")], customers, include_linked=True)
+    assert p["confidence"] == "high"
+
+
+def test_a_blank_host_id_does_not_count_as_linked():
+    customers = [{"_id": "c1", "CustomerName": "Acme AS", "UniFiHostId": "   "}]
+    [p] = match_hosts_to_customers([_host("Acme-AS")], customers)
+    assert p["confidence"] == "high"
