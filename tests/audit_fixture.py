@@ -13,6 +13,8 @@ Keep it healthy. If you add a section here, add a genuinely compliant one.
 
 from __future__ import annotations
 
+import json
+
 
 def _mfa_table(rows: list[tuple[str, str, str, str, str, str]]) -> str:
     """Render the MFA table exactly as the collector does.
@@ -63,6 +65,91 @@ def _entry_block(title: str, entries: list[dict]) -> str:
             lines.append(f"    {k}: {v}")
     lines += ["", "=" * 80, ""]
     return "\n".join(lines)
+
+
+def _mfa_json(rows: list[tuple[str, str, str, str, str, str]]) -> str:
+    """The sidecar users_mfa.py writes beside the table, from the same rows.
+
+    Production prefers this file — the table is fixed-width and a name at the
+    column width shifts every later field. Feeding only the table meant the
+    golden run and every sweep in test_report_partial_audit.py exercised the
+    fallback parser while the product used this one.
+
+    Built from the same tuples as _mfa_table so the two cannot drift, and
+    without the table's truncation, which is the collector's behaviour: the
+    JSON carries the untruncated displayName.
+    """
+    return json.dumps({"users": [
+        {
+            "display_name": name,
+            "upn": upn,
+            "mfa_registered": mfa == "YES",
+            "ca_covered": ca == "YES",
+            "ca_excluded": excl == "YES",
+            "methods": [] if methods == "(none)" else [m.strip() for m in methods.split(",")],
+        }
+        for name, upn, mfa, ca, excl, methods in rows
+    ]}, indent=1)
+
+
+def _entra_device_table(rows: list[tuple[str, str, str, str, str, str, str]]) -> str:
+    """Mirrors app/modules/m365_audit/sections/entra_devices.py."""
+    header = (
+        f"  {'Device Name':<35} {'OS':<14} {'OS Ver':<14} "
+        f"{'Trust':<12} {'Managed':<8} {'Enabled':<8} Last Sign-in"
+    )
+    lines = [
+        "=" * 120, f"  ENTRA REGISTERED DEVICES  ({len(rows)} total)", "=" * 120,
+        header, "  " + "-" * 116,
+    ]
+    for name, os_name, ver, trust, managed, enabled, seen in rows:
+        lines.append(
+            f"  {name[:35]:<35} {os_name[:14]:<14} {ver[:14]:<14} "
+            f"{trust[:12]:<12} {managed:<8} {enabled:<8} {seen[:19]}"
+        )
+    lines += ["=" * 120, ""]
+    return "\n".join(lines)
+
+
+def _usage_table(rows: list[tuple[str, str, str]]) -> str:
+    """Mirrors app/modules/m365_audit/sections/usage_reports.py."""
+    lines = [
+        "=" * 110,
+        f"  MICROSOFT 365 ACTIVE USERS  (last 90 days, {len(rows)} rows)",
+        "=" * 110,
+        f"  {'User':<45} {'Products':<28} Last activity",
+        "  " + "-" * 106,
+    ]
+    for upn, products, last in rows:
+        lines.append(f"  {upn[:45]:<45} {products[:28]:<28} {last}")
+    lines += ["=" * 110, ""]
+    return "\n".join(lines)
+
+
+def _teams_table(rows: list[tuple[str, str, str, str]]) -> str:
+    """Mirrors app/modules/m365_audit/sections/teams.py."""
+    lines = [
+        "=" * 100, f"  MICROSOFT TEAMS  ({len(rows)} total)", "=" * 100,
+        f"  {'Team Name':<50} {'Visibility':<15} {'Mail':<40} {'Created'}",
+        "  " + "-" * 96,
+    ]
+    for name, visibility, mail, created in rows:
+        lines.append(f"  {name[:50]:<50} {visibility[:15]:<15} {mail[:40]:<40} {created[:19]}")
+    lines += ["=" * 100, ""]
+    return "\n".join(lines)
+
+
+# The healthy tenant's users, rendered into both the table and its JSON
+# sidecar. Thirty-seven with a registered method, one covered by Conditional
+# Access alone — and that one's display name is exactly the 35-character
+# column width, where the padding disappears and a whitespace-splitting reader
+# merges it with the UPN.
+_MFA_ROWS: list[tuple[str, str, str, str, str, str]] = [
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "YES", "NO", "Authenticator")
+    for i in range(1, 38)
+] + [
+    ("Kristoffer Andreas Wilhelmsen Bergs", "user38@acme.no", "NO", "YES", "NO", "(none)"),
+]
 
 
 FULL_AUDIT: dict[str, str] = {
@@ -142,17 +229,10 @@ FULL_AUDIT: dict[str, str] = {
         "Cloud-only: 40\n"
     ),
     # 38 users, 37 with MFA registered, 1 covered by CA only → 100% effective.
-    "04_mfa_methods.txt": _mfa_table(
-        [
-            (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "YES", "NO", "Authenticator")
-            for i in range(1, 38)
-        ]
-        # One user at exactly the 35-char column width, where the padding
-        # disappears — the shape that used to shift every later column.
-        + [
-            ("Kristoffer Andreas Wilhelmsen Bergs", "user38@acme.no", "NO", "YES", "NO", "(none)"),
-        ]
-    ),
+    "04_mfa_methods.txt": _mfa_table(_MFA_ROWS),
+    # The sidecar production actually reads. Same rows, so the two cannot
+    # disagree about the tenant the way a hand-written pair would.
+    "04_mfa_methods.json": _mfa_json(_MFA_ROWS),
     "04b_mfa_ca_analysis.txt": (
         "CONDITIONAL ACCESS MFA ANALYSIS\n"
         "===============================\n"
@@ -406,6 +486,200 @@ FULL_AUDIT: dict[str, str] = {
         '"network_count": 3, "firewall_rules": 12, "active_alarms": 0, '
         '"outdated_firmware_count": 0, "eol_count": 0, "default_creds_count": 0}'
     ),
+    # ── The rest of what a real run writes ───────────────────────────────────
+    #
+    # Everything below was read by the report and absent here, so no sweep in
+    # test_report_partial_audit.py could reach it: not removable, not stubbable,
+    # and the controls and parsers behind it never exercised in either
+    # direction. Written in the collectors' own shapes, and healthy, per the
+    # rule at the top of this file.
+
+    # users_mfa.py. Nothing stale, so no licence-waste finding — the parser
+    # skips the banner, the NOTE block and the "Stale accounts found" line, so
+    # a clean tenant parses to an empty list rather than to one phantom row.
+    "03b_stale_accounts.txt": (
+        "=" * 120 + "\n"
+        "  STALE ACCOUNT DETECTION  (inactive >= 90 days or never signed in)\n"
+        + "=" * 120 + "\n"
+        "\n"
+        "  Stale accounts found: 0\n"
+        "\n"
+        "\n"
+        + "=" * 120 + "\n"
+    ),
+
+    # entra_devices.py. Forty joined machines, all Intune-managed — the count
+    # that matters is total minus Intune's, and 10_intune_devices_count.txt
+    # says forty, so the unmanaged-endpoint gap is zero.
+    "15_entra_devices.txt": _entra_device_table([
+        (f"LAPTOP-{i:02d}", "Windows", "10.0.22631", "AzureAd", "yes", "yes",
+         "2026-01-02T08:14:00")
+        for i in range(1, 41)
+    ]),
+    "15_entra_devices_count.txt": (
+        "ENTRA DEVICE COUNT SUMMARY\n"
+        "Total: 40\n"
+        "Managed: 40\n"
+        "Unmanaged: 0\n"
+        "Enabled: 40\n"
+        "Trust AzureAd: 40\n"
+    ),
+
+    # teams.py. Both files are carried into the report context as raw text.
+    "16_teams.txt": _teams_table([
+        ("Ledergruppen", "private", "ledergruppen@acme.no", "2024-03-04T09:00:00"),
+        ("Prosjekt Nordlys", "private", "nordlys@acme.no", "2025-01-20T13:30:00"),
+        ("Hele Acme", "public", "alle@acme.no", "2023-08-11T10:15:00"),
+    ]),
+    "16b_teams_settings.txt": (
+        "=" * 70 + "\n"
+        "  TEAMS SETTINGS (via teamwork endpoint)\n"
+        + "=" * 70 + "\n"
+        "  SfB Interop Enabled             : Disabled\n"
+        "\n"
+        "  Messaging Settings:\n"
+        "    Allow User Edit Messages       : Enabled\n"
+        "    Allow User Delete Messages     : Disabled\n"
+        "    Allow Owner Delete Messages    : Enabled\n"
+        "    Allow Teams Mentions           : Enabled\n"
+        "    Allow Channel Mentions         : Enabled\n"
+        + "=" * 70 + "\n"
+    ),
+
+    # usage_reports.py. The claim subscribedSkus cannot make: seats assigned
+    # is not seats used. Everyone here has signed in, so no idle-licence
+    # finding — which is what makes a later one meaningful.
+    "16_usage_active_users.txt": _usage_table([
+        (f"user{i:02d}@acme.no", "MICROSOFT 365 E3", "2026-01-02")
+        for i in range(1, 39)
+    ]),
+    "16_usage_summary.txt": (
+        "MICROSOFT 365 USAGE SUMMARY\n"
+        "Period days: 90\n"
+        "Total: 38\n"
+        "Deleted: 0\n"
+        "Active users: 38\n"
+        "No activity: 0\n"
+        "Licensed without activity: 0\n"
+        "Names concealed: no\n"
+    ),
+
+    # apps_oauth.py. One credential on the one app registration, well short of
+    # expiry. CIS 2.1.2's verdict comes from the WARN file, which is absent
+    # here precisely because there is nothing to warn about.
+    "17c_app_credential_expiry.txt": (
+        "=" * 140 + "\n"
+        "  APP REGISTRATION CREDENTIAL EXPIRY REPORT\n"
+        + "=" * 140 + "\n"
+        "\n"
+        "  Total credentials : 1\n"
+        "  Expired           : 0\n"
+        "  Critical (<30d)   : 0\n"
+        "  Warning  (<90d)   : 0\n"
+        "  OK / No Expiry    : 1\n"
+        "\n"
+        f"  {'App Name':<40} {'Type':<12} {'Credential Name':<30} "
+        f"{'Expiry Date':<22} {'Days Left':>9}  Status\n"
+        "  " + "-" * 136 + "\n"
+        f"  {'Sybr HUB':<40} {'Secret':<12} {'hub-api-secret':<30} "
+        f"{'2027-06-01 12:00':<22} {'510':>9}  OK\n"
+        "\n"
+        + "=" * 140 + "\n"
+    ),
+
+    # identity_security.py. The detections behind 18_risky_users.txt, which
+    # also reports none.
+    "18d_risk_detections.txt": (
+        "=" * 120 + "\n"
+        "  RISK DETECTIONS  (0 events)\n"
+        + "=" * 120 + "\n"
+        f"  {'User':<40} {'Risk Type':<35} {'Level':<10} {'State':<15} Detected\n"
+        "  " + "-" * 116 + "\n"
+        + "=" * 120 + "\n"
+    ),
+
+    # exchange.py. Forty mailboxes against forty licensed users, and the two
+    # sections whose emptiness the report counts rather than reads: a banner
+    # declaring zero settles the count, so the "(none)" placeholder underneath
+    # is furniture and not a record.
+    "20_exchange_mailboxes_count.txt": (
+        "=" * 40 + "\n"
+        "  EXCHANGE MAILBOX COUNT\n"
+        + "=" * 40 + "\n"
+        "  Total     : 40\n"
+        "  User      : 38\n"
+        "  Shared    : 2\n"
+        "  Room      : 0\n"
+        + "=" * 40 + "\n"
+    ),
+    "21_exchange_transport_rules.txt": (
+        "=" * 80 + "\n"
+        "  EXCHANGE TRANSPORT RULES  (0 entries)\n"
+        + "=" * 80 + "\n"
+        "  (none)\n"
+    ),
+    "22_exchange_connectors.txt": (
+        "=" * 80 + "\n"
+        "  EXCHANGE CONNECTORS  (0 entries)\n"
+        + "=" * 80 + "\n"
+        "  (none)\n"
+    ),
+
+    # teams_policies.py. CIS 8.1.2 grades this: guests cannot invite guests,
+    # and the guest role is not "same as member".
+    "30b_teams_guest_access.txt": (
+        "=" * 90 + "\n"
+        "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n"
+        + "=" * 90 + "\n"
+        "  Allow Invites From       : Admins and Guest Inviters\n"
+        "  Guest User Role          : Restricted access (most restrictive)\n"
+        "\n"
+        "  Cross-Tenant Defaults:\n"
+        "    B2B Collab Inbound     : blocked\n"
+        "    B2B Collab Outbound    : blocked\n"
+        "    B2B Direct Inbound     : blocked\n"
+        "\n"
+        + "=" * 90 + "\n"
+    ),
+
+    # pim.py. Two banners in one file, which is why _parse_banner_count
+    # refuses to answer for it: taking the first would call a tenant with
+    # permanent Global Administrators "zero privileged assignments". Here the
+    # admin roles are eligible rather than standing, and nothing is permanent,
+    # so no PERMANENT CRITICAL block is written.
+    "32_pim_roles.txt": (
+        "=" * 110 + "\n"
+        "  PRIVILEGED IDENTITY MANAGEMENT (PIM) — ROLE ASSIGNMENTS\n"
+        + "=" * 110 + "\n"
+        "\n"
+        "  ELIGIBLE (Just-In-Time) ASSIGNMENTS  (4 total)\n"
+        "  " + "-" * 106 + "\n"
+        f"  {'Role':<45} {'Principal':<40} {'Type':<15} Expiry\n"
+        "  " + "-" * 106 + "\n"
+        f"  {'Global Administrator':<45} {'Ola Nordmann':<40} {'user':<15} No expiry\n"
+        f"  {'Global Administrator':<45} {'Kari Nordmann':<40} {'user':<15} No expiry\n"
+        f"  {'Exchange Administrator':<45} {'Ola Nordmann':<40} {'user':<15} No expiry\n"
+        f"  {'Security Reader':<45} {'Per Hansen':<40} {'user':<15} No expiry\n"
+        "\n"
+        "  ACTIVE ASSIGNMENTS  (2 total: 0 permanent, 2 time-bound/activated)\n"
+        "  " + "-" * 106 + "\n"
+        f"  {'Role':<45} {'Principal':<35} {'Type':<12} {'Assignment':<12} End\n"
+        "  " + "-" * 106 + "\n"
+        f"  {'Global Administrator':<45} {'Ola Nordmann':<35} {'user':<12} "
+        f"{'Activated':<12} 2026-01-02T17:00:00\n"
+        f"  {'Security Reader':<45} {'Per Hansen':<35} {'user':<12} "
+        f"{'Activated':<12} 2026-01-02T15:30:00\n"
+        "\n"
+        "  " + "=" * 60 + "\n"
+        "  SUMMARY\n"
+        "  " + "=" * 60 + "\n"
+        "    Eligible (JIT) assignments   : 4\n"
+        "    Active assignments           : 2\n"
+        "      Permanent                  : 0\n"
+        "      Time-bound / Activated     : 2\n"
+        "\n"
+        + "=" * 110 + "\n"
+    ),
 }
 
 
@@ -419,18 +693,21 @@ FULL_AUDIT: dict[str, str] = {
 # Keep it broken. If you add a finding to the report, break something here so
 # the finding has something to catch.
 
+_BROKEN_MFA_ROWS: list[tuple[str, str, str, str, str, str]] = [
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "NO", "NO", "Authenticator")
+    for i in range(1, 9)
+] + [
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "NO", "NO", "NO", "(none)")
+    for i in range(9, 41)
+]
+
 _BROKEN_OVERRIDES: dict[str, str] = {
-    # 8 of 40 users have MFA, and no CA policy covers the rest.
-    "04_mfa_methods.txt": _mfa_table(
-        [
-            (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "NO", "NO", "Authenticator")
-            for i in range(1, 9)
-        ]
-        + [
-            (f"User {i:02d}", f"user{i:02d}@acme.no", "NO", "NO", "NO", "(none)")
-            for i in range(9, 41)
-        ]
-    ),
+    # 8 of 40 users have MFA, and no CA policy covers the rest. Both files, or
+    # the healthy sidecar inherited from FULL_AUDIT wins and this tenant is not
+    # broken at all — production prefers the JSON, so overriding only the table
+    # left four findings-tests asserting against the healthy numbers.
+    "04_mfa_methods.txt": _mfa_table(_BROKEN_MFA_ROWS),
+    "04_mfa_methods.json": _mfa_json(_BROKEN_MFA_ROWS),
     "04b_mfa_ca_analysis.txt": (
         "CONDITIONAL ACCESS MFA ANALYSIS\n"
         "===============================\n"

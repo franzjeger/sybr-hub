@@ -268,29 +268,12 @@ def test_a_wholly_failed_audit_refuses_to_grade():
 # reader that had no guard was found by hand rather than by these sweeps —
 # because the guardless reader also logs nothing, so nothing pointed at it.
 #
-# This does not close the gap; it stops it growing. Adding a collector output
-# the report reads without adding it here now fails, with the name to add.
+# The gap is closed: every collector output the report reads is in FULL_AUDIT.
+# This keeps it that way. Adding a reader for a file the fixture does not have
+# now fails, with the name to add.
 
-_FIXTURE_GAPS = {
-    # Read by the report, written by a collector, absent from FULL_AUDIT.
-    "03b_stale_accounts.txt",
-    "04_mfa_methods.json",      # the MFA figures' primary source; the fixture
-                                # only has the text table, so these sweeps
-                                # exercise the fallback parser, not the real one
-    "15_entra_devices.txt",
-    "15_entra_devices_count.txt",
-    "16_teams.txt",
-    "16_usage_active_users.txt",
-    "16_usage_summary.txt",
-    "16b_teams_settings.txt",
-    "17c_app_credential_expiry.txt",
-    "18d_risk_detections.txt",
-    "20_exchange_mailboxes_count.txt",
-    "21_exchange_transport_rules.txt",
-    "22_exchange_connectors.txt",
-    "30b_teams_guest_access.txt",
-    "32_pim_roles.txt",
-}
+_FIXTURE_GAPS: set[str] = set()
+
 
 _OUTPUT = re.compile(r"""["']([0-9]{2}[a-z]?_[a-z0-9_]+\.(?:txt|json))["']""")
 _SAVED = re.compile(r"""_save\(\s*(?:self\._fname\(\s*)?["']([0-9][^"']*\.(?:txt|json))["']""")
@@ -321,4 +304,17 @@ def test_the_recorded_gaps_are_still_gaps():
     assert not closed, (
         "these are in the fixture now — remove them from _FIXTURE_GAPS: "
         + ", ".join(closed)
+    )
+
+
+def test_the_fixture_covers_every_file_the_report_reads():
+    """Stated as its own claim, not just as the absence of new entries.
+
+    _FIXTURE_GAPS being empty is the whole point; a future exemption should
+    have to delete this test, which is harder to do by accident than adding a
+    name to a set.
+    """
+    assert not _FIXTURE_GAPS, (
+        "the fixture no longer covers everything the report reads: "
+        + ", ".join(sorted(_FIXTURE_GAPS))
     )

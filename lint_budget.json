@@ -142,6 +142,7 @@
     "tests/test_recommendation_identity.py",
     "tests/test_repair_metrics_timestamps.py",
     "tests/test_report_backup.py",
+    "tests/test_report_critical_finding_counts.py",
     "tests/test_report_empty_audit.py",
     "tests/test_report_evidence.py",
     "tests/test_report_finds_real_problems.py",

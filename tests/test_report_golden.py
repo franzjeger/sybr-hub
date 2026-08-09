@@ -41,11 +41,12 @@ from tests.audit_fixture import FULL_AUDIT
 # scan can therefore pass; any gap still leaves the control unassessed.
 GOLDEN = {
     "ca_enabled": 4,
-    # +1 assessed, -1 info: the fixture gained 18_risky_users.txt, so CIS 9.3
-    # has evidence to grade instead of reporting "cannot be verified".
-    "compliance_assessed": 32,
-    "compliance_info": 3,
-    "compliance_pass": 31,
+    # Two controls moved off "cannot be verified" as the fixture grew to cover
+    # what the report reads: 9.3 when it gained 18_risky_users.txt, and 8.1.2
+    # when it gained 30b_teams_guest_access.txt. Both pass on a healthy tenant.
+    "compliance_assessed": 33,
+    "compliance_info": 2,
+    "compliance_pass": 32,
     "compliance_pct": 97.0,
     "compliance_total": 35,
     "exchange_connectors": 0,
