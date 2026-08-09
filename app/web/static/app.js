@@ -2231,7 +2231,7 @@ async function updateRemediation(el) {
   const notes = notesInput.value;
 
   try {
-    const d = await apiFetch('/api/remediation/update', {
+    const d = await apiFetch('/api/remediation', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({rec_id: recId, status: status, notes: notes}),
