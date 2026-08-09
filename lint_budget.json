@@ -146,6 +146,7 @@
     "tests/test_report_evidence.py",
     "tests/test_report_finds_real_problems.py",
     "tests/test_report_mfa_parse.py",
+    "tests/test_report_network_audit_parse.py",
     "tests/test_report_partial_audit.py",
     "tests/test_report_radar.py",
     "tests/test_report_render.py",

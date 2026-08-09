@@ -2402,25 +2402,38 @@ def _severity(status: str) -> str:
 
 
 def _parse_network_audit(file_contents: dict) -> dict:
-    """Parse network audit data from saved quick-audit JSON files."""
+    """Parse network audit data from saved quick-audit JSON files.
+
+    A file that is present but will not parse is *not* the same as no network
+    audit. Both used to produce has_data=False, and the caller reads that to
+    decide whether to run _compute_network_risk at all — so a malformed file
+    dropped the firewall findings and their risk penalty, and the customer
+    scored better for it. Unreadable is now recorded and reported as itself.
+    """
     import json as _json
-    result: dict = {"fortigate": None, "unifi": None, "has_data": False}
-    # FortiGate
-    fg_raw = file_contents.get("60_fortigate_audit.txt", "")
-    if fg_raw.strip():
+    result: dict = {
+        "fortigate": None,
+        "unifi": None,
+        "has_data": False,
+        # Files that had content and could not be read. Empty is the good case;
+        # non-empty means the report is missing findings it should have had.
+        "unreadable": [],
+    }
+    for name, key in (("60_fortigate_audit.txt", "fortigate"),
+                      ("61_unifi_audit.txt", "unifi")):
+        raw = file_contents.get(name, "")
+        if not raw.strip():
+            continue
         try:
-            result["fortigate"] = _json.loads(fg_raw)
+            result[key] = _json.loads(raw)
             result["has_data"] = True
-        except Exception:
-            pass
-    # UniFi
-    uf_raw = file_contents.get("61_unifi_audit.txt", "")
-    if uf_raw.strip():
-        try:
-            result["unifi"] = _json.loads(uf_raw)
-            result["has_data"] = True
-        except Exception:
-            pass
+        except Exception as exc:
+            result["unreadable"].append(name)
+            log.warning(
+                "Network audit file %s is present but could not be parsed (%s). "
+                "Its findings and their risk penalty are missing from this report.",
+                name, exc,
+            )
     return result
 
 
@@ -3086,6 +3099,20 @@ def _build_recommendations(
         })
 
     # ── Network recommendations (FortiGate + UniFi) ─────────────────────
+    # A file that would not parse leaves this section silent, and silence here
+    # reads as "nothing found on the network" — the opposite of what happened.
+    # Say it in the report, not only in the log the customer never sees.
+    for _unreadable in (network or {}).get("unreadable", []):
+        recs.append({
+            "priority": "high",
+            "title": t("rec_network_audit_unreadable_title", file=_unreadable),
+            "detail": t.rec_network_audit_unreadable_detail,
+            "effort": t.rec_effort_immediate,
+            # The file that would not parse is both the provenance and the
+            # whole finding, so naming it is not a formality here.
+            "evidence": [_unreadable],
+        })
+
     if network and network.get("has_data"):
         fg = network.get("fortigate")
         uf = network.get("unifi")
