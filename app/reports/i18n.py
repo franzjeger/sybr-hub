@@ -2474,6 +2474,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Disse virtuelle maskinene er ikke beskyttet av Azure Backup. Ved datatap eller ransomware vil disse ikke kunne gjenopprettes.",
         "en": "These virtual machines are not protected by Azure Backup. In case of data loss or ransomware, these cannot be recovered.",
     },
+    "rec_network_audit_unreadable_title": {
+        "no": "Nettverksaudit kunne ikke leses ({file})",
+        "en": "Network audit could not be read ({file})",
+    },
+    "rec_network_audit_unreadable_detail": {
+        "no": "Filen finnes, men innholdet lot seg ikke tolke. Nettverksfunn og deres bidrag til risikoscoren mangler i denne rapporten \u2014 scoren er derfor for lav, ikke for h\u00f8y. Kj\u00f8r nettverksauditen p\u00e5 nytt.",
+        "en": "The file is present but its contents could not be parsed. Network findings and their contribution to the risk score are missing from this report \u2014 the score is therefore too low, not too high. Re-run the network audit.",
+    },
     "rec_brute_force_title": {
         "no": "Mulig brute force-angrep mot {count} bruker(e)",
         "en": "Possible brute force attack against {count} user(s)",
