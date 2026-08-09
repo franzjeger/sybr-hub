@@ -1687,6 +1687,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Score %",
         "en": "Score %",
     },
+    "points_left": {
+        "no": "Poeng igjen",
+        "en": "Points left",
+    },
     "devices_intune": {
         "no": "Enheter og Intune",
         "en": "Devices & Intune",

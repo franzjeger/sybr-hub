@@ -1006,11 +1006,12 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% if secure_score.improvements %}
   <h3 style="margin-top:16px;">{{ t.top_improvements }}</h3>
   <table>
-    <tr><th>{{ t.action_label }}</th><th style="text-align:right;width:80px;">{{ t.score_pct }}</th></tr>
+    <tr><th>{{ t.action_label }}</th><th style="text-align:right;width:80px;">{{ t.score_pct }}</th><th style="text-align:right;width:90px;">{{ t.points_left }}</th></tr>
     {% for imp in secure_score.improvements %}
     <tr>
       <td>{{ imp.name }}</td>
       <td style="text-align:right;font-family:var(--mono);">{{ imp.pct | round(1) }}%</td>
+      <td style="text-align:right;font-family:var(--mono);">{% if imp.remaining is defined %}{{ imp.remaining | round(1) }}{% else %}&mdash;{% endif %}</td>
     </tr>
     {% endfor %}
   </table>

@@ -85,22 +85,45 @@ def _parse_secure_score(text: str) -> dict:
         return {"current": 0, "max": 0, "pct": 0, "improvements": [], "has_data": False}
     current, max_, pct = float(m.group(1)), float(m.group(2)), float(m.group(3))
 
+    # The improvement table. Two things used to go wrong here at once: the
+    # collector ranked by percentage *descending*, so the list was the controls
+    # already at 100%, and this then dropped every row at 0% — the controls
+    # with the most to gain. Either alone would have skewed the table; together
+    # they guaranteed it showed only completed work.
     improvements = []
     in_table = False
     for line in text.splitlines():
-        if "Top 20 Improvement" in line:
+        # Match loosely: runs recorded before the heading gained its ordering
+        # note say "Top 20 Improvement Actions (by impact)".
+        if "Improvement Actions" in line:
             in_table = True
             continue
-        if in_table and line.strip() and not line.strip().startswith("-") and not line.strip().startswith("="):
-            parts = line.strip().rsplit(None, 2)
-            if len(parts) >= 2:
+        stripped = line.strip()
+        if in_table and stripped and not stripped.startswith(("-", "=", "(")):
+            if stripped.startswith("Control"):
+                continue  # column header
+            # Newer rows carry a "Left" column between the percentage and the
+            # category; older ones do not. Find the percentage and read the
+            # name from everything before it either way.
+            m_pct = re.search(r"([\d.]+)\s*%", stripped)
+            if m_pct:
                 try:
-                    score_pct = float(parts[-2].replace("%", ""))
-                    name = parts[0].strip()
-                    if name and score_pct > 0:
-                        improvements.append({"name": name, "pct": score_pct})
-                except (ValueError, IndexError):
-                    pass
+                    score_pct = float(m_pct.group(1))
+                except ValueError:
+                    continue
+                name = stripped[: m_pct.start()].strip()
+                remaining = None
+                tail = stripped[m_pct.end():].split()
+                if tail:
+                    try:
+                        remaining = float(tail[0])
+                    except ValueError:
+                        remaining = None
+                if name:
+                    entry = {"name": name, "pct": score_pct}
+                    if remaining is not None:
+                        entry["remaining"] = remaining
+                    improvements.append(entry)
         if len(improvements) >= 10:
             break
 
