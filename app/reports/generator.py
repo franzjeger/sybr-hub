@@ -3755,7 +3755,12 @@ _CANNOT_VERIFY = "Kan ikke verifiseres — "
 # policy and still fail this, or the reverse. The file named here is the one
 # the verdict actually comes from, whatever the title suggests.
 _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
-    "1.1.1": ("04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
+    # The JSON sidecar first: it is what _mfa_user_records actually reads, and
+    # leaving it undeclared meant removing every file this control named still
+    # left the verdict standing on the one file nobody had listed. A technician
+    # tracing an MFA pass was shown the fixed-width table the reader falls back
+    # to, not the source of the number.
+    "1.1.1": ("04_mfa_methods.json", "04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
     "1.1.2": ("09b_auth_methods_policy.txt",),
     "1.1.3": ("07_admin_roles.txt",),
     "1.1.4": ("08_conditional_access.txt",),
