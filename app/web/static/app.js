@@ -8730,17 +8730,15 @@ async function loadUnifiedDashboard() {
 }
 
 async function _unifiedLoadUniwebCard(custId) {
-  var statusEl = document.getElementById('unified-uniweb-status');
+  // There has never been a unified-uniweb-status element in the markup. Every
+  // write to it sat behind a null guard, so the card's status never updated and
+  // nothing said so — the code ran, did nothing, and looked successful. cardEl
+  // is what actually renders.
   var cardEl = document.getElementById('unified-uniweb-card') || document.getElementById('customer-uniweb-panel');
 
   try {
     var uw = await apiFetch('/api/uniweb/customer/' + encodeURIComponent(custId));
     if (!uw || !uw.matched) {
-      if (statusEl) {
-        statusEl.style.borderTopColor = 'var(--text-dim)';
-        statusEl.querySelector('div:last-child').textContent = t('st_not_linked','Ikke koblet');
-        statusEl.querySelector('div:last-child').style.color = 'var(--text-dim)';
-      }
       return;
     }
 
@@ -8748,11 +8746,6 @@ async function _unifiedLoadUniwebCard(custId) {
     var uwColor = 'var(--green)';
     var uwLabel = (uw.domains ? uw.domains.length : 0) + ' domener';
     if (uw.monthly_total > 0) uwLabel += ' \u00b7 ' + uw.monthly_total.toFixed(0) + ' kr/mnd';
-    if (statusEl) {
-      statusEl.style.borderTopColor = uwColor;
-      statusEl.querySelector('div:last-child').textContent = uwLabel;
-      statusEl.querySelector('div:last-child').style.color = uwColor;
-    }
 
     // Build detail card
     if (!cardEl) return;
@@ -8954,10 +8947,6 @@ async function _unifiedLoadUniwebCard(custId) {
     h += '</div>';
     cardEl.innerHTML = h;
   } catch (e) {
-    if (statusEl) {
-      statusEl.querySelector('div:last-child').textContent = t('lbl_error','Feil');
-      statusEl.querySelector('div:last-child').style.color = 'var(--red)';
-    }
   }
 }
 
@@ -9262,7 +9251,11 @@ function toggleTheme() {
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('theme-toggle-btn');
-  const headerLogo = document.getElementById('header-logo');
+  // The header logo is two <img> elements, header-logo-dark and
+  // header-logo-light, swapped by .logo-dark/.logo-light under
+  // [data-theme="light"] in app.css. Setting a src here is left over from when
+  // it was one element: the lookup found nothing, the guard swallowed it, and
+  // the logo simply never changed with the theme. CSS owns it; this does not.
   const footerLogo = document.getElementById('footer-logo');
 
   if (theme === 'light') {
@@ -9270,14 +9263,10 @@ function applyTheme(theme) {
     // in the avatar menu. This button was the last emoji left in the header.
     btn.textContent = '◑';
     btn.title = t('tip_switch_dark_theme', 'Bytt til mørkt tema');
-    // Light mode: use dark logo on transparent bg
-    if (headerLogo) headerLogo.src = '/branding/300 x 86.png';
     if (footerLogo) { footerLogo.src = '/branding/300 x 86.png'; footerLogo.style.opacity = '0.6'; }
   } else {
     btn.textContent = '◐';
     btn.title = t('tip_switch_light_theme', 'Bytt til lyst tema');
-    // Dark mode: use white logo on teal bg
-    if (headerLogo) headerLogo.src = '/branding/SYBR_3.png';
     if (footerLogo) { footerLogo.src = '/branding/300 x 86.png'; footerLogo.style.opacity = '0.5'; }
   }
 }

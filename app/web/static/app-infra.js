@@ -1311,7 +1311,7 @@ var _liveDevices = [];
 
 function liveRenderDevices(devices) {
   _liveDevices = devices;
-  var el = document.getElementById('live-devices');
+  var el = document.getElementById('dash-fg-content');
   if (!devices.length) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;grid-column:1/-1;">' + t('ingen_enheter_funnet') + '</div>'; return; }
   var html = '';
   devices.forEach(function(d, idx) {
@@ -1350,7 +1350,7 @@ function liveRenderDevices(devices) {
 function liveShowDeviceDetail(idx) {
   var d = _liveDevices[idx];
   if (!d) return;
-  var el = document.getElementById('live-devices');
+  var el = document.getElementById('dash-fg-content');
   var color = d.status === 'online' ? 'var(--green)' : 'var(--red)';
   var vendorIcon = d.vendor === 'fortigate' ? '' : '';
 
@@ -1546,7 +1546,7 @@ async function fgComplianceCheck(customerId) {
   // Find or create a results area in the detail view
   var existing = document.getElementById('fg-compliance-results');
   if (!existing) {
-    var container = document.querySelector('#live-devices > div');
+    var container = document.querySelector('#dash-fg-content > div');
     if (container) {
       container.insertAdjacentHTML('beforeend', '<div id="fg-compliance-results" style="margin-top:12px;"></div>');
     }
@@ -3672,7 +3672,7 @@ async function runTakeoverCheck() {
 }
 
 async function dashLoadSites() {
-  var el = document.getElementById('dash-sites-content');
+  var el = document.getElementById('unifi-sm-sites-list');
   if (_unifiSites && _unifiSites.length) {
     el.innerHTML = _renderSiteTable(_unifiSites);
     return;
@@ -4008,7 +4008,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
   var s = host.sub_sites[subIdx];
   if (!s) return;
 
-  var el = document.getElementById('dash-sites-content');
+  var el = document.getElementById('unifi-sm-sites-list');
   var html = '<div style="max-width:600px;">';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
   html += '<button class="btn btn-ghost" onclick="dashLoadSites()" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>';
@@ -4414,7 +4414,7 @@ function showSiteDetail(idx) {
 
   html += '</div>';
 
-  var el = document.getElementById('dash-sites-content');
+  var el = document.getElementById('unifi-sm-sites-list');
   if (el) el.innerHTML = html;
   // Also update in integration view if open
   var el2 = document.getElementById('unifi-sm-sites-list');
