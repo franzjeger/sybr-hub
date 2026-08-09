@@ -19,6 +19,12 @@ import httpx
 
 from app.core.credentials import get_secret, store_secret
 from app.core.customer import CustomerManager
+from app.core.name_match import (
+    MATCH_AMBIGUOUS_GAP,
+    MATCH_AUTO,
+    normalise_org_name,
+    score_name_match,
+)
 from app.modules.unifi_audit.client import UniFiControllerClient, UniFiDirectDevice
 from app.modules.unifi_audit.firmware_db import check_firmware
 
@@ -1562,66 +1568,6 @@ def summarise_controller_coverage(rows: list[dict]) -> dict[str, Any]:
 # 0.85, SequenceMatcher otherwise, auto at 0.75) so there is one notion of
 # "matched" in this codebase rather than two that disagree.
 
-import re as _re  # noqa: E402
-from difflib import SequenceMatcher  # noqa: E402
-
-# Legal-form suffixes carry no identity: "Acme AS" and "Acme" are one company,
-# and leaving them in drags an otherwise exact match below the threshold.
-_ORG_SUFFIXES = {
-    "as", "asa", "ab", "a/s", "ans", "da", "ba", "sa", "nuf", "enk",
-    "ltd", "limited", "inc", "llc", "gmbh", "oy", "aps",
-}
-_MATCH_AUTO = 0.75
-# Two candidates this close cannot be told apart by name alone. Picking the
-# higher one would be a coin flip written into a customer record.
-_MATCH_AMBIGUOUS_GAP = 0.05
-
-
-def normalise_org_name(name: Any) -> str:
-    """Lowercase, strip punctuation and drop the legal-form suffix."""
-    if not isinstance(name, str):
-        return ""
-    # Dots and slashes are dropped rather than spaced, so "A/S" and "Ltd."
-    # survive as single suffix words instead of splintering into letters that
-    # no suffix list can match. Everything else, hyphens included, becomes a
-    # space: "A-Tre" and "A Tre" are the same company written two ways.
-    cleaned = _re.sub(r"[./]", "", name.lower())
-    cleaned = _re.sub(r"[^\w\s]", " ", cleaned).replace("_", " ")
-    words = [w for w in cleaned.split() if w]
-    while words and words[-1] in _ORG_SUFFIXES:
-        words.pop()
-    return " ".join(words)
-
-
-def _is_word_run(haystack: list[str], needle: list[str]) -> bool:
-    """True when *needle* appears in *haystack* as whole consecutive words."""
-    if not needle or len(needle) > len(haystack):
-        return False
-    return any(
-        haystack[i:i + len(needle)] == needle
-        for i in range(len(haystack) - len(needle) + 1)
-    )
-
-
-def score_name_match(left: str, right: str) -> float:
-    """Similarity between two normalised names, on the Uniweb scale.
-
-    Containment is tested on whole words, not raw substring. "star bil" is a
-    substring of "star bilskade avd skien" only because *bil* begins
-    *bilskade* — and Star Bil AS and Star Bilskade AS are different companies.
-    A rule that fires inside a word scored that pairing 0.85, which reads as
-    confident, and the resulting link would have been silently wrong.
-    """
-    if not left or not right:
-        return 0.0
-    if left == right:
-        return 1.0
-    left_words, right_words = left.split(), right.split()
-    if _is_word_run(right_words, left_words) or _is_word_run(left_words, right_words):
-        return 0.85
-    return SequenceMatcher(None, left, right).ratio()
-
-
 async def get_hosts_with_names() -> dict[str, Any]:
     """Fetch the consoles and the names they are known by.
 
@@ -1707,9 +1653,9 @@ def match_hosts_to_customers(
         best_score, best = scored[0] if scored else (0.0, None)
         runner_up = scored[1][0] if len(scored) > 1 else 0.0
 
-        if best_score >= _MATCH_AUTO and (best_score - runner_up) < _MATCH_AMBIGUOUS_GAP:
+        if best_score >= MATCH_AUTO and (best_score - runner_up) < MATCH_AMBIGUOUS_GAP:
             confidence = "ambiguous"
-        elif best_score >= _MATCH_AUTO:
+        elif best_score >= MATCH_AUTO:
             confidence = "high"
         elif best_score >= 0.5:
             confidence = "low"
