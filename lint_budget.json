@@ -108,6 +108,7 @@
     "tests/test_docs_routes.py",
     "tests/test_entra_devices_section.py",
     "tests/test_features.py",
+    "tests/test_frontend_api_calls.py",
     "tests/test_frontend_csp_budget.py",
     "tests/test_gdap_customer_match.py",
     "tests/test_grant_write_script.py",

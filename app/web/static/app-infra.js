@@ -2613,8 +2613,10 @@ async function fgDownloadCredentials() {
   var active = window.activeCustomerId || (window.appState && window.appState.activeCustomerId);
   if (!active) {
     try {
-      var st = await apiFetch('/api/customers/active');
-      active = st && st._id;
+      // /api/customers/active has never existed. The active customer's id
+      // comes from /api/status, which is what every other caller reads.
+      var st = await apiFetch('/api/status');
+      active = st && st.active_id;
     } catch (e) {}
   }
   if (!active) { showToast(t('err_no_active_customer'), 'warning'); return; }
