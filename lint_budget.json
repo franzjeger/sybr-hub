@@ -1,5 +1,5 @@
 {
-  "total": 933,
+  "total": 932,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -112,6 +112,7 @@
     "tests/test_frontend_api_calls.py",
     "tests/test_frontend_csp_budget.py",
     "tests/test_gdap_customer_match.py",
+    "tests/test_gdap_status_reflects_validation.py",
     "tests/test_grant_write_script.py",
     "tests/test_graph_licence_gate.py",
     "tests/test_graph_request_budget.py",

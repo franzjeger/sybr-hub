@@ -100,7 +100,18 @@ def _gdap_settings() -> dict:
     from app.core.credentials import gdap_configured, get_secret, load_gdap_config
     gdap_cfg = load_gdap_config() or {}
     return {
+        # "configured" means the credentials are present, which is the right
+        # precondition for the API routes. It is not the same claim as "these
+        # credentials work", and the card used to paint the first as if it
+        # were the second.
         "gdap_configured": gdap_configured(),
+        # True, False, or null — and null is not False. A config written
+        # before this field existed says nothing about whether the credentials
+        # work, and painting it as broken would be the same overclaim in the
+        # other direction.
+        "gdap_validated": gdap_cfg.get("validated"),
+        "gdap_validated_at": gdap_cfg.get("validated_at", ""),
+        "gdap_validation_error": gdap_cfg.get("validation_error", ""),
         "gdap_partner_tenant_id": gdap_cfg.get("partner_tenant_id", ""),
         "gdap_client_id": gdap_cfg.get("client_id", ""),
         "gdap_client_secret_set": bool(get_secret("gdap", "partner_client_secret")),

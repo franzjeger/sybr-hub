@@ -2812,7 +2812,8 @@
     "lbl_never": "aldri",
     "btn_see_last_result": "Se siste resultat",
     "vpn_external_control": "Ekstern VPN-kontroll",
-    "vpn_external_control_desc": "Tunneler må etableres utenfor Sybr HUB på denne verten."
+    "vpn_external_control_desc": "Tunneler må etableres utenfor Sybr HUB på denne verten.",
+    "gdap_status_unverified": "Lagret — ikke verifisert"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5627,6 +5628,7 @@
     "lbl_never": "never",
     "btn_see_last_result": "See last result",
     "vpn_external_control": "External VPN control",
-    "vpn_external_control_desc": "Tunnels must be established outside Sybr HUB on this host."
+    "vpn_external_control_desc": "Tunnels must be established outside Sybr HUB on this host.",
+    "gdap_status_unverified": "Saved — not verified"
   }
 }

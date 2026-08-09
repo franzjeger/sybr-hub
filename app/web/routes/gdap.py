@@ -78,7 +78,11 @@ async def gdap_setup(request: Request, user: User = _admin):
             customer_count = len(customers)
     except Exception as exc:
         logger.warning("GDAP setup: Partner Center validation failed: %s", exc)
-        # Credentials saved but validation failed — return warning
+        # Credentials saved but validation failed. The outcome is written to
+        # the config, not only returned: the response is read once, while the
+        # integration card is repainted from the stored config on every load.
+        # Without this the card went green and stayed green — "Konfigurert" —
+        # for credentials Partner Center had just rejected.
         save_gdap_config({
             "partner_tenant_id": partner_tenant_id,
             "client_id": client_id,
@@ -86,6 +90,9 @@ async def gdap_setup(request: Request, user: User = _admin):
             "setup_date": datetime.now(timezone.utc).isoformat(),
             "last_customer_sync": "",
             "customer_count": 0,
+            "validated": False,
+            "validated_at": "",
+            "validation_error": str(exc),
         })
         return {
             "ok": True,
@@ -93,13 +100,20 @@ async def gdap_setup(request: Request, user: User = _admin):
             "warning": f"Credentials saved but Partner Center validation failed: {exc}",
         }
 
+    # One clock read: setup, sync and validation all happened at this moment,
+    # and three separate now() calls can straddle a second boundary and file
+    # them as three.
+    now_iso = datetime.now(timezone.utc).isoformat()
     save_gdap_config({
         "partner_tenant_id": partner_tenant_id,
         "client_id": client_id,
         "app_display_name": body.get("app_display_name", "MSP Toolkit GDAP"),
-        "setup_date": datetime.now(timezone.utc).isoformat(),
-        "last_customer_sync": datetime.now(timezone.utc).isoformat(),
+        "setup_date": now_iso,
+        "last_customer_sync": now_iso,
         "customer_count": customer_count,
+        "validated": True,
+        "validated_at": now_iso,
+        "validation_error": "",
     })
 
     logger.info("GDAP setup complete: %d customers found", customer_count)
