@@ -105,9 +105,9 @@ async def claude_message(
 
 @router.get("/claude/conversations")
 async def claude_conversations(user: User = Depends(get_current_user)):
-    """List all stored conversations."""
+    """List the conversations this user owns."""
     from app.services.claude_console import list_conversations
-    return {"conversations": list_conversations()}
+    return {"conversations": list_conversations(str(user.id))}
 
 
 @router.delete("/claude/conversations/{conversation_id}")
@@ -118,7 +118,7 @@ async def claude_delete_conversation(
     """Delete a conversation by ID."""
     from app.services.claude_console import delete_conversation
 
-    if delete_conversation(conversation_id):
+    if delete_conversation(conversation_id, str(user.id)):
         return {"ok": True}
     raise NotFoundError("Samtale ikke funnet")
 
