@@ -243,8 +243,25 @@ TOOLS: list[dict[str, Any]] = [
 
 # ── In-memory conversation store ───────────────────────────────────────────
 
-# {conversation_id: {"messages": [...], "created_at": str, "title": str}}
+# {conversation_id: {"owner_user_id": str, "messages": [...], "created_at": str,
+#                    "title": str}}
+#
+# One process serves every technician, so this dict is shared. The owner is
+# recorded because nothing else here can tell two users apart: a conversation
+# holds what someone typed into the console — customer names, hostnames,
+# whatever they pasted in — and the store had no notion of whose it was.
 _conversations: dict[str, dict[str, Any]] = {}
+
+
+def _owns(conv: dict[str, Any], user_id: str | None) -> bool:
+    """Whether *user_id* may see this conversation.
+
+    A conversation with no recorded owner belongs to nobody. The store is
+    in-memory and does not survive a restart, so that case only arises for
+    entries written by code that predates this check.
+    """
+    owner = conv.get("owner_user_id")
+    return bool(owner) and bool(user_id) and str(owner) == str(user_id)
 
 
 # ── Public helpers ─────────────────────────────────────────────────────────
@@ -283,10 +300,17 @@ def get_status() -> dict[str, Any]:
     }
 
 
-def list_conversations() -> list[dict[str, Any]]:
-    """Return metadata for all stored conversations."""
+def list_conversations(user_id: str | None = None) -> list[dict[str, Any]]:
+    """Return metadata for the conversations *user_id* owns.
+
+    This used to return every conversation in the process to any authenticated
+    caller, so one technician's console history — titled with the first eighty
+    characters of what they typed — was listed to all the others.
+    """
     result = []
     for cid, conv in _conversations.items():
+        if not _owns(conv, user_id):
+            continue
         result.append({
             "conversation_id": cid,
             "title": conv.get("title", "Untitled"),
@@ -298,9 +322,18 @@ def list_conversations() -> list[dict[str, Any]]:
     return result
 
 
-def delete_conversation(conversation_id: str) -> bool:
-    """Delete a conversation.  Returns True if it existed."""
-    return _conversations.pop(conversation_id, None) is not None
+def delete_conversation(conversation_id: str, user_id: str | None = None) -> bool:
+    """Delete one of *user_id*'s conversations. True if it existed and was theirs.
+
+    Returning False for someone else's id rather than raising keeps the route's
+    404 from distinguishing "no such conversation" from "not yours", which
+    would otherwise let a caller enumerate the ids in use.
+    """
+    conv = _conversations.get(conversation_id)
+    if conv is None or not _owns(conv, user_id):
+        return False
+    del _conversations[conversation_id]
+    return True
 
 
 def save_api_key(api_key: str) -> None:
@@ -349,12 +382,20 @@ async def stream_message(
     if not conversation_id:
         conversation_id = str(uuid.uuid4())
 
-    if conversation_id not in _conversations:
+    existing = _conversations.get(conversation_id)
+    if existing is None:
         _conversations[conversation_id] = {
+            "owner_user_id": str(user_id) if user_id else "",
             "messages": [],
             "created_at": datetime.now(timezone.utc).isoformat(),
             "title": message[:80] if message else "New conversation",
         }
+    elif not _owns(existing, user_id):
+        # Continuing someone else's conversation would both disclose its
+        # history to the model's context and append to it. The id is supplied
+        # by the client, so this is reachable by anyone who has one.
+        yield {"type": "error", "error": "Samtale ikke funnet"}
+        return
 
     conv = _conversations[conversation_id]
 
