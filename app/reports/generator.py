@@ -2519,6 +2519,7 @@ def _compute_risk(
     oauth: dict | None = None,
     network: dict | None = None,
     lang: str = "no",
+    unavailable_sections: list[str] | None = None,
 ) -> dict:
     """Compute a security health score from 0 (worst) to 100 (best).
 
@@ -2645,6 +2646,16 @@ def _compute_risk(
     # MFA's 35, so refusing to grade the whole tenant over one corrupt file is
     # heavier than the gap warrants. But it must be visible beside the score,
     # not only in a recommendation further down the report.
+    # A section that did not run keeps its points. The collector records the
+    # failure and the report counts it, but the count never reached the score,
+    # so a tenant whose Exchange collection failed — which the collector itself
+    # calls a routine outcome — scored as though Exchange were clean, with
+    # nothing beside the score to say otherwise.
+    for _section in unavailable_sections or []:
+        data_quality_issues.append(
+            f"{_section} ble ikke fullført — funnene derfra mangler i scoren"
+        )
+
     for _unreadable in (network or {}).get("unreadable", []):
         data_quality_issues.append(
             f"Nettverksaudit utilgjengelig — {_unreadable} kunne ikke leses "
@@ -5134,8 +5145,13 @@ def build_report_context(
     risky        = fc("18_risky_users.txt")
     defender     = fc("19b_defender_active_alerts.txt")
     network      = _parse_network_audit(file_contents)
+    _unavailable = [
+        r.name for r in results
+        if r.status in (SectionStatus.SKIPPED, SectionStatus.FAILED)
+    ]
     risk         = _compute_risk(secure_score, mfa, spf_dmarc, all_warns, ext_fwd, risky, defender,
-                                 admin_roles, intune, sharepoint, oauth, network=network, lang=lang)
+                                 admin_roles, intune, sharepoint, oauth, network=network, lang=lang,
+                                 unavailable_sections=_unavailable)
     recs         = _build_recommendations(mfa, spf_dmarc, secure_score, ext_fwd, risky, licenses,
                                           admin_roles, intune, sharepoint, oauth,
                                           azure, file_contents,
