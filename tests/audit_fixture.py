@@ -281,6 +281,27 @@ FULL_AUDIT: dict[str, str] = {
         "====================\n"
         "0 active alerts\n"
     ),
+    # Both of these carry their count in the header the collector writes.
+    # The score used to branch on "No risky" / "No active" — phrases no
+    # collector produces, which existed only in this fixture. A clean tenant
+    # was charged five points for each, and nothing failed, because the
+    # fixture had been written to match the parser rather than the collector.
+    "18_risky_users.txt": (
+        "==========================================================================================\n"
+        "  RISKY USERS  (0 total)\n"
+        "==========================================================================================\n"
+        "  UPN                                                Risk Level      Risk State           Last Updated\n"
+        "  --------------------------------------------------------------------------------------\n"
+        "==========================================================================================\n"
+    ),
+    "19b_defender_active_alerts.txt": (
+        "==============================================================================================================\n"
+        "  DEFENDER ACTIVE ALERTS  (0 unresolved)\n"
+        "==============================================================================================================\n"
+        "  Alert Title                                        Severity     Status          Created\n"
+        "  ----------------------------------------------------------------------------------------------------------\n"
+        "==============================================================================================================\n"
+    ),
     "19c_purview_sensitivity_labels.txt": (
         "PURVIEW SENSITIVITY LABELS\n"
         "==========================\n"
@@ -456,11 +477,14 @@ _BROKEN_OVERRIDES: dict[str, str] = {
         "DKIM (sel1) : NOT FOUND\n"
     ),
     "18_risky_users.txt": (
-        "RISKY USERS\n"
-        "===========\n"
-        "UPN                   Risk Level    State\n"
-        "user09@acme.no        high          atRisk\n"
-        "user14@acme.no        high          atRisk\n"
+        "==========================================================================================\n"
+        "  RISKY USERS  (2 total)\n"
+        "==========================================================================================\n"
+        "  UPN                                                Risk Level      Risk State           Last Updated\n"
+        "  --------------------------------------------------------------------------------------\n"
+        "  user09@acme.no                                     high            atRisk               2026-01-02T09:00:00\n"
+        "  user14@acme.no                                     high            atRisk               2026-01-03T11:20:00\n"
+        "==========================================================================================\n"
     ),
     # The collector writes this file only when it finds something.
     "28b_exchange_external_forwarding_WARN.txt": (
@@ -476,11 +500,15 @@ _BROKEN_OVERRIDES: dict[str, str] = {
         "3 active alerts\n"
     ),
     "19b_defender_active_alerts.txt": (
-        "ACTIVE DEFENDER ALERTS\n"
-        "======================\n"
-        "Suspicious sign-in from unfamiliar location   high\n"
-        "Malware detected on LAPTOP-07                 high\n"
-        "Mass download by a single user                medium\n"
+        "==============================================================================================================\n"
+        "  DEFENDER ACTIVE ALERTS  (3 unresolved)\n"
+        "==============================================================================================================\n"
+        "  Alert Title                                        Severity     Status          Created\n"
+        "  ----------------------------------------------------------------------------------------------------------\n"
+        "  Suspicious sign-in from unfamiliar location        high         newAlert        2026-01-02T08:11:00\n"
+        "  Malware detected on LAPTOP-07                      high         inProgress      2026-01-02T14:02:00\n"
+        "  Mass download by a single user                     medium       newAlert        2026-01-03T07:45:00\n"
+        "==============================================================================================================\n"
     ),
     # A FortiGate with every finding the report knows how to raise.
     "60_fortigate_audit.txt": (
