@@ -1420,6 +1420,17 @@ function toggleIntegConfig(id) {
 }
 
 async function loadIntegrationStatus() {
+  function setStatusWarn(dotId, labelId, text) {
+    // The state between configured and not: something is stored, and we know
+    // it did not work. Kept apart from setStatus's boolean because collapsing
+    // it into "ok" is what let a rejected credential show as green.
+    const dot = document.getElementById(dotId);
+    const label = document.getElementById(labelId);
+    if (!dot || !label) return;
+    dot.style.background = 'var(--orange)';
+    label.style.color = 'var(--orange)';
+    label.textContent = text;
+  }
   function setStatus(dotId, labelId, ok, okText, noText) {
     const dot = document.getElementById(dotId);
     const label = document.getElementById(labelId);
@@ -1465,7 +1476,19 @@ async function loadIntegrationStatus() {
     if (_tsKey) _tsKey.value = d.tailscale_api_key || '';
     if (_tsTailnet) _tsTailnet.value = d.tailscale_tailnet || '-';
     // GDAP / Partner Center status + populate
-    setStatus('gdap-integ-dot', 'gdap-integ-label', !!d.gdap_configured); _integCount++; if (d.gdap_configured) _integActive++;
+    // Three states. Credentials stored is not the same claim as credentials
+    // that work: a client secret Partner Center had just rejected still went
+    // green and stayed green, because this card is repainted from the stored
+    // config and the config recorded only that a setup had been attempted.
+    // gdap_validated is null for configs written before it was recorded — that
+    // is "we do not know", not "broken", so those keep their old appearance.
+    if (d.gdap_configured && d.gdap_validated === false) {
+      setStatusWarn('gdap-integ-dot', 'gdap-integ-label',
+        t('gdap_status_unverified', 'Lagret — ikke verifisert'));
+    } else {
+      setStatus('gdap-integ-dot', 'gdap-integ-label', !!d.gdap_configured);
+    }
+    _integCount++; if (d.gdap_configured && d.gdap_validated !== false) _integActive++;
     if (d.gdap_configured) {
       var _gdapBtn = document.getElementById('gdap-discover-btn');
       if (_gdapBtn) _gdapBtn.style.display = 'block';
@@ -1563,9 +1586,12 @@ async function gdapSaveConfig() {
     } else {
       msg.innerHTML = '<span style="color:var(--orange);">' + t('msg_saved') + ' — ' + (d.warning || '') + '</span>';
     }
-    document.getElementById('gdap-integ-dot').style.background = 'var(--green)';
-    document.getElementById('gdap-integ-label').style.color = 'var(--green)';
-    document.getElementById('gdap-integ-label').textContent = t('status_configured');
+    if (d.validated) {
+      setStatus('gdap-integ-dot', 'gdap-integ-label', true);
+    } else {
+      setStatusWarn('gdap-integ-dot', 'gdap-integ-label',
+        t('gdap_status_unverified', 'Lagret — ikke verifisert'));
+    }
     document.getElementById('gdap-discover-btn').style.display = 'block';
     if (d.customer_count) {
       var cc = document.getElementById('gdap-customer-count');
