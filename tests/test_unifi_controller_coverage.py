@@ -80,3 +80,29 @@ def test_an_empty_portfolio_summarises_without_raising():
 def test_whitespace_is_not_a_host():
     state, _ = classify_controller_access({"UniFiHost": "   "}, True)
     assert state == "none"
+
+
+def test_a_matched_console_without_a_controller_is_not_no_unifi():
+    # The console proves UniFi is there and names the box. Filing it under
+    # "no UniFi" hid the one group worth acting on.
+    state, reason = classify_controller_access({"UniFiHostId": "h1"}, False)
+    assert state == "cloud_only"
+    assert "controller" in reason
+
+
+def test_a_controller_address_still_outranks_a_console_link():
+    state, _ = classify_controller_access(
+        {"UniFiHostId": "h1", "UniFiHost": "unifi.example.no"}, False
+    )
+    assert state == "host_only"
+
+
+def test_a_console_link_counts_as_actionable():
+    rows = [
+        {"customer_id": "a", "name": "A", "state": "cloud_only", "reason": ""},
+        {"customer_id": "b", "name": "B", "state": "host_only", "reason": ""},
+        {"customer_id": "c", "name": "C", "state": "none", "reason": ""},
+    ]
+    summary = summarise_controller_coverage(rows)
+    assert summary["needs_credentials"] == 2
+    assert summary["counts"]["cloud_only"] == 1

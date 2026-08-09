@@ -1514,6 +1514,12 @@ def classify_controller_access(customer: dict, has_credentials: bool) -> tuple[s
         # controller to hold clients or firewall policy.
         return ("direct", "per-enhet, ingen controller")
     if not host:
+        # A matched console proves UniFi is there and names the box. Filing
+        # that under "no UniFi" alongside customers who genuinely have none
+        # buried the one list worth acting on — we know what is installed and
+        # only lack a way in.
+        if (customer.get("UniFiHostId") or "").strip():
+            return ("cloud_only", "konsoll kjent i skyen, controller-adresse mangler")
         return ("none", "ingen controller registrert")
     if not has_credentials:
         return ("host_only", "adresse lagret, mangler brukernavn/passord")
@@ -1528,9 +1534,11 @@ def summarise_controller_coverage(rows: list[dict]) -> dict[str, Any]:
     by_state: dict[str, int] = {}
     for row in rows:
         by_state[row["state"]] = by_state.get(row["state"], 0) + 1
-    # Only the two states that a stored credential would change are actionable.
-    # "none" and "direct" are answers, not gaps.
-    actionable = [r for r in rows if r["state"] == "host_only"]
+    # Actionable means a stored credential would change the answer. A known
+    # console with no controller address qualifies — more so than the rest,
+    # since the box is identified and only access is missing. "none" and
+    # "direct" remain answers, not gaps.
+    actionable = [r for r in rows if r["state"] in ("host_only", "cloud_only")]
     return {
         "ok": True,
         "customers": rows,
