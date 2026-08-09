@@ -160,25 +160,55 @@ async def list_gdap_customers(user: User = _admin):
                 "roles": [r.get("displayName", "") for r in rel.get("accessDetails", {}).get("unifiedRoles", [])],
             }
 
-    # Match with local customer registry
+    # Match with local customer registry.
+    #
+    # Keying on TenantId alone found nothing: a customer imported from IT Glue
+    # has a name and an org id and nothing else, so every tenant looked new and
+    # importing would have created a duplicate of each one. The name is the
+    # only thing the two systems share, so it is what they are joined on —
+    # proposed, never assumed.
     from app.core.customer import CustomerManager
-    local_customers = {c.get("TenantId", ""): c for c in CustomerManager.list_customers()}
+    from app.core.name_match import match_by_name
+
+    locals_ = CustomerManager.list_customers()
+    by_tenant = {
+        (c.get("TenantId") or "").strip(): c
+        for c in locals_
+        if (c.get("TenantId") or "").strip()
+    }
+    unclaimed = [
+        (c.get("CustomerName", ""), c)
+        for c in locals_
+        if not (c.get("TenantId") or "").strip() and c.get("CustomerName", "").strip()
+    ]
 
     result = []
     for cust in customers:
         profile = cust.get("companyProfile", {})
         tid = profile.get("tenantId", cust.get("id", ""))
+        name = profile.get("companyName", cust.get("companyName", ""))
         rel_info = rel_by_tenant.get(tid, {})
-        local = local_customers.get(tid)
+
+        local = by_tenant.get(tid)
+        if local:
+            match_confidence, match_score = "linked", 1.0
+        else:
+            local, match_score, match_confidence = match_by_name(name, unclaimed)
 
         result.append({
             "tenant_id": tid,
-            "company_name": profile.get("companyName", cust.get("companyName", "")),
+            "company_name": name,
             "domain": profile.get("domain", ""),
             "gdap_status": rel_info.get("status", "unknown"),
             "gdap_roles": rel_info.get("roles", []),
-            "already_imported": local is not None,
+            "already_imported": match_confidence == "linked",
+            # A proposal below "high" is shown but not offered for a bulk
+            # import: enriching the wrong customer writes a tenant id onto a
+            # company that does not own it.
+            "match_confidence": match_confidence,
+            "match_score": round(match_score, 3),
             "local_customer_id": local.get("_id", "") if local else "",
+            "local_customer_name": local.get("CustomerName", "") if local else "",
             "local_auth_mode": local.get("AuthMode", "legacy") if local else "",
         })
 
@@ -197,6 +227,9 @@ async def import_gdap_customers(request: Request, user: User = _admin):
 
     body = await request.json()
     tenant_ids: list[str] = body.get("tenant_ids", [])
+    # Optional {tenant_id: customer_id}: the operator accepting the discovery
+    # endpoint's proposals. Absent, a tenant with no local match is created new.
+    links: dict[str, str] = body.get("links") or {}
     if not tenant_ids:
         raise ValidationError("No tenant_ids provided")
 
@@ -231,21 +264,50 @@ async def import_gdap_customers(request: Request, user: User = _admin):
             skipped.append({"tenant_id": tid, "reason": "Not found in Partner Center"})
             continue
 
-        # Check if already exists locally
+        # A tenant id already on a customer settles it. Otherwise the caller
+        # may name the customer this tenant belongs to — the discovery endpoint
+        # proposes one, a person accepts it. Nothing is matched by name here:
+        # writing a tenant id onto the wrong company hands one customer's
+        # Conditional Access to another, and no confidence score is worth that.
         existing = None
         for c in CustomerManager.list_customers():
-            if c.get("TenantId") == tid:
+            if (c.get("TenantId") or "").strip() == tid:
                 existing = c
                 break
 
+        if existing is None and links.get(tid):
+            candidate = CustomerManager.get_customer(links[tid])
+            if candidate is None:
+                skipped.append({"tenant_id": tid, "reason": "Ukjent kunde i kobling"})
+                continue
+            claimed = (candidate.get("TenantId") or "").strip()
+            if claimed and claimed != tid:
+                skipped.append({
+                    "tenant_id": tid,
+                    "reason": f"Kunden har allerede tenant {claimed[:8]}…",
+                })
+                continue
+            existing = candidate
+
         if existing:
-            # Convert existing customer to GDAP mode
+            # Enrich rather than duplicate: the customer already carries its IT
+            # Glue org id and any UniFi link, and a second record would split
+            # that history in two.
+            existing["TenantId"] = tid
+            if info.get("domain"):
+                if not (existing.get("PrimaryDomain") or "").strip():
+                    existing["PrimaryDomain"] = info["domain"]
+                if not (existing.get("InitialDomain") or "").strip():
+                    existing["InitialDomain"] = info["domain"]
             existing["AuthMode"] = "gdap"
-            CustomerManager.save_customer(existing)
+            CustomerManager.save_customer(
+                {k: v for k, v in existing.items() if not k.startswith("_")}
+            )
             imported.append({
                 "tenant_id": tid,
                 "company_name": info["company_name"],
-                "action": "converted",
+                "customer_id": existing.get("_id", ""),
+                "action": "enriched",
             })
         else:
             # Create new customer entry
