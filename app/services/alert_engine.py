@@ -27,6 +27,20 @@ _ALERT_HISTORY_PATH = CONFIG_DIR / "alert_history.json"
 _DEDUP_HOURS = 24
 
 
+class AlertCheckFailed(Exception):
+    """One check could not run.
+
+    Each check used to log its failure and return an empty list, which the
+    summary then added to nothing. "Fant 0 varsler" was the same sentence
+    whether every certificate was healthy or the table holding them had gone
+    missing — and the alerting page shows that number as all-clear.
+    """
+
+    def __init__(self, check: str):
+        super().__init__(check)
+        self.check = check
+
+
 def _load_alert_history() -> list[dict]:
     """Load alert history from JSON file."""
     if _ALERT_HISTORY_PATH.exists():
@@ -166,6 +180,7 @@ async def _check_ssl_expiry(days_threshold: int) -> list[dict]:
                     })
     except Exception as exc:
         logger.warning("Alert check ssl_expiry failed: %s", exc)
+        raise AlertCheckFailed("ssl_expiry") from exc
     return alerts
 
 
@@ -208,6 +223,7 @@ async def _check_domain_expiry(days_threshold: int) -> list[dict]:
                     })
     except Exception as exc:
         logger.warning("Alert check domain_expiry failed: %s", exc)
+        raise AlertCheckFailed("domain_expiry") from exc
     return alerts
 
 
@@ -231,6 +247,7 @@ async def _check_fortigate_threats(threshold: int) -> list[dict]:
                 })
     except Exception as exc:
         logger.warning("Alert check fortigate_threats failed: %s", exc)
+        raise AlertCheckFailed("fortigate_threats") from exc
     return alerts
 
 
@@ -264,6 +281,7 @@ async def _check_firmware_outdated() -> list[dict]:
                 pass
     except Exception as exc:
         logger.warning("Alert check firmware_outdated failed: %s", exc)
+        raise AlertCheckFailed("firmware_outdated") from exc
     return alerts
 
 
@@ -304,6 +322,7 @@ async def _check_also_license_expiry(days_threshold: int) -> list[dict]:
                 })
     except Exception as exc:
         logger.warning("Alert check also_license_expiry failed: %s", exc)
+        raise AlertCheckFailed("also_license_expiry") from exc
     return alerts
 
 
@@ -326,6 +345,7 @@ async def _check_policy_drift(alert_on_changed: bool = False) -> list[dict]:
     first is worth waking somebody for.
     """
     alerts: list[dict] = []
+    unreadable: list[str] = []
     try:
         from app.core.config import get_audit_dir
         from app.core.customer import CustomerManager
@@ -345,7 +365,19 @@ async def _check_policy_drift(alert_on_changed: bool = False) -> list[dict]:
             runs = sorted((p for p in customer_dir.iterdir() if p.is_dir()), reverse=True)
             if not runs:
                 continue
-            drift = compute_drift(runs[0])
+            try:
+                drift = compute_drift(runs[0])
+            except Exception as exc:
+                # One unreadable tenant must not take the others with it. The
+                # loop used to sit inside the check's single try, so the first
+                # customer that failed ended the sweep and every tenant sorted
+                # after it went unexamined — with the partial result returned
+                # as if it were the whole answer.
+                logger.warning(
+                    "Policy drift unreadable for %s: %s", customer_dir.name, exc
+                )
+                unreadable.append(customer_dir.name)
+                continue
             if not drift.get("measured"):
                 # Nothing to compare against is not "nothing changed".
                 continue
@@ -382,7 +414,16 @@ async def _check_policy_drift(alert_on_changed: bool = False) -> list[dict]:
                         "days_remaining": 0,
                     })
     except Exception as exc:
+        # Only the setup — the customer list and the audit directory. A single
+        # tenant failing is handled in the loop, because the invariant that a
+        # per-tenant failure must not lose the run predates this and is right.
         logger.warning("Alert check policy_drift failed: %s", exc)
+        raise AlertCheckFailed("policy_drift") from exc
+    if unreadable:
+        logger.warning(
+            "Policy drift skipped %d tenant(s): %s",
+            len(unreadable), ", ".join(unreadable),
+        )
     return alerts
 
 
@@ -422,6 +463,7 @@ async def _check_mfa_coverage(threshold: float) -> list[dict]:
                         })
     except Exception as exc:
         logger.warning("Alert check mfa_coverage failed: %s", exc)
+        raise AlertCheckFailed("mfa_coverage") from exc
     return alerts
 
 
@@ -561,10 +603,15 @@ async def send_teams_alert(webhook_url: str, alerts: list[dict]) -> None:
         logger.error("Alert webhook error: %s", exc)
 
 
-async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]) -> None:
-    """Send alert summary via SMTP email."""
+async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]) -> bool:
+    """Send alert summary via SMTP email. True if it went out.
+
+    Returned None before, and the caller counted a channel as notified on the
+    strength of having called this — including when SMTP raised and the error
+    was swallowed two lines below.
+    """
     if not recipient or not alerts:
-        return
+        return False
 
     import asyncio
 
@@ -619,6 +666,8 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
         )
     except Exception as exc:
         logger.error("Alert email failed: %s", exc)
+        return False
+    return True
 
 
 # ── Main alert check ─────────────────────────────────────────────────────────
@@ -634,39 +683,57 @@ async def run_alert_check() -> dict:
     settings = load_app_settings()
 
     all_alerts: list[dict] = []
+    failed_checks: list[str] = []
+
+    async def _run(name: str, coro) -> None:
+        """Run one check, and remember it if it could not run.
+
+        A check that raised contributes nothing, exactly as before — the
+        difference is that the caller is told which one, so "no alerts" and
+        "the check that would have found them is broken" stop being the same
+        answer.
+        """
+        try:
+            all_alerts.extend(await coro)
+        except AlertCheckFailed as exc:
+            failed_checks.append(exc.check)
+        except Exception as exc:  # a check that failed in some new way
+            logger.warning("Alert check %s failed: %s", name, exc)
+            failed_checks.append(name)
 
     # Run enabled checks
     if rules.get("ssl_expiry", {}).get("enabled"):
         days = rules["ssl_expiry"].get("days", 14)
-        all_alerts.extend(await _check_ssl_expiry(days))
+        await _run("ssl_expiry", _check_ssl_expiry(days))
 
     if rules.get("domain_expiry", {}).get("enabled"):
         days = rules["domain_expiry"].get("days", 14)
-        all_alerts.extend(await _check_domain_expiry(days))
+        await _run("domain_expiry", _check_domain_expiry(days))
 
     if rules.get("fortigate_threats", {}).get("enabled"):
         threshold = rules["fortigate_threats"].get("threshold", 50)
-        all_alerts.extend(await _check_fortigate_threats(threshold))
+        await _run("fortigate_threats", _check_fortigate_threats(threshold))
 
     if rules.get("firmware_outdated", {}).get("enabled"):
-        all_alerts.extend(await _check_firmware_outdated())
+        await _run("firmware_outdated", _check_firmware_outdated())
 
     if rules.get("also_license_expiry", {}).get("enabled"):
         days = rules["also_license_expiry"].get("days", 14)
-        all_alerts.extend(await _check_also_license_expiry(days))
+        await _run("also_license_expiry", _check_also_license_expiry(days))
 
     if rules.get("mfa_coverage", {}).get("enabled"):
         threshold = rules["mfa_coverage"].get("threshold", 80)
-        all_alerts.extend(await _check_mfa_coverage(threshold))
+        await _run("mfa_coverage", _check_mfa_coverage(threshold))
 
     if rules.get("policy_drift", {}).get("enabled", True):
-        all_alerts.extend(
-            await _check_policy_drift(rules["policy_drift"].get("alert_on_changed", False))
+        await _run(
+            "policy_drift",
+            _check_policy_drift(rules["policy_drift"].get("alert_on_changed", False)),
         )
 
     # Pentest critical findings (from recent saved scans)
     if rules.get("pentest_critical", {}).get("enabled", True):
-        all_alerts.extend(await _check_pentest_critical())
+        await _run("pentest_critical", _check_pentest_critical())
 
     # Dedup against history
     history = _load_alert_history()
@@ -711,32 +778,47 @@ async def run_alert_check() -> dict:
         # Send email
         if config.get("notify_email"):
             recipient = config.get("email_recipient", "") or settings.get("email_default_recipient", "")
-            if recipient:
-                await send_email_alert(settings, recipient, new_alerts)
+            if recipient and await send_email_alert(settings, recipient, new_alerts):
                 sent_count += 1
 
-        # Record in history
-        for a in new_alerts:
-            history.append({
-                "fingerprint": _alert_fingerprint(a),
-                "type": a["type"],
-                "severity": a["severity"],
-                "customer": a["customer"],
-                "item": a["item"],
-                "detail": a["detail"],
-                "sent_at": now_iso,
-            })
+        # Record in history — but only what actually went out.
+        #
+        # The history is what _is_duplicate suppresses against for the next 24
+        # hours, and it was written whether or not any channel had accepted the
+        # alerts. So a webhook URL left blank, an SMTP server refusing, or
+        # notifications simply switched off marked every new alert as sent and
+        # the next run deduplicated it away. A critical certificate-expiry
+        # alert whose only channel was broken was raised once, delivered
+        # nowhere, and never mentioned again.
+        if sent_count:
+            for a in new_alerts:
+                history.append({
+                    "fingerprint": _alert_fingerprint(a),
+                    "type": a["type"],
+                    "severity": a["severity"],
+                    "customer": a["customer"],
+                    "item": a["item"],
+                    "detail": a["detail"],
+                    "sent_at": now_iso,
+                })
 
-        # Prune history older than 30 days
-        cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        history = [h for h in history if h.get("sent_at", "") > cutoff_30d]
-        _save_alert_history(history)
+            # Prune history older than 30 days
+            cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            history = [h for h in history if h.get("sent_at", "") > cutoff_30d]
+            _save_alert_history(history)
+        else:
+            logger.warning(
+                "%d new alert(s) reached no channel — not recorded as sent, so "
+                "the next run raises them again", len(new_alerts)
+            )
 
     try:
         from app.core.activity_log import log_activity
+        _failed = f", {len(failed_checks)} sjekk(er) feilet: {', '.join(failed_checks)}" if failed_checks else ""
         log_activity(
             "alert_check",
-            detail=f"Fant {len(all_alerts)} varsler, {len(new_alerts)} nye, sendt via {sent_count} kanal(er)",
+            detail=f"Fant {len(all_alerts)} varsler, {len(new_alerts)} nye, "
+                   f"sendt via {sent_count} kanal(er){_failed}",
         )
     except Exception as e:
         logger.debug("Activity log write failed: %s", e)
@@ -746,6 +828,10 @@ async def run_alert_check() -> dict:
         "new_alerts": len(new_alerts),
         "deduplicated": len(all_alerts) - len(new_alerts),
         "channels_notified": sent_count,
+        # Which checks did not run. Without this the caller cannot tell a
+        # tenant with nothing wrong from one whose checks are broken.
+        "failed_checks": failed_checks,
+        "delivered": bool(sent_count) or not new_alerts,
         "alerts": [
             {
                 "type": a["type"],
