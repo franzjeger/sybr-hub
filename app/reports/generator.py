@@ -366,7 +366,15 @@ def _parse_mfa(
         "ca_excluded": ca_excluded,
         "fully_unprotected": fully_unprotected,
         "users": users_detail,
-        "has_data": total > 0,
+        # `measured`, not `total`. `total` counts records; a record whose
+        # lookup failed is a record, so a run where every single lookup was
+        # throttled still had has_data True, pct 0, and cost the full 35-point
+        # MFA weight — a grade B presented as a measurement of a tenant nobody
+        # managed to read. Every consumer of this flag already handles False
+        # correctly: the CIS control goes to "info", the executive summary
+        # says unavailable, the radar axis skips the input, and the score
+        # declares a blocking gap. The predicate was the only thing wrong.
+        "has_data": measured > 0,
     }
 
 
@@ -2546,6 +2554,17 @@ def _compute_risk(
         mfa_penalty = round(35 * (1 - mfa_pct / 100))
         mfa_penalty_abs = min(35, no_mfa * 2)
         score -= max(mfa_penalty, mfa_penalty_abs)
+        # The collector keeps unknowns out of both sides of the fraction,
+        # which is right — a throttled lookup is not a user without MFA. But
+        # the percentage that survives is then measured on a subset, and
+        # nothing said so. Ninety of a hundred lookups failing still read as
+        # "100% MFA coverage, grade A" on the strength of ten users.
+        _unknown = mfa.get("unknown", 0)
+        if _unknown:
+            data_quality_issues.append(
+                f"MFA-dekning målt på {mfa.get('measured', 0)} av "
+                f"{mfa.get('total', 0)} brukere — {_unknown} oppslag feilet"
+            )
     else:
         # MFA is the largest single weight (35/100). Without it, any computed
         # grade is fiction — flag as blocking so the grade renders as INVALID
