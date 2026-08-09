@@ -56,3 +56,59 @@ def test_it_does_not_invalidate_the_grade():
     result = _score(unavailable_sections=["Exchange Online"])
     assert result.get("score") is not None
     assert not result.get("blocking_data_gaps")
+
+
+# ── The wiring, not just the function ────────────────────────────────────────
+#
+# The gap was never that _compute_risk could not express this. It was that the
+# caller had the list four lines away and did not pass it. A test that only
+# calls _compute_risk directly would have passed against the broken code, so
+# this one goes through build_report_context the way an audit does.
+
+def test_a_real_run_with_a_skipped_section_says_so(tmp_path):
+    from app.modules.base import SectionResult, SectionStatus
+    from app.reports.generator import build_report_context
+    from tests.audit_fixture import FULL_AUDIT
+
+    d = tmp_path / "Acme_AS" / "2026-01-01_0900"
+    d.mkdir(parents=True)
+    for name, content in FULL_AUDIT.items():
+        (d / name).write_text(content, encoding="utf-8")
+
+    results = [
+        SectionResult(name="Entra ID", status=SectionStatus.DONE),
+        SectionResult(
+            name="Exchange Online",
+            status=SectionStatus.SKIPPED,
+            error="Connect-ExchangeOnline failed",
+        ),
+    ]
+    ctx = build_report_context(
+        "Acme AS", "acme.no", d, results, lang="no",
+        frameworks="all", persist_metrics=False,
+    )
+    joined = " ".join(ctx["risk"].get("data_quality_issues", []))
+    assert "Exchange Online" in joined, (
+        "the report counts skipped sections for its summary but the score never "
+        "hears about them"
+    )
+
+
+def test_a_complete_run_stays_quiet(tmp_path):
+    from app.modules.base import SectionResult, SectionStatus
+    from app.reports.generator import build_report_context
+    from tests.audit_fixture import FULL_AUDIT
+
+    d = tmp_path / "Acme_AS" / "2026-01-01_0901"
+    d.mkdir(parents=True)
+    for name, content in FULL_AUDIT.items():
+        (d / name).write_text(content, encoding="utf-8")
+
+    results = [SectionResult(name="Entra ID", status=SectionStatus.DONE)]
+    ctx = build_report_context(
+        "Acme AS", "acme.no", d, results, lang="no",
+        frameworks="all", persist_metrics=False,
+    )
+    assert not [
+        g for g in ctx["risk"].get("data_quality_issues", []) if "ikke fullført" in g
+    ]
