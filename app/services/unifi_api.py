@@ -1539,3 +1539,123 @@ def summarise_controller_coverage(rows: list[dict]) -> dict[str, Any]:
         "with_full_access": by_state.get("full", 0),
         "needs_credentials": len(actionable),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12. Matching cloud sites to customers
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# An IT Glue import creates customers with a name and nothing else, and the
+# cloud lists sites with a name and nothing else. Nothing joins the two, so the
+# coverage view cannot say which customer a site belongs to — or, more usefully,
+# which customer a controller login would unlock.
+#
+# Scoring follows the Uniweb matcher already in the tree (exact 1.0, containment
+# 0.85, SequenceMatcher otherwise, auto at 0.75) so there is one notion of
+# "matched" in this codebase rather than two that disagree.
+
+import re as _re  # noqa: E402
+from difflib import SequenceMatcher  # noqa: E402
+
+# Legal-form suffixes carry no identity: "Acme AS" and "Acme" are one company,
+# and leaving them in drags an otherwise exact match below the threshold.
+_ORG_SUFFIXES = {
+    "as", "asa", "ab", "a/s", "ans", "da", "ba", "sa", "nuf", "enk",
+    "ltd", "limited", "inc", "llc", "gmbh", "oy", "aps",
+}
+_MATCH_AUTO = 0.75
+# Two candidates this close cannot be told apart by name alone. Picking the
+# higher one would be a coin flip written into a customer record.
+_MATCH_AMBIGUOUS_GAP = 0.05
+
+
+def normalise_org_name(name: Any) -> str:
+    """Lowercase, strip punctuation and drop the legal-form suffix."""
+    if not isinstance(name, str):
+        return ""
+    cleaned = _re.sub(r"[^\w\s-]", " ", name.lower())
+    words = [w for w in cleaned.split() if w]
+    while words and words[-1] in _ORG_SUFFIXES:
+        words.pop()
+    return " ".join(words)
+
+
+def score_name_match(left: str, right: str) -> float:
+    """Similarity between two normalised names, on the Uniweb scale."""
+    if not left or not right:
+        return 0.0
+    if left == right:
+        return 1.0
+    if left in right or right in left:
+        return 0.85
+    return SequenceMatcher(None, left, right).ratio()
+
+
+def match_sites_to_customers(
+    sites: list[dict], customers: list[dict]
+) -> list[dict[str, Any]]:
+    """Propose a customer for each site. Proposes only — writes nothing.
+
+    Every site comes back, including the ones with no candidate, because "no
+    match" is the answer for a site belonging to a customer that was never
+    imported, and hiding those would make the list look complete when it is not.
+    """
+    candidates = [
+        (c, normalise_org_name(c.get("CustomerName", "")))
+        for c in customers
+        if normalise_org_name(c.get("CustomerName", ""))
+    ]
+
+    proposals: list[dict[str, Any]] = []
+    for site in sites:
+        site_name = site.get("name") or ""
+        normalised = normalise_org_name(site_name)
+
+        scored = sorted(
+            ((score_name_match(normalised, cn), c) for c, cn in candidates),
+            key=lambda pair: pair[0],
+            reverse=True,
+        )
+        best_score, best = scored[0] if scored else (0.0, None)
+        runner_up = scored[1][0] if len(scored) > 1 else 0.0
+
+        if best_score >= _MATCH_AUTO and (best_score - runner_up) < _MATCH_AMBIGUOUS_GAP:
+            confidence = "ambiguous"
+        elif best_score >= _MATCH_AUTO:
+            confidence = "high"
+        elif best_score >= 0.5:
+            confidence = "low"
+        else:
+            confidence = "none"
+
+        proposals.append({
+            "site_id": site.get("site_id") or site.get("siteId"),
+            "host_id": site.get("host_id") or site.get("hostId"),
+            "site_name": site_name,
+            "customer_id": best.get("_id", "") if best and confidence != "none" else "",
+            "customer_name": best.get("CustomerName", "") if best and confidence != "none" else "",
+            "score": round(best_score, 3),
+            "runner_up_score": round(runner_up, 3),
+            "confidence": confidence,
+        })
+
+    # Ambiguous first: they need a human before anything else is worth doing.
+    order = {"ambiguous": 0, "low": 1, "high": 2, "none": 3}
+    proposals.sort(key=lambda p: (order[p["confidence"]], -p["score"]))
+    return proposals
+
+
+def summarise_site_matches(proposals: list[dict]) -> dict[str, Any]:
+    """Counts by confidence, so the caller can see the shape before applying."""
+    counts: dict[str, int] = {}
+    for p in proposals:
+        counts[p["confidence"]] = counts.get(p["confidence"], 0) + 1
+    return {
+        "ok": True,
+        "proposals": proposals,
+        "counts": counts,
+        "total": len(proposals),
+        # Only unambiguous matches are safe to apply without a decision.
+        "auto_applicable": counts.get("high", 0),
+        "needs_review": counts.get("ambiguous", 0) + counts.get("low", 0),
+    }

@@ -647,6 +647,86 @@ async def unifi_sm_isp_metrics(
     return result
 
 
+# ── Matching cloud sites to customers ────────────────────────────────────────
+
+@router.get("/unifi/site-matches")
+async def unifi_site_matches(user: User = Depends(get_current_user)):
+    """Propose a customer for each Site Manager site. Writes nothing.
+
+    An IT Glue import creates customers with a name and nothing else, and the
+    cloud lists sites with a name and nothing else. This joins them by name so
+    the coverage view can say which customer a controller login would unlock.
+    """
+    from app.core.customer import CustomerManager
+    from app.core.rbac import filter_customers, get_accessible_customer_ids
+    from app.services.unifi_api import (
+        get_site_overview,
+        match_sites_to_customers,
+        summarise_site_matches,
+    )
+
+    overview = await get_site_overview()
+    if not overview.get("ok"):
+        raise ValidationError(overview.get("error", "Failed to fetch sites"))
+
+    allowed = await get_accessible_customer_ids(user)
+    customers = filter_customers(CustomerManager.list_customers(), allowed)
+    return summarise_site_matches(
+        match_sites_to_customers(overview.get("sites", []), customers)
+    )
+
+
+@router.post("/unifi/site-matches/apply")
+async def unifi_site_matches_apply(
+    request: Request,
+    user: User = Depends(require_role(Role.technician)),
+):
+    """Record the chosen site → customer links on the customer records.
+
+    Applies exactly the pairs given, never the matcher's own guesses: a
+    proposal is a suggestion until a person accepts it, and an ambiguous name
+    resolved by score alone is a coin flip written into a customer record.
+
+    This records ownership. It does not grant controller access — that still
+    needs a host and a login stored against the customer.
+    """
+    from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
+
+    body = await request.json()
+    pairs = body.get("matches") or []
+    if not pairs:
+        raise ValidationError("Ingen koblinger oppgitt")
+
+    applied, skipped = [], []
+    for pair in pairs:
+        cust_id = str(pair.get("customer_id") or "").strip()
+        site_id = str(pair.get("site_id") or "").strip()
+        if not cust_id or not site_id:
+            skipped.append({"customer_id": cust_id, "reason": "mangler id"})
+            continue
+        # check_customer_access returns a bool rather than raising, so the
+        # result has to be acted on. A request naming a customer the caller
+        # may not touch fails whole rather than skipping quietly — a silent
+        # skip would read as "applied" to anyone glancing at the response.
+        if not await check_customer_access(user, cust_id):
+            raise ForbiddenError(f"Ingen tilgang til kunde {cust_id}")
+
+        config = CustomerManager.get_customer(cust_id)
+        if not config:
+            skipped.append({"customer_id": cust_id, "reason": "ukjent kunde"})
+            continue
+        config["UniFiSiteId"] = site_id
+        if pair.get("host_id"):
+            config["UniFiHostId"] = str(pair["host_id"])
+        CustomerManager.save_customer(
+            {k: v for k, v in config.items() if not k.startswith("_")}
+        )
+        applied.append({"customer_id": cust_id, "site_id": site_id})
+
+    return {"ok": True, "applied": applied, "skipped": skipped}
+
+
 # ── Controller coverage across the portfolio ─────────────────────────────────
 
 @router.get("/unifi/controller-coverage")
