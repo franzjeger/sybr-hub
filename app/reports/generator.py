@@ -2639,6 +2639,17 @@ def _compute_risk(
     if network and network.get("has_data"):
         net_risk = _compute_network_risk(network)
         score -= net_risk["penalty"]
+    # A file that would not parse is an input this function could not read, and
+    # that is what data_quality_issues is for — every other unverifiable input
+    # is declared there. Not blocking: the network is worth 15 points against
+    # MFA's 35, so refusing to grade the whole tenant over one corrupt file is
+    # heavier than the gap warrants. But it must be visible beside the score,
+    # not only in a recommendation further down the report.
+    for _unreadable in (network or {}).get("unreadable", []):
+        data_quality_issues.append(
+            f"Nettverksaudit utilgjengelig — {_unreadable} kunne ikke leses "
+            f"(scoren mangler inntil 15 poeng straff)"
+        )
 
     score = max(0, min(100, score))
 
