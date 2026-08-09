@@ -1596,13 +1596,52 @@ def score_name_match(left: str, right: str) -> float:
     return SequenceMatcher(None, left, right).ratio()
 
 
-def match_sites_to_customers(
-    sites: list[dict], customers: list[dict]
-) -> list[dict[str, Any]]:
-    """Propose a customer for each site. Proposes only — writes nothing.
+async def get_hosts_with_names() -> dict[str, Any]:
+    """Fetch the consoles and the names they are known by.
 
-    Every site comes back, including the ones with no candidate, because "no
-    match" is the answer for a site belonging to a customer that was never
+    The customer's identity lives here, not on the site. A site is named
+    "default" on 29 of 30 consoles in a live account, or an opaque id on the
+    rest; the console carries the real name — "A-Tre-Konsult-AS" — because that
+    is what a technician typed when adopting it.
+    """
+    token = _resolve_token(None, None)
+    if not token:
+        return {"ok": False, "error": "Ingen API-nøkkel tilgjengelig"}
+
+    async with httpx.AsyncClient(timeout=60.0) as http:
+        try:
+            r = await http.get(_UI_HOSTS_URL, headers=_build_api_headers(token))
+            if r.status_code == 401:
+                return {"ok": False, "error": "API-nøkkel ugyldig"}
+            r.raise_for_status()
+            hosts = []
+            for h in r.json().get("data", []):
+                reported = h.get("reportedState") or {}
+                hosts.append({
+                    "host_id": h.get("id", ""),
+                    "name": reported.get("hostname") or reported.get("name") or "",
+                })
+            return {"ok": True, "hosts": hosts}
+        except httpx.HTTPStatusError as e:
+            return {"ok": False, "error": f"HTTP {e.response.status_code}"}
+        except Exception as e:
+            log.warning("Host listing failed: %s", e)
+            return {"ok": False, "error": str(e)}
+
+
+def match_hosts_to_customers(
+    hosts: list[dict], customers: list[dict]
+) -> list[dict[str, Any]]:
+    """Propose a customer for each console. Proposes only — writes nothing.
+
+    Matching used to run against site names, which carry no identity: 29 of 30
+    are literally "default" and the rest are opaque ids, so it proposed nothing
+    for 76 of 77. The console name is what a technician typed at adoption, and
+    it is hyphenated rather than spaced — which is why normalise_org_name turns
+    a hyphen into a space.
+
+    Every console comes back, including those with no candidate, because "no
+    match" is the answer for one belonging to a customer that was never
     imported, and hiding those would make the list look complete when it is not.
     """
     candidates = [
@@ -1612,9 +1651,9 @@ def match_sites_to_customers(
     ]
 
     proposals: list[dict[str, Any]] = []
-    for site in sites:
-        site_name = site.get("name") or ""
-        normalised = normalise_org_name(site_name)
+    for host in hosts:
+        host_name = host.get("name") or ""
+        normalised = normalise_org_name(host_name)
 
         scored = sorted(
             ((score_name_match(normalised, cn), c) for c, cn in candidates),
@@ -1634,9 +1673,8 @@ def match_sites_to_customers(
             confidence = "none"
 
         proposals.append({
-            "site_id": site.get("site_id") or site.get("siteId"),
-            "host_id": site.get("host_id") or site.get("hostId"),
-            "site_name": site_name,
+            "host_id": host.get("host_id") or host.get("id"),
+            "host_name": host_name,
             "customer_id": best.get("_id", "") if best and confidence != "none" else "",
             "customer_name": best.get("CustomerName", "") if best and confidence != "none" else "",
             "score": round(best_score, 3),
@@ -1650,7 +1688,7 @@ def match_sites_to_customers(
     return proposals
 
 
-def summarise_site_matches(proposals: list[dict]) -> dict[str, Any]:
+def summarise_host_matches(proposals: list[dict]) -> dict[str, Any]:
     """Counts by confidence, so the caller can see the shape before applying."""
     counts: dict[str, int] = {}
     for p in proposals:
