@@ -47,21 +47,31 @@ regression tests in this repo.
 
 Make the per-customer Hub view show real Autotask data.
 
-- [ ] `AutotaskClient.list_accounts`, `get_account`, `get_contract`
-- [ ] Customer ↔ Autotask Account binding (stored in customer config)
-- [ ] Hub view shows Classification icon + active contract name
-- [ ] Per-customer dashboard pulls the latest audit summary alongside
+- [x] `AutotaskClient.list_accounts`, `get_account`, `get_contract`
+- [x] Customer ↔ Autotask Account binding (`POST /api/hub/{id}/link`)
+- [x] Hub view shows Classification icon + active contract name
+- [x] Per-customer dashboard pulls the latest audit summary alongside
+
+Written against Autotask's published REST reference, not a live instance —
+no customer here has credentials yet. `test_connection()` performs zone
+discovery and one bounded query and reports the field names that came back;
+treat the first real run as the verification and expect to adjust names.
 
 ## v0.3.0 — Autotask write-side
 
 The "Create Ticket from Finding" button actually creates tickets.
 
-- [ ] `AutotaskClient.create_ticket` (manual only — guarded by
-      `Depends(get_current_user)`, never called from scheduled code)
-- [ ] Title / description pre-fill from finding context
-- [ ] Idempotency — re-running an audit and re-clicking should not
-      create duplicate tickets for the same finding
-- [ ] Operator chooses Queue + Priority in a modal before submit
+- [ ] `AutotaskClient.create_ticket` — raises today (`autotask.py`)
+- [ ] `POST /hub/{id}/findings/{finding_id}/create-ticket` — 501 today,
+      and its role floor is `viewer`; writing into a customer's PSA needs
+      technician on top of the `can_write` grant the middleware applies
+- [ ] Title / description pre-fill from finding context. `finding_id` is
+      already the stable key the report generator and `remediation_items`
+      both use, so the resolution is a lookup rather than a new model
+- [ ] Idempotency — `remediation_items` has no column for an external
+      ticket id, so this needs a migration
+- [ ] Operator chooses Queue + Priority in a modal before submit. There
+      is no button in the front end at all yet
 
 ## v0.4.0 — myITprocess integration
 
@@ -101,10 +111,19 @@ Things that were in the original MSP-Toolkit-V2 codebase but are not
 part of the Sybr HUB vision and should not return without an explicit
 decision:
 
-- Remote browser via Guacamole / x11vnc — use the RMM's WebRemote
-- Penetration testing module — not aligned with "read-mostly
-  aggregator" framing
 - Auto-remediation of any kind — operator discretion is the workflow
+- VPN-as-a-service for customer employees — see the note below
+
+Two entries that used to be here have since been decided the other way,
+and are recorded rather than quietly dropped:
+
+- **Remote browser and web RDP via Guacamole** — now in scope and shipped.
+  `docs/ARCHITECTURE.md` documents the boundary it runs behind: temporary
+  JDBC connections, uniquely named, deleted on stop, swept by instance
+  prefix after a crash. Provider WebRemote remains a deep-link.
+- **Penetration testing module** — `app/modules/pentest/` exists. It has
+  not been re-argued against the "read-mostly aggregator" framing, so it
+  sits here as a known inconsistency rather than an endorsement.
 
 VPN management is **in scope** as infrastructure (the toolkit must
 reach customer-internal management interfaces) — the operator-facing

@@ -46,6 +46,28 @@ def test_a_dotted_hostname_survives():
     assert redact(text) == text
 
 
+def test_a_file_path_survives():
+    """Redaction that eats tracebacks is redaction somebody turns off.
+
+    `/` is kept out of the pattern for exactly this: with it in,
+    `/home/user/sybr-hub/app/web/` is a single 28-character run.
+    """
+    text = 'File "/home/user/sybr-hub/app/web/routes/settings.py", line 325'
+    assert redact(text) == text
+
+
+def test_a_jwt_is_still_masked():
+    """Urlsafe base64 has no `/`, so dropping it costs nothing that matters."""
+    jwt = (
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+        "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ."
+        "dQw4w9WgXcQrTyUiOpAsDfGhJkLzXcVbNm"
+    )
+    out = redact(f"token={jwt}")
+    for segment in jwt.split("."):
+        assert segment not in out
+
+
 def test_none_and_empty_known_values_are_tolerated():
     assert redact("hello", None, "") == "hello"
 

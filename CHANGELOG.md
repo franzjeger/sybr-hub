@@ -5,6 +5,70 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Et passord skal ikke krysse en linje som ikke kan bære det
+
+- Plain-HTTP-innlogging fra en annen maskin avvises nå med 403. README har
+  lovet dette siden første utgivelse uten at noe håndhevet det: `_cookie_secure`
+  bestemmer et cookie-flagg, og `/api/auth/login` returnerer begge tokenene i
+  svarkroppen også — så en klient som aldri rører en cookie autentiserte over
+  klartekst fra hvor som helst på nettet.
+- Standard bind er nå `127.0.0.1`. Den var `0.0.0.0`, så hurtigstarten i README
+  publiserte et klartekst-innloggingsskjema til hele LAN-et uten at den som
+  kjørte den valgte det. Et rutbart bind uten sertifikat nekter å starte og
+  sier hvilke fire ting man kan gjøre i stedet.
+- `app/web/transport.py` holder predikatene. «Kan legitimasjon krysse denne
+  linjen» ser bare på klientadressen — en forespørsel fra 127.0.0.1 med et
+  offentlig Host-felt er en lokal TLS-terminator, altså oppsettet installeren
+  lager med `tailscale serve`. «Skal denne cookien merkes Secure» krever begge
+  ender lokale. To spørsmål, delte byggeklosser, så forskjellen forblir synlig.
+- `SYBR_ALLOW_INSECURE_AUTH=1` åpner begge deler igjen for en terminator
+  prosessen ikke kan se.
+
+### Hemmeligheter maskeres der verdien går ut, ikke i den grenen noen husket
+
+- `factory_bootstrap` maskerte FortiGate-API-nøkkelen den nettopp hadde parset,
+  og returnerte så den samme terminal-outputen ordrett som `raw_output` i
+  grenen der parsingen *feilet* — grenen som kjører når nøkkelen ikke så ut som
+  parseren ventet, altså der en ugjenkjent nøkkel mest sannsynlig fortsatt står
+  i teksten. Det nye admin-passordet hadde samme eksponering gjennom
+  asyncssh-feiltekst.
+- `app/core/redact.py` maskerer både på navngitt verdi og på form. `/` er
+  bevisst utenfor mønsteret: med den inne er `/home/user/sybr-hub/app/web/` én
+  28-tegns sekvens, og maskering som spiser tracebacks er maskering noen slår av.
+
+### En uventet feil svarer med noe, og en request-body har en form
+
+- `create_app()` har nå en handler for alt `ToolkitError` ikke dekker. Svaret
+  bærer en feil-ID og ingenting annet; ID-en står i logglinjen ved siden av
+  tracebacken, så en support-skjermdump kan finne hendelsen uten å inneholde den.
+- Scheduler-endepunktet tok imot hva som helst og lagret det: en JSON-liste ga
+  `AttributeError` og 500, og et hvilket som helst objekt havnet under en nøkkel
+  scheduleren leser hver runde. `app/models/settings.py` beskriver formen, med
+  `extra="forbid"` — en feilstavet nøkkel ble tidligere lagret for alltid og
+  gjorde stille ingenting.
+- Språk-, webhook-test- og oppgaveplanleggerendepunktene validerer på samme måte.
+
+### En lesing som feilet er ikke en kunde uten funn
+
+- `/customer/{id}/unified` svarte `except Exception: result["audit"] = None`.
+  Konsekvensen var ikke et manglende kort: frontend bygger «Krever handling» av
+  `a.users_no_mfa || 0`, så en feilet metrikklesing ga en kunde uten funn — samme
+  side som en faktisk frisk kunde får. Den beroligende siden var den en
+  databasehikke produserte.
+- Hver blokk rapporterer nå feilen sin i `unavailable`, og grensesnittet viser
+  en «Ufullstendige data»-stripe over handlingsbåndet pluss en feiltilstand på
+  de berørte brikkene. ALSO-blokken hadde ingen vakt i det hele tatt og tok hele
+  siden ned; den er nå degradert som de andre.
+
+### Testsuiten skriver ikke lenger i operatørens egne kataloger
+
+- `conftest.py` isolerer `CONFIG_DIR` og `DATA_DIR`, både per test og for hele
+  økten. Master-nøkkelen mintes på nytt per test, mens `settings.json` lå i den
+  ekte katalogen — så en test som lagret innstillinger etterlot en blob ingen
+  nøkkel kunne åpne igjen, og hver senere test som leste innstillinger døde på
+  `InvalidTag` langt unna den som forårsaket det. Det tok ut 269 tester i én
+  kjøring av denne suiten.
+
 ### Grensesnittet heter Sybr HUB
 
 - Sidetittel, overskriften på admin-kortet, PWA-manifestet, offline-siden og

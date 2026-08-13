@@ -8647,19 +8647,48 @@ async function loadUnifiedDashboard() {
   var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
   var _ufc = d.unifi ? 'var(--green)' : 'var(--text-dim)';
   var _ufl = d.unifi ? (d.unifi.UniFiHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
+  // A block the server could not read is null, exactly like a block with
+  // nothing in it — the difference is in d.unavailable. Rendering both as
+  // "Ikke koblet" is what let a database hiccup show a customer as clean.
+  var _gone = d.unavailable || {};
+  function _failed(block) { return Object.prototype.hasOwnProperty.call(_gone, block); }
+
   var _aoc = d.also ? 'var(--green)' : 'var(--text-dim)';
   var _aol = d.also ? (d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'kr') : '')) : t('st_not_linked','Ikke koblet');
   if (d.also && (d.also.expired > 0 || d.also.expiring_90d > 0)) { _aoc = d.also.expired > 0 ? 'var(--red)' : 'var(--orange)'; }
+  if (_failed('also')) { _aoc = 'var(--orange)'; _aol = t('st_read_failed'); }
   var _sshN = d.ssh_hosts ? d.ssh_hosts.length : 0;
   var _sshc = _sshN > 0 ? 'var(--green)' : 'var(--text-dim)';
+  var _sshl = _sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none');
+  if (_failed('ssh_hosts')) { _sshc = 'var(--orange)'; _sshl = t('st_read_failed'); }
   html += '<div class="cd-chips">'
     + _cdChip('M365', _m365c, _m365l, {onclick:"showView('home')"})
     + _cdChip('FortiGate', _fgc, _fgl)
     + _cdChip('UniFi', _ufc, _ufl)
     + _cdChip('ALSO', _aoc, _aol, {onclick:"loadCustomerLicensesFromActive()"})
-    + _cdChip(t('lbl_ssh_hosts'), _sshc, (_sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none')), {onclick:"showView('hosts')"})
+    + _cdChip(t('lbl_ssh_hosts'), _sshc, _sshl, {onclick:"showView('hosts')"})
     + _cdChip('Hosting', 'var(--text-dim)', t('st_loading','Laster…'), {id:'unified-uniweb-status'})
     + '</div>';
+
+  // ── What this page could not read ──
+  // Placed above "Krever handling" on purpose. That band is built from the
+  // audit figures, so when the audit read fails it renders empty — a customer
+  // with no findings and a customer whose findings could not be loaded looked
+  // identical, and the reassuring one was the wrong answer.
+  var _blockNames = {audit: t('blk_audit'), ssh_hosts: t('blk_ssh_hosts'), also: t('blk_also')};
+  var _goneKeys = Object.keys(_gone);
+  if (_goneKeys.length) {
+    html += '<div class="cd-action-band" style="border-left:3px solid var(--orange);">'
+      + '<div class="cd-action-title">' + esc(t('hdr_incomplete_data')) + '</div>';
+    _goneKeys.forEach(function(k) {
+      var label = _blockNames[k] || k;
+      html += '<div class="cd-action-row"><span class="cd-dot" style="background:var(--orange);"></span>'
+        + '<span class="cd-action-text">'
+        + esc(t('msg_block_unavailable').replace('{block}', label))
+        + '</span></div>';
+    });
+    html += '</div>';
+  }
 
   // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
   var _find = [];

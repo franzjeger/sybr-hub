@@ -69,6 +69,59 @@ def _mock_keyring(tmp_path_factory):
         enc._cached_key = None
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_config_dirs_for_the_session(tmp_path_factory):
+    """Keep the suite out of the operator's real CONFIG_DIR and DATA_DIR.
+
+    Same reasoning as ``_isolate_master_key_store`` above, and the same reason
+    for the session scope: a module-scoped fixture is built before any
+    function-scoped one, so without this the per-test patch below would miss
+    it.
+
+    ``settings.json`` is the file that matters. It is written through the
+    master-key layer, and ``_mock_keyring`` mints a fresh key per test — so a
+    test that saves app settings leaves a blob in the *real* config directory
+    that nothing can ever decrypt again. Every later test calling
+    ``load_app_settings`` then dies on ``InvalidTag``, nowhere near the test
+    that caused it. That is not hypothetical: it took out 269 tests in one run
+    of this suite, and the file had to be moved aside by hand before anything
+    passed again.
+    """
+    import app.core.config as config_mod
+
+    root = tmp_path_factory.mktemp("appdirs")
+    conf, data = root / "config", root / "data"
+    conf.mkdir()
+    data.mkdir()
+    with patch.object(config_mod, "CONFIG_DIR", conf), \
+         patch.object(config_mod, "DATA_DIR", data):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _isolate_config_dirs_per_test(tmp_path_factory):
+    """Give each test its own settings file.
+
+    The session fixture protects the operator; this one keeps tests from
+    reading each other's settings, which matters because the master key is
+    per-test and a shared file is therefore unreadable by construction.
+
+    Deliberately *not* built from the ``tmp_path`` fixture. Several tests
+    assert on the contents of their own ``tmp_path`` — tests/test_ssh_key_deploy
+    checks that a staging file was cleaned up by listing it — and directories
+    created here would show up as leftovers that test never made.
+    """
+    import app.core.config as config_mod
+
+    root = tmp_path_factory.mktemp("appdirs_test")
+    conf, data = root / "config", root / "data"
+    conf.mkdir()
+    data.mkdir()
+    with patch.object(config_mod, "CONFIG_DIR", conf), \
+         patch.object(config_mod, "DATA_DIR", data):
+        yield
+
+
 @pytest.fixture(autouse=True)
 def _dispose_db_pool():
     """Terminate pooled connections after every test.

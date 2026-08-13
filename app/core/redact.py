@@ -36,9 +36,17 @@ MASK = "***REDACTED***"
 # and IT Glue keys all sit comfortably above this; a long English word or a
 # dotted hostname does not reach it, because `.` and ` ` terminate the run.
 #
-# Base64 padding is included so a wrapped key is caught whole rather than
-# leaving its tail behind.
-_SECRET_SHAPED = re.compile(r"[A-Za-z0-9+/_-]{24,}={0,2}")
+# `/` and `+` are deliberately *not* in the class, though standard base64 uses
+# both. With `/` included, `/home/user/sybr-hub/app/web/` is one 28-character
+# run and every file path in a traceback disappears — redaction that destroys
+# the diagnostics is redaction somebody switches off. The cost is small: the
+# secrets this codebase actually handles are alphanumeric (FortiOS, IT Glue),
+# `A-Za-z0-9~._-` (Graph client secrets) or urlsafe base64 (the master key
+# backups, JWTs), none of which contain `/`.
+#
+# Padding is included so a wrapped key is caught whole rather than leaving its
+# tail behind.
+_SECRET_SHAPED = re.compile(r"[A-Za-z0-9_-]{24,}={0,2}")
 
 # The minimum length worth masking exactly. Below this, a "secret" is either
 # absent or so short that replacing every occurrence would shred the text

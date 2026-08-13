@@ -2814,7 +2814,13 @@
     "vpn_external_control": "Ekstern VPN-kontroll",
     "vpn_external_control_desc": "Tunneler må etableres utenfor Sybr HUB på denne verten.",
     "gdap_status_unverified": "Lagret — ikke verifisert",
-    "btn_fullscreen": "Fullskjerm"
+    "btn_fullscreen": "Fullskjerm",
+    "st_read_failed": "Kunne ikke leses",
+    "hdr_incomplete_data": "Ufullstendige data",
+    "msg_block_unavailable": "{block} kunne ikke leses, så dette bildet er ikke komplett.",
+    "blk_audit": "Siste M365-audit",
+    "blk_ssh_hosts": "SSH-verter",
+    "blk_also": "ALSO-abonnementer"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5631,6 +5637,12 @@
     "vpn_external_control": "External VPN control",
     "vpn_external_control_desc": "Tunnels must be established outside Sybr HUB on this host.",
     "gdap_status_unverified": "Saved — not verified",
-    "btn_fullscreen": "Full screen"
+    "btn_fullscreen": "Full screen",
+    "st_read_failed": "Could not be read",
+    "hdr_incomplete_data": "Incomplete data",
+    "msg_block_unavailable": "{block} could not be read, so this view is incomplete.",
+    "blk_audit": "Latest M365 audit",
+    "blk_ssh_hosts": "SSH hosts",
+    "blk_also": "ALSO subscriptions"
   }
 }

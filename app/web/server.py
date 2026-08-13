@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from app.core.database import close_pool, run_migrations
 from app.core.encryption import verify_master_key_available
 from app.core.exceptions import ToolkitError
+from app.core.redact import redact
 from app.core.version import get_version
 from app.web.middleware.auth import AuthMiddleware, get_current_user
 from app.web.middleware.rate_limit import RateLimitMiddleware
@@ -216,6 +217,45 @@ def create_app() -> FastAPI:
             )
         headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
         return JSONResponse(exc.to_dict(), status_code=exc.status_code, headers=headers)
+
+    @app.exception_handler(Exception)
+    async def _unhandled_error_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
+        """Everything the handler above does not claim.
+
+        Without this, only ``ToolkitError`` had a shape. Anything else — an
+        ``AttributeError`` from a request body that was a list where a dict was
+        expected, a driver error, an ``httpx`` failure escaping an integration
+        — reached Starlette's default handler, which is a bare 500 whose body
+        depends on how the server was started. That is the wrong answer twice:
+        the client gets nothing it can act on, and in a debug configuration it
+        gets a traceback that may quote a credential out of the failing call.
+
+        So the response carries an id and nothing else, and the id is in the
+        log line next to the traceback. An operator reading a support screenshot
+        can find the exact event without the screenshot having to contain it.
+
+        Starlette's ``ServerErrorMiddleware`` re-raises after this returns, so
+        a test running with the default ``raise_server_exceptions=True`` still
+        sees the original exception rather than a tidy 500 hiding it. That is
+        the behaviour we want in both places and it is not something this
+        handler has to arrange.
+        """
+        error_id = secrets.token_hex(6)
+        log.exception(
+            "500 unhandled [%s]: %s %s — %s",
+            error_id, request.method, request.url.path, redact(str(exc)),
+        )
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Det oppstod en uventet feil. Oppgi feil-ID ved support.",
+                "error_type": "internal_error",
+                "error_id": error_id,
+            },
+            status_code=500,
+        )
 
     # Auth is declared by each router (on its APIRouter, or per route), not
     # here: FastAPI >= 0.140 keeps include_router's `dependencies=` on an
