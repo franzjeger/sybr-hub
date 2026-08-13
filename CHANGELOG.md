@@ -5,6 +5,163 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### En transportfeil er det tidspunktet gjør den til
+
+- `send_with_retry` fanget `httpx.TimeoutException` og prøvde på nytt for alle
+  metoder, med begrunnelsen at en tilkobling som aldri åpnet ikke kan ha utført
+  en skriving. Begrunnelsen er riktig; koden gjorde ikke det den sa.
+  `TimeoutException` dekker `ReadTimeout` like mye som `ConnectTimeout`, og en
+  read timeout betyr at forespørselen *ble* sendt og at svaret forsvant.
+- Transportfeil skilles nå på om forespørselen kan ha nådd fram.
+  `ConnectTimeout`, `ConnectError` og `PoolTimeout` skjer før noe sendes og er
+  fortsatt trygge for alle metoder. Alt annet behandles som en 5xx: gjentas for
+  idempotente metoder, feiler én gang for resten.
+- Det betyr mer nå enn da hjelperen ble skrevet, fordi FortiGate- og
+  UniFi-klientene sender konfigurasjonsendringer gjennom den. «Svaret forsvant»
+  og «gjør det en gang til» er ikke det samme på en brannmur.
+
+### FortiGate og UniFi prøver ikke lenger bare én gang
+
+- Begge klientene går nå gjennom `send_with_retry`. De snakker med utstyr i
+  enden av en VPN-tunnel til et kundelokale, der en forbigående feil er
+  normalen og ikke unntaket — en audit som ga opp på første forsøk rapporterte
+  en brannmur som uleselig når et nytt forsøk to sekunder senere hadde virket.
+- UniFi-innlogging spesielt: det er kallet en controller strupes hardest på, og
+  det første hver audit gjør. En strupet innlogging kostet hele sitet.
+  429 gjentas uansett metode, som er nettopp dette tilfellet.
+- «Uleselig» og «feil passord» er nå to forskjellige meldinger.
+- Site Manager-lesingene mot `api.ui.com` er også dekket.
+- En ratchet-test krever at hver upstream-klient går gjennom laget. Graph er
+  eksplisitt unntatt og navngitt som det, siden den har sin egen backoff.
+
+### Den andre bøtta: noe som skal planlegges, ikke fikses denne uka
+
+- «Til planlegging» ved siden av «Opprett sak» på hvert funn.
+  `POST /hub/{id}/recommendations` med samme vakter som saks-endepunktet, og de
+  deler `_push_finding` — de sju stegene rundt selve kallet er identiske, og
+  kappløps-håndteringen er subtil nok til at en kopi nummer to ville vært en
+  ny sjanse til å ta feil.
+- Unikheten er per system, så ett funn kan bli både en sak og en anbefaling —
+  et DKIM-hull kan fikses denne uka *og* planlegges ordentlig neste kvartal.
+  To anbefalinger for samme funn kan det derimot ikke bli: de havner i kundens
+  kvartalsgjennomgang som to punkter ingen klarer å skille.
+- `list_tickets` er nå scopet på system. Én dict nøklet på `rec_id` på tvers av
+  begge ville stille mistet den raden databasen returnerte sist.
+
+**Verifikasjonen er svakere enn Autotasks, og forskjellen er verdt å vite.**
+Autotask-klienten ble skrevet mot en publisert REST-referanse noen hadde lest.
+Denne ble ikke det: `app.myitprocess.com` var ikke nåbar fra miljøet den ble
+bygget i, så forespørselsformen kommer fra kontrakten den gamle stubben
+erklærte. Koden er derfor skrevet for å være *diagnostiserbar* i stedet for
+selvsikker — base-URL er en innstilling, ID-en leses fra en kort liste
+kandidatnøkler i stedet for én gjetning, et svar den ikke kjenner igjen sier hva
+den faktisk fikk, og kategori og prioritet er fritekst fordi en nedtrekksliste
+med gjettet vokabular er verre enn et felt du kan skrive den ekte verdien i.
+Kjør `/api/myitprocess/test` først; den rapporterer feltnavnene som kom tilbake.
+
+### Ett funn blir én sak, og bare en operatør kan gjøre det
+
+- «Opprett sak» på en anbefaling oppretter nå en Autotask-sak.
+  `POST /hub/{id}/tickets` krever technician *og* `can_write`-tildelingen —
+  stubben hadde `viewer` som gulv, som ville sluppet en lesekonto til å skrive
+  inn i en kundes PSA i det øyeblikket den sluttet å være en stubb.
+- Verkstedets regel om at ingenting automatisk oppretter saker holdes ikke av
+  klienten — den lager en sak for hvem som helst som kaller den. Den holdes av
+  endepunktet, og av en test som feiler hvis en uovervåket modul
+  (scheduler, site collector, alert engine) importerer skrive-siden.
+- Idempotens ligger i `UNIQUE(customer_id, rec_id, system)` (migrasjon 18), ikke
+  i en sjekk i Python: to teknikere som klikker samtidig får begge tomt svar på
+  et `SELECT` og setter begge inn. Taper man kappløpet, finnes saken likevel i
+  Autotask — den rapporteres med ID i stedet for å skjules, for ellers er det
+  kunden som finner den.
+- Nøkkelen er `rec_id`, ikke `finding_id`. Flere anbefalinger deler
+  `finding-email`, så en sak per `finding_id` ville blitt én sak for fire
+  domener. `rec_id` ligger i request-body og ikke i URL-en: den bygges av
+  meldingsnøkkel pluss parametere som bærer tenant-data, og et path-segment kan
+  ikke trygt holde et domenenavn eller et app-registreringsnavn.
+- Saken bærer hvilken kjøring funnet kom fra. En sak lever lenger enn rapporten,
+  og uten det er det første teknikeren gjør å kjøre auditen på nytt for å finne
+  ut hva saken betyr.
+- En POST retries aldri på 5xx. Det er hele grunnen til at `send_with_retry`
+  skiller på metode: en skriving som ble utført og så feilet på vei ut ville
+  blitt sak nummer to.
+- Autotask-kortet under Integrasjoner sto som «Kommer snart» bak en deaktivert
+  knapp, så det fantes ingen steder i produktet å legge inn legitimasjonen
+  endepunktet trenger. Kortet har nå et ekte skjema, og «Test tilkobling»
+  lagrer før den tester — ellers tester man forrige legitimasjon og får vite at
+  den virker.
+- Kø, prioritet og status kan settes som standard, fordi status og prioritet er
+  plukklister en tilpasset Autotask-instans nummererer annerledes. Ugyldige
+  verdier avvises når de lagres, ikke som en 400 fra Autotask i det øyeblikket
+  teknikeren klikker på en skjerm som ikke har noe med innstillinger å gjøre.
+- `toggleIntegConfig` leste `el.style.display`, som er tom for et panel skjult
+  av en stilarkklasse — første klikk lukket alt og åpnet ingenting. Den leser
+  nå den beregnede verdien.
+
+### Et passord skal ikke krysse en linje som ikke kan bære det
+
+- Plain-HTTP-innlogging fra en annen maskin avvises nå med 403. README har
+  lovet dette siden første utgivelse uten at noe håndhevet det: `_cookie_secure`
+  bestemmer et cookie-flagg, og `/api/auth/login` returnerer begge tokenene i
+  svarkroppen også — så en klient som aldri rører en cookie autentiserte over
+  klartekst fra hvor som helst på nettet.
+- Standard bind er nå `127.0.0.1`. Den var `0.0.0.0`, så hurtigstarten i README
+  publiserte et klartekst-innloggingsskjema til hele LAN-et uten at den som
+  kjørte den valgte det. Et rutbart bind uten sertifikat nekter å starte og
+  sier hvilke fire ting man kan gjøre i stedet.
+- `app/web/transport.py` holder predikatene. «Kan legitimasjon krysse denne
+  linjen» ser bare på klientadressen — en forespørsel fra 127.0.0.1 med et
+  offentlig Host-felt er en lokal TLS-terminator, altså oppsettet installeren
+  lager med `tailscale serve`. «Skal denne cookien merkes Secure» krever begge
+  ender lokale. To spørsmål, delte byggeklosser, så forskjellen forblir synlig.
+- `SYBR_ALLOW_INSECURE_AUTH=1` åpner begge deler igjen for en terminator
+  prosessen ikke kan se.
+
+### Hemmeligheter maskeres der verdien går ut, ikke i den grenen noen husket
+
+- `factory_bootstrap` maskerte FortiGate-API-nøkkelen den nettopp hadde parset,
+  og returnerte så den samme terminal-outputen ordrett som `raw_output` i
+  grenen der parsingen *feilet* — grenen som kjører når nøkkelen ikke så ut som
+  parseren ventet, altså der en ugjenkjent nøkkel mest sannsynlig fortsatt står
+  i teksten. Det nye admin-passordet hadde samme eksponering gjennom
+  asyncssh-feiltekst.
+- `app/core/redact.py` maskerer både på navngitt verdi og på form. `/` er
+  bevisst utenfor mønsteret: med den inne er `/home/user/sybr-hub/app/web/` én
+  28-tegns sekvens, og maskering som spiser tracebacks er maskering noen slår av.
+
+### En uventet feil svarer med noe, og en request-body har en form
+
+- `create_app()` har nå en handler for alt `ToolkitError` ikke dekker. Svaret
+  bærer en feil-ID og ingenting annet; ID-en står i logglinjen ved siden av
+  tracebacken, så en support-skjermdump kan finne hendelsen uten å inneholde den.
+- Scheduler-endepunktet tok imot hva som helst og lagret det: en JSON-liste ga
+  `AttributeError` og 500, og et hvilket som helst objekt havnet under en nøkkel
+  scheduleren leser hver runde. `app/models/settings.py` beskriver formen, med
+  `extra="forbid"` — en feilstavet nøkkel ble tidligere lagret for alltid og
+  gjorde stille ingenting.
+- Språk-, webhook-test- og oppgaveplanleggerendepunktene validerer på samme måte.
+
+### En lesing som feilet er ikke en kunde uten funn
+
+- `/customer/{id}/unified` svarte `except Exception: result["audit"] = None`.
+  Konsekvensen var ikke et manglende kort: frontend bygger «Krever handling» av
+  `a.users_no_mfa || 0`, så en feilet metrikklesing ga en kunde uten funn — samme
+  side som en faktisk frisk kunde får. Den beroligende siden var den en
+  databasehikke produserte.
+- Hver blokk rapporterer nå feilen sin i `unavailable`, og grensesnittet viser
+  en «Ufullstendige data»-stripe over handlingsbåndet pluss en feiltilstand på
+  de berørte brikkene. ALSO-blokken hadde ingen vakt i det hele tatt og tok hele
+  siden ned; den er nå degradert som de andre.
+
+### Testsuiten skriver ikke lenger i operatørens egne kataloger
+
+- `conftest.py` isolerer `CONFIG_DIR` og `DATA_DIR`, både per test og for hele
+  økten. Master-nøkkelen mintes på nytt per test, mens `settings.json` lå i den
+  ekte katalogen — så en test som lagret innstillinger etterlot en blob ingen
+  nøkkel kunne åpne igjen, og hver senere test som leste innstillinger døde på
+  `InvalidTag` langt unna den som forårsaket det. Det tok ut 269 tester i én
+  kjøring av denne suiten.
+
 ### Grensesnittet heter Sybr HUB
 
 - Sidetittel, overskriften på admin-kortet, PWA-manifestet, offline-siden og

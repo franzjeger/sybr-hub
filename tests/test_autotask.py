@@ -157,11 +157,24 @@ def test_test_connection_reports_a_failure_instead_of_raising():
     assert "401" in result["error"]
 
 
-def test_the_write_side_is_still_refused():
-    """The workshop put an operator in this loop. Keep them there."""
-    c = AutotaskClient("code", "user", "secret")
-    with pytest.raises(NotImplementedError, match="write-side"):
-        _run(c.create_ticket(1, "title", "body"))
+def test_the_client_itself_guards_nothing():
+    """This used to assert `create_ticket` raises NotImplementedError.
+
+    It is wired now, and the workshop's rule — an operator in the loop, always
+    — did not move into this class. It cannot: a client is a transport, and
+    anything holding one can call it. The rule lives where callers are, and
+    tests/test_autotask_write_side.py is what asserts it: the endpoint needs a
+    technician with `can_write`, and no unattended module may import this.
+
+    Kept as a signpost rather than deleted, because "the client refuses" is a
+    reasonable thing to assume and it is not true.
+    """
+    import inspect
+
+    from app.integrations.autotask import AutotaskClient as C
+
+    assert "NotImplementedError" not in inspect.getsource(C.create_ticket)
+    assert "operator" in inspect.getdoc(C) or "manual" in inspect.getsource(C)
 
 
 def test_queries_go_through_the_retry_layer():

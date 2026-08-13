@@ -101,12 +101,65 @@ def test_the_servers_own_retry_after_is_used(monkeypatch):
     assert waits == [7.0]
 
 
-def test_a_connection_that_never_opened_is_retried_for_any_method():
-    """No request reached the server, so there is no half-applied write."""
-    send, calls = _sender([httpx.ConnectError("refused"), 200])
+@pytest.mark.parametrize("exc", [
+    httpx.ConnectError("refused"),
+    httpx.ConnectTimeout("timed out connecting"),
+    httpx.PoolTimeout("no free connection"),
+])
+def test_a_request_that_never_left_is_retried_for_any_method(exc):
+    """Nothing reached the server, so there is no half-applied write."""
+    send, calls = _sender([exc, 200])
     resp = asyncio.run(send_with_retry(send, method="POST", target="t"))
     assert resp.status_code == 200
     assert calls["n"] == 2
+
+
+@pytest.mark.parametrize("exc", [
+    httpx.ReadTimeout("no answer"),
+    httpx.ReadError("connection reset"),
+    httpx.WriteTimeout("stalled sending"),
+    httpx.RemoteProtocolError("server hung up"),
+])
+def test_a_write_that_may_have_landed_is_not_retried(exc):
+    """The bug this replaces.
+
+    ``httpx.TimeoutException`` covers ReadTimeout as well as ConnectTimeout, so
+    catching the base retried a request that *had* been sent and whose answer
+    was simply lost. For a FortiGate configuration write that is the same
+    change applied twice.
+    """
+    send, calls = _sender([exc, 200])
+    with pytest.raises(RetryExhausted):
+        asyncio.run(send_with_retry(send, method="POST", target="t"))
+    assert calls["n"] == 1, "a write that may have landed must not be repeated"
+
+
+@pytest.mark.parametrize("exc", [
+    httpx.ReadTimeout("no answer"),
+    httpx.ReadError("connection reset"),
+])
+def test_the_same_failure_is_still_retried_for_a_read(exc):
+    """A GET carries no risk of applying anything, so losing the answer is
+    just bad luck worth another go."""
+    send, calls = _sender([exc, 200])
+    resp = asyncio.run(send_with_retry(send, method="GET", target="t"))
+    assert resp.status_code == 200
+    assert calls["n"] == 2
+
+
+def test_the_pre_send_set_names_classes_not_a_base():
+    """Guards the fix itself.
+
+    Collapsing this back to ``httpx.TimeoutException`` would compile, pass
+    every other test here, and quietly restore the double-apply.
+    """
+    from app.integrations.http_retry import _PRE_SEND_ERRORS
+
+    assert httpx.TimeoutException not in _PRE_SEND_ERRORS
+    assert httpx.TransportError not in _PRE_SEND_ERRORS
+    assert httpx.ConnectTimeout in _PRE_SEND_ERRORS
+    # The load-bearing property: a read timeout must not be a member.
+    assert not isinstance(httpx.ReadTimeout("x"), _PRE_SEND_ERRORS)
 
 
 def test_a_4xx_is_handed_straight_back():

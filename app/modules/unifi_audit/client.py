@@ -23,6 +23,8 @@ from typing import Optional
 
 import httpx
 
+from app.integrations.http_retry import RetryExhausted, send_with_retry
+
 log = logging.getLogger(__name__)
 
 
@@ -72,26 +74,48 @@ class UniFiControllerClient:
     # ── Authentication ────────────────────────────────────────────────────
 
     async def _login(self):
+        """Probe both controller flavours, backing off if throttled.
+
+        Login is the call a UniFi controller rate-limits hardest, and it is the
+        first one every audit makes — so a throttled login used to fail the
+        whole site rather than the one request. 429 is retried whatever the
+        method, which is exactly the case this needs.
+
+        Each attempt goes through the retry layer separately: the probe order
+        is what discovers which flavour this controller is, and collapsing it
+        would lose that.
+        """
         creds = {"username": self.username, "password": self.password}
 
-        if self.is_unifi_os:
-            r = await self._client.post("/api/auth/login", json=creds)
+        async def _try(path: str):
+            return await send_with_retry(
+                lambda: self._client.post(path, json=creds),
+                method="POST", target=f"UniFi login {path}",
+            )
+
+        try:
+            if self.is_unifi_os:
+                r = await _try("/api/auth/login")
+                if r.status_code == 200:
+                    self._logged_in = True
+                    return
+
+            r = await _try("/api/login")
             if r.status_code == 200:
                 self._logged_in = True
+                self.is_unifi_os = False
                 return
 
-        r = await self._client.post("/api/login", json=creds)
-        if r.status_code == 200:
-            self._logged_in = True
-            self.is_unifi_os = False
-            return
-
-        if not self.is_unifi_os:
-            r = await self._client.post("/api/auth/login", json=creds)
-            if r.status_code == 200:
-                self._logged_in = True
-                self.is_unifi_os = True
-                return
+            if not self.is_unifi_os:
+                r = await _try("/api/auth/login")
+                if r.status_code == 200:
+                    self._logged_in = True
+                    self.is_unifi_os = True
+                    return
+        except RetryExhausted as e:
+            # Unreachable is not "wrong password", and the message an operator
+            # reads should say which one it was.
+            raise ConnectionError(f"UniFi controller unreachable: {e}") from e
 
         raise ConnectionError(f"UniFi login failed: HTTP {r.status_code}")
 
@@ -107,31 +131,58 @@ class UniFiControllerClient:
     def _api_prefix(self) -> str:
         return "/proxy/network" if self.is_unifi_os else ""
 
+    def _failed(self, path: str, exc: Exception) -> dict:
+        """The controller's own error shape, so callers see one thing.
+
+        ``meta.rc == "error"`` is how a UniFi controller reports a refusal, and
+        keeping that shape means a caller checking it catches a transport
+        failure too — rather than a transport failure arriving as some other
+        shape nobody checks for.
+        """
+        log.warning("UniFi API %s: %s", path, exc)
+        return {"data": [], "meta": {"rc": "error", "msg": str(exc)}}
+
     async def _get(self, path: str) -> dict:
+        """Retried through the shared layer.
+
+        A UniFi controller is on a customer LAN at the far end of a tunnel, and
+        it throttles — hardest on login. One attempt meant a controller that
+        answered 429 was recorded as unreachable for the whole audit.
+        """
         url = f"{self._api_prefix()}{path}"
         try:
-            r = await self._client.get(url)
+            r = await send_with_retry(
+                lambda: self._client.get(url),
+                method="GET", target=f"UniFi {path}",
+            )
             r.raise_for_status()
             return r.json()
         except httpx.HTTPStatusError as e:
             log.warning("UniFi API %s: HTTP %d", path, e.response.status_code)
             return {"data": [], "meta": {"rc": "error", "msg": str(e)}}
         except Exception as e:
-            log.warning("UniFi API %s: %s", path, e)
-            return {"data": [], "meta": {"rc": "error", "msg": str(e)}}
+            return self._failed(path, e)
 
     async def _post(self, path: str, body: dict | None = None) -> dict:
+        """Same, and the method matters here.
+
+        A POST to a controller changes something, so the retry layer will not
+        repeat it once the request has left — only a 429, or a connection that
+        never opened, gets a second attempt.
+        """
         url = f"{self._api_prefix()}{path}"
         try:
-            r = await self._client.post(url, json=body or {})
+            r = await send_with_retry(
+                lambda: self._client.post(url, json=body or {}),
+                method="POST", target=f"UniFi {path}",
+            )
             r.raise_for_status()
             return r.json()
         except httpx.HTTPStatusError as e:
             log.warning("UniFi API %s: HTTP %d", path, e.response.status_code)
             return {"data": [], "meta": {"rc": "error", "msg": str(e)}}
         except Exception as e:
-            log.warning("UniFi API %s: %s", path, e)
-            return {"data": [], "meta": {"rc": "error", "msg": str(e)}}
+            return self._failed(path, e)
 
     # ── Controller API methods ────────────────────────────────────────────
 

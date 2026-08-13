@@ -303,6 +303,43 @@ async def search_customers(
 
 # ── Unified Customer Dashboard ──────────────────────────────────────────────
 
+
+async def _read_block(
+    name: str,
+    read,
+    unavailable: dict[str, str],
+    customer_id: str,
+):
+    """Run one block's read, recording a failure rather than absorbing it.
+
+    This view used to do::
+
+        except Exception:
+            result["audit"] = None
+
+    which is the defect the audit pipeline was rebuilt to remove, still living
+    in the customer view. The consequence was not cosmetic. The front end reads
+    ``if ((a.users_no_mfa || 0) > 0)`` to build the "Krever handling" band, so a
+    failed metrics read did not show an error — it showed a customer with
+    nothing wrong. A database hiccup made a tenant look clean.
+
+    A failure now leaves the value null *and* names the block in
+    ``unavailable``, so a caller can tell "nothing configured" from "we could
+    not look". Returning null for both and letting the reader guess is what
+    this is here to stop.
+
+    Still per-block rather than letting the exception out: one unreadable
+    table should degrade one card, not take the whole customer page down.
+    """
+    try:
+        return await read()
+    except Exception as e:
+        logger.warning(
+            "Customer view: %s read failed for %s: %s", name, customer_id, e
+        )
+        unavailable[name] = str(e)[:200]
+        return None
+
 @router.get("/customer/{customer_id}/unified")
 async def customer_unified(
     customer_id: str, user=Depends(require_customer_access(Role.viewer))
@@ -364,8 +401,15 @@ async def customer_unified(
             uf[k] = cust[k]
     result["unifi"] = uf if uf else None
 
+    # Blocks whose read failed, named with the reason. A key present here means
+    # the null beside it is "we could not look", not "there is none" — see the
+    # comment on _read_block.
+    unavailable: dict[str, str] = {}
+
     # ── ALSO renewals (from DB cache) ──
-    if also_id:
+    async def _read_also():
+        if not also_id:
+            return None
         async with get_db() as db:
             async with db.execute(
                 """SELECT r.*, d.quantity, d.unit_price, d.monthly_cost, d.currency
@@ -390,7 +434,7 @@ async def customer_unified(
                 r["days_left"] = None
         expiring = [r for r in renewals if r.get("days_left") is not None and 0 <= r["days_left"] <= 90]
         expired = [r for r in renewals if r.get("days_left") is not None and r["days_left"] < 0]
-        result["also"] = {
+        return {
             "total_subscriptions": len(renewals),
             "expiring_90d": len(expiring),
             "expired": len(expired),
@@ -398,49 +442,49 @@ async def customer_unified(
             "mrr": round(sum(r.get("monthly_cost") or 0 for r in renewals), 2),
             "currency": next((r.get("currency") for r in renewals if r.get("currency")), ""),
         }
-    else:
-        result["also"] = None
+
+    result["also"] = await _read_block("also", _read_also, unavailable, customer_id)
 
     # ── SSH hosts ──
-    try:
+    async def _read_ssh_hosts():
         async with get_db() as db:
             async with db.execute(
                 "SELECT * FROM ssh_hosts WHERE customer_id = ?", (customer_id,)
             ) as cur:
                 hosts = [dict(r) for r in await cur.fetchall()]
-        result["ssh_hosts"] = hosts if hosts else None
-    except Exception as e:
-        logger.debug("SSH hosts lookup failed for customer %s: %s", customer_id, e)
-        result["ssh_hosts"] = None
+        return hosts if hosts else None
+
+    result["ssh_hosts"] = await _read_block(
+        "ssh_hosts", _read_ssh_hosts, unavailable, customer_id
+    )
 
     # ── Tailscale (match by customer name in device tags or hostname) ──
     # Not directly linked per-customer yet — set to None
     result["tailscale"] = None
 
     # ── Latest audit metrics ──
-    try:
+    async def _read_audit():
         async with get_db() as db:
             async with db.execute(
                 "SELECT * FROM audit_metrics WHERE customer_id = ? ORDER BY audit_date DESC LIMIT 1",
                 (customer_id,)
             ) as cur:
                 row = await cur.fetchone()
-                if row:
-                    m = dict(row)
-                    result["audit"] = {
-                        "risk_grade": m.get("risk_grade"),
-                        "risk_score": m.get("risk_score"),
-                        "secure_score_pct": m.get("secure_score_pct"),
-                        "mfa_coverage_pct": m.get("mfa_coverage_pct"),
-                        "total_users": m.get("total_users"),
-                        "users_no_mfa": m.get("users_no_mfa"),
-                        "admin_roles_ga_count": m.get("admin_roles_ga_count"),
-                        "audit_date": m.get("audit_date"),
-                    }
-                else:
-                    result["audit"] = None
-    except Exception as e:
-        logger.debug("Audit metrics lookup failed for customer %s: %s", customer_id, e)
-        result["audit"] = None
+        if not row:
+            return None
+        m = dict(row)
+        return {
+            "risk_grade": m.get("risk_grade"),
+            "risk_score": m.get("risk_score"),
+            "secure_score_pct": m.get("secure_score_pct"),
+            "mfa_coverage_pct": m.get("mfa_coverage_pct"),
+            "total_users": m.get("total_users"),
+            "users_no_mfa": m.get("users_no_mfa"),
+            "admin_roles_ga_count": m.get("admin_roles_ga_count"),
+            "audit_date": m.get("audit_date"),
+        }
 
+    result["audit"] = await _read_block("audit", _read_audit, unavailable, customer_id)
+
+    result["unavailable"] = unavailable
     return result

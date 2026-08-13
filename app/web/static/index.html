@@ -1406,12 +1406,64 @@
                 <div style="font-size:12px;color:var(--text-muted);" data-i18n="integ_autotask_desc">Ticket- og kundestyring</div>
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;"></span>
-              <span style="font-size:12px;color:var(--orange);" data-i18n="status_coming_soon">Kommer snart</span>
+            <div class="integ-status" id="autotask-integ-status">
+              <span class="integ-dot" id="autotask-integ-dot"></span>
+              <span class="integ-status__label" id="autotask-integ-label" data-i18n="msg_checking">Sjekker...</span>
             </div>
-            <div style="margin-top:auto;">
-              <button class="btn btn-default" disabled style="width:100%;padding:8px;font-size:13px;opacity:0.5;cursor:not-allowed;" data-i18n="btn_configure">Konfigurer</button>
+            <div class="integ-actions">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('autotask-config')" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="autotask-config" class="integ-config">
+              <label class="field-label" for="input-autotask-code" data-i18n="lbl_autotask_code">Integrasjonskode</label>
+              <input class="field-input" id="input-autotask-code" type="password" autocomplete="off">
+              <label class="field-label" for="input-autotask-user" data-i18n="lbl_autotask_user">API-brukernavn</label>
+              <input class="field-input" id="input-autotask-user" type="text" autocomplete="off">
+              <label class="field-label" for="input-autotask-secret" data-i18n="lbl_autotask_secret">Hemmelighet</label>
+              <input class="field-input" id="input-autotask-secret" type="password" autocomplete="off">
+              <!-- Ticket defaults. Status and priority are Autotask picklists,
+                   so a customised instance numbers them differently and the
+                   write side must not assume the stock values. -->
+              <div class="integ-subhead" data-i18n="hdr_ticket_defaults">Standard for nye saker</div>
+              <label class="field-label" for="input-autotask-queue" data-i18n="lbl_ticket_queue">Kø-ID</label>
+              <input class="field-input" id="input-autotask-queue" type="number" min="1">
+              <label class="field-label" for="input-autotask-priority" data-i18n="lbl_ticket_priority">Prioritet</label>
+              <input class="field-input" id="input-autotask-priority" type="number" min="1" max="4">
+              <label class="field-label" for="input-autotask-status" data-i18n="lbl_autotask_status">Status-ID</label>
+              <input class="field-input" id="input-autotask-status" type="number" min="1" max="255">
+              <div class="integ-testrow">
+                <button class="btn btn-default" data-click-handler="testAutotask" data-i18n="btn_test_connection">Test tilkobling</button>
+                <span class="integ-testresult" id="autotask-test-result"></span>
+              </div>
+            </div>
+          </div>
+          <!-- myITprocess card -->
+          <div class="card integ-card">
+            <div class="integ-head">
+              <div class="integ-logo integ-logo--mip">MP</div>
+              <div>
+                <div class="integ-name" data-i18n="integ_myitprocess">myITprocess</div>
+                <div class="integ-desc" data-i18n="integ_myitprocess_desc">Anbefalinger til kvartalsgjennomgang</div>
+              </div>
+            </div>
+            <div class="integ-status" id="myitprocess-integ-status">
+              <span class="integ-dot" id="myitprocess-integ-dot"></span>
+              <span class="integ-status__label" id="myitprocess-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div class="integ-actions">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('myitprocess-config')" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="myitprocess-config" class="integ-config">
+              <label class="field-label" for="input-myitprocess-key" data-i18n="lbl_myitprocess_key">API-nøkkel</label>
+              <input class="field-input" id="input-myitprocess-key" type="password" autocomplete="off">
+              <!-- The base URL is a setting because nothing in the client has
+                   spoken to a live instance: a wrong host must be fixable
+                   without a code change. -->
+              <label class="field-label" for="input-myitprocess-base" data-i18n="lbl_myitprocess_base">Base-URL (valgfri)</label>
+              <input class="field-input" id="input-myitprocess-base" type="text" data-i18n-placeholder="ph_myitprocess_base" autocomplete="off">
+              <div class="integ-testrow">
+                <button class="btn btn-default" data-click-handler="testMyITProcess" data-i18n="btn_test_connection">Test tilkobling</button>
+                <span class="integ-testresult" id="myitprocess-test-result"></span>
+              </div>
             </div>
           </div>
           <!-- Halo PSA card -->

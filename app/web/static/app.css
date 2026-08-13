@@ -2188,3 +2188,80 @@ body.is-readonly [data-write] { display: none !important; }
 .sm-coverage__state--full { color: var(--green); }
 .sm-coverage__state--none,
 .sm-coverage__state--direct { color: var(--text-dim); }
+
+/* ── Finding → Autotask ticket ──
+   Classes rather than inline styles: test_frontend_csp_budget.py caps the
+   inline-style debt so `style-src-attr 'unsafe-inline'` can eventually go. */
+.tk-badge {
+  font-size: var(--font-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--green);
+  color: var(--green);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.rem-ticket-btn { font-size: var(--font-xs); padding: 2px 8px; white-space: nowrap; }
+.rem-ticket-panel {
+  display: none;
+  margin-top: var(--space-2);
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.rem-ticket-panel.is-open { display: block; }
+.tk-head { font-size: var(--font-xs); font-weight: 600; margin-bottom: 6px; }
+.tk-form { display: flex; flex-direction: column; gap: 6px; }
+.tk-row { display: flex; gap: 6px; }
+.tk-label { font-size: 10px; color: var(--text-dim); }
+.tk-row .tk-label { flex: 1; }
+.tk-field {
+  font-size: var(--font-xs);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  width: 100%;
+  margin-top: 2px;
+}
+.tk-submit { font-size: var(--font-xs); padding: 3px 12px; }
+
+/* ── Autotask settings card ──
+   Classes rather than inline styles, same reason as .tk-* above. */
+.integ-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--text-dim); }
+.integ-status { display: flex; align-items: center; gap: var(--space-2); }
+.integ-status__label { font-size: var(--font-xs); color: var(--text-muted); }
+.integ-actions { margin-top: auto; }
+.integ-actions .btn { width: 100%; padding: 8px; font-size: var(--font-sm); }
+.integ-config { display: none; border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.integ-config.is-open { display: block; }
+.integ-config .field-label + .field-label,
+.integ-config .field-input + .field-label { margin-top: 10px; }
+.integ-subhead {
+  margin-top: var(--space-3);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.integ-subhead + .field-label { margin-top: 6px; }
+.integ-testrow { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.integ-testrow .btn { padding: 4px 10px; font-size: var(--font-xs); }
+.integ-testresult { font-size: var(--font-xs); color: var(--text-muted); }
+
+/* ── Integration card shell ──
+   The sibling cards still carry these as inline styles; new ones use the
+   classes so the CSP inline-style budget keeps falling. */
+.integ-card { display: flex; flex-direction: column; gap: var(--space-3); }
+.integ-head { display: flex; align-items: center; gap: var(--space-3); }
+.integ-logo {
+  width: 48px; height: 48px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.integ-logo--mip { background: linear-gradient(135deg, #1f7a5a, #37b184); }
+.integ-name { font-weight: 600; font-size: var(--font-md, 14px); }
+.integ-desc { font-size: var(--font-xs); color: var(--text-muted); }

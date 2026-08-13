@@ -160,6 +160,8 @@ var _delegatedClickHandlers = Object.freeze({
   taskSchedRefresh: function() { return taskSchedRefresh(); },
   termConnect: function() { return termConnect(); },
   termDisconnect: function() { return termDisconnect(); },
+  testAutotask: function() { return testAutotask(); },
+  testMyITProcess: function() { return testMyITProcess(); },
   testEmail: function() { return testEmail(); },
   testITGlue: function() { return testITGlue(); },
   testWebhook: function() { return testWebhook(); },
@@ -1409,9 +1411,13 @@ function switchIntegTab(btn, tabId) {
 function toggleIntegConfig(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  const isOpen = el.style.display !== 'none';
+  // Computed, not inline. A panel whose hidden state comes from a stylesheet
+  // class has an empty el.style.display, which read as "open" and made the
+  // first click close everything and open nothing.
+  const isOpen = getComputedStyle(el).display !== 'none';
   // Close all config panels first
-  ['itglue-config','email-config','webhook-config','gdap-config'].forEach(function(cid) {
+  ['itglue-config','email-config','webhook-config','gdap-config','autotask-config',
+   'myitprocess-config'].forEach(function(cid) {
     const c = document.getElementById(cid);
     if (c) c.style.display = 'none';
   });
@@ -1445,6 +1451,13 @@ async function loadIntegrationStatus() {
       label.textContent = noText || t('status_not_configured');
     }
   }
+  function _setVal(id, value) {
+    // Tolerant of a missing element, like setStatus above: this function
+    // populates several cards and a view that has not rendered one of them
+    // must not stop the rest being filled in.
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  }
   try {
     const d = await apiFetch('/api/settings');
     if (!d) return;
@@ -1453,6 +1466,22 @@ async function loadIntegrationStatus() {
     setStatus('itglue-integ-dot', 'itglue-integ-label', !!d.itglue_api_key); _integCount++; if (d.itglue_api_key) _integActive++;
     document.getElementById('input-itglue-key').value = d.itglue_api_key || '';
     document.getElementById('input-itglue-region').value = d.itglue_region || 'eu';
+    // Autotask status + populate. The two secrets come back masked, so the
+    // *_set booleans are what say whether one is stored — writing the mask
+    // into the field and saving it back would store the bullets.
+    setStatus('autotask-integ-dot', 'autotask-integ-label', !!d.autotask_secret_set);
+    _integCount++; if (d.autotask_secret_set) _integActive++;
+    _setVal('input-autotask-code', d.autotask_integration_code_set ? '••••••' : '');
+    _setVal('input-autotask-user', d.autotask_username || '');
+    _setVal('input-autotask-secret', d.autotask_secret_set ? '••••••' : '');
+    _setVal('input-autotask-queue', d.autotask_default_queue_id == null ? '' : d.autotask_default_queue_id);
+    _setVal('input-autotask-priority', d.autotask_default_priority == null ? '' : d.autotask_default_priority);
+    _setVal('input-autotask-status', d.autotask_default_status == null ? '' : d.autotask_default_status);
+    // myITprocess status + populate
+    setStatus('myitprocess-integ-dot', 'myitprocess-integ-label', !!d.myitprocess_api_key_set);
+    _integCount++; if (d.myitprocess_api_key_set) _integActive++;
+    _setVal('input-myitprocess-key', d.myitprocess_api_key_set ? '••••••' : '');
+    _setVal('input-myitprocess-base', d.myitprocess_base_url || '');
     // Email status + populate
     setStatus('email-integ-dot', 'email-integ-label', !!d.smtp_server); _integCount++; if (d.smtp_server) _integActive++;
     // ALSO status + populate
@@ -1538,6 +1567,95 @@ async function loadIntegrationStatus() {
     document.getElementById('alert-mfa-below-threshold').checked = ao.mfa_below_threshold !== false && ao.mfa_below_threshold !== 0;
     document.getElementById('alert-mfa-threshold').value = (typeof ao.mfa_below_threshold === 'number' ? ao.mfa_below_threshold : 80);
   } catch(e) { console.warn('Alert options init failed:', e); }
+}
+
+async function testMyITProcess() {
+  const out = document.getElementById('myitprocess-test-result');
+  out.textContent = t('msg_testing', 'Tester…');
+  out.style.color = 'var(--text-muted)';
+
+  // Save first, same as the Autotask card. The endpoint can test an unsaved
+  // key, but this button is the only thing on the card that writes — testing
+  // without saving would leave an operator who saw "OK" with nothing stored.
+  const saved = await _saveMyITProcessSettings();
+  if (!saved) { out.textContent = t('msg_save_failed', 'Kunne ikke lagre'); out.style.color = 'var(--red)'; return; }
+
+  const d = await apiFetch('/api/myitprocess/test', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (d && d.ok) {
+    // The field names are the point of this test — nothing in the client has
+    // met a real server, so what came back is what corrects it.
+    const fields = (d.sample_fields || []).join(', ');
+    out.textContent = t('status_ok', 'OK') + (fields ? ' — ' + fields : '');
+    out.style.color = 'var(--green)';
+  } else {
+    out.textContent = (d && d.error) || t('msg_failed', 'Feilet');
+    out.style.color = 'var(--red)';
+  }
+}
+
+async function _saveMyITProcessSettings() {
+  const val = function(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = {myitprocess_base_url: val('input-myitprocess-base')};
+  // The mask means "unchanged". Sending it back would store the bullets.
+  const key = val('input-myitprocess-key');
+  if (key && key !== '••••••') body.myitprocess_api_key = key;
+
+  const d = await apiFetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  return !!(d && !d.error);
+}
+
+async function testAutotask() {
+  const out = document.getElementById('autotask-test-result');
+  out.textContent = t('msg_testing', 'Tester…');
+  out.style.color = 'var(--text-muted)';
+
+  // Save first. Zone discovery and the query both run server-side from stored
+  // settings, so testing what is on screen means storing it — otherwise the
+  // operator tests the previous credentials and is told they work.
+  const saved = await _saveAutotaskSettings();
+  if (!saved) { out.textContent = t('msg_save_failed', 'Kunne ikke lagre'); out.style.color = 'var(--red)'; return; }
+
+  const d = await apiFetch('/api/autotask/test', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (d && d.ok) {
+    out.textContent = t('status_ok', 'OK');
+    out.style.color = 'var(--green)';
+    const dot = document.getElementById('autotask-integ-dot');
+    const label = document.getElementById('autotask-integ-label');
+    if (dot) dot.style.background = 'var(--green)';
+    if (label) { label.style.color = 'var(--green)'; label.textContent = t('status_configured'); }
+  } else {
+    out.textContent = (d && d.error) || t('msg_failed', 'Feilet');
+    out.style.color = 'var(--red)';
+  }
+}
+
+async function _saveAutotaskSettings() {
+  const val = function(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = {
+    autotask_username: val('input-autotask-user'),
+    autotask_default_queue_id: val('input-autotask-queue'),
+    autotask_default_priority: val('input-autotask-priority'),
+    autotask_default_status: val('input-autotask-status'),
+  };
+  // The mask means "unchanged". Sending it back would store the bullets as the
+  // secret, which is the classic way a settings form destroys a credential.
+  const code = val('input-autotask-code');
+  const secret = val('input-autotask-secret');
+  if (code && code !== '••••••') body.autotask_integration_code = code;
+  if (secret && secret !== '••••••') body.autotask_secret = secret;
+
+  const d = await apiFetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  return !!(d && !d.error);
 }
 
 async function saveITGlueSettings() {
@@ -2149,6 +2267,14 @@ function renderDashboard(d) {
 // ── Remediation tracking ──────────────────────────────────────────────────────
 
 let _remediationRecs = [];
+// {rec_id: ticket} for the active customer, so each row knows whether its
+// finding already went to Autotask. Fetched once per render, not per row.
+let _findingTickets = {};
+// The other bucket. Kept in its own map rather than merged into the one above:
+// a finding may legitimately have both, and one map keyed on rec_id would drop
+// whichever arrived second.
+let _findingRecs = {};
+let _ticketCustomerId = '';
 
 async function loadRemediation() {
   try {
@@ -2161,6 +2287,29 @@ async function loadRemediation() {
     if (!dashData.has_data) return;
     const recs = (dashData.metrics && dashData.metrics.recommendations) || [];
     if (recs.length === 0) return;
+
+    // /api/remediation already resolved the active customer server-side, so
+    // take the id from there rather than keeping a second copy that can drift.
+    _ticketCustomerId = remData.customer_id || '';
+    _findingTickets = {};
+    _findingRecs = {};
+    if (_ticketCustomerId) {
+      const cid = encodeURIComponent(_ticketCustomerId);
+      // Both in parallel: they are independent and the list waits for neither
+      // in particular. Settled rather than all-or-nothing, so one integration
+      // being down does not blank the state of the other.
+      const [tk, rc] = await Promise.allSettled([
+        apiFetch('/api/hub/' + cid + '/tickets'),
+        apiFetch('/api/hub/' + cid + '/recommendations'),
+      ]);
+      // A lookup that failed must not take the remediation list with it. The
+      // rows still work; they just cannot show pushed state, and a second
+      // click is refused by the server rather than by this cache.
+      if (tk.status === 'fulfilled' && tk.value) _findingTickets = tk.value.tickets || {};
+      else console.warn('ticket lookup failed:', tk.reason);
+      if (rc.status === 'fulfilled' && rc.value) _findingRecs = rc.value.recommendations || {};
+      else console.warn('recommendation lookup failed:', rc.reason);
+    }
 
     _remediationRecs = recs;
     renderRemediation(recs, remData.items || {});
@@ -2204,7 +2353,11 @@ function renderRemediation(recs, statuses) {
       + '<option value="ignored"' + (curStatus==='ignored'?' selected':'') + '>' + t('ignored') + '</option>'
       + '</select>'
       + '<input type="text" class="rem-notes-input" placeholder="' + t('tip_notes_placeholder_rem') + '" value="' + esc(notes) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex:1;min-width:80px;" />'
-      + '</div></div>'
+      + _pushControl(recId, 'ticket')
+      + _pushControl(recId, 'rec')
+      + '</div>'
+      + '<div class="rem-ticket-panel"></div>'
+      + '</div>'
       + '<span class="rem-status-badge" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;background:' + statusBg[curStatus] + ';color:' + statusColors[curStatus] + ';border:1px solid ' + statusColors[curStatus] + '30;">' + statusLabels[curStatus] + '</span>'
       + '</div>';
   }).join('');
@@ -2244,6 +2397,178 @@ function renderRemediation(recs, statuses) {
   const modulesCard = homeContent.querySelector('.card:last-child');
   if (modulesCard) {
     modulesCard.insertAdjacentHTML('beforebegin', html);
+  }
+}
+
+// ── Finding → Autotask ticket, or myITprocess recommendation ────────────────
+// Two buckets, and which one a finding belongs in is the operator's judgement:
+// a ticket is something to fix this week, a recommendation is something to
+// plan next quarter. Nothing here decides it, and nothing scheduled reaches
+// either endpoint.
+//
+// One set of functions parameterised by kind rather than two near-copies. The
+// duplicate-and-drift risk is real: the interesting behaviour — disable while
+// in flight, surface the duplicate case, swap the control for a link — is
+// identical, and only the fields and the endpoint differ.
+
+var _PUSH_KINDS = {
+  ticket: {
+    endpoint: 'tickets',
+    store: function() { return _findingTickets; },
+    badge: 'lbl_ticket_exists',
+    button: 'btn_create_ticket',
+    heading: 'hdr_new_ticket',
+    submit: 'btn_ticket_submit',
+    created: 'msg_ticket_created',
+    exists: 'msg_ticket_exists',
+    duplicate: 'msg_ticket_duplicate',
+    tip: '',
+  },
+  rec: {
+    endpoint: 'recommendations',
+    store: function() { return _findingRecs; },
+    badge: 'lbl_recommendation_exists',
+    button: 'btn_push_recommendation',
+    heading: 'hdr_new_recommendation',
+    submit: 'btn_rec_submit',
+    created: 'msg_rec_created',
+    exists: 'msg_rec_exists',
+    duplicate: 'msg_rec_duplicate',
+    tip: 'tip_push_recommendation',
+  },
+};
+
+function _pushControl(recId, kind) {
+  var cfg = _PUSH_KINDS[kind];
+  var rec = cfg.store()[recId];
+  if (rec) {
+    var label = t(cfg.badge) + ' #' + esc(rec.external_id);
+    return rec.external_url
+      ? '<a class="tk-badge push-done" data-kind="' + kind + '" href="' + esc(rec.external_url)
+        + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+      : '<span class="tk-badge push-done" data-kind="' + kind + '">' + label + '</span>';
+  }
+  if (!_ticketCustomerId) return '';
+  return '<button class="btn btn-default push-btn" data-kind="' + kind + '"'
+    + (cfg.tip ? ' title="' + esc(t(cfg.tip)) + '"' : '')
+    + ' onclick="openPushPanel(this)">' + esc(t(cfg.button)) + '</button>';
+}
+
+function openPushPanel(btn) {
+  var kind = btn.dataset.kind;
+  var cfg = _PUSH_KINDS[kind];
+  var row = btn.closest('.rem-row');
+  var panel = row.querySelector('.rem-ticket-panel');
+
+  // Same panel element for both, so opening one closes the other rather than
+  // leaving two half-filled forms on one row.
+  if (panel.classList.contains('is-open') && panel.dataset.kind === kind) {
+    panel.classList.remove('is-open');
+    return;
+  }
+  panel.dataset.kind = kind;
+
+  var title = row.querySelector('div > div').textContent || '';
+  var rec = _remediationRecs.find(function(r) { return (r.rec_id || r.title) === row.dataset.recId; }) || {};
+  var fields = kind === 'ticket'
+    ? _ticketFields(rec)
+    : _recFields(rec);
+
+  panel.innerHTML = '<div class="tk-head">' + esc(t(cfg.heading)) + '</div>'
+    + '<div class="tk-form">'
+    + '<label class="tk-label">' + esc(t('lbl_ticket_title'))
+    + '<input type="text" class="tk-field tk-title" value="' + esc(title.trim()) + '" maxlength="255" /></label>'
+    + fields
+    + '<label class="tk-label">' + esc(t('lbl_ticket_notes'))
+    + '<input type="text" class="tk-field tk-notes" maxlength="4000" placeholder="'
+    + esc(t('tip_ticket_notes')) + '" /></label>'
+    + '<div><button class="btn btn-primary tk-submit" onclick="submitPush(this)">'
+    + esc(t(cfg.submit)) + '</button></div>'
+    + '</div>';
+  panel.classList.add('is-open');
+  var titleInput = panel.querySelector('.tk-title');
+  if (titleInput) titleInput.focus();
+}
+
+function _ticketFields(rec) {
+  var prio = {critical: 1, high: 2, medium: 3, low: 4};
+  var suggested = prio[rec.priority] || 3;
+  function opt(v, label) {
+    return '<option value="' + v + '"' + (suggested === v ? ' selected' : '') + '>' + esc(label) + '</option>';
+  }
+  return '<div class="tk-row">'
+    + '<label class="tk-label">' + esc(t('lbl_ticket_priority'))
+    + '<select class="tk-field tk-priority">'
+    + opt(1, t('prio_critical')) + opt(2, t('prio_high'))
+    + opt(3, t('prio_medium')) + opt(4, t('prio_low'))
+    + '</select></label>'
+    + '<label class="tk-label">' + esc(t('lbl_ticket_queue'))
+    + '<input type="number" class="tk-field tk-queue" min="1" placeholder="—" /></label>'
+    + '</div>';
+}
+
+function _recFields(rec) {
+  // Free text, not a select. myITprocess category and priority vocabularies
+  // have not been seen from a live instance, and a dropdown of guessed values
+  // is worse than a field the operator can type the real one into.
+  return '<div class="tk-row">'
+    + '<label class="tk-label">' + esc(t('lbl_rec_category'))
+    + '<input type="text" class="tk-field tk-category" maxlength="100" placeholder="—" /></label>'
+    + '<label class="tk-label">' + esc(t('lbl_rec_priority'))
+    + '<input type="text" class="tk-field tk-rec-priority" maxlength="50" placeholder="'
+    + esc(rec.priority || '') + '" /></label>'
+    + '</div>';
+}
+
+async function submitPush(btn) {
+  var row = btn.closest('.rem-row');
+  var panel = row.querySelector('.rem-ticket-panel');
+  var kind = panel.dataset.kind;
+  var cfg = _PUSH_KINDS[kind];
+  var recId = row.dataset.recId;
+
+  function val(sel) { var el = panel.querySelector(sel); return el ? el.value.trim() : ''; }
+
+  var body = {rec_id: recId, title: val('.tk-title'), notes: val('.tk-notes')};
+  if (kind === 'ticket') {
+    var queue = val('.tk-queue');
+    body.priority = parseInt(val('.tk-priority'), 10);
+    body.queue_id = queue ? parseInt(queue, 10) : null;
+  } else {
+    body.category = val('.tk-category');
+    body.priority = val('.tk-rec-priority');
+  }
+
+  // Disabled for the duration, because the server's idempotency is the safety
+  // net and not the first line of defence — a double click should not need it.
+  btn.disabled = true;
+  try {
+    var d = await apiFetch('/api/hub/' + encodeURIComponent(_ticketCustomerId) + '/' + cfg.endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!d || !d.ok) { btn.disabled = false; return; }
+
+    cfg.store()[recId] = d.ticket;
+    panel.classList.remove('is-open');
+    panel.innerHTML = '';
+    var control = row.querySelector('.push-btn[data-kind="' + kind + '"]');
+    if (control) control.outerHTML = _pushControl(recId, kind);
+
+    if (d.duplicate_ticket_id) {
+      // A real, unowned record exists in the other system. Saying so is the
+      // point — the alternative leaves a customer to find it.
+      showToast(t(cfg.duplicate)
+        .replace('{dup}', '#' + d.duplicate_ticket_id)
+        .replace('{id}', '#' + d.ticket.external_id), 'warning');
+    } else if (d.created) {
+      showToast(t(cfg.created).replace('{id}', '#' + d.ticket.external_id), 'success');
+    } else {
+      showToast(t(cfg.exists).replace('{id}', '#' + d.ticket.external_id), 'info');
+    }
+  } catch (e) {
+    btn.disabled = false;
   }
 }
 
@@ -8647,19 +8972,48 @@ async function loadUnifiedDashboard() {
   var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
   var _ufc = d.unifi ? 'var(--green)' : 'var(--text-dim)';
   var _ufl = d.unifi ? (d.unifi.UniFiHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
+  // A block the server could not read is null, exactly like a block with
+  // nothing in it — the difference is in d.unavailable. Rendering both as
+  // "Ikke koblet" is what let a database hiccup show a customer as clean.
+  var _gone = d.unavailable || {};
+  function _failed(block) { return Object.prototype.hasOwnProperty.call(_gone, block); }
+
   var _aoc = d.also ? 'var(--green)' : 'var(--text-dim)';
   var _aol = d.also ? (d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'kr') : '')) : t('st_not_linked','Ikke koblet');
   if (d.also && (d.also.expired > 0 || d.also.expiring_90d > 0)) { _aoc = d.also.expired > 0 ? 'var(--red)' : 'var(--orange)'; }
+  if (_failed('also')) { _aoc = 'var(--orange)'; _aol = t('st_read_failed'); }
   var _sshN = d.ssh_hosts ? d.ssh_hosts.length : 0;
   var _sshc = _sshN > 0 ? 'var(--green)' : 'var(--text-dim)';
+  var _sshl = _sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none');
+  if (_failed('ssh_hosts')) { _sshc = 'var(--orange)'; _sshl = t('st_read_failed'); }
   html += '<div class="cd-chips">'
     + _cdChip('M365', _m365c, _m365l, {onclick:"showView('home')"})
     + _cdChip('FortiGate', _fgc, _fgl)
     + _cdChip('UniFi', _ufc, _ufl)
     + _cdChip('ALSO', _aoc, _aol, {onclick:"loadCustomerLicensesFromActive()"})
-    + _cdChip(t('lbl_ssh_hosts'), _sshc, (_sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none')), {onclick:"showView('hosts')"})
+    + _cdChip(t('lbl_ssh_hosts'), _sshc, _sshl, {onclick:"showView('hosts')"})
     + _cdChip('Hosting', 'var(--text-dim)', t('st_loading','Laster…'), {id:'unified-uniweb-status'})
     + '</div>';
+
+  // ── What this page could not read ──
+  // Placed above "Krever handling" on purpose. That band is built from the
+  // audit figures, so when the audit read fails it renders empty — a customer
+  // with no findings and a customer whose findings could not be loaded looked
+  // identical, and the reassuring one was the wrong answer.
+  var _blockNames = {audit: t('blk_audit'), ssh_hosts: t('blk_ssh_hosts'), also: t('blk_also')};
+  var _goneKeys = Object.keys(_gone);
+  if (_goneKeys.length) {
+    html += '<div class="cd-action-band" style="border-left:3px solid var(--orange);">'
+      + '<div class="cd-action-title">' + esc(t('hdr_incomplete_data')) + '</div>';
+    _goneKeys.forEach(function(k) {
+      var label = _blockNames[k] || k;
+      html += '<div class="cd-action-row"><span class="cd-dot" style="background:var(--orange);"></span>'
+        + '<span class="cd-action-text">'
+        + esc(t('msg_block_unavailable').replace('{block}', label))
+        + '</span></div>';
+    });
+    html += '</div>';
+  }
 
   // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
   var _find = [];

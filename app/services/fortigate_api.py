@@ -17,6 +17,7 @@ from typing import Optional
 
 from app.core.config import get_audit_dir
 from app.core.encryption import encrypted_read_text, encrypted_write_text
+from app.core.redact import redact
 from app.core.validation import (
     validate_cidr_list,
     validate_identifier,
@@ -450,7 +451,12 @@ async def factory_bootstrap(
             await _send(proc, "end")
             result["steps"].append("password_set_cli")
         else:
-            result["error"] = f"Uventet output fra FortiGate: {initial[:200]}"
+            # `initial` is raw terminal echo from a session that is mid-way
+            # through a password change. Redact before it becomes an API
+            # response.
+            result["error"] = (
+                f"Uventet output fra FortiGate: {redact(initial, new_password)[:200]}"
+            )
             conn.close()
             return result
 
@@ -493,11 +499,15 @@ async def factory_bootstrap(
         if not match:
             match = re.search(r"([A-Za-z0-9]{20,})", output)
 
-        # Mask the token before logging — never write it to msp_toolkit.log
-        masked_output = output[:400]
-        if match:
-            masked_output = masked_output.replace(match.group(1), "***REDACTED***")
-        log.info("API key output (masked): %s", masked_output)
+        # Redact once, here, and use only the redacted text from this point on.
+        # The previous version masked the *matched* key and then, in the branch
+        # below where nothing matched, returned the raw terminal output as
+        # `raw_output`. That branch runs precisely when the key did not look
+        # the way the parser expected — the case where an unmasked key is most
+        # likely to still be in the text. Masking by shape rather than by what
+        # the parser happened to find is what removes that asymmetry.
+        safe_output = redact(output, match.group(1) if match else None, new_password)
+        log.info("API key output (redacted): %s", safe_output[:400])
 
         if match:
             result["api_token"] = match.group(1)
@@ -506,12 +516,15 @@ async def factory_bootstrap(
             log.info("Factory bootstrap complete for %s", host)
         else:
             result["error"] = "Kunne ikke parse API-nøkkel fra output"
-            result["raw_output"] = output[:500]
+            result["raw_output"] = safe_output[:500]
             result["steps"].append("api_token_FAILED")
 
     except Exception as e:
-        log.warning("Factory bootstrap error: %s", e)
-        result["error"] = str(e)
+        # asyncssh puts the failing command in the exception text, and several
+        # commands above carry the new admin password.
+        message = redact(str(e), new_password)
+        log.warning("Factory bootstrap error: %s", message)
+        result["error"] = message
     finally:
         conn.close()
 

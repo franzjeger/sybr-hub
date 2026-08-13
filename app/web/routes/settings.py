@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import ValidationError as PydanticValidationError
 
 from app.core.exceptions import (
     AuthError,
@@ -14,6 +15,12 @@ from app.core.exceptions import (
     IntegrationError,
     NotFoundError,
     ValidationError,
+)
+from app.models.settings import (
+    LanguageChoice,
+    SchedulerConfig,
+    TaskSchedule,
+    WebhookTest,
 )
 from app.models.user import Role, User
 from app.web.i18n import ui_t
@@ -84,6 +91,14 @@ async def get_settings(user: User = _auth):
         "autotask_secret": "••••••" if settings.get("autotask_secret") else "",
         "autotask_secret_set": bool(settings.get("autotask_secret")),
         "autotask_zone_url": settings.get("autotask_zone_url", ""),
+        # Ticket defaults. Not secrets — these are picklist numbers the
+        # operator has to be able to see to know what a new ticket will get.
+        "autotask_default_queue_id": settings.get("autotask_default_queue_id"),
+        "autotask_default_priority": settings.get("autotask_default_priority", 2),
+        "autotask_default_status": settings.get("autotask_default_status", 1),
+        "myitprocess_api_key": "••••••" if settings.get("myitprocess_api_key") else "",
+        "myitprocess_api_key_set": bool(settings.get("myitprocess_api_key")),
+        "myitprocess_base_url": settings.get("myitprocess_base_url", ""),
         "tailscale_api_key": "••••••" if settings.get("tailscale_api_key") else "",
         "tailscale_api_key_set": bool(settings.get("tailscale_api_key")),
         "tailscale_tailnet": settings.get("tailscale_tailnet", "-"),
@@ -212,6 +227,40 @@ async def save_settings(request: Request, user: User = _admin):
         if val:
             settings[key] = val
 
+    # Autotask ticket defaults. Status and priority are picklists, so a
+    # customised instance numbers them differently and the write side must not
+    # assume the stock values. Stored as ints and validated here rather than
+    # discovered as a 400 from Autotask at the moment a technician clicks.
+    for key, low, high in (
+        ("autotask_default_queue_id", 1, 2_147_483_647),
+        ("autotask_default_priority", 1, 4),
+        ("autotask_default_status", 1, 255),
+    ):
+        if key not in body:
+            continue
+        raw = body[key]
+        if raw in (None, ""):
+            settings.pop(key, None)
+            continue
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"{key} må være et tall") from exc
+        if not low <= value <= high:
+            raise ValidationError(f"{key} må være mellom {low} og {high}")
+        settings[key] = value
+
+    # myITprocess. The base URL is a setting because nothing here has spoken to
+    # a live instance — a wrong host must be fixable without a code change.
+    for key in ("myitprocess_api_key", "myitprocess_base_url"):
+        val = body.get(key, "")
+        if isinstance(val, str):
+            val = val.strip()
+        if key == "myitprocess_api_key" and val == "••••••":
+            continue
+        if val:
+            settings[key] = val
+
     # Tailscale
     ts_key = body.get("tailscale_api_key", "").strip()
     if ts_key and ts_key != "••••••":
@@ -297,12 +346,9 @@ async def get_language(user: User = _auth):
 
 
 @router.post("/settings/language")
-async def set_language(request: Request, user: User = _admin):
+async def set_language(body: LanguageChoice, user: User = _admin):
     from app.core.config import load_app_settings, save_app_settings
-    body = await request.json()
-    lang = body.get("language", "no")
-    if lang not in ("no", "en"):
-        raise ValidationError("Ugyldig språk")
+    lang = body.language
     settings = load_app_settings()
     settings["ui_language"] = lang
     save_app_settings(settings)
@@ -318,31 +364,37 @@ async def get_scheduler(user: User = _auth):
 
 
 @router.post("/scheduler")
-async def update_scheduler(request: Request, user: User = _admin):
+async def update_scheduler(body: SchedulerConfig, user: User = _admin):
+    """Replace the scheduler block.
+
+    Takes a model rather than the raw body. This used to be
+    ``settings["scheduler"] = await request.json()`` — a JSON list made
+    ``body.get("enabled")`` raise and answered 500, and any object at all was
+    persisted under a key the scheduler reads on every tick.
+    """
     from app.core.config import load_app_settings, save_app_settings
-    body = await request.json()
     settings = load_app_settings()
-    settings["scheduler"] = body
+    settings["scheduler"] = body.model_dump()
     save_app_settings(settings)
 
     # Restart scheduler with new config
     from app.core.scheduler import scheduler
     scheduler.stop()
-    if body.get("enabled"):
+    if body.enabled:
         scheduler.start()
 
     from app.core.activity_log import log_activity
-    log_activity("scheduler_updated", detail=f"Scheduler {'aktivert' if body.get('enabled') else 'deaktivert'}")
+    log_activity(
+        "scheduler_updated",
+        detail=f"Scheduler {'aktivert' if body.enabled else 'deaktivert'}",
+    )
 
     return {"ok": True}
 
 
 @router.post("/scheduler/test-webhook")
-async def test_webhook(request: Request, user: User = _admin):
-    body = await request.json()
-    url = body.get("webhook_url", "")
-    if not url:
-        raise ValidationError(ui_t("err_no_webhook_url", request))
+async def test_webhook(body: WebhookTest, request: Request, user: User = _admin):
+    url = body.webhook_url
 
     from app.core.scheduler import AuditScheduler
     s = AuditScheduler()
@@ -382,17 +434,27 @@ async def update_task_scheduler_config(request: Request, user: User = _admin):
         save_task_scheduler_config,
     )
     body = await request.json()
+    if not isinstance(body, dict):
+        raise ValidationError("Forventet et objekt med oppgave-ID som nøkkel")
     cfg = get_task_scheduler_config()
 
-    # Body can be {"task_id": {"enabled": bool, "time": "HH:MM", ...}}
+    # Body is {"task_id": {"enabled": bool, "time": "HH:MM", ...}}. Each value
+    # is validated rather than copied: `time` reaches a scheduler that parses
+    # it, and an unparseable one used to be accepted here and fail later where
+    # nothing connected it back to this request.
     for task_id, updates in body.items():
         if task_id not in cfg:
             continue
         if not isinstance(updates, dict):
             continue
-        for key in ("enabled", "time", "day", "interval_hours"):
-            if key in updates:
-                cfg[task_id][key] = updates[key]
+        try:
+            schedule = TaskSchedule.model_validate(updates)
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                f"Ugyldig oppsett for oppgaven {task_id!r}"
+            ) from exc
+        for key, value in schedule.model_dump(exclude_none=True).items():
+            cfg[task_id][key] = value
         save_task_scheduler_config(cfg)
         restart_task(task_id)
 

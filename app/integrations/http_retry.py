@@ -16,6 +16,22 @@ out. Repeating a POST that already created an IT Glue document creates a
 second one, and nobody reconciles those. So 5xx is retried for GET alone, and
 a write that fails that way fails once and says so.
 
+**A transport error is whichever of those two the timing makes it.** This
+module used to retry every transport failure for every method, on the reasoning
+that a connection which never opened cannot have applied a write. That
+reasoning is right and the code did not implement it: ``httpx.TimeoutException``
+covers ``ReadTimeout`` as well as ``ConnectTimeout``, and a read timeout means
+the request *was* sent and the answer never came back. Retrying a device
+configuration write after one is how a firewall gets the same change twice.
+
+So transport errors are split by whether the request can have reached the
+server. ``ConnectTimeout``, ``ConnectError`` and ``PoolTimeout`` happen before
+anything is sent and stay safe for any method. Everything else — read and write
+timeouts, protocol errors, a proxy that gave up mid-flight — is treated like a
+5xx: retried for idempotent methods, raised once for the rest. It matters more
+now than when this was written, because the FortiGate and UniFi clients push
+configuration through here.
+
 Retry-After is honoured when the server sends it. Guessing a backoff while
 being told the number is how a client gets throttled twice for one mistake.
 """
@@ -33,6 +49,15 @@ logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 3
 _MAX_BACKOFF = 30.0
+
+# Transport failures that happen before any byte of the request leaves. Only
+# these are safe to repeat for a method that changes something.
+#
+# Deliberately a tuple of concrete classes rather than a base: httpx's
+# hierarchy puts ConnectTimeout and ReadTimeout under one TimeoutException, and
+# catching the base is exactly the mistake this replaces. PoolTimeout is
+# waiting for a free connection, so nothing has been sent either.
+_PRE_SEND_ERRORS = (httpx.ConnectTimeout, httpx.ConnectError, httpx.PoolTimeout)
 
 
 class RetryExhausted(Exception):
@@ -88,10 +113,18 @@ async def send_with_retry(
     for attempt in range(attempts):
         try:
             resp = await send()
-        except (httpx.TimeoutException, httpx.TransportError) as exc:
-            # A connection that never opened carries no risk of a half-applied
-            # write, so this one is safe for any method.
+        except httpx.TransportError as exc:
+            # Safe for any method only when nothing can have been sent yet.
+            # A read timeout is the dangerous one: the request went out and the
+            # answer did not come back, so the server may well have applied it.
+            unsent = isinstance(exc, _PRE_SEND_ERRORS)
             last_status = None
+            if not (unsent or idempotent):
+                logger.warning(
+                    "%s failed after the request went out (%s) — not retrying a %s",
+                    target, type(exc).__name__, method.upper(),
+                )
+                raise RetryExhausted(target, attempt + 1, None) from exc
             if attempt == attempts - 1:
                 raise RetryExhausted(target, attempts, None) from exc
             wait = _backoff(attempt, None)

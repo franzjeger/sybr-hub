@@ -16,6 +16,8 @@ from typing import Optional
 
 import httpx
 
+from app.integrations.http_retry import RetryExhausted, send_with_retry
+
 log = logging.getLogger(__name__)
 
 
@@ -54,11 +56,27 @@ class FortiGateClient:
     # ── Core request methods ──────────────────────────────────────────────
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
-        """Raw GET request. Returns parsed JSON."""
+        """Raw GET request. Returns parsed JSON, or ``{"error": ...}``.
+
+        Retried through the shared layer rather than tried once. A FortiGate
+        sits at the far end of a VPN tunnel to a customer site, so a transient
+        connection failure is routine in a way it is not for a SaaS API — and
+        the audit that gives up on the first one reports a firewall as
+        unreadable when a second attempt two seconds later would have worked.
+
+        A read is always safe to repeat, so this asks for no special handling
+        beyond naming its method.
+        """
         try:
-            r = await self._client.get(path, params=params)
+            r = await send_with_retry(
+                lambda: self._client.get(path, params=params),
+                method="GET", target=f"FortiGate {path}",
+            )
             r.raise_for_status()
             return r.json()
+        except RetryExhausted as e:
+            log.warning("FortiGate API %s: %s", path, e)
+            return {"error": str(e)}
         except httpx.HTTPStatusError as e:
             log.warning("FortiGate API %s: HTTP %d", path, e.response.status_code)
             return {"error": f"HTTP {e.response.status_code}"}
