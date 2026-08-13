@@ -5,6 +5,35 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### En transportfeil er det tidspunktet gjør den til
+
+- `send_with_retry` fanget `httpx.TimeoutException` og prøvde på nytt for alle
+  metoder, med begrunnelsen at en tilkobling som aldri åpnet ikke kan ha utført
+  en skriving. Begrunnelsen er riktig; koden gjorde ikke det den sa.
+  `TimeoutException` dekker `ReadTimeout` like mye som `ConnectTimeout`, og en
+  read timeout betyr at forespørselen *ble* sendt og at svaret forsvant.
+- Transportfeil skilles nå på om forespørselen kan ha nådd fram.
+  `ConnectTimeout`, `ConnectError` og `PoolTimeout` skjer før noe sendes og er
+  fortsatt trygge for alle metoder. Alt annet behandles som en 5xx: gjentas for
+  idempotente metoder, feiler én gang for resten.
+- Det betyr mer nå enn da hjelperen ble skrevet, fordi FortiGate- og
+  UniFi-klientene sender konfigurasjonsendringer gjennom den. «Svaret forsvant»
+  og «gjør det en gang til» er ikke det samme på en brannmur.
+
+### FortiGate og UniFi prøver ikke lenger bare én gang
+
+- Begge klientene går nå gjennom `send_with_retry`. De snakker med utstyr i
+  enden av en VPN-tunnel til et kundelokale, der en forbigående feil er
+  normalen og ikke unntaket — en audit som ga opp på første forsøk rapporterte
+  en brannmur som uleselig når et nytt forsøk to sekunder senere hadde virket.
+- UniFi-innlogging spesielt: det er kallet en controller strupes hardest på, og
+  det første hver audit gjør. En strupet innlogging kostet hele sitet.
+  429 gjentas uansett metode, som er nettopp dette tilfellet.
+- «Uleselig» og «feil passord» er nå to forskjellige meldinger.
+- Site Manager-lesingene mot `api.ui.com` er også dekket.
+- En ratchet-test krever at hver upstream-klient går gjennom laget. Graph er
+  eksplisitt unntatt og navngitt som det, siden den har sin egen backoff.
+
 ### Den andre bøtta: noe som skal planlegges, ikke fikses denne uka
 
 - «Til planlegging» ved siden av «Opprett sak» på hvert funn.

@@ -26,6 +26,7 @@ from app.core.name_match import (
     normalise_org_name,
     score_name_match,
 )
+from app.integrations.http_retry import send_with_retry
 from app.modules.unifi_audit.client import UniFiControllerClient, UniFiDirectDevice
 from app.modules.unifi_audit.firmware_db import check_firmware
 
@@ -684,14 +685,22 @@ async def site_manager_list_sites(
     async with httpx.AsyncClient(timeout=30.0) as http:
         try:
             # Fetch hosts (consoles) — has real names and WAN IPs
-            r_hosts = await http.get(_UI_HOSTS_URL, headers=headers)
+            # ui.com rate-limits, and this is the first call of a sync.
+            # One attempt meant a throttled tenant reported "no consoles".
+            r_hosts = await send_with_retry(
+                lambda: http.get(_UI_HOSTS_URL, headers=headers),
+                method="GET", target="UniFi Site Manager hosts",
+            )
             if r_hosts.status_code == 401:
                 return {"ok": False, "error": "API-nøkkel ugyldig eller utløpt"}
             r_hosts.raise_for_status()
             hosts = r_hosts.json().get("data", [])
 
             # Fetch sites for device/client counts
-            r_sites = await http.get(_UI_SITES_URL, headers=headers)
+            r_sites = await send_with_retry(
+                lambda: http.get(_UI_SITES_URL, headers=headers),
+                method="GET", target="UniFi Site Manager sites",
+            )
             sites_by_host: dict[str, list] = {}
             if r_sites.status_code == 200:
                 for s in r_sites.json().get("data", []):
@@ -935,7 +944,10 @@ async def get_all_devices(host_id: Optional[str] = None) -> dict[str, Any]:
             url = _UI_DEVICES_URL
             if host_id:
                 url += f"?hostIds[]={host_id}"
-            r = await http.get(url, headers=headers)
+            r = await send_with_retry(
+                lambda: http.get(url, headers=headers),
+                method="GET", target="UniFi Site Manager devices",
+            )
             if r.status_code == 401:
                 return {"ok": False, "error": "API-nøkkel ugyldig"}
             r.raise_for_status()
