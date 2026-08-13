@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -437,6 +437,26 @@ _MIGRATIONS: list = [
         17,
         "System account — an identity for work nobody is watching, which cannot sign in",
         _add_is_system_column,
+    ),
+    (
+        18,
+        "External tickets raised from a finding, so a second click does not raise a second ticket",
+        """
+        CREATE TABLE IF NOT EXISTS finding_tickets (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id  TEXT NOT NULL,
+            rec_id       TEXT NOT NULL,
+            system       TEXT NOT NULL,
+            external_id  TEXT NOT NULL,
+            external_url TEXT NOT NULL DEFAULT '',
+            title        TEXT NOT NULL DEFAULT '',
+            created_at   TEXT NOT NULL,
+            created_by   TEXT NOT NULL DEFAULT '',
+            UNIQUE(customer_id, rec_id, system)
+        );
+        CREATE INDEX IF NOT EXISTS idx_finding_tickets_customer
+            ON finding_tickets(customer_id);
+        """,
     ),
 ]
 

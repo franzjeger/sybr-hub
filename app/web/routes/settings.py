@@ -91,6 +91,11 @@ async def get_settings(user: User = _auth):
         "autotask_secret": "••••••" if settings.get("autotask_secret") else "",
         "autotask_secret_set": bool(settings.get("autotask_secret")),
         "autotask_zone_url": settings.get("autotask_zone_url", ""),
+        # Ticket defaults. Not secrets — these are picklist numbers the
+        # operator has to be able to see to know what a new ticket will get.
+        "autotask_default_queue_id": settings.get("autotask_default_queue_id"),
+        "autotask_default_priority": settings.get("autotask_default_priority", 2),
+        "autotask_default_status": settings.get("autotask_default_status", 1),
         "tailscale_api_key": "••••••" if settings.get("tailscale_api_key") else "",
         "tailscale_api_key_set": bool(settings.get("tailscale_api_key")),
         "tailscale_tailnet": settings.get("tailscale_tailnet", "-"),
@@ -218,6 +223,29 @@ async def save_settings(request: Request, user: User = _admin):
             continue
         if val:
             settings[key] = val
+
+    # Autotask ticket defaults. Status and priority are picklists, so a
+    # customised instance numbers them differently and the write side must not
+    # assume the stock values. Stored as ints and validated here rather than
+    # discovered as a 400 from Autotask at the moment a technician clicks.
+    for key, low, high in (
+        ("autotask_default_queue_id", 1, 2_147_483_647),
+        ("autotask_default_priority", 1, 4),
+        ("autotask_default_status", 1, 255),
+    ):
+        if key not in body:
+            continue
+        raw = body[key]
+        if raw in (None, ""):
+            settings.pop(key, None)
+            continue
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"{key} må være et tall") from exc
+        if not low <= value <= high:
+            raise ValidationError(f"{key} må være mellom {low} og {high}")
+        settings[key] = value
 
     # Tailscale
     ts_key = body.get("tailscale_api_key", "").strip()

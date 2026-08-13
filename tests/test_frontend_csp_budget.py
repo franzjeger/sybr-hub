@@ -12,7 +12,11 @@ SOURCES = [*STATIC.glob("*.html"), *STATIC.glob("*.js")]
 # CSP now distinguishes attributes from executable elements, and these budgets
 # prevent the temporary attribute exceptions from becoming permanent growth.
 INLINE_EVENT_HANDLER_BUDGET = 706
-INLINE_STYLE_ATTRIBUTE_BUDGET = 4631
+# Lowered from 4631 when the ticket panel was built: it was written with inline
+# styles first, hit this ceiling, and was rebuilt on classes in app.css. A
+# budget that is not lowered when the number falls stops being a ratchet and
+# becomes headroom for the next person.
+INLINE_STYLE_ATTRIBUTE_BUDGET = 4614
 
 
 def _count(pattern: str) -> int:

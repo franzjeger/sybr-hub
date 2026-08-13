@@ -61,17 +61,29 @@ treat the first real run as the verification and expect to adjust names.
 
 The "Create Ticket from Finding" button actually creates tickets.
 
-- [ ] `AutotaskClient.create_ticket` — raises today (`autotask.py`)
-- [ ] `POST /hub/{id}/findings/{finding_id}/create-ticket` — 501 today,
-      and its role floor is `viewer`; writing into a customer's PSA needs
-      technician on top of the `can_write` grant the middleware applies
-- [ ] Title / description pre-fill from finding context. `finding_id` is
-      already the stable key the report generator and `remediation_items`
-      both use, so the resolution is a lookup rather than a new model
-- [ ] Idempotency — `remediation_items` has no column for an external
-      ticket id, so this needs a migration
-- [ ] Operator chooses Queue + Priority in a modal before submit. There
-      is no button in the front end at all yet
+- [x] `AutotaskClient.create_ticket`, never retried on a 5xx — that rule
+      exists so a POST which applied the write and failed on the way out
+      does not become a second ticket
+- [x] `POST /hub/{id}/tickets`, technician floor plus the `can_write`
+      grant. `rec_id` travels in the body, not the path: it is built from
+      a message key plus params carrying tenant data, and a path segment
+      cannot safely hold one
+- [x] Title / description pre-fill from finding context, with the source
+      run and `rec_id` in the ticket body — a ticket outlives the report
+- [x] Idempotency on `UNIQUE(customer_id, rec_id, system)` (migration 18).
+      A lost race reports the orphaned ticket id rather than hiding it
+- [x] Operator chooses title, queue and priority in an inline panel
+- [x] A real settings form on the Autotask card — it was "Kommer snart"
+      behind a disabled button, so nowhere in the product could anyone
+      enter the credentials the endpoint needs
+- [x] `tests/test_autotask_write_side.py` asserts no unattended module can
+      reach the write side, which is what keeps the workshop's rule true
+
+**Unverified against a live instance.** The ticket field names come from
+Autotask's published reference. Run `/api/autotask/test` first and compare
+`sample_fields`; expect to adjust. `autotask_default_queue_id`,
+`autotask_default_priority` and `autotask_default_status` are settings
+because status and priority are picklists a customised instance renumbers.
 
 ## v0.4.0 — myITprocess integration
 

@@ -84,3 +84,28 @@ class LanguageChoice(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     language: str = Field(default="no", pattern=r"^(no|en)$")
+
+
+class CreateTicketRequest(BaseModel):
+    """One audit finding, on its way to becoming one Autotask ticket.
+
+    ``rec_id`` is in the body rather than the URL because it is built from a
+    message key plus the params that identify the finding, and those params
+    carry tenant data — a domain, an app registration's name. A path segment
+    cannot safely hold one.
+
+    ``title`` and ``queue_id`` are optional overrides for the modal: the
+    operator may reword the summary before it lands in a customer's PSA, and
+    may route it somewhere other than the configured default queue. Everything
+    unset falls back to the finding and the settings.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    rec_id: str = Field(min_length=1, max_length=512)
+    title: str = Field(default="", max_length=255)
+    notes: str = Field(default="", max_length=4000)
+    # Autotask priority is a picklist; 1-4 covers a stock install and a wrong
+    # number is a 400 from Autotask rather than a wrong ticket.
+    priority: int | None = Field(default=None, ge=1, le=4)
+    queue_id: int | None = Field(default=None, ge=1)

@@ -5,8 +5,12 @@ Workshop intent (do not deviate):
     WRITE: CreateTicket — always manual, never automatic.
 
 Automatic ticket creation was explicitly rejected in the workshop; operator
-discretion is part of the workflow. The write side is still unimplemented and
-raises, deliberately.
+discretion is part of the workflow. ``create_ticket`` is wired, and what keeps
+that promise is not in this file: the endpoint that calls it requires an
+authenticated technician with the ``can_write`` grant, and
+``tests/test_autotask_write_side.py`` asserts no scheduled or background module
+imports it. This client will create a ticket for anyone who calls it, which is
+why the guard belongs where callers are.
 
 **Naming.** Autotask's UI and its old SOAP API say "Account". The REST API
 calls the same record a **Company**, and every URL here uses that. The methods
@@ -29,7 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -44,6 +48,16 @@ _ZONE_URL = "https://webservices.autotask.net/atservicesrest/v1.0/zoneInformatio
 
 # Autotask caps a query page at 500 and rejects more with a 400.
 _MAX_PAGE = 500
+
+# Autotask's documented field limits. Exceeding either is a 400 that costs a
+# round-trip to discover, and the text we send is a report paragraph.
+_MAX_TITLE = 255
+_MAX_DESCRIPTION = 8000
+
+# Ticket status 1 is "New" in a stock Autotask install. It is a picklist, so a
+# customised instance may number it differently — which is why the route takes
+# it as a setting rather than assuming this everywhere.
+_STATUS_NEW = 1
 
 
 class AutotaskError(Exception):
@@ -80,7 +94,7 @@ class AutotaskClient:
             timeout=30.0,
         )
 
-    async def __aenter__(self) -> "AutotaskClient":
+    async def __aenter__(self) -> AutotaskClient:
         return self
 
     async def __aexit__(self, *_) -> None:
@@ -155,7 +169,7 @@ class AutotaskClient:
 
     # ── READ ──────────────────────────────────────────────────────────────
 
-    async def get_account(self, account_id: int) -> Optional[dict[str, Any]]:
+    async def get_account(self, account_id: int) -> dict[str, Any] | None:
         """One Company by id, or None when nothing matched.
 
         None means the query ran and found nothing. Anything that stopped the
@@ -184,7 +198,7 @@ class AutotaskClient:
             )
         return await self._query("Companies", filters, page_size=limit)
 
-    async def get_contract(self, contract_id: int) -> Optional[dict[str, Any]]:
+    async def get_contract(self, contract_id: int) -> dict[str, Any] | None:
         """One Contract by id, or None when nothing matched."""
         items = await self._query(
             "Contracts",
@@ -242,17 +256,83 @@ class AutotaskClient:
         description: str,
         *,
         priority: int = 2,
-        queue_id: Optional[int] = None,
-        contract_id: Optional[int] = None,
+        status: int = _STATUS_NEW,
+        queue_id: int | None = None,
+        contract_id: int | None = None,
     ) -> int:
-        """Create a ticket for a company. Not implemented.
+        """Create a ticket for a company. Returns the new ticket id.
 
-        Left raising on purpose. The workshop put operator discretion in the
-        loop, and the read side has not been confirmed against a live instance
-        — writing into a customer's PSA on the strength of field names nobody
-        has checked is not a thing to do quietly.
+        **Never retried on a 5xx.** ``send_with_retry`` retries 5xx for
+        idempotent methods only, and this is the reason that rule exists: an
+        Autotask POST that applied the write and then failed on the way out
+        would, on retry, create a second ticket for the same finding, and
+        nobody reconciles those. A 429 is still retried — the request was
+        refused before it was processed, so repeating it changes nothing but
+        the timing.
+
+        Title and description are truncated to Autotask's documented limits
+        rather than sent long and refused. A finding's detail text is written
+        for a report page and routinely exceeds 8000 characters; losing the
+        tail of it is better than losing the ticket.
         """
-        raise NotImplementedError(
-            "AutotaskClient.create_ticket: implement in the write-side PR, "
-            "after the read side has been confirmed against a live instance."
-        )
+        if not self.zone_url:
+            await self.discover_zone()
+
+        body: dict[str, Any] = {
+            "companyID": account_id,
+            "title": title[:_MAX_TITLE],
+            "description": description[:_MAX_DESCRIPTION],
+            "priority": priority,
+            "status": status,
+        }
+        if queue_id is not None:
+            body["queueID"] = queue_id
+        if contract_id is not None:
+            body["contractID"] = contract_id
+
+        url = f"{self.zone_url}/V1.0/Tickets"
+        try:
+            resp = await send_with_retry(
+                lambda: self._client.post(url, content=json.dumps(body)),
+                method="POST", target="Autotask Tickets create",
+            )
+        except RetryExhausted as exc:
+            raise AutotaskError(str(exc)) from exc
+
+        if resp.status_code == 401:
+            raise AutotaskError(
+                "Autotask refused the credentials (401). The API user needs "
+                "create access to Tickets, which is a separate grant from read."
+            )
+        if resp.status_code >= 400:
+            raise AutotaskError(
+                f"Autotask ticket creation failed with {resp.status_code}: "
+                f"{resp.text[:300]}"
+            )
+
+        data = resp.json()
+        ticket_id = (data or {}).get("itemId")
+        if not isinstance(ticket_id, int):
+            # Autotask answers a create with {"itemId": N}. Anything else means
+            # we do not know whether a ticket exists, and returning a plausible
+            # zero would let the caller record a ticket that is not there.
+            raise AutotaskError(
+                f"Autotask accepted the ticket but returned no usable id: "
+                f"{str(data)[:200]}"
+            )
+        return ticket_id
+
+    def ticket_url(self, ticket_id: int) -> str:
+        """Best-effort deep link into the Autotask UI for a ticket.
+
+        Built rather than fetched, and best-effort on purpose: the zone URL is
+        the API host, and the UI host follows the same numbering in every
+        deployment seen so far. If it turns out wrong somewhere, a link that
+        does not resolve is a smaller problem than an extra API round-trip on
+        every ticket, and the id beside it is still correct.
+        """
+        if not self.zone_url:
+            return ""
+        host = self.zone_url.split("/atservicesrest")[0]
+        host = host.replace("webservices", "ww")
+        return f"{host}/Mvc/ServiceDesk/TicketDetail.mvc?ticketId={ticket_id}"

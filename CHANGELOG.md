@@ -5,6 +5,45 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Ett funn blir én sak, og bare en operatør kan gjøre det
+
+- «Opprett sak» på en anbefaling oppretter nå en Autotask-sak.
+  `POST /hub/{id}/tickets` krever technician *og* `can_write`-tildelingen —
+  stubben hadde `viewer` som gulv, som ville sluppet en lesekonto til å skrive
+  inn i en kundes PSA i det øyeblikket den sluttet å være en stubb.
+- Verkstedets regel om at ingenting automatisk oppretter saker holdes ikke av
+  klienten — den lager en sak for hvem som helst som kaller den. Den holdes av
+  endepunktet, og av en test som feiler hvis en uovervåket modul
+  (scheduler, site collector, alert engine) importerer skrive-siden.
+- Idempotens ligger i `UNIQUE(customer_id, rec_id, system)` (migrasjon 18), ikke
+  i en sjekk i Python: to teknikere som klikker samtidig får begge tomt svar på
+  et `SELECT` og setter begge inn. Taper man kappløpet, finnes saken likevel i
+  Autotask — den rapporteres med ID i stedet for å skjules, for ellers er det
+  kunden som finner den.
+- Nøkkelen er `rec_id`, ikke `finding_id`. Flere anbefalinger deler
+  `finding-email`, så en sak per `finding_id` ville blitt én sak for fire
+  domener. `rec_id` ligger i request-body og ikke i URL-en: den bygges av
+  meldingsnøkkel pluss parametere som bærer tenant-data, og et path-segment kan
+  ikke trygt holde et domenenavn eller et app-registreringsnavn.
+- Saken bærer hvilken kjøring funnet kom fra. En sak lever lenger enn rapporten,
+  og uten det er det første teknikeren gjør å kjøre auditen på nytt for å finne
+  ut hva saken betyr.
+- En POST retries aldri på 5xx. Det er hele grunnen til at `send_with_retry`
+  skiller på metode: en skriving som ble utført og så feilet på vei ut ville
+  blitt sak nummer to.
+- Autotask-kortet under Integrasjoner sto som «Kommer snart» bak en deaktivert
+  knapp, så det fantes ingen steder i produktet å legge inn legitimasjonen
+  endepunktet trenger. Kortet har nå et ekte skjema, og «Test tilkobling»
+  lagrer før den tester — ellers tester man forrige legitimasjon og får vite at
+  den virker.
+- Kø, prioritet og status kan settes som standard, fordi status og prioritet er
+  plukklister en tilpasset Autotask-instans nummererer annerledes. Ugyldige
+  verdier avvises når de lagres, ikke som en 400 fra Autotask i det øyeblikket
+  teknikeren klikker på en skjerm som ikke har noe med innstillinger å gjøre.
+- `toggleIntegConfig` leste `el.style.display`, som er tom for et panel skjult
+  av en stilarkklasse — første klikk lukket alt og åpnet ingenting. Den leser
+  nå den beregnede verdien.
+
 ### Et passord skal ikke krysse en linje som ikke kan bære det
 
 - Plain-HTTP-innlogging fra en annen maskin avvises nå med 403. README har

@@ -43,6 +43,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from app.models.settings import CreateTicketRequest
 from app.models.user import Role, User
 from app.web.middleware.auth import require_customer_access
 
@@ -259,26 +260,160 @@ async def link_customer_records(
     return {"ok": True, "changed": changed}
 
 
+@router.get("/hub/{customer_id}/tickets")
+async def list_customer_tickets(
+    customer_id: str,
+    user: User = Depends(require_customer_access()),
+) -> dict[str, Any]:
+    """{rec_id: ticket} for this customer, so a findings list can mark them all.
+
+    One query rather than one per finding: the remediation view renders every
+    recommendation at once, and asking per row is how a list view becomes
+    twenty round-trips.
+    """
+    from app.services.finding_tickets import list_tickets
+
+    return {"customer_id": customer_id, "tickets": await list_tickets(customer_id)}
+
+
 @router.post(
-    "/hub/{customer_id}/findings/{finding_id}/create-ticket",
+    "/hub/{customer_id}/tickets",
     status_code=status.HTTP_201_CREATED,
 )
 async def create_ticket_from_finding(
     customer_id: str,
-    finding_id: str,
-    user: User = Depends(require_customer_access()),
+    body: CreateTicketRequest,
+    request: Request,
+    user: User = Depends(require_customer_access(Role.technician)),
 ) -> dict[str, Any]:
-    """Convert an audit finding into an Autotask ticket.
+    """Raise one Autotask ticket for one audit finding.
 
-    Operator-only — the dependency on get_current_user is the guard
-    that prevents scheduled-audit code paths from invoking this.
+    **Operator-initiated, and three separate things keep it that way.** The
+    role floor is technician — it was ``viewer`` while this was a stub, which
+    would have let a read-only account write into a customer's PSA the moment
+    it stopped being one. ``WriteGuardMiddleware`` requires the ``can_write``
+    grant on top, because this path is not in its exemption table. And nothing
+    scheduled imports the client;
+    ``tests/test_autotask_write_side.py`` asserts that rather than trusting it.
 
-    Stub: 501 Not Implemented until the Autotask write-side PR.
+    ``rec_id`` arrives in the body, not the path. It is built from message key
+    plus identifying params, and those params carry tenant data — an app
+    registration's name, a domain — so a path segment cannot safely hold one.
+
+    Idempotent by the identity of the finding. A second click returns the
+    first ticket with ``created: false`` rather than raising another; the
+    uniqueness is a database constraint, not a check in Python, because two
+    technicians clicking at once fit neatly between a SELECT and an INSERT.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Autotask CreateTicket not yet wired. See ROADMAP.md.",
+    from app.core.activity_log import log_activity
+    from app.core.config import load_app_settings
+    from app.core.customer import CustomerManager
+    from app.core.exceptions import IntegrationError, NotFoundError, ValidationError
+    from app.integrations.autotask import AutotaskError
+    from app.services.finding_tickets import (
+        SYSTEM_AUTOTASK,
+        find_recommendation,
+        get_ticket,
+        record_ticket,
     )
+    from app.web.i18n import get_ui_lang
+    from app.web.routes.autotask import _client_from_settings
+
+    customer = CustomerManager.get_customer(customer_id)
+    if customer is None:
+        raise NotFoundError(f"No such customer: {customer_id}")
+
+    account_id = customer.get(_AUTOTASK_ID)
+    if not account_id:
+        raise ValidationError(
+            "Denne kunden er ikke koblet til en Autotask-konto. "
+            "Koble den først under Hub → kobling."
+        )
+
+    # Already raised? Answer before touching Autotask, so a double click costs
+    # nothing and cannot fail halfway.
+    existing = await get_ticket(customer_id, body.rec_id, SYSTEM_AUTOTASK)
+    if existing is not None:
+        return {"ok": True, "created": False, "ticket": existing.as_dict()}
+
+    finding = find_recommendation(customer_id, body.rec_id, get_ui_lang(request))
+    if finding is None:
+        raise NotFoundError(
+            f"Fant ikke anbefalingen {body.rec_id!r} i siste audit for denne kunden."
+        )
+
+    settings = load_app_settings()
+    client = _client_from_settings(request)
+    try:
+        ticket_id = await client.create_ticket(
+            account_id=int(account_id),
+            title=body.title or finding.title,
+            description=_ticket_description(finding, body.notes),
+            priority=body.priority or int(settings.get("autotask_default_priority", 2)),
+            status=int(settings.get("autotask_default_status", 1)),
+            queue_id=body.queue_id if body.queue_id is not None
+            else settings.get("autotask_default_queue_id"),
+            contract_id=customer.get("AutotaskContractId"),
+        )
+        ticket_url = client.ticket_url(ticket_id)
+    except AutotaskError as exc:
+        raise IntegrationError(f"Autotask avviste saken: {exc}") from exc
+    finally:
+        await client.close()
+
+    record, is_ours = await record_ticket(
+        customer_id=customer_id,
+        rec_id=body.rec_id,
+        system=SYSTEM_AUTOTASK,
+        external_id=str(ticket_id),
+        external_url=ticket_url,
+        title=body.title or finding.title,
+        created_by=user.username,
+    )
+
+    log_activity(
+        "autotask_ticket_created",
+        detail=f"{body.rec_id} -> Autotask #{ticket_id}",
+        customer=customer.get("CustomerName", ""),
+        user=user.username,
+    )
+
+    if not is_ours:
+        # Another request won the race. Our ticket exists in Autotask and is
+        # not the one on record, so say so with the id — silently returning
+        # theirs would leave a real ticket nobody knows about.
+        logger.warning(
+            "Duplicate Autotask ticket %s for %s (kept %s)",
+            ticket_id, body.rec_id, record.external_id,
+        )
+        return {
+            "ok": True,
+            "created": False,
+            "ticket": record.as_dict(),
+            "duplicate_ticket_id": str(ticket_id),
+        }
+
+    return {"ok": True, "created": True, "ticket": record.as_dict()}
+
+
+def _ticket_description(finding, notes: str) -> str:
+    """The ticket body: what the audit found, plus anything the operator added.
+
+    The provenance line is not decoration. A ticket outlives the report it came
+    from, and a technician picking it up three weeks later needs to know which
+    run said this and which finding it was — otherwise the first thing they do
+    is re-run the audit to find out.
+    """
+    parts = [finding.detail.strip()]
+    if notes.strip():
+        parts += ["", "── Fra operatør ──", notes.strip()]
+    parts += [
+        "",
+        "── Kilde ──",
+        f"Sybr HUB-anbefaling: {finding.rec_id}",
+        f"Fra audit: {finding.audit_date}",
+    ]
+    return "\n".join(parts)
 
 
 @router.post(
