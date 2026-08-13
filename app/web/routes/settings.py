@@ -96,6 +96,9 @@ async def get_settings(user: User = _auth):
         "autotask_default_queue_id": settings.get("autotask_default_queue_id"),
         "autotask_default_priority": settings.get("autotask_default_priority", 2),
         "autotask_default_status": settings.get("autotask_default_status", 1),
+        "myitprocess_api_key": "••••••" if settings.get("myitprocess_api_key") else "",
+        "myitprocess_api_key_set": bool(settings.get("myitprocess_api_key")),
+        "myitprocess_base_url": settings.get("myitprocess_base_url", ""),
         "tailscale_api_key": "••••••" if settings.get("tailscale_api_key") else "",
         "tailscale_api_key_set": bool(settings.get("tailscale_api_key")),
         "tailscale_tailnet": settings.get("tailscale_tailnet", "-"),
@@ -246,6 +249,17 @@ async def save_settings(request: Request, user: User = _admin):
         if not low <= value <= high:
             raise ValidationError(f"{key} må være mellom {low} og {high}")
         settings[key] = value
+
+    # myITprocess. The base URL is a setting because nothing here has spoken to
+    # a live instance — a wrong host must be fixable without a code change.
+    for key in ("myitprocess_api_key", "myitprocess_base_url"):
+        val = body.get(key, "")
+        if isinstance(val, str):
+            val = val.strip()
+        if key == "myitprocess_api_key" and val == "••••••":
+            continue
+        if val:
+            settings[key] = val
 
     # Tailscale
     ts_key = body.get("tailscale_api_key", "").strip()

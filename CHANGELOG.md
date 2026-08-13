@@ -5,6 +5,31 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Den andre bøtta: noe som skal planlegges, ikke fikses denne uka
+
+- «Til planlegging» ved siden av «Opprett sak» på hvert funn.
+  `POST /hub/{id}/recommendations` med samme vakter som saks-endepunktet, og de
+  deler `_push_finding` — de sju stegene rundt selve kallet er identiske, og
+  kappløps-håndteringen er subtil nok til at en kopi nummer to ville vært en
+  ny sjanse til å ta feil.
+- Unikheten er per system, så ett funn kan bli både en sak og en anbefaling —
+  et DKIM-hull kan fikses denne uka *og* planlegges ordentlig neste kvartal.
+  To anbefalinger for samme funn kan det derimot ikke bli: de havner i kundens
+  kvartalsgjennomgang som to punkter ingen klarer å skille.
+- `list_tickets` er nå scopet på system. Én dict nøklet på `rec_id` på tvers av
+  begge ville stille mistet den raden databasen returnerte sist.
+
+**Verifikasjonen er svakere enn Autotasks, og forskjellen er verdt å vite.**
+Autotask-klienten ble skrevet mot en publisert REST-referanse noen hadde lest.
+Denne ble ikke det: `app.myitprocess.com` var ikke nåbar fra miljøet den ble
+bygget i, så forespørselsformen kommer fra kontrakten den gamle stubben
+erklærte. Koden er derfor skrevet for å være *diagnostiserbar* i stedet for
+selvsikker — base-URL er en innstilling, ID-en leses fra en kort liste
+kandidatnøkler i stedet for én gjetning, et svar den ikke kjenner igjen sier hva
+den faktisk fikk, og kategori og prioritet er fritekst fordi en nedtrekksliste
+med gjettet vokabular er verre enn et felt du kan skrive den ekte verdien i.
+Kjør `/api/myitprocess/test` først; den rapporterer feltnavnene som kom tilbake.
+
 ### Ett funn blir én sak, og bare en operatør kan gjøre det
 
 - «Opprett sak» på en anbefaling oppretter nå en Autotask-sak.

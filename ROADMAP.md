@@ -89,10 +89,33 @@ because status and priority are picklists a customised instance renumbers.
 
 Findings that need planning rather than immediate action.
 
-- [ ] `MyITProcessClient.list_accounts` + customer binding
-- [ ] `MyITProcessClient.create_recommendation`
-- [ ] "Push to myITprocess as Recommendation" button on findings
-- [ ] Operator picks category + priority
+- [x] `MyITProcessClient.list_accounts` + `MyITProcessAccountId` binding
+      through `POST /hub/{id}/link`
+- [x] `MyITProcessClient.create_recommendation`, never retried on a 5xx
+- [x] "Til planlegging" button beside the ticket button on every finding
+- [x] Operator picks category + priority (free text — see below)
+- [x] `POST /hub/{id}/recommendations`, technician plus `can_write`, sharing
+      `_push_finding` with the ticket endpoint so the duplicate-race handling
+      exists once rather than twice
+- [x] Idempotent per system, so one finding may be both a ticket and a
+      recommendation but never two recommendations
+
+**Weaker verification than Autotask, and the difference matters.** The Autotask
+client was written against a published REST reference somebody had read. This
+one was not: `app.myitprocess.com` was unreachable from the environment it was
+built in, so the request shape comes from the contract the old stub declared.
+
+What that changes in the code, deliberately:
+
+- the base URL is a setting, so a wrong host is a settings change;
+- the created id is read from a short list of candidate keys rather than one
+  guess, and an unrecognised response says what it actually got;
+- a collection is accepted bare or wrapped;
+- category and priority are free text, because a dropdown of guessed
+  vocabulary is worse than a field holding the real value;
+- `/api/myitprocess/test` reports the field names that came back.
+
+Run that test first. Expect to change something.
 
 ## v0.5.0 — RMM deep-link
 

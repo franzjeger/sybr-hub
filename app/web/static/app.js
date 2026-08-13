@@ -161,6 +161,7 @@ var _delegatedClickHandlers = Object.freeze({
   termConnect: function() { return termConnect(); },
   termDisconnect: function() { return termDisconnect(); },
   testAutotask: function() { return testAutotask(); },
+  testMyITProcess: function() { return testMyITProcess(); },
   testEmail: function() { return testEmail(); },
   testITGlue: function() { return testITGlue(); },
   testWebhook: function() { return testWebhook(); },
@@ -1415,7 +1416,8 @@ function toggleIntegConfig(id) {
   // first click close everything and open nothing.
   const isOpen = getComputedStyle(el).display !== 'none';
   // Close all config panels first
-  ['itglue-config','email-config','webhook-config','gdap-config','autotask-config'].forEach(function(cid) {
+  ['itglue-config','email-config','webhook-config','gdap-config','autotask-config',
+   'myitprocess-config'].forEach(function(cid) {
     const c = document.getElementById(cid);
     if (c) c.style.display = 'none';
   });
@@ -1475,6 +1477,11 @@ async function loadIntegrationStatus() {
     _setVal('input-autotask-queue', d.autotask_default_queue_id == null ? '' : d.autotask_default_queue_id);
     _setVal('input-autotask-priority', d.autotask_default_priority == null ? '' : d.autotask_default_priority);
     _setVal('input-autotask-status', d.autotask_default_status == null ? '' : d.autotask_default_status);
+    // myITprocess status + populate
+    setStatus('myitprocess-integ-dot', 'myitprocess-integ-label', !!d.myitprocess_api_key_set);
+    _integCount++; if (d.myitprocess_api_key_set) _integActive++;
+    _setVal('input-myitprocess-key', d.myitprocess_api_key_set ? '••••••' : '');
+    _setVal('input-myitprocess-base', d.myitprocess_base_url || '');
     // Email status + populate
     setStatus('email-integ-dot', 'email-integ-label', !!d.smtp_server); _integCount++; if (d.smtp_server) _integActive++;
     // ALSO status + populate
@@ -1560,6 +1567,46 @@ async function loadIntegrationStatus() {
     document.getElementById('alert-mfa-below-threshold').checked = ao.mfa_below_threshold !== false && ao.mfa_below_threshold !== 0;
     document.getElementById('alert-mfa-threshold').value = (typeof ao.mfa_below_threshold === 'number' ? ao.mfa_below_threshold : 80);
   } catch(e) { console.warn('Alert options init failed:', e); }
+}
+
+async function testMyITProcess() {
+  const out = document.getElementById('myitprocess-test-result');
+  out.textContent = t('msg_testing', 'Tester…');
+  out.style.color = 'var(--text-muted)';
+
+  // Save first, same as the Autotask card. The endpoint can test an unsaved
+  // key, but this button is the only thing on the card that writes — testing
+  // without saving would leave an operator who saw "OK" with nothing stored.
+  const saved = await _saveMyITProcessSettings();
+  if (!saved) { out.textContent = t('msg_save_failed', 'Kunne ikke lagre'); out.style.color = 'var(--red)'; return; }
+
+  const d = await apiFetch('/api/myitprocess/test', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (d && d.ok) {
+    // The field names are the point of this test — nothing in the client has
+    // met a real server, so what came back is what corrects it.
+    const fields = (d.sample_fields || []).join(', ');
+    out.textContent = t('status_ok', 'OK') + (fields ? ' — ' + fields : '');
+    out.style.color = 'var(--green)';
+  } else {
+    out.textContent = (d && d.error) || t('msg_failed', 'Feilet');
+    out.style.color = 'var(--red)';
+  }
+}
+
+async function _saveMyITProcessSettings() {
+  const val = function(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = {myitprocess_base_url: val('input-myitprocess-base')};
+  // The mask means "unchanged". Sending it back would store the bullets.
+  const key = val('input-myitprocess-key');
+  if (key && key !== '••••••') body.myitprocess_api_key = key;
+
+  const d = await apiFetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  return !!(d && !d.error);
 }
 
 async function testAutotask() {
@@ -2223,6 +2270,10 @@ let _remediationRecs = [];
 // {rec_id: ticket} for the active customer, so each row knows whether its
 // finding already went to Autotask. Fetched once per render, not per row.
 let _findingTickets = {};
+// The other bucket. Kept in its own map rather than merged into the one above:
+// a finding may legitimately have both, and one map keyed on rec_id would drop
+// whichever arrived second.
+let _findingRecs = {};
 let _ticketCustomerId = '';
 
 async function loadRemediation() {
@@ -2241,16 +2292,23 @@ async function loadRemediation() {
     // take the id from there rather than keeping a second copy that can drift.
     _ticketCustomerId = remData.customer_id || '';
     _findingTickets = {};
+    _findingRecs = {};
     if (_ticketCustomerId) {
-      try {
-        const tk = await apiFetch('/api/hub/' + encodeURIComponent(_ticketCustomerId) + '/tickets');
-        _findingTickets = (tk && tk.tickets) || {};
-      } catch (e) {
-        // A ticket lookup that failed must not take the remediation list with
-        // it. The rows still work; they just cannot show ticket state, and a
-        // second click is refused by the server rather than by this cache.
-        console.warn('ticket lookup failed:', e);
-      }
+      const cid = encodeURIComponent(_ticketCustomerId);
+      // Both in parallel: they are independent and the list waits for neither
+      // in particular. Settled rather than all-or-nothing, so one integration
+      // being down does not blank the state of the other.
+      const [tk, rc] = await Promise.allSettled([
+        apiFetch('/api/hub/' + cid + '/tickets'),
+        apiFetch('/api/hub/' + cid + '/recommendations'),
+      ]);
+      // A lookup that failed must not take the remediation list with it. The
+      // rows still work; they just cannot show pushed state, and a second
+      // click is refused by the server rather than by this cache.
+      if (tk.status === 'fulfilled' && tk.value) _findingTickets = tk.value.tickets || {};
+      else console.warn('ticket lookup failed:', tk.reason);
+      if (rc.status === 'fulfilled' && rc.value) _findingRecs = rc.value.recommendations || {};
+      else console.warn('recommendation lookup failed:', rc.reason);
     }
 
     _remediationRecs = recs;
@@ -2295,7 +2353,8 @@ function renderRemediation(recs, statuses) {
       + '<option value="ignored"' + (curStatus==='ignored'?' selected':'') + '>' + t('ignored') + '</option>'
       + '</select>'
       + '<input type="text" class="rem-notes-input" placeholder="' + t('tip_notes_placeholder_rem') + '" value="' + esc(notes) + '" onchange="updateRemediation(this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex:1;min-width:80px;" />'
-      + _ticketControl(recId, title)
+      + _pushControl(recId, 'ticket')
+      + _pushControl(recId, 'rec')
       + '</div>'
       + '<div class="rem-ticket-panel"></div>'
       + '</div>'
@@ -2341,103 +2400,172 @@ function renderRemediation(recs, statuses) {
   }
 }
 
-// ── Finding → Autotask ticket ────────────────────────────────────────────────
-// Operator-initiated, which is the whole design: nothing scheduled creates a
-// ticket, so this button is the only way one comes into existence. The panel
-// exists because the two things the operator has to decide — which queue, and
-// whether the finding's own wording is the right summary for a customer's PSA
-// — are decisions, not defaults.
+// ── Finding → Autotask ticket, or myITprocess recommendation ────────────────
+// Two buckets, and which one a finding belongs in is the operator's judgement:
+// a ticket is something to fix this week, a recommendation is something to
+// plan next quarter. Nothing here decides it, and nothing scheduled reaches
+// either endpoint.
+//
+// One set of functions parameterised by kind rather than two near-copies. The
+// duplicate-and-drift risk is real: the interesting behaviour — disable while
+// in flight, surface the duplicate case, swap the control for a link — is
+// identical, and only the fields and the endpoint differ.
 
-function _ticketControl(recId, title) {
-  const tk = _findingTickets[recId];
-  if (tk) {
-    const label = t('lbl_ticket_exists') + ' #' + esc(tk.external_id);
-    return tk.external_url
-      ? '<a class="tk-badge rem-ticket-link" href="' + esc(tk.external_url)
+var _PUSH_KINDS = {
+  ticket: {
+    endpoint: 'tickets',
+    store: function() { return _findingTickets; },
+    badge: 'lbl_ticket_exists',
+    button: 'btn_create_ticket',
+    heading: 'hdr_new_ticket',
+    submit: 'btn_ticket_submit',
+    created: 'msg_ticket_created',
+    exists: 'msg_ticket_exists',
+    duplicate: 'msg_ticket_duplicate',
+    tip: '',
+  },
+  rec: {
+    endpoint: 'recommendations',
+    store: function() { return _findingRecs; },
+    badge: 'lbl_recommendation_exists',
+    button: 'btn_push_recommendation',
+    heading: 'hdr_new_recommendation',
+    submit: 'btn_rec_submit',
+    created: 'msg_rec_created',
+    exists: 'msg_rec_exists',
+    duplicate: 'msg_rec_duplicate',
+    tip: 'tip_push_recommendation',
+  },
+};
+
+function _pushControl(recId, kind) {
+  var cfg = _PUSH_KINDS[kind];
+  var rec = cfg.store()[recId];
+  if (rec) {
+    var label = t(cfg.badge) + ' #' + esc(rec.external_id);
+    return rec.external_url
+      ? '<a class="tk-badge push-done" data-kind="' + kind + '" href="' + esc(rec.external_url)
         + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
-      : '<span class="tk-badge rem-ticket-link">' + label + '</span>';
+      : '<span class="tk-badge push-done" data-kind="' + kind + '">' + label + '</span>';
   }
   if (!_ticketCustomerId) return '';
-  return '<button class="btn btn-default rem-ticket-btn" onclick="openTicketPanel(this)">'
-    + esc(t('btn_create_ticket')) + '</button>';
+  return '<button class="btn btn-default push-btn" data-kind="' + kind + '"'
+    + (cfg.tip ? ' title="' + esc(t(cfg.tip)) + '"' : '')
+    + ' onclick="openPushPanel(this)">' + esc(t(cfg.button)) + '</button>';
 }
 
-function openTicketPanel(btn) {
-  const row = btn.closest('.rem-row');
-  const panel = row.querySelector('.rem-ticket-panel');
-  if (panel.classList.contains('is-open')) { panel.classList.remove('is-open'); return; }
+function openPushPanel(btn) {
+  var kind = btn.dataset.kind;
+  var cfg = _PUSH_KINDS[kind];
+  var row = btn.closest('.rem-row');
+  var panel = row.querySelector('.rem-ticket-panel');
 
-  const title = row.querySelector('div > div').textContent || '';
-  const prio = {critical: 1, high: 2, medium: 3, low: 4};
-  const rec = _remediationRecs.find(function(r) { return (r.rec_id || r.title) === row.dataset.recId; }) || {};
-  const suggested = prio[rec.priority] || 3;
-  function _opt(v, label) {
-    return '<option value="' + v + '"' + (suggested === v ? ' selected' : '') + '>' + esc(label) + '</option>';
+  // Same panel element for both, so opening one closes the other rather than
+  // leaving two half-filled forms on one row.
+  if (panel.classList.contains('is-open') && panel.dataset.kind === kind) {
+    panel.classList.remove('is-open');
+    return;
   }
+  panel.dataset.kind = kind;
 
-  panel.innerHTML = '<div class="tk-head">' + esc(t('hdr_new_ticket')) + '</div>'
+  var title = row.querySelector('div > div').textContent || '';
+  var rec = _remediationRecs.find(function(r) { return (r.rec_id || r.title) === row.dataset.recId; }) || {};
+  var fields = kind === 'ticket'
+    ? _ticketFields(rec)
+    : _recFields(rec);
+
+  panel.innerHTML = '<div class="tk-head">' + esc(t(cfg.heading)) + '</div>'
     + '<div class="tk-form">'
     + '<label class="tk-label">' + esc(t('lbl_ticket_title'))
     + '<input type="text" class="tk-field tk-title" value="' + esc(title.trim()) + '" maxlength="255" /></label>'
-    + '<div class="tk-row">'
-    + '<label class="tk-label">' + esc(t('lbl_ticket_priority'))
-    + '<select class="tk-field tk-priority">'
-    + _opt(1, t('prio_critical')) + _opt(2, t('prio_high'))
-    + _opt(3, t('prio_medium')) + _opt(4, t('prio_low'))
-    + '</select></label>'
-    + '<label class="tk-label">' + esc(t('lbl_ticket_queue'))
-    + '<input type="number" class="tk-field tk-queue" min="1" placeholder="—" /></label>'
-    + '</div>'
+    + fields
     + '<label class="tk-label">' + esc(t('lbl_ticket_notes'))
     + '<input type="text" class="tk-field tk-notes" maxlength="4000" placeholder="'
     + esc(t('tip_ticket_notes')) + '" /></label>'
-    + '<div><button class="btn btn-primary tk-submit" onclick="createTicketFromFinding(this)">'
-    + esc(t('btn_ticket_submit')) + '</button></div>'
+    + '<div><button class="btn btn-primary tk-submit" onclick="submitPush(this)">'
+    + esc(t(cfg.submit)) + '</button></div>'
     + '</div>';
   panel.classList.add('is-open');
-  const titleInput = panel.querySelector('.tk-title');
+  var titleInput = panel.querySelector('.tk-title');
   if (titleInput) titleInput.focus();
 }
 
-async function createTicketFromFinding(btn) {
-  const row = btn.closest('.rem-row');
-  const panel = row.querySelector('.rem-ticket-panel');
-  const recId = row.dataset.recId;
-  const queue = panel.querySelector('.tk-queue').value;
+function _ticketFields(rec) {
+  var prio = {critical: 1, high: 2, medium: 3, low: 4};
+  var suggested = prio[rec.priority] || 3;
+  function opt(v, label) {
+    return '<option value="' + v + '"' + (suggested === v ? ' selected' : '') + '>' + esc(label) + '</option>';
+  }
+  return '<div class="tk-row">'
+    + '<label class="tk-label">' + esc(t('lbl_ticket_priority'))
+    + '<select class="tk-field tk-priority">'
+    + opt(1, t('prio_critical')) + opt(2, t('prio_high'))
+    + opt(3, t('prio_medium')) + opt(4, t('prio_low'))
+    + '</select></label>'
+    + '<label class="tk-label">' + esc(t('lbl_ticket_queue'))
+    + '<input type="number" class="tk-field tk-queue" min="1" placeholder="—" /></label>'
+    + '</div>';
+}
+
+function _recFields(rec) {
+  // Free text, not a select. myITprocess category and priority vocabularies
+  // have not been seen from a live instance, and a dropdown of guessed values
+  // is worse than a field the operator can type the real one into.
+  return '<div class="tk-row">'
+    + '<label class="tk-label">' + esc(t('lbl_rec_category'))
+    + '<input type="text" class="tk-field tk-category" maxlength="100" placeholder="—" /></label>'
+    + '<label class="tk-label">' + esc(t('lbl_rec_priority'))
+    + '<input type="text" class="tk-field tk-rec-priority" maxlength="50" placeholder="'
+    + esc(rec.priority || '') + '" /></label>'
+    + '</div>';
+}
+
+async function submitPush(btn) {
+  var row = btn.closest('.rem-row');
+  var panel = row.querySelector('.rem-ticket-panel');
+  var kind = panel.dataset.kind;
+  var cfg = _PUSH_KINDS[kind];
+  var recId = row.dataset.recId;
+
+  function val(sel) { var el = panel.querySelector(sel); return el ? el.value.trim() : ''; }
+
+  var body = {rec_id: recId, title: val('.tk-title'), notes: val('.tk-notes')};
+  if (kind === 'ticket') {
+    var queue = val('.tk-queue');
+    body.priority = parseInt(val('.tk-priority'), 10);
+    body.queue_id = queue ? parseInt(queue, 10) : null;
+  } else {
+    body.category = val('.tk-category');
+    body.priority = val('.tk-rec-priority');
+  }
 
   // Disabled for the duration, because the server's idempotency is the safety
   // net and not the first line of defence — a double click should not need it.
   btn.disabled = true;
   try {
-    const d = await apiFetch('/api/hub/' + encodeURIComponent(_ticketCustomerId) + '/tickets', {
+    var d = await apiFetch('/api/hub/' + encodeURIComponent(_ticketCustomerId) + '/' + cfg.endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        rec_id: recId,
-        title: panel.querySelector('.tk-title').value,
-        notes: panel.querySelector('.tk-notes').value,
-        priority: parseInt(panel.querySelector('.tk-priority').value, 10),
-        queue_id: queue ? parseInt(queue, 10) : null,
-      }),
+      body: JSON.stringify(body),
     });
     if (!d || !d.ok) { btn.disabled = false; return; }
 
-    _findingTickets[recId] = d.ticket;
+    cfg.store()[recId] = d.ticket;
     panel.classList.remove('is-open');
     panel.innerHTML = '';
-    const control = row.querySelector('.rem-ticket-btn');
-    if (control) control.outerHTML = _ticketControl(recId, '');
+    var control = row.querySelector('.push-btn[data-kind="' + kind + '"]');
+    if (control) control.outerHTML = _pushControl(recId, kind);
 
     if (d.duplicate_ticket_id) {
-      // A real, unowned ticket exists in Autotask. Saying so is the point —
-      // the alternative leaves a customer to find it.
-      showToast(t('msg_ticket_duplicate')
+      // A real, unowned record exists in the other system. Saying so is the
+      // point — the alternative leaves a customer to find it.
+      showToast(t(cfg.duplicate)
         .replace('{dup}', '#' + d.duplicate_ticket_id)
         .replace('{id}', '#' + d.ticket.external_id), 'warning');
     } else if (d.created) {
-      showToast(t('msg_ticket_created').replace('{id}', '#' + d.ticket.external_id), 'success');
+      showToast(t(cfg.created).replace('{id}', '#' + d.ticket.external_id), 'success');
     } else {
-      showToast(t('msg_ticket_exists').replace('{id}', '#' + d.ticket.external_id), 'info');
+      showToast(t(cfg.exists).replace('{id}', '#' + d.ticket.external_id), 'info');
     }
   } catch (e) {
     btn.disabled = false;

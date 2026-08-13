@@ -9,13 +9,20 @@ Aggregates what is known about one customer:
 
 Plus two action endpoints (manual operator clicks only):
 
-    POST /api/hub/{customer_id}/findings/{finding_id}/create-ticket
-        → Autotask CreateTicket
-    POST /api/hub/{customer_id}/findings/{finding_id}/push-to-myitprocess
-        → myITprocess CreateRecommendation
+    POST /api/hub/{customer_id}/tickets
+        → Autotask ticket — something to fix this week
+    POST /api/hub/{customer_id}/recommendations
+        → myITprocess Recommendation — something to plan next quarter
 
-Both actions are guarded so a scheduled audit cannot trigger them — they must
-originate from an authenticated operator request.
+Which bucket a finding belongs in is the operator's judgement and is not
+encoded anywhere. Both are guarded so a scheduled audit cannot trigger them:
+technician floor, the ``can_write`` grant from ``WriteGuardMiddleware``, and a
+test asserting no unattended module imports either client. Both share
+``_push_finding`` rather than being two copies of the same seven steps.
+
+``rec_id`` travels in the body of both, never the path — it is built from a
+message key plus params carrying tenant data, and a path segment cannot hold a
+domain or an app registration's name safely.
 
 **Every source carries its own status.** This route returned a fixed shape of
 nulls and called itself the front-end's single source of truth, which meant a
@@ -41,9 +48,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
-from app.models.settings import CreateTicketRequest
+from app.models.settings import CreateRecommendationRequest, CreateTicketRequest
 from app.models.user import Role, User
 from app.web.middleware.auth import require_customer_access
 
@@ -55,6 +62,7 @@ router = APIRouter()
 # extra keys survive. Named here so a typo cannot silently mean "not linked".
 _AUTOTASK_ID = "AutotaskAccountId"
 _ITGLUE_ID = "ITGlueOrgId"
+_MYITPROCESS_ID = "MyITProcessAccountId"
 
 
 def _blank(status_name: str, reason: str = "") -> dict[str, Any]:
@@ -72,17 +80,16 @@ async def _audit_block(customer_id: str, customer_name: str) -> dict[str, Any]:
     """
     from app.core.database import get_db
 
-    async with get_db() as conn:
-        async with conn.execute(
-            """SELECT audit_date, risk_grade, risk_score, mfa_coverage_pct,
+    async with get_db() as conn, conn.execute(
+        """SELECT audit_date, risk_grade, risk_score, mfa_coverage_pct,
                       secure_score_pct, total_users, users_no_mfa,
                       ca_policies_enabled, intune_compliance_pct
                FROM audit_metrics
                WHERE customer_id = ? OR customer_name = ?
                ORDER BY audit_date DESC LIMIT 1""",
-            (customer_id, customer_name or customer_id),
-        ) as cur:
-            row = await cur.fetchone()
+        (customer_id, customer_name or customer_id),
+    ) as cur:
+        row = await cur.fetchone()
 
     if row is None:
         return _blank("never_run")
@@ -175,6 +182,28 @@ async def _itglue_block(customer: dict) -> dict[str, Any]:
     }
 
 
+def _myitprocess_block(customer: dict) -> dict[str, Any]:
+    """Configured, bound, or neither — no network call.
+
+    Unlike the Autotask block this does not fetch the account. A read here
+    would cost a round-trip on every page load to confirm something the
+    binding already asserts, and the client has never spoken to a live
+    instance, so a failed read would report "unavailable" about a tenant that
+    is fine far more often than it would find a real problem.
+    """
+    from app.core.config import load_app_settings
+
+    settings = load_app_settings()
+    if not settings.get("myitprocess_api_key"):
+        return _blank("not_configured")
+
+    account_id = customer.get(_MYITPROCESS_ID)
+    if not account_id:
+        return _blank("not_linked")
+
+    return {"status": "ok", "account_id": account_id}
+
+
 def _rmm_block() -> dict[str, Any]:
     # app/integrations/rmm.py is a URL-builder interface with no backend behind
     # it. Reporting "not configured" would invite someone to go looking for the
@@ -206,6 +235,7 @@ async def get_customer_hub(
         "audit": await _audit_block(customer_id, customer_name),
         "autotask": await _autotask_block(customer),
         "itglue": await _itglue_block(customer),
+        "myitprocess": _myitprocess_block(customer),
         "rmm": _rmm_block(),
     }
 
@@ -251,9 +281,22 @@ async def link_customer_records(
             customer[_ITGLUE_ID] = str(value)
         changed.append("itglue")
 
+    if "myitprocess_account_id" in body:
+        # Kept as a string rather than coerced to int like Autotask's: the
+        # myITprocess account identifier has not been seen from a live
+        # instance, and narrowing a type on an assumption is how a valid id
+        # gets rejected at the binding step with no way to tell why.
+        value = body["myitprocess_account_id"]
+        if value in (None, ""):
+            customer.pop(_MYITPROCESS_ID, None)
+        else:
+            customer[_MYITPROCESS_ID] = str(value)
+        changed.append("myitprocess")
+
     if not changed:
         raise ValidationError(
-            "Send autotask_account_id and/or itglue_org_id to change a binding."
+            "Send autotask_account_id, itglue_org_id and/or "
+            "myitprocess_account_id to change a binding."
         )
 
     CustomerManager.save_customer({k: v for k, v in customer.items() if not k.startswith("_")})
@@ -276,6 +319,122 @@ async def list_customer_tickets(
     return {"customer_id": customer_id, "tickets": await list_tickets(customer_id)}
 
 
+async def _push_finding(
+    *,
+    customer_id: str,
+    rec_id: str,
+    request: Request,
+    username: str,
+    system: str,
+    binding_key: str,
+    not_linked: str,
+    activity_action: str,
+    system_label: str,
+    title_override: str,
+    push,
+) -> dict[str, Any]:
+    """The half of a push that is the same whichever system it goes to.
+
+    Both integrations do the identical seven steps around one different call:
+    find the customer, check the binding, answer early if this finding was
+    already pushed, resolve the finding from the latest run, push, record under
+    a uniqueness constraint, log it. Written twice, those seven drift — the
+    duplicate-race handling in particular is subtle enough that a second copy
+    would be a second chance to get it wrong.
+
+    ``push(finding, account_id, title)`` does the part that differs and returns
+    ``(external_id, external_url)``. It is responsible for turning its own
+    integration's error type into an ``IntegrationError``, because only it
+    knows what that type is.
+    """
+    from app.core.activity_log import log_activity
+    from app.core.customer import CustomerManager
+    from app.core.exceptions import NotFoundError, ValidationError
+    from app.services.finding_tickets import (
+        find_recommendation,
+        get_ticket,
+        record_ticket,
+    )
+    from app.web.i18n import get_ui_lang
+
+    customer = CustomerManager.get_customer(customer_id)
+    if customer is None:
+        raise NotFoundError(f"No such customer: {customer_id}")
+
+    account_id = customer.get(binding_key)
+    if not account_id:
+        raise ValidationError(not_linked)
+
+    # Already pushed? Answer before touching the network, so a double click
+    # costs nothing and cannot fail halfway.
+    existing = await get_ticket(customer_id, rec_id, system)
+    if existing is not None:
+        return {"ok": True, "created": False, "ticket": existing.as_dict()}
+
+    finding = find_recommendation(customer_id, rec_id, get_ui_lang(request))
+    if finding is None:
+        raise NotFoundError(
+            f"Fant ikke anbefalingen {rec_id!r} i siste audit for denne kunden."
+        )
+
+    title = title_override or finding.title
+    external_id, external_url = await push(finding, account_id, title)
+
+    record, is_ours = await record_ticket(
+        customer_id=customer_id,
+        rec_id=rec_id,
+        system=system,
+        external_id=str(external_id),
+        external_url=external_url,
+        title=title,
+        created_by=username,
+    )
+
+    log_activity(
+        activity_action,
+        detail=f"{rec_id} -> {system_label} #{external_id}",
+        customer=customer.get("CustomerName", ""),
+        user=username,
+    )
+
+    if not is_ours:
+        # Another request won the race. What we created is real and is not the
+        # one on record, so say so with the id — silently returning theirs
+        # would leave something nobody knows about in a customer's system.
+        logger.warning(
+            "Duplicate %s record %s for %s (kept %s)",
+            system_label, external_id, rec_id, record.external_id,
+        )
+        return {
+            "ok": True,
+            "created": False,
+            "ticket": record.as_dict(),
+            "duplicate_ticket_id": str(external_id),
+        }
+
+    return {"ok": True, "created": True, "ticket": record.as_dict()}
+
+
+def _push_description(finding, notes: str) -> str:
+    """The body text: what the audit found, plus anything the operator added.
+
+    The provenance line is not decoration. A ticket or a recommendation
+    outlives the report it came from, and whoever picks it up three weeks later
+    needs to know which run said this and which finding it was — otherwise the
+    first thing they do is re-run the audit to find out.
+    """
+    parts = [finding.detail.strip()]
+    if notes.strip():
+        parts += ["", "── Fra operatør ──", notes.strip()]
+    parts += [
+        "",
+        "── Kilde ──",
+        f"Sybr HUB-anbefaling: {finding.rec_id}",
+        f"Fra audit: {finding.audit_date}",
+    ]
+    return "\n".join(parts)
+
+
 @router.post(
     "/hub/{customer_id}/tickets",
     status_code=status.HTTP_201_CREATED,
@@ -286,7 +445,7 @@ async def create_ticket_from_finding(
     request: Request,
     user: User = Depends(require_customer_access(Role.technician)),
 ) -> dict[str, Any]:
-    """Raise one Autotask ticket for one audit finding.
+    """Raise one Autotask ticket for one audit finding — something to fix now.
 
     **Operator-initiated, and three separate things keep it that way.** The
     role floor is technician — it was ``viewer`` while this was a stub, which
@@ -305,134 +464,137 @@ async def create_ticket_from_finding(
     uniqueness is a database constraint, not a check in Python, because two
     technicians clicking at once fit neatly between a SELECT and an INSERT.
     """
-    from app.core.activity_log import log_activity
     from app.core.config import load_app_settings
     from app.core.customer import CustomerManager
-    from app.core.exceptions import IntegrationError, NotFoundError, ValidationError
+    from app.core.exceptions import IntegrationError
     from app.integrations.autotask import AutotaskError
-    from app.services.finding_tickets import (
-        SYSTEM_AUTOTASK,
-        find_recommendation,
-        get_ticket,
-        record_ticket,
-    )
-    from app.web.i18n import get_ui_lang
+    from app.services.finding_tickets import SYSTEM_AUTOTASK
     from app.web.routes.autotask import _client_from_settings
 
-    customer = CustomerManager.get_customer(customer_id)
-    if customer is None:
-        raise NotFoundError(f"No such customer: {customer_id}")
-
-    account_id = customer.get(_AUTOTASK_ID)
-    if not account_id:
-        raise ValidationError(
-            "Denne kunden er ikke koblet til en Autotask-konto. "
-            "Koble den først under Hub → kobling."
-        )
-
-    # Already raised? Answer before touching Autotask, so a double click costs
-    # nothing and cannot fail halfway.
-    existing = await get_ticket(customer_id, body.rec_id, SYSTEM_AUTOTASK)
-    if existing is not None:
-        return {"ok": True, "created": False, "ticket": existing.as_dict()}
-
-    finding = find_recommendation(customer_id, body.rec_id, get_ui_lang(request))
-    if finding is None:
-        raise NotFoundError(
-            f"Fant ikke anbefalingen {body.rec_id!r} i siste audit for denne kunden."
-        )
-
     settings = load_app_settings()
-    client = _client_from_settings(request)
-    try:
-        ticket_id = await client.create_ticket(
-            account_id=int(account_id),
-            title=body.title or finding.title,
-            description=_ticket_description(finding, body.notes),
-            priority=body.priority or int(settings.get("autotask_default_priority", 2)),
-            status=int(settings.get("autotask_default_status", 1)),
-            queue_id=body.queue_id if body.queue_id is not None
-            else settings.get("autotask_default_queue_id"),
-            contract_id=customer.get("AutotaskContractId"),
-        )
-        ticket_url = client.ticket_url(ticket_id)
-    except AutotaskError as exc:
-        raise IntegrationError(f"Autotask avviste saken: {exc}") from exc
-    finally:
-        await client.close()
+    customer = CustomerManager.get_customer(customer_id) or {}
 
-    record, is_ours = await record_ticket(
+    async def _push(finding, account_id, title):
+        client = _client_from_settings(request)
+        try:
+            ticket_id = await client.create_ticket(
+                account_id=int(account_id),
+                title=title,
+                description=_push_description(finding, body.notes),
+                priority=body.priority
+                or int(settings.get("autotask_default_priority", 2)),
+                status=int(settings.get("autotask_default_status", 1)),
+                queue_id=body.queue_id if body.queue_id is not None
+                else settings.get("autotask_default_queue_id"),
+                contract_id=customer.get("AutotaskContractId"),
+            )
+            return ticket_id, client.ticket_url(ticket_id)
+        except AutotaskError as exc:
+            raise IntegrationError(f"Autotask avviste saken: {exc}") from exc
+        finally:
+            await client.close()
+
+    return await _push_finding(
         customer_id=customer_id,
         rec_id=body.rec_id,
+        request=request,
+        username=user.username,
         system=SYSTEM_AUTOTASK,
-        external_id=str(ticket_id),
-        external_url=ticket_url,
-        title=body.title or finding.title,
-        created_by=user.username,
+        binding_key=_AUTOTASK_ID,
+        not_linked="Denne kunden er ikke koblet til en Autotask-konto. "
+                   "Koble den først under Hub → kobling.",
+        activity_action="autotask_ticket_created",
+        system_label="Autotask",
+        title_override=body.title,
+        push=_push,
     )
 
-    log_activity(
-        "autotask_ticket_created",
-        detail=f"{body.rec_id} -> Autotask #{ticket_id}",
-        customer=customer.get("CustomerName", ""),
-        user=user.username,
-    )
 
-    if not is_ours:
-        # Another request won the race. Our ticket exists in Autotask and is
-        # not the one on record, so say so with the id — silently returning
-        # theirs would leave a real ticket nobody knows about.
-        logger.warning(
-            "Duplicate Autotask ticket %s for %s (kept %s)",
-            ticket_id, body.rec_id, record.external_id,
-        )
-        return {
-            "ok": True,
-            "created": False,
-            "ticket": record.as_dict(),
-            "duplicate_ticket_id": str(ticket_id),
-        }
+@router.get("/hub/{customer_id}/recommendations")
+async def list_customer_recommendations(
+    customer_id: str,
+    user: User = Depends(require_customer_access()),
+) -> dict[str, Any]:
+    """{rec_id: pushed recommendation} for this customer."""
+    from app.services.finding_tickets import SYSTEM_MYITPROCESS, list_tickets
 
-    return {"ok": True, "created": True, "ticket": record.as_dict()}
-
-
-def _ticket_description(finding, notes: str) -> str:
-    """The ticket body: what the audit found, plus anything the operator added.
-
-    The provenance line is not decoration. A ticket outlives the report it came
-    from, and a technician picking it up three weeks later needs to know which
-    run said this and which finding it was — otherwise the first thing they do
-    is re-run the audit to find out.
-    """
-    parts = [finding.detail.strip()]
-    if notes.strip():
-        parts += ["", "── Fra operatør ──", notes.strip()]
-    parts += [
-        "",
-        "── Kilde ──",
-        f"Sybr HUB-anbefaling: {finding.rec_id}",
-        f"Fra audit: {finding.audit_date}",
-    ]
-    return "\n".join(parts)
+    return {
+        "customer_id": customer_id,
+        "recommendations": await list_tickets(customer_id, system=SYSTEM_MYITPROCESS),
+    }
 
 
 @router.post(
-    "/hub/{customer_id}/findings/{finding_id}/push-to-myitprocess",
+    "/hub/{customer_id}/recommendations",
     status_code=status.HTTP_201_CREATED,
 )
 async def push_finding_to_myitprocess(
     customer_id: str,
-    finding_id: str,
-    user: User = Depends(require_customer_access()),
+    body: CreateRecommendationRequest,
+    request: Request,
+    user: User = Depends(require_customer_access(Role.technician)),
 ) -> dict[str, Any]:
-    """Convert an audit finding into a myITprocess Recommendation.
+    """Push one audit finding to myITprocess — something to plan next quarter.
 
-    For findings that need planning rather than immediate action —
-    the distinction is operator's judgement, not encoded here.
+    The sibling of the ticket endpoint above, and the distinction between them
+    is the operator's judgement rather than anything encoded here: a finding
+    that needs scheduling through a quarterly review goes here, one that needs
+    fixing this week goes to Autotask.
 
-    Stub: 501 Not Implemented until the myITprocess PR.
+    Same guards, same idempotency. A finding may legitimately have both a
+    ticket and a recommendation — the uniqueness is per system — but two
+    recommendations for one finding would arrive in the customer's review as
+    two agenda items nobody can tell apart.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="myITprocess CreateRecommendation not yet wired. See ROADMAP.md.",
+    from app.core.config import load_app_settings
+    from app.core.exceptions import IntegrationError, ValidationError
+    from app.integrations.myitprocess import MyITProcessClient, MyITProcessError
+    from app.services.finding_tickets import SYSTEM_MYITPROCESS
+
+    settings = load_app_settings()
+    api_key = settings.get("myitprocess_api_key", "")
+    if not api_key:
+        raise ValidationError(
+            "myITprocess er ikke konfigurert. Legg inn API-nøkkelen under "
+            "Integrasjoner først."
+        )
+
+    async def _push(finding, account_id, title):
+        client = MyITProcessClient(
+            api_key=api_key,
+            base_url=settings.get("myitprocess_base_url", ""),
+        )
+        try:
+            recommendation_id = await client.create_recommendation(
+                account_id=str(account_id),
+                title=title,
+                detail=_push_description(finding, body.notes),
+                category=body.category or None,
+                # The finding's own priority when the operator did not choose,
+                # so a critical finding does not arrive in the review looking
+                # like routine housekeeping.
+                priority=body.priority or finding.priority or None,
+                source_finding_id=finding.rec_id,
+            )
+            return recommendation_id, client.recommendation_url(recommendation_id)
+        except MyITProcessError as exc:
+            raise IntegrationError(
+                f"myITprocess avviste anbefalingen: {exc}"
+            ) from exc
+        finally:
+            await client.close()
+
+    return await _push_finding(
+        customer_id=customer_id,
+        rec_id=body.rec_id,
+        request=request,
+        username=user.username,
+        system=SYSTEM_MYITPROCESS,
+        binding_key=_MYITPROCESS_ID,
+        not_linked="Denne kunden er ikke koblet til en myITprocess-konto. "
+                   "Koble den først under Hub → kobling.",
+        activity_action="myitprocess_recommendation_created",
+        system_label="myITprocess",
+        title_override=body.title,
+        push=_push,
     )

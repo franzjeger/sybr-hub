@@ -109,3 +109,23 @@ class CreateTicketRequest(BaseModel):
     # number is a 400 from Autotask rather than a wrong ticket.
     priority: int | None = Field(default=None, ge=1, le=4)
     queue_id: int | None = Field(default=None, ge=1)
+
+
+class CreateRecommendationRequest(BaseModel):
+    """One audit finding, on its way to a myITprocess Recommendation.
+
+    Same identity as the ticket request, and deliberately a separate model
+    rather than a shared one with optional halves: the two systems take
+    different things. Autotask wants a numeric queue and a 1-4 priority;
+    myITprocess takes free-text category and priority whose vocabularies this
+    codebase has not seen from a live instance, so they are strings with a
+    length cap and nothing more specific pretended.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    rec_id: str = Field(min_length=1, max_length=512)
+    title: str = Field(default="", max_length=200)
+    notes: str = Field(default="", max_length=4000)
+    category: str = Field(default="", max_length=100)
+    priority: str = Field(default="", max_length=50)

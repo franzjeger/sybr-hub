@@ -2251,3 +2251,17 @@ body.is-readonly [data-write] { display: none !important; }
 .integ-testrow { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 .integ-testrow .btn { padding: 4px 10px; font-size: var(--font-xs); }
 .integ-testresult { font-size: var(--font-xs); color: var(--text-muted); }
+
+/* ── Integration card shell ──
+   The sibling cards still carry these as inline styles; new ones use the
+   classes so the CSP inline-style budget keeps falling. */
+.integ-card { display: flex; flex-direction: column; gap: var(--space-3); }
+.integ-head { display: flex; align-items: center; gap: var(--space-3); }
+.integ-logo {
+  width: 48px; height: 48px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.integ-logo--mip { background: linear-gradient(135deg, #1f7a5a, #37b184); }
+.integ-name { font-weight: 600; font-size: var(--font-md, 14px); }
+.integ-desc { font-size: var(--font-xs); color: var(--text-muted); }

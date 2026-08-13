@@ -31,7 +31,7 @@ Read from everything. Write to a deliberate few.
 | **DNS / email security** | SPF / DKIM / DMARC / MTA-STS | — |
 | **Autotask PSA** | Account, Classification, Contract | Create Ticket *(manual click only)* |
 | **IT Glue** | Documentation pointers | Audit reports + firewall config backups |
-| **myITprocess** | — | Push Recommendation *(manual click only)* |
+| **myITprocess** | Accounts (for binding) | Push Recommendation *(manual click only)* |
 | **RMM (Datto / Ninja / Atera / …)** | Device status | Deep-link WebRemote sessions |
 | **VPN** (OpenVPN-3 / WireGuard) | Tunnel state | Required so the toolkit can reach customer-internal FortiGate / UniFi management interfaces |
 
@@ -88,10 +88,15 @@ alongside an exported master key.
 ## Status
 
 **Pre-1.0 (v0.1.0)** — the audit layer and report generator are battle-tested
-(carried forward from MSP-Toolkit-V2 v10.10.12, validated against
-multiple real Microsoft 365 tenants). The integration write-side
-(Autotask, myITprocess, RMM) is scaffolded but not yet wired —
-contributions welcome.
+(carried forward from MSP-Toolkit-V2 v10.10.12, validated against multiple real
+Microsoft 365 tenants).
+
+The Autotask and myITprocess write-sides are wired: a finding becomes a ticket
+or a recommendation on an operator's click, idempotently, and nothing scheduled
+can reach either. **Neither has spoken to a live instance** — both were written
+against a documented contract rather than a running server, so run the
+integration's `test connection` first and expect to adjust a field name. The
+RMM side is still a URL-builder with no backend.
 
 ## License
 

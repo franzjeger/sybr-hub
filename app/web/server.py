@@ -46,6 +46,7 @@ from app.web.routes import (
     history,
     hub,
     itglue,
+    myitprocess,
     pentest,
     policy_backup,
     policy_deploy,
@@ -97,6 +98,7 @@ _API_ROUTERS = (
     ("tailscale", tailscale),
     # Integrations and analysis.
     ("itglue", itglue),
+    ("myitprocess", myitprocess),
     ("also", also),
     ("gdap", gdap),
     ("uniweb", uniweb),

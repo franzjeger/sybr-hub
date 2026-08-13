@@ -1436,6 +1436,36 @@
               </div>
             </div>
           </div>
+          <!-- myITprocess card -->
+          <div class="card integ-card">
+            <div class="integ-head">
+              <div class="integ-logo integ-logo--mip">MP</div>
+              <div>
+                <div class="integ-name" data-i18n="integ_myitprocess">myITprocess</div>
+                <div class="integ-desc" data-i18n="integ_myitprocess_desc">Anbefalinger til kvartalsgjennomgang</div>
+              </div>
+            </div>
+            <div class="integ-status" id="myitprocess-integ-status">
+              <span class="integ-dot" id="myitprocess-integ-dot"></span>
+              <span class="integ-status__label" id="myitprocess-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div class="integ-actions">
+              <button class="btn btn-primary" onclick="toggleIntegConfig('myitprocess-config')" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="myitprocess-config" class="integ-config">
+              <label class="field-label" for="input-myitprocess-key" data-i18n="lbl_myitprocess_key">API-nøkkel</label>
+              <input class="field-input" id="input-myitprocess-key" type="password" autocomplete="off">
+              <!-- The base URL is a setting because nothing in the client has
+                   spoken to a live instance: a wrong host must be fixable
+                   without a code change. -->
+              <label class="field-label" for="input-myitprocess-base" data-i18n="lbl_myitprocess_base">Base-URL (valgfri)</label>
+              <input class="field-input" id="input-myitprocess-base" type="text" data-i18n-placeholder="ph_myitprocess_base" autocomplete="off">
+              <div class="integ-testrow">
+                <button class="btn btn-default" data-click-handler="testMyITProcess" data-i18n="btn_test_connection">Test tilkobling</button>
+                <span class="integ-testresult" id="myitprocess-test-result"></span>
+              </div>
+            </div>
+          </div>
           <!-- Halo PSA card -->
           <div class="card" style="display:flex;flex-direction:column;gap:12px;">
             <div style="display:flex;align-items:center;gap:12px;">

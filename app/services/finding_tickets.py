@@ -38,6 +38,7 @@ from app.core.database import get_db
 logger = logging.getLogger(__name__)
 
 SYSTEM_AUTOTASK = "autotask"
+SYSTEM_MYITPROCESS = "myitprocess"
 
 
 @dataclass(frozen=True)
@@ -137,13 +138,21 @@ async def get_ticket(
     return None if row is None else TicketRecord(*row)
 
 
-async def list_tickets(customer_id: str) -> dict[str, dict]:
-    """{rec_id: ticket} for one customer, so a list view can mark them in one query."""
+async def list_tickets(
+    customer_id: str, system: str = SYSTEM_AUTOTASK
+) -> dict[str, dict]:
+    """{rec_id: record} for one customer and one system, in one query.
+
+    Scoped to a system rather than returning everything keyed on rec_id: a
+    finding may legitimately have both an Autotask ticket and a myITprocess
+    recommendation, and a single dict keyed on rec_id would silently drop one
+    of them — whichever the database happened to return second.
+    """
     async with get_db() as conn, conn.execute(
         """SELECT rec_id, system, external_id, external_url, title,
                       created_at, created_by
-               FROM finding_tickets WHERE customer_id = ?""",
-        (customer_id,),
+               FROM finding_tickets WHERE customer_id = ? AND system = ?""",
+        (customer_id, system),
     ) as cur:
         rows = await cur.fetchall()
     return {r[0]: TicketRecord(*r).as_dict() for r in rows}
