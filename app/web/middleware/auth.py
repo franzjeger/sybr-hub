@@ -41,6 +41,7 @@ from app.core.auth import (
     validate_session,
 )
 from app.models.user import Role, User
+from app.web.transport import credentials_may_cross
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,40 @@ def _is_public(path: str) -> bool:
     return any(path.startswith(p) for p in _PUBLIC_PREFIXES)
 
 
+# ── Transport ────────────────────────────────────────────────────────────────
+# The endpoints that carry a secret in the request itself. Every other request
+# is judged on whether it presents a token, so this list only has to name the
+# ones where the secret is in the *body* and there is nothing to detect.
+_CREDENTIAL_PATHS: set[str] = {
+    "/api/auth/login",
+    "/api/auth/setup",
+    "/api/auth/refresh",
+    "/api/auth/change-password",
+}
+
+_INSECURE_TRANSPORT = (
+    "Denne tilkoblingen er ukryptert. Innlogging over vanlig HTTP er kun "
+    "tillatt fra maskinen selv. Bruk HTTPS (for eksempel «tailscale serve») "
+    "for tilgang fra en annen maskin."
+)
+
+
+def _carries_credentials(request: Request) -> bool:
+    """Whether this request puts a password or a token on the wire.
+
+    The refresh cookie counts even though the SPA never reads it: it is a
+    thirty-day credential, and it is attached to every request the browser
+    sends to this origin.
+    """
+    if request.url.path.rstrip("/") in _CREDENTIAL_PATHS:
+        return True
+    if request.headers.get("authorization"):
+        return True
+    return bool(
+        request.cookies.get("access_token") or request.cookies.get("refresh_token")
+    )
+
+
 # ── First-run detection ──────────────────────────────────────────────────────
 # Latched: once any account exists the app can never re-enter first-run mode,
 # so we stop paying for a COUNT(*) on every single request. Deleting the last
@@ -119,6 +154,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
+        # Before anything else: refuse to let a secret travel on a connection
+        # that cannot carry one. This runs ahead of the public-path check
+        # because /api/auth/login is public and is precisely the request that
+        # carries a password.
+        if _carries_credentials(request) and not credentials_may_cross(request):
+            client = request.client.host if request.client else "?"
+            logger.warning(
+                "403 insecure-transport: %s %s from %s over %s",
+                request.method, request.url.path, client, request.url.scheme,
+            )
+            return JSONResponse({"error": _INSECURE_TRANSPORT}, status_code=403)
+
         # Always allow public paths
         if _is_public(request.url.path):
             return await call_next(request)

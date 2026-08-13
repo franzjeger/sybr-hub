@@ -11,7 +11,6 @@ both a scripted client and a browser front-end can use the same endpoints.
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import logging
 import os
 
@@ -57,6 +56,7 @@ from app.models.user import (
     UserUpdate,
 )
 from app.web.middleware.auth import get_current_user, require_role
+from app.web.transport import is_local_quickstart, is_secure_transport
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -67,24 +67,20 @@ _setup_lock = asyncio.Lock()
 
 
 def _cookie_secure(request: Request) -> bool:
-    """Require Secure cookies except for an explicitly local HTTP quick-start."""
+    """Require Secure cookies except for an explicitly local HTTP quick-start.
+
+    Note this is a *different* question from the one ``credentials_may_cross``
+    answers, and the predicates in ``app.web.transport`` are shared rather than
+    duplicated so the difference stays visible. A request arriving from
+    loopback with a public Host header is a local TLS terminator: its
+    credentials may cross, and its cookies must still be marked Secure.
+    """
     override = os.environ.get("SYBR_COOKIE_SECURE")
     if override is not None:
         return override == "1"
-    if request.url.scheme == "https":
+    if is_secure_transport(request):
         return True
-    if request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip() == "https":
-        return True
-
-    def is_loopback(value: str) -> bool:
-        try:
-            return ipaddress.ip_address(value).is_loopback
-        except ValueError:
-            return value.lower() in {"localhost", "testclient"}
-
-    client_is_loopback = bool(request.client and is_loopback(request.client.host))
-    host_is_loopback = is_loopback(request.url.hostname or "")
-    return not (client_is_loopback and host_is_loopback)
+    return not is_local_quickstart(request)
 
 
 def _set_auth_cookies(

@@ -60,9 +60,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Open <http://localhost:8099/>. Plain HTTP authentication is accepted only for
-loopback quick-start; use TLS (or the Tailscale HTTPS setup in the installer)
-for access from another machine.
+Open <http://localhost:8099/>. The default bind is loopback, and plain-HTTP
+authentication is **refused** from any other machine — the app answers 403
+rather than accepting a password in cleartext. For access from elsewhere,
+serve TLS (`SYBR_HUB_SSL_CERT` / `SYBR_HUB_SSL_KEY`) or put a terminator in
+front of a loopback bind; the Tailscale setup in the installer does the
+latter. `SYBR_ALLOW_INSECURE_AUTH=1` overrides this for a terminator the
+process cannot detect.
 
 For production deployment behind systemd: see
 [`scripts/sybr-hub.service`](scripts/sybr-hub.service) — edit the
