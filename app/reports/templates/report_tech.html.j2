@@ -677,6 +677,33 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% endfor %}
 </table>
 {% endif %}
+
+{% if signin_risk.top_error_codes %}
+<h3>{{ t.top_error_codes }}</h3>
+<table>
+  <tr><th>{{ t.error_code }}</th><th>{{ t.reason }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+  {% for e in signin_risk.top_error_codes %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:12px;">{{ e.code }}</td>
+    <td style="font-size:12px;">{{ e.reason }}</td>
+    <td style="text-align:right;font-weight:600;">{{ e.count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if signin_risk.top_source_countries %}
+<h3>{{ t.top_source_countries }}</h3>
+<table>
+  <tr><th>{{ t.country }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
+  {% for c in signin_risk.top_source_countries %}
+  <tr>
+    <td style="font-size:12px;">{{ c.country }}</td>
+    <td style="text-align:right;font-weight:600;">{{ c.count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->

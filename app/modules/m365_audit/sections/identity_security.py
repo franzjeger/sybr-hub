@@ -65,9 +65,16 @@ class IdentitySecuritySection(BaseSection):
         # slip here is silent; making it a TypeError is the point.
         super().__init__(out_dir, progress_cb)
         self.graph             = graph
-        self.global_admin_ids  = global_admin_ids or []
-        self.mfa_users         = mfa_users or {}         # upn -> methods list
-        self.ca_exclusions     = ca_exclusions or set()  # user IDs excluded from ALL CA
+        # `is not None`, not `or`: the collector passes AdminRolesSection's
+        # global_admin_ids list by reference, and it is *empty* at construction
+        # (AdminRolesSection populates it in place when it runs, earlier in the
+        # sequence). `global_admin_ids or []` replaced that shared, soon-to-be-
+        # filled list with a fresh empty one, so the break-glass check read zero
+        # admins and skipped itself — a tool bug wearing the clothes of a data
+        # gap. Keep the reference so the later appends are visible here.
+        self.global_admin_ids  = global_admin_ids if global_admin_ids is not None else []
+        self.mfa_users         = mfa_users if mfa_users is not None else {}   # upn -> methods
+        self.ca_exclusions     = ca_exclusions if ca_exclusions is not None else set()
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)

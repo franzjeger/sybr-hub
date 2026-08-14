@@ -759,3 +759,145 @@ async def test_the_policy_container_alone_would_yield_nothing():
     assert "B2B Collab Inbound     : N/A" in text, (
         "with no default endpoint answering, N/A is the honest output"
     )
+
+
+# ── Defender for Office 365: Safe Links / Safe Attachments ────────────────────
+# The collector returns {safe_links:[...], safe_attachments:[...]} — a dict of
+# two lists carrying IsEnabled / Enable+Action. The report parser reads
+# Name/PolicyType/Enabled blocks. Between them, _save_defender_policies must
+# flatten the dict; the old code wrapped it whole, so the report saw no Safe
+# Links / Safe Attachments at all — including the tenant Built-In Protection
+# Policy — and reported them "not found".
+
+
+def test_defender_policies_survive_the_round_trip_including_builtin():
+    from app.modules.m365_audit.sections.exchange import ExchangeSection
+
+    exo = {"defender_policies": {
+        "safe_links": [
+            {"Name": "Built-In Protection Policy", "IsEnabled": True, "ScanUrls": True},
+        ],
+        "safe_attachments": [
+            # Built-in Safe Attachments: Action=Block with Enable unset — still
+            # protection, and the count must recognise it.
+            {"Name": "Built-In Protection Policy", "Enable": False, "Action": "Block"},
+        ],
+    }}
+    section = ExchangeSection(_tmp(), exo, [], graph=_FakeGraph({}))
+    section._save_defender_policies()
+    text = _read(section.out_dir, "27_exchange_defender_policies.txt")
+
+    sl, sa = g._count_defender_policy_state(text)
+    assert sl == 1, "the enabled Built-In Safe Links policy must be recognised"
+    assert sa == 1, "Safe Attachments Action=Block is protection even with Enable unset"
+
+    ctx = {"mfa": {"has_data": False},
+           "file_contents": {"27_exchange_defender_policies.txt": text}}
+    controls = g._build_compliance_map(ctx)
+    assert next(c for c in controls if c["cis_id"] == "4.5")["status"] == "pass"
+    assert next(c for c in controls if c["cis_id"] == "4.6")["status"] == "pass"
+
+
+def test_a_disabled_safe_links_policy_still_does_not_pass_after_the_round_trip():
+    from app.modules.m365_audit.sections.exchange import ExchangeSection
+
+    exo = {"defender_policies": {
+        "safe_links": [{"Name": "Custom", "IsEnabled": False, "ScanUrls": False}],
+        "safe_attachments": [],
+    }}
+    section = ExchangeSection(_tmp(), exo, [], graph=_FakeGraph({}))
+    section._save_defender_policies()
+    text = _read(section.out_dir, "27_exchange_defender_policies.txt")
+
+    sl, _ = g._count_defender_policy_state(text)
+    assert sl == 0, "a disabled Safe Links policy is not enabled protection"
+
+
+def test_no_defender_policies_writes_none_not_one_garbage_policy():
+    from app.modules.m365_audit.sections.exchange import ExchangeSection
+
+    exo = {"defender_policies": {"safe_links": [], "safe_attachments": []}}
+    section = ExchangeSection(_tmp(), exo, [], graph=_FakeGraph({}))
+    section._save_defender_policies()
+    text = _read(section.out_dir, "27_exchange_defender_policies.txt")
+
+    assert g._count_defender_policy_state(text) == (0, 0)
+    assert "(none)" in text
+
+
+# ── Break-glass: the shared admin-id list must survive construction ───────────
+# The collector builds IdentitySecuritySection with AdminRolesSection's
+# global_admin_ids list, which is EMPTY at that moment and filled in place when
+# AdminRolesSection runs (earlier in the sequence). `global_admin_ids or []`
+# replaced the shared, soon-to-be-populated list with a fresh empty one, so the
+# break-glass check read zero admins and skipped itself.
+
+
+def test_break_glass_sees_admin_ids_populated_after_construction():
+    from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
+
+    shared: list[str] = []  # like admin_sec.global_admin_ids at construction time
+    section = IdentitySecuritySection(_tmp(), _FakeGraph({}), global_admin_ids=shared)
+
+    shared.append("ga-object-id-1")  # AdminRolesSection appends when it runs
+
+    assert section.global_admin_ids is shared, "the shared reference was severed"
+    assert section.global_admin_ids == ["ga-object-id-1"], (
+        "admin ids populated after construction must be visible to the break-glass check"
+    )
+
+
+def test_identity_section_tolerates_no_admin_ids():
+    from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
+
+    section = IdentitySecuritySection(_tmp(), _FakeGraph({}))
+    assert section.global_admin_ids == []
+    assert section.mfa_users == {}
+    assert section.ca_exclusions == set()
+
+
+# ── Sign-in failures: error codes and source geography survive to the report ──
+# The Graph signIn objects carry errorCode, failureReason, ipAddress and
+# country by default; the collector used to collapse a failure to a per-user
+# count, so the report could say "THRESHOLD EXCEEDED" but not whether it was a
+# bad-password run (50126) or smart lockout (50053), nor where it came from.
+
+
+@pytest.mark.asyncio
+async def test_signin_failures_carry_error_codes_and_geography():
+    from app.modules.m365_audit.sections.signins import SignInsSection
+
+    events = (
+        [{"userPrincipalName": "post@x.no",
+          "status": {"errorCode": 50126, "failureReason": "Invalid username or password"},
+          "ipAddress": "185.220.101.5", "location": {"countryOrRegion": "RU"}}
+         for _ in range(60)]
+        + [{"userPrincipalName": "post@x.no",
+            "status": {"errorCode": 50053, "failureReason": "Account locked"},
+            "ipAddress": "185.220.101.5", "location": {"countryOrRegion": "RU"}}
+           for _ in range(10)]
+        + [{"userPrincipalName": "ok@x.no", "status": {"errorCode": 0}} for _ in range(5)]
+    )
+    out = await _run(SignInsSection(_tmp(), _FakeGraph({"auditLogs/signIns": events})))
+    text = _read(out, "05b_signin_failures.txt")
+
+    parsed = g._parse_signin_risk({
+        "05b_signin_failures.txt": text,
+        "05_signin_activity.txt": _read(out, "05_signin_activity.txt"),
+    })
+
+    codes = {r["code"] for r in parsed["top_error_codes"]}
+    assert "50126" in codes and "50053" in codes, "error codes must survive to the report"
+    assert any(r["reason"].startswith("Invalid") for r in parsed["top_error_codes"])
+    assert {r["country"] for r in parsed["top_source_countries"]} == {"RU"}
+    assert {r["ip"] for r in parsed["top_source_ips"]} == {"185.220.101.5"}
+
+    # The breakdown must not pollute the per-user / reason aggregates.
+    assert parsed["brute_force_suspects"] == ["post@x.no"]
+    reasons = {r["reason"] for r in parsed["top_failure_reasons"]}
+    assert "RU" not in reasons and "50126" not in reasons, (
+        "a country or error code must not be read as a failure reason or user"
+    )
+    # Nor the section banner, nor the threshold flag on a high-failure row.
+    assert not any("SIGN-IN FAILURES" in r for r in reasons)
+    assert not any(r.startswith("*") or "THRESHOLD" in r for r in reasons)

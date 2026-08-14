@@ -87,7 +87,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Azure Infrastructure",
     },
     "compliance": {
-        "no": "Compliance",
+        "no": "Samsvar",
         "en": "Compliance",
     },
     "environment_overview": {
@@ -1523,6 +1523,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Vanligste feil\u00e5rsaker",
         "en": "Most Common Failure Reasons",
     },
+    "top_error_codes": {
+        "no": "Vanligste feilkoder",
+        "en": "Top Error Codes",
+    },
+    "top_source_countries": {
+        "no": "Kilde-land for mislykkede fors\u00f8k",
+        "en": "Top Source Countries",
+    },
+    "error_code": {
+        "no": "Feilkode",
+        "en": "Error Code",
+    },
+    "country": {
+        "no": "Land",
+        "en": "Country",
+    },
     "admin_roles_pim": {
         "no": "Administratorroller og PIM",
         "en": "Admin Roles & PIM",
@@ -2297,6 +2313,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "rec_mfa_detail": {
         "no": "{registered} brukere har MFA-metoder registrert, {ca_covered} er dekket via Conditional Access-policyer. {no_mfa} bruker(e) har verken MFA registrert eller CA-dekning.",
         "en": "{registered} users have MFA methods registered, {ca_covered} are covered via Conditional Access policies. {no_mfa} user(s) have neither MFA registered nor CA coverage.",
+    },
+    "rec_mfa_excluded_title": {
+        "no": "{count} høyrisiko-konto(er) er unntatt fra MFA-håndhevelse",
+        "en": "{count} high-risk account(s) are excluded from MFA enforcement",
+    },
+    "rec_mfa_excluded_detail": {
+        "no": "En Conditional Access-ekskludering betyr at MFA ikke håndheves ved pålogging — kontoen nås med passord alene. Kontoene under er både unntatt og enten globale administratorer eller under aktivt passordangrep. Fjern ekskluderingen og bytt til phishing-resistent MFA.",
+        "en": "A Conditional Access exclusion means MFA is not enforced at sign-in — the account opens with a password alone. The accounts below are both excluded and either Global Administrators or under an active password attack. Remove the exclusion and move them to phishing-resistant MFA.",
+    },
+    "rec_mfa_excluded_ga": {
+        "no": "global administrator",
+        "en": "Global Administrator",
+    },
+    "rec_mfa_excluded_bruteforce": {
+        "no": "under aktivt passordangrep",
+        "en": "under active password attack",
     },
     "rec_effort_low": {
         "no": "Lav",

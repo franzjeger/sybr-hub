@@ -389,17 +389,17 @@ FULL_AUDIT: dict[str, str] = {
         "Confidential      1          Active\n"
         "Internal          2          Active\n"
     ),
-    "19d_purview_dlp_policies.txt": (
-        "PURVIEW DLP POLICIES\n"
-        "====================\n"
-        "Policy Name           Mode\n"
-        "PII Protection        Enabled\n"
+    # Real collector format — a `_section_block` dump, one policy per [i] — so
+    # the seam matches app/modules/m365_audit/sections/exchange.py:_save_dlp /
+    # _save_retention rather than a hand-written column table the parser never
+    # actually receives.
+    "19d_purview_dlp_policies.txt": _entry_block(
+        "PURVIEW DLP POLICIES",
+        [{"Name": "PII Protection", "Mode": "Enable", "Priority": "0"}],
     ),
-    "19e_purview_retention_policies.txt": (
-        "PURVIEW RETENTION POLICIES\n"
-        "==========================\n"
-        "Policy Name           Mode\n"
-        "7 Year Retention      Enabled\n"
+    "19e_purview_retention_policies.txt": _entry_block(
+        "PURVIEW RETENTION POLICIES",
+        [{"Name": "7 Year Retention", "Enabled": "True"}],
     ),
     "23_exchange_antiphish.txt": _entry_block(
         "EXCHANGE ANTI-PHISHING POLICIES",

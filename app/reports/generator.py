@@ -272,7 +272,13 @@ def _parse_mfa(
         has_mfa = rec.get("mfa_registered") is True
         has_ca = bool(rec.get("ca_covered"))
         is_excluded = bool(rec.get("ca_excluded"))
-        covered = has_mfa or (has_ca and not is_excluded)
+        # A Conditional-Access exclusion means MFA is not *enforced* at sign-in:
+        # the account opens with a password alone. A registered method is not
+        # enforcement, so an exclusion vetoes coverage even for a user who has
+        # a method registered. Treating a registered-but-excluded user as
+        # covered is what let a Global Admin and a brute-forced account excluded
+        # from the MFA policy score as "100% covered, 1.1.1 passed".
+        covered = (has_mfa or has_ca) and not is_excluded
 
         # Unknown means the user's protection could not be established. A
         # failed method lookup on its own does not mean that: a Conditional
@@ -280,7 +286,13 @@ def _parse_mfa(
         # lookup went. Counting such a user as unknown *and* as covered put
         # them in the numerator and took them out of the denominator, which
         # is how this read 102%.
-        if rec.get("mfa_registered") is None and not covered:
+        # A CA exclusion settles the question the same way a CA grant does: the
+        # account is *known* to be unenforced, so it belongs in no_mfa, not in
+        # the unknown bucket — even if the method lookup itself failed. Leaving
+        # an excluded-and-unknown user in `unknown` drops them from no_mfa while
+        # the recommendation still lists them by name, reintroducing the very
+        # card-vs-list contradiction this pass removes.
+        if rec.get("mfa_registered") is None and not covered and not is_excluded:
             unknown += 1
 
         if has_mfa:
@@ -363,7 +375,9 @@ def _parse_mfa(
             # A user whose lookup failed is unknown, not unprotected — keep
             # them out of the "these people have no MFA" table.
             "unknown": rec.get("mfa_registered") is None,
-            "protected": u_has_mfa or (u_has_ca and not u_excluded),
+            # Same enforcement rule as `covered` above: a CA exclusion means the
+            # account is not MFA-enforced, registered method or not.
+            "protected": (u_has_mfa or u_has_ca) and not u_excluded,
         })
 
     # Two different claims, reported apart. "Coverage" counts a user as
@@ -1481,6 +1495,9 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         "total_failures": 0,
         "top_failure_users": [],
         "top_failure_reasons": [],
+        "top_error_codes": [],
+        "top_source_countries": [],
+        "top_source_ips": [],
         "brute_force_suspects": [],
         "has_data": False,
         "no_data_reason": None,
@@ -1558,14 +1575,64 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         result["has_data"] = True
         failure_users: dict[str, int] = {}
         failure_reasons: dict[str, int] = {}
+        error_code_rows: list[dict] = []
+        country_rows: list[dict] = []
+        ip_rows: list[dict] = []
         total_failures = 0
+        # The file is the per-user table followed by labelled breakdown blocks.
+        # Track which block we are in so a country name is not read as a failure
+        # reason and an error code is not read as a user's failure count.
+        section = "users"
+
+        def _num_tail(cols: list[str]) -> int | None:
+            tail = cols[-1].replace(",", "") if cols else ""
+            return int(tail) if tail.isdigit() else None
 
         for line in failure_text.splitlines():
             stripped = line.strip()
+            upper = stripped.upper()
+            if upper.startswith("TOP ERROR CODES"):
+                section = "codes"
+                continue
+            if upper.startswith("TOP SOURCE COUNTRIES"):
+                section = "countries"
+                continue
+            if upper.startswith("TOP SOURCE IP"):
+                section = "ips"
+                continue
             if not stripped or stripped.startswith("=") or stripped.startswith("-"):
                 continue
             if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
                 continue
+            # The section banner ("SIGN-IN FAILURES  (last 30 days ...)") sits
+            # between the rule lines and would otherwise be read as a failure
+            # reason, printing itself in the report's "common failure reasons".
+            if upper.startswith("SIGN-IN FAILURES"):
+                continue
+
+            if section == "codes":
+                cols = re.split(r'\s{2,}', stripped)
+                cnt = _num_tail(cols)
+                if cnt is not None and len(cols) >= 2:
+                    error_code_rows.append({
+                        "code": cols[0],
+                        "reason": cols[1] if len(cols) >= 3 else "",
+                        "count": cnt,
+                    })
+                continue
+            if section == "countries":
+                cols = re.split(r'\s{2,}', stripped)
+                cnt = _num_tail(cols)
+                if cnt is not None and len(cols) >= 2:
+                    country_rows.append({"country": " ".join(cols[:-1]), "count": cnt})
+                continue
+            if section == "ips":
+                cols = re.split(r'\s{2,}', stripped)
+                cnt = _num_tail(cols)
+                if cnt is not None and len(cols) >= 2:
+                    ip_rows.append({"ip": " ".join(cols[:-1]), "count": cnt})
+                continue
+
             if ":" in stripped:
                 key, val = stripped.split(":", 1)
                 key_low = key.strip().lower()
@@ -1587,7 +1654,7 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
                         user = p
                     elif p.isdigit():
                         count = int(p)
-                    else:
+                    elif not p.startswith("*"):   # skip the "*** THRESHOLD ***" flag
                         reason = p
                 if user:
                     failure_users[user] = failure_users.get(user, 0) + count
@@ -1608,7 +1675,8 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
                             user = c
                         elif c.isdigit():
                             count = int(c)
-                        elif c.lower() not in ("true", "false", "yes", "no") and len(c) > 3:
+                        elif (c.lower() not in ("true", "false", "yes", "no")
+                              and len(c) > 3 and not c.startswith("*")):
                             reason = c
                     if user:
                         failure_users[user] = failure_users.get(user, 0) + count
@@ -1624,6 +1692,10 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
 
         sorted_reasons = sorted(failure_reasons.items(), key=lambda x: -x[1])
         result["top_failure_reasons"] = [{"reason": r, "count": c} for r, c in sorted_reasons[:5]]
+
+        result["top_error_codes"] = error_code_rows[:10]
+        result["top_source_countries"] = country_rows[:10]
+        result["top_source_ips"] = ip_rows[:10]
 
         result["brute_force_suspects"] = [u for u, c in failure_users.items() if c >= 50]
 
@@ -1683,56 +1755,25 @@ def _parse_purview(file_contents: dict[str, str]) -> dict:
         if result["sensitivity_label_count"] > 0:
             result["has_data"] = True
 
-    # DLP policies (19d_purview_dlp_policies.txt)
+    # DLP and retention policies are written as `_section_block` dumps — the
+    # same "[i] then Key: Value" format the anti-phish parser reads. The
+    # line-based reader that used to live here did not understand that format:
+    # it counted the "(none)" empty placeholder as one policy and each field
+    # line of a real policy as another, so an empty section reported "1 DLP
+    # policy" and the card disagreed with the raw data printed below it.
+    # Delegate to the block parser so empty -> 0 and each policy counts once.
     dlp_text = file_contents.get("19d_purview_dlp_policies.txt", "")
     if dlp_text.strip():
-        for line in dlp_text.splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("=") or stripped.startswith("-"):
-                continue
-            if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
-                continue
-            low = stripped.lower()
-            if "policy name" in low or "dlp polic" in low or "purview" in low.replace("-", ""):
-                continue
-
-            if "|" in stripped:
-                parts = [p.strip() for p in stripped.split("|")]
-                name = parts[0]
-            else:
-                cols = re.split(r'\s{2,}', stripped)
-                name = cols[0]
-
-            if name and name.lower() not in ("name", "policy", "status", "mode"):
-                result["dlp_policies"].append({"name": name})
-
+        result["dlp_policies"] = [{"name": n} for n in _extract_policy_names(dlp_text)]
         result["dlp_policy_count"] = len(result["dlp_policies"])
         if result["dlp_policy_count"] > 0:
             result["has_data"] = True
 
-    # Retention policies (19e_purview_retention_policies.txt)
     retention_text = file_contents.get("19e_purview_retention_policies.txt", "")
     if retention_text.strip():
-        for line in retention_text.splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("=") or stripped.startswith("-"):
-                continue
-            if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
-                continue
-            low = stripped.lower()
-            if "policy name" in low or "retention polic" in low or "purview" in low.replace("-", ""):
-                continue
-
-            if "|" in stripped:
-                parts = [p.strip() for p in stripped.split("|")]
-                name = parts[0]
-            else:
-                cols = re.split(r'\s{2,}', stripped)
-                name = cols[0]
-
-            if name and name.lower() not in ("name", "policy", "status", "mode"):
-                result["retention_policies"].append({"name": name})
-
+        result["retention_policies"] = [
+            {"name": n} for n in _extract_policy_names(retention_text)
+        ]
         result["retention_policy_count"] = len(result["retention_policies"])
         if result["retention_policy_count"] > 0:
             result["has_data"] = True
@@ -2375,24 +2416,35 @@ def _count_data_lines(text: str) -> int:
 
 
 def _extract_policy_names(text: str) -> list[str]:
-    """Extract policy names from Exchange policy output."""
-    names = []
+    """One name per policy from a ``_section_block`` dump.
+
+    The block format numbers each policy ``[i]`` and follows it with
+    ``Key: Value`` field lines; an empty section is written as ``(none)``. The
+    previous reader treated every non-header line as a policy name, so it
+    counted the ``(none)`` placeholder as one policy and each of a policy's
+    field lines as a separate policy — a single six-field anti-phish policy read
+    as "7". Count the ``[i]`` blocks and take each block's Name/Identity field
+    (only the first, so a policy carrying both Name and Identity is not doubled).
+    """
+    names: list[str] = []
+    have_block = False
+    current: str | None = None
     for line in text.splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith("=") or stripped.startswith("-"):
+        if re.match(r"^\[\d+\]$", stripped):
+            if have_block:
+                names.append(current or f"Policy {len(names) + 1}")
+            have_block = True
+            current = None
             continue
-        # Lines with "Name:" or "Policy:" prefix
-        if ":" in stripped:
+        if have_block and current is None and ":" in stripped:
             key, val = stripped.split(":", 1)
-            key_low = key.strip().lower()
-            if key_low in ("name", "policy", "policyname"):
-                val = val.strip()
-                if val:
-                    names.append(val)
-                continue
-        # Otherwise treat non-header lines as policy names
-        if not stripped.upper().startswith("NOTE") and not stripped.upper().startswith("NO "):
-            names.append(stripped)
+            if key.strip().lower() in ("name", "identity", "policyname", "policy"):
+                v = val.strip()
+                if v:
+                    current = v
+    if have_block:
+        names.append(current or f"Policy {len(names) + 1}")
     return names
 
 
@@ -2832,8 +2884,13 @@ def _build_recommendations(
             for r in _mfa_user_records(
                 fc.get("04_mfa_methods.json", ""), fc.get("04_mfa_methods.txt", "")
             )
-            # Only name someone whose status we actually know.
-            if r.get("mfa_registered") is False and not r.get("ca_covered")
+            # Only name someone whose status we actually know. A CA-excluded
+            # account belongs here even if it has a method registered: the
+            # exclusion means MFA is not enforced, so the account is unprotected
+            # in practice — and leaving it off the list is what let no_mfa say
+            # "2" while the list under it named nobody.
+            if (r.get("mfa_registered") is False and not r.get("ca_covered"))
+            or r.get("ca_excluded")
         ]
 
         detail = t("rec_mfa_detail",
@@ -2850,6 +2907,44 @@ def _build_recommendations(
             "sub_items": unprotected[:50],
             "doc_url": "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mfa-howitworks",
         })
+
+    # A Conditional-Access exclusion removes MFA enforcement. When the excluded
+    # account is also a Global Admin or is being actively brute-forced, that is
+    # not a footnote in the raw data — it is the most exposed account in the
+    # tenant, reachable with a password alone. Surface it as its own critical
+    # finding rather than leaving it to be reconstructed from file 04b.
+    excluded_users = [u for u in (mfa.get("users") or []) if u.get("ca_excluded")]
+    if excluded_users:
+        ga_emails = {
+            (g.get("email") or "").strip().lower()
+            for g in (admin_roles or {}).get("global_admin_users", [])
+        }
+        bf_emails = {
+            (u or "").strip().lower()
+            for u in (signin_risk or {}).get("brute_force_suspects", [])
+        }
+        high_risk = []
+        for u in excluded_users:
+            upn = (u.get("upn") or "").strip().lower()
+            reasons = []
+            if upn and upn in ga_emails:
+                reasons.append(t.rec_mfa_excluded_ga)
+            if upn and upn in bf_emails:
+                reasons.append(t.rec_mfa_excluded_bruteforce)
+            if reasons:
+                label = u.get("name") or u.get("upn") or ""
+                high_risk.append(f"{label} ({u.get('upn', '')}) — {', '.join(reasons)}")
+        if high_risk:
+            recs.append({
+                "priority": "critical",
+                "evidence": ev("04b_mfa_ca_analysis.txt", "07_admin_roles.txt"),
+                "finding_id": "finding-mfa-excluded",
+                "title": t("rec_mfa_excluded_title", count=len(high_risk)),
+                "detail": t.rec_mfa_excluded_detail,
+                "effort": t.rec_effort_immediate,
+                "sub_items": high_risk[:50],
+                "doc_url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-users-groups",
+            })
 
     for d in spf_dmarc:
         if not _is_audit_relevant_domain(d.get("domain", "")):
@@ -4229,12 +4324,16 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
             _CANNOT_VERIFY + "Purview DLP-data utilgjengelig")
 
     # 3.2.1 Sensitivity labels
+    # Gate the pass on the parsed COUNT only. The old fallback also passed when
+    # the raw text merely contained the word "label" — but the file is titled
+    # "PURVIEW SENSITIVITY LABELS" with a "Label Name" column, so that substring
+    # is present even at zero labels, and the control passed on empty evidence.
+    # A tenant with no published labels now correctly lands in the warn branch.
     _labels_raw = purview.get("sensitivity_labels", 0) if purview else 0
     labels = len(_labels_raw) if isinstance(_labels_raw, list) else (_labels_raw if isinstance(_labels_raw, int) else 0)
-    labels_text = fc.get("19c_purview_sensitivity_labels.txt", "")
-    if labels > 0 or ("label" in labels_text.lower() and labels_text.strip()):
+    if labels > 0:
         add("3.2.1", "Ensure sensitivity labels are published", t.cis_cat_data, "pass",
-            f"{labels} sensitivitetsetiketter publisert" if labels else "Sensitivitetsetiketter funnet")
+            f"{labels} sensitivitetsetiketter publisert")
     elif _section_ran(fc, "19c_purview_sensitivity_labels.txt"):
         add("3.2.1", "Ensure sensitivity labels are published", t.cis_cat_data, "warn",
             "Ingen sensitivitetsetiketter funnet")

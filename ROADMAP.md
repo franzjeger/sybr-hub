@@ -19,10 +19,15 @@ regression tests in this repo.
 
 - **Microsoft 365 audit** — 26 sections, full pagination on every
   Graph list endpoint, explicit data-gap signalling (refuses to
-  fabricate a grade when MFA data is missing).
+  fabricate a grade when MFA data is missing). MFA coverage is *enforced*
+  coverage: a Conditional-Access exclusion counts as unprotected even for a
+  registered user, and a CA-excluded Global Admin or brute-forced account is a
+  critical finding, not raw-data trivia.
 - **Report generator** — CIS / NIST CSF 2.0 / ISO 27001:2022 control
   mapping; verdicts grounded in actual data rather than substring
-  matching against banners.
+  matching against banners. Summary cards and CIS verdicts are reconciled
+  against the raw data they cite — no control passes on evidence it did not
+  read, and no card counts a policy the appendix does not show.
 - **FortiGate audit** — REST-API client, policy + admin audit, encrypted
   config backup, CIS-Fortinet compliance checks. A read the firewall
   refused is reported unavailable, never as "0 policies, score 100" — the

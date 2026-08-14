@@ -210,6 +210,56 @@ def test_dmarc_lookup_error_is_not_reported_as_missing():
     assert "Kan ikke verifiseres" in rows[0]["detail"]
 
 
+# ── CIS 3.2.1: zero published labels is not a pass ────────────────────────────
+# The 19c file is titled "PURVIEW SENSITIVITY LABELS" with a "Label Name"
+# column, so the substring "label" is in the file even at zero labels. Gating
+# the pass on that substring passed the control on empty evidence — the same
+# defect class the rest of this map already avoids.
+
+_LABELS_HEADER_ZERO = (
+    "  PURVIEW SENSITIVITY LABELS  (0 total)\n"
+    "  Label Name                                    Priority  Enabled  Parent ID\n"
+)
+
+
+def _purview_ctx(purview: dict, files: dict) -> dict:
+    return {"mfa": {"has_data": False}, "purview": purview, "file_contents": files}
+
+
+def test_zero_sensitivity_labels_does_not_pass_3_2_1():
+    controls = _build_compliance_map(_purview_ctx(
+        {"sensitivity_labels": []},
+        {"19c_purview_sensitivity_labels.txt": _LABELS_HEADER_ZERO},
+    ))
+    c = _control(controls, "3.2.1")
+    assert c["status"] == "warn", "0 labels on a section that ran must not pass"
+    assert "Ingen" in c["detail"]
+
+
+def test_published_sensitivity_labels_still_pass_3_2_1():
+    controls = _build_compliance_map(_purview_ctx(
+        {"sensitivity_labels": [{"name": "Confidential"}, {"name": "Internal"}]},
+        {"19c_purview_sensitivity_labels.txt":
+         _LABELS_HEADER_ZERO.replace("0 total", "2 total") + "  Confidential  0  True\n"},
+    ))
+    c = _control(controls, "3.2.1")
+    assert c["status"] == "pass"
+    assert "2" in c["detail"]
+
+
+def test_unread_sensitivity_labels_cannot_be_verified_3_2_1():
+    controls = _build_compliance_map(_purview_ctx({"sensitivity_labels": []}, {}))
+    assert _control(controls, "3.2.1")["status"] == "info"
+
+
+# ── The Compliance section label is Norwegian in the Norwegian report ─────────
+
+
+def test_compliance_label_is_translated():
+    assert T("no").compliance == "Samsvar"
+    assert T("en").compliance == "Compliance"
+
+
 def test_genuinely_missing_spf_still_fails():
     """The guard must not turn a real finding into a shrug."""
     rows = _controls([{"domain": "example.com", "spf": "MISSING", "dmarc": "MISSING"}], "5.2.1")
