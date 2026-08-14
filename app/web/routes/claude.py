@@ -136,17 +136,12 @@ async def claude_save_settings(
 
         {"api_key": "sk-ant-..."}
     """
-    from app.core.config import load_app_settings, save_app_settings
+    from app.core.config import update_app_settings
     from app.services.claude_console import save_api_key
 
     body = await request.json()
     mode = body.get("mode", "api")
     model = body.get("model", "")
-
-    settings = load_app_settings()
-    settings["claude_mode"] = mode
-    if model:
-        settings["claude_model"] = model
 
     if mode == "api":
         api_key = body.get("api_key", "").strip()
@@ -154,7 +149,12 @@ async def claude_save_settings(
             raise ValidationError("API-nøkkel er påkrevd for API-modus")
         save_api_key(api_key)
 
-    save_app_settings(settings)
+    def _set(s: dict) -> None:
+        s["claude_mode"] = mode
+        if model:
+            s["claude_model"] = model
+
+    update_app_settings(_set)
 
     from app.core.activity_log import log_activity
     log_activity("claude_settings_updated", detail=f"mode={mode}", user=user.username)

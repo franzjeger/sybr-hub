@@ -338,10 +338,8 @@ def delete_conversation(conversation_id: str, user_id: str | None = None) -> boo
 
 def save_api_key(api_key: str) -> None:
     """Persist the Anthropic API key in app settings (encrypted on disk)."""
-    from app.core.config import load_app_settings, save_app_settings
-    settings = load_app_settings()
-    settings["claude_api_key"] = api_key
-    save_app_settings(settings)
+    from app.core.config import update_app_settings
+    update_app_settings(lambda s: s.__setitem__("claude_api_key", api_key))
 
 
 # ── Streaming chat ─────────────────────────────────────────────────────────

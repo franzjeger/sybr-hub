@@ -492,9 +492,13 @@ def decrypt_text(data: bytes, encoding: str = "utf-8") -> str:
 # ── File I/O helpers ─────────────────────────────────────────────────────────
 
 def encrypted_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
-    """Write text encrypted to disk."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(encrypt_text(content, encoding))
+    """Write text encrypted to disk.
+
+    Atomic: a crash mid-write leaves the previous file intact rather than a
+    half-written one. This is what every settings and customer-config write
+    goes through, and a torn settings.json corrupts the whole install.
+    """
+    _atomic_private_write(path, encrypt_text(content, encoding))
 
 
 def encrypted_read_text(path: Path, encoding: str = "utf-8") -> str:
@@ -503,9 +507,8 @@ def encrypted_read_text(path: Path, encoding: str = "utf-8") -> str:
 
 
 def encrypted_write_bytes(path: Path, data: bytes) -> None:
-    """Write bytes encrypted to disk."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(encrypt_bytes(data))
+    """Write bytes encrypted to disk (atomic — see encrypted_write_text)."""
+    _atomic_private_write(path, encrypt_bytes(data))
 
 
 def encrypted_read_bytes(path: Path) -> bytes:
@@ -546,7 +549,9 @@ def migrate_encrypt_directory(directory: Path) -> int:
             continue
         raw = file.read_bytes()
         if not is_encrypted(raw):
-            file.write_bytes(encrypt_bytes(raw))
+            # Atomic: this rewrites a customer file in place, and a crash mid-
+            # migration must not leave a half-written, non-decryptable file.
+            _atomic_private_write(file, encrypt_bytes(raw))
             count += 1
     return count
 

@@ -268,7 +268,7 @@ async def list_audit_presets(user: User = Depends(get_current_user)):
 @router.post("/audit/presets")
 async def save_audit_preset(request: Request, user: User = Depends(get_current_user)):
     """Save a custom preset."""
-    from app.core.config import load_app_settings, save_app_settings
+    from app.core.config import update_app_settings
 
     body = await request.json()
     name = (body.get("name") or "").strip()
@@ -278,29 +278,31 @@ async def save_audit_preset(request: Request, user: User = Depends(get_current_u
     if name in _BUILTIN_PRESETS:
         raise ValidationError(ui_t("err_preset_builtin", request))
 
-    settings = load_app_settings()
-    custom = settings.get("audit_presets", {})
-    custom[name] = sections
-    settings["audit_presets"] = custom
-    save_app_settings(settings)
+    def _add(s: dict) -> None:
+        custom = s.get("audit_presets", {})
+        custom[name] = sections
+        s["audit_presets"] = custom
+
+    update_app_settings(_add)
     return {"ok": True}
 
 
 @router.delete("/audit/presets/{name}")
 async def delete_audit_preset(name: str, user: User = Depends(get_current_user)):
     """Delete a custom preset."""
-    from app.core.config import load_app_settings, save_app_settings
+    from app.core.config import update_app_settings
 
     if name in _BUILTIN_PRESETS:
         raise ValidationError(ui_t("err_preset_builtin"))
 
-    settings = load_app_settings()
-    custom = settings.get("audit_presets", {})
-    if name not in custom:
-        raise NotFoundError(ui_t("err_preset_not_found"))
-    del custom[name]
-    settings["audit_presets"] = custom
-    save_app_settings(settings)
+    def _remove(s: dict) -> None:
+        custom = s.get("audit_presets", {})
+        if name not in custom:
+            raise NotFoundError(ui_t("err_preset_not_found"))
+        del custom[name]
+        s["audit_presets"] = custom
+
+    update_app_settings(_remove)
     return {"ok": True}
 
 

@@ -139,9 +139,12 @@ def _gdap_settings() -> dict:
 
 @router.post("/settings")
 async def save_settings(request: Request, user: User = _admin):
-    from app.core.config import DATA_DIR, get_audit_dir, load_app_settings, save_app_settings
+    import copy
+
+    from app.core.config import DATA_DIR, get_audit_dir, load_app_settings, update_app_settings
     body = await request.json()
     settings = load_app_settings()
+    _original = copy.deepcopy(settings)
 
     # Path traversal protection — only allow dirs under home or DATA_DIR
     _allowed_parents = (Path.home(), DATA_DIR)
@@ -294,7 +297,19 @@ async def save_settings(request: Request, user: User = _admin):
         settings["smtp_port"] = int(body["smtp_port"])
     settings["email_auto_send"] = bool(body.get("email_auto_send", False))
 
-    save_app_settings(settings)
+    # Apply exactly the keys this handler set/removed onto the latest on-disk
+    # state (SR-005). The form loaded a snapshot, validated and computed the new
+    # values above; replaying just those changes under the settings lock keeps a
+    # concurrent write to an unrelated key from being lost.
+    _added = {k: v for k, v in settings.items() if settings.get(k) != _original.get(k)}
+    _removed = [k for k in _original if k not in settings]
+
+    def _apply(cur: dict) -> None:
+        cur.update(_added)
+        for k in _removed:
+            cur.pop(k, None)
+
+    update_app_settings(_apply)
 
     from app.core.activity_log import log_activity as _log_act
     _log_act("settings_changed")
@@ -347,11 +362,9 @@ async def get_language(user: User = _auth):
 
 @router.post("/settings/language")
 async def set_language(body: LanguageChoice, user: User = _admin):
-    from app.core.config import load_app_settings, save_app_settings
+    from app.core.config import update_app_settings
     lang = body.language
-    settings = load_app_settings()
-    settings["ui_language"] = lang
-    save_app_settings(settings)
+    update_app_settings(lambda s: s.__setitem__("ui_language", lang))
     return {"ok": True, "language": lang}
 
 
@@ -372,10 +385,9 @@ async def update_scheduler(body: SchedulerConfig, user: User = _admin):
     ``body.get("enabled")`` raise and answered 500, and any object at all was
     persisted under a key the scheduler reads on every tick.
     """
-    from app.core.config import load_app_settings, save_app_settings
-    settings = load_app_settings()
-    settings["scheduler"] = body.model_dump()
-    save_app_settings(settings)
+    from app.core.config import update_app_settings
+    _cfg = body.model_dump()
+    update_app_settings(lambda s: s.__setitem__("scheduler", _cfg))
 
     # Restart scheduler with new config
     from app.core.scheduler import scheduler
@@ -396,24 +408,22 @@ async def update_scheduler(body: SchedulerConfig, user: User = _admin):
 async def test_webhook(body: WebhookTest, request: Request, user: User = _admin):
     url = body.webhook_url
 
-    from app.core.scheduler import AuditScheduler
-    s = AuditScheduler()
-    # Temporarily override webhook URL for test
-    from app.core.config import load_app_settings, save_app_settings
-    settings = load_app_settings()
-    old = settings.get("scheduler", {}).get("webhook_url", "")
-    settings.setdefault("scheduler", {})["webhook_url"] = url
-    save_app_settings(settings)
+    # Send straight to the supplied URL. This used to write the URL into
+    # settings, send, then restore the old value — a persist/restore dance that
+    # briefly changed live config and, if it raced another settings write,
+    # restored a stale snapshot over it (SR-005 criterion 4).
+    from app.services.webhook_sender import send_simple_message
 
     try:
-        await s._send_webhook("\U0001f9ea Testmelding fra SYBR MSP Toolkit — webhook fungerer!")
-        return {"ok": True}
+        ok = await send_simple_message(
+            url, "Testmelding fra SYBR MSP Toolkit — webhook fungerer!"
+        )
     except Exception as e:
         logger.warning("Webhook test failed: %s", e)
+        raise IntegrationError("Webhook-test feilet") from e
+    if not ok:
         raise IntegrationError("Webhook-test feilet")
-    finally:
-        settings["scheduler"]["webhook_url"] = old
-        save_app_settings(settings)
+    return {"ok": True}
 
 
 # ── Task Scheduler ────────────────────────────────────────────────────────────
