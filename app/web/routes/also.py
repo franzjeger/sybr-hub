@@ -13,6 +13,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.rbac import get_accessible_customer_ids
 from app.core.utils import fire_and_forget
 from app.models.user import Role, User
 from app.web.i18n import ui_t
@@ -20,6 +21,69 @@ from app.web.middleware.auth import get_current_user, require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ── Customer scoping (SR-002) ────────────────────────────────────────────────
+#
+# Every ALSO record belongs to a Sybr customer: a company is linked by its
+# AlsoAccountId, and a renewal / subscription-detail row carries customer_id.
+# An authenticated-but-restricted user must see only their assigned customers'
+# data. get_accessible_customer_ids returns None for an unrestricted user
+# (admin or the all-customers grant) and otherwise the assigned set — possibly
+# empty, which means "no customers", not "all".
+
+
+async def _customer_scope(user: User) -> tuple[set[str] | None, dict[str, str]]:
+    """Return (allowed customer ids or None, {AlsoAccountId: customer_id})."""
+    from app.core.customer import CustomerManager
+
+    allowed = await get_accessible_customer_ids(user)
+    acct_map: dict[str, str] = {}
+    for c in CustomerManager.list_customers():
+        aid = str(c.get("AlsoAccountId", "") or "")
+        if aid:
+            acct_map[aid] = c.get("_id", "")
+    return allowed, acct_map
+
+
+def _deny_unless_scoped(customer_id: str | None, allowed: set[str] | None) -> None:
+    """Refuse with 404 unless the user may see this customer.
+
+    404 rather than 403: answering "forbidden" for one id and "not found" for
+    another lets a restricted caller map which accounts exist. An unrestricted
+    user (allowed is None) always passes.
+    """
+    if allowed is None:
+        return
+    if not customer_id or customer_id not in allowed:
+        raise NotFoundError("Ikke funnet")
+
+
+async def _customer_for_subscription(sub_id: str) -> str | None:
+    from app.core.database import get_db
+
+    async with (
+        get_db() as db,
+        db.execute(
+            "SELECT customer_id FROM also_renewals WHERE subscription_id = ? LIMIT 1",
+            (str(sub_id),),
+        ) as cur,
+    ):
+        row = await cur.fetchone()
+        return row["customer_id"] if row else None
+
+
+async def _customer_for_renewal(renewal_id: int) -> str | None:
+    from app.core.database import get_db
+
+    async with (
+        get_db() as db,
+        db.execute(
+            "SELECT customer_id FROM also_renewals WHERE id = ?", (renewal_id,)
+        ) as cur,
+    ):
+        row = await cur.fetchone()
+        return row["customer_id"] if row else None
 
 
 def _detect_term(row: dict, now=None) -> str | None:
@@ -152,11 +216,17 @@ async def test_connection(
 @router.get("/also/companies")
 async def list_companies(user: User = Depends(get_current_user)):
     """List all end-customer companies from ALSO."""
+    allowed, acct_map = await _customer_scope(user)
     try:
         client = await _get_client()
         if not client:
             raise ValidationError("ALSO er ikke konfigurert")
         companies = await client.get_companies()
+        if allowed is not None:
+            companies = [
+                c for c in companies
+                if acct_map.get(str(c.get("AccountId", "") or "")) in allowed
+            ]
         return {"companies": companies, "count": len(companies)}
     except Exception as e:
         logger.warning("ALSO get_companies failed: %s", e)
@@ -166,6 +236,8 @@ async def list_companies(user: User = Depends(get_current_user)):
 @router.get("/also/company/{account_id}")
 async def get_company_detail(account_id: str, user: User = Depends(get_current_user)):
     """Get full company detail including subscription/service data."""
+    allowed, acct_map = await _customer_scope(user)
+    _deny_unless_scoped(acct_map.get(str(account_id)), allowed)
     try:
         client = await _get_client()
         if not client:
@@ -187,6 +259,10 @@ async def also_api_stats(user: User = Depends(get_current_user)):
 @router.get("/also/subscription/{account_id}")
 async def get_subscription_detail(account_id: str, user: User = Depends(get_current_user)):
     """Get a single subscription with addons (fields, pricing). Auto-caches pricing."""
+    allowed, acct_map = await _customer_scope(user)
+    if allowed is not None:
+        cid = acct_map.get(str(account_id)) or await _customer_for_subscription(account_id)
+        _deny_unless_scoped(cid, allowed)
     try:
         client = await _get_client()
         if not client:
@@ -295,6 +371,8 @@ async def get_subscriptions(account_id: str, user: User = Depends(get_current_us
     subscription/service data.
     """
     from app.integrations.also_cloud import AlsoCloudError
+    allowed, acct_map = await _customer_scope(user)
+    _deny_unless_scoped(acct_map.get(str(account_id)), allowed)
     try:
         client = await _get_client()
         if not client:
@@ -305,9 +383,7 @@ async def get_subscriptions(account_id: str, user: User = Depends(get_current_us
         try:
             subs = await client.get_subscriptions(account_id)
             logger.info("GetSubscriptions(parentAccountId=%s) returned %d items", account_id, len(subs) if isinstance(subs, list) else 0)
-            if subs:
-                logger.info("First subscription keys: %s", list(subs[0].keys()) if isinstance(subs[0], dict) else type(subs[0]))
-                logger.info("First subscription sample: %s", {k: subs[0].get(k) for k in list(subs[0].keys())[:15]} if isinstance(subs[0], dict) else subs[0])
+            # No raw provider payload in the logs — SR-002 criterion 5.
         except Exception as e:
             logger.info("GetSubscriptions(%s) failed: %s", account_id, e)
 
@@ -325,7 +401,7 @@ async def get_subscriptions(account_id: str, user: User = Depends(get_current_us
                     sid = str(s.get("AccountId", "") or s.get("accountId", "") or s.get("Id", "") or s.get("id", "") or "")
                     if sid:
                         sub_ids.append(sid)
-                logger.info("Enriching %d subs, sub_ids sample: %s", len(sub_ids), sub_ids[:3])
+                logger.info("Enriching %d subscriptions with cached pricing", len(sub_ids))
                 if sub_ids:
                     placeholders = ",".join("?" * len(sub_ids))
                     async with get_db() as db:
@@ -416,6 +492,7 @@ async def get_renewals(days: int = 90, user: User = Depends(get_current_user)):
 
     from app.core.database import get_db
 
+    allowed, _ = await _customer_scope(user)
     now = datetime.now(timezone.utc)
     cutoff = (now + timedelta(days=days)).isoformat()
 
@@ -429,6 +506,11 @@ async def get_renewals(days: int = 90, user: User = Depends(get_current_user)):
             ORDER BY r.contract_end ASC
         """) as cur:
             rows = [dict(r) for r in await cur.fetchall()]
+
+    # Scope to the customers this user may see, before any count or MRR is
+    # computed from the rows (SR-002).
+    if allowed is not None:
+        rows = [r for r in rows if r.get("customer_id") in allowed]
 
     # Calculate days_left + term for each
     for r in rows:
@@ -525,22 +607,27 @@ async def _auto_cache_uncached_pricing(uncached_ids: list[str]) -> None:
         logger.info("Auto-cache pricing: finished — %d cached, %d errors", scanned, errors)
 
 
-_scan_progress: dict = {"scanned": 0, "errors": 0, "total": 0, "current": "", "done": True}
+# Per-user, not global (SR-002 criterion 6). The scan routes are admin-only,
+# but a shared dict still showed one admin the customer names another admin's
+# scan was walking, and let two concurrent scans overwrite each other. Keyed by
+# user id; the running-set is a single-flight guard so one user cannot start two.
+_IDLE_PROGRESS = {"scanned": 0, "errors": 0, "total": 0, "current": "", "done": True}
+_scan_progress: dict[str, dict] = {}
+_price_progress: dict[str, dict] = {}
+_scans_running: set[str] = set()
+_price_scans_running: set[str] = set()
 
 
 @router.get("/also/renewal-scan/progress")
 async def renewal_scan_progress(user: User = Depends(get_current_user)):
-    """Poll scan progress."""
-    return _scan_progress
-
-
-_price_progress: dict = {"scanned": 0, "errors": 0, "total": 0, "current": "", "done": True}
+    """Poll this user's renewal-scan progress."""
+    return _scan_progress.get(str(user.id), dict(_IDLE_PROGRESS))
 
 
 @router.get("/also/price-scan/progress")
 async def price_scan_progress(user: User = Depends(get_current_user)):
-    """Poll price scan progress."""
-    return _price_progress
+    """Poll this user's price-scan progress."""
+    return _price_progress.get(str(user.id), dict(_IDLE_PROGRESS))
 
 
 @router.post("/also/price-scan")
@@ -553,7 +640,7 @@ async def price_scan(request: Request, user: User = Depends(require_role(Role.ad
 
     from app.core.database import get_db
 
-    global _price_progress
+    uid = str(user.id)
 
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     batch_size = min(int(body.get("batch_size", 15)), 25)
@@ -586,26 +673,32 @@ async def price_scan(request: Request, user: User = Depends(require_role(Role.ad
     if not client:
         raise ValidationError("ALSO er ikke konfigurert")
 
-    _price_progress = {"scanned": 0, "errors": 0, "total": len(to_scan), "current": "", "done": False}
+    if uid in _price_scans_running:
+        raise ConflictError("En prisskanning kjører allerede")
+    _price_scans_running.add(uid)
+    _price_progress[uid] = {"scanned": 0, "errors": 0, "total": len(to_scan), "current": "", "done": False}
 
     scanned = 0
     errors = 0
-    for i, sub in enumerate(to_scan):
-        sub_id = sub["subscription_id"]
-        _price_progress = {"scanned": i, "errors": errors, "total": len(to_scan), "current": sub.get("service_display", sub_id), "done": False}
-        try:
-            detail = await client.get_subscription_with_addons(sub_id)
-            await _cache_subscription_pricing(sub_id, detail)
-            scanned += 1
-        except Exception as e:
-            logger.warning("Price scan failed for %s: %s", sub_id, e)
-            errors += 1
-            if "403" in str(e) or "429" in str(e):
-                logger.warning("Rate limit hit — stopping price scan early")
-                break
-        await asyncio.sleep(delay)
+    try:
+        for i, sub in enumerate(to_scan):
+            sub_id = sub["subscription_id"]
+            _price_progress[uid] = {"scanned": i, "errors": errors, "total": len(to_scan), "current": sub.get("service_display", sub_id), "done": False}
+            try:
+                detail = await client.get_subscription_with_addons(sub_id)
+                await _cache_subscription_pricing(sub_id, detail)
+                scanned += 1
+            except Exception as e:
+                logger.warning("Price scan failed for %s: %s", sub_id, e)
+                errors += 1
+                if "403" in str(e) or "429" in str(e):
+                    logger.warning("Rate limit hit — stopping price scan early")
+                    break
+            await asyncio.sleep(delay)
 
-    _price_progress = {"scanned": scanned, "errors": errors, "total": len(to_scan), "current": "", "done": True}
+        _price_progress[uid] = {"scanned": scanned, "errors": errors, "total": len(to_scan), "current": "", "done": True}
+    finally:
+        _price_scans_running.discard(uid)
 
     remaining = total_remaining - len(to_scan)
     return {
@@ -621,6 +714,12 @@ async def price_scan(request: Request, user: User = Depends(require_role(Role.ad
 async def handle_renewal(renewal_id: int, request: Request, user: User = Depends(get_current_user)):
     """Mark a renewal as handled / add notes."""
     from app.core.database import get_db
+
+    allowed, _ = await _customer_scope(user)
+    cid = await _customer_for_renewal(renewal_id)
+    if cid is None:
+        raise NotFoundError("Fornyelse ikke funnet")
+    _deny_unless_scoped(cid, allowed)
     body = await request.json()
     handled = body.get("handled", 1)
     notes = body.get("notes", "")
@@ -684,32 +783,38 @@ async def renewal_scan(request: Request, user: User = Depends(require_role(Role.
     if not client:
         raise ValidationError("ALSO er ikke konfigurert")
 
-    # Store progress in module-level dict for polling
-    global _scan_progress
-    _scan_progress = {"scanned": 0, "errors": 0, "total": len(batch), "current": "", "done": False}
+    # Per-user progress + single-flight (SR-002).
+    uid = str(user.id)
+    if uid in _scans_running:
+        raise ConflictError("En skanning kjører allerede")
+    _scans_running.add(uid)
+    _scan_progress[uid] = {"scanned": 0, "errors": 0, "total": len(batch), "current": "", "done": False}
 
     scanned = 0
     errors = 0
-    for i, c in enumerate(batch):
-        account_id = str(c["AlsoAccountId"])
-        cname = c.get("CustomerName", "?")
-        _scan_progress = {"scanned": i, "errors": errors, "total": len(batch), "current": cname, "done": False}
-        try:
-            subs = await client.get_subscriptions(account_id)
-            if subs:
-                await _cache_renewals(account_id, subs)
-            scanned += 1
-        except Exception as e:
-            logger.warning("Renewal scan failed for %s: %s", cname, e)
-            errors += 1
-            if "403" in str(e) or "429" in str(e) or "rate" in str(e).lower():
-                logger.warning("Rate limit hit — stopping scan early")
-                break
+    try:
+        for i, c in enumerate(batch):
+            account_id = str(c["AlsoAccountId"])
+            cname = c.get("CustomerName", "?")
+            _scan_progress[uid] = {"scanned": i, "errors": errors, "total": len(batch), "current": cname, "done": False}
+            try:
+                subs = await client.get_subscriptions(account_id)
+                if subs:
+                    await _cache_renewals(account_id, subs)
+                scanned += 1
+            except Exception as e:
+                logger.warning("Renewal scan failed for %s: %s", cname, e)
+                errors += 1
+                if "403" in str(e) or "429" in str(e) or "rate" in str(e).lower():
+                    logger.warning("Rate limit hit — stopping scan early")
+                    break
 
-        # Rate limit pause
-        await asyncio.sleep(delay)
+            # Rate limit pause
+            await asyncio.sleep(delay)
 
-    _scan_progress = {"scanned": scanned, "errors": errors, "total": len(batch), "current": "", "done": True}
+        _scan_progress[uid] = {"scanned": scanned, "errors": errors, "total": len(batch), "current": "", "done": True}
+    finally:
+        _scans_running.discard(uid)
 
     remaining = len(to_scan) - len(batch)
     return {
@@ -735,6 +840,7 @@ async def renewal_report_pdf(days: int = 90, user: User = Depends(get_current_us
 
     from app.core.database import get_db
 
+    allowed, _ = await _customer_scope(user)
     now = datetime.now(timezone.utc)
 
     async with get_db() as db:
@@ -744,6 +850,9 @@ async def renewal_report_pdf(days: int = 90, user: User = Depends(get_current_us
             ORDER BY customer_name ASC, contract_end ASC
         """) as cur:
             rows = [dict(r) for r in await cur.fetchall()]
+
+    if allowed is not None:
+        rows = [r for r in rows if r.get("customer_id") in allowed]
 
     # Calculate days_left, term, status for each row
     for r in rows:
@@ -831,8 +940,13 @@ async def renewal_report_pdf(days: int = 90, user: User = Depends(get_current_us
 
 
 @router.get("/also/invoices")
-async def get_invoices(user: User = Depends(get_current_user)):
-    """Get current month invoices."""
+async def get_invoices(user: User = Depends(require_role(Role.admin))):
+    """Get current month invoices.
+
+    Provider-wide preview invoices carry no field that maps a line to a Sybr
+    customer, so they cannot be safely customer-scoped and are admin-only
+    rather than filtered (SR-002 criterion 4).
+    """
     try:
         client = await _get_client()
         if not client:
@@ -1051,6 +1165,7 @@ async def license_optimization(user: User = Depends(get_current_user)):
     from app.core.customer import CustomerManager
     from app.core.database import get_db
 
+    allowed, _ = await _customer_scope(user)
     audit_dir = get_audit_dir()
 
     # 1. Fetch all Microsoft subscriptions with pricing from ALSO cache
@@ -1067,6 +1182,9 @@ async def license_optimization(user: User = Depends(get_current_user)):
             ORDER BY r.customer_name ASC
         """) as cur:
             also_rows = [dict(r) for r in await cur.fetchall()]
+
+    if allowed is not None:
+        also_rows = [r for r in also_rows if r.get("customer_id") in allowed]
 
     if not also_rows:
         return {
