@@ -626,6 +626,53 @@ def import_master_key(b64_key: str) -> bool:
     return True
 
 
+def unwrap_master_key_to_bytes(wrapped: str, password: str) -> bytes | None:
+    """Decrypt a password-wrapped master key and return the raw 32 bytes.
+
+    Unlike unwrap_master_key, this does NOT import the key — it only validates
+    the password and returns the material, so a restore can check the key while
+    staging and adopt it only at the atomic commit (SR-003). Returns None on a
+    wrong password or malformed bundle.
+    """
+    import base64
+
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+    try:
+        raw = base64.urlsafe_b64decode(wrapped)
+        salt = raw[:16]
+        nonce = raw[16:16 + _NONCE_LEN]
+        ciphertext = raw[16 + _NONCE_LEN:]
+        kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32,
+                         salt=salt, iterations=1_000_000)
+        wrapping_key = kdf.derive(password.encode("utf-8"))
+        master_key = AESGCM(wrapping_key).decrypt(nonce, ciphertext, None)
+        return master_key if len(master_key) == 32 else None
+    except InvalidTag:
+        log.warning("unwrap_master_key_to_bytes: wrong password or tampered bundle")
+        return None
+    except (ValueError, TypeError) as e:
+        log.warning("unwrap_master_key_to_bytes: malformed input: %s", e)
+        return None
+
+
+def manifest_mac(payload: bytes, key: bytes | None = None) -> str:
+    """HMAC-SHA256 of a backup manifest, keyed by the master key.
+
+    Authenticates the manifest (and, through it, the per-file hashes it lists)
+    so a restore can detect a manifest that was edited to smuggle in a swapped
+    or truncated file. Only a holder of the master key can forge it. *key* lets
+    the caller pass the key it already has (e.g. one unwrapped from the backup
+    but not yet imported)."""
+    import hashlib
+    import hmac
+
+    k = key if key is not None else _get_or_create_master_key()
+    return hmac.new(k, payload, hashlib.sha256).hexdigest()
+
+
 def wrap_master_key(password: str) -> str:
     """Encrypt the master key with a user password for safe inclusion in backups.
 
