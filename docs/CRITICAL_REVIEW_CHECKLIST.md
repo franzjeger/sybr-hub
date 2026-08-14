@@ -26,7 +26,7 @@ deployment.
 ## Finding checklist
 
 - [ ] **SR-001:** Provisioning ownership and credential boundaries
-- [ ] **SR-002:** ALSO customer isolation
+- [x] **SR-002:** ALSO customer isolation
 - [ ] **SR-003:** Backup and restore safety
 - [ ] **SR-004:** Scheduler lifecycle and single-flight
 - [ ] **SR-005:** Atomic, concurrency-safe settings storage
@@ -43,7 +43,7 @@ that tried to overturn every verdict in both directions. Nothing was overturned.
 | ID | Priority | Status | Criteria (met·partial·unmet) | Landed since baseline | Focused test |
 |---|---:|---|---|---|---|
 | SR-001 | P1 | Not started¹ | 0·2·6 of 8 | none | absent |
-| SR-002 | P1 | Not started | 0·1·6 of 7 | none | absent |
+| SR-002 | P1 | **Complete** | 7·0·0 of 7 | #122 | present |
 | SR-003 | P1 | Not started | 0·1·9 of 10 | none | absent |
 | SR-004 | P1 | Barely started | 0·4·3 of 7 | `dbbc3d6` (criterion 3 only) | absent |
 | SR-005 | P1 | Not started | 0·0·5 of 5 | none | absent |
@@ -70,12 +70,13 @@ criterion (SR-004 #3, `HH:MM`/interval validation via the `TaskSchedule` model i
 `dbbc3d6`) was advanced. All five P1 release-blockers remain effectively open, and
 none of the seven required focused tests exist.
 
+**SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
+caller's accessible customers, `get_invoices` made admin-only, per-user
+scan progress, 18 direct-object-reference tests, adversarially reviewed.
+The four P1 blockers below remain open.
+
 Most severe still-open gaps for a multi-user production deployment:
 
-- **SR-002** — `get_company_detail(account_id)` (`also.py:166`), `get_subscriptions`
-  (`:288`), `handle_renewal(renewal_id)` (`:620`) act on the identifier with no
-  ownership check (IDOR); `get_renewals`, `renewal_report_pdf`, `get_invoices`,
-  `license_optimization` return provider-wide data unfiltered.
 - **SR-001** — provisioning sessions bind only `user_id`; every route operates on
   any `session_id` with no owner check; raw passwords/API tokens are stored in the
   session and returned via GET; deploy requires only `technician`, not
@@ -135,18 +136,18 @@ concurrent jobs to overwrite each other.
 
 **Acceptance criteria:**
 
-- [ ] Resolve the caller's accessible Sybr customer IDs for every ALSO request.
-- [ ] Map each provider `account_id`, subscription ID, and renewal ID to a Sybr
+- [x] Resolve the caller's accessible Sybr customer IDs for every ALSO request.
+- [x] Map each provider `account_id`, subscription ID, and renewal ID to a Sybr
       customer before returning or mutating data.
-- [ ] Filter cached queries, aggregates, PDFs, invoices, renewals, and license
+- [x] Filter cached queries, aggregates, PDFs, invoices, renewals, and license
       optimization results to the authorized customer set.
-- [ ] Make genuinely provider-wide views admin-only when they cannot be safely
+- [x] Make genuinely provider-wide views admin-only when they cannot be safely
       customer-scoped.
-- [ ] Remove provider response samples from normal application logs or redact
+- [x] Remove provider response samples from normal application logs or redact
       them to a documented allowlist.
-- [ ] Replace global progress dictionaries with per-user job state and enforce
+- [x] Replace global progress dictionaries with per-user job state and enforce
       single-flight where appropriate.
-- [ ] Add direct-object-reference tests for company, subscription, renewal,
+- [x] Add direct-object-reference tests for company, subscription, renewal,
       invoice, report, and optimization endpoints.
 
 **Required focused test:** `tests/test_also_customer_scope.py`
