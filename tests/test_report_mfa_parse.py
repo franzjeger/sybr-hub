@@ -109,6 +109,60 @@ def test_the_pipe_format_still_parses():
     assert out["total"] == 1 and out["mfa_registered"] == 1
 
 
+# ── Enforced coverage: a CA exclusion means MFA is not enforced ───────────────
+
+
+def test_a_registered_user_excluded_from_ca_is_not_enforced():
+    """The critical fix. A CA exclusion removes MFA enforcement — the account
+    opens with a password alone — so a registered-but-excluded user is NOT
+    covered, method on file or not. This is what let sybr_admin (a Global Admin
+    on SMS, CA-excluded) score as covered and the tenant read 100%."""
+    sidecar = json.dumps({"users": [
+        {"display_name": "sybr_admin", "upn": "sybr_admin@example.no",
+         "mfa_registered": True, "ca_covered": False, "ca_excluded": True, "methods": ["sms"]},
+        {"display_name": "Ola Nordmann", "upn": "ola@example.no",
+         "mfa_registered": True, "ca_covered": False, "ca_excluded": False, "methods": ["fido2"]},
+    ]})
+    out = _parse_mfa("", "", [], sidecar)
+    assert out["total"] == 2
+    assert out["covered"] == 1, "the excluded account is not enforced"
+    assert out["no_mfa"] == 1
+    assert out["pct"] == 50.0
+    excluded = next(u for u in out["users"] if u["upn"] == "sybr_admin@example.no")
+    assert excluded["protected"] is False, "a CA-excluded account is not protected"
+
+
+def test_enforced_coverage_reflects_exclusions_in_the_percentage():
+    """The 6-of-8 the report should have shown instead of 100%."""
+    sidecar = json.dumps({"users": [
+        {"upn": f"u{i}@example.no", "mfa_registered": True, "ca_covered": False,
+         "ca_excluded": (i >= 6), "methods": ["fido2"]}
+        for i in range(8)
+    ]})
+    out = _parse_mfa("", "", [], sidecar)
+    assert out["total"] == 8
+    assert out["covered"] == 6, "2 of 8 are CA-excluded from enforcement"
+    assert out["no_mfa"] == 2
+    assert out["pct"] == 75.0
+
+
+def test_a_ca_excluded_user_with_unknown_lookup_is_counted_not_unknown():
+    """A CA exclusion settles enforcement even when the method lookup failed:
+    the account is known-unprotected (in no_mfa), not 'unknown'. Leaving it in
+    the unknown bucket would drop it from no_mfa while the recommendation still
+    lists it by name — the card-vs-list contradiction, reintroduced."""
+    sidecar = json.dumps({"users": [
+        {"upn": "bob@x.no", "mfa_registered": None, "ca_covered": False,
+         "ca_excluded": True, "methods": []},
+        {"upn": "ok@x.no", "mfa_registered": True, "ca_covered": False,
+         "ca_excluded": False, "methods": ["fido2"]},
+    ]})
+    out = _parse_mfa("", "", [], sidecar)
+    assert out["unknown"] == 0, "a CA-excluded account is known-unprotected, not unknown"
+    assert out["measured"] == 2
+    assert out["no_mfa"] == 1, "the excluded account counts against coverage"
+
+
 def test_the_collector_and_the_reader_agree_on_the_layout():
     """Guards the column offsets against a change to the collector's f-string."""
     from app.reports.generator import _MFA_COLS

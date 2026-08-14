@@ -274,7 +274,39 @@ class ExchangeSection(BaseSection):
     # ── Defender Policies ─────────────────────────────────────────────────────
 
     def _save_defender_policies(self) -> None:
-        policies = self._get("defender_policies")
+        # The collector returns {safe_links: [...], safe_attachments: [...]} —
+        # a dict of two lists, each policy carrying IsEnabled / Enable+Action
+        # rather than the Name/PolicyType/Enabled the report parser reads.
+        # _get() would wrap that whole dict as a single unparseable "policy",
+        # so the report saw no Safe Links / Safe Attachments at all — including
+        # the tenant Built-In Protection Policy — and reported them "not found".
+        # Flatten to one block per policy in the shape the parser expects.
+        raw = self.exo_data.get("defender_policies", {}) or {}
+        policies: list[dict] = []
+        if isinstance(raw, list):
+            policies = raw
+        elif isinstance(raw, dict):
+            for p in (raw.get("safe_links") or []):
+                policies.append({
+                    "Name": p.get("Name"),
+                    "PolicyType": "SafeLinksPolicy",
+                    # Get-SafeLinksPolicy exposes IsEnabled.
+                    "Enabled": bool(p.get("IsEnabled")),
+                })
+            for p in (raw.get("safe_attachments") or []):
+                action = str(p.get("Action") or "").strip().lower()
+                # Safe Attachments protects when Enable is true OR the action is
+                # a protective mode. The Built-In Protection Policy reports
+                # Action=Block (Enable may be unset) and is protection all the
+                # same, so counting only Enable would miss it.
+                enabled = bool(p.get("Enable")) or action in (
+                    "block", "replace", "dynamicdelivery")
+                policies.append({
+                    "Name": p.get("Name"),
+                    "PolicyType": "SafeAttachmentsPolicy",
+                    "Enabled": enabled,
+                    "Action": p.get("Action"),
+                })
         content  = _section_block(
             "MICROSOFT DEFENDER FOR OFFICE 365 POLICIES",
             policies,

@@ -1886,19 +1886,15 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% endif %}
 
 {# ── License Optimization ────────────────────────────────────────────── #}
-{% if license_optimization is defined and license_optimization %}
+{# Suppress the whole card when there is no stale-account basis to analyse
+   (no Entra P1, or the section was not collected), the way the technical
+   report and every other optional section already do — otherwise the reader
+   gets a dangling heading over an italic "no data" line. #}
+{% if license_optimization is defined and license_optimization and license_optimization.has_data %}
 <div class="env-card" style="margin-top:16px;">
   <h4>{{ t.lo_title }}</h4>
 
-  {% if not license_optimization.has_data %}
-  <p style="color:#888;font-style:italic;">
-    {%- if license_optimization.no_data_reason == 'not_collected' -%}
-      {{ t.lo_not_collected }}
-    {%- else -%}
-      {{ t.lo_no_data }}
-    {%- endif -%}
-  </p>
-  {% elif license_optimization.total_waste_estimate == 0 and not license_optimization.unused_licenses and not license_optimization.over_provisioned and not license_optimization.downgrade_candidates %}
+  {% if license_optimization.total_waste_estimate == 0 and not license_optimization.unused_licenses and not license_optimization.over_provisioned and not license_optimization.downgrade_candidates %}
   <p style="color:#27ae60;">{{ t.lo_no_issues }}</p>
   {% else %}
 

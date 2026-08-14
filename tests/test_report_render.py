@@ -261,6 +261,13 @@ def test_a_null_run_does_not_become_a_trend_delta(tmp_path):
         )
 
 
+def test_empty_license_optimization_card_is_suppressed(tmp_path):
+    """No stale-account basis (no Entra P1, or not collected) means the whole
+    card is gone, not a dangling heading over an italic "no data" line."""
+    html = _render_strict(tmp_path, "report_customer.html.j2", None)
+    assert T("no").lo_title not in html, "the empty license card left a dangling heading"
+
+
 def test_a_partial_unifi_read_renders_a_dash_not_a_crash(tmp_path):
     """A controller whose device read succeeded but whose alarm/WLAN reads
     refused yields active_alarms=None (and wlan/network/firewall counts None),
@@ -311,7 +318,12 @@ def test_an_unmeasured_purview_count_is_not_shown_as_zero(tmp_path):
             "'https://graph.microsoft.com/beta/security/informationProtection/"
             "sensitivityLabels'"
         ),
-        "19d_purview_dlp_policies.txt": "  POLICY NAME    STATUS\n  Default DLP    Enabled",
+        # Real collector format: a `_section_block` dump, one policy per [i].
+        "19d_purview_dlp_policies.txt": (
+            "=" * 80 + "\n  PURVIEW DLP POLICIES  (1 entries)\n" + "=" * 80 + "\n"
+            "\n  [1]\n    Name: Default DLP\n    Mode: Enable\n"
+            + "=" * 80 + "\n"
+        ),
     }
     ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
     assert ctx["purview"]["sensitivity_labels_unavailable"] is True

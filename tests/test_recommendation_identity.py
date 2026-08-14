@@ -110,6 +110,51 @@ def test_a_plain_lookup_also_remembers_its_key():
     assert value.params == {}
 
 
+# ── A CA-excluded privileged/attacked account is its own critical finding ─────
+
+
+def _excluded_recs(**over):
+    base = dict(
+        mfa={"has_data": True, "no_mfa": 1, "mfa_registered": 5, "ca_covered": 0,
+             "users": [
+                 {"name": "sybr_admin", "upn": "sybr_admin@example.no",
+                  "ca_excluded": True, "has_mfa": True, "protected": False},
+                 {"name": "post", "upn": "post@example.no",
+                  "ca_excluded": True, "has_mfa": True, "protected": False},
+                 {"name": "Ola", "upn": "ola@example.no",
+                  "ca_excluded": True, "has_mfa": True, "protected": False},
+             ]},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        admin_roles={"global_admin_users": [
+            {"role": "Global Administrator", "user": "sybr_admin", "email": "sybr_admin@example.no"}]},
+        signin_risk={"brute_force_suspects": ["post@example.no"]},
+        file_contents={},
+    )
+    base.update(over)
+    return _build_recommendations(**base)
+
+
+def test_a_ca_excluded_global_admin_or_attacked_account_is_surfaced_as_critical():
+    recs = _excluded_recs()
+    excluded = [r for r in recs if r.get("finding_id") == "finding-mfa-excluded"]
+    assert len(excluded) == 1, "the excluded GA / brute-forced account must be a top finding"
+    rec = excluded[0]
+    assert rec["priority"] == "critical"
+    joined = " ".join(rec["sub_items"])
+    assert "sybr_admin@example.no" in joined, "the Global Admin must be named"
+    assert "post@example.no" in joined, "the brute-forced account must be named"
+    # Ola is CA-excluded but neither privileged nor attacked — not in THIS finding.
+    assert "ola@example.no" not in joined
+
+
+def test_no_excluded_finding_when_no_excluded_account_is_privileged_or_attacked():
+    recs = _excluded_recs(
+        admin_roles={"global_admin_users": []},
+        signin_risk={"brute_force_suspects": []},
+    )
+    assert not [r for r in recs if r.get("finding_id") == "finding-mfa-excluded"]
+
+
 # ── Re-rendering on the way out ──────────────────────────────────────────────
 
 def test_the_dashboard_rebuilds_recommendations_in_the_readers_language():

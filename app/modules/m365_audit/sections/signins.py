@@ -82,6 +82,16 @@ class SignInsSection(BaseSection):
             success_counts: dict[str, int] = defaultdict(int)
             failure_counts: dict[str, int] = defaultdict(int)
             unknown_counts: dict[str, int] = defaultdict(int)
+            # The Graph signIn objects already carry the error code, its human
+            # reason, the source IP and the country — all returned by default.
+            # Collapsing a failure to a per-user count threw those away, so the
+            # report could say "2237 failures, THRESHOLD EXCEEDED" but not
+            # whether they were bad passwords (50126) or smart-lockout hits
+            # (50053), nor where they came from. Tally them so the reader can
+            # judge the attack and whether a geo-block is actually catching it.
+            error_codes: dict[tuple, int] = defaultdict(int)   # (code, reason) -> n
+            source_countries: dict[str, int] = defaultdict(int)
+            source_ips: dict[str, int] = defaultdict(int)
 
             for s in signins:
                 upn = s.get("userPrincipalName") or "(unknown)"
@@ -92,6 +102,15 @@ class SignInsSection(BaseSection):
                     success_counts[upn] += 1
                 else:
                     failure_counts[upn] += 1
+                    code = status.get("errorCode")
+                    reason = (status.get("failureReason") or "").strip()
+                    error_codes[(code, reason)] += 1
+                    country = ((s.get("location") or {}).get("countryOrRegion") or "").strip()
+                    if country:
+                        source_countries[country] += 1
+                    ip = (s.get("ipAddress") or "").strip()
+                    if ip:
+                        source_ips[ip] += 1
 
             total_unknown = sum(unknown_counts.values())
             if total_unknown:
@@ -156,6 +175,28 @@ class SignInsSection(BaseSection):
                     self._warn(
                         f"User '{upn}' had {cnt} sign-in failures in the last 30 days"
                     )
+
+            # Breakdown sections, labelled so the report parser routes them
+            # separately from the per-user table above (a country name is not a
+            # failure reason, and an error code is not a user count).
+            if error_codes:
+                fail_lines += ["", "  TOP ERROR CODES", "  " + "-" * 66]
+                for (code, reason), cnt in sorted(
+                    error_codes.items(), key=lambda x: -x[1]
+                )[:10]:
+                    label = str(code) + (f"  {reason}" if reason else "")
+                    fail_lines.append(f"  {label:<55} {cnt:>9}")
+            if source_countries:
+                fail_lines += ["", "  TOP SOURCE COUNTRIES", "  " + "-" * 66]
+                for country, cnt in sorted(
+                    source_countries.items(), key=lambda x: -x[1]
+                )[:10]:
+                    fail_lines.append(f"  {country:<55} {cnt:>9}")
+            if source_ips:
+                fail_lines += ["", "  TOP SOURCE IPS", "  " + "-" * 66]
+                for ip, cnt in sorted(source_ips.items(), key=lambda x: -x[1])[:10]:
+                    fail_lines.append(f"  {ip:<55} {cnt:>9}")
+
             fail_lines += ["=" * 70, ""]
             self._save("05b_signin_failures.txt", "\n".join(fail_lines))
 

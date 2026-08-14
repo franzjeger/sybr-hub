@@ -210,6 +210,83 @@ def test_dmarc_lookup_error_is_not_reported_as_missing():
     assert "Kan ikke verifiseres" in rows[0]["detail"]
 
 
+# ── CIS 3.2.1: zero published labels is not a pass ────────────────────────────
+# The 19c file is titled "PURVIEW SENSITIVITY LABELS" with a "Label Name"
+# column, so the substring "label" is in the file even at zero labels. Gating
+# the pass on that substring passed the control on empty evidence — the same
+# defect class the rest of this map already avoids.
+
+_LABELS_HEADER_ZERO = (
+    "  PURVIEW SENSITIVITY LABELS  (0 total)\n"
+    "  Label Name                                    Priority  Enabled  Parent ID\n"
+)
+
+
+def _purview_ctx(purview: dict, files: dict) -> dict:
+    return {"mfa": {"has_data": False}, "purview": purview, "file_contents": files}
+
+
+def test_zero_sensitivity_labels_does_not_pass_3_2_1():
+    controls = _build_compliance_map(_purview_ctx(
+        {"sensitivity_labels": []},
+        {"19c_purview_sensitivity_labels.txt": _LABELS_HEADER_ZERO},
+    ))
+    c = _control(controls, "3.2.1")
+    assert c["status"] == "warn", "0 labels on a section that ran must not pass"
+    assert "Ingen" in c["detail"]
+
+
+def test_published_sensitivity_labels_still_pass_3_2_1():
+    controls = _build_compliance_map(_purview_ctx(
+        {"sensitivity_labels": [{"name": "Confidential"}, {"name": "Internal"}]},
+        {"19c_purview_sensitivity_labels.txt":
+         _LABELS_HEADER_ZERO.replace("0 total", "2 total") + "  Confidential  0  True\n"},
+    ))
+    c = _control(controls, "3.2.1")
+    assert c["status"] == "pass"
+    assert "2" in c["detail"]
+
+
+def test_unread_sensitivity_labels_cannot_be_verified_3_2_1():
+    controls = _build_compliance_map(_purview_ctx({"sensitivity_labels": []}, {}))
+    assert _control(controls, "3.2.1")["status"] == "info"
+
+
+# ── CIS 3.1.1 / 7.2.2: a "(none)" section that ran is warn, not pass/partial ──
+# The collector writes an empty section as a non-empty "(none)" block, so a
+# `.strip()` fallback graded zero policies as "exists" — contradicting the card.
+
+_NONE_BLOCK = "=" * 80 + "\n  PURVIEW DLP POLICIES  (0 entries)\n" + "=" * 80 + "\n  (none)\n"
+_NONE_RET = "=" * 80 + "\n  PURVIEW RETENTION POLICIES  (0 entries)\n" + "=" * 80 + "\n  (none)\n"
+
+
+def test_zero_dlp_policies_is_warn_not_partial():
+    controls = _build_compliance_map(_purview_ctx(
+        {"dlp_policies": []}, {"19d_purview_dlp_policies.txt": _NONE_BLOCK}))
+    assert _control(controls, "3.1.1")["status"] == "warn"
+
+
+def test_real_dlp_policy_still_passes_3_1_1():
+    controls = _build_compliance_map(_purview_ctx(
+        {"dlp_policies": [{"name": "PII"}]},
+        {"19d_purview_dlp_policies.txt": "  [1]\n    Name: PII\n"}))
+    assert _control(controls, "3.1.1")["status"] == "pass"
+
+
+def test_zero_retention_policies_is_warn_not_pass():
+    controls = _build_compliance_map(_purview_ctx(
+        {"retention_policies": []}, {"19e_purview_retention_policies.txt": _NONE_RET}))
+    assert _control(controls, "7.2.2")["status"] == "warn"
+
+
+# ── The Compliance section label is Norwegian in the Norwegian report ─────────
+
+
+def test_compliance_label_is_translated():
+    assert T("no").compliance == "Samsvar"
+    assert T("en").compliance == "Compliance"
+
+
 def test_genuinely_missing_spf_still_fails():
     """The guard must not turn a real finding into a shrug."""
     rows = _controls([{"domain": "example.com", "spf": "MISSING", "dmarc": "MISSING"}], "5.2.1")

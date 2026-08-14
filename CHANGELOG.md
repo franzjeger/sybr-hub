@@ -5,6 +5,63 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Oppsummeringen og rådataene sier nå det samme
+
+En ekstern gjennomgang av en ekte kunderapport fant at oppsummeringskortene og
+CIS-dommene motsa rådataene rett under seg. Strukturen og metodikken holdt mål —
+sporbarhet per kontroll, CIS/NIST/ISO-mapping, skillet mellom «ikke bestått» og
+«kan ikke verifiseres» — men der summeringen og rådataene ikke stemte overens,
+kunne ingen bestått-status stoles på. Åtte feil, med rot i to klasser: et tall
+utledet feil, og en dom stilt på feil bevis.
+
+**Den farligste: MFA-dekning som skjulte det faktiske bruddet.**
+
+- Dekningspredikatet var `covered = has_mfa or (has_ca and not is_excluded)`.
+  `or`-en kortsluttet, så Conditional Access-ekskluderingen ble bare sjekket for
+  brukere *uten* registrert metode. En Global Admin og en konto under aktivt
+  passordangrep, begge unntatt fra MFA-policyen men med en registrert metode,
+  telte som «dekket» — så tenanten leste 100 % og CIS 1.1.1 «bestått». En
+  ekskludering betyr at MFA *ikke håndheves*; en registrert metode er ikke
+  håndhevelse. Predikatet er nå `(has_mfa or has_ca) and not is_excluded`, som gir
+  den ærlige håndhevede dekningen (6 av 8 på denne tenanten), snur 1.1.1 til
+  «delvis», og slår på MFA-anbefalingen igjen.
+- Et nytt kritisk funn krysser de CA-ekskluderte kontoene mot global-admin-lista
+  og brute-force-mistenkte, så «Global Admin unntatt fra MFA-håndhevelse» og
+  «angrepet konto unntatt fra MFA-håndhevelse» havner øverst i rapporten i stedet
+  for gjemt i rådatafil 04b — den faktiske sikkerhetsbristen, løftet dit den hører
+  hjemme. En ekskludert konto med ukjent metode-oppslag teller nå som
+  kjent-ubeskyttet, ikke «ukjent», så kortet og navnelista under det ikke lenger
+  motsier hverandre.
+
+**Dommer stilt på feil bevis, og tellere som telte feil:**
+
+- CIS 3.2.1 «sensitivitetsetiketter funnet» besto på null etiketter fordi
+  betingelsen lette etter ordet «label» i en fil som *heter*
+  `PURVIEW SENSITIVITY LABELS` med en `Label Name`-kolonne. Dommen står nå bare på
+  det parsede antallet; null etiketter går til «ingen funnet». CIS 3.1.1 (DLP) og
+  7.2.2 (oppbevaring) hadde samme svakhet via en `.strip()`-reserve — en tom
+  `(none)`-seksjon er ikke-tom tekst — så de besto med null policyer mens kortet
+  viste 0. Begge teller nå policyer, og en tom seksjon som kjørte blir «warn».
+- DLP-, oppbevarings- og anti-phish-kortene telte `(none)`-plassholderen som én
+  policy og hver feltlinje i en ekte policy som en til — én seks-felts
+  anti-phish-policy ble til «7». Telleren leser nå `[i]`-blokkene i
+  `_section_block`-formatet: tom → 0, én policy → 1.
+- Safe Links / Safe Attachments ble rapportert «ikke funnet» selv med
+  Built-In Protection Policy aktiv, fordi innsamleren skrev en nøstet dict som
+  parseren ikke kunne lese. Den flates nå ut til én blokk per policy, og
+  Built-In-policyen (Safe Attachments `Action=Block` uten `Enable`) telles som
+  beskyttelse.
+- Break-glass-sjekken hoppet over seg selv fordi `global_admin_ids or []`
+  erstattet den delte, ennå-tomme admin-ID-lista med en ny tom en, og
+  in-place-fyllingen senere ble usynlig. `is not None` bevarer referansen.
+- Innloggingsfeil ble kollapset til «THRESHOLD EXCEEDED» uten feilkoder eller
+  geografi, enda Graph returnerer dem som standard. Innsamleren aggregerer nå
+  topp feilkoder (50126 vs 50053), kilde-land og kilde-IP-er, og rapporten viser
+  dem — så en leser kan vurdere om Nordic-blokken faktisk stopper forsøkene.
+- Lisensoptimalisering-seksjonen sto igjen tom i kunderapporten; den er nå
+  vaktet på `has_data` som resten. «Compliance»-etiketten var uoversatt norsk og
+  er nå «Samsvar».
+
 ### En avvist lesing er ikke en tom lesing — nå også i enhetsklientene
 
 - FortiGate- og UniFi-klientene svarte på en mislykket lesing med en verdi
