@@ -64,13 +64,13 @@ ticket write-side, device-client retry and "unavailable vs zero" semantics, m365
 report accuracy, and application self-update (#120). Exactly one SR acceptance
 criterion (SR-004 #3, `HH:MM`/interval validation via the `TaskSchedule` model in
 `dbbc3d6`) was advanced. As found on 2026-08-14 all five P1 release-blockers were effectively open and
-none of the seven required focused tests existed; they were closed in the PRs
-noted below.
+none of the seven required focused tests existed. Four of the five P1
+blockers were closed in the PRs noted below; SR-003 remains open.
 
 **SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
 caller's accessible customers, `get_invoices` made admin-only, per-user
 scan progress, 18 direct-object-reference tests, adversarially reviewed.
-SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). **All five P1 release-blockers are now closed.**
+SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). **Four of the five P1 release-blockers are now closed; SR-003 (backup and restore safety) remains open.**
 
 Most severe still-open gaps for a multi-user production deployment:
 
