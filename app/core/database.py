@@ -802,12 +802,44 @@ def _prune_dead_pools() -> None:
     _sweep_orphans(only_dead_loops=True)
 
 
+_restore_in_progress = False
+
+
+def enter_restore_mode() -> None:
+    """Block new database access while a backup restore swaps the DB file.
+
+    close_pool() alone is not a durable quiesce: the next get_db() would lazily
+    rebuild a pool and reopen the very file the restore is moving. With this set
+    _current_pool refuses, so nothing reopens the database mid-swap (SR-003 #8).
+
+    Scope this narrowly around the swap and pair it with exit_restore_mode() in
+    a finally: a restore that fails and rolls the data fully back leaves the
+    original database in place and safe to reopen, so leaving the flag latched
+    would brick the whole app until a restart for no reason (SR-003 review)."""
+    global _restore_in_progress
+    _restore_in_progress = True
+
+
+def exit_restore_mode() -> None:
+    """Re-enable database access after a restore's swap window closes.
+
+    Safe to call on both the success and the rollback path: in either case the
+    file at DB_PATH is a complete, consistent database (the freshly restored one
+    or the original put back), so a rebuilt pool will open a valid file."""
+    global _restore_in_progress
+    _restore_in_progress = False
+
+
 def _current_pool() -> _ConnectionPool:
     """Return the pool for the running loop and current DB_PATH.
 
     Contains no await, so it is atomic against other coroutines on this loop;
     _pools_lock covers the other threads.
     """
+    if _restore_in_progress:
+        raise RuntimeError(
+            "Databasen gjenopprettes fra en backup — start applikasjonen på nytt."
+        )
     loop = asyncio.get_running_loop()
     path = str(DB_PATH)
 

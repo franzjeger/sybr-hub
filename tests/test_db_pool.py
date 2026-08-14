@@ -445,6 +445,31 @@ async def test_close_pool_is_safe_to_call_twice():
     await close_pool()  # must not raise
 
 
+async def test_restore_mode_blocks_new_database_access():
+    """A backup restore must durably quiesce the database.
+
+    close_pool() alone is not enough: the next get_db() would lazily rebuild the
+    pool and reopen the very file the restore is swapping underneath it. The
+    maintenance flag makes any new borrow raise instead, so nothing reopens the
+    database mid-swap (SR-003 review, HIGH).
+    """
+    try:
+        db.enter_restore_mode()
+        with pytest.raises(RuntimeError):
+            _current_pool()
+        with pytest.raises(RuntimeError):
+            async with get_db():
+                pass
+        # And the quiesce is scoped, not a one-way latch: lifting it (as the
+        # restore route's finally does on both success and rollback) re-enables
+        # access, so a rolled-back restore does not brick the app until restart.
+        db.exit_restore_mode()
+        async with get_db() as conn:
+            assert await _scalar(conn) == 1
+    finally:
+        db._restore_in_progress = False
+
+
 def test_reset_pools_is_safe_when_empty():
     reset_pools_for_tests()
     reset_pools_for_tests()  # must not raise
