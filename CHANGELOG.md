@@ -38,7 +38,10 @@ utledet feil, og en dom stilt på feil bevis.
 - CIS 3.2.1 «sensitivitetsetiketter funnet» besto på null etiketter fordi
   betingelsen lette etter ordet «label» i en fil som *heter*
   `PURVIEW SENSITIVITY LABELS` med en `Label Name`-kolonne. Dommen står nå bare på
-  det parsede antallet; null etiketter går til «ingen funnet».
+  det parsede antallet; null etiketter går til «ingen funnet». CIS 3.1.1 (DLP) og
+  7.2.2 (oppbevaring) hadde samme svakhet via en `.strip()`-reserve — en tom
+  `(none)`-seksjon er ikke-tom tekst — så de besto med null policyer mens kortet
+  viste 0. Begge teller nå policyer, og en tom seksjon som kjørte blir «warn».
 - DLP-, oppbevarings- og anti-phish-kortene telte `(none)`-plassholderen som én
   policy og hver feltlinje i en ekte policy som en til — én seks-felts
   anti-phish-policy ble til «7». Telleren leser nå `[i]`-blokkene i

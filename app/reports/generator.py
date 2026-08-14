@@ -4310,12 +4310,15 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     dlp_text = fc.get("19d_purview_dlp_policies.txt", "")
     _dlp_raw = purview.get("dlp_policies", 0) if purview else 0
     dlp_count = len(_dlp_raw) if isinstance(_dlp_raw, list) else (_dlp_raw if isinstance(_dlp_raw, int) else 0)
+    # Gate on the parsed count, not on `dlp_text.strip()`. The collector writes
+    # an empty section as a "(none)" _section_block, which is non-empty text —
+    # so the old `elif dlp_text.strip()` graded a tenant with zero DLP policies
+    # "partial: policies exist", contradicting the card that (correctly) shows 0.
+    # Zero policies on a section that ran is a warn; the control asks whether DLP
+    # is configured, and it is not.
     if dlp_count > 0 or ("enabled" in dlp_text.lower() and "enforce" in dlp_text.lower()):
         add("3.1.1", "Ensure DLP policies are configured", t.cis_cat_data, "pass",
             f"{dlp_count} DLP-policyer konfigurert" if dlp_count else "DLP-policyer funnet")
-    elif dlp_text.strip():
-        add("3.1.1", "Ensure DLP policies are configured", t.cis_cat_data, "partial",
-            "DLP-policyer finnes men kan være i test-/overvåkingsmodus")
     elif _section_ran(fc, "19d_purview_dlp_policies.txt"):
         add("3.1.1", "Ensure DLP policies are configured", t.cis_cat_data, "warn",
             "Ingen DLP-policyer funnet")
@@ -4821,12 +4824,15 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
                 sp.get("sharing_label", t.cis_sp_open))
 
     # 7.2.2 Retention policies
-    retention_text = fc.get("19e_purview_retention_policies.txt", "")
     _ret_raw = purview.get("retention_policies", 0) if purview else 0
     ret_count = len(_ret_raw) if isinstance(_ret_raw, list) else (_ret_raw if isinstance(_ret_raw, int) else 0)
-    if ret_count > 0 or retention_text.strip():
+    # Count-gated, not text-gated: the "(none)" _section_block placeholder is
+    # non-empty text, so `or retention_text.strip()` passed the control on a
+    # section with zero retention policies while the card showed 0. Empty →
+    # warn, matching 3.1.1 and 3.2.1.
+    if ret_count > 0:
         add("7.2.2", "Ensure data retention policies are configured", t.cis_cat_data, "pass",
-            f"{ret_count} oppbevaringspolicyer" if ret_count else "Oppbevaringspolicyer funnet")
+            f"{ret_count} oppbevaringspolicyer")
     elif _section_ran(fc, "19e_purview_retention_policies.txt"):
         add("7.2.2", "Ensure data retention policies are configured", t.cis_cat_data, "warn",
             "Ingen oppbevaringspolicyer funnet")

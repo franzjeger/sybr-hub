@@ -252,6 +252,33 @@ def test_unread_sensitivity_labels_cannot_be_verified_3_2_1():
     assert _control(controls, "3.2.1")["status"] == "info"
 
 
+# ── CIS 3.1.1 / 7.2.2: a "(none)" section that ran is warn, not pass/partial ──
+# The collector writes an empty section as a non-empty "(none)" block, so a
+# `.strip()` fallback graded zero policies as "exists" — contradicting the card.
+
+_NONE_BLOCK = "=" * 80 + "\n  PURVIEW DLP POLICIES  (0 entries)\n" + "=" * 80 + "\n  (none)\n"
+_NONE_RET = "=" * 80 + "\n  PURVIEW RETENTION POLICIES  (0 entries)\n" + "=" * 80 + "\n  (none)\n"
+
+
+def test_zero_dlp_policies_is_warn_not_partial():
+    controls = _build_compliance_map(_purview_ctx(
+        {"dlp_policies": []}, {"19d_purview_dlp_policies.txt": _NONE_BLOCK}))
+    assert _control(controls, "3.1.1")["status"] == "warn"
+
+
+def test_real_dlp_policy_still_passes_3_1_1():
+    controls = _build_compliance_map(_purview_ctx(
+        {"dlp_policies": [{"name": "PII"}]},
+        {"19d_purview_dlp_policies.txt": "  [1]\n    Name: PII\n"}))
+    assert _control(controls, "3.1.1")["status"] == "pass"
+
+
+def test_zero_retention_policies_is_warn_not_pass():
+    controls = _build_compliance_map(_purview_ctx(
+        {"retention_policies": []}, {"19e_purview_retention_policies.txt": _NONE_RET}))
+    assert _control(controls, "7.2.2")["status"] == "warn"
+
+
 # ── The Compliance section label is Norwegian in the Norwegian report ─────────
 
 
