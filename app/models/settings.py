@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # The alert thresholds use `False` to mean "this alert is off" and an integer
 # to mean "alert past this value". That is the shape `core/scheduler.py`
@@ -69,15 +69,46 @@ class WebhookTest(BaseModel):
     webhook_url: str = Field(min_length=1, max_length=2048)
 
 
+_WEEKDAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_TASK_TYPES = ("daily", "weekly", "interval")
+
+
 class TaskSchedule(BaseModel):
-    """Schedule for one named background task."""
+    """Schedule for one named background task.
+
+    The scheduler reads `type` to decide whether to run daily, weekly, or on an
+    interval; `day` names the weekday for a weekly task; `time` is HH:MM. An
+    unvalidated `type`/`day` used to be accepted here and then quietly mis-fire
+    in _compute_next_run — a "weekley" typo fell through to the daily branch and
+    a bad weekday silently became Sunday (SR-004 config validation)."""
 
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool | None = None
+    type: str | None = None
     time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
-    day: str | None = Field(default=None, max_length=16)
+    day: str | None = None
     interval_hours: int | None = Field(default=None, ge=1, le=8760)
+
+    @field_validator("type")
+    @classmethod
+    def _valid_type(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        low = v.strip().lower()
+        if low not in _TASK_TYPES:
+            raise ValueError(f"type must be one of {', '.join(_TASK_TYPES)}")
+        return low
+
+    @field_validator("day")
+    @classmethod
+    def _valid_day(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        low = v.strip().lower()
+        if low not in _WEEKDAY_NAMES:
+            raise ValueError("day must be a weekday name (monday..sunday)")
+        return low
 
 
 class LanguageChoice(BaseModel):
