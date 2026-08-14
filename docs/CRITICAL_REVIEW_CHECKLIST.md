@@ -27,7 +27,7 @@ deployment.
 
 - [x] **SR-001:** Provisioning ownership and credential boundaries
 - [x] **SR-002:** ALSO customer isolation
-- [ ] **SR-003:** Backup and restore safety
+- [x] **SR-003:** Backup and restore safety
 - [x] **SR-004:** Scheduler lifecycle and single-flight
 - [x] **SR-005:** Atomic, concurrency-safe settings storage
 - [ ] **SR-006:** Pentest execution boundary and process cleanup
@@ -44,7 +44,7 @@ that tried to overturn every verdict in both directions. Nothing was overturned.
 |---|---:|---|---|---|---|
 | SR-001 | P1 | **Complete** | 8·0·0 of 8 | #124 | present |
 | SR-002 | P1 | **Complete** | 7·0·0 of 7 | #122 | present |
-| SR-003 | P1 | Not started | 0·1·9 of 10 | none | absent |
+| SR-003 | P1 | **Complete** | 10·0·0 of 10 | #127 | present |
 | SR-004 | P1 | **Complete** | 7·0·0 of 7 | #125 | present |
 | SR-005 | P1 | **Complete** | 5·0·0 of 5 | #123 | present |
 | SR-006 | P2 | Not started | 0·1·4 of 5 | none | absent |
@@ -64,13 +64,13 @@ ticket write-side, device-client retry and "unavailable vs zero" semantics, m365
 report accuracy, and application self-update (#120). Exactly one SR acceptance
 criterion (SR-004 #3, `HH:MM`/interval validation via the `TaskSchedule` model in
 `dbbc3d6`) was advanced. As found on 2026-08-14 all five P1 release-blockers were effectively open and
-none of the seven required focused tests existed. Four of the five P1
-blockers were closed in the PRs noted below; SR-003 remains open.
+none of the seven required focused tests existed. All five P1 blockers have
+since been closed in the PRs noted below.
 
 **SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
 caller's accessible customers, `get_invoices` made admin-only, per-user
 scan progress, 18 direct-object-reference tests, adversarially reviewed.
-SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). **Four of the five P1 release-blockers are now closed; SR-003 (backup and restore safety) remains open.**
+SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). SR-003 landed in #127 (atomic authenticated backups; a restore that stages and hash-verifies against an HMAC-authenticated manifest, extracts only manifest-listed files, swaps atomically with rollback, adopts the key last, and durably quiesces the database during the swap). **All five P1 release-blockers are now closed. Only the two P2 items (SR-006, SR-007) remain.**
 
 Most severe still-open gaps for a multi-user production deployment:
 
@@ -154,23 +154,30 @@ the complete ZIP archive.
 
 **Acceptance criteria:**
 
-- [ ] Reject backup destinations inside every included source tree.
-- [ ] Create backups under a temporary name and atomically rename on success.
-- [ ] Serialize backup creation so scheduled and manual backups cannot collide.
-- [ ] Add an authenticated manifest containing format version, file paths,
+- [x] Reject backup destinations inside every included source tree.
+- [x] Create backups under a temporary name and atomically rename on success.
+- [x] Serialize backup creation so scheduled and manual backups cannot collide.
+- [x] Add an authenticated manifest containing format version, file paths,
       sizes, and cryptographic hashes.
-- [ ] Clearly distinguish key portability from whole-archive confidentiality;
+- [x] Clearly distinguish key portability from whole-archive confidentiality;
       add archive-level authenticated encryption if confidential portable
-      backups are promised.
-- [ ] Enforce entry-count, per-entry size, total uncompressed size, and
+      backups are promised. *(Documented confidentiality model: payload
+      encrypted at rest, metadata cleartext, manifest authenticated for
+      integrity; whole-archive AE deliberately not attempted.)*
+- [x] Enforce entry-count, per-entry size, total uncompressed size, and
       compression-ratio limits before extraction.
-- [ ] Validate and stage the complete restore, including SQLite integrity,
+- [x] Validate and stage the complete restore, including SQLite integrity,
       before modifying live state or importing a master key.
-- [ ] Quiesce writers and close the database pool during commit.
-- [ ] Commit atomically where possible and provide automatic rollback for every
-      changed data class and the master key.
-- [ ] Add corruption, wrong-password, ZIP bomb, self-inclusion, partial-write,
+- [x] Quiesce writers and close the database pool during commit.
+- [x] Commit atomically where possible and provide automatic rollback for every
+      changed data class and the master key. *(Key adopted last, after an
+      atomic same-fs swap, so a rollback never leaves data and key mismatched.)*
+- [x] Add corruption, wrong-password, ZIP bomb, self-inclusion, partial-write,
       rollback, and live-database regression tests.
+
+Landed in #127. Two adversarial review rounds hardened the restore path against
+smuggled (non-manifest) files, a MAC-downgrade, a key/data mismatch on rollback,
+a non-durable quiesce that could brick the DB, and a concurrent-restore race.
 
 **Required focused test:** `tests/test_backup_restore.py`
 
