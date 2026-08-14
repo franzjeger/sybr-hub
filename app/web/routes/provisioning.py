@@ -7,19 +7,52 @@ import logging
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import (
-    AuthError,
-    ConflictError,
+    ForbiddenError,
     IntegrationError,
     NotFoundError,
     ValidationError,
 )
-from app.models.user import Role, User
-from app.web.middleware.auth import get_current_user, require_role
+from app.models.user import User
+from app.web.middleware.auth import require_feature
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_role_dep = Depends(require_role(Role.technician))
+# Provisioning is an admin feature in the matrix (app/core/features.py), and the
+# routes carried only a technician floor (SR-001 #7). require_feature reads that
+# table, so the screen and the route cannot disagree.
+_role_dep = Depends(require_feature("provisioning"))
+
+
+async def _authorize(session_id: str, user: User, *, tenant_write: bool = False) -> dict:
+    """Return the raw session if the caller owns it and may act on its customer.
+
+    Missing and not-owned both raise 404 — the same answer, so a caller cannot
+    probe which session ids exist or belong to someone else (SR-001 #2/#3).
+    Deploy additionally requires the tenant-write capability, because it writes
+    to a customer's device (SR-001 #7).
+    """
+    from app.core.rbac import check_customer_access
+    from app.services.provisioning import get_session_raw
+
+    session = get_session_raw(session_id)
+    if session is None or str(session.get("user_id")) != str(user.id):
+        raise NotFoundError("Sesjon ikke funnet")
+    cid = session.get("customer_id") or ""
+    if cid and not await check_customer_access(user, cid):
+        raise NotFoundError("Sesjon ikke funnet")
+    if tenant_write and not (
+        getattr(user, "can_write", False) and getattr(user, "tenant_write", False)
+    ):
+        logger.warning(
+            "403 provisioning-deploy tenant-write: user=%s session=%s",
+            user.username, session_id,
+        )
+        raise ForbiddenError(
+            "Deploy skriver til kundens enhet og krever skrivetilgang. "
+            "Kontoen din har lesetilgang."
+        )
+    return session
 
 
 # ── Session Management ───────────────────────────────────────────────────────
@@ -30,10 +63,11 @@ async def start_wizard(
     user: User = _role_dep,
 ):
     """Start a new provisioning wizard session."""
+    from app.core.customer import CustomerManager
     from app.services.provisioning import start_session
 
-    result = start_session(user_id=str(user.id))
-    return result
+    active = CustomerManager.get_active() or {}
+    return start_session(user_id=str(user.id), customer_id=active.get("_id", ""))
 
 
 @router.get("/provisioning/sessions")
@@ -55,10 +89,8 @@ async def get_wizard_session(
     """Get a wizard session's current state."""
     from app.services.provisioning import get_session
 
-    session = get_session(session_id)
-    if not session:
-        raise NotFoundError("Sesjon ikke funnet")
-    return session
+    await _authorize(session_id, user)
+    return get_session(session_id)
 
 
 # ── Step Submission ──────────────────────────────────────────────────────────
@@ -89,6 +121,7 @@ async def submit_wizard_step(
     """Submit data for a specific wizard step (1-5)."""
     from app.services.provisioning import submit_step
 
+    await _authorize(session_id, user)
     body = await request.json()
     try:
         result = submit_step(session_id, step, body)
@@ -108,6 +141,7 @@ async def get_wizard_summary(
     """Get the review summary for all wizard steps."""
     from app.services.provisioning import get_summary
 
+    await _authorize(session_id, user)
     try:
         summary = get_summary(session_id)
         return summary
@@ -128,6 +162,7 @@ async def generate_wizard_configs(
     """
     from app.services.provisioning import generate_configs
 
+    await _authorize(session_id, user)
     body = await request.json()
     use_ai = body.get("use_ai", False)
     try:
@@ -161,12 +196,16 @@ async def deploy_wizard_config(
     from app.services.provisioning import deploy_config
     log = logging.getLogger(__name__)
 
+    session = await _authorize(session_id, user, tenant_write=True)
+
     body = await request.json()
     method = body.get("method", "ssh")
     target_host = body.get("target_host", "")
 
-    active = CustomerManager.get_active() or {}
-    cust_name = active.get("CustomerName", "")
+    # The customer the session is bound to — not whichever is active now.
+    _cid = session.get("customer_id", "")
+    cust = (CustomerManager.get_customer(_cid) or {}) if _cid else {}
+    cust_name = cust.get("CustomerName", "")
 
     log_activity(
         "provisioning_deploy_started",
@@ -256,7 +295,6 @@ async def delete_wizard_session(
     """Delete a wizard session."""
     from app.services.provisioning import delete_session
 
-    deleted = delete_session(session_id)
-    if not deleted:
-        raise NotFoundError("Sesjon ikke funnet")
+    await _authorize(session_id, user)
+    delete_session(session_id)
     return {"ok": True}
