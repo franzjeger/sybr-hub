@@ -551,10 +551,10 @@ async def site_manager_authenticate(
                     if store_for_customer:
                         store_secret(store_for_customer, "ui_cloud_token", api_key)
                     # Also store globally in app settings
-                    from app.core.config import load_app_settings, save_app_settings
-                    settings = load_app_settings()
-                    settings["unifi_site_manager_api_key"] = api_key
-                    save_app_settings(settings)
+                    from app.core.config import update_app_settings
+                    update_app_settings(
+                        lambda s: s.__setitem__("unifi_site_manager_api_key", api_key)
+                    )
                     log.info("UniFi Site Manager API key saved")
                     return {"ok": True, "token": api_key, "method": "api_key"}
                 return {"ok": False, "error": f"API key invalid — HTTP {r.status_code}"}

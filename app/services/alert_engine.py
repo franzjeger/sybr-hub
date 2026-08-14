@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from app.core.config import CONFIG_DIR, load_app_settings, save_app_settings
+from app.core.config import CONFIG_DIR, load_app_settings
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -117,9 +117,8 @@ def get_alert_config() -> dict:
 
 def save_alert_config(config: dict) -> None:
     """Persist alert config to app settings."""
-    settings = load_app_settings()
-    settings["alert_config"] = config
-    save_app_settings(settings)
+    from app.core.config import update_app_settings
+    update_app_settings(lambda s: s.__setitem__("alert_config", config))
 
 
 def get_customer_alert_overrides(customer_id: str) -> dict:

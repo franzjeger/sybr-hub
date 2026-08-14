@@ -14,7 +14,7 @@ from difflib import SequenceMatcher
 
 from fastapi import APIRouter, Depends, Request
 
-from app.core.config import load_app_settings, save_app_settings
+from app.core.config import load_app_settings, update_app_settings
 from app.core.database import get_db
 from app.core.exceptions import (
     AuthError,
@@ -778,11 +778,12 @@ async def uniweb_save_settings(request: Request, user: User = _auth):
     if not email or not password:
         raise ValidationError("E-post og passord er pakrevd")
 
-    settings = load_app_settings()
-    settings["uniweb_email"] = email
-    if password != "••••••":
-        settings["uniweb_password"] = password
-    save_app_settings(settings)
+    def _set(s: dict) -> None:
+        s["uniweb_email"] = email
+        if password != "••••••":
+            s["uniweb_password"] = password
+
+    update_app_settings(_set)
 
     try:
         from app.core.activity_log import log_activity

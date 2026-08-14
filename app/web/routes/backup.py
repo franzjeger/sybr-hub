@@ -135,11 +135,11 @@ def create_backup_sync(dest_path: str | None = None, backup_password: str | None
     manifest["zip_size_bytes"] = zip_path.stat().st_size
 
     # Save last backup date in app settings
-    from app.core.config import load_app_settings, save_app_settings
-    settings = load_app_settings()
-    settings["last_backup_date"] = manifest["backup_date"]
-    settings["last_backup_path"] = str(zip_path)
-    save_app_settings(settings)
+    from app.core.config import update_app_settings
+    update_app_settings(lambda s: s.update({
+        "last_backup_date": manifest["backup_date"],
+        "last_backup_path": str(zip_path),
+    }))
 
     return {"ok": True, "path": str(zip_path), "manifest": manifest}
 

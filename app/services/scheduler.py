@@ -107,8 +107,7 @@ def _now() -> datetime:
 def _persist_task_status() -> None:
     """Save task status to app settings so it survives restarts."""
     try:
-        from app.core.config import load_app_settings, save_app_settings
-        settings = load_app_settings()
+        from app.core.config import update_app_settings
         persist = {}
         for tid, st in _task_status.items():
             persist[tid] = {
@@ -117,8 +116,7 @@ def _persist_task_status() -> None:
                 "last_error": st.get("last_error"),
                 "consecutive_failures": st.get("consecutive_failures", 0),
             }
-        settings["task_scheduler_status"] = persist
-        save_app_settings(settings)
+        update_app_settings(lambda s: s.__setitem__("task_scheduler_status", persist))
     except Exception as e:
         log.warning("Failed to persist task status: %s", e)
 
@@ -171,10 +169,8 @@ def get_task_scheduler_config() -> dict[str, dict]:
 
 
 def save_task_scheduler_config(cfg: dict) -> None:
-    from app.core.config import load_app_settings, save_app_settings
-    settings = load_app_settings()
-    settings["task_scheduler"] = cfg
-    save_app_settings(settings)
+    from app.core.config import update_app_settings
+    update_app_settings(lambda s: s.__setitem__("task_scheduler", cfg))
 
 
 # ── Task implementations ──���───────────────────────────────────────────────

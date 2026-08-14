@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+from collections.abc import Callable
 from pathlib import Path
 
 from platformdirs import user_config_dir, user_data_dir, user_documents_dir
@@ -180,17 +182,58 @@ def get_cert_dir() -> Path:
     return CERTS_DIR
 
 
+# One writer at a time. Settings are one encrypted JSON blob, and every update
+# is read-modify-write. Without serialization two concurrent updates each load
+# the whole dict, change their field, and save — and the second save drops the
+# first update. The lock plus reading fresh *inside* it (update_app_settings)
+# means a focused update mutates only its own field against the latest on-disk
+# state, so nothing else is clobbered. Chosen over optimistic revision checks:
+# the transactions are short, so serializing them removes the staleness rather
+# than detecting it after the fact.
+#
+# The lock is not needed for reads: writes are atomic (os.replace via
+# _atomic_private_write), so a reader always sees a complete old or new file.
+_SETTINGS_LOCK = threading.Lock()
+
+
+def _settings_path() -> Path:
+    return CONFIG_DIR / "settings.json"
+
+
 def load_app_settings() -> dict:
     from app.core.encryption import encrypted_read_json
-    path = CONFIG_DIR / "settings.json"
+    path = _settings_path()
     if path.exists():
         return encrypted_read_json(path)
     return {}
 
 
 def save_app_settings(settings: dict) -> None:
+    """Persist the whole settings dict, serialized and atomically.
+
+    Prefer update_app_settings for a focused change: this replaces the entire
+    blob and so can still lose a concurrent update to a different key.
+    """
     from app.core.encryption import encrypted_write_json
-    path = CONFIG_DIR / "settings.json"
-    encrypted_write_json(path, settings)
+    with _SETTINGS_LOCK:
+        encrypted_write_json(_settings_path(), settings)
+
+
+def update_app_settings(mutate: Callable[[dict], None]) -> dict:
+    """Serialized read-modify-write. Returns the settings after the change.
+
+    ``mutate`` receives the CURRENT settings (read fresh under the lock) and
+    changes it in place — set, pop, or edit a nested block. Because the read
+    happens inside the lock, the change lands on the latest state and cannot
+    drop a field another writer set meanwhile. If ``mutate`` raises, nothing is
+    written and the exception propagates (used by routes to 404 before saving).
+    """
+    from app.core.encryption import encrypted_read_json, encrypted_write_json
+    path = _settings_path()
+    with _SETTINGS_LOCK:
+        current = encrypted_read_json(path) if path.exists() else {}
+        mutate(current)
+        encrypted_write_json(path, current)
+        return current
 
 
