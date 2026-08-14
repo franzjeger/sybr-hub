@@ -391,7 +391,7 @@ async def update_scheduler(body: SchedulerConfig, user: User = _admin):
 
     # Restart scheduler with new config
     from app.core.scheduler import scheduler
-    scheduler.stop()
+    await scheduler.stop()
     if body.enabled:
         scheduler.start()
 
@@ -452,10 +452,12 @@ async def update_task_scheduler_config(request: Request, user: User = _admin):
     # is validated rather than copied: `time` reaches a scheduler that parses
     # it, and an unparseable one used to be accepted here and fail later where
     # nothing connected it back to this request.
+    # Validate every task first, then apply — so a task later in the body that
+    # fails validation cannot leave earlier tasks half-saved with their failure
+    # breakers already reset (SR-004: the request is all-or-nothing).
+    validated: list[tuple[str, dict]] = []
     for task_id, updates in body.items():
-        if task_id not in cfg:
-            continue
-        if not isinstance(updates, dict):
+        if task_id not in cfg or not isinstance(updates, dict):
             continue
         try:
             schedule = TaskSchedule.model_validate(updates)
@@ -463,10 +465,14 @@ async def update_task_scheduler_config(request: Request, user: User = _admin):
             raise ValidationError(
                 f"Ugyldig oppsett for oppgaven {task_id!r}"
             ) from exc
-        for key, value in schedule.model_dump(exclude_none=True).items():
-            cfg[task_id][key] = value
+        validated.append((task_id, schedule.model_dump(exclude_none=True)))
+
+    for task_id, changes in validated:
+        cfg[task_id].update(changes)
+    if validated:
         save_task_scheduler_config(cfg)
-        restart_task(task_id)
+        for task_id, _changes in validated:
+            restart_task(task_id)
 
     from app.core.activity_log import log_activity as _log_act
     _log_act("task_scheduler_updated", detail="Task scheduler config updated", user="admin")

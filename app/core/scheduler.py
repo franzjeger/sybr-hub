@@ -32,10 +32,18 @@ class AuditScheduler:
         self._task = asyncio.create_task(self._loop())
         log.info("Scheduler started (interval: %dh)", config.get("interval_hours", 168))
 
-    def stop(self):
-        if self._task:
-            self._task.cancel()
-            self._task = None
+    async def stop(self):
+        """Cancel the loop and await it, so shutdown does not race the task."""
+        self._running = False
+        task, self._task = self._task, None
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:  # a teardown error must not block shutdown
+                log.warning("Audit scheduler loop errored on stop: %s", exc)
 
     async def _loop(self):
         """Main scheduler loop."""
@@ -45,9 +53,16 @@ class AuditScheduler:
 
             try:
                 await asyncio.sleep(interval)
+                # Credential-expiry and the ALSO renewal scan are dropped here:
+                # the task scheduler already runs them (alert_check delegates to
+                # _check_credential_expiry every 6h; also_price_refresh runs the
+                # renewal scan daily), so running them from the audit loop too
+                # was duplicate work (SR-004 non-overlapping ownership).
+                #
+                # The post-audit backup stays: it is gated on the operator's
+                # `backup_after_audit` setting and is a different job from the
+                # standalone weekly app_backup task, not a duplicate of it.
                 await self._run_scheduled_audit()
-                await self._check_credential_expiry()
-                await self._scan_also_renewals()
                 await self._maybe_create_backup()
             except asyncio.CancelledError:
                 break

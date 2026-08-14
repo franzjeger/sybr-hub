@@ -131,7 +131,39 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Guacamole is optional and may be offline while the rest of the hub is
         # healthy. Keep serving, but leave a visible cleanup warning.
         log.warning("Stale Guacamole cleanup could not run at startup: %s", exc)
+
+    # Start the background schedulers here, not from a settings save. Enabled
+    # jobs used to begin only when their config was next written, so a restart
+    # silently stopped everything until an operator reopened Settings (SR-004).
+    # This process owns the schedule: main.py runs a single uvicorn worker;
+    # running several would double every job, and a leader/lease would be
+    # needed before multi-worker is supported.
+    try:
+        from app.core.scheduler import scheduler as _audit_scheduler
+        _audit_scheduler.start()
+    except Exception as exc:
+        log.warning("Audit scheduler did not start: %s", exc)
+    try:
+        from app.services import scheduler as _task_scheduler
+        _task_scheduler.start_all()
+    except Exception as exc:
+        log.warning("Task scheduler did not start: %s", exc)
+
     yield
+
+    # Await cancellation so the loops are actually gone before the DB pool and
+    # proxy resources they use are torn down.
+    try:
+        from app.core.scheduler import scheduler as _audit_scheduler
+        await _audit_scheduler.stop()
+    except Exception as exc:
+        log.warning("Audit scheduler did not stop cleanly: %s", exc)
+    try:
+        from app.services import scheduler as _task_scheduler
+        await _task_scheduler.stop_all()
+    except Exception as exc:
+        log.warning("Task scheduler did not stop cleanly: %s", exc)
+
     try:
         await proxy.shutdown_proxy_resources()
     finally:

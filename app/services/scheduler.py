@@ -96,6 +96,30 @@ _WEEKDAYS = {
 
 _task_status: dict[str, dict] = {}
 _running_tasks: dict[str, asyncio.Task] = {}
+# One lock per task, shared by the scheduled loop and manual run_now, so a task
+# never runs twice at once — a manual run overlapping its own tick used to let
+# two invocations write the same status and compete for the same resource
+# (SR-004 single-flight).
+_task_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_for(task_id: str) -> asyncio.Lock:
+    lock = _task_locks.get(task_id)
+    if lock is None:
+        lock = _task_locks[task_id] = asyncio.Lock()
+    return lock
+
+
+def _breaker_tripped(task_id: str) -> bool:
+    """True once a task has auto-disabled itself after repeated failures.
+
+    The count is persisted, so the tripped state survives a restart: an
+    auto-disabled task is not silently restarted on boot (SR-004). Re-enabling
+    it in Settings clears the count (see restart_task)."""
+    return (
+        _task_status.get(task_id, {}).get("consecutive_failures", 0)
+        >= _MAX_CONSECUTIVE_FAILURES
+    )
 _MAX_CONSECUTIVE_FAILURES = 5
 _BACKOFF_BASE_SECONDS = 60  # 1min, 2min, 4min, 8min, 16min
 
@@ -559,18 +583,32 @@ _TASK_RUNNERS = {
 # ── Task loop ────��───────────────────────────��────────────────────────────
 
 def _compute_next_run(task_cfg: dict) -> datetime:
-    """Compute the next run time for a task and return it as a UTC datetime."""
+    """Compute the next run time for a task and return it as a UTC datetime.
+
+    Never raises: validation runs on the write path, but a settings file edited
+    by hand (or written before that validation existed) could hold a malformed
+    time or interval. This is called at the top of the loop, outside its
+    try/except, so a raise here would kill the loop coroutine silently — no
+    failure count, no breaker, no restart. Fall back to a safe default instead.
+    """
     now = _now()
     task_type = task_cfg.get("type", "daily")
 
     if task_type == "interval":
-        hours = task_cfg.get("interval_hours", 6)
-        return now + timedelta(hours=hours)
+        try:
+            hours = int(task_cfg.get("interval_hours", 6))
+        except (TypeError, ValueError):
+            hours = 6
+        return now + timedelta(hours=max(hours, 1))
 
     # Parse target time
-    time_str = task_cfg.get("time", "02:00")
-    parts = time_str.split(":")
-    target = time(int(parts[0]), int(parts[1]))
+    time_str = str(task_cfg.get("time", "02:00"))
+    try:
+        parts = time_str.split(":")
+        target = time(int(parts[0]), int(parts[1]))
+    except (ValueError, IndexError):
+        log.warning("Task has an unparseable time %r; falling back to 02:00", time_str)
+        target = time(2, 0)
 
     if task_type == "weekly":
         day_name = task_cfg.get("day", "sunday").lower()
@@ -611,10 +649,17 @@ async def _task_loop(task_id: str) -> None:
             log.warning("No runner for task %s", task_id)
             continue
 
+        lock = _lock_for(task_id)
+        if lock.locked():
+            # A manual run is in flight; let it own this tick.
+            log.info("Task %s already running — skipping this tick", task_id)
+            continue
+
         start = _now()
         _task_status[task_id]["last_start"] = start.isoformat()
         try:
-            result = await runner()
+            async with lock:
+                result = await runner()
             _task_status[task_id]["last_run"] = start.isoformat()
             _task_status[task_id]["last_result"] = result
             _task_status[task_id]["last_error"] = None
@@ -732,6 +777,13 @@ def start_all() -> None:
     for task_id, task_cfg in cfg.items():
         if not task_cfg.get("enabled", False):
             continue
+        if _breaker_tripped(task_id):
+            log.warning(
+                "Task %s not started: auto-disabled after %d consecutive "
+                "failures. Re-enable it in Settings once the cause is fixed.",
+                task_id, _MAX_CONSECUTIVE_FAILURES,
+            )
+            continue
         if task_id in _running_tasks and not _running_tasks[task_id].done():
             continue
         _running_tasks[task_id] = asyncio.create_task(_task_loop(task_id))
@@ -739,17 +791,32 @@ def start_all() -> None:
         log.info("Scheduled task started: %s", task_id)
 
 
-def stop_all() -> None:
-    """Cancel all running task loops."""
-    for task_id, task in list(_running_tasks.items()):
+async def stop_all() -> None:
+    """Cancel all running task loops and await them, so shutdown is clean."""
+    tasks = list(_running_tasks.items())
+    for task_id, task in tasks:
         if not task.done():
             task.cancel()
         _task_status.setdefault(task_id, {})["running"] = False
+    for _task_id, task in tasks:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:  # a task erroring on teardown must not hang us
+            log.warning("Task %s errored on stop: %s", _task_id, exc)
     _running_tasks.clear()
 
 
 def restart_task(task_id: str) -> None:
-    """Restart a single task loop (e.g. after config change)."""
+    """Restart a single task loop (e.g. after config change).
+
+    A config change is the operator explicitly retrying, so it clears any
+    tripped failure breaker — the defined recovery path for an auto-disabled
+    task (SR-004)."""
+    if task_id in _task_status:
+        _task_status[task_id]["consecutive_failures"] = 0
+        _persist_task_status()
     if task_id in _running_tasks:
         t = _running_tasks[task_id]
         if not t.done():
@@ -766,13 +833,22 @@ async def run_now(task_id: str) -> dict:
     runner = _TASK_RUNNERS.get(task_id)
     if not runner:
         return {"ok": False, "error": f"Unknown task: {task_id}"}
+    lock = _lock_for(task_id)
+    if lock.locked():
+        return {"ok": False, "error": "Oppgaven kjører allerede", "running": True}
     start = _now()
     _task_status.setdefault(task_id, {})["last_start"] = start.isoformat()
     try:
-        result = await runner()
+        async with lock:
+            result = await runner()
         _task_status[task_id]["last_run"] = start.isoformat()
         _task_status[task_id]["last_result"] = result
         _task_status[task_id]["last_error"] = None
+        # A successful manual run is evidence the task works again, so it clears
+        # a tripped failure breaker — otherwise "Kjør nå" reports OK while the
+        # scheduled loop stays auto-disabled and the next boot still skips it.
+        _task_status[task_id]["consecutive_failures"] = 0
+        _persist_task_status()
         try:
             from app.core.activity_log import log_activity
             log_activity(

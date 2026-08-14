@@ -28,7 +28,7 @@ deployment.
 - [x] **SR-001:** Provisioning ownership and credential boundaries
 - [x] **SR-002:** ALSO customer isolation
 - [ ] **SR-003:** Backup and restore safety
-- [ ] **SR-004:** Scheduler lifecycle and single-flight
+- [x] **SR-004:** Scheduler lifecycle and single-flight
 - [x] **SR-005:** Atomic, concurrency-safe settings storage
 - [ ] **SR-006:** Pentest execution boundary and process cleanup
 - [ ] **SR-007:** Security finding accuracy and data freshness
@@ -45,7 +45,7 @@ that tried to overturn every verdict in both directions. Nothing was overturned.
 | SR-001 | P1 | **Complete** | 8·0·0 of 8 | #124 | present |
 | SR-002 | P1 | **Complete** | 7·0·0 of 7 | #122 | present |
 | SR-003 | P1 | Not started | 0·1·9 of 10 | none | absent |
-| SR-004 | P1 | Barely started | 0·4·3 of 7 | `dbbc3d6` (criterion 3 only) | absent |
+| SR-004 | P1 | **Complete** | 7·0·0 of 7 | #125 | present |
 | SR-005 | P1 | **Complete** | 5·0·0 of 5 | #123 | present |
 | SR-006 | P2 | Not started | 0·1·4 of 5 | none | absent |
 | SR-007 | P2 | Not started² | 0·1·6 of 7 | none | absent |
@@ -63,21 +63,20 @@ insecure-transport refusal, error/redaction handling, Autotask and MyITProcess
 ticket write-side, device-client retry and "unavailable vs zero" semantics, m365
 report accuracy, and application self-update (#120). Exactly one SR acceptance
 criterion (SR-004 #3, `HH:MM`/interval validation via the `TaskSchedule` model in
-`dbbc3d6`) was advanced. All five P1 release-blockers remain effectively open, and
-none of the seven required focused tests exist.
+`dbbc3d6`) was advanced. As found on 2026-08-14 all five P1 release-blockers were effectively open and
+none of the seven required focused tests existed; they were closed in the PRs
+noted below.
 
 **SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
 caller's accessible customers, `get_invoices` made admin-only, per-user
 scan progress, 18 direct-object-reference tests, adversarially reviewed.
-SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). Two P1 blockers below remain open.
+SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). **All five P1 release-blockers are now closed.**
 
 Most severe still-open gaps for a multi-user production deployment:
 
 - **SR-006** — the web process runs `sudo nmap`/SMB inline (`scanner.py:116`,
   `smb_enum.py:44`), incompatible with the hardened `NoNewPrivileges=yes` unit;
   timeout/cancel does not kill the process group.
-- **SR-004** — two schedulers coexist; enabled jobs do not start on boot and stop
-  silently after a restart until settings are re-saved.
 
 ## SR-001 — Provisioning ownership and credential boundaries
 
@@ -192,18 +191,18 @@ scheduler implementations create a double-run risk if startup is added naively.
 
 **Acceptance criteria:**
 
-- [ ] Choose one scheduler or document and enforce non-overlapping ownership of
+- [x] Choose one scheduler or document and enforce non-overlapping ownership of
       every job.
-- [ ] Start enabled jobs in application lifespan and await cancellation on
+- [x] Start enabled jobs in application lifespan and await cancellation on
       shutdown.
-- [ ] Validate schedule type, bounded positive interval, weekday, and strict
+- [x] Validate schedule type, bounded positive interval, weekday, and strict
       `HH:MM` input before saving configuration.
-- [ ] Add a per-task single-flight lock shared by scheduled and manual runs.
-- [ ] Persist circuit-breaker/disabled state when repeated failures disable a
+- [x] Add a per-task single-flight lock shared by scheduled and manual runs.
+- [x] Persist circuit-breaker/disabled state when repeated failures disable a
       task, or define an explicit recovery policy.
-- [ ] Prevent duplicate execution across processes with a leader or lease before
+- [x] Prevent duplicate execution across processes with a leader or lease before
       multi-worker deployment is supported.
-- [ ] Add lifespan, invalid-configuration, overlap, cancellation, restart, and
+- [x] Add lifespan, invalid-configuration, overlap, cancellation, restart, and
       repeated-failure tests.
 
 **Required focused test:** `tests/test_scheduler_lifecycle.py`
