@@ -61,6 +61,7 @@ function setButtonLabel(btn, text) {
 // JavaScript. Keep an explicit map — never eval an attribute or expose every
 // global function as a callable DOM action.
 var _delegatedClickHandlers = Object.freeze({
+  runSelfUpdate: function() { return runSelfUpdate(); },
   closeReportViewer: function() { return closeReportViewer(); },
   doSetup: function() { return doSetup(); },
   doLogin: function() { return doLogin(); },
@@ -3799,6 +3800,15 @@ async function openSettings() {
       if (vi) {
         vi.innerHTML = t('settings_version_info').replace('{version}', vr.version).replace('{commit}', vr.commit_hash || 'N/A').replace('{branch}', vr.branch || 'N/A').replace('{date}', vr.commit_date || 'N/A').replace(/\n/g, '<br>');
       }
+      // Self-update is admin-only and only for a git checkout. The server
+      // enforces both (admin role + can_write); this just decides visibility.
+      var updRow = document.getElementById('settings-update-row');
+      if (updRow && _currentUser && _currentUser.role === 'admin') {
+        try {
+          var sv = await apiFetch('/api/system/version');
+          if (sv && sv.updatable) updRow.classList.remove('hidden');
+        } catch (e) { /* leave hidden */ }
+      }
     } catch (e) { /* ignore */ }
     // System info
     try {
@@ -3819,6 +3829,64 @@ async function openSettings() {
   // Snapshot form values for dirty-flag detection
   _snapshotSettingsForm();
   _initSettingsDirtyTracking();
+}
+
+// ── Self-update (admin) ───────────────────────────────────────────────────────
+// Pulls the deployed branch to origin and restarts onto the new code. The
+// server does the git work and re-execs itself; here we confirm, kick it off,
+// and poll /api/system/version until the new commit answers, then reload so the
+// browser picks up the new frontend assets too.
+
+async function runSelfUpdate() {
+  var statusEl = document.getElementById('settings-update-status');
+  var btn = document.getElementById('btn-self-update');
+  if (!confirm(t('confirm_self_update', 'Update Sybr HUB to the latest code and restart? The app will be briefly unavailable.'))) return;
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.textContent = t('msg_updating', 'Updating…');
+  try {
+    var d = await apiFetch('/api/system/update', { method: 'POST' });
+    if (!d || !d.ok) {
+      if (statusEl) statusEl.textContent = t('msg_update_failed', 'Update failed');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (!d.restarting) {
+      if (statusEl) statusEl.textContent = t('msg_already_current', 'Already up to date ({commit}).').replace('{commit}', d.to || '');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (statusEl) statusEl.textContent = t('msg_update_restarting', 'Updated {from} → {to}. Restarting…').replace('{from}', d.from).replace('{to}', d.to);
+    _pollForRestart(String(d.to || ''));
+  } catch (e) {
+    if (statusEl) statusEl.textContent = (e && e.message) ? e.message : t('msg_update_failed', 'Update failed');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _pollForRestart(expectedCommit) {
+  var statusEl = document.getElementById('settings-update-status');
+  var tries = 0;
+  var iv = setInterval(async function () {
+    tries++;
+    try {
+      var v = await apiFetch('/api/system/version');
+      // running_commit is the SHA the *answering process* booted with, not the
+      // working tree on disk — the tree advances ~1s before the re-exec, so
+      // v.commit would flip to the new SHA while the OLD process is still
+      // serving. Matching running_commit means the NEW process is up. It is the
+      // short SHA and expectedCommit is the longer to-SHA, so prefix-match it.
+      if (v && v.running_commit && expectedCommit.indexOf(v.running_commit) === 0) {
+        clearInterval(iv);
+        if (statusEl) statusEl.textContent = t('msg_update_done', 'Updated. Reloading…');
+        setTimeout(function () { location.reload(); }, 800);
+        return;
+      }
+    } catch (e) { /* server is mid-restart; keep polling */ }
+    if (tries > 60) {  // ~2 minutes
+      clearInterval(iv);
+      if (statusEl) statusEl.textContent = t('msg_update_timeout', 'Restart is taking longer than expected — reload the page manually.');
+    }
+  }, 2000);
 }
 
 // ── Settings dirty-flag detection ─────────────────────────────────────────────

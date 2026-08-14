@@ -55,6 +55,7 @@ from app.web.routes import (
     reports,
     settings,
     ssh,
+    system,
     tailscale,
     terminal,
     tls,
@@ -74,6 +75,7 @@ _SWAGGER_UI_VERSION = "5.32.12"
 _API_ROUTERS = (
     ("auth", auth),
     ("settings", settings),
+    ("system", system),
     ("vpn", vpn),
     ("hub", hub),
     ("customers", customers),

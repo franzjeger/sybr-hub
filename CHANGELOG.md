@@ -5,6 +5,45 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### Appen kan oppdatere seg selv
+
+En admin kan nå oppdatere installasjonen fra innsiden av appen —
+**Innstillinger → Avansert → Oppdater nå** — som henter den kjørende greinen til
+`origin` og re-exec-er prosessen på den nye koden. Bakgrunnen er praktisk:
+verten står ofte bak et tailnet en nettleser når, men et byggemiljø ikke gjør,
+så «ssh inn og `git pull`» er ikke alltid mulig.
+
+- Mekanismen er bevisst liten og innsnevret: den kan bare spole gjeldende grein
+  fram til dens `origin`-motpart — ingen ref, remote eller URL kommer fra
+  forespørselen — og avviser et skittent arbeidstre eller en løsrevet HEAD i
+  stedet for å gjette. Endepunktet er admin-only, `can_write`-vaktet av
+  `WriteGuardMiddleware`, og er utilgjengelig fra planlagt kode.
+- Omstarten er en `os.execv` på stedet: den kjørende Python-prosessen bytter ut
+  sitt eget bilde med en frisk `python main.py` på ny kode. systemd overvåker
+  samme PID videre, migrasjoner kjøres ved oppstart, og ingen privilegier trengs
+  — prosessen kan ikke `systemctl restart` seg selv under `NoNewPrivileges`, og
+  slipper å gjøre det.
+- Fordi verten er vanskelig å nå for hånd, er hvert steg ordnet så en feil lar
+  den kjørende versjonen stå: den avviser lokale commits foran `origin` (en
+  hotfix på boksen) i stedet for å forkaste dem, installerer målets avhengigheter
+  *før* `HEAD` flyttes, spoler bare fram (`merge --ff-only`), og
+  import-røyktester den nye koden i en subprosess — klarer den ikke å importeres,
+  rulles `HEAD` tilbake og oppdateringen avvises *før* re-exec. For en
+  kjøretidsfeil som først viser seg ved oppstart parkerer enheten nå tjenesten i
+  `failed` etter fem mislykkede starter på tre minutter (`StartLimitBurst`) i
+  stedet for å restarte i evig løkke; manuell gjenoppretting står i
+  `docs/UPGRADING.md`.
+- Én bevisst oppmykning: den leverte systemd-enheten lister nå `/opt/sybr-hub`
+  under `ReadWritePaths`, så tjenesten kan skrive over sitt eget utsjekk. Dette
+  er det eneste stedet kodekatalogen er skrivbar for tjenesten, og er den
+  iboende kostnaden av en app som kan oppdatere seg selv. `NoNewPrivileges`
+  røres ikke. `scripts/install-cachyos.sh` legger dette inn automatisk; se
+  `docs/UPGRADING.md`. Vil du beholde koden skrivebeskyttet, fjern
+  `/opt/sybr-hub` fra linja og oppdater for hånd.
+- Frontenden viser gjeldende versjon/commit/grein, en «Oppdater nå»-knapp
+  (bare for admin på et git-utsjekk), og poller `/api/system/version` til den
+  nye commit-en svarer før den laster siden på nytt for å hente nye assets.
+
 ### Oppsummeringen og rådataene sier nå det samme
 
 En ekstern gjennomgang av en ekte kunderapport fant at oppsummeringskortene og
