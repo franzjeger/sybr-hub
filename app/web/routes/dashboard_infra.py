@@ -467,6 +467,10 @@ async def _build_network_inventory_for_customer(cust: dict) -> dict | None:
     gateways: list[dict] = []
     firewalls: list[dict] = []
     alerts: list[str] = []
+    # True when a controller or firewall was configured but its read was
+    # refused. It keeps the customer in the inventory (with the alert visible)
+    # instead of dropping the row as if no network were configured.
+    read_unavailable = False
 
     # ── UniFi ──
     uf_host = cust.get("UniFiHost")
@@ -484,6 +488,19 @@ async def _build_network_inventory_for_customer(cust: dict) -> dict | None:
                 )
             finally:
                 await client.close()
+
+            # A refused device read would otherwise drop this customer's APs
+            # and switches from the inventory silently — no row, no firmware
+            # alert, reading as a customer with no UniFi rather than one whose
+            # controller could not be reached. Surface it as an alert so the
+            # gap is visible.
+            from app.modules.api_result import read_failed
+            if read_failed(devices_raw):
+                read_unavailable = True
+                alerts.append(
+                    f"UniFi-kontrolleren kunne ikke leses ({cust.get('UniFiHost', '?')}) "
+                    "— enheter mangler i oversikten"
+                )
 
             # Build AP → client count map
             clients_by_ap: dict[str, int] = {}
@@ -559,31 +576,46 @@ async def _build_network_inventory_for_customer(cust: dict) -> dict | None:
         try:
             from app.services.fortigate_api import get_dashboard as fg_dashboard
             fg_data = await fg_dashboard(cust, fg_token)
-            firewalls.append({
-                "name": fg_data.get("hostname", fg_host),
-                "model": fg_data.get("model", "FortiGate"),
-                "firmware": fg_data.get("firmware", ""),
-                "ha": fg_data.get("ha_mode", "standalone"),
-                "vpn_tunnels": fg_data.get("vpn_tunnels", 0),
-                "active_sessions": fg_data.get("active_sessions", 0),
-                "cpu_percent": fg_data.get("cpu_percent", 0),
-                "memory_percent": fg_data.get("memory_percent", 0),
-                "serial": fg_data.get("serial", ""),
-                "wan_ip": fg_data.get("wan_ip", ""),
-                "uptime": fg_data.get("uptime", ""),
-            })
+            # Symmetric with UniFi above: an unreachable firewall must not be
+            # appended as a healthy row (hostname falls back to the host, cpu/vpn
+            # read as 0/None) — that reads as an online firewall with nothing on
+            # it. Surface the gap as an alert instead.
+            if fg_data.get("unavailable"):
+                read_unavailable = True
+                alerts.append(
+                    f"FortiGate kunne ikke leses ({fg_host}) — brannmur mangler i oversikten"
+                )
+            else:
+                firewalls.append({
+                    "name": fg_data.get("hostname", fg_host),
+                    "model": fg_data.get("model", "FortiGate"),
+                    "firmware": fg_data.get("firmware", ""),
+                    "ha": fg_data.get("ha_mode", "standalone"),
+                    "vpn_tunnels": fg_data.get("vpn_tunnels", 0),
+                    "active_sessions": fg_data.get("active_sessions", 0),
+                    "cpu_percent": fg_data.get("cpu_percent", 0),
+                    "memory_percent": fg_data.get("memory_percent", 0),
+                    "serial": fg_data.get("serial", ""),
+                    "wan_ip": fg_data.get("wan_ip", ""),
+                    "uptime": fg_data.get("uptime", ""),
+                })
         except Exception as e:
             logger.debug("FortiGate fetch failed for %s: %s", name, e)
 
     total_clients = sum(ap.get("clients", 0) for ap in aps)
     has_devices = bool(aps or switches or gateways or firewalls)
 
-    if not has_devices:
+    # Drop the customer only when nothing was configured to read. A customer
+    # whose controller or firewall refused the read (read_unavailable) stays in
+    # the inventory so the alert is seen — dropping the row would render an
+    # unreachable network as "no network".
+    if not has_devices and not read_unavailable:
         return None
 
     return {
         "customer_id": cust_id,
         "customer_name": name,
+        "unavailable": read_unavailable,
         "devices": {
             "aps": aps,
             "switches": switches,
@@ -938,6 +970,18 @@ async def dashboard_vpn_status(user=Depends(get_current_user)):
                     return_exceptions=True,
                 )
 
+                # The IPsec read carries the tunnel list. If it refused, this
+                # firewall's VPN status is unknown — not "online with 0
+                # tunnels", which is how an empty result read and which looks
+                # like every tunnel is down rather than unread.
+                from app.modules.api_result import read_error, read_failed
+                if isinstance(ipsec, Exception) or read_failed(ipsec):
+                    reason = str(ipsec) if isinstance(ipsec, Exception) else read_error(ipsec)
+                    return {
+                        "customer_id": cid, "customer_name": name,
+                        "status": "error", "error": reason, "tunnels": [],
+                    }
+
                 tunnels: list[dict] = []
 
                 # IPsec tunnels
@@ -973,8 +1017,12 @@ async def dashboard_vpn_status(user=Depends(get_current_user)):
                             "bytes_out": bytes_out,
                         })
 
-                # SSL VPN users
-                if isinstance(ssl_vpn, dict):
+                # SSL VPN users. A refused read here (an empty ApiDict, which is
+                # still a dict) would silently contribute no SSL-VPN sessions —
+                # reading as "nobody on SSL-VPN" rather than "unread". IPsec
+                # already answered, so we keep those tunnels but flag the gap.
+                ssl_vpn_unavailable = isinstance(ssl_vpn, Exception) or read_failed(ssl_vpn)
+                if isinstance(ssl_vpn, dict) and not read_failed(ssl_vpn):
                     ssl_users = ssl_vpn.get("results", ssl_vpn.get("users", []))
                     if isinstance(ssl_users, list):
                         for u in ssl_users:
@@ -986,12 +1034,15 @@ async def dashboard_vpn_status(user=Depends(get_current_user)):
                                 "bytes_out": u.get("outgoing_bytes", 0),
                             })
 
-                return {
+                result = {
                     "customer_id": cid,
                     "customer_name": name,
                     "status": "online",
                     "tunnels": tunnels,
                 }
+                if ssl_vpn_unavailable:
+                    result["ssl_vpn_unavailable"] = True
+                return result
         except Exception as e:
             return {
                 "customer_id": cid,

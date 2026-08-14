@@ -3366,6 +3366,14 @@ def save_audit_metrics(out_dir: Path, context: dict) -> None:
     unifi    = (network.get("unifi") or {}) if network.get("has_data") else None
     fortigate = network.get("fortigate") if network.get("has_data") else None
 
+    # A UniFi section that could not be read is not a measurement. It carries
+    # device_count=None (rather than the old implicit 0), so treating it as a
+    # real section would both sum None into an int below and read a refused
+    # controller as "0 devices" in the trend. Drop it to None — the same as a
+    # customer with no UniFi at all — so the metrics record "unknown", not zero.
+    if unifi and (unifi.get("unavailable") or "error" in unifi):
+        unifi = None
+
     metrics = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "mfa_coverage_pct": _metric(mfa, "pct"),

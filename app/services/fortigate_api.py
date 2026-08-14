@@ -23,6 +23,7 @@ from app.core.validation import (
     validate_identifier,
     validate_ssh_public_key,
 )
+from app.modules.api_result import read_error, read_failed
 from app.modules.fortigate_audit.client import FortiGateClient
 
 log = logging.getLogger(__name__)
@@ -58,6 +59,28 @@ async def get_dashboard(config: dict, token: str) -> dict:
     """
     async with _build_client(config, token) as fg:
         status = await fg.get_monitor("system/status")
+
+        # system/status is the anchor: hostname, firmware, model, serial. If it
+        # could not be read, the firewall is unreachable, and a snapshot of
+        # empty strings with cpu=0/mem=0/vpn=0/ha=standalone reads as a healthy,
+        # idle device — the "a refusal is not a zero" lie. Say unavailable.
+        if read_failed(status):
+            return {
+                "unavailable": True,
+                "error": read_error(status),
+                "hostname": "",
+                "firmware": "",
+                "model": "",
+                "serial": "",
+                "uptime": "",
+                "cpu_percent": None,
+                "memory_percent": None,
+                "wan_ip": "",
+                "active_sessions": None,
+                "vpn_tunnels": None,
+                "ha_mode": None,
+            }
+
         perf = await fg.get_monitor("system/performance/status")
         iface = await fg.get_monitor("system/interface")
         vpn = await fg.get_monitor("vpn/ipsec")
@@ -77,21 +100,29 @@ async def get_dashboard(config: dict, token: str) -> dict:
                     wan_ip = detail.get("ip", "") if isinstance(detail, dict) else ""
                     break
 
-        # VPN tunnel count
-        vpn_count = 0
-        if isinstance(vpn, list):
+        # VPN tunnel count — None when the tunnel list could not be read, so a
+        # refused read does not read as "0 tunnels".
+        if read_failed(vpn):
+            vpn_count = None
+        elif isinstance(vpn, list):
             vpn_count = len(vpn)
         elif isinstance(vpn, dict):
             vpn_count = len(vpn.get("tunnel", vpn.get("results", [])))
+        else:
+            vpn_count = 0
 
-        # CPU and memory from performance status
-        cpu = perf.get("cpu", perf.get("cpu-usage", 0)) if isinstance(perf, dict) else 0
-        mem = perf.get("memory", perf.get("mem-usage", 0)) if isinstance(perf, dict) else 0
-        sessions = perf.get("session", {}).get("total", 0) if isinstance(perf, dict) else 0
+        # CPU/memory/sessions — None on a refused performance read rather than a
+        # reassuring 0%, which would read as an idle-but-healthy firewall.
+        if read_failed(perf) or not isinstance(perf, dict):
+            cpu = mem = sessions = None
+        else:
+            cpu = perf.get("cpu", perf.get("cpu-usage", 0))
+            mem = perf.get("memory", perf.get("mem-usage", 0))
+            sessions = perf.get("session", {}).get("total", 0)
 
-        # HA mode
-        ha_mode = "standalone"
-        if isinstance(ha, dict):
+        # HA mode — None when unread, not a defaulted "standalone".
+        ha_mode = None
+        if not read_failed(ha) and isinstance(ha, dict):
             ha_mode = ha.get("mode", ha.get("ha-mode", "standalone"))
 
         return {
@@ -533,13 +564,48 @@ async def factory_bootstrap(
 
 # ── 7. CIS compliance checking ──────────────────────────────────────────────
 
+def _single_object(value) -> dict:
+    """The one config object a single-object cmdb read returns.
+
+    Tolerates the shape ``get_cmdb`` hands back: a dict for a single-object
+    endpoint, or a one-element list for the endpoints FortiOS returns as a
+    collection. An empty result yields an empty dict, not an assumption.
+    """
+    if isinstance(value, list):
+        return value[0] if value else {}
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
 async def check_compliance(config: dict, token: str) -> dict:
     """Check FortiGate config against common CIS benchmark rules.
 
-    Returns a list of findings, each with id, title, status (pass/fail/warn),
-    and detail.
+    Returns a list of findings, each with id, title, status
+    (pass/fail/warn/unknown), and detail.
+
+    A control whose underlying config could not be read is reported ``unknown``
+    — never dropped, and never given a fabricated verdict. This used to do
+    both: an admin read that failed silently omitted CIS-1.1/1.2 from the
+    report, while a password-policy read that failed manufactured a definite
+    "CIS-5.1 fail: password policy is not enabled" out of the error sentinel.
+    A firewall the audit could not reach scored as one with real findings.
+
+    The score is computed over *assessable* controls (pass/fail/warn) so an
+    unverifiable control neither inflates the score by passing nor deflates it
+    by failing — it simply shows the auditor could not check it.
     """
+    from app.modules.api_result import read_error, read_failed
+
     findings: list[dict] = []
+
+    def _unknown(cis_id: str, title: str, value) -> None:
+        findings.append({
+            "id": cis_id,
+            "title": title,
+            "status": "unknown",
+            "detail": f"Kunne ikke leses fra FortiGate: {read_error(value) or 'ukjent feil'}",
+        })
 
     async with _build_client(config, token) as fg:
         admins = await fg.get_cmdb("system/admin")
@@ -550,7 +616,10 @@ async def check_compliance(config: dict, token: str) -> dict:
         global_settings = await fg.get_cmdb("system/global")
 
     # --- Rule 1: Admin trust hosts configured ---
-    if isinstance(admins, list):
+    if read_failed(admins):
+        _unknown("CIS-1.1", "Admin trust host", admins)
+        _unknown("CIS-1.2", "Two-factor auth", admins)
+    else:
         for admin in admins:
             name = admin.get("name", "unknown")
             trusthosts = admin.get("trusthost1", "0.0.0.0 0.0.0.0")
@@ -566,8 +635,7 @@ async def check_compliance(config: dict, token: str) -> dict:
                 ),
             })
 
-    # --- Rule 2: Two-factor authentication ---
-    if isinstance(admins, list):
+        # --- Rule 2: Two-factor authentication ---
         for admin in admins:
             name = admin.get("name", "unknown")
             two_factor = admin.get("two-factor", "disable")
@@ -583,27 +651,26 @@ async def check_compliance(config: dict, token: str) -> dict:
             })
 
     # --- Rule 3: Logging enabled ---
-    if isinstance(log_settings, list):
-        log_cfg = log_settings[0] if log_settings else {}
-    elif isinstance(log_settings, dict):
-        log_cfg = log_settings
+    if read_failed(log_settings):
+        _unknown("CIS-2.1", "Logging enabled", log_settings)
     else:
-        log_cfg = {}
-
-    log_disk = log_cfg.get("log-disk", log_cfg.get("status", "disable"))
-    findings.append({
-        "id": "CIS-2.1",
-        "title": "Logging enabled",
-        "status": "pass" if log_disk == "enable" else "warn",
-        "detail": (
-            "Disk logging is enabled"
-            if log_disk == "enable"
-            else f"Disk logging status: {log_disk}"
-        ),
-    })
+        log_cfg = _single_object(log_settings)
+        log_disk = log_cfg.get("log-disk", log_cfg.get("status", "disable"))
+        findings.append({
+            "id": "CIS-2.1",
+            "title": "Logging enabled",
+            "status": "pass" if log_disk == "enable" else "warn",
+            "detail": (
+                "Disk logging is enabled"
+                if log_disk == "enable"
+                else f"Disk logging status: {log_disk}"
+            ),
+        })
 
     # --- Rule 4: No allow-all firewall policies ---
-    if isinstance(policies, list):
+    if read_failed(policies):
+        _unknown("CIS-3.1", "Allow-all policies", policies)
+    else:
         allow_all_count = 0
         for pol in policies:
             src = pol.get("srcaddr", [])
@@ -643,79 +710,79 @@ async def check_compliance(config: dict, token: str) -> dict:
             })
 
     # --- Rule 5: HA configuration ---
-    if isinstance(ha_cfg, list):
-        ha_data = ha_cfg[0] if ha_cfg else {}
-    elif isinstance(ha_cfg, dict):
-        ha_data = ha_cfg
+    if read_failed(ha_cfg):
+        _unknown("CIS-4.1", "High availability", ha_cfg)
     else:
-        ha_data = {}
-
-    ha_mode = ha_data.get("mode", "standalone")
-    findings.append({
-        "id": "CIS-4.1",
-        "title": "High availability",
-        "status": "pass" if ha_mode != "standalone" else "warn",
-        "detail": (
-            f"HA mode: {ha_mode}"
-            if ha_mode != "standalone"
-            else "FortiGate is running in standalone mode (no HA)"
-        ),
-    })
+        ha_data = _single_object(ha_cfg)
+        ha_mode = ha_data.get("mode", "standalone")
+        findings.append({
+            "id": "CIS-4.1",
+            "title": "High availability",
+            "status": "pass" if ha_mode != "standalone" else "warn",
+            "detail": (
+                f"HA mode: {ha_mode}"
+                if ha_mode != "standalone"
+                else "FortiGate is running in standalone mode (no HA)"
+            ),
+        })
 
     # --- Rule 6: Password policy ---
-    if isinstance(password_policy, list):
-        pp = password_policy[0] if password_policy else {}
-    elif isinstance(password_policy, dict):
-        pp = password_policy
+    if read_failed(password_policy):
+        _unknown("CIS-5.1", "Password policy", password_policy)
     else:
-        pp = {}
-
-    pp_status = pp.get("status", "disable")
-    min_len = pp.get("min-length", 0)
-    findings.append({
-        "id": "CIS-5.1",
-        "title": "Password policy",
-        "status": "pass" if pp_status == "enable" and min_len >= 8 else "fail",
-        "detail": (
-            f"Password policy enabled, min length {min_len}"
-            if pp_status == "enable"
-            else "Password policy is not enabled or minimum length < 8"
-        ),
-    })
+        pp = _single_object(password_policy)
+        pp_status = pp.get("status", "disable")
+        min_len = pp.get("min-length", 0)
+        findings.append({
+            "id": "CIS-5.1",
+            "title": "Password policy",
+            "status": "pass" if pp_status == "enable" and min_len >= 8 else "fail",
+            "detail": (
+                f"Password policy enabled, min length {min_len}"
+                if pp_status == "enable"
+                else "Password policy is not enabled or minimum length < 8"
+            ),
+        })
 
     # --- Rule 7: Admin timeout (from global settings) ---
-    if isinstance(global_settings, list):
-        gs = global_settings[0] if global_settings else {}
-    elif isinstance(global_settings, dict):
-        gs = global_settings
+    if read_failed(global_settings):
+        _unknown("CIS-5.2", "Admin session timeout", global_settings)
     else:
-        gs = {}
+        gs = _single_object(global_settings)
+        admin_timeout = gs.get("admintimeout", 0)
+        findings.append({
+            "id": "CIS-5.2",
+            "title": "Admin session timeout",
+            "status": "pass" if 0 < admin_timeout <= 15 else "warn",
+            "detail": (
+                f"Admin timeout: {admin_timeout} minutes"
+                if admin_timeout > 0
+                else "Admin timeout is not configured"
+            ),
+        })
 
-    admin_timeout = gs.get("admintimeout", 0)
-    findings.append({
-        "id": "CIS-5.2",
-        "title": "Admin session timeout",
-        "status": "pass" if 0 < admin_timeout <= 15 else "warn",
-        "detail": (
-            f"Admin timeout: {admin_timeout} minutes"
-            if admin_timeout > 0
-            else "Admin timeout is not configured"
-        ),
-    })
-
-    # Compute summary
+    # Compute summary. Unknown controls are counted but not scored: an auditor
+    # who could not read a control has neither passed nor failed it, and letting
+    # an unread control push the score in either direction is the whole defect
+    # this function was rebuilt around.
     passed = sum(1 for f in findings if f["status"] == "pass")
     failed = sum(1 for f in findings if f["status"] == "fail")
     warned = sum(1 for f in findings if f["status"] == "warn")
+    unknown = sum(1 for f in findings if f["status"] == "unknown")
+    assessable = passed + failed + warned
 
     return {
         "ok": True,
+        # False only when nothing at all could be assessed — a firewall that
+        # refused every read is not a compliant one.
+        "complete": unknown == 0,
         "summary": {
             "total": len(findings),
             "pass": passed,
             "fail": failed,
             "warn": warned,
-            "score": round(passed / len(findings) * 100) if findings else 0,
+            "unknown": unknown,
+            "score": round(passed / assessable * 100) if assessable else 0,
         },
         "findings": findings,
     }
@@ -766,6 +833,18 @@ async def poll_all_fortigates() -> list[dict]:
                     return_exceptions=True,
                 )
 
+                # The status read establishes reachability. If it refused, the
+                # firewall is not "online" — it used to show green in the fleet
+                # view regardless, because the sentinel is not an exception and
+                # return_exceptions only catches the raising kind.
+                from app.modules.api_result import read_error, read_failed
+                if isinstance(status, Exception) or read_failed(status):
+                    reason = str(status) if isinstance(status, Exception) else read_error(status)
+                    return {
+                        "customer_id": cid, "customer_name": name, "host": fg_host,
+                        "status": "error", "error": reason,
+                    }
+
                 hostname = status.get("hostname", fg_host) if isinstance(status, dict) else fg_host
                 model = status.get("model", "") if isinstance(status, dict) else ""
 
@@ -808,8 +887,13 @@ async def poll_all_fortigates() -> list[dict]:
                         if total > 0:
                             mem = round((used / total) * 100, 1)
 
-                vpn_count = len(vpn_mon) if isinstance(vpn_mon, list) else 0
-                policy_count = len(policies) if isinstance(policies, list) else 0
+                # A refused sub-read reports None, not 0 — the firewall is
+                # online (status read above), but "0 policies" would be a
+                # measurement of a read that did not happen.
+                vpn_count = None if read_failed(vpn_mon) else (
+                    len(vpn_mon) if isinstance(vpn_mon, list) else 0)
+                policy_count = None if read_failed(policies) else (
+                    len(policies) if isinstance(policies, list) else 0)
 
                 return {
                     "customer_id": cid,
@@ -854,6 +938,8 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
 
     Returns a dict with hostname, firmware, admins, policies, VPN tunnels, etc.
     """
+    from app.modules.api_result import read_error, read_failed
+
     async with _build_client(config, token) as fg:
         status = await fg.get_system_status()
         admins = await fg.get_cmdb("system/admin")
@@ -862,6 +948,12 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         vpn_phase1 = await fg.get_cmdb("vpn.ipsec/phase1-interface")
         ha = await fg.get_cmdb("system/ha")
         license_status = await fg.get_monitor("license/status")
+
+    # The status read establishes reachability. If it refused, this is a
+    # firewall the quick audit could not read — not one with 0 admins and 0
+    # policies, which is what an empty result used to render.
+    if read_failed(status):
+        return {"ok": False, "unavailable": True, "error": read_error(status)}
 
     admin_list = []
     for a in (admins if isinstance(admins, list) else []):
@@ -884,16 +976,27 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
             if p.get("logtraffic", "") == "disable":
                 policy_warns.append(f"Policy {pid}: logging disabled")
 
-    iface_count = len(interfaces) if isinstance(interfaces, list) else 0
-    vpn_count = len(vpn_phase1) if isinstance(vpn_phase1, list) else 0
+    # A refused sub-read reports None rather than 0. The counts below feed a
+    # customer-facing summary, and "0 policies" on a read that never happened is
+    # the false-clean this pass removes.
+    iface_count = None if read_failed(interfaces) else (
+        len(interfaces) if isinstance(interfaces, list) else 0)
+    vpn_count = None if read_failed(vpn_phase1) else (
+        len(vpn_phase1) if isinstance(vpn_phase1, list) else 0)
+    admin_count = None if read_failed(admins) else len(admin_list)
+    policy_count = None if read_failed(policies) else (
+        len(policies) if isinstance(policies, list) else 0)
 
-    ha_mode = "Standalone"
-    if isinstance(ha, list) and ha:
-        ha_mode = ha[0].get("mode", "standalone").capitalize()
-    elif isinstance(ha, dict):
-        ha_mode = ha.get("mode", "standalone").capitalize()
+    ha_mode = None if read_failed(ha) else "Standalone"
+    if not read_failed(ha):
+        if isinstance(ha, list) and ha:
+            ha_mode = ha[0].get("mode", "standalone").capitalize()
+        elif isinstance(ha, dict):
+            ha_mode = ha.get("mode", "standalone").capitalize()
 
     return {
+        "ok": True,
+        "unavailable": False,
         "hostname": status.get("hostname", ""),
         "firmware": status.get("version", ""),
         "serial": status.get("serial", ""),
@@ -901,8 +1004,8 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         "model": status.get("model-name", status.get("model", "")),
         "ha_mode": ha_mode,
         "admins": admin_list,
-        "admin_count": len(admin_list),
-        "policy_count": len(policies) if isinstance(policies, list) else 0,
+        "admin_count": admin_count,
+        "policy_count": policy_count,
         "policy_warnings": policy_warns,
         "interface_count": iface_count,
         "vpn_tunnels": vpn_count,
@@ -920,8 +1023,15 @@ async def get_threat_summary(config: dict, token: str, days: int = 7) -> dict:
     """
     from datetime import timedelta
 
+    from app.modules.api_result import read_failed
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_epoch = int(since.timestamp())
+    # Track whether any log endpoint actually answered. "0 threats" is only a
+    # real finding if a query succeeded and returned nothing — a firewall whose
+    # every threat-log read refused has no threat data, which is a different
+    # thing from a quiet week.
+    any_log_read = False
 
     severity_map = {
         "critical": "critical",
@@ -956,6 +1066,8 @@ async def get_threat_summary(config: dict, token: str, days: int = 7) -> dict:
                         "filter": f"date>={since.strftime('%Y-%m-%d')}",
                     },
                 )
+                if not read_failed(data):
+                    any_log_read = True
                 rows = []
                 if isinstance(data, list):
                     rows = data
@@ -987,6 +1099,8 @@ async def get_threat_summary(config: dict, token: str, days: int = 7) -> dict:
                 "log/threat",
                 params={"rows": 500, "filter": f"date>={since.strftime('%Y-%m-%d')}"},
             )
+            if not read_failed(data):
+                any_log_read = True
             rows = []
             if isinstance(data, list):
                 rows = data
@@ -1012,6 +1126,18 @@ async def get_threat_summary(config: dict, token: str, days: int = 7) -> dict:
                 })
         except Exception as exc:
             log.debug("Unified threat log query failed: %s", exc)
+
+    # Every threat-log endpoint refused. Report the summary unavailable rather
+    # than a reassuring "0 threats" for logs that were never read.
+    if not any_log_read:
+        return {
+            "unavailable": True,
+            "error": "Kunne ikke lese trussellogger fra FortiGate",
+            "summary": {"total": None},
+            "by_type": {},
+            "recent": [],
+            "period_days": days,
+        }
 
     # Deduplicate by (timestamp, srcip, attack)
     seen: set[tuple] = set()
@@ -1049,8 +1175,27 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
     any-any rules, missing logging, disabled/unused rules, and
     computes a security score (100 = perfect).
     """
+    from app.modules.api_result import read_error, read_failed
+
     async with _build_client(config, token) as fg:
         policies = await fg.get_cmdb("firewall/policy")
+
+    # A firewall the audit could not read is not a firewall with a perfect
+    # score. Before, a failed read left `policies` empty and the function
+    # returned total_rules=0, no issues, score=100 — a clean bill of health for
+    # a device that refused every request.
+    if read_failed(policies):
+        return {
+            "ok": False,
+            "unavailable": True,
+            "error": read_error(policies),
+            "total_rules": None,
+            "enabled": None,
+            "disabled": None,
+            "issues": [],
+            "unused_rules": None,
+            "score": None,
+        }
 
     if not isinstance(policies, list):
         policies = []
@@ -1135,6 +1280,8 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
     score = max(0, score)
 
     return {
+        "ok": True,
+        "unavailable": False,
         "total_rules": total,
         "enabled": enabled,
         "disabled": disabled,

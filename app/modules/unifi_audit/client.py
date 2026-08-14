@@ -24,8 +24,27 @@ from typing import Optional
 import httpx
 
 from app.integrations.http_retry import RetryExhausted, send_with_retry
+from app.modules.api_result import ApiList
 
 log = logging.getLogger(__name__)
+
+
+def _as_list(data: dict) -> ApiList:
+    """The ``data`` array of a controller response, carrying its read status.
+
+    A UniFi controller reports a refusal as ``meta.rc == "error"`` while still
+    returning ``data: []``. Every accessor used to do ``data.get("data", [])``
+    and throw the ``meta`` away, so a 403 and a genuinely empty site produced
+    the same empty list. This keeps the list — so iteration and ``len`` are
+    unchanged — but reads ``meta`` into ``.error``, so a caller building a
+    device count or a firmware verdict can tell the two apart.
+    """
+    meta = data.get("meta", {}) if isinstance(data, dict) else {}
+    error = None
+    if meta.get("rc") == "error":
+        error = meta.get("msg") or "controller returned an error"
+    items = data.get("data", []) if isinstance(data, dict) else []
+    return ApiList(items, error=error)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -186,49 +205,38 @@ class UniFiControllerClient:
 
     # ── Controller API methods ────────────────────────────────────────────
 
-    async def list_sites(self) -> list[dict]:
-        data = await self._get("/api/self/sites")
-        return data.get("data", [])
+    async def list_sites(self) -> ApiList:
+        return _as_list(await self._get("/api/self/sites"))
 
-    async def get_devices(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/stat/device")
-        return data.get("data", [])
+    async def get_devices(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/stat/device"))
 
-    async def get_wlans(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/rest/wlanconf")
-        return data.get("data", [])
+    async def get_wlans(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/rest/wlanconf"))
 
-    async def get_networks(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/rest/networkconf")
-        return data.get("data", [])
+    async def get_networks(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/rest/networkconf"))
 
-    async def get_firewall_rules(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/rest/firewallrule")
-        return data.get("data", [])
+    async def get_firewall_rules(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/rest/firewallrule"))
 
-    async def get_settings(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/rest/setting")
-        return data.get("data", [])
+    async def get_settings(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/rest/setting"))
 
-    async def get_clients(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/stat/sta")
-        return data.get("data", [])
+    async def get_clients(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/stat/sta"))
 
-    async def get_alarms(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/stat/alarm")
-        return data.get("data", [])
+    async def get_alarms(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/stat/alarm"))
 
-    async def get_health(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/stat/health")
-        return data.get("data", [])
+    async def get_health(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/stat/health"))
 
-    async def get_rogueaps(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/stat/rogueap")
-        return data.get("data", [])
+    async def get_rogueaps(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/stat/rogueap"))
 
-    async def get_port_profiles(self, site: str = "default") -> list[dict]:
-        data = await self._get(f"/api/s/{site}/rest/portconf")
-        return data.get("data", [])
+    async def get_port_profiles(self, site: str = "default") -> ApiList:
+        return _as_list(await self._get(f"/api/s/{site}/rest/portconf"))
 
     async def test_connection(self) -> dict:
         try:

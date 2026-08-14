@@ -17,6 +17,7 @@ from typing import Optional
 import httpx
 
 from app.integrations.http_retry import RetryExhausted, send_with_retry
+from app.modules.api_result import ApiDict, ApiList, read_failed
 
 log = logging.getLogger(__name__)
 
@@ -55,8 +56,8 @@ class FortiGateClient:
 
     # ── Core request methods ──────────────────────────────────────────────
 
-    async def _get(self, path: str, params: dict | None = None) -> dict:
-        """Raw GET request. Returns parsed JSON, or ``{"error": ...}``.
+    async def _get(self, path: str, params: dict | None = None) -> ApiDict:
+        """Raw GET request. Returns an :class:`ApiDict` carrying ``.error``.
 
         Retried through the shared layer rather than tried once. A FortiGate
         sits at the far end of a VPN tunnel to a customer site, so a transient
@@ -66,6 +67,13 @@ class FortiGateClient:
 
         A read is always safe to repeat, so this asks for no special handling
         beyond naming its method.
+
+        The failure return is an *empty* ApiDict carrying the reason, not the
+        old ``{"error": ...}`` sentinel. That sentinel was indistinguishable
+        from a real read to every caller that only did ``.get(...)``, so a
+        firewall the audit could not reach scored as one with nothing to flag.
+        ``.error`` is how ``get_cmdb`` / ``get_monitor`` and every audit above
+        them tell "refused" from "clean".
         """
         try:
             r = await send_with_retry(
@@ -73,46 +81,65 @@ class FortiGateClient:
                 method="GET", target=f"FortiGate {path}",
             )
             r.raise_for_status()
-            return r.json()
+            body = r.json()
+            return ApiDict(body if isinstance(body, dict) else {"results": body})
         except RetryExhausted as e:
             log.warning("FortiGate API %s: %s", path, e)
-            return {"error": str(e)}
+            return ApiDict(error=str(e))
         except httpx.HTTPStatusError as e:
             log.warning("FortiGate API %s: HTTP %d", path, e.response.status_code)
-            return {"error": f"HTTP {e.response.status_code}"}
+            return ApiDict(error=f"HTTP {e.response.status_code}")
         except Exception as e:
             log.warning("FortiGate API %s: %s", path, e)
-            return {"error": str(e)}
+            return ApiDict(error=str(e))
 
-    async def get_cmdb(self, path: str, params: dict | None = None) -> list | dict:
+    async def get_cmdb(self, path: str, params: dict | None = None) -> ApiList | ApiDict:
         """GET from /api/v2/cmdb/ — returns configuration data.
 
-        Most cmdb endpoints return {"results": [...]}. This method
-        returns the results list directly.
+        Most cmdb endpoints return ``{"results": [...]}``; this returns the
+        results directly — an :class:`ApiList` for the collection endpoints, an
+        :class:`ApiDict` for the single-object ones.
+
+        On a failed read it returns an empty ``ApiList`` carrying ``.error``.
+        That is safe at every existing call site — they iterate it (empty),
+        ``len`` it (0, not the 1 the old ``{"error":...}`` dict gave), or
+        ``isinstance``-guard it (it is a list) — while ``read_failed(result)``
+        lets an audit tell a firewall it could not read from one with no
+        findings. Collection semantics because that is the common case; the
+        handful of single-object callers already guard on shape and treat a
+        non-dict as absent.
         """
         p = params or {}
         p.setdefault("vdom", self.vdom)
         data = await self._get(f"/api/v2/cmdb/{path}", p)
-        if isinstance(data, dict):
-            return data.get("results", data)
-        return data  # Already a list or unexpected type
+        if read_failed(data):
+            return ApiList(error=data.error)
+        results = data.get("results", data)
+        if isinstance(results, list):
+            return ApiList(results)
+        return ApiDict(results if isinstance(results, dict) else {})
 
-    async def get_monitor(self, path: str, params: dict | None = None) -> dict:
+    async def get_monitor(self, path: str, params: dict | None = None) -> ApiDict:
         """GET from /api/v2/monitor/ — returns runtime/status data.
 
-        Always returns a dict. If the API returns a list or errors,
-        wraps it so callers can safely use .get().
+        Always an :class:`ApiDict`, so ``.get(...)`` is safe. On a failed read
+        it is empty and carries ``.error``; ``.get(field, default)`` returns the
+        default exactly as the old sentinel did, but ``read_failed(result)`` now
+        distinguishes "the field was absent" from "the device could not be read"
+        — the difference between a real 0% CPU and a firewall that refused.
         """
         p = params or {}
         p.setdefault("vdom", self.vdom)
         data = await self._get(f"/api/v2/monitor/{path}", p)
-        if isinstance(data, dict):
-            results = data.get("results", data)
-            # results can be a list for some endpoints — wrap it
-            if isinstance(results, dict):
-                return results
-            return data  # Return the outer dict which has "error" key etc.
-        return {}  # Non-dict response (shouldn't happen) — return empty dict
+        if read_failed(data):
+            return ApiDict(error=data.error)
+        results = data.get("results", data)
+        # Some monitor endpoints return a list under "results"; the outer dict
+        # is what callers expect (they read .get("results") or iterate it), so
+        # hand back the outer object rather than the bare list.
+        if isinstance(results, dict):
+            return ApiDict(results)
+        return ApiDict(data)
 
     # ── Convenience methods ───────────────────────────────────────────────
 
@@ -124,8 +151,8 @@ class FortiGateClient:
         """Test API connectivity. Returns {ok, hostname, firmware, serial} or {ok, error}."""
         try:
             status = await self.get_system_status()
-            if "error" in status:
-                return {"ok": False, "error": status["error"]}
+            if read_failed(status):
+                return {"ok": False, "error": status.error}
             return {
                 "ok": True,
                 "hostname": status.get("hostname", ""),

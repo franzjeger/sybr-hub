@@ -261,6 +261,40 @@ def test_a_null_run_does_not_become_a_trend_delta(tmp_path):
         )
 
 
+def test_a_partial_unifi_read_renders_a_dash_not_a_crash(tmp_path):
+    """A controller whose device read succeeded but whose alarm/WLAN reads
+    refused yields active_alarms=None (and wlan/network/firewall counts None),
+    with no top-level `error`, so the section renders. The template compared
+    `None > 0` for the alarm colour and aborted the whole report; it must now
+    render an en-dash and never crash, and never a green zero for an unread log.
+    """
+    import json
+
+    partial_unifi = {
+        "mode": "controller",
+        "unavailable": False,
+        "device_count": 5,
+        "devices": [],
+        "wlans": [],
+        "wlan_count": None,
+        "network_count": None,
+        "firewall_rules": None,
+        "active_alarms": None,
+        "outdated_firmware_count": 0,
+        "eol_count": 0,
+    }
+    files = {**FULL_AUDIT, "61_unifi_audit.txt": json.dumps(partial_unifi)}
+
+    html = _render_strict(tmp_path, "report_customer.html.j2", files)  # must not raise
+    text = _visible_text(html)
+
+    assert len(html) > 20_000, "the report aborted instead of rendering"
+    assert "None" not in text, "a Python None reached the page"
+    # The alarm cell must not be a reassuring green 0; it is unknown. The
+    # template renders an en-dash (U+2013) for a refused count.
+    assert "\u2013" in text
+
+
 def test_an_unmeasured_purview_count_is_not_shown_as_zero(tmp_path):
     """A count of nought and a count never taken must not read alike.
 

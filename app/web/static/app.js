@@ -4730,6 +4730,9 @@ async function runNetworkQuickAudit() {
     if (d.error) { box.innerHTML = '<div class="alert alert-error">' + esc(d.error) + '</div>'; return; }
 
     var html = '';
+    // A count that a refused sub-read left null is unknown, not zero. Show "–"
+    // so the grid does not print the literal "null" as if it were a measurement.
+    var numOrDash = function(v) { return (v === null || v === undefined) ? '–' : v; };
 
     // FortiGate results
     if (d.fortigate) {
@@ -4741,11 +4744,11 @@ async function runNetworkQuickAudit() {
         html += '<div class="card-title">FortiGate — ' + esc(fg.hostname) + '</div>';
         html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:16px;">';
         html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.firmware) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('firmware') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.policy_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.admin_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.vpn_tunnels + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + fg.interface_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('interfaces') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.ha_mode) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ha_mode','HA mode') + '</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.policy_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.admin_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.vpn_tunnels) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.interface_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('interfaces') + '</div></div>';
+        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.ha_mode || '–') + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ha_mode','HA mode') + '</div></div>';
         html += '</div>';
 
         // Admin table
@@ -4902,11 +4905,11 @@ async function runNetworkQuickAudit() {
         } else {
           // Controller mode
           html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:16px;">';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + uf.device_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_devices_count','Devices') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + uf.wlan_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ssids','SSIDs') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + uf.network_count + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_networks','Networks') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + uf.firewall_rules + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:' + (uf.active_alarms > 0 ? 'var(--red)' : 'var(--green)') + ';">' + uf.active_alarms + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_active_alarms','Active alarms') + '</div></div>';
+          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.device_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_devices_count','Devices') + '</div></div>';
+          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.wlan_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ssids','SSIDs') + '</div></div>';
+          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.network_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_networks','Networks') + '</div></div>';
+          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.firewall_rules) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
+          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:' + (uf.active_alarms == null ? 'var(--text-muted)' : (uf.active_alarms > 0 ? 'var(--red)' : 'var(--green)')) + ';">' + numOrDash(uf.active_alarms) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_active_alarms','Active alarms') + '</div></div>';
           html += '</div>';
 
           // Device table
@@ -8248,6 +8251,16 @@ async function _loadFgThreatSummary(customerId) {
     var d = await apiFetch('/api/fortigate/threats/' + encodeURIComponent(customerId));
     if (!d || !d.summary) { el.style.display = 'none'; return; }
 
+    // A refused log read reports unavailable with total=null. Rendering it would
+    // print "Total: 0" — a firewall with a clean threat log nobody could read.
+    if (d.unavailable || d.summary.total === null || d.summary.total === undefined) {
+      el.style.display = '';
+      el.innerHTML = '<div class="text-xs text-muted">' +
+        esc(t('msg_block_unavailable','{block} could not be read, so this picture is incomplete.')
+          .replace('{block}', t('hdr_threat_summary','Threat Summary'))) + '</div>';
+      return;
+    }
+
     var s = d.summary;
     var html = '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">' + t('hdr_threat_summary','Threat Summary') + ' <span style="font-weight:400;text-transform:none;">(' + d.period_days + ' ' + t('lbl_days','days') + ')</span></div>';
 
@@ -8317,6 +8330,18 @@ async function _loadFgFirewallAudit(customerId) {
   try {
     var d = await apiFetch('/api/fortigate/firewall-audit/' + encodeURIComponent(customerId));
     if (!d || d.total_rules === undefined) { el.style.display = 'none'; return; }
+
+    // An unreachable firewall reports unavailable with score/total_rules = null
+    // (which is not === undefined, so the guard above lets it through). Rendering
+    // it would show "null / 100" in red with a green "no issues" — a broken,
+    // reassuring panel for a firewall nobody could read.
+    if (d.unavailable || d.total_rules === null || d.score === null) {
+      el.style.display = '';
+      el.innerHTML = '<div class="text-xs text-muted">' +
+        esc(t('msg_block_unavailable','{block} could not be read, so this picture is incomplete.')
+          .replace('{block}', t('hdr_firewall_audit','Firewall Rule Audit'))) + '</div>';
+      return;
+    }
 
     // Score color
     var scoreColor = d.score >= 90 ? 'var(--green)' : d.score >= 70 ? 'var(--orange)' : 'var(--red)';

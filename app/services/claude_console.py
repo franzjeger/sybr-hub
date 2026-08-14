@@ -621,8 +621,14 @@ async def _dispatch_tool(
         cid = params.get("customer_id") or customer_id
         if not cid:
             return {"error": "customer_id kreves"}
+        from app.modules.api_result import read_error, read_failed
         from app.services.unifi_api import get_enhanced_device_stats
-        return await get_enhanced_device_stats(cid)
+        devices = await get_enhanced_device_stats(cid)
+        # An ApiList serialises to [] over the tool boundary, dropping .error —
+        # so a refused read would reach the model as "0 devices". Surface it.
+        if read_failed(devices):
+            return {"error": read_error(devices), "unavailable": True}
+        return devices
 
     if name == "unifi_sites":
         from app.services.unifi_api import site_manager_list_sites

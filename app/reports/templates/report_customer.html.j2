@@ -1475,20 +1475,22 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="num brand">{{ fg.firmware or '–' }}</div>
     <div class="lbl">Firmware</div>
   </div>
+  {# A sub-read that refused carries None (not 0). Show "–": a count that could
+     not be read is unknown, and "None" is neither honest nor a number. #}
   <div class="metric-card">
-    <div class="num brand">{{ fg.policy_count | default(0) }}</div>
+    <div class="num brand">{{ fg.policy_count if fg.policy_count is not none else '–' }}</div>
     <div class="lbl">Brannmurregler</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ fg.admin_count | default(0) }}</div>
+    <div class="num brand">{{ fg.admin_count if fg.admin_count is not none else '–' }}</div>
     <div class="lbl">Admins</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ fg.vpn_tunnels | default(0) }}</div>
+    <div class="num brand">{{ fg.vpn_tunnels if fg.vpn_tunnels is not none else '–' }}</div>
     <div class="lbl">VPN-tunneler</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ fg.ha_mode | default('Standalone') }}</div>
+    <div class="num brand">{{ fg.ha_mode if fg.ha_mode else '–' }}</div>
     <div class="lbl">HA-modus</div>
   </div>
 </div>
@@ -1525,24 +1527,27 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <h3 style="margin-top:24px;">{{ t.section_unifi }}</h3>
 <div class="metrics">
   <div class="metric-card">
-    <div class="num brand">{{ uf.device_count | default(0) }}</div>
+    <div class="num brand">{{ uf.device_count if uf.device_count is not none else '–' }}</div>
     <div class="lbl">Enheter</div>
   </div>
   {% if uf.mode == 'controller' %}
+  {# A secondary read that individually refused carries None (not 0). Render it
+     as "–" — a refused count is unknown, never a clean zero, and None > 0 would
+     otherwise raise and abort the whole report. #}
   <div class="metric-card">
-    <div class="num brand">{{ uf.wlan_count | default(0) }}</div>
+    <div class="num brand">{{ uf.wlan_count if uf.wlan_count is not none else '–' }}</div>
     <div class="lbl">SSID-er</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ uf.network_count | default(0) }}</div>
+    <div class="num brand">{{ uf.network_count if uf.network_count is not none else '–' }}</div>
     <div class="lbl">Nettverk</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ uf.firewall_rules | default(0) }}</div>
+    <div class="num brand">{{ uf.firewall_rules if uf.firewall_rules is not none else '–' }}</div>
     <div class="lbl">Brannmurregler</div>
   </div>
   <div class="metric-card">
-    <div class="num {{ 'red' if (uf.active_alarms | default(0)) > 0 else 'green' }}">{{ uf.active_alarms | default(0) }}</div>
+    <div class="num {{ 'red' if (uf.active_alarms is not none and uf.active_alarms > 0) else ('' if uf.active_alarms is none else 'green') }}">{{ uf.active_alarms if uf.active_alarms is not none else '–' }}</div>
     <div class="lbl">Aktive alarmer</div>
   </div>
   {% endif %}
