@@ -29,7 +29,7 @@ deployment.
 - [x] **SR-002:** ALSO customer isolation
 - [ ] **SR-003:** Backup and restore safety
 - [ ] **SR-004:** Scheduler lifecycle and single-flight
-- [ ] **SR-005:** Atomic, concurrency-safe settings storage
+- [x] **SR-005:** Atomic, concurrency-safe settings storage
 - [ ] **SR-006:** Pentest execution boundary and process cleanup
 - [ ] **SR-007:** Security finding accuracy and data freshness
 
@@ -46,7 +46,7 @@ that tried to overturn every verdict in both directions. Nothing was overturned.
 | SR-002 | P1 | **Complete** | 7·0·0 of 7 | #122 | present |
 | SR-003 | P1 | Not started | 0·1·9 of 10 | none | absent |
 | SR-004 | P1 | Barely started | 0·4·3 of 7 | `dbbc3d6` (criterion 3 only) | absent |
-| SR-005 | P1 | Not started | 0·0·5 of 5 | none | absent |
+| SR-005 | P1 | **Complete** | 5·0·0 of 5 | #123 | present |
 | SR-006 | P2 | Not started | 0·1·4 of 5 | none | absent |
 | SR-007 | P2 | Not started² | 0·1·6 of 7 | none | absent |
 
@@ -73,7 +73,7 @@ none of the seven required focused tests exist.
 **SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
 caller's accessible customers, `get_invoices` made admin-only, per-user
 scan progress, 18 direct-object-reference tests, adversarially reviewed.
-The four P1 blockers below remain open.
+SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). Three P1 blockers below remain open.
 
 Most severe still-open gaps for a multi-user production deployment:
 
@@ -84,9 +84,6 @@ Most severe still-open gaps for a multi-user production deployment:
 - **SR-006** — the web process runs `sudo nmap`/SMB inline (`scanner.py:116`,
   `smb_enum.py:44`), incompatible with the hardened `NoNewPrivileges=yes` unit;
   timeout/cancel does not kill the process group.
-- **SR-005** — settings are written non-atomically (`write_bytes` to the final
-  path) via whole-file read-modify-write; a crash corrupts, concurrent updates
-  lose each other's changes.
 - **SR-004** — two schedulers coexist; enabled jobs do not start on boot and stop
   silently after a restart until settings are re-saved.
 
@@ -235,13 +232,13 @@ webhook test temporarily persists a value and later restores a stale snapshot.
 
 **Acceptance criteria:**
 
-- [ ] Use temporary-file, flush, `fsync`, and atomic replace semantics for every
+- [x] Use temporary-file, flush, `fsync`, and atomic replace semantics for every
       encrypted settings/customer write.
-- [ ] Serialize settings transactions and detect stale revisions, or move
+- [x] Serialize settings transactions and detect stale revisions, or move
       settings into transactional SQLite storage.
-- [ ] Change focused settings updates to mutate only their owned fields.
-- [ ] Send a test webhook to the supplied URL without persisting that URL.
-- [ ] Add concurrent-update, interrupted-write, stale-revision, and rollback
+- [x] Change focused settings updates to mutate only their owned fields.
+- [x] Send a test webhook to the supplied URL without persisting that URL.
+- [x] Add concurrent-update, interrupted-write, stale-revision, and rollback
       tests.
 
 **Required focused test:** `tests/test_settings_concurrency.py`
