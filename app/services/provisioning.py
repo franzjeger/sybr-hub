@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import secrets
 import string
 import uuid
@@ -44,6 +45,28 @@ def _cleanup_sessions() -> None:
         _sessions.pop(next(iter(_sessions)))
 
 
+_SECRET_KEYS = re.compile(r"password|passphrase|token|secret|api[_-]?key|psk", re.IGNORECASE)
+
+
+def _redact(value):
+    """Mask credential values by key name, recursively; structure preserved.
+
+    The wizard collects a device password and API token in its steps, and the
+    client-facing getters used to hand them straight back (SR-001 #4). The raw
+    values stay in the server-side session for the deploy that needs them.
+    """
+    if isinstance(value, dict):
+        return {
+            k: ("••••••"
+                if isinstance(v, str) and v and _SECRET_KEYS.search(str(k))
+                else _redact(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    return value
+
+
 class WizardStep:
     CUSTOMER = 1
     NETWORK = 2
@@ -55,13 +78,20 @@ class WizardStep:
 # ── Session Lifecycle ────────────────────────────────────────────────────────
 
 
-def start_session(user_id: str) -> dict:
-    """Start a new wizard session."""
+def start_session(user_id: str, customer_id: str = "") -> dict:
+    """Start a new wizard session, bound to its owner and customer.
+
+    customer_id is the customer active when the wizard began; every later
+    operation is checked against it, and the deploy resolves that customer's
+    credentials rather than whichever customer happens to be active later
+    (SR-001 #1).
+    """
     _cleanup_sessions()
     session_id = str(uuid.uuid4())
     _sessions[session_id] = {
         "id": session_id,
         "user_id": user_id,
+        "customer_id": customer_id,
         "current_step": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "steps": {1: None, 2: None, 3: None, 4: None, 5: None},
@@ -70,8 +100,19 @@ def start_session(user_id: str) -> dict:
     return {"session_id": session_id, "current_step": 1}
 
 
-def get_session(session_id: str) -> Optional[dict]:
+def get_session_raw(session_id: str) -> Optional[dict]:
+    """The unredacted session, for internal ownership/authorization checks."""
     return _sessions.get(session_id)
+
+
+def get_session(session_id: str) -> Optional[dict]:
+    """Client-facing session state, with step credentials masked (SR-001 #4)."""
+    session = _sessions.get(session_id)
+    if session is None:
+        return None
+    view = dict(session)
+    view["steps"] = _redact(session.get("steps", {}))
+    return view
 
 
 def submit_step(session_id: str, step: int, data: dict) -> dict:
@@ -95,7 +136,7 @@ def get_summary(session_id: str) -> dict:
         raise NotFoundError("Session not found")
     return {
         "session_id": session_id,
-        "steps": session["steps"],
+        "steps": _redact(session["steps"]),
         "complete": all(session["steps"][i] is not None for i in range(1, 5)),
     }
 
@@ -154,7 +195,7 @@ async def generate_configs(session_id: str, use_ai: bool = False) -> dict:
 # ── Deployment ───────────────────────────────────────────────────────────────
 
 
-def _resolve_fortigate_conn(steps: dict, target_host: str = "") -> dict:
+def _resolve_fortigate_conn(steps: dict, target_host: str = "", customer_id: str = "") -> dict:
     """Resolve all FortiGate connection variables with consistent precedence.
 
     Order (most → least specific):
@@ -173,12 +214,18 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "") -> dict:
     cust_id = ""
     try:
         from app.core.customer import CustomerManager
-        active = CustomerManager.get_active()
-        if active:
-            cust_id = active.get("_id", "")
-            active_cfg = active
+        # The session's bound customer, not whichever is active now — the deploy
+        # must use the credentials of the customer the wizard was started for
+        # (SR-001 #1/#5), regardless of what the operator switched to since.
+        customer = (
+            CustomerManager.get_customer(customer_id) if customer_id
+            else CustomerManager.get_active()
+        )
+        if customer:
+            cust_id = customer.get("_id", "")
+            active_cfg = customer
     except Exception as e:
-        logger.warning("Failed to read active customer for FortiGate conn resolve: %s", e)
+        logger.warning("Failed to read customer for FortiGate conn resolve: %s", e)
 
     def _from_keyring(name: str) -> str:
         if not cust_id:
@@ -212,6 +259,7 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "") -> dict:
     configured = (active_cfg.get("FortiGateHost") or "").strip()
     wizard_host = (customer_step.get("target_host") or "").strip()
     requested = (target_host or "").strip()
+    host = requested or wizard_host or configured or ""
 
     stored_secret_in_play = bool(
         (not customer_step.get("api_token") and _from_keyring("fortigate_api_token"))
@@ -221,21 +269,33 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "") -> dict:
             and _from_keyring("fortigate_admin_password")
         )
     )
-    if requested and stored_secret_in_play:
-        # Compare case-insensitively: hostnames are not case-sensitive, and a
-        # 400 over "FW.ACME.NO" vs "fw.acme.no" is a false refusal.
+    # A stored credential belongs to the customer's configured device and must
+    # not travel to any other address — whether that address came from the
+    # deploy body or from the wizard's own "target host" field. The earlier
+    # guard constrained only the body override and exempted the wizard field,
+    # which reopened the exfiltration path: a Step 1 target_host pointed at an
+    # attacker's IP still received the customer's stored FortiGate token
+    # (SR-001 #5). Compared case-insensitively — hostnames are not case
+    # sensitive, and a refusal over "FW.ACME.NO" vs "fw.acme.no" is false.
+    #
+    # For a genuine replacement or bootstrap unit on a different IP, the
+    # operator supplies an explicit API token or admin password in the wizard;
+    # that flips stored_secret_in_play to False and the deploy proceeds
+    # (SR-001 #6).
+    if stored_secret_in_play and host:
         if not configured:
             raise ValueError(
-                "Kan ikke deploye til en oppgitt adresse med kundens lagrede "
-                "FortiGate-legitimasjon når kunden ikke har en konfigurert "
-                "adresse. Sett kundens FortiGate-adresse først."
+                "Kan ikke deploye med kundens lagrede FortiGate-legitimasjon når "
+                "kunden ikke har en konfigurert adresse. Sett kundens FortiGate-"
+                "adresse først, eller oppgi eksplisitt legitimasjon i wizarden."
             )
-        if requested.casefold() != configured.casefold():
+        if host.casefold() != configured.casefold():
             raise ValueError(
-                f"Kan ikke deploye til {requested}: kunden er konfigurert med "
-                f"{configured}. Endre kundens FortiGate-adresse først."
+                f"Kan ikke deploye til {host} med kundens lagrede FortiGate-"
+                f"legitimasjon: kunden er konfigurert med {configured}. For en "
+                f"erstatnings-/bootstrap-enhet, oppgi eksplisitt API-token eller "
+                f"admin-passord i wizarden."
             )
-    host = requested or wizard_host or configured or ""
 
     # Port — bootstrap hardens admin-sport to 8443, that's the default
     raw_port = (customer_step.get("port")
@@ -302,7 +362,9 @@ async def deploy_config(
     results: dict = {}
     customer = session["steps"].get(1, {}) or {}
 
-    conn = _resolve_fortigate_conn(session["steps"], target_host)
+    conn = _resolve_fortigate_conn(
+        session["steps"], target_host, customer_id=session.get("customer_id", "")
+    )
 
     if not conn["host"]:
         return {"ok": False, "error": "Ingen FortiGate-host konfigurert (verken i wizard, kunde-config eller mål)"}
@@ -359,7 +421,10 @@ async def deploy_config(
             )
 
     if "unifi_json" in configs:
-        results["unifi"] = await _deploy_unifi(conn["host"], configs["unifi_json"], customer)
+        results["unifi"] = await _deploy_unifi(
+            conn["host"], configs["unifi_json"], customer,
+            customer_id=session.get("customer_id", ""),
+        )
 
     return {"ok": True, "results": results}
 
@@ -367,7 +432,9 @@ async def deploy_config(
 # ── UniFi Deployment ─────────────────────────────────────────────────────────
 
 
-async def _deploy_unifi(host: str, unifi_json: str, customer: dict) -> dict:
+async def _deploy_unifi(
+    host: str, unifi_json: str, customer: dict, customer_id: str = ""
+) -> dict:
     """Deploy generated UniFi config to a controller via REST API.
 
     Creates networks (VLANs) via /api/s/{site}/rest/networkconf.
@@ -376,14 +443,22 @@ async def _deploy_unifi(host: str, unifi_json: str, customer: dict) -> dict:
       1. Per-customer credentials from keyring (UniFiHost + unifi_username/password)
       2. Global controller settings from app settings
       3. Site Manager API key → resolve WAN IP for target host
+
+    A customer's *stored* per-customer credentials only ever go to that
+    customer's configured UniFiHost — never to a caller-supplied provisioning
+    target — the same boundary the FortiGate path enforces (SR-001 #5). The
+    customer is the session's bound one, not whichever is active now.
     """
     from app.core.config import load_app_settings
     from app.core.credentials import get_secret
     from app.core.customer import CustomerManager
     from app.modules.unifi_audit.client import UniFiControllerClient
 
-    active = CustomerManager.get_active()
-    cust_id = active.get("_id", "") if active else ""
+    cust = (
+        CustomerManager.get_customer(customer_id) if customer_id
+        else CustomerManager.get_active()
+    )
+    cust_id = cust.get("_id", "") if cust else ""
     settings = load_app_settings()
 
     # --- Resolve controller host + credentials ---
@@ -392,14 +467,20 @@ async def _deploy_unifi(host: str, unifi_json: str, customer: dict) -> dict:
     password = ""
     is_unifi_os = False
     site = "default"
+    configured_host = ""
+    stored_creds = False  # True once we resolve the customer's keyring secret
 
     # 1. Per-customer credentials
-    if active:
-        unifi_host = active.get("UniFiHost", "")
-        username = get_secret(cust_id, "unifi_username") or ""
-        password = get_secret(cust_id, "unifi_password") or ""
-        is_unifi_os = active.get("UniFiIsUniFiOS", False)
-        site = active.get("UniFiSite", "default")
+    if cust:
+        configured_host = cust.get("UniFiHost", "")
+        _u = get_secret(cust_id, "unifi_username") or ""
+        _p = get_secret(cust_id, "unifi_password") or ""
+        if _u and _p:
+            username, password = _u, _p
+            stored_creds = True
+        unifi_host = configured_host
+        is_unifi_os = cust.get("UniFiIsUniFiOS", False)
+        site = cust.get("UniFiSite", "default")
 
     # 2. Global controller settings from app settings
     if not (unifi_host and username and password):
@@ -431,8 +512,30 @@ async def _deploy_unifi(host: str, unifi_json: str, customer: dict) -> dict:
             except Exception as e:
                 logger.warning("Site Manager lookup failed: %s", e)
 
-    # Use provisioning target host as last resort
-    unifi_host = unifi_host or host
+    # A stored per-customer credential must not travel to the caller-supplied
+    # provisioning target (SR-001 #5). Only fall back to `host` when no stored
+    # credential is in play, and refuse outright if a stored credential would
+    # reach anything but the customer's configured UniFiHost.
+    if not stored_creds:
+        unifi_host = unifi_host or host
+    if stored_creds:
+        if not configured_host:
+            return {
+                "ok": False,
+                "error": (
+                    "Kundens UniFi-host er ikke konfigurert — kan ikke bruke "
+                    "lagret legitimasjon mot en oppgitt adresse. Sett UniFi-host "
+                    "først, eller oppgi eksplisitt legitimasjon."
+                ),
+            }
+        if unifi_host.casefold() != configured_host.casefold():
+            return {
+                "ok": False,
+                "error": (
+                    f"Kan ikke sende kundens lagrede UniFi-legitimasjon til "
+                    f"{unifi_host}: kunden er konfigurert med {configured_host}."
+                ),
+            }
 
     if not unifi_host:
         return {"ok": False, "error": "No UniFi controller host found — configure in Settings or per customer"}
@@ -1181,7 +1284,12 @@ async def _deploy_via_rest(
     from app.modules.fortigate_audit.client import FortiGateClient
 
     if conn is None:
-        conn = _resolve_fortigate_conn(steps, target_host=host)
+        # Never silently resolve here: without the session's customer_id this
+        # would fall back to the *active* customer's keyring and skip the
+        # host-mismatch guard — the exact SR-001 #5 shape the caller closes.
+        raise ValueError(
+            "Intern feil: FortiGate-tilkobling ikke oppløst før REST-deploy."
+        )
 
     customer = steps.get(1, {}) or {}
     network = steps.get(2, {}) or {}
