@@ -25,7 +25,7 @@ deployment.
 
 ## Finding checklist
 
-- [ ] **SR-001:** Provisioning ownership and credential boundaries
+- [x] **SR-001:** Provisioning ownership and credential boundaries
 - [x] **SR-002:** ALSO customer isolation
 - [ ] **SR-003:** Backup and restore safety
 - [ ] **SR-004:** Scheduler lifecycle and single-flight
@@ -42,17 +42,13 @@ that tried to overturn every verdict in both directions. Nothing was overturned.
 
 | ID | Priority | Status | Criteria (met·partial·unmet) | Landed since baseline | Focused test |
 |---|---:|---|---|---|---|
-| SR-001 | P1 | Not started¹ | 0·2·6 of 8 | none | absent |
+| SR-001 | P1 | **Complete** | 8·0·0 of 8 | #124 | present |
 | SR-002 | P1 | **Complete** | 7·0·0 of 7 | #122 | present |
 | SR-003 | P1 | Not started | 0·1·9 of 10 | none | absent |
 | SR-004 | P1 | Barely started | 0·4·3 of 7 | `dbbc3d6` (criterion 3 only) | absent |
 | SR-005 | P1 | **Complete** | 5·0·0 of 5 | #123 | present |
 | SR-006 | P2 | Not started | 0·1·4 of 5 | none | absent |
 | SR-007 | P2 | Not started² | 0·1·6 of 7 | none | absent |
-
-¹ SR-001's two partials rest on a credential-target guard in
-  `_resolve_fortigate_conn` that predates the baseline; the remediation itself
-  advanced nothing, and the guard is bypassed via the wizard Step 1 target field.
 
 ² SR-007's four named evidence files (`vuln_checker.py`, `cms_scanner.py`,
   `tls_auditor.py`, `firmware_db.py`) are byte-identical to baseline. PRs #118
@@ -73,14 +69,10 @@ none of the seven required focused tests exist.
 **SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
 caller's accessible customers, `get_invoices` made admin-only, per-user
 scan progress, 18 direct-object-reference tests, adversarially reviewed.
-SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). Three P1 blockers below remain open.
+SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). Two P1 blockers below remain open.
 
 Most severe still-open gaps for a multi-user production deployment:
 
-- **SR-001** — provisioning sessions bind only `user_id`; every route operates on
-  any `session_id` with no owner check; raw passwords/API tokens are stored in the
-  session and returned via GET; deploy requires only `technician`, not
-  `admin` + `tenant_write`.
 - **SR-006** — the web process runs `sudo nmap`/SMB inline (`scanner.py:116`,
   `smb_enum.py:44`), incompatible with the hardened `NoNewPrivileges=yes` unit;
   timeout/cancel does not kill the process group.
@@ -104,18 +96,18 @@ provisioning as admin functionality.
 
 **Acceptance criteria:**
 
-- [ ] Bind every session to both `user_id` and `customer_id` at creation.
-- [ ] Enforce owner and current customer access on every session operation.
-- [ ] Return `404` rather than disclosing whether another user's session exists.
-- [ ] Never return or persist raw passwords, API tokens, generated private
+- [x] Bind every session to both `user_id` and `customer_id` at creation.
+- [x] Enforce owner and current customer access on every session operation.
+- [x] Return `404` rather than disclosing whether another user's session exists.
+- [x] Never return or persist raw passwords, API tokens, generated private
       secrets, or equivalent values in client-visible session state.
-- [ ] When a stored credential is used, require the resolved target to match the
+- [x] When a stored credential is used, require the resolved target to match the
       customer's configured device, regardless of where the target originated.
-- [ ] Require explicit credential entry for replacement/bootstrap devices that
+- [x] Require explicit credential entry for replacement/bootstrap devices that
       do not match the configured target.
-- [ ] Align route authorization with the feature matrix and require the intended
+- [x] Align route authorization with the feature matrix and require the intended
       write capability for deployment.
-- [ ] Add two-user and two-customer isolation tests, secret-redaction tests, and
+- [x] Add two-user and two-customer isolation tests, secret-redaction tests, and
       an attacker-controlled target regression test.
 
 **Required focused test:** `tests/test_provisioning_isolation.py`
