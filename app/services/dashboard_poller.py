@@ -220,6 +220,22 @@ class DashboardPoller:
                     return_exceptions=True,
                 )
 
+                # The status read establishes reachability. If it refused, the
+                # firewall is not online — recording it as such put a green row
+                # in the dashboard for a device that answered nothing, because
+                # the sentinel is not an exception and the cache write below
+                # hard-codes "online".
+                from app.modules.api_result import read_error, read_failed
+                if isinstance(status, Exception) or read_failed(status):
+                    reason = str(status) if isinstance(status, Exception) else read_error(status)
+                    self._cache[device_id] = DeviceStatus(
+                        device_id=device_id, customer_id=customer_id,
+                        vendor="fortigate", name=host, model="", firmware="",
+                        serial="", status="error", uptime="",
+                        error=reason, last_poll=now,
+                    )
+                    return
+
                 # Parse CPU — use top-level user+system, or calc from cores
                 cpu = None
                 if isinstance(perf, dict):
@@ -272,18 +288,28 @@ class DashboardPoller:
                     if isinstance(fg_info, dict):
                         wan_ip = fg_info.get("fortigate_wan_ip")
 
-                # Count VPN tunnels — vpn/ipsec returns a list directly
-                vpn_count = 0
-                if isinstance(vpn_tunnels, list):
+                # Count VPN tunnels — vpn/ipsec returns a list directly. None on
+                # a refused read (a failed ApiList is still a list, so the
+                # read_failed check must come first), rather than a 0 that reads
+                # as "no tunnels configured" on an otherwise-online firewall.
+                if isinstance(vpn_tunnels, Exception) or read_failed(vpn_tunnels):
+                    vpn_count = None
+                elif isinstance(vpn_tunnels, list):
                     vpn_count = len(vpn_tunnels)
                 elif isinstance(vpn_tunnels, dict):
                     vpn_list = vpn_tunnels.get("results", vpn_tunnels.get("data", []))
                     vpn_count = len(vpn_list) if isinstance(vpn_list, list) else 0
+                else:
+                    vpn_count = None
 
-                # Count policies
-                policy_count = 0
-                if isinstance(policies, list):
+                # Count policies — None on a refused read, not a misleading 0
+                # (which reads as an unconfigured firewall).
+                if isinstance(policies, Exception) or read_failed(policies):
+                    policy_count = None
+                elif isinstance(policies, list):
                     policy_count = len(policies)
+                else:
+                    policy_count = None
 
                 # HA mode
                 ha_mode = "Standalone"
@@ -574,6 +600,36 @@ class DashboardPoller:
             ) as uf:
                 site = customer.get("UniFiSite", "default")
                 devices = await uf.get_devices(site)
+
+                # A refused device read used to write nothing — leaving the last
+                # poll's rows in the cache, so the dashboard kept showing a
+                # controller as healthy long after it stopped answering. Record
+                # a controller-error indicator instead, the same as the except
+                # path does for a connection that failed to open.
+                from app.modules.api_result import read_error, read_failed
+                if read_failed(devices):
+                    # Evict this customer's per-device rows first. A prior good
+                    # poll wrote uf_{cid}_{mac} rows as "online"; the error row
+                    # below uses a different id (_ctrl), so without this the
+                    # healthy rows survive and the dashboard keeps showing every
+                    # device online for a controller that has stopped answering.
+                    stale_prefix = f"uf_{customer_id}_"
+                    for stale_id in [k for k in self._cache if k.startswith(stale_prefix)]:
+                        del self._cache[stale_id]
+                    device_id = f"uf_{customer_id}_ctrl"
+                    self._cache[device_id] = DeviceStatus(
+                        device_id=device_id, customer_id=customer_id,
+                        vendor="unifi", name=customer.get("UniFiHost", "?"),
+                        model="Controller", firmware="", serial="",
+                        status="error", uptime="", error=read_error(devices),
+                        last_poll=now,
+                    )
+                    return
+
+                # The controller answered: drop any error row a prior refused
+                # poll left behind, so a recovered controller does not keep
+                # showing a stale "error" tile beside its live devices.
+                self._cache.pop(f"uf_{customer_id}_ctrl", None)
 
                 for d in (devices if isinstance(devices, list) else []):
                     mac = d.get("mac", "unknown")

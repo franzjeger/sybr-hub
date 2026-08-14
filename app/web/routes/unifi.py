@@ -445,10 +445,16 @@ async def unifi_clients(
     user: User = Depends(require_customer_access(Role.technician)),
 ):
     """Get all connected clients for a customer's UniFi site."""
+    from app.modules.api_result import read_error, read_failed
     from app.services.unifi_api import get_client_inventory
 
     try:
         clients = await get_client_inventory(customer_id)
+        # A refused read is not an empty site. Report it unavailable rather than
+        # "0 clients", which reads as a customer with nothing connected.
+        if read_failed(clients):
+            return {"ok": False, "unavailable": True, "error": read_error(clients),
+                    "clients": [], "count": None, "wireless": None, "wired": None}
         wireless = sum(1 for c in clients if c["type"] == "wireless")
         wired = len(clients) - wireless
         return {"ok": True, "clients": clients, "count": len(clients),
@@ -484,10 +490,16 @@ async def unifi_dashboard(
     user: User = Depends(require_customer_access(Role.technician)),
 ):
     """Enhanced device stats for all devices on the customer's controller."""
+    from app.modules.api_result import read_error, read_failed
     from app.services.unifi_api import get_enhanced_device_stats
 
     try:
         devices = await get_enhanced_device_stats(customer_id)
+        # A refused controller read is not an empty fleet. Say unavailable rather
+        # than "0 devices", which reads as a customer with no managed hardware.
+        if read_failed(devices):
+            return {"ok": False, "unavailable": True, "error": read_error(devices),
+                    "devices": [], "count": None}
         return {"ok": True, "devices": devices, "count": len(devices)}
     except ValueError as e:
         raise ValidationError(str(e))

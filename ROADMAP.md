@@ -24,9 +24,12 @@ regression tests in this repo.
   mapping; verdicts grounded in actual data rather than substring
   matching against banners.
 - **FortiGate audit** — REST-API client, policy + admin audit, encrypted
-  config backup, CIS-Fortinet compliance checks.
+  config backup, CIS-Fortinet compliance checks. A read the firewall
+  refused is reported unavailable, never as "0 policies, score 100" — the
+  same "a refusal is not a zero" guarantee the M365 pipeline holds.
 - **UniFi audit** — both controller-API and direct-SSH modes; firmware
-  currency + EOL detection in both modes.
+  currency + EOL detection in both modes. A controller that answers 403
+  reads as unavailable, not as a site with zero devices and no rogue APs.
 - **VPN tunnel management** — OpenVPN-3 and WireGuard backends.
   Required infrastructure: customer FortiGate / UniFi management
   interfaces are on internal LANs, so the toolkit needs a way to

@@ -27,6 +27,7 @@ from app.core.name_match import (
     score_name_match,
 )
 from app.integrations.http_retry import send_with_retry
+from app.modules.api_result import ApiList, read_error, read_failed
 from app.modules.unifi_audit.client import UniFiControllerClient, UniFiDirectDevice
 from app.modules.unifi_audit.firmware_db import check_firmware
 
@@ -130,6 +131,13 @@ async def get_enhanced_device_stats(customer_id: str) -> list[dict[str, Any]]:
         devices_raw = await client.get_devices(site)
         clients_raw = await client.get_clients(site)
 
+        # A refused device read makes an empty inventory that reads as "0 devices,
+        # all healthy". The device list is the measurement — if it could not be
+        # read, return a failed ApiList so the route says unavailable rather than
+        # publishing a clean-looking empty fleet.
+        if read_failed(devices_raw):
+            return ApiList(error=read_error(devices_raw))
+
         # Build a MAC → client-count map for more accurate numbers
         clients_by_ap: dict[str, int] = {}
         for c in clients_raw:
@@ -202,6 +210,13 @@ async def get_client_inventory(customer_id: str) -> list[dict[str, Any]]:
     try:
         clients_raw = await client.get_clients(site)
         devices_raw = await client.get_devices(site)
+
+        # The client list is the measurement here. A refused read must not read
+        # as "0 clients connected" — return a failed ApiList so the route reports
+        # the inventory unavailable. (A failed device read only costs the
+        # connected-to names, so it does not by itself fail the inventory.)
+        if read_failed(clients_raw):
+            return ApiList(error=read_error(clients_raw))
 
         # Build MAC -> device name map
         device_names: dict[str, str] = {}
@@ -291,6 +306,23 @@ async def get_wifi_health(customer_id: str) -> dict[str, Any]:
             client.get_health(site),
             client.get_rogueaps(site),
         )
+
+        # A refused rogue-AP scan reads as "0 rogue APs, no alerts" — a security
+        # panel saying the air is clear when nobody could scan it. If the two
+        # reads that carry the security signal (devices, rogue APs) refused,
+        # report the panel unavailable rather than reassuringly empty.
+        if read_failed(devices_raw) or read_failed(rogues_raw):
+            return {
+                "unavailable": True,
+                "error": read_error(devices_raw) or read_error(rogues_raw),
+                "aps": [],
+                "ssids": [],
+                "alerts": [],
+                "health": {},
+                "total_wireless_clients": None,
+                "total_wired_clients": None,
+                "rogue_ap_count": None,
+            }
 
         # ── Per-AP stats ──
         # Count clients per AP
@@ -404,13 +436,20 @@ async def get_wifi_health(customer_id: str) -> dict[str, Any]:
                 }
                 break
 
+        # The devices+rogues guard above already returned if the security signal
+        # refused. The client read can still refuse on its own, and sum() over a
+        # failed (empty) ApiList is 0 — a busy site reading as "0 clients". Report
+        # the client totals as None (unknown) in that case, not a false zero.
+        clients_unavailable = read_failed(clients_raw)
         return {
             "aps": aps,
             "ssids": ssids,
             "alerts": alerts,
             "health": wifi_health,
-            "total_wireless_clients": sum(1 for c in clients_raw if not c.get("is_wired", False)),
-            "total_wired_clients": sum(1 for c in clients_raw if c.get("is_wired", False)),
+            "total_wireless_clients": None if clients_unavailable else
+                sum(1 for c in clients_raw if not c.get("is_wired", False)),
+            "total_wired_clients": None if clients_unavailable else
+                sum(1 for c in clients_raw if c.get("is_wired", False)),
             "rogue_ap_count": len(rogues_raw),
         }
     finally:
@@ -1157,6 +1196,19 @@ async def firmware_check_all(customer_id: str) -> dict[str, Any]:
     finally:
         await client.close()
 
+    # all_up_to_date on an empty list is True, so a controller that refused the
+    # read used to report every device current — a firmware audit passing a
+    # network it never saw.
+    if read_failed(devices):
+        return {
+            "unavailable": True,
+            "error": read_error(devices),
+            "devices": [],
+            "total": None,
+            "summary": {},
+            "all_up_to_date": None,
+        }
+
     results: list[dict[str, Any]] = []
     counts = {"ok": 0, "warning": 0, "critical": 0, "unknown": 0}
 
@@ -1198,10 +1250,27 @@ async def get_controller_summary(customer_id: str) -> dict[str, Any]:
         sites = await client.list_sites()
         site_key = _default_site(customer_id)
 
+        # In "all" mode the site list drives every downstream query, so if it
+        # refused there is nothing to summarise and total_devices=0 would be a
+        # lie. In single-site mode the list is only used for the description
+        # map, so a failed list is tolerable there.
+        if read_failed(sites) and site_key == "all":
+            return {
+                "unavailable": True,
+                "error": read_error(sites),
+                "total_sites": None,
+                "total_devices": None,
+                "total_clients": None,
+                "total_wlans": None,
+                "total_alarms": None,
+                "site_details": [],
+            }
+
         total_devices = 0
         total_clients = 0
         total_wlans = 0
         total_alarms = 0
+        site_failed = False
         site_summaries: list[dict[str, Any]] = []
 
         # If the customer has a specific site configured, only query that one.
@@ -1218,29 +1287,61 @@ async def get_controller_summary(customer_id: str) -> dict[str, Any]:
                 client.get_alarms(s_name),
             )
 
+            if read_failed(devices):
+                # This site refused. Record it as unreadable rather than as a
+                # site with zero devices online — the difference between "the
+                # network is down" and "we could not reach the controller".
+                site_failed = True
+                site_summaries.append({
+                    "site": s_name,
+                    "unavailable": True,
+                    "devices": None,
+                    "devices_online": None,
+                    "devices_offline": None,
+                    "clients": None,
+                    "wlans": None,
+                    "alarms": None,
+                })
+                continue
+
             online = sum(1 for d in devices if d.get("state", 0) == 1)
             offline = len(devices) - online
+
+            # The device read answered, but a secondary read (clients, WLANs,
+            # alarms) can refuse on its own — and len() of a failed ApiList is 0.
+            # "0 active alarms" on a read that never happened is the false-clean
+            # this pass removes: record None and trip the unavailable flag so the
+            # zero total is not presented as the whole truth.
+            s_clients = None if read_failed(clients) else len(clients)
+            s_wlans = None if read_failed(wlans) else len(wlans)
+            s_alarms = None if read_failed(alarms) else len(alarms)
+            if s_clients is None or s_wlans is None or s_alarms is None:
+                site_failed = True
 
             site_summaries.append({
                 "site": s_name,
                 "devices": len(devices),
                 "devices_online": online,
                 "devices_offline": offline,
-                "clients": len(clients),
-                "wlans": len(wlans),
-                "alarms": len(alarms),
+                "clients": s_clients,
+                "wlans": s_wlans,
+                "alarms": s_alarms,
             })
 
             total_devices += len(devices)
-            total_clients += len(clients)
-            total_wlans += len(wlans)
-            total_alarms += len(alarms)
+            total_clients += s_clients or 0
+            total_wlans += s_wlans or 0
+            total_alarms += s_alarms or 0
 
         # Find the site description for human-friendly names
         site_desc_map = {s.get("name", ""): s.get("desc", s.get("name", "")) for s in sites}
 
         return {
-            "total_sites": len(sites),
+            # Some sites may have refused even though the run completed;
+            # totals then cover only the sites that answered, and this flag
+            # says so rather than presenting a partial total as the whole.
+            "unavailable": site_failed,
+            "total_sites": None if read_failed(sites) else len(sites),
             "total_devices": total_devices,
             "total_clients": total_clients,
             "total_wlans": total_wlans,

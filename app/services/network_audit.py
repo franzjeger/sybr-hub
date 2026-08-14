@@ -143,6 +143,8 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
     if not uf_user or not uf_pass:
         return None
 
+    from app.modules.api_result import read_error, read_failed
+
     try:
         async with UniFiControllerClient(
             uf_host, uf_user, uf_pass,
@@ -155,6 +157,23 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
             networks = await uf.get_networks(site)
             fw_rules = await uf.get_firewall_rules(site)
             alarms = await uf.get_alarms(site)
+
+            # The device read is load-bearing: device_count, the firmware
+            # currency check and every per-device row derive from it. If it
+            # refused, the whole section is unverifiable — reporting
+            # "device_count: 0, eol_count: 0, outdated: 0" would be a clean
+            # UniFi audit for a controller nobody could read, which is the
+            # false-negative this pass exists to remove.
+            if read_failed(devices):
+                return {
+                    "mode": "controller",
+                    "unavailable": True,
+                    "error": read_error(devices),
+                    "device_count": None,
+                    "wlan_count": None,
+                    "outdated_firmware_count": None,
+                    "eol_count": None,
+                }
 
             device_summary = [{
                 "name": d.get("name", d.get("hostname", d.get("mac", "?"))),
@@ -197,16 +216,25 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
                 "guest": w.get("is_guest", False),
             } for w in wlans]
 
+            # A secondary read that individually refused reports None, not a
+            # clean 0: "0 active alarms" and "could not read alarms" are
+            # different claims and the report must not conflate them. The
+            # device-derived counts are trustworthy here — the guard above
+            # already returned if the device read failed.
+            def _count(value):
+                return None if read_failed(value) else len(value)
+
             return {
                 "mode": "controller",
-                "sites": len(sites),
+                "unavailable": False,
+                "sites": _count(sites),
                 "device_count": len(devices),
                 "devices": device_summary,
-                "wlan_count": len(wlans),
+                "wlan_count": _count(wlans),
                 "wlans": wlan_summary,
-                "network_count": len(networks),
-                "firewall_rules": len(fw_rules),
-                "active_alarms": len(alarms),
+                "network_count": _count(networks),
+                "firewall_rules": _count(fw_rules),
+                "active_alarms": _count(alarms),
                 "outdated_firmware_count": outdated_count,
                 "eol_count": eol_count,
                 # default_creds_count is not available in controller mode

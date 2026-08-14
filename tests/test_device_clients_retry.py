@@ -23,6 +23,8 @@ import asyncio
 import httpx
 import pytest
 
+from app.modules.api_result import read_failed
+
 _real_sleep = asyncio.sleep
 
 
@@ -95,7 +97,7 @@ async def test_a_fortigate_that_stays_down_reports_an_error_not_a_crash():
     await fg.close()
 
     assert calls["n"] == 3, "should have used its attempts"
-    assert "error" in result
+    assert read_failed(result), "a stayed-down read must be marked failed, not empty-clean"
 
 
 async def test_a_403_is_not_retried():
@@ -107,7 +109,7 @@ async def test_a_403_is_not_retried():
     await fg.close()
 
     assert calls["n"] == 1
-    assert "error" in result
+    assert read_failed(result), "a refused read must carry its error, not read as clean"
 
 
 # ── UniFi controller ─────────────────────────────────────────────────────────

@@ -5,6 +5,43 @@ Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
 og er ikke Sybr HUB-pakkeversjoner.
 
 ## Ikke utgitt
+### En avvist lesing er ikke en tom lesing — nå også i enhetsklientene
+
+- FortiGate- og UniFi-klientene svarte på en mislykket lesing med en verdi
+  kalleren ikke kunne skille fra et ekte tomt resultat: UniFi ga `[]`,
+  FortiGate ga `{"error": ...}`. En kontroller som svarte 403 ble til «0
+  enheter», en brannmur auditen ikke nådde ble «0 regler, score 100», og en
+  CIS-kontroll hvis konfig ikke kunne leses ble stille hoppet over — eller verre,
+  fikk en oppdiktet dom fra feil-dicten. Rapporten sa at nettverket var rent
+  fordi ingen fikk sett etter. Dette er defekten arkitekturdokumentet navngir —
+  «a refusal is not a zero» — som M365-pipelinen ble bygget om rundt; den levde
+  videre her fordi disse klientene mater dusinvis av kall-steder.
+- `app/modules/api_result.py` innfører `ApiList` og `ApiDict` — subklasser av
+  `list`/`dict` som bærer `.error`. De *er* den tomme verdien de erstatter, så
+  de ~30 stedene som itererer, `len()`-er eller indekserer et resultat virker
+  uendret, mens de få stedene som publiserer et tall en kunde leser kan spørre
+  `read_failed(x)` og si «utilgjengelig» i stedet for «0». En feilet container
+  er alltid tom, aldri et delresultat — en halv-lesing som så hel ut ville vært
+  en mer subtil versjon av samme løgn.
+- Kundevendte aggregater sier nå «utilgjengelig» i stedet for en betryggende
+  null: CIS-compliance scorer bare kontroller den faktisk leste (uleste teller
+  som `unknown`, ikke som bestått eller strøket); brannmur-regelauditen,
+  hurtigauditen, flåtepollingen og trussel-sammendraget rapporterer
+  `unavailable` med `None`-tellere når lesingen ble avvist; UniFi
+  firmware-sjekk, WiFi-helse, enhetsstatistikk og klientinventar likeså.
+  Dashboard-pollerne skriver en feilrad, ikke en grønn «online»-rad, for utstyr
+  som ikke svarte.
+- En kunde med bare UniFi hvis kontroller ble avvist forsvinner ikke lenger fra
+  nettverksoversikten som «ingen nettverk» — raden blir stående med varselet
+  synlig. En uleselig FortiGate legges ikke lenger inn som en frisk-utseende
+  rad. FortiGate live-dashboardet svarer `unavailable` i stedet for en tom, idle-
+  aktig øyeblikksbilde. AI-konsollen får feilen, ikke en tom liste som `[]`.
+- To nye testfiler pinner begge halvdeler: `tests/test_api_result.py` for
+  containeren, `tests/test_device_reads_are_not_clean.py` for hvert kundevendt
+  kall-sted — hver «feilet lesing → ikke ren» har en søster «ekte tom → fortsatt
+  ren», fordi å flagge en frisk kunde som utilgjengelig ville vært samme defekt
+  pekt andre veien. En mutasjonstest bekreftet at consumer-testene biter.
+
 ### En transportfeil er det tidspunktet gjør den til
 
 - `send_with_retry` fanget `httpx.TimeoutException` og prøvde på nytt for alle
