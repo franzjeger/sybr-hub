@@ -16,6 +16,16 @@ Documentation=https://github.com/franzjeger/sybr-hub
 After=network-online.target
 Wants=network-online.target
 
+# Crash-loop backstop for the in-app self-update. Restart=on-failure below would
+# otherwise restart a bad deploy every 5s forever; the updater import-smokes new
+# code and rolls back before re-exec, but a *runtime* failure it cannot catch (a
+# broken startup migration, a key it can no longer unwrap) would loop silently.
+# After 5 failed starts in 3 minutes systemd gives up and parks the unit in a
+# visible 'failed' state instead — recovery is then the manual git reset in
+# docs/UPGRADING.md. Well clear of the ~1 legitimate restart a real re-exec costs.
+StartLimitIntervalSec=180
+StartLimitBurst=5
+
 [Service]
 Type=exec
 
@@ -103,8 +113,14 @@ MemoryDenyWriteExecute=no
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 # ProtectSystem=strict makes everything read-only; grant back only what the
-# app writes: the database, encrypted customer configs, audit output.
-ReadWritePaths=/var/lib/sybr-hub /etc/sybr-hub
+# app writes: the database, encrypted customer configs, audit output, and — for
+# the in-app self-update (Settings → Update now) — its own checkout, so the
+# admin-triggered `git pull` + re-exec can rewrite the code it runs. This is the
+# one place the code directory is writable by the service; it is the inherent
+# cost of an app that can update itself. It does NOT relax NoNewPrivileges: the
+# update re-execs in place (os.execv) rather than calling systemctl. Drop
+# /opt/sybr-hub from this line to keep the code read-only and update by hand.
+ReadWritePaths=/var/lib/sybr-hub /etc/sybr-hub /opt/sybr-hub
 #ReadWritePaths=/srv/sybr-hub-audits          # if audit_dir is set elsewhere
 
 [Install]

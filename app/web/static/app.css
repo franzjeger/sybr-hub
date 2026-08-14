@@ -1349,6 +1349,9 @@
   .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
   .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
   .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
+  .hidden { display: none !important; }
+  /* Self-update row in the advanced settings tab (see index.html). */
+  .settings-update-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 
   /* ── Divider ── */
   .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }

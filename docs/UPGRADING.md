@@ -5,6 +5,58 @@ not listed here are backwards-compatible.
 
 ---
 
+## Unreleased — in-app self-update (Settings → Update now)
+
+An admin can now update the deployment from inside the app: **Settings →
+Advanced → Update now** pulls the running branch to its `origin` counterpart and
+re-execs the process onto the new code. It exists because the host often sits
+behind a tailnet a browser can reach but a build environment cannot, so "ssh in
+and `git pull`" is not always available.
+
+**This needs one systemd change to work, and it is a deliberate relaxation.**
+The shipped unit now lists `/opt/sybr-hub` in `ReadWritePaths`, so the service
+can rewrite its own checkout — otherwise `ProtectSystem=strict` keeps the code
+read-only and the button fails with a permission error. `scripts/install-cachyos.sh`
+applies this automatically; a manual install must add it to the unit and
+`systemctl daemon-reload`. **If you would rather keep the code directory
+read-only, drop `/opt/sybr-hub` from `ReadWritePaths`** and update by hand — the
+endpoint then reports the failure instead of updating.
+
+What the change does *not* touch: `NoNewPrivileges=yes` stays on. The update
+re-execs in place (`os.execv`) rather than calling `systemctl restart`, so the
+web process never gains privilege. The endpoint is admin-only and `can_write`
+gated, is unreachable from scheduled code, only ever fast-forwards the current
+branch to `origin` (no ref comes from the request), and refuses a dirty tree or
+a detached HEAD. Migrations run at startup, so they apply on the restart.
+
+**Safety, in order.** Because the host is hard to reach by hand, the update is
+built so a failure at any step leaves the running version intact:
+
+- It **refuses local commits** that are ahead of `origin` (a hotfix made on the
+  box) rather than discarding them — push or remove them first.
+- It installs the **target's** dependencies *before* moving `HEAD`, so a `pip`
+  failure leaves both the tree and the running process untouched.
+- It advances with `git merge --ff-only` — a true fast-forward, never a rewind.
+- It **import-smokes the new code** in a subprocess and, if it cannot even
+  import (a syntax/import error — the common bad deploy), **rolls `HEAD` back**
+  and refuses *before* the re-exec.
+
+The one failure it cannot catch is a *runtime* one that only shows on boot — a
+broken startup migration, a master key it can no longer unwrap. For that the
+unit now carries a crash-loop backstop (`StartLimitIntervalSec=180`,
+`StartLimitBurst=5`): after five failed starts in three minutes systemd parks
+the service in a visible `failed` state instead of restarting forever. Recover
+by hand on the host:
+
+```sh
+cd /opt/sybr-hub
+sudo -u sybrhub git reset --hard <last-good-commit>   # git reflog shows it
+sudo systemctl reset-failed sybr-hub
+sudo systemctl start sybr-hub
+```
+
+---
+
 ## Unreleased — active customer is now per user
 
 Authenticated users no longer share the process-wide `active.txt` selection.

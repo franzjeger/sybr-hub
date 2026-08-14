@@ -50,6 +50,10 @@ regression tests in this repo.
 - **Stubs** for Autotask, myITprocess, RMM — so the integration
   contracts are visible and reviewable before the implementation
   lands.
+- **In-app self-update** — an admin pulls the deployed branch to `origin`
+  and re-execs onto the new code from Settings, for a host that sits behind
+  a tailnet a browser can reach but a build environment cannot. Admin +
+  `can_write` only, never scheduled, current-branch-to-`origin` only.
 
 ## v0.2.0 — Autotask read-side
 
