@@ -209,11 +209,11 @@ def create_backup_sync(dest_path: str | None = None, backup_password: str | None
                 # SR-003 #4: authenticate the manifest (and, through its file
                 # hashes, the whole payload) under the master key.
                 zf.writestr("manifest.mac", manifest_mac(manifest_bytes))
+            os.replace(tmp_path, zip_path)   # SR-003 #2: atomic publish
         except Exception:
+            # A failure anywhere — including the rename — leaves no half file.
             tmp_path.unlink(missing_ok=True)
             raise
-
-        os.replace(tmp_path, zip_path)   # SR-003 #2: atomic publish
         manifest["zip_size_bytes"] = zip_path.stat().st_size
 
         update_app_settings(lambda s: s.update({

@@ -24,6 +24,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.core.exceptions import ValidationError
 from app.web.routes import backup as bk
 
 
@@ -95,7 +96,14 @@ def test_a_destination_inside_a_source_tree_is_refused(env):
 
 def test_an_interrupted_write_publishes_nothing(env, monkeypatch):
     import os
-    monkeypatch.setattr(os, "replace", lambda *a: (_ for _ in ()).throw(OSError("crash")))
+    real = os.replace
+
+    def fail_on_publish(src, dst):
+        if str(dst).endswith(".zip"):
+            raise OSError("crash during atomic publish")
+        return real(src, dst)
+
+    monkeypatch.setattr(os, "replace", fail_on_publish)
     with pytest.raises(OSError):
         bk.create_backup_sync(dest_path=str(env.backups))
     assert not list(env.backups.glob("*.zip")), "a partial backup was published"
@@ -152,7 +160,7 @@ def test_a_corrupted_file_is_caught_before_any_live_change(env):
     _rewrite_zip(zip_path, {"customers/acme/config.json": b"SWAPPED-OUT"})
     original = (env.data / "customers" / "acme" / "config.json").read_bytes()
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
     # live data untouched
     assert (env.data / "customers" / "acme" / "config.json").read_bytes() == original
@@ -165,13 +173,13 @@ def test_a_tampered_manifest_is_rejected(env):
         manifest = json.loads(zf.read("manifest.json"))
     manifest["customer_count"] = 9999  # edit under the MAC
     _rewrite_zip(zip_path, {"manifest.json": json.dumps(manifest).encode()})
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
 
 
 def test_a_portable_backup_needs_the_right_password(env):
     zip_path = _make_backup(env, password="correct horse battery")
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, "wrong password")
     # right password stages cleanly
     staged = bk._stage_restore(zip_path, "correct horse battery")
@@ -181,7 +189,7 @@ def test_a_portable_backup_needs_the_right_password(env):
 
 def test_a_portable_backup_without_a_password_is_refused(env):
     zip_path = _make_backup(env, password="secret")
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
 
 
@@ -192,14 +200,14 @@ def test_a_declared_zip_bomb_is_refused(env, monkeypatch):
     # Lower the ceiling so the ordinary backup trips the entry-size guard,
     # standing in for a file that claims a huge uncompressed size.
     monkeypatch.setattr(bk, "_MAX_ENTRY_BYTES", 4)
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
 
 
 def test_too_many_entries_is_refused(env, monkeypatch):
     zip_path = _make_backup(env)
     monkeypatch.setattr(bk, "_MAX_ENTRIES", 1)
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
 
 
@@ -208,7 +216,7 @@ def test_too_many_entries_is_refused(env, monkeypatch):
 def test_a_broken_database_is_rejected(env):
     zip_path = _make_backup(env)
     _rewrite_zip(zip_path, {"database/msp_toolkit.db": b"SQLite format 3\x00 but truncated garbage"})
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
 
 
