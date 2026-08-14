@@ -131,6 +131,11 @@ def test_restore_brings_every_data_class_back(env):
     con = sqlite3.connect(str(env.db))
     assert con.execute("SELECT x FROM t").fetchone() == (42,)
     con.close()
+    # The move-aside originals are tidied up on success (the try's else clause),
+    # leaving no rollback siblings beside the live data.
+    assert not list(env.data.glob(".sybr-rollback-*"))
+    assert not list(env.certs.glob(".sybr-rollback-*"))
+    assert not list(env.config.glob(".sybr-rollback-*"))
 
 
 def test_the_staging_dir_is_cleaned_up(env):
@@ -173,6 +178,43 @@ def test_a_tampered_manifest_is_rejected(env):
         manifest = json.loads(zf.read("manifest.json"))
     manifest["customer_count"] = 9999  # edit under the MAC
     _rewrite_zip(zip_path, {"manifest.json": json.dumps(manifest).encode()})
+    with pytest.raises(ValidationError):
+        bk._stage_restore(zip_path, None)
+
+
+def _rebuild_zip(zip_path: Path, drop: set[str] = frozenset(), add: dict[str, bytes] | None = None) -> None:
+    """Copy an archive, dropping named entries and appending new ones."""
+    import io
+    buf = io.BytesIO()
+    with zipfile.ZipFile(zip_path) as src, zipfile.ZipFile(buf, "w") as dst:
+        for info in src.infolist():
+            if info.filename in drop:
+                continue
+            dst.writestr(info.filename, src.read(info.filename))
+        for name, data in (add or {}).items():
+            dst.writestr(name, data)
+    zip_path.write_bytes(buf.getvalue())
+
+
+def test_a_file_not_in_the_manifest_is_never_restored(env):
+    # Smuggle a file into the archive that the (still validly MAC'd) manifest
+    # never lists. Extraction is driven by the manifest, so it is dropped —
+    # it can never be committed into config/, certs/ or anywhere else.
+    zip_path = _make_backup(env)
+    _rebuild_zip(zip_path, add={"config/evil.json": b"INJECTED"})
+
+    staged = bk._stage_restore(zip_path, None)
+    bk._commit_restore(staged)
+
+    assert not (env.config / "evil.json").exists(), "a file outside the manifest was restored"
+    assert (env.config / "branding.json").read_bytes() == b"BRANDING"
+
+
+def test_a_backup_without_a_mac_is_refused(env):
+    # Stripping manifest.mac must not downgrade to "no integrity check" — an
+    # unauthenticated (or pre-format-2) backup is refused outright.
+    zip_path = _make_backup(env)
+    _rebuild_zip(zip_path, drop={"manifest.mac"})
     with pytest.raises(ValidationError):
         bk._stage_restore(zip_path, None)
 
@@ -255,6 +297,44 @@ def test_a_failure_mid_commit_rolls_everything_back(env, monkeypatch):
     assert not list(env.certs.rglob("*.sybr-rollback"))
 
 
+def test_a_failed_portable_restore_does_not_adopt_the_backup_key(env, monkeypatch):
+    # Key import is the last, irreversible step (it rewrites the on-disk key
+    # backups). A restore that fails during the data moves must therefore NOT
+    # have adopted the backup's key, so the rolled-back install keeps its
+    # original key/data pairing (SR-003 review, HIGH — key/data mismatch).
+    zip_path = _make_backup(env, password="pw")
+    staged = bk._stage_restore(zip_path, "pw")
+    assert staged["new_key_b64"]
+
+    import app.core.encryption as enc
+    calls = {"n": 0}
+    real_import = enc.import_master_key
+
+    def counting_import(k):
+        calls["n"] += 1
+        return real_import(k)
+
+    monkeypatch.setattr(enc, "import_master_key", counting_import)
+
+    real_move = bk.shutil.move
+
+    def flaky(src, dst):
+        if "activity_log" in str(src):
+            raise OSError("disk full mid-commit")
+        return real_move(src, dst)
+
+    monkeypatch.setattr(bk.shutil, "move", flaky)
+
+    with pytest.raises(OSError):
+        bk._commit_restore(staged)
+
+    assert calls["n"] == 0, "the backup key was adopted despite a failed data swap"
+    # Data rolled fully back, and no sibling rollback residue survives.
+    assert (env.data / "customers" / "acme" / "config.json").read_bytes() == b"CUSTOMER-ENCRYPTED"
+    assert not list(env.data.glob(".sybr-rollback-*"))
+    assert not list(env.certs.glob(".sybr-rollback-*"))
+
+
 # ── Serialization ────────────────────────────────────────────────────────────
 
 def test_backup_creation_is_serialized():
@@ -262,3 +342,12 @@ def test_backup_creation_is_serialized():
     # manual backup cannot write into the same directory at once.
     import threading
     assert isinstance(bk._BACKUP_LOCK, type(threading.Lock()))
+
+
+def test_restore_is_serialized():
+    # The restore route runs under an asyncio lock, so two overlapping restores
+    # cannot race the shared _restore_in_progress quiesce flag: the first's
+    # exit_restore_mode() must not lift the quiesce while a second is still
+    # swapping files (SR-003 review).
+    import asyncio
+    assert isinstance(bk._RESTORE_LOCK, asyncio.Lock)

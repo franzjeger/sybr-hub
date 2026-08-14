@@ -48,12 +48,28 @@ _admin = Depends(require_role(Role.admin))
 # database mid-write by the other (SR-003 criterion 3).
 _BACKUP_LOCK = threading.Lock()
 
+# Serialize whole restores. _restore_in_progress is a single process-global; two
+# overlapping restores would let the first's exit_restore_mode() lift the quiesce
+# while the second is still swapping files. One restore at a time keeps the flag
+# lifecycle unambiguous (SR-003 review). Bound lazily to the running loop.
+_RESTORE_LOCK = asyncio.Lock()
+
 # Archive-extraction limits, checked before anything is read out (SR-003 #6).
 _MAX_ENTRIES = 500_000
 _MAX_ENTRY_BYTES = 4 * 1024**3          # 4 GiB for the largest single file (the DB)
 _MAX_TOTAL_BYTES = 50 * 1024**3         # 50 GiB uncompressed in total
-_MAX_COMPRESSION_RATIO = 500            # per entry; a zip bomb inflates far more
+# Per-entry ratio ceiling, above DEFLATE's ~1032:1 single-stream maximum. The
+# DB snapshot is a plaintext SQLite file whose free/zeroed pages compress far
+# past 500:1, so a tighter ceiling would reject a backup we just made (SR-003
+# review). The absolute byte caps above — re-checked while streaming in
+# _extract_entry — are the real defence against a decompression bomb; this only
+# catches a header that *declares* a physically impossible ratio.
+_MAX_COMPRESSION_RATIO = 1100
 _CHUNK = 1 << 20
+# Control members are read whole into memory, so they get their own tight caps
+# (the 4 GiB entry cap above is far too loose for a manifest or a wrapped key).
+_MAX_MANIFEST_BYTES = 128 * 1024**2     # a manifest of every archived file
+_MAX_CONTROL_BYTES = 1 * 1024**2        # manifest.mac / master_key.wrapped are tiny
 
 
 def _get_default_backup_dir() -> Path:
@@ -76,10 +92,16 @@ def _hash_file(path: Path) -> str:
 
 
 def _remove(path: Path) -> None:
+    # Best-effort: cleanup of temp/rollback siblings must never raise, or a
+    # failed unlink (EACCES/EIO, a lingering handle) would turn a successful
+    # restore's tidy-up into a spurious rollback (SR-003 review).
     if path.is_dir() and not path.is_symlink():
         shutil.rmtree(path, ignore_errors=True)
     else:
-        path.unlink(missing_ok=True)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as e:
+            logger.warning("Could not remove %s: %s", path, e)
 
 
 # ── Create ───────────────────────────────────────────────────────────────────
@@ -172,14 +194,23 @@ def create_backup_sync(dest_path: str | None = None, backup_password: str | None
                     import tempfile
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
                         db_snapshot = Path(tmp.name)
+                    src_con = dst_con = None
                     try:
                         src_con = sqlite3.connect(str(db_path))
                         dst_con = sqlite3.connect(str(db_snapshot))
                         src_con.backup(dst_con)
                         dst_con.close()
+                        dst_con = None
                         src_con.close()
+                        src_con = None
                         add(db_snapshot, "database/msp_toolkit.db")
                     finally:
+                        # Close on any failure too, or a failed snapshot leaks a
+                        # sqlite handle (SR-003 review, LOW).
+                        if dst_con is not None:
+                            dst_con.close()
+                        if src_con is not None:
+                            src_con.close()
                         db_snapshot.unlink(missing_ok=True)
 
                 if activity_log_path.exists():
@@ -300,6 +331,13 @@ def _stage_restore(zip_path: Path, backup_password: str | None) -> dict:
 
     from app.core.encryption import manifest_mac, unwrap_master_key_to_bytes
 
+    def _read_bounded(zf: zipfile.ZipFile, name: str, cap: int) -> bytes:
+        # Read a control member into memory only after checking its declared
+        # size, so a lying header cannot force a huge allocation (SR-003 review).
+        if zf.getinfo(name).file_size > cap:
+            raise ValidationError(f"{name} i backupen er urimelig stor — avvist.")
+        return zf.read(name)
+
     staging = Path(tempfile.mkdtemp(prefix="sybr-restore-"))
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -308,11 +346,31 @@ def _stage_restore(zip_path: Path, backup_password: str | None) -> dict:
                 raise ValidationError(ui_t("err_invalid_backup"))
             _enforce_archive_limits(zf)
 
-            manifest_bytes = zf.read("manifest.json")
+            manifest_bytes = _read_bounded(zf, "manifest.json", _MAX_MANIFEST_BYTES)
             manifest = json.loads(manifest_bytes)
+
+            # SR-003 review (HIGH — downgrade): only an authenticated, format-2
+            # backup is restorable. A missing MAC or older format is refused, not
+            # silently trusted — otherwise stripping manifest.mac would skip the
+            # integrity check and let an edited manifest through.
+            if manifest.get("format") != 2 or "manifest.mac" not in names:
+                raise ValidationError(
+                    "Denne backupen er ikke autentisert (laget av en eldre "
+                    "versjon eller mangler signatur) og kan ikke gjenopprettes "
+                    "trygt. Lag en ny backup med denne versjonen."
+                )
+            files = manifest.get("files")
+            if not isinstance(files, dict) or not files:
+                raise ValidationError("Backupen mangler en gyldig fil-liste i manifestet.")
 
             new_key_bytes: bytes | None = None
             new_key_b64: str | None = None
+            # For a local (non-portable) backup the MAC below is verified under
+            # the CURRENT master key, so reaching that check at all means the key
+            # matches. There is no longer a "restore anyway under a mismatched
+            # key" path — a backup we cannot authenticate is refused, not
+            # restored with a warning (SR-003 review). key_match stays in the
+            # result for API compatibility and is always True once we return.
             key_match = True
             if "master_key.wrapped" in names:
                 if not backup_password:
@@ -320,39 +378,38 @@ def _stage_restore(zip_path: Path, backup_password: str | None) -> dict:
                         "Denne backupen inneholder en kryptert nøkkel. "
                         "Oppgi backup-passordet for å gjenopprette."
                     )
-                wrapped = zf.read("master_key.wrapped").decode("utf-8")
+                wrapped = _read_bounded(zf, "master_key.wrapped", _MAX_CONTROL_BYTES).decode("utf-8")
                 new_key_bytes = unwrap_master_key_to_bytes(wrapped, backup_password)
                 if new_key_bytes is None:
                     raise ValidationError("Feil backup-passord. Kunne ikke dekryptere nøkkelen.")
                 new_key_b64 = _b64.urlsafe_b64encode(new_key_bytes).decode()
-            else:
-                try:
-                    backup_fp = manifest.get("master_key_fingerprint", "")
-                    if backup_fp and _master_key_fingerprint() != backup_fp:
-                        key_match = False
-                except Exception as e:
-                    logger.debug("Failed to check master key fingerprint: %s", e)
-                    key_match = False
 
             # SR-003 #4: authenticate the manifest under the key that owns this
-            # backup (the one from the archive, else the current one). A manifest
-            # without a MAC is a pre-format-2 backup and is allowed for
-            # compatibility — its files simply are not hash-verified below.
-            if "manifest.mac" in names:
-                expected = zf.read("manifest.mac").decode("utf-8").strip()
-                got = manifest_mac(manifest_bytes, key=new_key_bytes)
-                if not hmac.compare_digest(got, expected):
-                    raise ValidationError(
-                        "Manifest-signaturen stemmer ikke — backupen kan være endret. Avbrutt."
-                    )
+            # backup (the one from the archive, else the current one). This is now
+            # mandatory — after it passes, manifest["files"] is trusted, so it
+            # (not the raw namelist) drives extraction below.
+            expected = _read_bounded(zf, "manifest.mac", _MAX_CONTROL_BYTES).decode("utf-8").strip()
+            got = manifest_mac(manifest_bytes, key=new_key_bytes)
+            if not hmac.compare_digest(got, expected):
+                raise ValidationError(
+                    "Manifest-signaturen stemmer ikke — backupen kan være endret. Avbrutt."
+                )
 
-            for entry in names:
-                if entry.endswith("/") or entry in ("manifest.json", "manifest.mac", "master_key.wrapped"):
-                    continue
-                _extract_entry(zf, entry, staging)
+            # SR-003 review (HIGH — smuggled files): extract ONLY the files the
+            # authenticated manifest lists. A file present in the zip but absent
+            # from manifest.files is never written to staging, so it can never be
+            # committed into config/, certs/ or anywhere else.
+            total = 0
+            for arc, meta in files.items():
+                if arc not in names:
+                    raise ValidationError(f"Backupen mangler en fil den lover: {arc}")
+                total += int(meta.get("size", 0) or 0)
+                if total > _MAX_TOTAL_BYTES:
+                    raise ValidationError("Backupen er for stor til å pakkes ut trygt.")
+                _extract_entry(zf, arc, staging)
 
         # Verify each staged file against the authenticated manifest (SR-003 #7).
-        for arc, meta in (manifest.get("files") or {}).items():
+        for arc, meta in files.items():
             staged = staging / arc
             if not staged.exists():
                 raise ValidationError(f"Backupen mangler en fil den lover: {arc}")
@@ -377,18 +434,31 @@ def _stage_restore(zip_path: Path, backup_password: str | None) -> dict:
 
 
 def _commit_restore(staged: dict) -> dict:
-    """Swap staged data into place atomically, rolling back on any failure (SR-003 #8/#9).
+    """Swap staged data into place, rolling back on any failure (SR-003 #8/#9).
 
     The database pool must already be closed by the caller. Every data class the
     backup touches is moved aside before its replacement lands; if anything
     fails partway, the moved-aside originals are put back, so a failed restore
     leaves the install exactly as it was.
+
+    Each move-aside goes to a *sibling* of the live path, not a system temp dir:
+    a sibling is always on the same filesystem, so the move is an atomic rename
+    that either fully succeeds or leaves the original untouched — never a
+    half-copied original that a later cleanup then destroys (SR-003 review).
+
+    Residual, accepted: a restore *replaces* live data, so a connection that a
+    concurrent request checked out before the quiesce may still write to the
+    old, about-to-be-replaced database and lose that write. That is the intended
+    meaning of a restore, not a corruption — the swapped-in file is always whole.
     """
+    import os
+
     from app.core.config import CONFIG_DIR, DATA_DIR, get_audit_dir, get_cert_dir
     from app.core.encryption import import_master_key
 
     staging: Path = staged["staging"]
     db_path = DATA_DIR / "msp_toolkit.db"
+    token = os.urandom(4).hex()
     targets = [
         (DATA_DIR / "customers", staging / "customers", "customers"),
         (get_audit_dir(), staging / "audits", "audits"),
@@ -398,47 +468,75 @@ def _commit_restore(staged: dict) -> dict:
         (DATA_DIR / "activity_log.jsonl", staging / "activity_log.jsonl", "activity_log"),
     ]
 
-    rollback: list[tuple[Path, Path]] = []
+    # Every class we commit, so rollback restores originals AND removes classes
+    # that did not exist before (bak is None for those) — the old code only
+    # tracked classes that already existed, so a newly created one stuck around
+    # after a failed restore (SR-003 review, MEDIUM).
+    committed: list[tuple[Path, Path | None]] = []
     restored = {"customers": 0, "audits": 0, "config": 0, "certs": 0,
                 "database": False, "activity_log": False}
-    try:
-        for live, src, key in targets:
-            if not src.exists():
-                continue
-            if live.exists():
-                bak = live.parent / (live.name + ".sybr-rollback")
-                _remove(bak)
-                shutil.move(str(live), str(bak))
-                rollback.append((live, bak))
-            live.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(live))
-            if key in ("database", "activity_log"):
-                restored[key] = True
-            else:
-                restored[key] = sum(1 for p in live.rglob("*") if p.is_file())
 
-        # Stale WAL/SHM from the connections that were just closed.
-        for sidecar in ("-wal", "-shm"):
-            wal = db_path.with_name(db_path.name + sidecar)
-            if wal.exists():
-                wal.unlink()
+    # Serialize against create_backup_sync so a restore and a scheduled backup
+    # cannot move the same trees at once (SR-003 review, MEDIUM). This also keeps
+    # the sibling rollback files below invisible to add_tree, which only runs
+    # under this same lock.
+    with _BACKUP_LOCK:
+        try:
+            for live, src, key in targets:
+                if not src.exists():
+                    continue
+                if live.exists():
+                    bak = live.with_name(f".sybr-rollback-{token}-{live.name}")
+                    shutil.move(str(live), str(bak))   # same-fs atomic rename
+                    committed.append((live, bak))
+                else:
+                    committed.append((live, None))
+                live.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(live))
+                if key in ("database", "activity_log"):
+                    restored[key] = True
+                else:
+                    restored[key] = sum(1 for p in live.rglob("*") if p.is_file())
 
-        # Adopt the backup's master key last — after the files it decrypts are
-        # in place, so a key/data mismatch cannot arise mid-restore.
-        if staged["new_key_b64"]:
-            if not import_master_key(staged["new_key_b64"]):
-                raise RuntimeError("Kunne ikke ta i bruk nøkkelen fra backupen.")
+            # Drop the stale WAL/SHM left beside the DB by the connections the
+            # caller just closed: they belong to the *old* database and would
+            # corrupt the freshly swapped-in one if SQLite tried to replay them.
+            # Do this BEFORE adopting the key, so key adoption — the one step
+            # with irreversible, un-rolled-back side effects (it rewrites the
+            # on-disk key backups) — is the very last fallible action. A failure
+            # anywhere above rolls the data back with the original key intact
+            # (SR-003 review, HIGH — key/data mismatch).
+            for sidecar in ("-wal", "-shm"):
+                wal = db_path.with_name(db_path.name + sidecar)
+                if wal.exists():
+                    wal.unlink()
 
-        for _live, bak in rollback:
-            _remove(bak)
-    except Exception:
-        # Put every moved-aside original back, newest first.
-        for live, bak in reversed(rollback):
-            _remove(live)
-            shutil.move(str(bak), str(live))
-        raise
-    finally:
-        _remove(staging)
+            # Adopt the backup's master key last. import_master_key only returns
+            # False for malformed input (before it mutates anything), and the key
+            # here already round-tripped through unwrap, so reaching this point
+            # means it succeeds; nothing fallible runs after it.
+            if staged["new_key_b64"]:
+                if not import_master_key(staged["new_key_b64"]):
+                    raise RuntimeError("Kunne ikke ta i bruk nøkkelen fra backupen.")
+        except Exception:
+            # Undo every committed class, newest first: remove what we put in
+            # place, then restore the moved-aside original if there was one.
+            for live, bak in reversed(committed):
+                _remove(live)
+                if bak is not None:
+                    shutil.move(str(bak), str(live))
+            raise
+        else:
+            # Success — and only now, outside the rollback guard, drop the
+            # move-aside originals. import_master_key above is thus the last
+            # action that can trigger a rollback; a failure to tidy up a bak
+            # here leaves the fully-consistent restore in place, never a
+            # data-rolled-back-but-key-adopted mix (SR-003 review, MEDIUM).
+            for _live, bak in committed:
+                if bak is not None:
+                    _remove(bak)
+        finally:
+            _remove(staging)
 
     return restored
 
@@ -454,7 +552,7 @@ async def restore_backup(request: Request, user: User = _admin):
     JSON body: ``zip_path`` (path to the backup) and ``backup_password``
     (required when the backup carries a wrapped master key).
     """
-    from app.core.database import close_pool
+    from app.core.database import close_pool, enter_restore_mode, exit_restore_mode
 
     body = await request.json()
     zip_path_str = body.get("zip_path", "").strip()
@@ -464,7 +562,9 @@ async def restore_backup(request: Request, user: User = _admin):
 
     zip_path = Path(zip_path_str).resolve()
     _safe_parents = [_get_default_backup_dir().resolve(), Path.home().resolve()]
-    if not any(str(zip_path).startswith(str(p)) for p in _safe_parents):
+    # Path-component containment, not a string prefix: /home/frank2 must not be
+    # accepted just because it shares a prefix with /home/frank (SR-003 review).
+    if not any(zip_path == p or p in zip_path.parents for p in _safe_parents):
         raise AuthError("Backup-filen må ligge i backup-mappen eller hjemmemappen")
     if not zip_path.exists() or not zip_path.is_file():
         raise NotFoundError(ui_t("err_file_not_found", request))
@@ -472,32 +572,46 @@ async def restore_backup(request: Request, user: User = _admin):
         raise ValidationError(ui_t("err_file_must_be_zip", request))
 
     loop = asyncio.get_event_loop()
-    try:
-        # Phase 1: validate + stage. No live data is touched.
-        staged = await loop.run_in_executor(None, lambda: _stage_restore(zip_path, backup_password))
-        # Phase 2: quiesce — nothing may hold the live database open during the swap.
-        await close_pool()
-        # Phase 3: commit atomically, rolling back on any failure.
-        restored = await loop.run_in_executor(None, lambda: _commit_restore(staged))
-    except (ValidationError, NotFoundError, AuthError, ConflictError, IntegrationError):
-        raise
-    except Exception as e:
-        raise IntegrationError(f"{ui_t('err_restore_failed', request)}: {e}")
+    staged = None
+    async with _RESTORE_LOCK:   # one restore at a time (SR-003 review)
+        try:
+            # Phase 1: validate + stage. No live data is touched.
+            staged = await loop.run_in_executor(None, lambda: _stage_restore(zip_path, backup_password))
+            # Phases 2+3 under a SCOPED quiesce. enter_restore_mode() makes any
+            # new get_db() raise, so a concurrent request cannot lazily rebuild
+            # the pool that close_pool() tears down while the files are being
+            # swapped. The finally always lifts it: whether the commit succeeds
+            # (new DB in place) or fully rolls back (original DB restored), the
+            # file at DB_PATH is a complete database, so a rolled-back restore
+            # must not leave the app bricked until a restart (SR-003 review).
+            enter_restore_mode()
+            try:
+                await close_pool()
+                restored = await loop.run_in_executor(None, lambda: _commit_restore(staged))
+            finally:
+                exit_restore_mode()
+        except (ValidationError, NotFoundError, AuthError, ConflictError, IntegrationError):
+            raise
+        except Exception as e:
+            raise IntegrationError(f"{ui_t('err_restore_failed', request)}: {e}")
+        finally:
+            # Reclaim the staging dir on EVERY exit — including CancelledError,
+            # which is a BaseException the except clauses above do not catch —
+            # unless _commit_restore already removed it (SR-003 review, LOW).
+            if staged is not None:
+                _remove(staged["staging"])
 
     from app.core.activity_log import log_activity
     _user = getattr(getattr(request.state, "user", None), "username", "")
     log_activity("backup_restored", detail=zip_path_str, user=_user)
 
-    result = {
+    return {
         "ok": True,
-        "key_match": staged["key_match"],
+        "key_match": staged["key_match"],   # always True once we reach here
         "manifest": staged["manifest"],
         "restored_files": restored,
         "restart_required": restored.get("database", False),
     }
-    if not staged["key_match"] and not staged["new_key_b64"]:
-        result["warning"] = ui_t("warn_master_key_mismatch", request)
-    return result
 
 
 @router.get("/backup/info")
