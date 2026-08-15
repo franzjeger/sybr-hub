@@ -7,6 +7,42 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
+## v1.1.2 (2026-08-15)
+### Sikkerhet, presisjon og at en nektelse er en nektelse
+
+En serie rettinger (#141–#152) som lukker tilgangskontrollhull, stopper
+rapporten fra å stille dommer på data den ikke har lest, og låser fast
+klientens egen tråd slik at en feil i forespørselen ikke lenger går upåaktet
+forbi.
+
+- **Tilgangskontroll** (#142): kryss-kundepunktene `/dashboard/devices`,
+  `/reports/batch-summary` og `/unifi/all` er nå begrenset til kallerens
+  kunder; `/audit/compare` sjekker tilgang på begge kjøringene (stenger et
+  IDOR-hull hvor noen logget inn kunne lese enhver kundes metrikker), og
+  `/reports/archive/delete` er sikret. Pentest-modulen blokkerer ikke lenger
+  eventløkka og lekket ikke sokker.
+- **M365-presisjon** (#141, #143): 18 presisjonsfeil rettet på
+  grad-/anbefalings-/sammendragsoverflaten, og en CRITICAL feil hvor en
+  Graph 403 ble lest som «ingen MFA registrert» — en nektelse er nå ukjent,
+  ikke et nullmål. `GraphClient.get()` kaster `GraphPermissionError` på
+  401/403 i stedet for å returnere en feil-ordbok som kallerne leste som
+  «ingen data».
+- **Bulk-audit-race** (#148): `bulk_audit_stream` klarte flagsene
+  atomisk under lås i håndtereren. Tidligere kunne to samtidige forespørsler
+  begge passere sjekken før noen satt flagget, og kjøre bulk-auditten to
+  ganger.
+- **ALSO-lagdeling** (#149): `_cache_renewals` flyttet ut av web-laget til
+  `app/services/also_renewals.py` — en service som kalte en rute var en
+  lagdeling-inversjon i begge retninger.
+- **Versjonskort** (#144): viser nå antall commits foran siste tag, slik at
+  en utdatert utgave ikke lenger ser ut som en som er fast.
+- **Dokumentasjon** (#145): utdaterte versjoner, seksjonsantall (28 = 24 M365
+  + 4 Azure) og CHANGELOG-struktur rettet.
+- **Testdekning** (#152): Graph-klientens *forespørsels*-side er nå låst —
+  URL, Authorization-header, scope, Accept og at query-parametere bare reiser
+  på første side. Tidligere testet kun responsen; en feil i forespørselen
+  ville gått upåaktet forbi.
+
 ## v1.1.1 (2026-08-15)
 ### M365-rapporten svarer for dommene sine
 
