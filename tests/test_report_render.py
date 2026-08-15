@@ -102,6 +102,21 @@ def test_break_glass_machine_summary_is_not_rendered_to_the_customer(tmp_path):
     assert "break_glass_candidates=" not in _visible_text(html)
 
 
+def test_oauth_consent_grants_error_reaches_the_score(tmp_path):
+    # 17b errored (403) while app registrations succeeded. The reader blanks the
+    # error stub to "" before the parser sees it, so grants_read must be derived
+    # from error_files — otherwise the failed consent-grants read is credited as
+    # a clean high-privilege count with no data-quality note (fix review). This
+    # exercises the REAL pipeline, unlike the unit test that injects grants_read.
+    files = {**FULL_AUDIT,
+             "17b_oauth_consent_grants.txt": "Error: 403 Forbidden\n",
+             "17_app_registrations.txt": "APP REGISTRATIONS (3 total)\n"}
+    d = _audit_dir(tmp_path, files)
+    ctx = build_report_context("Acme AS", "acme.no", d, [], lang="no", frameworks="all")
+    assert ctx["oauth"]["grants_read"] is False
+    assert any("OAuth" in g for g in ctx["risk"]["data_quality_issues"])
+
+
 @pytest.mark.parametrize("report_type", ["customer", "tech"])
 def test_generate_reports_writes_readable_html(tmp_path, report_type):
     """Through the real entry point, including the encrypted write."""

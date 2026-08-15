@@ -178,6 +178,7 @@
     "tests/test_rebuild_metrics_trend.py",
     "tests/test_recommendation_identity.py",
     "tests/test_repair_metrics_timestamps.py",
+    "tests/test_report_accuracy_sweep.py",
     "tests/test_report_artefact_csp.py",
     "tests/test_report_backup.py",
     "tests/test_report_critical_finding_counts.py",

@@ -960,7 +960,13 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         admin_list.append({
             "name": a.get("name", ""),
             "profile": a.get("accprofile", ""),
-            "trusthost": bool(a.get("trusthost1", "0.0.0.0") != "0.0.0.0"),
+            # trusthost1 is a native "address mask" string, e.g. "0.0.0.0 0.0.0.0"
+            # for an unrestricted admin (the FortiGate default). Comparing against
+            # the bare "0.0.0.0" never matched that form, so every unrestricted
+            # admin was classed as trust-host-restricted and the finding never
+            # fired. Classify it the same way the CIS check does (accuracy sweep).
+            "trusthost": a.get("trusthost1", "0.0.0.0 0.0.0.0") not in (
+                "0.0.0.0 0.0.0.0", "0.0.0.0/0", ""),
             "two_factor": a.get("two-factor", "disable") != "disable",
         })
 

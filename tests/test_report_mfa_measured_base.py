@@ -49,8 +49,11 @@ def _score(mfa: dict) -> dict:
         all_warns="", ext_fwd="", risky_users="No risky", defender="No active",
         admin_roles={"has_data": True, "global_admin_count": 1},
         intune={"has_data": True, "total": 1, "compliance_pct": 100},
-        sharepoint={"has_data": True}, oauth={"has_data": True},
-        network=None, lang="no",
+        # A fully-read, healthy SharePoint: sharing level established as clean and
+        # legacy-auth known. A bare {"has_data": True} now (correctly) means "sites
+        # read but settings unread" and raises a data-quality note of its own.
+        sharepoint={"has_data": True, "sharing_level": "ok", "legacy_auth_known": True},
+        oauth={"has_data": True}, network=None, lang="no",
     )
 
 

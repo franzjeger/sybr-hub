@@ -643,3 +643,29 @@ def test_build_recommendations_survives_an_unavailable_unifi_section():
     ids = {r.get("finding_id") for r in recs}
     assert "finding-uf-eol" not in ids
     assert "finding-uf-outdated-fw" not in ids
+
+
+async def test_quick_audit_flags_an_unrestricted_admin_trusthost(_fg_build):
+    # trusthost1 is a native "address mask" string; an unrestricted admin (the
+    # FortiGate default) is "0.0.0.0 0.0.0.0", which the old != "0.0.0.0" test
+    # read as restricted, so the finding never fired (accuracy sweep).
+    from app.services.fortigate_api import quick_audit_fortigate
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        p = request.url.path
+        if p.endswith("system/status"):
+            return httpx.Response(200, json={"results": {"hostname": "fw1", "version": "7.4"}})
+        if p.endswith("system/admin"):
+            return httpx.Response(200, json={"results": [
+                {"name": "openadmin", "accprofile": "super_admin",
+                 "trusthost1": "0.0.0.0 0.0.0.0", "two-factor": "disable"},
+                {"name": "safeadmin", "accprofile": "super_admin",
+                 "trusthost1": "192.168.1.0 255.255.255.0", "two-factor": "enable"},
+            ]})
+        return httpx.Response(200, json={"results": []})
+
+    _fg_build(handler)
+    result = await quick_audit_fortigate({}, "t")
+    by_name = {a["name"]: a for a in result["admins"]}
+    assert by_name["openadmin"]["trusthost"] is False, "unrestricted admin must read as no trust host"
+    assert by_name["safeadmin"]["trusthost"] is True, "a real subnet must read as restricted"

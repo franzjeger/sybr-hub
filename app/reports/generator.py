@@ -464,7 +464,11 @@ def _parse_licenses(text: str) -> list[dict]:
             pct   = float(parts[3].replace("%", ""))
         except (ValueError, IndexError):
             continue
-        warn = pct >= 90 and total > 0
+        # Compute the warn boundary from the raw used/total, not the collector's
+        # ROUNDED printed pct — a true utilisation of 89.5% prints "90%" and
+        # tripped the warning one seat early (accuracy sweep). Matches the
+        # collector's own >=90 check on the unrounded ratio.
+        warn = total > 0 and used / total >= 0.9
         licenses.append({
             "part": part, "used": used, "total": total,
             "pct": pct, "warn": warn,
@@ -1337,6 +1341,14 @@ def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
         "unique_apps": len(all_apps),
         "app_registrations": app_reg_count,
         "has_data": len(all_apps) > 0 or app_reg_count > 0,
+        # Whether the consent-grants file itself was readable. has_data can be
+        # True from app registrations alone while the consent-grants read failed;
+        # this lets the score flag that instead of crediting the missing read as
+        # "no high-privilege apps" (accuracy sweep). NB: build_report_context
+        # blanks an error-payload file to "" before this parser runs, so this
+        # text-based check is only a fallback for direct callers — the reader
+        # overrides grants_read from error_files, which survives the blanking.
+        "grants_read": not text.lstrip().startswith("Error"),
     }
 
 
@@ -1717,7 +1729,11 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         result["top_source_countries"] = country_rows[:10]
         result["top_source_ips"] = ip_rows[:10]
 
-        result["brute_force_suspects"] = [u for u, c in failure_users.items() if c >= 50]
+        # Strict > 50 to match the collector's own "*** THRESHOLD EXCEEDED ***"
+        # flag (signins._FAILURE_THRESHOLD, `cnt > 50`). >= 50 flagged a user at
+        # exactly 50 that the evidence file did not, so the finding and its
+        # evidence disagreed on who crossed the line (accuracy sweep).
+        result["brute_force_suspects"] = [u for u, c in failure_users.items() if c > 50]
 
     return result
 
@@ -2675,19 +2691,34 @@ def _compute_risk(
         data_quality_issues.append("Microsoft Secure Score utilgjengelig")
 
     # ── Email security (up to 10 pts) ────────────────────────────────
+    # A failed DoH lookup comes back as "ERROR (...)", never MISSING/WEAK, so an
+    # errored domain silently contributes 0 penalty. Track whether any domain
+    # produced a real verdict: if the whole set errored, the 10 points are not
+    # "earned clean", they are unmeasured — flag it like every other axis. And
+    # match p=none on the classifier's actual token ("p=none"), not "NONE", which
+    # never matched and let a monitor-only DMARC policy score clean (accuracy sweep).
     email_penalty = 0
+    email_measured = 0
     for d in spf_dmarc:
         spf   = d.get("spf", "")
         dmarc = d.get("dmarc", "")
-        if "MISSING" in spf or "CRITICAL" in spf:
-            email_penalty = max(email_penalty, 10)
-        elif "WEAK" in spf or "WARN" in spf:
-            email_penalty = max(email_penalty, 5)
-        if "MISSING" in dmarc:
-            email_penalty = max(email_penalty, 8)
-        elif "NONE" in dmarc:
-            email_penalty = max(email_penalty, 5)
+        spf_errored   = spf.strip().upper().startswith("ERROR")
+        dmarc_errored = dmarc.strip().upper().startswith("ERROR")
+        if not (spf_errored and dmarc_errored):
+            email_measured += 1
+        if not spf_errored:
+            if "MISSING" in spf or "CRITICAL" in spf:
+                email_penalty = max(email_penalty, 10)
+            elif "WEAK" in spf or "WARN" in spf:
+                email_penalty = max(email_penalty, 5)
+        if not dmarc_errored:
+            if "MISSING" in dmarc:
+                email_penalty = max(email_penalty, 8)
+            elif "p=none" in dmarc.lower() or "WEAK" in dmarc.upper():
+                email_penalty = max(email_penalty, 5)
     score -= email_penalty
+    if spf_dmarc and email_measured == 0:
+        data_quality_issues.append("E-postsikkerhet ikke vurdert — DNS-oppslag feilet")
 
     # ── Admin roles (up to 5 pts) ────────────────────────────────────
     # Only score when we actually have role data — has_data=False means the
@@ -2714,10 +2745,17 @@ def _compute_risk(
 
     # ── SharePoint sharing ───────────────────────────────────────────
     if sharepoint and sharepoint.get("has_data"):
-        if sharepoint.get("sharing_level") == "warning":
+        sharing = sharepoint.get("sharing_level")
+        if sharing == "warning":
             score -= 3
         if sharepoint.get("legacy_auth"):
             score -= 2
+        # has_data means the site *list* was read; the tenant sharing/legacy-auth
+        # settings are a separate admin read that can fail while the sites
+        # succeed. When those fields were never established, that is unmeasured,
+        # not a clean pass — flag it (accuracy sweep).
+        if sharing in (None, "unknown") or not sharepoint.get("legacy_auth_known"):
+            data_quality_issues.append("SharePoint-konfigurasjon utilgjengelig")
     elif sharepoint is not None and not sharepoint.get("has_data"):
         data_quality_issues.append("SharePoint-konfigurasjon utilgjengelig")
 
@@ -2725,6 +2763,10 @@ def _compute_risk(
     if oauth and oauth.get("has_data"):
         if len(oauth.get("high_privilege_apps", [])) > 5:
             score -= 3
+        # has_data can be True from app registrations alone; if the consent-grants
+        # read itself failed, the high-privilege count is incomplete, not clean.
+        if not oauth.get("grants_read", True):
+            data_quality_issues.append("OAuth-grants utilgjengelig")
     elif oauth is not None and not oauth.get("has_data"):
         data_quality_issues.append("OAuth-grants utilgjengelig")
 
@@ -2732,9 +2774,11 @@ def _compute_risk(
 
     # External forwarding (up to 10 pts) — any active forwarding is severe
     if ext_fwd and ext_fwd.strip():
-        # Count forwarding rules from lines (more rules = worse)
-        fwd_lines = [l for l in ext_fwd.strip().splitlines()
-                     if l.strip() and not l.strip().startswith("=") and not l.strip().startswith("-")]
+        # Count only the actual "mailbox → target" rows — the same arrow the
+        # finding-fwd rec keys on. The old banner/prose filter still counted a
+        # header line as a rule, over-penalising by one (accuracy sweep). The
+        # min-5 floor keeps "any forwarding present is severe".
+        fwd_lines = [l for l in ext_fwd.splitlines() if "→" in l]
         score -= min(10, max(5, len(fwd_lines) * 2))
 
     # Risky users (up to 5 pts). The guard against reading a refusal as a
@@ -2806,6 +2850,19 @@ def _compute_risk(
             f"Nettverksaudit utilgjengelig — {_unreadable} kunne ikke leses "
             f"(scoren mangler inntil 15 poeng straff)"
         )
+
+    # A FortiGate that answered its status probe but refused the admin or policy
+    # sub-read reports those counts as None. The admin/policy findings key on the
+    # (now empty) lists, so a refused read renders "no 2FA/trust-host/allow-all
+    # issues" — a false clean. Declare it, matching the whole-section contract.
+    _fg = (network or {}).get("fortigate")
+    if isinstance(_fg, dict) and "error" not in _fg:
+        if _fg.get("admin_count") is None:
+            data_quality_issues.append(
+                "FortiGate-administratorer kunne ikke leses — 2FA/trust-host-funn mangler")
+        if _fg.get("policy_count") is None:
+            data_quality_issues.append(
+                "FortiGate-brannmurregler kunne ikke leses — allow-all/logging-funn mangler")
 
     score = max(0, min(100, score))
 
@@ -3087,12 +3144,14 @@ def _build_recommendations(
                 "effort": t.rec_effort_low,
                 "doc_url": "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/email-authentication-dmarc-configure",
             })
-            break
+            # No break: one finding per offending domain. The domain is a rec_id
+            # identity param, so a break hid every domain after the first — a
+            # multi-domain tenant saw only one of its DMARC gaps (accuracy sweep).
 
     for d in spf_dmarc:
         if not _is_audit_relevant_domain(d.get("domain", "")):
             continue
-        if "MISSING" in d.get("spf", "") or "CRITICAL" in d.get("spf", ""):
+        if "MISSING" in d.get("spf", "") or "CRITICAL" in d.get("spf", "") or "WEAK" in d.get("spf", ""):
             recs.append({
                 "priority": "high",
                 "finding_id": "finding-email",
@@ -3102,7 +3161,9 @@ def _build_recommendations(
                 "effort": t.rec_effort_low,
                 "doc_url": "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/email-authentication-spf-configure",
             })
-            break
+            # No break: one finding per offending domain (see the DMARC loop). A
+            # WEAK SPF (~all softfail) now also triggers the rec, matching the
+            # grade, which already penalised it while raising no recommendation.
 
     if ext_fwd and ext_fwd.strip():
         # Parse forwarding entries: "  UserName  →  smtp:external@example.com"
@@ -3138,6 +3199,13 @@ def _build_recommendations(
                 upn = cols[0].strip()
                 level = cols[1].strip()
                 state = cols[2].strip()
+                # Only users currently at risk belong in a "risky users" finding.
+                # An account that was remediated or the alert dismissed is no
+                # longer a live risk; listing it told the customer to investigate
+                # something already handled (accuracy sweep).
+                if state.lower().replace(" ", "") in (
+                        "remediated", "dismissed", "confirmedsafe", "safe"):
+                    continue
                 risky_items.append(t("rec_risky_user_line", upn=upn, level=level, state=state))
         # Only emit the recommendation if we actually parsed at least one risky
         # user. The file may contain a header but no rows (e.g. when the audit
@@ -3363,7 +3431,13 @@ def _build_recommendations(
     stale_warn = fc.get("03c_stale_accounts_WARN.txt", "")
     if stale_warn and stale_warn.strip():
         import re as _re
-        m = _re.search(r'(\d+)\s+licensed.*stale', stale_warn, _re.IGNORECASE)
+        # The collector's summary line reads "N enabled account(s) with licenses
+        # have not signed in for …". The old patterns ("N licensed … stale",
+        # "N stale") matched neither the summary line nor the banner, so the count
+        # was always 0 and this finding never fired (accuracy sweep).
+        m = _re.search(r'(\d+)\s+enabled account\(s\) with licenses', stale_warn, _re.IGNORECASE)
+        if not m:
+            m = _re.search(r'(\d+)\s+licensed.*stale', stale_warn, _re.IGNORECASE)
         if not m:
             m = _re.search(r'(\d+)\s+stale', stale_warn, _re.IGNORECASE)
         count = int(m.group(1)) if m else 0
@@ -5230,10 +5304,21 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
     # single worst identity finding in the product as "data not available".
     if not mfa.get("has_data"):
         bullets.append(t.exec_mfa_unavailable)
-    elif mfa.get("pct", 0) >= 95:
-        bullets.append(t("exec_mfa_good", pct=mfa['pct']))
     else:
-        bullets.append(t("exec_mfa_partial", pct=mfa.get('pct', 0), no_mfa=mfa.get('no_mfa', 0)))
+        _mpct = mfa.get("pct", 0)
+        _mtot = mfa.get("total", 0)
+        _munk = mfa.get("unknown", 0)
+        # A high percentage measured on a heavily-throttled subset is not "well
+        # protected". The score already flags the subset; the exec summary must
+        # not contradict it with an all-clear (accuracy sweep).
+        if _mtot > 0 and _munk / _mtot >= 0.1:
+            bullets.append(t("exec_mfa_subset", pct=_mpct,
+                             measured=mfa.get("measured", _mtot - _munk),
+                             total=_mtot, unknown=_munk))
+        elif _mpct >= 95:
+            bullets.append(t("exec_mfa_good", pct=_mpct))
+        else:
+            bullets.append(t("exec_mfa_partial", pct=_mpct, no_mfa=mfa.get('no_mfa', 0)))
 
     # Secure Score — same reasoning; 0% is a reading, not a missing reading.
     if ss.get("has_data"):
@@ -5242,15 +5327,28 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
         else:
             bullets.append(t("exec_ss_low", pct=ss['pct'], count=len(ss.get('improvements', []))))
 
-    # Intune
+    # Intune. "All compliant" must mean every device is CONFIRMED compliant, not
+    # merely "zero non-compliant" — devices in grace-period / not-evaluated sit in
+    # a third (unknown) bucket, and claiming an all-clear over them contradicted
+    # compliance_pct and the score's own penalty. The non-compliant percentage is
+    # taken from the non-compliant count, not 100-compliance_pct (which folds in
+    # the unknown bucket and disagreed with the "{n} of {total}" it sits beside).
     if intune.get("total", 0) > 0:
-        if intune.get("noncompliant", 0) > 0:
+        _it = intune["total"]
+        _inc = intune.get("noncompliant", 0)
+        # The real parser always sets "compliant"; fall back to the old binary
+        # assumption (total - noncompliant) only when it is absent, so the
+        # three-way logic engages exactly when there is a measured unknown bucket.
+        _ic = intune.get("compliant", _it - _inc)
+        if _inc > 0:
             bullets.append(t("exec_intune_noncompliant",
-                             noncompliant=intune['noncompliant'],
-                             total=intune['total'],
-                             pct=100-intune.get('compliance_pct', 0)))
+                             noncompliant=_inc, total=_it,
+                             pct=round(_inc / _it * 100)))
+        elif _ic >= _it:
+            bullets.append(t("exec_intune_ok", total=_it))
         else:
-            bullets.append(t("exec_intune_ok", total=intune['total']))
+            bullets.append(t("exec_intune_partial", compliant=_ic, total=_it,
+                             unknown=_it - _ic - _inc))
 
     # CA policies
     if ca.get("enabled", 0) > 0:
@@ -5276,7 +5374,10 @@ def _build_executive_summary(context: dict, lang: str = "no") -> list[str]:
     if risk.get("score") is None:
         bullets.append(t.exec_overall_invalid)
     else:
-        grade_text = {"A": t.exec_grade_a, "B": t.exec_grade_b, "C": t.exec_grade_c, "D": t.exec_grade_d}
+        # "F" must map to a description at least as severe as "D" — without it the
+        # worst tenants had their posture printed as "unknown" (accuracy sweep).
+        grade_text = {"A": t.exec_grade_a, "B": t.exec_grade_b, "C": t.exec_grade_c,
+                      "D": t.exec_grade_d, "F": t.exec_grade_f}
         bullets.append(t("exec_overall",
                          grade=risk.get('grade', '?'),
                          score=risk['score'],
@@ -5576,6 +5677,12 @@ def build_report_context(
         )
     sharepoint   = _parse_sharepoint_settings(fc("15b_sharepoint_settings.txt"), fc("15_sharepoint_sites.txt"), lang=lang)
     oauth        = _parse_oauth_grants(fc("17b_oauth_consent_grants.txt"), fc("17_app_registrations.txt"))
+    # The reader blanks an error-payload file to "" before the parser sees it, so
+    # the parser's own grants_read (derived from the text) can never see the
+    # "Error:" stub and is always True in production. error_files survives that
+    # blanking, so derive the authoritative signal here: a 17b that was an error
+    # payload means the consent-grants read failed (fix review).
+    oauth["grants_read"] = "17b_oauth_consent_grants.txt" not in error_files
     groups       = _parse_groups(fc("06_groups.txt"))
     azure        = _parse_azure_overview(file_contents)
     exchange     = _parse_exchange_overview(file_contents)

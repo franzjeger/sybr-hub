@@ -128,3 +128,39 @@ def test_a_zero_score_is_still_printed_rather_than_swallowed():
         _ctx(risk={"score": 0, "grade": "F", "blocking_data_gaps": []})
     )
     assert any("0/100" in b for b in bullets)
+
+
+# ── Accuracy sweep: exec bullets must not over-claim or contradict the score ──
+
+def _bullets(**over):
+    return " ".join(_build_executive_summary(_ctx(**over), "no"))
+
+
+def test_intune_all_clear_requires_every_device_confirmed_not_just_zero_noncompliant():
+    # noncompliant==0 but 8 of 20 are in grace/not-evaluated — not an all-clear.
+    text = _bullets(intune={"has_data": True, "total": 20, "noncompliant": 0,
+                            "compliant": 12, "compliance_pct": 60})
+    assert "bekreftet i samsvar" in text, "must name the confirmed subset"
+    assert "Alle 20 enheter er i samsvar" not in text, "must not claim an all-clear"
+
+
+def test_intune_noncompliant_percentage_matches_the_noncompliant_count():
+    # With an unknown bucket present (10 compliant + 2 non-compliant + 8 unknown),
+    # 100-compliance_pct (=50) diverges from the true non-compliant share (2/20=10%).
+    text = _bullets(intune={"has_data": True, "total": 20, "noncompliant": 2,
+                            "compliant": 10, "compliance_pct": 50})
+    assert "2 av 20 enheter (10%)" in text, "pct must be 2/20, not 100-compliance_pct"
+
+
+def test_mfa_100_percent_on_a_throttled_sample_is_not_well_protected():
+    text = _bullets(mfa={"has_data": True, "pct": 100, "no_mfa": 0,
+                         "total": 100, "measured": 80, "unknown": 20})
+    assert "målt på kun 80 av 100" in text, "must disclose the measured subset"
+    assert "godt sikret mot kontoovertakelse" not in text, \
+        "must not declare well-protected from a subset"
+
+
+def test_grade_f_is_described_as_critical_not_unknown():
+    text = _bullets(risk={"score": 20, "grade": "F", "blocking_data_gaps": []})
+    assert "svært kritisk" in text
+    assert "ukjent" not in text
