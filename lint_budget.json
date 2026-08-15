@@ -1,5 +1,5 @@
 {
-  "total": 917,
+  "total": 913,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -47,7 +47,10 @@
     "app/modules/m365_audit/sections/usage_reports.py",
     "app/modules/pentest/__init__.py",
     "app/modules/pentest/_process.py",
+    "app/modules/pentest/cms_scanner.py",
+    "app/modules/pentest/finding.py",
     "app/modules/unifi_audit/__init__.py",
+    "app/modules/unifi_audit/firmware_db.py",
     "app/modules/unifi_audit/scanner.py",
     "app/modules/unifi_audit/sections/__init__.py",
     "app/reports/__init__.py",
@@ -191,6 +194,7 @@
     "tests/test_scheduler_lifecycle.py",
     "tests/test_secrets_do_not_reach_output.py",
     "tests/test_secure_score_improvements.py",
+    "tests/test_security_data_freshness.py",
     "tests/test_self_update.py",
     "tests/test_settings_concurrency.py",
     "tests/test_site_collector.py",
