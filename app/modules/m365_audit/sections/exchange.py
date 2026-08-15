@@ -94,6 +94,16 @@ class ExchangeSection(BaseSection):
         self.verified_domains = verified_domains
         self.graph           = graph
 
+    def _isolated(self, label: str, fn) -> None:
+        """Run one sub-collection so its failure degrades that item, not the
+        whole section. A late save that raised used to flip Exchange to FAILED
+        even though the mailbox/transport/antiphish data was already written and
+        rendered — a "✗ Failed" badge over complete data (review, F3)."""
+        try:
+            fn()
+        except Exception as ex:
+            self._warn(f"Exchange: {label} could not be collected: {ex}", level="info")
+
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
         try:
@@ -102,7 +112,10 @@ class ExchangeSection(BaseSection):
             # below the guard they would vanish whenever PowerShell failed to
             # connect, which is a routine outcome, and the report would then
             # attest "no labels" on evidence it never gathered.
-            await self._collect_sensitivity_labels()
+            try:
+                await self._collect_sensitivity_labels()
+            except Exception as ex:
+                self._warn(f"Exchange: sensitivity labels could not be collected: {ex}", level="info")
 
             # Check for error from PS helper
             if "error" in self.exo_data:
@@ -114,20 +127,25 @@ class ExchangeSection(BaseSection):
                 self._report(SectionStatus.SKIPPED, err_msg)
                 return self.result
 
-            self._save_mailboxes()
-            self._save_transport_rules()
-            self._save_connectors()
-            self._save_anti_phish()
-            self._save_anti_spam()
-            self._save_dkim()
-            self._save_defender_policies()
-            self._save_quarantine_policies()
-            self._save_org_config()
-            self._save_forwarding()
-            self._save_inbox_rules()
-            self._save_dlp()
-            self._save_retention()
-            self._save_mailbox_delegations()
+            # Each sub-collection is isolated: one failing save must not discard
+            # the whole section's already-written data as "Failed" (F3).
+            for label, fn in (
+                ("mailboxes", self._save_mailboxes),
+                ("transport rules", self._save_transport_rules),
+                ("connectors", self._save_connectors),
+                ("anti-phishing", self._save_anti_phish),
+                ("anti-spam", self._save_anti_spam),
+                ("DKIM", self._save_dkim),
+                ("Defender policies", self._save_defender_policies),
+                ("quarantine policies", self._save_quarantine_policies),
+                ("org config", self._save_org_config),
+                ("forwarding", self._save_forwarding),
+                ("inbox rules", self._save_inbox_rules),
+                ("DLP", self._save_dlp),
+                ("retention", self._save_retention),
+                ("mailbox delegations", self._save_mailbox_delegations),
+            ):
+                self._isolated(label, fn)
 
             self._report(SectionStatus.DONE)
         except Exception as e:

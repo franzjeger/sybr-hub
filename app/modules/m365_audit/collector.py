@@ -211,14 +211,17 @@ class AuditCollector:
         # reference and reads it after this section has run.
         admin_sec = AdminRolesSection(self.out_dir, graph, self.progress_cb,
                                       users_ref=users_sec.users)
+        # Hoisted so the break-glass check can share its computed CA-exclusion
+        # set (populated in place when MFA runs, earlier in the sequence) — F8.
+        mfa_sec = MFASection(self.out_dir, graph, users_sec.users, self.progress_cb,
+                             ca_section=ca_sec)
 
         return [
             LicensesSection(self.out_dir, graph, self.progress_cb),
             users_sec,
             # CA runs before MFA so its policies are available for cross-reference
             ca_sec,
-            MFASection(self.out_dir, graph, users_sec.users, self.progress_cb,
-                       ca_section=ca_sec),
+            mfa_sec,
             SignInsSection(self.out_dir, graph, self.progress_cb),
             GroupsSection(self.out_dir, graph, self.progress_cb),
             admin_sec,
@@ -232,6 +235,9 @@ class AuditCollector:
             # by the time the break-glass check reads them.
             IdentitySecuritySection(self.out_dir, graph,
                                     global_admin_ids=admin_sec.global_admin_ids,
+                                    ca_exclusions=mfa_sec.mfa_excluded_ids,
+                                    users_ref=users_sec.users,
+                                    ca_section=ca_sec,
                                     progress_cb=self.progress_cb),
             TeamsPoliciesSection(self.out_dir, graph, self.progress_cb),
             PasswordProtectionSection(self.out_dir, graph, self.progress_cb),
