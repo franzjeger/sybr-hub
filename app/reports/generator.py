@@ -389,6 +389,17 @@ def _parse_mfa(
     # said 99.5% coverage on the same page as "42 users have no MFA methods",
     # and a reader could not reconcile the two. Both numbers are now named.
     registered_pct = round(mfa_registered / measured * 100, 1) if measured else 0.0
+    # Split no_mfa into a clean partition, so the report can word it honestly: a
+    # measured, not-covered user either has NO method registered at all, or has
+    # one registered but is EXCLUDED from enforcement by a CA policy. Conflating
+    # the two told customers to "register MFA" when the fix was to drop a CA
+    # exclusion (M365 review, F1/F2). These two sum to no_mfa by construction.
+    no_mfa_registered = sum(
+        1 for u in users_detail if not u["unknown"] and not u["protected"] and not u["has_mfa"]
+    )
+    registered_but_excluded = sum(
+        1 for u in users_detail if not u["unknown"] and not u["protected"] and u["has_mfa"]
+    )
     return {
         "covered": effectively_covered,
         "registered_pct": registered_pct,
@@ -398,6 +409,8 @@ def _parse_mfa(
         "unknown": unknown,
         "pct": round(pct, 1),
         "no_mfa": max(0, no_mfa),
+        "no_mfa_registered": no_mfa_registered,
+        "registered_but_excluded": registered_but_excluded,
         "mfa_registered": mfa_registered,
         "ca_covered": ca_covered,
         "ca_excluded": ca_excluded,
@@ -2870,50 +2883,16 @@ def _build_recommendations(
         have = file_contents or {}
         return [n for n in names if have.get(n, "").strip()]
 
-    # Only emit MFA recs if we actually measured MFA. Without data, "0 users
-    # without MFA" would suppress the rec even though we don't know the truth.
-    if mfa.get("has_data") and mfa.get("no_mfa", 0) > 0:
-        # Build list of unprotected users from the MFA file
-        # Same records as the coverage figures above, so the customer-facing
-        # list of unprotected users cannot disagree with the percentage. The
-        # split-based reader here named protected users as unprotected, with
-        # the UPN shifted into the parenthesis.
-        fc = file_contents or {}
-        unprotected = [
-            f"{r.get('display_name', '')} ({r.get('upn', '')})"
-            for r in _mfa_user_records(
-                fc.get("04_mfa_methods.json", ""), fc.get("04_mfa_methods.txt", "")
-            )
-            # Only name someone whose status we actually know. A CA-excluded
-            # account belongs here even if it has a method registered: the
-            # exclusion means MFA is not enforced, so the account is unprotected
-            # in practice — and leaving it off the list is what let no_mfa say
-            # "2" while the list under it named nobody.
-            if (r.get("mfa_registered") is False and not r.get("ca_covered"))
-            or r.get("ca_excluded")
-        ]
-
-        detail = t("rec_mfa_detail",
-                    registered=mfa.get('mfa_registered', 0),
-                    ca_covered=mfa.get('ca_covered', 0),
-                    no_mfa=mfa['no_mfa'])
-        recs.append({
-            "priority": "critical",
-            "evidence": ev("04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
-            "finding_id": "finding-mfa",
-            "title": t("rec_mfa_title", count=mfa['no_mfa']),
-            "detail": detail,
-            "effort": t.rec_effort_low,
-            "sub_items": unprotected[:50],
-            "doc_url": "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mfa-howitworks",
-        })
-
     # A Conditional-Access exclusion removes MFA enforcement. When the excluded
     # account is also a Global Admin or is being actively brute-forced, that is
     # not a footnote in the raw data — it is the most exposed account in the
-    # tenant, reachable with a password alone. Surface it as its own critical
-    # finding rather than leaving it to be reconstructed from file 04b.
+    # tenant, reachable with a password alone. It gets its own dedicated critical
+    # finding, computed FIRST so the same account is not also counted by the
+    # general MFA rec below: surfacing one account as two criticals is the
+    # double-count the review flagged (M365 review, F2).
     excluded_users = [u for u in (mfa.get("users") or []) if u.get("ca_excluded")]
+    high_risk: list[str] = []
+    high_risk_upns: set[str] = set()
     if excluded_users:
         ga_emails = {
             (g.get("email") or "").strip().lower()
@@ -2923,7 +2902,6 @@ def _build_recommendations(
             (u or "").strip().lower()
             for u in (signin_risk or {}).get("brute_force_suspects", [])
         }
-        high_risk = []
         for u in excluded_users:
             upn = (u.get("upn") or "").strip().lower()
             reasons = []
@@ -2934,17 +2912,60 @@ def _build_recommendations(
             if reasons:
                 label = u.get("name") or u.get("upn") or ""
                 high_risk.append(f"{label} ({u.get('upn', '')}) — {', '.join(reasons)}")
-        if high_risk:
+                if upn:
+                    high_risk_upns.add(upn)
+
+    # Users without enforced MFA that are NOT already the dedicated high-risk
+    # finding above. Naming the same account here too is what let no_mfa say "2"
+    # while the two criticals described one account each. Only emit if there is
+    # someone left to name, so the count in the title matches the list under it.
+    if mfa.get("has_data"):
+        fc = file_contents or {}
+        not_enforced = [
+            f"{r.get('display_name', '')} ({r.get('upn', '')})"
+            for r in _mfa_user_records(
+                fc.get("04_mfa_methods.json", ""), fc.get("04_mfa_methods.txt", "")
+            )
+            # Someone whose status we know AND who is not MFA-enforced: no method
+            # registered, or registered but CA-excluded (the exclusion means MFA
+            # is not enforced). Minus anyone already in finding-mfa-excluded.
+            if (((r.get("mfa_registered") is False and not r.get("ca_covered"))
+                 or r.get("ca_excluded"))
+                and (r.get("upn") or "").strip().lower() not in high_risk_upns)
+        ]
+        # Count = the summary no_mfa less the high-risk accounts already moved to
+        # finding-mfa-excluded, so the same account is never counted by both
+        # criticals; suppress the rec entirely when every not-enforced account is
+        # already covered there (M365 review, F2).
+        adjusted_no_mfa = max(0, mfa.get("no_mfa", 0) - len(high_risk_upns))
+        if adjusted_no_mfa > 0:
+            detail = t("rec_mfa_detail",
+                        registered=mfa.get('mfa_registered', 0),
+                        ca_covered=mfa.get('ca_covered', 0),
+                        no_mfa_registered=mfa.get('no_mfa_registered', 0),
+                        registered_but_excluded=mfa.get('registered_but_excluded', 0))
             recs.append({
                 "priority": "critical",
-                "evidence": ev("04b_mfa_ca_analysis.txt", "07_admin_roles.txt"),
-                "finding_id": "finding-mfa-excluded",
-                "title": t("rec_mfa_excluded_title", count=len(high_risk)),
-                "detail": t.rec_mfa_excluded_detail,
-                "effort": t.rec_effort_immediate,
-                "sub_items": high_risk[:50],
-                "doc_url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-users-groups",
+                "evidence": ev("04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
+                "finding_id": "finding-mfa",
+                "title": t("rec_mfa_title", count=adjusted_no_mfa),
+                "detail": detail,
+                "effort": t.rec_effort_low,
+                "sub_items": not_enforced[:50],
+                "doc_url": "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mfa-howitworks",
             })
+
+    if high_risk:
+        recs.append({
+            "priority": "critical",
+            "evidence": ev("04b_mfa_ca_analysis.txt", "07_admin_roles.txt"),
+            "finding_id": "finding-mfa-excluded",
+            "title": t("rec_mfa_excluded_title", count=len(high_risk)),
+            "detail": t.rec_mfa_excluded_detail,
+            "effort": t.rec_effort_immediate,
+            "sub_items": high_risk[:50],
+            "doc_url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-users-groups",
+        })
 
     for d in spf_dmarc:
         if not _is_audit_relevant_domain(d.get("domain", "")):

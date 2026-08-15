@@ -158,6 +158,7 @@
     "tests/test_password_protection.py",
     "tests/test_pentest_argument_injection.py",
     "tests/test_pentest_runtime.py",
+    "tests/test_pim_license.py",
     "tests/test_policy_adoption.py",
     "tests/test_policy_backup.py",
     "tests/test_policy_deploy.py",

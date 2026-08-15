@@ -80,6 +80,18 @@ def test_teams_external_access_missing_file_is_info():
     assert _control(controls, "8.1.1")["status"] == "info"
 
 
+def test_mfa_partial_control_says_not_enforced_not_missing():
+    # "missing MFA" wrongly implies unregistered; the count is really
+    # not-enforced (registered-but-excluded included) — F1.
+    controls = _build_compliance_map(
+        {"mfa": {"has_data": True, "pct": 60.0, "no_mfa": 2}, "file_contents": {}}, lang="en"
+    )
+    c = _control(controls, "1.1.1")
+    assert c["status"] == "partial"
+    assert "enforced" in str(c["detail"]).lower()
+    assert "missing MFA" not in str(c["detail"])
+
+
 def test_unreadable_mfa_is_info_not_fail():
     controls = _build_compliance_map(_ctx({"has_data": False, "pct": 0.0, "no_mfa": 0}))
     c = _control(controls, "1.1.1")

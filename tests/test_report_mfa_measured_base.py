@@ -54,6 +54,23 @@ def _score(mfa: dict) -> dict:
     )
 
 
+# ── no_mfa splits cleanly into unregistered vs registered-but-excluded (F1/F2) ─
+
+def test_no_mfa_splits_into_unregistered_and_registered_but_excluded():
+    users = json.dumps({"users": [
+        {"display_name": "NoMfa", "upn": "no@acme.no", "mfa_registered": False,
+         "ca_covered": False, "ca_excluded": False, "methods": []},
+        {"display_name": "Excluded", "upn": "ex@acme.no", "mfa_registered": True,
+         "ca_covered": False, "ca_excluded": True, "methods": ["app"]},
+    ]})
+    mfa = _parse_mfa("", "", [], users)
+    assert mfa["no_mfa"] == 2
+    assert mfa["no_mfa_registered"] == 1         # genuinely no method registered
+    assert mfa["registered_but_excluded"] == 1   # has MFA, but CA-excluded from enforcement
+    # The two are an exact partition of no_mfa.
+    assert mfa["no_mfa_registered"] + mfa["registered_but_excluded"] == mfa["no_mfa"]
+
+
 # ── A complete reading still behaves exactly as before ───────────────────────
 
 def test_a_fully_read_tenant_is_unchanged():
