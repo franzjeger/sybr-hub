@@ -19,11 +19,19 @@ not "look everywhere" but "look wider, and say exactly how far you got".
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from app.core.encryption import encrypted_read_text
 from app.modules.m365_audit.graph_client import GraphRequestBudgetExceeded
 from app.modules.m365_audit.sections.onedrive_sharing import OneDriveSharingSection
+
+
+def _http_400(path):
+    req = httpx.Request("GET", f"https://graph.microsoft.com/v1.0/{path}")
+    return httpx.HTTPStatusError(
+        "400 Bad Request", request=req, response=httpx.Response(400, request=req)
+    )
 
 
 def _anon_perm(url="https://x/y"):
@@ -41,7 +49,8 @@ class FakeGraph:
     """Serves a small tenant: two sites, one user OneDrive, a nested folder."""
 
     def __init__(self, *, sites=None, site_drives=None, user_drives=None,
-                 root_perms=None, children=None, refuse=()):
+                 root_perms=None, children=None, refuse=(),
+                 expand_unsupported=False, item_perms=None):
         self.sites = sites if sites is not None else [
             {"id": "site-a", "displayName": "Intranett"},
             {"id": "site-b", "displayName": "Prosjekt"},
@@ -56,6 +65,8 @@ class FakeGraph:
         self.root_perms = root_perms or {}
         self.children = children or {}
         self.refuse = set(refuse)
+        self.expand_unsupported = expand_unsupported
+        self.item_perms = item_perms or {}
         self.calls: list[str] = []
 
     async def get(self, path, **kw):
@@ -77,9 +88,16 @@ class FakeGraph:
         if path.endswith("/root/permissions"):
             return list(self.root_perms.get(path.split("/")[1], []))
         if "/items/" in path and path.endswith("/children"):
+            params = kw.get("params") or {}
+            if self.expand_unsupported and params.get("$expand"):
+                raise _http_400(path)   # Graph rejects $expand=permissions here
             drive_id = path.split("/")[1]
             item_id = path.split("/items/")[1].split("/")[0]
             return list(self.children.get((drive_id, item_id), []))
+        if "/items/" in path and path.endswith("/permissions"):
+            drive_id = path.split("/")[1]
+            item_id = path.split("/items/")[1].split("/")[0]
+            return list(self.item_perms.get((drive_id, item_id), []))
         raise AssertionError(f"unexpected get_all({path})")
 
 
@@ -192,6 +210,42 @@ class TestALinkInsideAFolderIsFound:
         await _section(tmp_path, graph).collect()
         per_item = [c for c in graph.calls if "/items/i" in c]
         assert not per_item, f"one request per item: {per_item[:3]}"
+
+    async def test_expand_permissions_400_falls_back_to_per_item_reads(self, tmp_path):
+        """Graph 400s on $expand=permissions over children on some tenants. The
+        scan must fall back to per-item permission reads and actually find the
+        share, not fail every folder and report nothing (SR review, F6)."""
+        graph = FakeGraph(
+            sites=[{"id": "s", "displayName": "S"}],
+            site_drives={"s": [{"id": "d", "name": "D"}]},
+            user_drives={},
+            expand_unsupported=True,
+            children={("d", "root"): [{"id": "i1", "name": "Avtale.docx"}]},
+            item_perms={("d", "i1"): [_anon_perm()]},
+        )
+        await _section(tmp_path, graph).collect()
+        out = _out(tmp_path)
+        assert "'Anyone' links       : 1" in out, "the fallback did not read permissions"
+        assert "drives/d/items/i1/permissions" in graph.calls, "no per-item permission read"
+        assert "unsupported on this tenant" in out
+        assert "Scan scope           : complete" in out, "a successful fallback is still complete"
+
+    async def test_an_incomplete_scan_does_not_claim_no_external_sharing(self, tmp_path):
+        """Fail closed: a scan that could not read a folder must NOT print the
+        clean 'no external sharing detected' verdict (SR review, F6)."""
+        graph = FakeGraph(
+            sites=[{"id": "s", "displayName": "S"}],
+            site_drives={"s": [{"id": "d", "name": "D"}]},
+            user_drives={},
+            children={("d", "root"): [
+                {"id": "secret", "name": "secret", "folder": {"childCount": 1}, "permissions": []},
+            ]},
+            refuse={"drives/d/items/secret/children"},
+        )
+        await _section(tmp_path, graph).collect()
+        out = _out(tmp_path)
+        assert "No external sharing or anonymous links detected." not in out
+        assert "tenant-wide absence is NOT established" in out
 
     async def test_an_external_share_deeper_in_is_reported(self, tmp_path):
         graph = FakeGraph(
