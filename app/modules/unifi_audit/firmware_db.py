@@ -1,7 +1,14 @@
 """UniFi firmware version database for audit comparison.
 
-Maps board/model names to latest known stable firmware.
-Updated manually — run `update_from_ui_com()` to fetch latest from ui.com.
+Maps board/model names to latest known stable firmware. This is a **manually
+maintained** table, not a live feed, so it has a shelf life. Update process:
+refresh the versions below from https://community.ui.com/releases and set
+``LAST_UPDATED`` to that day. If the table is older than ``FRESHNESS_DAYS`` it is
+treated as stale and ``check_firmware`` **fails closed** (SR-007): it will not
+claim a device is up to date from data it cannot vouch for, and reports
+``severity="unknown"`` with a ``stale`` flag instead. A device that is *behind*
+or EOL is still reported — those are valid lower bounds a stale table cannot
+make wrong (a device behind a stale "latest" is behind the real latest too).
 """
 
 from __future__ import annotations
@@ -11,8 +18,16 @@ from datetime import date
 
 log = logging.getLogger(__name__)
 
-# Last updated date
+# Last updated date — bump this whenever the versions below are refreshed.
 LAST_UPDATED = "2026-03-30"
+
+# How long the manually maintained table is trusted before it fails closed.
+# UniFi ships firmware every few weeks to months; 180 days keeps a recent manual
+# update usable while forcing a refresh (or an honest "unknown") before the data
+# is badly out of date.
+FRESHNESS_DAYS = 180
+
+SOURCE = "unifi-firmware-db (manuell tabell)"
 
 # Model → latest stable firmware mapping
 # Source: https://community.ui.com/releases + ui.com/download
@@ -138,7 +153,29 @@ def normalize_model(raw_model: str) -> str:
     return raw
 
 
-def check_firmware(model: str, current_firmware: str) -> dict:
+def db_age_days(today: date | None = None) -> int | None:
+    """Age of the firmware table in days, or None if LAST_UPDATED is unparseable."""
+    try:
+        updated = date.fromisoformat(LAST_UPDATED)
+    except ValueError:
+        return None
+    return ((today or date.today()) - updated).days
+
+
+def is_stale(today: date | None = None) -> bool:
+    """True when the table is past its freshness window — fail closed.
+
+    Counts as stale, not fresh: an unparseable/absent LAST_UPDATED, and a
+    NEGATIVE age. A negative age means the clock reads earlier than LAST_UPDATED
+    — a future-dated table (a manual-update typo) or a clock running behind (dead
+    RTC, restored snapshot, NTP not yet synced). Trusting it would let an ancient
+    or misdated table masquerade as current, exactly the fail-open SR-007 forbids
+    (SR-007 review)."""
+    age = db_age_days(today)
+    return age is None or age < 0 or age > FRESHNESS_DAYS
+
+
+def check_firmware(model: str, current_firmware: str, today: date | None = None) -> dict:
     """Check if firmware is up to date.
 
     Returns:
@@ -146,12 +183,21 @@ def check_firmware(model: str, current_firmware: str) -> dict:
             "model": normalized model name,
             "current": current firmware version,
             "latest": latest known version (or None),
-            "up_to_date": True/False/None,
+            "up_to_date": True/False/None,      # None = could not confirm
             "eol": True/False,
             "severity": "ok" / "warning" / "critical" / "unknown",
+            "source": SOURCE,
+            "as_of": LAST_UPDATED,
+            "stale": True/False,                # table past its freshness window
+            "reason": "<why unknown>",          # present when severity == "unknown"
         }
+
+    Fail-closed on staleness: from a stale table it will report "behind"/"EOL"
+    (valid lower bounds) but never "up to date" — an up-to-date verdict becomes
+    "unknown" because the recorded "latest" may itself be out of date.
     """
     normalized = normalize_model(model)
+    stale = is_stale(today)
     result: dict = {
         "model": normalized or model,
         "current": current_firmware,
@@ -159,15 +205,21 @@ def check_firmware(model: str, current_firmware: str) -> dict:
         "up_to_date": None,
         "eol": False,
         "severity": "unknown",
+        "source": SOURCE,
+        "as_of": LAST_UPDATED,
+        "stale": stale,
     }
 
     db_entry = FIRMWARE_DB.get(normalized)
     if not db_entry:
+        result["reason"] = "Modellen finnes ikke i firmware-tabellen."
         return result
 
     result["latest"] = db_entry["latest"]
     result["eol"] = db_entry.get("eol", False)
 
+    # EOL is durable: a model that reached end-of-life stays EOL regardless of
+    # how fresh the table is, so this verdict is safe even when stale.
     if result["eol"]:
         result["severity"] = "critical"
         result["up_to_date"] = False
@@ -178,12 +230,23 @@ def check_firmware(model: str, current_firmware: str) -> dict:
     lat_ver = _extract_version(db_entry["latest"])
 
     if not cur_ver or not lat_ver:
-        result["severity"] = "unknown"
+        result["reason"] = "Klarte ikke å tolke firmware-versjonen."
         return result
 
     if cur_ver >= lat_ver:
-        result["up_to_date"] = True
-        result["severity"] = "ok"
+        if stale:
+            # The device matches or exceeds our recorded latest, but the table
+            # is stale — a newer release may exist, so we cannot confirm this is
+            # current. Fail closed to unknown rather than claim "ok" (SR-007).
+            result["up_to_date"] = None
+            result["severity"] = "unknown"
+            result["reason"] = (
+                f"Firmware-tabellen er utdatert (sist oppdatert {LAST_UPDATED}); "
+                "kan ikke bekrefte at dette er nyeste versjon."
+            )
+        else:
+            result["up_to_date"] = True
+            result["severity"] = "ok"
     else:
         result["up_to_date"] = False
         # Check how far behind

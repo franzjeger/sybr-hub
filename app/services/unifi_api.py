@@ -1231,7 +1231,16 @@ async def firmware_check_all(customer_id: str) -> dict[str, Any]:
         "devices": results,
         "total": len(results),
         "summary": counts,
-        "all_up_to_date": counts["warning"] == 0 and counts["critical"] == 0,
+        # Fail closed: "all up to date" means every device is *confirmed* current.
+        # A device we could not verify (severity "unknown" — an unrecognised model
+        # or a stale firmware table) is not a confirmation, so it withholds the
+        # all-clear rather than being silently ignored (SR-007). Zero devices is
+        # still vacuously up to date.
+        "all_up_to_date": (
+            counts.get("warning", 0) == 0
+            and counts.get("critical", 0) == 0
+            and counts.get("unknown", 0) == 0
+        ),
     }
 
 
