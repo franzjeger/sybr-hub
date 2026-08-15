@@ -5594,6 +5594,31 @@ def _baseline_for(context: dict) -> dict | None:
         return None
 
 
+def _apply_remediation(recs: list[dict], remediation: dict[str, dict]) -> tuple[int, int]:
+    """Attach each recommendation's stored remediation state and return (done, total).
+
+    The operator stores state under ``rec_id`` (see
+    ``dashboard_remediation.set_remediation``), never the rendered title — the
+    title changes with language, so a title lookup would never match what was
+    actually recorded. ``done`` counts only the recommendations in THIS report:
+    the customer's table can hold rows from an earlier audit whose recs no
+    longer appear here, and counting those against this report's total is what
+    pushed the percentage past 100. Counting the enriched recs keeps
+    ``done <= total`` by construction, so the percentage can never overflow.
+    """
+    done = 0
+    for rec in recs:
+        rec_id = rec.get("rec_id", "")
+        entry = remediation.get(rec_id)
+        if entry is None:
+            rec["remediation"] = {"status": "open", "notes": "", "updated_by": "", "updated_date": ""}
+        else:
+            rec["remediation"] = entry
+            if entry.get("status") in ("done", "ignored"):
+                done += 1
+    return done, (len(recs) if recs else 0)
+
+
 def build_report_context(
     customer_name: str,
     org_domain:    str,
@@ -5900,17 +5925,11 @@ def build_report_context(
     except Exception:
         pass  # non-critical — proceed without remediation data
 
-    # Enrich each recommendation with its remediation status
-    for rec in recs:
-        title = rec.get("title", "")
-        if title in remediation:
-            rec["remediation"] = remediation[title]
-        else:
-            rec["remediation"] = {"status": "open", "notes": "", "updated_by": "", "updated_date": ""}
+    # Enrich each recommendation with its remediation status and count how
+    # many of THIS report's recs are already addressed.
+    remediation_done, remediation_total = _apply_remediation(recs, remediation)
 
     context["remediation"] = remediation
-    remediation_done = sum(1 for v in remediation.values() if v.get("status") in ("done", "ignored"))
-    remediation_total = len(recs) if recs else 0
     context["remediation_done"] = remediation_done
     context["remediation_total"] = remediation_total
     context["remediation_pct"] = round(remediation_done / remediation_total * 100) if remediation_total else 0
