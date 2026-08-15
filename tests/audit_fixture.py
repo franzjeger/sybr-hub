@@ -451,6 +451,14 @@ FULL_AUDIT: dict[str, str] = {
         # the parser instead of the collector, hiding an inert control.
         "  AuditDisabled: No\n"
     ),
+    "27d_exchange_admin_audit_log_config.txt": (
+        "EXCHANGE ADMIN AUDIT LOG CONFIG\n"
+        "===============================\n"
+        # CIS 9.1 signal. _save_admin_audit_log_config renders the bool via
+        # _fmt_val, so a healthy (UAL-on) tenant reads "Yes", not "True" — the
+        # collector shape, so the control's pass path is exercised for real.
+        "  UnifiedAuditLogIngestionEnabled: Yes\n"
+    ),
     "28_exchange_mailbox_forwarding.txt": (
         "MAILBOX FORWARDING CHECK\n"
         "========================\n"

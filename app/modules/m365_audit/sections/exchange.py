@@ -139,6 +139,7 @@ class ExchangeSection(BaseSection):
                 ("Defender policies", self._save_defender_policies),
                 ("quarantine policies", self._save_quarantine_policies),
                 ("org config", self._save_org_config),
+                ("admin audit log config", self._save_admin_audit_log_config),
                 ("forwarding", self._save_forwarding),
                 ("inbox rules", self._save_inbox_rules),
                 ("DLP", self._save_dlp),
@@ -352,6 +353,22 @@ class ExchangeSection(BaseSection):
             lines.append(f"  {k}: {_fmt_val(v)}")
         lines += ["=" * 80, ""]
         self._save("27c_exchange_org_config.txt", "\n".join(lines))
+
+    # ── Admin Audit Log Config (CIS 9.1) ──────────────────────────────────────
+
+    def _save_admin_audit_log_config(self) -> None:
+        # UnifiedAuditLogIngestionEnabled is the Exchange/Purview toggle CIS 9.1
+        # is about — kept in its own file (not folded into org config) so the
+        # control has one unambiguous source. Emit the label unconditionally:
+        # a missing/null value renders as "N/A" via _fmt_val, which the report
+        # reads as "not collected" (cannot-verify), so "collected: False" (a
+        # real fail) stays distinct from "not collected" (fail-closed to info).
+        cfg = self._get_single("admin_audit_log_config")
+        lines = ["=" * 80, "  EXCHANGE ADMIN AUDIT LOG CONFIG", "=" * 80]
+        val = cfg.get("UnifiedAuditLogIngestionEnabled")
+        lines.append(f"  UnifiedAuditLogIngestionEnabled: {_fmt_val(val)}")
+        lines += ["=" * 80, ""]
+        self._save("27d_exchange_admin_audit_log_config.txt", "\n".join(lines))
 
     # ── Mailbox Forwarding ────────────────────────────────────────────────────
 

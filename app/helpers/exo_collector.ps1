@@ -180,6 +180,18 @@ try {
     }
 } catch { $result.org_config_error = "$_" }
 
+# ── Admin Audit Log Config (Unified Audit Log ingestion — CIS 9.1) ────────────
+# Isolated from Org Config on purpose: this is a separate cmdlet, and its
+# failure must not take the org-config read down with it. A null $aalc leaves
+# UnifiedAuditLogIngestionEnabled = $null, which serialises to JSON null and is
+# read downstream as "not collected" (cannot-verify), never a false pass/fail.
+try {
+    $aalc = Get-AdminAuditLogConfig -ErrorAction SilentlyContinue
+    $result.admin_audit_log_config = @{
+        UnifiedAuditLogIngestionEnabled = $aalc.UnifiedAuditLogIngestionEnabled
+    }
+} catch { $result.admin_audit_log_config_error = "$_" }
+
 # ── Mailbox Forwarding ────────────────────────────────────────────────────────
 try {
     $fwd = Get-Mailbox -ResultSize Unlimited -ErrorAction SilentlyContinue |

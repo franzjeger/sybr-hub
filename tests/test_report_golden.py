@@ -44,13 +44,15 @@ GOLDEN = {
     # Two controls moved off "cannot be verified" as the fixture grew to cover
     # what the report reads: 9.3 when it gained 18_risky_users.txt, and 8.1.2
     # when it gained 30b_teams_guest_access.txt. Both pass on a healthy tenant.
-    # 9.1 moved back to "info": the Entra directoryAudits log it counts is
+    # 9.1 was briefly "info" (the Entra directoryAudits log it used to count is
     # always-on and does not reflect the Unified Audit Log ingestion toggle the
-    # control is about, so it cannot be verified from the evidence collected
-    # (accuracy sweep). assessed 33→32, info 2→3, pass 32→31; pct unchanged.
-    "compliance_assessed": 32,
-    "compliance_info": 3,
-    "compliance_pass": 31,
+    # control is about), then re-graded once the EXO helper began collecting the
+    # real setting (Get-AdminAuditLogConfig | UnifiedAuditLogIngestionEnabled,
+    # file 27d). The healthy fixture has UAL ingestion on, so 9.1 now passes:
+    # assessed 32→33, info 3→2, pass 31→32; pct unchanged.
+    "compliance_assessed": 33,
+    "compliance_info": 2,
+    "compliance_pass": 32,
     "compliance_pct": 97.0,
     "compliance_total": 35,
     "exchange_connectors": 0,
