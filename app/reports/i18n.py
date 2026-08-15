@@ -2418,6 +2418,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Bare {pct:.0f}% av enhetene oppfyller organisasjonens samsvarspolicyer. Unders\u00f8k ikke-samsvarende enheter og oppdater policyer ved behov.",
         "en": "Only {pct:.0f}% of devices meet the organisation\u2019s compliance policies. Investigate non-compliant devices and update policies as needed.",
     },
+    "rec_auth_lockout_title": {
+        "no": "{count} bruker(e) kan bli utestengt: alle registrerte metoder er avslått i policyen",
+        "en": "{count} user(s) may be locked out: every registered method is disabled in the policy",
+    },
+    "rec_auth_lockout_detail": {
+        "no": "Disse brukerne har kun autentiseringsmetoder som er avslått i tenantens authentication methods policy. Hvis MFA håndheves, kan de ikke logge inn. Verifiser policyen og migrer brukerne til en aktivert metode før håndhevelse.",
+        "en": "These users have only authentication methods that are disabled in the tenant's authentication methods policy. If MFA is enforced they cannot sign in. Verify the policy and migrate these users to an enabled method before enforcing.",
+    },
+    "rec_entra_unmanaged_title": {
+        "no": "{count} enhet(er) er registrert i Entra, men ikke administrert av Intune",
+        "en": "{count} device(s) are registered in Entra but not managed by Intune",
+    },
+    "rec_entra_unmanaged_detail": {
+        "no": "{unmanaged} av {total} Entra-registrerte enheter er ikke Intune-administrert, og er dermed utenfor samsvars- og sikkerhetspolicyer. Meld dem inn i Intune eller begrens tilgangen deres.",
+        "en": "{unmanaged} of {total} Entra-registered devices are not managed by Intune, so they fall outside compliance and security policies. Enrol them in Intune or restrict their access.",
+    },
     "rec_sp_sharing_title": {
         "no": "SharePoint ekstern deling er satt til mest tillatende niv\u00e5",
         "en": "SharePoint external sharing is set to the most permissive level",

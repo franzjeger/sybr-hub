@@ -124,6 +124,7 @@
     "tests/test_ci_policy.py",
     "tests/test_consent_grant.py",
     "tests/test_console_conversations_are_private.py",
+    "tests/test_correlate_collected_data.py",
     "tests/test_credentials_headless.py",
     "tests/test_customer_context_isolation.py",
     "tests/test_customer_view_reports_refusals.py",
