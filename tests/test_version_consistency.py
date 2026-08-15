@@ -37,6 +37,19 @@ def test_ci_fetches_tags_so_a_build_can_resolve_the_version():
     assert workflow.count("fetch-depth: 0") == workflow.count("actions/checkout@")
 
 
+def test_build_info_exposes_a_describe_so_the_card_shows_commits_ahead():
+    # The admin version card shows `describe`, not the bare tag `version`: a
+    # deployment several commits past the last tag must not read as stuck at that
+    # tag (which looked like the self-updater had done nothing). describe is the
+    # tag, or the tag plus its commits-ahead (tag-N-gSHA) — either way it carries
+    # the clean version as its leading component; the report footer keeps version.
+    from app.core.version import get_build_info
+
+    bi = get_build_info()
+    assert bi.get("describe"), "the version card needs a describe string"
+    assert bi["describe"] == bi["version"] or bi["describe"].startswith(bi["version"] + "-")
+
+
 def test_static_surfaces_do_not_ship_unrelated_legacy_versions():
     index = (ROOT / "app/web/static/index.html").read_text()
     worker = (ROOT / "app/web/static/sw.js").read_text()
