@@ -37,11 +37,35 @@ class PIMSection(BaseSection):
         try:
             eligible = await self._fetch_eligible()
             active   = await self._fetch_active()
-            self._build_report(eligible, active)
+            has_p2 = None
+            if not eligible and not active:
+                # Only when there is nothing to show: decide whether "no PIM
+                # data" means the tenant has no P2 (not applicable) or the app
+                # is missing a permission (a real gap). The report used to state
+                # both causes at once (M365 review, F7).
+                has_p2 = await self._has_entra_p2()
+            self._build_report(eligible, active, has_p2)
             self._report(SectionStatus.DONE)
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result
+
+    async def _has_entra_p2(self) -> bool | None:
+        """Whether the tenant is licensed for Entra ID P2 — PIM's prerequisite.
+
+        True/False from subscribedSkus; None if that read failed, so the caller
+        keeps the ambiguous wording instead of guessing.
+        """
+        try:
+            skus = await self.graph.get_all("subscribedSkus")
+        except Exception:
+            return None
+        for sku in skus or []:
+            for plan in sku.get("servicePlans", []) or []:
+                if (plan.get("servicePlanName") == "AAD_PREMIUM_P2"
+                        and (plan.get("provisioningStatus") or "").lower() != "disabled"):
+                    return True
+        return False
 
     # ── Fetch eligible role assignments ────────────────────────────────────
 
@@ -73,7 +97,8 @@ class PIMSection(BaseSection):
 
     # ── Build combined report ──────────────────────────────────────────────
 
-    def _build_report(self, eligible: list[dict], active: list[dict]) -> None:
+    def _build_report(self, eligible: list[dict], active: list[dict],
+                      has_p2: bool | None = None) -> None:
         lines = [
             "=" * 110,
             "  PRIVILEGED IDENTITY MANAGEMENT (PIM) — ROLE ASSIGNMENTS",
@@ -81,20 +106,49 @@ class PIMSection(BaseSection):
         ]
 
         if not eligible and not active:
-            lines += [
-                "",
-                "  PIM data not available. Possible reasons:",
-                "  - Tenant does not have Microsoft Entra ID P2 (formerly Azure AD Premium P2) — required for PIM",
-                "  - Service principal lacks RoleManagement.Read.Directory permission",
-                "  - PIM is not configured for this tenant",
-                "",
-                "  NOTE: Without PIM, all admin role assignments are permanent.",
-                "  This is a security risk — consider enabling PIM with Microsoft Entra ID P2.",
-                "",
-                "=" * 110,
-                "",
-            ]
-            self._warn("PIM data not available — all admin roles may be permanently assigned")
+            if has_p2 is False:
+                lines += [
+                    "",
+                    "  Not applicable — this tenant has no Microsoft Entra ID P2, which PIM",
+                    "  requires. This is a licensing fact, not a finding and not a permission",
+                    "  error. Without P2, admin role assignments are permanent by design;",
+                    "  time-bound (just-in-time) elevation would need an Entra ID P2 license",
+                    "  (e.g. via EMS E5).",
+                    "",
+                    "=" * 110,
+                    "",
+                ]
+                self._warn(
+                    "PIM is not available on this tenant (no Entra ID P2); admin roles are permanent",
+                    level="info",
+                )
+            elif has_p2 is True:
+                lines += [
+                    "",
+                    "  PIM is licensed (Entra ID P2 is present) but no eligible/active role",
+                    "  data was returned. The most likely cause is a missing application",
+                    "  permission (RoleManagement.Read.Directory), or PIM not being configured.",
+                    "  Verify the app's Graph permissions.",
+                    "",
+                    "=" * 110,
+                    "",
+                ]
+                self._warn("PIM is licensed but returned no data — verify RoleManagement.Read.Directory")
+            else:
+                lines += [
+                    "",
+                    "  PIM data not available. Possible reasons:",
+                    "  - Tenant does not have Microsoft Entra ID P2 (formerly Azure AD Premium P2) — required for PIM",
+                    "  - Service principal lacks RoleManagement.Read.Directory permission",
+                    "  - PIM is not configured for this tenant",
+                    "",
+                    "  NOTE: Without PIM, all admin role assignments are permanent.",
+                    "  This is a security risk — consider enabling PIM with Microsoft Entra ID P2.",
+                    "",
+                    "=" * 110,
+                    "",
+                ]
+                self._warn("PIM data not available — all admin roles may be permanently assigned")
             self._save("32_pim_roles.txt", "\n".join(lines))
             return
 
