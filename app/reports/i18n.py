@@ -2564,6 +2564,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "MFA-data er ikke tilgjengelig for denne kunden.",
         "en": "MFA data is not available for this customer.",
     },
+    "exec_mfa_subset": {
+        "no": "MFA-dekningen er {pct:.0f}%, men målt på kun {measured} av {total} brukere — {unknown} kunne ikke kontrolleres (throttling eller manglende tilgang).",
+        "en": "MFA coverage is {pct:.0f}%, but measured on only {measured} of {total} users — {unknown} could not be checked (throttling or missing access).",
+    },
     "exec_ss_good": {
         "no": "Microsoft Secure Score er {pct:.0f}% \u2014 over anbefalt minsteniv\u00e5.",
         "en": "Microsoft Secure Score is {pct:.0f}% \u2014 above the recommended minimum level.",
@@ -2579,6 +2583,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "exec_intune_ok": {
         "no": "Alle {total} enheter er i samsvar med samsvarspolicyer.",
         "en": "All {total} devices are compliant with compliance policies.",
+    },
+    "exec_intune_partial": {
+        "no": "{compliant} av {total} enheter er bekreftet i samsvar; {unknown} er ikke evaluert (nådeperiode eller ikke vurdert).",
+        "en": "{compliant} of {total} devices are confirmed compliant; {unknown} are not evaluated (grace period or not assessed).",
     },
     "exec_ca_active": {
         "no": "{count} Conditional Access-policyer er aktive og beskytter milj\u00f8et.",
@@ -2619,6 +2627,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "exec_grade_d": {
         "no": "kritisk",
         "en": "critical",
+    },
+    "exec_grade_f": {
+        "no": "svært kritisk",
+        "en": "severely deficient",
     },
     "exec_grade_unknown": {
         "no": "ukjent",

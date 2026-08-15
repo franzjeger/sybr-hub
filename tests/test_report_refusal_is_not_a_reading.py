@@ -31,7 +31,10 @@ _HEALTHY = dict(
     defender="No active alerts",
     admin_roles={"has_data": True, "global_admin_count": 1},
     intune={"has_data": True, "total": 1, "compliance_pct": 100},
-    sharepoint={"has_data": True}, oauth={"has_data": True},
+    # Fully-read healthy SharePoint: a bare {"has_data": True} now means "sites
+    # read but settings unread" and raises its own data-quality note.
+    sharepoint={"has_data": True, "sharing_level": "ok", "legacy_auth_known": True},
+    oauth={"has_data": True},
     network=None, lang="no",
 )
 
@@ -145,3 +148,60 @@ def test_a_real_finding_list_keeps_its_penalty():
         + ["  admin@acme.no  this account requires immediate attention"]
     )
     assert _score(risky_users=text)["score"] < 100
+
+
+# ── Accuracy sweep: email/sharepoint/oauth/forwarding score gating ────────────
+
+def test_dmarc_p_none_is_penalised_not_scored_clean():
+    # The classifier emits "p=none"; the old branch matched "NONE" and never
+    # fired, so a monitor-only DMARC policy scored a clean 100 (accuracy sweep).
+    r = _score(spf_dmarc=[{"domain": "acme.no", "spf": "OK (v=spf1 -all)",
+                           "dmarc": "p=none (v=DMARC1; p=none)"}])
+    assert r["score"] < 100, "p=none must cost the email axis"
+
+
+def test_all_errored_dns_is_flagged_not_credited_clean():
+    # Every DoH lookup errored — the 10-pt email axis is unmeasured, not earned.
+    r = _score(spf_dmarc=[{"domain": "acme.no", "spf": "ERROR (timeout)",
+                           "dmarc": "ERROR (timeout)"}])
+    assert r["score"] == 100, "an errored lookup must not manufacture a penalty"
+    assert any("post" in g.lower() or "e-post" in g.lower() for g in r["data_quality_issues"]), \
+        "a fully-errored email axis must be declared, not silently credited"
+
+
+def test_sharepoint_settings_unread_is_declared_even_when_sites_read():
+    # has_data is true from the site list; the sharing/legacy settings are a
+    # separate read that failed, leaving sharing_level unknown.
+    r = _score(sharepoint={"has_data": True, "sharing_level": "unknown",
+                           "legacy_auth_known": False})
+    assert any("SharePoint" in g for g in r["data_quality_issues"])
+
+
+def test_oauth_consent_grants_read_failure_is_declared():
+    r = _score(oauth={"has_data": True, "high_privilege_apps": [], "grants_read": False})
+    assert any("OAuth" in g for g in r["data_quality_issues"])
+
+
+def test_forwarding_penalty_counts_rows_not_the_header():
+    # A prose header line must not count as a forwarding rule. Three real rows
+    # under a header: the penalty is 6 (3 rows), not 8 (header + 3 rows).
+    ext = ("EXTERNAL FORWARDING DETECTED\n"
+           "mailbox1 → a@ext.no\nmailbox2 → b@ext.no\nmailbox3 → c@ext.no\n")
+    assert _score(ext_fwd=ext)["score"] == 94
+
+
+def test_fortigate_admin_subread_refusal_is_declared():
+    # The status probe answered (reachable), but the admin sub-read was refused,
+    # so admin_count is None and the admins list is empty — a false clean unless
+    # declared (accuracy sweep).
+    net = {"has_data": True, "fortigate": {
+        "admin_count": None, "policy_count": 3, "admins": [], "policy_warnings": []}}
+    r = _score(network=net)
+    assert any("FortiGate-admin" in g for g in r["data_quality_issues"])
+
+
+def test_fortigate_policy_subread_refusal_is_declared():
+    net = {"has_data": True, "fortigate": {
+        "admin_count": 2, "policy_count": None, "admins": [], "policy_warnings": []}}
+    r = _score(network=net)
+    assert any("brannmurregler" in g for g in r["data_quality_issues"])
