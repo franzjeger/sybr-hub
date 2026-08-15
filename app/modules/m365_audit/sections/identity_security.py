@@ -7,7 +7,7 @@ in exchange.py alongside the other two Purview outputs."""
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -20,6 +20,37 @@ _HIGH_SEVERITY = {"high", "critical"}
 # how many repeats of one (activity, actor) in the window make it a finding.
 _FAILURE_RESULTS = {"failure", "timeout"}
 _FAILURE_GROUP_THRESHOLD = 5
+
+
+# A break-glass account is meant to be *rarely* used — it is the one that
+# survives an MFA/Conditional-Access outage. An admin who has signed in within
+# this window is therefore not a break-glass account: they are an everyday
+# account that has been excluded from Conditional Access, which is the worse
+# finding (a live admin bypassing MFA), not the emergency-access posture CIS
+# 1.1.6 is checking for. The window is a recency heuristic, not a frequency
+# count, because the directory's signInActivity is the only per-user signal
+# available here without an extra auditLogs fetch.
+_BG_ACTIVE_WINDOW_DAYS = 30
+
+
+def _last_sign_in_days_ago(user: dict) -> int | None:
+    """Days since the user's last sign-in, or None if it cannot be determined.
+
+    ``signInActivity`` is null on tenants without an Entra ID P1/P2 licence, so
+    None is the common case and must be treated as "no evidence of recent use"
+    — i.e. the account still qualifies as a break-glass candidate, exactly as
+    before this check existed.
+    """
+    activity = user.get("signInActivity") or {}
+    last = (activity.get("lastSignInDateTime")
+            or activity.get("lastNonInteractiveSignInDateTime"))
+    if not last:
+        return None
+    try:
+        dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (datetime.now(UTC) - dt).days
 
 
 def _audit_actor(entry: dict) -> str:
@@ -538,30 +569,54 @@ class IdentitySecuritySection(BaseSection):
             except Exception:
                 has_mfa = None  # unknown
 
+            user  = by_id.get(uid) or {}
+            label = user.get("userPrincipalName") or user.get("displayName") or uid
             ca_excluded = ca_known and uid in self.ca_exclusions
-            if ca_excluded:
+
+            # A CA-excluded admin is a break-glass account only if it is *rarely
+            # used*. One that has signed in within the window is an everyday
+            # account excluded from Conditional Access — a live admin bypassing
+            # MFA — which is a risk, not the emergency-access posture CIS 1.1.6
+            # checks for. Recency is the only per-user signal available here
+            # without an extra auditLogs fetch; when it is absent (no P1/P2) the
+            # account is still counted as a candidate, exactly as before.
+            days_ago = _last_sign_in_days_ago(user)
+            actively_used = (
+                days_ago is not None and days_ago < _BG_ACTIVE_WINDOW_DAYS
+            )
+
+            if ca_excluded and not actively_used:
                 candidates += 1
-            mfa_str     = "Yes" if has_mfa else ("Unknown" if has_mfa is None else "NO")
-            ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"
-            notes       = []
+
+            mfa_str = "Yes" if has_mfa else ("Unknown" if has_mfa is None else "NO")
+            ca_str  = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"
+            notes   = []
             if not has_mfa and has_mfa is not None:
                 notes.append("No MFA — potential break-glass")
             if ca_excluded:
-                notes.append("Excluded from CA — confirmed break-glass candidate")
+                if actively_used:
+                    notes.append(
+                        f"Excluded from CA but signed in {days_ago}d ago — "
+                        "an actively-used admin bypassing MFA, NOT a break-glass account"
+                    )
+                else:
+                    notes.append("Excluded from CA — confirmed break-glass candidate")
             if not ca_known:
                 notes.append("CA policies not collected — cannot confirm exclusion")
-            user  = by_id.get(uid) or {}
-            label = user.get("userPrincipalName") or user.get("displayName") or uid
             lines.append(
                 f"  {label[:45]:<45} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}"
             )
 
         # Machine-readable summary for CIS 1.1.6. A genuine break-glass account is
         # a Global Admin *intentionally excluded from Conditional Access* so it
-        # survives an MFA/CA outage; that is the count that matters, not "any admin
-        # row". ca_exclusions_known tells the report whether to trust a zero as
+        # survives an MFA/CA outage — and one that is rarely used. An admin who
+        # has signed in recently is excluded-but-active, a risk, and is NOT
+        # counted here: counting it is what let a daily-use admin PASS 1.1.6 as a
+        # "break-glass account" while the same report also flagged it as a
+        # high-risk account to remove from the exclusion (M365 review follow-up).
+        # ca_exclusions_known tells the report whether to trust a zero as
         # "none configured" (warn) or as "could not verify" (info) — the report
-        # must never scrape admin rows and PASS every tenant (M365 review follow-up).
+        # must never scrape admin rows and PASS every tenant.
         lines.append(
             f"  SUMMARY: break_glass_candidates={candidates} "
             f"ca_exclusions_known={'yes' if ca_known else 'no'} "

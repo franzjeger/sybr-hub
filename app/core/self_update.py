@@ -184,9 +184,13 @@ async def perform_self_update() -> dict:
 
     before = await _git("rev-parse", "HEAD")
 
-    # Fetch only the tracked branch from origin. `origin` and `branch` are the
-    # deployment's own configuration, never request input.
-    await _git("fetch", "--quiet", "origin", branch)
+    # Fetch the tracked branch *and* the tags from origin. `origin` and `branch`
+    # are the deployment's own configuration, never request input. Tags must come
+    # along too: the version shown in the menu is resolved by `git describe
+    # --tags` (see app/core/version.py), so a box that only ever fetched the
+    # branch would pull the new commits (the changelog advances) but keep the old
+    # version label — the tag it needs to name the release would never arrive.
+    await _git("fetch", "--quiet", "--tags", "origin", branch)
     target = await _git("rev-parse", f"origin/{branch}")
 
     if target == before:

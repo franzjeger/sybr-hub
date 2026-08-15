@@ -7,6 +7,34 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
+## v1.1.3 (2026-08-15)
+### Rapportpresisjon: tre tall som ikke lenger løy
+
+Tre feil hvor rapporten viste et tall som ikke svarte på det den hevdet å
+måle. Ingen av dem endrer hva som samles inn — de endrer hvordan det som
+allerede er samlet inn, teller.
+
+- **MFA-dekningsgrunnlag** (`users_mfa.py`): nedtente kontoer teller ikke
+  lenger med i CA-dekningsgrunnlaget. De kan ikke logge seg inn, så de rapporteres
+  på egen linje («Deactivated / guest (not in the base)») i stedet for å
+  fortynne et ellers fullt deknings-tall. Generatorens fallback-regex leses
+  fortsatt av de samme merkelinjene.
+- **Break-glass-heuristikken** (`identity_security.py`): en Global Admin som
+  er ekskludert fra CA *og* har logget seg inn innenfor 30 dager er en
+  hverdagskonto som omgår MFA — en risiko, ikke den nødtilgangsstillingen CIS
+  1.1.6 sjekker for. Den telles ikke lenger som break-glass-kandidat. En
+  sjelden brukt ekskludert admin — eller en uten innsignaldata (P1/P2) —
+  telles fortsatt, nøyaktig som før.
+- **Enheter utenfor styring** (`generator.py`): ett tall, overalt. Tallet
+  kommer nå fra registerets egen `isManaged`-flagg i stedet for
+  `total − intune_total`, som ble en annen målestørrelse — og lot
+  anbefalingen (11/16) avvike fra seksjonsstatusen og tellfilen (9/16) for
+  samme leie.
+- **Selvoppdatering henter tagger** (`self_update.py`): `git fetch` hentet bare
+  grenen, ikke tagg-referansene, så en utgave som ble trukket ned viste likevel
+  den gamle `git describe`-versjonen. `--tags` er lagt til, så versjonskortet
+  og oppdateringsmenyen følger med på en ny utgave.
+
 ## v1.1.2 (2026-08-15)
 ### Sikkerhet, presisjon og at en nektelse er en nektelse
 

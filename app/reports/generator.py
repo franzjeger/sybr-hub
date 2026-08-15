@@ -5670,10 +5670,23 @@ def build_report_context(
     # The claim the Intune figure alone cannot make. Only stated when both
     # sides were actually read: an unmanaged count derived from a refusal is
     # the same mistake in a new place.
+    #
+    # Single source of truth: the Entra register's own ``isManaged`` flag — the
+    # same figure the baseline check (``entra_devices.unmanaged``), the section
+    # status and the 15_entra_devices_count file all report. The old
+    # ``total - intune_total`` subtracted Intune's *enrolled* count, a different
+    # measure, so the recommendation (11/16) disagreed with the count file
+    # (9/16) for the same tenant. Fall back to the register's own total-managed
+    # (still the register, never Intune's enrolled list) if the unmanaged line
+    # is absent.
     if entra_devices.get("has_data") and intune.get("has_data"):
         intune["entra_total"] = entra_devices["total"]
         intune["entra_unmanaged"] = max(
-            0, entra_devices["total"] - intune.get("total", 0)
+            0,
+            entra_devices.get(
+                "unmanaged",
+                entra_devices["total"] - entra_devices.get("managed", 0),
+            ),
         )
     sharepoint   = _parse_sharepoint_settings(fc("15b_sharepoint_settings.txt"), fc("15_sharepoint_sites.txt"), lang=lang)
     oauth        = _parse_oauth_grants(fc("17b_oauth_consent_grants.txt"), fc("17_app_registrations.txt"))

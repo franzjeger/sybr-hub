@@ -123,6 +123,76 @@ async def test_summary_line_counts_only_ca_excluded_candidates(tmp_path):
     assert "ca_exclusions_known=yes" in out
 
 
+def _signed_in(days_ago: int) -> dict:
+    """A user whose last sign-in was ``days_ago`` days back."""
+    from datetime import UTC, datetime, timedelta
+    ts = (datetime.now(UTC) - timedelta(days=days_ago)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    return {"signInActivity": {"lastSignInDateTime": ts}}
+
+
+async def test_an_actively_used_excluded_admin_is_not_a_break_glass_candidate(tmp_path):
+    # A Global Admin excluded from CA who has signed in this month is an
+    # everyday account bypassing MFA — a risk, not the emergency-access posture
+    # CIS 1.1.6 checks for. Counting it is what let a daily-use admin PASS
+    # 1.1.6 as a "break-glass account" while the same report flagged it as a
+    # high-risk account to remove from the exclusion.
+    sec = _bg(
+        tmp_path,
+        admins=["a1"],
+        exclusions={"a1"},
+        users=[{"id": "a1", "userPrincipalName": "sybr_admin@acme.no",
+                **_signed_in(2)}],
+        ca_policies=[{"id": "p1"}],
+        methods={"a1": _APP_METHOD},
+    )
+    await sec._collect_break_glass()
+    out = _out(tmp_path)
+    assert "break_glass_candidates=0" in out, (
+        "a recently-used excluded admin is a risk, not a break-glass account"
+    )
+    assert "actively-used admin bypassing MFA" in out
+    assert "confirmed break-glass candidate" not in out
+
+
+async def test_a_rarely_used_excluded_admin_still_counts(tmp_path):
+    # The opposite: an excluded admin whose last sign-in is long gone is the
+    # genuine break-glass account — it survives an MFA/CA outage and is not
+    # part of daily operations. It must still be counted.
+    sec = _bg(
+        tmp_path,
+        admins=["a1"],
+        exclusions={"a1"},
+        users=[{"id": "a1", "userPrincipalName": "breakglass@acme.no",
+                **_signed_in(120)}],
+        ca_policies=[{"id": "p1"}],
+        methods={"a1": _APP_METHOD},
+    )
+    await sec._collect_break_glass()
+    out = _out(tmp_path)
+    assert "break_glass_candidates=1" in out
+    assert "confirmed break-glass candidate" in out
+
+
+async def test_an_excluded_admin_with_no_sign_in_data_still_counts(tmp_path):
+    # signInActivity is null on tenants without P1/P2. Absence of recency data
+    # is "no evidence of recent use", not proof of recent use — the account
+    # must still qualify as a candidate, exactly as before this check existed.
+    sec = _bg(
+        tmp_path,
+        admins=["a1"],
+        exclusions={"a1"},
+        users=[{"id": "a1", "userPrincipalName": "bg@acme.no"}],
+        ca_policies=[{"id": "p1"}],
+        methods={"a1": _APP_METHOD},
+    )
+    await sec._collect_break_glass()
+    out = _out(tmp_path)
+    assert "break_glass_candidates=1" in out
+    assert "confirmed break-glass candidate" in out
+
+
 async def test_ca_known_is_false_when_the_mfa_analysis_never_ran(tmp_path):
     # CA policies WERE collected, but the MFA section (which derives and populates
     # the exclusion set) never ran, so ca_exclusions is a stale empty set. Reading
