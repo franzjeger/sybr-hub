@@ -3799,7 +3799,7 @@ async function openSettings() {
       const vr = await apiFetch('/api/version');
       const vi = document.getElementById('settings-version-info');
       if (vi) {
-        vi.innerHTML = t('settings_version_info').replace('{version}', vr.version).replace('{commit}', vr.commit_hash || 'N/A').replace('{branch}', vr.branch || 'N/A').replace('{date}', vr.commit_date || 'N/A').replace(/\n/g, '<br>');
+        vi.innerHTML = t('settings_version_info').replace('{version}', vr.describe || vr.version).replace('{commit}', vr.commit_hash || 'N/A').replace('{branch}', vr.branch || 'N/A').replace('{date}', vr.commit_date || 'N/A').replace(/\n/g, '<br>');
       }
       // Self-update is admin-only and only for a git checkout. The server
       // enforces both (admin role + can_write); this just decides visibility.

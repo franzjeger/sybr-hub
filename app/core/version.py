@@ -108,6 +108,24 @@ def get_build_info() -> dict:
     except Exception:
         pass  # fall back to __version__
 
+    # Full describe (e.g. "1.1.1-3-g4f5c3da"): the clean tag `version` above is
+    # what customer reports show, but a deployment several commits PAST the last
+    # tag reads as stuck at that tag in the admin version card — which looks like
+    # the self-updater did nothing. `describe` exposes the commits-ahead so the
+    # card can say "1.1.1-3-g4f5c3da" and currency is obvious. Equals `version`
+    # exactly when HEAD sits on the tag.
+    try:
+        desc = subprocess.check_output(
+            ["git", "describe", "--tags"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        if desc.startswith("v"):
+            desc = desc[1:]
+        info["describe"] = desc or info["version"]
+    except Exception:
+        info["describe"] = info["version"]
+
     _build_info_cache = info
     _build_info_ts = now
     return info
