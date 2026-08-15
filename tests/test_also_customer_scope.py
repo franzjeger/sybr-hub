@@ -100,7 +100,7 @@ def _patch_also(monkeypatch):
         return None
 
     monkeypatch.setattr("app.web.routes.also._cache_subscription_pricing", _noop)
-    monkeypatch.setattr("app.web.routes.also._cache_renewals", _noop)
+    monkeypatch.setattr("app.services.also_renewals.cache_renewals", _noop)
     monkeypatch.setattr("app.web.routes.also._auto_cache_uncached_pricing", _noop)
 
 

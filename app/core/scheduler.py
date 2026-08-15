@@ -353,8 +353,8 @@ class AuditScheduler:
                 try:
                     subs = await client.get_subscriptions(account_id)
                     if subs:
-                        from app.web.routes.also import _cache_renewals
-                        await _cache_renewals(account_id, subs)
+                        from app.services.also_renewals import cache_renewals
+                        await cache_renewals(account_id, subs)
                     scanned += 1
                 except Exception as e:
                     log.warning("Scheduled ALSO scan failed for %s: %s", c.get("CustomerName"), e)
