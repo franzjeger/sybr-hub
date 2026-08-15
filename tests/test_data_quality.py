@@ -778,7 +778,14 @@ def test_break_glass_does_not_claim_ca_status_it_never_collected():
     from app.modules.m365_audit.sections import identity_security
 
     src = inspect.getsource(identity_security)
-    assert 'ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"' in src
+    # The load-bearing semantic: when CA was never collected (ca_known is
+    # False) the status must read "Unknown", never "No". Whitespace-independent
+    # so a reformat of the assignment cannot break this check.
+    import re
+    assert re.search(
+        r'ca_str\s*=\s*\("Yes" if ca_excluded else "No"\) if ca_known else "Unknown"',
+        src,
+    ), "an uncomputed exclusion set must read Unknown, not a clean 'No'"
 
 
 # ── Report must not invent findings from empty sections ──────────────────────

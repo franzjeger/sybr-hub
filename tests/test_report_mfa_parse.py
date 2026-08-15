@@ -242,3 +242,44 @@ def test_the_two_figures_agree_when_everyone_has_registered():
     assert result["pct"] == 100.0
     assert result["registered_pct"] == 100.0
     assert result["enforced_only"] == 0
+
+
+def test_deactivated_users_are_out_of_the_ca_coverage_base(tmp_path):
+    """The CA-coverage base is active members only.
+
+    Folding deactivated accounts into the denominator is what turns "5 of 5
+    active users have MFA" into a misleading "60%". They cannot sign in, so
+    they are reported on their own line, never silently counted in the base.
+    The generator's fallback parser still reads the same label lines.
+    """
+    from app.core.encryption import encrypted_read_text
+    from app.modules.m365_audit.sections.users_mfa import MFASection
+
+    users = [
+        {"id": f"a{i}", "userPrincipalName": f"active{i}@acme.no",
+         "accountEnabled": True, "userType": "Member"} for i in range(5)
+    ] + [
+        {"id": f"d{i}", "userPrincipalName": f"off{i}@acme.no",
+         "accountEnabled": False, "userType": "Member"} for i in range(3)
+    ]
+    sec = MFASection(tmp_path, graph=None, users=users)
+    # All eight are nominally covered by a CA policy — the point is that the
+    # three deactivated ones must not inflate the base or the covered count.
+    sec._save_ca_analysis(
+        mfa_policies=[{"id": "p1", "displayName": "MFA", "state": "enabled"}],
+        covered_ids={u["id"] for u in users},
+        excluded_ids=set(),
+        group_names={},
+    )
+    out = encrypted_read_text(tmp_path / "04b_mfa_ca_analysis.txt")
+
+    assert "Users covered by CA MFA (incl. groups) : 5" in out, (
+        "only the five active members are covered — the three deactivated are not"
+    )
+    assert "Deactivated / guest (not in the base)  : 3" in out
+    assert "Users NOT covered by CA MFA (0)" not in out
+
+    # The generator's fallback regexes must still parse the label lines.
+    import re
+    assert int(re.search(r"Users covered by CA MFA.*?:\s*(\d+)", out).group(1)) == 5
+    assert re.search(r"excluded from CA MFA\s*:\s*(\d+)", out).group(1) == "0"

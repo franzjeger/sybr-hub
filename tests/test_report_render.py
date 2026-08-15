@@ -441,6 +441,32 @@ def test_devices_without_enrolment_are_not_reported_as_no_devices(tmp_path):
     assert "ingen er enrollet i Intune" in text
 
 
+def test_the_unmanaged_count_comes_from_the_register_not_the_enrolment_gap(tmp_path):
+    """One number for "unmanaged", everywhere.
+
+    The register's own isManaged flag is the source of truth. The old
+    ``total - intune_total`` subtracted Intune's *enrolled* count — a different
+    measure — so the recommendation (11/16) disagreed with the section status
+    and the count file (9/16) for the same tenant. Here Intune enrols 5 of the
+    16 registered, but the register says 7 are managed, so 9 are unmanaged.
+    """
+    files = {
+        "10_intune_devices_count.txt": "INTUNE DEVICE COUNT SUMMARY\nTotal: 5\n",
+        "10_intune_devices.txt": "=" * 40 + "\n  INTUNE MANAGED DEVICES  (5 total)\n",
+        "15_entra_devices_count.txt": (
+            "ENTRA DEVICE COUNT SUMMARY\nTotal: 16\nManaged: 7\nUnmanaged: 9\nEnabled: 14\n"
+        ),
+        "15_entra_devices.txt": "=" * 40 + "\n  ENTRA REGISTERED DEVICES  (16 total)\n",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    assert ctx["entra_devices"]["unmanaged"] == 9
+    # The recommendation and the baseline check must agree on the same figure.
+    assert ctx["intune"]["entra_unmanaged"] == 9, (
+        "the gap (16-5=11) is a different measure than the register's own count (9)"
+    )
+    assert ctx["intune"]["entra_unmanaged"] == ctx["entra_devices"]["unmanaged"]
+
+
 def test_the_unmanaged_gap_is_not_claimed_from_a_refusal(tmp_path):
     """An unmanaged count derived from a 403 is the same error relocated."""
     files = {

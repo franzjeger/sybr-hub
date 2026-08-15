@@ -558,11 +558,41 @@ class MFASection(BaseSection):
             for u in self.users if u.get("id")
         }
 
-        covered_not_excluded = covered_ids - excluded_ids
-        lines.append(f"  Users covered by CA MFA (incl. groups) : {len(covered_ids)}")
-        lines.append(f"  Users excluded from CA MFA             : {len(excluded_ids)}")
+        # The coverage is measured against *active member* users only — the same
+        # base ``collect()`` uses for its MFA-method check. Deactivated accounts
+        # and guests cannot sign in, so folding them into the denominator is what
+        # turns "5 of 5 active users have MFA" into a misleading "60%". They are
+        # reported on their own line, never silently counted in the base.
+        #
+        # The four label lines below are a *contract* with the report generator:
+        # ``generator._parse_mfa`` regex-parses them ("Users covered by CA MFA",
+        # "excluded from CA MFA", "Effectively covered", "NOT covered (N)") as the
+        # fallback when the MFA-methods JSON is absent. The numbers are now
+        # active-member-based; the labels are unchanged so that parser keeps
+        # working.
+        active_ids = {
+            u["id"] for u in self.users
+            if u.get("id")
+            and u.get("accountEnabled")
+            and u.get("userType", "Member") == "Member"
+        }
+        deactivated_ids = set(user_lookup) - active_ids
+
+        covered_active   = covered_ids & active_ids
+        excluded_active  = excluded_ids & active_ids
+        covered_not_excluded = covered_active - excluded_active
+        not_covered      = active_ids - covered_not_excluded
+
+        lines.append(f"  Users covered by CA MFA (incl. groups) : {len(covered_active)}")
+        lines.append(f"  Users excluded from CA MFA             : {len(excluded_active)}")
         lines.append(f"  Effectively covered (covered − excluded): {len(covered_not_excluded)}")
         lines.append("")
+
+        if deactivated_ids:
+            lines.append(f"  Deactivated / guest (not in the base)  : {len(deactivated_ids)}")
+            for uid in sorted(deactivated_ids):
+                lines.append(f"    - {user_lookup.get(uid, uid)}")
+            lines.append("")
 
         if covered_not_excluded:
             lines.append("  Effectively covered users:")
@@ -571,7 +601,6 @@ class MFASection(BaseSection):
                 lines.append(f"    - {label}")
             lines.append("")
 
-        not_covered = set(user_lookup.keys()) - covered_not_excluded
         if not_covered:
             lines.append(f"  Users NOT covered by CA MFA ({len(not_covered)}):")
             for uid in sorted(not_covered):

@@ -36,6 +36,16 @@ def _sha(cwd) -> str:
         ["git", "rev-parse", "HEAD"], cwd=str(cwd), text=True).strip()
 
 
+def _tags(cwd) -> list[str]:
+    return subprocess.check_output(
+        ["git", "tag", "--list"], cwd=str(cwd), text=True).split()
+
+
+def _describe(cwd) -> str:
+    return subprocess.check_output(
+        ["git", "describe", "--tags", "--abbrev=0"], cwd=str(cwd), text=True).strip()
+
+
 @pytest.fixture()
 def deploy(tmp_path, monkeypatch):
     """A bare origin, a seed clone that pushes commits, and the deployment.
@@ -92,6 +102,42 @@ async def test_up_to_date_does_not_update(deploy):
     assert out["updated"] is False
     assert out["already_current"] is True
     assert deploy["pip"].called is False
+
+
+async def test_a_new_release_tag_is_fetched_so_the_version_advances(deploy):
+    """A box that predates a release must pick up the tag, not just the commits.
+
+    The version label in the menu is resolved by `git describe --tags`
+    (app/core/version.py). If the updater fetched only the branch, a deployment
+    that already existed before the release would pull the new changelog but keep
+    the old tag — so it would show the new release in the changelog while still
+    labelling itself with the previous version. The tag must travel with the
+    branch.
+    """
+    dep = deploy["deploy"]
+    seed = deploy["seed"]
+
+    # The deployment is on the current release, tagged v1.0.0.
+    _git(dep, "tag", "v1.0.0")
+
+    # origin moves ahead with a new release: a new commit, tagged v1.1.0, and
+    # the tag is pushed to origin.
+    (seed / "app.py").write_text("# v1.1.0\n")
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-m", "release 1.1.0")
+    _git(seed, "tag", "v1.1.0")
+    _git(seed, "push", "origin", "main")
+    _git(seed, "push", "origin", "v1.1.0")
+
+    # Before the update the box only knows v1.0.0.
+    assert _describe(dep) == "v1.0.0"
+
+    out = await su.perform_self_update()
+    assert out["updated"] is True
+
+    # The new tag arrived with the branch, so the version now resolves to it.
+    assert "v1.1.0" in _tags(dep)
+    assert _describe(dep) == "v1.1.0"
 
 
 async def test_a_new_commit_is_pulled_and_reported(deploy):
