@@ -160,11 +160,15 @@ async def test_graph_client_raises_after_three_throttles():
 
 
 @pytest.mark.asyncio
-async def test_graph_client_401_returns_error_dict():
-    """401/403 still returns a structured error dict — callers depend on
-    that contract (see validate_permissions). Keep the contract while
-    fixing the throttling case."""
-    from app.modules.m365_audit.graph_client import GraphClient
+async def test_graph_client_401_raises_permission_error():
+    """401/403 raises GraphPermissionError — it must not return an error dict.
+
+    The old contract returned ``{"error": 401}``, which callers reading
+    ``data.get("value", [])`` collapsed to "no data" — a refused read became
+    a measured zero (a 403 on auth methods read as "no MFA"). Raising keeps
+    ``validate_permissions`` working (it catches and records a warning) while
+    making the refusal un-mistakable by every other caller."""
+    from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
 
     class _Cred:
         async def get_token(self, _scope):
@@ -186,9 +190,10 @@ async def test_graph_client_401_returns_error_dict():
 
     async with GraphClient(_Cred(), timeout=1) as g:
         g._http.get = AsyncMock(return_value=_Resp())  # type: ignore[assignment]
-        out = await g._get("https://graph.microsoft.com/v1.0/foo")
+        with pytest.raises(GraphPermissionError) as exc:
+            await g._get("https://graph.microsoft.com/v1.0/foo")
 
-    assert out["error"] == 401
+    assert exc.value.status == 401
 
 
 # ── IT Glue: list_organizations walks all pages ───────────────────────────────

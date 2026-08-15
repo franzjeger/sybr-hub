@@ -205,6 +205,51 @@ def test_a_plain_403_is_still_reported_as_missing_consent():
     assert "missing a permission or admin consent" in str(err)
 
 
+def test_get_raises_on_refusal_instead_of_returning_an_error_dict():
+    """A 401/403 on a single-object read must raise, not return ``{"error": ...}``.
+
+    The old contract returned an error dict, so a caller doing
+    ``data.get("value", [])`` read "you may not read this" as "the tenant has
+    none of these" — a 403 on a user's auth methods became "no MFA registered"
+    and a clean CIS pass on evidence nobody was ever allowed to see. Raising
+    (as ``get_paged`` and ``get_report`` already do) lets the section record
+    itself as failed and the report say "cannot verify".
+    """
+    import asyncio
+
+    from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
+
+    class _Resp:
+        status_code = 403
+        text = '{"error":{"code":"Authorization_RequestDenied","message":"Insufficient privileges."}}'
+
+        def raise_for_status(self):
+            raise AssertionError("a refusal must not be treated as a success")
+
+    class _Http:
+        async def get(self, url, headers=None, **kw):
+            return _Resp()
+
+    client = GraphClient.__new__(GraphClient)
+    client._http = _Http()
+
+    async def _headers():
+        return {}
+
+    client._headers = _headers
+
+    async def _call():
+        return await client.get("users/u1/authentication/methods")
+
+    try:
+        asyncio.run(_call())
+    except GraphPermissionError as err:
+        assert err.status == 403
+        assert "authentication/methods" in err.path
+    else:
+        raise AssertionError("a 403 must raise GraphPermissionError, not return a dict")
+
+
 def test_the_section_name_list_matches_the_sections_that_run():
     """The scope selector is driven by a hand-written list of names.
 
