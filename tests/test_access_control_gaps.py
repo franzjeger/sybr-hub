@@ -352,3 +352,60 @@ async def test_archive_delete_still_allows_a_real_run(client, tmp_path, monkeypa
     )
     assert resp.status_code == 200, resp.text
     assert not run_dir.exists(), "a legitimate run directory was not deleted"
+
+
+# ---------------------------------------------------------------------------
+# GET /unifi/all — the sibling of /dashboard/devices; same poller, same scope
+# ---------------------------------------------------------------------------
+
+
+def _two_unifi_devices():
+    return {
+        "uf_acme_aabbcc": DeviceStatus(
+            device_id="uf_acme_aabbcc", customer_id="acme", vendor="unifi",
+            name="AP-Acme", model="U6", firmware="6.0", serial="aabbcc",
+            status="online", uptime="1d", last_poll="t0",
+        ),
+        "uf_other_ddeeff": DeviceStatus(
+            device_id="uf_other_ddeeff", customer_id="other", vendor="unifi",
+            name="AP-Other", model="U6", firmware="6.0", serial="ddeeff",
+            status="online", uptime="1d", last_poll="t0",
+        ),
+    }
+
+
+async def test_unifi_all_is_scoped_to_the_caller(client):
+    """The /unifi/all view reads the same poller cache as /dashboard/devices and
+    was the one sibling that only scoped the customer-name lookup, not device
+    inclusion — a scoped user still received every customer's UniFi gear."""
+    from app.services.dashboard_poller import poller
+
+    poller._cache = _two_unifi_devices()
+    try:
+        _customer("Acme")
+        _customer("OtherCorp")
+        token = await _token("tech", Role.technician, customers=["acme"])
+
+        resp = client.get("/api/unifi/all", headers=_h(token))
+        assert resp.status_code == 200, resp.text
+        ids = {d["customer_id"] for d in resp.json()["devices"]}
+        assert ids == {"acme"}, f"unifi/all leaked other customers' devices: {ids}"
+    finally:
+        poller._cache = {}
+
+
+async def test_unifi_all_unrestricted_user_sees_everything(client):
+    from app.services.dashboard_poller import poller
+
+    poller._cache = _two_unifi_devices()
+    try:
+        _customer("Acme")
+        _customer("OtherCorp")
+        token = await _token("admin", Role.admin)
+
+        resp = client.get("/api/unifi/all", headers=_h(token))
+        assert resp.status_code == 200, resp.text
+        ids = {d["customer_id"] for d in resp.json()["devices"]}
+        assert ids == {"acme", "other"}, f"admin lost devices: {ids}"
+    finally:
+        poller._cache = {}
