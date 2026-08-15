@@ -23,6 +23,7 @@ _METHOD_LABELS: dict[str, str] = {
     "#microsoft.graph.emailAuthenticationMethod":             "Email OTP",
     "#microsoft.graph.temporaryAccessPassAuthenticationMethod": "Temp Access Pass",
     "#microsoft.graph.softwareOathAuthenticationMethod":      "OATH TOTP",
+    "#microsoft.graph.x509CertificateAuthenticationMethod":   "Certificate",
     "#microsoft.graph.passwordAuthenticationMethod":          "Password",
 }
 
@@ -274,6 +275,12 @@ class MFASection(BaseSection):
         # by reference with the break-glass check, which previously always saw an
         # empty set and reported "cannot confirm" over data we had (review, F8).
         self.mfa_excluded_ids: set[str] = set()
+        # Whether the CA-exclusion analysis actually ran and populated the set
+        # above. The break-glass check reads this to tell "ran, nobody excluded"
+        # (an empty set that is a clean answer) from "never ran" (a stale empty
+        # set that means UNKNOWN) — the two are indistinguishable from the set
+        # alone (M365 review follow-up).
+        self.mfa_analysis_ran: bool = False
 
     @property
     def ca_policies(self) -> list[dict]:
@@ -587,9 +594,12 @@ class MFASection(BaseSection):
                 await self._analyse_ca_policies()
             )
             # Share the excluded set (in place) so the break-glass check can
-            # correlate Global Admins against it instead of guessing (F8).
+            # correlate Global Admins against it instead of guessing (F8). Mark
+            # the analysis as having run so the check can trust an empty set as a
+            # real "nobody excluded" rather than "never computed".
             self.mfa_excluded_ids.clear()
             self.mfa_excluded_ids.update(excluded_ids)
+            self.mfa_analysis_ran = True
 
             header = (
                 f"  {'Display Name':<35} {'UPN':<45} {'MFA':>5} {'CA':>4} {'CA EXCL':>8}  Methods"

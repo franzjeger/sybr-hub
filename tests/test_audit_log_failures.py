@@ -31,6 +31,13 @@ def _ok(activity, actor):
             "initiatedBy": {"user": {"userPrincipalName": actor}}}
 
 
+def _fail_app(activity, app_name):
+    # App/service-principal-initiated events carry initiatedBy.app and a null
+    # initiatedBy.user — exactly the stuck-integration case this analysis targets.
+    return {"activityDisplayName": activity, "result": "failure",
+            "initiatedBy": {"app": {"displayName": app_name}}}
+
+
 def test_a_repeated_failure_from_one_actor_is_flagged(tmp_path):
     sec = IdentitySecuritySection(tmp_path, _Graph())
     audits = [_fail("Add delegated permission grant", "tech@sybr.no") for _ in range(6)]
@@ -61,5 +68,27 @@ def test_failures_scattered_across_actors_do_not_aggregate(tmp_path):
 def test_successes_are_never_flagged(tmp_path):
     sec = IdentitySecuritySection(tmp_path, _Graph())
     audits = [_ok("Add delegated permission grant", "tech@sybr.no") for _ in range(20)]
+    sec._analyse_audit_failures(audits)
+    assert not any("failed repeatedly" in w for w in sec.result.warns), sec.result.warns
+
+
+def test_an_app_initiated_failure_is_named_by_its_app_not_system(tmp_path):
+    # The feature's whole point is catching a stuck integration; if the app is
+    # bucketed as "(system)" the customer gets no actionable culprit.
+    sec = IdentitySecuritySection(tmp_path, _Graph())
+    audits = [_fail_app("Consent to application", "Sybr Audit Tool") for _ in range(6)]
+    sec._analyse_audit_failures(audits)
+    assert any("failed repeatedly" in w for w in sec.result.warns), sec.result.warns
+    out = encrypted_read_text(tmp_path / "19b_entra_audit_log_failures_WARN.txt")
+    assert "Sybr Audit Tool" in out
+    assert "(system)" not in out
+
+
+def test_two_different_apps_below_threshold_do_not_aggregate_under_system(tmp_path):
+    # Reading only initiatedBy.user collapsed every app to one "(system)" actor,
+    # letting unrelated apps' sub-threshold failures sum past the threshold.
+    sec = IdentitySecuritySection(tmp_path, _Graph())
+    audits = ([_fail_app("Consent to application", "App A") for _ in range(3)]
+              + [_fail_app("Consent to application", "App B") for _ in range(3)])
     sec._analyse_audit_failures(audits)
     assert not any("failed repeatedly" in w for w in sec.result.warns), sec.result.warns

@@ -790,3 +790,42 @@ def test_the_old_all_na_output_reads_as_unverifiable():
         "    B2B Collab Inbound  : N/A\n    B2B Collab Outbound : N/A\n"
     )}
     assert _grade(old, "1.1.9")["status"] == "info"
+
+
+# ── 1.1.6 emergency-access accounts must not PASS on any admin row ────────────
+
+def _bg_file(candidates, ca_known, admins=2):
+    return (
+        "  EMERGENCY / BREAK-GLASS ACCOUNT CHECK\n"
+        "  admin1@contoso.com   Yes   No\n"
+        "  admin2@contoso.com   Yes   No\n"
+        f"  SUMMARY: break_glass_candidates={candidates} "
+        f"ca_exclusions_known={'yes' if ca_known else 'no'} global_admins={admins}\n"
+    )
+
+
+def test_break_glass_passes_only_when_an_admin_is_ca_excluded():
+    assert _grade({"07c_emergency_access_check.txt": _bg_file(1, True)}, "1.1.6")["status"] == "pass"
+
+
+def test_break_glass_no_candidate_is_a_warning_not_a_pass():
+    # Admins present, but none is a dedicated (CA-excluded) emergency account.
+    assert _grade({"07c_emergency_access_check.txt": _bg_file(0, True)}, "1.1.6")["status"] == "warn"
+
+
+def test_break_glass_unknown_exclusions_is_info_not_pass():
+    # CA-exclusion data was not collected → cannot verify, fail closed to info.
+    assert _grade({"07c_emergency_access_check.txt": _bg_file(0, False)}, "1.1.6")["status"] == "info"
+
+
+def test_break_glass_admin_rows_without_a_summary_do_not_pass():
+    """The regression this whole fix is about: once the break-glass file printed
+    UPNs, "count any '@' row" turned every ordinary admin into a break-glass
+    account and flipped 1.1.6 to a false PASS. A file of admin rows with no
+    machine-readable summary must read as unverifiable, never PASS."""
+    rows_only = (
+        "  EMERGENCY / BREAK-GLASS ACCOUNT CHECK\n"
+        "  admin1@contoso.com   Yes   No\n"
+        "  admin2@contoso.com   Yes   No\n"
+    )
+    assert _grade({"07c_emergency_access_check.txt": rows_only}, "1.1.6")["status"] == "info"

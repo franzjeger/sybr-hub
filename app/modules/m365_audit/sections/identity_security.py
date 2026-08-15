@@ -22,6 +22,26 @@ _FAILURE_RESULTS = {"failure", "timeout"}
 _FAILURE_GROUP_THRESHOLD = 5
 
 
+def _audit_actor(entry: dict) -> str:
+    """Who initiated an audit event — a user OR an app/service principal.
+
+    Directory-audit events raised by an application (a stuck integration, an OAuth
+    consent flow, the auditor's own tooling — precisely what the repeated-failure
+    analysis targets) carry initiatedBy.app with a null initiatedBy.user. Reading
+    only .user collapses every app to "(system)", which both mis-attributes the
+    culprit and lets unrelated apps' failures aggregate under one bucket and cross
+    the repeat threshold (M365 review follow-up).
+    """
+    init_by = entry.get("initiatedBy") or {}
+    user = init_by.get("user") or {}
+    actor = user.get("userPrincipalName") or user.get("displayName")
+    if actor:
+        return actor
+    app = init_by.get("app") or {}
+    return (app.get("displayName") or app.get("servicePrincipalName")
+            or app.get("appId") or "(system)")
+
+
 def _unavailable_reason(ex: Exception, tier: str) -> str:
     """Explain a refused premium-gated collection, without guessing.
 
@@ -62,6 +82,7 @@ class IdentitySecuritySection(BaseSection):
         ca_exclusions: Optional[set[str]] = None,
         users_ref: list[dict] | None = None,
         ca_section=None,
+        mfa_analysis_ran=None,
         progress_cb=None,
     ):
         # Keyword-only past graph. The collector used to pass progress_cb third,
@@ -88,6 +109,14 @@ class IdentitySecuritySection(BaseSection):
         # question (CA has policies) rather than "is the set empty?" (F8).
         self._users_ref        = users_ref if users_ref is not None else []
         self._ca_section       = ca_section
+        # The CA-exclusion SET is derived and populated by the MFA section, not
+        # by the CA section — so "policies were collected" is not enough to trust
+        # an empty exclusion set as "nobody is excluded". This callable, read at
+        # break-glass time, reports whether the MFA section actually ran its
+        # exclusion analysis; without it (e.g. MFA Methods deselected, or the MFA
+        # section raised) the set is a stale empty and exclusions are UNKNOWN, not
+        # clean. None means "assume it ran" for direct construction in tests.
+        self._mfa_analysis_ran = mfa_analysis_ran
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -347,9 +376,7 @@ class IdentitySecuritySection(BaseSection):
             ts       = (a.get("activityDateTime") or "")[:19]
             activity = (a.get("activityDisplayName") or "")[:45]
             result   = (a.get("result") or "")[:12]
-            init_by  = a.get("initiatedBy") or {}
-            user     = init_by.get("user") or {}
-            actor    = user.get("userPrincipalName") or user.get("displayName") or "(system)"
+            actor    = _audit_actor(a)
             lines.append(f"  {ts:<22} {activity:<45} {result:<12} {actor}")
         lines += ["=" * 110, ""]
         self._save("19_entra_audit_log_admin_activity.txt", "\n".join(lines))
@@ -369,8 +396,7 @@ class IdentitySecuritySection(BaseSection):
             if (a.get("result") or "").strip().lower() not in _FAILURE_RESULTS:
                 continue
             activity = (a.get("activityDisplayName") or "").strip()
-            user = (a.get("initiatedBy") or {}).get("user") or {}
-            actor = user.get("userPrincipalName") or user.get("displayName") or "(system)"
+            actor = _audit_actor(a)
             groups[(activity, actor)] += 1
 
         repeated = sorted(
@@ -481,12 +507,17 @@ class IdentitySecuritySection(BaseSection):
         ]
 
         by_id = {u.get("id"): u for u in self._users_ref if u.get("id")}
-        # CA exclusions are *known* when the CA section actually collected
-        # policies — not when the exclusion set happens to be non-empty. An empty
-        # set on a tenant with CA policies means "no admin is excluded", which is
-        # a clean answer, not an absence of data (F8).
-        ca_known = bool(getattr(self._ca_section, "policies", None))
+        # CA exclusions are *known* only when we actually have the exclusion data:
+        # the CA section collected policies AND the MFA section ran the analysis
+        # that derives the exclusion set (it owns self.ca_exclusions). An empty
+        # set on a tenant with CA policies means "no admin is excluded" — a clean
+        # answer — ONLY if that analysis ran; if it did not (MFA Methods
+        # deselected, or the MFA section raised), the set is a stale empty and
+        # "excluded: No" would assert a clean negative over data never gathered.
+        mfa_ran = self._mfa_analysis_ran is None or bool(self._mfa_analysis_ran())
+        ca_known = bool(getattr(self._ca_section, "policies", None)) and mfa_ran
 
+        candidates = 0
         for uid in self.global_admin_ids:
             # Try to look up MFA methods
             try:
@@ -503,6 +534,8 @@ class IdentitySecuritySection(BaseSection):
                 has_mfa = None  # unknown
 
             ca_excluded = ca_known and uid in self.ca_exclusions
+            if ca_excluded:
+                candidates += 1
             mfa_str     = "Yes" if has_mfa else ("Unknown" if has_mfa is None else "NO")
             ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"
             notes       = []
@@ -518,6 +551,17 @@ class IdentitySecuritySection(BaseSection):
                 f"  {label[:45]:<45} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}"
             )
 
+        # Machine-readable summary for CIS 1.1.6. A genuine break-glass account is
+        # a Global Admin *intentionally excluded from Conditional Access* so it
+        # survives an MFA/CA outage; that is the count that matters, not "any admin
+        # row". ca_exclusions_known tells the report whether to trust a zero as
+        # "none configured" (warn) or as "could not verify" (info) — the report
+        # must never scrape admin rows and PASS every tenant (M365 review follow-up).
+        lines.append(
+            f"  SUMMARY: break_glass_candidates={candidates} "
+            f"ca_exclusions_known={'yes' if ca_known else 'no'} "
+            f"global_admins={len(self.global_admin_ids)}"
+        )
         lines += ["=" * 90, ""]
         self._save("07c_emergency_access_check.txt", "\n".join(lines))
 

@@ -104,6 +104,44 @@ async def test_no_ca_policies_collected_still_says_cannot_confirm(tmp_path):
     assert "cannot confirm" in _out(tmp_path)
 
 
+async def test_summary_line_counts_only_ca_excluded_candidates(tmp_path):
+    # A break-glass account is a Global Admin intentionally excluded from CA. The
+    # machine-readable summary must count those, not "every admin row" — the
+    # report keys CIS 1.1.6 on this line, and counting rows made every tenant PASS.
+    sec = _bg(
+        tmp_path,
+        admins=["a1", "a2"],
+        exclusions={"a1"},                       # only a1 is a real candidate
+        users=[{"id": "a1", "userPrincipalName": "bg@acme.no"},
+               {"id": "a2", "userPrincipalName": "ok@acme.no"}],
+        ca_policies=[{"id": "p1"}],
+        methods={"a1": [], "a2": _APP_METHOD},
+    )
+    await sec._collect_break_glass()
+    out = _out(tmp_path)
+    assert "break_glass_candidates=1" in out
+    assert "ca_exclusions_known=yes" in out
+
+
+async def test_ca_known_is_false_when_the_mfa_analysis_never_ran(tmp_path):
+    # CA policies WERE collected, but the MFA section (which derives and populates
+    # the exclusion set) never ran, so ca_exclusions is a stale empty set. Reading
+    # that empty set as "nobody is excluded" would report a genuinely-excluded
+    # admin as clean. It must fail closed to "cannot confirm" / unknown.
+    sec = IdentitySecuritySection(
+        tmp_path, _Graph({"a1": _APP_METHOD}),
+        global_admin_ids=["a1"],
+        ca_exclusions=set(),                     # never populated
+        users_ref=[{"id": "a1", "userPrincipalName": "ok@acme.no"}],
+        ca_section=_CA([{"id": "p1"}]),          # CA policies present
+        mfa_analysis_ran=lambda: False,          # but the MFA analysis did not run
+    )
+    await sec._collect_break_glass()
+    out = _out(tmp_path)
+    assert "cannot confirm" in out, "an uncomputed exclusion set is unknown, not clean"
+    assert "ca_exclusions_known=no" in out
+
+
 # ── F3: Exchange sub-collection isolation ────────────────────────────────────
 
 class _ExGraph:

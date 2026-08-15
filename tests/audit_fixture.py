@@ -279,9 +279,15 @@ FULL_AUDIT: dict[str, str] = {
         "Global Administrator     ola@acme.no\n"
     ),
     "07c_emergency_access_check.txt": (
-        "EMERGENCY / BREAK-GLASS ACCOUNT CHECK\n"
-        "=====================================\n"
-        "bg@acme.no  excluded from all CA policies  OK\n"
+        "==========================================================================================\n"
+        "  EMERGENCY / BREAK-GLASS ACCOUNT CHECK\n"
+        "==========================================================================================\n"
+        "  User (UPN)                                     MFA Registered  CA Excluded  Notes\n"
+        "  ------------------------------------------------------------------------------------------\n"
+        "  bg@acme.no                                                 NO          Yes  "
+        "No MFA — potential break-glass; Excluded from CA — confirmed break-glass candidate\n"
+        "  SUMMARY: break_glass_candidates=1 ca_exclusions_known=yes global_admins=1\n"
+        "==========================================================================================\n"
     ),
     "08_conditional_access.txt": (
         "CONDITIONAL ACCESS POLICIES\n"

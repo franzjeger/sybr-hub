@@ -111,6 +111,7 @@
     "tests/test_alerts_record_only_what_was_sent.py",
     "tests/test_also_customer_scope.py",
     "tests/test_api_result.py",
+    "tests/test_audit_log_failures.py",
     "tests/test_audit_progress.py",
     "tests/test_autotask.py",
     "tests/test_autotask_write_side.py",
