@@ -524,12 +524,17 @@ class IdentitySecuritySection(BaseSection):
                 meth_data = await self.graph.get(
                     f"users/{uid}/authentication/methods"
                 )
-                methods = [
-                    m for m in meth_data.get("value", [])
-                    if m.get("@odata.type")
-                    != "#microsoft.graph.passwordAuthenticationMethod"
-                ]
-                has_mfa = bool(methods)
+                if isinstance(meth_data, dict) and meth_data.get("error") in (401, 403):
+                    # A permission refusal is not "no MFA". Counting it as NO
+                    # would flag a break-glass account we never actually read.
+                    has_mfa = None  # unknown
+                else:
+                    methods = [
+                        m for m in meth_data.get("value", [])
+                        if m.get("@odata.type")
+                        != "#microsoft.graph.passwordAuthenticationMethod"
+                    ]
+                    has_mfa = bool(methods)
             except Exception:
                 has_mfa = None  # unknown
 

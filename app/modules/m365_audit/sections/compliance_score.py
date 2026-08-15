@@ -27,18 +27,20 @@ class ComplianceScoreSection(BaseSection):
     # ── Compliance Score ─────────────────────────────────────────────────────
 
     async def _collect_compliance_score(self) -> None:
-        # Try Compliance Manager endpoint first, fall back to secureScores
+        # The score figures always come from security/secureScores. The
+        # Compliance Manager eDiscovery probe below only confirms that the
+        # compliance API is reachable; it does not return score data, so it
+        # must not be named as the source of the numbers.
         scores = None
         source = ""
 
         # Attempt 1: Compliance Manager (requires ComplianceManager.Read.All)
         try:
-            data = await self.graph.get(
+            await self.graph.get(
                 "compliance/ediscovery/cases",
                 params={"$top": "1"},
             )
-            # If we get here, compliance API is accessible — note it
-            source = "complianceManager"
+            # Accessible — note it, but it is not where the scores come from.
         except Exception:
             pass  # Expected if permissions not granted
 
@@ -49,8 +51,7 @@ class ComplianceScoreSection(BaseSection):
                 params={"$top": "5"},
             )
             scores = data.get("value", [])
-            if not source:
-                source = "secureScores"
+            source = "secureScores"
         except Exception as ex:
             self._save(
                 "26_compliance_score.txt",
