@@ -4264,7 +4264,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # Authenticator passkeys)? Read the auth-methods-policy file and check
     # the state of the phishing-resistant methods.
     auth_methods_text = fc.get("09b_auth_methods_policy.txt", "")
-    if not auth_methods_text.strip() or auth_methods_text.strip().startswith("Error:"):
+    # Match any "Error…" prefix, not just the "Error:" convention. The section now
+    # emits the standard "Error:" sentinel on a throttled or permission-denied
+    # read, but it historically wrote "Error fetching …" (no colon) which slipped
+    # this guard and scored a real WARN over unverifiable data; the broadened
+    # match is belt-and-suspenders against any error phrasing (accuracy sweep).
+    if not auth_methods_text.strip() or auth_methods_text.lstrip().startswith("Error"):
         add("1.1.2", "Ensure phishing-resistant MFA methods are enabled",
             t.cis_cat_identity, "info",
             "Kan ikke verifiseres — autentiseringsmetode-policy utilgjengelig")
@@ -4308,6 +4313,13 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         elif ga == 1:
             add("1.1.3", "Ensure fewer than 5 Global Admins", t.cis_cat_identity, "warn",
                 t("cis_ga_too_few", count=ga))
+        else:
+            # ga == 0 with role data present — e.g. a PIM/JIT tenant whose Global
+            # Admins are all eligible (no standing GA). Without this branch the
+            # control emitted no verdict at all and silently vanished from the
+            # report (accuracy sweep). Report it as unverifiable, not omitted.
+            add("1.1.3", "Ensure fewer than 5 Global Admins", t.cis_cat_identity, "info",
+                "Ingen faste Global Admin-tildelinger funnet — verifiser PIM/JIT-oppsett")
     else:
         add("1.1.3", "Ensure fewer than 5 Global Admins", t.cis_cat_identity, "info",
             "Kan ikke verifiseres — admin-rolle data utilgjengelig")
@@ -4392,6 +4404,13 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     if not pwd_text.strip() or pwd_text.strip().startswith("Error:"):
         add("1.2.1", "Ensure custom banned passwords are configured", t.cis_cat_identity, "info",
             "Kan ikke verifiseres — data utilgjengelig")
+    elif "were not measured" in pwd_text.lower():
+        # The section could not read the directory settings and says so verbatim
+        # ("…settings were not measured. This is not a finding about the tenant").
+        # Honour that: an unreadable fetch is cannot-verify, not a Critical FAIL
+        # manufactured from absent evidence (accuracy sweep).
+        add("1.2.1", "Ensure custom banned passwords are configured", t.cis_cat_identity, "info",
+            _CANNOT_VERIFY + "katalog-innstillinger kunne ikke leses")
     else:
         custom_enabled = False
         list_configured = False
@@ -4528,8 +4547,12 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     for line in org_config.splitlines():
         if "AuditDisabled" in line and ":" in line:
             val = line.split(":", 1)[1].strip().rstrip(";").lower()
-            if val in ("true", "false"):
-                audit_disabled_val = val == "true"
+            # The evidence writer renders the bool via _fmt_val → "Yes"/"No", not
+            # "true"/"false"; matching only true/false made this control inert and
+            # fail-open — an audit-disabled tenant scored "info" (dropped from the
+            # denominator) instead of "fail" (accuracy sweep). Accept both shapes.
+            if val in ("true", "false", "yes", "no"):
+                audit_disabled_val = val in ("true", "yes")
                 break
     if audit_disabled_val is False:
         add("4.1", "Ensure mailbox audit logging is enabled", t.cis_cat_email, "pass",
@@ -4896,8 +4919,22 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         # control — once per domain, so a multi-domain tenant collected a
         # whole column of false failures.
         dkim_checked = any(k in d for k in ("dkim", "dkim1", "dkim2"))
+        # A DoH lookup failure comes back as "ERROR (...)" in the selector value,
+        # exactly as SPF/DMARC above — grade it cannot-verify, not a FAIL. The
+        # comment on 5.2.1/5.2.2 claims "5.2.3 below already guards against this";
+        # it did not, so a transient DoH outage scored a false DKIM FAIL per
+        # domain (accuracy sweep). Gate ONLY on the M365 selectors (dkim1): dkim2
+        # is a best-effort probe of guessed third-party selector names, and a blip
+        # on one of those must not suppress a definitive "M365 DKIM missing" FAIL
+        # to cannot-verify (fix review). dkim2 still counts toward a PASS above
+        # (a real third-party key), just not toward the error gate. Checked after
+        # dkim_valid so a valid selector alongside an errored one still passes.
+        dkim_errored = "error" in dkim1.lower()
         if dkim_valid:
             add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "pass", dkim_detail)
+        elif dkim_errored:
+            add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "info",
+                _CANNOT_VERIFY + f"DKIM-oppslaget for M365-selektorene feilet for {domain} — {dkim1}")
         elif dkim_detail:
             add("5.2.3", f"Ensure DKIM is enabled — {domain}", t.cis_cat_email, "fail", dkim_detail)
         elif dkim_checked:
@@ -5080,25 +5117,27 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
 
     # ═══ 9. LOGGING & MONITORING ═══
 
-    # 9.1 Unified audit log — gate on whether the directoryAudits file actually
-    # contains events. Previously this was a hardcoded "pass" which meant every
-    # tenant — even those with audit logging disabled — got a false PASS
-    # attestation against CIS 9.1, ISO A.8.15 and NIST DE.CM-1. The directory
-    # audit file is written by identity_security.py; if logging is off the call
-    # still succeeds but returns zero events, which is exactly the case the
-    # control is supposed to flag.
+    # 9.1 Unified audit log. History: first a hardcoded "pass" (false attestation
+    # for every tenant), then gated on directoryAudits row count — but that log is
+    # the WRONG signal (see below), so both graded verdicts were wrong. Now always
+    # cannot-verify from this evidence.
     audit_log_text = fc.get("19_entra_audit_log_admin_activity.txt", "")
     audit_log_data_rows = _count_data_lines(audit_log_text) if audit_log_text else 0
+    # CIS 9.1 concerns the Exchange/Purview Unified Audit Log INGESTION toggle
+    # (Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled). The only
+    # evidence collected here is the Entra directoryAudits log, which is ALWAYS
+    # on and independent of that toggle — its event count neither confirms nor
+    # denies UAL ingestion. Counting its rows produced a false PASS on a tenant
+    # with UAL off (and a false FAIL on a quiet-but-enabled one). Report
+    # cannot-verify until the real setting is collected (accuracy sweep).
     if audit_log_text.strip().startswith("Error:") or not audit_log_text.strip():
         add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "info",
             "Kan ikke verifiseres — audit-loggen er ikke hentet (mangler tilgang eller feilet)")
-    elif audit_log_data_rows == 0:
-        add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "fail",
-            "Audit-loggen ble hentet, men inneholder ingen hendelser — unified audit log "
-            "kan være deaktivert (Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true)")
     else:
-        add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "pass",
-            f"{audit_log_data_rows} hendelser i administrativ audit-logg de siste 14 dagene")
+        add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "info",
+            _CANNOT_VERIFY + f"{audit_log_data_rows} hendelser i Entra-katalogens audit-logg "
+            "(alltid på) — bekrefter ikke Unified Audit Log-ingestion; verifiser "
+            "Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled manuelt")
 
     # 9.2 Defender alerts. An empty alerts file was read as "no alerts", which
     # is only true when the alert query ran — the count file states that
