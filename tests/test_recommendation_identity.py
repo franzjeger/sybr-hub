@@ -186,6 +186,83 @@ def test_rec_mfa_detail_does_not_claim_excluded_users_lack_registration():
     assert "excluded from enforcement" in detail
 
 
+def test_finding_mfa_detail_breakdown_sums_to_its_own_title_count():
+    """The card's headline and its breakdown must describe the same population.
+
+    finding-mfa's title is adjusted_no_mfa — no_mfa minus the high-risk excluded
+    accounts routed to the separate finding-mfa-excluded critical. If the detail
+    keeps enumerating the full no_mfa partition, it re-describes (and re-counts)
+    those very accounts: the card then says "1 without enforced MFA" over a
+    breakdown that sums to 3, and the excluded admin appears in both criticals.
+    """
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 3, "mfa_registered": 10, "ca_covered": 2,
+             "no_mfa_registered": 1, "registered_but_excluded": 2,
+             "users": [
+                 {"name": "GA1", "upn": "ga1@x.no", "ca_excluded": True,
+                  "has_mfa": True, "protected": False, "unknown": False},
+                 {"name": "GA2", "upn": "ga2@x.no", "ca_excluded": True,
+                  "has_mfa": True, "protected": False, "unknown": False},
+                 {"name": "Plain", "upn": "plain@x.no", "ca_excluded": False,
+                  "has_mfa": False, "protected": False, "unknown": False},
+             ]},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        admin_roles={"global_admin_users": [{"email": "ga1@x.no"}, {"email": "ga2@x.no"}]},
+        file_contents={"04_mfa_methods.json": json.dumps({"users": [
+            {"display_name": "Plain", "upn": "plain@x.no", "mfa_registered": False,
+             "ca_covered": False, "ca_excluded": False, "methods": []},
+            {"display_name": "GA1", "upn": "ga1@x.no", "mfa_registered": True,
+             "ca_covered": False, "ca_excluded": True, "methods": ["app"]},
+            {"display_name": "GA2", "upn": "ga2@x.no", "mfa_registered": True,
+             "ca_covered": False, "ca_excluded": True, "methods": ["app"]},
+        ]})},
+    )
+    mfa_rec = next(r for r in recs if r.get("finding_id") == "finding-mfa")
+    count = mfa_rec["title_params"]["count"]
+    dp = mfa_rec["detail_params"]
+    assert count == 1, "the two GAs belong to finding-mfa-excluded, not this count"
+    assert count == dp["no_mfa_registered"] + dp["registered_but_excluded"], (
+        f"card headline says {count} but its breakdown sums to "
+        f"{dp['no_mfa_registered'] + dp['registered_but_excluded']}"
+    )
+    # And each GA is still named by exactly one critical.
+    named = " ".join(item for r in recs for item in r.get("sub_items", []))
+    assert named.count("ga1@x.no") == 1 and named.count("ga2@x.no") == 1
+
+
+# ── The lockout map must match the labels the collector actually emits (F5) ───
+
+def test_lockout_map_covers_every_method_label_the_collector_emits():
+    """A key that no collector label matches is a silent hole: the lockout check
+    treats the method as unrecognised (assumed usable) and never fires."""
+    from app.modules.m365_audit.sections.users_mfa import _METHOD_LABELS
+    from app.reports.generator import _METHOD_LABEL_TO_POLICY
+
+    emitted = set(_METHOD_LABELS.values()) - {"Password"}  # Password is not MFA
+    missing = emitted - set(_METHOD_LABEL_TO_POLICY)
+    assert not missing, f"lockout check is blind to real method labels: {missing}"
+
+
+def test_a_tap_only_user_with_tap_disabled_is_flagged():
+    # Regression: the map keyed TAP as "Temporary Access Pass" while the collector
+    # emits "Temp Access Pass", so a TAP-only account slipped the lockout check.
+    policy = (
+        "  AUTHENTICATION METHODS POLICY\n"
+        "  temporaryAccessPass     disabled\n"
+        "  fido2                   enabled\n"
+    )
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 0, "mfa_registered": 1, "ca_covered": 0,
+             "users": [{"name": "Tap", "upn": "tap@x.no", "methods": "Temp Access Pass",
+                        "has_mfa": True, "protected": True, "unknown": False}]},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        file_contents={"09b_auth_methods_policy.txt": policy},
+    )
+    rec = [r for r in recs if r.get("finding_id") == "finding-auth-method-lockout"]
+    assert len(rec) == 1, "a TAP-only user with TAP disabled would be locked out"
+    assert "tap@x.no" in " ".join(rec[0]["sub_items"])
+
+
 # ── A critical finding floors the headline grade (F9) ────────────────────────
 
 def test_a_critical_finding_caps_the_grade():

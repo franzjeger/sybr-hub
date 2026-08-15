@@ -71,6 +71,31 @@ def test_no_mfa_splits_into_unregistered_and_registered_but_excluded():
     assert mfa["no_mfa_registered"] + mfa["registered_but_excluded"] == mfa["no_mfa"]
 
 
+def test_partition_still_sums_to_no_mfa_for_a_ca_excluded_lookup_failure():
+    # A CA-excluded admin whose method lookup was throttled: mfa_registered is
+    # None (unknown) AND ca_excluded True. The coverage loop counts it in no_mfa
+    # (an exclusion settles enforcement regardless of the failed lookup), and it
+    # is NOT counted as unknown. The per-user partition must follow the same
+    # rule, or no_mfa_registered + registered_but_excluded drops below no_mfa and
+    # the finding-mfa detail breakdown under-accounts its own headline.
+    users = json.dumps({"users": [
+        {"display_name": "NoMfa", "upn": "no@acme.no", "mfa_registered": False,
+         "ca_covered": False, "ca_excluded": False, "methods": []},
+        {"display_name": "ExclReg", "upn": "er@acme.no", "mfa_registered": True,
+         "ca_covered": False, "ca_excluded": True, "methods": ["app"]},
+        {"display_name": "ExclUnknown", "upn": "eu@acme.no", "mfa_registered": None,
+         "ca_covered": False, "ca_excluded": True, "methods": []},
+    ]})
+    mfa = _parse_mfa("", "", [], users)
+    assert mfa["no_mfa"] == 3, "all three are not MFA-enforced"
+    assert mfa["unknown"] == 0, "a CA-excluded user is known-unenforced, not unknown"
+    assert mfa["no_mfa_registered"] + mfa["registered_but_excluded"] == mfa["no_mfa"]
+    # The excluded-and-unknown user has no usable registered method → it belongs
+    # with the "no method registered" bucket, not dropped from both.
+    assert mfa["no_mfa_registered"] == 2      # NoMfa + ExclUnknown
+    assert mfa["registered_but_excluded"] == 1  # ExclReg
+
+
 # ── A complete reading still behaves exactly as before ───────────────────────
 
 def test_a_fully_read_tenant_is_unchanged():

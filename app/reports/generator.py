@@ -372,9 +372,16 @@ def _parse_mfa(
             "has_ca": u_has_ca,
             "ca_excluded": u_excluded,
             "methods": u_methods if u_methods and u_methods != "(none)" else "",
-            # A user whose lookup failed is unknown, not unprotected — keep
-            # them out of the "these people have no MFA" table.
-            "unknown": rec.get("mfa_registered") is None,
+            # A user whose lookup failed is unknown, not unprotected — keep them
+            # out of the "these people have no MFA" table. But a CA *exclusion*
+            # settles enforcement regardless of the lookup: such a user is known
+            # to be unenforced and is counted in no_mfa by the coverage loop
+            # above (its comment at "A CA exclusion settles the question…"), so
+            # they must NOT be flagged unknown here either — otherwise the
+            # partition below drops them from both buckets and no longer sums to
+            # no_mfa. Mirror the coverage loop's rule (line ~295) exactly.
+            "unknown": (rec.get("mfa_registered") is None
+                        and not u_has_ca and not u_excluded),
             # Same enforcement rule as `covered` above: a CA exclusion means the
             # account is not MFA-enforced, registered method or not.
             "protected": (u_has_mfa or u_has_ca) and not u_excluded,
@@ -2880,13 +2887,19 @@ def _build_finding_rec_map(recs: list[dict]) -> dict[str, list[int]]:
 # Registered-method labels (04_mfa_methods) → the authentication-methods policy
 # IDs (09b) that make them usable. A phone can be used via SMS or Voice, so it is
 # only unusable when BOTH are disabled.
+#
+# The keys MUST be the exact display labels the collector emits, i.e. the values
+# of users_mfa._METHOD_LABELS — a mismatch makes _auth_method_lockout_users treat
+# the method as an unrecognised (assumed-usable) label and silently drop the
+# lockout warning for anyone whose only method is that one. tests/test_recommendation_identity.py
+# cross-checks the two maps so they cannot drift again (M365 review follow-up).
 _METHOD_LABEL_TO_POLICY: dict[str, set[str]] = {
     "Authenticator App":     {"microsoftAuthenticator"},
     "Phone (SMS/Call)":      {"sms", "voice"},
     "FIDO2 Key":             {"fido2"},
     "OATH TOTP":             {"softwareOath"},
     "Windows Hello":         {"windowsHelloForBusiness"},
-    "Temporary Access Pass": {"temporaryAccessPass"},
+    "Temp Access Pass":      {"temporaryAccessPass"},
     "Email OTP":             {"email"},
     "Certificate":           {"x509Certificate"},
 }
@@ -3017,11 +3030,27 @@ def _build_recommendations(
         # already covered there (M365 review, F2).
         adjusted_no_mfa = max(0, mfa.get("no_mfa", 0) - len(high_risk_upns))
         if adjusted_no_mfa > 0:
+            # The high-risk excluded accounts are broken out into
+            # finding-mfa-excluded, and this card's title (adjusted_no_mfa) and
+            # sub_items already exclude them. The detail breakdown must exclude
+            # them too, or it re-describes — and re-counts — the accounts the
+            # other critical already owns, so the card's own numbers stop adding
+            # up (title says N, "X have no method; Y are excluded" sums to more).
+            # Each high-risk account is CA-excluded, so it sits in exactly one
+            # partition bucket: registered_but_excluded if it has a method, else
+            # no_mfa_registered. Subtract it from that bucket so
+            # no_mfa_registered + registered_but_excluded == adjusted_no_mfa.
+            hr_registered = sum(
+                1 for u in (mfa.get("users") or [])
+                if (u.get("upn") or "").strip().lower() in high_risk_upns
+                and u.get("has_mfa")
+            )
+            hr_no_method = len(high_risk_upns) - hr_registered
             detail = t("rec_mfa_detail",
                         registered=mfa.get('mfa_registered', 0),
                         ca_covered=mfa.get('ca_covered', 0),
-                        no_mfa_registered=mfa.get('no_mfa_registered', 0),
-                        registered_but_excluded=mfa.get('registered_but_excluded', 0))
+                        no_mfa_registered=max(0, mfa.get('no_mfa_registered', 0) - hr_no_method),
+                        registered_but_excluded=max(0, mfa.get('registered_but_excluded', 0) - hr_registered))
             recs.append({
                 "priority": "critical",
                 "evidence": ev("04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
@@ -4318,30 +4347,37 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
         add("1.1.5", "Ensure PIM is used for privileged role activation", t.cis_cat_identity, "warn",
             "Ingen PIM-tildelinger funnet — roller kan være permanent tildelt")
 
-    # 1.1.6 Emergency access accounts. Same substring-on-banner bug as 1.1.5
-    # — the file always contains the header "EMERGENCY / BREAK-GLASS ACCOUNT
-    # CHECK", which made every tenant look like they had break-glass accounts.
-    # Look for actual user rows (any line containing a UPN).
+    # 1.1.6 Emergency access accounts. The break-glass file lists EVERY Global
+    # Admin, not just dedicated emergency-access accounts, so "any row with a
+    # UPN → break-glass account detected" is wrong: once the rows carried GUIDs
+    # (no '@') it under-counted to 0 and always warned; once the section started
+    # printing UPNs it over-counted every admin and flipped to a false PASS
+    # ("N break-glass accounts") on a tenant that has none (M365 review follow-up).
+    # A real break-glass account is a cloud admin *intentionally excluded from
+    # Conditional Access* so it still works during an MFA/CA outage — that is the
+    # only reliable signal here. Read the section's machine-readable summary
+    # instead of scraping rows, and fail closed when the exclusion data was not
+    # collected rather than guessing a clean answer.
     emerg_text = fc.get("07c_emergency_access_check.txt", "")
-    emerg_user_rows = sum(
-        1 for line in emerg_text.splitlines()
-        if "@" in line and "skipping" not in line.lower() and "ID provided" not in line
-    )
-    # The section writes "No Global Admin IDs provided — skipping check" when it
-    # had nothing to work from. That file is present and non-empty, so the
-    # error/empty branch above does not catch it, and it fell through to "no
-    # break-glass accounts identified" — a warning asserting a clean negative
-    # from a check that never ran.
     emerg_skipped = "skipping check" in emerg_text.lower()
-    if not emerg_text.strip() or emerg_text.strip().startswith("Error:") or emerg_skipped:
+    bg_summary = re.search(
+        r"break_glass_candidates=(\d+)\s+ca_exclusions_known=(yes|no)", emerg_text
+    )
+    if (not emerg_text.strip() or emerg_text.strip().startswith("Error:")
+            or emerg_skipped or bg_summary is None):
+        # No summary line means either the check was skipped or the file predates
+        # this format — in both cases we cannot verify, so do not assert a verdict.
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "info",
-            _CANNOT_VERIFY + "break-glass-sjekken ble hoppet over (ingen admin-IDer tilgjengelig)")
-    elif emerg_user_rows > 0:
+            _CANNOT_VERIFY + "break-glass-sjekken ble hoppet over eller mangler oppsummering")
+    elif bg_summary.group(2) != "yes":
+        add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "info",
+            _CANNOT_VERIFY + "CA-unntak ble ikke samlet inn — kan ikke bekrefte nødtilgangskontoer")
+    elif int(bg_summary.group(1)) > 0:
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "pass",
-            f"{emerg_user_rows} nødtilgangskonto(er) (break glass) oppdaget")
+            f"{int(bg_summary.group(1))} nødtilgangskonto(er) (break glass) oppdaget")
     else:
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "warn",
-            "Ingen nødtilgangskontoer identifisert")
+            "Ingen dedikert nødtilgangskonto funnet — ingen administrator er unntatt fra Conditional Access")
 
     # 1.2.1 Password protection / custom banned passwords. The previous code
     # read 09c_auth_strength_policies.txt — wrong file, that's about FIDO2
@@ -5616,6 +5652,21 @@ def build_report_context(
 
     # Build compliance mapping after context is ready
     compliance = _build_compliance_map(context, lang=lang, frameworks=frameworks)
+
+    # The break-glass check embeds a machine-readable "SUMMARY: break_glass_…"
+    # line in 07c for CIS 1.1.6 to parse — which it just did, above. That token
+    # is not human prose, and 07c is rendered verbatim both in the Emergency
+    # Access panel and in the raw-evidence appendix (which dumps every file in
+    # file_contents). Strip it now, after parsing, from the shared dict and the
+    # panel copy, so the internal token never reaches the delivered report.
+    _bg_file = "07c_emergency_access_check.txt"
+    if file_contents.get(_bg_file):
+        _stripped = "\n".join(
+            ln for ln in file_contents[_bg_file].splitlines()
+            if not ln.strip().startswith("SUMMARY:")
+        )
+        file_contents[_bg_file] = _stripped
+        context["emergency_access"] = _stripped
     compliance_pass = sum(1 for c in compliance if c["status"] == "pass")
     compliance_partial = sum(1 for c in compliance if c["status"] in ("partial", "warn"))
     compliance_fail = sum(1 for c in compliance if c["status"] == "fail")

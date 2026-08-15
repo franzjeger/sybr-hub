@@ -238,6 +238,11 @@ class AuditCollector:
                                     ca_exclusions=mfa_sec.mfa_excluded_ids,
                                     users_ref=users_sec.users,
                                     ca_section=ca_sec,
+                                    # Read at break-glass time: did the MFA
+                                    # section actually compute exclusions? An
+                                    # empty ca_exclusions is only trustworthy
+                                    # when it did (F8 fail-open follow-up).
+                                    mfa_analysis_ran=lambda: mfa_sec.mfa_analysis_ran,
                                     progress_cb=self.progress_cb),
             TeamsPoliciesSection(self.out_dir, graph, self.progress_cb),
             PasswordProtectionSection(self.out_dir, graph, self.progress_cb),

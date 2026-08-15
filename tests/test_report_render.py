@@ -84,6 +84,24 @@ def test_an_empty_audit_also_renders(tmp_path, template):
     assert "<html" in html.lower() or "<!doctype" in html.lower()
 
 
+def test_break_glass_machine_summary_is_not_rendered_to_the_customer(tmp_path):
+    """CIS 1.1.6 parses a "SUMMARY: break_glass_candidates=… " token from the
+    break-glass evidence file, but that token is internal — it must not appear
+    in the rendered Emergency Access Analysis block a customer reads, while the
+    human rows still do."""
+    d = _audit_dir(tmp_path, FULL_AUDIT)
+    ctx = build_report_context("Acme AS", "acme.no", d, [], lang="no", frameworks="all")
+    assert "SUMMARY: break_glass_candidates" not in ctx["emergency_access"], (
+        "the machine-readable parser token leaked into the human-facing evidence"
+    )
+    assert "break-glass candidate" in ctx["emergency_access"], (
+        "the human rows must survive the token strip"
+    )
+    # And it is gone from the fully-rendered tech report too.
+    html = _render_strict(tmp_path, "report_tech.html.j2", FULL_AUDIT)
+    assert "break_glass_candidates=" not in _visible_text(html)
+
+
 @pytest.mark.parametrize("report_type", ["customer", "tech"])
 def test_generate_reports_writes_readable_html(tmp_path, report_type):
     """Through the real entry point, including the encrypted write."""
