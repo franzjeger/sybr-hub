@@ -6,9 +6,11 @@ requiring a server restart.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 def _resolve_static_version() -> str:
@@ -41,6 +43,37 @@ def _resolve_static_version() -> str:
 
 
 __version__ = _resolve_static_version()
+
+_CHANGELOG = Path(__file__).resolve().parent.parent.parent / "CHANGELOG.md"
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    """A comparable key for a dotted version string; non-numeric parts sort last."""
+    parts: list[int] = []
+    for chunk in version.split("."):
+        digits = re.match(r"\d+", chunk)
+        parts.append(int(digits.group()) if digits else -1)
+    return tuple(parts)
+
+
+def _latest_changelog_version() -> str | None:
+    """The newest ``## vX.Y.Z`` header in CHANGELOG.md, or None if absent.
+
+    The git tag is the release source of truth, but a deployment that has been
+    advancing branch-only (the pre-v1.1.3 self-update fetched the branch without
+    ``--tags``) accumulates the commits — and therefore the changelog — while
+    never receiving the tag objects. ``git describe`` can only name a tag that
+    exists locally, so such a box reports the last tag it ever had even though
+    its changelog already shows the newer release. Reading the newest changelog
+    header here lets the version badge and the changelog panel agree again, and
+    is the last resort when git cannot name a release.
+    """
+    try:
+        text = _CHANGELOG.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r"^##\s+v?(\d+\.\d+\.\d+)\b", text, flags=re.MULTILINE)
+    return match.group(1) if match else None
 
 # ── Cached build info with TTL ────────────────────────────────────────────
 _build_info_cache: dict | None = None
@@ -95,6 +128,7 @@ def get_build_info() -> dict:
         pass
 
     # Try to read version from latest git tag (e.g. v9.3.0 → 9.3.0)
+    git_tag: str | None = None
     try:
         tag = subprocess.check_output(
             ["git", "describe", "--tags", "--abbrev=0"],
@@ -104,9 +138,22 @@ def get_build_info() -> dict:
         if tag.startswith("v"):
             tag = tag[1:]
         if tag:
-            info["version"] = tag
+            git_tag = tag
     except Exception:
         pass  # fall back to __version__
+
+    # The changelog is the release record a box that has been advancing
+    # branch-only still carries, even when its local git repo is missing the tag
+    # objects. Prefer the higher of the two so the version badge and the
+    # changelog panel name the same release: a pre-v1.1.3 box reads v1.1.1 from
+    # git but its changelog already shows v1.1.3.
+    changelog_ver = _latest_changelog_version()
+    if git_tag is None:
+        info["version"] = changelog_ver or info["version"]
+    elif changelog_ver and _version_key(changelog_ver) > _version_key(git_tag):
+        info["version"] = changelog_ver
+    else:
+        info["version"] = git_tag
 
     # Full describe (e.g. "1.1.1-3-g4f5c3da"): the clean tag `version` above is
     # what customer reports show, but a deployment several commits PAST the last
@@ -125,6 +172,13 @@ def get_build_info() -> dict:
         info["describe"] = desc or info["version"]
     except Exception:
         info["describe"] = info["version"]
+
+    # If the release was named from the changelog because the local tag was
+    # stale, git describe still anchors on that old tag ("1.1.1-3-g..."). The
+    # box is at-or-past the changelog release, so report it as the describe too
+    # — we cannot count commits ahead of a tag the box does not have.
+    if changelog_ver and _version_key(changelog_ver) > _version_key(git_tag or ""):
+        info["describe"] = changelog_ver
 
     _build_info_cache = info
     _build_info_ts = now

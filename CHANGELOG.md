@@ -7,6 +7,26 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
+## v1.1.4 (2026-08-15)
+### Versjonsmerket følger med på en box som bare hentet grenen
+
+En box som ble oppdatert med den gamle selvoppdatereren (som hentet grenen
+uten tagger) samlet inn commits — og dermed den nye endringsloggen — men mottok
+aldrig tagg-objektene. `git describe` kan bare navngi en tagg som finnes lokalt,
+så versjonsmerket i menyen satt fast på den siste taggen boxen noen gang hadde
+(v1.1.1) selv om endringsloggen allerede viste v1.1.3. De to panelene sa
+dermed to ulike ting.
+
+- **`app/core/version.py`**: versjonen løses nå opp til det høyeste av git-taggen
+  og den nyeste `## vX.Y.Z`-rubrikken i `CHANGELOG.md`. En utdatert lokal tagg
+  skjuler ikke lenger en nyere utgave, og en checkout uten noen tagg henter
+  fortsatt utgaven den bærer. En nyere lokal tagg vinner fortsatt — taggen er
+  kilden når den er nyest.
+- **`tests/test_version_consistency.py`**: fire nye tester som låser fast at en
+  utdatert tagg ikke skjuler en nyere endringslogg, at en ny tagg vinner, at en
+  taggløs checkout faller tilbake på endringsloggen, og at en manglende
+  endringslogg ikke knuser versjonsoppløsningen.
+
 ## v1.1.3 (2026-08-15)
 ### Rapportpresisjon: tre tall som ikke lenger løy
 
