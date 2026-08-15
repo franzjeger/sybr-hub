@@ -29,6 +29,57 @@ def _ctx(mfa: dict) -> dict:
     return {"mfa": mfa, "file_contents": {}}
 
 
+def _ctx_files(files: dict) -> dict:
+    return {"mfa": {"has_data": True, "pct": 100.0, "no_mfa": 0}, "file_contents": files}
+
+
+def _teams_16c(collab="N/A", direct="N/A", partners=0):
+    partner_line = (
+        f"  Partner Configurations ({partners}):" if partners else "  Partner Configurations: (none)"
+    )
+    return (
+        "=" * 70 + "\n  TEAMS / CROSS-TENANT EXTERNAL ACCESS POLICY\n" + "=" * 70 + "\n"
+        "  Default Inbound Settings:\n"
+        f"    B2B Collaboration  : {collab}\n"
+        f"    B2B Direct Connect : {direct}\n\n"
+        f"{partner_line}\n" + "=" * 70 + "\n"
+    )
+
+
+def test_teams_external_access_all_na_is_cannot_verify_not_warn():
+    # Data present but every access-type is N/A and no partner configs — a
+    # conclusion drawn from empty fields must be "info", not "warn" (F4).
+    controls = _build_compliance_map(_ctx_files({"16c_teams_external_access.txt": _teams_16c()}))
+    assert _control(controls, "8.1.1")["status"] == "info"
+
+
+def test_teams_external_access_blocked_passes():
+    controls = _build_compliance_map(
+        _ctx_files({"16c_teams_external_access.txt": _teams_16c(collab="blocked", direct="blocked")})
+    )
+    assert _control(controls, "8.1.1")["status"] == "pass"
+
+
+def test_teams_external_access_allowed_is_a_warning():
+    # A real value that isn't "blocked" is a genuine review item, not empty data.
+    controls = _build_compliance_map(
+        _ctx_files({"16c_teams_external_access.txt": _teams_16c(collab="allowed", direct="N/A")})
+    )
+    assert _control(controls, "8.1.1")["status"] == "warn"
+
+
+def test_teams_external_access_partner_config_is_not_treated_as_empty():
+    controls = _build_compliance_map(
+        _ctx_files({"16c_teams_external_access.txt": _teams_16c(partners=2)})
+    )
+    assert _control(controls, "8.1.1")["status"] != "info"
+
+
+def test_teams_external_access_missing_file_is_info():
+    controls = _build_compliance_map(_ctx_files({}))
+    assert _control(controls, "8.1.1")["status"] == "info"
+
+
 def test_unreadable_mfa_is_info_not_fail():
     controls = _build_compliance_map(_ctx({"has_data": False, "pct": 0.0, "no_mfa": 0}))
     c = _control(controls, "1.1.1")

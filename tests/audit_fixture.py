@@ -332,10 +332,18 @@ FULL_AUDIT: dict[str, str] = {
         "Unmanaged Devices: false\n"
     ),
     "16c_teams_external_access.txt": (
-        "TEAMS EXTERNAL ACCESS\n"
-        "=====================\n"
-        "AllowFederatedUsers: True\n"
-        "AllowPublicUsers: False\n"
+        # The real format teams.py emits (crossTenantAccessPolicy). This tenant
+        # has external collaboration on but not wide open — a genuine review
+        # item (warn), not empty data.
+        "======================================================================\n"
+        "  TEAMS / CROSS-TENANT EXTERNAL ACCESS POLICY\n"
+        "======================================================================\n"
+        "  Default Inbound Settings:\n"
+        "    B2B Collaboration  : allowed\n"
+        "    B2B Direct Connect : allowed\n"
+        "\n"
+        "  Partner Configurations: (none)\n"
+        "======================================================================\n"
     ),
     "17_app_registrations.txt": (
         "APP REGISTRATIONS\n"

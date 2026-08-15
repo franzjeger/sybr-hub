@@ -4843,7 +4843,21 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # ═══ 8. TEAMS ═══
 
     teams_ext = fc.get("16c_teams_external_access.txt", "")
-    if teams_ext.strip():
+    _b2b_collab = _labelled_value(teams_ext, "B2B Collaboration")
+    _b2b_direct = _labelled_value(teams_ext, "B2B Direct Connect")
+    _has_partner_cfg = "Partner Configurations (" in teams_ext
+    if not teams_ext.strip():
+        add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "info",
+            "Kan ikke verifiseres — Teams external access-data utilgjengelig")
+    elif not _b2b_collab and not _b2b_direct and not _has_partner_cfg:
+        # Data present but every access-type is N/A and there are no partner
+        # configurations — the cross-tenant policy was not returned, or the
+        # tenant is on Microsoft defaults. That is no evidence either way, so it
+        # must not read as "enabled with restrictions" drawn from empty fields
+        # (M365 review, F4).
+        add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "info",
+            _CANNOT_VERIFY + "kryssleie-tilgangspolicy ikke innsamlet eller tenant på Microsoft-standard")
+    else:
         teams_ext_low = teams_ext.lower()
         if "blocked" in teams_ext_low or "disabled" in teams_ext_low:
             add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "pass",
@@ -4853,12 +4867,9 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
             add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "fail",
                 "Ekstern tilgang er uten begrensninger — anyone-mode")
         else:
-            # Partial: some restriction in place but not "blocked" — review
+            # A real access-type value is present but not "blocked" — review
             add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "warn",
                 "Ekstern tilgang er aktivert med begrensninger — bør gjennomgås mot policy")
-    else:
-        add("8.1.1", "Ensure external access in Teams is managed", t.cis_cat_teams, "info",
-            "Kan ikke verifiseres — Teams external access-data utilgjengelig")
 
     # 8.1.2 Guest access.
     #
