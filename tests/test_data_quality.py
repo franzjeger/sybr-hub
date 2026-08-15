@@ -359,6 +359,55 @@ async def test_mfa_methods_lookup_failure_is_not_reported_as_no_mfa():
     assert "NOT counted as lacking MFA" in report
 
 
+async def test_mfa_methods_permission_refusal_is_not_reported_as_no_mfa():
+    """A 403 refusal from Graph is 'unknown', not 'no MFA'.
+
+    ``GraphClient.get`` answers a 401/403 with an ``{"error": ...}`` dict
+    rather than raising (the permission probes rely on that). Before the fix,
+    ``_get_methods`` read ``data.get("value", [])`` off that dict, got ``[]``,
+    and reported every user as lacking MFA — a page of false findings that
+    reached the customer-facing report and the IT Glue asset. The refusal must
+    be treated as a failed lookup (None), not an empty method list.
+    """
+    from pathlib import Path
+
+    from app.modules.m365_audit.sections.users_mfa import MFASection
+
+    users = [
+        {"id": "u1", "displayName": "Has MFA", "userPrincipalName": "a@example.com",
+         "accountEnabled": True, "userType": "Member"},
+        {"id": "u2", "displayName": "Refused", "userPrincipalName": "b@example.com",
+         "accountEnabled": True, "userType": "Member"},
+    ]
+
+    class _Graph:
+        async def get(self, path, **_kw):
+            if path.startswith("users/u1/"):
+                return {"value": [{"@odata.type": "#microsoft.graph.fido2AuthenticationMethod"}]}
+            # A missing permission: Graph answers with an error dict, not an
+            # exception. This is the case the fix must catch.
+            return {"error": 403, "detail": "Insufficient privileges to access this resource."}
+
+    saved: dict[str, str] = {}
+    section = MFASection(  # type: ignore[arg-type]
+        out_dir=Path("/tmp"), graph=_Graph(), users=users,
+    )
+    section._save = lambda name, body: saved.__setitem__(name, body)  # type: ignore[assignment]
+
+    await section.collect()
+
+    warns = " ".join(section.result.warns)
+    # The refused user must NOT be counted as lacking MFA.
+    assert "have no MFA methods registered" not in warns, (
+        f"a 403 refusal was reported as a user lacking MFA: {warns}"
+    )
+    # It is surfaced as unknown instead.
+    assert "could not be determined for 1 user(s)" in warns
+    # And the machine-readable record says None, not False.
+    report = saved.get("04_mfa_methods.txt", "")
+    assert "(lookup failed)" in report
+
+
 def test_failed_lookups_are_not_reported_as_clean_passes():
     """A lookup that never answered must not read as OK in a customer report.
 

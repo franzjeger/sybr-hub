@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -100,83 +101,92 @@ class AuditCollector:
                     auth.collect_exo_data(self.out_dir)
                 ) if exo_enabled else None
 
-                # ── 2. Collect tenant info first (other sections may need it) ─
-                from app.modules.m365_audit.sections.tenant import TenantSection
-                tenant_enabled = self._is_enabled("Tenant Information")
-                # When the section is deselected it still has to run, because
-                # every later section needs verified_domains. It must then run
-                # without the progress callback: the caller sizes the progress
-                # bar from the selected sections only, so a report from an
-                # unselected section pushes the numerator past the denominator.
-                # That is where "21/18" came from.
-                tenant_sec = TenantSection(
-                    self.out_dir, graph, self.progress_cb if tenant_enabled else None
-                )
-                if tenant_enabled:
-                    await self._run(tenant_sec)
-                else:
-                    try:
-                        await tenant_sec.collect()
-                    except Exception as e:
-                        logger.warning("Tenant info pre-collection failed: %s", e)
-                verified_domains = tenant_sec.verified_domains
-
-                # ── 3. Run remaining Graph/Azure sections ─────────────────────
-                graph_sections = self._build_graph_sections(graph, verified_domains)
-                for section in graph_sections:
-                    if self._is_enabled(section.name):
-                        await self._run(section)
-
-                # ── 4. Azure sections (multi-subscription) ────────────────────
-                any_azure = any(self._is_enabled(n) for n in self.AZURE_SECTION_NAMES)
-                if any_azure:
-                    sub_enum_error = ""
-                    try:
-                        subs = await asyncio.get_event_loop().run_in_executor(
-                            None, auth.list_subscriptions
-                        )
-                    except Exception as e:
-                        sub_enum_error = str(e)
-                        subs = []
-                        if auth.subscription_id:
-                            subs = [{"id": auth.subscription_id, "name": "Primary", "state": "Enabled"}]
-
-                    if subs:
-                        # Save subscription overview
-                        sub_lines = ["=" * 90, f"  AZURE SUBSCRIPTIONS  ({len(subs)} found)", "=" * 90]
-                        if sub_enum_error:
-                            sub_lines.append(f"  NOTE: Subscription enumeration failed: {sub_enum_error}")
-                            sub_lines.append(f"  Falling back to configured subscription.")
-                            sub_lines.append(f"  To audit ALL subscriptions, grant the service principal")
-                            sub_lines.append(f"  'Reader' role on each subscription via Azure Portal.")
-                            sub_lines.append("")
-                        for s in subs:
-                            sub_lines.append(f"  {s['name']:<40} {s['id']}  [{s['state']}]")
-                        sub_lines += ["=" * 90, ""]
-                        from app.core.encryption import encrypted_write_text
-                        encrypted_write_text(self.out_dir / "45_azure_subscriptions.txt", "\n".join(sub_lines))
-
-                        multi = len(subs) > 1
-                        for sub in subs:
-                            azure_sections = self._build_azure_sections(sub["id"], sub["name"], multi)
-                            for section in azure_sections:
-                                if self._is_enabled(section.name):
-                                    await self._run(section)
-                    else:
-                        for name in self.AZURE_SECTION_NAMES:
-                            if self._is_enabled(name):
-                                self._skip(name, "No Azure subscriptions found")
-
-                # ── 5. Wait for EXO data, then process Exchange section ───────
-                if exo_enabled and exo_task:
-                    self._report_progress("Exchange Online", SectionStatus.RUNNING, "Waiting for EXO helper...")
-                    exo_data = await exo_task
-                    from app.modules.m365_audit.sections.exchange import ExchangeSection
-                    exo_sec = ExchangeSection(
-                        self.out_dir, exo_data, verified_domains, self.progress_cb,
-                        graph=graph,
+                try:
+                    # ── 2. Collect tenant info first (other sections may need it) ─
+                    from app.modules.m365_audit.sections.tenant import TenantSection
+                    tenant_enabled = self._is_enabled("Tenant Information")
+                    # When the section is deselected it still has to run, because
+                    # every later section needs verified_domains. It must then run
+                    # without the progress callback: the caller sizes the progress
+                    # bar from the selected sections only, so a report from an
+                    # unselected section pushes the numerator past the denominator.
+                    # That is where "21/18" came from.
+                    tenant_sec = TenantSection(
+                        self.out_dir, graph, self.progress_cb if tenant_enabled else None
                     )
-                    await self._run(exo_sec)
+                    if tenant_enabled:
+                        await self._run(tenant_sec)
+                    else:
+                        try:
+                            await tenant_sec.collect()
+                        except Exception as e:
+                            logger.warning("Tenant info pre-collection failed: %s", e)
+                    verified_domains = tenant_sec.verified_domains
+
+                    # ── 3. Run remaining Graph/Azure sections ─────────────────────
+                    graph_sections = self._build_graph_sections(graph, verified_domains)
+                    for section in graph_sections:
+                        if self._is_enabled(section.name):
+                            await self._run(section)
+
+                    # ── 4. Azure sections (multi-subscription) ────────────────────
+                    any_azure = any(self._is_enabled(n) for n in self.AZURE_SECTION_NAMES)
+                    if any_azure:
+                        sub_enum_error = ""
+                        try:
+                            subs = await asyncio.get_event_loop().run_in_executor(
+                                None, auth.list_subscriptions
+                            )
+                        except Exception as e:
+                            sub_enum_error = str(e)
+                            subs = []
+                            if auth.subscription_id:
+                                subs = [{"id": auth.subscription_id, "name": "Primary", "state": "Enabled"}]
+
+                        if subs:
+                            # Save subscription overview
+                            sub_lines = ["=" * 90, f"  AZURE SUBSCRIPTIONS  ({len(subs)} found)", "=" * 90]
+                            if sub_enum_error:
+                                sub_lines.append(f"  NOTE: Subscription enumeration failed: {sub_enum_error}")
+                                sub_lines.append("  Falling back to configured subscription.")
+                                sub_lines.append("  To audit ALL subscriptions, grant the service principal")
+                                sub_lines.append("  'Reader' role on each subscription via Azure Portal.")
+                                sub_lines.append("")
+                            for s in subs:
+                                sub_lines.append(f"  {s['name']:<40} {s['id']}  [{s['state']}]")
+                            sub_lines += ["=" * 90, ""]
+                            from app.core.encryption import encrypted_write_text
+                            encrypted_write_text(self.out_dir / "45_azure_subscriptions.txt", "\n".join(sub_lines))
+
+                            multi = len(subs) > 1
+                            for sub in subs:
+                                azure_sections = self._build_azure_sections(sub["id"], sub["name"], multi)
+                                for section in azure_sections:
+                                    if self._is_enabled(section.name):
+                                        await self._run(section)
+                        else:
+                            for name in self.AZURE_SECTION_NAMES:
+                                if self._is_enabled(name):
+                                    self._skip(name, "No Azure subscriptions found")
+
+                    # ── 5. Wait for EXO data, then process Exchange section ───────
+                    if exo_enabled and exo_task:
+                        self._report_progress("Exchange Online", SectionStatus.RUNNING, "Waiting for EXO helper...")
+                        exo_data = await exo_task
+                        from app.modules.m365_audit.sections.exchange import ExchangeSection
+                        exo_sec = ExchangeSection(
+                            self.out_dir, exo_data, verified_domains, self.progress_cb,
+                            graph=graph,
+                        )
+                        await self._run(exo_sec)
+                finally:
+                    # If a section raised before we awaited the EXO helper, its
+                    # subprocess would otherwise keep running orphaned. Cancel and
+                    # drain it so it cannot outlive the audit or write late.
+                    if exo_task is not None and not exo_task.done():
+                        exo_task.cancel()
+                        with contextlib.suppress(asyncio.CancelledError, Exception):
+                            await exo_task
 
         return self.results
 

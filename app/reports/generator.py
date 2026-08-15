@@ -5900,16 +5900,27 @@ def build_report_context(
     except Exception:
         pass  # non-critical — proceed without remediation data
 
-    # Enrich each recommendation with its remediation status
+    # Enrich each recommendation with its remediation status. The store keys
+    # by rec_id (the stable, language-independent identity), so look it up by
+    # rec_id first. A title fallback keeps old rows — saved before rec_id
+    # existed — from silently reading as "open".
     for rec in recs:
+        rec_id = rec.get("rec_id", "")
         title = rec.get("title", "")
-        if title in remediation:
+        if rec_id and rec_id in remediation:
+            rec["remediation"] = remediation[rec_id]
+        elif title and title in remediation:
             rec["remediation"] = remediation[title]
         else:
             rec["remediation"] = {"status": "open", "notes": "", "updated_by": "", "updated_date": ""}
 
     context["remediation"] = remediation
-    remediation_done = sum(1 for v in remediation.values() if v.get("status") in ("done", "ignored"))
+    # Count done/ignored among the findings in THIS report, not across every
+    # stored row. A finding can drop out of a later audit while its remediation
+    # row persists, which would otherwise push the percentage past 100.
+    remediation_done = sum(
+        1 for rec in recs if rec.get("remediation", {}).get("status") in ("done", "ignored")
+    )
     remediation_total = len(recs) if recs else 0
     context["remediation_done"] = remediation_done
     context["remediation_total"] = remediation_total

@@ -296,11 +296,22 @@ class MFASection(BaseSection):
         permission. It is deliberately distinct from ``[]`` ("this user has no
         methods registered"), because collapsing the two is what turns a
         throttled audit into a page of users falsely reported as having no MFA.
-        The Graph client raises rather than returning empty for exactly this
-        reason; swallowing that here would undo it at the call site.
+        ``get_all`` raises on a refusal, but ``get`` answers a 401/403 with an
+        ``{"error": ...}`` dict — so a refusal must be checked for here, not
+        left to be misread as an empty method list.
         """
         try:
-            data    = await self.graph.get(f"users/{user_id}/authentication/methods")
+            data = await self.graph.get(f"users/{user_id}/authentication/methods")
+            if isinstance(data, dict) and data.get("error") in (401, 403):
+                # A permission refusal is not "no methods registered". Treating
+                # it as [] would report every user as lacking MFA — the exact
+                # false finding the None/[] distinction exists to prevent.
+                logger.warning(
+                    "Graph refused auth-methods read for user %s (HTTP %s)",
+                    user_id,
+                    data.get("error"),
+                )
+                return None
             methods = data.get("value", [])
             return [
                 _method_label(m.get("@odata.type", ""))
