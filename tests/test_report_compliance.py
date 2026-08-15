@@ -890,7 +890,8 @@ def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_fail(
 
 def test_9_1_directory_audit_presence_does_not_confirm_unified_audit_log():
     # The Entra directoryAudits log is always on and does not reflect the UAL
-    # ingestion toggle 9.1 is about — its rows must not manufacture a PASS.
+    # ingestion toggle 9.1 is about — its rows must not manufacture a PASS. With
+    # only that file present (no real setting), the verdict stays cannot-verify.
     fc = {"19_entra_audit_log_admin_activity.txt": (
         "ADMIN AUDIT LOG (LAST 14 DAYS)\n==============================\n"
         "Date         Actor          Activity\n"
@@ -898,3 +899,37 @@ def test_9_1_directory_audit_presence_does_not_confirm_unified_audit_log():
         "2026-01-03   kari@acme.no   Add member to role\n"
     )}
     assert _grade(fc, "9.1")["status"] == "info"
+
+
+def _aalc(value: str) -> dict:
+    # The real collector shape: _save_admin_audit_log_config renders the bool via
+    # _fmt_val, so a live file reads "Yes"/"No", not "true"/"false".
+    return {"27d_exchange_admin_audit_log_config.txt": (
+        "EXCHANGE ADMIN AUDIT LOG CONFIG\n===============================\n"
+        f"  UnifiedAuditLogIngestionEnabled: {value}\n"
+    )}
+
+
+def test_9_1_unified_audit_log_enabled_is_a_pass():
+    # The genuine CIS 9.1 signal, in the collector's own Yes/No shape.
+    assert _grade(_aalc("Yes"), "9.1")["status"] == "pass"
+
+
+def test_9_1_unified_audit_log_disabled_is_a_fail():
+    # UAL ingestion off is the exact misconfiguration this control exists to
+    # catch — it must land in the fail bucket, not be dropped as unverifiable.
+    assert _grade(_aalc("No"), "9.1")["status"] == "fail"
+
+
+def test_9_1_reads_the_powershell_true_false_shape_too():
+    # Robust to either rendering, exactly as 4.1 accepts both.
+    assert _grade(_aalc("True"), "9.1")["status"] == "pass"
+    assert _grade(_aalc("False"), "9.1")["status"] == "fail"
+
+
+def test_9_1_uncollected_setting_is_info_not_a_verdict():
+    # Fail-closed: the helper ran but the cmdlet returned nothing, so _fmt_val
+    # wrote "N/A". That is "not collected", never a manufactured pass or fail.
+    assert _grade(_aalc("N/A"), "9.1")["status"] == "info"
+    # And an absent file (the Exchange section never ran) is info as well.
+    assert _grade({}, "9.1")["status"] == "info"

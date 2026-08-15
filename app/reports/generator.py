@@ -4168,7 +4168,7 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "7.2.4": ("25_onedrive_sharing.txt",),
     "8.1.1": ("16c_teams_external_access.txt",),
     "8.1.2": ("30b_teams_guest_access.txt",),
-    "9.1":   ("19_entra_audit_log_admin_activity.txt",),
+    "9.1":   ("27d_exchange_admin_audit_log_config.txt",),
     "9.2":   ("19b_defender_active_alerts.txt", "19b_defender_alert_count.txt"),
     "9.3":   ("18_risky_users.txt",),
 }
@@ -5192,26 +5192,37 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     # ═══ 9. LOGGING & MONITORING ═══
 
     # 9.1 Unified audit log. History: first a hardcoded "pass" (false attestation
-    # for every tenant), then gated on directoryAudits row count — but that log is
-    # the WRONG signal (see below), so both graded verdicts were wrong. Now always
-    # cannot-verify from this evidence.
-    audit_log_text = fc.get("19_entra_audit_log_admin_activity.txt", "")
-    audit_log_data_rows = _count_data_lines(audit_log_text) if audit_log_text else 0
-    # CIS 9.1 concerns the Exchange/Purview Unified Audit Log INGESTION toggle
-    # (Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled). The only
-    # evidence collected here is the Entra directoryAudits log, which is ALWAYS
-    # on and independent of that toggle — its event count neither confirms nor
-    # denies UAL ingestion. Counting its rows produced a false PASS on a tenant
-    # with UAL off (and a false FAIL on a quiet-but-enabled one). Report
-    # cannot-verify until the real setting is collected (accuracy sweep).
-    if audit_log_text.strip().startswith("Error:") or not audit_log_text.strip():
-        add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "info",
-            "Kan ikke verifiseres — audit-loggen er ikke hentet (mangler tilgang eller feilet)")
+    # for every tenant), then gated on the Entra directoryAudits row count — but
+    # that log is ALWAYS on and independent of the Exchange/Purview Unified Audit
+    # Log INGESTION toggle this control is about, so both graded verdicts were
+    # wrong (a false PASS on a UAL-off tenant, a false FAIL on a quiet-but-enabled
+    # one), and it was then downgraded to a permanent cannot-verify.
+    #
+    # The real signal is `Get-AdminAuditLogConfig | UnifiedAuditLogIngestionEnabled`,
+    # now collected by the EXO helper into 27d. Parse that specific line — the
+    # evidence writer renders the bool via _fmt_val → "Yes"/"No" (not
+    # "true"/"false"), so accept both shapes, exactly as 4.1 does. Fail-closed: a
+    # missing or unreadable setting stays cannot-verify (info), never a
+    # manufactured pass or fail.
+    ual_text = fc.get("27d_exchange_admin_audit_log_config.txt", "")
+    ual_enabled = None
+    for line in ual_text.splitlines():
+        if "UnifiedAuditLogIngestionEnabled" in line and ":" in line:
+            val = line.split(":", 1)[1].strip().rstrip(";").lower()
+            if val in ("true", "false", "yes", "no"):
+                ual_enabled = val in ("true", "yes")
+            break
+    if ual_enabled is True:
+        add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "pass",
+            "Unified Audit Log-ingestion er aktivert (UnifiedAuditLogIngestionEnabled=True)")
+    elif ual_enabled is False:
+        add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "fail",
+            "Unified Audit Log-ingestion er deaktivert (UnifiedAuditLogIngestionEnabled=False) — "
+            "kjør Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true")
     else:
         add("9.1", "Ensure unified audit logging is enabled", t.cis_cat_logging, "info",
-            _CANNOT_VERIFY + f"{audit_log_data_rows} hendelser i Entra-katalogens audit-logg "
-            "(alltid på) — bekrefter ikke Unified Audit Log-ingestion; verifiser "
-            "Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled manuelt")
+            _CANNOT_VERIFY + "Unified Audit Log-innstillingen ble ikke hentet — "
+            "verifiser Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled manuelt")
 
     # 9.2 Defender alerts. An empty alerts file was read as "no alerts", which
     # is only true when the alert query ran — the count file states that

@@ -641,14 +641,17 @@ def _ctx(**overrides) -> dict:
 
 
 class TestComplianceUnifiedAuditLog:
-    """CIS 9.1 is always 'info' (cannot verify) from the evidence collected.
+    """CIS 9.1 must not draw a verdict from the Entra directoryAudits log.
 
     It was first hardcoded 'pass' (a false attestation for every tenant), then
     graded on the Entra directoryAudits row count — but that log is ALWAYS on and
     is independent of the Exchange/Purview Unified Audit Log ingestion toggle the
     control is about, so counting its rows produced a false PASS on a UAL-off
-    tenant and a false FAIL on a quiet-but-enabled one. Until the real setting is
-    collected the honest verdict is cannot-verify, in every case (accuracy sweep)."""
+    tenant and a false FAIL on a quiet-but-enabled one. The verdict now comes from
+    the real setting (Get-AdminAuditLogConfig | UnifiedAuditLogIngestionEnabled,
+    file 27d) — see tests/test_report_compliance.py for the pass/fail cases. These
+    tests pin the other half: with only the directoryAudits log present, the
+    honest verdict is cannot-verify, in every case (accuracy sweep)."""
 
     def test_missing_audit_log_reports_info_not_pass(self):
         ctrl = [c for c in _build_compliance_map(_ctx()) if c["cis_id"] == "9.1"]
