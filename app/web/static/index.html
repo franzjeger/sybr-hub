@@ -728,11 +728,18 @@
               <select id="pentest-scan-mode" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
                 <option value="fast" data-i18n="pentest_port_mode_fast"></option>
                 <option value="full" data-i18n="pentest_port_mode_full"></option>
-                <option value="stealth" data-i18n="pentest_port_mode_stealth"></option>
+                <!-- Default-disabled: a SYN/FIN stealth scan needs CAP_NET_RAW.
+                     loadPentestCapabilities() enables it only when the process
+                     affirmatively reports the capability (SR-006, fail closed). -->
+                <option value="stealth" disabled data-i18n="pentest_port_mode_stealth"></option>
               </select>
             </div>
             <button class="btn btn-primary" data-click-handler="runPentest" style="padding:8px 20px;font-size:13px;" data-i18n="pentest_btn_run" data-i18n-title="pentest_btn_run_tip"></button>
           </div>
+          <!-- Filled by loadPentestCapabilities() when raw-socket scans (SYN/stealth)
+               are unavailable — the process runs unprivileged (SR-006). Classes,
+               not inline styles, per tests/test_frontend_csp_budget.py. -->
+          <div id="pentest-capability-warning" class="pentest-capability-warning"></div>
         </div>
 
         <!-- Phase 1: Recon -->

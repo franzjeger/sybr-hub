@@ -1,5 +1,5 @@
 {
-  "total": 918,
+  "total": 917,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -46,6 +46,7 @@
     "app/modules/m365_audit/sections/teams.py",
     "app/modules/m365_audit/sections/usage_reports.py",
     "app/modules/pentest/__init__.py",
+    "app/modules/pentest/_process.py",
     "app/modules/unifi_audit/__init__.py",
     "app/modules/unifi_audit/scanner.py",
     "app/modules/unifi_audit/sections/__init__.py",
@@ -53,6 +54,7 @@
     "app/services/__init__.py",
     "app/services/finding_tickets.py",
     "app/services/remediation.py",
+    "app/services/scan_privileges.py",
     "app/services/site_collector.py",
     "app/services/ssh_connection.py",
     "app/services/vpn_backends/__init__.py",
@@ -152,6 +154,7 @@
     "tests/test_password_policy.py",
     "tests/test_password_protection.py",
     "tests/test_pentest_argument_injection.py",
+    "tests/test_pentest_runtime.py",
     "tests/test_policy_adoption.py",
     "tests/test_policy_backup.py",
     "tests/test_policy_deploy.py",

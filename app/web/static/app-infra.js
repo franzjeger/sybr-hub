@@ -3282,6 +3282,38 @@ function _formatUptime(secs) {
 // PENTEST
 // ═══════════════════════════════════════════════════════════════════
 
+// Gate the SYN/stealth scan mode by the host's raw-socket capability, mirroring
+// the VPN capability gating. FAIL CLOSED: the stealth <option> ships disabled
+// and is enabled ONLY when the process affirmatively reports the capability, so
+// a failed/blank probe leaves it disabled rather than offering a scan the server
+// would refuse anyway (SR-006 review).
+async function loadPentestCapabilities() {
+  var warn = document.getElementById('pentest-capability-warning');
+  var modeSel = document.getElementById('pentest-scan-mode');
+  var stealthOpt = modeSel ? modeSel.querySelector('option[value="stealth"]') : null;
+
+  function disableStealth(reason) {
+    if (stealthOpt) {
+      stealthOpt.disabled = true;
+      if (modeSel.value === 'stealth') modeSel.value = 'fast';
+    }
+    if (warn) {
+      warn.textContent = reason || t('pentest_cap_unknown', 'Kunne ikke fastslå skann-rettigheter; stealth/SYN er avslått.');
+      warn.style.display = 'block';
+    }
+  }
+
+  var data = await apiFetch('/api/pentest/capabilities', {method:'GET'});
+  var scan = data && data.scan;
+  if (scan && scan.available === true) {
+    if (stealthOpt) stealthOpt.disabled = false;
+    if (warn) warn.style.display = 'none';
+  } else {
+    // Unavailable, an error (apiFetch returns null), or an unexpected shape.
+    disableStealth(scan ? scan.reason : '');
+  }
+}
+
 async function runPentest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_et_target'), 'error'); return; }

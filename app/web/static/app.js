@@ -1393,6 +1393,7 @@ function switchNetSub(btn, tabId) {
 
   if (tabId === 'net-fortigates') dashLoadFortiGates();
   if (tabId === 'net-unifi') dashLoadUnifiAll();
+  if (tabId === 'net-pentest' && typeof loadPentestCapabilities === 'function') loadPentestCapabilities();
 }
 
 // ── Integrations ──────────────────────────────────────────────────────────────

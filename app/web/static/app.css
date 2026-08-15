@@ -2138,6 +2138,19 @@ body.is-readonly [data-write] { display: none !important; }
 }
 .vpn-capability-warning > strong { color: var(--orange); }
 
+.pentest-capability-warning {
+  display: none;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--orange);
+  border-radius: 6px;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 /* ── UniFi site overview ──
    Classes rather than inline styles: scripts/../tests/test_frontend_csp_budget.py
    caps the inline-style debt, and new markup should not spend that budget.

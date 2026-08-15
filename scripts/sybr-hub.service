@@ -143,3 +143,17 @@ WantedBy=multi-user.target
 # relaxing them alone is not sufficient while NoNewPrivileges stays enabled.
 # Treat a privileged VPN helper as a separate component and threat boundary;
 # do not turn the web service itself into that helper.
+#
+# ── Pentest scanning ────────────────────────────────────────────────────────
+# The pentest module runs nmap *unprivileged* and never via sudo (which
+# NoNewPrivileges blocks anyway). Under this hardened unit that means TCP
+# connect scans (-sT) and NSE SMB scripts, which need no raw sockets; the API
+# reports scan.mode=connect and the UI disables the SYN/stealth option with a
+# reason, the same fail-closed pattern as VPN. nmap's SYN/FIN/OS modes need raw
+# packets (CAP_NET_RAW). To enable them, grant that one capability narrowly —
+#   AmbientCapabilities=CAP_NET_RAW
+#   # and relax the matching sandbox line: NoNewPrivileges must allow it
+# — rather than granting sudo/root. Target and nmap options are allowlisted in
+# code (validate_scan_target + a fixed per-mode option set); a request never
+# supplies raw nmap flags. As with VPN, a dedicated privileged helper is the
+# alternative if you will not widen this unit — do not make the web service it.
