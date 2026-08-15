@@ -669,3 +669,76 @@ async def test_quick_audit_flags_an_unrestricted_admin_trusthost(_fg_build):
     by_name = {a["name"]: a for a in result["admins"]}
     assert by_name["openadmin"]["trusthost"] is False, "unrestricted admin must read as no trust host"
     assert by_name["safeadmin"]["trusthost"] is True, "a real subnet must read as restricted"
+
+
+# ── Live dashboard poller: the same trust-host classification ─────────────────
+#
+# The report surface (quick_audit above) was fixed in #141; the live dashboard
+# poller carried the identical bug in a second place. `_poll_fortigate` builds
+# the per-admin rows the dashboard tile reads, and classed the FortiGate default
+# "0.0.0.0 0.0.0.0" as restricted — a green/OK tile for an unrestricted admin.
+
+
+class _FakeFgClient:
+    """A FortiGate client whose system/admin read yields *admins* and whose
+    every other endpoint is empty — enough for _poll_fortigate to reach an
+    online row and cache the admin list the dashboard tile reads."""
+
+    def __init__(self, admins):
+        self._admins = admins
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get_system_status(self):
+        # A real (non-refused) status read: reachability passes, so the poller
+        # builds a full row rather than an error row.
+        return {"hostname": "fw1", "version": "7.4", "serial": "FG-TEST"}
+
+    async def get_monitor(self, path):
+        return {}
+
+    async def get_cmdb(self, path):
+        return self._admins if path == "system/admin" else []
+
+
+async def _poll_admins(monkeypatch, admins):
+    """Drive _poll_fortigate against a firewall exposing *admins* and return the
+    admin rows the dashboard cached, keyed by name."""
+    from app.services.dashboard_poller import DashboardPoller
+
+    monkeypatch.setattr(
+        "app.modules.fortigate_audit.client.FortiGateClient",
+        lambda *a, **k: _FakeFgClient(admins),
+    )
+    poller = DashboardPoller()
+    await poller._poll_fortigate("acme", {}, "10.0.0.1", "t", "t0")
+    row = poller._cache["fg_acme"]
+    assert row.status == "online", f"expected an online row, got {row.status}: {row.error}"
+    return {a["name"]: a for a in row.extra["admins"]}
+
+
+async def test_dashboard_poller_reads_an_unrestricted_admin_as_open(monkeypatch):
+    # "0.0.0.0 0.0.0.0" is the FortiGate default — an admin reachable from
+    # anywhere. The old != "0.0.0.0" test read it as restricted, painting a
+    # green tile for an insecure admin.
+    by_name = await _poll_admins(monkeypatch, [
+        {"name": "openadmin", "accprofile": "super_admin",
+         "trusthost1": "0.0.0.0 0.0.0.0", "two-factor": "disable"},
+    ])
+    assert by_name["openadmin"]["trusthost"] is False, \
+        "unrestricted admin must read as no trust host"
+
+
+async def test_dashboard_poller_reads_a_real_subnet_as_restricted(monkeypatch):
+    # A real management subnet is a genuine restriction and must stay True, so
+    # the fix does not swing the tile the other way.
+    by_name = await _poll_admins(monkeypatch, [
+        {"name": "safeadmin", "accprofile": "super_admin",
+         "trusthost1": "192.168.1.0 255.255.255.0", "two-factor": "enable"},
+    ])
+    assert by_name["safeadmin"]["trusthost"] is True, \
+        "a real subnet must read as restricted"

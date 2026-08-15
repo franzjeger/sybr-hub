@@ -434,6 +434,7 @@ class DashboardPoller:
                     dns_info = {"primary": dns_raw.get("primary", ""), "secondary": dns_raw.get("secondary", "")}
 
                 # Admins
+                from app.services.fortigate_api import admin_trusthost_is_open
                 admin_list = []
                 if isinstance(admins, list):
                     for a in admins:
@@ -441,7 +442,12 @@ class DashboardPoller:
                             "name": a.get("name", ""),
                             "profile": a.get("accprofile", ""),
                             "two_factor": a.get("two-factor", "disable") != "disable",
-                            "trusthost": a.get("trusthost1", "0.0.0.0") != "0.0.0.0",
+                            # True == a real trust-host restriction. trusthost1 is
+                            # a native "address mask" string; the FortiGate default
+                            # "0.0.0.0 0.0.0.0" means unrestricted and must not read
+                            # as restricted (which showed a green tile for an open
+                            # admin). See admin_trusthost_is_open.
+                            "trusthost": not admin_trusthost_is_open(a.get("trusthost1", "0.0.0.0 0.0.0.0")),
                         })
 
                 # SSL VPN active users
