@@ -529,7 +529,7 @@ class AuditScheduler:
         if not config.get("alert_on", {}).get("expired_credentials", True):
             return
 
-        from datetime import timezone as _tz
+        from datetime import UTC
 
         from app.core.customer import CustomerManager
 
@@ -544,8 +544,10 @@ class AuditScheduler:
                     continue
                 try:
                     dt = datetime.fromisoformat(iso_val.replace("Z", "+00:00"))
-                    days = (dt - datetime.now(_tz.utc)).days
-                except ValueError:
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=UTC)
+                    days = (dt - datetime.now(UTC)).days
+                except (ValueError, TypeError):
                     continue
 
                 if days < 0:

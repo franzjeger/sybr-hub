@@ -882,6 +882,13 @@ async def unifi_all(request: Request, user: User = Depends(get_current_user)):
     if _poller:
         for dev in _poller.get_devices():
             if dev.get("vendor") == "unifi":
+                # Scope to the caller: the poller cache holds every customer's
+                # devices, and the customer-name lookup below only blanks the
+                # name — without this guard a viewer assigned to one customer
+                # still received every customer's UniFi gear (firmware, serial,
+                # WAN IP). Mirrors /dashboard/devices and dashboard_infra.
+                if allowed is not None and dev.get("customer_id") not in allowed:
+                    continue
                 # Find customer name
                 cust_name = ""
                 for uc in unifi_customers:

@@ -37,9 +37,19 @@ async def get_dashboard_devices(
 
 @router.get("/dashboard/devices")
 async def get_all_dashboard_devices(user: User = Depends(get_current_user)):
-    """Return all cached device statuses."""
+    """Return cached device statuses for the customers this user may see.
+
+    The per-customer endpoint above is scoped; this "all" endpoint must be
+    too, or a viewer assigned to one customer could enumerate every
+    customer's devices (WAN IPs, firmware, tunnel counts) by calling it.
+    """
+    from app.core.rbac import get_accessible_customer_ids
     from app.services.dashboard_poller import poller
+
+    allowed = await get_accessible_customer_ids(user)
     devices = poller.get_devices()
+    if allowed is not None:
+        devices = [d for d in devices if d.get("customer_id") in allowed]
     return {"devices": devices}
 
 

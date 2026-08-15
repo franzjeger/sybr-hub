@@ -1,5 +1,5 @@
 {
-  "total": 913,
+  "total": 912,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -107,6 +107,7 @@
     "tests/audit_fixture.py",
     "tests/conftest.py",
     "tests/fastapi_introspect.py",
+    "tests/test_access_control_gaps.py",
     "tests/test_activity_log.py",
     "tests/test_alerts_record_only_what_was_sent.py",
     "tests/test_also_customer_scope.py",
