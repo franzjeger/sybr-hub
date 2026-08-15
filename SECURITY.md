@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-Pre-1.0. Only the most recent minor release receives security
-attention. Once we tag 1.0.0, this section will spell out a real
-support window.
+Sybr HUB is at `v1.1.1`. Only the most recent minor release line
+receives security attention; older release lines are not patched. If
+you are on an older line, upgrade to the current release.
 
 ## Reporting a vulnerability
 

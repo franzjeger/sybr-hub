@@ -35,7 +35,7 @@ app/
     dns_checker.py          SPF / DKIM / DMARC / MTA-STS over live DNS
     remediation.py          per-customer remediation tracking
   modules/                  audit collectors
-    m365_audit/             27 sections, CIS / NIST CSF / ISO 27001 mapped
+    m365_audit/             28 sections (24 M365 + 4 Azure), CIS / NIST CSF / ISO 27001 mapped
     fortigate_audit/        policy and admin audit
     unifi_audit/            device, firmware and subnet scanning
   integrations/             write-side clients (autotask, itglue, myitprocess, rmm)

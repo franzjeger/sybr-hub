@@ -1,10 +1,42 @@
 # Endringslogg
 
-Sybr HUB versjoneres etter semver fra og med `v1.0.0`. Oppføringene merket
-`v10.x` nedenfor dokumenterer den importerte MSP-Toolkit-auditmotorens historikk
-og er ikke Sybr HUB-pakkeversjoner.
+Sybr HUB versjoneres etter semver fra og med `v1.0.0` (august 2026).
+Oppføringene under `v1.0.0` — `v10.x`, `v9.x` … ned til `v0.1.0` (mars–juli
+2026) — dokumenterer den importerte MSP-Toolkit-auditmotorens historikk og er
+ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
+`v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
+HUB, mars–juli 2026 for motoren).
 
-## Ikke utgitt
+## v1.1.1 (2026-08-15)
+### M365-rapporten svarer for dommene sine
+
+En serie rettinger (#133–#140) som gjør at kundens rapport og den
+tekniske gjennomgangen ikke lenger konkluderer fra data de ikke har
+lest. Rapporten sier «kan ikke verifiseres» i stedet for å stille en
+bestått-eller-strøkt-dom på en tom lesing.
+
+- **OneDrive-delingsscan** (#133) går nå hele veien og feiler lukket på
+  delvis dekning i stedet for å rapportere det den tilfeldigvis leste.
+- **Teams- og PIM-dommer stiller ikke fra manglende data** (F4, F7, #134)
+  — en seksjon som ikke kjørte gir «kan ikke verifiseres», ikke et pass.
+- **MFA er én dom om håndhevelse, ikke to om registrering** (F1, F2, #135).
+  En CA-ekskludert bruker teller som ikke-håndhevet uavhengig av om en
+  metode er registrert, og en CA-ekskludert Global Admin eller en konto
+  under aktivt angrep heves til et kritisk funn i stedet for å ligge i
+  rådata.
+- **Dataen som allerede er samlet korreleres** (F8, F3, #136) —
+  break-glass-ekskluderinger og Exchange-status vises der de hører
+  hjemme, ikke gjemt i rådata.
+- **Scoringen reflekterer kritiske funn, uadministrerte enheter og
+  MFA-låses-ut-risiko** (F9, F10b, F5, #137) — en kritisk dom setter tak
+  på graden, og en tenant ingen har lest får ikke en oppdiktet B.
+- **Gjentatte audit-logg-feil** (F12, #138) slås nå opp som et eget funn
+  i stedet for å gå tapt i en seksjon som «kjørte».
+- **Seks interaksjonsfeil** (#139) og **seks falske verdikter i
+  CIS-kartet** (#140) rettet: dommer som sto på feil bevis, og tellere
+  som telte feil, er nå bundet til den faktiske lesningen.
+
+## v1.1.0 (2026-08-15)
 ### Appen kan oppdatere seg selv
 
 En admin kan nå oppdatere installasjonen fra innsiden av appen —

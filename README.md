@@ -25,7 +25,7 @@ Read from everything. Write to a deliberate few.
 
 | Domain | Read | Write |
 |---|---|---|
-| **Microsoft 365** | Full security audit (26 sections, CIS / NIST CSF / ISO 27001 mapped) | — |
+| **Microsoft 365** | Full security audit (28 sections — 24 M365 + 4 Azure, CIS / NIST CSF / ISO 27001 mapped) | — |
 | **FortiGate** | Policy + admin audit over REST API | Config backups → IT Glue |
 | **UniFi** | Device + firmware audit (controller-API or direct-SSH) | — |
 | **DNS / email security** | SPF / DKIM / DMARC / MTA-STS | — |
@@ -87,9 +87,11 @@ alongside an exported master key.
 
 ## Status
 
-**Pre-1.0 (v0.1.0)** — the audit layer and report generator are battle-tested
+**v1.1.1** — the audit layer and report generator are battle-tested
 (carried forward from MSP-Toolkit-V2 v10.10.12, validated against multiple real
-Microsoft 365 tenants).
+Microsoft 365 tenants). Versioning is semver from `v1.0.0` onward; the `v10.x`
+entries in `CHANGELOG.md` are the imported audit engine's history, not Sybr HUB
+releases.
 
 The Autotask and myITprocess write-sides are wired: a finding becomes a ticket
 or a recommendation on an operator's click, idempotently, and nothing scheduled
