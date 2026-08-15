@@ -193,7 +193,16 @@ class GraphClient:
                     await asyncio.sleep(wait)
                     continue
                 if resp.status_code in (401, 403):
-                    return {"error": resp.status_code, "detail": resp.text}
+                    # A permission refusal is not "no data". Returning an
+                    # error dict here let callers do data.get("value", [])
+                    # and read "you may not read this" as "the tenant has
+                    # none of these" — e.g. a 403 on a user's auth methods
+                    # became "no MFA registered". Raise (as get_paged does)
+                    # so the section is recorded as failed and the report
+                    # says "cannot verify" instead of a false verdict.
+                    raise GraphPermissionError(
+                        url, resp.status_code, resp.text
+                    )
                 resp.raise_for_status()
                 return resp.json()
             except httpx.TimeoutException:
