@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 
-from app.reports.generator import _build_recommendations
+from app.reports.generator import _apply_remediation, _build_recommendations
 from app.reports.i18n import Localised
 
 
@@ -78,6 +78,43 @@ def test_the_text_differs_between_languages_even_though_the_id_does_not():
 
     assert set(no) == set(en)
     assert any(no[k] != en[k] for k in no), "nothing was actually translated"
+
+
+def test_remediation_state_is_matched_by_id_not_title():
+    """The operator stores state under rec_id; the report must read it back by
+    the same key. Keying on the rendered title meant a done item never matched
+    (the title changes with language), so the report always showed "open"."""
+    recs = _recs("no")
+    target = recs[0]
+    rec_id = target["rec_id"]
+
+    stored = {rec_id: {"status": "done", "notes": "fixed", "updated_by": "ops", "updated_date": "2026-08-15"}}
+
+    done, total = _apply_remediation(recs, stored)
+
+    assert target["remediation"]["status"] == "done"
+    assert target["remediation"]["notes"] == "fixed"
+    assert done == 1
+    assert total == len(recs)
+
+
+def test_remediation_done_never_exceeds_total():
+    """A customer's table can hold rows from an earlier audit whose recs no
+    longer appear in this report. Counting those against this report's total
+    is what pushed the percentage past 100 — done must stay <= total."""
+    recs = _recs("no")
+    # One real rec marked done, plus a stale row from a previous audit.
+    stored = {
+        recs[0]["rec_id"]: {"status": "done", "notes": "", "updated_by": "", "updated_date": ""},
+        "rec-from-a-previous-audit": {"status": "done", "notes": "", "updated_by": "", "updated_date": ""},
+    }
+
+    done, total = _apply_remediation(recs, stored)
+
+    assert done == 1, "the stale row must not be counted as done in this report"
+    assert done <= total
+    pct = round(done / total * 100) if total else 0
+    assert pct <= 100
 
 
 # ── The carrier ──────────────────────────────────────────────────────────────
