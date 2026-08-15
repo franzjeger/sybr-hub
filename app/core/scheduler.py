@@ -544,8 +544,10 @@ class AuditScheduler:
                     continue
                 try:
                     dt = datetime.fromisoformat(iso_val.replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=_tz.utc)
                     days = (dt - datetime.now(_tz.utc)).days
-                except ValueError:
+                except (ValueError, TypeError):
                     continue
 
                 if days < 0:
