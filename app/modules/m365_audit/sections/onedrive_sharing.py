@@ -67,6 +67,12 @@ class OneDriveSharingSection(BaseSection):
         self._truncated: list[str] = []
         self._discovery_failures: list[str] = []
         self._folder_failures: list[str] = []
+        # Graph does not support $expand=permissions on the children collection
+        # on every tenant. Where it 400s, the cheap one-request-per-folder walk
+        # fails on every folder and the scan examines nothing — so we detect it
+        # once and fall back to per-item permission reads (SR review, F6).
+        self._expand_unsupported = False
+        self._used_permission_fallback = False
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -101,6 +107,65 @@ class OneDriveSharingSection(BaseSection):
             and exc.response is not None
             and exc.response.status_code == 404
         )
+
+    @staticmethod
+    def _is_bad_request(exc: Exception) -> bool:
+        return (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response is not None
+            and exc.response.status_code == 400
+        )
+
+    async def _children_with_permissions(self, drive_id: str, item_id: str) -> list[dict]:
+        """Return a folder's children, each carrying its ``permissions``.
+
+        Fast path: ``$expand=permissions`` returns every child with its
+        permissions in one request. Graph rejects that expand on the children
+        collection on some tenants (a 400), which previously failed every folder
+        and left the scan examining nothing. On that 400 we fall back — once,
+        for the rest of the run — to fetching the children and then each item's
+        permissions individually. Costlier (fewer folders fit the budget), but
+        it actually reads the data (SR review, F6).
+        """
+        if not self._expand_unsupported:
+            try:
+                return await self.graph.get_all(
+                    f"drives/{drive_id}/items/{item_id}/children",
+                    params={"$top": "200", "$expand": "permissions"},
+                    before_request=self._claim_request,
+                )
+            except GraphRequestBudgetExceeded:
+                raise
+            except Exception as ex:
+                if not self._is_bad_request(ex):
+                    raise
+                self._expand_unsupported = True
+                self._used_permission_fallback = True
+
+        children = await self.graph.get_all(
+            f"drives/{drive_id}/items/{item_id}/children",
+            params={"$top": "200", "$select": "id,name,folder"},
+            before_request=self._claim_request,
+        )
+        for child in children:
+            cid = child.get("id")
+            if not cid:
+                child["permissions"] = []
+                continue
+            try:
+                child["permissions"] = await self.graph.get_all(
+                    f"drives/{drive_id}/items/{cid}/permissions",
+                    params={"$top": "200"},
+                    before_request=self._claim_request,
+                )
+            except GraphRequestBudgetExceeded:
+                raise
+            except Exception as ex:
+                # Can't read this item's permissions — a coverage gap, not a
+                # clean item. Record it so absence isn't claimed beneath it.
+                child["permissions"] = []
+                self._folder_failures.append(f"{drive_id}/items/{cid}/permissions: {ex}")
+        return children
 
     # ── Drive discovery ──────────────────────────────────────────────────────
 
@@ -259,13 +324,9 @@ class OneDriveSharingSection(BaseSection):
                 self._truncated.append(f"{label}: folder limit {self._max_folders}")
                 break
             try:
-                # One request returns every child *with* its permissions, which
-                # is what makes walking affordable at all.
-                children = await self.graph.get_all(
-                    f"drives/{drive_id}/items/{item_id}/children",
-                    params={"$top": "200", "$expand": "permissions"},
-                    before_request=self._claim_request,
-                )
+                # Children with their permissions — one request per folder where
+                # the expand is supported, else a per-item fallback (see helper).
+                children = await self._children_with_permissions(drive_id, item_id)
             except GraphRequestBudgetExceeded:
                 break
             except Exception as ex:
@@ -377,6 +438,12 @@ class OneDriveSharingSection(BaseSection):
             f"(depth {self._max_depth}, max {self._max_folders} folders per drive)",
             "",
         ]
+        if self._used_permission_fallback:
+            lines.append(
+                "  Note: $expand=permissions is unsupported on this tenant — used per-item "
+                "permission reads instead (fewer folders fit the request budget)."
+            )
+            lines.append("")
         coverage_notes = [
             *self._truncated,
             *self._discovery_failures,
@@ -423,7 +490,17 @@ class OneDriveSharingSection(BaseSection):
             lines.append("")
 
         if not anyone_links and not external_shares:
-            lines.append("  No external sharing or anonymous links detected.")
+            if complete:
+                lines.append("  No external sharing or anonymous links detected.")
+            else:
+                # Fail closed: a scan that did not complete has NOT established
+                # absence. "We found none where we looked" is not "there are
+                # none" (SR review, F6).
+                lines.append(
+                    "  No external sharing or anonymous links were found where the scan "
+                    "reached, but the scan did NOT complete (see coverage above), so "
+                    "tenant-wide absence is NOT established."
+                )
             lines.append("")
 
         lines += ["=" * 100, ""]
