@@ -155,6 +155,37 @@ def test_no_excluded_finding_when_no_excluded_account_is_privileged_or_attacked(
     assert not [r for r in recs if r.get("finding_id") == "finding-mfa-excluded"]
 
 
+def test_a_high_risk_excluded_account_is_not_counted_by_both_criticals():
+    """The double-count the review flagged: a CA-excluded Global Admin showed up
+    in finding-mfa (as "without MFA") AND finding-mfa-excluded. It must be one."""
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 2, "mfa_registered": 5, "ca_covered": 0,
+             "no_mfa_registered": 0, "registered_but_excluded": 2,
+             "users": [
+                 {"name": "sybr_admin", "upn": "sybr_admin@example.no",
+                  "ca_excluded": True, "has_mfa": True, "protected": False, "unknown": False},
+                 {"name": "post", "upn": "post@example.no",
+                  "ca_excluded": True, "has_mfa": True, "protected": False, "unknown": False},
+             ]},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        admin_roles={"global_admin_users": [{"email": "sybr_admin@example.no"}]},
+        signin_risk={"brute_force_suspects": ["post@example.no"]},
+        file_contents={},
+    )
+    mfa_ids = [r["finding_id"] for r in recs if r.get("finding_id", "").startswith("finding-mfa")]
+    assert mfa_ids == ["finding-mfa-excluded"], f"double-counted: {mfa_ids}"
+    joined = " ".join(item for r in recs for item in r.get("sub_items", []))
+    assert joined.count("sybr_admin@example.no") == 1, "named in more than one finding"
+
+
+def test_rec_mfa_detail_does_not_claim_excluded_users_lack_registration():
+    from app.reports.i18n import T
+    detail = str(T("en")("rec_mfa_detail", registered=5, ca_covered=0,
+                         no_mfa_registered=0, registered_but_excluded=2))
+    assert "neither MFA registered nor CA coverage" not in detail
+    assert "excluded from enforcement" in detail
+
+
 # ── Re-rendering on the way out ──────────────────────────────────────────────
 
 def test_the_dashboard_rebuilds_recommendations_in_the_readers_language():

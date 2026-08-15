@@ -2229,16 +2229,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "MFA coverage: {pct:.0f}%",
     },
     "cis_mfa_partial": {
-        "no": "MFA-dekning: {pct:.0f}% \u2014 {no_mfa} brukere mangler MFA",
-        "en": "MFA coverage: {pct:.0f}% \u2014 {no_mfa} users missing MFA",
+        "no": "MFA-dekning: {pct:.0f}% \u2014 {no_mfa} brukere uten h\u00e5ndhevet MFA",
+        "en": "MFA coverage: {pct:.0f}% \u2014 {no_mfa} users without enforced MFA",
     },
     "cis_mfa_unavailable": {
         "no": "Kan ikke verifiseres — MFA-data utilgjengelig",
         "en": "Cannot be verified — MFA data unavailable",
     },
     "cis_mfa_none": {
-        "no": "Ingen brukere har MFA — 0% dekning ({no_mfa} brukere ubeskyttet)",
-        "en": "No users have MFA — 0% coverage ({no_mfa} users unprotected)",
+        "no": "Ingen håndhevet MFA — 0% dekning ({no_mfa} brukere uten håndhevet MFA)",
+        "en": "No enforced MFA — 0% coverage ({no_mfa} users without enforced MFA)",
     },
     "cis_active_policies": {
         "no": "{count} aktive policyer",
@@ -2311,8 +2311,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Enable MFA for {count} user(s) without protection",
     },
     "rec_mfa_detail": {
-        "no": "{registered} brukere har MFA-metoder registrert, {ca_covered} er dekket via Conditional Access-policyer. {no_mfa} bruker(e) har verken MFA registrert eller CA-dekning.",
-        "en": "{registered} users have MFA methods registered, {ca_covered} are covered via Conditional Access policies. {no_mfa} user(s) have neither MFA registered nor CA coverage.",
+        "no": "{registered} brukere har MFA-metoder registrert og {ca_covered} er dekket via Conditional Access. {no_mfa_registered} bruker(e) har ingen MFA-metode registrert; {registered_but_excluded} har MFA registrert, men er unntatt fra håndhevelse av en Conditional Access-policy.",
+        "en": "{registered} users have MFA methods registered and {ca_covered} are covered by Conditional Access. {no_mfa_registered} user(s) have no MFA method registered; {registered_but_excluded} have MFA registered but are excluded from enforcement by a Conditional Access policy.",
     },
     "rec_mfa_excluded_title": {
         "no": "{count} høyrisiko-konto(er) er unntatt fra MFA-håndhevelse",
@@ -2541,8 +2541,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "MFA coverage is {pct:.0f}% \u2014 well protected against account takeover.",
     },
     "exec_mfa_partial": {
-        "no": "MFA-dekningen er {pct:.0f}%. {no_mfa} bruker(e) mangler MFA-beskyttelse.",
-        "en": "MFA coverage is {pct:.0f}%. {no_mfa} user(s) lack MFA protection.",
+        "no": "MFA-dekningen er {pct:.0f}%. {no_mfa} bruker(e) har ikke håndhevet MFA.",
+        "en": "MFA coverage is {pct:.0f}%. {no_mfa} user(s) do not have enforced MFA.",
     },
     "exec_mfa_unavailable": {
         "no": "MFA-data er ikke tilgjengelig for denne kunden.",
