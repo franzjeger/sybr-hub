@@ -18,7 +18,7 @@ python -m pip install . ruff
 
 ## Tests
 
-The audit-correctness work that produced the validated v0.1.0 layer is locked
+The audit-correctness work that produced the validated audit layer is locked
 in by the full regression suite. Do not merge a PR that breaks it, and add new
 tests for any new behaviour. Avoid hard-coding the current test count in docs;
 it changes with every useful fix.

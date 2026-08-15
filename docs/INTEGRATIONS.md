@@ -18,8 +18,8 @@ job creates a ticket.
 
 ## Microsoft 365 / Azure
 
-The largest integration: 26 audit sections mapped to CIS, NIST CSF 2.0 and
-ISO 27001:2022.
+The largest integration: 28 audit sections (24 M365 + 4 Azure) mapped to CIS,
+NIST CSF 2.0 and ISO 27001:2022.
 
 **Auth modes.** Per-customer app registration (`AuthMode: legacy`), or partner
 delegation through GDAP (`AuthMode: gdap`).

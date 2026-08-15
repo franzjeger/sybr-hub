@@ -11,13 +11,13 @@ This document is the source of truth for what's in scope and what
 isn't. If a feature isn't here, it's not on the roadmap yet — open
 an issue to discuss.
 
-## Done in v0.1.0 (Initial release)
+## Done in v1.0.0 (Initial release)
 
 Validated audit layer carried forward from MSP-Toolkit-V2 v10.10.12.
 The data-quality pass that produced v10.10.2–.12 is locked in by
 regression tests in this repo.
 
-- **Microsoft 365 audit** — 26 sections, full pagination on every
+- **Microsoft 365 audit** — 28 sections (24 M365 + 4 Azure), full pagination on every
   Graph list endpoint, explicit data-gap signalling (refuses to
   fabricate a grade when MFA data is missing). MFA coverage is *enforced*
   coverage: a Conditional-Access exclusion counts as unprotected even for a
@@ -183,6 +183,11 @@ employees.
 Semver. The integration write-side is the user-facing API surface
 that needs the most caution: any breaking change to `AutotaskClient`
 or `MyITProcessClient` method signatures is a major bump.
+
+The `v0.2.0`–`v0.6.0` labels above are planning milestones, not release
+tags: that work shipped inside the `v1.0.0` and `v1.1.x` releases. The
+actual version is resolved from the git tag (see `app/core/version.py`),
+and the current release is `v1.1.1`.
 
 Release notes go in `CHANGELOG.md`. Each release should be testable
 end-to-end against at least one real customer tenant before tagging.
