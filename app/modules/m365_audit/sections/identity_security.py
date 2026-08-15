@@ -16,6 +16,11 @@ from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionErro
 
 _HIGH_SEVERITY = {"high", "critical"}
 
+# Audit-log failure analysis (F12): audit results that count as a failure, and
+# how many repeats of one (activity, actor) in the window make it a finding.
+_FAILURE_RESULTS = {"failure", "timeout"}
+_FAILURE_GROUP_THRESHOLD = 5
+
 
 def _unavailable_reason(ex: Exception, tier: str) -> str:
     """Explain a refused premium-gated collection, without guessing.
@@ -348,6 +353,55 @@ class IdentitySecuritySection(BaseSection):
             lines.append(f"  {ts:<22} {activity:<45} {result:<12} {actor}")
         lines += ["=" * 110, ""]
         self._save("19_entra_audit_log_admin_activity.txt", "\n".join(lines))
+
+        # A dump nobody scrolls hides a pattern that is itself a finding: the
+        # same operation failing repeatedly from one actor all week — a stuck
+        # integration, a misconfigured app, or a technician's tool failing
+        # against this tenant (e.g. repeated delegated-permission-grant failures
+        # = our own tooling failing OAuth consent). Surface it (M365 review, F12).
+        self._analyse_audit_failures(audits)
+
+    def _analyse_audit_failures(self, audits: list[dict]) -> None:
+        from collections import Counter
+
+        groups: Counter = Counter()
+        for a in audits:
+            if (a.get("result") or "").strip().lower() not in _FAILURE_RESULTS:
+                continue
+            activity = (a.get("activityDisplayName") or "").strip()
+            user = (a.get("initiatedBy") or {}).get("user") or {}
+            actor = user.get("userPrincipalName") or user.get("displayName") or "(system)"
+            groups[(activity, actor)] += 1
+
+        repeated = sorted(
+            ((n, act, actor) for (act, actor), n in groups.items()
+             if n >= _FAILURE_GROUP_THRESHOLD),
+            reverse=True,
+        )
+        if not repeated:
+            return
+
+        lines = [
+            "=" * 110,
+            "  REPEATED AUDIT-LOG FAILURES (last 14 days)",
+            "=" * 110,
+            "  The same operation failing repeatedly from one actor is a signal in",
+            "  its own right — a stuck integration, a misconfigured app, or a",
+            "  technician's tool failing against this tenant.",
+            "",
+            f"  {'Count':>6}  {'Activity':<50} {'Actor'}",
+            "  " + "-" * 100,
+        ]
+        lines += [f"  {n:>6}  {act[:50]:<50} {actor}" for n, act, actor in repeated]
+        lines += ["=" * 110, ""]
+        self._save("19b_entra_audit_log_failures_WARN.txt", "\n".join(lines))
+
+        top_n, top_act, top_actor = repeated[0]
+        self._warn(
+            f"{len(repeated)} operation(s) failed repeatedly in the audit log "
+            f"(e.g. '{top_act}' x{top_n} by {top_actor}) — investigate a stuck "
+            "integration or a tool failing against this tenant",
+        )
 
     # ── Defender Alerts ───────────────────────────────────────────────────────
 
