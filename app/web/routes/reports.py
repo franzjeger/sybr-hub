@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html as _html
 import logging
 from datetime import UTC
 from pathlib import Path
@@ -921,12 +922,16 @@ async def delete_report(request: Request, user: User = Depends(require_role(Role
     if not rel_path:
         raise ValidationError("Path required")
 
-    audit_dir = get_audit_dir()
+    audit_dir = get_audit_dir().resolve()
     target = (audit_dir / rel_path).resolve()
 
-    # Security: ensure target is inside audit_dir
-    if not str(target).startswith(str(audit_dir.resolve())):
-        raise AuthError("Invalid path")
+    # Security: ensure target is inside audit_dir. relative_to enforces a true
+    # path-component boundary — a startswith() check would also accept a
+    # sibling directory sharing the prefix (e.g. Audits_evil for Audits).
+    try:
+        target.relative_to(audit_dir)
+    except ValueError:
+        raise AuthError("Invalid path") from None
     if not target.exists() or not target.is_dir():
         raise NotFoundError("Not found")
 
@@ -990,17 +995,26 @@ async def cleanup_old_reports(request: Request, user: User = Depends(require_rol
 
 @router.post("/reports/batch-summary")
 async def batch_summary_report(request: Request, user: User = Depends(get_current_user)):
-    """Generate a combined HTML report with summaries for all audited customers."""
+    """Generate a combined HTML report with summaries for audited customers.
+
+    Scoped to the customers this user may access — the sibling
+    export_dashboard_excel endpoint does the same, and without it a
+    viewer assigned to one customer could read every customer's grade,
+    score, MFA coverage and user count.
+    """
     from datetime import datetime
 
     from app.core.config import get_audit_dir, load_app_settings
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_read_json
+    from app.core.rbac import filter_customers, get_accessible_customer_ids
 
     body = await request.json()
     customer_ids = body.get("customer_ids", [])  # empty = all with metrics
 
-    customers = CustomerManager.list_customers()
+    customers = filter_customers(
+        CustomerManager.list_customers(), await get_accessible_customer_ids(user)
+    )
     audit_dir = get_audit_dir()
     settings = load_app_settings()
     company = (settings.get("branding") or {}).get("company_name", "SYBR AS")
@@ -1110,9 +1124,14 @@ async def batch_summary_report(request: Request, user: User = Depends(get_curren
             if (s["mfa"] or 0) >= 80
             else "#f85149"
         )
+        # Customer name and domain come from user-supplied fields and are
+        # interpolated raw into HTML that is served and emailed — escape them
+        # so a crafted name cannot inject markup/script.
+        name_esc = _html.escape(str(s["name"]))
+        domain_esc = _html.escape(str(s["domain"]))
         html += f"""<tr>
-  <td style="font-weight:600;">{s["name"]}</td>
-  <td style="color:#888;font-size:12px;">{s["domain"]}</td>
+  <td style="font-weight:600;">{name_esc}</td>
+  <td style="color:#888;font-size:12px;">{domain_esc}</td>
   <td style="text-align:center;"><span class="grade" style="background:{gc};">{s["grade"]}</span></td>
   <td style="text-align:center;font-weight:600;">{s["score"]}</td>
   <td style="text-align:center;font-weight:600;color:{mfa_color};">{mfa_str}</td>

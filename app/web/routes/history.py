@@ -426,6 +426,8 @@ async def compare_audits(run1: str, run2: str, user: User = _auth):
 
     path1, path2 = Path(run1), Path(run2)
 
+    from app.core.rbac import check_audit_path_access
+
     for p, label in [(path1, "run1"), (path2, "run2")]:
         if not p.exists() or not p.is_dir():
             raise NotFoundError(f"{label}: mappen finnes ikke")
@@ -435,6 +437,11 @@ async def compare_audits(run1: str, run2: str, user: User = _auth):
             p.resolve().relative_to(AUDIT_DIR.resolve())
         except ValueError:
             raise AuthError(f"{label}: {ui_t('err_invalid_path')}") from None
+        # Every other audit-tree route in this file calls this; compare_audits
+        # was the lone exception, so any logged-in user could read any
+        # customer's metrics by supplying the path.
+        if not await check_audit_path_access(user, str(p)):
+            raise ForbiddenError(f"{label}: Ingen tilgang til denne auditkjøringen")
 
     metrics1 = encrypted_read_json(path1 / "_audit_metrics.json")
     metrics2 = encrypted_read_json(path2 / "_audit_metrics.json")
