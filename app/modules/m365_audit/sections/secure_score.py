@@ -142,7 +142,9 @@ class SecureScoreSection(BaseSection):
         except Exception as ex:
             self._save(
                 "09b_auth_methods_policy.txt",
-                f"Error fetching authentication methods policy: {ex}\n",
+                # "Error:" is the codebase-wide unavailable-evidence sentinel the
+                # report's info-guards key on — keep the prefix exact.
+                f"Error: authentication methods policy fetch failed: {ex}\n",
             )
             return
 

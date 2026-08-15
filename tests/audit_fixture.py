@@ -446,7 +446,10 @@ FULL_AUDIT: dict[str, str] = {
     "27c_exchange_org_config.txt": (
         "EXCHANGE ORG CONFIG\n"
         "===================\n"
-        "AuditDisabled: false\n"
+        # Real collector shape: _save_org_config renders the bool via _fmt_val,
+        # which emits "No"/"Yes" — NOT "false"/"true". The old fixture matched
+        # the parser instead of the collector, hiding an inert control.
+        "  AuditDisabled: No\n"
     ),
     "28_exchange_mailbox_forwarding.txt": (
         "MAILBOX FORWARDING CHECK\n"

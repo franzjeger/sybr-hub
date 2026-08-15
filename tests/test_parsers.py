@@ -641,18 +641,28 @@ def _ctx(**overrides) -> dict:
 
 
 class TestComplianceUnifiedAuditLog:
-    """CIS 9.1 used to be hardcoded as 'pass' — every tenant got a false
-    attestation that unified audit logging is enabled. The control must
-    fail when the audit log file is empty and report info when the file
-    contains an error / wasn't collected at all."""
+    """CIS 9.1 is always 'info' (cannot verify) from the evidence collected.
+
+    It was first hardcoded 'pass' (a false attestation for every tenant), then
+    graded on the Entra directoryAudits row count — but that log is ALWAYS on and
+    is independent of the Exchange/Purview Unified Audit Log ingestion toggle the
+    control is about, so counting its rows produced a false PASS on a UAL-off
+    tenant and a false FAIL on a quiet-but-enabled one. Until the real setting is
+    collected the honest verdict is cannot-verify, in every case (accuracy sweep)."""
 
     def test_missing_audit_log_reports_info_not_pass(self):
         ctrl = [c for c in _build_compliance_map(_ctx()) if c["cis_id"] == "9.1"]
         assert len(ctrl) == 1
         assert ctrl[0]["status"] == "info"
 
-    def test_empty_audit_log_reports_fail(self):
-        # File exists but contains no events — Unified Audit Log is off
+    # The Entra directoryAudits log this control reads is ALWAYS on and is
+    # independent of the Exchange/Purview Unified Audit Log ingestion toggle CIS
+    # 9.1 is actually about. Its event count therefore neither confirms nor
+    # denies UAL ingestion: a populated log was a false PASS on a UAL-off tenant,
+    # an empty one a false FAIL on a quiet-but-enabled tenant. Both are now
+    # "info" (cannot verify) until the real setting is collected (accuracy sweep).
+    def test_empty_audit_log_is_info_not_fail(self):
+        # File exists but contains no events — that does NOT prove UAL is off.
         text = (
             "================================================================\n"
             "  ENTRA DIRECTORY AUDIT LOG  (last 14 days — 0 events)\n"
@@ -662,9 +672,10 @@ class TestComplianceUnifiedAuditLog:
         ctrl = [c for c in _build_compliance_map(
             _ctx(file_contents={"19_entra_audit_log_admin_activity.txt": text})
         ) if c["cis_id"] == "9.1"]
-        assert ctrl[0]["status"] == "fail"
+        assert ctrl[0]["status"] == "info"
 
-    def test_populated_audit_log_reports_pass(self):
+    def test_populated_audit_log_is_info_not_pass(self):
+        # Directory-audit events do not attest that the Unified Audit Log is on.
         text = (
             "================================================================\n"
             "  ENTRA DIRECTORY AUDIT LOG  (last 14 days — 3 events)\n"
@@ -677,7 +688,7 @@ class TestComplianceUnifiedAuditLog:
         ctrl = [c for c in _build_compliance_map(
             _ctx(file_contents={"19_entra_audit_log_admin_activity.txt": text})
         ) if c["cis_id"] == "9.1"]
-        assert ctrl[0]["status"] == "pass"
+        assert ctrl[0]["status"] == "info"
 
 
 class TestComplianceAntiSpamNotSilent:

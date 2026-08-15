@@ -829,3 +829,72 @@ def test_break_glass_admin_rows_without_a_summary_do_not_pass():
         "  admin2@contoso.com   Yes   No\n"
     )
     assert _grade({"07c_emergency_access_check.txt": rows_only}, "1.1.6")["status"] == "info"
+
+
+# ── Accuracy sweep: no graded verdict from unreadable / wrong-format data ──────
+
+def test_1_1_2_error_stub_is_info_not_a_graded_warn():
+    # The section writes "Error fetching authentication methods policy: …" on a
+    # throttled/denied read; the guard must treat any Error-prefixed stub as
+    # unverifiable, not parse it into a real WARN.
+    stub = "Error fetching authentication methods policy: 429 Too Many Requests\n"
+    assert _grade({"09b_auth_methods_policy.txt": stub}, "1.1.2")["status"] == "info"
+
+
+def test_1_1_3_zero_standing_global_admins_is_info_not_omitted():
+    # ga==0 with role data present (a PIM/JIT tenant) must still emit a verdict —
+    # the control used to vanish from the report entirely.
+    assert _grade({}, "1.1.3",
+                  admin_roles={"has_data": True, "global_admin_count": 0})["status"] == "info"
+
+
+def test_1_2_1_unreadable_directory_settings_is_info_not_fail():
+    not_measured = (
+        "PASSWORD PROTECTION\n===================\n"
+        "  Directory settings could not be read, so password protection\n"
+        "  settings were not measured. This is not a finding about the\n"
+        "  tenant — see the fetch error recorded for this section.\n"
+    )
+    assert _grade({"31_password_protection.txt": not_measured}, "1.2.1")["status"] == "info"
+
+
+def test_4_1_mailbox_audit_reads_the_collectors_yes_no_shape():
+    # The evidence writer emits "Yes"/"No", not "true"/"false"; both verdicts
+    # must be reachable from the real format.
+    off = "EXCHANGE ORG CONFIG\n===================\n  AuditDisabled: Yes\n"
+    on = "EXCHANGE ORG CONFIG\n===================\n  AuditDisabled: No\n"
+    assert _grade({"27c_exchange_org_config.txt": off}, "4.1")["status"] == "fail"
+    assert _grade({"27c_exchange_org_config.txt": on}, "4.1")["status"] == "pass"
+
+
+def test_5_2_3_m365_dkim_lookup_error_is_info_not_fail():
+    # A DoH failure on the authoritative M365 selectors surfaces as "ERROR (...)",
+    # exactly like SPF/DMARC — it must be cannot-verify, not a DKIM FAIL.
+    spf = [{"domain": "acme.no", "spf": "OK (v=spf1 include:spf.protection.outlook.com -all)",
+            "dmarc": "reject (v=DMARC1; p=reject)",
+            "dkim1": "selector1: ERROR (timeout) | selector2: ERROR (timeout)",
+            "dkim2": "google: MISSING | k1: MISSING | k2: MISSING | default: MISSING | dkim: MISSING"}]
+    assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "info"
+
+
+def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_fail():
+    # The M365 selectors definitively resolved to MISSING (a real "DKIM not
+    # configured" FAIL); a transient error on a *speculative* third-party selector
+    # probe must not flip that to cannot-verify and drop it from the score.
+    spf = [{"domain": "acme.no", "spf": "OK (v=spf1 -all)",
+            "dmarc": "reject (v=DMARC1; p=reject)",
+            "dkim1": "selector1: MISSING | selector2: MISSING",
+            "dkim2": "google: MISSING | k1: ERROR (timeout) | k2: MISSING | default: MISSING | dkim: MISSING"}]
+    assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "fail"
+
+
+def test_9_1_directory_audit_presence_does_not_confirm_unified_audit_log():
+    # The Entra directoryAudits log is always on and does not reflect the UAL
+    # ingestion toggle 9.1 is about — its rows must not manufacture a PASS.
+    fc = {"19_entra_audit_log_admin_activity.txt": (
+        "ADMIN AUDIT LOG (LAST 14 DAYS)\n==============================\n"
+        "Date         Actor          Activity\n"
+        "2026-01-02   ola@acme.no    Update conditional access policy\n"
+        "2026-01-03   kari@acme.no   Add member to role\n"
+    )}
+    assert _grade(fc, "9.1")["status"] == "info"

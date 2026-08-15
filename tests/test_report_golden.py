@@ -44,9 +44,13 @@ GOLDEN = {
     # Two controls moved off "cannot be verified" as the fixture grew to cover
     # what the report reads: 9.3 when it gained 18_risky_users.txt, and 8.1.2
     # when it gained 30b_teams_guest_access.txt. Both pass on a healthy tenant.
-    "compliance_assessed": 33,
-    "compliance_info": 2,
-    "compliance_pass": 32,
+    # 9.1 moved back to "info": the Entra directoryAudits log it counts is
+    # always-on and does not reflect the Unified Audit Log ingestion toggle the
+    # control is about, so it cannot be verified from the evidence collected
+    # (accuracy sweep). assessed 33→32, info 2→3, pass 32→31; pct unchanged.
+    "compliance_assessed": 32,
+    "compliance_info": 3,
+    "compliance_pass": 31,
     "compliance_pct": 97.0,
     "compliance_total": 35,
     "exchange_connectors": 0,
