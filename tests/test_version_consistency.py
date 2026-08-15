@@ -50,6 +50,105 @@ def test_build_info_exposes_a_describe_so_the_card_shows_commits_ahead():
     assert bi["describe"] == bi["version"] or bi["describe"].startswith(bi["version"] + "-")
 
 
+def _clear_version_cache(monkeypatch):
+    import app.core.version as v
+
+    monkeypatch.setattr(v, "_build_info_cache", None)
+    monkeypatch.setattr(v, "_build_info_ts", 0)
+
+
+def _fake_git(monkeypatch, *, tag: str | None, describe: str | None):
+    """Make `git describe` answer with a controlled (possibly stale) tag.
+
+    ``check_output(..., text=True)`` returns ``str``, so the fake must too —
+    returning bytes would make ``.startswith("v")`` raise and the caller's
+    ``except`` would swallow it, masking the very path under test.
+    """
+    import app.core.version as v
+
+    def _fake(cmd, **kwargs):
+        # check_output takes the command as its first positional arg (a list).
+        a = list(cmd)
+        if a[:2] == ["git", "describe"] and "--abbrev=0" in a:
+            return (tag + "\n") if tag else ""
+        if a[:2] == ["git", "describe"]:
+            return (describe + "\n") if describe else ""
+        if a[:2] == ["git", "rev-parse"]:
+            return "abc1234\n"
+        if a[:2] == ["git", "log"]:
+            return "2026-08-15T00:00:00+00:00\n"
+        return ""
+
+    monkeypatch.setattr(v.subprocess, "check_output", _fake)
+
+
+def test_a_stale_local_tag_does_not_hide_a_newer_changelog_release(tmp_path, monkeypatch):
+    """The box that advanced branch-only: git says v1.1.1, changelog says v1.1.3.
+
+    The version badge must name the release the box actually has (the changelog
+    one), not the last tag its local repo ever received — otherwise the badge
+    and the changelog panel disagree, which is what this whole fix removes.
+    """
+    import app.core.version as v
+
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(
+        "# Endringslogg\n\n## v1.1.3 (2026-08-15)\n### Nytt\n- ting\n\n"
+        "## v1.1.2 (2026-08-14)\n### Nytt\n- ting\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(v, "_CHANGELOG", changelog)
+    _clear_version_cache(monkeypatch)
+    _fake_git(monkeypatch, tag="v1.1.1", describe="v1.1.1-3-g4f5c3da")
+
+    bi = v.get_build_info()
+    assert bi["version"] == "1.1.3", "the changelog release wins over the stale tag"
+    assert bi["describe"] == "1.1.3", "describe must not anchor on the missing old tag"
+
+
+def test_a_newer_local_tag_still_wins_over_the_changelog(tmp_path, monkeypatch):
+    """The fallback only lifts a stale tag; a current tag is the source of truth."""
+    import app.core.version as v
+
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text("# Endringslogg\n\n## v1.1.2 (2026-08-14)\n- ting\n", encoding="utf-8")
+    monkeypatch.setattr(v, "_CHANGELOG", changelog)
+    _clear_version_cache(monkeypatch)
+    _fake_git(monkeypatch, tag="v1.1.3", describe="v1.1.3")
+
+    bi = v.get_build_info()
+    assert bi["version"] == "1.1.3", "the tag is authoritative when it is the newest"
+    assert bi["describe"] == "1.1.3"
+
+
+def test_no_local_tag_at_all_falls_back_to_the_changelog(tmp_path, monkeypatch):
+    """A checkout with no reachable tag still reports the release it carries."""
+    import app.core.version as v
+
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text("# Endringslogg\n\n## v1.1.3 (2026-08-15)\n- ting\n", encoding="utf-8")
+    monkeypatch.setattr(v, "_CHANGELOG", changelog)
+    _clear_version_cache(monkeypatch)
+    _fake_git(monkeypatch, tag=None, describe=None)
+
+    bi = v.get_build_info()
+    assert bi["version"] == "1.1.3"
+    assert bi["describe"] == "1.1.3"
+
+
+def test_a_missing_changelog_does_not_break_version_resolution(monkeypatch):
+    """No changelog file and no tag: the static fallback still answers."""
+    import app.core.version as v
+
+    _clear_version_cache(monkeypatch)
+    monkeypatch.setattr(v, "_latest_changelog_version", lambda: None)
+    _fake_git(monkeypatch, tag="v1.1.1", describe="v1.1.1")
+
+    bi = v.get_build_info()
+    assert bi["version"] == "1.1.1"
+    assert bi["describe"] == "1.1.1"
+
+
 def test_static_surfaces_do_not_ship_unrelated_legacy_versions():
     index = (ROOT / "app/web/static/index.html").read_text()
     worker = (ROOT / "app/web/static/sw.js").read_text()
