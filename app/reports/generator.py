@@ -2841,6 +2841,32 @@ def _compute_risk(
     }
 
 
+def _apply_critical_floor(risk: dict, recs: list[dict], lang: str = "no") -> dict:
+    """Cap the letter grade when there are unaddressed critical findings.
+
+    A weighted numeric score can average a critical away: a tenant with two
+    critical findings and 0% Intune compliance read "B / Satisfactory" because
+    the score still cleared 60. The number is kept, but the grade is floored so
+    the headline cannot say "good" over an open critical — cap at C for one or
+    two criticals, D for more (M365 review, F9). Mutates and returns risk.
+    """
+    if risk.get("score") is None:   # "?" / invalid — nothing to floor
+        return risk
+    criticals = sum(1 for r in recs if r.get("priority") == "critical")
+    if criticals == 0:
+        return risk
+    t = T(lang)
+    order = ["A", "B", "C", "D", "F"]
+    cap = "C" if criticals <= 2 else "D"
+    cap_meta = {"C": (t.risk_level_needs_action, "orange"), "D": (t.risk_level_weak, "red")}
+    grade = risk.get("grade", "A")
+    if grade in order and order.index(grade) < order.index(cap):
+        risk["grade"] = cap
+        risk["level"], risk["color"] = cap_meta[cap]
+        risk["capped_by_criticals"] = criticals
+    return risk
+
+
 def _build_finding_rec_map(recs: list[dict]) -> dict[str, list[int]]:
     """Build a mapping from finding_id → list of recommendation indices (1-based)."""
     result: dict[str, list[int]] = {}
@@ -2849,6 +2875,58 @@ def _build_finding_rec_map(recs: list[dict]) -> dict[str, list[int]]:
         if fid:
             result.setdefault(fid, []).append(rec.get("rec_index", 0))
     return result
+
+
+# Registered-method labels (04_mfa_methods) → the authentication-methods policy
+# IDs (09b) that make them usable. A phone can be used via SMS or Voice, so it is
+# only unusable when BOTH are disabled.
+_METHOD_LABEL_TO_POLICY: dict[str, set[str]] = {
+    "Authenticator App":     {"microsoftAuthenticator"},
+    "Phone (SMS/Call)":      {"sms", "voice"},
+    "FIDO2 Key":             {"fido2"},
+    "OATH TOTP":             {"softwareOath"},
+    "Windows Hello":         {"windowsHelloForBusiness"},
+    "Temporary Access Pass": {"temporaryAccessPass"},
+    "Email OTP":             {"email"},
+    "Certificate":           {"x509Certificate"},
+}
+
+
+def _disabled_auth_methods(policy_text: str) -> set[str]:
+    """Method IDs the authentication-methods policy (09b) reports as disabled."""
+    disabled: set[str] = set()
+    for line in policy_text.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[-1].lower() == "disabled":
+            disabled.add(parts[0])
+    return disabled
+
+
+def _auth_method_lockout_users(mfa: dict, policy_text: str) -> list[str]:
+    """Users whose EVERY registered method is disabled in the policy.
+
+    Enforcing MFA would lock these accounts out — the report never compared the
+    two files, so the discrepancy went unflagged (M365 review, F5). Conservative:
+    an unrecognised method label is assumed usable, so this only fires when a
+    user has methods and none of them can be used.
+    """
+    disabled = _disabled_auth_methods(policy_text)
+    if not disabled:
+        return []
+    locked_out: list[str] = []
+    for u in mfa.get("users") or []:
+        methods = [m.strip() for m in (u.get("methods") or "").split(",") if m.strip()]
+        if not methods:
+            continue
+        usable = False
+        for label in methods:
+            ids = _METHOD_LABEL_TO_POLICY.get(label)
+            if ids is None or any(pid not in disabled for pid in ids):
+                usable = True
+                break
+        if not usable:
+            locked_out.append(f"{u.get('name', '')} ({u.get('upn', '')})")
+    return locked_out
 
 
 def _build_recommendations(
@@ -3099,6 +3177,43 @@ def _build_recommendations(
             "effort": t.rec_effort_medium,
             "doc_url": "https://learn.microsoft.com/en-us/mem/intune/protect/device-compliance-get-started",
         })
+
+    # Entra-registered endpoints Intune does not manage. Raised on its own,
+    # independent of the compliance % (which only speaks to *enrolled* devices):
+    # a tenant with some enrolled devices still has unmanaged endpoints, and that
+    # gap was previously surfaced only when there were NO Intune devices at all
+    # (M365 review, F10b).
+    if intune and intune.get("entra_unmanaged", 0) > 0 and intune.get("entra_total", 0) > 0:
+        entra_unmanaged = intune["entra_unmanaged"]
+        entra_total = intune["entra_total"]
+        prio = "high" if entra_unmanaged / entra_total >= 0.5 else "medium"
+        recs.append({
+            "priority": prio,
+            "evidence": ev("15_entra_devices_count.txt", "10_intune_devices_count.txt"),
+            "finding_id": "finding-entra-unmanaged",
+            "title": t("rec_entra_unmanaged_title", count=entra_unmanaged),
+            "detail": t("rec_entra_unmanaged_detail", unmanaged=entra_unmanaged, total=entra_total),
+            "effort": t.rec_effort_medium,
+            "doc_url": "https://learn.microsoft.com/en-us/mem/intune/enrollment/device-enrollment",
+        })
+
+    # Lockout cross-check: a user's registered methods may all be disabled in the
+    # authentication-methods policy, so enforcing MFA would lock them out. The
+    # report never compared the two files (M365 review, F5).
+    auth_policy_text = (file_contents or {}).get("09b_auth_methods_policy.txt", "")
+    if auth_policy_text and mfa.get("users"):
+        locked_out = _auth_method_lockout_users(mfa, auth_policy_text)
+        if locked_out:
+            recs.append({
+                "priority": "high",
+                "evidence": ev("09b_auth_methods_policy.txt", "04_mfa_methods.txt"),
+                "finding_id": "finding-auth-method-lockout",
+                "title": t("rec_auth_lockout_title", count=len(locked_out)),
+                "detail": t.rec_auth_lockout_detail,
+                "effort": t.rec_effort_medium,
+                "sub_items": locked_out[:50],
+                "doc_url": "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-authentication-methods-manage",
+            })
 
     # SharePoint external sharing. _parse_sharepoint_settings defaults
     # sharing_level to "warning" for an unrecognised or absent "Sharing
@@ -5410,6 +5525,8 @@ def build_report_context(
                                           signin_risk=signin_risk,
                                           network=network,
                                           lang=lang)
+    # An open critical finding must be visible in the headline grade (F9).
+    _apply_critical_floor(risk, recs, lang)
 
     # Build current metrics snapshot for trend comparison
     current_metrics = {

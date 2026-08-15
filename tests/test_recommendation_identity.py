@@ -186,6 +186,105 @@ def test_rec_mfa_detail_does_not_claim_excluded_users_lack_registration():
     assert "excluded from enforcement" in detail
 
 
+# ── A critical finding floors the headline grade (F9) ────────────────────────
+
+def test_a_critical_finding_caps_the_grade():
+    from app.reports.generator import _apply_critical_floor
+    risk = {"score": 65, "grade": "B", "level": "x", "color": "blue"}
+    _apply_critical_floor(risk, [{"priority": "critical"}], "no")
+    assert risk["grade"] == "C"
+    assert risk["capped_by_criticals"] == 1
+
+
+def test_no_critical_leaves_the_grade_alone():
+    from app.reports.generator import _apply_critical_floor
+    risk = {"score": 65, "grade": "B", "level": "x", "color": "blue"}
+    _apply_critical_floor(risk, [{"priority": "high"}], "no")
+    assert risk["grade"] == "B"
+
+
+def test_the_floor_never_raises_a_worse_grade():
+    from app.reports.generator import _apply_critical_floor
+    risk = {"score": 15, "grade": "F", "level": "x", "color": "darkred"}
+    _apply_critical_floor(risk, [{"priority": "critical"}], "no")
+    assert risk["grade"] == "F"
+
+
+def test_the_floor_skips_an_ungradeable_tenant():
+    from app.reports.generator import _apply_critical_floor
+    risk = {"score": None, "grade": "?"}
+    _apply_critical_floor(risk, [{"priority": "critical"}], "no")
+    assert risk["grade"] == "?"
+
+
+# ── Unmanaged Entra devices are their own finding (F10b) ──────────────────────
+
+def test_unmanaged_entra_devices_are_raised_as_a_finding():
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 0, "mfa_registered": 5, "ca_covered": 0, "users": []},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        intune={"has_data": True, "total": 7, "noncompliant": 0,
+                "entra_total": 16, "entra_unmanaged": 9},
+        file_contents={},
+    )
+    rec = [r for r in recs if r.get("finding_id") == "finding-entra-unmanaged"]
+    assert len(rec) == 1
+    assert rec[0]["priority"] == "high"   # 9/16 ≥ 50%
+
+
+def test_no_unmanaged_devices_no_finding():
+    recs = _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 0, "mfa_registered": 5, "ca_covered": 0, "users": []},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        intune={"has_data": True, "total": 16, "noncompliant": 0,
+                "entra_total": 16, "entra_unmanaged": 0},
+        file_contents={},
+    )
+    assert not [r for r in recs if r.get("finding_id") == "finding-entra-unmanaged"]
+
+
+# ── Auth-method lockout cross-check (F5) ──────────────────────────────────────
+
+_POLICY_AUTH_DISABLED = (
+    "  AUTHENTICATION METHODS POLICY\n"
+    "  Method                  State\n"
+    "  microsoftAuthenticator  disabled\n"
+    "  sms                     disabled\n"
+    "  voice                   disabled\n"
+    "  fido2                   enabled\n"
+)
+
+
+def _lockout_recs(users):
+    return _build_recommendations(
+        mfa={"has_data": True, "no_mfa": 0, "mfa_registered": len(users), "ca_covered": 0, "users": users},
+        spf_dmarc=[], secure_score={}, ext_fwd="", risky_users="", licenses=[],
+        file_contents={"09b_auth_methods_policy.txt": _POLICY_AUTH_DISABLED},
+    )
+
+
+def test_a_user_whose_only_methods_are_disabled_is_flagged():
+    recs = _lockout_recs([
+        {"name": "Locked", "upn": "locked@x.no", "methods": "Authenticator App",
+         "has_mfa": True, "protected": True, "unknown": False},
+        {"name": "Safe", "upn": "safe@x.no", "methods": "FIDO2 Key",
+         "has_mfa": True, "protected": True, "unknown": False},
+    ])
+    rec = [r for r in recs if r.get("finding_id") == "finding-auth-method-lockout"]
+    assert len(rec) == 1
+    joined = " ".join(rec[0]["sub_items"])
+    assert "locked@x.no" in joined, "only-Authenticator user (disabled) must be flagged"
+    assert "safe@x.no" not in joined, "user with an enabled method (FIDO2) must not be"
+
+
+def test_no_lockout_finding_when_every_user_has_an_enabled_method():
+    recs = _lockout_recs([
+        {"name": "Safe", "upn": "safe@x.no", "methods": "FIDO2 Key, Authenticator App",
+         "has_mfa": True, "protected": True, "unknown": False},
+    ])
+    assert not [r for r in recs if r.get("finding_id") == "finding-auth-method-lockout"]
+
+
 # ── Re-rendering on the way out ──────────────────────────────────────────────
 
 def test_the_dashboard_rebuilds_recommendations_in_the_readers_language():
