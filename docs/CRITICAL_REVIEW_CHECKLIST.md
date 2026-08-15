@@ -31,7 +31,7 @@ deployment.
 - [x] **SR-004:** Scheduler lifecycle and single-flight
 - [x] **SR-005:** Atomic, concurrency-safe settings storage
 - [x] **SR-006:** Pentest execution boundary and process cleanup
-- [ ] **SR-007:** Security finding accuracy and data freshness
+- [x] **SR-007:** Security finding accuracy and data freshness
 
 ## Tracking table
 
@@ -48,7 +48,7 @@ that tried to overturn every verdict in both directions. Nothing was overturned.
 | SR-004 | P1 | **Complete** | 7·0·0 of 7 | #125 | present |
 | SR-005 | P1 | **Complete** | 5·0·0 of 5 | #123 | present |
 | SR-006 | P2 | **Complete** | 5·0·0 of 5 | #129 | present |
-| SR-007 | P2 | Not started² | 0·1·6 of 7 | none | absent |
+| SR-007 | P2 | **Complete** | 7·0·0 of 7 | #131 | present |
 
 ² SR-007's four named evidence files (`vuln_checker.py`, `cms_scanner.py`,
   `tls_auditor.py`, `firmware_db.py`) are byte-identical to baseline. PRs #118
@@ -70,16 +70,13 @@ since been closed in the PRs noted below.
 **SR-002 landed in #122** (2026-08-14): every ALSO route scoped to the
 caller's accessible customers, `get_invoices` made admin-only, per-user
 scan progress, 18 direct-object-reference tests, adversarially reviewed.
-SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). SR-003 landed in #127 (atomic authenticated backups; a restore that stages and hash-verifies against an HMAC-authenticated manifest, extracts only manifest-listed files, swaps atomically with rollback, adopts the key last, and durably quiesces the database during the swap). SR-006 landed in #129 (scanners run unprivileged, never sudo; a CAP_NET_RAW capability probe that predicts the spawned nmap's privilege and fails the UI/API closed; and a run_capture that kills the whole process group on timeout/cancel). **All five P1 release-blockers are now closed, as is SR-006. Only SR-007 (P2) remains.**
+SR-001 landed in #124 (owner+customer authorization, 404 non-disclosure, secret redaction, the credential-target guard extended to the wizard origin and the UniFi leg, admin feature floor + tenant_write on deploy). SR-005 landed in #123 (atomic writes, a settings lock + update_app_settings, all 13 read-modify-write sites converted, webhook test no longer persists). SR-004 landed in #125 (both schedulers start from the lifespan and are awaited on shutdown, per-task single-flight, a failure breaker that survives restart, and the duplicated audit-loop maintenance removed). SR-003 landed in #127 (atomic authenticated backups; a restore that stages and hash-verifies against an HMAC-authenticated manifest, extracts only manifest-listed files, swaps atomically with rollback, adopts the key last, and durably quiesces the database during the swap). SR-006 landed in #129 (scanners run unprivileged, never sudo; a CAP_NET_RAW capability probe that predicts the spawned nmap's privilege and fails the UI/API closed; and a run_capture that kills the whole process group on timeout/cancel). SR-007 landed in #131 (findings carry confidence/source/as_of/evidence; internal reachability is separated from internet exposure; the firmware/CMS tables fail closed on staleness rather than claiming "current"; and the TLS auditor validates the chain, weak signatures, and IP SANs). **All seven review findings are now closed — the five P1 release-blockers and both P2 items.**
 
-Most severe still-open gaps for a multi-user production deployment:
-
-- **SR-007** (P2) — several security conclusions are presented as definitive
-  while produced from static or incomplete knowledge; no `unknown`/`stale`
-  fallback when a source is unavailable or past its freshness window.
-
-(SR-006 — the web process ran `sudo nmap`/SMB inline and did not kill the scan
-process group on timeout/cancel — was resolved in #129.)
+No release-blocking gaps remain: all five P1 findings and both P2 findings
+(SR-006 in #129, SR-007 in #131) are resolved. Remaining work is operational,
+not a code gap — see the user-side tasks tracked outside this checklist (GDAP
+app registration, a first real M365 audit, UniFi console matching, and periodic
+manual refresh of the UniFi firmware table before its freshness window lapses).
 
 ## SR-001 — Provisioning ownership and credential boundaries
 
@@ -295,18 +292,31 @@ failure mode.
 
 **Acceptance criteria:**
 
-- [ ] Separate internal reachability from verified internet exposure.
-- [ ] Attach evidence, source, confidence, and `as_of` metadata to findings.
-- [ ] Return `unknown`/`stale` rather than `safe` when the knowledge source is
+- [x] Separate internal reachability from verified internet exposure.
+      *(finding.exposure_for_target: private/CGNAT/ULA/loopback → internal;
+      global → public; an internal service carries a "not verified" note.)*
+- [x] Attach evidence, source, confidence, and `as_of` metadata to findings.
+- [x] Return `unknown`/`stale` rather than `safe` when the knowledge source is
       unavailable or older than its supported freshness window.
-- [ ] Replace banner-only CVE claims with a maintained source and
+- [x] Replace banner-only CVE claims with a maintained source and
       package/vendor-aware version logic, or label them as unverified leads.
-- [ ] Validate TLS chain/hostname, IP SANs, signature algorithms, protocol
+      *(Chose the labelling option: banner→CVE matches are `unverified` leads;
+      the false "queries NVD" claim was removed.)*
+- [x] Validate TLS chain/hostname, IP SANs, signature algorithms, protocol
       support, and weak supported ciphers with explicit test fixtures.
-- [ ] Replace fixed CMS and firmware thresholds with maintained feeds or a
+      *(A real verifying handshake reports chain trust; the dead md5/sha1 check
+      is wired up; IP SANs parsed/matched; weak supported ciphers probed.)*
+- [x] Replace fixed CMS and firmware thresholds with maintained feeds or a
       documented, tested manual update process that fails closed on staleness.
-- [ ] Add correctness tests for version edge cases, stale feeds, internal scan
+      *(Documented manual tables with a freshness window; past it they return
+      unknown, never "current". An unparseable/future date or a clock behind it
+      also counts as stale.)*
+- [x] Add correctness tests for version edge cases, stale feeds, internal scan
       context, TLS fixtures, and unsupported models.
+
+Landed in #131. Two adversarial review rounds fixed a negative-age fail-open, a
+CGNAT misclassification, an over-eager TLS trust-dedup, and a silent weak-cipher
+pass.
 
 **Required focused test:** `tests/test_security_data_freshness.py`
 
