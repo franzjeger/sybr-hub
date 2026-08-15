@@ -609,17 +609,21 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
     Graph API rate limits are respected while still running much faster
     than sequential execution.
     """
-    if state.bulk_audit_running:
-        raise ConflictError(ui_t("err_bulk_running"))
-    if state.audit_running:
-        raise ConflictError(ui_t("err_audit_running"))
+    # Claim both flags atomically, before the response starts streaming. The
+    # check and the set must be one critical section: set inside the generator
+    # (as this used to be) left a window where two concurrent requests both
+    # passed the check before either set the flag, and both audits ran.
+    async with state.audit_lock:
+        if state.bulk_audit_running:
+            raise ConflictError(ui_t("err_bulk_running"))
+        if state.audit_running:
+            raise ConflictError(ui_t("err_audit_running"))
+        state.bulk_audit_running = True
+        state.audit_running = True
 
     MAX_CONCURRENT = 3  # parallel audits at once
 
     async def generate() -> AsyncGenerator[str, None]:
-        state.bulk_audit_running = True
-        state.audit_running = True
-
         try:
             from app.core.customer import CustomerManager
             from app.modules.base import SectionResult, SectionStatus
