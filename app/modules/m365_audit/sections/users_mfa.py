@@ -269,6 +269,11 @@ class MFASection(BaseSection):
         self.users       = users
         self.concurrency = concurrency
         self._ca_section = ca_section  # reference to CA section; read .policies at runtime
+        # Set of user IDs excluded from MFA-enforcing CA policies (incl. exclude
+        # groups' members). Populated in place when this section runs, and shared
+        # by reference with the break-glass check, which previously always saw an
+        # empty set and reported "cannot confirm" over data we had (review, F8).
+        self.mfa_excluded_ids: set[str] = set()
 
     @property
     def ca_policies(self) -> list[dict]:
@@ -581,6 +586,10 @@ class MFASection(BaseSection):
             mfa_policies, covered_ids, excluded_ids, group_names, group_info = (
                 await self._analyse_ca_policies()
             )
+            # Share the excluded set (in place) so the break-glass check can
+            # correlate Global Admins against it instead of guessing (F8).
+            self.mfa_excluded_ids.clear()
+            self.mfa_excluded_ids.update(excluded_ids)
 
             header = (
                 f"  {'Display Name':<35} {'UPN':<45} {'MFA':>5} {'CA':>4} {'CA EXCL':>8}  Methods"

@@ -55,6 +55,8 @@ class IdentitySecuritySection(BaseSection):
         global_admin_ids: Optional[list[str]] = None,
         mfa_users: Optional[dict[str, list[str]]] = None,
         ca_exclusions: Optional[set[str]] = None,
+        users_ref: list[dict] | None = None,
+        ca_section=None,
         progress_cb=None,
     ):
         # Keyword-only past graph. The collector used to pass progress_cb third,
@@ -75,6 +77,12 @@ class IdentitySecuritySection(BaseSection):
         self.global_admin_ids  = global_admin_ids if global_admin_ids is not None else []
         self.mfa_users         = mfa_users if mfa_users is not None else {}   # upn -> methods
         self.ca_exclusions     = ca_exclusions if ca_exclusions is not None else set()
+        # Shared by reference (both empty at construction, filled when their
+        # owning sections run earlier): a directory user list for GUID→UPN
+        # display, and the CA section so "were exclusions collected?" is a real
+        # question (CA has policies) rather than "is the set empty?" (F8).
+        self._users_ref        = users_ref if users_ref is not None else []
+        self._ca_section       = ca_section
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -414,9 +422,16 @@ class IdentitySecuritySection(BaseSection):
             return
 
         lines += [
-            f"  {'User ID':<40} {'MFA Registered':>15} {'CA Excluded':>12}  Notes",
-            "  " + "-" * 86,
+            f"  {'User (UPN)':<45} {'MFA Registered':>15} {'CA Excluded':>12}  Notes",
+            "  " + "-" * 90,
         ]
+
+        by_id = {u.get("id"): u for u in self._users_ref if u.get("id")}
+        # CA exclusions are *known* when the CA section actually collected
+        # policies — not when the exclusion set happens to be non-empty. An empty
+        # set on a tenant with CA policies means "no admin is excluded", which is
+        # a clean answer, not an absence of data (F8).
+        ca_known = bool(getattr(self._ca_section, "policies", None))
 
         for uid in self.global_admin_ids:
             # Try to look up MFA methods
@@ -433,11 +448,6 @@ class IdentitySecuritySection(BaseSection):
             except Exception:
                 has_mfa = None  # unknown
 
-            # An empty exclusion set means nobody supplied one, not that nobody
-            # is excluded. Writing "No" there asserts a clean result from data
-            # we never had — the same mistake as reporting an unanswered lookup
-            # as a pass.
-            ca_known    = bool(self.ca_exclusions)
             ca_excluded = ca_known and uid in self.ca_exclusions
             mfa_str     = "Yes" if has_mfa else ("Unknown" if has_mfa is None else "NO")
             ca_str      = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"
@@ -447,9 +457,11 @@ class IdentitySecuritySection(BaseSection):
             if ca_excluded:
                 notes.append("Excluded from CA — confirmed break-glass candidate")
             if not ca_known:
-                notes.append("CA exclusions not collected — cannot confirm")
+                notes.append("CA policies not collected — cannot confirm exclusion")
+            user  = by_id.get(uid) or {}
+            label = user.get("userPrincipalName") or user.get("displayName") or uid
             lines.append(
-                f"  {uid:<40} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}"
+                f"  {label[:45]:<45} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}"
             )
 
         lines += ["=" * 90, ""]
