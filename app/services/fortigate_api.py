@@ -49,6 +49,24 @@ def _build_client(config: dict, token: str) -> FortiGateClient:
     )
 
 
+# A FortiGate admin's `trusthost1` is a native "address mask" string, and these
+# three values all mean the admin is reachable from anywhere — no source
+# restriction at all:
+#   "0.0.0.0 0.0.0.0"  the FortiGate default (address + mask form)
+#   "0.0.0.0/0"        the CIDR spelling of the same
+#   ""                 unset
+# Comparing against the bare "0.0.0.0" misses the default form, so every
+# unrestricted admin reads as restricted (and shows green). Every trust-host
+# classification — the CIS check, quick_audit_fortigate, and the dashboard
+# poller — goes through this one predicate so the surfaces cannot drift apart.
+_UNRESTRICTED_TRUSTHOSTS = ("0.0.0.0 0.0.0.0", "0.0.0.0/0", "")
+
+
+def admin_trusthost_is_open(trusthost1: str | None) -> bool:
+    """True when `trusthost1` leaves an admin reachable from any source."""
+    return (trusthost1 or "") in _UNRESTRICTED_TRUSTHOSTS
+
+
 # ── 1. Dashboard data ───────────────────────────────────────────────────────
 
 async def get_dashboard(config: dict, token: str) -> dict:
@@ -623,7 +641,7 @@ async def check_compliance(config: dict, token: str) -> dict:
         for admin in admins:
             name = admin.get("name", "unknown")
             trusthosts = admin.get("trusthost1", "0.0.0.0 0.0.0.0")
-            is_open = trusthosts in ("0.0.0.0 0.0.0.0", "0.0.0.0/0", "")
+            is_open = admin_trusthost_is_open(trusthosts)
             findings.append({
                 "id": "CIS-1.1",
                 "title": f"Admin trust host — {name}",
@@ -960,13 +978,9 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         admin_list.append({
             "name": a.get("name", ""),
             "profile": a.get("accprofile", ""),
-            # trusthost1 is a native "address mask" string, e.g. "0.0.0.0 0.0.0.0"
-            # for an unrestricted admin (the FortiGate default). Comparing against
-            # the bare "0.0.0.0" never matched that form, so every unrestricted
-            # admin was classed as trust-host-restricted and the finding never
-            # fired. Classify it the same way the CIS check does (accuracy sweep).
-            "trusthost": a.get("trusthost1", "0.0.0.0 0.0.0.0") not in (
-                "0.0.0.0 0.0.0.0", "0.0.0.0/0", ""),
+            # True == the admin has a real trust-host restriction. See
+            # admin_trusthost_is_open for why the bare "0.0.0.0" test was wrong.
+            "trusthost": not admin_trusthost_is_open(a.get("trusthost1", "0.0.0.0 0.0.0.0")),
             "two_factor": a.get("two-factor", "disable") != "disable",
         })
 
