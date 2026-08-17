@@ -89,6 +89,7 @@ def test_every_declared_permission_has_something_that_uses_it():
         "SensitivityLabels.Read.All": "dataSecurityAndGovernance",
         "AccessReview.Read.All": "accessReviews",
         "SecurityAlert.Read.All": "alerts_v2",
+        "SecurityIncident.Read.All": "security/incidents",
     }
     unused = [
         perm for perm in REQUIRED_GRAPH_PERMISSIONS
@@ -99,6 +100,54 @@ def test_every_declared_permission_has_something_that_uses_it():
     unmapped = [p for p in REQUIRED_GRAPH_PERMISSIONS if p not in probes]
     assert not unmapped, (
         f"no probe for {unmapped} — add one so an unused grant cannot hide"
+    )
+
+
+def test_a_permission_a_section_says_it_needs_is_actually_declared():
+    """The forward direction: a section that documents needing a permission
+    must have it in the declared set — otherwise setup never asks for it, the
+    consent is never granted, and the call 403s on every live tenant while the
+    audit tool quietly under-reports.
+
+    This is the direction the reverse test above does not cover, and the gap it
+    guards is not hypothetical: SecurityIncident.Read.All shipped for months
+    with defender_office.py calling security/incidents and printing
+    "requires SecurityIncident.Read.All" in its own error note — the note and
+    the grant simply disagreed, and nothing failed until a live 403.
+
+    The enforced convention is the inline note a section writes when a call is
+    refused: "... requires X.Read.All [or Y.Read.All] ..." / "... needs
+    X.Read.All". Whatever a section says it needs, the app must actually ask a
+    customer's tenant to consent to.
+    """
+    mod = pathlib.Path("app/modules/m365_audit")
+    src = "\n".join(p.read_text(encoding="utf-8") for p in mod.rglob("*.py"))
+
+    declared = set(REQUIRED_GRAPH_PERMISSIONS)
+
+    # A permission a section may *attempt* but does not *require*: an optional
+    # enrichment with a documented fallback when it is absent. Consenting to it
+    # is a choice, not a prerequisite, so it is deliberately not in the required
+    # set — and naming it here keeps this test from demanding it.
+    optional = {"ComplianceManager.Read.All"}
+
+    note = re.compile(
+        r"(?:requires|needs)\s+([A-Za-z]+\.Read\.[A-Za-z]+)"
+        r"(?:\s+or\s+([A-Za-z]+\.Read\.[A-Za-z]+))?"
+    )
+    undeclared: list[str] = []
+    for primary, alt in note.findall(src):
+        # An "or" note is satisfied by either permission; a bare note by the one.
+        options = {primary} | ({alt} if alt else set())
+        if options & optional:
+            continue
+        if not (options & declared):
+            undeclared.append(" or ".join(sorted(o for o in options if o)))
+
+    assert not undeclared, (
+        f"a section documents needing {undeclared}, but it is not in "
+        f"REQUIRED_GRAPH_PERMISSIONS — setup will never request it and the call "
+        f"will 403 on every tenant"
     )
 
 

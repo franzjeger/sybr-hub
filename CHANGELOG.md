@@ -7,6 +7,28 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
+## Ikke utgitt
+### Appen ber om tillatelsene den faktisk trenger
+
+Defender-seksjonen kaller `security/incidents` og har hele tiden dokumentert at
+den krever `SecurityIncident.Read.All` — men tillatelsen sto aldri i den
+deklarerte lista (`REQUIRED_GRAPH_PERMISSIONS`). Dermed spurte oppsettet aldri
+om den, ingen tenant samtykket, og innhentingen fikk 403 ved hver kjøring mens
+seksjonen stille degraderte. Nå er den med i lista (og i de to andre stedene
+lista speiles: PowerShell-fallbacken og validatoren), som warn-only — auditen
+fullfører fortsatt uten den, kun Defender-hendelser mangler til samtykke er gitt.
+
+- **Eksisterende app-registreringer må re-samtykke én gang.** Trykk **Sjekk
+  tillatelser** på kundekortet; den navngir det som mangler, og kjør så
+  samtykke-flyten (eller `setup`) på nytt.
+- **Ny vakt mot at dette gjentar seg.** En test leser seksjonenes egne
+  «requires X.Read.All»-notater og krever at hver navngitt tillatelse står i den
+  deklarerte lista — så en kalt-men-udeklarert tillatelse feiler i CI i stedet
+  for å dukke opp som en 403 mot en ekte tenant måneder senere.
+- PIM-400 og OneDrive-«tomt for budsjett» var *ikke* tillatelseshull:
+  `RoleManagement.Read.Directory` er allerede gitt (400 = tenant uten Entra P2),
+  og OneDrive-taket er en bevisst skannegrense som rapporterer delvis dekning.
+
 ## v1.1.4 (2026-08-15)
 ### Versjonsmerket følger med på en box som bare hentet grenen
 

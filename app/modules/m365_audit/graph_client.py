@@ -400,6 +400,7 @@ class GraphClient:
         "SensitivityLabels.Read.All",
         "AccessReview.Read.All",
         "SecurityAlert.Read.All",
+        "SecurityIncident.Read.All",
     }
 
     async def validate_permissions(self) -> dict[str, Any]:

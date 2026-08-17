@@ -87,6 +87,7 @@ REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "UserAuthenticationMethod.Read.All",
     "AccessReview.Read.All",
     "SecurityAlert.Read.All",
+    "SecurityIncident.Read.All",
     "SensitivityLabels.Read.All",
 ]
 
