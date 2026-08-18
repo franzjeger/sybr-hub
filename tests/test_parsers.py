@@ -1488,3 +1488,92 @@ def test_a_file_with_no_table_still_counts_its_lines():
         + "=" * 40 + "\n"
     )
     assert _count_data_lines(text) == 3
+
+
+# ── License waste: interactive-only stale detection over-counts (M365 review) ──
+
+def test_recent_non_interactive_signin_is_not_stale():
+    """An account used daily from an already-signed-in client keeps producing
+    non-interactive sign-ins but no new interactive ones. Keying on interactive
+    (with non-interactive only as a null-fallback) flagged it stale — inflating
+    the count several-fold. Last activity is the LATER of the two signals."""
+    from datetime import UTC, datetime, timedelta
+    from pathlib import Path
+
+    from app.modules.m365_audit.sections.users_mfa import UsersSection
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    old = (now - timedelta(days=200)).isoformat().replace("+00:00", "Z")
+    users = [
+        {"id": "active", "displayName": "Active", "userPrincipalName": "active@x.no",
+         "accountEnabled": True, "userType": "Member", "assignedLicenses": [{"skuId": "s"}],
+         "signInActivity": {"lastSignInDateTime": old, "lastNonInteractiveSignInDateTime": recent}},
+        {"id": "stale", "displayName": "Stale", "userPrincipalName": "stale@x.no",
+         "accountEnabled": True, "userType": "Member", "assignedLicenses": [{"skuId": "s"}],
+         "signInActivity": {"lastSignInDateTime": old, "lastNonInteractiveSignInDateTime": old}},
+    ]
+    saved: dict[str, str] = {}
+    sec = UsersSection(Path("/tmp"), graph=None)
+    sec.users = users
+    sec._save = lambda name, body: saved.__setitem__(name, body)
+    sec._detect_stale_accounts()
+
+    out = saved.get("03b_stale_accounts.txt", "")
+    assert "stale@x.no" in out, "inactive on BOTH signals must be stale"
+    assert "active@x.no" not in out, "recent non-interactive activity must not read as stale"
+
+
+def test_license_waste_uses_a_usage_weighted_price_not_a_type_average():
+    """Pricing every stale seat at the unweighted average across SKU types
+    over-states the saving when the tenant is mostly a cheap SKU. Weight by
+    seats in use so the estimate reflects the real licence mix."""
+    from app.reports.generator import _analyze_license_optimization
+
+    # 300 cheap seats (100) + 2 expensive (580): unweighted type-avg = 340, but
+    # the usage-weighted average is ~103. Ten stale seats: ~1030, not 3400.
+    licenses = [
+        {"part": "STANDARDPACK", "used": 300, "total": 300, "pct": 100.0, "warn": True},
+        {"part": "SPE_E5", "used": 2, "total": 2, "pct": 100.0, "warn": True},
+    ]
+    stale_rows = "\n".join(
+        f"User{i}    u{i}@x.no    2026-01-01T00:00:00    120    Yes" for i in range(10)
+    )
+    stale_text = "  STALE ACCOUNT DETECTION\n" + "=" * 20 + "\n" + stale_rows + "\n"
+    r = _analyze_license_optimization(licenses, {"03b_stale_accounts.txt": stale_text})
+    unused = [s for s in r["optimization_suggestions"] if s["type"] == "unused"]
+    assert unused, "a licensed-stale finding must be produced"
+    savings = unused[0]["savings"]
+    assert 900 <= savings <= 1200, f"expected ~1030 (usage-weighted), got {savings}"
+    assert savings < 10 * 340, "must be below the unweighted type-average estimate"
+
+
+def test_latest_signin_takes_the_most_recent_of_the_two_signals():
+    from datetime import UTC, datetime, timedelta
+
+    from app.modules.m365_audit.signin import latest_signin
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    old = (now - timedelta(days=200)).isoformat().replace("+00:00", "Z")
+    # Stale interactive + recent non-interactive → the recent one wins.
+    dt = latest_signin({"lastSignInDateTime": old, "lastNonInteractiveSignInDateTime": recent})
+    assert dt is not None and (now - dt).days == 2
+    assert latest_signin({}) is None
+    assert latest_signin(None) is None
+    assert latest_signin({"lastSignInDateTime": "not-a-date"}) is None
+
+
+def test_break_glass_recency_counts_non_interactive_signin():
+    """A CA-excluded admin reached via a refresh-token session (stale interactive,
+    recent non-interactive) is actively used — not an idle break-glass candidate."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.modules.m365_audit.sections.identity_security import _last_sign_in_days_ago
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    old = (now - timedelta(days=200)).isoformat().replace("+00:00", "Z")
+    days = _last_sign_in_days_ago({"signInActivity": {
+        "lastSignInDateTime": old, "lastNonInteractiveSignInDateTime": recent}})
+    assert days == 2, "recent non-interactive activity means the admin is not idle"
