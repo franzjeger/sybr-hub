@@ -235,6 +235,34 @@ async def test_reattach_with_no_active_run_reports_ended_and_starts_nothing(clie
     assert state.audit_running is False, "attach-only must never start an audit"
 
 
+async def test_setup_reattach_to_a_finished_run_replays_the_outcome(client):
+    """A reconnect (?attach=1) to first-run setup replays the outcome and starts
+    nothing — the same attach-only safety as the audit."""
+    from app.web import state
+
+    _, token = await _auth("setup-reattach")
+    state.setup_running = False
+    run = state.begin_setup()
+    run.running = False  # finished
+    run.terminal = {"type": "done", "success": True}
+
+    body = client.get("/api/setup/stream?attach=1", headers=_headers(token)).text
+    assert '"success": true' in body
+    assert state.setup_running is False, "re-attach must not start a new setup"
+
+
+async def test_setup_reattach_with_no_run_reports_ended(client):
+    import app.web.state as state
+
+    _, token = await _auth("setup-noreattach")
+    state.setup_running = False
+    state._setup_run = None  # no setup ever started
+
+    body = client.get("/api/setup/stream?attach=1", headers=_headers(token)).text
+    assert '"type": "ended"' in body
+    assert state.setup_running is False, "attach-only must never start a setup"
+
+
 async def test_history_load_cannot_select_another_customers_run(client):
     from app.core.config import get_audit_dir
     from app.core.customer import customer_dir_name

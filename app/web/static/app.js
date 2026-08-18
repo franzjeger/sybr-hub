@@ -2720,8 +2720,32 @@ function startSetup() {
   document.getElementById('device-code-card').classList.remove('visible');
   document.getElementById('setup-result-area').innerHTML = '';
 
-  fetch('/api/setup/stream').then(async function(resp) {
-    if (!resp.ok) { appendSetupLog({step:'NET',status:'error',msg:'HTTP '+resp.status}); return; }
+  _runSetupStream('/api/setup/stream');
+}
+
+// Read the setup SSE stream, re-attaching on a dropped connection. Setup is
+// server-owned now — it keeps running and saves credentials even if this tab
+// closes — so recovery is re-attaching with ?attach=1, which only ever attaches
+// and never starts a second setup. The re-attach replays the device code so the
+// operator can still finish signing in.
+async function _runSetupStream(url) {
+  while (_setupRunning) {
+    var outcome = await _attemptSetupStream(url);
+    if (outcome === 'done' || !_setupRunning) return;
+    appendSetupLog({step:'NET', status:'warn', msg: t('msg_setup_reconnecting')});
+    await new Promise(function(r){ setTimeout(r, 2000); });
+    url = '/api/setup/stream?attach=1';
+  }
+}
+
+async function _attemptSetupStream(url) {
+  try {
+    var resp = await fetch(url);
+    if (!resp.ok) {
+      appendSetupLog({step:'NET', status:'error', msg:'HTTP '+resp.status});
+      _setupRunning = false;
+      return 'done';
+    }
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
     var buf = '';
@@ -2736,8 +2760,12 @@ function startSetup() {
           var d = JSON.parse(lines[i].slice(6));
           if (d.type === 'log') appendSetupLog(d);
           else if (d.type === 'device_code') showDeviceCode(d);
-          else if (d.type === 'error') appendSetupLog({step:'ERROR',status:'error',msg:d.msg});
-          else if (d.type === 'done') {
+          else if (d.type === 'error') appendSetupLog({step:'ERROR', status:'error', msg:d.msg});
+          else if (d.type === 'ended') {
+            // Re-attach found no active setup (finished or never started). Stop.
+            _setupRunning = false;
+            return 'done';
+          } else if (d.type === 'done') {
             _setupRunning = false;
             hideDeviceCode();
             if (d.success) {
@@ -2748,14 +2776,15 @@ function startSetup() {
               document.getElementById('setup-result-area').innerHTML =
                 '<div class="alert alert-error">'+t('msg_setup_failed')+'</div><button class="btn btn-default" onclick="startSetup()">'+t('btn_try_again')+'</button>';
             }
+            return 'done';
           }
         } catch(_) {}
       }
     }
-  }).catch(function(e) {
-    _setupRunning = false;
-    appendSetupLog({step:'NET',status:'error',msg:t('err_lost_connection')+': '+e.message});
-  });
+    return false;  // stream closed without 'done' — re-attach
+  } catch (e) {
+    return false;  // network error — re-attach
+  }
 }
 
 function appendSetupLog(d) {
