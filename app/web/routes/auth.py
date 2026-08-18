@@ -288,6 +288,11 @@ async def auth_create_user(
         display_name=body.display_name,
         email=body.email,
         role=body.role,
+        # Shared customer pool by default (see UserCreate). The create_user
+        # primitive stays fail-closed for programmatic/system callers; the
+        # product decision to put human accounts in the pool lives here, at the
+        # boundary where an admin creates them.
+        all_customers=body.all_customers,
     )
     logger.info(
         "User created by %s: %s (%s)", admin.username, user.username, user.role.value
