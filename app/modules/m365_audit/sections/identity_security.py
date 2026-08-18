@@ -13,6 +13,7 @@ from typing import Optional
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
+from app.modules.m365_audit.signin import latest_signin
 
 _HIGH_SEVERITY = {"high", "critical"}
 
@@ -41,14 +42,13 @@ def _last_sign_in_days_ago(user: dict) -> int | None:
     — i.e. the account still qualifies as a break-glass candidate, exactly as
     before this check existed.
     """
-    activity = user.get("signInActivity") or {}
-    last = (activity.get("lastSignInDateTime")
-            or activity.get("lastNonInteractiveSignInDateTime"))
-    if not last:
-        return None
-    try:
-        dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
-    except ValueError:
+    # Most recent of interactive AND non-interactive sign-in (see latest_signin):
+    # a CA-excluded admin reached via a refresh-token session has a stale
+    # interactive date but recent non-interactive activity, and keying on
+    # interactive alone wrongly counted it as an idle break-glass candidate while
+    # hiding its real "active admin bypassing MFA" risk (M365 review follow-up).
+    dt = latest_signin(user.get("signInActivity"))
+    if dt is None:
         return None
     return (datetime.now(UTC) - dt).days
 

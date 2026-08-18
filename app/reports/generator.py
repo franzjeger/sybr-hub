@@ -582,13 +582,22 @@ def _analyze_license_optimization(
     licensed_stale_users = [s for s in licensed_stale if (s.get("upn") or "").lower() not in shared_upns]
     licensed_shared = [s for s in licensed_stale if (s.get("upn") or "").lower() in shared_upns]
 
-    # Average paid-SKU price, used to estimate both kinds of waste.
-    sku_prices = [
-        _SKU_MONTHLY_PRICE.get(lic["part"], 0)
-        for lic in licenses
-        if _SKU_MONTHLY_PRICE.get(lic["part"], 0) > 0 and lic["used"] > 0
-    ]
-    avg_price = int(sum(sku_prices) / len(sku_prices)) if sku_prices else 300
+    # USAGE-WEIGHTED average paid-SKU price, used to estimate both kinds of
+    # waste. An unweighted average across SKU TYPES priced every stale seat at
+    # the blend of all types, so a tenant whose seats are mostly a cheap SKU
+    # (e.g. F1) but which also holds a few expensive ones had the saving badly
+    # overstated (M365 review: 251 seats x ~203 kr). Weighting by seats in use
+    # makes the estimate reflect the tenant's actual licence mix. The stale
+    # accounts' own SKUs are not recorded per-account, so this is the best
+    # estimate available without that data.
+    weighted_sum = 0
+    weighted_seats = 0
+    for lic in licenses:
+        price = _SKU_MONTHLY_PRICE.get(lic["part"], 0)
+        if price > 0 and lic["used"] > 0:
+            weighted_sum += price * lic["used"]
+            weighted_seats += lic["used"]
+    avg_price = int(weighted_sum / weighted_seats) if weighted_seats else 300
 
     if licensed_stale_users:
         waste_amount = len(licensed_stale_users) * avg_price

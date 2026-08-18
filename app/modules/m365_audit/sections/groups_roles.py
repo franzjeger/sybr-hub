@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient
+from app.modules.m365_audit.signin import latest_signin
 
 _GLOBAL_ADMIN_ROLE = "Company Administrator"  # display name in Graph
 _GA_WARN_THRESHOLD = 5
@@ -124,12 +125,13 @@ class AdminRolesSection(BaseSection):
         upn_lower = upn.lower()
         for u in self._users_ref:
             if (u.get("userPrincipalName") or "").lower() == upn_lower:
-                activity = u.get("signInActivity") or {}
-                interactive = activity.get("lastSignInDateTime") or ""
-                non_interactive = activity.get("lastNonInteractiveSignInDateTime") or ""
-                last = interactive or non_interactive
-                if last:
-                    return last[:16].replace("T", " ")  # "2026-03-20 14:30"
+                # Most recent of interactive AND non-interactive sign-in (see
+                # latest_signin): keying on interactive alone showed a stale date
+                # as an admin's last sign-in when they were signing in
+                # non-interactively far more recently (M365 review follow-up).
+                dt = latest_signin(u.get("signInActivity"))
+                if dt:
+                    return dt.strftime("%Y-%m-%d %H:%M")  # "2026-03-20 14:30"
                 return "Aldri"
         return ""
 

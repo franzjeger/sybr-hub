@@ -11,6 +11,7 @@ from typing import Optional
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient
+from app.modules.m365_audit.signin import latest_signin
 
 logger = logging.getLogger(__name__)
 
@@ -130,19 +131,11 @@ class UsersSection(BaseSection):
 
         stale: list[dict] = []
         for u in enabled_members:
-            activity = u.get("signInActivity") or {}
-            last_interactive = activity.get("lastSignInDateTime")
-            last_non_interactive = activity.get("lastNonInteractiveSignInDateTime")
-
-            # Use interactive sign-in as primary, non-interactive as fallback
-            last_str = last_interactive or last_non_interactive
-            if last_str:
-                try:
-                    last_dt = datetime.fromisoformat(last_str.replace("Z", "+00:00"))
-                except ValueError:
-                    last_dt = None
-            else:
-                last_dt = None
+            # Last activity is the most recent of interactive AND non-interactive
+            # sign-in — see latest_signin(). Keying on interactive alone flagged
+            # accounts used daily from an already-signed-in client as stale and
+            # inflated the count several-fold (M365 review).
+            last_dt = latest_signin(u.get("signInActivity"))
 
             if last_dt is not None:
                 days_inactive = (now - last_dt).days
