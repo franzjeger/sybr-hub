@@ -8,7 +8,23 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
-### Kopier-knapp for påloggingslenken ved kundeoppsett
+### Auditen overlever at nettleseren mister forbindelsen
+
+Auditen kjørte på verten, men *levetiden* hang på nettleserfanen din. Alt
+etterarbeidet — lagre metrikker for dashboard-karakteren, resultatene, e-post,
+webhook — lå inne i SSE-strømsløyfen, og `running`-flagget ble nullstilt når
+strømmen ble revet ned. Restartet du en ekstern maskin midt i en audit, trodde
+serveren den var «ferdig», nettleseren lastet på nytt — og rapporten var aldri
+skrevet.
+
+Nå eier serveren jobben. Collector-en kjører som en bakgrunnsoppgave som lagrer
+resultatene sine uansett om noen ser på, og `running` nullstilles først når
+**jobben** faktisk er ferdig — ikke når en fane lukkes. En nettleser som kobler
+til igjen **re-attacher** til den kjørende jobben (`GET /audit/stream` kobler til
+en pågående kjøring i stedet for å starte en ny; reconnect legger til `attach=1`
+så en gjenåpning aldri kan starte en dublett) og får live-fremdrift tilbake, og
+utfallet spilles av på nytt hvis kjøringen alt er ferdig. En tapt forbindelse er
+en tapt *visning*, ikke en tapt audit.
 
 Enhetskode-skjermen viste `login.microsoft.com/device` som en ren lenke uten
 måte å kopiere den på. En nettleser kan ikke åpne operatørens standardnettleser
