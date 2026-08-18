@@ -276,7 +276,7 @@ async def get_audit_scope(user: User = Depends(get_current_user)):
 
 
 @router.post("/audit/scope")
-async def save_audit_scope(request: Request, user: User = Depends(get_current_user)):
+async def save_audit_scope(request: Request, user: User = Depends(require_role(Role.technician))):
     """Save audit scope for the active customer."""
     from app.core.customer import CustomerManager
 
@@ -320,7 +320,7 @@ async def list_audit_presets(user: User = Depends(get_current_user)):
 
 
 @router.post("/audit/presets")
-async def save_audit_preset(request: Request, user: User = Depends(get_current_user)):
+async def save_audit_preset(request: Request, user: User = Depends(require_role(Role.technician))):
     """Save a custom preset."""
     from app.core.config import update_app_settings
 
@@ -342,7 +342,7 @@ async def save_audit_preset(request: Request, user: User = Depends(get_current_u
 
 
 @router.delete("/audit/presets/{name}")
-async def delete_audit_preset(name: str, user: User = Depends(get_current_user)):
+async def delete_audit_preset(name: str, user: User = Depends(require_role(Role.technician))):
     """Delete a custom preset."""
     from app.core.config import update_app_settings
 
@@ -688,7 +688,7 @@ async def get_audit_progress_active(user: User = Depends(get_current_user)):
 
 
 @router.post("/audit/cancel")
-async def cancel_audit(user: User = Depends(get_current_user)):
+async def cancel_audit(user: User = Depends(require_role(Role.technician))):
     """Request cancellation of a running audit."""
     # Cancellation follows ownership, not the currently selected customer. A
     # user may switch views while their stream is running; that must not strand

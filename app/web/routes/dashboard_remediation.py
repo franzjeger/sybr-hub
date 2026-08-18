@@ -16,8 +16,9 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.models.user import Role, User
 from app.web.i18n import get_ui_lang, ui_t
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import get_current_user, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ async def get_remediation(request: Request):
 
 
 @router.post("/remediation")
-async def update_remediation(request: Request):
+async def update_remediation(request: Request, _user: User = Depends(require_role(Role.technician))):
     from app.core.customer import CustomerManager
     from app.services.remediation import set_remediation
     active_id = CustomerManager.get_active_id()

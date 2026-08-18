@@ -15,9 +15,9 @@ from app.core.exceptions import (
     IntegrationError,
     ValidationError,
 )
-from app.models.user import Role
+from app.models.user import Role, User
 from app.web.i18n import ui_t
-from app.web.middleware.auth import get_current_user, require_customer_access
+from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ async def itglue_inspect():
 
 
 @router.post("/customers/import-itglue")
-async def import_customers_from_itglue(request: Request):
+async def import_customers_from_itglue(request: Request, _user: User = Depends(require_role(Role.technician))):
     """Import selected IT Glue organizations as customers (name + itglue_org_id only)."""
     from app.core.customer import CustomerManager
 
@@ -144,7 +144,7 @@ async def import_customers_from_itglue(request: Request):
 
 
 @router.post("/itglue/upload/audit")
-async def itglue_upload_audit(request: Request, user=Depends(get_current_user)):
+async def itglue_upload_audit(request: Request, user: User = Depends(require_role(Role.technician))):
     """Upload audit data and report to IT Glue."""
     from app.core.encryption import encrypted_read_json
     from app.integrations.itglue import ITGlueClient
@@ -257,7 +257,7 @@ async def itglue_available_reports(user=Depends(get_current_user)):
 
 
 @router.post("/itglue/upload/reports")
-async def itglue_upload_reports(request: Request, user=Depends(get_current_user)):
+async def itglue_upload_reports(request: Request, user: User = Depends(require_role(Role.technician))):
     """Upload selected audit reports to IT Glue Documents folder."""
     from app.integrations.itglue import ITGlueClient
 
@@ -324,7 +324,7 @@ async def itglue_upload_reports(request: Request, user=Depends(get_current_user)
 
 
 @router.post("/itglue/upload/credentials")
-async def itglue_upload_credentials(request: Request):
+async def itglue_upload_credentials(request: Request, _user: User = Depends(require_role(Role.admin))):
     """Upload tenant credentials to IT Glue."""
     from app.core.credentials import get_secret, load_config
     from app.core.customer import CustomerManager
@@ -670,7 +670,7 @@ async def itglue_sync_documentation(
 
 
 @router.post("/itglue/sync-all")
-async def itglue_sync_all(request: Request):
+async def itglue_sync_all(request: Request, _user: User = Depends(require_role(Role.technician))):
     """Sync documentation to IT Glue for all customers with ITGlueOrgId mapped."""
     from app.core.customer import CustomerManager
     from app.integrations.itglue import ITGlueClient

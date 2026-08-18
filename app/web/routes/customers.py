@@ -84,7 +84,7 @@ async def delete_customer(request: Request, user: User = Depends(require_role(Ro
 
 
 @router.post("/customers/add-manual")
-async def add_manual_customer(request: Request, user: User = Depends(get_current_user)):
+async def add_manual_customer(request: Request, user: User = Depends(require_role(Role.technician))):
     """Create a customer manually without M365 setup."""
     from app.core.customer import CustomerManager
 
@@ -131,7 +131,7 @@ async def add_manual_customer(request: Request, user: User = Depends(get_current
 
 
 @router.post("/customers/register")
-async def register_customer(user: User = Depends(get_current_user)):
+async def register_customer(user: User = Depends(require_role(Role.technician))):
     """Register the current config as a customer in the multi-tenant registry."""
     from app.core.credentials import global_cert_path, load_global_config
     from app.core.customer import CustomerManager
@@ -176,7 +176,7 @@ async def get_customer_notes(user: User = Depends(get_current_user)):
 
 
 @router.post("/customer/notes")
-async def save_customer_notes(request: Request, user: User = Depends(get_current_user)):
+async def save_customer_notes(request: Request, user: User = Depends(require_role(Role.technician))):
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_write_text
     active_id = CustomerManager.get_active_id()
@@ -205,7 +205,7 @@ async def get_customer_tags(user: User = Depends(get_current_user)):
 
 
 @router.post("/customer/tags")
-async def set_customer_tags(request: Request, user: User = Depends(get_current_user)):
+async def set_customer_tags(request: Request, user: User = Depends(require_role(Role.technician))):
     from app.core.customer import CustomerManager
     body = await request.json()
     customer_id = body.get("customer_id")

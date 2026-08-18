@@ -18,7 +18,7 @@ from app.core.exceptions import (
 from app.models.user import Role, User
 from app.web import state
 from app.web.i18n import ui_t
-from app.web.middleware.auth import get_current_user, require_customer_access
+from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +305,7 @@ async def load_history(request: Request, user: User = _auth):
 
 
 @router.post("/history/delete")
-async def delete_history_runs(request: Request, user: User = _auth):
+async def delete_history_runs(request: Request, user: User = Depends(require_role(Role.technician))):
     """Delete one or more audit runs by path."""
     import shutil
 
@@ -362,7 +362,7 @@ async def delete_history_runs(request: Request, user: User = _auth):
 
 
 @router.post("/history/delete-customer")
-async def delete_customer_history(request: Request, user: User = _auth):
+async def delete_customer_history(request: Request, user: User = Depends(require_role(Role.technician))):
     """Delete ALL audit runs for a customer."""
     import shutil
 

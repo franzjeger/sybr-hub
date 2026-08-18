@@ -661,7 +661,7 @@ async def price_scan(request: Request, user: User = Depends(require_role(Role.ad
 
 
 @router.post("/also/renewals/{renewal_id}/handle")
-async def handle_renewal(renewal_id: int, request: Request, user: User = Depends(get_current_user)):
+async def handle_renewal(renewal_id: int, request: Request, user: User = Depends(require_role(Role.technician))):
     """Mark a renewal as handled / add notes."""
     from app.core.database import get_db
 
