@@ -8,6 +8,49 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Rapporten motsier ikke lenger seg selv
+
+En ekspertgjennomgang av en generert kunderapport fant flere steder der tallet
+eller ordlyden var misvisende. Alle er rettet i koden, ikke i den enkelte
+rapporten:
+
+- **E-post-aksen på risikoradaren kjørte sitt eget SPF/DMARC-stigebrett** som
+  bare kjente «MISSING» og «WEAK». En DMARC `p=quarantine` (som samleren
+  tokeniserer som «WARN») og en manglende DKIM — begge vurdert av CIS
+  E-post-kontrollene — trakk ingenting fra, så aksen sto på 100 mens
+  samsvarstabellen i samme rapport viste de samme kontrollene som ikke-bestått.
+  Det er nettopp den motsetningen en leser mister tillit av. Aksen leser nå
+  verdikten CIS-kontrollene alt har satt (bestått = full vekt, delvis = halv,
+  ikke-bestått = null, «info»/ikke-verifiserbar utelatt akkurat som i
+  samsvarsprosenten), så radaren og tabellen kan aldri være uenige igjen. Samme
+  blindsone er tettet i den samlede risikoscoren.
+- **«MFA registrert» sto hardkodet til «Nei»** i både kunde- og
+  teknikertabellen, selv når brukeren faktisk hadde registrert MFA — cellen
+  motsa metode-kolonnen ved siden av. Den leser nå `has_mfa`, og
+  begrunnelseskolonnen skiller «registrert, men unntatt fra CA» fra «ingen MFA».
+- **Innlogginger med mange feil OG mange suksesser** ble flagget som
+  «brute-force» på lik linje med et reelt angrep. En byge av feil vekslet med
+  vellykkede innlogginger fra samme konto er en enhet som prøver et utdatert
+  bufret passord, ikke et gjettangrep. Slike kontoer rapporteres nå separat med
+  lav alvorlighet — ute av det kritiske brute-force-funnet, og ute av «under
+  aktivt passordangrep»-MFA-merket som leste den samme listen.
+- **Lisensoptimaliseringen så en lisensiert delt postboks/rompostboks som en
+  «inaktiv bruker»** å avvikle. En delt postboks logger aldri inn og skal aldri
+  telles som en bruker. Delte/rom-postbokser skilles nå ut via
+  Exchange-postboksdataene: en reell inaktiv bruker beholder «fjern lisens»-funnet,
+  mens en lisensiert delt postboks får sitt eget, riktig rammede funn (en delt
+  postboks under 50 GB trenger ingen lisens). Kr/mnd-estimatet blåses ikke lenger
+  opp av funksjonspostbokser.
+- **Lisens «nær kapasitet» sto som sikkerhetsanbefaling** i en liste over
+  sikkerhetsfunn. Det er en kommersiell merknad, ikke en feilkonfigurasjon, og
+  vises allerede via lisensmerket og lisensoptimaliseringsseksjonen — nå fjernet
+  fra sikkerhetsanbefalingene.
+- **CIS 1.1.6 (nødtilgangskonto) skilte ikke** «en adminkonto er unntatt fra CA,
+  men er i aktiv bruk og fungerer derfor ikke som nødtilgang» fra «ingen admin er
+  unntatt i det hele tatt». Ordlyden skiller nå de to tilfellene.
+- **Handlingsplanens plassholderceller** viste en tankestrek som lett leses som
+  «manglende data»; de er nå tomme, utfyllbare felter med status «Ikke startet».
+
 ### Kundeoppsettet mister ikke lenger legitimasjonen når fanen lukkes
 
 Samme rot som auditen: førstegangs-oppsettet (`/setup/stream`) kjørte hele

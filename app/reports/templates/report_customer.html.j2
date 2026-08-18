@@ -722,9 +722,9 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
           <tr>
             <td><strong>{{ u.name }}</strong></td>
             <td style="font-size:11px;color:var(--muted);">{{ u.upn }}</td>
-            <td><span class="tag tag-no">{{ t.no_word }}</span></td>
-            <td><span class="tag {% if u.ca_excluded %}tag-no{% else %}tag-no{% endif %}">{% if u.ca_excluded %}{{ t.excluded }}{% else %}{{ t.no_word }}{% endif %}</span></td>
-            <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{{ t.excluded_from_ca }}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
+            <td><span class="tag {% if u.has_mfa %}tag-yes{% else %}tag-no{% endif %}">{% if u.has_mfa %}{{ t.yes }}{% else %}{{ t.no_word }}{% endif %}</span></td>
+            <td><span class="tag tag-no">{% if u.ca_excluded %}{{ t.excluded }}{% else %}{{ t.no_word }}{% endif %}</span></td>
+            <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{% if u.has_mfa %}{{ t.mfa_registered_excluded }}{% else %}{{ t.excluded_from_ca }}{% endif %}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>
@@ -1079,9 +1079,9 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
         {% elif rec.priority == 'high' %}<span class="badge warning">{{ t.high }}</span>
         {% else %}<span class="badge medium">{{ t.medium }}</span>{% endif %}
       </td>
-      <td class="placeholder">&mdash;</td>
-      <td class="placeholder">&mdash;</td>
-      <td class="placeholder">&mdash;</td>
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+      <td style="color:var(--muted);">{{ t.status_not_started }}</td>
     </tr>
     {% endfor %}
   </tbody>

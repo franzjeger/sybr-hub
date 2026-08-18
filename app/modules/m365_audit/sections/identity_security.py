@@ -549,6 +549,7 @@ class IdentitySecuritySection(BaseSection):
         ca_known = bool(getattr(self._ca_section, "policies", None)) and mfa_ran
 
         candidates = 0
+        ca_excluded_admins = 0
         for uid in self.global_admin_ids:
             # Try to look up MFA methods
             try:
@@ -585,6 +586,8 @@ class IdentitySecuritySection(BaseSection):
                 days_ago is not None and days_ago < _BG_ACTIVE_WINDOW_DAYS
             )
 
+            if ca_excluded:
+                ca_excluded_admins += 1
             if ca_excluded and not actively_used:
                 candidates += 1
 
@@ -620,6 +623,7 @@ class IdentitySecuritySection(BaseSection):
         lines.append(
             f"  SUMMARY: break_glass_candidates={candidates} "
             f"ca_exclusions_known={'yes' if ca_known else 'no'} "
+            f"ca_excluded_admins={ca_excluded_admins} "
             f"global_admins={len(self.global_admin_ids)}"
         )
         lines += ["=" * 90, ""]

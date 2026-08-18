@@ -533,6 +533,23 @@ def _parse_stale_accounts(text: str) -> list[dict]:
     return accounts
 
 
+def _parse_shared_mailbox_upns(text: str) -> set[str]:
+    """UPNs of shared and room mailboxes from 20_exchange_mailboxes.txt.
+
+    These never sign in by design, so licence optimisation must not read a
+    licensed shared/room mailbox as an "inactive user" to deprovision.
+    """
+    shared: set[str] = set()
+    for line in text.splitlines():
+        if "SharedMailbox" not in line and "RoomMailbox" not in line:
+            continue
+        cols = re.split(r"\s{2,}", line.strip())
+        upn = next((c for c in cols if "@" in c), "")
+        if upn:
+            shared.add(upn.lower())
+    return shared
+
+
 def _analyze_license_optimization(
     licenses: list[dict],
     file_contents: dict[str, str],
@@ -556,19 +573,27 @@ def _analyze_license_optimization(
     stale_accounts = _parse_stale_accounts(stale_text)
     licensed_stale = [s for s in stale_accounts if s.get("licensed")]
 
-    if licensed_stale:
-        # Estimate cost: assume average license cost for stale users
-        # Try to determine the most common paid SKU price
-        sku_prices = []
-        for lic in licenses:
-            part = lic["part"]
-            price = _SKU_MONTHLY_PRICE.get(part, 0)
-            if price > 0 and lic["used"] > 0:
-                sku_prices.append(price)
-        avg_price = int(sum(sku_prices) / len(sku_prices)) if sku_prices else 300
-        waste_amount = len(licensed_stale) * avg_price
+    # A shared/room mailbox never signs in, so a licensed one showing up "stale"
+    # is not an inactive *user* to deprovision — treating it as one gives false
+    # advice and inflates the estimate. Split them: a real inactive user keeps
+    # the "remove licence" finding; a licensed shared/room mailbox gets its own,
+    # correctly framed one (a shared mailbox needs no licence under 50 GB).
+    shared_upns = _parse_shared_mailbox_upns(file_contents.get("20_exchange_mailboxes.txt", ""))
+    licensed_stale_users = [s for s in licensed_stale if (s.get("upn") or "").lower() not in shared_upns]
+    licensed_shared = [s for s in licensed_stale if (s.get("upn") or "").lower() in shared_upns]
 
-        for s in licensed_stale:
+    # Average paid-SKU price, used to estimate both kinds of waste.
+    sku_prices = [
+        _SKU_MONTHLY_PRICE.get(lic["part"], 0)
+        for lic in licenses
+        if _SKU_MONTHLY_PRICE.get(lic["part"], 0) > 0 and lic["used"] > 0
+    ]
+    avg_price = int(sum(sku_prices) / len(sku_prices)) if sku_prices else 300
+
+    if licensed_stale_users:
+        waste_amount = len(licensed_stale_users) * avg_price
+
+        for s in licensed_stale_users:
             days_label = (
                 str(s["days_inactive"]) + " " + t.lo_days
                 if s["days_inactive"] is not None
@@ -584,10 +609,21 @@ def _analyze_license_optimization(
 
         suggestions.append({
             "type": "unused",
-            "title": t("lo_suggest_remove_unused", count=len(licensed_stale)),
-            "detail": t("lo_suggest_remove_unused_detail", count=len(licensed_stale), amount=waste_amount),
+            "title": t("lo_suggest_remove_unused", count=len(licensed_stale_users)),
+            "detail": t("lo_suggest_remove_unused_detail", count=len(licensed_stale_users), amount=waste_amount),
             "priority": "high",
             "savings": waste_amount,
+        })
+
+    if licensed_shared:
+        shared_waste = len(licensed_shared) * avg_price
+        total_waste += shared_waste
+        suggestions.append({
+            "type": "shared_mailbox_licensed",
+            "title": t("lo_suggest_shared_licensed", count=len(licensed_shared)),
+            "detail": t("lo_suggest_shared_licensed_detail", count=len(licensed_shared), amount=shared_waste),
+            "priority": "medium",
+            "savings": shared_waste,
         })
 
     # 2. Over-provisioned SKUs: purchased > assigned (unused seats being paid for)
@@ -1518,6 +1554,10 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
 # must not present one as the other.
 _LICENCE_GAP_RE = re.compile(r"licence gap|lisens", re.IGNORECASE)
 
+# Successful sign-ins that, alongside 50+ failures, mark a probable stale/cached
+# credential (a device retrying an old password) rather than a guessing attack.
+_STALE_CREDENTIAL_SUCCESSES = 20
+
 
 def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
     """Parse sign-in activity and failure data for risk analysis."""
@@ -1531,9 +1571,14 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         "top_source_countries": [],
         "top_source_ips": [],
         "brute_force_suspects": [],
+        "stale_credential_users": [],
         "has_data": False,
         "no_data_reason": None,
     }
+
+    # Per-user successful sign-ins, kept to tell a stale cached credential (many
+    # successes interleaved with the failures) from a real password attack.
+    success_by_user: dict[str, int] = {}
 
     # Parse sign-in activity (05_signin_activity.txt)
     signin_text = file_contents.get("05_signin_activity.txt", "")
@@ -1593,6 +1638,10 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
                 if "@" in cols[0] or "." in cols[0]:
                     users_seen.add(cols[0].lower())
                     signin_count += 1
+                    # cols == [UPN, Success, Failures, Unknown, Total]; keep the
+                    # success count for the brute-force-vs-stale classifier.
+                    if len(cols) >= 2 and cols[1].replace(",", "").isdigit():
+                        success_by_user[cols[0].lower()] = int(cols[1].replace(",", ""))
 
         if result["total_signins"] == 0 and signin_count > 0:
             result["total_signins"] = signin_count
@@ -1733,7 +1782,25 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         # flag (signins._FAILURE_THRESHOLD, `cnt > 50`). >= 50 flagged a user at
         # exactly 50 that the evidence file did not, so the finding and its
         # evidence disagreed on who crossed the line (accuracy sweep).
-        result["brute_force_suspects"] = [u for u, c in failure_users.items() if c > 50]
+        #
+        # Failure count alone cannot tell an attack from a stale cached password:
+        # a device retrying an old credential produces a burst of failures
+        # *interleaved with successful sign-ins*, while a genuine guessing attack
+        # has few or no successes. A user over the threshold with many successes
+        # is therefore reported separately at low severity, not among brute-force
+        # suspects — which also stops the false "under active password attack"
+        # MFA label for that account (it reads brute_force_suspects).
+        suspects: list[str] = []
+        stale: list[str] = []
+        for u, c in failure_users.items():
+            if c <= 50:
+                continue
+            if success_by_user.get(u.lower(), 0) >= _STALE_CREDENTIAL_SUCCESSES:
+                stale.append(u)
+            else:
+                suspects.append(u)
+        result["brute_force_suspects"] = suspects
+        result["stale_credential_users"] = stale
 
     return result
 
@@ -2716,6 +2783,13 @@ def _compute_risk(
                 email_penalty = max(email_penalty, 8)
             elif "p=none" in dmarc.lower() or "WEAK" in dmarc.upper():
                 email_penalty = max(email_penalty, 5)
+            elif "quarantine" in dmarc.lower():
+                # p=quarantine is CIS "partial", not a clean pass — reject is the
+                # target. The classifier tokenises it as "WARN (p=quarantine)",
+                # which matched none of the branches above, so a monitor-stronger-
+                # than-none-but-not-reject policy scored as clean here just as it
+                # did on the radar. Small penalty, mirroring the partial credit.
+                email_penalty = max(email_penalty, 3)
     score -= email_penalty
     if spf_dmarc and email_measured == 0:
         data_quality_issues.append("E-postsikkerhet ikke vurdert — DNS-oppslag feilet")
@@ -3239,16 +3313,11 @@ def _build_recommendations(
             "doc_url": "https://learn.microsoft.com/en-us/microsoft-365/security/defender/microsoft-secure-score",
         })
 
-    for lic in licenses:
-        if lic["warn"]:
-            recs.append({
-                "priority": "medium",
-                "finding_id": "finding-licenses",
-                "evidence": ev("02_licenses.txt"),
-                "title": t("rec_license_title", part=lic['part']),
-                "detail": t("rec_license_detail", used=lic['used'], total=lic['total'], pct=lic['pct']),
-                "effort": t.rec_effort_low,
-            })
+    # Licence utilisation ("near capacity") is a commercial note, not a security
+    # finding. Injected here it used to outrank real security recs (SharePoint
+    # external sharing) as a "medium". It is already surfaced by the licences
+    # table's "near limit" badge and the License Optimization section, so it is
+    # intentionally NOT added to the security recommendations.
 
     # Admin roles
     if admin_roles and admin_roles.get("global_admin_count", 0) > 4:
@@ -3525,6 +3594,21 @@ def _build_recommendations(
             "detail": t.rec_brute_force_detail,
             "effort": t.rec_effort_immediate,
             "sub_items": suspects,
+        })
+
+    # Sign-in risk — probable stale/cached credentials (not an attack). Many
+    # failures interleaved with successful sign-ins mean a device retrying an old
+    # password; reported at low severity so it does not read as an attack.
+    if signin_risk and signin_risk.get("stale_credential_users"):
+        stale = signin_risk["stale_credential_users"]
+        recs.append({
+            "priority": "low",
+            "finding_id": "finding-stale-credential",
+            "evidence": ev("05_signin_activity.txt", "05b_signin_failures.txt"),
+            "title": t("rec_stale_cred_title", count=len(stale)),
+            "detail": t.rec_stale_cred_detail,
+            "effort": t.rec_effort_low,
+            "sub_items": stale,
         })
 
     # ── Network recommendations (FortiGate + UniFi) ─────────────────────
@@ -4449,6 +4533,11 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     bg_summary = re.search(
         r"break_glass_candidates=(\d+)\s+ca_exclusions_known=(yes|no)", emerg_text
     )
+    # Separate, optional: how many admins are CA-excluded at all. Lets the
+    # zero-candidate case distinguish "an admin is excluded but does not qualify
+    # as break-glass (it is in active use)" from "no admin is excluded". Absent
+    # on older evidence, in which case the generic wording is used.
+    bg_excluded = re.search(r"ca_excluded_admins=(\d+)", emerg_text)
     if (not emerg_text.strip() or emerg_text.strip().startswith("Error:")
             or emerg_skipped or bg_summary is None):
         # No summary line means either the check was skipped or the file predates
@@ -4461,9 +4550,14 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
     elif int(bg_summary.group(1)) > 0:
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "pass",
             f"{int(bg_summary.group(1))} nødtilgangskonto(er) (break glass) oppdaget")
+    elif bg_excluded is not None and int(bg_excluded.group(1)) > 0:
+        add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "warn",
+            "Adminkonto(er) er unntatt fra Conditional Access, men ingen fungerer som en gyldig "
+            "nødtilgangskonto (kontoen(e) er i aktiv bruk)")
     else:
         add("1.1.6", "Ensure emergency access accounts are configured", t.cis_cat_identity, "warn",
-            "Ingen dedikert nødtilgangskonto funnet — ingen administrator er unntatt fra Conditional Access")
+            "Ingen administrator er unntatt fra Conditional Access, og ingen dedikert "
+            "nødtilgangskonto er konfigurert")
 
     # 1.2.1 Password protection / custom banned passwords. The previous code
     # read 09c_auth_strength_policies.txt — wrong file, that's about FIDO2
@@ -5450,22 +5544,27 @@ def _build_risk_radar(context: dict, lang: str = "no") -> dict:
     if intune.get("has_data") and intune.get("total", 0) > 0:
         categories[t.radar_devices] = int(intune.get("compliance_pct", 0))
 
-    # ── Email — only score customer-owned domains ────────────────────
-    spf = context.get("spf_dmarc", [])
-    email_score = 100
-    scored_domains = 0
-    for d in spf:
-        if not _is_audit_relevant_domain(d.get("domain", "")):
-            continue
-        scored_domains += 1
-        if "MISSING" in d.get("spf", "") or "MISSING" in d.get("dmarc", ""):
-            email_score -= 30
-        elif "WEAK" in d.get("spf", "") or "WEAK" in d.get("dmarc", ""):
-            email_score -= 15
-    # No relevant domain resolved means the DNS section did not run or returned
-    # nothing — a perfect 100 there would be an assurance we never earned.
-    if scored_domains:
-        categories[t.radar_email] = max(0, email_score)
+    # ── Email — read the verdict the CIS email controls already reached ──
+    # The axis used to run its own SPF/DMARC ladder that knew only MISSING and
+    # WEAK, so a DMARC p=quarantine (which the collector tokenises as "WARN")
+    # and a missing DKIM — both graded by the CIS Email controls — deducted
+    # nothing, and the axis sat at 100 while the compliance table showed those
+    # very controls failing. That contradiction is exactly what a reader loses
+    # trust over. Score the axis off the compliance map instead: pass = full
+    # credit, partial = half, fail = none, and "info" (could-not-verify)
+    # excluded exactly as compliance_pct excludes it. One source of truth, so
+    # the radar and the table can never disagree again. No assessable email
+    # control (every domain ignored, or the DNS section never ran) means no
+    # axis — a fabricated 100 there would be an assurance we never earned, the
+    # same rule every other axis on this chart already follows.
+    _email_credit = {"pass": 1.0, "partial": 0.5, "fail": 0.0}
+    email_controls = [
+        c for c in context.get("compliance", [])
+        if c.get("category") == t.cis_cat_email and c.get("status") in _email_credit
+    ]
+    if email_controls:
+        email_score = sum(_email_credit[c["status"]] for c in email_controls) / len(email_controls)
+        categories[t.radar_email] = round(email_score * 100)
 
     # ── Azure ────────────────────────────────────────────────────────
     azure = context.get("azure", {})

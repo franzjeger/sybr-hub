@@ -547,3 +547,31 @@ def test_the_404_hint_stays_out_of_the_customer_report():
         "and the status would reach the customer report"
     )
     assert "401 or 403" in src, "the hint no longer explains what a 404 is not"
+
+
+def test_a_registered_but_ca_excluded_user_shows_mfa_registered_not_a_hardcoded_no(tmp_path):
+    """C1 regression, at the page. The "MFA registrert" cell in the unprotected
+    table was hardcoded to "Nei" for every row — even a user with a method
+    registered who is unprotected only because a Conditional-Access exclusion
+    means it is never enforced. The cell contradicted the methods column beside
+    it and the embedded 04_mfa_methods evidence. It now reads ``u.has_mfa``, and
+    the reason column names the registered-but-excluded case specifically.
+    """
+    mfa_methods = (
+        "MFA METHODS AND CONDITIONAL ACCESS\n"
+        + "=" * 60 + "\n"
+        # A registered method (MFA:YES) but excluded from CA (CA_EXCL:YES):
+        # protected is False, so the row is in the unprotected table, yet the
+        # user genuinely has MFA registered.
+        "Kari Nordmann | kari@acme.no | MFA:YES | CA:NO | CA_EXCL:YES\n"
+    )
+    html = _render_strict(
+        tmp_path, "report_customer.html.j2", {"04_mfa_methods.txt": mfa_methods}
+    )
+    t = T("no")
+    assert "kari@acme.no" in html, "the registered-but-excluded user is in the table"
+    # The reason cell that only the has_mfa AND ca_excluded branch can produce —
+    # proof the cell read has_mfa=True rather than the old hardcoded no.
+    assert str(t.mfa_registered_excluded) in html, (
+        "a registered-but-excluded user must be named as such, not shown as 'no MFA'"
+    )

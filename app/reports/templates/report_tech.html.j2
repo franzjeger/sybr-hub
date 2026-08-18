@@ -603,10 +603,10 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
       <tr>
         <td><strong>{{ u.name }}</strong></td>
         <td style="font-family:var(--mono);font-size:11px;">{{ u.upn }}</td>
-        <td><span class="tag tag-no">{{ t.no_word }}</span></td>
+        <td><span class="tag {% if u.has_mfa %}tag-yes{% else %}tag-no{% endif %}">{% if u.has_mfa %}{{ t.yes }}{% else %}{{ t.no_word }}{% endif %}</span></td>
         <td><span class="tag tag-no">{% if u.ca_excluded %}{{ t.excl_short }}{% else %}{{ t.no_word }}{% endif %}</span></td>
         <td style="font-size:11px;">{{ u.methods if u.methods else '—' }}</td>
-        <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{{ t.excluded_from_ca }}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
+        <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{% if u.has_mfa %}{{ t.mfa_registered_excluded }}{% else %}{{ t.excluded_from_ca }}{% endif %}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -649,6 +649,14 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <strong>{{ t.brute_force_warning }}</strong>
   {{ t.brute_force_desc }}
   {{ signin_risk.brute_force_suspects | join(', ') }}
+</div>
+{% endif %}
+
+{% if signin_risk.stale_credential_users %}
+<div class="alert warn">
+  <strong>{{ t.stale_cred_warning }}</strong>
+  {{ t.stale_cred_desc }}
+  {{ signin_risk.stale_credential_users | join(', ') }}
 </div>
 {% endif %}
 

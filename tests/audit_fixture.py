@@ -627,6 +627,23 @@ FULL_AUDIT: dict[str, str] = {
     # sections whose emptiness the report counts rather than reads: a banner
     # declaring zero settles the count, so the "(none)" placeholder underneath
     # is furniture and not a record.
+    # exchange.py writes the detail table the licence-optimisation join reads to
+    # tell a shared/room mailbox (never signs in by design) from an inactive
+    # user. The healthy tenant has no stale accounts, so nothing here is flagged;
+    # the file exists so the reader is exercised rather than silently unreached.
+    # Two shared mailboxes, matching the Shared: 2 count below.
+    "20_exchange_mailboxes.txt": (
+        "=" * 100 + "\n"
+        "  EXCHANGE MAILBOXES  (40 total)\n"
+        + "=" * 100 + "\n"
+        "  Display Name                             UPN                                           Type                 Quota\n"
+        "  " + "-" * 96 + "\n"
+        "  Kari Nordmann                            kari.nordmann@acme.no                         UserMailbox          2.1 GB\n"
+        "  Ola Hansen                               ola.hansen@acme.no                            UserMailbox          3.4 GB\n"
+        "  Felles Support                           support@acme.no                               SharedMailbox        1.2 GB\n"
+        "  Fakturamottak                            faktura@acme.no                               SharedMailbox        0.8 GB\n"
+        + "=" * 100 + "\n"
+    ),
     "20_exchange_mailboxes_count.txt": (
         "=" * 40 + "\n"
         "  EXCHANGE MAILBOX COUNT\n"
