@@ -72,7 +72,7 @@ async function hostsLoad() {
   });
 
   if (!hosts.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-title">' + t('msg_no_hosts','No hosts registered') + '</div><div class="empty-desc">' + t('msg_add_first_host','Click "Add host" to get started.') + '</div><button class="btn btn-primary" onclick="hostsAdd()">' + t('btn_add_host','Add host') + '</button></div>';
+    el.innerHTML = '<div class="empty-state"><div class="empty-title">' + t('msg_no_hosts','No hosts registered') + '</div><div class="empty-desc">' + t('msg_add_first_host','Click "Add host" to get started.') + '</div><button class="btn btn-primary" data-write onclick="hostsAdd()">' + t('btn_add_host','Add host') + '</button></div>';
     return;
   }
 
@@ -106,11 +106,11 @@ async function hostsLoad() {
     var webPort = h.port === 22 ? 443 : h.port;
 
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;align-content:start;padding-top:8px;">';
-    html += '<button class="btn btn-ghost" onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('btn_edit','Edit') + '</button>';
-    html += '<button class="btn btn-ghost" onclick="sshTerminal(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--blue);">SSH</button>';
-    html += '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--purple);'+(isDesktop?'':'opacity:0.3;pointer-events:none;')+'" onclick="sshRdp(\''+h.hostname+'\',\''+h.username+'\',\''+h.id+'\')">RDP</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('btn_edit','Edit') + '</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="sshTerminal(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--blue);">SSH</button>';
+    html += '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--purple);'+(isDesktop?'':'opacity:0.3;pointer-events:none;')+'" data-write onclick="sshRdp(\''+h.hostname+'\',\''+h.username+'\',\''+h.id+'\')">RDP</button>';
     html += '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--orange);'+(isNetwork?'':'opacity:0.3;pointer-events:none;')+'" onclick="openWebUI(\'https://'+h.hostname+':'+webPort+'\')">' + t('web_ui') + '</button>';
-    html += '<button class="btn btn-ghost" onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);grid-column:span 2;justify-self:start;">' + t('btn_delete','Delete') + '</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);grid-column:span 2;justify-self:start;">' + t('btn_delete','Delete') + '</button>';
     html += '</div>';
 
     html += '</div>';
@@ -176,7 +176,7 @@ function hostsAdd() {
       + '<textarea id="host-notes" placeholder="' + t('placeholder_optional_notes','Optional notes...') + '" style="width:100%;height:50px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;resize:vertical;"></textarea></div>'
 
       + '<div style="display:flex;gap:8px;margin-top:16px;">'
-      + '<button class="btn btn-primary" onclick="hostsDoAdd()" style="padding:8px 20px;font-size:13px;">' + t('btn_add','Add') + '</button>'
+      + '<button class="btn btn-primary" data-write onclick="hostsDoAdd()" style="padding:8px 20px;font-size:13px;">' + t('btn_add','Add') + '</button>'
       + '<button class="btn btn-ghost" onclick="hostsLoad()" style="padding:8px 20px;font-size:13px;">' + t('btn_cancel','Cancel') + '</button>'
       + '</div></div>';
 
@@ -266,7 +266,7 @@ async function sshShowKeys() {
   var data = await apiFetch('/api/ssh/keys');
   if (!data) return;
   var keys = data.keys || [];
-  var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" onclick="sshGenKey()" style="padding:6px 14px;font-size:12px;">' + t('btn_generate_key','Generate key') + '</button><button class="btn btn-ghost" onclick="sshImportKey()" style="padding:6px 14px;font-size:12px;">' + t('btn_import_key','Import key') + '</button></div>';
+  var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" data-write onclick="sshGenKey()" style="padding:6px 14px;font-size:12px;">' + t('btn_generate_key','Generate key') + '</button><button class="btn btn-ghost" data-write onclick="sshImportKey()" style="padding:6px 14px;font-size:12px;">' + t('btn_import_key','Import key') + '</button></div>';
   if (!keys.length) { html += '<p style="color:var(--text-muted);">' + t('msg_no_ssh_keys','No SSH keys created yet.') + '</p>'; }
   else {
     html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:8px;">' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('fingerprint_2') + '</th><th>' + t('lbl_created','Created') + '</th><th></th></tr></thead><tbody>';
@@ -276,7 +276,7 @@ async function sshShowKeys() {
       html += '<td style="padding:8px;text-align:center;"><span style="padding:2px 8px;background:var(--bg);border-radius:4px;font-size:11px;font-family:var(--mono);">'+k.key_type+'</span></td>';
       html += '<td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-muted);">'+k.fingerprint+'</td>';
       html += '<td style="padding:8px;font-size:12px;color:var(--text-muted);">'+k.created_at.slice(0,10)+'</td>';
-      html += '<td style="padding:8px;white-space:nowrap;"><button class="btn btn-ghost" onclick="sshViewKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('vis') + '</button> <button class="btn btn-ghost" onclick="sshDeleteKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('slett') + '</button></td>';
+      html += '<td style="padding:8px;white-space:nowrap;"><button class="btn btn-ghost" onclick="sshViewKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('vis') + '</button> <button class="btn btn-ghost" data-write onclick="sshDeleteKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('slett') + '</button></td>';
       html += '</tr>';
     });
     html += '</tbody></table>';
@@ -302,7 +302,7 @@ function sshGenKey() {
     + '<input id="ssh-gen-tags" type="text" placeholder="f.eks. produksjon, deploy, web" style="width:100%;padding:8px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<div id="ssh-gen-result" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;"></div>'
     + '<div style="display:flex;gap:8px;">'
-    + '<button class="btn btn-primary" id="ssh-gen-btn" onclick="sshDoGenKey()" style="padding:8px 20px;font-size:13px;">' + t('btn_generate','Generate') + '</button>'
+    + '<button class="btn btn-primary" id="ssh-gen-btn" data-write onclick="sshDoGenKey()" style="padding:8px 20px;font-size:13px;">' + t('btn_generate','Generate') + '</button>'
     + '<button class="btn btn-ghost" onclick="sshShowKeys()" style="padding:8px 20px;font-size:13px;">' + t('btn_cancel','Cancel') + '</button>'
     + '</div></div>';
 }
@@ -349,7 +349,7 @@ function sshImportKey() {
     + '<input id="ssh-imp-tags" type="text" placeholder="f.eks. produksjon, deploy, web" style="width:100%;padding:8px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
     + '<div id="ssh-imp-result" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;"></div>'
     + '<div style="display:flex;gap:8px;">'
-    + '<button class="btn btn-primary" id="ssh-imp-btn" onclick="sshDoImportKey()" style="padding:8px 20px;font-size:13px;">' + t('btn_import','Import') + '</button>'
+    + '<button class="btn btn-primary" id="ssh-imp-btn" data-write onclick="sshDoImportKey()" style="padding:8px 20px;font-size:13px;">' + t('btn_import','Import') + '</button>'
     + '<button class="btn btn-ghost" onclick="sshShowKeys()" style="padding:8px 20px;font-size:13px;">' + t('btn_cancel','Cancel') + '</button>'
     + '</div></div>';
 }
@@ -430,7 +430,7 @@ async function sshShowHosts() {
   var data = await apiFetch('/api/ssh/hosts');
   if (!data) return;
   var hosts = data.hosts || [];
-  var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" onclick="sshAddHost()" style="padding:6px 14px;font-size:12px;">' + t('legg_til_vert') + '</button><button class="btn btn-ghost" onclick="sshHealthAll()" style="padding:6px 14px;font-size:12px;">' + t('sjekk_alle') + '</button></div>';
+  var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" data-write onclick="sshAddHost()" style="padding:6px 14px;font-size:12px;">' + t('legg_til_vert') + '</button><button class="btn btn-ghost" onclick="sshHealthAll()" style="padding:6px 14px;font-size:12px;">' + t('sjekk_alle') + '</button></div>';
   if (!hosts.length) { html += '<p style="color:var(--text-muted);">' + t('msg_no_hosts_short','No hosts registered.') + '</p>'; }
   else {
     html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:8px;">' + t('navn_2') + '</th><th>' + t('host_2') + '</th><th>' + t('type_3') + '</th><th>' + t('gruppe') + '</th><th>' + t('lbl_customer','Customer') + '</th><th>' + t('status_3') + '</th><th></th></tr></thead><tbody>';
@@ -446,12 +446,12 @@ async function sshShowHosts() {
       html += '<td style="padding:8px;font-size:12px;">' + (h.customer_id ? '<a href="javascript:void(0)" onclick="overviewSelectCustomer(\'' + h.customer_id + '\')" style="color:var(--blue);text-decoration:none;">' + esc(_custName) + '</a>' : '-') + '</td>';
       html += '<td style="padding:8px;text-align:center;">'+statusDot+'</td>';
       html += '<td style="padding:8px;white-space:nowrap;">';
-      html += '<button class="btn btn-ghost" onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('rediger') + '</button> ';
-      html += '<button class="btn btn-ghost" onclick="sshTerminal(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--blue);">SSH</button> ';
+      html += '<button class="btn btn-ghost" data-write onclick="sshEditHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;">' + t('rediger') + '</button> ';
+      html += '<button class="btn btn-ghost" data-write onclick="sshTerminal(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--blue);">SSH</button> ';
       if (h.device_type === 'windows' || h.device_type === 'linux') {
-        html += '<button class="btn btn-ghost" onclick="sshRdp(\''+h.hostname+'\',\''+h.username+'\')" style="padding:2px 8px;font-size:11px;color:var(--purple);">RDP</button> ';
+        html += '<button class="btn btn-ghost" data-write onclick="sshRdp(\''+h.hostname+'\',\''+h.username+'\')" style="padding:2px 8px;font-size:11px;color:var(--purple);">RDP</button> ';
       }
-      html += '<button class="btn btn-ghost" onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('slett') + '</button>';
+      html += '<button class="btn btn-ghost" data-write onclick="sshDeleteHost(\''+h.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('slett') + '</button>';
       html += '</td>';
       html += '</tr>';
     });
@@ -522,7 +522,7 @@ function sshAddHost() {
       + '</div>'
       // Knapper
       + '<div style="display:flex;gap:8px;margin-top:16px;">'
-      + '<button class="btn btn-primary" onclick="sshDoAddHost()" style="padding:8px 20px;font-size:13px;">' + t('btn_add','Add') + '</button>'
+      + '<button class="btn btn-primary" data-write onclick="sshDoAddHost()" style="padding:8px 20px;font-size:13px;">' + t('btn_add','Add') + '</button>'
       + '<button class="btn btn-ghost" onclick="sshShowHosts()" style="padding:8px 20px;font-size:13px;">' + t('btn_cancel','Cancel') + '</button>'
       + '</div></div>';
     _populateCustomerSelect('ssh-h-customer');
@@ -613,7 +613,7 @@ async function sshEditHost(hostId) {
     + '<div style="margin-top:12px;"><label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('lbl_notes','Notes') + '</label>'
     + '<textarea id="ssh-e-notes" style="width:100%;height:60px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;resize:vertical;">'+(h.notes||'')+'</textarea></div>'
     + '<div style="display:flex;gap:8px;margin-top:16px;">'
-    + '<button class="btn btn-primary" onclick="sshDoEditHost(\''+hostId+'\')" style="padding:8px 20px;font-size:13px;">' + t('btn_save','Save') + '</button>'
+    + '<button class="btn btn-primary" data-write onclick="sshDoEditHost(\''+hostId+'\')" style="padding:8px 20px;font-size:13px;">' + t('btn_save','Save') + '</button>'
     + '<button class="btn btn-ghost" onclick="hostsLoad?hostsLoad():sshShowHosts()" style="padding:8px 20px;font-size:13px;">' + t('btn_cancel','Cancel') + '</button>'
     + '</div></div>';
   _populateCustomerSelect('ssh-e-customer', h.customer_id);
@@ -681,7 +681,7 @@ async function sshShowExec() {
   var el = document.getElementById('ssh-content');
   el.innerHTML = '<div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;">' + t('lbl_select_hosts_command','Select hosts and enter a command:') + '</label></div>'
     + '<div id="ssh-exec-hosts" style="margin-bottom:12px;"></div>'
-    + '<div style="display:flex;gap:8px;"><input id="ssh-exec-cmd" type="text" placeholder="f.eks. uptime" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')sshExecRun()"><button class="btn btn-primary" onclick="sshExecRun()" style="padding:8px 16px;">' + t('btn_run','Run') + '</button></div>'
+    + '<div style="display:flex;gap:8px;"><input id="ssh-exec-cmd" type="text" placeholder="f.eks. uptime" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')sshExecRun()"><button class="btn btn-primary" data-write onclick="sshExecRun()" style="padding:8px 16px;">' + t('btn_run','Run') + '</button></div>'
     + '<div id="ssh-exec-results" style="margin-top:16px;"></div>';
   // Load hosts for checkboxes
   var data = await apiFetch('/api/ssh/hosts');
@@ -812,17 +812,17 @@ async function vpnLoadProfiles() {
       if (p.customer_id) { var _vcn = _customerNameById(p.customer_id); html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">' + t('lbl_customer','Customer') + ': <a href="javascript:void(0)" onclick="overviewSelectCustomer(\'' + p.customer_id + '\')" style="color:var(--blue);text-decoration:none;">' + esc(_vcn) + '</a></div>'; }
       html += '<div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">';
       if (isActive) {
-        html += '<button class="btn btn-danger btn-sm" onclick="vpnDisconnect(\''+p.id+'\')">' + t('vpn_disconnect','Disconnect') + '</button>';
-        html += '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="vpnForceDisconnect()" title="' + t('vpn_force_disconnect_tip','Kill VPN process and clean up interface') + '">' + t('vpn_force_disconnect','Force disconnect') + '</button>';
+        html += '<button class="btn btn-danger btn-sm" data-write onclick="vpnDisconnect(\''+p.id+'\')">' + t('vpn_disconnect','Disconnect') + '</button>';
+        html += '<button class="btn btn-ghost btn-sm" style="color:var(--red);" data-write onclick="vpnForceDisconnect()" title="' + t('vpn_force_disconnect_tip','Kill VPN process and clean up interface') + '">' + t('vpn_force_disconnect','Force disconnect') + '</button>';
       } else if (isConnecting) {
-        html += '<button class="btn btn-warning btn-sm" onclick="vpnForceDisconnect()">' + t('vpn_cancel','Cancel') + '</button>';
+        html += '<button class="btn btn-warning btn-sm" data-write onclick="vpnForceDisconnect()">' + t('vpn_cancel','Cancel') + '</button>';
       } else {
-        html += '<button class="btn btn-primary btn-sm" onclick="vpnConnect(\''+p.id+'\')"'
+        html += '<button class="btn btn-primary btn-sm" data-write onclick="vpnConnect(\''+p.id+'\')"'
           + (mayConnect ? '' : ' disabled aria-disabled="true" title="' + esc(protocolCapability.reason || '') + '"')
           + '>' + t('vpn_connect','Connect') + '</button>';
       }
-      html += '<button class="btn btn-ghost btn-sm" onclick="vpnEditProfile(\''+p.id+'\')">' + t('btn_edit','Edit') + '</button>';
-      html += '<button class="btn btn-ghost btn-sm" style="color:var(--text-dim);margin-left:auto;" onclick="vpnDeleteProfile(\''+p.id+'\')" title="' + t('btn_delete') + '">' + t('btn_delete') + '</button>';
+      html += '<button class="btn btn-ghost btn-sm" data-write onclick="vpnEditProfile(\''+p.id+'\')">' + t('btn_edit','Edit') + '</button>';
+      html += '<button class="btn btn-ghost btn-sm" style="color:var(--text-dim);margin-left:auto;" data-write onclick="vpnDeleteProfile(\''+p.id+'\')" title="' + t('btn_delete') + '">' + t('btn_delete') + '</button>';
       html += '</div></div>';
     });
     html += '</div>';
@@ -968,7 +968,7 @@ function vpnShowCreate() {
     + '<select id="vpn-create-customer" style="width:100%;padding:8px 12px;margin-bottom:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"><option value="">-- ' + t('lbl_no_customer','No customer') + ' --</option></select>'
     + '<div id="vpn-create-fields"></div>'
     + '<div style="display:flex;gap:8px;margin-top:16px;">'
-    + '<button class="btn btn-primary" onclick="vpnDoCreate()" style="padding:8px 20px;font-size:13px;">' + t('btn_create','Create') + '</button>'
+    + '<button class="btn btn-primary" data-write onclick="vpnDoCreate()" style="padding:8px 20px;font-size:13px;">' + t('btn_create','Create') + '</button>'
     + '<button class="btn btn-ghost" onclick="vpnLoadProfiles()" style="padding:8px 20px;font-size:13px;">' + t('btn_cancel','Cancel') + '</button>'
     + '</div></div>';
   _populateCustomerSelect('vpn-create-customer');
@@ -1105,7 +1105,7 @@ async function vpnEditProfile(profileId) {
     + '<select id="vpn-edit-customer" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"><option value="">-- ' + t('lbl_no_customer','No customer') + ' --</option></select>';
 
   html += '<div style="display:flex;gap:8px;margin-top:16px;">'
-    + '<button class="btn btn-primary" onclick="vpnDoEdit(\''+profileId+'\',\''+p.protocol+'\')" style="padding:8px 20px;font-size:13px;">' + t('lagre_3') + '</button>'
+    + '<button class="btn btn-primary" data-write onclick="vpnDoEdit(\''+profileId+'\',\''+p.protocol+'\')" style="padding:8px 20px;font-size:13px;">' + t('lagre_3') + '</button>'
     + '<button class="btn btn-ghost" onclick="vpnLoadProfiles()" style="padding:8px 20px;font-size:13px;">' + t('avbryt_3') + '</button>'
     + '</div></div>';
   el.innerHTML = html;
@@ -1154,7 +1154,7 @@ function vpnShowImport() {
     + '<div id="vpn-file-type" style="color:var(--text-muted);margin-top:4px;"></div>'
     + '</div>'
     + '<input id="vpn-import-content" type="hidden">'
-    + '<button class="btn btn-primary" onclick="vpnDoImport()" id="vpn-import-btn" disabled style="padding:8px 20px;font-size:13px;">' + t('btn_import','Import') + '</button>'
+    + '<button class="btn btn-primary" data-write onclick="vpnDoImport()" id="vpn-import-btn" disabled style="padding:8px 20px;font-size:13px;">' + t('btn_import','Import') + '</button>'
     + '</div>';
 }
 
@@ -1486,7 +1486,7 @@ function liveShowDeviceDetail(idx) {
   // Action buttons
   if (d.vendor === 'fortigate') {
     html += '<div style="display:flex;gap:8px;margin-top:12px;">';
-    html += '<button class="btn btn-primary" onclick="fgBackupConfig(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">' + t('backup_config') + '</button>';
+    html += '<button class="btn btn-primary" data-write onclick="fgBackupConfig(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">' + t('backup_config') + '</button>';
     html += '<button class="btn btn-ghost" onclick="fgShowBackups(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">'+t('btn_backup_history','Backup-historikk')+'</button>';
     html += '<button class="btn btn-ghost" onclick="fgComplianceCheck(\''+d.customer_id+'\')" style="padding:6px 14px;font-size:12px;">' + t('cis_sjekk') + '</button>';
     html += '</div>';
@@ -1782,9 +1782,9 @@ function provisionRenderStep(step) {
   } else if (step === 5) {
     html += '<div id="prov-summary" style="color:var(--text-muted);">' + t('msg_loading_summary','Loading summary...') + '</div>'
       + '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">'
-      + '<button class="btn btn-primary" onclick="provisionDeploy(\'rest\')" style="padding:8px 16px;">' + t('btn_deploy_rest','Deploy via REST API') + '</button>'
-      + '<button class="btn btn-default" onclick="provisionGenerate(false)" style="padding:8px 16px;">' + t('btn_generate_config','Generate config') + '</button>'
-      + '<button class="btn btn-ghost" onclick="provisionGenerate(true)" style="padding:8px 16px;">' + t('btn_generate_with_ai','Generate with AI') + '</button>'
+      + '<button class="btn btn-primary" data-write onclick="provisionDeploy(\'rest\')" style="padding:8px 16px;">' + t('btn_deploy_rest','Deploy via REST API') + '</button>'
+      + '<button class="btn btn-default" data-write onclick="provisionGenerate(false)" style="padding:8px 16px;">' + t('btn_generate_config','Generate config') + '</button>'
+      + '<button class="btn btn-ghost" data-write onclick="provisionGenerate(true)" style="padding:8px 16px;">' + t('btn_generate_with_ai','Generate with AI') + '</button>'
       + '</div>'
       + '<div id="prov-deploy-result" style="display:none;margin-top:16px;"></div>'
       + '<pre id="prov-output" style="display:none;margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;font-family:var(--mono);overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;"></pre>';
@@ -2171,7 +2171,7 @@ async function dashLoadFortiGates() {
 
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
   html += '<button class="btn btn-ghost" onclick="dashLoadFortiGates()" style="padding:4px 12px;font-size:11px;">' + t('oppdater') + '</button>';
-  html += '<button class="btn btn-primary" onclick="fgBackupAll()" style="padding:4px 12px;font-size:11px;">' + t('backup_alle') + '</button>';
+  html += '<button class="btn btn-primary" data-write onclick="fgBackupAll()" style="padding:4px 12px;font-size:11px;">' + t('backup_alle') + '</button>';
   html += '</div>';
 
   // ── Device cards: strict 3-row grid ──
@@ -2244,7 +2244,7 @@ function dashFgDetail(customerId) {
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
     h += '<div style="font-size:14px;font-weight:700;">'+t('hdr_fg_detail','FortiGate Detail')+'</div>';
     h += '<div style="display:flex;gap:8px;align-items:center;">';
-    h += '<button class="btn btn-primary" onclick="fgBackupConfig(\''+customerId+'\')" style="padding:4px 12px;font-size:11px;">' + t('backup_config') + '</button>';
+    h += '<button class="btn btn-primary" data-write onclick="fgBackupConfig(\''+customerId+'\')" style="padding:4px 12px;font-size:11px;">' + t('backup_config') + '</button>';
     h += '<button class="btn btn-ghost" onclick="fgShowBackups(\''+customerId+'\')" style="padding:4px 12px;font-size:11px;">'+t('btn_backup_history','Backup-historikk')+'</button>';
     h += '<button class="btn btn-ghost" onclick="document.getElementById(\'fg-detail-'+customerId+'\').remove()" style="padding:2px 8px;font-size:11px;">'+t('btn_close','Close')+'</button>';
     h += '</div></div>';
@@ -4806,9 +4806,9 @@ function browserInit() {
   el.innerHTML =
     '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">' +
       '<input id="browser-url-input" type="text" placeholder="http://192.168.1.1" style="flex:1;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')browserNavigate();">' +
-      '<button class="btn btn-primary" id="browser-go-btn" onclick="browserNavigate()" style="padding:8px 16px;font-size:13px;">' + t('gaa') + '</button>' +
-      '<button class="btn btn-success" id="browser-start-btn" onclick="browserStart()" style="padding:8px 16px;font-size:13px;">' + t('start_nettleser') + '</button>' +
-      '<button class="btn btn-danger" id="browser-stop-btn" onclick="browserStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('stopp') + '</button>' +
+      '<button class="btn btn-primary" id="browser-go-btn" data-write onclick="browserNavigate()" style="padding:8px 16px;font-size:13px;">' + t('gaa') + '</button>' +
+      '<button class="btn btn-success" id="browser-start-btn" data-write onclick="browserStart()" style="padding:8px 16px;font-size:13px;">' + t('start_nettleser') + '</button>' +
+      '<button class="btn btn-danger" id="browser-stop-btn" data-write onclick="browserStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('stopp') + '</button>' +
       '<button class="btn btn-ghost" id="browser-fullscreen-btn" onclick="toggleFullscreen(\'browser-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="browser-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
@@ -5014,8 +5014,8 @@ function rdpInit() {
       '<input id="rdp-port-input" type="text" placeholder="3389" style="width:70px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-user-input" type="text" placeholder="' + t('inf_ph_username','Brukernavn') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-pass-input" type="password" placeholder="' + t('inf_ph_password','Passord') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" onkeydown="if(event.key===\'Enter\')rdpStart();">' +
-      '<button class="btn btn-success" id="rdp-start-btn" onclick="rdpStart()" style="padding:8px 16px;font-size:13px;">' + t('koble_til') + '</button>' +
-      '<button class="btn btn-danger" id="rdp-stop-btn" onclick="rdpStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('koble_fra') + '</button>' +
+      '<button class="btn btn-success" id="rdp-start-btn" data-write onclick="rdpStart()" style="padding:8px 16px;font-size:13px;">' + t('koble_til') + '</button>' +
+      '<button class="btn btn-danger" id="rdp-stop-btn" data-write onclick="rdpStop()" style="padding:8px 16px;font-size:13px;display:none;">' + t('koble_fra') + '</button>' +
       '<button class="btn btn-ghost" id="rdp-fullscreen-btn" onclick="toggleFullscreen(\'rdp-guac-container\')" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="rdp-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +

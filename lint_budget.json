@@ -45,6 +45,7 @@
     "app/modules/m365_audit/sections/secure_score.py",
     "app/modules/m365_audit/sections/teams.py",
     "app/modules/m365_audit/sections/usage_reports.py",
+    "app/modules/m365_audit/signin.py",
     "app/modules/pentest/__init__.py",
     "app/modules/pentest/_process.py",
     "app/modules/pentest/cms_scanner.py",

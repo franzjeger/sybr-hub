@@ -947,9 +947,9 @@ async function dashLoadArchive() {
 
   // Cleanup button
   html += '<div style="display:flex;gap:8px;margin-bottom:16px;">';
-  html += '<button class="btn btn-ghost" onclick="dashArchiveCleanup(3)" style="font-size:12px;">'+t('btn_cleanup_3m','Delete older than 3 months')+'</button>';
-  html += '<button class="btn btn-ghost" onclick="dashArchiveCleanup(6)" style="font-size:12px;">'+t('btn_cleanup_6m','Delete older than 6 months')+'</button>';
-  html += '<button class="btn btn-ghost" onclick="dashArchiveCleanup(12)" style="font-size:12px;">'+t('btn_cleanup_12m','Delete older than 12 months')+'</button>';
+  html += '<button class="btn btn-ghost" data-write onclick="dashArchiveCleanup(3)" style="font-size:12px;">'+t('btn_cleanup_3m','Delete older than 3 months')+'</button>';
+  html += '<button class="btn btn-ghost" data-write onclick="dashArchiveCleanup(6)" style="font-size:12px;">'+t('btn_cleanup_6m','Delete older than 6 months')+'</button>';
+  html += '<button class="btn btn-ghost" data-write onclick="dashArchiveCleanup(12)" style="font-size:12px;">'+t('btn_cleanup_12m','Delete older than 12 months')+'</button>';
   html += '</div>';
 
   if (data.customers.length === 0) {
@@ -975,7 +975,7 @@ async function dashLoadArchive() {
       html += '<td style="padding:6px;text-align:center;">'+r.size_mb+' MB</td>';
       html += '<td style="padding:6px;text-align:center;">'+(r.has_pdf ? '<span style="color:var(--green);">&#10003;</span>' : '<span style="color:var(--text-dim);">-</span>')+'</td>';
       html += '<td style="padding:6px;text-align:center;">'+(r.has_html ? '<span style="color:var(--green);">&#10003;</span>' : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-      html += '<td style="padding:6px 16px;text-align:right;"><button class="btn btn-ghost" onclick="dashArchiveDelete(\''+esc(r.path)+'\')" style="font-size:11px;color:var(--red);padding:2px 8px;">'+t('btn_delete','Delete')+'</button></td>';
+      html += '<td style="padding:6px 16px;text-align:right;"><button class="btn btn-ghost" data-write onclick="dashArchiveDelete(\''+esc(r.path)+'\')" style="font-size:11px;color:var(--red);padding:2px 8px;">'+t('btn_delete','Delete')+'</button></td>';
       html += '</tr>';
     });
     html += '</tbody></table></div></div>';
