@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from app.core.config import get_branding, get_logo_path
 from app.modules.base import SectionResult, SectionStatus
@@ -69,9 +69,16 @@ def _get_app_version() -> str:
 
 
 def _jinja_env() -> Environment:
+    # autoescape=True, not select_autoescape(["html"]): the templates are named
+    # ``*.html.j2``, and select_autoescape matches on the filename suffix, so
+    # ``.j2`` fell through to its default (False) and every {{ value }} rendered
+    # unescaped. Report context carries attacker-influenceable tenant data
+    # (M365 display names, UPNs, device names), so that was a stored-XSS sink.
+    # Escape everything; the one intentional-HTML value (radar_svg) is marked
+    # ``| safe`` in the template.
     return Environment(
         loader        = FileSystemLoader(str(_TEMPLATES_DIR), encoding="utf-8"),
-        autoescape    = select_autoescape(["html"]),
+        autoescape    = True,
         trim_blocks   = True,
         lstrip_blocks = True,
     )
@@ -5634,13 +5641,17 @@ def _render_radar_svg(categories: dict) -> str:
         y_end = cy + max_r * math.sin(angle)
         svg.append(f'<line x1="{cx}" y1="{cy}" x2="{x_end:.1f}" y2="{y_end:.1f}" stroke="#d0d7de" stroke-width="0.5"/>')
 
-        # Label
+        # Label. Escaped even though the categories are fixed names today: the
+        # result is injected into the report via {{ radar_svg | safe }}, so an
+        # unescaped label would be an injection sink the moment a category name
+        # ever becomes data-derived.
+        from html import escape as _xml_escape
         lx = cx + (max_r + 20) * math.cos(angle)
         ly = cy + (max_r + 20) * math.sin(angle)
         anchor = "middle"
         if lx < cx - 10: anchor = "end"
         elif lx > cx + 10: anchor = "start"
-        svg.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" font-size="11" fill="#6b7280" font-family="sans-serif" dominant-baseline="middle">{label}</text>')
+        svg.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" font-size="11" fill="#6b7280" font-family="sans-serif" dominant-baseline="middle">{_xml_escape(str(label))}</text>')
 
         # Score label
         sx = cx + (max_r * score / 100 + 12) * math.cos(angle)
@@ -6083,13 +6094,35 @@ def generate_html(context: dict, output_path: Path, template_name: str) -> Path:
     return output_path
 
 
+def _pdf_url_fetcher(url: str):
+    """Refuse every resource the report render tries to fetch except data: URIs.
+
+    The report embeds all its assets — logos included — as ``data:`` URIs, so
+    nothing legitimate is loaded from disk or the network. WeasyPrint renders
+    the report HTML server-side, and that HTML carries attacker-influenceable
+    tenant fields (a display name, a device name). Without this fetcher, an
+    injected ``<img src="http://169.254.169.254/…">`` or ``url('file:///etc/…')``
+    would make the server fetch an attacker-chosen internal or local URL at
+    render time — an SSRF / local-file read that the browser-side CSP on the
+    served HTML never applies to. Allow only data:, block the rest.
+    """
+    from weasyprint import default_url_fetcher
+    if url.startswith("data:"):
+        return default_url_fetcher(url)
+    raise ValueError(f"Blocked non-data URL during report render: {url[:80]}")
+
+
 def generate_pdf(html_path: Path, output_path: Path) -> Path:
     try:
         from weasyprint import HTML
 
         from app.core.encryption import encrypted_read_text
         html_content = encrypted_read_text(html_path)
-        HTML(string=html_content, base_url=str(html_path.parent)).write_pdf(str(output_path))
+        HTML(
+            string=html_content,
+            base_url=str(html_path.parent),
+            url_fetcher=_pdf_url_fetcher,
+        ).write_pdf(str(output_path))
         return output_path
     except ImportError:
         raise RuntimeError("WeasyPrint ikke installert — PDF-generering utilgjengelig.")

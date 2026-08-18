@@ -24,7 +24,12 @@ _KEYRING_KEY = "master_encryption_key"
 _MAGIC = b"MSPTK\x01"  # 6-byte header to identify encrypted files (v1, no AAD)
 _MAGIC_V2 = b"MSPTK\x02"  # v2 header: includes AAD for integrity binding
 _NONCE_LEN = 12  # 96-bit nonce for AES-GCM
-_AAD = b"MSPToolkit-v2"  # Associated authenticated data — prevents ciphertext swapping
+_AAD = b"MSPToolkit-v2"  # Associated authenticated data. A single constant
+# binds the ciphertext to this format/version — it does NOT bind it to a path
+# or filename, so it cannot detect one encrypted file's blob being swapped in
+# for another's. That would need per-file AAD (e.g. the relative path), which
+# is a deliberate non-goal here: an attacker who can rewrite files under the
+# data dir already holds the box.
 
 _cached_key: bytes | None = None
 
