@@ -87,6 +87,7 @@ async def claude_message(
             message=message,
             customer_id=customer_id,
             user_id=user.id,
+            user=user,
             context=context,
         ):
             yield f"data: {json.dumps(event)}\n\n"

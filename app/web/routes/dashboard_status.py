@@ -11,9 +11,9 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends
 
 from app.core.rbac import filter_customers, get_accessible_customer_ids
-from app.models.user import User
+from app.models.user import Role, User
 from app.web import state
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import get_current_user, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -204,11 +204,13 @@ async def get_latest_report():
 
 
 @router.post("/customer/wipe")
-async def customer_wipe():
+async def customer_wipe(_user: User = Depends(require_role(Role.technician))):
     from app.core.credentials import load_global_config, wipe_customer
 
-    # This endpoint resets setup staging.  The authenticated user's active
-    # customer is durable registry data and must not be treated as staging.
+    # Technician floor: this resets the active customer's setup staging, which
+    # is part of the onboarding flow technicians run. The router's
+    # get_current_user dependency only proved the caller was logged in, so a
+    # viewer could trigger this destructive reset — the floor closes that.
     cfg = load_global_config()
     if cfg:
         wipe_customer(cfg.get("TenantId", ""))
@@ -216,7 +218,10 @@ async def customer_wipe():
 
 
 @router.post("/customer/renew")
-async def customer_renew():
+async def customer_renew(_user: User = Depends(require_role(Role.technician))):
+    # Technician floor for the same reason as /customer/wipe: it deletes the
+    # active customer's staged secrets, config and certificate to force a fresh
+    # credential setup — a technician task, but not one for a viewer.
     from app.core.credentials import (
         clear_secret_cache,
         delete_all_secrets,

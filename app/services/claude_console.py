@@ -15,7 +15,10 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -349,9 +352,15 @@ async def stream_message(
     message: str,
     customer_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    user: User | None = None,
     context: Optional[dict] = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Send a user message and yield SSE-compatible event dicts.
+
+    ``user`` is the authenticated caller. It is required for any tool that
+    touches a specific customer or host: the tool layer enforces the same
+    per-customer scope the HTTP routes do (see ``_enforce_tool_scope``), and
+    it can only do that if it knows who is asking.
 
     Event types:
         text          — partial assistant text (delta)
@@ -363,6 +372,15 @@ async def stream_message(
     mode = _get_mode()
 
     if mode == "cli":
+        # CLI mode spawns the `claude` CLI with Bash(*) on the hub host — the
+        # same power the local terminal guards behind admin (see
+        # terminal.py). A technician must not reach a host shell through the
+        # console, so gate it the same way rather than leaving the console's
+        # technician floor as an escalation path.
+        from app.models.user import Role
+        if user is None or user.role < Role.admin:
+            yield {"type": "error", "error": "CLI-modus krever admin-rolle."}
+            return
         async for event in _stream_via_cli(conversation_id, message, context, user_id):
             yield event
         return
@@ -458,7 +476,7 @@ async def stream_message(
                 logger.info("Tool call: %s(%s)", tool_name, json.dumps(tool_input)[:200])
 
                 try:
-                    result = await _dispatch_tool(tool_name, tool_input, customer_id)
+                    result = await _dispatch_tool(tool_name, tool_input, customer_id, user)
                     result_str = json.dumps(result, default=str)
                 except Exception as exc:
                     logger.exception("Tool %s failed", tool_name)
@@ -492,19 +510,106 @@ async def stream_message(
     yield {"type": "done"}
 
 
+# ── Authorization: keep console tools inside the caller's customer scope ─────
+#
+# The HTTP routes gate every host- and customer-scoped action behind
+# require_host_access / require_customer_access. The console reaches the same
+# service functions, so without the equivalent check a customer-scoped
+# technician could read or act on any customer's devices simply by naming its
+# id in a tool call. These sets name the tools whose inputs carry such an id;
+# _enforce_tool_scope refuses the call before dispatch when the id is out of
+# scope, and the list tools below filter their results the same way.
+
+_HOST_SCOPED_TOOLS = {"ssh_execute", "ssh_test_connection"}
+_CUSTOMER_SCOPED_TOOLS = {
+    "fortigate_dashboard",
+    "fortigate_compliance",
+    "fortigate_backup",
+    "unifi_devices",
+}
+
+_SCOPE_DENIED = {
+    "error": "Du har ikke tilgang til denne kunden eller hosten.",
+    "forbidden": True,
+}
+
+
+async def _may_see_host(user: User | None, host) -> bool:
+    """Whether *user* may act on *host* — mirrors the SSH routes' rule."""
+    from app.core.rbac import check_customer_access, get_accessible_customer_ids
+
+    if user is None or host is None:
+        return False
+    if host.customer_id:
+        return await check_customer_access(user, host.customer_id)
+    # A host with no customer is estate-wide infrastructure: only an
+    # unrestricted account may touch it.
+    return await get_accessible_customer_ids(user) is None
+
+
+async def _enforce_tool_scope(
+    user: User | None,
+    name: str,
+    params: dict[str, Any],
+    customer_id: str | None,
+) -> dict | None:
+    """Return an error dict if this tool call escapes the caller's scope.
+
+    Fails closed: a host- or customer-scoped tool invoked without an
+    authenticated user, or naming an id the user cannot reach, is refused
+    before the underlying service function runs.
+    """
+    if name in _HOST_SCOPED_TOOLS:
+        from app.services.ssh_manager import get_host
+        host = await get_host((params.get("host_id") or "").strip())
+        if not await _may_see_host(user, host):
+            logger.info(
+                "console 403 host-access: user=%s tool=%s host=%s",
+                getattr(user, "username", "?"), name, params.get("host_id"),
+            )
+            return _SCOPE_DENIED
+    if name in _CUSTOMER_SCOPED_TOOLS:
+        from app.core.rbac import check_customer_access
+        cid = (params.get("customer_id") or customer_id or "").strip()
+        if user is None or not cid or not await check_customer_access(user, cid):
+            logger.info(
+                "console 403 customer-access: user=%s tool=%s customer=%s",
+                getattr(user, "username", "?"), name, cid,
+            )
+            return _SCOPE_DENIED
+    return None
+
+
 # ── Tool dispatch ──────────────────────────────────────────────────────────
 
 async def _dispatch_tool(
     name: str,
     params: dict[str, Any],
     customer_id: Optional[str] = None,
+    user: User | None = None,
 ) -> Any:
-    """Route a tool call to the appropriate service function."""
+    """Route a tool call to the appropriate service function.
+
+    ``user`` is the authenticated caller. Host- and customer-scoped tools are
+    refused here when the requested id is outside the caller's access, and the
+    list tools filter their output to what the caller may see — so the console
+    cannot reach across customers the way the HTTP routes already prevent.
+    """
+    scope_error = await _enforce_tool_scope(user, name, params, customer_id)
+    if scope_error is not None:
+        return scope_error
 
     # -- SSH tools --
     if name == "ssh_list_hosts":
+        from app.core.rbac import get_accessible_customer_ids
         from app.services.ssh_manager import list_hosts
+        allowed = await get_accessible_customer_ids(user) if user else set()
         hosts = await list_hosts()
+        if allowed is not None:
+            # Restricted account: only hosts belonging to a customer it may
+            # access. A host with no customer is estate-wide, so it stays
+            # hidden from restricted accounts (matches _may_see_host).
+            hosts = [h for h in hosts if h.customer_id and h.customer_id in allowed]
         return [
             {
                 "id": h.id, "label": h.label, "hostname": h.hostname,
@@ -635,7 +740,9 @@ async def _dispatch_tool(
     # -- Customer tools --
     if name == "list_customers":
         from app.core.customer import CustomerManager
-        customers = CustomerManager.list_customers()
+        from app.core.rbac import filter_customers, get_accessible_customer_ids
+        allowed = await get_accessible_customer_ids(user) if user else set()
+        customers = filter_customers(CustomerManager.list_customers(), allowed)
         return [{"id": c.get("_id", ""), "name": c.get("CustomerName", ""), "domain": c.get("PrimaryDomain", "")} for c in customers[:50]]
 
     if name == "customer_status":
