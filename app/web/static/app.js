@@ -2650,8 +2650,13 @@ async function newCustomer() {
 
 async function renewCreds() {
   if (!await showConfirm(t('dlg_confirm_renew'))) return;
+  // Renewal issues a fresh certificate + client secret — exactly what first-run
+  // setup does. Clear the old local credentials, then run the same device-code
+  // sign-in so the operator finishes this one action with working, renewed
+  // credentials, instead of being dropped back on a status page with none and a
+  // "run setup again" note. startSetup() drives /api/setup/stream to completion.
   await apiFetch('/api/customer/renew', { method: 'POST' });
-  loadStatus();
+  startSetup();
 }
 
 // ── Setup flow ─────────────────────────────────────────────────────────────────

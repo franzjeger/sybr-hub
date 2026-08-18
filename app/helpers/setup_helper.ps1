@@ -154,6 +154,11 @@ function gsafepost {
     catch { if ($_.ToString() -notmatch 'already exists') { Write-Warning "Non-fatal: $_" } }
 }
 
+function gdelete {
+    param($path)
+    Invoke-MgGraphRequest -Method DELETE -Uri "https://graph.microsoft.com/v1.0/$path" | Out-Null
+}
+
 # ── Tenant info ───────────────────────────────────────────────────────────────
 out-step "Fetching tenant information..."
 $org        = (gget 'organization').value[0]
@@ -165,7 +170,11 @@ out-step "Tenant: $custName ($primDomain)"
 
 # ── App registration ──────────────────────────────────────────────────────────
 out-step "Creating app registration '$appName'..."
-$existing = (gget 'applications' "`$filter=displayName eq '$appName'&`$top=1").value
+# Fetch ALL apps with this name, not just one. Earlier versions created a fresh
+# '$appName' registration on every setup/renew instead of reusing one, so a
+# tenant audited repeatedly is left with a pile of identical, privileged
+# enterprise apps that nobody prunes. Reuse the first and delete the rest below.
+$existing = @((gget 'applications' "`$filter=displayName eq '$appName'").value)
 if ($existing.Count -gt 0) {
     $app = $existing[0]
     out-step "Reusing existing app: $($app.appId)"
@@ -175,6 +184,25 @@ if ($existing.Count -gt 0) {
 }
 $appId       = $app.appId
 $appObjectId = $app.id
+
+# Prune duplicate audit apps so a renewal leaves exactly one. Only apps whose
+# displayName is EXACTLY '$appName' are touched (never a customer's own app),
+# and never the one we just settled on. Deleting the application removes its
+# service principal — the "Enterprise Application" — with it, and Entra keeps a
+# recoverable copy for ~30 days. Best-effort: a delete the signed-in admin is
+# not permitted to make must not sink the setup.
+$dupes = @($existing | Where-Object { $_.id -and $_.id -ne $appObjectId })
+if ($dupes.Count -gt 0) {
+    out-step "Removing $($dupes.Count) duplicate '$appName' app registration(s) left by earlier runs..."
+    foreach ($d in $dupes) {
+        try {
+            gdelete "applications/$($d.id)"
+            out-step "  Removed duplicate: appId $($d.appId)"
+        } catch {
+            out-step "  Could not remove appId $($d.appId) (non-fatal): $($_.Exception.Message)"
+        }
+    }
+}
 
 # ── API permissions ───────────────────────────────────────────────────────────
 out-step "Configuring API permissions..."

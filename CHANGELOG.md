@@ -8,7 +8,25 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
-### Rapporten motsier ikke lenger seg selv
+### «Forny tilganger» fornyer nå faktisk — og rydder opp etter seg
+
+Knappen slettet den lagrede legitimasjonen og stoppet der. Bekreftelsesdialogen
+sa det til og med rett ut: «du må kjøre oppsett på nytt». Operatøren satt igjen
+på en statusside uten legitimasjon og med en manuell jobb til. Nå gjør knappen
+hele jobben: den fjerner den gamle legitimasjonen og starter *samme*
+device-code-innlogging som førstegangsoppsettet, så du ender med et ferskt
+sertifikat og en ny hemmelighet i én handling.
+
+Samtidig ryddet ikke oppsettet opp etter seg i kundens leietaker.
+`setup_helper.ps1` gjenbruker riktignok app-registreringen ved navn i stedet for
+å lage en ny hver gang, men eldre versjoner gjorde det ikke — så en leietaker
+som er auditert mange ganger sitter igjen med en haug identiske, privilegerte
+«MSP Toolkit Audit»-bedriftsapper som ingen fjerner. Oppsettet beholder nå den
+ene det gjenbruker og sletter dublettene (kun apper med akkurat det navnet, aldri
+kundens egne, og aldri den som er i bruk). Å slette applikasjonen fjerner
+tilhørende tjenestehovedstol — «Enterprise Application» — med den, og Entra
+beholder en gjenopprettbar kopi i ca. 30 dager. Beste forsøk: en sletting den
+innloggede administratoren ikke har lov til å gjøre, velter ikke oppsettet.
 
 En ekspertgjennomgang av en generert kunderapport fant flere steder der tallet
 eller ordlyden var misvisende. Alle er rettet i koden, ikke i den enkelte
