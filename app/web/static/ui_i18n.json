@@ -2851,7 +2851,11 @@
     "lbl_policy_report": "Rapportmodus",
     "lbl_policy_off": "Av",
     "lbl_policy_trusted": "Betrodd",
-    "lbl_captured": "Fanget"
+    "lbl_captured": "Fanget",
+    "lbl_pick_policies": "Velg hvilke policyer som skal rulles ut",
+    "lbl_tier_essential": "Essensiell",
+    "lbl_tier_recommended": "Anbefalt",
+    "lbl_tier_extended": "Utvidet"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5705,6 +5709,10 @@
     "lbl_policy_report": "Report-only",
     "lbl_policy_off": "Off",
     "lbl_policy_trusted": "Trusted",
-    "lbl_captured": "Captured"
+    "lbl_captured": "Captured",
+    "lbl_pick_policies": "Choose which policies to deploy",
+    "lbl_tier_essential": "Essential",
+    "lbl_tier_recommended": "Recommended",
+    "lbl_tier_extended": "Extended"
   }
 }
