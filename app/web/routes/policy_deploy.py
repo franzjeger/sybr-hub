@@ -46,7 +46,7 @@ from app.core.policy_adoption import (
     validate,
 )
 from app.core.policy_restore import RestoreError, list_sources, load_source
-from app.core.policy_templates import TemplateError, annotations, list_templates, render
+from app.core.policy_templates import TemplateError, list_templates, render
 from app.models.user import User
 from app.modules.m365_audit.consent import (
     ConsentError,
@@ -77,6 +77,34 @@ async def get_templates(
     """What we can deploy. Readable without the capability — knowing the
     standard exists is not the same as being able to push it."""
     return {"templates": list_templates(get_ui_lang(request))}
+
+
+@router.get("/policy-deploy/template/{template_id}")
+async def get_template_policies(
+    template_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """The policies in one template, so the operator can pick which to deploy.
+
+    Each carries its rationale, tier, and any licence it needs — the
+    annotations render() strips before Graph. Readable without the capability;
+    choosing is not the same as pushing.
+    """
+    from app.core.policy_templates import load_template, metadata
+
+    try:
+        meta = metadata(template_id, get_ui_lang(request))
+    except TemplateError as exc:
+        raise ValidationError(str(exc)) from exc
+    doc = load_template(template_id)
+    order = [str(p["displayName"]) for p in doc["policies"]]
+    return {
+        "template": template_id,
+        "policies": [
+            {"name": name, **meta[name]} for name in order
+        ],
+    }
 
 
 async def _live_policies(
@@ -111,12 +139,31 @@ async def _live_policies(
 
 
 def _plan_payload(plan: Plan, template_id: str, lang: str) -> dict[str, Any]:
-    why = annotations(template_id, lang)
+    from app.core.policy_templates import metadata
+    meta = metadata(template_id, lang)
     payload = plan.as_dict()
     payload["template"] = template_id
     for change in payload["changes"]:
-        change["why"] = why.get(change["name"], "")
+        m = meta.get(change["name"], {})
+        change["why"] = m.get("why", "")
+        change["tier"] = m.get("tier", "")
+        change["requires_license"] = m.get("requires_license", "")
     return payload
+
+
+def _select_policies(desired: list[dict], body: dict) -> list[dict]:
+    """Keep only the policies the operator ticked, if any.
+
+    ``select`` is a list of displayNames. Empty or absent means the whole
+    template — so a caller that does not know about selection still deploys
+    everything, unchanged. Applied identically in plan and apply so the plan
+    the operator approved is exactly the one that runs (the fingerprint would
+    differ otherwise).
+    """
+    wanted = {str(s) for s in (body.get("select") or [])}
+    if not wanted:
+        return desired
+    return [p for p in desired if str(p.get("displayName", "")) in wanted]
 
 
 @router.post("/policy-deploy/{customer_id}/plan")
@@ -136,6 +183,7 @@ async def plan_deployment(
         desired = render(template_id, values)
     except TemplateError as exc:
         raise ValidationError(str(exc)) from exc
+    desired = _select_policies(desired, body)
 
     live, missing_consent, group_problem = await _live_policies(
         customer_id, verify_group=str(values.get("break_glass_group", ""))
@@ -184,6 +232,7 @@ async def apply_deployment(
         desired = render(template_id, values)
     except TemplateError as exc:
         raise ValidationError(str(exc)) from exc
+    desired = _select_policies(desired, body)
 
     live, missing_consent, group_problem = await _live_policies(
         customer_id, verify_group=str(values.get("break_glass_group", ""))

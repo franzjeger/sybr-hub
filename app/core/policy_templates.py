@@ -30,8 +30,11 @@ TEMPLATE_DIR = pathlib.Path(__file__).parent.parent / "policy_templates"
 
 _PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
-# Carried for the operator, never sent to Graph.
-_ANNOTATIONS = {"why"}
+# Carried for the operator, never sent to Graph. ``why`` explains the policy;
+# ``tier`` groups it (essential/recommended/extended); ``requires_license``
+# names a licence the policy needs (e.g. entra_p2 for risk-based policies).
+# Graph rejects unknown fields, so every one of these is stripped before send.
+_ANNOTATIONS = {"why", "tier", "requires_license"}
 
 
 class TemplateError(Exception):
@@ -110,7 +113,8 @@ def render(template_id: str, values: dict[str, str], *, lang: str = "no") -> lis
     policies = json.loads(rendered)
 
     for policy in policies:
-        policy.pop("why", None)
+        for annotation in _ANNOTATIONS:
+            policy.pop(annotation, None)
     return policies
 
 
@@ -119,5 +123,23 @@ def annotations(template_id: str, lang: str = "no") -> dict[str, str]:
     doc = load_template(template_id)
     return {
         str(p["displayName"]): _localised(p.get("why"), lang)
+        for p in doc["policies"]
+    }
+
+
+def metadata(template_id: str, lang: str = "no") -> dict[str, dict]:
+    """{displayName: {why, tier, requires_license}} for the selection screen.
+
+    The operator picks which policies to deploy from a comprehensive suite, so
+    the interface needs the rationale, the tier, and any licence a policy
+    requires — the same annotations render() strips before Graph.
+    """
+    doc = load_template(template_id)
+    return {
+        str(p["displayName"]): {
+            "why": _localised(p.get("why"), lang),
+            "tier": str(p.get("tier") or ""),
+            "requires_license": str(p.get("requires_license") or ""),
+        }
         for p in doc["policies"]
     }

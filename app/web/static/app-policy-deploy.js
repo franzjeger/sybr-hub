@@ -36,8 +36,38 @@ async function policyDeployLoad() {
   _pdTemplates = d.templates;
   _pdPlan = null;
   el.innerHTML = _pdForm();
+  _pdLoadPolicies();
   policyEnforceLoad();
   policyRestoreLoad();
+}
+
+// The policies in the selected standard, each a checkbox so the operator picks
+// which to deploy. A one-policy standard shows nothing here — there is nothing
+// to choose. Tier and licence badges say what each is and whether it needs P2.
+async function _pdLoadPolicies() {
+  var box = document.getElementById('pd-select');
+  var tid = document.getElementById('pd-template');
+  if (!box || !tid) return;
+  box.innerHTML = '';
+  var d = await apiFetch('/api/policy-deploy/template/' + encodeURIComponent(tid.value) + '?lang=' + _lang).catch(function(){ return null; });
+  if (!d || !d.policies || d.policies.length <= 1) return;
+  var tierLabel = { essential: t('lbl_tier_essential', 'Essential'), recommended: t('lbl_tier_recommended', 'Recommended'), extended: t('lbl_tier_extended', 'Extended') };
+  var html = '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:6px;">' + t('lbl_pick_policies', 'Choose which policies to deploy') + '</div>';
+  d.policies.forEach(function(p) {
+    var badges = '';
+    if (p.tier) badges += '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);margin-left:6px;">' + esc(tierLabel[p.tier] || p.tier) + '</span>';
+    if (p.requires_license) badges += '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(224,134,0,0.12);color:var(--orange);margin-left:4px;">' + esc(p.requires_license.toUpperCase().replace('ENTRA_', '')) + '</span>';
+    html += '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;">';
+    html += '<input type="checkbox" class="pd-pol" value="' + esc(p.name) + '" checked style="margin-top:3px;">';
+    html += '<span style="flex:1;"><span style="font-weight:600;font-size:var(--font-xs);">' + esc(p.name) + '</span>' + badges
+          + '<span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">' + esc(p.why) + '</span></span>';
+    html += '</label>';
+  });
+  box.innerHTML = html;
+}
+
+function _pdSelectedPolicies() {
+  return Array.prototype.slice.call(document.querySelectorAll('#pd-select .pd-pol:checked')).map(function(c) { return c.value; });
 }
 
 function _pdForm() {
@@ -48,12 +78,16 @@ function _pdForm() {
 
   html += '<label style="display:block;font-size:var(--font-xs);color:var(--text-muted);margin-bottom:4px;">'
        + t('lbl_standard', 'Standard') + '</label>';
-  html += '<select id="pd-template" style="width:100%;padding:8px;margin-bottom:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
+  html += '<select id="pd-template" onchange="_pdLoadPolicies()" style="width:100%;padding:8px;margin-bottom:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
   _pdTemplates.forEach(function(tpl) {
     html += '<option value="' + esc(tpl.id) + '">' + esc(tpl.name) + ' ' + esc(tpl.version)
          + ' — ' + tpl.policies + ' ' + t('lbl_policies', 'policies') + '</option>';
   });
   html += '</select>';
+
+  // Which policies from the standard to deploy. A one-policy standard needs no
+  // list; a comprehensive suite is picked from. Filled by _pdLoadPolicies().
+  html += '<div id="pd-select" style="margin-bottom:var(--space-4);"></div>';
 
   // Required, never defaulted. An unfilled exclusion excludes nobody, inside a
   // policy that applies to everybody — so the field is empty and the button
@@ -387,14 +421,17 @@ async function policyDeployPlan() {
   box.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
   _pdPlan = null;
 
+  var selected = _pdSelectedPolicies();
   var body = {
     template: document.getElementById('pd-template').value,
     values: { break_glass_group: document.getElementById('pd-breakglass').value.trim() },
+    select: selected,
   };
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/plan?lang=' + _lang, {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
   });
   if (!d) { box.innerHTML = ''; return; }
+  d.select = selected;  // carried to apply so the approved plan is the one that runs
   _pdPlan = d;
   box.innerHTML = _pdRenderPlan(d);
 }
@@ -492,6 +529,9 @@ async function policyDeployApply() {
     // which is exactly the state nobody reviewed.
     fingerprint: _pdPlan.fingerprint,
     values: { break_glass_group: document.getElementById('pd-breakglass').value.trim() },
+    // The same selection the plan was built from, so apply deploys exactly the
+    // subset that was approved — a different set would not match the fingerprint.
+    select: _pdPlan.select || [],
   };
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/apply', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
