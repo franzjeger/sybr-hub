@@ -17,7 +17,7 @@ Validated audit layer carried forward from MSP-Toolkit-V2 v10.10.12.
 The data-quality pass that produced v10.10.2–.12 is locked in by
 regression tests in this repo.
 
-- **Microsoft 365 audit** — 28 sections (24 M365 + 4 Azure), full pagination on every
+- **Microsoft 365 audit** — 29 sections (25 M365 + 4 Azure), full pagination on every
   Graph list endpoint, explicit data-gap signalling (refuses to
   fabricate a grade when MFA data is missing). MFA coverage is *enforced*
   coverage: a Conditional-Access exclusion counts as unprotected even for a

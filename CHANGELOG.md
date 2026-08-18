@@ -8,7 +8,22 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
-### «Forny tilganger» fornyer nå faktisk — og rydder opp etter seg
+### Viva Engage (Yammer) er nå med i auditen
+
+En ny seksjon leser bruksrapporten for Viva Engage — Microsoft beholdt det gamle
+Yammer-navnet på Graph-endepunktet (`getYammerActivityUserDetail`). For en audit
+er det interessante ikke meldingstallet, men om leietakeren har et sosialt
+bedriftsnettverk slått på som ingen styrer: en klargjort, lisensiert flate uten
+aktivitet er en åpen dør ingen følger med på, og hører hjemme på funnlisten ved
+siden av enhver annen ubrukt-men-påslått tjeneste. Seksjonen flagger nettopp det
+tilfellet («påslått, men ubrukt») som en advarsel.
+
+To tilstander holdes bevisst fra hverandre: en *tom* rapport betyr at tjenesten
+ikke er i bruk (aldri klargjort, ulisensiert eller helt stille i perioden) — et
+rent «ikke i bruk»-signal, ikke en feil — mens en *avvist* rapport (403)
+rapporteres som utilgjengelig, så ingen leser «vi fikk ikke sett» som «det er
+ingenting der». Krever bare `Reports.Read.All`, som app-registreringen alt har —
+ingen ekstra samtykke for denne seksjonen. Antall seksjoner: 28 → 29.
 
 Knappen slettet den lagrede legitimasjonen og stoppet der. Bekreftelsesdialogen
 sa det til og med rett ut: «du må kjøre oppsett på nytt». Operatøren satt igjen

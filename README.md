@@ -25,7 +25,7 @@ Read from everything. Write to a deliberate few.
 
 | Domain | Read | Write |
 |---|---|---|
-| **Microsoft 365** | Full security audit (28 sections — 24 M365 + 4 Azure, CIS / NIST CSF / ISO 27001 mapped) | — |
+| **Microsoft 365** | Full security audit (29 sections — 25 M365 + 4 Azure, CIS / NIST CSF / ISO 27001 mapped) | — |
 | **FortiGate** | Policy + admin audit over REST API | Config backups → IT Glue |
 | **UniFi** | Device + firmware audit (controller-API or direct-SSH) | — |
 | **DNS / email security** | SPF / DKIM / DMARC / MTA-STS | — |

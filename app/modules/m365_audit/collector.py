@@ -48,6 +48,7 @@ class AuditCollector:
         "OneDrive Sharing",
         "Compliance Score",
         "Usage Reports",
+        "Viva Engage",
     ]
 
     AZURE_SECTION_NAMES = [
@@ -213,6 +214,7 @@ class AuditCollector:
         from app.modules.m365_audit.sections.teams import TeamsSection
         from app.modules.m365_audit.sections.teams_policies import TeamsPoliciesSection
         from app.modules.m365_audit.sections.users_mfa import MFASection, UsersSection
+        from app.modules.m365_audit.sections.viva_engage import VivaEngageSection
 
         users_sec = UsersSection(self.out_dir, graph, self.progress_cb)
         ca_sec    = ConditionalAccessSection(self.out_dir, graph, self.progress_cb)
@@ -271,6 +273,7 @@ class AuditCollector:
             ),
             ComplianceScoreSection(self.out_dir, graph, self.progress_cb),
             UsageReportsSection(self.out_dir, graph, self.progress_cb),
+            VivaEngageSection(self.out_dir, graph, self.progress_cb),
         ]
 
     def _build_azure_sections(self, sub_id: str, sub_name: str, multi: bool = False) -> list[BaseSection]:
