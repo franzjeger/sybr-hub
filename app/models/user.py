@@ -90,6 +90,10 @@ class UserCreate(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=128)
     email: Optional[str] = None
     role: Role = Role.technician
+    # Shared customer pool: a new account sees every customer by default, so the
+    # IT Glue / Tenant / GDAP / ALSO / Uniweb synergy works for everyone. An
+    # admin can pass False to create a restricted account, or restrict it later.
+    all_customers: bool = True
 
 
 class UserUpdate(BaseModel):

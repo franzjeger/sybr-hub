@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -457,6 +457,20 @@ _MIGRATIONS: list = [
         CREATE INDEX IF NOT EXISTS idx_finding_tickets_customer
             ON finding_tickets(customer_id);
         """,
+    ),
+    (
+        19,
+        "Shared customer pool — every existing account sees every customer",
+        # This deployment runs a shared customer pool: customers are pulled from
+        # IT Glue and matched to Tenant / GDAP / ALSO / Uniweb, and the synergy
+        # only works if every user can see every customer. Migration 14 scoped
+        # new accounts (an explicit grant); this reverses that stance for the
+        # accounts that already exist by giving them the all-customers grant.
+        # Per-customer restriction stays available as an opt-in — an admin can
+        # still uncheck it for a specific user afterwards. Re-runnable: setting
+        # the flag to 1 again is a no-op, and once applied the version is not
+        # revisited, so a later restriction is not undone.
+        "UPDATE users SET all_customers = 1;",
     ),
 ]
 
