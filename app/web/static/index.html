@@ -393,9 +393,10 @@
           </button>
           <span id="dc-browser-info" style="font-size:11px; color:var(--text-dim);"></span>
         </div>
-        <div style="margin:2px 0 12px;">
+        <div style="margin:2px 0 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span style="font-size:11px; color:var(--text-dim);" data-i18n="setup_open_manually">Eller åpne manuelt: </span>
-          <a id="dc-url" href="#" target="_blank" style="color:var(--text-dim);font-family:var(--mono);font-size:11px;"></a>
+          <a id="dc-url" href="#" target="_blank" style="color:var(--blue);font-family:var(--mono);font-size:11px;word-break:break-all;"></a>
+          <button class="btn btn-ghost btn-sm" id="dc-url-copy" data-click-handler="copyDeviceUrl" data-i18n="btn_copy" data-i18n-title="tip_click_to_copy" title="Klikk for å kopiere">Kopier</button>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin:4px 0 8px;" data-i18n="setup_private_hint">Tips: bruk et privat vindu (Ctrl+Shift+P / Cmd+Shift+N) hvis du allerede er logget inn med en annen konto.</div>
         <div class="device-code-step" data-i18n="setup_step2">2. Skriv inn koden (klikk for å kopiere):</div>

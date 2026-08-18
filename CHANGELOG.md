@@ -8,6 +8,16 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Kopier-knapp for påloggingslenken ved kundeoppsett
+
+Enhetskode-skjermen viste `login.microsoft.com/device` som en ren lenke uten
+måte å kopiere den på. En nettleser kan ikke åpne operatørens standardnettleser
+i et privat vindu — det er en bevisst sandkasse-grense, ingen webapp kan det —
+så når popup-en blokkeres eller operatøren vil bruke en annen nettleser, er
+kopier-og-lim inn den pålitelige veien. Lenken har nå en **Kopier**-knapp ved
+siden av seg (samme mønster som koden allerede har), og vises som en tydelig
+lenke i stedet for grå tekst.
+
 ### Appen ber om tillatelsene den faktisk trenger
 
 Defender-seksjonen kaller `security/incidents` og har hele tiden dokumentert at

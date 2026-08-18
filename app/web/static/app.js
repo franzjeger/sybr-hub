@@ -62,6 +62,7 @@ function setButtonLabel(btn, text) {
 // global function as a callable DOM action.
 var _delegatedClickHandlers = Object.freeze({
   runSelfUpdate: function() { return runSelfUpdate(); },
+  copyDeviceUrl: function() { return copyDeviceUrl(); },
   closeReportViewer: function() { return closeReportViewer(); },
   doSetup: function() { return doSetup(); },
   doLogin: function() { return doLogin(); },
@@ -2822,6 +2823,18 @@ function copyCode() {
       document.getElementById('dc-copy-hint').textContent = t('msg_click_to_copy');
     }, 2000);
   });
+}
+
+// Copy the device sign-in URL. A page cannot open the reader's default browser
+// in a private tab (see openPrivateBrowser), so when the popup is blocked — or
+// the operator wants a different browser entirely — copy-paste is the reliable
+// path. The URL is short and fixed (login.microsoft.com/device), but typing it
+// by hand from another machine is exactly the friction this removes.
+function copyDeviceUrl() {
+  if (!_deviceCodeUrl) return;
+  navigator.clipboard.writeText(_deviceCodeUrl).then(() => {
+    showToast(t('msg_copied_short', 'Kopiert!'), 'success', 1500);
+  }).catch(() => {});
 }
 
 // ── Audit scope selector ────────────────────────────────────────────────────────
