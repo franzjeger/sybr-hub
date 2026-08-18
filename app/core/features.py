@@ -58,7 +58,7 @@ FEATURES: tuple[Feature, ...] = (
     Feature("remote", Role.technician, views=("hosts", "terminal", "rdp", "ssh", "browser")),
     Feature("vpn", Role.technician, views=("vpn",)),
     Feature("integrations", Role.technician, views=("integrations",)),
-    Feature("workshop", Role.technician, views=("workshop", "ai")),
+    Feature("ai", Role.technician, views=("ai",)),
 
     # ── Admin: changing how the toolkit itself behaves ──
     Feature("settings", Role.admin, views=("setup",)),

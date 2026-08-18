@@ -74,7 +74,6 @@ TECHNICIAN_ROUTES = [
     ("post", "/api/customers/add-manual"),
     ("post", "/api/audit/scope"),
     ("post", "/api/audit/presets"),
-    ("post", "/api/workshop/notes"),
     ("post", "/api/history/delete"),
     ("post", "/api/uniweb/sync"),
     ("post", "/api/itglue/sync-all"),

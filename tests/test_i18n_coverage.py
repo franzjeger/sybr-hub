@@ -733,20 +733,6 @@ def test_no_new_prose_hard_coded_into_generated_markup(script):
     )
 
 
-def test_the_workshop_section_titles_resolve() -> None:
-    """These are looked up through a variable, so no static check sees them.
-
-    They used to carry a Norwegian fallback beside the key, which is a second
-    copy of the string in the source. Dropping it is only safe while the keys
-    are known to be there."""
-    d = json.loads((STATIC / "ui_i18n.json").read_text())
-    js = (STATIC / "app-integrations.js").read_text()
-    keys = re.findall(r"i18n: '(workshop_section_\d)'", js)
-    assert len(keys) == 4, f"expected four sections, found {keys}"
-    for key in keys:
-        assert key in d["no"] and key in d["en"], f"{key} has no translation"
-
-
 @pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_text_reaches_a_person_without_going_through_t(script: str) -> None:
     found = text_shown_to_a_person(script)

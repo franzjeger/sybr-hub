@@ -181,9 +181,6 @@ var _delegatedClickHandlers = Object.freeze({
   vpnLoadProfiles: function() { return vpnLoadProfiles(); },
   vpnShowCreate: function() { return vpnShowCreate(); },
   vpnShowImport: function() { return vpnShowImport(); },
-  workshopAddFollowup: function() { return workshopAddFollowup(); },
-  workshopAddWishlist: function() { return workshopAddWishlist(); },
-  workshopLoad: function() { return workshopLoad(); },
 });
 
 document.addEventListener('click', function(event) {
@@ -1211,7 +1208,7 @@ function showView(name) {
   // branch below stays valid; hosts/terminal/rdp now highlight Verktøy.
   var _remoteViews = {};
   var _networkViews = {network:1, vpn:1, tls:1, tailscale:1, provision:1};
-  var _toolViews = {hosts:1, terminal:1, rdp:1, ssh:1, browser:1, workshop:1};
+  var _toolViews = {hosts:1, terminal:1, rdp:1, ssh:1, browser:1};
   var _customerViews = {customers:1, home:1, audit:1, history:1, files:1, setup:1, 'customer-detail':1, 'history-report':1};
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   if (_m365SubViews[name]) {

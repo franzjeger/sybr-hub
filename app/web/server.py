@@ -62,7 +62,6 @@ from app.web.routes import (
     unifi,
     uniweb,
     vpn,
-    workshop,
 )
 
 log = logging.getLogger(__name__)
@@ -89,7 +88,6 @@ _API_ROUTERS = (
     ("docs", docs),
     ("policy_backup", policy_backup),
     ("policy_deploy", policy_deploy),
-    ("workshop", workshop),
     ("backup", backup),
     # Connectivity — the toolkit reaches customer-internal devices over these.
     ("fortigate", fortigate),
