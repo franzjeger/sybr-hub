@@ -124,7 +124,7 @@
             <span class="navdd-ic">&#9636;</span>
             <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_audit_history">Audit-historikk</span> <span class="navdd-kbd">Ctrl+5</span></span><span class="navdd-desc" data-i18n="nav_audit_history_desc">Tidligere kj&#248;ringer og rapporter</span></span>
           </button>
-          <button data-view-gate="setup" class="navdd-item" onclick="showView('setup')">
+          <button data-view-gate="setup" data-write class="navdd-item" onclick="showView('setup')">
             <span class="navdd-ic">&#8853;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_new_customer">Ny kunde</span><span class="navdd-desc" data-i18n="nav_new_customer_desc">Registrer og koble til integrasjoner</span></span>
           </button>
@@ -140,7 +140,7 @@
             <span class="navdd-ic">&#9635;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_fortigate_unifi">FortiGate / UniFi</span><span class="navdd-desc" data-i18n="nav_fortigate_unifi_desc">Enheter, firmware og policy-audit</span></span>
           </button>
-          <button data-view-gate="vpn" class="navdd-item" onclick="showView('vpn')">
+          <button data-view-gate="vpn" data-write class="navdd-item" onclick="showView('vpn')">
             <span class="navdd-ic">&#8644;</span>
             <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc" data-i18n="nav_vpn_tunnels_desc">Tunneler mot kundenett &#8212; status og tilkobling</span></span>
           </button>
@@ -148,7 +148,7 @@
             <span class="navdd-ic">&#10003;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_tls_monitor">TLS-monitor</span><span class="navdd-desc" data-i18n="nav_tls_monitor_desc">Sertifikater som utl&#248;per</span></span>
           </button>
-          <button data-view-gate="tailscale" class="navdd-item" onclick="showView('tailscale')">
+          <button data-view-gate="tailscale" data-write class="navdd-item" onclick="showView('tailscale')">
             <span class="navdd-ic">&#8734;</span>
             <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc" data-i18n="nav_mesh_desc">Mesh-tilgang og noder</span></span>
           </button>
@@ -164,33 +164,28 @@
       <div class="nav-dropdown">
         <button data-view-gate="hosts" class="nav-btn nav-caret" id="nav-tools" onclick="showView('hosts')" data-i18n="nav_tools">Verkt&#248;y</button>
         <div class="nav-dropdown-menu"><div class="navdd-panel">
-          <button data-view-gate="hosts" class="navdd-item" onclick="showView('hosts')">
+          <button data-view-gate="hosts" data-write class="navdd-item" onclick="showView('hosts')">
             <span class="navdd-ic">&#8997;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_remote_access2">Fjernaksess</span><span class="navdd-desc" data-i18n="nav_remote_access_desc">Hosts, RDP og WebRemote-lenker</span></span>
           </button>
-          <button data-view-gate="ssh" class="navdd-item" onclick="showView('ssh')">
+          <button data-view-gate="ssh" data-write class="navdd-item" onclick="showView('ssh')">
             <span class="navdd-ic" style="font-family:var(--mono);font-size:11px;">&gt;_</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_terminal_ssh">Terminal / SSH</span><span class="navdd-desc" data-i18n="nav_terminal_ssh_desc">&#216;kter og SSH-n&#248;kler</span></span>
           </button>
-          <button data-view-gate="browser" class="navdd-item" onclick="showView('browser')">
+          <button data-view-gate="browser" data-write class="navdd-item" onclick="showView('browser')">
             <span class="navdd-ic">&#9707;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_browser2">Nettleser</span><span class="navdd-desc" data-i18n="nav_browser_desc">Proxy mot kundens interne grensesnitt</span></span>
-          </button>
-          <button data-view-gate="workshop" class="navdd-item" onclick="showView('workshop')">
-            <span class="navdd-ic"></span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_workshop2">Workshop</span><span class="navdd-desc" data-i18n="nav_workshop_desc">Skjema og sjekklister</span></span>
           </button>
           <div class="navdd-sep"></div>
           <button data-view-gate="docs" class="navdd-foot" onclick="showView('docs')"><span class="navdd-ic">?</span><span data-i18n="nav_docs_desc">Dokumentasjon og endringslogg</span></button>
         </div></div>
       </div>
 
-      <button data-view-gate="integrations" class="nav-btn" id="nav-integrations" onclick="showView('integrations')" data-i18n="nav_integrations">Integrasjoner</button>
+      <button data-view-gate="integrations" data-write class="nav-btn" id="nav-integrations" onclick="showView('integrations')" data-i18n="nav_integrations">Integrasjoner</button>
 
       <!-- Hidden nav IDs so showView() active-highlighting keeps working for
            child/moved views (Fjernaksess, Workshop, VPN, etc.). -->
       <button class="nav-btn" id="nav-remote" style="display:none;"></button>
-      <button class="nav-btn" id="nav-workshop" style="display:none;"></button>
       <button data-view-gate="logs" class="nav-btn" id="nav-logs" onclick="showView('logs')" style="display:none;" data-i18n="nav_logs">Logg</button>
       <button class="nav-btn" id="nav-m365" style="display:none;"></button>
       <button class="nav-btn" id="nav-home" style="display:none;"></button>
@@ -213,11 +208,11 @@
       </button>
 
       <!-- Sybrt assistant — a global tool, so an icon button rather than a nav slot. -->
-      <button data-view-gate="ai" class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" alt="Sybrt"></button>
+      <button data-view-gate="ai" data-write class="hdr-icon-btn" id="nav-ai" onclick="showView('ai')" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" alt="Sybrt"></button>
 
       <!-- One status chip: server-live dot, with a VPN prefix when a tunnel is up.
            Merges the old vpn-header-badge + conn-status pair. Polls /api/health. -->
-      <button data-view-gate="vpn" class="status-chip" id="conn-status" onclick="showView('vpn')" data-i18n-title="live" title="Live" style="display:none;">
+      <button data-view-gate="vpn" data-write class="status-chip" id="conn-status" onclick="showView('vpn')" data-i18n-title="live" title="Live" style="display:none;">
         <span class="dot" id="conn-status-dot"></span>
         <span id="vpn-chip-prefix" style="display:none;">VPN&#160;&#183;&#160;</span>
         <span id="conn-status-label">Live</span>
@@ -1903,72 +1898,6 @@
 
   </div>
 
-  <!-- ════════════ WORKSHOP VIEW ════════════ -->
-  <div class="view" id="view-workshop" style="max-width:1400px;">
-    <div style="margin-bottom:24px;">
-      <div style="font-size:18px;font-weight:700;margin-bottom:8px;" data-i18n="hdr_workshop">Sybr HUB — Workshop</div>
-      <p style="font-size:13px;color:var(--text-muted);max-width:900px;line-height:1.6;" data-i18n="workshop_intro">Dedikert arbeidsrom for workshop: plan, innspill og oppfølging. Endringer lagres automatisk på serveren og deles mellom alle som har siden åpen (last siden for å se andres input).</p>
-    </div>
-
-    <!-- Architecture diagram — visual reference for the "Oversikt"-seksjonen i workshop-planen -->
-    <div class="card" style="margin-bottom:16px;padding:16px;">
-      <div class="card-title" data-i18n="hdr_workshop_architecture">Arkitektur — Sybr HUB-integrasjoner</div>
-      <div style="overflow-x:auto;text-align:center;background:var(--bg);border-radius:var(--radius-sm);padding:12px;">
-        <img src="/api/docs/asset?path=msp-toolkit-architecture.svg" data-i18n-alt="msp_toolkit_integrasjoner_og_dataflyt" alt="Sybr HUB — integrasjoner og dataflyt" style="width:100%;max-width:1400px;height:auto;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
-        <div style="display:none;color:var(--text-muted);font-size:12px;padding:20px;" ><span data-i18n="err_architecture_before">Arkitekturdiagrammet kunne ikke lastes. Sjekk at</span> <code>docs/msp-toolkit-architecture.svg</code> <span data-i18n="err_architecture_after">finnes på serveren.</span></div>
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;">
-      <!-- Left: plan (markdown) -->
-      <div class="card" style="align-self:start;">
-        <div class="card-title" data-i18n="hdr_workshop_plan">Workshop-plan</div>
-        <div id="workshop-plan-body" class="markdown-body" style="font-size:13px;line-height:1.7;max-height:78vh;overflow:auto;padding-right:8px;">
-          <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
-        </div>
-      </div>
-
-      <!-- Right: interactive sections -->
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
-        <!-- Wishlist -->
-        <div class="card">
-          <div class="card-title"><span data-i18n="hdr_workshop_wishlist">Ønskeliste — funksjoner folk vil ha</span> <span id="workshop-wishlist-count" style="font-size:11px;color:var(--text-muted);font-weight:400;margin-left:8px;"></span></div>
-          <ul id="workshop-wishlist-list" style="list-style:none;padding:0;margin:0 0 12px 0;font-size:13px;"></ul>
-          <div style="display:flex;gap:8px;">
-            <input id="workshop-wishlist-input" type="text" class="field-input" data-i18n-placeholder="ph_workshop_wishlist" placeholder="Skriv et ønske og trykk Enter ..." style="flex:1;margin:0;" onkeydown="if(event.key==='Enter'){workshopAddWishlist();event.preventDefault();}">
-            <button data-click-handler="workshopAddWishlist" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
-          </div>
-        </div>
-
-        <!-- Discussion notes (sections 6–9) -->
-        <div class="card">
-          <div class="card-title" data-i18n="hdr_workshop_notes">Diskusjonsnotater</div>
-          <div id="workshop-notes-container" style="display:flex;flex-direction:column;gap:12px;font-size:13px;">
-            <div style="color:var(--text-muted);" data-i18n="msg_loading">Laster...</div>
-          </div>
-        </div>
-
-        <!-- Follow-ups -->
-        <div class="card">
-          <div class="card-title"><span data-i18n="hdr_workshop_followups">Oppfølgingspunkter</span> <span id="workshop-followups-count" style="font-size:11px;color:var(--text-muted);font-weight:400;margin-left:8px;"></span></div>
-          <div id="workshop-followups-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) 130px 140px auto;gap:6px;align-items:center;">
-            <input id="workshop-followup-text" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_text" placeholder="Handling ..." style="margin:0;min-width:0;" onkeydown="if(event.key==='Enter'){workshopAddFollowup();event.preventDefault();}">
-            <input id="workshop-followup-owner" type="text" class="field-input" data-i18n-placeholder="ph_workshop_followup_owner" placeholder="Eier" style="margin:0;min-width:0;">
-            <input id="workshop-followup-due" type="date" class="field-input" style="margin:0;min-width:0;" data-i18n-title="frist" title="Frist">
-            <button data-click-handler="workshopAddFollowup" class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-i18n="btn_add">Legg til</button>
-          </div>
-        </div>
-
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-dim);">
-          <span id="workshop-save-status"></span>
-          <button data-click-handler="workshopLoad" class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:11px;" data-i18n="btn_refresh" data-i18n-title="hent_andres_oppdateringer_fra_serveren" title="Hent andres oppdateringer fra serveren">Oppdater</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ════════════ LOGS VIEW ════════════ -->
   <!-- ════════════ CUSTOMER DETAIL VIEW ════════════ -->
   <div class="view" id="view-customer-detail" style="max-width:1000px;">
     <div id="customer-detail-content">
@@ -1976,6 +1905,7 @@
     </div>
   </div>
 
+  <!-- ════════════ LOGS VIEW ════════════ -->
   <div class="view" id="view-logs">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
       <div style="font-size:18px;font-weight:700;" data-i18n="hdr_troubleshooting">Feilsøking / Logg</div>
@@ -2220,7 +2150,6 @@
       <button class="more-row" onclick="closeMoreSheet();showView('hosts')"><span class="more-ic">&#8997;</span><span data-i18n="fjernaksess">Fjernaksess</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('ssh')"><span class="more-ic" style="font-family:var(--mono);font-size:12px;">&gt;_</span><span data-i18n="terminal_ssh">Terminal / SSH</span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('browser')"><span class="more-ic">&#9707;</span><span data-i18n="nettleser_2">Nettleser</span></button>
-      <button class="more-row" onclick="closeMoreSheet();showView('workshop')"><span class="more-ic"></span><span data-i18n="workshop">Workshop</span></button>
       <div class="more-group-title" data-i18n="nav_network">Nettverk</div>
       <button class="more-row" onclick="closeMoreSheet();showView('vpn')"><span class="more-ic">&#8644;</span><span>VPN</span><span class="more-meta" id="more-vpn-meta"></span></button>
       <button class="more-row" onclick="closeMoreSheet();showView('tls')"><span class="more-ic">&#10003;</span><span data-i18n="tls_monitor">TLS-monitor</span></button>

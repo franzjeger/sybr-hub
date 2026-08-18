@@ -94,7 +94,6 @@
     "app/web/routes/reports.py",
     "app/web/routes/system.py",
     "app/web/routes/vpn.py",
-    "app/web/routes/workshop.py",
     "app/web/server.py",
     "app/web/state.py",
     "app/web/transport.py",
@@ -235,6 +234,7 @@
     "tests/test_vpn_privileges.py",
     "tests/test_vpn_push_reply_injection.py",
     "tests/test_web_auth_routes.py",
-    "tests/test_web_customer_access.py"
+    "tests/test_web_customer_access.py",
+    "tests/test_write_routes_have_a_role_floor.py"
   ]
 }
