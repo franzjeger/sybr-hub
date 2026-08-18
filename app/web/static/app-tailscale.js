@@ -93,7 +93,7 @@ async function tsLoadDevices() {
   // ── Action bar ──
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
   html += '<button class="btn btn-ghost" onclick="tsLoadDevices()" style="padding:4px 12px;font-size:11px;">' + t('btn_refresh','Refresh') + '</button>';
-  html += '<button class="btn btn-primary" onclick="tsShowCreateKey()" style="padding:4px 12px;font-size:11px;">' + t('ts_create_key','Create auth key') + '</button>';
+  html += '<button class="btn btn-primary" data-write onclick="tsShowCreateKey()" style="padding:4px 12px;font-size:11px;">' + t('ts_create_key','Create auth key') + '</button>';
   html += '<button class="btn btn-ghost" onclick="tsShowKeys()" style="padding:4px 12px;font-size:11px;">' + t('ts_manage_keys','Manage keys') + '</button>';
   html += '</div>';
   html += '<div id="ts-key-panel" style="display:none;margin-bottom:16px;"></div>';
@@ -208,25 +208,25 @@ async function tsShowDetail(idx) {
   // Rename
   html += '<div style="display:flex;align-items:center;gap:4px;">';
   html += '<input id="ts-rename-'+idx+'" type="text" value="'+esc(d.given_name || d.hostname || '')+'" placeholder="' + t('ts_ph_display_name','Visningsnavn') + '" style="width:160px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;">';
-  html += '<button class="btn btn-primary" onclick="tsRenameDevice(\''+d.id+'\','+idx+')" style="padding:4px 10px;font-size:11px;">' + t('ts_rename','Gi nytt navn') + '</button>';
+  html += '<button class="btn btn-primary" data-write onclick="tsRenameDevice(\''+d.id+'\','+idx+')" style="padding:4px 10px;font-size:11px;">' + t('ts_rename','Gi nytt navn') + '</button>';
   html += '</div>';
 
   // Authorize toggle
   if (!d.authorized) {
-    html += '<button class="btn btn-primary" onclick="tsAuthorizeDevice(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;color:#fff;background:var(--green);">' + t('ts_authorize','Autoriser') + '</button>';
+    html += '<button class="btn btn-primary" data-write onclick="tsAuthorizeDevice(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;color:#fff;background:var(--green);">' + t('ts_authorize','Autoriser') + '</button>';
   } else {
-    html += '<button class="btn btn-ghost" onclick="tsAuthorizeDevice(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">' + t('ts_deauthorize','Fjern autorisering') + '</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="tsAuthorizeDevice(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">' + t('ts_deauthorize','Fjern autorisering') + '</button>';
   }
 
   // Key expiry toggle
   if (d.key_expiry_disabled) {
-    html += '<button class="btn btn-ghost" onclick="tsToggleKeyExpiry(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">' + t('ts_enable_key_expiry','Slå på nøkkelutløp') + '</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="tsToggleKeyExpiry(\''+d.id+'\',false)" style="padding:4px 12px;font-size:11px;">' + t('ts_enable_key_expiry','Slå på nøkkelutløp') + '</button>';
   } else {
-    html += '<button class="btn btn-ghost" onclick="tsToggleKeyExpiry(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;">' + t('ts_disable_key_expiry','Slå av nøkkelutløp') + '</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="tsToggleKeyExpiry(\''+d.id+'\',true)" style="padding:4px 12px;font-size:11px;">' + t('ts_disable_key_expiry','Slå av nøkkelutløp') + '</button>';
   }
 
   // Remove
-  html += '<button class="btn btn-ghost" onclick="tsRemoveDevice(\''+d.id+'\')" style="padding:4px 12px;font-size:11px;color:var(--red);margin-left:auto;">' + t('ts_remove_device','Fjern enhet') + '</button>';
+  html += '<button class="btn btn-ghost" data-write onclick="tsRemoveDevice(\''+d.id+'\')" style="padding:4px 12px;font-size:11px;color:var(--red);margin-left:auto;">' + t('ts_remove_device','Fjern enhet') + '</button>';
   html += '</div>';
 
   // ── Subnet Routes ──
@@ -241,7 +241,7 @@ async function tsShowDetail(idx) {
   var currentTags = (d.tags || []).map(function(tg){return tg.replace('tag:','');}).join(', ');
   html += '<div style="display:flex;gap:8px;align-items:center;">';
   html += '<input id="ts-tags-'+idx+'" type="text" value="'+esc(currentTags)+'" placeholder="' + t('ts_ph_tags','tag1, tag2 (uten tag:-prefiks)') + '" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;">';
-  html += '<button class="btn btn-primary" onclick="tsUpdateTags(\''+d.id+'\','+idx+')" style="padding:4px 12px;font-size:11px;">' + t('ts_save_tags','Lagre tagger') + '</button>';
+  html += '<button class="btn btn-primary" data-write onclick="tsUpdateTags(\''+d.id+'\','+idx+')" style="padding:4px 12px;font-size:11px;">' + t('ts_save_tags','Lagre tagger') + '</button>';
   html += '</div>';
   html += '<div style="font-size:10px;color:var(--text-dim);margin-top:4px;">' + t('ts_tags_hint','Kommaseparert. tag:-prefikset legges til automatisk.') + '</div>';
   html += '</div>';
@@ -280,9 +280,9 @@ async function tsLoadRoutes(deviceId, idx) {
     html += '<span style="font-size:11px;color:'+statusColor+';font-weight:600;">'+statusText+'</span>';
 
     if (r.enabled) {
-      html += '<button class="btn btn-ghost" onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',false)" style="padding:2px 8px;font-size:10px;color:var(--red);">' + t('ts_route_disable','Deaktiver') + '</button>';
+      html += '<button class="btn btn-ghost" data-write onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',false)" style="padding:2px 8px;font-size:10px;color:var(--red);">' + t('ts_route_disable','Deaktiver') + '</button>';
     } else {
-      html += '<button class="btn btn-primary" onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',true)" style="padding:2px 8px;font-size:10px;">' + t('ts_route_approve','Godkjenn') + '</button>';
+      html += '<button class="btn btn-primary" data-write onclick="tsToggleRoute(\''+deviceId+'\','+idx+',\''+r.route+'\',true)" style="padding:2px 8px;font-size:10px;">' + t('ts_route_approve','Godkjenn') + '</button>';
     }
     html += '</div>';
   });
@@ -378,7 +378,7 @@ async function tsShowKeys() {
     html += '<td style="padding:6px;">'+esc(k.description||'-')+'</td>';
     html += '<td style="padding:6px;text-align:center;"><span style="color:'+daysColor+';font-weight:600;">'+(k.days_left!=null?k.days_left:'-')+'</span></td>';
     html += '<td style="padding:6px;text-align:center;">'+(k.revoked?'<span style="color:var(--red);">' + t('ts_yes','Ja') + '</span>':t('ts_no','Nei'))+'</td>';
-    html += '<td style="padding:6px;"><button class="btn btn-ghost" onclick="tsRevokeKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('ts_revoke','Tilbakekall') + '</button></td>';
+    html += '<td style="padding:6px;"><button class="btn btn-ghost" data-write onclick="tsRevokeKey(\''+k.id+'\')" style="padding:2px 8px;font-size:11px;color:var(--red);">' + t('ts_revoke','Tilbakekall') + '</button></td>';
     html += '</tr>';
   });
   html += '</tbody></table></div>';
@@ -402,7 +402,7 @@ function tsShowCreateKey() {
   html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="ts-key-preauth" checked> ' + t('ts_preauthorized','Forhåndsautorisert') + '</label>';
   html += '</div>';
   html += '<div style="display:flex;gap:8px;margin-top:12px;">';
-  html += '<button class="btn btn-primary" onclick="tsDoCreateKey()" style="padding:6px 16px;font-size:12px;">' + t('btn_create','Create') + '</button>';
+  html += '<button class="btn btn-primary" data-write onclick="tsDoCreateKey()" style="padding:6px 16px;font-size:12px;">' + t('btn_create','Create') + '</button>';
   html += '<button class="btn btn-ghost" onclick="document.getElementById(\'ts-key-panel\').style.display=\'none\'" style="padding:6px 16px;font-size:12px;">' + t('btn_cancel','Cancel') + '</button>';
   html += '</div>';
   html += '<div id="ts-key-result" style="margin-top:10px;"></div>';

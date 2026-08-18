@@ -96,8 +96,8 @@ async function dashLoadRenewals() {
   // ── Action bar ──
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
   html += '<button class="btn btn-ghost" onclick="dashLoadRenewals()" style="padding:4px 12px;font-size:11px;">'+t('btn_refresh','Refresh')+'</button>';
-  html += '<button class="btn btn-primary" onclick="alsoCombinedSync()" id="renewal-scan-btn" style="padding:4px 12px;font-size:11px;">'+t('btn_sync','Sync')+'</button>';
-  html += '<button class="btn btn-ghost" onclick="alsoBulkHandled()" style="padding:4px 12px;font-size:11px;">'+t('btn_mark_handled','Mark selected handled')+'</button>';
+  html += '<button class="btn btn-primary" data-write onclick="alsoCombinedSync()" id="renewal-scan-btn" style="padding:4px 12px;font-size:11px;">'+t('btn_sync','Sync')+'</button>';
+  html += '<button class="btn btn-ghost" data-write onclick="alsoBulkHandled()" style="padding:4px 12px;font-size:11px;">'+t('btn_mark_handled','Mark selected handled')+'</button>';
   html += '<button class="btn btn-ghost" onclick="alsoExportCSV()" style="padding:4px 12px;font-size:11px;">'+t('btn_export_csv','Export CSV')+'</button>';
   html += '<button class="btn btn-ghost" onclick="alsoDownloadPDF()" style="padding:4px 12px;font-size:11px;">'+icon('document',13)+' '+t('btn_pdf_report','PDF Report')+'</button>';
   html += '<button class="btn btn-ghost" onclick="alsoShowLicenseOptimization()" style="padding:4px 12px;font-size:11px;">'+t('btn_license_opt','Lisensoptimalisering')+'</button>';

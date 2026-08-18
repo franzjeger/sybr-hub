@@ -2127,8 +2127,14 @@
      over an inline display on what a user genuinely may not see. */
   .gated-hidden { display: none !important; }
 /* Hidden rather than disabled: an account without the capability is not
-   meant to see the door, and a greyed-out button invites a support ticket. */
+   meant to see the door, and a greyed-out button invites a support ticket.
+   The bare [data-write] rule hides every write control from a read-only
+   account. The second rule adds the stricter tier: an account that may write
+   to Sybr HUB but not into a customer's tenant loses only the tenant-changing
+   controls (data-write="tenant"), which the server gates with
+   require_tenant_write. */
 body.is-readonly [data-write] { display: none !important; }
+body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
 
 .vpn-capability-warning {
   border-color: var(--orange);

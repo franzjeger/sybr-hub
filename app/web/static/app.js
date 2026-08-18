@@ -806,6 +806,14 @@ function canWrite() {
   return !!(_currentUser && _currentUser.can_write);
 }
 
+// The second, stricter tier. tenant_write is what lets a control change a
+// customer's Microsoft tenant (policy deploy/enforce/restore, consent). The
+// server checks it separately via require_tenant_write, and it implies
+// can_write — so a control marked data-write="tenant" needs both.
+function canTenantWrite() {
+  return !!(_currentUser && _currentUser.tenant_write);
+}
+
 function applyFeatureVisibility() {
   // Marked elements name a feature; unmarked ones are visible to anyone who
   // signed in. Same shape as data-write, and deliberately a separate attribute:
@@ -834,6 +842,11 @@ function _setGated(el, allowed) {
 function applyWriteCapability() {
   var write = canWrite();
   document.body.classList.toggle('is-readonly', !write);
+  // Second tier: an account with can_write but not tenant_write sees ordinary
+  // write controls and not the tenant-changing ones. is-readonly already hides
+  // every [data-write] (tenant ones included), so this only has to catch the
+  // in-between account; the overlap on a read-only user is harmless.
+  document.body.classList.toggle('is-no-tenant-write', !canTenantWrite());
   applyFeatureVisibility();
   var badge = document.getElementById('readonly-badge');
   if (badge) {

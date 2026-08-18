@@ -172,7 +172,7 @@ async function policyAdoptionLoad() {
     html += '</div>';
   });
 
-  html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" onclick="policyAdoptionSave()">'
+  html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" data-write="tenant" onclick="policyAdoptionSave()">'
        + t('btn_save_adoption', 'Save choices') + '</button>';
   if (!any) {
     html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:var(--space-2);">'
@@ -237,7 +237,7 @@ async function policyEnforceLoad() {
     if (p.refused) {
       html += '<span style="color:var(--text-dim);">' + t('lbl_cannot_enforce', 'Cannot enforce') + '</span>';
     } else {
-      html += '<button class="btn btn-ghost btn-sm" onclick="policyEnforce(\'' + esc(p.policy_id) + '\',\'' + esc(p.name).replace(/'/g,"\\'") + '\')">'
+      html += '<button class="btn btn-ghost btn-sm" data-write="tenant" onclick="policyEnforce(\'' + esc(p.policy_id) + '\',\'' + esc(p.name).replace(/'/g,"\\'") + '\')">'
            + t('btn_enforce', 'Enforce') + '</button>';
     }
     html += '</td></tr>';
@@ -340,7 +340,7 @@ function _pdRenderRestorePlan(plan) {
   });
   html += '</table>';
   html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" ' + (plan.applicable ? '' : 'disabled ')
-       + 'onclick="policyRestoreApply()">' + t('btn_apply_restore', 'Restore {n} policy change(s)').replace('{n}', plan.applicable) + '</button>';
+       + 'data-write="tenant" onclick="policyRestoreApply()">' + t('btn_apply_restore', 'Restore {n} policy change(s)').replace('{n}', plan.applicable) + '</button>';
   return html;
 }
 
@@ -425,7 +425,7 @@ function _pdRenderPlan(plan) {
     html += '<div class="alert alert-error" style="margin-bottom:var(--space-4);"><strong>'
          + t('hdr_missing_consent', 'Consent missing') + '.</strong> '
          + t('msg_missing_consent', 'This tenant has not consented to Policy.ReadWrite.ConditionalAccess. The plan is shown, and nothing can be applied.')
-         + '<div style="margin-top:var(--space-3);"><button class="btn btn-primary" onclick="policyConsentStart()">'
+         + '<div style="margin-top:var(--space-3);"><button class="btn btn-primary" data-write="tenant" onclick="policyConsentStart()">'
          + t('btn_request_consent', 'Sign in as Global Admin and grant it') + '</button></div>'
          + '<div id="pd-consent"></div></div>';
   }
@@ -462,7 +462,7 @@ function _pdRenderPlan(plan) {
 
   var blocked = plan.missing_consent || plan.applicable === 0;
   html += '<div style="margin-top:var(--space-4);display:flex;gap:var(--space-3);align-items:center;">';
-  html += '<button class="btn btn-primary" ' + (blocked ? 'disabled ' : '') + 'onclick="policyDeployApply()">'
+  html += '<button class="btn btn-primary" ' + (blocked ? 'disabled ' : '') + 'data-write="tenant" onclick="policyDeployApply()">'
        + t('btn_apply', 'Apply {n} change(s)').replace('{n}', plan.applicable) + '</button>';
   html += '<span style="font-size:var(--font-xs);color:var(--text-muted);">'
        + t('msg_apply_note', 'Applying re-checks the tenant and refuses if it has changed since this plan.') + '</span>';

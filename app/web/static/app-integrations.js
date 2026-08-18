@@ -312,7 +312,7 @@ function _workshopRenderWishlist() {
   list.innerHTML = items.map(function(item, i) {
     return '<li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">'
       + '<span style="flex:1;word-break:break-word;">' + esc(item) + '</span>'
-      + '<button onclick="workshopRemoveWishlist(' + i + ')" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--text-muted);" title="' + esc(t('btn_remove','Fjern')) + '">✕</button>'
+      + '<button data-write onclick="workshopRemoveWishlist(' + i + ')" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--text-muted);" title="' + esc(t('btn_remove','Fjern')) + '">✕</button>'
       + '</li>';
   }).join('');
 }
@@ -348,7 +348,7 @@ function _workshopRenderFollowups() {
     return '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);">'
       + '<input type="checkbox" ' + (f.done ? 'checked' : '') + ' onchange="workshopToggleFollowup(' + i + ', this.checked)" style="margin-top:3px;">'
       + '<div style="flex:1;min-width:0;word-break:break-word;' + textStyle + '">' + esc(f.text) + owner + due + '</div>'
-      + '<button onclick="workshopRemoveFollowup(' + i + ')" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--text-muted);">✕</button>'
+      + '<button data-write onclick="workshopRemoveFollowup(' + i + ')" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--text-muted);">✕</button>'
       + '</div>';
   }).join('');
 }
@@ -514,7 +514,7 @@ async function alsoSyncCustomers() {
           + '</label>';
       });
       html += '</div>';
-      html += '<button class="btn btn-primary btn-sm" onclick="alsoDoImport()">' + t('btn_import','Import') + ' ' + newC.length + ' ' + t('nav_customers').toLowerCase() + '</button>';
+      html += '<button class="btn btn-primary btn-sm" data-write onclick="alsoDoImport()">' + t('btn_import','Import') + ' ' + newC.length + ' ' + t('nav_customers').toLowerCase() + '</button>';
     } else {
       html += '<div style="color:var(--green);">' + t('all_also_customers_already_matched') + '</div>';
     }
@@ -525,7 +525,7 @@ async function alsoSyncCustomers() {
       if (unlinked.length > 0) {
         html += '<div style="margin-top:var(--space-3);padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;align-items:center;gap:var(--space-3);">';
         html += '<span style="font-size:var(--font-sm);flex:1;">' + unlinked.length + ' matched customers can be linked to ALSO for license viewing</span>';
-        html += '<button class="btn btn-primary btn-sm" onclick="alsoLinkMatched()" id="also-link-btn">' + t('link_all') + '</button>';
+        html += '<button class="btn btn-primary btn-sm" data-write onclick="alsoLinkMatched()" id="also-link-btn">' + t('link_all') + '</button>';
         html += '</div>';
       }
       html += '<details style="margin-top:var(--space-3);font-size:var(--font-xs);"><summary style="cursor:pointer;color:var(--text-muted);">Matched (' + matched.length + ')</summary><div style="max-height:150px;overflow-y:auto;margin-top:var(--space-2);">';
@@ -788,7 +788,7 @@ async function uniwebLoadAccounts() {
     if (a.customer_name) {
       customerCol = '<span style="color:var(--green);">' + esc(a.customer_name) + '</span>';
     } else {
-      customerCol = '<button class="btn btn-ghost" onclick="uniwebShowMatch(\'' + esc(a.id) + '\')" style="padding:2px 8px;font-size:10px;color:var(--orange);">' + t('ikke_koblet') + '</button>';
+      customerCol = '<button class="btn btn-ghost" data-write onclick="uniwebShowMatch(\'' + esc(a.id) + '\')" style="padding:2px 8px;font-size:10px;color:var(--orange);">' + t('ikke_koblet') + '</button>';
     }
 
     html += '<tr style="border-bottom:1px solid var(--border);">';
@@ -806,7 +806,7 @@ async function uniwebLoadAccounts() {
   // Add "Importer kunder" button if there are unmatched accounts
   if (unmatchedCount > 0) {
     html += '<div style="margin-top:10px;">';
-    html += '<button class="btn btn-primary" onclick="uniwebShowImport()" style="padding:6px 14px;font-size:12px;">' + t('integ_import_from_uniweb','Importer kunder fra Uniweb') + ' (' + unmatchedCount + ')</button>';
+    html += '<button class="btn btn-primary" data-write onclick="uniwebShowImport()" style="padding:6px 14px;font-size:12px;">' + t('integ_import_from_uniweb','Importer kunder fra Uniweb') + ' (' + unmatchedCount + ')</button>';
     html += '</div>';
   }
 
@@ -828,7 +828,7 @@ async function uniwebShowMatch(accountId) {
   });
   html += '</select>';
   html += '<div style="display:flex;gap:8px;">';
-  html += '<button class="btn btn-primary" onclick="uniwebDoMatch(\'' + esc(accountId) + '\')">' + t('koble') + '</button>';
+  html += '<button class="btn btn-primary" data-write onclick="uniwebDoMatch(\'' + esc(accountId) + '\')">' + t('koble') + '</button>';
   html += '<button class="btn btn-ghost" onclick="document.getElementById(\'uniweb-match-modal\').remove()">' + t('avbryt_2') + '</button>';
   html += '</div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
@@ -997,7 +997,7 @@ async function uniwebShowImport() {
   // Buttons
   html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;">';
   html += '<button class="btn btn-ghost" onclick="uniwebCloseImport()">' + t('avbryt_2') + '</button>';
-  html += '<button class="btn btn-primary" id="uniweb-import-btn" disabled onclick="uniwebDoImport()">' + t('importer_valgte') + '</button>';
+  html += '<button class="btn btn-primary" id="uniweb-import-btn" disabled data-write onclick="uniwebDoImport()">' + t('importer_valgte') + '</button>';
   html += '</div>';
 
   html += '</div></div>';
@@ -1204,7 +1204,7 @@ function taskSchedRender(tasks) {
     html += '</label>';
     html += '</td>';
     html += '<td style="text-align:center;padding:10px 12px;">';
-    html += '<button class="btn btn-ghost" onclick="taskSchedRunNow(\'' + esc(task.id) + '\',this)" style="padding:4px 10px;font-size:11px;white-space:nowrap;">' + t('btn_run_now','Kjor na') + '</button>';
+    html += '<button class="btn btn-ghost" data-write onclick="taskSchedRunNow(\'' + esc(task.id) + '\',this)" style="padding:4px 10px;font-size:11px;white-space:nowrap;">' + t('btn_run_now','Kjor na') + '</button>';
     html += '</td>';
     html += '</tr>';
   });
