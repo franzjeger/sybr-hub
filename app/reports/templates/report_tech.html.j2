@@ -867,6 +867,28 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <div class="data-body">{{ file_contents.get('08_conditional_access.txt', t.no_data + '.') }}</div>
 </div>
 
+{# ── Policies in production ─────────────────────────────────────────────────
+   Consolidated from this run's snapshots, each with a plain-language line.
+   Same source the customer card reads. #}
+{% if policy_inventory and policy_inventory.workloads %}
+<h3>{{ t.policies_live_heading }}</h3>
+<p style="color:var(--muted);font-size:12px;margin:4px 0 12px;">{{ t.policies_live_intro }}</p>
+{% for key, wl in policy_inventory.workloads.items() %}
+<div class="data-section">
+  <div class="data-header"><span>{{ wl.label[lang] or wl.label['no'] }}</span><span class="fn">{{ wl.count }}</span></div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    {% for it in wl['items'] %}
+    <tr style="border-bottom:1px solid #eee;">
+      <td style="padding:5px 8px 5px 0;white-space:nowrap;vertical-align:top;font-weight:700;color:{% if it.state == 'on' %}#2e7d32{% elif it.state == 'report-only' %}#e08600{% elif it.state == 'trusted' %}#0f4c81{% else %}#888{% endif %};">{% if it.state == 'on' %}{{ t.policy_state_on }}{% elif it.state == 'report-only' %}{{ t.policy_state_report }}{% elif it.state == 'off' %}{{ t.policy_state_off }}{% elif it.state == 'trusted' %}{{ t.policy_state_trusted }}{% else %}{{ it.state }}{% endif %}</td>
+      <td style="padding:5px 8px 5px 0;font-weight:600;vertical-align:top;">{{ it.name }}</td>
+      <td style="padding:5px 0;color:var(--muted);">{{ it.summary[lang] or it.summary['no'] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+{% endif %}
+
 {# ── Policy drift ───────────────────────────────────────────────────────────
    Placed under Conditional Access because that is where a removal hurts most,
    though the comparison covers every snapshot the run captured. Ids are shown

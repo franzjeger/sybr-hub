@@ -6077,6 +6077,15 @@ def build_report_context(
     context["drift"] = _drift_for(out_dir)
     context["baseline"] = _baseline_for(context)
 
+    # The policies in production, consolidated from this run's snapshots, each
+    # with a plain-language line. Same source the customer card reads, so the
+    # report and the card can never disagree about what is configured.
+    try:
+        from app.core.policy_inventory import build_inventory
+        context["policy_inventory"] = build_inventory(out_dir)
+    except Exception:
+        context["policy_inventory"] = None
+
     if persist_metrics:
         save_audit_metrics(out_dir, context)
 

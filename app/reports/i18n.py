@@ -1635,6 +1635,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Conditional Access",
         "en": "Conditional Access",
     },
+    "policies_live_heading": {
+        "no": "Policyer i drift",
+        "en": "Policies in production",
+    },
+    "policies_live_intro": {
+        "no": "Policyene som faktisk er konfigurert i tenanten, slik siste audit fanget dem. Hver linje sier i klartekst hva policyen gjør.",
+        "en": "The policies actually configured in the tenant, as the last audit captured them. Each line says in plain language what the policy does.",
+    },
+    "policy_state_on": {"no": "På", "en": "On"},
+    "policy_state_report": {"no": "Rapportmodus", "en": "Report-only"},
+    "policy_state_off": {"no": "Av", "en": "Off"},
+    "policy_state_trusted": {"no": "Betrodd", "en": "Trusted"},
     "active_policies_label": {
         "no": "Aktive policyer",
         "en": "Active Policies",

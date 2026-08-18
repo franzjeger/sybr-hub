@@ -2845,7 +2845,13 @@
     "lbl_myitprocess_base": "Base-URL (valgfri)",
     "integ_myitprocess": "myITprocess",
     "integ_myitprocess_desc": "Anbefalinger til kvartalsgjennomgang",
-    "ph_myitprocess_base": "https://api.myitprocess.com"
+    "ph_myitprocess_base": "https://api.myitprocess.com",
+    "hdr_policies_live": "Policyer i drift",
+    "lbl_policy_on": "På",
+    "lbl_policy_report": "Rapportmodus",
+    "lbl_policy_off": "Av",
+    "lbl_policy_trusted": "Betrodd",
+    "lbl_captured": "Fanget"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5693,6 +5699,12 @@
     "lbl_myitprocess_base": "Base URL (optional)",
     "integ_myitprocess": "myITprocess",
     "integ_myitprocess_desc": "Recommendations for the quarterly review",
-    "ph_myitprocess_base": "https://api.myitprocess.com"
+    "ph_myitprocess_base": "https://api.myitprocess.com",
+    "hdr_policies_live": "Policies in production",
+    "lbl_policy_on": "On",
+    "lbl_policy_report": "Report-only",
+    "lbl_policy_off": "Off",
+    "lbl_policy_trusted": "Trusted",
+    "lbl_captured": "Captured"
   }
 }

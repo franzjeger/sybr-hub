@@ -188,6 +188,16 @@ class AuditCollector:
                         with contextlib.suppress(asyncio.CancelledError, Exception):
                             await exo_task
 
+        # Lift the policies this run captured onto the customer card, so
+        # "policies in production" is always answerable without opening a run.
+        # Every audit path funnels through here, and out_dir names the customer.
+        # Best-effort: never let it turn a completed audit into a failed one.
+        try:
+            from app.core.policy_inventory import persist_from_run
+            persist_from_run(self.out_dir)
+        except Exception as exc:
+            logger.warning("Could not update policies-in-production: %s", exc)
+
         return self.results
 
     # ── Section builders ──────────────────────────────────────────────────────
