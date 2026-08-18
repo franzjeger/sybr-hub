@@ -3096,38 +3096,40 @@ async function startAudit() {
 // while auditRunning is true. Operator can navigate away and back to
 // reset; closing the browser doesn't stop the server-side audit.
 async function _runAuditStreamWithReconnect(streamUrl) {
-  // GET /audit/stream *starts* an audit — it does not attach to a running one.
-  // So it may be called exactly once, here. The loop that used to live in this
-  // function called it again on every dropped connection, believing it was
-  // reconnecting; each "reconnect" launched a fresh audit against the
-  // customer's tenant. It ran four audits in five minutes and left the running
-  // badge lit for good, because the loop's exit condition was the very flag
-  // the next iteration set again.
-  //
-  // A lost connection is a lost *view*, not a lost audit: the run continues on
-  // the server. So recovery means going back to watching it.
+  // The first call starts the audit. A dropped connection is a lost *view*, not
+  // a lost run — the collection continues on the server and saves its results
+  // regardless. Recovery re-attaches: GET /audit/stream now re-attaches to this
+  // user's running run instead of starting a fresh one, and the reconnect below
+  // adds ?attach=1 so a re-open can only ever attach, never launch a duplicate.
+  // (The older code could call this exactly once and then only poll, because a
+  // blind re-open used to start another audit.)
   const ok = await _attemptAuditStream(streamUrl);
   if (ok === 'done' || !auditRunning) return;
-  await _watchAuditUntilServerIdle();
+  await _watchAuditUntilServerIdle(false, streamUrl);
 }
 
 // Follow a run we can no longer see, until the server says it is over.
 var _auditWatching = false;
-async function _watchAuditUntilServerIdle(quiet) {
+async function _watchAuditUntilServerIdle(quiet, streamUrl) {
   if (_auditWatching) return;   // one watcher is enough; two would race
   _auditWatching = true;
   try {
-    await _watchAuditLoop(quiet);
+    await _watchAuditLoop(quiet, streamUrl);
   } finally {
     _auditWatching = false;
   }
 }
 
-async function _watchAuditLoop(quiet) {
+async function _watchAuditLoop(quiet, streamUrl) {
   if (!quiet && typeof showToast === 'function') {
     showToast(t('msg_audit_stream_lost'), 'warning', 8000);
   }
   setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
+
+  // Re-attach URL forces attach-only, so a re-open can never start a new audit.
+  var attachUrl = streamUrl
+    ? streamUrl + (streamUrl.indexOf('?') === -1 ? '?' : '&') + 'attach=1'
+    : null;
 
   while (auditRunning) {
     await new Promise(r => setTimeout(r, 3000));
@@ -3143,6 +3145,15 @@ async function _watchAuditLoop(quiet) {
     if (d && d.running === false) {
       _finishAuditWithoutStream();
       return;
+    }
+    // The run is alive on the server — go back to watching it *live* rather than
+    // polling. attach=1 guarantees this only ever re-attaches, and the running
+    // check above means we never re-open against a run that already ended.
+    if (attachUrl && d && d.running === true) {
+      var outcome = await _attemptAuditStream(attachUrl);
+      if (outcome === 'done' || !auditRunning) return;
+      // Dropped again — restore the no-stream header and keep watching.
+      setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
     }
   }
 }
@@ -3192,6 +3203,17 @@ async function _attemptAuditStream(streamUrl) {
             setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running') + '</span>');
           } else if (d.type === 'progress') {
             handleProgress(d);
+          } else if (d.type === 'snapshot') {
+            // Re-attach replay: jump the status to where the run is now; live
+            // 'progress' events follow and fill in the per-section detail.
+            if (typeof d.completed === 'number' && typeof d.total_sections === 'number') {
+              setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', d.completed).replace('{total}', d.total_sections) + '</span>');
+            }
+          } else if (d.type === 'ended') {
+            // A re-attach found no active run (it finished or was cleared while
+            // we were away). Reload to whatever the server saved.
+            _finishAuditWithoutStream();
+            return 'done';
           } else if (d.type === 'done') {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();

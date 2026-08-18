@@ -196,6 +196,45 @@ async def test_audit_progress_and_cancellation_are_isolated_per_user(client):
     assert beta_run.cancel_requested is False
 
 
+async def test_reattach_to_a_finished_run_replays_the_outcome_without_restarting(client):
+    """A reconnect (?attach=1) must re-attach, never launch a duplicate audit.
+
+    When the run has already ended, it replays the stored outcome and starts
+    nothing — the exact hazard the old "every reopen starts a new audit" code
+    had, now closed by attach-only.
+    """
+    from app.web import state
+
+    alpha = _customer("Alpha", "alpha")
+    user_id, token = await _auth("alpha-reattach")
+    resp = client.post("/api/customers/switch", headers=_headers(token), json={"customer_id": alpha})
+    assert resp.status_code == 200, resp.text
+
+    state.audit_running = False
+    run = state.begin_user_audit(user_id, alpha)
+    run.running = False  # finished
+    run.terminal = {"type": "done", "results": []}
+
+    body = client.get("/api/audit/stream?attach=1", headers=_headers(token)).text
+    assert '"reattached": true' in body
+    assert '"type": "done"' in body
+    assert state.audit_running is False, "re-attach must not start a new audit"
+
+
+async def test_reattach_with_no_active_run_reports_ended_and_starts_nothing(client):
+    from app.web import state
+
+    alpha = _customer("Alpha", "alpha")
+    _, token = await _auth("alpha-noreattach")
+    resp = client.post("/api/customers/switch", headers=_headers(token), json={"customer_id": alpha})
+    assert resp.status_code == 200, resp.text
+
+    state.audit_running = False
+    body = client.get("/api/audit/stream?attach=1", headers=_headers(token)).text
+    assert '"type": "ended"' in body
+    assert state.audit_running is False, "attach-only must never start an audit"
+
+
 async def test_history_load_cannot_select_another_customers_run(client):
     from app.core.config import get_audit_dir
     from app.core.customer import customer_dir_name

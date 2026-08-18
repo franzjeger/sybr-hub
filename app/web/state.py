@@ -23,11 +23,19 @@ audit_lock = asyncio.Lock()
 
 @dataclass
 class AuditRunContext:
-    """The latest report-capable audit run selected by one web user."""
+    """The latest report-capable audit run selected by one web user.
+
+    The run is owned by the server, not by the browser that started it. The
+    collector runs as a background task that publishes progress here and writes
+    its results on completion whether or not a stream is still connected — a
+    dropped connection is a lost *view*, not a lost run. A reconnecting client
+    re-subscribes and is replayed the current state.
+    """
 
     owner_user_id: str
     customer_id: str
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    customer_name: str = ""
     running: bool = False
     cancel_requested: bool = False
     results: list[dict] = field(default_factory=list)
@@ -40,6 +48,35 @@ class AuditRunContext:
             "completed": 0,
         }
     )
+    # The final event (done/error/cancelled), kept so a client that attaches
+    # *after* the run has finished still learns the outcome instead of hanging.
+    terminal: dict | None = None
+    # Live subscribers (one asyncio.Queue per connected stream) and the running
+    # collector task. Runtime plumbing, not data: kept out of repr and equality.
+    _subscribers: set = field(default_factory=set, repr=False, compare=False)
+    task: asyncio.Task | None = field(default=None, repr=False, compare=False)
+
+    def subscribe(self) -> asyncio.Queue:
+        """Register a live subscriber; the caller drains it and unsubscribes."""
+        q: asyncio.Queue = asyncio.Queue()
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        self._subscribers.discard(q)
+
+    def publish(self, event: dict) -> None:
+        """Fan an event out to every current subscriber.
+
+        A terminal event is also remembered, so a subscriber that attaches after
+        the run has finished is replayed the outcome. Publishing with no
+        subscribers is fine — the job keeps running and saving regardless, which
+        is the whole point of moving the run off the stream.
+        """
+        if event.get("type") in ("done", "error", "cancelled"):
+            self.terminal = event
+        for q in list(self._subscribers):
+            q.put_nowait(event)
 
 
 # One latest selection per user bounds memory while keeping result data out of

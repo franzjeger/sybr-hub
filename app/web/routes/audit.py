@@ -309,235 +309,283 @@ async def delete_audit_preset(name: str, user: User = Depends(get_current_user))
 # ── API: Audit SSE stream ──────────────────────────────────────────────────────
 
 
+def _prepare_audit(request: Request) -> tuple[str | None, dict | None]:
+    """Preflight a *new* audit: verify credentials and build the output dir.
+
+    Returns ``(error_message, spec)``. On error the spec is None and nothing has
+    been committed — no run is marked running — so the caller can refuse without
+    stranding the global lock. The spec carries what the background job needs.
+    """
+    from app.core.credentials import config_exists, get_secret, load_config
+    from app.modules.m365_audit.collector import make_output_dir
+
+    if not config_exists():
+        return ui_t("err_no_customer_config", request), None
+    cfg = load_config() or {}
+    tenant_id = cfg.get("TenantId", "")
+    client_id = cfg.get("ClientId", "")
+    if not tenant_id or not client_id:
+        return ui_t("err_missing_m365_setup", request), None
+    if not get_secret(tenant_id, "client_secret"):
+        return ui_t("err_missing_m365_secret", request), None
+    customer_name = cfg.get("CustomerName", "Ukjent")
+    return None, {
+        "cfg": cfg,
+        "customer_name": customer_name,
+        "out_dir": make_output_dir(customer_name),
+    }
+
+
+async def _post_audit_side_effects(
+    cfg: dict, results: list[dict], out_dir, customer_name: str
+) -> dict | None:
+    """Completion work that must run whether or not a browser is watching: save
+    the dashboard metrics, auto-send the report, fire the webhook.
+
+    Moved out of the SSE loop so it runs in the job. Each step is best-effort and
+    logged rather than fatal. Returns an email status to surface, or None.
+    """
+    from app.modules.base import SectionResult, SectionStatus
+
+    result_objs = [
+        SectionResult(
+            name=r["name"],
+            status=SectionStatus[r["status"].upper()],
+            warns=r.get("warns", []),
+            warn_levels=r.get("warn_levels", []),
+            files=r.get("files", []),
+            error=r.get("error"),
+        )
+        for r in results
+    ]
+
+    # Build the report context once: it saves the metrics JSON the dashboard
+    # grade/score reads, and doubles as the webhook payload.
+    ctx = None
+    try:
+        from app.reports.generator import build_report_context
+
+        ctx = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: build_report_context(
+                customer_name=customer_name,
+                org_domain=cfg.get("PrimaryDomain", ""),
+                out_dir=out_dir,
+                results=result_objs,
+                lang="no",
+            ),
+        )
+    except Exception as exc:
+        logger.warning("Failed to build report context / save audit metrics: %s", exc)
+
+    email_status: dict | None = None
+    try:
+        from app.core.email_sender import auto_send_after_audit
+
+        email_err = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: auto_send_after_audit(out_dir)
+        )
+        if email_err:
+            email_status = {"ok": False, "msg": email_err}
+        elif email_err is None:
+            from app.core.config import load_app_settings
+
+            _s = load_app_settings()
+            if _s.get("email_auto_send"):
+                email_status = {
+                    "ok": True,
+                    "msg": "Rapport sendt til " + _s.get("email_default_recipient", ""),
+                }
+    except Exception as exc:
+        logger.warning("Auto-send email after audit failed: %s", exc)
+        email_status = {"ok": False, "msg": str(exc)}
+
+    try:
+        from app.core.scheduler import scheduler as _sched
+
+        if ctx is not None:
+            await _sched._check_and_alert(ctx, customer_name)
+            await _sched._notify_audit_completed(customer_name, ctx=ctx)
+        else:
+            await _sched._notify_audit_completed(customer_name)
+    except Exception as exc:
+        logger.error("Webhook notification failed: %s", exc, exc_info=True)
+
+    return email_status
+
+
+async def _run_audit_job(
+    audit_run: state.AuditRunContext,
+    spec: dict,
+    sections_filter: set | None,
+    username: str,
+) -> None:
+    """Run the collector to completion and persist everything, independent of any
+    connected stream.
+
+    Publishes progress and a terminal (done/error/cancelled) event to the run's
+    subscribers, and resets the running flags in its own ``finally`` — so a
+    dropped view never ends the run, and results are saved even when nobody is
+    watching at the finish. This is the whole point of the server-owned job.
+    """
+    from app.core.activity_log import log_activity
+    from app.modules.m365_audit.auth import AuthManager
+    from app.modules.m365_audit.collector import AuditCollector
+
+    cfg = spec["cfg"]
+    out_dir = spec["out_dir"]
+    customer_name = spec["customer_name"]
+
+    tracker = _ProgressTracker(sections_filter)
+    audit_run.progress = tracker.snapshot()
+
+    def progress_cb(name, status, detail=None) -> None:
+        audit_run.progress = tracker.record(name, status)
+        audit_run.publish(
+            {"type": "progress", "name": name, "status": status.name.lower(), "detail": detail or ""}
+        )
+
+    try:
+        if cfg.get("AuthMode") == "gdap":
+            auth = AuthManager.from_gdap(cfg["TenantId"])
+        else:
+            auth = AuthManager.from_config()
+        collector = AuditCollector(
+            auth=auth, out_dir=out_dir, progress_cb=progress_cb, sections_filter=sections_filter
+        )
+        results = await collector.run()
+        audit_run.results = [
+            {
+                "name": r.name,
+                "status": r.status.name.lower(),
+                "warns": r.warns,
+                "warn_levels": r.warn_levels,
+                "files": r.files,
+                "error": r.error,
+            }
+            for r in results
+        ]
+        log_activity("audit_completed", customer=customer_name, user=username)
+
+        done_event: dict = {"type": "done", "results": audit_run.results}
+        email_status = await _post_audit_side_effects(
+            cfg, audit_run.results, out_dir, customer_name
+        )
+        if email_status is not None:
+            done_event["email_status"] = email_status
+        audit_run.publish(done_event)
+    except asyncio.CancelledError:
+        # Operator-initiated cancel (/audit/cancel cancels this task). Fully
+        # handled here: announce it, then let the finally reset the flags.
+        audit_run.publish({"type": "cancelled", "msg": ui_t("msg_audit_cancelled")})
+    except Exception as exc:
+        logger.error("Audit failed:\n%s", traceback.format_exc())
+        audit_run.publish({"type": "error", "msg": str(exc)})
+    finally:
+        audit_run.running = False
+        state.audit_running = False
+
+
 @router.get("/audit/stream")
 async def audit_stream(request: Request, user: User = Depends(get_current_user)):
+    """Start an audit, or re-attach to this user's already-running one.
+
+    The run is owned by the server (``_run_audit_job``), not by this stream. A
+    dropped connection is a lost *view*, not a lost run: the job keeps collecting
+    and saves its results regardless, and a reconnecting client re-attaches here
+    and is replayed the current progress (and the outcome, if it already
+    finished). The stream never resets the running flags — only the job does.
+
+    ``?attach=1`` asks to *only* re-attach: if the run is no longer active it
+    replays the stored outcome (or says it ended) rather than starting a fresh
+    audit, so a reconnect loop can never launch a duplicate collection.
+    """
     from app.core.customer import CustomerManager
 
     active_id = CustomerManager.get_active_id()
     if not active_id:
         raise ValidationError(ui_t("err_no_active_customer", request))
 
-    async with state.audit_lock:
-        if state.audit_running:
-            raise ConflictError(ui_t("err_audit_running", request))
-        state.audit_running = True
-        audit_run = state.begin_user_audit(user.id, active_id)
-
-    # Parse optional sections filter from query string
     sections_param = request.query_params.get("sections", "")
     sections_filter: set | None = None
     if sections_param:
         sections_filter = set(s.strip() for s in sections_param.split(",") if s.strip())
+    attach_only = request.query_params.get("attach") == "1"
+
+    # Decide attach-or-start under the lock so two tabs cannot both start one.
+    prep_error: str | None = None
+    spec: dict | None = None
+    attach = False
+    attach_ended = False
+    audit_run: state.AuditRunContext | None = None
+    async with state.audit_lock:
+        existing = state.get_user_audit(user.id, active_id)
+        if existing is not None and existing.running:
+            audit_run = existing
+            attach = True
+        elif attach_only:
+            # Asked to re-attach, but the run is no longer active. Do NOT start a
+            # new one; replay the outcome if we still have it, else say it ended.
+            audit_run = existing
+            attach_ended = True
+        elif state.audit_running:
+            raise ConflictError(ui_t("err_audit_running", request))
+        else:
+            prep_error, spec = _prepare_audit(request)
+            if prep_error is None and spec is not None:
+                state.audit_running = True
+                audit_run = state.begin_user_audit(user.id, active_id)
+                audit_run.customer_name = spec["customer_name"]
+                audit_run.out_dir = spec["out_dir"]
+
+    # Launch the job *outside* the stream, so it runs to completion and saves
+    # even if the client never consumes this response (disconnects immediately).
+    # If it were created inside generate(), a client gone before the first yield
+    # would leave it un-launched — and the global lock stranded True forever.
+    if audit_run is not None and not attach and not attach_ended and prep_error is None:
+        from app.core.activity_log import log_activity
+
+        log_activity("audit_started", customer=spec["customer_name"], user=user.username)
+        audit_run.task = asyncio.create_task(
+            _run_audit_job(audit_run, spec, sections_filter, user.username)
+        )
 
     async def generate() -> AsyncGenerator[str, None]:
+        if prep_error is not None:
+            yield f"data: {json.dumps({'type': 'error', 'msg': prep_error})}\n\n"
+            return
+        if attach_ended:
+            terminal = audit_run.terminal if audit_run is not None else None
+            if terminal is not None:
+                yield f"data: {json.dumps({'type': 'started', 'customer': audit_run.customer_name, 'reattached': True})}\n\n"
+                yield f"data: {json.dumps(terminal)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'ended'})}\n\n"
+            return
+
+        # Subscribe before inspecting terminal so a finish during setup is not
+        # missed: the event lands on the queue and is streamed below.
+        q = audit_run.subscribe()
         try:
-            from app.core.credentials import config_exists, get_secret, load_config
-            from app.modules.base import SectionStatus
-            from app.modules.m365_audit.auth import AuthManager
-            from app.modules.m365_audit.collector import AuditCollector, make_output_dir
-
-            # Pre-flight check: does this customer have credentials?
-            if not config_exists():
-                yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_no_customer_config', request)})}\n\n"
-                return
-
-            cfg = load_config()
-            tenant_id = cfg.get("TenantId", "") if cfg else ""
-            client_id = cfg.get("ClientId", "") if cfg else ""
-
-            if not tenant_id or not client_id:
-                yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_missing_m365_setup', request)})}\n\n"
-                return
-
-            # Check for client secret in keyring
-            secret = get_secret(tenant_id, "client_secret")
-            if not secret:
-                yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_missing_m365_secret', request)})}\n\n"
-                return
-
-            queue: asyncio.Queue = asyncio.Queue()
-
-            tracker = _ProgressTracker(sections_filter)
-
-            audit_run.progress = tracker.snapshot()
-
-            def progress_cb(name: str, status: SectionStatus, detail: str | None) -> None:
-                audit_run.progress = tracker.record(name, status)
-                queue.put_nowait(
-                    {
-                        "type": "progress",
-                        "name": name,
-                        "status": status.name.lower(),
-                        "detail": detail or "",
-                    }
-                )
-
-            cfg = load_config()
-            customer_name = cfg.get("CustomerName", "Ukjent") if cfg else "Ukjent"
-            out_dir = make_output_dir(customer_name)
-            audit_run.out_dir = out_dir
-
-            yield f"data: {json.dumps({'type': 'started', 'customer': customer_name})}\n\n"
-
-            from app.core.activity_log import log_activity
-
-            log_activity("audit_started", customer=customer_name, user=user.username)
-
-            async def run_audit() -> None:
-                try:
-                    if cfg.get("AuthMode") == "gdap":
-                        auth = AuthManager.from_gdap(cfg["TenantId"])
-                    else:
-                        auth = AuthManager.from_config()
-                    collector = AuditCollector(
-                        auth=auth,
-                        out_dir=out_dir,
-                        progress_cb=progress_cb,
-                        sections_filter=sections_filter,
-                    )
-                    results = await collector.run()
-                    queue.put_nowait(
-                        {
-                            "type": "done",
-                            "results": [
-                                {
-                                    "name": r.name,
-                                    "status": r.status.name.lower(),
-                                    "warns": r.warns,
-                                    "warn_levels": r.warn_levels,
-                                    "files": r.files,
-                                    "error": r.error,
-                                }
-                                for r in results
-                            ],
-                        }
-                    )
-                except Exception as e:
-                    tb = traceback.format_exc()
-                    logger.error("Audit failed:\n%s", tb)
-                    queue.put_nowait({"type": "error", "msg": str(e)})
-
-            task = asyncio.create_task(run_audit())
+            if attach:
+                yield f"data: {json.dumps({'type': 'started', 'customer': audit_run.customer_name, 'reattached': True})}\n\n"
+                yield f"data: {json.dumps({'type': 'snapshot', **audit_run.progress})}\n\n"
+                if audit_run.terminal is not None:
+                    yield f"data: {json.dumps(audit_run.terminal)}\n\n"
+                    return
+            else:
+                # The job was already launched above; just announce the start.
+                yield f"data: {json.dumps({'type': 'started', 'customer': spec['customer_name']})}\n\n"
 
             while True:
-                if audit_run.cancel_requested:
-                    task.cancel()
-                    yield f"data: {json.dumps({'type': 'cancelled', 'msg': ui_t('msg_audit_cancelled', request)})}\n\n"
+                event = await q.get()
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("type") in ("done", "error", "cancelled"):
                     break
-                item = await queue.get()
-                if item["type"] == "done":
-                    audit_run.results = item.get("results", [])
-                    log_activity("audit_completed", customer=customer_name, user=user.username)
-
-                    # Always save metrics for dashboard grade/score
-                    try:
-                        from app.core.credentials import load_config as _lc2
-                        from app.modules.base import SectionResult as _SR2
-                        from app.modules.base import SectionStatus as _SS2
-                        from app.reports.generator import build_report_context as _brc
-
-                        _cfg2 = _lc2() or {}
-                        _ro2 = [
-                            _SR2(
-                                name=r["name"],
-                                status=_SS2[r["status"].upper()],
-                                warns=r.get("warns", []),
-                                warn_levels=r.get("warn_levels", []),
-                                files=r.get("files", []),
-                                error=r.get("error"),
-                            )
-                            for r in audit_run.results
-                        ]
-                        await asyncio.get_event_loop().run_in_executor(
-                            None,
-                            lambda cfg=_cfg2, results=_ro2: _brc(
-                                customer_name=customer_name,
-                                org_domain=cfg.get("PrimaryDomain", ""),
-                                out_dir=out_dir,
-                                results=results,
-                                lang="no",
-                            ),
-                        )
-                    except Exception as _metrics_exc:
-                        logger.warning("Failed to save audit metrics: %s", _metrics_exc)
-
-                    # Auto-send email if enabled
-                    try:
-                        from app.core.email_sender import auto_send_after_audit
-
-                        email_err = await asyncio.get_event_loop().run_in_executor(
-                            None, lambda: auto_send_after_audit(audit_run.out_dir)
-                        )
-                        if email_err:
-                            item["email_status"] = {"ok": False, "msg": email_err}
-                        elif email_err is None:
-                            from app.core.config import load_app_settings as _las
-
-                            _s = _las()
-                            if _s.get("email_auto_send"):
-                                item["email_status"] = {
-                                    "ok": True,
-                                    "msg": "Rapport sendt til "
-                                    + _s.get("email_default_recipient", ""),
-                                }
-                    except Exception as email_exc:
-                        logger.warning("Auto-send email after audit failed: %s", email_exc)
-                        item["email_status"] = {"ok": False, "msg": str(email_exc)}
-                    # Webhook notification after manual audit
-                    try:
-                        from app.core.credentials import load_config as _lc
-                        from app.core.scheduler import scheduler as _sched
-                        from app.modules.base import SectionResult
-                        from app.modules.base import SectionStatus as _SS
-                        from app.reports.generator import build_report_context
-
-                        _cfg = _lc() or {}
-                        _results_objs = [
-                            SectionResult(
-                                name=r["name"],
-                                status=_SS[r["status"].upper()],
-                                warns=r.get("warns", []),
-                                warn_levels=r.get("warn_levels", []),
-                                files=r.get("files", []),
-                                error=r.get("error"),
-                            )
-                            for r in audit_run.results
-                        ]
-                        _ctx = await asyncio.get_event_loop().run_in_executor(
-                            None,
-                            lambda cfg=_cfg, results=_results_objs: build_report_context(
-                                customer_name=customer_name,
-                                org_domain=cfg.get("PrimaryDomain", ""),
-                                out_dir=out_dir,
-                                results=results,
-                                lang="no",
-                            ),
-                        )
-                        await _sched._check_and_alert(_ctx, customer_name)
-                        await _sched._notify_audit_completed(customer_name, ctx=_ctx)
-                    except Exception as _wh_exc:
-                        logger.error("Webhook ctx build failed: %s", _wh_exc, exc_info=True)
-                        # Fallback — send basic notification rather than nothing
-                        try:
-                            await _sched._notify_audit_completed(customer_name)
-                        except Exception as e3:
-                            logger.warning(
-                                "Fallback webhook notification failed for %s: %s", customer_name, e3
-                            )
-                    yield f"data: {json.dumps(item)}\n\n"
-                    break
-                yield f"data: {json.dumps(item)}\n\n"
-                if item["type"] == "error":
-                    break
-
-            await task
-
-        except Exception as e:
-            logger.error("Audit stream failed: %s", e, exc_info=True)
-            yield f"data: {json.dumps({'type': 'error', 'msg': str(e)})}\n\n"
         finally:
-            audit_run.running = False
-            state.audit_running = False
+            # A lost view must never end the run: unsubscribe only. The job owns
+            # the running flags and resets them when it actually finishes.
+            audit_run.unsubscribe(q)
 
     return StreamingResponse(
         generate(),
@@ -595,6 +643,11 @@ async def cancel_audit(user: User = Depends(get_current_user)):
     if run is None or not run.running:
         raise ConflictError(ui_t("err_no_audit_running"))
     run.cancel_requested = True
+    # The run is a server-owned task now, not a loop in the stream, so cancel it
+    # directly. It raises CancelledError inside _run_audit_job, which announces
+    # 'cancelled' and resets the running flags in its finally.
+    if run.task is not None:
+        run.task.cancel()
     return {"ok": True, "msg": ui_t("msg_audit_cancelled")}
 
 
