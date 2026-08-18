@@ -539,6 +539,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ingen MFA-metoder registrert, ikke dekket av Conditional Access",
         "en": "No MFA methods registered, not covered by Conditional Access",
     },
+    "mfa_registered_excluded": {
+        "no": "MFA registrert, men unntatt fra håndhevelse av Conditional Access",
+        "en": "MFA registered but excluded from enforcement by Conditional Access",
+    },
 
     # ── Admin roles findings ──
     "ga_accounts_title": {
@@ -712,6 +716,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "deadline": {
         "no": "Frist",
         "en": "Deadline",
+    },
+    "status_not_started": {
+        "no": "Ikke startet",
+        "en": "Not started",
     },
 
     # ── Identity & Access section ──
@@ -1510,6 +1518,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "brute_force_desc": {
         "no": "F\u00f8lgende bruker(e) har 50+ mislykkede p\u00e5loggingsfors\u00f8k:",
         "en": "The following user(s) have 50+ failed sign-in attempts:",
+    },
+    "stale_cred_warning": {
+        "no": "Sannsynlig utdatert/bufret passord",
+        "en": "Probable stale/cached credential",
+    },
+    "stale_cred_desc": {
+        "no": "Følgende konto(er) har mange mislykkede pålogginger blandet med vellykkede. Dette er typisk et lagret passord på en enhet, ikke et angrep:",
+        "en": "The following account(s) have many failed sign-ins interleaved with successful ones. This is typically a stored password on a device, not an attack:",
     },
     "top_failure_users": {
         "no": "Brukere med flest mislykkede fors\u00f8k",
@@ -2542,6 +2558,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "En eller flere brukere har 50+ mislykkede p\u00e5loggingsfors\u00f8k. Dette kan indikere et p\u00e5g\u00e5ende brute force-angrep. Unders\u00f8k umiddelbart og vurder \u00e5 blokkere kildene.",
         "en": "One or more users have 50+ failed sign-in attempts. This may indicate an ongoing brute force attack. Investigate immediately and consider blocking the sources.",
     },
+    "rec_stale_cred_title": {
+        "no": "Sannsynlig utdatert passord på {count} konto(er)",
+        "en": "Probable stale password on {count} account(s)",
+    },
+    "rec_stale_cred_detail": {
+        "no": "Disse kontoene har mange mislykkede pålogginger blandet med vellykkede, som regel et lagret/bufret passord på en enhet og ikke et eksternt angrep. Oppdater det lagrede passordet på enheten. Ingen umiddelbar blokkering nødvendig.",
+        "en": "These accounts have many failed sign-ins interleaved with successful ones, typically a stored/cached password on a device rather than an external attack. Update the saved credential on the device. No immediate blocking needed.",
+    },
 
     # ── Executive summary bullets (generator._build_executive_summary) ──
     "exec_env_size": {
@@ -2747,6 +2771,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "lo_suggest_remove_unused_detail": {
         "no": "{count} bruker(e) med lisens har ikke logget inn på 90+ dager. Estimert sløsing: {amount} kr/mnd.",
         "en": "{count} licensed user(s) have not signed in for 90+ days. Estimated waste: {amount} NOK/mo.",
+    },
+    "lo_suggest_shared_licensed": {
+        "no": "Fjern lisens fra {count} delt/rom-postboks",
+        "en": "Remove license from {count} shared/room mailbox(es)",
+    },
+    "lo_suggest_shared_licensed_detail": {
+        "no": "{count} delt/rom-postboks er inaktiv fordi den ikke logger inn, men ligger med lisens. En delt postboks under 50 GB trenger ingen lisens. Estimert sløsing: {amount} kr/mnd.",
+        "en": "{count} shared/room mailbox(es) show as inactive because they never sign in, yet carry a license. A shared mailbox under 50 GB needs none. Estimated waste: {amount} NOK/mo.",
     },
     "lo_suggest_reduce_sku": {
         "no": "Reduser antall {part}-lisenser",

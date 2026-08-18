@@ -40,6 +40,17 @@ def _labels(lang: str = "no"):
     }
 
 
+def _email_controls(*statuses: str) -> list[dict]:
+    """CIS email-category controls with the given statuses, as the compliance
+    map would emit them. The radar scores its email axis off these, not off the
+    raw spf_dmarc tokens, so the axis can never contradict the compliance table."""
+    cat = T("no").cis_cat_email
+    return [
+        {"cis_id": f"5.2.{i + 1}", "category": cat, "status": s}
+        for i, s in enumerate(statuses)
+    ]
+
+
 def _full_context() -> dict:
     """A context where every axis has genuine data behind it."""
     return {
@@ -49,6 +60,10 @@ def _full_context() -> dict:
         "admin_roles": {"has_data": True, "global_admin_count": 3},
         "intune": {"has_data": True, "total": 40, "compliance_pct": 85},
         "spf_dmarc": [{"domain": "example.com", "spf": "OK", "dmarc": "OK"}],
+        # The email axis reads the CIS email controls the compliance map already
+        # graded (see _build_risk_radar), not spf_dmarc directly. A clean tenant
+        # passes SPF, DMARC and DKIM, so the axis lands at 100.
+        "compliance": _email_controls("pass", "pass", "pass"),
         "azure": {"has_data": True, "orphaned": 0, "advisor_recs": 2},
         "purview": {
             "has_data": True,
@@ -97,34 +112,44 @@ def test_missing_azure_key_entirely_does_not_plot_a_passing_score():
     assert _labels()["azure"] not in _build_risk_radar(ctx)
 
 
-def test_no_relevant_domains_does_not_plot_perfect_email_security():
-    """Email started at 100 and only deducted for domains present in the list.
-
-    An empty list — the DNS section did not run, or every domain in it was a
-    vendor domain we deliberately ignore — therefore scored a perfect 100.
+def test_no_email_controls_does_not_plot_perfect_email_security():
+    """The axis is the pass-rate of the CIS email controls. When the DNS section
+    did not run — or every domain in it was a vendor domain the compliance map
+    skips — there are no email controls, and a fabricated 100 would be false
+    assurance for a domain set nobody actually scored.
     """
     ctx = _full_context()
-    ctx["spf_dmarc"] = []
+    ctx["compliance"] = []
     assert _labels()["email"] not in _build_risk_radar(ctx)
 
 
-def test_only_ignored_domains_does_not_plot_perfect_email_security():
+def test_email_controls_that_could_not_be_verified_do_not_plot_an_axis():
+    """"info" controls are excluded from the axis exactly as they are excluded
+    from compliance_pct — all-info means nothing about email was measured."""
     ctx = _full_context()
-    ctx["spf_dmarc"] = [
-        {"domain": "contoso.onmicrosoft.com", "spf": "MISSING", "dmarc": "MISSING"},
-    ]
+    ctx["compliance"] = _email_controls("info", "info", "info")
     assert _labels()["email"] not in _build_risk_radar(ctx)
 
 
-def test_a_single_relevant_domain_is_still_scored():
-    """The guard is "did we score anything", not "did we score a lot"."""
+def test_email_axis_is_the_weighted_pass_rate_of_its_controls():
+    """pass = full credit, partial = half, fail = none — the mean, times 100."""
     ctx = _full_context()
-    ctx["spf_dmarc"] = [
-        {"domain": "vendor.onmicrosoft.com", "spf": "OK", "dmarc": "OK"},
-        {"domain": "example.com", "spf": "MISSING", "dmarc": "OK"},
-    ]
+    ctx["compliance"] = _email_controls("pass", "partial", "fail")
     cats = _build_risk_radar(ctx)
-    assert cats[_labels()["email"]] == 70
+    assert cats[_labels()["email"]] == 50  # (1.0 + 0.5 + 0.0) / 3 * 100
+
+
+def test_dmarc_quarantine_does_not_score_a_perfect_email_axis():
+    """The C3 regression. p=quarantine tokenises as "WARN (p=quarantine)", which
+    the old SPF/DMARC ladder matched under neither MISSING nor WEAK, so the axis
+    sat at 100 while CIS 5.2.2 graded that very policy only "partial". Scoring the
+    axis off the controls makes the two agree: one partial drags it below 100.
+    """
+    ctx = _full_context()
+    ctx["compliance"] = _email_controls("pass", "partial", "pass")  # DMARC quarantine
+    email = _build_risk_radar(ctx)[_labels()["email"]]
+    assert email < 100
+    assert email == round((1.0 + 0.5 + 1.0) / 3 * 100)  # 83
 
 
 def test_missing_purview_data_does_not_plot_a_baseline():

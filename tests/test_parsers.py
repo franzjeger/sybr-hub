@@ -315,6 +315,64 @@ class TestLicenseOptimizationNoDataReason:
 
 
 # ---------------------------------------------------------------------------
+# _analyze_license_optimization shared/room mailboxes — a shared mailbox never
+# signs in by design, so a licensed one reads as a "stale account". Counting it
+# as an inactive *user* to deprovision is false advice (you would break mail
+# flow) and inflates the kr/mnd estimate. It gets its own, correctly framed
+# finding instead: a shared mailbox under 50 GB needs no licence.
+# ---------------------------------------------------------------------------
+
+class TestLicenseOptimizationSharedMailbox:
+    _STALE = (
+        "STALE ACCOUNT DETECTION\n"
+        "  Display Name          UPN                    Last Sign-In    Days   Licensed\n"
+        "  ------------------------------------------------------------------------\n"
+        "  Kari Nordmann         kari@acme.no           2025-01-01      120    Yes\n"
+        "  Felles Support        support@acme.no        Never           400    Yes\n"
+    )
+    _MAILBOXES = (
+        "====\n"
+        "  EXCHANGE MAILBOXES  (2 total)\n"
+        "====\n"
+        "  Display Name          UPN               Type            Quota\n"
+        "  ----\n"
+        "  Kari Nordmann         kari@acme.no      UserMailbox     1.2 GB\n"
+        "  Felles Support        support@acme.no   SharedMailbox   5 GB\n"
+    )
+
+    def test_shared_mailbox_is_not_counted_as_an_inactive_user(self):
+        result = _analyze_license_optimization(
+            [],
+            {"03b_stale_accounts.txt": self._STALE,
+             "20_exchange_mailboxes.txt": self._MAILBOXES},
+        )
+        # The real inactive user is the only "remove licence from inactive user".
+        upns = {u["upn"] for u in result["unused_licenses"]}
+        assert upns == {"kari@acme.no"}, "a shared mailbox is not an inactive user"
+
+        types = {s["type"] for s in result["optimization_suggestions"]}
+        assert "unused" in types
+        # The licensed shared mailbox is flagged separately, not silently dropped.
+        assert "shared_mailbox_licensed" in types
+        shared = next(s for s in result["optimization_suggestions"]
+                      if s["type"] == "shared_mailbox_licensed")
+        assert shared["savings"] > 0
+
+    def test_without_the_mailbox_file_the_split_cannot_be_made(self):
+        """The join is what separates the two. Absent the Exchange evidence a
+        licensed shared mailbox can only be read as any other stale licensed
+        account — so the fix must not fabricate the classification from nothing.
+        """
+        result = _analyze_license_optimization(
+            [], {"03b_stale_accounts.txt": self._STALE},
+        )
+        upns = {u["upn"] for u in result["unused_licenses"]}
+        assert upns == {"kari@acme.no", "support@acme.no"}
+        types = {s["type"] for s in result["optimization_suggestions"]}
+        assert "shared_mailbox_licensed" not in types
+
+
+# ---------------------------------------------------------------------------
 # Regression: parsers must match what the collectors actually write.
 # Pre-v10.10.3 these silently produced "0 groups" / "0 licenses with high
 # utilisation" because parser and collector disagreed on format.

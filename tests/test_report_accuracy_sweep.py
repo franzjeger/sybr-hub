@@ -86,3 +86,26 @@ def test_brute_force_suspects_use_strict_greater_than_50():
     assert "over50@acme.no" in suspects
     assert "exactly50@acme.no" not in suspects, \
         "50 is not > 50 — the finding disagreed with the evidence file's flag"
+
+
+def test_high_failures_with_many_successes_are_stale_not_brute_force():
+    """A burst of failures interleaved with many successful sign-ins from the
+    same account is a device retrying a stale cached password, not a guessing
+    attack. It must land in stale_credential_users at low severity — out of the
+    critical brute-force finding, and out of the "under active password attack"
+    MFA label, which reads brute_force_suspects.
+    """
+    failures = ("SIGN-IN FAILURES (last 30 days)\n" + "=" * 40 + "\n"
+                "stale@acme.no | 80 | invalidUserNameOrPassword\n"
+                "attacker@acme.no | 80 | invalidUserNameOrPassword\n")
+    activity = ("SIGN-IN ACTIVITY (last 30 days)\n" + "=" * 40 + "\n"
+                "  User               Success   Failures   Unknown   Total\n"
+                "  ----\n"
+                "  stale@acme.no      120       80         0         200\n"
+                "  attacker@acme.no   2         80         0         82\n")
+    out = _parse_signin_risk({
+        "05b_signin_failures.txt": failures,
+        "05_signin_activity.txt": activity,
+    })
+    assert out["stale_credential_users"] == ["stale@acme.no"]
+    assert out["brute_force_suspects"] == ["attacker@acme.no"]
