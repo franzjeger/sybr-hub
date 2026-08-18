@@ -421,10 +421,17 @@ class AuditScheduler:
 
     @staticmethod
     def _log_activity(action: str, detail: str, customer: str) -> None:
-        """Log to activity log if available, skip on error."""
+        """Log to activity log if available, skip on error.
+
+        Attributed to the system account, not the bare string "scheduler": the
+        actor is a real is_system row the log reader can resolve, and it reads
+        the same for every unattended subsystem so "what did the hub do on its
+        own" is one query, not three spellings.
+        """
         try:
             from app.core.activity_log import log_activity
-            log_activity(action=action, detail=detail, customer=customer, user="scheduler")
+            from app.core.system_user import USERNAME
+            log_activity(action=action, detail=detail, customer=customer, user=USERNAME)
         except Exception as e:
             log.debug("Activity log write failed: %s", e)
 

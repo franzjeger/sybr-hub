@@ -484,7 +484,7 @@ async def update_task_scheduler_config(request: Request, user: User = _admin):
 async def run_task_now(task_id: str, user: User = _admin):
     """Execute a scheduled task immediately."""
     from app.services.scheduler import run_now
-    result = await run_now(task_id)
+    result = await run_now(task_id, actor=user.username)
     return result
 
 

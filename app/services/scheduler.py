@@ -669,10 +669,11 @@ async def _task_loop(task_id: str) -> None:
 
             try:
                 from app.core.activity_log import log_activity
+                from app.core.system_user import USERNAME
                 log_activity(
                     action=f"task_{task_id}",
                     detail=f"Scheduled task completed: {result}",
-                    user="task_scheduler",
+                    user=USERNAME,
                 )
             except Exception as e:
                 log.debug("Activity log write failed: %s", e)
@@ -694,10 +695,11 @@ async def _task_loop(task_id: str) -> None:
                 _task_status[task_id]["running"] = False
                 try:
                     from app.core.activity_log import log_activity
+                    from app.core.system_user import USERNAME
                     log_activity(
                         action=f"task_{task_id}_disabled",
                         detail=f"Auto-disabled after {failures} consecutive failures: {e}",
-                        user="task_scheduler",
+                        user=USERNAME,
                     )
                 except Exception as e2:
                     log.debug("Activity log write failed: %s", e2)
@@ -828,8 +830,15 @@ def restart_task(task_id: str) -> None:
         _task_status.setdefault(task_id, {})["running"] = True
 
 
-async def run_now(task_id: str) -> dict:
-    """Execute a task immediately (on-demand).  Returns result dict."""
+async def run_now(task_id: str, actor: str = "") -> dict:
+    """Execute a task immediately (on-demand).  Returns result dict.
+
+    ``actor`` is the username of whoever triggered the run. A manual run is a
+    human action, so it is logged under that person, not the system account —
+    the whole point of the activity log here is telling a "Kjør nå" click apart
+    from the scheduled loop. Falls back to the system account only if a caller
+    somehow omits it.
+    """
     runner = _TASK_RUNNERS.get(task_id)
     if not runner:
         return {"ok": False, "error": f"Unknown task: {task_id}"}
@@ -851,10 +860,11 @@ async def run_now(task_id: str) -> dict:
         _persist_task_status()
         try:
             from app.core.activity_log import log_activity
+            from app.core.system_user import USERNAME
             log_activity(
                 action=f"task_{task_id}_manual",
                 detail=f"Manual run: {result}",
-                user="task_scheduler",
+                user=actor or USERNAME,
             )
         except Exception as e:
             log.debug("Activity log write failed: %s", e)
