@@ -7905,6 +7905,7 @@ async function loadCustomerDetail(customerId) {
     </div>
 
     <div id="customer-baseline-panel"></div>
+    <div id="customer-policies-panel"></div>
 
     <div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">
       <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">${t('lbl_trend')}</div>
@@ -7936,6 +7937,7 @@ async function loadCustomerDetail(customerId) {
   setTimeout(function() { _renderGauges(score, hasM ? m.mfa_coverage_pct : null, hasM ? m.secure_score_pct : null); }, 50);
   _loadCustomerTrendChart(customerId);
   _loadCustomerBaselineCard(customerId);
+  _loadCustomerPoliciesCard(customerId);
 
   // Add remediation panel below existing content
   var remDiv = document.createElement('div');
@@ -8017,6 +8019,53 @@ function _baselineStatusPill(status) {
   if (status === 'pass') return '<span style="color:var(--green);">&#10003;</span>';
   if (status === 'fail') return '<span style="color:var(--red);">&#10007;</span>';
   return '<span style="color:var(--text-dim);">&#8211;</span>';
+}
+
+// The policies actually in production for this customer, lifted onto the card
+// by the last audit. Read-only; each row carries a plain-language line the
+// server produced from the raw policy object, so it reads the same everywhere.
+async function _loadCustomerPoliciesCard(customerId) {
+  var el = document.getElementById('customer-policies-panel');
+  if (!el) return;
+  var inv = await apiFetch('/api/policy-backup/' + encodeURIComponent(customerId) + '/live').catch(function(){ return null; });
+  if (!inv || !inv.workloads || Object.keys(inv.workloads).length === 0) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  function stateP(s) {
+    var map = { 'on': ['var(--green)', t('lbl_policy_on','On')],
+                'report-only': ['var(--orange)', t('lbl_policy_report','Report-only')],
+                'off': ['var(--text-dim)', t('lbl_policy_off','Off')],
+                'trusted': ['var(--blue)', t('lbl_policy_trusted','Trusted')] };
+    var m = map[s] || ['var(--text-muted)', s];
+    return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;color:#fff;background:' + m[0] + ';">' + esc(m[1]) + '</span>';
+  }
+  function loc(v) { return (v && (v[_lang] || v.no || v.en)) || ''; }
+
+  var html = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);margin-bottom:var(--space-4);">';
+  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">'
+        + t('hdr_policies_live','Policies in production') + '</div>';
+  html += '<div style="font-size:var(--font-xs);color:var(--text-muted);">'
+        + t('lbl_captured','Captured') + ': ' + esc((inv.captured_at || '').slice(0, 10)) + '</div>';
+  html += '</div>';
+
+  Object.keys(inv.workloads).forEach(function(k) {
+    var wl = inv.workloads[k];
+    html += '<div style="margin-bottom:var(--space-3);">';
+    html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">'
+          + esc(loc(wl.label)) + ' <span style="color:var(--text-dim);font-weight:400;">(' + wl.count + ')</span></div>';
+    html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+    (wl.items || []).forEach(function(it) {
+      html += '<tr style="border-bottom:1px solid var(--border);">';
+      html += '<td style="padding:6px 8px 6px 0;white-space:nowrap;vertical-align:top;">' + stateP(it.state) + '</td>';
+      html += '<td style="padding:6px 8px 6px 0;font-weight:600;vertical-align:top;">' + esc(it.name) + '</td>';
+      html += '<td style="padding:6px 0;color:var(--text-muted);">' + esc(loc(it.summary)) + '</td>';
+      html += '</tr>';
+    });
+    html += '</table></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 async function _loadCustomerBaselineCard(customerId) {

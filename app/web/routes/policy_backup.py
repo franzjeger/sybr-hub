@@ -58,6 +58,26 @@ def _customer_runs(customer_id: str) -> list[Path]:
     return sorted((p for p in root.iterdir() if p.is_dir()), reverse=True)
 
 
+@router.get("/policy-backup/{customer_id}/live")
+async def policies_in_production(
+    customer_id: str,
+    user: User = Depends(require_customer_access()),
+) -> dict[str, Any]:
+    """The customer's policies in production, as of the last audit.
+
+    Read from the customer card (``policies_live.json``), which the audit
+    refreshes on every run — so this answers "what is configured here right
+    now" without opening a run. Empty ``workloads`` means no audit has captured
+    policies for this customer yet.
+    """
+    from app.core.policy_inventory import load_from_card
+
+    inventory = load_from_card(customer_id)
+    if inventory is None:
+        return {"customer_id": customer_id, "captured_at": None, "workloads": {}}
+    return {"customer_id": customer_id, **inventory}
+
+
 @router.get("/policy-backup/{customer_id}/runs")
 async def list_runs(
     customer_id: str,

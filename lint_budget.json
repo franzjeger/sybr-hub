@@ -210,6 +210,7 @@
     "tests/test_service_principal_ownership.py",
     "tests/test_settings_concurrency.py",
     "tests/test_setup_serverside.py",
+    "tests/test_shared_customer_pool.py",
     "tests/test_site_collector.py",
     "tests/test_ssh_key_deploy.py",
     "tests/test_ssh_manager_connect.py",
