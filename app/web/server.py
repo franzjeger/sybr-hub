@@ -125,6 +125,21 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # recoverable data.
     verify_master_key_available()
     await run_migrations()
+
+    # Make sure the non-interactive service account exists before any scheduled
+    # job or alert fires. Everything that runs unattended — audits, backups,
+    # alerts, the VPN tunnels the collectors hold — is attributed to it, so the
+    # activity log names a real, is_system account rather than a bare
+    # "scheduler" string. Idempotent: a second call returns the existing row.
+    # Best-effort: a failure to create it must not stop the hub serving, but it
+    # is worth seeing, because attribution degrades to the literal username
+    # until it succeeds.
+    try:
+        from app.core import system_user
+        await system_user.ensure()
+    except Exception as exc:
+        log.warning("Could not ensure the system account at startup: %s", exc)
+
     try:
         await proxy.startup_proxy_resources()
     except Exception as exc:

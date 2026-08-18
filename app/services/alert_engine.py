@@ -853,11 +853,16 @@ async def run_alert_check() -> dict:
 
     try:
         from app.core.activity_log import log_activity
+        from app.core.system_user import USERNAME
         _failed = f", {len(failed_checks)} sjekk(er) feilet: {', '.join(failed_checks)}" if failed_checks else ""
         log_activity(
             "alert_check",
             detail=f"Fant {len(all_alerts)} varsler, {len(new_alerts)} nye, "
                    f"sendt via {sent_count} kanal(er){_failed}",
+            # Attributed to the system account rather than left blank: an alert
+            # sweep is unattended work, and an empty actor read as "nobody" in
+            # the log next to human entries.
+            user=USERNAME,
         )
     except Exception as e:
         logger.debug("Activity log write failed: %s", e)

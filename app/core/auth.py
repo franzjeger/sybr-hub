@@ -491,8 +491,18 @@ async def rotate_jwt_secret() -> None:
 # ── User CRUD ────────────────────────────────────────────────────────────────
 
 async def get_user_count() -> int:
+    """Number of *human* accounts. Used only for first-run detection.
+
+    Excludes the non-interactive system account: it is created at startup, so
+    counting it would make a fresh install look already set up — closing the
+    setup endpoints before the first human admin exists, and refusing the very
+    request that creates that admin. First-run means "no human has set the hub
+    up", not "the users table is empty".
+    """
     async with get_db() as conn:
-        async with conn.execute("SELECT COUNT(*) FROM users") as cur:
+        async with conn.execute(
+            "SELECT COUNT(*) FROM users WHERE COALESCE(is_system, 0) = 0"
+        ) as cur:
             row = await cur.fetchone()
             return row[0]
 
@@ -587,7 +597,11 @@ async def create_initial_admin(
             # A reserved write lock serializes this check across processes, not
             # merely across coroutines in one Uvicorn worker.
             await conn.execute("BEGIN IMMEDIATE")
-            async with conn.execute("SELECT 1 FROM users LIMIT 1") as cur:
+            # A human account, not the non-interactive system account — the
+            # latter is created at startup and must not make setup look done.
+            async with conn.execute(
+                "SELECT 1 FROM users WHERE COALESCE(is_system, 0) = 0 LIMIT 1"
+            ) as cur:
                 if await cur.fetchone() is not None:
                     raise ConflictError("Oppsett er allerede fullført")
             await conn.execute(
