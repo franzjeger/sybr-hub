@@ -8,6 +8,18 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Kundeoppsettet mister ikke lenger legitimasjonen når fanen lukkes
+
+Samme rot som auditen: førstegangs-oppsettet (`/setup/stream`) kjørte hele
+PowerShell-flyten — device-code-innlogging og skrivingen av sertifikat +
+legitimasjon — *inne i* SSE-strømmen. Restartet du maskinen midt i innloggingen,
+ble flyten revet ned før `save_config`/`store_secret` kjørte, og «cachet
+legitimasjon ble ikke lagret». Nå eier serveren jobben (`_run_setup_job`): den
+kjører ferdig og lagrer uansett om nettleseren er der, og en nettleser som
+kobler til igjen re-attacher og får **device-koden spilt av på nytt** så
+operatøren kan fullføre innloggingen. `?attach=1` gjør at en gjenåpning bare kan
+koble til, aldri starte et nytt oppsett. Samme mønster som audit-fiksen over.
+
 ### Auditen overlever at nettleseren mister forbindelsen
 
 Auditen kjørte på verten, men *levetiden* hang på nettleserfanen din. Alt

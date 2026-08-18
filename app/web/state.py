@@ -19,6 +19,7 @@ audit_running: bool = False
 setup_running: bool = False
 bulk_audit_running: bool = False
 audit_lock = asyncio.Lock()
+setup_lock = asyncio.Lock()
 
 
 @dataclass
@@ -120,3 +121,58 @@ def get_user_audit(user_id: str, customer_id: str | None = None) -> AuditRunCont
 def clear_user_audits() -> None:
     """Test/shutdown helper; never use it to switch customers."""
     _user_audit_runs.clear()
+
+
+# ── First-run setup state ────────────────────────────────────────────────
+# Setup is a singleton (one at a time, guarded by setup_running). Like the
+# audit, the run is server-owned: the PowerShell device-code sign-in and the
+# cert/credential write run as a background task that finishes and *persists*
+# regardless of the browser, and a reconnecting client re-attaches to it. The
+# old flow ran it inside the SSE stream, so a disconnect mid-sign-in tore it
+# down before the credentials were written.
+
+
+@dataclass
+class SetupRunContext:
+    """A first-run setup owned by the server, not the browser that started it."""
+
+    running: bool = False
+    # The latest device-code prompt, replayed to a client that re-attaches so it
+    # can still complete the Microsoft sign-in after a dropped connection.
+    device_code: dict | None = None
+    terminal: dict | None = None  # the final {"type": "done", "success": bool}
+    _subscribers: set = field(default_factory=set, repr=False, compare=False)
+    task: asyncio.Task | None = field(default=None, repr=False, compare=False)
+
+    def subscribe(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue()
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        self._subscribers.discard(q)
+
+    def publish(self, event: dict) -> None:
+        """Fan an event out; remember the device-code and terminal ones so a
+        client that attaches later is replayed both (the code to finish signing
+        in, the outcome to stop waiting)."""
+        if event.get("type") == "device_code":
+            self.device_code = event
+        if event.get("type") == "done":
+            self.terminal = event
+        for q in list(self._subscribers):
+            q.put_nowait(event)
+
+
+_setup_run: SetupRunContext | None = None
+
+
+def begin_setup() -> SetupRunContext:
+    """Create and select a fresh running setup context."""
+    global _setup_run
+    _setup_run = SetupRunContext(running=True)
+    return _setup_run
+
+
+def get_setup_run() -> SetupRunContext | None:
+    return _setup_run
