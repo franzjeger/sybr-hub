@@ -5,6 +5,30 @@ not listed here are backwards-compatible.
 
 ---
 
+## Unreleased — Defender incidents permission (re-consent needed)
+
+`REQUIRED_GRAPH_PERMISSIONS` gained **`SecurityIncident.Read.All`**. The Defender
+for Office section calls `security/incidents` and has always documented that it
+needs this permission, but the grant was never in the declared set — so setup
+never requested it, no tenant ever consented to it, and the incidents read
+returned a 403 on every audit while the section quietly degraded.
+
+**Existing app registrations need a one-time re-consent.** Press **Check
+Permissions** on the customer card; it names what is missing, then re-run the
+consent grant (or `setup`). The permission is *warn-only*: until it is consented
+the audit still completes and every other section is unaffected — only the
+Defender incidents block reports a refusal instead of data.
+
+Nothing to consent means nothing changes. A section going from a silent empty
+result to an actual incidents list is the point of the fix.
+
+A new test (`tests/test_graph_permissions.py`) now enforces the rule this gap
+broke: when a section documents that it *requires* a permission, that permission
+must be in the declared set — so a called-but-undeclared permission fails CI
+instead of surfacing as a live 403 months later.
+
+---
+
 ## Unreleased — in-app self-update (Settings → Update now)
 
 An admin can now update the deployment from inside the app: **Settings →

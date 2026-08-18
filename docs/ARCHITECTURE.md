@@ -509,7 +509,7 @@ applies to everybody. Rendering refuses while one is unset.
 
 ### Asking for the permission
 
-Sybr HUB holds twenty-two Graph permissions and every one ends in `.Read.All`.
+Sybr HUB holds twenty-three Graph permissions and every one is read-only.
 It deliberately does **not** hold `AppRoleAssignment.ReadWrite.All`, so it
 cannot widen its own access — the property that keeps a compromised toolkit
 from becoming a way into every customer's tenant. A test asserts the app-only

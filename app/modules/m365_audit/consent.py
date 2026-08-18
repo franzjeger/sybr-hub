@@ -1,6 +1,6 @@
 """Asking a Global Admin for a permission the app cannot grant itself.
 
-Sybr HUB holds twenty-two Graph permissions and every one ends in ``.Read.All``.
+Sybr HUB holds twenty-three Graph permissions and every one is read-only.
 It deliberately does not hold ``AppRoleAssignment.ReadWrite.All``, so it cannot
 widen its own access — which is the property that makes a compromised toolkit
 merely embarrassing rather than a way into every customer's tenant.

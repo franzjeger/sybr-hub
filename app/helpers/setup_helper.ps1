@@ -197,7 +197,8 @@ $fallbackPerms = @(
     'RoleManagement.Read.Directory',
     'SecurityEvents.Read.All','Sites.Read.All','SharePointTenantSettings.Read.All',
     'User.Read.All','UserAuthenticationMethod.Read.All',
-    'SensitivityLabels.Read.All','AccessReview.Read.All','SecurityAlert.Read.All'
+    'SensitivityLabels.Read.All','AccessReview.Read.All','SecurityAlert.Read.All',
+    'SecurityIncident.Read.All'
 )
 
 # The caller passes the list it also validates against; the literal above is
