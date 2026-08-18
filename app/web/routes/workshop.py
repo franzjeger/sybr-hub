@@ -19,8 +19,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from app.core.config import DATA_DIR
-from app.models.user import User
-from app.web.middleware.auth import get_current_user
+from app.models.user import Role, User
+from app.web.middleware.auth import get_current_user, require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -83,7 +83,7 @@ async def get_workshop_notes(user: User = Depends(get_current_user)):
 @router.post("/workshop/notes")
 async def set_workshop_notes(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.technician)),
 ):
     """Upsert workshop notes. Body: {wishlist?, discussion_notes?, followups?}."""
     body = await request.json()

@@ -25,7 +25,7 @@ from app.core.exceptions import (
 )
 from app.core.utils import fire_and_forget
 from app.models.user import Role, User
-from app.web.middleware.auth import get_current_user, require_customer_access
+from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
 _auth = Depends(get_current_user)
 
@@ -58,7 +58,7 @@ def _get_uniweb_config() -> dict:
 # ── Sync endpoint ───────────────────────────────────────────────────────────
 
 @router.post("/uniweb/sync")
-async def uniweb_sync(user: User = _auth):
+async def uniweb_sync(user: User = Depends(require_role(Role.technician))):
     """Trigger a full Uniweb sync as a background task."""
     if _sync_status["running"]:
         return {"ok": False, "error": "Synkronisering kjorer allerede"}
@@ -394,7 +394,7 @@ async def uniweb_account_detail(account_id: str, user: User = _auth):
 # ── Account matching ────────────────────────────────────────────────────────
 
 @router.post("/uniweb/match")
-async def uniweb_match(request: Request, user: User = _auth):
+async def uniweb_match(request: Request, user: User = Depends(require_role(Role.technician))):
     """Match a Uniweb account to an MSP Toolkit customer."""
     body = await request.json()
     uniweb_account_id = body.get("uniweb_account_id", "").strip()
@@ -676,7 +676,7 @@ async def uniweb_dns(domain: str, user: User = _auth):
 
 
 @router.post("/uniweb/import-customers")
-async def uniweb_import_customers(request: Request, user: User = _auth):
+async def uniweb_import_customers(request: Request, user: User = Depends(require_role(Role.technician))):
     """Create new MSP Toolkit customers from unmatched Uniweb accounts."""
     from app.core.customer import CustomerManager
 
@@ -769,7 +769,7 @@ async def uniweb_import_customers(request: Request, user: User = _auth):
 
 
 @router.post("/uniweb/settings")
-async def uniweb_save_settings(request: Request, user: User = _auth):
+async def uniweb_save_settings(request: Request, user: User = Depends(require_role(Role.admin))):
     """Save Uniweb credentials (email + password) to encrypted app settings."""
     body = await request.json()
     email = body.get("email", "").strip()

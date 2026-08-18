@@ -439,7 +439,7 @@ async def health_check(
 # ── SSH config generation ────────────────────────────────────────────────────
 
 @router.post("/ssh/config/generate")
-async def gen_ssh_config(request: Request, user: User = Depends(get_current_user)):
+async def gen_ssh_config(request: Request, user: User = Depends(require_role(Role.technician))):
     from app.services.ssh_manager import generate_ssh_config, list_hosts
     body = await request.json()
     host_ids = body.get("host_ids")
