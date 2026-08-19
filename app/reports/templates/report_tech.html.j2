@@ -798,7 +798,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr><th>{{ t.sku_product }}</th><th style="text-align:right;">{{ t.used }}</th><th style="text-align:right;">{{ t.total }}</th><th style="width:120px;">{{ t.utilization }}</th><th>{{ t.status }}</th></tr>
   {% for lic in licenses %}
   <tr>
-    <td style="font-family:var(--mono);font-size:12px;">{{ lic.part }}</td>
+    <td><div style="font-weight:600;">{{ lic.name }}</div>{% if lic.name != lic.part %}<div style="font-family:var(--mono);font-size:11px;color:var(--muted);">{{ lic.part }}</div>{% endif %}</td>
     <td style="text-align:right;font-family:var(--mono);">{{ lic.used }}</td>
     <td style="text-align:right;font-family:var(--mono);">{{ lic.total }}</td>
     <td>

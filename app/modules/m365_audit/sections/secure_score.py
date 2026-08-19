@@ -66,7 +66,8 @@ class SecureScoreSection(BaseSection):
         # points is worth more than one at 0% of one point, and ordering by
         # percentage alone cannot see that.
         ctrl_scores = latest.get("controlScores", [])
-        max_by_control = await self._control_max_scores()
+        profiles = await self._control_profiles()
+        max_by_control = {n: p["max"] for n, p in profiles.items()}
 
         ranked: list[tuple[float, float, str, str]] = []
         for ctrl in ctrl_scores:
@@ -83,7 +84,12 @@ class SecureScoreSection(BaseSection):
             # Without the profiles, fall back to "furthest from done". Sorting
             # by -pct keeps that ordering while the ranked tuple stays uniform.
             sort_key = remaining if remaining is not None else (100 - ctrl_pct) / 100
-            ranked.append((sort_key, ctrl_pct, name[:50], ctrl.get("controlCategory") or ""))
+            # Show the human title ("Ensure MFA is enabled for all users"), not
+            # the raw control id (scid_2509), which tells a reader nothing about
+            # what would raise the score. Fall back to the id if the profile,
+            # and so the title, could not be read.
+            friendly = (profiles.get(name, {}).get("title") or "").strip() or name
+            ranked.append((sort_key, ctrl_pct, friendly[:70], ctrl.get("controlCategory") or ""))
 
         ranked.sort(key=lambda r: r[0], reverse=True)
         by_impact = bool(max_by_control)
@@ -97,7 +103,7 @@ class SecureScoreSection(BaseSection):
             "",
             "  Top 20 Improvement Actions "
             + ("(by points still available):" if by_impact else "(by how far from done):"),
-            f"  {'Control':<50} {'Score%':>7}  {'Left':>6}  {'Category'}",
+            f"  {'Control':<70} {'Score%':>7}  {'Left':>6}  {'Category'}",
             "  " + "-" * 76,
         ]
 
@@ -106,33 +112,37 @@ class SecureScoreSection(BaseSection):
 
         for sort_key, ctrl_pct, ctrl_name, ctrl_cat in ranked[:20]:
             left = f"{sort_key:.1f}" if by_impact else "-"
-            lines.append(f"  {ctrl_name:<50} {ctrl_pct:>6.1f}%  {left:>6}  {ctrl_cat}")
+            lines.append(f"  {ctrl_name:<70} {ctrl_pct:>6.1f}%  {left:>6}  {ctrl_cat}")
 
         lines += ["=" * 80, ""]
         self._save("09_secure_score.txt", "\n".join(lines))
 
-    async def _control_max_scores(self) -> dict[str, float]:
-        """Points each control is worth, keyed by control name.
+    async def _control_profiles(self) -> dict[str, dict]:
+        """Per-control points at stake and human title, keyed by control name.
 
-        controlScores says how much of a control the tenant has earned, never
-        how much it was worth. Without this, "by impact" cannot mean anything
-        more than "by percentage". An empty dict is the honest answer when the
-        profiles cannot be read, and the caller says so in the heading rather
-        than presenting a different ordering under the same words.
+        controlScores carries only ``scid_2509`` and how much of it the tenant
+        earned — never how much it was worth, nor what it is. secureScore
+        ControlProfiles carries both: ``maxScore`` (so "by impact" can mean
+        something) and ``title`` ("Ensure multifactor authentication is enabled
+        for all users"), so the report names the action rather than its id. An
+        empty dict is the honest answer when the profiles cannot be read.
         """
         try:
             profiles = await self.graph.get_all("security/secureScoreControlProfiles")
         except Exception as ex:
             logger.warning("Secure Score control profiles unavailable: %s", ex)
             return {}
-        out: dict[str, float] = {}
+        out: dict[str, dict] = {}
         for prof in profiles or []:
             name = (prof.get("id") or prof.get("controlName") or "").strip()
-            try:
-                out[name] = float(prof.get("maxScore") or 0.0)
-            except (TypeError, ValueError):
+            if not name:
                 continue
-        return {k: v for k, v in out.items() if k and v > 0}
+            try:
+                mx = float(prof.get("maxScore") or 0.0)
+            except (TypeError, ValueError):
+                mx = 0.0
+            out[name] = {"max": mx, "title": (prof.get("title") or "").strip()}
+        return out
 
     # ── Auth Methods Policy ───────────────────────────────────────────────────
 
