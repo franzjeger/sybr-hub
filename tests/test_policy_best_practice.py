@@ -1,13 +1,17 @@
-"""The comprehensive Best Practice Conditional Access suite, and picking from it.
+"""The tiered Conditional Access baseline library, and picking from it.
 
-The suite is a broad set of CA policies grounded in Microsoft/CIS guidance,
-each documented, tiered, and licence-tagged. The operator ticks which to deploy
-("velge av"); plan and apply filter to that same subset so the approved plan is
-the one that runs. The annotations (why/tier/requires_license) are for the
-operator and must never reach Graph, which rejects unknown fields.
+Instead of one monolithic package, the deploy library offers focused, named
+baselines — IAM Core (identity floor), IAM Device & session hardening, and IAM
+Risk-based (P2) — grounded in Microsoft/CIS guidance. Each policy is documented
+twice: `effect` (what it does and who it hits) and `why` (why it matters), so a
+technician knows exactly what they are deploying. The operator ticks which to
+deploy ("velge av"); plan and apply filter to the same subset. The annotations
+are for the operator and must never reach Graph, which rejects unknown fields.
 """
 
 from __future__ import annotations
+
+import pytest
 
 from app.core.policy_templates import (
     list_templates,
@@ -18,54 +22,67 @@ from app.core.policy_templates import (
 )
 from app.web.routes.policy_deploy import _select_policies
 
-TID = "sybr-best-practice-ca"
+# The tiered library — disjoint by theme, together the full recommended set.
+TIERS = ["sybr-iam-core", "sybr-iam-hardening", "sybr-iam-riskbased"]
 
 
-def test_the_suite_is_listed_and_comprehensive():
+def test_the_library_offers_more_than_one_choice():
     ids = {t["id"] for t in list_templates("en")}
-    assert TID in ids
-    assert len(load_template(TID)["policies"]) >= 10
+    for tid in TIERS:
+        assert tid in ids, f"{tid} is not in the deploy library"
+    # A real menu, not one package: the minimal baseline plus the tiers.
+    assert len(ids) >= 4
 
 
-def test_annotations_never_reach_graph():
-    rendered = render(TID, {"break_glass_group": "GROUP-1"})
+def test_the_tiers_are_disjoint_and_cover_the_set():
+    seen: set[str] = set()
+    total = 0
+    for tid in TIERS:
+        names = {p["displayName"] for p in load_template(tid)["policies"]}
+        assert not (names & seen), f"{tid} repeats a policy from another tier"
+        seen |= names
+        total += len(names)
+    assert total == len(seen) >= 10
+
+
+@pytest.mark.parametrize("tid", TIERS)
+def test_annotations_never_reach_graph(tid):
+    rendered = render(tid, {"break_glass_group": "GROUP-1"})
     for policy in rendered:
-        for annotation in ("why", "tier", "requires_license"):
+        for annotation in ("why", "effect", "tier", "requires_license"):
             assert annotation not in policy, f"{annotation} leaked into a Graph body"
-    # …but the break-glass exclusion did get filled everywhere it appears.
     assert "{{break_glass_group}}" not in str(rendered)
-    assert placeholders_in(load_template(TID)) == {"break_glass_group"}
+    assert placeholders_in(load_template(tid)) == {"break_glass_group"}
 
 
-def test_metadata_carries_tier_and_licence():
-    meta = metadata(TID, "en")
-    tiers = {m["tier"] for m in meta.values()}
-    assert tiers == {"essential", "recommended", "extended"}
-    p2 = [n for n, m in meta.items() if m["requires_license"] == "entra_p2"]
-    assert len(p2) == 2, "the two risk-based policies require Entra ID P2"
-    # every policy has a rationale in the requested language
-    assert all(m["why"] for m in meta.values())
+@pytest.mark.parametrize("tid", TIERS)
+def test_every_policy_is_documented_both_ways(tid):
+    meta = metadata(tid, "en")
+    assert meta, f"{tid} has no policies"
+    for name, m in meta.items():
+        assert m["effect"], f"{name} has no effect line (what it does)"
+        assert m["why"], f"{name} has no why line (why it matters)"
+        assert m["tier"] in {"essential", "recommended", "extended"}
 
 
-def test_every_policy_deploys_report_only_first():
-    for policy in load_template(TID)["policies"]:
+def test_the_risk_based_tier_is_flagged_p2():
+    meta = metadata("sybr-iam-riskbased", "en")
+    assert meta and all(m["requires_license"] == "entra_p2" for m in meta.values())
+
+
+@pytest.mark.parametrize("tid", TIERS)
+def test_every_policy_deploys_report_only_and_excludes_break_glass(tid):
+    for policy in load_template(tid)["policies"]:
         assert policy["state"] == "enabledForReportingButNotEnforced"
-
-
-def test_every_policy_excludes_the_break_glass_group():
-    for policy in load_template(TID)["policies"]:
         users = policy["conditions"]["users"]
         assert "{{break_glass_group}}" in (users.get("excludeGroups") or []), (
-            f"{policy['displayName']} does not exclude break-glass — a policy "
-            f"that can lock everyone out"
+            f"{policy['displayName']} does not exclude break-glass"
         )
 
 
 # ── Picking a subset ─────────────────────────────────────────────────────────
 
-_DESIRED = [
-    {"displayName": "A"}, {"displayName": "B"}, {"displayName": "C"},
-]
+_DESIRED = [{"displayName": "A"}, {"displayName": "B"}, {"displayName": "C"}]
 
 
 def test_selection_keeps_only_ticked_policies():
@@ -73,6 +90,6 @@ def test_selection_keeps_only_ticked_policies():
     assert [p["displayName"] for p in got] == ["A", "C"]
 
 
-def test_empty_selection_means_the_whole_suite():
+def test_empty_selection_means_the_whole_baseline():
     assert _select_policies(_DESIRED, {}) == _DESIRED
     assert _select_policies(_DESIRED, {"select": []}) == _DESIRED

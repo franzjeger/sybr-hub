@@ -146,6 +146,7 @@ def _plan_payload(plan: Plan, template_id: str, lang: str) -> dict[str, Any]:
     for change in payload["changes"]:
         m = meta.get(change["name"], {})
         change["why"] = m.get("why", "")
+        change["effect"] = m.get("effect", "")
         change["tier"] = m.get("tier", "")
         change["requires_license"] = m.get("requires_license", "")
     return payload

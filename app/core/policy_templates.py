@@ -30,11 +30,12 @@ TEMPLATE_DIR = pathlib.Path(__file__).parent.parent / "policy_templates"
 
 _PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
-# Carried for the operator, never sent to Graph. ``why`` explains the policy;
+# Carried for the operator, never sent to Graph. ``why`` is the rationale;
+# ``effect`` is what the policy does and who it hits, in plain language;
 # ``tier`` groups it (essential/recommended/extended); ``requires_license``
 # names a licence the policy needs (e.g. entra_p2 for risk-based policies).
 # Graph rejects unknown fields, so every one of these is stripped before send.
-_ANNOTATIONS = {"why", "tier", "requires_license"}
+_ANNOTATIONS = {"why", "effect", "tier", "requires_license"}
 
 
 class TemplateError(Exception):
@@ -138,6 +139,7 @@ def metadata(template_id: str, lang: str = "no") -> dict[str, dict]:
     return {
         str(p["displayName"]): {
             "why": _localised(p.get("why"), lang),
+            "effect": _localised(p.get("effect"), lang),
             "tier": str(p.get("tier") or ""),
             "requires_license": str(p.get("requires_license") or ""),
         }
