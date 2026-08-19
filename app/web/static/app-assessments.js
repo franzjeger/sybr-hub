@@ -136,20 +136,41 @@ function _asmtResultHTML(res) {
 
   var pct = res.conformance_pct;
   var none = pct === null || pct === undefined;
-  var pctCls = none ? 'asmt-pct-none' : (pct >= 90 ? 'asmt-pct-good' : (pct >= 70 ? 'asmt-pct-mid' : 'asmt-pct-bad'));
-  var pctTxt = none ? '&#8211;' : (pct + ' %');
+  var total = res.total_checks || 0;
+  var assessed = res.assessed || 0;
+  // A percentage over a tiny assessed base reads as a triumphant score when it
+  // is really "we could only measure one thing". Below half-measured, mute the
+  // number and lead with a caution — the same honesty the engine applies to a
+  // single check, one level up.
+  var lowCoverage = !none && total > 0 && assessed < Math.max(1, Math.ceil(total / 2));
+
+  var muted = none || lowCoverage;
+  var pctCls = muted ? 'asmt-pct-none'
+    : (pct >= 90 ? 'asmt-pct-good' : (pct >= 70 ? 'asmt-pct-mid' : 'asmt-pct-bad'));
+  // A percentage over one or two measured checks is not a score; show a dash so
+  // the caution below carries the meaning instead of a misleading number.
+  var pctTxt = muted ? '&#8211;' : (pct + ' %');
+  var pctLabel = muted ? t('lbl_not_scored', 'Not enough data') : t('lbl_conformance', 'conformance');
 
   var h = '<div class="asmt-result-head">';
   h += '<div class="asmt-result-name">' + esc(res.baseline.name) + ' ' + esc(res.baseline.version || '') + '</div>';
   h += '<div><span class="asmt-pct ' + pctCls + '">' + pctTxt + '</span>';
-  h += '<span class="asmt-pct-label">' + esc(t('lbl_conformance', 'conformance')) + '</span></div>';
+  h += '<span class="asmt-pct-label">' + esc(pctLabel) + '</span></div>';
   h += '</div>';
 
-  if (res.assessed === 0) {
-    h += '<div class="asmt-basis">' + esc(t('msg_baseline_none_assessed', 'None of the checks could be measured on this run.')) + '</div>';
+  if (res.run) {
+    h += '<div class="asmt-run-line">' + esc(t('lbl_measured_run', 'Measured against run')) + ': ' + esc(res.run) + '</div>';
+  }
+
+  if (assessed === 0) {
+    h += '<div class="asmt-caution">' + esc(t('msg_baseline_none_assessed', 'None of the checks could be measured on this run.')) + '</div>';
   } else {
+    if (lowCoverage) {
+      h += '<div class="asmt-caution">' + esc(t('msg_asmt_low_coverage', 'Only {assessed} of {total} checks could be measured on this run.')
+        .split('{assessed}').join(String(assessed)).split('{total}').join(String(total))) + '</div>';
+    }
     var basis = t('msg_baseline_basis', '{passed} of {assessed} measured checks passed')
-      .split('{passed}').join(String(res.passed)).split('{assessed}').join(String(res.assessed));
+      .split('{passed}').join(String(res.passed)).split('{assessed}').join(String(assessed));
     if (res.not_measured) {
       basis += ' · ' + t('msg_baseline_skipped', '{n} not measured').split('{n}').join(String(res.not_measured));
     }

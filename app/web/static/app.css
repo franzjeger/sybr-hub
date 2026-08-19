@@ -2358,3 +2358,9 @@ body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
 .asmt-sev-high { color: var(--orange); }
 .asmt-empty { color: var(--text-muted); text-align: center; padding: 32px; }
 .asmt-loader { width: 24px; height: 24px; margin: 32px auto; }
+.asmt-caution {
+  font-size: var(--font-sm); color: var(--text); background: var(--bg);
+  border: 1px solid var(--orange); border-left-width: 3px; border-radius: var(--radius-md);
+  padding: 10px 12px; margin-bottom: var(--space-3); line-height: 1.45;
+}
+.asmt-run-line { font-size: var(--font-xs); color: var(--text-dim); margin-bottom: var(--space-2); }

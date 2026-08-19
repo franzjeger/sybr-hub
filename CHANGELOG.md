@@ -7,6 +7,23 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
+## v1.1.7 (2026-08-19)
+### Vurderingsbibliotek: en ærlig score i stedet for et villedende «100 %»
+
+En kjøring som bare fikk lest ett av ti krav viste et stort grønt «100 %» ved
+siden av «9 ikke vurdert» — tallet ropte suksess mens nesten ingenting faktisk
+var målt. Nå dempes prosenten (grå, merket «Ikke nok data») så snart under
+halvparten av kravene kunne vurderes, og en tydelig advarsel forklarer at
+kjøringen mangler grunnlag: «Bare {assessed} av {total} krav kunne måles —
+sjekk at siste audit fullførte alle seksjoner, eller kjør den på nytt.»
+Resultatet viser også hvilken kjøring det ble målt mot, så et blankt resultat
+avsløres som en ufullstendig siste audit — ikke som at kunden er perfekt.
+
+Bakgrunn: vurderingen leser kundens **siste** audit. Er den siste kjøringen
+delvis (throttling, en seksjon som feilet), leser hvert krav på den som «ikke
+vurdert», mens dashboardets nøkkeltall fortsatt viser de lagrede tallene fra en
+tidligere, komplett kjøring — derfor kunne de to være uenige.
+
 ## v1.1.6 (2026-08-19)
 ### Intune-innsamling dekker nå den moderne Endpoint Manager-flaten
 

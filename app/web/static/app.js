@@ -271,7 +271,7 @@ let _lang = localStorage.getItem('ui_lang') || 'no';
 
 async function loadI18n() {
     try {
-        const r = await fetch('/static/ui_i18n.json?v=3028');
+        const r = await fetch('/static/ui_i18n.json?v=3029');
         _i18n = await r.json();
         translatePage();
     } catch (e) {
