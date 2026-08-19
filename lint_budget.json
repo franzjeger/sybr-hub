@@ -170,6 +170,7 @@
     "tests/test_pim_license.py",
     "tests/test_policy_adoption.py",
     "tests/test_policy_backup.py",
+    "tests/test_policy_best_practice.py",
     "tests/test_policy_deploy.py",
     "tests/test_policy_deploy_routes.py",
     "tests/test_policy_deploy_view.py",

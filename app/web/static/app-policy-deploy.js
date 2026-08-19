@@ -46,9 +46,17 @@ async function policyDeployLoad() {
 // to choose. Tier and licence badges say what each is and whether it needs P2.
 async function _pdLoadPolicies() {
   var box = document.getElementById('pd-select');
+  var descEl = document.getElementById('pd-desc');
   var tid = document.getElementById('pd-template');
   if (!box || !tid) return;
   box.innerHTML = '';
+  // The baseline's own description — from the templates list already loaded.
+  if (descEl) {
+    var meta = (_pdTemplates || []).filter(function(x) { return x.id === tid.value; })[0];
+    descEl.innerHTML = (meta && meta.description)
+      ? '<div style="font-size:var(--font-xs);color:var(--text-dim);margin:-8px 0 var(--space-4);line-height:1.5;">' + esc(meta.description) + '</div>'
+      : '';
+  }
   var d = await apiFetch('/api/policy-deploy/template/' + encodeURIComponent(tid.value) + '?lang=' + _lang).catch(function(){ return null; });
   if (!d || !d.policies || d.policies.length <= 1) return;
   var tierLabel = { essential: t('lbl_tier_essential', 'Essential'), recommended: t('lbl_tier_recommended', 'Recommended'), extended: t('lbl_tier_extended', 'Extended') };
@@ -57,11 +65,13 @@ async function _pdLoadPolicies() {
     var badges = '';
     if (p.tier) badges += '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);margin-left:6px;">' + esc(tierLabel[p.tier] || p.tier) + '</span>';
     if (p.requires_license) badges += '<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(224,134,0,0.12);color:var(--orange);margin-left:4px;">' + esc(p.requires_license.toUpperCase().replace('ENTRA_', '')) + '</span>';
-    html += '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;">';
+    html += '<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">';
     html += '<input type="checkbox" class="pd-pol" value="' + esc(p.name) + '" checked style="margin-top:3px;">';
-    html += '<span style="flex:1;"><span style="font-weight:600;font-size:var(--font-xs);">' + esc(p.name) + '</span>' + badges
-          + '<span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">' + esc(p.why) + '</span></span>';
-    html += '</label>';
+    html += '<span style="flex:1;"><span style="font-weight:600;font-size:var(--font-xs);">' + esc(p.name) + '</span>' + badges;
+    // effect = what the policy does and who it hits; why = why it matters.
+    if (p.effect) html += '<span style="display:block;font-size:11px;color:var(--text);margin-top:3px;line-height:1.5;">' + esc(p.effect) + '</span>';
+    if (p.why) html += '<span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.5;font-style:italic;">' + esc(p.why) + '</span>';
+    html += '</span></label>';
   });
   box.innerHTML = html;
 }
@@ -85,8 +95,10 @@ function _pdForm() {
   });
   html += '</select>';
 
-  // Which policies from the standard to deploy. A one-policy standard needs no
-  // list; a comprehensive suite is picked from. Filled by _pdLoadPolicies().
+  // The selected baseline's description, then its policies. Filled by
+  // _pdLoadPolicies(). A one-policy standard shows a description but no list —
+  // there is nothing to pick.
+  html += '<div id="pd-desc"></div>';
   html += '<div id="pd-select" style="margin-bottom:var(--space-4);"></div>';
 
   // Required, never defaulted. An unfilled exclusion excludes nobody, inside a

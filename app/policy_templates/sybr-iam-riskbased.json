@@ -1,0 +1,104 @@
+{
+  "id": "sybr-iam-riskbased",
+  "version": "2026.2",
+  "name": {
+    "no": "Sybr IAM — Risikobasert (P2)",
+    "en": "Sybr IAM — Risk-based (P2)"
+  },
+  "description": {
+    "no": "Risikobaserte policyer fra Entra ID Protection: MFA ved risikofylt pålogging, og passordbytte for høyrisiko-brukere. Krever Entra ID P2.",
+    "en": "Risk-based policies from Entra ID Protection: MFA on risky sign-ins, and a password change for high-risk users. Requires Entra ID P2."
+  },
+  "requires": {
+    "break_glass_group": {
+      "no": "Gruppe som unntas fra alle policyer — må finnes i tenanten og inneholde minst én konto som aldri låses ute",
+      "en": "Group excluded from every policy — must exist in the tenant and hold at least one account that can never be locked out"
+    }
+  },
+  "policies": [
+    {
+      "displayName": "Sybr — Require MFA for risky sign-ins",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "extended",
+      "requires_license": "entra_p2",
+      "why": {
+        "no": "Entra ID Protection scorer hver pålogging for risiko (umulig reise, anonym IP, lekket legitimasjon). Når scoren er middels eller høy, krev MFA før tilgang. Krever Entra ID P2.",
+        "en": "Entra ID Protection scores every sign-in for risk (impossible travel, anonymous IP, leaked credentials). When the score is medium or high, require MFA before access. Requires Entra ID P2."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ],
+        "signInRiskLevels": [
+          "high",
+          "medium"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "mfa"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA når Entra ID Protection scorer en pålogging som middels eller høy risiko. Lavrisiko-pålogginger berøres ikke. Krever Entra ID P2.",
+        "en": "Requires MFA when Entra ID Protection scores a sign-in as medium or high risk. Low-risk sign-ins are untouched. Requires Entra ID P2."
+      }
+    },
+    {
+      "displayName": "Sybr — Require password change for high-risk users",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "extended",
+      "requires_license": "entra_p2",
+      "why": {
+        "no": "Når Entra ID Protection markerer en bruker som høyrisiko, betyr det som regel at legitimasjonen er kompromittert. Krev MFA og et passordbytte for å nullstille risikoen. Krever Entra ID P2.",
+        "en": "When Entra ID Protection flags a user as high risk, the credentials are usually compromised. Require MFA and a password change to reset the risk. Requires Entra ID P2."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ],
+        "userRiskLevels": [
+          "high"
+        ]
+      },
+      "grantControls": {
+        "operator": "AND",
+        "builtInControls": [
+          "mfa",
+          "passwordChange"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA og et passordbytte når en bruker markeres som høyrisiko. Nullstiller risikoen etter fullført. Krever Entra ID P2.",
+        "en": "Requires MFA and a password change when a user is flagged as high risk. Clears the risk once completed. Requires Entra ID P2."
+      }
+    }
+  ]
+}
