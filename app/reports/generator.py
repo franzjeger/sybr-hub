@@ -477,7 +477,7 @@ def _parse_licenses(text: str) -> list[dict]:
         # collector's own >=90 check on the unrounded ratio.
         warn = total > 0 and used / total >= 0.9
         licenses.append({
-            "part": part, "used": used, "total": total,
+            "part": part, "name": _sku_friendly(part), "used": used, "total": total,
             "pct": pct, "warn": warn,
         })
     return licenses
@@ -511,6 +511,58 @@ _SKU_MONTHLY_PRICE: dict[str, int] = {
 # E5 SKUs and their E3 equivalents (for potential downgrade detection)
 _E5_SKUS = {"SPE_E5", "ENTERPRISEPREMIUM"}
 _E3_SKUS = {"SPE_E3", "ENTERPRISEPACK"}
+
+# Graph reports licences by their skuPartNumber — SPE_E3, O365_BUSINESS_PREMIUM
+# — which reads as nothing to a customer and misleads even a technician
+# (O365_BUSINESS_PREMIUM is Business *Standard*, not Premium). Map the ones an
+# SMB tenant actually carries to the name Microsoft sells them under. The raw
+# part number is still shown beside it for anyone matching against Graph.
+_SKU_FRIENDLY: dict[str, str] = {
+    "SPB": "Microsoft 365 Business Premium",
+    "O365_BUSINESS_PREMIUM": "Microsoft 365 Business Standard",
+    "O365_BUSINESS_ESSENTIALS": "Microsoft 365 Business Basic",
+    "O365_BUSINESS": "Microsoft 365 Apps for Business",
+    "OFFICESUBSCRIPTION": "Microsoft 365 Apps for Enterprise",
+    "SPE_E3": "Microsoft 365 E3",
+    "SPE_E5": "Microsoft 365 E5",
+    "SPE_F1": "Microsoft 365 F3",
+    "SPE_F5_SECCOMP": "Microsoft 365 F5 Security + Compliance",
+    "ENTERPRISEPACK": "Office 365 E3",
+    "ENTERPRISEPREMIUM": "Office 365 E5",
+    "STANDARDPACK": "Office 365 E1",
+    "DESKLESSPACK": "Office 365 F3",
+    "EXCHANGESTANDARD": "Exchange Online (Plan 1)",
+    "EXCHANGEENTERPRISE": "Exchange Online (Plan 2)",
+    "EXCHANGEDESKLESS": "Exchange Online Kiosk",
+    "EMS": "Enterprise Mobility + Security E3",
+    "EMSPREMIUM": "Enterprise Mobility + Security E5",
+    "AAD_PREMIUM": "Entra ID P1",
+    "AAD_PREMIUM_P2": "Entra ID P2",
+    "INTUNE_A": "Intune Plan 1",
+    "Microsoft_365_Copilot": "Microsoft 365 Copilot",
+    "MCOMEETADV": "Microsoft 365 Audio Conferencing",
+    "MCOEV": "Microsoft Teams Phone Standard",
+    "PHONESYSTEM_VIRTUALUSER": "Teams Phone Resource Account",
+    "TEAMS_EXPLORATORY": "Microsoft Teams Exploratory",
+    "Microsoft_Teams_Premium": "Microsoft Teams Premium",
+    "POWER_BI_PRO": "Power BI Pro",
+    "POWER_BI_STANDARD": "Power BI (free)",
+    "FLOW_FREE": "Power Automate (free)",
+    "POWERAPPS_VIRAL": "Power Apps (trial)",
+    "PROJECTPROFESSIONAL": "Project Plan 3",
+    "PROJECTPREMIUM": "Project Plan 5",
+    "VISIOCLIENT": "Visio Plan 2",
+    "WINDOWS_STORE": "Windows Store for Business",
+    "WIN10_PRO_ENT_SUB": "Windows 10/11 Enterprise E3",
+    "MDATP_XPLAT": "Defender for Endpoint",
+    "ATP_ENTERPRISE": "Defender for Office 365 (Plan 1)",
+    "THREAT_INTELLIGENCE": "Defender for Office 365 (Plan 2)",
+}
+
+
+def _sku_friendly(part: str) -> str:
+    """The name Microsoft sells a SKU under, or the part number if unmapped."""
+    return _SKU_FRIENDLY.get((part or "").strip(), (part or "").strip())
 
 
 def _parse_stale_accounts(text: str) -> list[dict]:
@@ -650,6 +702,7 @@ def _analyze_license_optimization(
             waste = unused_count * price
             over_provisioned.append({
                 "part": lic["part"],
+                "name": _sku_friendly(lic["part"]),
                 "used": lic["used"],
                 "total": lic["total"],
                 "unused": unused_count,
@@ -659,9 +712,9 @@ def _analyze_license_optimization(
                 total_waste += waste
                 suggestions.append({
                     "type": "over_provisioned",
-                    "title": t("lo_suggest_reduce_sku", part=lic["part"]),
+                    "title": t("lo_suggest_reduce_sku", part=_sku_friendly(lic["part"])),
                     "detail": t("lo_suggest_reduce_sku_detail",
-                                part=lic["part"], unused=unused_count,
+                                part=_sku_friendly(lic["part"]), unused=unused_count,
                                 used=lic["used"], total=lic["total"],
                                 amount=waste),
                     "priority": "medium",
@@ -676,15 +729,16 @@ def _analyze_license_optimization(
         if e5["used"] > 0 and price_diff > 0:
             downgrade_candidates.append({
                 "part": e5["part"],
+                "name": _sku_friendly(e5["part"]),
                 "users": e5["used"],
                 "potential_saving_per_user": price_diff,
                 "potential_saving_total": e5["used"] * price_diff,
             })
             suggestions.append({
                 "type": "downgrade",
-                "title": t("lo_suggest_downgrade", part=e5["part"]),
+                "title": t("lo_suggest_downgrade", part=_sku_friendly(e5["part"])),
                 "detail": t("lo_suggest_downgrade_detail",
-                            part=e5["part"], users=e5["used"],
+                            part=_sku_friendly(e5["part"]), users=e5["used"],
                             saving=price_diff, total=e5["used"] * price_diff),
                 "priority": "low",
                 "savings": e5["used"] * price_diff,

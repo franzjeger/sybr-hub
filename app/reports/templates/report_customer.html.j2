@@ -1869,7 +1869,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <tr><th>{{ t.product }}</th><th>{{ t.used }}</th><th>{{ t.purchased }}</th><th>{{ t.utilisation }}</th></tr>
     {% for lic in licenses %}
     <tr>
-      <td>{{ lic.part }}</td>
+      <td><div style="font-weight:600;">{{ lic.name }}</div>{% if lic.name != lic.part %}<div style="font-family:var(--mono);font-size:11px;color:var(--muted);">{{ lic.part }}</div>{% endif %}</td>
       <td>{{ lic.used }}</td>
       <td>{{ lic.total }}</td>
       <td>
@@ -1935,7 +1935,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <tr><th>{{ t.lo_sku }}</th><th>{{ t.lo_assigned }}</th><th>{{ t.purchased }}</th><th>{{ t.lo_unused_count }}</th><th>{{ t.lo_waste }}</th></tr>
     {% for op in license_optimization.over_provisioned %}
     <tr>
-      <td>{{ op.part }}</td>
+      <td>{{ op.name or op.part }}</td>
       <td>{{ op.used }}</td>
       <td>{{ op.total }}</td>
       <td><span style="color:#e67e22;font-weight:600;">{{ op.unused }}</span></td>
