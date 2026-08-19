@@ -7,6 +7,21 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
+## Ikke utgitt
+### Auditen henter nå installerte apper fra Intune-enhetene
+
+Intune-seksjonen leste app-*katalogen* (`mobileApps` — hva Intune er satt til å
+distribuere), men aldri hva som faktisk er *installert* på enhetene, så en
+Motavo-audit manglet programvareoversikten. Nå leses `deviceManagement/detectedApps`
+inn i `13c_intune_detected_apps.txt` (pluss et gjenopprettbart øyeblikksbilde):
+den reelle beholdningen på tvers av administrerte enheter, aggregert per app og
+versjon med et enhetstall, mest utbredte først (lang liste kappes i den lesbare
+filen, hele settet ligger i øyeblikksbildet). Krever bare
+`DeviceManagementManagedDevices.Read.All`, som app-registreringen alt har — ingen
+ekstra samtykke. Additiv flate: en leietaker der enhetsbeholdningen ikke kan
+leses feiler mykt — gapet skrives til sin egen fil, og seksjonen forblir DONE på
+grunnlag av de øvrige lesningene.
+
 ## v1.1.7 (2026-08-19)
 ### Vurderingsbibliotek: en ærlig score i stedet for et villedende «100 %»
 
