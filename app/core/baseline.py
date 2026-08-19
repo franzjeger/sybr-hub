@@ -238,6 +238,10 @@ def list_baselines(lang: str = "no") -> list[dict]:
             "id": doc["id"], "version": doc["version"], "name": doc["name"],
             "description": localised(doc.get("description"), lang),
             "checks": len(doc["checks"]),
+            # Optional, and language-independent — short slugs (cis, nis2,
+            # essential-eight) the library UI renders as filter chips. A
+            # baseline without them, like the house standard, simply shows none.
+            "tags": list(doc.get("tags") or []),
         })
     return out
 

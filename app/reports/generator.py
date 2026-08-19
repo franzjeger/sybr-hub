@@ -1343,6 +1343,12 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
         "sharing": sharing_raw,
         "sharing_level": sharing_level,
         "sharing_label": sharing_label,
+        # Same tri-state as legacy_auth_known: a baseline check on the sharing
+        # posture must be able to tell "read, and permissive" from "the
+        # admin-settings call failed while the site list succeeded". Without
+        # this guard, sharing_level == "unknown" reads as a finding — the exact
+        # mistake the sharing_map comment above rejected one field over.
+        "sharing_known": sharing_level != "unknown",
         "legacy_auth": legacy_auth,
         "legacy_auth_known": legacy_known,
         "unmanaged_devices": settings.get("unmanaged devices", "").lower() == "true",

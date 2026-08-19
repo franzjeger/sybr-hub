@@ -111,6 +111,40 @@ def test_conditional_access_state_is_mapped_and_described(run_dir):
     assert "admin roles" in admins["en"]
 
 
+def test_the_modern_intune_surfaces_become_card_workloads(tmp_path):
+    """Settings Catalog, admin templates, app protection and endpoint security
+    are lifted onto the card the same way compliance and config already are —
+    each with a plain-language per-policy line."""
+    d = tmp_path / "audit" / "Acme_AS" / "2026-08-19_0500"
+    d.mkdir(parents=True)
+    _write_snapshot(d, "intune_settings_catalog",
+                    "deviceManagement/configurationPolicies",
+                    [{"name": "Win — BitLocker", "platforms": "windows10", "technologies": "mdm"}])
+    _write_snapshot(d, "intune_app_protection",
+                    "deviceAppManagement/managedAppPolicies",
+                    [{"displayName": "iOS MAM",
+                      "@odata.type": "#microsoft.graph.iosManagedAppProtection"}])
+    _write_snapshot(d, "intune_admin_templates",
+                    "deviceManagement/groupPolicyConfigurations",
+                    [{"displayName": "Edge hardening"}])
+    _write_snapshot(d, "intune_endpoint_security",
+                    "deviceManagement/intents (beta)",
+                    [{"displayName": "Defender AV baseline"}])
+
+    inv = build_inventory(d)
+    assert inv is not None
+    w = inv["workloads"]
+
+    sc = w["intune_settings_catalog"]["items"][0]
+    assert sc["name"] == "Win — BitLocker"
+    assert "windows10" in sc["summary"]["en"] and "windows10" in sc["summary"]["no"]
+
+    assert w["intune_app_protection"]["items"][0]["summary"]["en"] == "Platform: iOS"
+    assert w["intune_admin_templates"]["items"][0]["summary"]["en"] == "Administrative templates"
+    assert w["intune_endpoint_security"]["items"][0]["summary"]["en"] == "Endpoint security"
+    assert inv["total"] == 4
+
+
 def test_no_snapshots_yields_none(tmp_path):
     empty = tmp_path / "cust" / "run"
     empty.mkdir(parents=True)

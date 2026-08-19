@@ -230,6 +230,7 @@ async def test_sharepoint_legacy_auth_reaches_the_parser():
     parsed = g._parse_sharepoint_settings(_read(section.out_dir, "15b_sharepoint_settings.txt"), "")
     assert parsed["legacy_auth"] is True
     assert parsed["legacy_auth_known"] is True
+    assert parsed["sharing_known"] is True, "a read sharing capability is measured, even when permissive"
     assert parsed["unmanaged_devices"] is False, "restricted sync means unmanaged is not allowed"
 
 
@@ -259,6 +260,9 @@ async def test_a_property_graph_omits_is_unknown_rather_than_false():
 
     parsed = g._parse_sharepoint_settings(text, "")
     assert parsed["legacy_auth_known"] is False
+    # sharingCapability was present ("disabled"), so the sharing posture is
+    # known even though the legacy-auth field was omitted.
+    assert parsed["sharing_known"] is True
 
 
 @pytest.mark.asyncio
@@ -271,6 +275,20 @@ async def test_the_control_will_not_pass_on_a_field_it_never_saw():
     row = [c for c in g._build_compliance_map({"sharepoint": sp, "file_contents": {}})
            if c["cis_id"] == "7.2.3"][0]
     assert row["status"] == "info"
+
+
+def test_an_unread_sharing_capability_is_not_measured_not_a_finding():
+    """A baseline check on the sharing posture must skip an unreadable setting.
+
+    The site list parsed (has_data is true) but the admin-settings call carried
+    no Sharing Capability, so the posture is unknown. sharing_known is the guard
+    that keeps a baseline from scoring that absence as permissive sharing.
+    """
+    # Only a sites file; no settings block at all.
+    parsed = g._parse_sharepoint_settings("", "  https://acme.sharepoint.com/sites/team\n")
+    assert parsed["has_data"] is True
+    assert parsed["sharing_level"] == "unknown"
+    assert parsed["sharing_known"] is False
 
 
 @pytest.mark.asyncio
@@ -395,6 +413,77 @@ async def test_a_tenant_with_no_enrolled_devices_is_not_a_hundred_percent_compli
                                      _read(section.out_dir, "10_intune_devices.txt"))
     assert parsed["total"] == 0
     assert parsed["compliance_pct"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_the_modern_intune_surfaces_are_collected_and_snapshotted():
+    """Settings Catalog, admin templates, app protection and endpoint security.
+
+    The classic collector read only deviceCompliancePolicies and the legacy
+    deviceConfigurations endpoint, so a tenant whose config lives in the
+    Settings Catalog looked almost empty. These surfaces must be read too, each
+    into its own evidence file and a restorable snapshot the customer card
+    reads back."""
+    from app.modules.base import SectionStatus
+    from app.modules.m365_audit.sections.intune import IntuneSection
+
+    section = IntuneSection(_tmp(), _FakeGraph({
+        "deviceManagement/configurationPolicies": [
+            {"name": "Win — BitLocker", "platforms": "windows10", "technologies": "mdm"}],
+        "deviceManagement/groupPolicyConfigurations": [
+            {"displayName": "Edge hardening", "createdDateTime": "2026-01-01T00:00:00Z"}],
+        "deviceAppManagement/managedAppPolicies": [
+            {"displayName": "iOS MAM", "@odata.type": "#microsoft.graph.iosManagedAppProtection"}],
+        "deviceManagement/intents": [
+            {"displayName": "Defender AV baseline", "lastModifiedDateTime": "2026-02-02T00:00:00Z"}],
+    }))
+    result = await section.collect()
+
+    assert result.status == SectionStatus.DONE
+    assert "Win — BitLocker" in _read(section.out_dir, "12b_intune_settings_catalog.txt")
+    assert "Edge hardening" in _read(section.out_dir, "12c_intune_admin_templates.txt")
+    assert "iOS MAM" in _read(section.out_dir, "13b_intune_app_protection.txt")
+    assert "Defender AV baseline" in _read(section.out_dir, "14b_intune_endpoint_security.txt")
+    for snap in ("intune_settings_catalog", "intune_admin_templates",
+                 "intune_app_protection", "intune_endpoint_security"):
+        assert (section.out_dir / "policy_snapshots" / f"{snap}.json").is_file(), snap
+
+
+@pytest.mark.asyncio
+async def test_a_modern_intune_surface_that_refuses_does_not_fail_the_section():
+    """The additive collectors must fail soft.
+
+    A tenant that does not use App Protection, or the beta endpoint-security
+    endpoint answering 404, must not flip a section whose devices and classic
+    policies were read to FAILED — that is the very regression (a 403 reaching
+    the report as 'no Intune devices') the section status exists to prevent."""
+    from app.modules.base import SectionStatus
+    from app.modules.m365_audit.sections.intune import IntuneSection
+
+    _MODERN = (
+        "deviceManagement/configurationPolicies",
+        "deviceManagement/groupPolicyConfigurations",
+        "deviceAppManagement/managedAppPolicies",
+        "deviceManagement/intents",
+    )
+
+    class _CoreOnly(_FakeGraph):
+        async def get_all(self, path, **kwargs):
+            if any(path.startswith(p) for p in _MODERN):
+                raise RuntimeError("this tenant does not use that surface")
+            return await super().get_all(path, **kwargs)
+
+    section = IntuneSection(_tmp(), _CoreOnly({
+        "deviceManagement/managedDevices": [_device("pc1", "compliant")],
+    }))
+    result = await section.collect()
+
+    # The classic reads succeeded, so the section is DONE despite four modern
+    # surfaces refusing.
+    assert result.status == SectionStatus.DONE
+    # Each gap still leaves its evidence, so a reader can see it was not read.
+    assert "(not available)" in _read(section.out_dir, "12b_intune_settings_catalog.txt")
+    assert "(not available)" in _read(section.out_dir, "14b_intune_endpoint_security.txt")
 
 
 # ── OAuth consent grants ─────────────────────────────────────────────────────

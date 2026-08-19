@@ -1,0 +1,171 @@
+{
+  "id": "nis2-hardening",
+  "version": "2026.1",
+  "name": "NIS2 hardening (Article 21)",
+  "tags": ["nis2", "eu", "hardening"],
+  "description": {
+    "no": "Herdingsveiledning, ikke en sertifisering. NIS2 artikkel 21(2) krever risikostyringstiltak; flere av dem — hendelseshåndtering, forsyningskjede, opplæring, styringssystemer — er organisatoriske og kan ikke leses ut av en teknisk audit. Dette utsnittet dekker de tiltakene en Microsoft 365- og Azure-audit faktisk måler: MFA og sterk autentisering (21.2.j), tilgangsstyring (21.2.i), sikkerhetskopi og kontinuitet (21.2.c), og grunnleggende cyberhygiene (21.2.g). Bestått her betyr at de målbare kontrollene er på plass, ikke at virksomheten er NIS2-etterlevende.",
+    "en": "Hardening guidance, not a certification. NIS2 Article 21(2) requires risk-management measures; several of them — incident handling, supply chain, training, governance — are organisational and cannot be read from a technical audit. This subset covers the measures a Microsoft 365 and Azure audit actually measures: MFA and strong authentication (21.2.j), access control (21.2.i), backup and continuity (21.2.c), and basic cyber hygiene (21.2.g). Passing here means the measurable controls are in place, not that the organisation is NIS2-compliant."
+  },
+  "checks": [
+    {
+      "id": "nis2-mfa-all-users",
+      "title": {
+        "no": "Art. 21.2.j — Ingen bruker står uten MFA",
+        "en": "Art. 21.2.j — No user is without MFA"
+      },
+      "why": {
+        "no": "Artikkel 21(2)(j) nevner flerfaktorautentisering eksplisitt. En konto uten MFA er den mest direkte veien forbi tiltaket.",
+        "en": "Article 21(2)(j) names multi-factor authentication explicitly. An account without MFA is the most direct path past the measure."
+      },
+      "path": "mfa.no_mfa",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "mfa.has_data",
+      "severity": "critical"
+    },
+    {
+      "id": "nis2-mfa-registered",
+      "title": {
+        "no": "Minst 95 % av brukerne har registrert MFA",
+        "en": "At least 95% of users have registered MFA"
+      },
+      "why": {
+        "no": "MFA-kravet i 21(2)(j) er reelt oppfylt først når brukerne faktisk har en metode registrert, ikke bare når en policy krever det.",
+        "en": "The MFA requirement in 21(2)(j) is truly met only when users actually have a method registered, not merely when a policy demands it."
+      },
+      "path": "mfa.registered_pct",
+      "op": "gte",
+      "value": 95,
+      "measured_when": "mfa.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "nis2-legacy-auth",
+      "title": {
+        "no": "Art. 21.2.j — Eldre autentisering er blokkert",
+        "en": "Art. 21.2.j — Legacy authentication is blocked"
+      },
+      "why": {
+        "no": "Sikret autentisering forutsetter at protokoller som ikke kan gjøre MFA er stengt. Er de åpne, undergraves tiltaket uansett policy.",
+        "en": "Secured authentication assumes protocols that cannot perform MFA are closed. Left open, they undermine the measure whatever the policy says."
+      },
+      "path": "ca.blocks_legacy_auth",
+      "op": "is_true",
+      "measured_when": "ca.has_client_app_data",
+      "severity": "high"
+    },
+    {
+      "id": "nis2-access-control-admins",
+      "title": {
+        "no": "Art. 21.2.i — Høyst fire globale administratorer",
+        "en": "Art. 21.2.i — At most four global administrators"
+      },
+      "why": {
+        "no": "Tilgangskontroll og prinsippet om minste privilegium er kjernen i 21(2)(i). Antall globale administratorer er den delen en audit kan telle.",
+        "en": "Access control and least privilege are at the core of 21(2)(i). The count of global administrators is the part an audit can count."
+      },
+      "path": "admin_roles.global_admin_count",
+      "op": "lte",
+      "value": 4,
+      "measured_when": "admin_roles.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "nis2-asset-managed-devices",
+      "title": {
+        "no": "Art. 21.2.i — Ingen enhet er uten administrasjon",
+        "en": "Art. 21.2.i — No device goes unmanaged"
+      },
+      "why": {
+        "no": "Kapitalforvaltning og tilgangskontroll forutsetter at enhetene som når data faktisk styres. En uadministrert enhet er utenfor tiltaket.",
+        "en": "Asset management and access control assume the devices reaching data are actually governed. An unmanaged device sits outside the measure."
+      },
+      "path": "entra_devices.unmanaged",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "entra_devices.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "nis2-device-compliance",
+      "title": {
+        "no": "Minst 90 % av enhetene er etterlevende",
+        "en": "At least 90% of devices are compliant"
+      },
+      "why": {
+        "no": "Etterlevelsespolicyer håndhever kryptering og oppdateringsnivå — de tekniske delene av grunnleggende cyberhygiene på enhetslaget.",
+        "en": "Compliance policies enforce encryption and patch level — the technical parts of basic cyber hygiene at the device tier."
+      },
+      "path": "intune.compliance_pct",
+      "op": "gte",
+      "value": 90,
+      "measured_when": "intune.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "nis2-backup-continuity",
+      "title": {
+        "no": "Art. 21.2.c — Minst 95 % av virtuelle maskiner er sikkerhetskopiert",
+        "en": "Art. 21.2.c — At least 95% of virtual machines are backed up"
+      },
+      "why": {
+        "no": "Sikkerhetskopi og driftskontinuitet er et eksplisitt tiltak i 21(2)(c). Målingen her dekker Azure-VM-laget; sikkerhetskopi av Microsoft 365-data ligger utenfor det auditen ser.",
+        "en": "Backup and business continuity are an explicit measure in 21(2)(c). The measurement here covers the Azure VM tier; backup of Microsoft 365 data is outside what the audit sees."
+      },
+      "path": "backup_coverage.backup_pct",
+      "op": "gte",
+      "value": 95,
+      "measured_when": "backup_coverage.coverage_known",
+      "severity": "high"
+    },
+    {
+      "id": "nis2-cyber-hygiene-secure-score",
+      "title": {
+        "no": "Art. 21.2.g — Microsoft Secure Score over 70 %",
+        "en": "Art. 21.2.g — Microsoft Secure Score above 70%"
+      },
+      "why": {
+        "no": "Grunnleggende cyberhygiene i 21(2)(g) samsvarer godt med Microsofts egne standardanbefalinger, som Secure Score måler samlet.",
+        "en": "Basic cyber hygiene in 21(2)(g) aligns well with Microsoft's own default recommendations, which Secure Score measures in aggregate."
+      },
+      "path": "secure_score.pct",
+      "op": "gte",
+      "value": 70,
+      "measured_when": "secure_score.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "nis2-external-access-sharing",
+      "title": {
+        "no": "Art. 21.2.i — Ekstern deling i SharePoint er begrenset",
+        "en": "Art. 21.2.i — SharePoint external sharing is restricted"
+      },
+      "why": {
+        "no": "Tilgangskontroll gjelder også hvem utenfor virksomheten som når data. På det mest åpne delingsnivået nås innhold uten pålogging.",
+        "en": "Access control extends to who outside the organisation reaches data. At the most open sharing level, content is reached without signing in."
+      },
+      "path": "sharepoint.sharing_level",
+      "op": "eq",
+      "value": "ok",
+      "measured_when": "sharepoint.sharing_known",
+      "severity": "medium"
+    },
+    {
+      "id": "nis2-mail-exfiltration",
+      "title": {
+        "no": "Ingen postbokser videresender til eksterne adresser",
+        "en": "No mailbox forwards to an external address"
+      },
+      "why": {
+        "no": "Ekstern videresending er den vanligste stille exfiltrasjonskanalen fra en kompromittert konto — relevant både for hendelseshåndtering og tilgangskontroll.",
+        "en": "External forwarding is the most common quiet exfiltration channel from a compromised account — relevant to both incident handling and access control."
+      },
+      "path": "exchange.forwarding_count",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "exchange.has_data",
+      "severity": "high"
+    }
+  ]
+}

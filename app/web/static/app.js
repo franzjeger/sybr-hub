@@ -271,7 +271,7 @@ let _lang = localStorage.getItem('ui_lang') || 'no';
 
 async function loadI18n() {
     try {
-        const r = await fetch('/static/ui_i18n.json?v=3027');
+        const r = await fetch('/static/ui_i18n.json?v=3028');
         _i18n = await r.json();
         translatePage();
     } catch (e) {
@@ -1132,6 +1132,7 @@ function _updateBreadcrumb(name) {
     home:         [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status')}],
     audit:        [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status'),view:'home'}, {label:'Audit'}],
     history:      [{label:t('nav_customers'),view:'customers'}, {label:t('nav_history')}],
+    assessments:  [{label:t('nav_customers'),view:'customers'}, {label:t('nav_assessments','Vurderingsbibliotek')}],
     hosts:        [{label:t('nav_remote_access','Fjernaksess')}, {label:t('bc_hosts_ssh','Verter')}],
     terminal:     [{label:t('nav_remote_access','Fjernaksess'),view:'hosts'}, {label:'Terminal'}],
     rdp:          [{label:t('nav_remote_access','Fjernaksess'),view:'hosts'}, {label:'RDP'}],

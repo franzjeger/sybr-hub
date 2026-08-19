@@ -30,8 +30,12 @@ class IntuneSection(BaseSection):
             await self._collect_devices()
             await self._collect_compliance_policies()
             await self._collect_config_profiles()
+            await self._collect_settings_catalog()
+            await self._collect_admin_templates()
             await self._collect_apps()
+            await self._collect_app_protection()
             await self._collect_autopilot()
+            await self._collect_endpoint_security()
             # Each collector needs its own DeviceManagement permission, so one
             # refusal says nothing about the other four — they all run, and
             # what was readable is still collected. But the section must not
@@ -54,16 +58,24 @@ class IntuneSection(BaseSection):
         "10_intune_devices.txt": "INTUNE MANAGED DEVICES",
         "11_intune_compliance_policies.txt": "INTUNE COMPLIANCE POLICIES",
         "12_intune_config_profiles.txt": "INTUNE CONFIGURATION PROFILES",
+        "12b_intune_settings_catalog.txt": "INTUNE SETTINGS CATALOG POLICIES",
+        "12c_intune_admin_templates.txt": "INTUNE ADMINISTRATIVE TEMPLATES (ADMX)",
         "13_intune_apps.txt": "INTUNE MANAGED APPS",
+        "13b_intune_app_protection.txt": "INTUNE APP PROTECTION POLICIES (MAM)",
         "14_intune_autopilot.txt": "INTUNE AUTOPILOT DEVICES",
+        "14b_intune_endpoint_security.txt": "INTUNE ENDPOINT SECURITY POLICIES",
     }
 
     _PERMISSION = {
         "10_intune_devices.txt": "DeviceManagementManagedDevices.Read.All",
         "11_intune_compliance_policies.txt": "DeviceManagementConfiguration.Read.All",
         "12_intune_config_profiles.txt": "DeviceManagementConfiguration.Read.All",
+        "12b_intune_settings_catalog.txt": "DeviceManagementConfiguration.Read.All",
+        "12c_intune_admin_templates.txt": "DeviceManagementConfiguration.Read.All",
         "13_intune_apps.txt": "DeviceManagementApps.Read.All",
+        "13b_intune_app_protection.txt": "DeviceManagementApps.Read.All",
         "14_intune_autopilot.txt": "DeviceManagementServiceConfig.Read.All",
+        "14b_intune_endpoint_security.txt": "DeviceManagementConfiguration.Read.All",
     }
 
     def _reason(self, filename: str, err: Exception) -> str:
@@ -82,8 +94,18 @@ class IntuneSection(BaseSection):
                     f"registration is missing {perm} or its admin consent.")
         return f"The collection failed before it could be read: {err}"
 
-    def _save_unavailable(self, filename: str, err: Exception) -> None:
-        """Record why the data is missing, in a form the report can read back."""
+    def _save_unavailable(self, filename: str, err: Exception, *, critical: bool = True) -> None:
+        """Record why the data is missing, in a form the report can read back.
+
+        ``critical`` controls whether the gap fails the whole section. The five
+        classic collectors are core — a refusal there means the report would
+        otherwise claim "no Intune devices" for a tenant that has them, so they
+        fail the section (default). The modern-surface collectors below are
+        additive: a tenant that does not use App Protection, or a beta endpoint
+        that answers 404, must not turn a healthy Intune section red. Those
+        pass ``critical=False`` — the gap is written to its evidence file but
+        the section still reports DONE on the strength of the core reads.
+        """
         lines = [
             "=" * 80,
             f"  {self._TITLE[filename]}  (not available)",
@@ -95,7 +117,8 @@ class IntuneSection(BaseSection):
             lines += ["", f"  Graph said: {err.code} — {err.message}"[:300]]
         lines += ["", "  Error details for troubleshooting:", f"    {err}", "", "=" * 80, ""]
         self._save(filename, "\n".join(lines))
-        self._failures.append(self._reason(filename, err))
+        if critical:
+            self._failures.append(self._reason(filename, err))
 
     async def _collect_devices(self) -> None:
         try:
@@ -285,3 +308,136 @@ class IntuneSection(BaseSection):
             )
         lines += ["=" * 100, ""]
         self._save("14_intune_autopilot.txt", "\n".join(lines))
+
+    # ── Modern Endpoint Manager surface (Fase 2 of #172) ───────────────────────
+    # The classic collectors above read only deviceCompliancePolicies and the
+    # legacy deviceConfigurations endpoint. Most of a modern tenant's config
+    # lives elsewhere — the Settings Catalog, administrative templates, app
+    # protection and endpoint-security policies — so a tenant full of policies
+    # looked almost empty. These read those surfaces. They are additive and use
+    # the same already-granted DeviceManagement* scopes; each fails soft
+    # (critical=False) so a tenant that does not use a surface, or a beta
+    # endpoint that 404s, never turns a healthy Intune section red.
+
+    async def _collect_settings_catalog(self) -> None:
+        try:
+            policies = await self.graph.get_all(
+                "deviceManagement/configurationPolicies",
+                params={"$top": "999"},
+            )
+            self._save_snapshot(
+                "intune_settings_catalog", policies,
+                source="deviceManagement/configurationPolicies",
+            )
+        except Exception as ex:
+            self._save_unavailable("12b_intune_settings_catalog.txt", ex, critical=False)
+            self._warn(f"Intune Settings Catalog fetch failed: {ex}", level="info")
+            return
+
+        lines = [
+            "=" * 90,
+            f"  INTUNE SETTINGS CATALOG POLICIES  ({len(policies)} total)",
+            "=" * 90,
+            f"  {'Policy Name':<55} {'Platform':<16} {'Technologies'}",
+            "  " + "-" * 86,
+        ]
+        for p in policies:
+            # Settings Catalog policies carry their name in `name`, not
+            # `displayName` like every other Intune object.
+            name     = (p.get("name") or p.get("displayName") or "")[:55]
+            platform = str(p.get("platforms") or "")[:16]
+            tech     = str(p.get("technologies") or "")
+            lines.append(f"  {name:<55} {platform:<16} {tech}")
+        lines += ["=" * 90, ""]
+        self._save("12b_intune_settings_catalog.txt", "\n".join(lines))
+
+    async def _collect_admin_templates(self) -> None:
+        try:
+            policies = await self.graph.get_all(
+                "deviceManagement/groupPolicyConfigurations",
+                params={"$top": "999"},
+            )
+            self._save_snapshot(
+                "intune_admin_templates", policies,
+                source="deviceManagement/groupPolicyConfigurations",
+            )
+        except Exception as ex:
+            self._save_unavailable("12c_intune_admin_templates.txt", ex, critical=False)
+            self._warn(f"Intune administrative templates fetch failed: {ex}", level="info")
+            return
+
+        lines = [
+            "=" * 80,
+            f"  INTUNE ADMINISTRATIVE TEMPLATES (ADMX)  ({len(policies)} total)",
+            "=" * 80,
+            f"  {'Template Name':<55} {'Created'}",
+            "  " + "-" * 76,
+        ]
+        for p in policies:
+            name    = (p.get("displayName") or "")[:55]
+            created = (p.get("createdDateTime") or "N/A")[:19]
+            lines.append(f"  {name:<55} {created}")
+        lines += ["=" * 80, ""]
+        self._save("12c_intune_admin_templates.txt", "\n".join(lines))
+
+    async def _collect_app_protection(self) -> None:
+        try:
+            policies = await self.graph.get_all(
+                "deviceAppManagement/managedAppPolicies",
+                params={"$top": "999"},
+            )
+            self._save_snapshot(
+                "intune_app_protection", policies,
+                source="deviceAppManagement/managedAppPolicies",
+            )
+        except Exception as ex:
+            self._save_unavailable("13b_intune_app_protection.txt", ex, critical=False)
+            self._warn(f"Intune app protection fetch failed: {ex}", level="info")
+            return
+
+        lines = [
+            "=" * 90,
+            f"  INTUNE APP PROTECTION POLICIES (MAM)  ({len(policies)} total)",
+            "=" * 90,
+            f"  {'Policy Name':<55} {'Type'}",
+            "  " + "-" * 86,
+        ]
+        for p in policies:
+            name = (p.get("displayName") or "")[:55]
+            typ  = p.get("@odata.type", "").split(".")[-1][:35]
+            lines.append(f"  {name:<55} {typ}")
+        lines += ["=" * 90, ""]
+        self._save("13b_intune_app_protection.txt", "\n".join(lines))
+
+    async def _collect_endpoint_security(self) -> None:
+        # Security baselines and endpoint-security policies (antivirus, disk
+        # encryption, firewall, EDR, ASR) live under deviceManagement/intents,
+        # which is a beta-only endpoint — hence beta=True and the soft failure.
+        try:
+            intents = await self.graph.get_all(
+                "deviceManagement/intents",
+                params={"$top": "999"},
+                beta=True,
+            )
+            self._save_snapshot(
+                "intune_endpoint_security", intents,
+                source="deviceManagement/intents (beta)",
+            )
+        except Exception as ex:
+            self._save_unavailable("14b_intune_endpoint_security.txt", ex, critical=False)
+            self._warn(f"Intune endpoint security fetch failed: {ex}", level="info")
+            return
+
+        lines = [
+            "=" * 80,
+            f"  INTUNE ENDPOINT SECURITY POLICIES  ({len(intents)} total)",
+            "=" * 80,
+            f"  {'Policy Name':<55} {'Last Modified'}",
+            "  " + "-" * 76,
+        ]
+        for it in intents:
+            name     = (it.get("displayName") or "")[:55]
+            modified = (it.get("lastModifiedDateTime") or "N/A")[:19]
+            lines.append(f"  {name:<55} {modified}")
+        lines += ["=" * 80, ""]
+        self._save("14b_intune_endpoint_security.txt", "\n".join(lines))

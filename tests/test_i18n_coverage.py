@@ -476,6 +476,7 @@ BUDGET_ATTRIBUTES = 0
 # can see them. Only ever down.
 BUDGET_JS_NORWEGIAN = {
     "app.js": 0,
+    "app-assessments.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,
@@ -490,6 +491,7 @@ BUDGET_JS_NORWEGIAN = {
 # Norwegian UI shows in English.
 BUDGET_JS_PERSON = {
     "app.js": 0,
+    "app-assessments.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,
@@ -507,6 +509,7 @@ BUDGET_JS_PERSON = {
 # to set a budget to zero.
 BUDGET_JS_DOM_TEXT = {
     "app.js": 0,
+    "app-assessments.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,
@@ -518,6 +521,7 @@ BUDGET_JS_DOM_TEXT = {
 
 BUDGET_JS_LABEL_TABLES = {
     "app.js": 0,
+    "app-assessments.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,
@@ -678,6 +682,7 @@ def test_a_translated_span_does_not_hold_the_spacing_around_it():
 _SCRIPTS = (
     "app.js",
     "app-also.js",
+    "app-assessments.js",
     "app-dashboard.js",
     "app-infra.js",
     "app-integrations.js",
@@ -714,6 +719,7 @@ def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
 # Ceilings, per script. Same rule as the others: only ever down.
 BUDGET_JS_PROSE = {           # ceilings per script; only ever down
     "app.js": 0,
+    "app-assessments.js": 0,
     "app-also.js": 0,
     "app-dashboard.js": 0,
     "app-infra.js": 0,

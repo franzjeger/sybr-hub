@@ -50,6 +50,26 @@ _WORKLOADS: list[dict[str, Any]] = [
         "snapshot": "intune_configuration_profiles",
         "label": {"no": "Intune - konfigurasjonsprofiler", "en": "Intune configuration profiles"},
     },
+    {
+        "key": "intune_settings_catalog",
+        "snapshot": "intune_settings_catalog",
+        "label": {"no": "Intune - Settings Catalog", "en": "Intune Settings Catalog"},
+    },
+    {
+        "key": "intune_admin_templates",
+        "snapshot": "intune_admin_templates",
+        "label": {"no": "Intune - administrative maler", "en": "Intune administrative templates"},
+    },
+    {
+        "key": "intune_app_protection",
+        "snapshot": "intune_app_protection",
+        "label": {"no": "Intune - appbeskyttelse (MAM)", "en": "Intune app protection (MAM)"},
+    },
+    {
+        "key": "intune_endpoint_security",
+        "snapshot": "intune_endpoint_security",
+        "label": {"no": "Intune - endepunktsikkerhet", "en": "Intune endpoint security"},
+    },
 ]
 
 # Conditional Access lifecycle state → a stable code the UI colours by.
@@ -210,11 +230,76 @@ def _intune_items(env: dict) -> list[dict]:
     return items
 
 
+def _settings_catalog_items(env: dict) -> list[dict]:
+    """Settings Catalog policies name themselves via `name`, and carry the
+    platform as a plain string (e.g. "windows10") rather than an @odata.type."""
+    items = []
+    for pol in env.get("items") or []:
+        if not isinstance(pol, dict):
+            continue
+        platform = str(pol.get("platforms") or "").strip() or "—"
+        items.append({
+            "name": pol.get("name") or pol.get("displayName") or "(uten navn)",
+            "state": "on",
+            "summary": {"no": f"Plattform: {platform}", "en": f"Platform: {platform}"},
+        })
+    return items
+
+
+def _app_protection_items(env: dict) -> list[dict]:
+    items = []
+    for pol in env.get("items") or []:
+        if not isinstance(pol, dict):
+            continue
+        kind = str(pol.get("@odata.type") or "").rsplit(".", 1)[-1].lower()
+        if kind.startswith("ios"):
+            platform = "iOS"
+        elif kind.startswith("android"):
+            platform = "Android"
+        elif "windows" in kind:
+            platform = "Windows"
+        else:
+            platform = "app"
+        items.append({
+            "name": pol.get("displayName") or "(uten navn)",
+            "state": "on",
+            "summary": {"no": f"Plattform: {platform}", "en": f"Platform: {platform}"},
+        })
+    return items
+
+
+def _fixed_summary_items(env: dict, summary_no: str, summary_en: str) -> list[dict]:
+    """A policy list whose per-item detail is a fixed category label — used
+    where the object carries no useful per-policy attribute to summarise."""
+    items = []
+    for pol in env.get("items") or []:
+        if not isinstance(pol, dict):
+            continue
+        items.append({
+            "name": pol.get("displayName") or pol.get("name") or "(uten navn)",
+            "state": "on",
+            "summary": {"no": summary_no, "en": summary_en},
+        })
+    return items
+
+
+def _admin_template_items(env: dict) -> list[dict]:
+    return _fixed_summary_items(env, "Administrative maler", "Administrative templates")
+
+
+def _endpoint_security_items(env: dict) -> list[dict]:
+    return _fixed_summary_items(env, "Endepunktsikkerhet", "Endpoint security")
+
+
 _DESCRIBERS = {
     "conditional_access": _ca_items,
     "named_locations": _named_location_items,
     "intune_compliance": _intune_items,
     "intune_config": _intune_items,
+    "intune_settings_catalog": _settings_catalog_items,
+    "intune_admin_templates": _admin_template_items,
+    "intune_app_protection": _app_protection_items,
+    "intune_endpoint_security": _endpoint_security_items,
 }
 
 

@@ -23,11 +23,16 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = (ROOT / "app/web/routes/frontend.py").read_text(encoding="utf-8")
+REPORTS = (ROOT / "app/web/routes/reports.py").read_text(encoding="utf-8")
+SECURITY = (ROOT / "app/web/middleware/security_headers.py").read_text(encoding="utf-8")
 TEMPLATE = (ROOT / "app/reports/templates/report_tech.html.j2").read_text(encoding="utf-8")
 
 
 def _artefact_csp() -> dict[str, str]:
-    m = re.search(r"_ARTEFACT_CSP = \(\n(.*?)\n\)", FRONTEND, re.S)
+    # Canonical home is the security-headers module; the report routes import it
+    # so a self-contained styled document (audit report, customer summary, batch
+    # summary) renders and stays sandboxed regardless of which route emits it.
+    m = re.search(r"ARTEFACT_CSP = \(\n(.*?)\n\)", SECURITY, re.S)
     assert m, "the artefact policy is gone"
     raw = "".join(re.findall(r'"([^"]*)"', m.group(1)))
     out: dict[str, str] = {}
@@ -105,7 +110,18 @@ def test_forms_and_base_uri_are_closed():
 
 def test_the_policy_is_applied_to_html_responses():
     assert 'if content_type == "text/html":' in FRONTEND
-    assert 'headers["Content-Security-Policy"] = _ARTEFACT_CSP' in FRONTEND
+    assert 'headers["Content-Security-Policy"] = ARTEFACT_CSP' in FRONTEND
+
+
+def test_the_self_built_summary_reports_also_get_it():
+    """The customer summary and batch summary build their own styled HTML and
+    are served straight from /api, not from serve_audit_data. They carried no
+    CSP of their own, so the application policy blocked their <style> block and
+    they rendered as unstyled markup — the exact bug this file exists for, one
+    layer over. They must import and apply the same artefact policy."""
+    assert "from app.web.middleware.security_headers import ARTEFACT_CSP" in REPORTS
+    # Both text/html report responses set the artefact policy in their headers.
+    assert REPORTS.count('"Content-Security-Policy": ARTEFACT_CSP') >= 2
 
 
 def test_other_artefacts_keep_the_default():

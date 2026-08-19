@@ -33,6 +33,7 @@ showView = function(name) {
   }
   else if (name === 'tls') tlsLoadView();
   else if (name === 'policy-deploy') policyDeployLoad();
+  else if (name === 'assessments') assessmentsLoad();
   else if (name === 'tailscale') tsLoadView();
   else if (name === 'browser') browserInit();
   else if (name === 'rdp') rdpInit();

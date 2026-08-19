@@ -49,6 +49,10 @@ FEATURES: tuple[Feature, ...] = (
     # ── What everybody who signs in can do ──
     Feature("dashboard", Role.viewer, views=("overview", "home", "customer-detail")),
     Feature("customers", Role.viewer, views=("customers", "history", "history-report", "files")),
+    # Browsing named baselines and reading a customer's conformance is a read,
+    # the same one the customer card already shows a viewer — so viewer-level,
+    # with per-tenant access still enforced on the evaluate route itself.
+    Feature("assessments", Role.viewer, views=("assessments",)),
     Feature("reports", Role.viewer, views=()),
     Feature("documentation", Role.viewer, views=("docs",)),
 

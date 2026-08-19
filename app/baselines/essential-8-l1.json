@@ -1,0 +1,139 @@
+{
+  "id": "essential-8-l1",
+  "version": "2026.1",
+  "name": "Essential Eight — Maturity Level 1",
+  "tags": ["acsc", "essential-eight", "hardening"],
+  "description": {
+    "no": "ACSCs Essential Eight, modenhetsnivå 1 — de delene en Microsoft 365- og Azure-audit faktisk kan måle. Fire av de åtte strategiene (applikasjonskontroll, applikasjons- og OS-oppdatering i tide, Office-makroer og applikasjonsherding) er endepunktkontroller denne auditen ikke ser, og er utelatt heller enn gjettet på. Det som står igjen — MFA, begrensning av administratorrettigheter, styrte og etterlevende enheter, og sikkerhetskopi — dekkes her.",
+    "en": "The ACSC Essential Eight, Maturity Level 1 — the parts a Microsoft 365 and Azure audit can actually measure. Four of the eight strategies (application control, timely application and OS patching, Office macro settings and application hardening) are endpoint controls this audit does not see, and are left out rather than guessed at. What remains — MFA, restricting administrative privileges, managed and compliant devices, and backups — is covered here."
+  },
+  "checks": [
+    {
+      "id": "e8-mfa-no-user-unprotected",
+      "title": {
+        "no": "Ingen bruker står helt uten MFA-dekning",
+        "en": "No user is left entirely without MFA coverage"
+      },
+      "why": {
+        "no": "Essential Eight ML1 krever MFA for brukere. En konto uten registrert metode og uten en policy som dekker den nås med passord alene — akkurat inngangen MFA skal stenge.",
+        "en": "Essential Eight ML1 requires MFA for users. An account with no registered method and no policy covering it is reached with a password alone — the exact entry MFA is meant to close."
+      },
+      "path": "mfa.fully_unprotected",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "mfa.has_data",
+      "severity": "critical"
+    },
+    {
+      "id": "e8-mfa-registered",
+      "title": {
+        "no": "Minst 95 % av brukerne har registrert en MFA-metode",
+        "en": "At least 95% of users have registered an MFA method"
+      },
+      "why": {
+        "no": "En policy tvinger MFA ved pålogging, men en bruker uten registrert metode møter en registreringsprompt i stedet. Under full registrering er MFA-en ML1 forutsetter ikke reelt på plass for alle.",
+        "en": "A policy forces MFA at sign-in, but a user with no registered method meets a registration prompt instead. Short of full registration, the MFA that ML1 assumes is not truly in place for everyone."
+      },
+      "path": "mfa.registered_pct",
+      "op": "gte",
+      "value": 95,
+      "measured_when": "mfa.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "e8-legacy-auth-blocked",
+      "title": {
+        "no": "Eldre autentisering er blokkert av Conditional Access",
+        "en": "Legacy authentication is blocked by Conditional Access"
+      },
+      "why": {
+        "no": "Eldre autentiseringsprotokoller kan ikke utføre MFA. Så lenge de er tillatt, finnes en vei rundt MFA-kravet ML1 stiller, uansett hvor godt policyene ellers er satt opp.",
+        "en": "Legacy authentication protocols cannot perform MFA. While they are allowed, there is a path around the MFA requirement ML1 sets, no matter how well the policies are otherwise configured."
+      },
+      "path": "ca.blocks_legacy_auth",
+      "op": "is_true",
+      "measured_when": "ca.has_client_app_data",
+      "severity": "high"
+    },
+    {
+      "id": "e8-ca-enforced",
+      "title": {
+        "no": "Minst én aktivert Conditional Access-policy håndhever MFA",
+        "en": "At least one enabled Conditional Access policy enforces MFA"
+      },
+      "why": {
+        "no": "MFA på ML1 må håndheves, ikke bare være tilgjengelig. Uten en aktivert policy som krever det, er MFA en frivillig innstilling snarere enn en kontroll.",
+        "en": "MFA at ML1 must be enforced, not merely available. Without an enabled policy requiring it, MFA is an opt-in setting rather than a control."
+      },
+      "path": "ca.enabled",
+      "op": "gte",
+      "value": 1,
+      "measured_when": "ca.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "e8-restrict-admins",
+      "title": {
+        "no": "Høyst fire globale administratorer",
+        "en": "At most four global administrators"
+      },
+      "why": {
+        "no": "«Begrens administratorrettigheter» handler om å holde privilegert tilgang på et minimum. Antall globale administratorer er den delen av det en audit kan telle; hver ekstra er en konto med full kontroll som må sikres like godt som den første.",
+        "en": "'Restrict administrative privileges' is about keeping privileged access to a minimum. The count of global administrators is the part of that an audit can count; each extra one is an account with full control that must be secured as well as the first."
+      },
+      "path": "admin_roles.global_admin_count",
+      "op": "lte",
+      "value": 4,
+      "measured_when": "admin_roles.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "e8-devices-managed",
+      "title": {
+        "no": "Ingen enhet i Entra ID er uten Intune-administrasjon",
+        "en": "No device in Entra ID goes unmanaged by Intune"
+      },
+      "why": {
+        "no": "«Oppdater operativsystemer» forutsetter at noen faktisk styrer enhetene. En enhet katalogen kjenner men ingen administrerer, får verken oppdateringspolicy eller etterlevelseskrav påført seg.",
+        "en": "'Patch operating systems' assumes something actually governs the devices. A device the directory knows but nobody manages has neither an update policy nor a compliance requirement applied to it."
+      },
+      "path": "entra_devices.unmanaged",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "entra_devices.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "e8-intune-compliant",
+      "title": {
+        "no": "Minst 90 % av Intune-enhetene er etterlevende",
+        "en": "At least 90% of Intune devices are compliant"
+      },
+      "why": {
+        "no": "Etterlevelsespolicyer er der operativsystemversjon og oppdateringsnivå håndheves. En lav etterlevelsesgrad betyr at enheter kjører under kravet — proxyen en audit har for OS-oppdatering i tide.",
+        "en": "Compliance policies are where OS version and patch level are enforced. A low compliance rate means devices are running below the requirement — the proxy an audit has for timely OS patching."
+      },
+      "path": "intune.compliance_pct",
+      "op": "gte",
+      "value": 90,
+      "measured_when": "intune.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "e8-backup-coverage",
+      "title": {
+        "no": "Minst 95 % av virtuelle maskiner er sikkerhetskopiert",
+        "en": "At least 95% of virtual machines are backed up"
+      },
+      "why": {
+        "no": "«Regelmessig sikkerhetskopi» måles her mot Azure-VM-dekning — det auditen ser. Merk at sikkerhetskopi av selve Microsoft 365-dataene ikke inngår i denne målingen; dette dekker serverlaget.",
+        "en": "'Regular backups' is measured here against Azure VM coverage — what the audit sees. Note that backup of the Microsoft 365 data itself is not part of this measurement; this covers the server tier."
+      },
+      "path": "backup_coverage.backup_pct",
+      "op": "gte",
+      "value": 95,
+      "measured_when": "backup_coverage.coverage_known",
+      "severity": "high"
+    }
+  ]
+}

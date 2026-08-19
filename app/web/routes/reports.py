@@ -26,6 +26,7 @@ from app.web.middleware.auth import (
     require_customer_access,
     require_role,
 )
+from app.web.middleware.security_headers import ARTEFACT_CSP
 
 logger = logging.getLogger(__name__)
 
@@ -544,6 +545,12 @@ async def customer_summary_report(
         media_type="text/html",
         headers={
             "Content-Disposition": f'inline; filename="report_{customer_id}.html"',
+            # This is a self-contained styled artefact, not app UI: its whole
+            # stylesheet lives in a <style> element the application CSP blocks
+            # (style-src-elem 'self'), which renders it as unstyled markup. Same
+            # policy the on-disk audit reports get from serve_audit_data, and it
+            # sandboxes this tenant-data document out of the app's origin.
+            "Content-Security-Policy": ARTEFACT_CSP,
         },
     )
 
@@ -1158,4 +1165,11 @@ async def batch_summary_report(request: Request, user: User = Depends(get_curren
 
     log_activity("batch_report_generated", detail=f"{len(summaries)} customers", user=user.username)
 
-    return Response(content=html, media_type="text/html")
+    # Same self-contained styled artefact as the single-customer summary: its
+    # <style> element is dropped under the application CSP, so it needs the
+    # artefact policy to render and to stay sandboxed out of the app's origin.
+    return Response(
+        content=html,
+        media_type="text/html",
+        headers={"Content-Security-Policy": ARTEFACT_CSP},
+    )

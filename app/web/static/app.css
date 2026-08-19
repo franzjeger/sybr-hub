@@ -2287,3 +2287,74 @@ body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
 .integ-logo--mip { background: linear-gradient(135deg, #1f7a5a, #37b184); }
 .integ-name { font-weight: 600; font-size: var(--font-md, 14px); }
 .integ-desc { font-size: var(--font-xs); color: var(--text-muted); }
+
+/* ── Assessment library (Fase B) ──────────────────────────────────────────
+   Browse named, scored frameworks and run one against a customer's latest
+   audit. Class-based on purpose: the CSP budget keeps inline styles from
+   growing, so every rule the view needs lives here. Mirrors the customer-card
+   baseline panel's colour language (blue section titles, green/amber/red
+   conformance, dimmed not-measured rows). */
+.asmt-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.asmt-title { font-size: 18px; font-weight: 700; margin: 0; }
+.asmt-intro { font-size: 12px; color: var(--text-muted); }
+.asmt-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: var(--space-4); }
+.asmt-bar-label { font-size: var(--font-sm); color: var(--text-muted); }
+.asmt-select {
+  padding: 8px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-md); color: var(--text); min-width: 220px;
+}
+.asmt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-4); }
+.asmt-card {
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: var(--space-4); background: var(--bg-card); display: flex;
+  flex-direction: column; gap: 8px;
+}
+.asmt-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.asmt-card-name { font-size: var(--font-md, 14px); font-weight: 700; color: var(--text); }
+.asmt-card-ver { font-size: var(--font-xs); color: var(--text-dim); margin-left: 6px; font-weight: 400; }
+.asmt-badge {
+  font-size: var(--font-xs); color: var(--blue); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius-full); padding: 2px 8px; white-space: nowrap;
+}
+.asmt-badge-default { color: var(--green); }
+.asmt-card-desc { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.45; }
+.asmt-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.asmt-tag {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 8px; padding: 1px 6px;
+}
+.asmt-card-foot { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 6px; }
+.asmt-result { margin-top: var(--space-5); }
+.asmt-result-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-2);
+}
+.asmt-result-name {
+  font-size: var(--font-sm); font-weight: 600; color: var(--blue);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.asmt-pct { font-size: var(--font-2xl); font-weight: 800; }
+.asmt-pct-good { color: var(--green); }
+.asmt-pct-mid  { color: var(--orange); }
+.asmt-pct-bad  { color: var(--red); }
+.asmt-pct-none { color: var(--text-dim); }
+.asmt-pct-label { font-size: var(--font-xs); color: var(--text-muted); margin-left: 6px; }
+.asmt-basis { font-size: var(--font-xs); color: var(--text-muted); margin-bottom: var(--space-3); }
+.asmt-checks { width: 100%; border-collapse: collapse; font-size: var(--font-sm); }
+.asmt-checks td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.asmt-ico { width: 18px; text-align: center; }
+.asmt-ico-pass { color: var(--green); }
+.asmt-ico-fail { color: var(--red); }
+.asmt-ico-not_measured { color: var(--text-dim); }
+.asmt-check-title { color: var(--text); }
+.asmt-check-nm .asmt-check-title { color: var(--text-dim); }
+.asmt-check-why { color: var(--text-muted); font-size: var(--font-xs); margin-top: 3px; line-height: 1.4; }
+.asmt-check-reason { text-align: right; color: var(--text-muted); white-space: nowrap; }
+.asmt-sev {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px;
+  border-radius: 8px; border: 1px solid var(--border); margin-left: 8px; color: var(--text-muted);
+}
+.asmt-sev-critical { color: var(--red); border-color: var(--red); }
+.asmt-sev-high { color: var(--orange); }
+.asmt-empty { color: var(--text-muted); text-align: center; padding: 32px; }
+.asmt-loader { width: 24px; height: 24px; margin: 32px auto; }

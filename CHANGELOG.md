@@ -7,7 +7,82 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
-## Ikke utgitt
+## v1.1.6 (2026-08-19)
+### Intune-innsamling dekker nå den moderne Endpoint Manager-flaten
+
+Auditen leste bare de to gamle Intune-endepunktene (`deviceCompliancePolicies`
+og den eldre `deviceConfigurations`), så en tenant der konfigurasjonen ligger i
+Settings Catalog så nesten tom ut — selv med alle tillatelser på plass og en
+fersk audit. Innsamleren henter nå også:
+
+- **Settings Catalog** (`deviceManagement/configurationPolicies`) — der moderne
+  konfigurasjon faktisk lever.
+- **Administrative maler / ADMX** (`deviceManagement/groupPolicyConfigurations`).
+- **Appbeskyttelse (MAM)** (`deviceAppManagement/managedAppPolicies`).
+- **Endepunktsikkerhet / sikkerhetsgrunnlinjer** (`deviceManagement/intents`).
+
+Hver skrives til sin egen bevisfil og som et gjenopprettbart øyeblikksbilde, og
+dukker opp som egne rader under «Policies in production» på kundekortet ved
+neste audit. De nye samlerne er additive og feiler mykt: en tenant som ikke
+bruker en flate — eller beta-endepunktet som svarer 404 — gjør ikke en ellers
+frisk Intune-seksjon rød; gapet noteres i bevisfilen, men seksjonen er fortsatt
+`DONE` på styrke av de klassiske lesningene. Alle fire bruker de allerede
+gitte `DeviceManagement*`-tillatelsene, så ingen ny samtykke trengs.
+
+Merk: dette fylles på kundens **neste** audit — øyeblikksbildene fanges ved
+innsamling og bakfylles ikke for tidligere kjøringer.
+
+## v1.1.5 (2026-08-19)
+### «Generate Report» rendret ustylet — kunderapport og batch-rapport fikk feil CSP
+
+«Generate Report» åpnet kundesammendraget som en kolonne med ustylet tekst.
+Årsaken var Content-Security-Policy: rapporten legger hele oppsettet sitt i ett
+`<style>`-element, og applikasjonens CSP (`style-src-elem 'self'`) fjernet det —
+akkurat samme feil som de nedlastede audit-rapportene hadde, ett lag over.
+Audit-rapportene serveres av `serve_audit_data`, som allerede setter en egen
+«artefakt»-CSP; kundesammendraget og batch-rapporten bygger sin egen HTML og
+serveres rett fra `/api`, uten den headeren, så de arvet den strenge app-policyen.
+
+CSP-en for et selvstendig, stylet rapportdokument er nå én delt konstant
+(`ARTEFACT_CSP` i `security_headers.py`) som alle tre rutene bruker. Den tillater
+inline `<style>`/`<script>` som rapporten trenger for å vises, og sandkasser
+samtidig dokumentet — som er bygget av kundedata — inn i et opakt opphav uten
+nettverk, så en åpnet rapport ikke røper hvem som leste den eller når.
+
+### Vurderingsbibliotek — navngitte rammeverk, målt per kunde (Fase B)
+
+Baselinemotoren målte til nå kunden mot én husstandard, og bare fra kundekortet.
+Nå finnes et browsbart bibliotek av navngitte, scorede rammeverk under Kunder →
+Vurderingsbibliotek: velg en kunde, kjør et rammeverk mot siste audit, og les
+resultatet krav for krav med begrunnelse og hva som må rettes — navngitte
+resultater, ikke check-id-er.
+
+Tre nye rammeverk står ved siden av Sybr Standard, hver bygget **kun** på det
+auditen faktisk måler:
+
+- **Essential Eight — modenhetsnivå 1**: MFA, begrensning av administrator-
+  rettigheter, styrte og etterlevende enheter, sikkerhetskopi. De fire
+  strategiene som er rene endepunktkontroller (applikasjonskontroll, applikasjons-
+  og OS-oppdatering, Office-makroer, applikasjonsherding) er utelatt heller enn
+  gjettet på.
+- **CIS Microsoft 365 Foundations (delmengde)**: MFA, Conditional Access, eldre
+  autentisering, antall globale administratorer, Secure Score, ekstern deling og
+  enhetsetterlevelse. Ærlig navngitt som en delmengde — kontroller som bare
+  finnes som fritekst i innsamlingen dekkes fortsatt av samsvarskartet.
+- **NIS2-herding (artikkel 21)**: de målbare tiltakene i artikkel 21(2) —
+  herdingsveiledning, ikke en sertifisering; de organisatoriske tiltakene sier
+  rammeverket selv at det ikke måler.
+
+Regelen fra baselinemotoren holder: et krav uten innsamlet grunnlag rapporteres
+`ikke vurdert`, aldri `ikke bestått`, og etterlevelsen quotes over det som faktisk
+ble målt. En ny test (`test_baseline_paths_are_measurable`) kjører hvert rammeverk
+mot en fullstendig audit og feiler hvis et krav peker på data auditen ikke
+produserer, og en generert referanse (`docs/baseline-context-paths.md`, fra
+`scripts/gen_baseline_paths.py`) lister hver målbare sti så nye krav forfattes mot
+ekte felt. SharePoint-parseren fikk et `sharing_known`-flagg — samme tri-tilstand
+som `legacy_auth_known` — så et rammeverk kan skille «lest, og for åpent» fra «vi
+fikk ikke lest innstillingen».
+
 ### «Forny tilganger» fornyer nå faktisk — og rydder opp etter seg
 
 Knappen slettet den lagrede legitimasjonen og stoppet der. Bekreftelsesdialogen
