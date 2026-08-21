@@ -8,6 +8,20 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb: finn Chromium der den faktisk ligger, ikke bare /snap/bin/chromium
+
+Rotårsaken bak «Innlogging til Uniweb feilet» i Motavo-miljøet: scraperen prøvde
+`chromium`/`chromium-browser`/`google-chrome` på PATH og falt så tilbake til en
+hardkodet `/snap/bin/chromium` — som ikke fantes (`[Errno 2] No such file or
+directory`), så oppstarten kastet. `_start_chromium` bruker nå en ordentlig
+lokalisering (`_find_chromium`): en eksplisitt overstyring
+(`SYBR_CHROMIUM_PATH`/`CHROMIUM_PATH`), så vanlige navn på PATH, så de faste
+stedene pakker installerer til (`/usr/bin/chromium`, `/snap/bin/chromium`,
+Google Chrome, m.fl.), og til slutt en Playwright-pakket build — den første som
+finnes og er kjørbar vinner. Finnes ingen, kaster den med en handlingsrettet
+melding som sier hva den prøvde og hvordan fikse det (installer Chromium eller
+sett `SYBR_CHROMIUM_PATH`), i stedet for en rå Errno 2.
+
 ### Uniweb: en Chromium-oppstartsfeil har også en grunn nå
 
 `login()` hadde én gjenværende sti som feilet uten å si hvorfor: hvis den innebygde
