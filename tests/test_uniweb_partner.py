@@ -474,3 +474,122 @@ async def test_customer_orders_unmatched_customer_never_hits_the_api(monkeypatch
     out = await uw.uniweb_partner_customer_orders("nobody", user=None)
     assert out["matched"] is False and out["open_count"] == 0
     assert not called
+
+
+# ── Phase 3a: email-DNS cross-audit ──────────────────────────────────────────
+
+
+def test_dns_domains_picks_dns_subscriptions_only():
+    from app.services.uniweb_email_dns import dns_domains
+
+    subs = [
+        {"product": {"code": "dns"}, "username": "Acme.no"},   # kept, lower-cased
+        {"product": {"code": "web"}, "username": "acme.no"},   # not a domain sub
+        {"product": {"code": "dns"}, "username": "acme.no"},   # duplicate
+        {"product": {"code": "dns"}, "username": ""},          # empty
+    ]
+    assert dns_domains(subs) == ["acme.no"]
+
+
+def test_domain_health_flags_only_fixable_gaps():
+    from app.services.uniweb_email_dns import domain_health
+
+    check = {
+        "grade": "D",
+        "spf": {"status": "pass"},
+        "dmarc": {"status": "fail", "detail": "No DMARC record found"},
+        "dkim": {"status": "unverifiable"},  # a failed lookup is not a gap
+    }
+    hosted = domain_health("acme.no", check, uniweb_hosts_dns=True)
+    assert [g["kind"] for g in hosted["gaps"]] == ["dmarc"]   # not spf (pass) nor dkim (unverifiable)
+    assert hosted["fixable_here"] is True
+
+    elsewhere = domain_health("acme.no", check, uniweb_hosts_dns=False)
+    assert elsewhere["gaps"] and elsewhere["fixable_here"] is False  # gap, but not ours to fix
+
+
+@pytest.mark.asyncio
+async def test_cross_audit_marks_only_uniweb_hosted_domains_fixable():
+    from app.services.uniweb_email_dns import cross_audit
+
+    subs = [
+        {"product": {"code": "dns"}, "username": "hosted.no"},
+        {"product": {"code": "dns"}, "username": "elsewhere.no"},
+    ]
+
+    class _Client:
+        async def dns_records(self, domain):
+            if domain == "hosted.no":
+                return [{"type": "NS", "name": "@"}]      # clustered → Uniweb hosts DNS
+            raise UniwebPartnerError("not a clustered zone")  # hosted elsewhere
+
+    def _checker(domain):  # a failing DMARC on both
+        return {"grade": "D", "spf": {"status": "pass"},
+                "dmarc": {"status": "fail"}, "dkim": {"status": "pass"}}
+
+    out = await cross_audit(subs, _Client(), checker=_checker)
+    assert out["checked"] == 2 and out["total"] == 2 and out["with_gaps"] == 2
+    by = {d["domain"]: d for d in out["domains"]}
+    assert by["hosted.no"]["uniweb_hosts_dns"] is True and by["hosted.no"]["fixable_here"] is True
+    assert by["elsewhere.no"]["uniweb_hosts_dns"] is False and by["elsewhere.no"]["fixable_here"] is False
+    assert out["fixable_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_cross_audit_lets_an_auth_error_surface():
+    """A dead session is not "no domains hosted" — it must raise."""
+    from app.services.uniweb_email_dns import cross_audit
+
+    class _Client:
+        async def dns_records(self, domain):
+            raise UniwebAuthError("re-run the control-panel login")
+
+    with pytest.raises(UniwebAuthError):
+        await cross_audit(
+            [{"product": {"code": "dns"}, "username": "x.no"}], _Client(),
+            checker=lambda d: {"grade": "A"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_email_dns_route_unmatched_never_hits_the_api(monkeypatch):
+    from app.web.routes import uniweb as uw
+
+    monkeypatch.setattr(uw, "_get_uniweb_config", lambda: {"email": "ed@sybr.no"})
+    monkeypatch.setattr(uw, "get_db", _fake_get_db(None))
+    called: list[int] = []
+
+    async def fake_pc(fn):
+        called.append(1)
+        return {}
+    monkeypatch.setattr(uw, "_partner_call", fake_pc)
+
+    out = await uw.uniweb_partner_email_dns("nobody", user=None)
+    assert out["matched"] is False and out["checked"] == 0
+    assert not called
+
+
+@pytest.mark.asyncio
+async def test_email_dns_route_runs_the_cross_audit_for_a_matched_customer(monkeypatch):
+    from app.web.routes import uniweb as uw
+
+    monkeypatch.setattr(uw, "_get_uniweb_config", lambda: {"email": "ed@sybr.no"})
+    monkeypatch.setattr(uw, "get_db", _fake_get_db({"id": 99}))
+
+    import app.services.uniweb_email_dns as ed
+    monkeypatch.setattr(ed, "check_domain", lambda domain: {
+        "grade": "D", "spf": {"status": "pass"},
+        "dmarc": {"status": "fail"}, "dkim": {"status": "pass"}})
+
+    async def fake_pc(fn):
+        class C:
+            async def subscriptions_for_customer(self, cid):
+                return [{"product": {"code": "dns"}, "username": "hosted.no"}]
+            async def dns_records(self, domain):
+                return [{"type": "NS", "name": "@"}]  # hosted here
+        return await fn(C())
+    monkeypatch.setattr(uw, "_partner_call", fake_pc)
+
+    out = await uw.uniweb_partner_email_dns("acme", user=None)
+    assert out["matched"] is True and out["checked"] == 1
+    assert out["domains"][0]["fixable_here"] is True
