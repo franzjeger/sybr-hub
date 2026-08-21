@@ -7,7 +7,7 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 `v1.1.1`, men er en annen historikk: skill dem på dato (august 2026 for Sybr
 HUB, mars–juli 2026 for motoren).
 
-## Ikke utgitt
+## v1.1.8 (2026-08-21)
 ### Uniweb: finn Chromium der den faktisk ligger, ikke bare /snap/bin/chromium
 
 Rotårsaken bak «Innlogging til Uniweb feilet» i Motavo-miljøet: scraperen prøvde
