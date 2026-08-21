@@ -27,6 +27,22 @@ rute `GET /uniweb/partner/subscriptions/{customer_id}` gir strukturerte
 abonnementer med månedlig omsetning/kost/margin. Kun lesing i denne fasen; det
 gjenstår å migrere de øvrige leserutene av skraperen og legge til fakturaer/AR.
 
+### Uniweb: fornyelsesvarsler og DNS leses nå live, ikke fra skraper-cachen
+
+To leseruter som fortsatt hvilte på den mellomlagrede skrapingen er flyttet til
+Partner-API-et, så de ikke lenger avhenger av en fersk sync. `/uniweb/alerts`
+utledes nå fra `/subscriptions`: `period.to` er den autoritative fornyelsesdatoen
+(ekte datoer, ikke skrapede tekststrenger), og hvert element navngis etter Sybr-
+kunden Uniweb-kontoen er koblet til — en tjeneste uten kobling forsvinner ikke,
+men merkes med sitt eget navn. `/uniweb/dns/{domain}` henter sonen live og
+projiserer hver post til den ene verdikolonnen Hub-en viser (`dns_record_view`),
+uansett posttype (A/AAAA/CNAME/MX/SRV/TXT/…); projeksjonen er samtidig grensen
+som gjør at en sones DNSSEC-signeringsnøkler aldri kan følge en post ut til UI-et.
+Endepunktet dekker klyngedomener — et domene Uniweb ikke er DNS-vert for har
+ingen poster å vise, akkurat som skraperens DNS-fane. Uniweb ukonfigurert er ikke
+en feil (da finnes ingen fornyelser), men et live-kall som feiler kaster: «vi fikk
+ikke spurt» skal aldri se ut som «ingenting utløper».
+
 ### Auditen henter nå installerte apper fra Intune-enhetene
 
 Intune-seksjonen leste app-*katalogen* (`mobileApps` — hva Intune er satt til å

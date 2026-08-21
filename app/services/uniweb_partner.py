@@ -72,6 +72,76 @@ def public_subscription(sub: dict) -> dict:
     return {k: sub.get(k) for k in _PUBLIC_SUBSCRIPTION_FIELDS if k in sub}
 
 
+def _first(rec: dict, *keys: str) -> str:
+    """First non-empty value among ``keys``, as a string."""
+    for k in keys:
+        v = rec.get(k)
+        if v not in (None, ""):
+            return str(v)
+    return ""
+
+
+def dns_record_view(rec: dict) -> dict:
+    """A DNS record projected to ``{hostname, type, value, ttl}``.
+
+    The Partner API returns one record as a type-tagged bag of fields — an
+    ``A`` carries ``address``, an ``MX`` a ``priority`` and ``target``, a
+    ``TXT`` a ``strings`` array, and so on. The Hub renders a single value
+    column, so this flattens each type to the one human-readable string that
+    column shows, matching what the old scraper parsed out of the panel.
+
+    It is also the projection boundary: only these four fields survive, so a
+    zone's DNSSEC signing keys can never ride a record out to the UI even if
+    the endpoint were to include them.
+    """
+    rtype = str(rec.get("type") or "").upper()
+    ttl = rec.get("ttl")
+
+    if rtype in ("A", "AAAA"):
+        value = _first(rec, "address")
+    elif rtype == "CNAME":
+        value = _first(rec, "alias", "target")
+    elif rtype == "TXT":
+        strings = rec.get("strings")
+        # A long TXT is split into <=255-char chunks on the wire; concatenating
+        # (no separator) reconstructs the record faithfully.
+        value = "".join(str(s) for s in strings) if isinstance(strings, list) \
+            else _first(rec, "value", "data")
+    elif rtype == "MX":
+        value = " ".join(p for p in (_first(rec, "priority"), _first(rec, "target")) if p)
+    elif rtype == "SRV":
+        value = " ".join(p for p in (
+            _first(rec, "priority"), _first(rec, "weight"),
+            _first(rec, "port"), _first(rec, "target"),
+        ) if p)
+    elif rtype == "NS":
+        value = _first(rec, "target")
+    elif rtype == "WEBFORWARD":
+        value = _first(rec, "url")
+    elif rtype == "CAA":
+        value = " ".join(p for p in (
+            _first(rec, "flags"), _first(rec, "tag"), _first(rec, "value"),
+        ) if p)
+    elif rtype == "SSHFP":
+        value = " ".join(p for p in (
+            _first(rec, "algorithm"), _first(rec, "digest"), _first(rec, "fingerprint"),
+        ) if p)
+    elif rtype == "TLSA":
+        value = " ".join(p for p in (
+            _first(rec, "certificateUsage"), _first(rec, "selector"),
+            _first(rec, "matchingType"), _first(rec, "data"),
+        ) if p)
+    else:
+        value = _first(rec, "address", "target", "alias", "url", "value", "data")
+
+    return {
+        "hostname": _first(rec, "name"),
+        "type": rtype,
+        "value": value,
+        "ttl": ttl if isinstance(ttl, int) else _first(rec, "ttl"),
+    }
+
+
 class UniwebPartnerClient:
     """Async, read-only client for the Uniweb Partner API.
 

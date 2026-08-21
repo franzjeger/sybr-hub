@@ -127,6 +127,62 @@ def _subscription_summary(customer_id: str, subs: list[dict]) -> dict:
     }
 
 
+def _product_category(product: dict) -> str:
+    """The alert ``type`` the Hub renders — domain / ssl / subscription.
+
+    Derived from the subscription's product ``code`` so a ``.no`` domain reads
+    as a domain and a certificate as SSL; everything else (web, mail, …) is a
+    generic subscription, matching the three labels the frontend knows.
+    """
+    code = str((product or {}).get("code") or "").lower()
+    if code == "dns":
+        return "domain"
+    if "ssl" in code or "cert" in code:
+        return "ssl"
+    return "subscription"
+
+
+def _expiry_items(
+    subs: list[dict], accounts: dict[str, dict], now: datetime, max_days: int
+) -> list[dict]:
+    """Expiring subscriptions from the live Partner list, soonest first.
+
+    ``period.to`` is the authoritative renewal date — no scraped date strings.
+    ``accounts`` maps a Uniweb customer id to its resolved
+    ``{customer_id, customer_name, account_name}`` so each item carries the
+    Sybr customer it belongs to; unmatched services fall back to their own
+    name rather than vanishing. Pure, so the date arithmetic and the
+    customer-name resolution are unit-tested without a login.
+    """
+    items: list[dict] = []
+    for sub in subs:
+        period = sub.get("period") or {}
+        to = str(period.get("to") or "").strip()
+        if len(to) < 10:
+            continue
+        try:
+            exp = datetime.fromisoformat(to[:10]).replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            continue
+        days = (exp - now).days
+        if days > max_days:
+            continue
+        acct = accounts.get(str(sub.get("customer"))) or {}
+        item_name = str(sub.get("username") or (sub.get("product") or {}).get("text") or "")
+        items.append({
+            "type": _product_category(sub.get("product") or {}),
+            "customer_name": acct.get("customer_name") or item_name or "Uniweb",
+            "customer_id": acct.get("customer_id") or "",
+            "uniweb_account": acct.get("account_name") or "",
+            "item_name": item_name,
+            "expiry_date": to[:10],
+            "days_remaining": days,
+            "category": "critical" if days < 7 else "warning" if days < 14 else "upcoming",
+        })
+    items.sort(key=lambda x: x["days_remaining"])
+    return items
+
+
 @router.get("/uniweb/partner/subscriptions/{customer_id}")
 async def uniweb_partner_subscriptions(
     customer_id: str, user: User = Depends(require_customer_access(Role.technician))
@@ -627,117 +683,62 @@ async def uniweb_customer_data(
 
 # ── Expiry alerts ──────────────────────────────────────────────────────────
 
+async def _uniweb_account_index() -> dict[str, dict]:
+    """Map each Uniweb customer id to its resolved Sybr customer + account name.
+
+    ``uniweb_accounts`` holds the Uniweb account id (which the Partner API calls
+    a subscription's ``customer``) alongside the Sybr customer it is matched to.
+    This builds the lookup ``_expiry_items`` needs so a live subscription can be
+    named after its Sybr customer.
+    """
+    async with get_db() as db, db.execute(
+        "SELECT id, name, customer_id FROM uniweb_accounts"
+    ) as cur:
+        rows = await cur.fetchall()
+
+    names: dict[str, str] = {}
+    cids = {r["customer_id"] for r in rows if r["customer_id"]}
+    if cids:
+        from app.core.customer import CustomerManager
+        for cid in cids:
+            cust = CustomerManager.get_customer(cid)
+            if cust:
+                names[cid] = cust.get("CustomerName", "")
+
+    index: dict[str, dict] = {}
+    for row in rows:
+        cid = row["customer_id"] or ""
+        index[str(row["id"])] = {
+            "customer_id": cid,
+            "customer_name": names.get(cid) or row["name"],
+            "account_name": row["name"],
+        }
+    return index
+
+
+def _empty_alerts() -> dict:
+    return {"items": [], "total": 0, "critical": 0, "warning": 0, "upcoming": 0, "longterm": 0}
+
+
 @router.get("/uniweb/alerts")
 async def uniweb_alerts(user: User = _auth, days: int = 365):
-    """Return Uniweb domains/subscriptions expiring within N days (default 365)."""
-    from datetime import timedelta
+    """Uniweb services expiring within N days (default 365), from the live API.
+
+    Derived from the Partner API's ``/subscriptions`` — ``period.to`` is the
+    authoritative renewal date — instead of scraped date strings, so the list
+    no longer depends on a recent sync. Uniweb being unconfigured is not an
+    error (there simply are no renewals); a live call that fails does raise,
+    because "we could not ask" must never render as "nothing expires".
+    """
+    if not _get_uniweb_config()["email"]:
+        return _empty_alerts()
 
     now = datetime.now(timezone.utc)
     max_days = max(7, min(days, 3650))  # clamp 7-3650
 
-    async with get_db() as db:
-        async with db.execute(
-            "SELECT id, name, customer_id, data_json FROM uniweb_accounts"
-        ) as cur:
-            rows = await cur.fetchall()
-
-    # Resolve customer names
-    customer_names: dict[str, str] = {}
-    cids = [r["customer_id"] for r in rows if r["customer_id"]]
-    if cids:
-        from app.core.customer import CustomerManager
-        for cid in set(cids):
-            cust = CustomerManager.get_customer(cid)
-            if cust:
-                customer_names[cid] = cust.get("CustomerName", "")
-
-    items: list[dict] = []
-    for row in rows:
-        data = {}
-        if row["data_json"]:
-            try:
-                data = json.loads(row["data_json"])
-            except json.JSONDecodeError:
-                continue
-
-        acct_name = row["name"]
-        cust_name = customer_names.get(row["customer_id"], "") if row["customer_id"] else ""
-        display_name = cust_name or acct_name
-
-        # Check domain expiry
-        for dom in data.get("domains", []):
-            expiry_str = (dom.get("expiry") or "").strip()
-            if not expiry_str or len(expiry_str) < 10:
-                continue
-            try:
-                exp_date = datetime.fromisoformat(expiry_str[:10])
-                exp_date = exp_date.replace(tzinfo=timezone.utc)
-                days = (exp_date - now).days
-            except (ValueError, TypeError):
-                continue
-            if days > max_days:
-                continue
-            items.append({
-                "type": "domain",
-                "customer_name": display_name,
-                "customer_id": row["customer_id"] or "",
-                "uniweb_account": acct_name,
-                "item_name": dom.get("domain") or dom.get("") or "",
-                "expiry_date": expiry_str[:10],
-                "days_remaining": days,
-                "category": "critical" if days < 7 else "warning" if days < 14 else "upcoming",
-            })
-
-        # Check subscription renewals
-        for sub in data.get("subscriptions", []):
-            renewal_str = (sub.get("Renewed until", sub.get("renewal_date", "")) or "").strip()
-            if not renewal_str or len(renewal_str) < 10:
-                continue
-            try:
-                ren_date = datetime.fromisoformat(renewal_str[:10])
-                ren_date = ren_date.replace(tzinfo=timezone.utc)
-                days = (ren_date - now).days
-            except (ValueError, TypeError):
-                continue
-            if days > max_days:
-                continue
-            service = sub.get("service_type", sub.get("Service type", ""))
-            items.append({
-                "type": "subscription",
-                "customer_name": display_name,
-                "customer_id": row["customer_id"] or "",
-                "uniweb_account": acct_name,
-                "item_name": service or sub.get("username_domain", sub.get("Username/domain", "")),
-                "expiry_date": renewal_str[:10],
-                "days_remaining": days,
-                "category": "critical" if days < 7 else "warning" if days < 14 else "upcoming",
-            })
-
-        # Check SSL certificate expiry
-        for cert in data.get("ssl", []):
-            expiry_str = (cert.get("expiry") or "").strip()
-            if not expiry_str or len(expiry_str) < 10:
-                continue
-            try:
-                exp_date = datetime.fromisoformat(expiry_str[:10])
-                exp_date = exp_date.replace(tzinfo=timezone.utc)
-                days = (exp_date - now).days
-            except (ValueError, TypeError):
-                continue
-            if days > max_days:
-                continue
-            items.append({
-                "type": "ssl",
-                "customer_name": display_name,
-                "customer_id": row["customer_id"] or "",
-                "uniweb_account": acct_name,
-                "item_name": cert.get("domain", ""),
-                "expiry_date": expiry_str[:10],
-                "days_remaining": days,
-                "category": "critical" if days < 7 else "warning" if days < 14 else "upcoming",
-            })
-
-    items.sort(key=lambda x: x["days_remaining"])
+    subs = await _partner_call(lambda c: c.list_subscriptions())
+    accounts = await _uniweb_account_index()
+    items = _expiry_items(subs, accounts, now, max_days)
 
     return {
         "items": items,
@@ -751,24 +752,35 @@ async def uniweb_alerts(user: User = _auth, days: int = 365):
 
 @router.get("/uniweb/dns/{domain}")
 async def uniweb_dns(domain: str, user: User = _auth):
-    """Return cached DNS records for a domain from Uniweb scraped data."""
-    async with get_db() as db:
-        async with db.execute(
-            "SELECT data_json FROM uniweb_accounts"
-        ) as cur:
-            rows = await cur.fetchall()
+    """Live DNS records for a domain, from the Partner API.
 
-    for row in rows:
-        data = json.loads(row["data_json"]) if row["data_json"] else {}
-        for dom in data.get("domains", []):
-            dom_name = dom.get("domain") or dom.get("") or ""
-            if not dom_name:
-                vals = list(dom.values())
-                dom_name = vals[0] if vals and isinstance(vals[0], str) else ""
-            if dom_name == domain:
-                return {"domain": domain, "records": dom.get("dns", [])}
+    Replaces the scraped cache: ``GET /domain/{domain}/dns/record`` returns the
+    current zone, projected to ``{hostname, type, value, ttl}`` (never the
+    zone's DNSSEC signing keys). The endpoint serves clustered zones only —
+    a domain whose DNS Uniweb does not host has no records to show, which reads
+    as an empty list, exactly as the scraper's DNS tab did. An expired session
+    still surfaces as an error rather than a false "no records".
+    """
+    from app.services.uniweb_partner import (
+        UniwebAuthError,
+        UniwebPartnerError,
+        dns_record_view,
+    )
 
-    return {"domain": domain, "records": []}
+    if not _get_uniweb_config()["email"]:
+        return {"domain": domain, "records": []}
+
+    try:
+        records = await _partner_call(lambda c: c.dns_records(domain))
+    except UniwebAuthError:
+        raise
+    except UniwebPartnerError as exc:
+        # Clustered-only endpoint: a non-auth failure means Uniweb hosts no DNS
+        # for this domain — an empty zone here, not a system error.
+        logger.debug("Uniweb DNS unavailable for %s: %s", domain, exc)
+        return {"domain": domain, "records": []}
+
+    return {"domain": domain, "records": [dns_record_view(r) for r in records]}
 
 
 @router.post("/uniweb/import-customers")
