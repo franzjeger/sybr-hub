@@ -50,6 +50,7 @@ from app.web.routes import (
     pentest,
     policy_backup,
     policy_deploy,
+    policy_overview,
     provisioning,
     proxy,
     reports,
@@ -88,6 +89,7 @@ _API_ROUTERS = (
     ("docs", docs),
     ("policy_backup", policy_backup),
     ("policy_deploy", policy_deploy),
+    ("policy_overview", policy_overview),
     ("backup", backup),
     # Connectivity — the toolkit reaches customer-internal devices over these.
     ("fortigate", fortigate),

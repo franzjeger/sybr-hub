@@ -7,6 +7,7 @@ var _navParentMap = {
   'hosts': 'remote', 'terminal': 'remote', 'rdp': 'remote',
   'network': 'network', 'vpn': 'network', 'tls': 'network', 'tailscale': 'network',
   'ssh': 'tools', 'browser': 'tools', 'provision': 'tools', 'policy-deploy': 'tools',
+  'policy-overview': 'customers', 'assessments': 'customers',
 };
 
 var _origShowView = showView;
@@ -33,6 +34,7 @@ showView = function(name) {
   }
   else if (name === 'tls') tlsLoadView();
   else if (name === 'policy-deploy') policyDeployLoad();
+  else if (name === 'policy-overview') policyOverviewLoad();
   else if (name === 'assessments') assessmentsLoad();
   else if (name === 'tailscale') tsLoadView();
   else if (name === 'browser') browserInit();

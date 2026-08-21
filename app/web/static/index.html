@@ -128,6 +128,10 @@
             <span class="navdd-ic">&#9707;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_assessments">Vurderingsbibliotek</span><span class="navdd-desc" data-i18n="nav_assessments_desc">Rammeverk kunden m&#229;les mot</span></span>
           </button>
+          <button data-view-gate="policy-overview" class="navdd-item" onclick="showView('policy-overview')">
+            <span class="navdd-ic">&#10003;</span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_policy_overview">Policy-oversikt</span><span class="navdd-desc" data-i18n="nav_policy_overview_desc">Policyer i drift, drift siden sist og standard-gap</span></span>
+          </button>
           <button data-view-gate="setup" data-write class="navdd-item" onclick="showView('setup')">
             <span class="navdd-ic">&#8853;</span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_new_customer">Ny kunde</span><span class="navdd-desc" data-i18n="nav_new_customer_desc">Registrer og koble til integrasjoner</span></span>
@@ -2037,6 +2041,16 @@
     </div>
   </div>
 
+  <div class="view po-page" id="view-policy-overview">
+    <div class="po-head">
+      <h2 class="po-title" data-i18n="nav_policy_overview">Policy-oversikt</h2>
+      <span class="po-intro" data-i18n="nav_policy_overview_intro">Policyer i drift, hva hver enkelt gjør, hva som har endret seg siden sist audit, og avstand til Sybr-standarden. Bare lesing — ingenting her endres.</span>
+    </div>
+    <div id="policy-overview-content">
+      <div class="po-loading" data-i18n="msg_loading">Laster...</div>
+    </div>
+  </div>
+
   <div class="view" id="view-assessments">
     <div class="asmt-head">
       <h2 class="asmt-title" data-i18n="hdr_assessments">Vurderingsbibliotek</h2>
@@ -2614,6 +2628,7 @@
 <script src="/static/app-tls.js?v=1012"></script>
 <script src="/static/app-integrations.js?v=1017"></script>
 <script src="/static/app-policy-deploy.js?v=1001"></script>
+<script src="/static/app-policy-overview.js?v=1001"></script>
 <script src="/static/app-assessments.js?v=1002"></script>
 
 <!-- Floating audit progress bar (visible from any view while audit runs) -->

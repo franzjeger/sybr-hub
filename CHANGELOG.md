@@ -44,6 +44,19 @@ oversikt (ingen reskontro å vise); et live-kall som feiler kaster — «vi fikk
 spurt» skal aldri se ut som «ingenting skyldes». Kun lesing; per-kunde-AR og en
 frontend-visning gjenstår.
 
+### Policy-oversikt: én side som svarer på hva kunden har, hva som har endret seg og hva som mangler
+
+Tilbake til grunn: policy-informasjonen lå på fire separate steder —
+kundefanget, drift-kjøring, drift-rapport og template-bibliotek — og en tekniker
+måtte krysse-reference for å få svar på «hvordan står det til i realiteten».
+Nå finnes en dedikert, read-only side under Kunder > Policy-oversikt som
+samler alle tre i én sømløs leseflate: policyer i drift (med en kort kommentar pr. policy og handlingsforslag der det er forbedringsrom),
+drift siden siste audit (med ærlig «Ikke målt» når sammenligning ikke er
+mulig), og avstand til Sybr-standardene (navnematchet, så en kunde-spesifik
+policy som standarden ikke kjenner til, ikke lurer lesaren). Kilden er
+den samme som fangen, driften og rapporten — ingen ny datahenting, ingen
+skrivemulighet, viewer-rett.
+
 ### Uniweb: strukturert Partner-API i stedet for skraping (fase 1)
 
 Uniweb-integrasjonen leste kontrollpanelet ved å styre en hodeløs Chrome gjennom
