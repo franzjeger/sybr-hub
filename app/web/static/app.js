@@ -9550,13 +9550,35 @@ async function _unifiedLoadUniwebCard(custId) {
       h += '</tbody></table></details>';
     }
 
+    h += '<div id="uw-cust-ar"></div>';
     h += '</div>';
     cardEl.innerHTML = h;
+
+    // Per-customer AR (outstanding invoices), filled async so it never blocks
+    // the rest of the card. Reuses the .uwar-* body from the partner money view.
+    _loadCustomerAr(custId);
   } catch (e) {
     if (statusEl) {
       statusEl.querySelector('div:last-child').textContent = t('lbl_error','Feil');
       statusEl.querySelector('div:last-child').style.color = 'var(--red)';
     }
+  }
+}
+
+// Per-customer receivables, shown inside the customer's Uniweb card. Rendered
+// only when the customer actually owes something — an empty ledger stays quiet
+// rather than adding a "nothing owed" block to every customer. A genuine
+// failure shows a muted note (never a silent gap that reads as "nothing owed").
+async function _loadCustomerAr(custId) {
+  var box = document.getElementById('uw-cust-ar');
+  if (!box) return;
+  try {
+    var ar = await apiFetch('/api/uniweb/partner/orders/' + encodeURIComponent(custId));
+    if (!ar || ar.matched === false || (ar.open_count || 0) === 0) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="uwar-custhead">' + t('uniweb_ar_section', 'Utestående fakturaer') + '</div>' + _uwArBody(ar);
+  } catch (e) {
+    box.innerHTML = '<div class="uwar-custhead">' + t('uniweb_ar_section', 'Utestående fakturaer') + '</div>'
+      + '<div class="uwar-msg">' + t('uniweb_ar_failed', 'Kunne ikke laste faktura-oversikten. Sjekk at Uniweb er konfigurert.') + '</div>';
   }
 }
 

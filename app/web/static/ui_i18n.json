@@ -2892,7 +2892,8 @@
     "uniweb_ar_due": "Forfall",
     "uniweb_ar_amount": "Beløp",
     "uniweb_ar_outstanding_col": "Utestående",
-    "uniweb_ar_overdue_col": "Forfalt"
+    "uniweb_ar_overdue_col": "Forfalt",
+    "uniweb_ar_section": "Utestående fakturaer"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5787,6 +5788,7 @@
     "uniweb_ar_due": "Due",
     "uniweb_ar_amount": "Amount",
     "uniweb_ar_outstanding_col": "Outstanding",
-    "uniweb_ar_overdue_col": "Overdue"
+    "uniweb_ar_overdue_col": "Overdue",
+    "uniweb_ar_section": "Outstanding invoices"
   }
 }

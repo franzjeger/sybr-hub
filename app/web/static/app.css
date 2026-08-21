@@ -2425,6 +2425,13 @@ body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
 .uwar-none-ico { font-size: 24px; margin-bottom: 4px; }
 .uwar-none-txt { font-size: 13px; font-weight: 600; }
 
+/* Section divider for the per-customer AR block inside the Hub's Uniweb card. */
+.uwar-custhead {
+  display: flex; align-items: center; gap: 6px; font-weight: 600;
+  font-size: 12px; margin: 14px 0 8px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border); color: var(--text);
+}
+
 /* ── Policy overview ────────────────────────────────────────────────────────
    One screen, three answers: what is in production, what moved since the
    last audit, and the distance to the Sybr standard. Class-based for the
@@ -2487,4 +2494,3 @@ body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
 .po-std-statuscell-missing { color: var(--red); }
 .po-xs { font-size: var(--font-xs); }
 .po-sep-title { font-weight: 600; margin-bottom: 2px; }
-

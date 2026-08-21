@@ -8,6 +8,25 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb AR per kunde: utestående fakturaer i kundekortet
+
+Reskontroen finnes nå også der den brukes til daglig: inne i kundens Uniweb-kort
+i huben. En ny kunde-skopet rute `GET /uniweb/partner/orders/{customer_id}`
+(teknikertilgang via `require_customer_access`, i motsetning til den admin-brede
+oversikten) resolver den bundne Uniweb-kontoen, henter `/orders/query` og filtrerer
+til nettopp den kundens fakturaer (`orders_for_customer`). Her finnes ingen
+tilbakefall til den enkle `/orders`-listen — den bærer ingen kunde å filtrere på —
+så et kall som feiler kaster i stedet for å vise et falskt «ingenting skyldes»;
+ukonfigurert Uniweb eller en kunde uten bundet konto er en tom reskontro
+(`matched: false`), ikke en feil.
+
+Kortet i huben viser AR-seksjonen bare når kunden faktisk skylder noe — en tom
+reskontro holder seg stille i stedet for å legge et «ingen utestående»-felt på
+hver eneste kunde — og en reell lastefeil gir en dempet merknad, aldri et stille
+tomrom som leses som «ingenting skyldes». Seksjonen gjenbruker samme
+`.uwar-*`-kropp (KPI-rad, aldersfordeling, fakturatabell) som partneroversikten,
+så de to ser identiske ut, uten nye inline-stiler.
+
 ### Uniweb AR: pengevisningen i grensesnittet
 
 AR-oversikten har nå et kort i ALSO-/fornyelsesvisningen: en KPI-rad (utestående,
