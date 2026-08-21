@@ -371,18 +371,24 @@ async function _loadUniwebMoney() {
 
 // Rendered entirely on .uwar-* classes in app.css — no inline styles, so the
 // CSP inline-style budget does not grow (see test_frontend_csp_budget).
+// The partner-wide card = header (with the whole-partner refresh) + shared body.
 function _renderUniwebAr(data) {
+  var head = '<div class="uwar-head"><div class="uwar-title">' + t('uniweb_ar_title', 'Uniweb – utestående fakturaer') + '</div>'
+    + '<button class="btn btn-ghost uwar-refresh" onclick="_loadUniwebMoney()">' + t('also_refresh', 'Oppdater') + '</button></div>';
+  return head + _uwArBody(data);
+}
+
+// KPIs + aging + open-invoice table — shared by the partner card and the
+// per-customer section in the Hub (app.js), so both render identically.
+function _uwArBody(data) {
   data = data || {};
   var aging = data.aging || {};
   var invoices = data.invoices || [];
   var overdueTotal = Number(data.overdue_total) || 0;
   var overdueCount = Number(data.overdue_count) || 0;
 
-  var html = '<div class="uwar-head"><div class="uwar-title">' + t('uniweb_ar_title', 'Uniweb – utestående fakturaer') + '</div>';
-  html += '<button class="btn btn-ghost uwar-refresh" onclick="_loadUniwebMoney()">' + t('also_refresh', 'Oppdater') + '</button></div>';
-
   // KPI row
-  html += '<div class="uwar-kpis">';
+  var html = '<div class="uwar-kpis">';
   var kpis = [
     {label: t('uniweb_ar_outstanding', 'Utestående'), value: _uwKr(data.total_outstanding), cls: 'uwar-blue'},
     {label: t('uniweb_ar_overdue', 'Forfalt'), value: _uwKr(overdueTotal), cls: overdueTotal > 0 ? 'uwar-red' : 'uwar-dim'},

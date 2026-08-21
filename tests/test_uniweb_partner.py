@@ -24,6 +24,7 @@ from app.services.uniweb_partner import (
     dns_record_view,
     open_invoice,
     order_outstanding,
+    orders_for_customer,
     public_subscription,
 )
 
@@ -402,3 +403,74 @@ async def test_orders_route_lets_an_auth_error_surface(monkeypatch):
     with pytest.raises(UniwebAuthError):
         await uw.uniweb_partner_orders(user=None)
     assert calls == ["query"]                                   # no fallback on auth failure
+
+
+# ── Per-customer AR ──────────────────────────────────────────────────────────
+
+
+def test_orders_for_customer_matches_by_id_across_types():
+    orders = [
+        {"id": 1, "customer": {"id": 99}},
+        {"id": 2, "customer": {"id": 7}},
+        {"id": 3, "invoiceSum": 10.0},  # plain-list shape, no customer → excluded
+    ]
+    assert [o["id"] for o in orders_for_customer(orders, 99)] == [1]     # int id
+    assert [o["id"] for o in orders_for_customer(orders, "99")] == [1]   # str id
+    assert orders_for_customer(orders, 404) == []
+
+
+def _fake_get_db(row):
+    class _Cursor:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def fetchone(self): return row
+
+    class _Db:
+        def execute(self, *a, **k): return _Cursor()
+
+    class _CM:
+        async def __aenter__(self): return _Db()
+        async def __aexit__(self, *a): return False
+
+    return lambda: _CM()
+
+
+@pytest.mark.asyncio
+async def test_customer_orders_filters_to_the_bound_uniweb_account(monkeypatch):
+    from app.web.routes import uniweb as uw
+
+    monkeypatch.setattr(uw, "_get_uniweb_config", lambda: {"email": "ar@sybr.no"})
+    monkeypatch.setattr(uw, "get_db", _fake_get_db({"id": 99}))  # customer 'acme' → Uniweb 99
+    orders = [_INVOICE,  # customer 99
+              {"id": 2, "customer": {"id": 7}, "invoiceSum": 999.0, "paid": 0.0, "invoiceDue": "2020-01-01"}]
+
+    async def fake_pc(fn):
+        class C:
+            async def query_orders(self, filters=None): return orders
+        return await fn(C())
+    monkeypatch.setattr(uw, "_partner_call", fake_pc)
+
+    out = await uw.uniweb_partner_customer_orders("acme", user=None)
+    assert out["matched"] is True
+    assert out["open_count"] == 1                              # customer 7's invoice is not theirs
+    assert out["invoices"][0]["customer_name"] == "Kunde AS"
+
+
+@pytest.mark.asyncio
+async def test_customer_orders_unmatched_customer_never_hits_the_api(monkeypatch):
+    """A customer with no bound Uniweb account is an empty ledger, resolved
+    before any order is fetched."""
+    from app.web.routes import uniweb as uw
+
+    monkeypatch.setattr(uw, "_get_uniweb_config", lambda: {"email": "ar@sybr.no"})
+    monkeypatch.setattr(uw, "get_db", _fake_get_db(None))
+    called: list[int] = []
+
+    async def fake_pc(fn):
+        called.append(1)
+        return []
+    monkeypatch.setattr(uw, "_partner_call", fake_pc)
+
+    out = await uw.uniweb_partner_customer_orders("nobody", user=None)
+    assert out["matched"] is False and out["open_count"] == 0
+    assert not called

@@ -250,6 +250,38 @@ async def uniweb_partner_orders(user: User = Depends(require_role(Role.admin))):
     return ar_aging(orders, today)
 
 
+@router.get("/uniweb/partner/orders/{customer_id}")
+async def uniweb_partner_customer_orders(
+    customer_id: str, user: User = Depends(require_customer_access(Role.technician))
+):
+    """Accounts-receivable for one customer: their outstanding invoices, aged.
+
+    ``customer_id`` is a Sybr customer, scoped by ``require_customer_access``;
+    the bound Uniweb account resolves the Uniweb customer id the invoices carry.
+    Only the query shape embeds a customer, so this reads ``/orders/query`` and
+    filters — there is no plain-list fallback here, because the list cannot be
+    scoped to a customer, and a failure raises rather than reading as "nothing
+    owed". Unconfigured Uniweb, or a customer with no bound account, is an empty
+    ledger (``matched: false``), not an error.
+    """
+    if not _get_uniweb_config()["email"]:
+        return {"matched": False, **_empty_ar()}
+
+    async with get_db() as db, db.execute(
+        "SELECT id FROM uniweb_accounts WHERE customer_id = ?", (customer_id,)
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return {"matched": False, **_empty_ar()}
+
+    from app.services.uniweb_partner import ar_aging, orders_for_customer
+
+    today = datetime.now(UTC).date()
+    orders = await _partner_call(lambda c: c.query_orders())
+    mine = orders_for_customer(orders, row["id"])
+    return {"matched": True, **ar_aging(mine, today)}
+
+
 # ── Sync endpoint ───────────────────────────────────────────────────────────
 
 @router.post("/uniweb/sync")

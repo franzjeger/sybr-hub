@@ -245,6 +245,18 @@ def ar_aging(orders: list[dict], today: date) -> dict:
     }
 
 
+def orders_for_customer(orders: list[dict], uniweb_customer_id: int | str) -> list[dict]:
+    """The orders belonging to one Uniweb customer.
+
+    Only the query shape embeds a ``customer``, so the plain ``/orders`` list
+    yields nothing here by design — per-customer AR needs the richer read. The
+    id is compared as a string so an int from the API and a text id from the
+    database match.
+    """
+    wanted = str(uniweb_customer_id)
+    return [o for o in orders if str((o.get("customer") or {}).get("id")) == wanted]
+
+
 class UniwebPartnerClient:
     """Async, read-only client for the Uniweb Partner API.
 
