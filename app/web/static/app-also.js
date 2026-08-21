@@ -236,6 +236,10 @@ async function _loadUniwebRenewals() {
   var container = document.getElementById('dash-uniweb-renewals');
   if (!container) return;
 
+  // The AR money view rides alongside the renewals, as a sibling above them so
+  // rebuilding the renewals list never wipes it. Admin-only, loaded in parallel.
+  _loadUniwebMoney();
+
   try {
     var data = await apiFetch('/api/uniweb/alerts?days=365');
     if (!data || !data.items || data.items.length === 0) {
@@ -329,6 +333,113 @@ async function _loadUniwebRenewals() {
   } catch (e) {
     container.innerHTML = '<div class="card" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_uniweb_load_failed','Kunne ikke laste Uniweb-fornyelser. Sjekk at Uniweb er konfigurert.') + '</div>';
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// UNIWEB FAKTURAER / UTESTÅENDE (AR – money view, admin only)
+// ═══════════════════════════════════════════════════════════════════
+
+function _uwKr(n) {
+  return (Number(n) || 0).toLocaleString('nb-NO', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' kr';
+}
+
+async function _loadUniwebMoney() {
+  var anchor = document.getElementById('dash-uniweb-renewals');
+  if (!anchor) return;
+
+  // Partner-wide receivables are an admin view — the route is admin-only, so a
+  // non-admin would only get a 403. Don't render the card for them at all.
+  var isAdmin = window._currentUser && window._currentUser.role === 'admin';
+  var card = document.getElementById('uniweb-ar-card');
+  if (!isAdmin) { if (card) card.remove(); return; }
+
+  if (!card) {
+    anchor.insertAdjacentHTML('beforebegin',
+      '<div id="uniweb-ar-card" class="uwar-card"><div class="uwar-loading"><div class="loader"></div></div></div>');
+    card = document.getElementById('uniweb-ar-card');
+  }
+
+  try {
+    var data = await apiFetch('/api/uniweb/partner/orders');
+    card.innerHTML = _renderUniwebAr(data);
+  } catch (e) {
+    card.innerHTML = '<div class="card uwar-msg">'
+      + t('uniweb_ar_failed', 'Kunne ikke laste faktura-oversikten. Sjekk at Uniweb er konfigurert.') + '</div>';
+  }
+}
+
+// Rendered entirely on .uwar-* classes in app.css — no inline styles, so the
+// CSP inline-style budget does not grow (see test_frontend_csp_budget).
+function _renderUniwebAr(data) {
+  data = data || {};
+  var aging = data.aging || {};
+  var invoices = data.invoices || [];
+  var overdueTotal = Number(data.overdue_total) || 0;
+  var overdueCount = Number(data.overdue_count) || 0;
+
+  var html = '<div class="uwar-head"><div class="uwar-title">' + t('uniweb_ar_title', 'Uniweb – utestående fakturaer') + '</div>';
+  html += '<button class="btn btn-ghost uwar-refresh" onclick="_loadUniwebMoney()">' + t('also_refresh', 'Oppdater') + '</button></div>';
+
+  // KPI row
+  html += '<div class="uwar-kpis">';
+  var kpis = [
+    {label: t('uniweb_ar_outstanding', 'Utestående'), value: _uwKr(data.total_outstanding), cls: 'uwar-blue'},
+    {label: t('uniweb_ar_overdue', 'Forfalt'), value: _uwKr(overdueTotal), cls: overdueTotal > 0 ? 'uwar-red' : 'uwar-dim'},
+    {label: t('uniweb_ar_open', 'Åpne fakturaer'), value: (data.open_count || 0), cls: ''},
+    {label: t('uniweb_ar_overdue_count', 'Forfalte'), value: overdueCount, cls: overdueCount > 0 ? 'uwar-red' : 'uwar-dim'},
+  ];
+  kpis.forEach(function(k) {
+    html += '<div class="uwar-kpi ' + k.cls + '"><div class="uwar-kpi-val">' + k.value + '</div><div class="uwar-kpi-lbl">' + k.label + '</div></div>';
+  });
+  html += '</div>';
+
+  // Aging buckets — the modifier class is applied only when the bucket has money in it
+  var buckets = [
+    {key: 'current', label: t('uniweb_ar_current', 'Ikke forfalt'), cls: 'uwar-a-green'},
+    {key: 'd1_30', label: '1–30 ' + t('col_days', 'dager'), cls: 'uwar-a-amber'},
+    {key: 'd31_60', label: '31–60 ' + t('col_days', 'dager'), cls: 'uwar-a-orange'},
+    {key: 'd61_90', label: '61–90 ' + t('col_days', 'dager'), cls: 'uwar-a-orange'},
+    {key: 'd90_plus', label: '90+ ' + t('col_days', 'dager'), cls: 'uwar-a-red'},
+  ];
+  html += '<div class="uwar-aging">';
+  buckets.forEach(function(b) {
+    var v = Number(aging[b.key]) || 0;
+    html += '<div class="uwar-age ' + (v > 0 ? b.cls : '') + '"><div class="uwar-age-val">' + _uwKr(v) + '</div><div class="uwar-age-lbl">' + b.label + '</div></div>';
+  });
+  html += '</div>';
+
+  // Open invoices, or a clean "nothing owed" state
+  if (invoices.length === 0) {
+    html += '<div class="card uwar-none"><div class="uwar-none-ico">&#10003;</div>'
+      + '<div class="uwar-none-txt">' + t('uniweb_ar_none', 'Ingen utestående fakturaer') + '</div></div>';
+    return html;
+  }
+
+  html += '<div class="card uwar-panel"><table class="uwar-tbl"><thead><tr>';
+  html += '<th>' + t('uniweb_ar_invoice', 'Faktura') + '</th>';
+  html += '<th>' + t('also_col_customer', 'Kunde') + '</th>';
+  html += '<th class="uwar-c">' + t('uniweb_ar_due', 'Forfall') + '</th>';
+  html += '<th class="uwar-r">' + t('uniweb_ar_amount', 'Beløp') + '</th>';
+  html += '<th class="uwar-r">' + t('uniweb_ar_outstanding_col', 'Utestående') + '</th>';
+  html += '<th class="uwar-c">' + t('uniweb_ar_overdue_col', 'Forfalt') + '</th>';
+  html += '</tr></thead><tbody>';
+  invoices.forEach(function(inv) {
+    var od = Number(inv.days_overdue) || 0;
+    var odCls = od <= 0 ? 'uwar-od-none' : od <= 30 ? 'uwar-od-amber' : od <= 90 ? 'uwar-od-orange' : 'uwar-od-red';
+    var odLabel = od <= 0 ? '–' : od + 'd';
+    var invNo = inv.invoiceNo || inv.externalInvoiceNo || inv.id || '';
+    html += '<tr>';
+    html += '<td class="uwar-mono">' + esc(String(invNo)) + '</td>';
+    html += '<td>' + esc(inv.customer_name || '–') + '</td>';
+    html += '<td class="uwar-c uwar-mono">' + esc(inv.invoiceDue || '–') + '</td>';
+    html += '<td class="uwar-r uwar-mono">' + _uwKr(inv.invoiceSum) + '</td>';
+    html += '<td class="uwar-r uwar-mono uwar-strong">' + _uwKr(inv.outstanding) + '</td>';
+    html += '<td class="uwar-c ' + odCls + '">' + odLabel + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
 }
 
 async function alsoDownloadPDF() {

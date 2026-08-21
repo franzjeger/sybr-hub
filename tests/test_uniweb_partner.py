@@ -322,3 +322,83 @@ def test_the_empty_ar_shape_matches_a_real_summary():
 
     assert _empty_ar().keys() == ar_aging([], date(2026, 8, 21)).keys()
     assert _empty_ar()["aging"].keys() == ar_aging([], date(2026, 8, 21))["aging"].keys()
+
+
+class _FakeOrderClient:
+    """A stand-in for the partner client that records which order read ran."""
+
+    def __init__(self, calls, *, query_result=None, query_error=None, list_result=None):
+        self.calls, self._q, self._qerr, self._l = calls, query_result, query_error, list_result
+
+    async def query_orders(self, filters=None):
+        self.calls.append("query")
+        if self._qerr:
+            raise self._qerr
+        return self._q if self._q is not None else []
+
+    async def list_orders(self, latest_seen_invoice_no=None):
+        self.calls.append("list")
+        return self._l if self._l is not None else []
+
+
+def _patch_orders(monkeypatch, client):
+    from app.web.routes import uniweb as uw
+
+    monkeypatch.setattr(uw, "_get_uniweb_config", lambda: {"email": "ar@sybr.no", "password": "p"})
+
+    async def fake_partner_call(fn):
+        return await fn(client)
+
+    monkeypatch.setattr(uw, "_partner_call", fake_partner_call)
+    return uw
+
+
+@pytest.mark.asyncio
+async def test_orders_route_prefers_the_query_shape_for_the_customer_name(monkeypatch):
+    calls: list[str] = []
+    uw = _patch_orders(monkeypatch, _FakeOrderClient(calls, query_result=[_INVOICE]))
+
+    out = await uw.uniweb_partner_orders(user=None)
+    assert calls == ["query"]                                   # rich shape used, list untouched
+    assert out["invoices"][0]["customer_name"] == "Kunde AS"    # the name the card shows
+
+
+@pytest.mark.asyncio
+async def test_orders_route_falls_back_when_the_query_comes_back_empty(monkeypatch):
+    """An empty query result must not be trusted as "nothing owed" — the plain
+    list is consulted before the AR view can say the ledger is clear."""
+    calls: list[str] = []
+    unpaid = {"id": 9, "invoiceSum": 100.0, "paid": 0.0, "invoiceDue": "2020-01-01"}
+    uw = _patch_orders(monkeypatch, _FakeOrderClient(calls, query_result=[], list_result=[unpaid]))
+
+    out = await uw.uniweb_partner_orders(user=None)
+    assert calls == ["query", "list"]
+    assert out["open_count"] == 1 and out["total_outstanding"] == 100.0
+
+
+@pytest.mark.asyncio
+async def test_orders_route_falls_back_when_the_query_errors(monkeypatch):
+    calls: list[str] = []
+    client = _FakeOrderClient(
+        calls,
+        query_error=UniwebPartnerError("orders/query rejected the empty filter"),
+        list_result=[{"id": 9, "invoiceSum": 50.0, "paid": 0.0}],
+    )
+    uw = _patch_orders(monkeypatch, client)
+
+    out = await uw.uniweb_partner_orders(user=None)
+    assert calls == ["query", "list"]
+    assert out["total_outstanding"] == 50.0
+
+
+@pytest.mark.asyncio
+async def test_orders_route_lets_an_auth_error_surface(monkeypatch):
+    """A session that expired is not an empty ledger — it must raise, not fall
+    back to a reassuring zero."""
+    calls: list[str] = []
+    client = _FakeOrderClient(calls, query_error=UniwebAuthError("re-run the control-panel login"))
+    uw = _patch_orders(monkeypatch, client)
+
+    with pytest.raises(UniwebAuthError):
+        await uw.uniweb_partner_orders(user=None)
+    assert calls == ["query"]                                   # no fallback on auth failure

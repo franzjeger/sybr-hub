@@ -2364,3 +2364,63 @@ body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
   padding: 10px 12px; margin-bottom: var(--space-3); line-height: 1.45;
 }
 .asmt-run-line { font-size: var(--font-xs); color: var(--text-dim); margin-bottom: var(--space-2); }
+
+/* ── Uniweb receivables (AR money view) — app-also.js _renderUniwebAr ──────
+   Built on classes rather than inline styles so the CSP inline-style budget
+   (test_frontend_csp_budget) does not grow. Mirrors the .asmt-* conventions. */
+.uwar-card { margin-bottom: 16px; }
+.uwar-loading { padding: 16px 0; text-align: center; }
+.uwar-loading .loader { width: 16px; height: 16px; margin: 0 auto; }
+.uwar-msg { padding: 16px; text-align: center; color: var(--text-muted); font-size: var(--font-sm); }
+.uwar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.uwar-title { font-size: var(--font-md, 14px); font-weight: 600; color: var(--text); }
+.uwar-refresh { padding: 4px 12px; font-size: 11px; }
+
+.uwar-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.uwar-kpi {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-top: 2px solid var(--text-dim); border-radius: var(--radius-md);
+  padding: 12px 8px; text-align: center;
+}
+.uwar-kpi-val { font-size: 17px; font-weight: 700; color: var(--text); }
+.uwar-kpi-lbl { font-size: 10px; color: var(--text-muted); }
+.uwar-kpi.uwar-blue { border-top-color: var(--blue); }
+.uwar-kpi.uwar-blue .uwar-kpi-val { color: var(--blue); }
+.uwar-kpi.uwar-red { border-top-color: var(--red); }
+.uwar-kpi.uwar-red .uwar-kpi-val { color: var(--red); }
+.uwar-kpi.uwar-dim { border-top-color: var(--text-dim); }
+.uwar-kpi.uwar-dim .uwar-kpi-val { color: var(--text-dim); }
+
+.uwar-aging { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+.uwar-age {
+  padding: 8px; text-align: center; background: var(--bg-card-hover);
+  border-radius: 6px; border-bottom: 2px solid var(--border);
+}
+.uwar-age-val { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+.uwar-age-lbl { font-size: 9px; color: var(--text-muted); }
+.uwar-age.uwar-a-green { border-bottom-color: var(--green); }
+.uwar-age.uwar-a-green .uwar-age-val { color: var(--green); }
+.uwar-age.uwar-a-amber { border-bottom-color: #c9a800; }
+.uwar-age.uwar-a-amber .uwar-age-val { color: #c9a800; }
+.uwar-age.uwar-a-orange { border-bottom-color: var(--orange); }
+.uwar-age.uwar-a-orange .uwar-age-val { color: var(--orange); }
+.uwar-age.uwar-a-red { border-bottom-color: var(--red); }
+.uwar-age.uwar-a-red .uwar-age-val { color: var(--red); }
+
+.uwar-panel { padding: 0; overflow: hidden; }
+.uwar-tbl { width: 100%; border-collapse: collapse; font-size: var(--font-sm, 12px); }
+.uwar-tbl th { text-align: left; padding: 7px 10px; background: var(--bg-card-hover); border-bottom: 1px solid var(--border); font-weight: 600; }
+.uwar-tbl td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.uwar-tbl tbody tr:nth-child(even) { background: var(--bg-card-hover); }
+.uwar-tbl .uwar-c { text-align: center; }
+.uwar-tbl .uwar-r { text-align: right; }
+.uwar-mono { font-family: var(--mono); font-size: 11px; }
+.uwar-strong { font-weight: 600; }
+.uwar-od-none { color: var(--text-dim); }
+.uwar-od-amber { color: #c9a800; font-weight: 700; }
+.uwar-od-orange { color: var(--orange); font-weight: 700; }
+.uwar-od-red { color: var(--red); font-weight: 700; }
+
+.uwar-none { padding: 20px; text-align: center; color: var(--green); }
+.uwar-none-ico { font-size: 24px; margin-bottom: 4px; }
+.uwar-none-txt { font-size: 13px; font-weight: 600; }

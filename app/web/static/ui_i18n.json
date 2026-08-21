@@ -2866,7 +2866,20 @@
     "lbl_pick_policies": "Velg hvilke policyer som skal rulles ut",
     "lbl_tier_essential": "Essensiell",
     "lbl_tier_recommended": "Anbefalt",
-    "lbl_tier_extended": "Utvidet"
+    "lbl_tier_extended": "Utvidet",
+    "uniweb_ar_failed": "Kunne ikke laste faktura-oversikten. Sjekk at Uniweb er konfigurert.",
+    "uniweb_ar_title": "Uniweb – utestående fakturaer",
+    "uniweb_ar_outstanding": "Utestående",
+    "uniweb_ar_overdue": "Forfalt",
+    "uniweb_ar_open": "Åpne fakturaer",
+    "uniweb_ar_overdue_count": "Antall forfalte",
+    "uniweb_ar_current": "Ikke forfalt",
+    "uniweb_ar_none": "Ingen utestående fakturaer",
+    "uniweb_ar_invoice": "Faktura",
+    "uniweb_ar_due": "Forfall",
+    "uniweb_ar_amount": "Beløp",
+    "uniweb_ar_outstanding_col": "Utestående",
+    "uniweb_ar_overdue_col": "Forfalt"
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5735,6 +5748,19 @@
     "lbl_pick_policies": "Choose which policies to deploy",
     "lbl_tier_essential": "Essential",
     "lbl_tier_recommended": "Recommended",
-    "lbl_tier_extended": "Extended"
+    "lbl_tier_extended": "Extended",
+    "uniweb_ar_failed": "Could not load the invoice overview. Check that Uniweb is configured.",
+    "uniweb_ar_title": "Uniweb – outstanding invoices",
+    "uniweb_ar_outstanding": "Outstanding",
+    "uniweb_ar_overdue": "Overdue",
+    "uniweb_ar_open": "Open invoices",
+    "uniweb_ar_overdue_count": "Overdue count",
+    "uniweb_ar_current": "Not due",
+    "uniweb_ar_none": "No outstanding invoices",
+    "uniweb_ar_invoice": "Invoice",
+    "uniweb_ar_due": "Due",
+    "uniweb_ar_amount": "Amount",
+    "uniweb_ar_outstanding_col": "Outstanding",
+    "uniweb_ar_overdue_col": "Overdue"
   }
 }

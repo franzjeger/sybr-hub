@@ -8,6 +8,21 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb AR: pengevisningen i grensesnittet
+
+AR-oversikten har nå et kort i ALSO-/fornyelsesvisningen: en KPI-rad (utestående,
+forfalt, antall åpne og forfalte fakturaer), en aldersfordeling (ikke forfalt /
+1–30 / 31–60 / 61–90 / 90+ dager) og en tabell over åpne fakturaer sortert med
+mest forfalt øverst. Kortet er admin-gated (samme som ruten) og lastes ved siden
+av Uniweb-fornyelsene.
+
+For at kortet skal kunne vise *hvilken* kunde som skylder, foretrekker ruten nå
+`POST /orders/query` (som bærer kundenavnet) og faller tilbake til den enkle
+`GET /orders`-listen hvis spørringen feiler eller kommer tom tilbake — så et
+feiltolket tomt filter aldri kan vise et falskt «ingenting skyldes». En
+autentiseringsfeil kaster fortsatt i stedet for å falle tilbake til en
+beroligende null.
+
 ### Uniweb fase 2: fakturaoversikt og forfalte krav (AR)
 
 Partner-API-et bærer noe skraperen aldri så: fakturaene. Klienten kan nå lese
