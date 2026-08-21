@@ -8,6 +8,15 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb: en Chromium-oppstartsfeil har også en grunn nå
+
+`login()` hadde én gjenværende sti som feilet uten å si hvorfor: hvis den innebygde
+nettleseren (Chromium) ikke startet, returnerte den `False` før `last_login_error`
+ble satt, så kortet viste et bart «Innlogging til Uniweb feilet» — som leses som
+feil passord, mens den egentlige årsaken er at Chromium mangler eller ikke kan
+kjøre i miljøet. Nå settes en tydelig grunn på den stien også, så meldingen aldri
+er blank. (Etter #186 var dette den siste stien som kunne gi en grunnløs feil.)
+
 ### Uniweb-innlogging: robust utfylling + en faktisk feilårsak
 
 Innloggingen mot Uniwebs kontrollpanel feilet med kjente, korrekte
