@@ -87,7 +87,7 @@ alongside an exported master key.
 
 ## Status
 
-**v1.1.1** — the audit layer and report generator are battle-tested
+**v1.1.8** — the audit layer and report generator are battle-tested
 (carried forward from MSP-Toolkit-V2 v10.10.12, validated against multiple real
 Microsoft 365 tenants). Versioning is semver from `v1.0.0` onward; the `v10.x`
 entries in `CHANGELOG.md` are the imported audit engine's history, not Sybr HUB
