@@ -25,6 +25,7 @@ is the thing to go and check.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -54,6 +55,23 @@ PAGE_LOAD_WAIT = 2
 # A JSF-generated component id. JSF renumbers these when a component is added
 # earlier in the page, and nothing announces it — see the module docstring.
 _PARTNER_BUTTON_MARKER = "j_idt87"
+
+
+def _uniweb_cookies_from_cdp(cdp_cookies: list[dict]) -> dict[str, str]:
+    """The uniweb.no cookies from a CDP ``Network.getAllCookies`` result.
+
+    Returned as ``{name: value}`` for the Partner API client to authenticate
+    with (the session + grant cookies a login mints). Pure, so it is unit-tested
+    without a browser. Keeps every uniweb.no cookie — the API client sends the
+    lot and uses what it needs — but ignores cookies for other domains.
+    """
+    out: dict[str, str] = {}
+    for c in cdp_cookies or []:
+        domain = str(c.get("domain") or "").lstrip(".")
+        name = c.get("name")
+        if name and domain.endswith("uniweb.no"):
+            out[name] = c.get("value", "")
+    return out
 
 
 class UniwebClient:
@@ -182,6 +200,30 @@ class UniwebClient:
         except Exception as e:
             logger.error("Login failed: %s", e, exc_info=True)
             return False
+
+    def harvest_cookies(self) -> dict[str, str]:
+        """The session/grant cookies from the logged-in control-panel session.
+
+        The Partner API client (``uniweb_partner.py``) authenticates with these
+        instead of scraping the DOM, so a read path can leave the headless
+        browser behind. Must be called after a successful ``login``; raises
+        rather than returning an empty dict, so "not logged in" never reads as
+        "no cookies".
+        """
+        if not self._logged_in or not self._tab:
+            raise UniwebScrapeError("Not logged in to Uniweb — cannot harvest cookies.")
+        with contextlib.suppress(Exception):
+            self._tab.Network.enable()  # getAllCookies works without it on most CDP builds
+        try:
+            result = self._tab.Network.getAllCookies()
+        except Exception as exc:
+            raise UniwebScrapeError(f"Could not read session cookies: {exc}") from exc
+        cookies = _uniweb_cookies_from_cdp((result or {}).get("cookies", []))
+        if not cookies:
+            raise UniwebScrapeError(
+                "Logged in but found no uniweb.no cookies to authenticate the API."
+            )
+        return cookies
 
     # ── Account listing ─────────────────────────────────────────────────────
 
