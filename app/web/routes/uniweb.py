@@ -75,7 +75,10 @@ async def _harvest_partner_cookies() -> dict[str, str]:
         client = UniwebClient()
         try:
             if not client.login(cfg["email"], cfg["password"]):
-                raise IntegrationError("Innlogging til Uniweb feilet")
+                detail = client.last_login_error or ""
+                raise IntegrationError(
+                    "Innlogging til Uniweb feilet" + (f": {detail}" if detail else "")
+                )
             return client.harvest_cookies()
         finally:
             client.close()
@@ -354,7 +357,10 @@ async def _run_sync(email: str, password: str) -> None:
             client = UniwebClient()
             try:
                 if not client.login(email, password):
-                    raise RuntimeError("Innlogging til Uniweb feilet")
+                    detail = client.last_login_error or ""
+                    raise RuntimeError(
+                        "Innlogging til Uniweb feilet" + (f": {detail}" if detail else "")
+                    )
 
                 # List accounts first for progress tracking
                 try:

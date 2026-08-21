@@ -63,6 +63,7 @@
     "app/services/scan_privileges.py",
     "app/services/site_collector.py",
     "app/services/ssh_connection.py",
+    "app/services/uniweb_email_dns.py",
     "app/services/uniweb_partner.py",
     "app/services/vpn_backends/__init__.py",
     "app/services/vpn_backends/azure.py",

@@ -74,6 +74,32 @@ def _uniweb_cookies_from_cdp(cdp_cookies: list[dict]) -> dict[str, str]:
     return out
 
 
+def _classify_login_outcome(probe: dict) -> tuple[bool, str]:
+    """Decide whether a login attempt succeeded, and if not, say why.
+
+    ``probe`` is what the page reports after the credentials are submitted: the
+    landing ``url``, whether the login form (a password field) is still present,
+    and any on-page ``error`` text. Success is simply "left the login page and
+    the form is gone" — robust to whatever URL the panel lands on. Pure, so the
+    decision is unit-tested without a browser.
+    """
+    url = str(probe.get("url") or "")
+    on_login = "/login" in url.lower()
+    form_present = bool(probe.get("form_present"))
+    error = str(probe.get("error") or "").strip()
+
+    if not on_login and not form_present:
+        return True, ""
+    if error:
+        return False, f"Uniweb svarte: «{error}»"
+    if on_login or form_present:
+        return False, (
+            "innloggingssiden ble vist på nytt uten synlig feilmelding — "
+            "feil brukernavn/passord, eller skjemaet ble sendt uten verdier"
+        )
+    return False, f"uventet side etter innlogging: {url or '(ukjent)'}"
+
+
 class UniwebClient:
     """Headless Chromium CDP client for Uniweb scraping (read-only)."""
 
@@ -83,6 +109,10 @@ class UniwebClient:
         self._browser: Optional[pychrome.Browser] = None
         self._tab: Optional[pychrome.Tab] = None
         self._logged_in = False
+        # Why the last login failed, in operator-readable terms. Surfaced to the
+        # UI so "innlogging feilet" is never the whole story — the page's own
+        # error, the landing URL, or "fields not found" points at the real cause.
+        self.last_login_error: str | None = None
 
     # ── Chromium management ─────────────────────────────────────────────────
 
@@ -166,38 +196,99 @@ class UniwebClient:
             logger.error("Failed to start Chromium: %s", e)
             return False
 
+        self.last_login_error = None
         try:
-            self._nav(LOGIN_URL, wait=4)
+            self._nav(LOGIN_URL, wait=5)
 
-            result = self._js(f"""
+            # Fill via a native value-setter and fire the events the JSF /
+            # PrimeFaces widgets listen on. Setting ``.value`` alone leaves their
+            # internal state empty, so the form would post blank credentials —
+            # which is exactly what "known-good login fails" looks like. Selectors
+            # fall back in case the JSF ids renumbered (the module docstring's
+            # warning), so an id change no longer breaks the fill outright.
+            filled = self._js(f"""
             (function() {{
-                var e = document.getElementById('loginForm:email');
-                var p = document.getElementById('loginForm:password');
-                var b = document.getElementById('loginForm:loginButton');
+                function setVal(el, val) {{
+                    try {{
+                        var proto = el.tagName === 'TEXTAREA'
+                            ? window.HTMLTextAreaElement.prototype
+                            : window.HTMLInputElement.prototype;
+                        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, val);
+                    }} catch (e) {{ el.value = val; }}
+                    ['input', 'change', 'keyup', 'blur'].forEach(function(t) {{
+                        el.dispatchEvent(new Event(t, {{bubbles: true}}));
+                    }});
+                }}
+                var e = document.getElementById('loginForm:email')
+                     || document.querySelector('input[type=email]')
+                     || document.querySelector('input[name*="email" i], input[id*="email" i]')
+                     || document.querySelector('form input[type=text]');
+                var p = document.getElementById('loginForm:password')
+                     || document.querySelector('input[type=password]');
                 if (!e || !p) return 'no_fields';
-                e.value = {json.dumps(email)};
-                p.value = {json.dumps(password)};
-                if (b) {{ b.click(); return 'clicked'; }}
-                return 'no_button';
+                setVal(e, {json.dumps(email)});
+                setVal(p, {json.dumps(password)});
+                return 'filled';
             }})()
             """)
-            logger.info("Login result: %s", result)
 
-            if result != "clicked":
-                logger.error("Login form interaction failed: %s", result)
+            if filled != "filled":
+                self.last_login_error = (
+                    "fant ikke innloggingsfeltene på siden — Uniweb kan ha endret "
+                    "innloggingssiden"
+                )
+                logger.error("Uniweb login: %s (fill=%s)", self.last_login_error, filled)
                 return False
 
-            time.sleep(3)
-            url = self._js("window.location.href") or ""
-            if "principal" in url or "home" in url:
+            submitted = self._js("""
+            (function() {
+                var b = document.getElementById('loginForm:loginButton')
+                     || document.querySelector('#loginForm button[type=submit], #loginForm input[type=submit]')
+                     || document.querySelector('button[type=submit], input[type=submit]');
+                if (b) { b.click(); return 'clicked'; }
+                var pw = document.querySelector('input[type=password]');
+                var f = document.getElementById('loginForm') || (pw && pw.form);
+                if (f) { f.submit(); return 'submitted'; }
+                return 'no_submit';
+            })()
+            """)
+            logger.info("Uniweb login submit: %s", submitted)
+
+            # Poll for the redirect instead of a fixed sleep, which raced it:
+            # done once we have left the login page (up to ~12s).
+            deadline = time.monotonic() + 12
+            while time.monotonic() < deadline:
+                time.sleep(0.6)
+                here = (self._js("window.location.href") or "").lower()
+                if here and "/login" not in here:
+                    break
+
+            probe_raw = self._js("""
+            (function() {
+                function txt(sel) { var el = document.querySelector(sel); return el ? (el.textContent || '').trim() : ''; }
+                var err = txt('.ui-messages-error') || txt('.ui-message-error-detail')
+                       || txt('.ui-message-error') || txt('.alert-danger') || txt('[class*="error"]') || '';
+                var pw = document.getElementById('loginForm:password') || document.querySelector('input[type=password]');
+                return JSON.stringify({url: window.location.href, form_present: !!pw, error: err.slice(0, 300)});
+            })()
+            """)
+            try:
+                probe = json.loads(probe_raw) if probe_raw else {}
+            except (ValueError, TypeError):
+                probe = {}
+
+            ok, reason = _classify_login_outcome(probe)
+            if ok:
                 self._logged_in = True
                 logger.info("Successfully logged into Uniweb")
                 return True
 
-            logger.error("Login failed — URL after login: %s", url)
+            self.last_login_error = reason
+            logger.error("Uniweb login failed: %s (probe=%s)", reason, probe)
             return False
 
         except Exception as e:
+            self.last_login_error = f"uventet feil under innlogging: {e}"
             logger.error("Login failed: %s", e, exc_info=True)
             return False
 

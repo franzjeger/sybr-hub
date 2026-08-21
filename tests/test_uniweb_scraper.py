@@ -12,7 +12,11 @@ import json
 
 import pytest
 
-from app.services.uniweb_client import UniwebClient, UniwebScrapeError
+from app.services.uniweb_client import (
+    UniwebClient,
+    UniwebScrapeError,
+    _classify_login_outcome,
+)
 
 
 def _client(js_result) -> UniwebClient:
@@ -93,3 +97,38 @@ def test_no_reader_still_answers_an_empty_list_on_failure():
     for match in re.finditer(r"except [^\n]*\n((?:\s+[^\n]*\n){0,4}?)\s+return \[\]", src):
         offenders.append(match.group(0).strip().splitlines()[0])
     assert not offenders, f"a failure path still returns an empty list: {offenders}"
+
+
+# ── Login outcome: a blind "feilet" is replaced by a reason ──────────────────
+
+
+def test_login_success_when_the_form_is_gone_and_off_the_login_page():
+    ok, reason = _classify_login_outcome(
+        {"url": "https://uniweb.no/controlpanel/principal/?showExpanded=true",
+         "form_present": False, "error": ""}
+    )
+    assert ok is True and reason == ""
+
+
+def test_login_success_is_robust_to_an_unusual_landing_url():
+    # Left the login page and the password field is gone → logged in, whatever
+    # the panel's landing URL happens to be.
+    ok, _ = _classify_login_outcome({"url": "https://uniweb.no/cp/dashboard", "form_present": False})
+    assert ok is True
+
+
+def test_login_reports_the_page_error_verbatim():
+    ok, reason = _classify_login_outcome(
+        {"url": "https://uniweb.no/controlpanel/login/", "form_present": True,
+         "error": "Feil brukernavn eller passord"}
+    )
+    assert ok is False and "Feil brukernavn eller passord" in reason
+
+
+def test_login_reblank_submit_is_named_not_left_as_feilet():
+    # Still on the login page, form present, no visible error — the blank-submit
+    # / wrong-credentials signature, which used to be an opaque "feilet".
+    ok, reason = _classify_login_outcome(
+        {"url": "https://uniweb.no/controlpanel/login/", "form_present": True, "error": ""}
+    )
+    assert ok is False and "på nytt" in reason
