@@ -2431,3 +2431,66 @@ body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
   font-size: 12px; margin: 14px 0 8px; padding-bottom: 4px;
   border-bottom: 1px solid var(--border); color: var(--text);
 }
+
+/* ── Policy overview ────────────────────────────────────────────────────────
+   One screen, three answers: what is in production, what moved since the
+   last audit, and the distance to the Sybr standard. Class-based for the
+   same reason the assessment library is: the CSP budget counts inline
+   style=, so the rules the view needs live here. The colour language is
+   the customer-card baseline panel's — blue section titles, the three
+   deployment states, red for what is missing. */
+.po-page { max-width: 1200px; }
+.po-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.po-title { font-size: 18px; font-weight: 700; margin: 0; }
+.po-intro { font-size: 12px; color: var(--text-muted); }
+.po-loading { color: var(--text-muted); text-align: center; padding: 48px; }
+.po-block { margin-bottom: var(--space-4); }
+.po-dim { color: var(--text-dim); }
+.po-muted { color: var(--text-muted); }
+.po-meta { font-size: var(--font-xs); color: var(--text-muted); margin-bottom: var(--space-3); }
+.po-sec {
+  font-size: var(--font-sm); font-weight: 600; color: var(--blue);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-3);
+}
+.po-sub {
+  font-size: var(--font-xs); font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; margin-bottom: var(--space-2);
+}
+.po-sub-count { color: var(--text-dim); font-weight: 400; }
+.po-tbl { width: 100%; font-size: var(--font-xs); border-collapse: collapse; }
+.po-row { border-bottom: 1px solid var(--border); vertical-align: top; }
+.po-statecell { padding: 8px 10px 8px 0; white-space: nowrap; vertical-align: top; }
+.po-namecell { padding: 8px 10px 8px 0; font-weight: 600; min-width: 220px; }
+.po-cell { padding: 8px 0; color: var(--text-muted); }
+.po-hints { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.po-hint { font-size: 11px; }
+.po-hint-dim { opacity: 0.65; }
+.po-hint-info { color: var(--blue); }
+.po-hint-warn { color: var(--orange); }
+.po-hint-danger { color: var(--red); }
+.po-badge {
+  display: inline-block; padding: 1px 8px; border-radius: 10px;
+  font-size: 10px; font-weight: 600; color: #fff;
+}
+.po-badge-on { background: var(--green); }
+.po-badge-report { background: var(--orange); }
+.po-badge-off { background: var(--text-dim); }
+.po-badge-trusted { background: var(--blue); }
+.po-badge-unknown { background: var(--text-muted); }
+.po-absent { color: var(--red); }
+.po-sep { padding: 6px 0; border-top: 1px solid var(--border); font-size: var(--font-xs); }
+.po-sep-muted { padding: 6px 0; border-top: 1px solid var(--border); font-size: var(--font-xs); color: var(--text-dim); }
+.po-listline { margin-top: 2px; }
+.po-dr-add { color: var(--green); font-weight: 600; }
+.po-dr-rem { color: var(--red); font-weight: 600; }
+.po-dr-chg { color: var(--orange); font-weight: 600; }
+.po-fields { color: var(--text-dim); font-size: 11px; }
+.po-std-head { font-weight: 600; font-size: var(--font-xs); margin-bottom: 6px; }
+.po-std-meta { color: var(--text-dim); font-weight: 400; }
+.po-std-name { padding: 6px 10px 6px 0; font-weight: 600; }
+.po-std-why { color: var(--text-dim); font-weight: 400; font-size: 11px; margin-top: 2px; }
+.po-std-statecell { padding: 6px 10px 6px 0; white-space: nowrap; width: 28px; }
+.po-std-statuscell { padding: 6px 0; text-align: right; color: var(--text-muted); }
+.po-std-statuscell-missing { color: var(--red); }
+.po-xs { font-size: var(--font-xs); }
+.po-sep-title { font-weight: 600; margin-bottom: 2px; }
