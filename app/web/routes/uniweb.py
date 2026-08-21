@@ -222,20 +222,31 @@ async def uniweb_partner_orders(user: User = Depends(require_role(Role.admin))):
 
     The money view to sit beside the Autotask contract and the M365 licence
     spend — what is invoiced-but-unpaid, how far overdue, bucketed by age.
-    Read live from the Partner API's order list, projected so no invoice-share
-    token reaches the response. Partner-wide financials, so admin only.
+    Projected so no invoice-share token reaches the response. Partner-wide
+    financials, so admin only.
 
-    Uniweb being unconfigured is not an error (there is no ledger to show); a
-    live call that fails raises — "we could not ask" must never read as
+    The query shape is preferred because it carries the customer name the view
+    shows; the plain order list is the fallback when the query endpoint errors
+    or comes back empty, so a mis-read empty filter can never render as a false
+    "nothing owed". Uniweb unconfigured returns an empty ledger, not an error;
+    an auth failure still raises — "we could not ask" must never read as
     "nothing is owed".
     """
     if not _get_uniweb_config()["email"]:
         return _empty_ar()
 
-    from app.services.uniweb_partner import ar_aging
+    from app.services.uniweb_partner import UniwebAuthError, UniwebPartnerError, ar_aging
 
     today = datetime.now(UTC).date()
-    orders = await _partner_call(lambda c: c.list_orders())
+    orders: list = []
+    try:
+        orders = await _partner_call(lambda c: c.query_orders())
+    except UniwebAuthError:
+        raise
+    except UniwebPartnerError as exc:
+        logger.debug("Uniweb order query unavailable, using the plain list: %s", exc)
+    if not orders:
+        orders = await _partner_call(lambda c: c.list_orders())
     return ar_aging(orders, today)
 
 
