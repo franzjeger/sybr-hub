@@ -8,6 +8,22 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb fase 3a: kryss-revisjon av e-postsikkerhet mot Uniweb-hostede domener
+
+M365-auditen graderer allerede SPF/DMARC/DKIM per domene; nå kobles den verdien
+til Uniwebs DNS-kontroll. En ny kunde-skopet rute `GET /uniweb/partner/email-dns/{customer_id}`
+tar domenene kunden holder hos Uniweb (`dns`-abonnementene), kjører den samme
+e-postsikkerhetssjekken (`dns_checker.check_domain`) live per domene, og merker
+hvilke hull Uniweb faktisk kan lukke — de domenene der Uniweb er DNS-vert (en
+klynget sone svarer med poster). `fixable_here` settes bare når Uniweb hoster
+sonen, så grensesnittet aldri tilbyr en fiks det ikke kan utføre. Et hull er en
+`fail`/`warn` (aldri `unverifiable` — det betyr «kunne ikke sjekke», ikke
+«mangler»). Domenene sjekkes samtidig (veggklokken er det tregeste domenet, ikke
+summen) og listen kappes ved 25 med et `truncated`-flagg. Kun lesing; en
+autentiseringsfeil kaster i stedet for å lese som «ingen domener hostet», og en
+ukonfigurert Uniweb eller ubundet kunde er `matched: false`. Frontend-visning og
+selve fiksen (fase 3b — den første skrivingen mot Uniweb) gjenstår.
+
 ### Uniweb AR per kunde: utestående fakturaer i kundekortet
 
 Reskontroen finnes nå også der den brukes til daglig: inne i kundens Uniweb-kort

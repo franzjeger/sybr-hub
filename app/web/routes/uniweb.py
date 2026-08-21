@@ -282,6 +282,44 @@ async def uniweb_partner_customer_orders(
     return {"matched": True, **ar_aging(mine, today)}
 
 
+def _empty_email_dns() -> dict:
+    return {
+        "domains": [], "checked": 0, "total": 0, "truncated": False,
+        "with_gaps": 0, "fixable_count": 0,
+    }
+
+
+@router.get("/uniweb/partner/email-dns/{customer_id}")
+async def uniweb_partner_email_dns(
+    customer_id: str, user: User = Depends(require_customer_access(Role.technician))
+):
+    """Email-security posture of the customer's Uniweb-held domains.
+
+    Joins the shared SPF/DMARC/DKIM check to Uniweb's DNS control: for each
+    domain the customer holds at Uniweb, the live email-security verdict plus a
+    ``fixable_here`` flag for the gaps whose zone Uniweb hosts — the ones a
+    Partner-API write could close. Read-only. Unconfigured Uniweb, or a customer
+    with no bound account, is ``matched: false``, not an error.
+    """
+    if not _get_uniweb_config()["email"]:
+        return {"matched": False, **_empty_email_dns()}
+
+    async with get_db() as db, db.execute(
+        "SELECT id FROM uniweb_accounts WHERE customer_id = ?", (customer_id,)
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return {"matched": False, **_empty_email_dns()}
+
+    from app.services.uniweb_email_dns import cross_audit
+
+    async def _run(client):
+        subs = await client.subscriptions_for_customer(row["id"])
+        return await cross_audit(subs, client)
+
+    return {"matched": True, **await _partner_call(_run)}
+
+
 # ── Sync endpoint ───────────────────────────────────────────────────────────
 
 @router.post("/uniweb/sync")
