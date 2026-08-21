@@ -2893,7 +2893,11 @@
     "uniweb_ar_amount": "Beløp",
     "uniweb_ar_outstanding_col": "Utestående",
     "uniweb_ar_overdue_col": "Forfalt",
-    "uniweb_ar_section": "Utestående fakturaer"
+    "uniweb_ar_section": "Utestående fakturaer",
+    "uniweb_edns_section": "E-postsikkerhet (DNS)",
+    "uniweb_edns_fixable": "Kan fikses her",
+    "uniweb_edns_failed": "Kunne ikke laste e-postsikkerhetssjekken.",
+    "uniweb_edns_truncated": "Viser de første domenene."
   },
   "en": {
     "nav_dashboard": "Dashboard",
@@ -5789,6 +5793,10 @@
     "uniweb_ar_amount": "Amount",
     "uniweb_ar_outstanding_col": "Outstanding",
     "uniweb_ar_overdue_col": "Overdue",
-    "uniweb_ar_section": "Outstanding invoices"
+    "uniweb_ar_section": "Outstanding invoices",
+    "uniweb_edns_section": "Email security (DNS)",
+    "uniweb_edns_fixable": "Fixable here",
+    "uniweb_edns_failed": "Could not load the email-security check.",
+    "uniweb_edns_truncated": "Showing the first domains."
   }
 }

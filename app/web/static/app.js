@@ -9551,12 +9551,14 @@ async function _unifiedLoadUniwebCard(custId) {
     }
 
     h += '<div id="uw-cust-ar"></div>';
+    h += '<div id="uw-cust-emaildns"></div>';
     h += '</div>';
     cardEl.innerHTML = h;
 
-    // Per-customer AR (outstanding invoices), filled async so it never blocks
-    // the rest of the card. Reuses the .uwar-* body from the partner money view.
+    // Per-customer AR (outstanding invoices) and the email-security cross-audit,
+    // filled async so neither blocks the rest of the card.
     _loadCustomerAr(custId);
+    _loadCustomerEmailDns(custId);
   } catch (e) {
     if (statusEl) {
       statusEl.querySelector('div:last-child').textContent = t('lbl_error','Feil');
@@ -9579,6 +9581,54 @@ async function _loadCustomerAr(custId) {
   } catch (e) {
     box.innerHTML = '<div class="uwar-custhead">' + t('uniweb_ar_section', 'Utestående fakturaer') + '</div>'
       + '<div class="uwar-msg">' + t('uniweb_ar_failed', 'Kunne ikke laste faktura-oversikten. Sjekk at Uniweb er konfigurert.') + '</div>';
+  }
+}
+
+// Email-security cross-audit for the customer's Uniweb-held domains. Shown only
+// when there is at least one gap — a clean posture stays quiet — and it marks
+// the domains Uniweb hosts the DNS for, where the gap is fixable from here
+// (the fix button itself arrives in Phase 3b).
+function _ednsChip(status) {
+  var cls = status === 'pass' ? 'uwed-ok' : status === 'fail' ? 'uwed-fail'
+    : status === 'warn' ? 'uwed-warn' : 'uwed-na';
+  return '<span class="uwed-chip ' + cls + '">' + esc(status || '–') + '</span>';
+}
+
+function _renderCustomerEmailDns(d) {
+  var domains = (d.domains || []).filter(function(x) { return x.gaps && x.gaps.length; });
+  var h = '<div class="uwar-custhead">' + t('uniweb_edns_section', 'E-postsikkerhet (DNS)') + '</div>';
+  h += '<div class="uwar-panel"><table class="uwar-tbl"><thead><tr>';
+  h += '<th>' + t('domene', 'Domene') + '</th>';
+  h += '<th class="uwar-c">SPF</th><th class="uwar-c">DMARC</th><th class="uwar-c">DKIM</th>';
+  h += '<th class="uwar-c">' + t('status', 'Status') + '</th>';
+  h += '</tr></thead><tbody>';
+  domains.forEach(function(x) {
+    h += '<tr>';
+    h += '<td class="uwar-mono">' + esc(x.domain) + '</td>';
+    h += '<td class="uwar-c">' + _ednsChip(x.spf) + '</td>';
+    h += '<td class="uwar-c">' + _ednsChip(x.dmarc) + '</td>';
+    h += '<td class="uwar-c">' + _ednsChip(x.dkim) + '</td>';
+    h += '<td class="uwar-c">' + (x.fixable_here
+      ? '<span class="uwed-fix">' + t('uniweb_edns_fixable', 'Kan fikses her') + '</span>' : '') + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  if (d.truncated) {
+    h += '<div class="uwar-msg">' + t('uniweb_edns_truncated', 'Viser de første domenene.') + '</div>';
+  }
+  return h;
+}
+
+async function _loadCustomerEmailDns(custId) {
+  var box = document.getElementById('uw-cust-emaildns');
+  if (!box) return;
+  try {
+    var d = await apiFetch('/api/uniweb/partner/email-dns/' + encodeURIComponent(custId));
+    if (!d || d.matched === false || (d.with_gaps || 0) === 0) { box.innerHTML = ''; return; }
+    box.innerHTML = _renderCustomerEmailDns(d);
+  } catch (e) {
+    box.innerHTML = '<div class="uwar-custhead">' + t('uniweb_edns_section', 'E-postsikkerhet (DNS)') + '</div>'
+      + '<div class="uwar-msg">' + t('uniweb_edns_failed', 'Kunne ikke laste e-postsikkerhetssjekken.') + '</div>';
   }
 }
 
