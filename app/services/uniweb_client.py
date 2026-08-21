@@ -26,6 +26,7 @@ is the thing to go and check.
 from __future__ import annotations
 
 import contextlib
+import glob
 import json
 import logging
 import os
@@ -100,6 +101,65 @@ def _classify_login_outcome(probe: dict) -> tuple[bool, str]:
     return False, f"uventet side etter innlogging: {url or '(ukjent)'}"
 
 
+# Chromium/Chrome binary names and the fixed locations packages install them to,
+# beyond whatever is on PATH. The scraper failed in a deployment where none of the
+# names were on PATH and the old hard-coded /snap/bin/chromium did not exist, so
+# the search now probes real files and names what it tried when it finds none.
+_CHROME_NAMES = (
+    "chromium", "chromium-browser", "chromium-headless-shell",
+    "google-chrome", "google-chrome-stable", "chrome", "headless-chromium",
+)
+_CHROME_PATHS = (
+    "/usr/bin/chromium", "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable",
+    "/usr/lib/chromium/chromium", "/usr/lib/chromium-browser/chromium-browser",
+    "/snap/bin/chromium", "/opt/google/chrome/chrome",
+    "/opt/chromium.org/chromium/chrome",
+)
+
+
+def _find_chromium() -> str:
+    """Return a runnable Chromium/Chrome binary, or raise saying what was tried.
+
+    Order: an explicit override (``SYBR_CHROMIUM_PATH`` / ``CHROMIUM_PATH``),
+    the common names on PATH, the fixed locations packages install to, then a
+    Playwright-bundled build. The first that exists and is executable wins — no
+    more blindly launching a path that may not be there.
+    """
+    tried: list[str] = []
+
+    def _ok(path: str) -> bool:
+        if not path:
+            return False
+        tried.append(path)
+        return os.path.isfile(path) and os.access(path, os.X_OK)
+
+    override = os.environ.get("SYBR_CHROMIUM_PATH") or os.environ.get("CHROMIUM_PATH")
+    if _ok(override or ""):
+        return override  # type: ignore[return-value]
+
+    for name in _CHROME_NAMES:
+        found = shutil.which(name)
+        if found and _ok(found):
+            return found
+
+    for path in _CHROME_PATHS:
+        if _ok(path):
+            return path
+
+    pw = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if pw:
+        for cand in sorted(glob.glob(os.path.join(pw, "chromium-*/chrome-linux/chrome")), reverse=True):
+            if _ok(cand):
+                return cand
+
+    raise RuntimeError(
+        "Chromium/Chrome ble ikke funnet i miljøet. Installer det (f.eks. "
+        "`apt-get install -y chromium` eller `snap install chromium`), eller sett "
+        "SYBR_CHROMIUM_PATH til binærfilen. Prøvde: " + ", ".join(dict.fromkeys(tried))
+    )
+
+
 class UniwebClient:
     """Headless Chromium CDP client for Uniweb scraping (read-only)."""
 
@@ -118,12 +178,7 @@ class UniwebClient:
 
     def _start_chromium(self) -> int:
         self._port = random.randint(19000, 19999)
-        chrome_bin = (
-            shutil.which("chromium")
-            or shutil.which("chromium-browser")
-            or shutil.which("google-chrome")
-            or "/snap/bin/chromium"
-        )
+        chrome_bin = _find_chromium()  # raises with an actionable message if none
         self._process = subprocess.Popen(
             [chrome_bin, "--headless=new", "--no-sandbox", "--disable-gpu",
              "--disable-dev-shm-usage", f"--remote-debugging-port={self._port}",

@@ -147,3 +147,44 @@ def test_login_names_a_chromium_start_failure_instead_of_a_bare_feilet(monkeypat
     monkeypatch.setattr(client, "_start_chromium", _boom)
     assert client.login("user@example.com", "pw") is False
     assert client.last_login_error and "Chromium" in client.last_login_error
+
+
+# ── Locating the Chromium binary: /snap/bin/chromium is not the only place ───
+
+
+def test_find_chromium_prefers_the_env_override(monkeypatch, tmp_path):
+    from app.services.uniweb_client import _find_chromium
+
+    fake = tmp_path / "my-chromium"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("SYBR_CHROMIUM_PATH", str(fake))
+    assert _find_chromium() == str(fake)
+
+
+def test_find_chromium_probes_fixed_locations_when_nothing_is_on_path(monkeypatch):
+    from app.services import uniweb_client as uc
+
+    monkeypatch.delenv("SYBR_CHROMIUM_PATH", raising=False)
+    monkeypatch.delenv("CHROMIUM_PATH", raising=False)
+    monkeypatch.setattr(uc.shutil, "which", lambda _name: None)          # nothing on PATH
+    monkeypatch.setattr(uc.os.path, "isfile", lambda p: p == "/usr/bin/chromium")
+    monkeypatch.setattr(uc.os, "access", lambda p, _mode: p == "/usr/bin/chromium")
+    assert uc._find_chromium() == "/usr/bin/chromium"
+
+
+def test_find_chromium_raises_naming_what_it_tried(monkeypatch):
+    """The deployment bug: none found. The error must be actionable, not Errno 2."""
+    from app.services import uniweb_client as uc
+
+    for var in ("SYBR_CHROMIUM_PATH", "CHROMIUM_PATH", "PLAYWRIGHT_BROWSERS_PATH"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(uc.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(uc.os.path, "isfile", lambda _p: False)
+
+    with pytest.raises(RuntimeError) as ei:
+        uc._find_chromium()
+    msg = str(ei.value)
+    assert "ble ikke funnet" in msg          # names the problem
+    assert "SYBR_CHROMIUM_PATH" in msg        # names the override
+    assert "/snap/bin/chromium" in msg        # names what it probed
