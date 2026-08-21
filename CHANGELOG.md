@@ -8,6 +8,24 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb-innlogging: robust utfylling + en faktisk feilårsak
+
+Innloggingen mot Uniwebs kontrollpanel feilet med kjente, korrekte
+innloggingsdetaljer og sa bare «Innlogging til Uniweb feilet». Kontrollpanelet
+er JSF/PrimeFaces, og skraperen satte `.value` på feltene uten å utløse
+`input`/`change`-hendelsene komponentene lytter på — så skjemaet ble sannsynligvis
+sendt *tomt*, som ser nøyaktig ut som «feil passord». Utfyllingen bruker nå en
+nativ value-setter og utløser hendelsene, faller tilbake på flere selektorer i
+tilfelle JSF-id-ene har endret seg, prøver flere måter å sende skjemaet på, og
+venter på redirecten i stedet for en fast pause som kappløp med den.
+
+Viktigst: en mislykket innlogging sier nå *hvorfor*. En ren
+`_classify_login_outcome` leser landingssiden — Uniwebs egen feilmelding, at
+skjemaet kom tilbake, eller at feltene ikke ble funnet — og årsaken vises i
+grensesnittet («Innlogging til Uniweb feilet: …») i stedet for et blindt
+«feilet». Suksess avgjøres nå av at man har forlatt innloggingssiden og skjemaet
+er borte, så en uvanlig landings-URL ikke lenger feiltolkes som en feil.
+
 ### Uniweb fase 3a (frontend): e-postsikkerhet i kundekortet
 
 Kryss-revisjonen fra fase 3a vises nå i kundens Uniweb-kort: en seksjon som
