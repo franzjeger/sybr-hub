@@ -8,6 +8,15 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb fase 3a (frontend): e-postsikkerhet i kundekortet
+
+Kryss-revisjonen fra fase 3a vises nå i kundens Uniweb-kort: en seksjon som
+lister domenene med SPF/DMARC/DKIM-hull som fargede chip-er, og et «Kan fikses
+her»-merke på de domenene der Uniweb er DNS-vert. Den holder seg stille når alt
+er rent (ingen hull), gjenbruker `.uwar-*`-tabellen fra AR-visningen (ingen nye
+inline-stiler), og en lastefeil gir en dempet merknad. Selve fiksen — knappen
+som legger til posten — kommer i fase 3b.
+
 ### Uniweb fase 3a: kryss-revisjon av e-postsikkerhet mot Uniweb-hostede domener
 
 M365-auditen graderer allerede SPF/DMARC/DKIM per domene; nå kobles den verdien
