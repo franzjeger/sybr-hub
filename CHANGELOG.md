@@ -8,6 +8,25 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb: strukturert Partner-API i stedet for skraping (fase 1)
+
+Uniweb-integrasjonen leste kontrollpanelet ved å styre en hodeløs Chrome gjennom
+DOM-en — den brøt når panelet «endret markup eller mistet økten» (dens egne
+kommentarer). Nå finnes en `UniwebPartnerClient` som snakker det offisielle
+Partner-API-et (`https://www.uniweb.no/api/partner`) og returnerer ren JSON for
+lesningene aggregatoren trenger: abonnementer (med pris og kost, så margin er
+utledbar), kunder, DNS, SSL, produkter, prislister og e-postantall.
+
+Innloggingen gjenbrukes: klienten autentiserer med `session`- og `grant`-
+informasjonskapslene fra en kontrollpanel-innlogging (`harvest_cookies()` henter
+dem via CDP etter login), og de holdes og fornyes bare når API-et sier økten er
+utløpt (401) — ingen ny Chrome-start per forespørsel. To felt bærer
+hemmeligheter (`tsig` for domener, privat `key` for SSL); klienten logger aldri
+svarkropper, og `public_subscription()` projiserer dem bort før noe når UI-et. Ny
+rute `GET /uniweb/partner/subscriptions/{customer_id}` gir strukturerte
+abonnementer med månedlig omsetning/kost/margin. Kun lesing i denne fasen; det
+gjenstår å migrere de øvrige leserutene av skraperen og legge til fakturaer/AR.
+
 ### Auditen henter nå installerte apper fra Intune-enhetene
 
 Intune-seksjonen leste app-*katalogen* (`mobileApps` — hva Intune er satt til å

@@ -55,6 +55,102 @@ def _get_uniweb_config() -> dict:
     }
 
 
+# ── Partner API (structured, replaces the scraper for reads) ─────────────────
+# The Partner API reuses the control-panel login: harvest the session cookies
+# once and hold them, re-logging in only when the API says they expired (401).
+# A login spins up headless Chrome, so doing it per request would be wasteful.
+_partner_cookies: dict[str, str] | None = None
+_partner_lock = asyncio.Lock()
+
+
+async def _harvest_partner_cookies() -> dict[str, str]:
+    """Log in to the control panel (headless Chrome, in a thread) and return the
+    session/grant cookies the Partner API authenticates with."""
+    cfg = _get_uniweb_config()
+    if not cfg["email"] or not cfg["password"]:
+        raise ValidationError("Uniweb-legitimasjon er ikke konfigurert")
+
+    def _login_and_harvest() -> dict[str, str]:
+        from app.services.uniweb_client import UniwebClient
+        client = UniwebClient()
+        try:
+            if not client.login(cfg["email"], cfg["password"]):
+                raise IntegrationError("Innlogging til Uniweb feilet")
+            return client.harvest_cookies()
+        finally:
+            client.close()
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _login_and_harvest)
+
+
+async def _partner_call(fn):
+    """Run a Partner API call with the cached session, re-logging in once if the
+    session has expired. ``fn`` takes a UniwebPartnerClient and returns a value.
+    """
+    from app.services.uniweb_partner import UniwebAuthError, UniwebPartnerClient
+
+    global _partner_cookies
+    async with _partner_lock:
+        if not _partner_cookies:
+            _partner_cookies = await _harvest_partner_cookies()
+    cookies = _partner_cookies
+    try:
+        async with UniwebPartnerClient(cookies) as client:
+            return await fn(client)
+    except UniwebAuthError:
+        # The cached session expired — re-login once and retry.
+        async with _partner_lock:
+            _partner_cookies = await _harvest_partner_cookies()
+        async with UniwebPartnerClient(_partner_cookies) as client:
+            return await fn(client)
+
+
+def _subscription_summary(customer_id: str, subs: list[dict]) -> dict:
+    """Project subscriptions to their non-secret fields and total the margin.
+
+    Pure, so the projection (never a ``tsig`` or private key) and the revenue /
+    cost / margin arithmetic are unit-tested without a login or a database.
+    """
+    from app.services.uniweb_partner import public_subscription
+
+    revenue = sum(float(s.get("rc") or 0) for s in subs)
+    cost = sum(float(s.get("inRc") or 0) for s in subs)
+    return {
+        "matched": True,
+        "customer_id": customer_id,
+        "count": len(subs),
+        "monthly_revenue": round(revenue, 2),
+        "monthly_cost": round(cost, 2),
+        "monthly_margin": round(revenue - cost, 2),
+        "subscriptions": [public_subscription(s) for s in subs],
+    }
+
+
+@router.get("/uniweb/partner/subscriptions/{customer_id}")
+async def uniweb_partner_subscriptions(
+    customer_id: str, user: User = Depends(require_customer_access(Role.technician))
+):
+    """Structured subscriptions for the Uniweb account bound to this customer.
+
+    ``customer_id`` is a Sybr customer, scoped by ``require_customer_access``;
+    the bound Uniweb account is resolved from ``uniweb_accounts`` and its id used
+    against the Partner API. The JSON replacement for the scraped service list:
+    each subscription is projected to its non-secret fields (never a ``tsig`` or
+    a private key), with a monthly revenue / cost / margin summary from ``rc``
+    and ``inRc``.
+    """
+    async with get_db() as db, db.execute(
+        "SELECT id FROM uniweb_accounts WHERE customer_id = ?", (customer_id,)
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return {"matched": False}
+
+    subs = await _partner_call(lambda c: c.subscriptions_for_customer(row["id"]))
+    return _subscription_summary(customer_id, subs)
+
+
 # ── Sync endpoint ───────────────────────────────────────────────────────────
 
 @router.post("/uniweb/sync")
