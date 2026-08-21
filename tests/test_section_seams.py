@@ -436,6 +436,10 @@ async def test_the_modern_intune_surfaces_are_collected_and_snapshotted():
             {"displayName": "iOS MAM", "@odata.type": "#microsoft.graph.iosManagedAppProtection"}],
         "deviceManagement/intents": [
             {"displayName": "Defender AV baseline", "lastModifiedDateTime": "2026-02-02T00:00:00Z"}],
+        "deviceManagement/detectedApps": [
+            {"displayName": "7-Zip", "version": "23.01", "deviceCount": 5, "sizeInByte": 5242880},
+            {"displayName": "Google Chrome", "version": "120.0", "deviceCount": 42,
+             "sizeInByte": 104857600}],
     }))
     result = await section.collect()
 
@@ -444,8 +448,14 @@ async def test_the_modern_intune_surfaces_are_collected_and_snapshotted():
     assert "Edge hardening" in _read(section.out_dir, "12c_intune_admin_templates.txt")
     assert "iOS MAM" in _read(section.out_dir, "13b_intune_app_protection.txt")
     assert "Defender AV baseline" in _read(section.out_dir, "14b_intune_endpoint_security.txt")
+    # Detected apps: the installed inventory, most-widespread first — Chrome (42
+    # devices) must sort above 7-Zip (5), and the count reaches the readable file.
+    detected = _read(section.out_dir, "13c_intune_detected_apps.txt")
+    assert "Google Chrome" in detected and "7-Zip" in detected
+    assert detected.index("Google Chrome") < detected.index("7-Zip")
     for snap in ("intune_settings_catalog", "intune_admin_templates",
-                 "intune_app_protection", "intune_endpoint_security"):
+                 "intune_app_protection", "intune_endpoint_security",
+                 "intune_detected_apps"):
         assert (section.out_dir / "policy_snapshots" / f"{snap}.json").is_file(), snap
 
 
@@ -484,6 +494,30 @@ async def test_a_modern_intune_surface_that_refuses_does_not_fail_the_section():
     # Each gap still leaves its evidence, so a reader can see it was not read.
     assert "(not available)" in _read(section.out_dir, "12b_intune_settings_catalog.txt")
     assert "(not available)" in _read(section.out_dir, "14b_intune_endpoint_security.txt")
+
+
+@pytest.mark.asyncio
+async def test_detected_apps_refusal_fails_soft_and_is_kept_apart_from_the_catalogue():
+    """13c (installed inventory) is a different endpoint from 13 (deploy
+    catalogue), and its refusal must fail soft: a tenant whose device inventory
+    cannot be read still has readable devices and policies, so the section stays
+    DONE with the gap recorded in its own evidence file."""
+    from app.modules.base import SectionStatus
+    from app.modules.m365_audit.sections.intune import IntuneSection
+
+    class _NoDetected(_FakeGraph):
+        async def get_all(self, path, **kwargs):
+            if path.startswith("deviceManagement/detectedApps"):
+                raise RuntimeError("device inventory not available")
+            return await super().get_all(path, **kwargs)
+
+    section = IntuneSection(_tmp(), _NoDetected({
+        "deviceManagement/managedDevices": [_device("pc1", "compliant")],
+    }))
+    result = await section.collect()
+
+    assert result.status == SectionStatus.DONE  # soft-fail, not FAILED
+    assert "(not available)" in _read(section.out_dir, "13c_intune_detected_apps.txt")
 
 
 # ── OAuth consent grants ─────────────────────────────────────────────────────

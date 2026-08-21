@@ -34,6 +34,7 @@ class IntuneSection(BaseSection):
             await self._collect_admin_templates()
             await self._collect_apps()
             await self._collect_app_protection()
+            await self._collect_detected_apps()
             await self._collect_autopilot()
             await self._collect_endpoint_security()
             # Each collector needs its own DeviceManagement permission, so one
@@ -62,6 +63,7 @@ class IntuneSection(BaseSection):
         "12c_intune_admin_templates.txt": "INTUNE ADMINISTRATIVE TEMPLATES (ADMX)",
         "13_intune_apps.txt": "INTUNE MANAGED APPS",
         "13b_intune_app_protection.txt": "INTUNE APP PROTECTION POLICIES (MAM)",
+        "13c_intune_detected_apps.txt": "INTUNE DETECTED APPS (INSTALLED INVENTORY)",
         "14_intune_autopilot.txt": "INTUNE AUTOPILOT DEVICES",
         "14b_intune_endpoint_security.txt": "INTUNE ENDPOINT SECURITY POLICIES",
     }
@@ -74,6 +76,7 @@ class IntuneSection(BaseSection):
         "12c_intune_admin_templates.txt": "DeviceManagementConfiguration.Read.All",
         "13_intune_apps.txt": "DeviceManagementApps.Read.All",
         "13b_intune_app_protection.txt": "DeviceManagementApps.Read.All",
+        "13c_intune_detected_apps.txt": "DeviceManagementManagedDevices.Read.All",
         "14_intune_autopilot.txt": "DeviceManagementServiceConfig.Read.All",
         "14b_intune_endpoint_security.txt": "DeviceManagementConfiguration.Read.All",
     }
@@ -276,6 +279,75 @@ class IntuneSection(BaseSection):
             lines.append(f"  {name:<50} {app_type:<30} {publisher:<25} {created}")
         lines += ["=" * 100, ""]
         self._save("13_intune_apps.txt", "\n".join(lines))
+
+    # ── Detected apps (installed-software inventory) ───────────────────────────
+
+    async def _collect_detected_apps(self) -> None:
+        """The software actually installed across managed devices.
+
+        Distinct from 13_intune_apps.txt, which is the deploy *catalogue* — what
+        Intune is told to push. detectedApps is what is *on* the endpoints: the
+        real inventory, where unmanaged, outdated or unexpected software shows
+        up. Graph aggregates it per app+version with a device count; the full
+        set is snapshotted and the readable table shows the most widespread
+        first. Additive surface — a tenant whose device inventory cannot be read
+        must not fail the section, so this fails soft.
+        """
+        try:
+            apps = await self.graph.get_all(
+                "deviceManagement/detectedApps",
+                params={"$top": "999"},
+            )
+            self._save_snapshot(
+                "intune_detected_apps", apps, source="deviceManagement/detectedApps",
+            )
+        except Exception as ex:
+            self._save_unavailable("13c_intune_detected_apps.txt", ex, critical=False)
+            self._warn(f"Intune detected apps fetch failed: {ex}")
+            return
+
+        def _devices(a: dict) -> int:
+            try:
+                return int(a.get("deviceCount") or 0)
+            except (ValueError, TypeError):
+                return 0
+
+        def _mb(a: dict) -> str:
+            try:
+                b = int(a.get("sizeInByte") or 0)
+            except (ValueError, TypeError):
+                return ""
+            return f"{b / 1_048_576:.0f}" if b else ""
+
+        ranked = sorted(apps, key=_devices, reverse=True)
+        distinct_names = len({(a.get("displayName") or "").lower() for a in apps})
+        install_instances = sum(_devices(a) for a in apps)
+
+        _CAP = 300
+        lines = [
+            "=" * 110,
+            f"  INTUNE DETECTED APPS (installed inventory)  ({len(apps)} app/version rows, "
+            f"{distinct_names} distinct apps, {install_instances} install instances)",
+            "=" * 110,
+            "",
+            "  What is actually installed across managed devices — the real inventory,",
+            "  not the deploy catalogue in 13_intune_apps.txt. Most widespread first.",
+            "",
+            f"  {'Application':<52} {'Version':<24} {'Devices':>8} {'MB':>7}",
+            "  " + "-" * 106,
+        ]
+        for a in ranked[:_CAP]:
+            name    = (a.get("displayName") or "")[:52]
+            version = (a.get("version") or "")[:24]
+            lines.append(f"  {name:<52} {version:<24} {_devices(a):>8} {_mb(a):>7}")
+        if len(ranked) > _CAP:
+            lines += [
+                "",
+                f"  ... and {len(ranked) - _CAP} more app/version rows — the full "
+                "inventory is in the snapshot.",
+            ]
+        lines += ["=" * 110, ""]
+        self._save("13c_intune_detected_apps.txt", "\n".join(lines))
 
     # ── Autopilot Devices ─────────────────────────────────────────────────────
 
