@@ -8,6 +8,27 @@ ikke Sybr HUB-pakkeversjoner. De deler versjonsnummer med Sybr HUBs `v1.0.0`–
 HUB, mars–juli 2026 for motoren).
 
 ## Ikke utgitt
+### Uniweb fase 2: fakturaoversikt og forfalte krav (AR)
+
+Partner-API-et bærer noe skraperen aldri så: fakturaene. Klienten kan nå lese
+ordrer/fakturaer (`GET /orders`, `POST /orders/query`, `GET /orders/{id}/orderlines`),
+og en ny admin-rute `GET /uniweb/partner/orders` gir en AR-oversikt over hele
+partneren: utestående totalt, hvor mye som er forfalt, og en aldersfordeling
+(ikke forfalt / 1–30 / 31–60 / 61–90 / 90+ dager) — pengevisningen som hører
+hjemme ved siden av Autotask-kontrakten og M365-lisenskosten. Utestående regnes
+som fakturert minus alt oppgjort (`invoiceSum` − `paid` − `credited` − `lost` −
+`waived`), så en delvis kreditert eller ettergitt faktura teller riktig.
+
+To felt på en faktura er hemmeligheter og prosjekteres bort før noe når UI-et:
+`shareableRef` (en «betal denne fakturaen»-lenke som åpner fakturaen uten
+innlogging) og den interne `invoiceId`-en — `open_invoice()` slipper bare gjennom
+`invoiceNo` og beløpene, samme grense som `public_subscription()` trekker for en
+`tsig`. Regnestykket og aldersfordelingen er rene funksjoner (`ar_aging`,
+`order_outstanding`), enhetstestet uten innlogging. Ukonfigurert Uniweb gir en tom
+oversikt (ingen reskontro å vise); et live-kall som feiler kaster — «vi fikk ikke
+spurt» skal aldri se ut som «ingenting skyldes». Kun lesing; per-kunde-AR og en
+frontend-visning gjenstår.
+
 ### Uniweb: strukturert Partner-API i stedet for skraping (fase 1)
 
 Uniweb-integrasjonen leste kontrollpanelet ved å styre en hodeløs Chrome gjennom

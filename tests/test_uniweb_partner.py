@@ -9,7 +9,8 @@ and the secret-bearing fields are projected out before anything reaches the UI.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import json
+from datetime import UTC, date, datetime
 
 import httpx
 import pytest
@@ -19,7 +20,10 @@ from app.services.uniweb_partner import (
     UniwebAuthError,
     UniwebPartnerClient,
     UniwebPartnerError,
+    ar_aging,
     dns_record_view,
+    open_invoice,
+    order_outstanding,
     public_subscription,
 )
 
@@ -223,3 +227,98 @@ def test_expiry_items_name_an_unmatched_service_after_itself_not_nothing():
     items = _expiry_items([_sub(404, "dns", "orphan.no", "2026-01-10")], {}, _NOW, max_days=365)
     assert len(items) == 1
     assert items[0]["customer_name"] == "orphan.no" and items[0]["customer_id"] == ""
+
+
+# ── Orders / invoices: the AR view ───────────────────────────────────────────
+
+# A richly-shaped invoice from POST /orders/query — carries a customer, the full
+# settlement breakdown, and two things that must never reach the UI: a
+# shareableRef (a pay-this-invoice token) and the internal invoiceId.
+_INVOICE = {
+    "id": 123456, "invoiceNo": 1030455, "externalInvoiceNo": "1030455",
+    "customer": {"id": 99, "name": "Kunde AS", "type": "Company"},
+    "invoiceDate": "2026-07-01", "invoiceDue": "2026-07-15",
+    "invoiceSum": 1000.0, "paid": 200.0, "credited": 50.0, "lost": 0.0, "waived": 0.0,
+    "invoiceType": "PayEx360", "invoiceId": "f5ee8e5b-secret-uuid",
+    "shareableRef": "SHARE-TOKEN-pays-the-invoice",
+}
+
+
+@pytest.mark.asyncio
+async def test_list_orders_hits_orders_and_carries_the_cursor():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["query"] = request.url.query.decode()
+        return httpx.Response(200, json=[{"id": 1, "invoiceSum": 10.0, "paid": 0.0}])
+
+    await _mock(handler).list_orders(latest_seen_invoice_no=500)
+    assert seen["path"] == "/api/partner/orders"
+    assert "latestSeenInvoiceNo=500" in seen["query"]
+
+
+@pytest.mark.asyncio
+async def test_query_orders_posts_the_filter_body_with_the_session():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/partner/orders/query"
+        assert "session=sess-abc" in request.headers.get("cookie", "")
+        assert json.loads(request.read()) == {"unpaid": True}  # the filter is the body
+        return httpx.Response(200, json=[_INVOICE])
+
+    subs = await _mock(handler).query_orders({"unpaid": True})
+    assert subs[0]["invoiceNo"] == 1030455
+
+
+@pytest.mark.asyncio
+async def test_order_lines_hits_the_orderlines_path():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/partner/orders/2003004/orderlines"
+        return httpx.Response(200, json=[{"id": 1, "order": 2003004, "text": "Webhotell"}])
+
+    assert await _mock(handler).order_lines(2003004)
+
+
+def test_order_outstanding_is_billed_minus_everything_settled():
+    # 1000 - 200 paid - 50 credited = 750
+    assert order_outstanding(_INVOICE) == 750.0
+    assert order_outstanding({"invoiceSum": 500.0, "paid": 500.0}) == 0.0
+    assert order_outstanding({}) == 0.0
+
+
+def test_open_invoice_drops_the_share_token_and_surfaces_the_customer():
+    view = open_invoice(_INVOICE)
+    assert "shareableRef" not in view and "invoiceId" not in view
+    assert view["invoiceNo"] == 1030455
+    assert view["customer_id"] == 99 and view["customer_name"] == "Kunde AS"
+    assert view["outstanding"] == 750.0
+
+
+def test_ar_aging_totals_overdue_and_buckets_by_due_date():
+    today = date(2026, 8, 21)
+    orders = [
+        _INVOICE,                                                    # due 07-15 → 37d overdue, 750 out
+        {"id": 2, "invoiceSum": 500.0, "paid": 500.0, "invoiceDue": "2026-01-01"},  # paid → excluded
+        {"id": 3, "invoiceSum": 300.0, "paid": 0.0, "invoiceDue": "2026-09-30"},    # not due → current
+        {"id": 4, "invoiceSum": 100.0, "paid": 0.0, "invoiceDue": "2026-08-20"},    # 1d overdue
+    ]
+    ar = ar_aging(orders, today)
+
+    assert ar["open_count"] == 3                       # the paid one is out
+    assert ar["total_outstanding"] == 1150.0           # 750 + 300 + 100
+    assert ar["overdue_count"] == 2 and ar["overdue_total"] == 850.0  # 750 + 100
+    assert ar["aging"]["current"] == 300.0             # invoice 3, not yet due
+    assert ar["aging"]["d1_30"] == 100.0               # invoice 4
+    assert ar["aging"]["d31_60"] == 750.0              # invoice 1 at 37d
+    assert ar["invoices"][0]["days_overdue"] == 37     # sorted most-overdue first
+    assert all("shareableRef" not in i for i in ar["invoices"])
+
+
+def test_the_empty_ar_shape_matches_a_real_summary():
+    """Unconfigured Uniweb returns the same shape a real ledger would, so the UI
+    renders "nothing owed", never a broken/missing card."""
+    from app.web.routes.uniweb import _empty_ar
+
+    assert _empty_ar().keys() == ar_aging([], date(2026, 8, 21)).keys()
+    assert _empty_ar()["aging"].keys() == ar_aging([], date(2026, 8, 21))["aging"].keys()
