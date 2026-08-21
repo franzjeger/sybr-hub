@@ -53,6 +53,11 @@ FEATURES: tuple[Feature, ...] = (
     # the same one the customer card already shows a viewer — so viewer-level,
     # with per-tenant access still enforced on the evaluate route itself.
     Feature("assessments", Role.viewer, views=("assessments",)),
+    # The policy overview is the same read, one screen: what the customer has
+    # in production, what moved since last run, and the Sybr standard's gaps.
+    # Read-only, and the underlying inventory is already a customer-read, so
+    # viewer-level, with per-tenant access enforced on the route itself.
+    Feature("policy_overview", Role.viewer, views=("policy-overview",)),
     Feature("reports", Role.viewer, views=()),
     Feature("documentation", Role.viewer, views=("docs",)),
 
