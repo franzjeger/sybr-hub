@@ -24,6 +24,7 @@ cannot accidentally surface or persist a TSIG or a private key.
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any
 from urllib.parse import quote
 
@@ -36,9 +37,11 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.uniweb.no/api/partner"
 
 # Fields that carry secrets. Never log them; never hand them to the UI as-is.
+# ``shareableRef`` is a capability token — a link that opens (and can pay) the
+# invoice without a login — so it belongs here beside the DNS/SSL secrets.
 _SENSITIVE_FIELDS = frozenset({
     "tsig", "key", "password", "keySigningKey", "zoneSigningKey",
-    "combinedSigningKey", "keystore",
+    "combinedSigningKey", "keystore", "shareableRef",
 })
 
 # The non-secret subscription fields the Hub view needs — identity, product,
@@ -47,6 +50,15 @@ _PUBLIC_SUBSCRIPTION_FIELDS = (
     "id", "customer", "username", "product", "otc", "rc", "inOtc", "inRc",
     "renew", "created", "period", "disk", "xfer", "concurrency", "cpu",
     "mem", "dmem",
+)
+
+# The non-secret invoice fields the AR view needs. Deliberately excludes
+# ``shareableRef`` (a pay-this-invoice token) and ``invoiceId`` (the internal
+# UUID that addresses it) — identity for display is ``invoiceNo``.
+_PUBLIC_INVOICE_FIELDS = (
+    "id", "invoiceNo", "externalInvoiceNo", "created", "invoiceDate",
+    "invoiceDue", "invoiceSum", "paid", "credited", "lost", "waived",
+    "invoiceType",
 )
 
 
@@ -142,6 +154,97 @@ def dns_record_view(rec: dict) -> dict:
     }
 
 
+def _money(order: dict, key: str) -> float:
+    try:
+        return float(order.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def order_outstanding(order: dict) -> float:
+    """What is still owed on an invoice: billed minus everything settled.
+
+    ``invoiceSum`` less ``paid``, ``credited``, ``lost`` and ``waived``. The
+    plain ``/orders`` list omits the last three, so they read as 0 there — which
+    is the right answer for an invoice that was neither credited nor written off,
+    and the query shape fills them in when they aren't.
+    """
+    return round(
+        _money(order, "invoiceSum") - _money(order, "paid")
+        - _money(order, "credited") - _money(order, "lost") - _money(order, "waived"),
+        2,
+    )
+
+
+def open_invoice(order: dict) -> dict:
+    """An invoice projected to its non-secret fields plus outstanding balance.
+
+    The same whitelist boundary ``public_subscription`` draws for a ``tsig``:
+    the pay-this-invoice token (``shareableRef``) and the internal ``invoiceId``
+    never survive. The customer is flattened to id + name when the order carries
+    one (the query shape does; the plain list does not).
+    """
+    pub = {k: order.get(k) for k in _PUBLIC_INVOICE_FIELDS if k in order}
+    cust = order.get("customer") or {}
+    pub["customer_id"] = cust.get("id")
+    pub["customer_name"] = cust.get("name") or ""
+    pub["outstanding"] = order_outstanding(order)
+    return pub
+
+
+def _due_date(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def ar_aging(orders: list[dict], today: date) -> dict:
+    """Accounts-receivable summary: outstanding, overdue, and aged by due date.
+
+    Only invoices with a positive balance count as open. Each is aged into the
+    standard buckets by how far past its due date it is (current = not yet due).
+    Pure, so the arithmetic and the bucketing are unit-tested without a login,
+    and every listed invoice is an ``open_invoice`` projection — no share token
+    reaches the summary.
+    """
+    buckets = {"current": 0.0, "d1_30": 0.0, "d31_60": 0.0, "d61_90": 0.0, "d90_plus": 0.0}
+    invoices: list[dict] = []
+    total_outstanding = 0.0
+    overdue_total = 0.0
+
+    for order in orders:
+        outstanding = order_outstanding(order)
+        if outstanding <= 0:
+            continue
+        due = _due_date(order.get("invoiceDue"))
+        days_overdue = (today - due).days if due else 0
+        total_outstanding += outstanding
+        if days_overdue > 0:
+            overdue_total += outstanding
+        bucket = (
+            "current" if days_overdue <= 0
+            else "d1_30" if days_overdue <= 30
+            else "d31_60" if days_overdue <= 60
+            else "d61_90" if days_overdue <= 90
+            else "d90_plus"
+        )
+        buckets[bucket] += outstanding
+        inv = open_invoice(order)
+        inv["days_overdue"] = max(0, days_overdue)
+        invoices.append(inv)
+
+    invoices.sort(key=lambda i: i["days_overdue"], reverse=True)
+    return {
+        "open_count": len(invoices),
+        "total_outstanding": round(total_outstanding, 2),
+        "overdue_count": sum(1 for i in invoices if i["days_overdue"] > 0),
+        "overdue_total": round(overdue_total, 2),
+        "aging": {k: round(v, 2) for k, v in buckets.items()},
+        "invoices": invoices,
+    }
+
+
 class UniwebPartnerClient:
     """Async, read-only client for the Uniweb Partner API.
 
@@ -189,6 +292,17 @@ class UniwebPartnerClient:
             resp = await send_with_retry(
                 lambda: self._client.get(url),
                 method="GET", target=f"Uniweb GET {path}",
+            )
+        except RetryExhausted as exc:
+            raise UniwebPartnerError(str(exc)) from exc
+        return self._parse(resp, path)
+
+    async def _post(self, path: str, body: Any) -> Any:
+        url = f"{self._base}{path}"
+        try:
+            resp = await send_with_retry(
+                lambda: self._client.post(url, json=body),
+                method="POST", target=f"Uniweb POST {path}",
             )
         except RetryExhausted as exc:
             raise UniwebPartnerError(str(exc)) from exc
@@ -255,3 +369,26 @@ class UniwebPartnerClient:
             return int(data.get("count") or 0)
         except (ValueError, TypeError):
             return 0
+
+    # ── Orders / invoices (the AR view) ───────────────────────────────────
+
+    async def list_orders(self, latest_seen_invoice_no: int | str | None = None) -> list[dict]:
+        """Every order/invoice under the partner: id, dates, invoiceSum, paid.
+
+        Pass ``latest_seen_invoice_no`` to page only invoiced orders newer than
+        one already seen — the API's incremental cursor for a long history.
+        """
+        path = "/orders"
+        if latest_seen_invoice_no is not None:
+            path += f"?latestSeenInvoiceNo={quote(str(latest_seen_invoice_no))}"
+        return await self._get(path) or []
+
+    async def query_orders(self, filters: dict | None = None) -> list[dict]:
+        """Orders/invoices matching ``filters`` — the richer shape, carrying the
+        customer and the full financial breakdown (credited / lost / waived).
+        An empty query returns everything the partner can see."""
+        return await self._post("/orders/query", filters or {}) or []
+
+    async def order_lines(self, order_id: int | str) -> list[dict]:
+        """The line items on one order."""
+        return await self._get(f"/orders/{quote(str(order_id))}/orderlines") or []

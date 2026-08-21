@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from difflib import SequenceMatcher
 
 from fastapi import APIRouter, Depends, Request
@@ -205,6 +205,38 @@ async def uniweb_partner_subscriptions(
 
     subs = await _partner_call(lambda c: c.subscriptions_for_customer(row["id"]))
     return _subscription_summary(customer_id, subs)
+
+
+def _empty_ar() -> dict:
+    return {
+        "open_count": 0, "total_outstanding": 0.0, "overdue_count": 0,
+        "overdue_total": 0.0,
+        "aging": {"current": 0.0, "d1_30": 0.0, "d31_60": 0.0, "d61_90": 0.0, "d90_plus": 0.0},
+        "invoices": [],
+    }
+
+
+@router.get("/uniweb/partner/orders")
+async def uniweb_partner_orders(user: User = Depends(require_role(Role.admin))):
+    """Accounts-receivable overview across the partner: outstanding, overdue, aged.
+
+    The money view to sit beside the Autotask contract and the M365 licence
+    spend — what is invoiced-but-unpaid, how far overdue, bucketed by age.
+    Read live from the Partner API's order list, projected so no invoice-share
+    token reaches the response. Partner-wide financials, so admin only.
+
+    Uniweb being unconfigured is not an error (there is no ledger to show); a
+    live call that fails raises — "we could not ask" must never read as
+    "nothing is owed".
+    """
+    if not _get_uniweb_config()["email"]:
+        return _empty_ar()
+
+    from app.services.uniweb_partner import ar_aging
+
+    today = datetime.now(UTC).date()
+    orders = await _partner_call(lambda c: c.list_orders())
+    return ar_aging(orders, today)
 
 
 # ── Sync endpoint ───────────────────────────────────────────────────────────
