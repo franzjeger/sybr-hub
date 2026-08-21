@@ -189,14 +189,23 @@ class UniwebClient:
     # ── Login ───────────────────────────────────────────────────────────────
 
     def login(self, email: str, password: str) -> bool:
+        self.last_login_error = None
         try:
             self._start_chromium()
             self._open_tab()
         except Exception as e:
+            # The one remaining way a login could fail with no stated reason:
+            # the headless browser never started. Name it, so the UI never shows
+            # a bare "innlogging feilet" — a blank message here reads exactly like
+            # bad credentials, when the real cause is Chromium missing from the
+            # deployment (or unable to launch).
+            self.last_login_error = (
+                "kunne ikke starte den innebygde nettleseren (Chromium) — "
+                f"sjekk at Chromium er installert og kan kjøre i miljøet: {e}"
+            )
             logger.error("Failed to start Chromium: %s", e)
             return False
 
-        self.last_login_error = None
         try:
             self._nav(LOGIN_URL, wait=5)
 

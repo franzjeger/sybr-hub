@@ -132,3 +132,18 @@ def test_login_reblank_submit_is_named_not_left_as_feilet():
         {"url": "https://uniweb.no/controlpanel/login/", "form_present": True, "error": ""}
     )
     assert ok is False and "på nytt" in reason
+
+
+def test_login_names_a_chromium_start_failure_instead_of_a_bare_feilet(monkeypatch):
+    """The one path that could still fail with no stated reason: the headless
+    browser never started (Chromium missing or unable to launch in the
+    deployment). It now sets last_login_error, so the card shows the real cause
+    instead of a bare "feilet" that reads like bad credentials."""
+    client = UniwebClient()
+
+    def _boom():
+        raise RuntimeError("chromium binary not found")
+
+    monkeypatch.setattr(client, "_start_chromium", _boom)
+    assert client.login("user@example.com", "pw") is False
+    assert client.last_login_error and "Chromium" in client.last_login_error
