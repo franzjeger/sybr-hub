@@ -18,7 +18,9 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # budget that is not lowered when the number falls stops being a ratchet and
 # becomes headroom for the next person.
 # Lowered to 4532 after the CSP pass moved hover handlers into CSS.
-INLINE_STYLE_ATTRIBUTE_BUDGET = 4532
+# Lowered to 4278 when the Wiki and Helse tabs went and the customer page,
+# Kunder list and Docs view moved to classes.
+INLINE_STYLE_ATTRIBUTE_BUDGET = 4278
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)
