@@ -386,7 +386,7 @@ _READ_FIELDS = {
     "purview": ("dlp_policies", "sensitivity_labels", "retention_policies"),
 }
 _READ_ITEM_FIELDS = {
-    "spf_dmarc": ("domain", "spf", "dmarc", "dmarc_record", "dkim", "dkim1", "dkim2"),
+    "spf_dmarc": ("domain", "spf", "spf_record", "dmarc", "dmarc_record", "dkim", "dkim1", "dkim2"),
     "licenses": ("part", "used"),
 }
 

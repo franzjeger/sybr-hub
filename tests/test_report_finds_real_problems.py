@@ -113,7 +113,8 @@ def test_compliance_records_the_failures(broken):
     assert statuses["fail"] >= 8
     failed = {c["cis_id"] for c in broken["compliance"] if c["status"] == "fail"}
     # One per area the data-quality work touched, so an over-broad guard shows up.
-    assert {"1.1.3", "1.1.4", "5.2.1", "5.2.2", "5.2.3", "7.2.1"} <= failed
+    # 5.2.3 is a finding too, graded warn (test_controls_reworked_...).
+    assert {"1.1.3", "1.1.4", "5.2.1", "5.2.2", "7.2.1"} <= failed
 
 
 @pytest.mark.parametrize(
@@ -122,7 +123,7 @@ def test_compliance_records_the_failures(broken):
         ("4.4", "warn"),  # external forwarding, via the 28b WARN file
         ("9.2", "warn"),  # active Defender alerts
         ("7.2.1", "fail"),  # anyone-with-the-link sharing
-        ("5.2.3", "fail"),  # DKIM checked and absent
+        ("5.2.3", "warn"),  # DKIM signing switched off in Exchange
         ("6.1.1", "partial"),
     ],
 )

@@ -89,6 +89,136 @@ def _spf_dmarc_records(file_contents: dict[str, str]) -> list[dict]:
     return records
 
 
+# ── DKIM: who signs a domain's mail ───────────────────────────────────────────
+
+_EXCHANGE_DKIM = "25_exchange_dkim.txt"
+# The table's domain column, cut to this width.
+_DKIM_DOMAIN_WIDTH = 45
+
+
+def _exchange_dkim_configs(file_contents: dict[str, str]) -> list[dict] | None:
+    """Exchange Online's DKIM signing configs: {"domain", "enabled", "cut"} each.
+
+    From 25_exchange_dkim.json, or the text's table read by column. "cut" says
+    the domain is the table's 45-character cut of a longer one. None when the
+    run did not collect the configs (the helper failed, or the file is an
+    error stub, which the report blanks): unknown, not "signing nowhere".
+    """
+    data = _sidecar(file_contents, _EXCHANGE_DKIM)
+    if data is not None:
+        return [
+            {
+                "domain": str(c.get("domain") or "").strip().lower(),
+                "enabled": c.get("enabled") is True,
+                "cut": False,
+            }
+            for c in data.get("configs") or []
+            if isinstance(c, dict)
+        ]
+    text = file_contents.get(_EXCHANGE_DKIM, "")
+    if not text.strip() or "DKIM SIGNING CONFIGS" not in text:
+        return None
+    configs: list[dict] = []
+    in_table = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Domain") and "Enabled" in stripped:
+            in_table = True
+            continue
+        if not in_table or not stripped or stripped.startswith(("-", "=")):
+            continue
+        # "  {domain:<45} {enabled:>8} {status:<20} {selector}"
+        domain = line[2 : 2 + _DKIM_DOMAIN_WIDTH].strip().lower()
+        enabled = line[2 + _DKIM_DOMAIN_WIDTH : 2 + _DKIM_DOMAIN_WIDTH + 9].strip()
+        if domain:
+            configs.append(
+                {
+                    "domain": domain,
+                    "enabled": enabled == "Yes",
+                    "cut": len(domain) == _DKIM_DOMAIN_WIDTH,
+                }
+            )
+    return configs
+
+
+def _exchange_signs(configs: list[dict] | None, domain: str) -> bool | None:
+    """Whether Exchange Online signs the domain's mail with DKIM; None when unknown.
+
+    A domain without a config of its own is not signed with its own name:
+    Exchange then signs with the onmicrosoft.com domain, which does not align
+    with the sender for DMARC.
+    """
+    if configs is None:
+        return None
+    name = domain.strip().lower()
+    return any(
+        c["enabled"] and (c["domain"] == name or (c["cut"] and name.startswith(c["domain"])))
+        for c in configs
+    )
+
+
+def _dkim_selectors(record: dict) -> dict[str, str]:
+    """{selector: status} from a mail-domain record's two DKIM summaries."""
+    selectors: dict[str, str] = {}
+    for summary in (record.get("dkim1"), record.get("dkim2")):
+        for part in str(summary or "").split("|"):
+            name, sep, status = part.partition(":")
+            if sep and name.strip():
+                selectors[name.strip().lower()] = status.strip()
+    return selectors
+
+
+def _key_published(status: str) -> bool:
+    """A selector the DNS lookup found a key (or a CNAME to one) at."""
+    return status.upper().startswith(("CNAME", "TXT"))
+
+
+_EXCHANGE_SPF = "spf.protection.outlook.com"
+# Senders the data can name: the SPF include that says one sends a domain's
+# mail, and the DKIM selectors it signs with, among those the DNS collector
+# looks up. "default" and "dkim" are anybody's, so a key there names no sender.
+_THIRD_PARTY_SENDERS = (
+    ("Google Workspace", ("_spf.google.com",), ("google",)),
+    ("Mailchimp", ("servers.mcsv.net", "spf.mandrillapp.com"), ("k1", "k2")),
+)
+
+
+def _spf_senders(record: dict) -> set[str] | None:
+    """Who the domain's SPF record lets send its mail, as far as the data can name them.
+
+    "exchange", a third-party sender's name, and "none" for a record that
+    lets nobody send (v=spf1 -all). None without a published SPF record.
+    """
+    spf = record.get("spf_record")
+    if not isinstance(spf, str) or not spf.lower().startswith("v=spf1"):
+        return None
+    mechanisms = spf.lower().split()[1:]
+    if mechanisms == ["-all"]:
+        return {"none"}
+    targets: set[str] = set()
+    for term in mechanisms:
+        term = term.lstrip("+-~?")
+        for prefix in ("include:", "redirect="):
+            if term.startswith(prefix):
+                targets.add(term[len(prefix) :])
+    senders = {"exchange"} if _EXCHANGE_SPF in targets else set()
+    for name, includes, _selectors in _THIRD_PARTY_SENDERS:
+        if targets & set(includes):
+            senders.add(name)
+    return senders
+
+
+def _third_party_dkim(record: dict) -> list[tuple[str, str]]:
+    """(sender, selector) for each nameable sender whose DKIM key is published."""
+    selectors = _dkim_selectors(record)
+    return [
+        (name, selector)
+        for name, _includes, keys in _THIRD_PARTY_SENDERS
+        for selector in keys
+        if _key_published(selectors.get(selector, ""))
+    ]
+
+
 # Domains to exclude from SPF/DMARC compliance checks — these are either
 # Microsoft infrastructure domains or third-party service domains where
 # the customer has no control over DNS records.

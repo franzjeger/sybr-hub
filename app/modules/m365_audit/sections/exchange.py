@@ -530,14 +530,27 @@ class ExchangeSection(BaseSection):
             f"  {'Domain':<45} {'Enabled':>8} {'Status':<20} {'Selector'}",
             "  " + "-" * 76,
         ]
+        rows: list[dict] = []
         for d in configs:
-            domain = str(d.get("Domain") or "")[:45]
-            enabled = "Yes" if d.get("Enabled") else "No"
-            status = str(d.get("Status") or "")[:20]
-            selector = str(d.get("Selector1CNAME") or d.get("Selector") or "N/A")[:30]
+            row = {
+                "domain": str(d.get("Domain") or ""),
+                # Only a real yes is signing: "False" as a word was truthy and
+                # printed "Yes".
+                "enabled": _flag(d.get("Enabled")) is True,
+                "status": d.get("Status"),
+                "selector": d.get("Selector1CNAME") or d.get("Selector"),
+            }
+            rows.append(row)
+            domain = row["domain"][:45]
+            enabled = "Yes" if row["enabled"] else "No"
+            status = str(row["status"] or "")[:20]
+            selector = str(row["selector"] or "N/A")[:30]
             lines.append(f"  {domain:<45} {enabled:>8} {status:<20} {selector}")
         lines += ["=" * 80, ""]
         self._save("25_exchange_dkim.txt", "\n".join(lines))
+        # CIS 5.2.3 reads whether Exchange signs for each mail domain from here,
+        # with each domain whole: the table cuts it to 45 characters.
+        self._save_sidecar("25_exchange_dkim.txt", {"count": len(rows), "configs": rows})
 
     # ── Defender Policies ─────────────────────────────────────────────────────
 

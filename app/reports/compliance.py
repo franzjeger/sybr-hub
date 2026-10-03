@@ -43,7 +43,13 @@ from app.reports.parsers.collaboration import (
 from app.reports.parsers.common import _record_count, _sidecar
 from app.reports.parsers.email import (
     _defender_policies,
+    _dkim_selectors,
+    _exchange_dkim_configs,
+    _exchange_signs,
     _inbox_rule_counts,
+    _key_published,
+    _spf_senders,
+    _third_party_dkim,
     _unverified_forwarding_count,
 )
 
@@ -877,35 +883,75 @@ def _dmarc(audit: _Audit, record: dict, domain: str) -> _Verdict:
 
 
 def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
-    signing = record.get("dkim", "")
-    dkim1 = record.get("dkim1", "")
-    dkim2 = record.get("dkim2", "")
-    detail = signing or dkim1 or ""
-    valid = False
-    if signing and ("enabled" in signing.lower() or "OK" in signing):
-        valid = True  # M365 signing config
-    elif "cname" in dkim1.lower() or "cname" in dkim2.lower():
-        valid = True  # Microsoft's CNAME selectors
-    elif "k=rsa" in dkim1.lower() or "k=rsa" in dkim2.lower():
-        valid = True  # a third-party key
-        detail = dkim1 or dkim2
-    # The parser adds these keys only when the DNS output had a DKIM line, so
-    # their presence separates "looked and found nothing" from "never checked".
-    checked = any(k in record for k in ("dkim", "dkim1", "dkim2"))
-    # Only the M365 selectors (dkim1) can make this cannot-verify: dkim2 probes
-    # guessed third-party names, and a blip there must not hide a definite miss.
-    if valid:
-        return "pass", detail
-    if "error" in dkim1.lower():
+    """DKIM for one mail domain: is its mail signed by whoever sends it?
+
+    The control used to pass on a CNAME anywhere in the DNS summary, so a
+    Mailchimp k1 CNAME passed an Exchange DKIM control, and M365 selectors
+    published in DNS passed it with signing switched off in Exchange. Its
+    branch for a third-party key looked for "k=rsa", which the collector never
+    writes ("TXT present"), so a Google key failed. It now decides on who
+    sends the domain's mail: Exchange Online's own signing config (25), or a
+    third party's key for a domain whose SPF record (26) says that third
+    party sends its mail. The sidecar and the text give the same records.
+    """
+    signs = _exchange_signs(_exchange_dkim_configs(audit.fc), domain)
+    if signs:
+        return "pass", f"DKIM-signering er aktivert i Exchange Online for {domain}"
+    senders = _spf_senders(record)
+    if senders == {"none"}:
+        return "pass", f"{domain} sender ikke e-post (SPF: v=spf1 -all), så DKIM trengs ikke"
+    keys = _third_party_dkim(record)
+    if senders and "exchange" not in senders:
+        # The data names who sends the domain's mail, and it is not Exchange.
+        signed = [(name, selector) for name, selector in keys if name in senders]
+        if signed:
+            name, selector = signed[0]
+            return (
+                "pass",
+                f"{domain} sender e-post via {name}, som har publisert DKIM-nøkkel "
+                f"(selektor {selector})",
+            )
         return (
-            "info",
-            _CANNOT_VERIFY + f"DKIM-oppslaget for M365-selektorene til {domain} feilet med {dkim1}",
+            "warn",
+            f"{domain} sender e-post via {', '.join(sorted(senders))}, men ingen DKIM-nøkkel "
+            "for avsenderen er funnet",
         )
-    if detail:
-        return "fail", detail
-    if checked:
-        return "fail", "No DKIM record found"
-    return "info", _CANNOT_VERIFY + "DKIM ikke kontrollert for dette domenet"
+    # Exchange sends the domain's mail, or the data does not say who does.
+    detail = f"DKIM-signering er ikke aktivert i Exchange Online for {domain}"
+    if signs is None:
+        # Exchange's signing config was not collected. DNS can still say no:
+        # without the M365 selectors published, Exchange cannot sign with the
+        # domain. Published, they say only that signing was set up, not that
+        # it was switched on. Only the M365 selectors decide here: the others
+        # are guessed third-party names, and a blip there must not hide a miss.
+        dkim1 = str(record.get("dkim1") or "")
+        m365 = [_dkim_selectors(record).get(s) for s in ("selector1", "selector2")]
+        if "error" in dkim1.lower():
+            return (
+                "info",
+                _CANNOT_VERIFY
+                + f"DKIM-oppslaget for M365-selektorene til {domain} feilet med {dkim1}",
+            )
+        if any(s and _key_published(s) for s in m365):
+            return "info", _CANNOT_VERIFY + (
+                f"DKIM-signeringen i Exchange Online for {domain} ble ikke hentet, "
+                "men M365-selektorene er publisert i DNS"
+            )
+        if not all(s == "MISSING" for s in m365):
+            return "info", _CANNOT_VERIFY + "DKIM ikke kontrollert for dette domenet"
+        detail = (
+            f"Ingen M365 DKIM-selektorer er publisert for {domain}, så Exchange Online "
+            "signerer ikke e-posten med domenet"
+        )
+    if keys:
+        names = ", ".join(sorted({name for name, _ in keys}))
+        detail += (
+            f"; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender, "
+            "og SPF viser at Exchange Online også sender for domenet"
+            if senders
+            else f"; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender"
+        )
+    return "warn", detail
 
 
 # ── Devices ───────────────────────────────────────────────────────────────────

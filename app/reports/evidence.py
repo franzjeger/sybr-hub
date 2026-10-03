@@ -129,7 +129,9 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     "5.1.1": ("08_conditional_access.txt",),
     "5.2.1": ("26_email_dns_spf_dmarc.txt",),
     "5.2.2": ("26_email_dns_spf_dmarc.txt",),
-    "5.2.3": ("26_email_dns_spf_dmarc.txt",),
+    # Whether Exchange signs for the domain (25), and who sends its mail and
+    # which DKIM keys are published (26).
+    "5.2.3": ("25_exchange_dkim.txt", "26_email_dns_spf_dmarc.txt"),
     "6.1.1": ("11_intune_compliance_policies.txt", "10_intune_devices_count.txt"),
     "7.2.1": ("15b_sharepoint_settings.txt",),
     "7.2.2": ("19e_purview_retention_policies.txt",),
