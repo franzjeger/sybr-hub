@@ -211,6 +211,44 @@ def _count_defender_policy_state(text: str) -> tuple[int, int]:
     return safe_links, safe_attach
 
 
+# (sidecar key, the two spellings the text reader looks for)
+_DEFENDER_KINDS = {
+    "safe_links": ("safelinks", "safe links"),
+    "safe_attachments": ("safeattach", "safe attach"),
+}
+
+
+def _defender_policies(file_contents: dict[str, str]) -> dict[str, dict]:
+    """Safe Links and Safe Attachments: how many policies are enabled, and whether any exist.
+
+    {"safe_links": {"enabled": n, "present": bool}, "safe_attachments": {...}},
+    from 27_exchange_defender_policies.json, or from the text: the enabled
+    count from its policy blocks, and "present" when the policy type is named
+    anywhere in it. That last test also matched a policy of the other type
+    whose name said "Safe Links".
+    """
+    data = _sidecar(file_contents, "27_exchange_defender_policies.txt")
+    if data is not None:
+        state = {}
+        for kind in _DEFENDER_KINDS:
+            counts = data.get(kind) if isinstance(data.get(kind), dict) else {}
+            enabled, total = counts.get("enabled"), counts.get("total")
+            state[kind] = {
+                "enabled": enabled if isinstance(enabled, int) else 0,
+                "present": isinstance(total, int) and total > 0,
+            }
+        return state
+    text = file_contents.get("27_exchange_defender_policies.txt", "")
+    links, attachments = _count_defender_policy_state(text)
+    low = text.lower()
+    return {
+        kind: {"enabled": enabled, "present": any(name in low for name in names)}
+        for (kind, names), enabled in zip(
+            _DEFENDER_KINDS.items(), (links, attachments), strict=True
+        )
+    }
+
+
 def _severity(status: str) -> str:
     s = status.upper()
     if s.startswith("ERROR") or "QUERY FAILED" in s:
