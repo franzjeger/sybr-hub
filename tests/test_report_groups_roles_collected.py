@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import pytest
 
+from app.modules.m365_audit.sections.conditional_access import ConditionalAccessSection
 from app.modules.m365_audit.sections.groups_roles import AdminRolesSection, GroupsSection
-from app.reports.parsers import _parse_admin_roles, _parse_groups
+from app.modules.m365_audit.sections.users_mfa import MFASection, UsersSection
+from app.reports.parsers import _parse_admin_roles, _parse_groups, _parse_mfa
 from app.reports.parsers.common import _sidecar
+from app.reports.recommendations import _build_recommendations
 from tests.collector_rig import FakeGraph, refused, run_sections
 
 LONG_GROUP = "Alle ansatte i Kunde A, avdeling for økonomi og regnskap"
@@ -212,3 +215,93 @@ async def test_a_refused_role_list_writes_no_sidecar(tmp_path):
 
     assert "07_admin_roles.json" not in files
     assert _parse_admin_roles(files.get("07_admin_roles.txt", ""), None)["has_data"] is False
+
+
+# ── A Global Admin excluded from MFA, across two files ────────────────────────
+
+
+async def _collect_excluded_admin(tmp_path) -> dict:
+    """Users, Conditional Access, MFA and Admin Roles over one tenant.
+
+    Kari is a Global Admin with a UPN longer than the roles table's column,
+    and the only MFA policy excludes her.
+    """
+    users = [
+        {
+            "id": "u-kari",
+            "displayName": LONG_DISPLAY,
+            "userPrincipalName": LONG_UPN,
+            "accountEnabled": True,
+            "userType": "Member",
+        }
+    ]
+    policy = {
+        "id": "p-mfa",
+        "displayName": "Krev MFA",
+        "state": "enabled",
+        "conditions": {
+            "users": {"includeUsers": ["All"], "excludeUsers": ["u-kari"]},
+            "applications": {"includeApplications": ["All"]},
+            "clientAppTypes": ["all"],
+        },
+        "grantControls": {"builtInControls": ["mfa"]},
+    }
+    routes = {
+        "users": users,
+        "users/u-kari/authentication/methods": {"value": []},
+        "identity/conditionalAccess/policies": [policy],
+        "identity/conditionalAccess/namedLocations": [],
+        "directoryRoles": [{"id": "r-ga", "displayName": "Global Administrator"}],
+        "directoryRoles/r-ga/members": users,
+    }
+    async with FakeGraph(routes) as fake:
+        users_section = UsersSection(tmp_path, fake.client)
+        ca = ConditionalAccessSection(tmp_path, fake.client)
+        mfa = MFASection(tmp_path, fake.client, users_section.users, ca_section=ca)
+        roles = AdminRolesSection(tmp_path, fake.client, users_ref=users_section.users)
+        files = await run_sections(users_section, ca, mfa, roles)
+        assert fake.unrouted == []
+    return files
+
+
+def _excluded_admin_rec(files: dict) -> dict | None:
+    mfa = _parse_mfa(
+        files["04_mfa_methods.txt"],
+        files["04b_mfa_ca_analysis.txt"],
+        [],
+        files.get("04_mfa_methods.json", ""),
+    )
+    admin_roles = _parse_admin_roles(
+        files["07_admin_roles.txt"], _sidecar(files, "07_admin_roles.txt")
+    )
+    recs = _build_recommendations(
+        mfa=mfa,
+        spf_dmarc=[],
+        secure_score={"has_data": False},
+        ext_fwd="",
+        risky_users="",
+        licenses=[],
+        admin_roles=admin_roles,
+        file_contents=files,
+    )
+    return next((r for r in recs if r["finding_id"] == "finding-mfa-excluded"), None)
+
+
+async def test_an_excluded_global_admin_with_a_long_upn_is_flagged(tmp_path):
+    files = await _collect_excluded_admin(tmp_path)
+
+    rec = _excluded_admin_rec(files)
+
+    assert rec is not None
+    assert LONG_UPN in rec["sub_items"][0]
+
+
+async def test_it_is_flagged_on_a_run_whose_roles_predate_their_sidecar(tmp_path):
+    """The MFA records carry the UPN whole; a roles table from before its sidecar cut it."""
+    files = await _collect_excluded_admin(tmp_path)
+    del files["07_admin_roles.json"]
+
+    rec = _excluded_admin_rec(files)
+
+    assert rec is not None, "the cut UPN must still match the whole one"
+    assert LONG_UPN in rec["sub_items"][0]

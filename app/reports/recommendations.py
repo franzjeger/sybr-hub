@@ -252,6 +252,10 @@ def _mfa(audit: _Audit) -> Iterator[dict]:
         }
 
 
+# The width 07_admin_roles.txt cuts each UPN to (groups_roles.AdminRolesSection).
+_ADMIN_UPN_WIDTH = 45
+
+
 def _high_risk_exclusions(audit: _Audit) -> tuple[list[str], set[str]]:
     """CA-excluded accounts that are a Global Admin or a brute-force target.
 
@@ -267,13 +271,17 @@ def _high_risk_exclusions(audit: _Audit) -> tuple[list[str], set[str]]:
         (g.get("email") or "").strip().lower()
         for g in (audit.admin_roles or {}).get("global_admin_users", [])
     }
+    # A run from before 07_admin_roles.json has the admins' UPNs from the
+    # table, cut to its column, while the MFA records carry them whole: match
+    # a cut one on the part the table kept.
+    ga_cut = {e for e in ga_emails if len(e) == _ADMIN_UPN_WIDTH}
     bf_emails = {
         (u or "").strip().lower() for u in (audit.signin_risk or {}).get("brute_force_suspects", [])
     }
     for u in excluded_users:
         upn = (u.get("upn") or "").strip().lower()
         reasons = []
-        if upn and upn in ga_emails:
+        if upn and (upn in ga_emails or upn[:_ADMIN_UPN_WIDTH] in ga_cut):
             reasons.append(t.rec_mfa_excluded_ga)
         if upn and upn in bf_emails:
             reasons.append(t.rec_mfa_excluded_bruteforce)
