@@ -6,6 +6,41 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Videresending, DKIM og Intune vurderes riktig
+
+- En innboksregel som videresender til en kollega, ga en kritisk advarsel om
+  ekstern videresending, en advarsel på CIS 4.4 og et kritisk funn i den
+  tekniske rapporten. Nå vurderes hver mottaker for seg: en postboks eller
+  gruppe i tenanten er intern, en e-postkontakt avgjøres på den eksterne
+  adressen. Kan auditen ikke slå opp mottakeren, står regelen som ikke
+  bekreftet, ikke som ekstern.
+- Videresending satt på postboksen til en annen mottaker i katalogen ble alltid
+  regnet som ekstern. Den vurderes nå på samme måte.
+- CIS 5.2.3 (DKIM) godkjente et domene fordi en tredjepart som Mailchimp hadde
+  publisert en nøkkel, og underkjente et domene som sender via Google
+  Workspace med gyldig nøkkel. Nå avgjøres DKIM per domene ut fra hvem som
+  sender e-posten: Exchange Online sin egen signering, eller nøkkelen til
+  tredjeparten som SPF viser at sender. Et domene Exchange sender for uten å
+  signere, får rødt, slik manglende SPF og DMARC gjør. DKIM-kolonnen i
+  kunderapporten viser det samme som kontrollen.
+- Lista over enheter som ikke er i samsvar med Intune, tok med enheter med
+  ukjent status og enheter i en frist. Tallet i lista avvek fra tallet over
+  den. Nå viser lista bare enheter som ikke er i samsvar, og de andre vises
+  for seg.
+- En app-legitimasjon som utløper om nøyaktig 30 dager, ble regnet som «utløper
+  snart» i én fil og ikke i en annen.
+- Statusen du har satt på en anbefaling fra Azure Advisor, forsvant når
+  rapporten ble lest på det andre språket. Lagret status flyttes med
+  automatisk ved oppgraderingen.
+- Hver CIS-kontroll i rapporten viser til datafilen vurderingen faktisk er
+  lest fra.
+
+### Tilgang
+
+- Lagringsstiene på serveren sendes bare til administratorer.
+- Systemkontoen kan ikke få endret rolle eller rettigheter, og den kan ikke
+  deaktiveres.
+
 ### Grensesnittet sier det samme overalt
 
 - Et tall som ikke ble målt, står som «ukjent» og ikke som 0. Kundesiden
