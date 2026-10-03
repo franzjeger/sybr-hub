@@ -85,6 +85,15 @@ class AuditCollector:
             return True
         return name in self.sections_filter
 
+    def _section_enabled(self, section: BaseSection) -> bool:
+        """The filter names a section by its class name ("Azure Compute").
+
+        An Azure section's own name carries its subscription ("Azure Compute
+        (Prod)"), which no filter entry matches, so any audit run with a scope
+        filter used to skip every Azure section without saying so.
+        """
+        return self._is_enabled(type(section).name)
+
     # ── Main entry point ──────────────────────────────────────────────────────
 
     async def run(self) -> list[SectionResult]:
@@ -184,7 +193,7 @@ class AuditCollector:
                                     sub["id"], sub["name"], multi
                                 )
                                 for section in azure_sections:
-                                    if self._is_enabled(section.name):
+                                    if self._section_enabled(section):
                                         await self._run(section)
                         else:
                             for name in self.AZURE_SECTION_NAMES:
