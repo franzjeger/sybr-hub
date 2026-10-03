@@ -6,6 +6,22 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Backup av Microsoft 365-data
+
+- Auditen sjekker om e-post, OneDrive og SharePoint har backup. Den leser
+  Microsoft 365 Backup og teller hvor mange postbokser og områder
+  policyene beskytter. Den kjenner også igjen backupapper som Veeam, Keepit,
+  AvePoint og Datto på tilgangene de har i tenanten.
+- Rapporten skiller mellom fire svar per område: Microsoft 365 Backup med
+  antall, en backupapp med tilgang, ingen backup funnet og kunne ikke leses.
+  En app med tilgang viser at et produkt er installert, ikke at backupen
+  kjører, og rapporten sier det.
+- Finnes ingen backup for et område, og begge kildene kunne leses, gir det en
+  anbefaling med høy prioritet. En lesing som feilet, gir aldri «ingen
+  backup».
+- Sjekken trenger to nye Graph-tillatelser. Uten dem fortsetter auditen som
+  før, og Microsoft 365 Backup står som ikke lest. Se docs/UPGRADING.md.
+
 ### Engelske rapporter er på engelsk
 
 - En rapport på engelsk hadde norske forklaringer i hver CIS-, NIST- og
