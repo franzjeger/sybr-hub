@@ -21,6 +21,7 @@ const ENFORCED = new Set([
   'app-infra.js',
   'app-network.js',
   'app-tailscale.js',
+  'app-also.js',
 ]);
 
 const HTML_PROPS = new Set(['innerHTML', 'outerHTML', 'srcdoc']);
