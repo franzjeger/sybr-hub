@@ -865,6 +865,11 @@ function _claim(id) {
   };
 }
 
+function _vpnStatField(label, value) {
+  if (!value) return '';
+  return '<div><div style="color:var(--text-dim);">' + esc(label) + '</div><div style="font-family:var(--mono);color:var(--text);font-weight:600;">' + esc(String(value)) + '</div></div>';
+}
+
 async function vpnLoadProfiles() {
   var box = _claim('vpn-content');
   var el = box.el;

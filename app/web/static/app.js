@@ -1,169 +1,34 @@
-
-// ── Inline SVG icon helper ───────────────────────────────────────────────────
-function icon(name, size) {
-  var s = Number(size) || 16;
-  var paths = {
-    document:  'M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z',
-    refresh:   'M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
-    download:  'M12 16l-5-5 1.41-1.41L11 12.17V4h2v8.17l2.59-2.58L17 11l-5 5zM5 18v2h14v-2H5z',
-    warning:   'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
-    bell:      'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z',
-    check:     'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z',
-    x:         'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z',
-    lock:      'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z',
-    globe:     'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
-    server:    'M20 3H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6H4V5h16v4zm0 4H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6H4v-4h16v4zM6 7.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0zm0 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z',
-    shield:    'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z',
-    // Used by the command palette and the navigation menus. Emoji were used
-    // here once; they render in the font's own colours and at the font's own
-    // weight, so a single 🔒 beside a row of line icons is the one thing on
-    // the screen the design language does not reach.
-    grid:      'M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z',
-    users:     'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
-    cloud:     'M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z',
-    calendar:  'M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z',
-    monitor:   'M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z',
-    link:      'M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z',
-    gear:      'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
-    sparkle:   'M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z',
-    plug:      'M16 7V3h-2v4h-4V3H8v4H6v6l4 4v4h4v-4l4-4V7h-2z',
-    palette:   'M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01a1.49 1.49 0 0 1 1.14-2.49H16a5 5 0 0 0 5-5c0-4.42-4.03-8-9-8zm-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z',
-    play:      'M8 5v14l11-7L8 5z',
-    chart:     'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
-    building:  'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z',
-    clock:     'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
-    search:    'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
-    // Added for the files view, which carried 📂 📁 🗂 🔐 🔓 as emoji.
-    folder:    'M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z',
-    key:       'M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
-    unlock:    'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
-    // The account and help rows of the avatar menu and the phone's Mer sheet,
-    // which carried text glyphs and a second, outlined icon style.
-    user:      'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
-    help:      'M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z',
-    logout:    'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
-    keyboard:  'M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z',
-  };
-  var d = paths[name];
-  if (!d) return '';
-  return '<span class="ic" style="width:'+s+'px;height:'+s+'px;">'
-    + '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">'
-    + '<path d="'+d+'"/></svg></span>';
-}
-
-// Menus written in the markup name their icon (data-icon="lock") and take it
-// from the set above, the one the palette uses. They carried text glyphs
-// (a shekel sign for Lisenser og hosting) beside outlined SVGs, three icon
-// languages in one menu.
-function hydrateIcons(root) {
-  (root || document).querySelectorAll('[data-icon]').forEach(function(el) {
-    if (!el.firstElementChild) el.innerHTML = icon(el.dataset.icon, 16);
-  });
-}
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { hydrateIcons(); });
-else hydrateIcons();
-
-// Sets a button's label without discarding the icon in front of it. Buttons
-// that carry one are markup of the form
-//   <button><span class="ic">…svg…</span><span data-i18n="key">Label</span></button>
-// and btn.textContent = '…' flattens both spans into a bare string, so the
-// icon disappeared the first time the button changed state and never came
-// back. Writing to the label span leaves the icon alone.
-function setButtonLabel(btn, text) {
-  if (!btn) return;
-  var label = btn.querySelector('[data-i18n]');
-  if (label) label.textContent = text;
-  else btn.textContent = text;
-}
-
-// ── Event handlers without inline JavaScript ─────────────────────────────────
-// The CSP has script-src-attr 'none': the browser runs no inline event-handler
-// attribute (onclick and the rest). A control names its handler in a data
-// attribute instead:
+// ═══════════════════════════════════════════════════════════════════
+// SHELL: the views and the address bar, signing in, the command palette,
+// the top-bar menus and the connection chip
+// ═══════════════════════════════════════════════════════════════════
 //
-//   <button data-click-handler="showView" data-view="audit">…</button>
-//   <select data-change-handler="setLanguage">…</select>
-//
-// One listener per event type, on document in the capture phase, looks the
-// name up in the map below and calls it as handler(element, event). Arguments
-// come from the element's own data-* attributes; an attribute is never
-// evaluated, and only names registered here can be called — this is not a way
-// to reach any global function from markup.
-//
-// Each script registers the handlers its own markup uses with
-// registerUiHandlers({...}), once, at load. A name can be registered only once
-// and the map is frozen when the document has loaded.
-//
-// Dispatch mirrors how inline handlers bubbled: from the event target outwards,
-// every element with a handler for this event type runs it, until one calls
-// event.stopPropagation(). Because it runs in the capture phase, that call also
-// stops the document-level listeners (click-outside-to-close and the like),
-// just as stopPropagation() in an inline handler did. It also stops listeners
-// added with addEventListener on elements *inside* the one whose handler made
-// the call, which an inline handler on that element did not: inside a
-// container that stops clicks (the shared stopPropagation handler on a dialog),
-// give controls data-*-handler attributes rather than their own listeners.
-var UI_HANDLER_EVENTS = Object.freeze(['click', 'dblclick', 'input', 'change', 'keydown', 'submit', 'dragover', 'dragleave', 'drop']);
-var _uiHandlers = Object.create(null);
+// The helpers every screen uses live in leaf scripts of their own:
+//   app-esc.js       esc()
+//   app-i18n.js      ui_i18n.json, t(), the interface language
+//   app-icons.js     icon(), hydrateIcons()
+//   app-handlers.js  registerUiHandlers() and the event dispatcher
+//   app-hooks.js     onViewShown(), onSignedIn() and the other registries
+//   app-state.js     the account, this tab's customer, the customer page,
+//                    the shared customer lists
+//   app-format.js    figures, run names, dates and sizes
+//   app-ui.js        toasts, confirm dialogs, the login screen, skeletons
+//   app-api.js       apiFetch()
+// Each feature is a script of its own (app-audit.js, app-dashboard.js, ...).
 
-function registerUiHandlers(handlers) {
-  Object.keys(handlers).forEach(function(name) {
-    if (Object.isFrozen(_uiHandlers)) throw new Error('UI handler registered after load: ' + name);
-    if (name in _uiHandlers) throw new Error('UI handler registered twice: ' + name);
-    if (typeof handlers[name] !== 'function') throw new TypeError('UI handler is not a function: ' + name);
-    _uiHandlers[name] = handlers[name];
-  });
-}
 
-function _dispatchUiEvent(event) {
-  var attribute = 'data-' + event.type + '-handler';
-  // The elements with a handler, innermost first, fixed before any handler runs
-  // as the browser fixes an event's path: a handler that removes part of the
-  // page does not stop the ancestors that were there from getting the event.
-  var path = [];
-  var node = event.target;
-  if (node && node.nodeType !== 1) node = node.parentElement;
-  for (; node && node.nodeType === 1; node = node.parentElement) {
-    // A disabled control never ran its inline handler either.
-    if (node.hasAttribute(attribute) && !node.matches(':disabled')) path.push(node);
-  }
-  for (var i = 0; i < path.length; i++) {
-    var name = path[i].getAttribute(attribute);
-    var handler = _uiHandlers[name];
-    if (!handler) { console.error('No UI handler registered as "' + name + '" (' + attribute + ')'); continue; }
-    // <a href="#"> with a click handler is a button that looks like a link.
-    // Following the "#" would change the route; inline handlers ended in
-    // `return false` for the same reason.
-    if (event.type === 'click' && path[i].tagName === 'A' && path[i].getAttribute('href') === '#') event.preventDefault();
-    handler(path[i], event);
-    if (event.cancelBubble) break;
-  }
-}
-
-UI_HANDLER_EVENTS.forEach(function(type) { document.addEventListener(type, _dispatchUiEvent, true); });
-document.addEventListener('DOMContentLoaded', function() { Object.freeze(_uiHandlers); });
-
-// Handlers shared by markup in several scripts.
+// Handlers shared by markup in several scripts (the generic ones are in
+// app-handlers.js).
 registerUiHandlers({
   showView: function(el) { showView(el.dataset.view); },
-  // data-target names an element by id.
-  hideElement: function(el) { var target = document.getElementById(el.dataset.target); if (target) target.style.display = 'none'; },
-  removeElement: function(el) { var target = document.getElementById(el.dataset.target); if (target) target.remove(); },
-  // On a modal's backdrop: a click on the backdrop itself, not on the dialog.
-  hideOnBackdrop: function(el, event) { if (event.target === el) el.style.display = 'none'; },
-  removeOnBackdrop: function(el, event) { if (event.target === el) el.remove(); },
-  // On a container whose clicks must not reach a clickable row or card behind it.
-  stopPropagation: function(el, event) { event.stopPropagation(); },
 });
 
-// Handlers for the markup app.js builds: the command palette, toasts and Home.
+// Handlers for the markup app.js builds: the command palette and Home.
 registerUiHandlers({
   runCommandPaletteItem: function(el) {
     closeCommandPalette();
     _cmdActions[Number(el.dataset.index)]();
   },
-  dismissToast: function(el) { dismissToast(el.parentNode); },
-  retryToast: function(el) { retryToast(el.closest('.toast')); },
   openTagEditor: function(el) { openTagEditor(el.dataset.customerId, JSON.parse(el.dataset.tags)); },
   checkPermissions: function(el) { checkPermissions(el.dataset.customerId); },
   renewCreds: function(el) { renewCreds(el.dataset.customerId); },
@@ -344,253 +209,6 @@ registerUiHandlers({
   vpnShowImport: function() { vpnShowImport(); },
 });
 
-// ── Reusable sortable table utility ──────────────────────────────────────────
-function makeSortable(tableEl) {
-  if (!tableEl) return;
-  var thead = tableEl.querySelector('thead');
-  if (!thead) return;
-  var ths = thead.querySelectorAll('th');
-  ths.forEach(function(th, colIdx) {
-    // Skip columns that are too narrow / utility (checkboxes, empty, icon-only)
-    if (th.querySelector('input[type="checkbox"]')) return;
-    if (th.textContent.trim().length === 0 && !th.getAttribute('data-sort-key')) return;
-    th.classList.add('sortable');
-    th.setAttribute('data-col-idx', colIdx);
-    th.addEventListener('click', function() {
-      var asc = true;
-      if (th.classList.contains('sort-asc')) { asc = false; }
-      // Clear sort state on all siblings
-      ths.forEach(function(s) { s.classList.remove('sort-asc', 'sort-desc'); });
-      th.classList.add(asc ? 'sort-asc' : 'sort-desc');
-      _sortTableByCol(tableEl, colIdx, asc);
-    });
-  });
-}
-
-function _sortTableByCol(tableEl, colIdx, asc) {
-  var tbody = tableEl.querySelector('tbody');
-  if (!tbody) return;
-  var rows = Array.from(tbody.querySelectorAll('tr'));
-  // Separate data rows from separator/subtotal rows, cache cells once
-  var dataRows = [];
-  var otherRows = [];
-  var cellCache = new Map();
-  rows.forEach(function(r) {
-    var cells = r.querySelectorAll('td');
-    if (cells.length <= 1 && r.querySelector('td[colspan]')) {
-      otherRows.push(r);
-    } else {
-      dataRows.push(r);
-      cellCache.set(r, cells);
-    }
-  });
-  // Pre-extract sort values to avoid DOM reads during sort
-  var sortValues = new Map();
-  dataRows.forEach(function(r) {
-    var cell = cellCache.get(r)[colIdx];
-    if (cell) {
-      var v = (cell.getAttribute('data-sort-value') || cell.textContent).trim();
-      sortValues.set(r, v);
-    }
-  });
-  dataRows.sort(function(a, b) {
-    var va = sortValues.get(a) || '';
-    var vb = sortValues.get(b) || '';
-    var na = parseFloat(va.replace(/[^0-9.\-]/g, ''));
-    var nb = parseFloat(vb.replace(/[^0-9.\-]/g, ''));
-    if (!isNaN(na) && !isNaN(nb)) {
-      return asc ? na - nb : nb - na;
-    }
-    var cmp = va.localeCompare(vb, 'no', {sensitivity: 'base'});
-    return asc ? cmp : -cmp;
-  });
-  // Re-append in sorted order
-  dataRows.forEach(function(r) { tbody.appendChild(r); });
-  otherRows.forEach(function(r) { tbody.appendChild(r); });
-}
-
-// ── DOM element cache ─────────────────────────────────────────────────────────
-// Cache frequently accessed elements to reduce DOM queries.
-// Uses lazy initialization — elements are cached on first access.
-var _domCache = {};
-function $(id) {
-  if (!(id in _domCache)) _domCache[id] = document.getElementById(id);
-  return _domCache[id];
-}
-function _invalidateDomCache() { _domCache = {}; }
-
-// ── i18n ──────────────────────────────────────────────────────────────────────
-let _i18n = {};
-let _lang = localStorage.getItem('ui_lang') || 'no';
-
-async function loadI18n() {
-    try {
-        // The shell carries the content-versioned URL; a fixed number here
-        // kept serving a cached file after the strings changed.
-        var meta = document.querySelector('meta[name="sybr-i18n"]');
-        const r = await fetch(meta ? meta.content : '/static/ui_i18n.json');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        _i18n = await r.json();
-        translatePage();
-    } catch (e) {
-        console.warn('i18n load failed:', e);
-    }
-}
-
-function t(key, fallback) {
-    if (_i18n[_lang] && _i18n[_lang][key]) return _i18n[_lang][key];
-    if (_i18n['no'] && _i18n['no'][key]) return _i18n['no'][key];
-    return fallback || key;
-}
-
-function setLanguage(lang) {
-    _lang = lang;
-    localStorage.setItem('ui_lang', lang);
-    translatePage();
-}
-
-// Attributes that can carry user-facing text. aria-label and alt were not
-// handled at all, so marking them up did nothing and the Norwegian in them was
-// permanently untranslatable — invisible to sighted users and stuck in one
-// language for everyone using a screen reader.
-var _I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'alt'];
-
-function translatePage(root) {
-    var scope = root || document;
-    // Single DOM scan with combined selector instead of one per attribute.
-    var selector = '[data-i18n]' + _I18N_ATTRS.map(function (a) {
-        return ',[data-i18n-' + a + ']';
-    }).join('');
-    scope.querySelectorAll(selector).forEach(el => {
-        var key = el.getAttribute('data-i18n');
-        if (key) {
-            var val = t(key);
-            if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.getAttribute('placeholder')) {
-                el.placeholder = val;
-            } else {
-                el.textContent = val;
-            }
-        }
-        _I18N_ATTRS.forEach(function (attr) {
-            var attrKey = el.getAttribute('data-i18n-' + attr);
-            if (attrKey) el.setAttribute(attr, t(attrKey));
-        });
-    });
-}
-
-// ── Styled confirm modal (replaces native confirm()) ─────────────────────────
-var _confirmResolver = null;
-// ── Empty-state helper ──────────────────────────────────────────────────────
-// Generates consistent markup for "no X yet" states. Use in place of ad-hoc
-//   '<div style="...">No data</div>'
-// strings.
-//   emptyStateHTML({
-//     icon: '📭', title: 'Ingen enheter', desc: 'Legg til din første…',
-//     variant: 'inline',   // or omit for full-card
-//   })
-// It once took an `actions` list of buttons whose onclick was a JavaScript
-// string. Nothing used it, and the CSP no longer runs inline handlers.
-function emptyStateHTML(opts) {
-  opts = opts || {};
-  var cls = opts.variant === 'inline' ? 'empty-state-inline' : 'empty-state';
-  var parts = ['<div class="' + cls + '">'];
-  if (opts.icon) parts.push('<div class="empty-icon">' + esc(opts.icon) + '</div>');
-  if (opts.title) parts.push('<div class="empty-title">' + esc(opts.title) + '</div>');
-  if (opts.desc) parts.push('<div class="empty-desc">' + esc(opts.desc) + '</div>');
-  parts.push('</div>');
-  return parts.join('');
-}
-
-function showConfirm(title, body) {
-  return new Promise(function(resolve) {
-    _confirmResolver = resolve;
-    document.getElementById('confirm-modal-title').textContent = title;
-    var bodyEl = document.getElementById('confirm-modal-body');
-    bodyEl.textContent = body || '';
-    bodyEl.style.display = body ? 'block' : 'none';
-    var modal = document.getElementById('confirm-modal');
-    modal.style.display = 'flex';
-    document.getElementById('confirm-modal-ok').focus();
-  });
-}
-
-// Confirm dialog that requires the user to type the exact subject (usually
-// a customer or user name) before the destructive button is enabled. Use
-// for actions that are hard to reverse — deletes, bulk wipes, etc.
-//
-//   if (!await showTypedConfirm(customer.name, "Slett kunde", "Dette sletter alle audits, rapporter og credentials permanent.")) return;
-function showTypedConfirm(subject, title, body) {
-  return new Promise(function(resolve) {
-    _confirmResolver = resolve;
-    document.getElementById('confirm-modal-title').textContent = title;
-    var bodyEl = document.getElementById('confirm-modal-body');
-
-    // Build a body that stays purely DOM (no innerHTML with user subject) so
-    // an attacker-controlled customer name can't slip in markup.
-    bodyEl.innerHTML = '';
-    if (body) {
-      var p = document.createElement('div');
-      p.textContent = body;
-      bodyEl.appendChild(p);
-    }
-    var hint = document.createElement('div');
-    hint.style.cssText = 'margin-top:12px;font-size:11px;color:var(--text-dim);';
-    hint.appendChild(document.createTextNode(t('lbl_type_to_confirm', 'Skriv') + ' '));
-    var strong = document.createElement('strong');
-    strong.style.cssText = 'color:var(--text);font-family:var(--mono);';
-    strong.textContent = subject;
-    hint.appendChild(strong);
-    hint.appendChild(document.createTextNode(' ' + t('lbl_type_to_confirm_suffix', 'for å bekrefte:')));
-    bodyEl.appendChild(hint);
-
-    var input = document.createElement('input');
-    input.id = 'confirm-modal-input';
-    input.type = 'text';
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-    input.style.cssText = 'margin-top:8px;width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;box-sizing:border-box;';
-    bodyEl.appendChild(input);
-    bodyEl.style.display = 'block';
-
-    var ok = document.getElementById('confirm-modal-ok');
-    ok.disabled = true;
-    ok.style.opacity = '0.5';
-    ok.style.cursor = 'not-allowed';
-
-    input.addEventListener('input', function() {
-      var match = input.value === subject;
-      ok.disabled = !match;
-      ok.style.opacity = match ? '' : '0.5';
-      ok.style.cursor = match ? '' : 'not-allowed';
-    });
-    input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && input.value === subject) {
-        e.preventDefault();
-        resolveConfirm(true);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        resolveConfirm(false);
-      }
-    });
-
-    var modal = document.getElementById('confirm-modal');
-    modal.style.display = 'flex';
-    setTimeout(function() { input.focus(); }, 50);
-  });
-}
-
-function resolveConfirm(val) {
-  document.getElementById('confirm-modal').style.display = 'none';
-  // Reset the OK button in case this was a typed-confirm
-  var ok = document.getElementById('confirm-modal-ok');
-  if (ok) {
-    ok.disabled = false;
-    ok.style.opacity = '';
-    ok.style.cursor = '';
-  }
-  if (_confirmResolver) { _confirmResolver(val); _confirmResolver = null; }
-}
-
 // ── Command Palette (Cmd+K) ──────────────────────────────────────────────────
 var _cmdPaletteOpen = false;
 var _cmdSelectedIdx = -1;
@@ -745,70 +363,6 @@ function _renderCmdResults(query) {
   _cmdActions = results.map(function(r){return r.action});
 }
 
-// ── Toast notification system ─────────────────────────────────────────────────
-function showToast(message, type, duration) {
-  if (type === undefined) type = 'error';
-  if (duration === undefined) duration = 5000;
-  var container = document.getElementById('toast-container');
-  if (!container) return;
-  var toast = document.createElement('div');
-  toast.className = 'toast toast-' + type;
-  toast.innerHTML = '<div class="toast-body">' + esc(message) + '</div>' +
-    '<button class="toast-close" data-click-handler="dismissToast" aria-label="' + t('btn_close') + '">&times;</button>';
-  container.appendChild(toast);
-  if (duration > 0) {
-    setTimeout(function() { dismissToast(toast); }, duration);
-  }
-  return toast;
-}
-
-function showToastWithRetry(message, retryFn, type, dedupeKey) {
-  if (type === undefined) type = 'error';
-  var container = document.getElementById('toast-container');
-  if (!container) return;
-  if (dedupeKey) {
-    var existing = Array.from(container.children).find(function(el) {
-      return el.dataset.errorKey === dedupeKey && !el.classList.contains('removing');
-    });
-    if (existing) return existing;
-  }
-  var toast = document.createElement('div');
-  if (dedupeKey) toast.dataset.errorKey = dedupeKey;
-  toast.dataset.retryId = _toastRetryId;
-  toast.className = 'toast toast-' + type;
-  toast.innerHTML = '<div class="toast-body">' + esc(message) +
-    '<div class="toast-actions"><button data-click-handler="retryToast">' +
-    t('toast_retry') + '</button></div></div>' +
-    '<button class="toast-close" data-click-handler="dismissToast" aria-label="' + t('btn_close') + '">&times;</button>';
-  _toastRetryFns[_toastRetryId] = retryFn;
-  _toastRetryId++;
-  container.appendChild(toast);
-  return toast;
-}
-var _toastRetryId = 0;
-// Each retry toast's action, by its data-retry-id, until it is dismissed.
-var _toastRetryFns = {};
-
-function retryToast(el) {
-  var retryFn = el && _toastRetryFns[el.dataset.retryId];
-  dismissToast(el);
-  if (retryFn) retryFn();
-}
-
-function dismissToast(el) {
-  if (!el || el.classList.contains('removing')) return;
-  if (el.dataset.retryId) delete _toastRetryFns[el.dataset.retryId];
-  el.classList.add('removing');
-  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
-}
-
-// ── apiFetch wrapper ──────────────────────────────────────────────────────────
-function setAuth() {
-  // Remove credentials left by versions that persisted bearer tokens.
-  localStorage.removeItem('msptk_token');
-  localStorage.removeItem('msptk_refresh');
-}
-
 // Called once on load (app-chrome.js, after the strings) and again after a
 // sign-in. Not shared between callers: a check that began before the sign-in
 // would answer "signed out" for the one after it.
@@ -839,13 +393,6 @@ async function checkAuth() {
   } catch(e) { console.error('Request failed:', e); showLoginView('login'); }
 }
 
-// What other scripts do once someone has signed in (app-chrome.js: the tour).
-var _signedInHooks = [];
-
-function onSignedIn(fn) {
-  _signedInHooks.push(fn);
-}
-
 function _postAuthInit() {
   // Land where the address says, else on the cross-customer dashboard: the
   // question a technician arrives with is "which customer needs me", not
@@ -855,7 +402,7 @@ function _postAuthInit() {
   _checkNotifBadge();
   _checkVpnHeaderBadge();
   startConnectionMonitor();
-  _signedInHooks.forEach(function(fn) { fn(); });
+  signedIn();
 }
 
 // ── Live connection monitor ───────────────────────────────────────────────
@@ -940,36 +487,6 @@ function startConnectionMonitor() {
   });
   window.addEventListener('online', _pollConnection);
   window.addEventListener('offline', _pollConnection);
-}
-
-// What other scripts do when the login screen comes up (app-chrome.js: take
-// the tour down).
-var _loginViewHooks = [];
-
-function onLoginViewShown(fn) {
-  _loginViewHooks.push(fn);
-}
-
-function showLoginView(mode) {
-  _loginViewHooks.forEach(function(fn) { fn(); });
-  var el = document.getElementById('auth-overlay');
-  if (!el) return;
-  el.style.display = 'flex';
-  document.querySelector('header').style.display = 'none';
-  var _bnLogin = document.getElementById('bottom-nav'); if (_bnLogin) _bnLogin.style.display = 'none';
-  document.getElementById('auth-setup-form').style.display = mode === 'setup' ? 'block' : 'none';
-  document.getElementById('auth-login-form').style.display = mode === 'login' ? 'block' : 'none';
-  // Show version in login
-  fetch('/api/version').then(function(r){return r.json()}).then(function(d){
-    var lv = document.getElementById('login-version'); if (lv) lv.textContent = 'v' + (d.version||'');
-  }).catch(function(){});
-}
-
-function hideLoginView() {
-  var el = document.getElementById('auth-overlay');
-  if (el) el.style.display = 'none';
-  document.querySelector('header').style.display = '';
-  var _bnApp = document.getElementById('bottom-nav'); if (_bnApp) _bnApp.style.display = '';
 }
 
 function updateUserDisplay() {
@@ -1178,98 +695,12 @@ async function doLogout() {
   showLoginView('login');
 }
 
-// A metric that was never measured is null, not undefined — SQLite NULL comes
-// through JSON as null, and `null !== undefined` is true. Every guard here
-// used that test, so an unmeasured figure reached .toFixed and threw "Cannot
-// read properties of null". That became reachable the moment sections started
-// reporting "not measured" instead of a zero, which is the whole point of
-// them: intune_compliance_pct is null on any tenant without Intune.
-function metricPct(value, digits) {
-  if (value === null || value === undefined || value === '' || isNaN(value)) return null;
-  return Number(value).toFixed(digits === undefined ? 0 : digits);
-}
-
-// The same rule for counts. A run that did not count users without MFA has
-// no such key in its metrics, and `Number(undefined) || 0` turned that into a
-// reassuring zero printed right under a finding about an admin without MFA.
-// Unmeasured reads "ukjent" on every card that shows the figure.
-function metricKnown(value) {
-  return !(value === null || value === undefined || value === '' || isNaN(value));
-}
-function metricCount(value) {
-  return metricKnown(value) ? String(Number(value)) : t('lbl_unknown_value', 'ukjent');
-}
-
-// Run folders are named "YYYY-MM-DD_HHMMSS" (older ones "YYYY-MM-DD_HHMM",
-// some with a suffix after). That name is for the file system; a person reads
-// the date and time. Returns the input unchanged when it is not a run name.
-// `short` gives the date alone in a compact form, for tables and lists.
-function formatRunName(name, short) {
-  var m = /^(\d{4})-(\d{2})-(\d{2})(?:[_T ](\d{2}):?(\d{2}))?/.exec(String(name || ''));
-  if (!m) return String(name || '');
-  var locale = _lang === 'en' ? 'en-GB' : 'nb-NO';
-  var date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (isNaN(date.getTime())) return String(name);
-  if (short) return date.toLocaleDateString(locale, {day: 'numeric', month: 'short', year: 'numeric'});
-  var day = date.toLocaleDateString(locale, {day: 'numeric', month: 'long', year: 'numeric'});
-  if (!m[4]) return day;
-  return t('fmt_run_date_time', '{date} kl. {time}').replace('{date}', day).replace('{time}', m[4] + ':' + m[5]);
-}
-
-// "Auditert i dag" / "Auditert for 3 d siden" from a run name, for the
-// context bar. One function, because two places wrote that element.
-function auditAgeLabel(name) {
-  var date = new Date(String(name || '').substring(0, 10));
-  var days = Math.floor((Date.now() - date.getTime()) / 86400000);
-  if (isNaN(days) || days < 0) return t('lbl_audited_on', 'Auditert {date}').replace('{date}', formatRunName(name, true));
-  return days === 0 ? t('ctx_audited_today', 'Auditert i dag') : t('ctx_audited_days_ago', 'Auditert for {n} d siden').replace('{n}', days);
-}
-
-function _wouldBeRefused(url, options) {
-  var method = ((options && options.method) || 'GET').toUpperCase();
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
-  // Until /auth/me has answered, the account and its exempt paths are not
-  // known, and refusing then turned a customer switch made during start-up
-  // into a "read access" toast for an admin. The server decides that case.
-  if (!_currentUser) return false;
-  if (canWrite()) return false;
-  var path = String(url).split('?')[0].replace(/\/$/, '');
-  return _writeExempt.indexOf(path) === -1;
-}
-
-var _sessionRecovery = null;
-
-function recoverSession() {
-  // An integration can return 401 while the Sybr session is still valid.
-  // Share recovery across concurrent requests so refresh cookies cannot race.
-  if (!_sessionRecovery) {
-    _sessionRecovery = (async function() {
-      var me = await fetch('/api/auth/me');
-      if (me.ok) return 'valid';
-      if (me.status !== 401) return 'unavailable';
-      var ref = await fetch('/api/auth/refresh', {method:'POST'});
-      if (ref.ok) return 'refreshed';
-      // A refused refresh credential means sign in again. Only a server that
-      // could not answer (5xx, rate limit, network) is a lost connection.
-      if (ref.status === 400 || ref.status === 401 || ref.status === 403) return 'expired';
-      return 'unavailable';
-    })().catch(function() { return 'unavailable'; }).finally(function() {
-      _sessionRecovery = null;
-    });
-  }
-  return _sessionRecovery;
-}
-
 // ── Tools that act on one customer ──────────────────────────────────────────
 // Nettverk's Enheter and Audit and the FortiGate API form each work on one
 // customer at a time. They say which in a customer bar ([data-tool-customer]),
 // whose choice is this tab's current customer; picking another there changes
 // it for this tab only and reloads the tool. A tool sends that id with every
 // call; there is no customer the server would assume.
-var _toolReloaders = {};
-
-function registerToolCustomer(tool, reload) { _toolReloaders[tool] = reload; }
-
 async function _ensureCustomerList() {
   if (!_allCustomers || !_allCustomers.length) {
     var cs = await apiFetch('/api/customers');
@@ -1310,170 +741,12 @@ registerUiHandlers({
     if (!el.value) return;   // the empty first option is a prompt, not a choice
     setCurrentCustomer(el.value);
     document.querySelectorAll('.tool-customer-select').forEach(function(s) { if (s !== el) s.value = el.value; });
-    var reload = _toolReloaders[el.dataset.tool];
-    if (reload) reload();
+    reloadToolCustomer(el.dataset.tool);
   },
 });
 
-async function apiFetch(url, options, _retryCount, _authRetried) {
-  if (_retryCount === undefined) _retryCount = 0;
-  var maxRetries = 2;
-  // Answered here as well as by the server. Marking every control that writes
-  // is possible for the ones in the markup and unbounded for the ones built at
-  // runtime, so this is the half that cannot be forgotten: a read-only account
-  // gets told why, instead of a button that appears to do nothing.
-  if (_wouldBeRefused(url, options)) {
-    showToast(t('err_readonly_account', 'Your account has read access. Changes require write.'), 'warning', 4000);
-    return null;
-  }
-  if (!options) options = {};
-  if (!options.headers) options.headers = {};
-  var requestOptions = Object.assign({}, options);
-  requestOptions.headers = new Headers(options.headers);
-  requestOptions.headers.set('Accept-Language', _lang === 'en' ? 'en' : 'nb-NO');
-  delete requestOptions.onError;
-  try {
-    var r = await fetch(url, requestOptions);
-    if (r.ok) {
-      var ct = (r.headers.get('content-type') || '');
-      if (ct.indexOf('application/json') !== -1) {
-        return await r.json();
-      }
-      // Non-JSON but successful — return a wrapper
-      var text = await r.text();
-      try { return JSON.parse(text); } catch(_) { return { _raw: text, ok: true }; }
-    }
-    // HTTP error
-    if (r.status >= 500) {
-      // Server error — show actual error from response body
-      var errBody = '';
-      var eb = null;
-      try {
-        eb = await r.json();
-        errBody = eb.error_key ? t(eb.error_key, eb.error) : (eb.error || eb.detail || JSON.stringify(eb));
-        if (eb.error_id) errBody += ' (' + t('lbl_error_id', 'Feil-ID') + ': ' + eb.error_id + ')';
-      } catch(_) { errBody = await r.text().catch(function(){return '';}); }
-      var safeRead = /^(GET|HEAD)$/.test((options.method || 'GET').toUpperCase());
-      if (safeRead && (!eb || eb.error_type !== 'integration_error') && _retryCount < maxRetries) {
-        showToast(t('err_server_error','Server error') + ' (' + (_retryCount+1) + '/' + maxRetries + '): ' + (errBody || r.status), 'warning', 3000);
-        await new Promise(function(resolve) { setTimeout(resolve, 3000); });
-        return apiFetch(url, options, _retryCount + 1, _authRetried);
-      }
-      if (options.onError) options.onError(errBody || 'HTTP ' + r.status);
-      showToastWithRetry(t('err_server_error','Server error') + ': ' + (errBody || 'HTTP ' + r.status), function() { apiFetch(url, options, 0); }, 'error', eb && eb.error_key || url);
-      console.error('API error', url, r.status, errBody);
-      return null;
-    }
-    if (r.status === 401) {
-      var sessionState = await recoverSession();
-      if (sessionState === 'expired') {
-        setAuth();
-        showLoginView('login');
-        return null;
-      }
-      if (sessionState === 'unavailable') {
-        showToastWithRetry(t('toast_lost_connection'), function() { apiFetch(url, options, 0); });
-        return null;
-      }
-      if (sessionState === 'refreshed' && !_authRetried) return apiFetch(url, options, _retryCount, true);
-      // Our session is valid: display the endpoint's error below.
-    }
-    if (r.status >= 400) {
-      // Client error — show message from body
-      var errMsg = t('err_request_failed').replace('{status}', r.status);
-      try {
-        const errBody = await r.json();
-        if (errBody.error_key) errMsg = t(errBody.error_key, errBody.error);
-        else if (errBody.error) errMsg = errBody.error;
-        else if (errBody.detail) errMsg = errBody.detail;
-        else if (errBody.message) errMsg = errBody.message;
-      } catch(_) {}
-      if (options.onError) options.onError(errMsg);
-      showToast(errMsg, 'error');
-      return null;
-    }
-    return null;
-  } catch (e) {
-    // Network error
-    if (options.onError) options.onError(t('toast_lost_connection'));
-    showToastWithRetry(t('toast_lost_connection'), function() { apiFetch(url, options, 0); });
-    return null;
-  }
-}
-
-// ── Global error handlers ─────────────────────────────────────────────────────
-window.onerror = function(msg, src, line, col, err) {
-  var display = (err && err.message) ? err.message : String(msg);
-  if (display.length > 120) display = display.substring(0, 120) + '...';
-  showToast(t('toast_unexpected_error').replace('{msg}', display), 'error');
-};
-window.onunhandledrejection = function(event) {
-  var reason = event.reason;
-  var display = (reason && reason.message) ? reason.message : String(reason);
-  if (display.length > 120) display = display.substring(0, 120) + '...';
-  showToast(t('toast_unexpected_error').replace('{msg}', display), 'error');
-};
-
 // ── State ──────────────────────────────────────────────────────────────────────
 let currentView = 'home';
-
-// ── Skeleton loading ───────────────────────────────────────────────────────────
-function skeletonHTML(type) {
-  var s = '<div class="skeleton ';
-  var row = s + 'skeleton-row"></div>';
-  var text = s + 'skeleton-text"></div>';
-  var textW = '<div class="skeleton skeleton-text" style="width:50%"></div>';
-  var title = s + 'skeleton-title"></div>';
-  if (type === 'home') {
-    return '<div class="skeleton-card">' + title +
-      '<div class="skeleton skeleton-title" style="width:60%;height:24px;margin-bottom:6px;"></div>' +
-      '<div class="skeleton skeleton-text" style="width:35%;margin-bottom:16px;"></div>' +
-      '<div style="display:flex;gap:24px;flex-wrap:wrap;">' +
-        '<div class="skeleton skeleton-metric"></div>' +
-        '<div class="skeleton skeleton-metric"></div>' +
-        '<div class="skeleton skeleton-metric"></div>' +
-      '</div>' +
-      '<div style="display:flex;gap:10px;margin-top:20px;">' +
-        '<div class="skeleton" style="width:120px;height:36px;border-radius:6px;"></div>' +
-        '<div class="skeleton" style="width:140px;height:36px;border-radius:6px;"></div>' +
-      '</div></div>' +
-      '<div class="skeleton-card" style="margin-top:16px;">' + title + text + text + textW + '</div>';
-  }
-  if (type === 'dashboard') {
-    var cards = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">' +
-      '<div class="skeleton skeleton-metric"></div><div class="skeleton skeleton-metric"></div><div class="skeleton skeleton-metric"></div></div>';
-    var rows = '';
-    for (var i = 0; i < 5; i++) rows += row;
-    return cards + '<div class="skeleton-card">' + title + rows + '</div>';
-  }
-  if (type === 'customers') {
-    var html = '';
-    for (var j = 0; j < 3; j++) {
-      html += '<div class="skeleton-card"><div style="display:flex;align-items:center;gap:12px;"><div style="flex:1;">' +
-        '<div class="skeleton skeleton-title" style="width:40%;"></div>' +
-        '<div class="skeleton skeleton-text" style="width:30%;"></div>' +
-        '<div style="display:flex;gap:24px;margin-top:8px;"><div class="skeleton" style="width:80px;height:14px;border-radius:4px;"></div>' +
-        '<div class="skeleton" style="width:100px;height:14px;border-radius:4px;"></div></div></div>' +
-        '<div class="skeleton" style="width:90px;height:36px;border-radius:6px;"></div></div></div>';
-    }
-    return html;
-  }
-  if (type === 'files') {
-    var html2 = '';
-    for (var k = 0; k < 4; k++) {
-      html2 += '<div class="skeleton-card">' + title +
-        '<div class="skeleton skeleton-text" style="width:70%;"></div>' +
-        '<div class="skeleton skeleton-text" style="width:55%;"></div>' + textW + '</div>';
-    }
-    return html2;
-  }
-  if (type === 'history') {
-    var html3 = '';
-    for (var m = 0; m < 6; m++) html3 += row;
-    return html3;
-  }
-  return '';
-}
 
 // ── View routing ───────────────────────────────────────────────────────────────
 
@@ -1544,16 +817,6 @@ function _cleanupViewTimers() {
   stopAlsoScans();
 }
 
-// A script that owns a view says what to do when it opens with
-// onViewShown(name, fn), instead of wrapping showView. The wrappers stacked:
-// each called the one before it in load order, and a throw in one cut off
-// every wrapper after it.
-var _viewOpeners = {};
-
-function onViewShown(name, fn) {
-  (_viewOpeners[name] = _viewOpeners[name] || []).push(fn);
-}
-
 function showView(name) {
   // Integrasjoner was a page of its own; it is a pane of Administrasjon now.
   if (name === 'integrations') { openAdmin('integrations'); return; }
@@ -1602,9 +865,7 @@ function showView(name) {
   document.body.dataset.view = name;
   // The customer page records its own address once it knows which customer.
   if (name !== 'customer-detail') syncRoute(name);
-  (_viewOpeners[name] || []).forEach(function(fn) {
-    try { fn(); } catch (e) { console.error('Opening view ' + name + ' failed:', e); }
-  });
+  viewShown(name);
 }
 
 // ── Address bar ─────────────────────────────────────────────────────────────
@@ -1684,111 +945,3 @@ function switchNetSub(btn, tabId) {
   if (tabId === 'net-unifi') dashLoadUnifiAll();
   if (tabId === 'net-tls') tlsLoadView();
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────────// ── Helpers ────────────────────────────────────────────────────────────────────
-function _vpnStatField(label, value) {
-  if (!value) return '';
-  return '<div><div style="color:var(--text-dim);">' + esc(label) + '</div><div style="font-family:var(--mono);color:var(--text);font-weight:600;">' + esc(String(value)) + '</div></div>';
-}
-
-// app-customer-detail.js used to declare a second _formatBytes. It loads later,
-// so its version was the one every caller got and this one never ran; it is
-// the one kept here.
-function _formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  var units = ['B','KB','MB','GB','TB'];
-  var i = Math.floor(Math.log(bytes) / Math.log(1024));
-  if (i >= units.length) i = units.length - 1;
-  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
-}
-
-function timeAgo(dateStr) {
-  if (!dateStr) return '';
-  try {
-    var d = new Date(dateStr);
-    var now = Date.now();
-    var diff = Math.floor((now - d.getTime()) / 1000);
-    if (diff < 60) return t('time_just_now','just now');
-    if (diff < 3600) return Math.floor(diff/60) + ' ' + t('time_min_ago','min ago');
-    if (diff < 86400) return Math.floor(diff/3600) + ' ' + t('time_hours_ago','hours ago');
-    if (diff < 604800) return Math.floor(diff/86400) + ' ' + t('time_days_ago','days ago');
-    return d.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'nb-NO', {day:'2-digit',month:'short'});
-  } catch(e) { return dateStr; }
-}
-
-// A button to a pane of Administrasjon, for the places that say "set this up
-// under Administrasjon". Nothing for an account that cannot open the page:
-// the sentence beside it still says where, for the administrator to act on.
-function adminSignpostButton(pane, labelKey, extraClass) {
-  if (!canOpenView('admin')) return '';
-  return '<button class="btn ' + esc(extraClass || 'btn-default btn-sm') + '" data-click-handler="openAdmin" data-pane="' + esc(pane) + '">'
-    + esc(t(labelKey)) + '</button>';
-}
-
-function esc(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// Opens a generated HTML report (tenant and scan data) in a new window. The
-// report is parsed inside an iframe sandboxed without allow-scripts, so no
-// handler or script in it can run as the app. allow-same-origin and
-// allow-modals are only there for this wrapper: it sizes the frame to the
-// report and sends Ctrl+P to the report itself, which then paginates at paper
-// width instead of printing one screen of the wrapper.
-function openReportWindow(html, title) {
-  var win = window.open('', '_blank');
-  if (!win) return null;
-  var doc = win.document;
-  doc.title = title;
-  doc.body.style.margin = '0';
-  var frame = doc.createElement('iframe');
-  frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
-  frame.title = title;
-  frame.style.cssText = 'display:block;width:100%;height:100vh;border:0;';
-  function fit() {
-    var root = frame.contentDocument && frame.contentDocument.documentElement;
-    if (!root) return;
-    frame.style.height = '0';
-    frame.style.height = root.scrollHeight + 'px';
-  }
-  function printReport(e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
-      e.preventDefault();
-      frame.contentWindow.print();
-    }
-  }
-  frame.addEventListener('load', function() {
-    fit();
-    frame.contentDocument.addEventListener('keydown', printReport);
-  });
-  win.addEventListener('resize', fit);
-  doc.addEventListener('keydown', printReport);
-  frame.srcdoc = /* safe-html: parsed in the script-less sandbox above */ html;
-  doc.body.appendChild(frame);
-  return win;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// CODE SPLIT — app.js is core only now (auth, i18n, api, nav, home,
-// helpers). Feature sections live in their own files:
-//   app-setup.js            customer setup: actions, credentials, PKCE
-//   app-audit.js            remediation, audit scope/presets/flow/history
-//   app-settings.js         webhooks, branding, self-update, users, backup
-//   app-network.js          files, UniFi devices, subnet scan, config backup
-//   app-customers.js        notes, expiry banner, IT Glue picker, tags,
-//                           management, quick switcher, bulk + export
-//   app-customer-detail.js  the full customer detail view
-//   app-dashboard.js        alerts dashboard, overview, charts, health
-//   app-integrations.js     integrations view + GDAP
-//   app-chrome.js           theme, notifications, shortcuts, onboarding,
-//                           offline indicator, bootstrap (checkAuth)
-//   app-infra.js / app-also.js / app-tailscale.js / app-tls.js
-//   app-policy-deploy.js / app-baseline-deploy.js / app-policy-overview.js
-//   app-assessments.js
-// ═══════════════════════════════════════════════════════════════════

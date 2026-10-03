@@ -733,11 +733,19 @@ def test_the_budgets_are_not_stale():
         checks += [
             (
                 f"js literals {script}",
-                BUDGET_JS_NORWEGIAN[script],
+                BUDGET_JS_NORWEGIAN.get(script, 0),
                 len(norwegian_literals_in_js(script)),
             ),
-            (f"js prose {script}", BUDGET_JS_PROSE[script], len(prose_in_generated_markup(script))),
-            (f"js shown {script}", BUDGET_JS_PERSON[script], len(text_shown_to_a_person(script))),
+            (
+                f"js prose {script}",
+                BUDGET_JS_PROSE.get(script, 0),
+                len(prose_in_generated_markup(script)),
+            ),
+            (
+                f"js shown {script}",
+                BUDGET_JS_PERSON.get(script, 0),
+                len(text_shown_to_a_person(script)),
+            ),
         ]
     for name, budget, count in checks:
         slack = budget - count
@@ -749,7 +757,7 @@ def test_the_budgets_are_not_stale():
 
 def test_every_text_bearing_attribute_can_actually_be_translated():
     """aria-label and alt were not handled, so marking them up did nothing."""
-    js = (STATIC / "app.js").read_text()
+    js = (STATIC / "app-i18n.js").read_text()
     for attr in ("title", "placeholder", "aria-label", "alt"):
         assert f"'{attr}'" in js.split("_I18N_ATTRS")[1][:200], (
             f"{attr} is not in the translated attribute list"
@@ -837,26 +845,11 @@ def test_a_translated_span_does_not_hold_the_spacing_around_it():
     assert not bad, f"spans holding their own padding: {bad[:8]}"
 
 
-# Every app*.js this file measures. The split of app.js added seven scripts,
-# and each joins here and in the budgets with its measured count.
-_SCRIPTS = (
-    "app.js",
-    "app-audit.js",
-    "app-baseline-deploy.js",
-    "app-also.js",
-    "app-assessments.js",
-    "app-chrome.js",
-    "app-customer-detail.js",
-    "app-customers.js",
-    "app-dashboard.js",
-    "app-infra.js",
-    "app-integrations.js",
-    "app-network.js",
-    "app-settings.js",
-    "app-setup.js",
-    "app-tailscale.js",
-    "app-tls.js",
-)
+# Every app*.js this file measures: all of them, read from the directory. A
+# hand-kept list missed the scripts added after it (app-findings.js,
+# app-policy-overview.js and the leaf modules split out of app.js), so text in
+# them was never counted. A script without a budget below has a budget of 0.
+_SCRIPTS = tuple(sorted(p.name for p in STATIC.glob("app*.js")))
 
 
 def prose_in_generated_markup(script: str = "app.js") -> list[tuple[int, str]]:
@@ -909,16 +902,16 @@ BUDGET_JS_PROSE = {  # ceilings per script; only ever down
 @pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_new_prose_hard_coded_into_generated_markup(script):
     found = prose_in_generated_markup(script)
-    assert len(found) <= BUDGET_JS_PROSE[script], (
+    assert len(found) <= BUDGET_JS_PROSE.get(script, 0), (
         f"{len(found)} strings baked into markup {script} builds, budget "
-        f"{BUDGET_JS_PROSE[script]}. Route them through t():\n{_report(found)}"
+        f"{BUDGET_JS_PROSE.get(script, 0)}. Route them through t():\n{_report(found)}"
     )
 
 
 @pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_text_reaches_a_person_without_going_through_t(script: str) -> None:
     found = text_shown_to_a_person(script)
-    budget = BUDGET_JS_PERSON[script]
+    budget = BUDGET_JS_PERSON.get(script, 0)
     assert len(found) <= budget, (
         f"{len(found)} hard-coded strings shown to the user in {script}, "
         f"budget {budget}:\n{_report(found)}"
@@ -928,7 +921,7 @@ def test_no_text_reaches_a_person_without_going_through_t(script: str) -> None:
 @pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_norwegian_literal_outside_t(script: str) -> None:
     found = norwegian_literals_in_js(script)
-    budget = BUDGET_JS_NORWEGIAN[script]
+    budget = BUDGET_JS_NORWEGIAN.get(script, 0)
     assert len(found) <= budget, (
         f"{len(found)} Norwegian literals in {script}, budget {budget}:\n{_report(found)}"
     )
@@ -1114,7 +1107,7 @@ def test_the_reason_code_tuples_have_not_drifted_from_the_source():
     )
 
 
-@pytest.mark.parametrize("script", sorted(BUDGET_JS_DOM_TEXT))
+@pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_new_literals_written_straight_into_the_page(script):
     """A button label set in JavaScript is in no markup and no function call.
 
@@ -1122,13 +1115,13 @@ def test_no_new_literals_written_straight_into_the_page(script):
     interface for as long as it existed.
     """
     hits = literals_assigned_to_the_page(script)
-    assert len(hits) <= BUDGET_JS_DOM_TEXT[script], (
+    assert len(hits) <= BUDGET_JS_DOM_TEXT.get(script, 0), (
         f"{script}: {len(hits)} literals assigned to the page "
-        f"(budget {BUDGET_JS_DOM_TEXT[script]}):\n{_report(hits)}"
+        f"(budget {BUDGET_JS_DOM_TEXT.get(script, 0)}):\n{_report(hits)}"
     )
 
 
-@pytest.mark.parametrize("script", sorted(BUDGET_JS_LABEL_TABLES))
+@pytest.mark.parametrize("script", _SCRIPTS)
 def test_no_new_label_tables_built_from_bare_strings(script):
     """The shape that hid the last one — an enum-to-word lookup.
 
@@ -1136,7 +1129,7 @@ def test_no_new_label_tables_built_from_bare_strings(script):
     calls, and shipped English into a Norwegian interface.
     """
     hits = literals_in_a_table_of_labels(script)
-    assert len(hits) <= BUDGET_JS_LABEL_TABLES[script], (
+    assert len(hits) <= BUDGET_JS_LABEL_TABLES.get(script, 0), (
         f"{script}: {len(hits)} bare strings in a table of labels "
-        f"(budget {BUDGET_JS_LABEL_TABLES[script]}):\n{_report(hits)}"
+        f"(budget {BUDGET_JS_LABEL_TABLES.get(script, 0)}):\n{_report(hits)}"
     )
