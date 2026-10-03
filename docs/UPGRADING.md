@@ -33,6 +33,29 @@
 
 ---
 
+# Backup of the Microsoft 365 data (unreleased)
+
+- **Grant two Graph application permissions for the check to work:**
+  `BackupRestore-Control.Read.All` (whether Microsoft 365 Backup is enabled)
+  and `BackupRestore-Configuration.Read.All` (its protection policies and how
+  many mailboxes, OneDrive accounts and sites they protect). Add both under
+  the audit app's API permissions (Microsoft Graph, Application) and grant
+  admin consent; **Sjekk tillatelser** on the customer card lists them as
+  missing until then. New setups request them.
+- **Nothing breaks without them.** They are warn-only in the permission check,
+  and the new section, **Microsoft 365 Backup** (`34_m365_backup`), reports
+  Microsoft 365 Backup as "could not be read" with the reason, never as "no
+  backup". Third-party backup apps (Veeam, Keepit, AvePoint, Datto and others)
+  are still recognised, from the service principals the audit can already
+  read.
+- **A new CIS row, 11.2,** and a new check in the Essential Eight and NIS2
+  baselines (both now version 2026.2). A tenant where neither Microsoft 365
+  Backup nor a known backup app reaches mail, OneDrive or SharePoint gets a
+  high-priority recommendation. Reports regenerated from older runs show the
+  row as "cannot be verified".
+
+---
+
 # Forwarding, DKIM and Advisor ids (unreleased)
 
 - **Run a new audit before trusting the forwarding findings.** Inbox rules and

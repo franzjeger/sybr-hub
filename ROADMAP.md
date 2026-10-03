@@ -162,11 +162,16 @@ fit elsewhere:
 - [x] Fix the Azure VM backup report (flagged as wrong). It was: the parser
       skipped every protected-item line, so every VM was reported as having
       no backup. Fixed October 2026, with tests that run the real collector.
-- [ ] Check backup of the Microsoft 365 data: Microsoft 365 Backup through
+- [x] Check backup of the Microsoft 365 data: Microsoft 365 Backup through
       Graph (`/solutions/backupRestore`), and third-party backup recognised
       from its app consent grants (Veeam, AvePoint, Keepit and the like).
-      Without it the report says nothing about the data customers most often
-      ask about.
+      Done October 2026: section `34_m365_backup`, a verdict per workload
+      (mail, OneDrive, SharePoint, with Teams shown), CIS row 11.2, a check in
+      the Essential Eight and NIS2 baselines, and a recommendation when
+      neither source shows anything. Needs `BackupRestore-Control.Read.All`
+      and `BackupRestore-Configuration.Read.All`; without them Microsoft 365
+      Backup reads as "could not be read". Not yet verified against a live
+      tenant with Microsoft 365 Backup enabled.
 - [x] The customer page is the hub of the work: findings first, worst
       first, with ticket and plan actions and the PSA/IT Glue links on the
       page itself (October 2026). Since then the navigation follows it:
