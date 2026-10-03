@@ -65,6 +65,21 @@ def _entry_block(title: str, entries: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _dkim_table(rows: list[tuple[str, str, str]]) -> str:
+    """25_exchange_dkim.txt as exchange.py's _save_dkim writes it: (domain, Yes/No, status)."""
+    lines = [
+        "=" * 80,
+        f"  EXCHANGE DKIM SIGNING CONFIGS  ({len(rows)} total)",
+        "=" * 80,
+        f"  {'Domain':<45} {'Enabled':>8} {'Status':<20} {'Selector'}",
+        "  " + "-" * 76,
+    ]
+    for domain, enabled, status in rows:
+        lines.append(f"  {domain:<45} {enabled:>8} {status:<20} N/A")
+    lines += ["=" * 80, ""]
+    return "\n".join(lines)
+
+
 def _mfa_json(rows: list[tuple[str, str, str, str, str, str]]) -> str:
     """The sidecar users_mfa.py writes beside the table, from the same rows.
 
@@ -423,6 +438,10 @@ FULL_AUDIT: dict[str, str] = {
         "EXCHANGE ANTI-SPAM POLICIES",
         [{"Name": "Default", "SpamAction": "MoveToJmf", "Enabled": "Yes"}],
     ),
+    # Exchange signs acme.no's mail: what CIS 5.2.3 passes on.
+    "25_exchange_dkim.txt": _dkim_table(
+        [("acme.no", "Yes", "Valid"), ("acmeno.onmicrosoft.com", "Yes", "Valid")]
+    ),
     "26_email_dns_spf_dmarc.txt": (
         "EMAIL DNS SECURITY\n"
         "==================\n"
@@ -777,6 +796,8 @@ _BROKEN_OVERRIDES: dict[str, str] = {
         "Legacy Auth: true\n"
         "Unmanaged Devices: true\n"
     ),
+    # Signing set up for acme.no but switched off.
+    "25_exchange_dkim.txt": _dkim_table([("acme.no", "No", "CnameMissing")]),
     "26_email_dns_spf_dmarc.txt": (
         "EMAIL DNS SECURITY\n"
         "==================\n"

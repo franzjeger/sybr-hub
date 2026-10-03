@@ -282,17 +282,12 @@ def test_a_domain_whose_dkim_was_never_looked_up_is_not_a_failure():
     assert "No DKIM record found" not in ctrl["detail"]
 
 
-def test_a_domain_checked_with_no_dkim_record_still_fails():
-    ctrl = _control(
-        _build_compliance_map(
-            _dns_ctx({"domain": "acme.no", "spf": "OK", "dmarc": "OK", "dkim1": ""})
-        ),
-        "5.2.3",
-    )
-    assert ctrl["status"] == "fail"
+def test_a_domain_checked_with_no_dkim_record_is_still_a_finding():
+    """No M365 selector published: Exchange cannot sign with the domain.
 
-
-def test_a_domain_with_dkim_passes():
+    That holds without Exchange's signing config, so it stays a finding (warn)
+    rather than becoming "cannot verify".
+    """
     ctrl = _control(
         _build_compliance_map(
             _dns_ctx(
@@ -300,13 +295,50 @@ def test_a_domain_with_dkim_passes():
                     "domain": "acme.no",
                     "spf": "OK",
                     "dmarc": "OK",
-                    "dkim1": "CNAME selector1._domainkey.acme.no OK",
+                    "dkim1": "selector1: MISSING | selector2: MISSING",
                 }
             )
         ),
         "5.2.3",
     )
-    assert ctrl["status"] == "pass"
+    assert ctrl["status"] == "warn"
+    assert "acme.no" in ctrl["detail"]
+
+
+def _dkim_configs(*rows: tuple[str, str]) -> str:
+    """25_exchange_dkim.txt in the collector's layout: (domain, Yes/No)."""
+    lines = [
+        "=" * 80,
+        f"  EXCHANGE DKIM SIGNING CONFIGS  ({len(rows)} total)",
+        "=" * 80,
+        f"  {'Domain':<45} {'Enabled':>8} {'Status':<20} {'Selector'}",
+        "  " + "-" * 76,
+        *(f"  {domain:<45} {on:>8} {'Valid':<20} N/A" for domain, on in rows),
+        "=" * 80,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def test_a_domain_exchange_signs_for_passes():
+    record = {
+        "domain": "acme.no",
+        "spf": "OK",
+        "dmarc": "OK",
+        "dkim1": "selector1: CNAME -> selector1-acme-no._domainkey.acme.onmicrosoft.example.",
+    }
+    signed = {
+        **_dns_ctx(record),
+        "file_contents": {"25_exchange_dkim.txt": _dkim_configs(("acme.no", "Yes"))},
+    }
+    off = {
+        **_dns_ctx(record),
+        "file_contents": {"25_exchange_dkim.txt": _dkim_configs(("acme.no", "No"))},
+    }
+
+    assert _control(_build_compliance_map(signed), "5.2.3")["status"] == "pass"
+    assert _control(_build_compliance_map(off), "5.2.3")["status"] == "warn"
+    # The selectors in DNS alone say signing was set up, not that it is on.
+    assert _control(_build_compliance_map(_dns_ctx(record)), "5.2.3")["status"] == "info"
 
 
 # ---------------------------------------------------------------------------
@@ -1014,10 +1046,11 @@ def test_5_2_3_m365_dkim_lookup_error_is_info_not_fail():
     assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "info"
 
 
-def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_fail():
+def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_miss():
     # The M365 selectors definitively resolved to MISSING (a real "DKIM not
-    # configured" FAIL); a transient error on a *speculative* third-party selector
-    # probe must not flip that to cannot-verify and drop it from the score.
+    # configured" finding, graded warn); a transient error on a *speculative*
+    # third-party selector probe must not flip that to cannot-verify and drop
+    # it from the score.
     spf = [
         {
             "domain": "acme.no",
@@ -1027,7 +1060,7 @@ def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_fail(
             "dkim2": "google: MISSING | k1: ERROR (timeout) | k2: MISSING | default: MISSING | dkim: MISSING",
         }
     ]
-    assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "fail"
+    assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "warn"
 
 
 def test_9_1_directory_audit_presence_does_not_confirm_unified_audit_log():
