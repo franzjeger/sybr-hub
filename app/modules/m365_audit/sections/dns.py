@@ -70,6 +70,12 @@ def _classify_dmarc(record: str) -> str:
     return "PRESENT (unknown policy)"
 
 
+def _published(record: str) -> str | None:
+    """A record as the sidecar holds it: "" when none is published, None when
+    the lookup failed, which the text writes as "(none)" and "(query failed)"."""
+    return {"(none)": "", "(query failed)": None}.get(record, record)
+
+
 async def _doh_query(client: httpx.AsyncClient, name: str, qtype: str) -> list[str]:
     """Query Google DNS-over-HTTPS and return answer data strings.
 
@@ -219,6 +225,7 @@ class DnsSection(BaseSection):
             ]
 
             _third_party_selectors = ("google", "k1", "k2", "default", "dkim")
+            domains: list[dict] = []
 
             for r in results:
                 domain = r["domain"]
@@ -252,6 +259,24 @@ class DnsSection(BaseSection):
                 else:
                     lines.append("    DKIM found     : (none)")
                 lines.append(f"    MTA-STS        : {r['mta_sts']}")
+                domains.append(
+                    {
+                        "domain": domain,
+                        "spf_status": r["spf_status"],
+                        "spf_record": _published(r["spf_record"]),
+                        "dmarc_status": r["dmarc_status"],
+                        "dmarc_record": _published(r["dmarc_record"]),
+                        # Every selector the text shows, M365's two first.
+                        "dkim": {
+                            "selector1": r["dkim_selector1"],
+                            "selector2": r["dkim_selector2"],
+                            **{s: r.get(f"dkim_{s}", "MISSING") for s in _third_party_selectors},
+                        },
+                        "dkim_found": found_selectors,
+                        "mta_sts": r["mta_sts"],
+                        "lookup_errors": r.get("_lookup_errors"),
+                    }
+                )
 
                 if r.get("_lookup_errors"):
                     lines.append(f"    DNS errors     : {r['_lookup_errors']}")
@@ -296,6 +321,7 @@ class DnsSection(BaseSection):
 
             lines += ["", "=" * 110, ""]
             self._save("26_email_dns_spf_dmarc.txt", "\n".join(lines))
+            self._save_sidecar("26_email_dns_spf_dmarc.txt", {"domains": domains})
 
             if has_issues:
                 warn_lines += ["", "=" * 110, ""]
