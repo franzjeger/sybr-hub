@@ -19,8 +19,10 @@ from types import SimpleNamespace
 import pytest
 
 from app.modules.m365_audit.sections.azure_compute import AzureComputeSection
+from app.modules.m365_audit.sections.azure_network import AzureNetworkSection
 from app.modules.m365_audit.sections.azure_storage import AzureStorageSection
 from app.reports.parsers import _parse_azure_overview
+from app.reports.recommendations import _build_recommendations
 from tests.collector_rig import FakeAzureAuth, read_output
 
 SUB_A = "00000000-0000-0000-0000-0000000000a1"
@@ -271,3 +273,138 @@ async def test_each_subscription_reads_its_own_storage_files(tmp_path):
         ("stacmea", "StorageV2", "Prod-A"),
         ("stacmeb", "BlockBlobStorage", "Prod-B"),
     ]
+
+
+# ── Network security groups (32_azure_nsgs, 32b_..._WARN) ─────────────────────
+
+
+def _rule(name, priority, *, source, port, access="Allow", direction="Inbound"):
+    return SimpleNamespace(
+        name=name,
+        priority=priority,
+        access=access,
+        direction=direction,
+        source_address_prefix=source,
+        destination_address_prefix="*",
+        destination_port_range=port,
+        destination_port_ranges=[],
+    )
+
+
+def _nsg(sub: str, name: str, rules: list) -> SimpleNamespace:
+    return SimpleNamespace(
+        name=name,
+        id=_id(sub, "rg-net", "Microsoft.Network/networkSecurityGroups", name),
+        location="norwayeast",
+        security_rules=rules,
+    )
+
+
+def _nsgs(sub: str) -> list:
+    return [
+        _nsg(
+            sub,
+            f"nsg-web-{sub[-2:]}",
+            [
+                _rule("allow-rdp", 100, source="Internet", port="3389"),
+                _rule("allow-https", 110, source="*", port="443"),
+                _rule("deny-all", 4000, source="*", port="*", access="Deny"),
+            ],
+        ),
+        _nsg(
+            sub,
+            f"nsg-db-{sub[-2:]}",
+            [
+                _rule("allow-sql", 100, source="0.0.0.0/0", port="1433"),
+                _rule("allow-ssh-internal", 110, source="10.0.0.0/8", port="22"),
+            ],
+        ),
+    ]
+
+
+async def _collect_nsgs(tmp_path, per_sub: dict, *, multi: bool) -> None:
+    auth = FakeAzureAuth(
+        subscriptions={
+            sub: {"network": {"network_security_groups.list_all": nsgs}}
+            for sub, nsgs in per_sub.items()
+        }
+    )
+    for sub, name in SUBS:
+        if sub in per_sub:
+            await AzureNetworkSection(
+                tmp_path, auth, sub_id=sub, sub_name=name, multi=multi
+            )._collect_nsgs()
+
+
+def _nsg_rec(files: dict) -> dict | None:
+    recs = _build_recommendations(
+        mfa={"has_data": True, "pct": 100.0, "no_mfa": 0},
+        spf_dmarc=[],
+        secure_score={"has_data": True, "pct": 90.0, "improvements": []},
+        ext_fwd="",
+        risky_users="",
+        licenses=[],
+        file_contents=files,
+    )
+    return next((r for r in recs if r.get("finding_id") == "finding-nsg"), None)
+
+
+def _risky(sub: str) -> list[str]:
+    return [
+        f"NSG 'nsg-web-{sub[-2:]}' rule 'allow-rdp' (priority 100): "
+        "allows inbound from Internet to port(s) 3389",
+        f"NSG 'nsg-db-{sub[-2:]}' rule 'allow-sql' (priority 100): "
+        "allows inbound from 0.0.0.0/0 to port(s) 1433",
+    ]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_nsgs_and_their_risky_rules_survive_the_round_trip(tmp_path, sidecars):
+    await _collect_nsgs(tmp_path, {SUB_A: _nsgs(SUB_A)}, multi=False)
+    files = _read(tmp_path, sidecars=sidecars)
+
+    assert _parse_azure_overview(files)["nsgs"] == [{"subscription": "", "count": 2}]
+    rec = _nsg_rec(files)
+    assert rec["sub_items"] == _risky(SUB_A), "each rule once, not once per file"
+    assert rec["evidence"] == ["32b_azure_nsg_risky_rules_WARN.txt"]
+
+
+async def test_the_nsgs_are_read_from_the_sidecar(tmp_path):
+    """With the text emptied, everything still comes from the sidecar."""
+    await _collect_nsgs(tmp_path, {SUB_A: _nsgs(SUB_A)}, multi=False)
+    files = _read(tmp_path, sidecars=True)
+    files["32_azure_nsgs.txt"] = ""
+    files["32b_azure_nsg_risky_rules_WARN.txt"] = ""
+
+    assert _parse_azure_overview(files)["nsgs"] == [{"subscription": "", "count": 2}]
+    assert _nsg_rec(files)["sub_items"] == _risky(SUB_A)
+
+
+async def test_nsgs_with_nothing_open_raise_nothing(tmp_path):
+    safe = [_nsg(SUB_A, "nsg-safe", [_rule("allow-https", 100, source="*", port="443")])]
+    await _collect_nsgs(tmp_path, {SUB_A: safe}, multi=False)
+
+    assert _nsg_rec(_read(tmp_path, sidecars=True)) is None
+
+
+async def test_a_subscription_whose_nsgs_were_not_listed_is_not_hidden(tmp_path):
+    await _collect_nsgs(
+        tmp_path, {SUB_A: _nsgs(SUB_A), SUB_B: PermissionError("AuthorizationFailed")}, multi=True
+    )
+    files = _read(tmp_path, sidecars=True)
+
+    assert "32_azure_nsgs_Prod-B.json" not in files
+    assert _parse_azure_overview(files)["nsgs"] == [{"subscription": "Prod-A", "count": 2}]
+    assert _nsg_rec(files)["sub_items"] == _risky(SUB_A)
+
+
+async def test_each_subscription_reads_its_own_nsg_files(tmp_path):
+    """Sub B without its sidecar is read from its WARN file, once."""
+    await _collect_nsgs(tmp_path, {SUB_A: _nsgs(SUB_A), SUB_B: _nsgs(SUB_B)}, multi=True)
+    files = _drop(_read(tmp_path, sidecars=True), "32_azure_nsgs_Prod-B")
+
+    assert _parse_azure_overview(files)["nsgs"] == [
+        {"subscription": "Prod-A", "count": 2},
+        {"subscription": "Prod-B", "count": 2},
+    ]
+    assert sorted(_nsg_rec(files)["sub_items"]) == sorted(_risky(SUB_A) + _risky(SUB_B))
