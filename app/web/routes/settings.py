@@ -64,13 +64,24 @@ async def get_settings(user: User = _auth):
     )
 
     settings = load_app_settings()
+    # The server's storage folders are for the admin choosing them: saving
+    # them is admin-only, and the interface shows them only to an admin. They
+    # were still sent to every signed-in account, naming the host's paths
+    # (a home directory, the data volume) to a viewer.
+    paths = (
+        {
+            "audit_dir": str(get_audit_dir()),
+            "audit_dir_default": str(_DEFAULT_AUDIT_DIR),
+            "audit_dir_custom": settings.get("audit_dir", ""),
+            "cert_dir": str(get_cert_dir()),
+            "cert_dir_default": str(CERTS_DIR),
+            "cert_dir_custom": settings.get("cert_dir", ""),
+        }
+        if user.role >= Role.admin
+        else {}
+    )
     return {
-        "audit_dir": str(get_audit_dir()),
-        "audit_dir_default": str(_DEFAULT_AUDIT_DIR),
-        "audit_dir_custom": settings.get("audit_dir", ""),
-        "cert_dir": str(get_cert_dir()),
-        "cert_dir_default": str(CERTS_DIR),
-        "cert_dir_custom": settings.get("cert_dir", ""),
+        **paths,
         "branding": get_branding(),
         "itglue_api_key": "••••••" if settings.get("itglue_api_key") else "",
         "itglue_api_key_set": bool(settings.get("itglue_api_key")),
