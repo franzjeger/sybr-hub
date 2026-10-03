@@ -182,10 +182,36 @@ class ExchangeSection(BaseSection):
             return val
         return {}
 
+    def _read_failed(self, error_key: str, found: Any, what: str, *filenames: str) -> bool:
+        """Write the helper's error in place of an empty result, and say so.
+
+        Each block of the helper records its failure under its own *_error key
+        and leaves its data out (see _save_anti_phish). Written as a section
+        with no entries, a failed read was a reading of "none": a tenant whose
+        compliance session did not connect had no DLP or retention policies,
+        one without the Defender cmdlets had no Safe Links policy, and a failed
+        forwarding scan passed CIS 4.4. The "Error:" stub is what the report
+        reads as not collected.
+        """
+        error = self.exo_data.get(error_key)
+        if not error or found:
+            return False
+        for filename in filenames:
+            self._save(filename, f"Error: could not collect {what} — {error}\n")
+        return True
+
     # ── Mailboxes ─────────────────────────────────────────────────────────────
 
     def _save_mailboxes(self) -> None:
         mailboxes = self._get("mailboxes")
+        if self._read_failed(
+            "mailboxes_error",
+            mailboxes,
+            "mailboxes",
+            "20_exchange_mailboxes.txt",
+            "20_exchange_mailboxes_count.txt",
+        ):
+            return
         total = len(mailboxes)
         shared = sum(
             1
@@ -236,6 +262,10 @@ class ExchangeSection(BaseSection):
 
     def _save_transport_rules(self) -> None:
         rules = self._get("transport_rules")
+        if self._read_failed(
+            "transport_rules_error", rules, "transport rules", "21_exchange_transport_rules.txt"
+        ):
+            return
         content = _section_block(
             "EXCHANGE TRANSPORT RULES",
             rules,
@@ -266,6 +296,10 @@ class ExchangeSection(BaseSection):
 
     def _save_connectors(self) -> None:
         connectors = self._connectors()
+        if self._read_failed(
+            "connectors_error", connectors, "connectors", "22_exchange_connectors.txt"
+        ):
+            return
         content = _section_block(
             "EXCHANGE CONNECTORS",
             connectors,
@@ -320,6 +354,8 @@ class ExchangeSection(BaseSection):
 
     def _save_dkim(self) -> None:
         configs = self._get("dkim")
+        if self._read_failed("dkim_error", configs, "DKIM signing configs", "25_exchange_dkim.txt"):
+            return
         lines = [
             "=" * 80,
             f"  EXCHANGE DKIM SIGNING CONFIGS  ({len(configs)} total)",
@@ -378,6 +414,13 @@ class ExchangeSection(BaseSection):
                         "Action": p.get("Action"),
                     }
                 )
+        if self._read_failed(
+            "defender_policies_error",
+            policies,
+            "Defender for Office 365 policies",
+            "27_exchange_defender_policies.txt",
+        ):
+            return
         content = _section_block(
             "MICROSOFT DEFENDER FOR OFFICE 365 POLICIES",
             policies,
@@ -389,6 +432,13 @@ class ExchangeSection(BaseSection):
 
     def _save_quarantine_policies(self) -> None:
         policies = self._get("quarantine_policies")
+        if self._read_failed(
+            "quarantine_policies_error",
+            policies,
+            "quarantine policies",
+            "27b_exchange_quarantine_policies.txt",
+        ):
+            return
         content = _section_block(
             "EXCHANGE QUARANTINE POLICIES",
             policies,
@@ -400,6 +450,10 @@ class ExchangeSection(BaseSection):
 
     def _save_org_config(self) -> None:
         cfg = self._get_single("org_config")
+        if self._read_failed(
+            "org_config_error", cfg, "the organization config", "27c_exchange_org_config.txt"
+        ):
+            return
         lines = ["=" * 80, "  EXCHANGE ORG CONFIG", "=" * 80]
         for k, v in cfg.items():
             lines.append(f"  {k}: {_fmt_val(v)}")
@@ -416,6 +470,13 @@ class ExchangeSection(BaseSection):
         # reads as "not collected" (cannot-verify), so "collected: False" (a
         # real fail) stays distinct from "not collected" (fail-closed to info).
         cfg = self._get_single("admin_audit_log_config")
+        if self._read_failed(
+            "admin_audit_log_config_error",
+            cfg,
+            "the admin audit log config",
+            "27d_exchange_admin_audit_log_config.txt",
+        ):
+            return
         lines = ["=" * 80, "  EXCHANGE ADMIN AUDIT LOG CONFIG", "=" * 80]
         val = cfg.get("UnifiedAuditLogIngestionEnabled")
         lines.append(f"  UnifiedAuditLogIngestionEnabled: {_fmt_val(val)}")
@@ -426,6 +487,10 @@ class ExchangeSection(BaseSection):
 
     def _save_forwarding(self) -> None:
         fwd_list = self._get("forwarding")
+        if self._read_failed(
+            "forwarding_error", fwd_list, "mailbox forwarding", "28_exchange_mailbox_forwarding.txt"
+        ):
+            return
         lines = [
             "=" * 100,
             f"  MAILBOX FORWARDING  ({len(fwd_list)} entries)",
@@ -500,6 +565,13 @@ class ExchangeSection(BaseSection):
 
     def _save_inbox_rules(self) -> None:
         rules = self._get("inbox_rules_external")
+        if self._read_failed(
+            "inbox_rules_error",
+            rules,
+            "inbox rules",
+            "29_exchange_inbox_rules_external_fwd.txt",
+        ):
+            return
         filename = (
             "29_exchange_inbox_rules_external_fwd_WARN.txt"
             if rules
@@ -571,6 +643,10 @@ class ExchangeSection(BaseSection):
 
     def _save_dlp(self) -> None:
         policies = self._get("dlp_policies")
+        # One key for both: the helper connects to Security & Compliance once
+        # for DLP and retention, and records a failed connection as dlp_error.
+        if self._read_failed("dlp_error", policies, "DLP policies", "19d_purview_dlp_policies.txt"):
+            return
         content = _section_block(
             "PURVIEW DLP POLICIES",
             policies,
@@ -582,6 +658,10 @@ class ExchangeSection(BaseSection):
 
     def _save_retention(self) -> None:
         policies = self._get("retention_policies")
+        if self._read_failed(
+            "dlp_error", policies, "retention policies", "19e_purview_retention_policies.txt"
+        ):
+            return
         content = _section_block(
             "PURVIEW RETENTION POLICIES",
             policies,
