@@ -976,26 +976,26 @@ function renderCustomers(customers, activeId) {
     var statusDot = configured ? (hasMetrics ? '<span style="width:8px;height:8px;border-radius:50%;background:' + gradeColor + ';display:inline-block;"></span>' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" title="' + t('tip_no_audit_run','No audit run') + '"></span>') : '<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;" title="' + t('tip_not_configured','Not configured') + '"></span>';
 
     html += `
-      <div class="card card-clickable" style="margin-bottom:var(--space-3);${activeClass}" data-click-handler="overviewSelectCustomer" data-id="${esc(c._id)}">
-        <div style="display:flex;align-items:center;gap:var(--space-4);">
+      <div class="card card-clickable cust-card" style="${activeClass}" data-click-handler="overviewSelectCustomer" data-id="${esc(c._id)}">
+        <div class="cust-card-row">
           <input type="checkbox" class="customer-bulk-cb" data-click-handler="customerCardToggleBulk" data-id="${esc(c._id)}" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--blue);">
           <span class="hover-scale" data-click-handler="customerCardToggleFavorite" data-id="${esc(c._id)}" style="cursor:pointer;font-size:18px;flex-shrink:0;transition:transform var(--duration-fast);">${isFav ? '\u2605' : '\u2606'}</span>
           ${grade ? '<div style="width:42px;height:42px;line-height:42px;border-radius:var(--radius-lg);font-weight:800;font-size:var(--font-lg);color:#fff;background:'+gradeColor+';text-align:center;flex-shrink:0;">'+esc(grade)+'</div>' : '<div style="width:42px;height:42px;line-height:42px;border-radius:var(--radius-lg);font-size:var(--font-lg);color:var(--text-dim);background:var(--bg);text-align:center;flex-shrink:0;border:1px dashed var(--border);">?</div>'}
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+          <div class="cust-card-main">
+            <div class="cust-card-name">
               ${statusDot}
-              <span style="font-size:var(--font-md);font-weight:700;">${esc(c.CustomerName || t('lbl_unknown','Unknown'))}</span>
+              <span class="cust-card-name-text">${esc(c.CustomerName || t('lbl_unknown','Unknown'))}</span>
               ${activeBadge} ${gdapBadge} ${expiryBadge} ${notesBadge}
             </div>
-            <div style="font-size:var(--font-xs);color:var(--text-dim);font-family:var(--mono);margin-top:2px;">${esc(c.PrimaryDomain || '')}</div>
-            <div style="display:flex;gap:var(--space-4);margin-top:var(--space-2);font-size:var(--font-xs);color:var(--text-muted);">
+            <div class="cust-card-domain">${esc(c.PrimaryDomain || '')}</div>
+            <div class="cust-card-metrics">
               ${riskScore !== '' ? '<span>' + t('lbl_score_prefix','Score:') + ' <strong style="color:var(--text);">' + esc(String(riskScore)) + '</strong></span>' : ''}
               ${mfaPct ? '<span>' + t('lbl_mfa_prefix','MFA:') + ' <strong style="color:var(--text);">' + mfaPct + '</strong></span>' : ''}
               ${_om && _om.last_audit ? '<span>' + t('lbl_last_prefix','Last:') + ' <strong style="color:var(--text);">' + esc(formatRunName(_om.last_audit, true)) + '</strong></span>' : ''}
-              <span id="tag-pills-${safeId}" style="display:inline;">${tagPillsHtml(cTags)}</span>
+              <span id="tag-pills-${safeId}" class="cust-card-tags">${tagPillsHtml(cTags)}</span>
             </div>
           </div>
-          <div style="display:flex;gap:var(--space-2);flex-shrink:0;" data-click-handler="stopPropagation">
+          <div class="cust-card-actions" data-click-handler="stopPropagation">
             ${isActive
               ? (configured
                 ? `<button class="btn btn-success btn-sm" data-click-handler="startAudit">${t('audit_2')}</button>`
