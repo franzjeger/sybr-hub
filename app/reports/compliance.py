@@ -36,6 +36,7 @@ from app.reports.parsers import (
     _is_audit_relevant_domain,
     _parse_banner_count,
 )
+from app.reports.parsers.common import _sidecar
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -831,11 +832,17 @@ def _device_compliance(audit: _Audit) -> _Verdict:
     # devices currently meet them.
     intune, t = audit.intune, audit.t
     text = audit.fc.get("11_intune_compliance_policies.txt", "")
-    # A refused read is written as a "(not available)" block with prose in it;
-    # counting its lines as policies would turn "not allowed to look" into
-    # "policies are configured".
-    unreadable = _evidence_unavailable(text)
-    has_policies = not unreadable and _count_data_lines(text) > 0
+    # The sidecar's count when the run wrote one. A refused read writes none,
+    # and is written as a "(not available)" block with prose in it; counting
+    # its lines as policies would turn "not allowed to look" into "policies
+    # are configured".
+    sidecar = _sidecar(audit.fc, "11_intune_compliance_policies.txt")
+    unreadable = sidecar is None and _evidence_unavailable(text)
+    if sidecar is not None:
+        policy_count = int(sidecar.get("count") or 0)
+    else:
+        policy_count = 0 if unreadable else _count_data_lines(text)
+    has_policies = policy_count > 0
     has_devices = intune.get("has_data") and intune.get("total", 0) > 0
     if intune.get("unavailable") and not has_policies:
         reason = intune.get("unavailable_reason") or "Intune-data utilgjengelig"
@@ -854,7 +861,7 @@ def _device_compliance(audit: _Audit) -> _Verdict:
     if not has_devices:
         return (
             "pass",
-            f"{_count_data_lines(text)} compliance-policy(er) konfigurert (ingen enheter enrolled)",
+            f"{policy_count} compliance-policy(er) konfigurert (ingen enheter enrolled)",
         )
     pct = intune.get("compliance_pct", 0)
     if pct >= 90:
