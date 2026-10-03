@@ -71,6 +71,8 @@ before changing them:
 | Usage reports | `v1.0/reports/get*(period='D90')` | CSV only. `$format=application/json` is refused with "JSON format is not supported" |
 | Entra devices | `v1.0/devices` | what the tenant *has*, as against `deviceManagement/managedDevices` for what Intune manages |
 | OneDrive discovery (app-only) | `v1.0/users/{id}/drives` | the singular `/drive` endpoint does not support application permissions |
+| Microsoft 365 Backup status | `v1.0/solutions/backupRestore` | `serviceStatus.status`; needs `BackupRestore-Control.Read.All`. Microsoft documents the API as meant for registered backup controller apps, so a 403 is recorded as unreadable, not as "no backup" |
+| Microsoft 365 Backup policies | `v1.0/solutions/backupRestore/protectionPolicies` | one list, typed by `@odata.type`; needs `BackupRestore-Configuration.Read.All`. The protected count comes from `beta/.../protectionPolicies/{id}?$select=protectionPolicyArtifactCount` (returned only on `$select`), else from the v1.0 protection-unit lists. Units carry no names under application permissions |
 
 **OneDrive / SharePoint sharing coverage is bounded and explicit.** The audit
 discovers every site collection's drives plus every directory user's drives,
