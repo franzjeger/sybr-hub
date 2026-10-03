@@ -8,15 +8,26 @@ come from Graph, through a real GraphClient over the rig's fake transport.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.modules.m365_audit.sections.exchange import ExchangeSection
+from app.modules.m365_audit.sections.users_mfa import UsersSection
 from app.reports.compliance import _build_compliance_map
-from app.reports.parsers import _parse_exchange_overview, _parse_purview
-from app.reports.parsers.tenant import _parse_shared_mailbox_upns
+from app.reports.parsers import (
+    _analyze_license_optimization,
+    _parse_exchange_overview,
+    _parse_purview,
+)
+from app.reports.parsers.tenant import _parse_shared_mailbox_upns, _shared_mailbox_upns
 from tests.collector_rig import FakeGraph, run_sections
 
 LABELS_PATH = "beta/security/dataSecurityAndGovernance/sensitivityLabels"
+
+
+def _recent() -> str:
+    return (datetime.now(UTC) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 async def _collect(
@@ -64,6 +75,83 @@ async def test_a_shared_mailbox_is_found_when_the_helper_sends_no_upn(tmp_path):
 
     shared = _parse_shared_mailbox_upns(files["20_exchange_mailboxes.txt"])
     assert shared == {"post@acme.example", "rom1@acme.example"}
+
+
+MAILBOXES = [
+    _mailbox("Kari Nordmann", "kari@acme.example", UserPrincipalName="kari@acme.example"),
+    _mailbox("Ola Nordmann", "ola@acme.example", UserPrincipalName="ola@acme.example"),
+    _mailbox("Postmottak", "post@acme.example", "SharedMailbox"),
+    _mailbox("Møterom 1", "rom1@acme.example", "RoomMailbox"),
+]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_mailbox_counts_survive_the_round_trip(tmp_path, sidecars):
+    files, _ = await _collect(tmp_path, {"mailboxes": MAILBOXES}, sidecars=sidecars)
+    assert ("20_exchange_mailboxes_count.json" in files) is sidecars
+
+    overview = _parse_exchange_overview(files)
+
+    assert overview["mailbox_total"] == 4
+    assert overview["mailbox_user"] == 2
+    assert overview["mailbox_shared"] == 1
+    assert _shared_mailbox_upns(files) == {"post@acme.example", "rom1@acme.example"}
+
+
+async def test_the_mailbox_counts_come_from_the_sidecar(tmp_path):
+    files, _ = await _collect(tmp_path, {"mailboxes": MAILBOXES})
+    files["20_exchange_mailboxes_count.txt"] = ""  # only the sidecar can answer now
+
+    assert _parse_exchange_overview(files)["mailbox_total"] == 4
+
+
+async def test_a_long_shared_mailbox_address_is_kept_whole(tmp_path):
+    """The table cuts the UPN at 45 characters; the sidecar does not."""
+    long_upn = "fakturamottak.regnskapsavdelingen@acme-holding.example"
+    assert len(long_upn) > 45
+    exo = {"mailboxes": [_mailbox("Faktura", long_upn, "SharedMailbox")]}
+
+    files, _ = await _collect(tmp_path, exo)
+    assert long_upn in _shared_mailbox_upns(files)
+
+    text_only = {k: v for k, v in files.items() if not k.endswith(".json")}
+    assert long_upn not in _shared_mailbox_upns(text_only)
+
+
+async def test_a_licensed_shared_mailbox_is_not_offered_as_an_inactive_user(tmp_path):
+    """Licence optimisation matches the stale accounts against the shared mailboxes.
+
+    The table reader takes the first column holding an "@" as the UPN, so a
+    display name with an "@" in it stood in for the address, the shared mailbox
+    went unrecognised, and its licence was offered as an inactive user's.
+    """
+    users = [
+        {
+            "id": f"u{i}",
+            "displayName": name,
+            "userPrincipalName": upn,
+            "accountEnabled": True,
+            "userType": "Member",
+            "assignedLicenses": [{"skuId": "sku-1"}],
+            "signInActivity": signin,
+        }
+        for i, (name, upn, signin) in enumerate(
+            [
+                ("Kari Nordmann", "kari@acme.example", {"lastSignInDateTime": _recent()}),
+                ("Support @ Acme", "support@acme.example", None),  # never signs in
+            ]
+        )
+    ]
+    exo = {"mailboxes": [_mailbox("Support @ Acme", "support@acme.example", "SharedMailbox")]}
+    async with FakeGraph({"users": users}) as fake:
+        await UsersSection(tmp_path, fake.client).collect()
+    files, _ = await _collect(tmp_path, exo)
+
+    kinds = {
+        s["type"] for s in _analyze_license_optimization([], files)["optimization_suggestions"]
+    }
+    assert "shared_mailbox_licensed" in kinds
+    assert "unused" not in kinds, "a shared mailbox is not an inactive user"
 
 
 # ── Connectors ────────────────────────────────────────────────────────────────

@@ -232,18 +232,28 @@ class ExchangeSection(BaseSection):
             f"  {'Display Name':<40} {'UPN':<45} {'Type':<20} {'Quota'}",
             "  " + "-" * 96,
         ]
+        rows: list[dict] = []
         for m in mailboxes:
-            name = str(m.get("DisplayName") or "")[:40]
-            # The helper did not send UserPrincipalName until it was added
-            # beside PrimarySmtpAddress, so this column was blank in every
-            # run, and licence optimisation, which looks for the shared and
-            # room mailboxes here, never found one.
-            upn = str(m.get("UserPrincipalName") or m.get("PrimarySmtpAddress") or "")[:45]
-            mtype = str(m.get("RecipientTypeDetails") or m.get("RecipientType") or "")[:20]
-            quota = str(m.get("TotalItemSize") or m.get("ProhibitSendReceiveQuota") or "N/A")[:20]
+            row = {
+                "display_name": m.get("DisplayName"),
+                # The helper did not send UserPrincipalName until it was added
+                # beside PrimarySmtpAddress, so this column was blank in every
+                # run, and licence optimisation, which looks for the shared and
+                # room mailboxes here, never found one.
+                "upn": m.get("UserPrincipalName") or m.get("PrimarySmtpAddress"),
+                "primary_smtp_address": m.get("PrimarySmtpAddress"),
+                "type": m.get("RecipientTypeDetails") or m.get("RecipientType"),
+                "quota": m.get("TotalItemSize") or m.get("ProhibitSendReceiveQuota"),
+            }
+            rows.append(row)
+            name = str(row["display_name"] or "")[:40]
+            upn = str(row["upn"] or "")[:45]
+            mtype = str(row["type"] or "")[:20]
+            quota = str(row["quota"] or "N/A")[:20]
             lines.append(f"  {name:<40} {upn:<45} {mtype:<20} {quota}")
         lines += ["=" * 100, ""]
         self._save("20_exchange_mailboxes.txt", "\n".join(lines))
+        self._save_sidecar("20_exchange_mailboxes.txt", {"count": total, "mailboxes": rows})
 
         count_lines = [
             "=" * 40,
@@ -257,6 +267,10 @@ class ExchangeSection(BaseSection):
             "",
         ]
         self._save("20_exchange_mailboxes_count.txt", "\n".join(count_lines))
+        self._save_sidecar(
+            "20_exchange_mailboxes_count.txt",
+            {"total": total, "user": user_mb, "shared": shared, "room": room},
+        )
 
     # ── Transport Rules ───────────────────────────────────────────────────────
 
