@@ -325,7 +325,8 @@ function _reason(prefix, code, params) {
   var out = t(prefix + code, '');
   if (!out) return '';
   Object.keys(params || {}).forEach(function(k) {
-    out = out.split('{' + k + '}').join(String(params[k]));
+    // A run is named to a person by its date, not its folder.
+    out = out.split('{' + k + '}').join(String(k === 'run' ? formatRunName(params[k]) : params[k]));
   });
   return out;
 }

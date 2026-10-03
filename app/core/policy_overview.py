@@ -48,7 +48,7 @@ def _latest_run(customer_id: str) -> Path | None:
     return runs[0] if runs else None
 
 
-def _live_ca_by_name(customer_id: str) -> dict[str, dict]:
+def _live_ca_by_name(customer_id: str) -> dict[str, dict] | None:
     """Raw Conditional Access policy objects keyed by display name.
 
     The inventory on the card carries only name / state / summary — enough
@@ -56,22 +56,27 @@ def _live_ca_by_name(customer_id: str) -> dict[str, dict]:
     and grantControls). Re-reading the latest snapshot is one JSON read per
     overview request, and it keeps the summary in the card separate from
     the check the overview uses, so the two cannot silently diverge.
+
+    None when there is no snapshot to read, and {} when the snapshot holds
+    no policies. They are different answers: the first is "never captured",
+    the second "captured, and the tenant has none". Returning {} for both
+    marked every standard policy absent on a customer nobody had looked at.
     """
     latest = _latest_run(customer_id)
     if latest is None:
-        return {}
+        return None
     path = latest / "policy_snapshots" / "conditional_access_policies.json"
     if not path.is_file():
-        return {}
+        return None
     try:
         from app.core.encryption import encrypted_read_json
 
         env = encrypted_read_json(path)
     except Exception:
         logger.warning("Could not read CA snapshot for %s", customer_id)
-        return {}
+        return None
     if not isinstance(env, dict):
-        return {}
+        return None
     return {
         str(p.get("displayName", "")): p for p in (env.get("items") or []) if isinstance(p, dict)
     }
@@ -161,7 +166,7 @@ def _localised(value: Any, lang: str) -> str:
     return str(value or "")
 
 
-def _standard_gaps(lang: str, live_by_name: dict[str, dict]) -> list[dict[str, Any]]:
+def _standard_gaps(lang: str, live_by_name: dict[str, dict] | None) -> list[dict[str, Any]]:
     """Each Sybr standard, and which of its policies the tenant has by name.
 
     Name-matched, not behaviour-matched: the standard's policies are ours and
@@ -169,7 +174,12 @@ def _standard_gaps(lang: str, live_by_name: dict[str, dict]) -> list[dict[str, A
     with a policy that does the same job under another name is a customer
     decision the standard does not override, and the adoption path in the
     deploy view is the way to record that.
+
+    With no snapshot (``live_by_name`` None) presence is unknown: each entry
+    carries ``present`` None and the standard ``measured`` False, so the
+    screen can say "not collected" instead of fourteen red "not present".
     """
+    measured = live_by_name is not None
     from app.core.policy_templates import TemplateError, list_templates, load_template
 
     try:
@@ -187,9 +197,12 @@ def _standard_gaps(lang: str, live_by_name: dict[str, dict]) -> list[dict[str, A
         entries = []
         for policy in doc["policies"]:
             name = str(policy.get("displayName", ""))
-            raw = live_by_name.get(name)
-            if raw is None:
+            raw = live_by_name.get(name) if measured else None
+            if not measured:
                 state_code: str | None = None
+                present: bool | None = None
+            elif raw is None:
+                state_code = None
                 present = False
             else:
                 # The card inventory maps state; use its enum.
@@ -213,6 +226,7 @@ def _standard_gaps(lang: str, live_by_name: dict[str, dict]) -> list[dict[str, A
                 "id": tpl["id"],
                 "name": tpl["name"],
                 "version": tpl["version"],
+                "measured": measured,
                 "policies": entries,
             }
         )
@@ -245,7 +259,7 @@ def build_overview(customer_id: str, lang: str = "no") -> dict[str, Any]:
         for item in ca.get("items") or []:
             if not isinstance(item, dict):
                 continue
-            raw = live_by_name.get(str(item.get("name", ""))) or {}
+            raw = (live_by_name or {}).get(str(item.get("name", ""))) or {}
             items.append(
                 {**item, "improvements": _improvements_for(str(item.get("state") or ""), raw)}
             )
