@@ -120,35 +120,35 @@
         <button class="nav-btn nav-caret" id="nav-tools" data-click-handler="toggleToolsMenu" aria-haspopup="true" aria-expanded="false" aria-controls="nav-tools-menu" data-i18n="nav_tools">Verkt&#248;y</button>
         <div class="nav-dropdown-menu" id="nav-tools-menu"><div class="navdd-panel">
           <button data-view-gate="network" class="navdd-item" data-click-handler="showView" data-view="network">
-            <span class="navdd-ic">&#9635;</span>
+            <span class="navdd-ic" data-icon="server"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_network">Nettverk</span><span class="navdd-desc" data-i18n="nav_network_desc">FortiGate, UniFi, nettverksaudit og TLS</span></span>
           </button>
           <button data-view-gate="vpn" data-write class="navdd-item" data-click-handler="showView" data-view="vpn">
-            <span class="navdd-ic">&#8644;</span>
+            <span class="navdd-ic" data-icon="lock"></span>
             <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc" data-i18n="nav_vpn_tunnels_desc">Tunneler mot kundenett: status og tilkobling</span></span>
           </button>
           <button data-view-gate="hosts" data-write class="navdd-item" data-click-handler="showView" data-view="hosts">
-            <span class="navdd-ic">&#8997;</span>
+            <span class="navdd-ic" data-icon="monitor"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_remote_access2">Fjerntilgang</span><span class="navdd-desc" data-i18n="nav_remote_access_desc2">Verter, terminal, RDP, nettleser og SSH-n&#248;kler</span></span>
           </button>
           <button data-view-gate="tailscale" data-write class="navdd-item" data-click-handler="showView" data-view="tailscale">
-            <span class="navdd-ic">&#8734;</span>
+            <span class="navdd-ic" data-icon="link"></span>
             <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc" data-i18n="nav_mesh_desc">Mesh-tilgang og noder</span></span>
           </button>
           <button data-view-gate="pentest" class="navdd-item" data-click-handler="showView" data-view="pentest">
-            <span class="navdd-ic">&#9678;</span>
+            <span class="navdd-ic" data-icon="shield"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="pentest">Pentest</span><span class="navdd-desc" data-i18n="nav_pentest_desc">Skann en kundes eksterne flate</span></span>
           </button>
           <button data-view-gate="provision" data-write class="navdd-item" data-click-handler="showView" data-view="provision">
-            <span class="navdd-ic">&#8853;</span>
+            <span class="navdd-ic" data-icon="plug"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="provisjonering">Provisjonering</span><span class="navdd-desc" data-i18n="nav_provisioning_desc">Provisjonering av nytt kundenett</span></span>
           </button>
           <button data-view-gate="billing" data-module="billing" class="navdd-item" data-click-handler="showView" data-view="billing">
-            <span class="navdd-ic">&#8362;</span>
+            <span class="navdd-ic" data-icon="chart"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_billing">Lisenser og hosting</span><span class="navdd-desc" data-i18n="nav_billing_desc">Fornyelser, kostnader og domener</span></span>
           </button>
           <button data-view-gate="ai" data-write class="navdd-item" data-click-handler="showView" data-view="ai">
-            <span class="navdd-ic">&#10035;</span>
+            <span class="navdd-ic" data-icon="sparkle"></span>
             <span class="navdd-txt"><span class="navdd-label" data-i18n="sybrt">Sybrt</span><span class="navdd-desc" data-i18n="integ_claude_ai_desc">AI-assistent med verkt&#248;ytilgang</span></span>
           </button>
         </div></div>
@@ -192,12 +192,12 @@
             <span class="email" id="avatar-email"></span>
             <span class="avatar-version" id="header-version"></span>
           </div>
-          <button class="avatar-item" data-click-handler="avatarOpenAccount"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"></circle><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"></path></svg></span><span class="avatar-label" data-i18n="konto">Konto</span></button>
-          <button class="avatar-item" data-click-handler="toggleTheme"><span class="ic">&#9680;</span><span class="avatar-label" data-i18n="lbl_theme">Tema</span></button>
-          <button class="avatar-item" data-click-handler="avatarOpenShortcuts"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span class="avatar-label" data-i18n="lbl_shortcuts">Snarveier</span><span class="kbd">?</span></button>
-          <button class="avatar-item" data-admin-only data-view-gate="admin" data-click-handler="avatarOpenAdmin"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg></span><span class="avatar-label" data-i18n="nav_admin">Administrasjon</span><span class="kbd">Ctrl+,</span></button>
-          <button class="avatar-item" data-view-gate="docs" data-click-handler="avatarOpenHelp"><span class="ic">?</span><span class="avatar-label" data-i18n="nav_help">Hjelp</span></button>
-          <button class="avatar-item danger" data-click-handler="doLogout"><span class="ic">&#8617;</span><span class="avatar-label" data-i18n="logg_ut">Logg ut</span></button>
+          <button class="avatar-item" data-click-handler="avatarOpenAccount"><span class="ic" data-icon="user"></span><span class="avatar-label" data-i18n="konto">Konto</span></button>
+          <button class="avatar-item" data-click-handler="toggleTheme"><span class="ic" data-icon="palette"></span><span class="avatar-label" data-i18n="lbl_theme">Tema</span></button>
+          <button class="avatar-item" data-click-handler="avatarOpenShortcuts"><span class="ic" data-icon="keyboard"></span><span class="avatar-label" data-i18n="lbl_shortcuts">Snarveier</span><span class="kbd">?</span></button>
+          <button class="avatar-item" data-admin-only data-view-gate="admin" data-click-handler="avatarOpenAdmin"><span class="ic" data-icon="gear"></span><span class="avatar-label" data-i18n="nav_admin">Administrasjon</span><span class="kbd">Ctrl+,</span></button>
+          <button class="avatar-item" data-view-gate="docs" data-click-handler="avatarOpenHelp"><span class="ic" data-icon="help"></span><span class="avatar-label" data-i18n="nav_help">Hjelp</span></button>
+          <button class="avatar-item danger" data-click-handler="doLogout"><span class="ic" data-icon="logout"></span><span class="avatar-label" data-i18n="logg_ut">Logg ut</span></button>
         </div>
       </div>
 
@@ -2049,21 +2049,21 @@
       <div class="more-handle"></div>
       <div class="more-title" data-i18n="mer_2">Mer</div>
       <div class="more-group-title" data-i18n="nav_tools">Verkt&#248;y</div>
-      <button class="more-row" data-view-gate="network" data-click-handler="moreSheetShowView" data-view="network"><span class="more-ic">&#9635;</span><span data-i18n="nav_network">Nettverk</span></button>
-      <button class="more-row" data-view-gate="vpn" data-write data-click-handler="moreSheetShowView" data-view="vpn"><span class="more-ic">&#8644;</span><span>VPN</span><span class="more-meta" id="more-vpn-meta"></span></button>
-      <button class="more-row" data-view-gate="hosts" data-write data-click-handler="moreSheetShowView" data-view="hosts"><span class="more-ic">&#8997;</span><span data-i18n="nav_remote_access2">Fjerntilgang</span></button>
-      <button class="more-row" data-view-gate="tailscale" data-write data-click-handler="moreSheetShowView" data-view="tailscale"><span class="more-ic">&#8734;</span><span>Tailscale</span></button>
-      <button class="more-row" data-view-gate="pentest" data-click-handler="moreSheetShowView" data-view="pentest"><span class="more-ic">&#9678;</span><span data-i18n="pentest">Pentest</span></button>
-      <button class="more-row" data-view-gate="provision" data-write data-click-handler="moreSheetShowView" data-view="provision"><span class="more-ic">&#8853;</span><span data-i18n="provisjonering">Provisjonering</span></button>
-      <button class="more-row" data-view-gate="billing" data-module="billing" data-click-handler="moreSheetShowView" data-view="billing"><span class="more-ic">&#8362;</span><span data-i18n="nav_billing">Lisenser og hosting</span></button>
-      <button class="more-row" data-view-gate="ai" data-write data-click-handler="moreSheetShowView" data-view="ai"><span class="more-ic">&#10035;</span><span data-i18n="sybrt">Sybrt</span></button>
+      <button class="more-row" data-view-gate="network" data-click-handler="moreSheetShowView" data-view="network"><span class="more-ic" data-icon="server"></span><span data-i18n="nav_network">Nettverk</span></button>
+      <button class="more-row" data-view-gate="vpn" data-write data-click-handler="moreSheetShowView" data-view="vpn"><span class="more-ic" data-icon="lock"></span><span>VPN</span><span class="more-meta" id="more-vpn-meta"></span></button>
+      <button class="more-row" data-view-gate="hosts" data-write data-click-handler="moreSheetShowView" data-view="hosts"><span class="more-ic" data-icon="monitor"></span><span data-i18n="nav_remote_access2">Fjerntilgang</span></button>
+      <button class="more-row" data-view-gate="tailscale" data-write data-click-handler="moreSheetShowView" data-view="tailscale"><span class="more-ic" data-icon="link"></span><span>Tailscale</span></button>
+      <button class="more-row" data-view-gate="pentest" data-click-handler="moreSheetShowView" data-view="pentest"><span class="more-ic" data-icon="shield"></span><span data-i18n="pentest">Pentest</span></button>
+      <button class="more-row" data-view-gate="provision" data-write data-click-handler="moreSheetShowView" data-view="provision"><span class="more-ic" data-icon="plug"></span><span data-i18n="provisjonering">Provisjonering</span></button>
+      <button class="more-row" data-view-gate="billing" data-module="billing" data-click-handler="moreSheetShowView" data-view="billing"><span class="more-ic" data-icon="chart"></span><span data-i18n="nav_billing">Lisenser og hosting</span></button>
+      <button class="more-row" data-view-gate="ai" data-write data-click-handler="moreSheetShowView" data-view="ai"><span class="more-ic" data-icon="sparkle"></span><span data-i18n="sybrt">Sybrt</span></button>
       <div class="more-group-title" data-admin-only data-i18n="nav_admin">Administrasjon</div>
-      <button class="more-row" data-admin-only data-view-gate="admin" data-click-handler="moreSheetOpenAdmin"><span class="more-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg></span><span data-i18n="nav_admin">Administrasjon</span></button>
+      <button class="more-row" data-admin-only data-view-gate="admin" data-click-handler="moreSheetOpenAdmin"><span class="more-ic" data-icon="gear"></span><span data-i18n="nav_admin">Administrasjon</span></button>
       <div class="more-group-title" data-i18n="konto">Konto</div>
-      <button class="more-row" data-click-handler="moreSheetOpenAccount"><span class="more-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span><span data-i18n="konto">Konto</span></button>
-      <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
-      <button class="more-row" data-view-gate="docs" data-click-handler="moreSheetShowView" data-view="docs"><span class="more-ic">?</span><span data-i18n="nav_help">Hjelp</span></button>
-      <button class="more-row danger" data-click-handler="moreSheetLogout"><span class="more-ic">&#8617;</span><span data-i18n="logg_ut_2">Logg ut</span></button>
+      <button class="more-row" data-click-handler="moreSheetOpenAccount"><span class="more-ic" data-icon="user"></span><span data-i18n="konto">Konto</span></button>
+      <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic" data-icon="palette"></span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
+      <button class="more-row" data-view-gate="docs" data-click-handler="moreSheetShowView" data-view="docs"><span class="more-ic" data-icon="help"></span><span data-i18n="nav_help">Hjelp</span></button>
+      <button class="more-row danger" data-click-handler="moreSheetLogout"><span class="more-ic" data-icon="logout"></span><span data-i18n="logg_ut_2">Logg ut</span></button>
     </div>
   </div>
 
