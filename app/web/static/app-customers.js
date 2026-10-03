@@ -986,7 +986,7 @@ export function startBulkAudit() {
     '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('status') + '</th>' +
     '</tr></thead><tbody id="bulk-results-tbody"></tbody></table></div></div>';
   var _ari_b = document.getElementById('audit-running-indicator');
-  if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.style.display = 'flex'; }
+  if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span class="dot"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.style.display = 'flex'; }
   var totalCustomers = 0, completedCustomers = 0, customerSectionsDone = 0, customerSectionsTotal = 0;
   fetch('/api/audit/bulk', {method:'POST'}).then(async function(resp) {
     if (!resp.ok) { document.getElementById('bulk-overall-status').innerHTML = '<span style="color:var(--red)">HTTP '+Number(resp.status)+'</span>'; return; }

@@ -48,7 +48,7 @@ export function icon(name, size) {
   };
   var d = paths[name];
   if (!d) return '';
-  return '<span class="ic" style="width:'+s+'px;height:'+s+'px;">'
+  return '<span class="ic">'
     + '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">'
     + '<path d="'+d+'"/></svg></span>';
 }

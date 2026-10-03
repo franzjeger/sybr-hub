@@ -45,7 +45,7 @@ export async function _checkVpnHeaderBadge() {
     setVpnTunnelUp(!!(d && d.state === 'connected'));
     _syncConnChip();
     if (d && d.state === 'connected') {
-      prefix.style.display = 'inline';
+      prefix.hidden = false;
       var stats = d.stats || {};
       var tip = 'VPN ' + t('vpn_connected','Connected');
       if (d.interface) tip += ' (' + d.interface + ')';
@@ -54,7 +54,7 @@ export async function _checkVpnHeaderBadge() {
       tip += '\n' + t('tip_click_to_manage','Click to manage');
       prefix.title = tip;
     } else {
-      prefix.style.display = 'none';
+      prefix.hidden = true;
     }
   } catch(e) { /* VPN badge poll — retries every 30s */ }
 }
@@ -147,7 +147,7 @@ export function _syncBottomNav(name) {
   };
   var active = map[name] || (name ? 'more' : '');
   if (name === 'overview') {
-    var tab = document.querySelector('#view-overview .dash-tab-btn.active');
+    var tab = document.querySelector('#view-overview .tab.active');
     if (tab && tab.dataset.tab === 'dash-alerts') active = 'alerts';
   }
   document.querySelectorAll('.bnav-item').forEach(function(el) {
@@ -478,19 +478,19 @@ function _showPwaInstallHelp() {
   if (existing) { existing.style.display = 'flex'; return; }
   var ios = _isIOS();
   var bodyHtml = ios ? '' +
-    '<ol style="font-size:14px;line-height:1.8;padding-left:20px;margin:12px 0;color:var(--text);">' +
-    '  <li>' + esc(t('pwa_ios_step1', 'Trykk på')) + ' <strong style="color:var(--blue);">' + esc(t('pwa_ios_share', 'Del')) + '</strong> ' + esc(t('pwa_ios_step1_end', '(boksen med pil) i bunnen av nettleseren.')) + '</li>' +
-    '  <li>' + esc(t('pwa_ios_step2', 'Bla ned og velg')) + ' <strong style="color:var(--blue);">' + esc(t('pwa_ios_add', 'Legg til på hjem-skjermen')) + '</strong>.</li>' +
-    '  <li>' + esc(t('pwa_ios_step3', 'Bekreft navn og trykk')) + ' <strong style="color:var(--blue);">' + esc(t('pwa_ios_confirm', 'Legg til')) + '</strong>.</li>' +
+    '<ol class="pwa-steps">' +
+    '  <li>' + esc(t('pwa_ios_step1', 'Trykk på')) + ' <strong class="text-accent">' + esc(t('pwa_ios_share', 'Del')) + '</strong> ' + esc(t('pwa_ios_step1_end', '(boksen med pil) i bunnen av nettleseren.')) + '</li>' +
+    '  <li>' + esc(t('pwa_ios_step2', 'Bla ned og velg')) + ' <strong class="text-accent">' + esc(t('pwa_ios_add', 'Legg til på hjem-skjermen')) + '</strong>.</li>' +
+    '  <li>' + esc(t('pwa_ios_step3', 'Bekreft navn og trykk')) + ' <strong class="text-accent">' + esc(t('pwa_ios_confirm', 'Legg til')) + '</strong>.</li>' +
     '</ol>' +
-    '<div style="font-size:12px;color:var(--text-dim);margin-top:8px;">' + esc(t('pwa_ios_hint', 'Appen åpner i fullskjerm uten nettleser-kontroller etter installasjon.')) + '</div>'
+    '<div class="text-sm text-dim mt-2">' + esc(t('pwa_ios_hint', 'Appen åpner i fullskjerm uten nettleser-kontroller etter installasjon.')) + '</div>'
     :
-    '<p style="font-size:14px;color:var(--text);line-height:1.6;">' + esc(t('pwa_generic_help', 'Åpne nettleserens meny og velg «Installer app» eller «Legg til på startskjerm».')) + '</p>';
+    '<p class="text-base text-default lh-relaxed">' + esc(t('pwa_generic_help', 'Åpne nettleserens meny og velg «Installer app» eller «Legg til på startskjerm».')) + '</p>';
 
   var html = '' +
-    '<div class="modal-backdrop open" id="pwa-help-modal" data-click-handler="hideOnBackdrop" style="display:flex;">' +
-      '<div class="modal" style="max-width:380px;">' +
-        '<div class="modal-title" style="display:flex;align-items:center;gap:8px;">' + esc(t('pwa_help_title', 'Installer Sybr HUB som app')) + '</div>' +
+    '<div class="modal-backdrop open" id="pwa-help-modal" data-click-handler="hideOnBackdrop">' +
+      '<div class="modal modal-sm">' +
+        '<div class="modal-title">' + esc(t('pwa_help_title', 'Installer Sybr HUB som app')) + '</div>' +
         bodyHtml +
         '<div class="modal-actions">' +
           '<button class="btn btn-primary" data-click-handler="hideElement" data-target="pwa-help-modal">' + esc(t('btn_ok', 'OK')) + '</button>' +
@@ -703,11 +703,11 @@ onLoginViewShown(_onboardingRemove);
 // ── Log / Troubleshooting ─────────────────────────────────────────────────────
 var _logAutoRefreshTimer = null;
 
-function levelColor(lvl) {
-  if (lvl === 'ERROR' || lvl === 'CRITICAL') return 'var(--red)';
-  if (lvl === 'WARNING') return 'var(--orange)';
-  if (lvl === 'INFO') return 'var(--blue)';
-  return 'var(--text-dim)';
+function levelClass(lvl) {
+  if (lvl === 'ERROR' || lvl === 'CRITICAL') return 'text-danger';
+  if (lvl === 'WARNING') return 'text-warning';
+  if (lvl === 'INFO') return 'text-accent';
+  return 'text-dim';
 }
 
 export async function loadLogs() {
@@ -717,7 +717,7 @@ export async function loadLogs() {
   if (!data) return;
   var logs = data.logs || [];
   if (logs.length === 0) {
-    box.innerHTML = '<span style="color:var(--text-dim);">' + t('msg_no_log_entries') + '</span>';
+    box.innerHTML = '<span class="text-dim">' + t('msg_no_log_entries') + '</span>';
     document.getElementById('log-stats').textContent = '0 ' + t('msg_entries');
     return;
   }
@@ -725,20 +725,20 @@ export async function loadLogs() {
   var html = logs.map(function(e) {
     counts[e.level] = (counts[e.level] || 0) + 1;
     var ts = e.ts.replace('T', ' ').replace(/\.\d+([Z+][^\s]*)$/, '').replace(/([Z+][^\s]*)$/, '');
-    var color = levelColor(e.level);
-    var lvlBadge = '<span style="color:' + color + ';font-weight:700;min-width:60px;display:inline-block;">[' + esc(e.level) + ']</span>';
-    var loggerSpan = '<span style="color:var(--text-dim);font-size:11px;">' + esc(e.logger) + '</span>';
-    return '<div style="padding:2px 0;border-bottom:1px solid var(--border);word-break:break-all;">' +
-      '<span style="color:var(--text-dim);margin-right:8px;">' + esc(ts) + '</span>' +
+    var tone = levelClass(e.level);
+    var lvlBadge = '<span class="log-level ' + tone + '">[' + esc(e.level) + ']</span>';
+    var loggerSpan = '<span class="text-dim text-xs">' + esc(e.logger) + '</span>';
+    return '<div class="log-entry">' +
+      '<span class="text-dim mr-2">' + esc(ts) + '</span>' +
       lvlBadge + ' ' + loggerSpan + '<br>' +
-      '<span style="padding-left:8px;color:' + color + ';">' + esc(e.msg) + '</span>' +
+      '<span class="log-entry-msg ' + tone + '">' + esc(e.msg) + '</span>' +
       '</div>';
   }).join('');
   box.innerHTML = html;
   box.scrollTop = box.scrollHeight;
   var statsArr = [];
-  if (counts.ERROR || counts.CRITICAL) statsArr.push('<span style="color:var(--red);font-weight:700;">' + (counts.ERROR + counts.CRITICAL) + ' ' + t('msg_errors_count') + '</span>');
-  if (counts.WARNING) statsArr.push('<span style="color:var(--orange);">' + counts.WARNING + ' ' + t('msg_warnings_count') + '</span>');
+  if (counts.ERROR || counts.CRITICAL) statsArr.push('<span class="text-danger fw-bold">' + (counts.ERROR + counts.CRITICAL) + ' ' + t('msg_errors_count') + '</span>');
+  if (counts.WARNING) statsArr.push('<span class="text-warning">' + counts.WARNING + ' ' + t('msg_warnings_count') + '</span>');
   statsArr.push(logs.length + ' ' + t('msg_entries_total'));
   document.getElementById('log-stats').innerHTML = statsArr.join(' &nbsp;·&nbsp; ');
 }

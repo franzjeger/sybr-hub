@@ -172,7 +172,7 @@ async function openedTab(page, tab) {
   await expect(page.locator('#cust-tab-' + tab)).toHaveClass(/\bactive\b/);
   await expect(page.locator('#cust-tab-' + tab)).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#view-customer-detail .cust-panel:visible')).toHaveCount(1);
-  await expect(page.locator('#cust-tabs .cust-tab.active')).toHaveCount(1);
+  await expect(page.locator('#cust-tabs .tab.active')).toHaveCount(1);
 }
 
 test('Lagring og backup copes with settings that leave the storage paths out', async ({page}) => {
@@ -285,7 +285,7 @@ test('the bell opens Varsler on Oversikt, with the events it used to list', asyn
   await inApp(page, app => app.showView('customers'));
   await page.locator('#notif-bell').click();
   await expect(page.locator('#view-overview')).toHaveClass(/\bactive\b/);
-  await expect(page.locator('#view-overview .dash-tab-btn[data-tab="dash-alerts"]')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#view-overview .tab[data-tab="dash-alerts"]')).toHaveClass(/\bactive\b/);
   await expect(page.locator('#dash-alerts')).toBeVisible();
   await expect(page.locator('#notif-badge')).toBeHidden();
   const sent = page.locator('#dash-alerts .notif-group-label', {hasText: 'Sendt av automatiske varsler'});

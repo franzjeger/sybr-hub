@@ -141,7 +141,7 @@ test.describe('signed in as an administrator', () => {
 
   test('"Endre kanaler" opens the alert settings instead of a blank screen', async () => {
     await inApp(page, app => app.showView('overview'));
-    await page.locator('#view-overview .dash-tab-btn', {hasText: 'Varsler'}).click();
+    await page.locator('#view-overview .tab', {hasText: 'Varsler'}).click();
     await page.getByRole('button', {name: 'Endre kanaler'}).click();
 
     await expect(page.locator('#view-admin')).toBeVisible();
@@ -156,7 +156,7 @@ test.describe('signed in as an administrator', () => {
     // The fixture has one audited customer (Browser Beta); every other one,
     // including those other specs add, has never been audited.
     await inApp(page, app => app.showView('overview'));
-    await page.locator('#view-overview .dash-tab-btn', {hasText: 'Oppfølging'}).click();
+    await page.locator('#view-overview .tab', {hasText: 'Oppfølging'}).click();
     const overview = await (await page.request.get('/api/dashboard/overview')).json();
     const never = overview.customers.filter(c => !c.last_audit).length;
     expect(never).toBeGreaterThan(0);

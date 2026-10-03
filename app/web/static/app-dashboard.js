@@ -843,7 +843,7 @@ export function dashToggleAutoRefresh(btn) {
     return;
   }
   _dashRefreshInterval = setInterval(function() {
-    var active = document.querySelector('#view-overview .dash-tab-btn.active');
+    var active = document.querySelector('#view-overview .tab.active');
     if (active && currentView === 'overview') active.click();
   }, _dashRefreshSeconds * 1000);
   if (btn) { btn.textContent = t('btn_auto_refresh_on','Auto-refresh: 2m'); btn.style.opacity = '1'; }
@@ -886,7 +886,7 @@ function dashExportAlerts() { _dashExportTableCSV('dash-alerts-content', 'alerts
 // Oversikt on one of its tabs.
 export function openOverviewTab(tabId) {
   if (currentView !== 'overview') showView('overview');
-  var btn = document.querySelector('#view-overview .dash-tab-btn[data-tab="' + tabId + '"]');
+  var btn = document.querySelector('#view-overview .tab[data-tab="' + tabId + '"]');
   if (btn) switchDashTab(btn, tabId);
 }
 
@@ -931,7 +931,7 @@ function showCustomerDetail(customerId, customerName) {
 }
 
 export function dashExportCurrentTab() {
-  var active = document.querySelector('.dash-tab-content[style*="display: block"], .dash-tab-content[style*="display:block"]');
+  var active = document.querySelector('#view-overview .dash-tab-content:not([hidden])');
   if (!active) return;
   var id = active.id;
   if (id === 'dash-alerts') dashExportAlerts();
@@ -1453,6 +1453,6 @@ function renderOverview(customers) {
   if (_updT) {
     _updT.textContent = new Date().toLocaleTimeString('no-NO', {hour:'2-digit', minute:'2-digit'});
     var _updW = document.getElementById('dash-updated-wrap');
-    if (_updW) _updW.style.display = '';
+    if (_updW) _updW.hidden = false;
   }
 }

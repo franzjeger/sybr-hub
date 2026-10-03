@@ -29,12 +29,12 @@
 </head>
 <body>
 <div id="toast-container" class="toast-container"></div>
-<button id="scroll-top-btn" data-click-handler="scrollToTop" style="display:none;position:fixed;bottom:24px;right:24px;z-index:90;width:40px;height:40px;border-radius:50%;background:var(--blue-btn);color:#fff;border:none;cursor:pointer;font-size:18px;box-shadow:var(--shadow-md);transition:opacity var(--duration-normal),transform var(--duration-normal);opacity:0;transform:translateY(10px);" data-i18n-aria-label="scroll_to_top" aria-label="Scroll to top">&#8593;</button>
+<button id="scroll-top-btn" class="scroll-top-btn" data-click-handler="scrollToTop" data-i18n-aria-label="scroll_to_top" aria-label="Scroll to top">&#8593;</button>
 <!-- ── Reusable confirm modal ── -->
-<div class="modal-backdrop" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" data-click-handler="cancelConfirmOnBackdrop" style="display:none;">
-  <div class="modal" style="width:400px;">
+<div class="modal-backdrop" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" data-click-handler="cancelConfirmOnBackdrop">
+  <div class="modal modal-sm">
     <div class="modal-title" id="confirm-modal-title"></div>
-    <div id="confirm-modal-body" style="font-size:13px;color:var(--text-muted);margin:12px 0 0;"></div>
+    <div id="confirm-modal-body" class="modal-body-text"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" data-click-handler="resolveConfirm" data-answer="false" data-i18n="btn_cancel">Avbryt</button>
       <button class="btn btn-danger" id="confirm-modal-ok" data-click-handler="resolveConfirm" data-answer="true" data-i18n="btn_confirm">Bekreft</button>
@@ -42,60 +42,60 @@
   </div>
 </div>
 <!-- ── Command Palette (Cmd+K) ── -->
-<div id="cmd-palette" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg-overlay);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;padding-top:min(20vh,160px);" data-click-handler="closeCommandPaletteOnBackdrop">
-  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);width:560px;max-width:95vw;box-shadow:var(--shadow-xl);overflow:hidden;animation:modal-slide-in var(--duration-normal) var(--ease-out);">
-    <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);">
-      <span class="ic" style="width:16px;height:16px;color:var(--text-dim);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></span>
-      <input id="cmd-input" type="text" data-i18n-placeholder="placeholder_cmd_search" placeholder="Søk i kunder, sider, handlinger..." autocomplete="off" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--font-md);font-family:inherit;">
-      <kbd style="font-size:var(--font-xs);color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px 6px;font-family:var(--mono);">ESC</kbd>
+<div id="cmd-palette" class="cmd-palette" data-click-handler="closeCommandPaletteOnBackdrop">
+  <div class="cmd-panel">
+    <div class="cmd-head">
+      <span class="ic text-dim"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></span>
+      <input id="cmd-input" type="text" data-i18n-placeholder="placeholder_cmd_search" placeholder="Søk i kunder, sider, handlinger..." autocomplete="off" class="cmd-input">
+      <kbd class="kbd-key">ESC</kbd>
     </div>
-    <div id="cmd-results" style="max-height:360px;overflow-y:auto;padding:var(--space-2) 0;"></div>
+    <div id="cmd-results" class="cmd-results"></div>
   </div>
 </div>
 <!-- ── Report Viewer Modal ── -->
-<div id="report-viewer-modal" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);flex-direction:column;">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);background:var(--bg-card);flex-shrink:0;">
-    <div style="display:flex;align-items:center;gap:var(--space-3);">
-      <span style="font-size:var(--font-md);font-weight:700;"><span class="ic" style="width:16px;height:16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> <span data-i18n="hdr_report">Rapport</span></span>
-      <span id="report-viewer-title" style="font-size:var(--font-sm);color:var(--text-muted);"></span>
+<div id="report-viewer-modal" class="report-viewer">
+  <div class="report-viewer-bar">
+    <div class="flex items-center gap-3">
+      <span class="text-md fw-bold"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z"/></svg></span> <span data-i18n="hdr_report">Rapport</span></span>
+      <span id="report-viewer-title" class="text-sm text-muted"></span>
     </div>
-    <div style="display:flex;gap:var(--space-2);">
+    <div class="flex gap-2">
       <a id="report-viewer-link" href="#" target="_blank" class="btn btn-ghost btn-sm">&#8599; <span data-i18n="btn_new_tab">Ny fane</span></a>
       <button class="btn btn-ghost btn-sm" data-click-handler="closeReportViewer">&#10005; <span data-i18n="btn_close">Lukk</span></button>
     </div>
   </div>
-  <iframe id="report-viewer-iframe" style="flex:1;border:none;width:100%;background:#fff;"></iframe>
+  <iframe id="report-viewer-iframe" class="report-viewer-frame"></iframe>
 </div>
 <!-- ── Auth Overlay ── -->
-<div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);align-items:center;justify-content:center;">
-  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:40px;max-width:400px;width:100%;box-shadow:var(--shadow-xl);">
-    <div style="text-align:center;margin-bottom:24px;">
-      <img class="logo-dark" src="/branding/sybr-logo-hvit.png" alt="SYBR" style="height:44px;margin:0 auto var(--space-3);">
-      <img class="logo-light" src="/branding/sybr-logo-blue.png" alt="SYBR" style="height:44px;margin:0 auto var(--space-3);">
-      <h2 style="font-size:var(--font-lg);font-weight:700;color:var(--text);">Sybr HUB</h2>
-      <div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:var(--space-1);" id="login-version"></div>
+<div id="auth-overlay" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img class="logo-dark auth-logo" src="/branding/sybr-logo-hvit.png" alt="SYBR">
+      <img class="logo-light auth-logo" src="/branding/sybr-logo-blue.png" alt="SYBR">
+      <h2 class="auth-title">Sybr HUB</h2>
+      <div class="auth-version" id="login-version"></div>
     </div>
     <!-- Setup form (first run) -->
-    <div id="auth-setup-form" style="display:none;">
-      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;" data-i18n="msg_create_admin">Opprett admin-konto for å komme i gang.</p>
+    <div id="auth-setup-form" hidden>
+      <p class="auth-intro" data-i18n="msg_create_admin">Opprett admin-konto for å komme i gang.</p>
       <label for="setup-username" class="sr-only" data-i18n="lbl_username">Brukernavn</label>
-      <input id="setup-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+      <input id="setup-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" class="field-input field-input-lg mb-2">
       <label for="setup-displayname" class="sr-only" data-i18n="lbl_display_name_label">Visningsnavn</label>
-      <input id="setup-displayname" type="text" data-i18n-placeholder="lbl_display_name" placeholder="Visningsnavn" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+      <input id="setup-displayname" type="text" data-i18n-placeholder="lbl_display_name" placeholder="Visningsnavn" class="field-input field-input-lg mb-2">
       <label for="setup-password" class="sr-only" data-i18n="lbl_password">Passord</label>
-      <input id="setup-password" type="password" data-i18n-placeholder="placeholder_password_rules" placeholder="Passord, minst 10 tegn (a-z, 0-9, !?#)" data-i18n-title="tip_password_rules" title="Minst 10 tegn, med minst én bokstav, ett tall og ett spesialtegn." autocomplete="new-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" data-keydown-handler="doSetupOnEnter">
-      <button data-click-handler="doSetup" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_create_admin">Opprett admin</button>
+      <input id="setup-password" type="password" data-i18n-placeholder="placeholder_password_rules" placeholder="Passord, minst 10 tegn (a-z, 0-9, !?#)" data-i18n-title="tip_password_rules" title="Minst 10 tegn, med minst én bokstav, ett tall og ett spesialtegn." autocomplete="new-password" class="field-input field-input-lg mb-4" data-keydown-handler="doSetupOnEnter">
+      <button class="btn btn-primary btn-lg w-full" data-click-handler="doSetup" data-i18n="btn_create_admin">Opprett admin</button>
     </div>
     <!-- Login form -->
-    <div id="auth-login-form" style="display:none;">
+    <div id="auth-login-form" hidden>
       <label for="login-username" class="sr-only" data-i18n="lbl_username">Brukernavn</label>
-      <input id="login-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+      <input id="login-username" type="text" data-i18n-placeholder="lbl_username" placeholder="Brukernavn" autocomplete="username" class="field-input field-input-lg mb-2">
       <label for="login-password" class="sr-only" data-i18n="lbl_password">Passord</label>
-      <input id="login-password" type="password" data-i18n-placeholder="lbl_password" placeholder="Passord" autocomplete="current-password" style="width:100%;padding:10px 12px;margin-bottom:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;" data-keydown-handler="doLoginOnEnter">
+      <input id="login-password" type="password" data-i18n-placeholder="lbl_password" placeholder="Passord" autocomplete="current-password" class="field-input field-input-lg mb-2" data-keydown-handler="doLoginOnEnter">
       <label for="login-otp" class="sr-only" data-i18n="lbl_otp">Engangskode</label>
-      <input id="login-otp" type="text" autocomplete="one-time-code" maxlength="32" class="field-input" data-i18n-placeholder="lbl_otp_optional" placeholder="Engangskode / gjenopprettingskode (hvis MFA er aktivert)">
+      <input id="login-otp" type="text" autocomplete="one-time-code" maxlength="32" class="field-input field-input-lg mb-4" data-i18n-placeholder="lbl_otp_optional" placeholder="Engangskode / gjenopprettingskode (hvis MFA er aktivert)">
 
-      <button data-click-handler="doLogin" style="width:100%;padding:10px;background:var(--blue-btn);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;" data-i18n="btn_login">Logg inn</button>
+      <button class="btn btn-primary btn-lg w-full" data-click-handler="doLogin" data-i18n="btn_login">Logg inn</button>
     </div>
   </div>
 </div>
@@ -109,7 +109,7 @@
       <img id="header-logo-light" class="logo-light" src="/branding/sybr-logo-blue.png" alt="SYBR" width="100" height="29">
     </div>
     <nav class="nav" id="main-nav" data-i18n-aria-label="hovedmeny" aria-label="Hovedmeny">
-      <span id="readonly-badge" style="display:none;align-self:center;margin-right:10px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-dark,#1e3a4a);color:var(--blue,#4d9fb5);border:1px solid rgba(77,159,181,0.35);"></span>
+      <span id="readonly-badge" class="badge badge-info self-center mr-3" hidden></span>
       <button data-view-gate="overview" class="nav-btn" id="nav-overview" data-click-handler="showView" data-view="overview" data-i18n="nav_overview" data-i18n-title="tip_overview_ctrl" title="Oversikt (Ctrl+1)">Oversikt</button>
       <button data-view-gate="customers" class="nav-btn" id="nav-customers" data-click-handler="showView" data-view="customers" data-i18n="nav_customers" data-i18n-title="kunder_ctrl" title="Kunder (Ctrl+2)">Kunder</button>
 
@@ -166,14 +166,14 @@
            cannot be reached; quiet when everything is fine. Polls /api/health. -->
       <button data-view-gate="vpn" data-write class="status-chip" id="conn-status" data-click-handler="showView" data-view="vpn" data-i18n-title="live" title="Live" style="display:none;">
         <span class="dot" id="conn-status-dot"></span>
-        <span id="vpn-chip-prefix" style="display:none;">VPN&#160;&#183;&#160;</span>
+        <span id="vpn-chip-prefix" hidden>VPN&#160;&#183;&#160;</span>
         <span id="conn-status-label">Live</span>
       </button>
 
       <!-- Audit-running indicator (visible only while an audit runs). -->
       <button data-view-gate="audit" id="audit-running-indicator" data-click-handler="showView" data-view="audit" data-i18n-title="tip_audit_running_click" title="Audit kjører. Klikk for å se status"
-        style="display:none;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:600;color:#fff;background:var(--blue);border:none;border-radius:20px;cursor:pointer;animation:pulse 1.5s infinite;">
-        <span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span>
+        class="audit-indicator" style="display:none;">
+        <span class="dot"></span>
         <span data-i18n="msg_audit_running_indicator">Audit kjører</span>
       </button>
 
@@ -181,10 +181,10 @@
       <button id="notif-bell" class="hdr-bell" data-click-handler="toggleNotifications" data-i18n-aria-label="dash_tab_alerts" aria-label="Varsler" data-i18n-title="dash_tab_alerts" title="Varsler"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" class="hdr-bell-badge" hidden></span></button>
 
       <!-- PWA install (conditional). -->
-      <button id="pwa-install-btn" data-click-handler="promptPwaInstall" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;"><span data-i18n="btn_install_app">Installer</span></button>
+      <button id="pwa-install-btn" data-click-handler="promptPwaInstall" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" class="pwa-install-btn"><span data-i18n="btn_install_app">Installer</span></button>
 
       <!-- Avatar + account menu: settings, theme, shortcuts, password, logout, version. -->
-      <div style="position:relative;display:inline-block;">
+      <div class="relative inline-block">
         <button class="avatar-btn" id="avatar-btn" data-click-handler="toggleAvatarMenu" data-i18n-aria-label="konto_3" aria-label="Konto" data-i18n-title="konto_2" title="Konto"><span id="avatar-initials">&#183;</span></button>
         <div class="avatar-menu" id="avatar-menu">
           <div class="avatar-head">
@@ -202,37 +202,37 @@
       </div>
 
       <!-- Legacy controls kept hidden so existing JS references never null out. -->
-      <button class="theme-toggle" data-click-handler="toggleTheme" id="theme-toggle-btn" style="display:none;" data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">&#9680;</button>
-      <span id="user-display" style="display:none;"></span>
+      <button class="theme-toggle" data-click-handler="toggleTheme" id="theme-toggle-btn" hidden data-i18n-title="tip_toggle_theme" title="Bytt tema" data-i18n-aria-label="bytt_tema_2" aria-label="Bytt tema">&#9680;</button>
+      <span id="user-display" hidden></span>
     </div>
   </header>
 
   <!-- ── Main ── -->
   <main>
     <!-- Breadcrumb -->
-    <nav id="breadcrumb" data-i18n-aria-label="breadcrumb" aria-label="Breadcrumb" style="font-size:var(--font-sm);color:var(--text-dim);padding:var(--space-2) 0;display:none;">
+    <nav id="breadcrumb" data-i18n-aria-label="breadcrumb" aria-label="Breadcrumb" class="breadcrumb">
       <span id="breadcrumb-items"></span>
     </nav>
 
     <!-- ════════════ OVERVIEW DASHBOARD VIEW ════════════ -->
-    <div class="view" id="view-overview" style="max-width:1200px;">
-      <div class="dash-tabs">
-        <button class="dash-tab-btn active" data-click-handler="switchDashTab" data-tab="dash-customers"><span data-i18n="dash_tab_followup">Oppfølging</span></button>
-        <button class="dash-tab-btn" data-click-handler="switchDashTab" data-tab="dash-alerts"><span data-i18n="dash_tab_alerts">Varsler</span><span id="dash-badge-alerts" class="tab-badge tab-badge-red" style="display:none;"></span></button>
-        <div style="flex:1;"></div>
-        <span class="dash-updated" id="dash-updated-wrap" style="display:none;"><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
+    <div class="view" id="view-overview">
+      <div class="tabs">
+        <button class="tab active" data-click-handler="switchDashTab" data-tab="dash-customers"><span data-i18n="dash_tab_followup">Oppfølging</span></button>
+        <button class="tab" data-click-handler="switchDashTab" data-tab="dash-alerts"><span data-i18n="dash_tab_alerts">Varsler</span></button>
+        <div class="tabs-spacer"></div>
+        <span class="dash-updated" id="dash-updated-wrap" hidden><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
         <div class="nav-dropdown">
-          <button class="dash-tab-tool accent" data-i18n-title="btn_export" title="Eksport"><span data-i18n="btn_export">Eksport</span> &#9662;</button>
-          <div class="nav-dropdown-menu" style="left:auto;right:0;"><div class="nav-dropdown-menu-inner">
+          <button class="tab-tool accent" data-i18n-title="btn_export" title="Eksport"><span data-i18n="btn_export">Eksport</span> &#9662;</button>
+          <div class="nav-dropdown-menu is-right"><div class="nav-dropdown-menu-inner">
             <button data-click-handler="dashExportCurrentTab">CSV</button>
             <button data-click-handler="exportDashboardExcel">Excel</button>
             <button data-click-handler="copyOverviewToClipboard" data-i18n="kopier_tabell">Kopier tabell</button>
             <button data-click-handler="generateQBR" data-i18n="qbr_rapport">QBR-rapport</button>
           </div></div>
         </div>
-        <button id="dash-autorefresh-btn" class="dash-tab-tool" data-click-handler="dashToggleAutoRefresh" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
+        <button id="dash-autorefresh-btn" class="tab-tool" data-click-handler="dashToggleAutoRefresh" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
       </div>
-      <div id="dash-customers" class="dash-tab-content" style="display:block;">
+      <div id="dash-customers" class="dash-tab-content">
         <!-- A banner only when a scheduled task is failing, from
              loadIntegrationHealthStrip(). Outside #overview-content so a
              re-render of the list does not wipe it. -->
@@ -244,7 +244,7 @@
           </div>
         </div>
       </div>
-      <div id="dash-alerts" class="dash-tab-content" style="display:none;">
+      <div id="dash-alerts" class="dash-tab-content" hidden>
         <div id="dash-alerts-content"></div>
       </div>
     </div>
@@ -291,12 +291,12 @@
     <!-- ════════════ NETWORK VIEW ════════════ -->
     <div class="view" id="view-network">
       <h1 class="page-title" data-i18n="nav_network">Nettverk</h1>
-      <div class="dash-tabs" role="tablist">
-        <button class="dash-tab-btn net-sub-btn active" data-sub="net-devices" data-click-handler="switchNetSub" data-tab="net-devices" data-i18n="net_tab_devices">Enheter</button>
-        <button class="dash-tab-btn net-sub-btn" data-sub="net-fortigates" data-click-handler="switchNetSub" data-tab="net-fortigates" data-i18n="net_tab_fortigate">FortiGate</button>
-        <button class="dash-tab-btn net-sub-btn" data-sub="net-unifi" data-click-handler="switchNetSub" data-tab="net-unifi" data-i18n="net_tab_unifi">UniFi</button>
-        <button class="dash-tab-btn net-sub-btn" data-sub="net-audit" data-click-handler="switchNetSub" data-tab="net-audit" data-i18n="net_tab_audit">Audit</button>
-        <button class="dash-tab-btn net-sub-btn" data-sub="net-tls" data-click-handler="switchNetSub" data-tab="net-tls">TLS</button>
+      <div class="tabs" role="tablist">
+        <button class="tab net-sub-btn active" data-sub="net-devices" data-click-handler="switchNetSub" data-tab="net-devices" data-i18n="net_tab_devices">Enheter</button>
+        <button class="tab net-sub-btn" data-sub="net-fortigates" data-click-handler="switchNetSub" data-tab="net-fortigates" data-i18n="net_tab_fortigate">FortiGate</button>
+        <button class="tab net-sub-btn" data-sub="net-unifi" data-click-handler="switchNetSub" data-tab="net-unifi" data-i18n="net_tab_unifi">UniFi</button>
+        <button class="tab net-sub-btn" data-sub="net-audit" data-click-handler="switchNetSub" data-tab="net-audit" data-i18n="net_tab_audit">Audit</button>
+        <button class="tab net-sub-btn" data-sub="net-tls" data-click-handler="switchNetSub" data-tab="net-tls">TLS</button>
       </div>
 
       <div id="net-devices" class="net-sub-content">
@@ -309,7 +309,7 @@
         </div>
       </div>
 
-      <div id="net-fortigates" class="net-sub-content" style="display:none;">
+      <div id="net-fortigates" class="net-sub-content" hidden>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
           <select id="fg-live-interval" data-change-handler="liveSetInterval" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
             <option value="30" data-i18n="s">30s</option>
@@ -327,7 +327,7 @@
         </div>
       </div>
 
-      <div id="net-unifi" class="net-sub-content" style="display:none;">
+      <div id="net-unifi" class="net-sub-content" hidden>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
           <button class="btn btn-ghost" data-click-handler="dashUnifiRefresh" style="padding:4px 12px;font-size:12px;" data-i18n="btn_refresh_now">Oppdater nå</button>
           <div id="unifi-live-status" style="margin-left:auto;font-size:12px;color:var(--text-muted);"></div>
@@ -342,7 +342,7 @@
 
       <!-- net-live merged into net-fortigates -->
 
-      <div id="net-audit" class="net-sub-content" style="display:none;">
+      <div id="net-audit" class="net-sub-content" hidden>
         <div class="tool-customer-bar" data-tool-customer="network"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="font-size:16px;font-weight:600;" data-i18n="hdr_network_audit">Nettverks-audit</div>
@@ -376,7 +376,7 @@
         </div>
       </div>
 
-      <div id="net-tls" class="net-sub-content" style="display:none;">
+      <div id="net-tls" class="net-sub-content" hidden>
         <div id="tls-content">
           <div class="loading-note" data-i18n="msg_tls_loading">Laster...</div>
         </div>
@@ -1428,14 +1428,14 @@
        so their scripts find them. -->
   <div class="view" id="view-customer-detail">
     <div id="cust-page-head"></div>
-    <nav class="cust-tabs" id="cust-tabs" role="tablist" data-i18n-aria-label="lbl_customer_tabs" aria-label="Kundens sider">
-      <button class="cust-tab" role="tab" id="cust-tab-funn" data-click-handler="custTab" data-tab="funn" aria-controls="cust-panel-funn" data-i18n="tab_findings">Funn</button>
-      <button class="cust-tab" role="tab" id="cust-tab-audit" data-click-handler="custTab" data-tab="audit" aria-controls="cust-panel-audit" data-i18n="m365_tab_audit">Audit</button>
-      <button class="cust-tab" role="tab" id="cust-tab-policyer" data-view-gate="policy-overview" data-click-handler="custTab" data-tab="policyer" aria-controls="cust-panel-policyer" data-i18n="tab_policies">Policyer</button>
-      <button class="cust-tab" role="tab" id="cust-tab-vurderinger" data-view-gate="assessments" data-click-handler="custTab" data-tab="vurderinger" aria-controls="cust-panel-vurderinger" data-i18n="tab_assessments">Vurderinger</button>
-      <button class="cust-tab" role="tab" id="cust-tab-nettverk" data-click-handler="custTab" data-tab="nettverk" aria-controls="cust-panel-nettverk" data-i18n="nav_network">Nettverk</button>
-      <button class="cust-tab" role="tab" id="cust-tab-tilgang" data-view-gate="vpn" data-click-handler="custTab" data-tab="tilgang" aria-controls="cust-panel-tilgang" data-i18n="tab_access">Tilgang</button>
-      <button class="cust-tab" role="tab" id="cust-tab-detaljer" data-click-handler="custTab" data-tab="detaljer" aria-controls="cust-panel-detaljer" data-i18n="lbl_details">Detaljer</button>
+    <nav class="tabs" id="cust-tabs" role="tablist" data-i18n-aria-label="lbl_customer_tabs" aria-label="Kundens sider">
+      <button class="tab" role="tab" id="cust-tab-funn" data-click-handler="custTab" data-tab="funn" aria-controls="cust-panel-funn" data-i18n="tab_findings">Funn</button>
+      <button class="tab" role="tab" id="cust-tab-audit" data-click-handler="custTab" data-tab="audit" aria-controls="cust-panel-audit" data-i18n="m365_tab_audit">Audit</button>
+      <button class="tab" role="tab" id="cust-tab-policyer" data-view-gate="policy-overview" data-click-handler="custTab" data-tab="policyer" aria-controls="cust-panel-policyer" data-i18n="tab_policies">Policyer</button>
+      <button class="tab" role="tab" id="cust-tab-vurderinger" data-view-gate="assessments" data-click-handler="custTab" data-tab="vurderinger" aria-controls="cust-panel-vurderinger" data-i18n="tab_assessments">Vurderinger</button>
+      <button class="tab" role="tab" id="cust-tab-nettverk" data-click-handler="custTab" data-tab="nettverk" aria-controls="cust-panel-nettverk" data-i18n="nav_network">Nettverk</button>
+      <button class="tab" role="tab" id="cust-tab-tilgang" data-view-gate="vpn" data-click-handler="custTab" data-tab="tilgang" aria-controls="cust-panel-tilgang" data-i18n="tab_access">Tilgang</button>
+      <button class="tab" role="tab" id="cust-tab-detaljer" data-click-handler="custTab" data-tab="detaljer" aria-controls="cust-panel-detaljer" data-i18n="lbl_details">Detaljer</button>
     </nav>
 
     <!-- Funn: what is wrong here, and what to do about it. -->
@@ -1987,10 +1987,10 @@
       <h1 class="page-title" data-i18n="nav_billing">Lisenser og hosting</h1>
       <button class="btn btn-ghost btn-sm" id="billing-export" data-click-handler="billingExportCurrentTab" data-i18n="btn_export_csv" hidden>Eksporter CSV</button>
     </div>
-    <div class="dash-tabs" role="tablist">
-      <button class="dash-tab-btn billing-tab-btn active" role="tab" data-click-handler="switchBillingTab" data-tab="dash-renewals"><span data-i18n="dash_tab_renewals">Fornyelser</span><span id="dash-badge-renewals" class="tab-badge" style="display:none;"></span></button>
-      <button class="dash-tab-btn billing-tab-btn" role="tab" data-click-handler="switchBillingTab" data-tab="dash-costs"><span data-i18n="dash_tab_costs">Kostnader</span></button>
-      <button class="dash-tab-btn billing-tab-btn" role="tab" data-click-handler="switchBillingTab" data-tab="dash-domains"><span data-i18n="dash_tab_domains">Domener</span></button>
+    <div class="tabs" role="tablist">
+      <button class="tab billing-tab-btn active" role="tab" data-click-handler="switchBillingTab" data-tab="dash-renewals"><span data-i18n="dash_tab_renewals">Fornyelser</span></button>
+      <button class="tab billing-tab-btn" role="tab" data-click-handler="switchBillingTab" data-tab="dash-costs"><span data-i18n="dash_tab_costs">Kostnader</span></button>
+      <button class="tab billing-tab-btn" role="tab" data-click-handler="switchBillingTab" data-tab="dash-domains"><span data-i18n="dash_tab_domains">Domener</span></button>
     </div>
       <div id="dash-renewals" class="billing-tab-content">
         <div id="dash-renewals-content">
@@ -2071,16 +2071,16 @@
     </div>
   </div>
 
-  <footer style="display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-6);">
-    <div style="display:flex;align-items:center;gap:var(--space-2);">
-      <img id="footer-logo" src="/branding/sybr-logo-blue.png" alt="SYBR" style="height:18px;opacity:0.4;">
-      <span style="font-size:var(--font-xs);color:var(--text-dim);">Sybr HUB</span>
+  <footer>
+    <div class="footer-group">
+      <img id="footer-logo" class="footer-logo" src="/branding/sybr-logo-blue.png" alt="SYBR">
+      <span class="text-xs text-dim">Sybr HUB</span>
     </div>
-    <div style="display:flex;align-items:center;gap:var(--space-4);">
-      <span id="footer-stats" style="font-size:9px;color:var(--text-dim);opacity:0.5;"></span>
-      <kbd data-click-handler="toggleCommandPalette" style="font-size:9px;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px 6px;font-family:var(--mono);cursor:pointer;" data-i18n-title="lbl_quick_search" title="Hurtigsøk">&#8984;K</kbd>
-      <span style="font-size:var(--font-xs);color:var(--text-dim);">?</span>
-      <span class="version" id="footer-version" style="font-size:10px;opacity:0.4;"></span>
+    <div class="footer-group gap-4">
+      <span id="footer-stats" class="footer-faint"></span>
+      <kbd class="kbd-key footer-kbd" data-click-handler="toggleCommandPalette" data-i18n-title="lbl_quick_search" title="Hurtigsøk">&#8984;K</kbd>
+      <span class="text-xs text-dim">?</span>
+      <span class="version footer-faint" id="footer-version"></span>
     </div>
   </footer>
 </div>
@@ -2244,15 +2244,15 @@
 <script type="module" src="/static/main.js"></script>
 
 <!-- Floating audit progress bar (visible from any view while audit runs) -->
-<div id="audit-progress-float" style="display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:900;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:10px 18px;min-width:340px;max-width:520px;cursor:pointer;" data-click-handler="showView" data-view="audit">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-    <span style="font-size:12px;font-weight:600;color:var(--text);" data-i18n="audit">Audit</span>
-    <span class="apf-counts" style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">0 / 0</span>
+<div id="audit-progress-float" class="audit-float" data-click-handler="showView" data-view="audit">
+  <div class="flex items-center justify-between mb-2">
+    <span class="text-sm fw-semibold text-default" data-i18n="audit">Audit</span>
+    <span class="apf-counts text-xs text-muted font-mono">0 / 0</span>
   </div>
-  <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
-    <div class="apf-fill" style="width:0%;height:100%;background:var(--blue);border-radius:3px;transition:width 0.4s ease;"></div>
+  <div class="bar">
+    <div class="apf-fill bar-fill"></div>
   </div>
-  <div class="apf-text" style="font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">...</div>
+  <div class="apf-text text-xs text-muted mt-1 truncate">...</div>
 </div>
 
 </body>

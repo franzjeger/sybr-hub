@@ -63,7 +63,7 @@ test('Varsler lists a stored expiring certificate and an end-of-life device with
   await inApp(page, app => app.openOverviewTab('dash-alerts'));
   await alerts.locator('.notif-row', {hasText: 'Browser AP lager'}).getByRole('button', {name: 'Åpne Nettverk'}).click();
   await expect(page.locator('#view-customer-detail')).toHaveClass(/\bactive\b/);
-  await expect(page.locator('#cust-tabs .cust-tab[data-tab="nettverk"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#cust-tabs .tab[data-tab="nettverk"]')).toHaveAttribute('aria-selected', 'true');
 });
 
 test.describe('on a 375 px phone', () => {

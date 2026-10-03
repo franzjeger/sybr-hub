@@ -220,19 +220,19 @@ function _renderCmdResults(query) {
   // Render
   var html = '';
   if (results.length === 0) {
-    html = '<div style="padding:var(--space-8) var(--space-5);text-align:center;color:var(--text-dim);font-size:var(--font-sm);">' + t('msg_no_results', 'Ingen treff') + '</div>';
+    html = '<div class="cmd-empty">' + t('msg_no_results', 'Ingen treff') + '</div>';
   } else {
     var lastType = '';
     results.forEach(function(r, i) {
       if (r.type !== lastType) {
         var sectionLabel = r.type === 'recent' ? t('lbl_recent','Nylige') : r.type === 'page' ? t('lbl_navigation','Navigasjon') : r.type === 'action' ? t('lbl_actions','Handlinger') : r.type === 'finding' ? t('lbl_findings','Funn') : t('nav_customers');
-        html += '<div style="padding:var(--space-1) var(--space-5);font-size:var(--font-xs);color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;'+(lastType?'margin-top:var(--space-2);border-top:1px solid var(--border);padding-top:var(--space-2);':'')+'">' + sectionLabel + '</div>';
+        html += '<div class="cmd-section' + (lastType ? ' is-later' : '') + '">' + sectionLabel + '</div>';
         lastType = r.type;
       }
-      html += '<div class="cmd-item" tabindex="-1" data-click-handler="runCommandPaletteItem" data-index="' + i + '" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-5);cursor:pointer;transition:background 0.1s;border-radius:0;">'
-        + '<span style="width:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">' + icon(r.icon, 16) + '</span>'
-        + '<span style="flex:1;font-size:var(--font-base);color:var(--text);">' + esc(r.label) + '</span>'
-        + (r.hint ? '<span style="font-size:var(--font-xs);color:var(--text-dim);">' + esc(r.hint) + '</span>' : '')
+      html += '<div class="cmd-item" tabindex="-1" data-click-handler="runCommandPaletteItem" data-index="' + i + '">'
+        + '<span class="cmd-item-ic">' + icon(r.icon, 16) + '</span>'
+        + '<span class="cmd-item-label">' + esc(r.label) + '</span>'
+        + (r.hint ? '<span class="cmd-item-hint">' + esc(r.hint) + '</span>' : '')
         + '</div>';
     });
   }
@@ -435,7 +435,7 @@ export function applyWriteCapability() {
   applyFeatureVisibility();
   var badge = document.getElementById('readonly-badge');
   if (badge) {
-    badge.style.display = write ? 'none' : '';
+    badge.hidden = !!write;
     badge.title = t('tip_readonly', 'Your account has read access. Changes require write.');
     badge.textContent = t('lbl_readonly', 'Read-only');
   }
@@ -666,15 +666,15 @@ function _updateBreadcrumb(name) {
   if (crumbs.length <= 1) { bc.style.display = 'none'; return; }
   bc.style.display = 'block';
   items.innerHTML = crumbs.map(function(c, i) {
-    var sep = i > 0 ? ' <span style="margin:0 var(--space-2);color:var(--text-dim);opacity:0.5;">/</span> ' : '';
+    var sep = i > 0 ? ' <span class="crumb-sep">/</span> ' : '';
     if (i < crumbs.length - 1 && c.admin) {
       return sep + '<a href="#" class="hover-link crumb-link" data-click-handler="openAdmin" data-pane="' + esc(c.admin) + '">' + esc(c.label) + '</a>';
     } else if (i < crumbs.length - 1 && c.view) {
-      return sep + '<a href="#" class="hover-link" data-click-handler="showView" data-view="' + esc(c.view) + '" style="color:var(--text-muted);text-decoration:none;transition:color 0.15s;">' + esc(c.label) + '</a>';
+      return sep + '<a href="#" class="hover-link crumb-link" data-click-handler="showView" data-view="' + esc(c.view) + '">' + esc(c.label) + '</a>';
     } else if (i < crumbs.length - 1) {
-      return sep + '<span style="color:var(--text-muted);">' + esc(c.label) + '</span>';
+      return sep + '<span class="text-muted">' + esc(c.label) + '</span>';
     }
-    return sep + '<span style="color:var(--text);font-weight:500;">' + esc(c.label) + '</span>';
+    return sep + '<span class="crumb-current">' + esc(c.label) + '</span>';
   }).join('');
 }
 
@@ -808,9 +808,8 @@ export function showNetworkTab(tabId) {
 }
 
 export function switchNetSub(btn, tabId) {
-  document.querySelectorAll('.net-sub-content').forEach(function(c) { c.style.display = 'none'; });
+  document.querySelectorAll('.net-sub-content').forEach(function(c) { c.hidden = c.id !== tabId; });
   document.querySelectorAll('.net-sub-btn').forEach(function(b) { b.classList.remove('active'); });
-  document.getElementById(tabId).style.display = 'block';
   btn.classList.add('active');
   if (tabId === 'net-audit') {
     // The audit tab works on the same customer as Enheter.

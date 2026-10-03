@@ -196,7 +196,7 @@ test.describe('migrated controls, view by view', () => {
 
   test('overview: tabs, the attention filter, sorting, and the row menu does not open the row', async () => {
     await openView(page, 'overview');
-    await page.locator('#view-overview .dash-tab-btn[data-tab="dash-customers"]').click();
+    await page.locator('#view-overview .tab[data-tab="dash-customers"]').click();
     const table = page.locator('.customer-overview-table');
     await expect(table).toBeVisible();
     await page.locator('.attn-strip .attn-action').click();
