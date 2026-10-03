@@ -74,6 +74,26 @@ async def test_each_reading_is_classified_by_what_it_says():
     assert (await _status("down.example"))["status"] == "unreachable"
 
 
+async def test_varsler_leaves_out_a_self_signed_chain_but_not_its_expiry():
+    # Self-signed management certificates are the norm on firewalls; listed,
+    # every FortiGate would put a line in Varsler. An expiry is still an expiry.
+    await tls_inventory.record_results(
+        [
+            _cert("fw-ok.example", 200, chain_valid=False, chain_problem="self_signed"),
+            _cert("fw-soon.example", 5, chain_valid=False, chain_problem="self_signed"),
+            _cert("api.example", 200, chain_valid=False, chain_problem="incomplete_chain"),
+        ],
+        allowed=None,
+        may_add=True,
+    )
+    items = {i["host"]: i for i in await tls_inventory.attention(None)}
+    assert "fw-ok.example" not in items
+    assert items["fw-soon.example"]["kind"] == "expiring"
+    assert items["fw-soon.example"]["category"] == "critical"
+    assert items["api.example"]["kind"] == "chain"
+    assert items["api.example"]["category"] == "warning"
+
+
 async def test_an_endpoint_that_stops_answering_keeps_the_expiry_it_was_seen_with():
     """Dropping the date on a failed re-check would turn "expires in five days,
     and we could not reach it today" into silence."""
