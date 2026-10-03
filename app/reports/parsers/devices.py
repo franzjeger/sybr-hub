@@ -216,6 +216,13 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
                             "enrolled": enrolled,
                         }
                     )
+    # The collector's count file has never had a per-platform line, so the
+    # split stayed at zero for every tenant. The table's OS column has it.
+    if not any(result[key] for key in _PLATFORMS):
+        for device in result["devices"]:
+            bucket = _platform(device["os"])
+            if bucket:
+                result[bucket] += 1
     result["noncompliant_devices"] = _noncompliant(result["devices"])
     # has_data means "audit produced a parseable report" — NOT "≥1 device
     # exists". A small M365-only tenant with no Intune-enrolled devices
@@ -226,3 +233,23 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
 
 def _noncompliant(devices: list[dict]) -> list[dict]:
     return [d for d in devices if d.get("compliance", "").lower() not in ("compliant", "")]
+
+
+_PLATFORMS = ("windows", "ios", "android", "macos")
+
+
+def _platform(operating_system: str) -> str:
+    """The report's platform for an Intune operatingSystem value, or "".
+
+    The same buckets the collector counts into its sidecar.
+    """
+    name = operating_system.lower()
+    if name.startswith("windows"):
+        return "windows"
+    if name in ("ios", "ipados"):
+        return "ios"
+    if name.startswith("android"):
+        return "android"
+    if name.startswith("mac"):
+        return "macos"
+    return ""
