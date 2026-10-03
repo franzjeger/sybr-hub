@@ -2962,12 +2962,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Mailboxes are forwarding email to external addresses. This is a high-risk indicator of data exfiltration or compromise. Investigate each forwarding rule immediately.",
     },
     "rec_risky_users_title": {
-        "no": "Risikobrukere oppdaget i Identity Protection{suffix}",
-        "en": "Risky users detected in Identity Protection{suffix}",
-    },
-    "rec_risky_users_suffix": {
-        "no": " ({count} bruker(e))",
-        "en": " ({count} user(s))",
+        "no": "Risikobrukere oppdaget i Identity Protection ({count} bruker(e))",
+        "en": "Risky users detected in Identity Protection ({count} user(s))",
     },
     "rec_risky_users_detail": {
         "no": "Microsoft Entra ID Protection har flagget brukere med mistenkelig aktivitet. Unders\u00f8k og bekreft/avvis disse umiddelbart.",

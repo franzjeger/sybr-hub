@@ -33,6 +33,21 @@ def _metric(source: dict | None, key: str):
     return source.get(key)
 
 
+def stored_recommendation(rec: dict) -> dict:
+    """A recommendation as a run keeps it: its text, and the recipe to rebuild it."""
+    return {
+        "rec_id": rec.get("rec_id", ""),
+        "priority": rec.get("priority", ""),
+        "title": str(rec.get("title", "")),
+        "detail": str(rec.get("detail", "")),
+        "effort": str(rec.get("effort", "")),
+        "title_key": rec.get("title_key", ""),
+        "title_params": rec.get("title_params", {}),
+        "detail_key": rec.get("detail_key", ""),
+        "detail_params": rec.get("detail_params", {}),
+    }
+
+
 def save_audit_metrics(out_dir: Path, context: dict) -> None:
     """Save key audit metrics as JSON for future trend comparison."""
     mfa = context.get("mfa", {})
@@ -77,20 +92,7 @@ def save_audit_metrics(out_dir: Path, context: dict) -> None:
         # The rendered text *and* the recipe for it. The text keeps every
         # existing reader working; the recipe lets a reader in the other
         # language have the sentence rebuilt without re-running the audit.
-        "recommendations": [
-            {
-                "rec_id": r.get("rec_id", ""),
-                "priority": r.get("priority", ""),
-                "title": str(r.get("title", "")),
-                "detail": str(r.get("detail", "")),
-                "effort": str(r.get("effort", "")),
-                "title_key": r.get("title_key", ""),
-                "title_params": r.get("title_params", {}),
-                "detail_key": r.get("detail_key", ""),
-                "detail_params": r.get("detail_params", {}),
-            }
-            for r in context.get("recommendations", [])
-        ],
+        "recommendations": [stored_recommendation(r) for r in context.get("recommendations", [])],
     }
     from app.core.encryption import encrypted_write_json
 

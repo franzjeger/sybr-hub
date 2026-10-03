@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from app.reports.evidence import _evidence_unavailable
-from app.reports.i18n import T
+from app.reports.i18n import Localised, T
 from app.reports.parsers import (
     _is_audit_relevant_domain,
     _mfa_user_records,
@@ -47,8 +47,6 @@ def relocalise_recommendations(metrics: dict, lang: str) -> dict:
     reader wants. Runs from before this carry no recipe; their stored text is
     kept as it is, which is the honest answer rather than a blank line.
     """
-    from app.reports.i18n import T
-
     recs = metrics.get("recommendations")
     if not isinstance(recs, list):
         return metrics
@@ -57,12 +55,16 @@ def relocalise_recommendations(metrics: dict, lang: str) -> dict:
     for rec in recs:
         if not isinstance(rec, dict):
             continue
-        out = _advisor_in_current_shape(rec, t)
+        out = _advisor_in_current_shape(rec)
         for field in ("title", "detail"):
             key = out.get(f"{field}_key")
             if key:
+                stored = out.get(f"{field}_params") or {}
+                params = _neutral(key, stored)
+                if params != stored:
+                    out[f"{field}_params"] = params
                 try:
-                    out[field] = str(t(key, **(out.get(f"{field}_params") or {})))
+                    out[field] = str(t(key, **_worded(key, params, t)))
                 except (KeyError, IndexError):
                     # A stored param set that no longer matches its template.
                     # The stored sentence is stale in one language; a crash
@@ -70,6 +72,56 @@ def relocalise_recommendations(metrics: dict, lang: str) -> dict:
                     logger.warning("Could not re-render recommendation %r", key)
         rebuilt.append(out)
     return {**metrics, "recommendations": rebuilt}
+
+
+# ── Params are values; words are put in when the text is rendered ────────────
+#
+# A recommendation's params are stored with the run and its text is rebuilt
+# for every reader (relocalise_recommendations), so a param holds a value: a
+# count, a code, None for unknown. Words in a param stay in the language the
+# audit ran in. "Ukjent antall" and " (2 bruker(e))" were stored that way, and
+# an English reader got them in Norwegian. _worded puts the words in for the
+# language being rendered; _neutral reads a run stored before back as values.
+
+# How a stored run spelled what is now a None or a count.
+_UNKNOWN_FORWARDING_COUNT = frozenset({"Ukjent antall", "Unknown count"})
+_RISKY_USERS_SUFFIX = re.compile(r"^ \((\d+) (?:bruker\(e\)|user\(s\))\)$")
+
+
+def _worded(key: str, params: dict, t: T) -> dict:
+    """*params* for formatting *key* in *t*'s language: values put into words."""
+    if not isinstance(params, dict):
+        return params
+    out = dict(params)
+    if key == "rec_ext_fwd_title" and out.get("count") is None:
+        out["count"] = t.rec_ext_fwd_unknown_count
+    elif key == "rec_advisor_title":
+        out["category_label"] = _advisor_label(str(out.get("category") or ""), t)
+    return out
+
+
+def _neutral(key: str, params: dict) -> dict:
+    """Stored *params* as values, mapping the words older runs froze into them."""
+    if not isinstance(params, dict):
+        return params
+    out = dict(params)
+    if key == "rec_ext_fwd_title" and out.get("count") in _UNKNOWN_FORWARDING_COUNT:
+        out["count"] = None
+    elif key == "rec_risky_users_title" and "count" not in out:
+        m = _RISKY_USERS_SUFFIX.match(str(out.get("suffix") or ""))
+        if m:
+            del out["suffix"]
+            out["count"] = int(m.group(1))
+    elif key == "rec_advisor_title" and "category_label" in out:
+        # Stored, the label is Azure's own name, as category is; runs from
+        # 2026-10 stored the translation. _worded words it for the reader.
+        out["category_label"] = out.get("category")
+    return out
+
+
+def _say(t: T, key: str, **params) -> Localised:
+    """t(key, **params), remembering the params as values rather than words."""
+    return Localised(str(t(key, **_worded(key, params, t))), key, params)
 
 
 def _build_finding_rec_map(recs: list[dict]) -> dict[str, list[int]]:
@@ -382,12 +434,11 @@ def _risky_users(audit: _Audit) -> Iterator[dict]:
     # A header with no rows (the audit ran, nobody matches) is not a finding:
     # an empty "Risky users detected" would be a false positive.
     if risky_items:
-        title_suffix = t("rec_risky_users_suffix", count=len(risky_items))
         yield {
             "priority": "high",
             "evidence": audit.ev("18_risky_users.txt", "18d_risk_detections.txt"),
             "finding_id": "finding-risky",
-            "title": t("rec_risky_users_title", suffix=title_suffix),
+            "title": t("rec_risky_users_title", count=len(risky_items)),
             "detail": t.rec_risky_users_detail,
             "effort": t.rec_effort_low,
             "sub_items": risky_items,
@@ -651,7 +702,8 @@ def _external_forwarding(audit: _Audit) -> Iterator[dict]:
     fwd_items = _external_forwarding_items(audit.fc)
     if fwd_items is None:
         fwd_items = _forwarding_rules(text)
-    fwd_count = len(fwd_items) if fwd_items else t.rec_ext_fwd_unknown_count
+    # None when the rows could not be counted; _worded says so in words.
+    fwd_count = len(fwd_items) if fwd_items else None
     yield {
         "priority": "critical",
         "evidence": audit.ev(
@@ -659,7 +711,7 @@ def _external_forwarding(audit: _Audit) -> Iterator[dict]:
             "28_exchange_mailbox_forwarding.txt",
         ),
         "finding_id": "finding-fwd",
-        "title": t("rec_ext_fwd_title", count=fwd_count),
+        "title": _say(t, "rec_ext_fwd_title", count=fwd_count),
         "detail": t.rec_ext_fwd_detail,
         "effort": t.rec_effort_immediate,
         "sub_items": fwd_items,
@@ -867,13 +919,17 @@ def _advisor(audit: _Audit) -> Iterator[dict]:
             continue
         sub_items = [_advisor_line(item) for item in items]
         # "category" is Azure's own name and part of the id; the reader sees
-        # "category_label". The id used to be the translated label, so one
-        # finding had a Norwegian and an English id, and the remediation
-        # state recorded under one was lost under the other.
-        label = _advisor_label(cat, t)
+        # "category_label", which _worded puts in their language. The id used
+        # to be the translated label, so one finding had a Norwegian and an
+        # English id, and the remediation state recorded under one was lost
+        # under the other. Stored, the label is Azure's name as well: that it
+        # is there at all tells this shape from a run that stored the label as
+        # the category (_advisor_in_current_shape), whatever Azure calls it.
         yield {
             "priority": _ADVISOR_PRIORITY.get(cat, "medium"),
-            "title": t("rec_advisor_title", category=cat, category_label=label, count=len(items)),
+            "title": _say(
+                t, "rec_advisor_title", category=cat, category_label=cat, count=len(items)
+            ),
             "detail": t("rec_advisor_detail", high_count=len(high_impact)),
             "effort": t.rec_effort_medium,
             "sub_items": sub_items,
@@ -915,13 +971,13 @@ def advisor_id_renames() -> dict[str, str]:
     }
 
 
-def _advisor_in_current_shape(rec: dict, t: T) -> dict:
-    """A stored Advisor recommendation as this version writes it, labelled for *t*.
+def _advisor_in_current_shape(rec: dict) -> dict:
+    """A stored Advisor recommendation as this version writes it.
 
-    A run from before carries the translated label as "category" and its id:
-    it gets Azure's category back, and the id the remediation state was
-    migrated to. Either way the label is put in the reader's language, which
-    a stored label never was.
+    A run from before 2026-10 carries the translated label as "category" and
+    in its id, and no "category_label": it gets Azure's category back, and
+    the id the remediation state was migrated to. The label itself is worded
+    for the reader by _worded, which a stored label never was.
     """
     if rec.get("title_key") != "rec_advisor_title":
         return dict(rec)
@@ -930,11 +986,9 @@ def _advisor_in_current_shape(rec: dict, t: T) -> dict:
     if "category_label" not in params:
         label = str(params.get("category") or "")
         category = ADVISOR_CATEGORY_BY_LABEL.get(label, label)
-        params.update(category=category, category_label=label)
+        params.update(category=category, category_label=category)
         if label and out.get("rec_id") == f"rec_advisor_title:{label}":
             out["rec_id"] = f"rec_advisor_title:{category}"
-    if params.get("category") in _ADVISOR_LABELS:
-        params["category_label"] = str(_advisor_label(params["category"], t))
     out["title_params"] = params
     return out
 
@@ -1231,8 +1285,6 @@ def _label_recommendations(recs: list[dict]) -> list[dict]:
     The key and params come off the Localised strings the builder already
     produced, so there is nothing to keep in step by hand.
     """
-    from app.reports.i18n import Localised
-
     seen: dict[str, int] = {}
     for rec in recs:
         for field in ("title", "detail"):
