@@ -500,10 +500,6 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Deploy krasjet: {kind}: {error}",
         "Deploy crashed: {kind}: {error}",
     ),
-    "err_vpn_status_timeout": (
-        "Tidsavbrudd (10 s)",
-        "Timeout (10s)",
-    ),
     # ALSO, the hub, IT Glue, myITprocess, Uniweb and Tailscale.
     "err_also_not_found": (
         "Ikke funnet",
