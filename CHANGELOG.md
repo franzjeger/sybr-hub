@@ -6,6 +6,28 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Hver fane jobber på sin egen kunde
+
+- To faner med hver sin kunde skrev i hverandre: notater, kjøringer, filer,
+  oppstart av audit, rapporter, tillatelsessjekk, fornying av
+  legitimasjon, IT Glue-opplasting og policyutrulling havnet hos den kunden
+  som sist ble åpnet i en annen fane. Nå navngir hver forespørsel kunden den
+  gjelder, og serveren husker ikke lenger en «aktiv kunde».
+- En kunderapport kunne ta med en annen kundes utbedringsstatus. Det gjør den
+  ikke lenger.
+- Trenddata fra en audit kunne bli lagret på kunden som sist ble satt opp.
+  docs/UPGRADING.md forklarer hvordan eldre rader bygges opp på nytt.
+- Utrulling av Intune- og Entra-oppsett feilet alltid. Den virker nå.
+- GDAP-kunder fikk tilbud om «Kjør audit», men serveren krevde en
+  apphemmelighet de ikke bruker. Nå starter auditen.
+- CSV-eksport skrev ikke lenger om kjøringens nøkkeltall.
+- Verktøy som jobber på én kunde, som Nettverk, Audit, Provisjonering og
+  segmenteringstesten i Pentest, viser et Kunde-felt.
+- Tilgang-fanen viser kundens Tailscale-noder, koblet med taggen
+  `tag:customer-<kunde>` eller tildelt for hånd.
+- Appen gjør hvert oppstartskall én gang, og vises etter innlogging først når
+  den vet hvem som logget inn.
+
 ### Varsler viser det som faktisk trenger deg
 
 - Varsler lister sertifikater som har gått ut eller går ut innen 30 dager,
