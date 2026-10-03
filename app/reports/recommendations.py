@@ -28,6 +28,7 @@ from app.reports.i18n import T
 from app.reports.parsers import _is_audit_relevant_domain, _mfa_user_records
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
+from app.reports.parsers.email import _external_forwarding_items
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -628,7 +629,9 @@ def _external_forwarding(audit: _Audit) -> Iterator[dict]:
     text, t = audit.ext_fwd, audit.t
     if not (text and text.strip()):
         return
-    fwd_items = _forwarding_rules(text)
+    fwd_items = _external_forwarding_items(audit.fc)
+    if fwd_items is None:
+        fwd_items = _forwarding_rules(text)
     fwd_count = len(fwd_items) if fwd_items else t.rec_ext_fwd_unknown_count
     yield {
         "priority": "critical",

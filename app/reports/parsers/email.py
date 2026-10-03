@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.reports.parsers.common import (
-    _count_data_lines,
     _policy_names,
     _record_count,
     _sidecar,
@@ -108,6 +107,27 @@ def _mailbox_counts(file_contents: dict[str, str]) -> dict[str, int]:
     return counts
 
 
+def _external_forwarding_items(file_contents: dict[str, str]) -> list[str] | None:
+    """ "mailbox → target" for each mailbox forwarding outside the tenant.
+
+    From 28b_exchange_external_forwarding_WARN.json, in the form the text's
+    "  mailbox  →  smtp:target" lines are read into: the target without its
+    smtp: prefix. None for a run without the sidecar, whose text the caller
+    reads as it did before.
+    """
+    data = _sidecar(file_contents, "28b_exchange_external_forwarding_WARN.txt")
+    if data is None:
+        return None
+    items = []
+    for row in data.get("forwarding") or []:
+        if not isinstance(row, dict):
+            continue
+        mailbox = str(row.get("mailbox") or "?").strip()
+        target = str(row.get("forward_to") or "?").strip()
+        items.append(f"{mailbox} → {target.replace('smtp:', '').replace('SMTP:', '')}")
+    return items
+
+
 def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     """Parse Exchange data files into a structured overview."""
     result = {
@@ -138,12 +158,15 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     result["antispam_policies"] = _policy_names(file_contents, "24_exchange_antispam.txt")
 
     # Mailbox forwarding count
-    fwd_text = file_contents.get("28_exchange_mailbox_forwarding.txt", "")
-    result["forwarding_count"] = _count_data_lines(fwd_text)
+    result["forwarding_count"] = _record_count(file_contents, "28_exchange_mailbox_forwarding.txt")
 
     # External forwarding warning flag
     ext_fwd_text = file_contents.get("28b_exchange_external_forwarding_WARN.txt", "")
-    result["external_forwarding"] = bool(ext_fwd_text and ext_fwd_text.strip())
+    ext_fwd_items = _external_forwarding_items(file_contents)
+    if ext_fwd_items is not None:
+        result["external_forwarding"] = bool(ext_fwd_items)
+    else:
+        result["external_forwarding"] = bool(ext_fwd_text and ext_fwd_text.strip())
 
     # Inbox rules with external forwarding.
     #
@@ -156,10 +179,12 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     # contradicted itself, and the reassuring half was the wrong half.
     #
     # Same trap 4.4 itself fell into once; see the note on that check.
-    inbox_rules_text = file_contents.get(
-        "29_exchange_inbox_rules_external_fwd_WARN.txt", ""
-    ) or file_contents.get("29_exchange_inbox_rules_external_fwd.txt", "")
-    result["inbox_rules_external"] = _count_data_lines(inbox_rules_text)
+    inbox_rules_file = (
+        "29_exchange_inbox_rules_external_fwd_WARN.txt"
+        if file_contents.get("29_exchange_inbox_rules_external_fwd_WARN.txt")
+        else "29_exchange_inbox_rules_external_fwd.txt"
+    )
+    result["inbox_rules_external"] = _record_count(file_contents, inbox_rules_file)
 
     result["has_data"] = (
         result["mailbox_total"] > 0

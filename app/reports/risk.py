@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.reports.evidence import _evidence_unavailable, _reported_count
 from app.reports.i18n import T
+from app.reports.parsers.email import _external_forwarding_items
 
 
 def _is_open_wlan(wlan: dict) -> bool:
@@ -89,6 +90,7 @@ def _compute_risk(
     network: dict | None = None,
     lang: str = "no",
     unavailable_sections: list[str] | None = None,
+    file_contents: dict | None = None,
 ) -> dict:
     """Compute a security health score from 0 (worst) to 100 (best).
 
@@ -237,7 +239,10 @@ def _compute_risk(
         # finding-fwd rec keys on. The old banner/prose filter still counted a
         # header line as a rule, over-penalising by one (accuracy sweep). The
         # min-5 floor keeps "any forwarding present is severe".
-        fwd_lines = [line for line in ext_fwd.splitlines() if "→" in line]
+        # The 28b sidecar's rows when the run has one (file_contents).
+        fwd_lines = _external_forwarding_items(file_contents or {})
+        if fwd_lines is None:
+            fwd_lines = [line for line in ext_fwd.splitlines() if "→" in line]
         score -= min(10, max(5, len(fwd_lines) * 2))
 
     # Risky users (up to 5 pts). The guard against reading a refusal as a

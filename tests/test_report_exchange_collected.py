@@ -21,6 +21,8 @@ from app.reports.parsers import (
     _parse_purview,
 )
 from app.reports.parsers.tenant import _parse_shared_mailbox_upns, _shared_mailbox_upns
+from app.reports.recommendations import _build_recommendations
+from app.reports.risk import _compute_risk
 from tests.collector_rig import FakeGraph, run_sections
 
 LABELS_PATH = "beta/security/dataSecurityAndGovernance/sensitivityLabels"
@@ -370,6 +372,96 @@ async def test_the_external_column_says_whether_the_target_is_external(tmp_path)
         if "Nordmann" in line
     }
     assert rows == {"Kari": "No", "Ola": "Yes"}
+
+
+FORWARDING = [
+    _forward("Kari Nordmann", "smtp:kari@acme.example", keep_copy=True),
+    _forward("Ola Nordmann", "smtp:ola@mail.example"),
+    # "NO " opens a line the text counter takes for furniture ("No data ...").
+    _forward("No Reply", "smtp:noreply@mail.example"),
+]
+
+
+def _forwarding_findings(files: dict) -> tuple[list[str], int]:
+    """The forwarding recommendation's rows, and what forwarding cost the score."""
+    ext_fwd = files.get("28b_exchange_external_forwarding_WARN.txt", "")
+    recs = _build_recommendations({}, [], {}, ext_fwd, "", [], file_contents=files)
+    rows = next((r["sub_items"] for r in recs if r["finding_id"] == "finding-fwd"), [])
+    mfa = {"has_data": True, "pct": 100, "no_mfa": 0}  # without MFA there is no score
+    clean = _compute_risk({}, mfa, [], [], "", "", "")["score"]
+    score = _compute_risk({}, mfa, [], [], ext_fwd, "", "", file_contents=files)["score"]
+    return rows, clean - score
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_forwarding_findings_survive_the_round_trip(tmp_path, sidecars):
+    files, _ = await _collect(tmp_path, {"forwarding": FORWARDING[:2]}, sidecars=sidecars)
+    assert ("28b_exchange_external_forwarding_WARN.json" in files) is sidecars
+
+    overview = _parse_exchange_overview(files)
+    assert overview["forwarding_count"] == 2
+    assert overview["external_forwarding"] is True
+    rows, cost = _forwarding_findings(files)
+    assert rows == ["Ola Nordmann → ola@mail.example"]
+    assert cost == 5
+
+
+async def test_a_mailbox_called_no_reply_still_counts_as_forwarding(tmp_path):
+    files, _ = await _collect(tmp_path, {"forwarding": FORWARDING})
+
+    assert _parse_exchange_overview(files)["forwarding_count"] == 3
+    assert _parse_exchange_overview(_text_only(files))["forwarding_count"] == 2, "the text drops it"
+
+
+async def test_the_forwarding_findings_come_from_the_sidecar(tmp_path):
+    """Where the text and the sidecar disagree, the recommendation and score follow the sidecar."""
+    files, _ = await _collect(tmp_path, {"forwarding": FORWARDING[:2]})
+    files["28b_exchange_external_forwarding_WARN.txt"] += "".join(
+        f"  Lagt til {n}  →  smtp:x{n}@mail.example\n" for n in range(4)
+    )
+
+    rows, cost = _forwarding_findings(files)
+    assert rows == ["Ola Nordmann → ola@mail.example"]
+    assert cost == 5, "one mailbox, not five"
+
+
+# ── Inbox rules ───────────────────────────────────────────────────────────────
+
+
+def _inbox_rule(mailbox: str, rule: str, *targets: str) -> dict:
+    """One rule as the helper's inbox-rule block writes it."""
+    return {"Mailbox": mailbox, "Rule": rule, "Enabled": True, "Targets": list(targets)}
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_inbox_rule_counts_survive_the_round_trip(tmp_path, sidecars):
+    rules = [
+        _inbox_rule("kari@acme.example", "Til Gmail", '"kari" [SMTP:kari@mail.example]'),
+        _inbox_rule("ola@acme.example", "Kopi", '"ola" [SMTP:ola@mail.example]'),
+    ]
+    files, _ = await _collect(tmp_path, {"inbox_rules_external": rules}, sidecars=sidecars)
+    assert ("29_exchange_inbox_rules_external_fwd_WARN.json" in files) is sidecars
+
+    assert _parse_exchange_overview(files)["inbox_rules_external"] == 2
+    assert _controls(files)["4.4"]["status"] == "warn"
+
+
+async def test_no_inbox_rules_is_counted_as_none_from_the_sidecar(tmp_path):
+    files, _ = await _collect(tmp_path, {"inbox_rules_external": []})
+
+    assert files["29_exchange_inbox_rules_external_fwd.json"]
+    assert _parse_exchange_overview(files)["inbox_rules_external"] == 0
+
+
+async def test_a_rule_name_that_reads_like_a_count_does_not_change_the_count(tmp_path):
+    rules = [
+        _inbox_rule("kari@acme.example", "Videresend (3 results)", "kari@mail.example"),
+        _inbox_rule("ola@acme.example", "Kopi", "ola@mail.example"),
+    ]
+    files, _ = await _collect(tmp_path, {"inbox_rules_external": rules})
+
+    assert _parse_exchange_overview(files)["inbox_rules_external"] == 2
+    assert _parse_exchange_overview(_text_only(files))["inbox_rules_external"] != 2
 
 
 # ── Defender for Office 365: Safe Links / Safe Attachments ────────────────────
