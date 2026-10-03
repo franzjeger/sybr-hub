@@ -326,7 +326,7 @@ function notifAct(id, readOnly) {
       showCustomerDetail(n.customerId, n.customer);
       return;
     }
-    if (n.act === 'domains') {
+    if (n.act === 'domains' && hasModule('billing')) {
       var btn = document.querySelector('.dash-tab-btn[data-tab="dash-domains"]');
       if (btn) { switchDashTab(btn, 'dash-domains'); return; }
     }
@@ -623,10 +623,10 @@ async function dashLoadDomains() {
   // KPI cards
   html += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;">';
   var kpis = [
-    {label:'Totalt domener', value:Number(s.total)||0, color:'var(--blue)'},
-    {label:'Friske', value:Number(s.healthy)||0, color:'var(--green)'},
-    {label:'Advarsel', value:Number(s.warning)||0, color:s.warning>0?'var(--orange)':'var(--text-dim)'},
-    {label:'Kritisk', value:Number(s.critical)||0, color:s.critical>0?'var(--red)':'var(--text-dim)'},
+    {label:t('dash_domains_total', 'Domener totalt'), value:Number(s.total)||0, color:'var(--blue)'},
+    {label:t('dash_domains_healthy', 'Friske'), value:Number(s.healthy)||0, color:'var(--green)'},
+    {label:t('dash_domains_warning', 'Advarsel'), value:Number(s.warning)||0, color:s.warning>0?'var(--orange)':'var(--text-dim)'},
+    {label:t('dash_domains_critical', 'Kritisk'), value:Number(s.critical)||0, color:s.critical>0?'var(--red)':'var(--text-dim)'},
     {label:t('dash_missing_spf','Mangler SPF'), value:Number(s.missing_spf)||0, color:s.missing_spf>0?'var(--orange)':'var(--text-dim)'},
     {label:t('dash_missing_dmarc','Mangler DMARC'), value:Number(s.missing_dmarc)||0, color:s.missing_dmarc>0?'var(--orange)':'var(--text-dim)'}
   ];
@@ -680,7 +680,7 @@ async function dashLoadDomains() {
       var sslColor = 'var(--green)';
       if (d.ssl.days_remaining < 0) sslColor = 'var(--red)';
       else if (d.ssl.days_remaining < 30) sslColor = 'var(--orange)';
-      var sslLabel = d.ssl.days_remaining < 0 ? 'Utlopt' : Number(d.ssl.days_remaining) + 'd';
+      var sslLabel = d.ssl.days_remaining < 0 ? t('lbl_expired_short', 'Utløpt') : Number(d.ssl.days_remaining) + 'd';
       var gradeStr = d.ssl.grade ? ' ' + esc(d.ssl.grade) : '';
       sslHtml = '<span style="color:' + sslColor + ';font-weight:600;" title="' + esc(d.ssl.issuer || '') + ' · ' + t('dash_valid_until','gyldig til') + ' ' + esc(d.ssl.valid_until || '') + '">' + sslLabel + gradeStr + '</span>';
     } else {
@@ -697,7 +697,7 @@ async function dashLoadDomains() {
       var expColor = 'var(--text)';
       if (d.days_until_expiry < 0) expColor = 'var(--red)';
       else if (d.days_until_expiry < 90) expColor = 'var(--orange)';
-      expiryHtml = '<span style="color:' + expColor + ';" title="' + esc(d.expiry) + '">' + (d.days_until_expiry < 0 ? 'Utlopt' : Number(d.days_until_expiry) + 'd') + '</span>';
+      expiryHtml = '<span style="color:' + expColor + ';" title="' + esc(d.expiry) + '">' + (d.days_until_expiry < 0 ? esc(t('lbl_expired_short', 'Utløpt')) : Number(d.days_until_expiry) + 'd') + '</span>';
     } else {
       expiryHtml = '<span style="color:var(--text-dim);">—</span>';
     }
