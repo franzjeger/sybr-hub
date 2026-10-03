@@ -2,15 +2,22 @@
 
 CIS 2.1 and the OAuth recommendation read the tenant-wide consent grants in
 17b_oauth_consent_grants.txt and the registration count in
-17_app_registrations.txt. Both are read here as a run leaves them, through a
-real GraphClient answering from tests/collector_rig.py, and through the report
-context itself.
+17_app_registrations.txt. The collector writes each as a text for a person
+and a JSON sidecar for the report, which reads the sidecar first
+and the text for runs recorded before it. Both are read here as a run leaves
+them, through a real GraphClient answering from tests/collector_rig.py, and
+through the report context itself.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from app.core.encryption import encrypted_write_text
 from app.modules.m365_audit.sections.apps_oauth import AppsOAuthSection
-from tests.collector_rig import FakeGraph, run_sections
+from tests.collector_rig import FakeGraph, refused, run_sections
 from tests.report_from_run import report
 
 # Longer than the 40-character columns of the grants table.
@@ -49,9 +56,46 @@ NAMES = {
 }
 
 
+def _when(days: int) -> str:
+    return (datetime.now(UTC) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+LONG_APP = "Kunde A Lønn og personal, integrasjon mot regnskap"
+LONG_CERT = "Signeringssertifikat for Kunde A produksjon"
+APPS = [
+    {
+        "id": "a1",
+        "appId": "00000000-0000-0000-0000-0000000000a1",
+        "displayName": "Kunde A Portal",
+        "signInAudience": "AzureADMyOrg",
+        "createdDateTime": "2024-02-01T08:00:00Z",
+        "passwordCredentials": [{"displayName": "Gammel nøkkel", "endDateTime": _when(-10)}],
+        "keyCredentials": [{"displayName": LONG_CERT, "endDateTime": _when(10)}],
+    },
+    {
+        "id": "a2",
+        "appId": "00000000-0000-0000-0000-0000000000a2",
+        "displayName": LONG_APP,
+        "signInAudience": "AzureADMultipleOrgs",
+        "createdDateTime": "2025-06-01T08:00:00Z",
+        "passwordCredentials": [{"displayName": "Hoved", "endDateTime": _when(400)}],
+        "keyCredentials": [],
+    },
+    {
+        "id": "a3",
+        "appId": "00000000-0000-0000-0000-0000000000a3",
+        "displayName": "Kunde A Uten Nøkler",
+        "signInAudience": "AzureADMyOrg",
+        "createdDateTime": "2025-09-01T08:00:00Z",
+        "passwordCredentials": [],
+        "keyCredentials": [],
+    },
+]
+
+
 def _routes(**overrides) -> dict:
     routes = {
-        "applications": [],
+        "applications": APPS,
         "oauth2PermissionGrants": GRANTS,
         **{f"servicePrincipals/{sp}": {"displayName": name} for sp, name in NAMES.items()},
     }
@@ -64,6 +108,18 @@ async def _apps(tmp_path, **overrides) -> dict[str, str]:
         files = await run_sections(AppsOAuthSection(tmp_path, fake.client))
     assert fake.unrouted == []
     return files
+
+
+def _verdict(ctx: dict, cis_id: str) -> tuple[str, str]:
+    row = next(r for r in ctx["compliance"] if r["cis_id"] == cis_id)
+    return row["status"], str(row["detail"])
+
+
+def _finding(ctx: dict, finding_id: str) -> dict | None:
+    return next((r for r in ctx["recommendations"] if r.get("finding_id") == finding_id), None)
+
+
+# ── Consent grants and registrations ─────────────────────────────────────────
 
 
 async def test_every_consent_grant_is_read_from_the_table(tmp_path):
@@ -87,3 +143,60 @@ async def test_every_consent_grant_is_read_from_the_table(tmp_path):
         "Kunde A Arkiv",
         LONG_CLIENT[:40],
     ]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_grants_and_registrations_survive_the_round_trip(tmp_path, sidecars):
+    files = await _apps(tmp_path)
+    assert "17b_oauth_consent_grants.json" in files and "17_app_registrations.json" in files
+
+    ctx = report(tmp_path, sidecars=sidecars)
+    oauth = ctx["oauth"]
+
+    assert oauth["total_grants"] == 6
+    assert oauth["unique_apps"] == 6
+    assert len(oauth["high_privilege_apps"]) == 3
+    assert oauth["app_registrations"] == 3
+    assert oauth["grants_read"] is True and oauth["has_data"] is True
+    assert _verdict(ctx, "2.1") == (
+        "info",
+        "6 apps with 6 grants. 3 app registrations.",
+    )
+    assert _finding(ctx, "finding-oauth")["sub_items"] == oauth["high_privilege_apps"]
+
+
+async def test_the_sidecar_keeps_app_names_whole(tmp_path):
+    """Two apps the table cannot tell apart: their names share 40 characters."""
+    await _apps(
+        tmp_path,
+        oauth2PermissionGrants=[*GRANTS, _grant("c-erp-test", "r-graph", "Sites.Read.All")],
+        **{"servicePrincipals/c-erp-test": {"displayName": LONG_CLIENT + " (test)"}},
+    )
+
+    oauth = report(tmp_path)["oauth"]
+    assert oauth["unique_apps"] == 7
+    assert LONG_CLIENT in oauth["high_privilege_apps"]
+    assert {g["app"] for g in oauth["admin_consent"]} >= {LONG_CLIENT, LONG_CLIENT + " (test)"}
+
+    oauth = report(tmp_path, sidecars=False)["oauth"]
+    assert oauth["unique_apps"] == 6, "both read as the same 40 characters"
+    assert LONG_CLIENT[:40] in oauth["high_privilege_apps"]
+
+
+async def test_the_registration_count_does_not_hang_on_the_banner(tmp_path):
+    files = await _apps(tmp_path)
+    path = tmp_path / "17_app_registrations.txt"
+    encrypted_write_text(path, files["17_app_registrations.txt"].replace("(3 total)", ""))
+
+    assert report(tmp_path)["oauth"]["app_registrations"] == 3
+    assert report(tmp_path, sidecars=False)["oauth"]["app_registrations"] == 0
+
+
+async def test_refused_grants_write_no_sidecar(tmp_path):
+    files = await _apps(tmp_path, oauth2PermissionGrants=refused())
+    assert "17b_oauth_consent_grants.json" not in files
+
+    oauth = report(tmp_path)["oauth"]
+    assert oauth["grants_read"] is False, "the refusal is not 'no high-privilege apps'"
+    assert oauth["total_grants"] == 0
+    assert oauth["app_registrations"] == 3

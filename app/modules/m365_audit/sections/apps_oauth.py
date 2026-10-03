@@ -88,6 +88,7 @@ class AppsOAuthSection(BaseSection):
             "  " + "-" * 116,
         ]
 
+        rows: list[dict] = []
         for app in apps:
             name = (app.get("displayName") or "")[:40]
             app_id = (app.get("appId") or "")[:38]
@@ -103,9 +104,21 @@ class AppsOAuthSection(BaseSection):
                 self._warn(f"App '{name}' ({app_id}) has expired credentials")
 
             lines.append(f"  {name:<40} {app_id:<38} {audience:<25} {created:<22} {flags_str}")
+            rows.append(
+                {
+                    "id": app.get("id"),
+                    "app_id": app.get("appId"),
+                    "name": app.get("displayName") or "",
+                    "audience": app.get("signInAudience"),
+                    "created": app.get("createdDateTime"),
+                    "credential_flags": all_flags,
+                    "expired": any("EXPIRED" in f for f in all_flags),
+                }
+            )
 
         lines += ["=" * 120, ""]
         self._save("17_app_registrations.txt", "\n".join(lines))
+        self._save_sidecar("17_app_registrations.txt", {"count": len(apps), "apps": rows})
 
     # ── App Credential Expiry ────────────────────────────────────────────────
 
@@ -306,6 +319,7 @@ class AppsOAuthSection(BaseSection):
             f"  {'Client App':<40} {'Resource':<40} Scopes",
             "  " + "-" * 116,
         ]
+        rows: list[dict] = []
         for g in grants:
             client_id = g.get("clientId") or ""
             resource_id = g.get("resourceId") or ""
@@ -313,5 +327,19 @@ class AppsOAuthSection(BaseSection):
             resource_name = sp_names.get(resource_id, resource_id)[:40]
             scopes = (g.get("scope") or "").replace(" ", ", ")
             lines.append(f"  {client_name:<40} {resource_name:<40} {scopes}")
+            rows.append(
+                {
+                    "id": g.get("id"),
+                    "client_id": client_id,
+                    "client_name": sp_names.get(client_id, client_id),
+                    "resource_id": resource_id,
+                    "resource_name": sp_names.get(resource_id, resource_id),
+                    "consent_type": g.get("consentType"),
+                    "scopes": (g.get("scope") or "").split(),
+                }
+            )
         lines += ["=" * 120, ""]
         self._save("17b_oauth_consent_grants.txt", "\n".join(lines))
+        # Whole names: two apps whose names share their first 40 characters
+        # are one app in the table.
+        self._save_sidecar("17b_oauth_consent_grants.txt", {"count": len(grants), "grants": rows})

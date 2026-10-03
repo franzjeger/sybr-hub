@@ -204,8 +204,28 @@ def _teams_guest_settings(file_contents: dict[str, str]) -> tuple[str, str]:
     return _labelled_value(text, "Allow Invites From"), _labelled_value(text, "Guest User Role")
 
 
-def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
+def _parse_oauth_grants(
+    text: str,
+    app_reg_text: str = "",
+    grants_json: dict | None = None,
+    apps_json: dict | None = None,
+) -> dict:
+    """Tenant-wide consent grants and the app registration count.
+
+    From the 17b_oauth_consent_grants.json and 17_app_registrations.json
+    sidecars where the run has them, each independently, and from the text
+    otherwise. The sidecar carries each grant's names whole.
+    """
     admin_consent: list[dict] = []
+    grant_rows = (grants_json or {}).get("grants")
+    if isinstance(grant_rows, list):
+        admin_consent = [
+            {
+                "app": g.get("client_name") or g.get("client_id") or "",
+                "scopes": list(g.get("scopes") or []),
+            }
+            for g in grant_rows
+        ]
     app_permissions: list[dict] = []
     high_priv_keywords = {
         "fullcontrol",
@@ -219,7 +239,8 @@ def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
     section = ""
     fixed_width = False
 
-    for line in text.splitlines():
+    # Nothing to read off the text when the sidecar gave the grants.
+    for line in [] if isinstance(grant_rows, list) else text.splitlines():
         stripped = line.strip()
         if "ADMIN CONSENT" in stripped or "CONSENT GRANTS" in stripped or "TENANT-WIDE" in stripped:
             section = "admin"
@@ -293,6 +314,8 @@ def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
         m = re.search(r"\((\d+) total\)", app_reg_text)
         if m:
             app_reg_count = int(m.group(1))
+    if apps_json is not None and "count" in apps_json:
+        app_reg_count = int(apps_json["count"])
 
     all_apps = set()
     high_priv_apps = set()
