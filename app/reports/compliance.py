@@ -23,7 +23,6 @@ from app.reports.evidence import (
     _EVIDENCE_MAP,
     _NOT_LICENSED,
     _evidence_unavailable,
-    _labelled_int,
     _labelled_value,
     _lacks,
     _licensed_capabilities,
@@ -37,6 +36,7 @@ from app.reports.parsers import (
     _parse_banner_count,
 )
 from app.reports.parsers.common import _sidecar
+from app.reports.parsers.collaboration import _onedrive_scan
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -593,12 +593,10 @@ def _retention_policies(audit: _Audit) -> _Verdict:
     )
 
 
-def _onedrive_scan_gaps(text: str) -> list[str] | None:
+def _onedrive_scan_gaps(scan: dict) -> list[str] | None:
     """What kept the sharing scan from covering the tenant; None if nothing did."""
-    refused = _labelled_int(text, "Drives refused") or 0
-    discovery = _labelled_int(text, "Discovery failures") or 0
-    folders = _labelled_int(text, "Folder failures") or 0
-    scope = _labelled_value(text, "Scan scope")
+    refused, discovery, folders = scan["refused"], scan["discovery"], scan["folders"]
+    scope = scan["scope"]
     if scope.startswith("complete") and refused == 0 and discovery == 0 and folders == 0:
         return None
     gaps = []
@@ -616,10 +614,10 @@ def _onedrive_scan_gaps(text: str) -> list[str] | None:
 def _anonymous_links(audit: _Audit) -> _Verdict:
     # An "Anyone" link needs no sign-in, so one is a finding however partial the
     # scan was; but a zero is only as broad as the scan behind it.
-    text = audit.fc.get("25_onedrive_sharing.txt", "")
-    anyone = _labelled_int(text, "'Anyone' links")
-    gaps = _onedrive_scan_gaps(text)
-    scanned = _labelled_int(text, "Drives scanned") or 0
+    scan = _onedrive_scan(audit.fc)
+    anyone = scan["anyone"]
+    gaps = _onedrive_scan_gaps(scan)
+    scanned = scan["scanned"]
     if anyone is None:
         return "info", _CANNOT_VERIFY + "OneDrive-delingsdata utilgjengelig"
     if anyone == 0 and gaps is not None:

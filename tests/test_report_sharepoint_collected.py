@@ -1,7 +1,8 @@
-"""SharePoint, from the files its collector writes.
+"""SharePoint and OneDrive, from the files their collectors write.
 
 The SharePoint section writes the site list and the tenant's sharing settings,
-each as a text for a person and a JSON sidecar for the report, which reads the
+the OneDrive section what its sharing scan found and how far it got. Each
+writes a text for a person and a JSON sidecar for the report, which reads the
 sidecar first and the text for runs recorded before it. Both are read here as
 a run leaves them, through a real GraphClient answering from
 tests/collector_rig.py, and through the report context itself.
@@ -12,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.encryption import encrypted_read_text, encrypted_write_text
+from app.modules.m365_audit.sections.onedrive_sharing import OneDriveSharingSection
 from app.modules.m365_audit.sections.sharepoint import SharePointSection
 from tests.collector_rig import FakeGraph, refused, run_sections
 from tests.report_from_run import relabel, report
@@ -161,3 +163,118 @@ async def test_a_refused_site_list_writes_no_sidecar(tmp_path):
     sp = report(tmp_path)["sharepoint"]
     assert sp["site_count"] == 0
     assert sp["sharing_level"] == "warning", "the settings were read all the same"
+
+
+# ── OneDrive sharing ─────────────────────────────────────────────────────────
+
+USERS = [{"id": "kari", "userPrincipalName": "kari@acme.example"}]
+LONG_FILE = "Kontrakt med leverandor for drift av nettverk og servere 2026.docx"
+
+
+def _anonymous(url: str) -> dict:
+    return {"link": {"scope": "anonymous", "type": "edit", "webUrl": url}, "roles": ["write"]}
+
+
+def _external(upn: str) -> dict:
+    return {
+        "link": {"scope": "users", "type": "view"},
+        "roles": ["read"],
+        "grantedToV2": {"user": {"id": "g1", "userPrincipalName": upn}},
+    }
+
+
+ANON_URL = "https://acme.sharepoint.com/:w:/s/intranett/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"
+EXT_UPN = "ola_partner.example#EXT#@acme.onmicrosoft.com"
+
+
+def _onedrive_routes(**overrides) -> dict:
+    routes = {
+        "sites": [SITES[0]],
+        "sites/s-intra/drives": [{"id": "d-intra", "name": "Dokumenter"}],
+        "users/kari/drives": [{"id": "d-kari", "name": "OneDrive"}],
+        "drives/d-intra/root/permissions": [],
+        "drives/d-intra/items/root/children": [
+            {"id": "f1", "name": "Prosjekter", "folder": {"childCount": 1}, "permissions": []},
+            {"id": "i1", "name": "Budsjett.xlsx", "permissions": [_anonymous(ANON_URL)]},
+        ],
+        "drives/d-intra/items/f1/children": [
+            {"id": "i2", "name": LONG_FILE, "permissions": [_external(EXT_UPN)]},
+        ],
+        "drives/d-kari/root/permissions": [],
+        "drives/d-kari/items/root/children": [],
+    }
+    routes.update(overrides)
+    return routes
+
+
+async def _onedrive(tmp_path, **overrides) -> dict[str, str]:
+    async with FakeGraph(_onedrive_routes(**overrides)) as fake:
+        section = OneDriveSharingSection(
+            tmp_path, fake.client, users_ref=USERS, users_complete=lambda: True
+        )
+        files = await run_sections(section)
+    assert fake.unrouted == []
+    return files
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_an_anonymous_link_fails_the_control_either_way(tmp_path, sidecars):
+    files = await _onedrive(tmp_path)
+    assert "25_onedrive_sharing.json" in files
+
+    status, detail = _verdict(report(tmp_path, sidecars=sidecars), "7.2.4")
+    assert status == "fail"
+    assert detail.startswith("1 anonym")
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_clean_complete_scan_passes_either_way(tmp_path, sidecars):
+    clean = [{"id": "i1", "name": "Budsjett.xlsx", "permissions": []}]
+    await _onedrive(tmp_path, **{"drives/d-intra/items/root/children": clean})
+
+    status, detail = _verdict(report(tmp_path, sidecars=sidecars), "7.2.4")
+    assert status == "pass"
+    assert "2 stasjon" in detail, "both drives were read"
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_refused_drive_keeps_absence_unproven_either_way(tmp_path, sidecars):
+    """A refused drive is a gap in the scan, which the sidecar records as such."""
+    clean = [{"id": "i1", "name": "Budsjett.xlsx", "permissions": []}]
+    files = await _onedrive(
+        tmp_path,
+        **{
+            "drives/d-intra/items/root/children": clean,
+            "drives/d-kari/root/permissions": refused(),
+        },
+    )
+    assert "25_onedrive_sharing.json" in files
+
+    status, detail = _verdict(report(tmp_path, sidecars=sidecars), "7.2.4")
+    assert status == "info"
+    assert "1 stasjon(er) kunne ikke leses" in detail
+
+
+async def test_the_scan_verdict_does_not_hang_on_the_text_labels(tmp_path):
+    await _onedrive(tmp_path)
+    relabel(tmp_path / "25_onedrive_sharing.txt")
+
+    assert _verdict(report(tmp_path), "7.2.4")[0] == "fail"
+    assert _verdict(report(tmp_path, sidecars=False), "7.2.4")[0] == "info", (
+        "the relabelled text alone has no 'Anyone' count to read"
+    )
+
+
+async def test_the_sidecar_keeps_each_finding_whole(tmp_path):
+    """The text trims path and link to fit its columns; the sidecar does not."""
+    import json
+
+    files = await _onedrive(tmp_path)
+    data = json.loads(files["25_onedrive_sharing.json"])
+
+    assert ANON_URL not in files["25_onedrive_sharing.txt"], "trimmed to 40 characters"
+    assert [a["link"] for a in data["anyone_links"]] == [ANON_URL]
+    assert [e["path"] for e in data["external_shares"]] == [f"/Prosjekter/{LONG_FILE}"]
+    grantee = data["external_shares"][0]["granted_to"][0]["user"]
+    assert grantee["userPrincipalName"] == EXT_UPN
+    assert data["complete"] is True and data["drives_scanned"] == 2

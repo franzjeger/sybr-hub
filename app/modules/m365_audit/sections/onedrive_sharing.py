@@ -503,6 +503,31 @@ class OneDriveSharingSection(BaseSection):
 
         lines += ["=" * 100, ""]
         self._save("25_onedrive_sharing.txt", "\n".join(lines))
+        # Untrimmed: every coverage note (the text lists twenty), and each
+        # finding with its whole path, link and grantees.
+        self._save_sidecar(
+            "25_onedrive_sharing.txt",
+            {
+                "drives_scanned": readable,
+                "drives_refused": self._drives_refused,
+                "shared_items": len(all_shared_items),
+                "anyone_link_count": len(anyone_links),
+                "external_share_count": len(external_shares),
+                "discovery_failures": self._discovery_failures,
+                "folder_failures": self._folder_failures,
+                "truncated": self._truncated,
+                "folders_examined": self._folders_visited,
+                "items_examined": self._items_examined,
+                "requests_used": self._requests,
+                "request_budget": self._max_requests,
+                "complete": complete,
+                "max_depth": self._max_depth,
+                "max_folders_per_drive": self._max_folders,
+                "permission_fallback": self._used_permission_fallback,
+                "anyone_links": anyone_links,
+                "external_shares": external_shares,
+            },
+        )
 
         # Warnings
         if anyone_links:
