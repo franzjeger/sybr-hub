@@ -214,20 +214,25 @@ its own review rather than being smuggled into an unrelated one.
   `app/services/provisioning.py::_deploy_via_rest` (~980) is 16 named steps.
 - [x] **The recommendations builder.** `_build_recommendations` (806 lines)
   is a table of 31 rules, pinned by its own characterisation snapshot.
-- **Recommendation ids that move.** Remediation state is keyed on a rec's id.
-  The Azure Advisor ids no longer depend on the language (migration 24,
-  October 2026). Still open: two unreadable network files share one id, so
-  state follows position, not file; and a few translated fragments
-  ("Ukjent antall", "bruker(e)") are frozen into stored params, so a
-  relocalised rec keeps them in the original language.
+- [x] **Recommendation ids that move.** Remediation state is keyed on a rec's
+  id. The Azure Advisor ids no longer depend on the language (migration 24,
+  October 2026). Each unreadable network file has its own id, named by the
+  file (migration 25; a bare old id that no run or ticket ties to a file
+  keeps its row and reads as open). Stored params hold values, a count or
+  None, and `relocalise_recommendations` puts the words in for the reader,
+  reading the words older runs froze in ("Ukjent antall", "bruker(e)", the
+  Advisor label) back as values.
 - [x] **The parsers read text the collectors wrote.** Every collector the
   report reads now writes a JSON sidecar beside its text file
   (`BaseSection._save_sidecar`), and the parsers read it first, with the text
   as the fallback for older runs (October 2026). Sections nothing reads are
   still text only.
-- **English reports carry Norwegian details.** Most CIS row details in
-  `compliance.py` are Norwegian whatever the report language. Give them keys
-  when an English-speaking customer needs the report.
+- [x] **English reports carry Norwegian details.** Every CIS row detail is a
+  key in `app/reports/i18n.py` (the pattern is described at the top of
+  `compliance.py`), and so are the score's data gaps, the house standard's
+  wording and the network section's labels. `tests/test_english_reports.py`
+  renders both reports in English and fails on Norwegian outside the
+  tenant's own data.
 - **Verify the SSH provisioning path on a real FortiGate.** It sends whole
   `config` blocks and reads the answer for errors, which is how FortiOS keeps
   context, but it has only run against a fake device.
