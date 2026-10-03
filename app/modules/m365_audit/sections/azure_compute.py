@@ -7,7 +7,6 @@ executor so as not to block the asyncio event loop.
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,35 @@ from app.modules.m365_audit.auth import AuthManager
 def _run_sync(fn):
     """Run a synchronous callable in the default thread-pool executor."""
     return asyncio.get_event_loop().run_in_executor(None, fn)
+
+
+def _plain(value):
+    """An Azure SDK enum as its value; anything else as it is."""
+    return getattr(value, "value", value)
+
+
+def _resource_group(resource_id: str | None) -> str | None:
+    parts = (resource_id or "").split("/")
+    return parts[4] if len(parts) > 4 else None
+
+
+def _vm_row(vm) -> dict:
+    """One VM for the sidecar: the columns of the VM table, untrimmed."""
+    os_disk = vm.storage_profile.os_disk if vm.storage_profile else None
+    power_state = None
+    for status in (vm.instance_view.statuses if vm.instance_view else None) or []:
+        if status.code and status.code.startswith("PowerState/"):
+            power_state = status.code.replace("PowerState/", "")
+            break
+    return {
+        "name": vm.name,
+        "id": vm.id,
+        "resource_group": _resource_group(vm.id),
+        "location": vm.location,
+        "os_type": _plain(os_disk.os_type) if os_disk else None,
+        "size": _plain(vm.hardware_profile.vm_size) if vm.hardware_profile else None,
+        "power_state": power_state,
+    }
 
 
 class AzureComputeSection(BaseSection):
@@ -110,11 +138,14 @@ class AzureComputeSection(BaseSection):
 
         lines += ["=" * 120, ""]
         self._save(self._fname("30_azure_vms.txt"), "\n".join(lines))
-        # The text trims names to 35 characters. The backup cross-reference
-        # matches on the full name and the resource id, so they are kept here.
-        self._save(
-            self._fname("30_azure_vms.json"),
-            json.dumps({"vms": [{"name": vm.name, "id": vm.id} for vm in vms]}, indent=1),
+        # The text trims every column to its width, and a column that fills it
+        # runs into the next with a single space: a 30-character resource group
+        # or "germanywestcentral" shifted the OS, size and status of that VM.
+        # The backup cross-reference matches on the full name and the resource
+        # id. So every column is kept here as Azure gave it.
+        self._save_sidecar(
+            self._fname("30_azure_vms.txt"),
+            {"count": len(vms), "vms": [_vm_row(vm) for vm in vms]},
         )
         return vms
 
