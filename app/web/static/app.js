@@ -106,13 +106,23 @@ function openCommandPalette() {
     var items = document.querySelectorAll('.cmd-item');
     if (e.key === 'ArrowDown') { e.preventDefault(); _cmdSelectedIdx = Math.min(_cmdSelectedIdx+1, items.length-1); _highlightCmd(items); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); _cmdSelectedIdx = Math.max(_cmdSelectedIdx-1, 0); _highlightCmd(items); }
-    else if (e.key === 'Enter' && _cmdSelectedIdx >= 0 && items[_cmdSelectedIdx]) { e.preventDefault(); items[_cmdSelectedIdx].click(); }
+    else if (e.key === 'Enter') {
+      // Enter takes the highlighted result, or the first one once something
+      // is typed: "Beta" then Enter opened nothing until an arrow key had
+      // picked the only match.
+      var pick = _cmdSelectedIdx >= 0 ? items[_cmdSelectedIdx] : (input.value.trim() ? items[0] : null);
+      if (pick) { e.preventDefault(); pick.click(); }
+    }
     else if (e.key === 'Escape') { closeCommandPalette(); }
   };
 }
 export function closeCommandPalette() {
   document.getElementById('cmd-palette').style.display = 'none';
   _cmdPaletteOpen = false;
+  // Focus left in the hidden input made every shortcut after a pick read as
+  // typing: Ctrl+1 straight after choosing a customer did nothing.
+  var input = document.getElementById('cmd-input');
+  if (input && document.activeElement === input) input.blur();
 }
 function _highlightCmd(items) {
   items.forEach(function(el, i) { el.style.background = i === _cmdSelectedIdx ? 'rgba(77,159,181,0.15)' : ''; });
