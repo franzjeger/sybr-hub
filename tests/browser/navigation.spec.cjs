@@ -161,6 +161,39 @@ async function openedTab(page, tab) {
   await expect(page.locator('#cust-tabs .cust-tab.active')).toHaveCount(1);
 }
 
+test('Lagring og backup copes with settings that leave the storage paths out', async ({page}) => {
+  // The server sends the paths to administrators only. Answered without them
+  // (a role changed under an open session), the pane must not print
+  // "undefined", and saving another card must not post empty paths, which
+  // would reset both folders to the default.
+  let posted = null;
+  await page.route('**/api/settings', async route => {
+    if (route.request().method() === 'POST') {
+      posted = route.request().postDataJSON();
+      await route.fulfill({json: {ok: true}});
+      return;
+    }
+    const response = await route.fetch();
+    const body = await response.json();
+    for (const k of Object.keys(body)) if (/^(audit|cert)_dir/.test(k)) delete body[k];
+    await route.fulfill({response, json: body});
+  });
+  await login(page);
+  await page.evaluate(() => openAdmin('storage'));
+  const pane = page.locator('#admin-pane-storage');
+  await expect(pane).toBeVisible();
+  await expect(page.locator('#input-audit-dir')).toHaveValue('');
+  await expect(page.locator('#settings-current-dir')).toHaveText('');
+  await expect(pane).not.toContainText('undefined');
+  await page.locator('#admin-rail [data-pane="branding"]').click();
+  await page.locator('#admin-pane-branding [data-click-handler="saveSettings"]').click();
+  await expect.poll(() => posted).not.toBeNull();
+  expect(posted).not.toHaveProperty('audit_dir');
+  expect(posted).not.toHaveProperty('cert_dir');
+  expect(posted.branding).toBeTruthy();
+  await page.unrouteAll({behavior: 'ignoreErrors'});
+});
+
 test('the customer page tabs switch in place, and the address carries the tab', async ({page}) => {
   await login(page, 'browser-switcher');
   await page.evaluate(() => { location.hash = '#/customer/Browser_Beta'; });
@@ -217,9 +250,14 @@ test('each old address lands on the tab it became, for the active customer', asy
     body.active_id = null;
     await route.fulfill({response, json: body});
   });
-  await page.evaluate(() => { _customersActiveId = null; showView('overview'); });
-  await page.evaluate(() => { location.hash = '#/audit'; });
-  await expect(page.locator('#view-customers')).toHaveClass(/\bactive\b/);
+  // The last tab's loader may still be reading /api/customers from before the
+  // route above, and puts the active customer back when it lands; try again
+  // until nothing is in flight to do that.
+  await expect.poll(async () => {
+    await page.evaluate(() => { _customersActiveId = null; showView('overview'); location.hash = '#/audit'; });
+    await page.waitForTimeout(300);
+    return page.evaluate(() => currentView);
+  }).toBe('customers');
   await page.unrouteAll({behavior: 'ignoreErrors'});
 });
 
