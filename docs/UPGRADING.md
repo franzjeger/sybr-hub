@@ -1,3 +1,26 @@
+# Forwarding, DKIM and Advisor ids (unreleased)
+
+- **Run a new audit before trusting the forwarding findings.** Inbox rules and
+  mailbox forwarding to a recipient in the directory were all reported as
+  external. The Exchange helper now looks each such recipient up with
+  `Get-Recipient`, which the Exchange Administrator role the audit app
+  already holds covers. Runs recorded before the upgrade keep their old
+  classification.
+- **CIS 5.2.3 changes for many tenants.** DKIM is decided per domain on
+  Exchange Online's own signing config (`25_exchange_dkim`, which the report
+  never read before) and on who the domain's SPF record says sends its mail,
+  not on whether some DKIM-looking record exists in DNS. A domain Exchange
+  sends for without signing now fails the control; reports regenerated from
+  older runs can change verdict.
+- **Advisor recommendation ids no longer depend on the language.** Database
+  migration 24 moves remediation status, linked tickets and reserved ticket
+  operations to the new ids on start-up. Nothing is deleted.
+- **`GET /api/settings` no longer returns storage paths to non-admins,** and
+  `PUT /api/auth/users/{id}` refuses to change the system account's role,
+  capabilities or active flag. Scripts against the API may notice.
+
+---
+
 # Azure VM backup coverage (unreleased)
 
 - **Earlier reports may have listed backed-up VMs as unprotected.** Until
