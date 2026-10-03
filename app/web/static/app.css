@@ -2405,6 +2405,20 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 }
 .files-report-name { overflow-wrap: anywhere; min-width: 0; }
 .files-report-meta { color: var(--text-muted); white-space: nowrap; }
+/* The Kunder list. At 375 px the action buttons took a fixed width beside
+   the name, which was squeezed to a letter per line and pushed the page
+   112 px sideways. The row now wraps: the actions drop under the name. */
+.cust-list-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cust-card { margin-bottom: var(--space-3); }
+.cust-card-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); }
+.cust-card-main { flex: 1 1 140px; min-width: 0; }
+.cust-card-name { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.cust-card-name-text { font-size: var(--font-md); font-weight: 700; overflow-wrap: anywhere; }
+.cust-card-domain { font-size: var(--font-xs); color: var(--text-dim); font-family: var(--mono); margin-top: 2px; overflow-wrap: anywhere; }
+.cust-card-metrics { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-2); font-size: var(--font-xs); color: var(--text-muted); }
+.cust-card-metrics > span { white-space: nowrap; }
+.cust-card-tags { display: inline; white-space: normal; }
+.cust-card-actions { display: flex; gap: var(--space-2); flex-shrink: 0; margin-left: auto; }
 .hist-files { font-family: var(--mono); color: var(--text-muted); }
 .hist-action { text-align: right; }
 .cust-trend { padding: var(--space-5); margin-bottom: var(--space-4); }
