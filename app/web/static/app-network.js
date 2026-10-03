@@ -78,7 +78,6 @@ async function loadFiles() {
       <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;">
         <span style="color:var(--text-muted);">${t('lbl_status')}</span><span>${certStatus}</span>
         <span style="color:var(--text-muted);">${t('lbl_protection')}</span><span>${encStatus}</span>
-        <span style="color:var(--text-muted);">${t('lbl_location')}</span><span style="font-family:var(--mono);font-size:11px;word-break:break-all;">${esc(cert.path)}</span>
       </div>`;
 
     // Reports
@@ -90,9 +89,9 @@ async function loadFiles() {
       } else {
         let html = '<div style="max-height:200px;overflow-y:auto;">';
         for (const r of reports) {
-          html += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
-            <span>${esc(r.name)}</span>
-            <span style="color:var(--text-muted);">${esc(r.size)}</span>
+          html += `<div class="files-report-row">
+            <span class="files-report-name">${esc(r.name)}</span>
+            <span class="files-report-meta">${esc(r.run ? formatRunName(r.run, true) : '')} · ${esc(r.size)}</span>
           </div>`;
         }
         html += '</div>';
@@ -112,7 +111,6 @@ async function loadFiles() {
             <span style="color:var(--text-muted);">${t('lbl_runs')}</span><span>${Number(raw.runs)}</span>
             <span style="color:var(--text-muted);">${t('lbl_latest_run')}</span><span>${esc(formatRunName(raw.latest))}</span>
             <span style="color:var(--text-muted);">${t('lbl_total_size')}</span><span>${esc(raw.total_size)}</span>
-            <span style="color:var(--text-muted);">${t('lbl_location')}</span><span style="font-family:var(--mono);font-size:11px;word-break:break-all;">${esc(raw.path)}</span>
           </div>`;
       }
     }

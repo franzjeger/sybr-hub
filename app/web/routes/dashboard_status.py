@@ -31,9 +31,18 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/files")
 async def get_files():
-    """List customer files: cert, config, reports, raw audit data."""
+    """List customer files: cert, config, reports, raw audit data.
 
-    from app.core.config import AUDIT_DIR
+    Names, dates and sizes, not server paths: the person reading this screen
+    cannot open /tmp/... or /home/... on the server, and the paths told them
+    where the host keeps its data. The run folders are found the way the
+    rest of the app finds them (get_audit_dir, customer_dir_name); this used
+    the import-time AUDIT_DIR, which kept pointing at the old tree after the
+    audit folder was changed in Settings.
+    """
+
+    from app.core.config import get_audit_dir
+    from app.core.customer import customer_dir_name
 
     active = CustomerManager.get_active()
     if not active:
@@ -54,15 +63,11 @@ async def get_files():
     cert_path = CustomerManager.get_cert_path(customer_id)
     certificate = {
         "exists": cert_path.exists(),
-        "path": str(cert_path),
         "expiry": active.get("CertExpiry", "")[:10] if active.get("CertExpiry") else "",
         "encrypted": True,
     }
 
-    sanitized_name = "".join(
-        c if c.isalnum() or c in "-_ " else "_" for c in customer_name
-    ).replace(" ", "_")
-    audit_base = AUDIT_DIR / sanitized_name
+    audit_base = get_audit_dir() / customer_dir_name(customer_name)
     reports: list[dict] = []
     if audit_base.exists():
         for run_dir in sorted(audit_base.iterdir(), reverse=True):
@@ -73,12 +78,7 @@ async def get_files():
                         size_str = (
                             f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
                         )
-                        reports.append(
-                            {
-                                "name": f"{run_dir.name}/{f.name}",
-                                "size": size_str,
-                            }
-                        )
+                        reports.append({"name": f.name, "run": run_dir.name, "size": size_str})
 
     runs = 0
     latest = ""
@@ -107,7 +107,6 @@ async def get_files():
             "runs": runs,
             "latest": latest,
             "total_size": total_size,
-            "path": str(audit_base),
         },
     }
 
