@@ -2223,7 +2223,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     "cis_mfa_unavailable": {
         "no": "Kan ikke verifiseres: MFA-data utilgjengelig",
-        "en": "Cannot be verified — MFA data unavailable",
+        "en": "Cannot be verified: MFA data unavailable",
     },
     "cis_mfa_none": {
         "no": "Ingen håndhevet MFA: 0% dekning ({no_mfa} brukere uten håndhevet MFA)",
@@ -2292,6 +2292,547 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "cis_legacy_auth_disabled": {
         "no": "Legacy auth deaktivert",
         "en": "Legacy auth disabled",
+    },
+    # A row with no reading says why: cis_cannot_verify wraps a cis_gap_* reason,
+    # cis_not_licensed a cis_lic_* one (compliance._Audit.cannot_verify and
+    # .not_licensed).
+    "cis_cannot_verify": {
+        "no": "Kan ikke verifiseres: {reason}",
+        "en": "Cannot be verified: {reason}",
+    },
+    "cis_not_licensed": {
+        "no": "Ikke lisensiert: {reason}",
+        "en": "Not licensed: {reason}",
+    },
+    "cis_joiner_and": {
+        "no": " og ",
+        "en": " and ",
+    },
+    "cis_gap_data": {
+        "no": "data utilgjengelig",
+        "en": "data unavailable",
+    },
+    "cis_gap_audit_data": {
+        "no": "audit-data utilgjengelig",
+        "en": "audit data unavailable",
+    },
+    "cis_gap_field_not_collected": {
+        "no": "auditen er kjørt før dette feltet ble samlet inn. Kjør en ny audit",
+        "en": "the audit ran before this field was collected. Run a new audit",
+    },
+    # 1.1.2 phishing-resistant MFA
+    "cis_gap_auth_methods_policy": {
+        "no": "autentiseringsmetode-policy utilgjengelig",
+        "en": "authentication methods policy unavailable",
+    },
+    "cis_phish_resistant_enabled": {
+        "no": "Phishing-resistant metoder aktivert: {methods}",
+        "en": "Phishing-resistant methods enabled: {methods}",
+    },
+    "cis_phish_resistant_none": {
+        "no": "Ingen phishing-resistant metoder (FIDO2 / Windows Hello / x509Certificate) er aktivert i autentiseringsmetode-policyen",
+        "en": "No phishing-resistant methods (FIDO2 / Windows Hello / x509Certificate) are enabled in the authentication methods policy",
+    },
+    # 1.1.3 Global Admins
+    "cis_gap_admin_roles": {
+        "no": "admin-rolle data utilgjengelig",
+        "en": "admin role data unavailable",
+    },
+    "cis_ga_none_standing": {
+        "no": "Ingen faste Global Admin-tildelinger funnet. Verifiser PIM/JIT-oppsettet",
+        "en": "No standing Global Admin assignments found. Verify the PIM/JIT setup",
+    },
+    # 1.1.5 PIM
+    "cis_gap_pim": {
+        "no": "PIM-data utilgjengelig",
+        "en": "PIM data unavailable",
+    },
+    "cis_pim_found": {
+        "no": "{count} PIM-berettigede rolletildelinger funnet",
+        "en": "{count} PIM-eligible role assignments found",
+    },
+    "cis_lic_pim": {
+        "no": "PIM krever Entra ID P2, som ikke er tildelt noen bruker",
+        "en": "PIM requires Entra ID P2, which is not assigned to any user",
+    },
+    "cis_pim_none": {
+        "no": "Ingen PIM-tildelinger funnet, så roller kan være permanent tildelt",
+        "en": "No PIM assignments found, so roles may be permanently assigned",
+    },
+    # 1.1.6 emergency access
+    "cis_gap_break_glass_skipped": {
+        "no": "break-glass-sjekken ble hoppet over eller mangler oppsummering",
+        "en": "the break-glass check was skipped or has no summary",
+    },
+    "cis_gap_ca_exclusions": {
+        "no": "CA-unntak ble ikke samlet inn, så nødtilgangskontoer kan ikke bekreftes",
+        "en": "Conditional Access exclusions were not collected, so emergency access accounts cannot be confirmed",
+    },
+    "cis_break_glass_found": {
+        "no": "{count} nødtilgangskonto(er) (break glass) oppdaget",
+        "en": "{count} emergency access account(s) (break glass) detected",
+    },
+    "cis_break_glass_in_use": {
+        "no": "Adminkonto(er) er unntatt fra Conditional Access, men ingen fungerer som en gyldig nødtilgangskonto (kontoen(e) er i aktiv bruk)",
+        "en": "Admin account(s) are excluded from Conditional Access, but none qualifies as an emergency access account (the account(s) are in active use)",
+    },
+    "cis_break_glass_none": {
+        "no": "Ingen administrator er unntatt fra Conditional Access, og ingen dedikert nødtilgangskonto er konfigurert",
+        "en": "No administrator is excluded from Conditional Access, and no dedicated emergency access account is configured",
+    },
+    # 1.2.1 banned passwords
+    "cis_gap_directory_settings": {
+        "no": "katalog-innstillinger kunne ikke leses",
+        "en": "the directory settings could not be read",
+    },
+    "cis_banned_pw_active": {
+        "no": "Egendefinert forbudt passordliste er aktiv",
+        "en": "A custom banned password list is active",
+    },
+    "cis_lic_banned_pw": {
+        "no": "egendefinert passordliste krever Entra ID P1, som ikke er tildelt noen bruker",
+        "en": "a custom banned password list requires Entra ID P1, which is not assigned to any user",
+    },
+    "cis_banned_pw_default_only": {
+        "no": "Kun Microsofts standardliste, ingen egendefinerte forbudte passord",
+        "en": "Only Microsoft's global list, no custom banned passwords",
+    },
+    # 1.4 Secure Score
+    "cis_gap_secure_score": {
+        "no": "Secure Score-data utilgjengelig",
+        "en": "Secure Score data unavailable",
+    },
+    # 5.1.1 legacy authentication
+    "cis_gap_ca": {
+        "no": "Conditional Access-data utilgjengelig",
+        "en": "Conditional Access data unavailable",
+    },
+    "cis_gap_client_app_scope": {
+        "no": "auditen er kjørt før klientapp-omfang ble samlet inn. Kjør en ny audit",
+        "en": "the audit ran before the client app scope was collected. Run a new audit",
+    },
+    "cis_legacy_blocked": {
+        "no": "En aktivert CA-policy blokkerer eldre klienter (exchangeActiveSync, other)",
+        "en": "An enabled CA policy blocks legacy clients (exchangeActiveSync, other)",
+    },
+    "cis_legacy_not_blocked": {
+        "no": "Ingen aktivert CA-policy blokkerer eldre autentisering",
+        "en": "No enabled CA policy blocks legacy authentication",
+    },
+    # 1.1.7 baseline sign-in protection
+    "cis_gap_security_defaults": {
+        "no": "Security Defaults-status utilgjengelig",
+        "en": "Security Defaults status unavailable",
+    },
+    "cis_gap_sd_off_ca_unknown": {
+        "no": "Security Defaults er av, men CA-data er utilgjengelig",
+        "en": "Security Defaults is off, but Conditional Access data is unavailable",
+    },
+    "cis_sd_enabled": {
+        "no": "Security Defaults er aktivert",
+        "en": "Security Defaults is enabled",
+    },
+    "cis_sd_off_ca_active": {
+        "no": "Security Defaults er av, men {count} CA-policyer er aktive",
+        "en": "Security Defaults is off, but {count} CA policies are active",
+    },
+    "cis_sd_off_no_ca": {
+        "no": "Verken Security Defaults eller aktive CA-policyer",
+        "en": "Neither Security Defaults nor any active CA policies",
+    },
+    # 1.1.8 access reviews
+    "cis_gap_access_reviews": {
+        "no": "data om tilgangsgjennomganger utilgjengelig",
+        "en": "access review data unavailable",
+    },
+    "cis_access_reviews_found": {
+        "no": "{count} tilgangsgjennomgang(er) definert",
+        "en": "{count} access review(s) defined",
+    },
+    "cis_lic_access_reviews": {
+        "no": "tilgangsgjennomganger krever Entra ID P2, som ikke er tildelt noen bruker",
+        "en": "access reviews require Entra ID P2, which is not assigned to any user",
+    },
+    "cis_access_reviews_none": {
+        "no": "Ingen tilgangsgjennomganger definert",
+        "en": "No access reviews defined",
+    },
+    # 1.1.9 cross-tenant access
+    "cis_gap_cross_tenant": {
+        "no": "kryssleie-innstillinger utilgjengelig",
+        "en": "cross-tenant access settings unavailable",
+    },
+    "cis_xt_direct_in_allowed": {
+        "no": "B2B direct connect inn er tillatt, så eksterne organisasjoner kan nå delte Teams-kanaler uten gjestekonto",
+        "en": "Inbound B2B direct connect is allowed, so external organisations can reach shared Teams channels without a guest account",
+    },
+    "cis_xt_system_default": {
+        "no": "Kjører Microsofts systemstandard: kryssleie-tilgang er aldri vurdert",
+        "en": "Running on Microsoft's system default: cross-tenant access has never been reviewed",
+    },
+    "cis_xt_configured": {
+        "no": "Kryssleie-tilgang er konfigurert, og direct connect inn er ikke tillatt",
+        "en": "Cross-tenant access is configured, and inbound direct connect is not allowed",
+    },
+    # 2.1.2 app credentials
+    "cis_gap_app_registrations": {
+        "no": "app-registreringer utilgjengelig",
+        "en": "app registrations unavailable",
+    },
+    "cis_app_creds_none_expired": {
+        "no": "Ingen utløpte app-credentials",
+        "en": "No expired app credentials",
+    },
+    "cis_app_creds_expired": {
+        "no": "{count} utløpte app-credentials oppdaget",
+        "en": "{count} expired app credentials detected",
+    },
+    "cis_app_creds_expiring": {
+        "no": "{count} app-credentials utløper snart (innen {days} dager)",
+        "en": "{count} app credentials expire soon (within {days} days)",
+    },
+    # 3.1.1, 3.2.1, 7.2.2 Purview
+    "cis_dlp_count": {
+        "no": "{count} DLP-policyer konfigurert",
+        "en": "{count} DLP policies configured",
+    },
+    "cis_dlp_found": {
+        "no": "DLP-policyer funnet",
+        "en": "DLP policies found",
+    },
+    "cis_dlp_none": {
+        "no": "Ingen DLP-policyer funnet",
+        "en": "No DLP policies found",
+    },
+    "cis_gap_dlp": {
+        "no": "Purview DLP-data utilgjengelig",
+        "en": "Purview DLP data unavailable",
+    },
+    "cis_labels_count": {
+        "no": "{count} sensitivitetsetiketter publisert",
+        "en": "{count} sensitivity labels published",
+    },
+    "cis_labels_none": {
+        "no": "Ingen sensitivitetsetiketter funnet",
+        "en": "No sensitivity labels found",
+    },
+    "cis_gap_labels": {
+        "no": "Purview-etikettdata utilgjengelig",
+        "en": "Purview label data unavailable",
+    },
+    "cis_retention_count": {
+        "no": "{count} oppbevaringspolicyer",
+        "en": "{count} retention policies",
+    },
+    "cis_retention_none": {
+        "no": "Ingen oppbevaringspolicyer funnet",
+        "en": "No retention policies found",
+    },
+    "cis_gap_retention": {
+        "no": "Purview-oppbevaringsdata utilgjengelig",
+        "en": "Purview retention data unavailable",
+    },
+    # 7.2.4 anonymous sharing links
+    "cis_gap_onedrive": {
+        "no": "OneDrive-delingsdata utilgjengelig",
+        "en": "OneDrive sharing data unavailable",
+    },
+    "cis_od_gap_refused": {
+        "no": "{count} stasjon(er) kunne ikke leses",
+        "en": "{count} drive(s) could not be read",
+    },
+    "cis_od_gap_discovery": {
+        "no": "{count} oppdagelseskall feilet",
+        "en": "{count} discovery call(s) failed",
+    },
+    "cis_od_gap_folders": {
+        "no": "{count} mappe(r) kunne ikke leses",
+        "en": "{count} folder(s) could not be read",
+    },
+    "cis_od_gap_limit": {
+        "no": "søket nådde en grense før det var ferdig",
+        "en": "the scan hit a limit before it finished",
+    },
+    "cis_od_scope_unknown": {
+        "no": "omfanget av søket er ukjent",
+        "en": "the scope of the scan is unknown",
+    },
+    "cis_od_partial": {
+        "no": "Ingen anonyme delingslenker funnet i det som ble gjennomsøkt, men {gaps}, så fravær er ikke bekreftet for hele tenanten",
+        "en": "No anonymous sharing links found in what was scanned, but {gaps}, so their absence is not confirmed for the whole tenant",
+    },
+    "cis_od_none": {
+        "no": "Ingen anonyme delingslenker funnet i {count} stasjon(er)",
+        "en": "No anonymous sharing links found in {count} drive(s)",
+    },
+    "cis_od_anyone": {
+        "no": "{count} anonym(e) delingslenke(r) som kan åpnes uten pålogging",
+        "en": "{count} anonymous sharing link(s) that open without sign-in",
+    },
+    # 7.2.1, 7.2.3 SharePoint
+    "cis_gap_sp_tenant": {
+        "no": "SharePoint-tenant-innstillinger utilgjengelig",
+        "en": "SharePoint tenant settings unavailable",
+    },
+    "cis_gap_sp_settings": {
+        "no": "SharePoint-innstillinger utilgjengelig",
+        "en": "SharePoint settings unavailable",
+    },
+    # 4.1 mailbox audit
+    "cis_mailbox_audit_on": {
+        "no": "Mailbox audit er aktivert (AuditDisabled=False)",
+        "en": "Mailbox auditing is enabled (AuditDisabled=False)",
+    },
+    "cis_mailbox_audit_off": {
+        "no": "Mailbox audit er deaktivert (AuditDisabled=True)",
+        "en": "Mailbox auditing is disabled (AuditDisabled=True)",
+    },
+    "cis_mailbox_audit_unclear": {
+        "no": "Kunne ikke fastslå audit-status fra org-config",
+        "en": "Could not determine the audit status from the organisation config",
+    },
+    "cis_gap_exo_org_config": {
+        "no": "Exchange-organisasjonsoppsettet ble ikke samlet inn",
+        "en": "the Exchange organisation config was not collected",
+    },
+    # 4.2, 4.3 anti-phishing and anti-spam
+    "cis_antiphish_found": {
+        "no": "{count} anti-phishing-policy(er) konfigurert",
+        "en": "{count} anti-phishing policy(ies) configured",
+    },
+    "cis_antiphish_none": {
+        "no": "Ingen anti-phishing-policyer konfigurert",
+        "en": "No anti-phishing policies configured",
+    },
+    "cis_gap_antiphish": {
+        "no": "anti-phishing-data utilgjengelig",
+        "en": "anti-phishing data unavailable",
+    },
+    "cis_antispam_found": {
+        "no": "{count} anti-spam-policy(er) konfigurert",
+        "en": "{count} anti-spam policy(ies) configured",
+    },
+    "cis_antispam_none": {
+        "no": "Ingen anti-spam-policyer konfigurert",
+        "en": "No anti-spam policies configured",
+    },
+    "cis_gap_antispam": {
+        "no": "anti-spam-data utilgjengelig (kjør Get-HostedContentFilterPolicy i EOP)",
+        "en": "anti-spam data unavailable (run Get-HostedContentFilterPolicy in EOP)",
+    },
+    # 4.4 external forwarding
+    "cis_fwd_external": {
+        "no": "Ekstern videresending oppdaget på en eller flere postbokser",
+        "en": "External forwarding detected on one or more mailboxes",
+    },
+    "cis_fwd_unverified_mailboxes": {
+        "no": "{count} postboks(er)",
+        "en": "{count} mailbox(es)",
+    },
+    "cis_fwd_unverified_rules": {
+        "no": "{count} innboksregel(er)",
+        "en": "{count} inbox rule(s)",
+    },
+    "cis_fwd_unverified": {
+        "no": "{what} videresender til en mottaker auditen ikke kunne plassere innenfor eller utenfor tenanten",
+        "en": "{what} forward to a recipient the audit could not place inside or outside the tenant",
+    },
+    "cis_fwd_none": {
+        "no": "Ingen ekstern videresending oppdaget",
+        "en": "No external forwarding detected",
+    },
+    "cis_gap_forwarding": {
+        "no": "videresendingsdata utilgjengelig",
+        "en": "forwarding data unavailable",
+    },
+    # 4.5, 4.6 Safe Links and Safe Attachments ({policy} is the product name)
+    "cis_defender_active": {
+        "no": "{count} aktiv(e) {policy}-policy(er)",
+        "en": "{count} active {policy} policy(ies)",
+    },
+    "cis_defender_disabled": {
+        "no": "{policy}-policy(er) finnes men er deaktivert",
+        "en": "{policy} policy(ies) exist but are disabled",
+    },
+    "cis_lic_defender": {
+        "no": "{policy} krever Defender for Office 365 Plan 1",
+        "en": "{policy} requires Defender for Office 365 Plan 1",
+    },
+    "cis_defender_none": {
+        "no": "Ingen {policy}-policyer funnet",
+        "en": "No {policy} policies found",
+    },
+    "cis_gap_defender_policies": {
+        "no": "Defender-policydata utilgjengelig",
+        "en": "Defender policy data unavailable",
+    },
+    # 5.2.1-5.2.3 SPF, DMARC and DKIM, per domain
+    "cis_gap_spf_lookup": {
+        "no": "SPF-oppslaget for {domain} feilet med {result}",
+        "en": "the SPF lookup for {domain} failed with {result}",
+    },
+    "cis_dmarc_monitor_only": {
+        "no": "p=none (kun overvåking): {record}",
+        "en": "p=none (monitoring only): {record}",
+    },
+    "cis_gap_dmarc_lookup": {
+        "no": "DMARC-oppslaget for {domain} feilet med {result}",
+        "en": "the DMARC lookup for {domain} failed with {result}",
+    },
+    "cis_dkim_exchange_signs": {
+        "no": "DKIM-signering er aktivert i Exchange Online for {domain}",
+        "en": "DKIM signing is enabled in Exchange Online for {domain}",
+    },
+    "cis_dkim_no_mail": {
+        "no": "{domain} sender ikke e-post (SPF: v=spf1 -all), så DKIM trengs ikke",
+        "en": "{domain} sends no mail (SPF: v=spf1 -all), so DKIM is not needed",
+    },
+    "cis_dkim_third_party_signs": {
+        "no": "{domain} sender e-post via {name}, som har publisert DKIM-nøkkel (selektor {selector})",
+        "en": "{domain} sends mail through {name}, which has published a DKIM key (selector {selector})",
+    },
+    "cis_dkim_third_party_unsigned": {
+        "no": "{domain} sender e-post via {senders}, men ingen DKIM-nøkkel for avsenderen er funnet",
+        "en": "{domain} sends mail through {senders}, but no DKIM key for the sender was found",
+    },
+    "cis_dkim_exchange_not_signing": {
+        "no": "DKIM-signering er ikke aktivert i Exchange Online for {domain}",
+        "en": "DKIM signing is not enabled in Exchange Online for {domain}",
+    },
+    "cis_gap_dkim_lookup": {
+        "no": "DKIM-oppslaget for M365-selektorene til {domain} feilet med {result}",
+        "en": "the DKIM lookup for the M365 selectors of {domain} failed with {result}",
+    },
+    "cis_gap_dkim_not_fetched": {
+        "no": "DKIM-signeringen i Exchange Online for {domain} ble ikke hentet, men M365-selektorene er publisert i DNS",
+        "en": "Exchange Online's DKIM signing for {domain} was not fetched, but the M365 selectors are published in DNS",
+    },
+    "cis_gap_dkim_unchecked": {
+        "no": "DKIM ikke kontrollert for dette domenet",
+        "en": "DKIM not checked for this domain",
+    },
+    "cis_dkim_no_m365_selectors": {
+        "no": "Ingen M365 DKIM-selektorer er publisert for {domain}, så Exchange Online signerer ikke e-posten med domenet",
+        "en": "No M365 DKIM selectors are published for {domain}, so Exchange Online does not sign mail with the domain",
+    },
+    "cis_dkim_key_scope": {
+        "no": "{detail}; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender",
+        "en": "{detail}; the DKIM key for {names} covers only mail {names} sends",
+    },
+    "cis_dkim_key_scope_exchange_too": {
+        "no": "{detail}; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender, og SPF viser at Exchange Online også sender for domenet",
+        "en": "{detail}; the DKIM key for {names} covers only mail {names} sends, and SPF shows that Exchange Online also sends for the domain",
+    },
+    # 6.1.1 device compliance
+    "cis_gap_intune": {
+        "no": "Intune-data utilgjengelig",
+        "en": "Intune data unavailable",
+    },
+    "cis_gap_intune_policies": {
+        "no": "Intune-compliance-policyer utilgjengelig",
+        "en": "Intune compliance policies unavailable",
+    },
+    "cis_devices_no_policies": {
+        "no": "Enheter er enrolled, men ingen Intune-compliance-policyer er konfigurert",
+        "en": "Devices are enrolled, but no Intune compliance policies are configured",
+    },
+    "cis_policies_no_devices": {
+        "no": "{count} compliance-policy(er) konfigurert (ingen enheter enrolled)",
+        "en": "{count} compliance policy(ies) configured (no devices enrolled)",
+    },
+    # 8.1.1, 8.1.2 Teams
+    "cis_gap_teams_external": {
+        "no": "Teams external access-data utilgjengelig",
+        "en": "Teams external access data unavailable",
+    },
+    "cis_gap_teams_policy_default": {
+        "no": "kryssleie-tilgangspolicy ikke innsamlet eller tenant på Microsoft-standard",
+        "en": "cross-tenant access policy not collected, or the tenant is on Microsoft's default",
+    },
+    "cis_teams_direct_open": {
+        "no": "B2B Direct Connect innkommende tillater ekstern tilgang uten begrensning",
+        "en": "Inbound B2B Direct Connect allows external access without restriction",
+    },
+    "cis_teams_collab_open": {
+        "no": "B2B Collaboration innkommende tillater ekstern tilgang og bør begrenses mot policy",
+        "en": "Inbound B2B Collaboration allows external access and should be restricted to policy",
+    },
+    "cis_teams_restricted": {
+        "no": "Ekstern tilgang er begrenset",
+        "en": "External access is restricted",
+    },
+    "cis_teams_unrestricted": {
+        "no": "Ekstern tilgang er uten begrensninger (anyone-mode)",
+        "en": "External access has no restrictions (anyone mode)",
+    },
+    "cis_teams_limited": {
+        "no": "Ekstern tilgang er aktivert med begrensninger og bør gjennomgås mot policy",
+        "en": "External access is enabled with restrictions and should be reviewed against policy",
+    },
+    "cis_gap_guest_settings": {
+        "no": "gjesteinnstillinger ble ikke hentet",
+        "en": "guest settings were not fetched",
+    },
+    "cis_guest_settings": {
+        "no": "Invitasjoner: {invites}. Gjesterolle: {role}",
+        "en": "Invitations: {invites}. Guest role: {role}",
+    },
+    "cis_guest_role_unknown": {
+        "no": "ukjent",
+        "en": "unknown",
+    },
+    "cis_guest_same_as_member": {
+        "no": "{detail}. Gjester har samme tilgang som ansatte",
+        "en": "{detail}. Guests have the same access as employees",
+    },
+    "cis_guest_can_invite": {
+        "no": "{detail}. Gjester kan invitere flere gjester",
+        "en": "{detail}. Guests can invite more guests",
+    },
+    "cis_guest_members_invite": {
+        "no": "{detail}. Alle ansatte kan invitere gjester",
+        "en": "{detail}. Every employee can invite guests",
+    },
+    # 9.1-9.3 logging and monitoring
+    "cis_ual_on": {
+        "no": "Unified Audit Log-ingestion er aktivert (UnifiedAuditLogIngestionEnabled=True)",
+        "en": "Unified Audit Log ingestion is enabled (UnifiedAuditLogIngestionEnabled=True)",
+    },
+    "cis_ual_off": {
+        "no": "Unified Audit Log-ingestion er deaktivert (UnifiedAuditLogIngestionEnabled=False). Kjør Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true",
+        "en": "Unified Audit Log ingestion is disabled (UnifiedAuditLogIngestionEnabled=False). Run Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true",
+    },
+    "cis_gap_ual": {
+        "no": "Unified Audit Log-innstillingen ble ikke hentet. Verifiser Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled manuelt",
+        "en": "the Unified Audit Log setting was not fetched. Verify Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled manually",
+    },
+    "cis_defender_alerts_open": {
+        "no": "{count} aktive Defender-varsler krever oppfølging",
+        "en": "{count} active Defender alerts need follow-up",
+    },
+    "cis_defender_alerts_none": {
+        "no": "Ingen aktive Defender-varsler",
+        "en": "No active Defender alerts",
+    },
+    "cis_gap_defender_alerts": {
+        "no": "Defender-varseldata utilgjengelig",
+        "en": "Defender alert data unavailable",
+    },
+    "cis_gap_risky_users": {
+        "no": "risky-users-data utilgjengelig (krever Entra ID P2)",
+        "en": "risky users data unavailable (requires Entra ID P2)",
+    },
+    "cis_risky_high": {
+        "no": "{count} brukere med høy/medium risiko er oppdaget og må undersøkes",
+        "en": "{count} users at high or medium risk were detected and must be investigated",
+    },
+    "cis_risky_low": {
+        "no": "{count} brukere er flagget med lav risiko og bør gjennomgås",
+        "en": "{count} users are flagged at low risk and should be reviewed",
+    },
+    "cis_risky_none": {
+        "no": "Ingen risikobrukere oppdaget",
+        "en": "No risky users detected",
     },
     # ── Recommendation titles/details (generator._build_recommendations) ──
     "rec_mfa_title": {
