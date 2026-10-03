@@ -3,6 +3,7 @@
 // audit run holding three findings; integrations that need a live service
 // are answered by routed responses, so what is tested is this page.
 const { test, expect } = require('@playwright/test');
+const { inApp } = require('./app.cjs');
 
 async function login(page) {
   await page.addInitScript(() => localStorage.setItem('onboarding_done', '1'));
@@ -50,7 +51,7 @@ test('the customer page puts the findings first, worst first, for the customer i
   await page.goto('/#/customer/' + encodeURIComponent(id));
   await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
   // The page is the context: opening it made Beta this tab's current customer.
-  await expect.poll(() => page.evaluate(() => currentCustomerId())).toBe(id);
+  await expect.poll(() => inApp(page, app => app.currentCustomerId())).toBe(id);
   const rows = page.locator('#cust-findings .finding');
   await expect(rows).toHaveCount(3);
   await expect(rows.locator('.sev-chip')).toHaveText(['Kritisk', 'Høy', 'Lav']);

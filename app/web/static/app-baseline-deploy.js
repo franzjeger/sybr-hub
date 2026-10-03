@@ -1,12 +1,18 @@
 // Granular M365 Baseline Engine UI
 
-// Handlers for this view's buttons (see registerUiHandlers in app.js).
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {_custPage, canTenantWrite} from './app-state.js';
+import {apiFetch} from './app-api.js';
+
+// Handlers for this view's buttons (see registerUiHandlers in app-handlers.js).
 registerUiHandlers({
   baselineDeployPlan: function() { baselineDeployPlan(); },
   baselineDeployApply: function() { baselineDeployApply(); },
 });
 
-async function baselineDeployLoad() {
+export async function baselineDeployLoad() {
   var el = document.getElementById('baseline-deploy-content');
   if (!el) return;
   el.innerHTML = '<div class="loader loader-lg"></div>';

@@ -4,6 +4,7 @@
 // hold no users_no_mfa, no policy snapshot and no evidence files; Browser
 // Alpha was never audited. browser-admin can write but has no tenant grant.
 const { test, expect } = require('@playwright/test');
+const { inApp, expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
@@ -17,7 +18,7 @@ async function login(page, username = 'browser-admin') {
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 // The page believes it is a technician's: /auth/me is answered with the
@@ -39,7 +40,7 @@ async function seenAsTechnician(page) {
 // This tab's current customer, which the old page names (#/files and the
 // rest) open the page of.
 async function asBeta(page) {
-  await page.evaluate(() => setCurrentCustomer('Browser_Beta'));
+  await inApp(page, app => app.setCurrentCustomer('Browser_Beta'));
 }
 
 // Every toast shown from here on, error or not, by its class and text.
@@ -123,7 +124,7 @@ test('the runs on the Audit tab list the run the customer page reports, with a w
 test('Policy-oversikt reads unknown as unknown when no policies were captured', async ({page}) => {
   await login(page);
   await asBeta(page);
-  await page.evaluate(() => showView('policy-overview'));
+  await inApp(page, app => app.showView('policy-overview'));
   const standards = page.locator('#po-standards');
   await expect(standards).toContainText('Kundens policyer er ikke samlet inn ennå');
   await expect(standards.locator('.po-unknown').first()).toBeVisible();
@@ -148,7 +149,7 @@ test('the Audit tab names the last run by date, and the page offers "Kjør audit
 
 test('the dashboard has no second scoreboard: the Helse tab is gone', async ({page}) => {
   await login(page);
-  await page.evaluate(() => showView('overview'));
+  await inApp(page, app => app.showView('overview'));
   await expect(page.locator('.dash-tab-btn[data-tab="dash-customers"]')).toBeVisible();
   await expect(page.locator('.dash-tab-btn[data-tab="dash-health"]')).toHaveCount(0);
 });
@@ -162,7 +163,7 @@ test('Lisenser og hosting (Domener among them) is part of the billing module', a
     await route.fulfill({response, json: body});
   });
   await login(page);
-  await page.evaluate(() => showView('overview'));
+  await inApp(page, app => app.showView('overview'));
   await expect(page.locator('.dash-tab-btn[data-tab="dash-customers"]')).toBeVisible();
   // Not on Oversikt at all any more, and gone from Verktøy with the module.
   await expect(page.locator('#view-overview .dash-tab-btn[data-tab="dash-domains"]')).toHaveCount(0);
@@ -175,7 +176,7 @@ test('Lisenser og hosting (Domener among them) is part of the billing module', a
 test('opening Tailscale without a key shows how to set it up, not an error toast', async ({page}) => {
   await login(page);
   await recordToasts(page);
-  await page.evaluate(() => showView('tailscale'));
+  await inApp(page, app => app.showView('tailscale'));
   const empty = page.locator('#ts-not-configured');
   await expect(empty).toContainText('Tailscale er ikke satt opp');
   await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual([]);
@@ -210,7 +211,7 @@ test('the Wiki tab and its load errors are gone from Integrasjoner', async ({pag
   await login(page);
   const missing = [];
   page.on('response', r => { if (r.url().includes('/api/docs/file') && r.status() === 404) missing.push(r.url()); });
-  await page.evaluate(() => openAdmin('integrations'));
+  await inApp(page, app => app.openAdmin('integrations'));
   await expect(page.locator('#integ-active')).toBeVisible();
   await expect(page.locator('#integ-wiki')).toHaveCount(0);
   await expect(page.locator('#admin-pane-integrations')).not.toContainText('Kunne ikke laste dokumentasjon');
@@ -220,7 +221,7 @@ test('the Wiki tab and its load errors are gone from Integrasjoner', async ({pag
 test('a technician sees the changelog in Docs, not the API reference', async ({page}) => {
   await seenAsTechnician(page);
   await login(page);
-  await page.evaluate(() => showView('docs'));
+  await inApp(page, app => app.showView('docs'));
   await expect(page.locator('#docs-repo-content h1').first()).toHaveText('Endringslogg');
   // The API reference is under Administrasjon › System, not in Hjelp.
   await expect(page.locator('#view-docs')).not.toContainText('REST API');
@@ -229,7 +230,7 @@ test('a technician sees the changelog in Docs, not the API reference', async ({p
 
 test('Administrasjon shows the version, not the host, and only to an admin', async ({page}) => {
   await login(page);
-  await page.evaluate(() => openAdmin('system'));
+  await inApp(page, app => app.openAdmin('system'));
   const admin = page.locator('#view-admin');
   await expect(page.locator('#settings-version-info')).toHaveText(/^Versjon: \d/);
   await expect(admin).not.toContainText(/Python:|Platform:|PID:|Branch:/);
@@ -243,7 +244,7 @@ test('Administrasjon shows the version, not the host, and only to an admin', asy
   await seenAsTechnician(tech);
   await login(tech);
   // Ctrl+, opens the account's own settings for anyone but an administrator.
-  await tech.evaluate(() => openAdmin('storage'));
+  await inApp(tech, app => app.openAdmin('storage'));
   await expect(tech.locator('#view-admin')).not.toHaveClass(/\bactive\b/);
   await expect(tech.locator('#account-modal')).toHaveClass(/\bopen\b/);
   await expect(tech.locator('#input-audit-dir')).toBeHidden();
@@ -254,14 +255,14 @@ test('Administrasjon shows the version, not the host, and only to an admin', asy
 test('Filer names reports and runs without server paths', async ({page}) => {
   await login(page);
   await asBeta(page);
-  await page.evaluate(() => showView('files'));
+  await inApp(page, app => app.showView('files'));
   await expect(page.locator('#files-rawdata')).toContainText('30. september 2026 kl. 12:00');
   await expect(page.locator('#view-files')).not.toContainText(/\/tmp\/|\/home\/|sybr-browser-/);
 });
 
 test('the system account cannot be deleted from Brukere', async ({page}) => {
   await login(page);
-  await page.evaluate(() => openAdmin('users'));
+  await inApp(page, app => app.openAdmin('users'));
   const row = page.locator('#users-list [data-user-id]', {hasText: '@sybr-system'});
   await expect(row).toBeVisible();
   await expect(row.locator('[data-click-handler="deleteUser"]')).toHaveCount(0);
@@ -288,7 +289,7 @@ test.describe('on a 375 px phone', () => {
 
   test('the Kunder list has no sideways scroll and names stay whole', async ({page}) => {
     await login(page);
-    await page.evaluate(() => showView('customers'));
+    await inApp(page, app => app.showView('customers'));
     const beta = page.locator('#customers-content .cust-card', {hasText: 'Browser Beta'});
     await expect(beta).toBeVisible();
     expect(await overflow(page)).toBe(0);
@@ -302,7 +303,7 @@ test.describe('on a 375 px phone', () => {
   for (const view of ['hosts', 'browser', 'docs']) {
     test(`${view} has no sideways scroll`, async ({page}) => {
       await login(page);
-      await page.evaluate(v => showView(v), view);
+      await inApp(page, (app, v) => app.showView(v), view);
       await expect(page.locator('#view-' + view)).toHaveClass(/\bactive\b/);
       await page.waitForTimeout(500);
       expect(await overflow(page)).toBe(0);
@@ -311,7 +312,7 @@ test.describe('on a 375 px phone', () => {
 
   test('Administrasjon has no sideways scroll', async ({page}) => {
     await login(page);
-    await page.evaluate(() => openAdmin('integrations'));
+    await inApp(page, app => app.openAdmin('integrations'));
     await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
     await page.waitForTimeout(500);
     expect(await overflow(page)).toBe(0);
@@ -319,14 +320,14 @@ test.describe('on a 375 px phone', () => {
 
   test('the alert channel labels read as words', async ({page}) => {
     await login(page);
-    await page.evaluate(() => openAdmin('alerts'));
+    await inApp(page, app => app.openAdmin('alerts'));
     const label = page.locator('label', {has: page.locator('#alert-notify-teams')});
     expect((await label.boundingBox()).height).toBeLessThan(40);
   });
 
   test('the Docs text takes the width of the screen', async ({page}) => {
     await login(page);
-    await page.evaluate(() => showView('docs'));
+    await inApp(page, app => app.showView('docs'));
     await expect(page.locator('#docs-repo-content h1').first()).toBeVisible();
     expect((await page.locator('#docs-repo-content').boundingBox()).width).toBeGreaterThan(300);
   });

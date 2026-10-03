@@ -2,6 +2,16 @@
 // NETWORK — files, UniFi devices, subnet scan & config backup
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {registerToolCustomer} from './app-hooks.js';
+import {_custPage, currentCustomerId} from './app-state.js';
+import {formatRunName} from './app-format.js';
+import {emptyStateHTML, showConfirm, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {renderToolCustomerPickers, toolCustomerId, toolNoCustomerHtml} from './app.js';
+
 // Handlers for the markup this file builds: the FortiGate and UniFi settings,
 // the UniFi device cards and the subnet scan results.
 registerUiHandlers({
@@ -39,7 +49,7 @@ registerUiHandlers({
 
 // ── Files ───────────────────────────────────────────────────────────────────────
 // One customer's files, on its page's Detaljer.
-async function loadFiles(customerId) {
+export async function loadFiles(customerId) {
   const noCustomer = document.getElementById('files-no-customer');
   const content = document.getElementById('files-content');
   if (!customerId) {
@@ -131,7 +141,7 @@ var _unifiDirectDevices = [];
 // customer another tab opened since.
 var _netCustomerId = null;
 
-function setNetCustomerId(id) {
+export function setNetCustomerId(id) {
   _netCustomerId = id;
 }
 
@@ -144,7 +154,7 @@ function _clearNetworkAudit() {
   if (list) list.innerHTML = '';
 }
 
-async function loadNetworkDevices() {
+export async function loadNetworkDevices() {
   var box = document.getElementById('network-devices-content');
   if (!box) return;
   renderToolCustomerPickers();
@@ -347,7 +357,7 @@ async function testUniFiDevice(idx) {
   }
 }
 
-async function runNetworkQuickAudit() {
+export async function runNetworkQuickAudit() {
   var btn = document.getElementById('btn-run-network-audit');
   var box = document.getElementById('net-audit-result');
   var cid = await toolCustomerId();
@@ -713,7 +723,7 @@ async function unifiDeviceConfig(host) {
 
 // ── Subnet scanner ──
 
-async function runSubnetScan() {
+export async function runSubnetScan() {
   var btn = document.getElementById('btn-subnet-scan');
   var box = document.getElementById('subnet-scan-result');
   var subnet = document.getElementById('input-scan-subnet').value.trim();
@@ -795,7 +805,7 @@ async function addScannedDevice(host, btnEl) {
 
     if (d.ok) {
       if (btnEl) { btnEl.textContent = t('status_added','Added'); btnEl.style.color = 'var(--green)'; }
-      if (typeof loadNetworkDevices === 'function') loadNetworkDevices();
+      loadNetworkDevices();
     } else {
       if (btnEl) { btnEl.textContent = t('status_error','Error'); btnEl.style.color = 'var(--red)'; }
     }
@@ -902,7 +912,7 @@ async function scanDeviceReboot(host) {
 
 // ── Config backup viewer ──
 
-async function loadConfigBackups() {
+export async function loadConfigBackups() {
   var box = document.getElementById('config-backups-list');
   box.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">' + t('msg_loading','Loading...') + '</div>';
   try {
@@ -1039,7 +1049,7 @@ async function saveUniFi() {
   }
 }
 
-async function testITGlue() {
+export async function testITGlue() {
   const result = document.getElementById('itglue-test-result');
   const key = document.getElementById('input-itglue-key').value;
   const region = document.getElementById('input-itglue-region').value;

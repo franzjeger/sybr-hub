@@ -31,7 +31,7 @@
 var UI_HANDLER_EVENTS = Object.freeze(['click', 'dblclick', 'input', 'change', 'keydown', 'submit', 'dragover', 'dragleave', 'drop']);
 var _uiHandlers = Object.create(null);
 
-function registerUiHandlers(handlers) {
+export function registerUiHandlers(handlers) {
   Object.keys(handlers).forEach(function(name) {
     if (Object.isFrozen(_uiHandlers)) throw new Error('UI handler registered after load: ' + name);
     if (name in _uiHandlers) throw new Error('UI handler registered twice: ' + name);

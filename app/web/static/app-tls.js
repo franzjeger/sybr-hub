@@ -2,7 +2,15 @@
 // TLS / CERTIFICATE MONITOR
 // ═══════════════════════════════════════════════════════════════════
 
-// Handlers for the controls tlsLoadView renders (see registerUiHandlers in app.js).
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {canWrite} from './app-state.js';
+import {showConfirm} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {_notifDays} from './app-dashboard.js';
+
+// Handlers for the controls tlsLoadView renders (see registerUiHandlers in app-handlers.js).
 registerUiHandlers({
   tlsCheckSingle: function() { tlsCheckSingle(); },
   tlsAutoDiscover: function() { tlsAutoDiscover(); },
@@ -10,7 +18,7 @@ registerUiHandlers({
   tlsForget: function(el) { tlsForget(el.dataset.host, Number(el.dataset.port)); },
 });
 
-function tlsLoadView() {
+export function tlsLoadView() {
   var el = document.getElementById('tls-content');
 
   // What the checks found, kept. First, because it is the answer to "which
@@ -67,7 +75,7 @@ function tlsStateLabel(status) {
 
 // Why a chain did not validate, as the server classifies it
 // (app/services/tls_monitor.py, _CHAIN_PROBLEMS). Varsler uses it too.
-function tlsChainLabel(code) {
+export function tlsChainLabel(code) {
   switch (code) {
     case 'self_signed': return t('tls_chain_self_signed', 'Selvsignert sertifikat');
     case 'untrusted': return t('tls_chain_untrusted', 'Utstederen er ikke klarert');

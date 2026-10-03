@@ -16,6 +16,42 @@
 //   app-api.js       apiFetch()
 // Each feature is a script of its own (app-audit.js, app-dashboard.js, ...).
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {icon} from './app-icons.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {reloadToolCustomer, signedIn, viewShown} from './app-hooks.js';
+import {
+  _allCustomers, _allowedViews, _currentUser, _overviewData, canOpenView, canTenantWrite,
+  canWrite, currentCustomerId, hasFeature, hasModule, setAllCustomers, setCurrentCustomer,
+  setCurrentUser, setOverviewData, setSession,
+} from './app-state.js';
+import {hideLoginView, showLoginView, showToast, skeletonHTML} from './app-ui.js';
+import {apiFetch, setAuth} from './app-api.js';
+import {dashLoadFortiGates, dashLoadUnifiAll} from './app-infra.js';
+import {loadOverview, stopDashAutoRefresh, stopDashRefreshInterval} from './app-dashboard.js';
+import {stopAlsoScans} from './app-also.js';
+import {tlsLoadView} from './app-tls.js';
+import {_renderSetupIdle, renewCreds} from './app-setup.js';
+import {
+  _reconcileAuditState, applyPreset, deleteCustomPreset, saveCustomPreset, scopeDeselectAll,
+  scopeSelectAll, startAudit, stopAuditProgressPolling, toggleScopePanel,
+} from './app-audit.js';
+import {
+  _adminPane, adminMayLeave, applyBranding, checkPermissions, openAccountModal, openAdmin,
+  showMfaSettings,
+} from './app-settings.js';
+import {loadNetworkDevices, setNetCustomerId} from './app-network.js';
+import {
+  _bulkAuditEventSource, exportDashboardExcel, loadCustomers, openTagEditor,
+  overviewSelectCustomer,
+} from './app-customers.js';
+import {
+  _custHash, CUSTOMER_TAB_ALIASES, openCurrentCustomerTab, openCustomerPage,
+} from './app-customer-detail.js';
+import {
+  _checkNotifBadge, _checkVpnHeaderBadge, _syncBottomNav, loadLogs, stopLogAutoRefresh,
+} from './app-chrome.js';
 
 // Handlers shared by markup in several scripts (the generic ones are in
 // app-handlers.js).
@@ -40,182 +76,13 @@ registerUiHandlers({
   scopeDeselectAll: function() { scopeDeselectAll(); },
 });
 
-// Handlers for the static markup in index.html.
-registerUiHandlers({
-  // Arguments come from data-* attributes on the control.
-  toggleIntegConfig: function(el) { toggleIntegConfig(el.dataset.config); },
-  switchNetSub: function(el) { switchNetSub(el, el.dataset.tab); },
-  switchDashTab: function(el) { switchDashTab(el, el.dataset.tab); },
-  openOverviewTab: function(el) { openOverviewTab(el.dataset.tab); },
-  termChangeFontSize: function(el) { termChangeFontSize(Number(el.dataset.delta)); },
-  resolveConfirm: function(el) { resolveConfirm(el.dataset.answer === 'true'); },
-  // On the customer page's Detaljer: that page's customer.
-  uploadToITGlue: function(el) { uploadToITGlue(el, _custPage.id); },
-  dashToggleAutoRefresh: function(el) { dashToggleAutoRefresh(el); },
-  scrollToTop: function() { window.scrollTo({top: 0, behavior: 'smooth'}); },
-  // Menus that close themselves before acting.
-  toggleAvatarMenu: function(el, event) { toggleAvatarMenu(event); },
-  moreSheetShowView: function(el) { closeMoreSheet(); showView(el.dataset.view); },
-  moreSheetOpenAdmin: function() { closeMoreSheet(); openAdmin(); },
-  moreSheetOpenAccount: function() { closeMoreSheet(); openAccountModal(); },
-  moreSheetLogout: function() { closeMoreSheet(); doLogout(); },
-  avatarOpenAccount: function() { closeAvatarMenu(); openAccountModal(); },
-  avatarOpenShortcuts: function() { closeAvatarMenu(); openShortcutsModal(); },
-  avatarOpenAdmin: function() { closeAvatarMenu(); openAdmin(); },
-  avatarOpenHelp: function() { closeAvatarMenu(); showView('docs'); },
-  accountShowMfaSettings: function() { closeAccountModal(); showMfaSettings(); },
-  accountShowChangePassword: function() { closeAccountModal(); showChangePasswordModal(); },
-  // Administrasjon: the rail, and a signpost elsewhere that names a pane.
-  adminShowPane: function(el) { adminShowPane(el.dataset.pane); },
-  openAdmin: function(el) { openAdmin(el.dataset.pane); },
-  // Modal backdrops: only a click on the backdrop itself closes them.
-  deactivateOnBackdrop: function(el, event) { if (event.target === el) el.classList.remove('active'); },
-  cancelConfirmOnBackdrop: function(el, event) { if (event.target === el) resolveConfirm(false); },
-  closeShortcutsModalOnBackdrop: function(el, event) { if (event.target === el) closeShortcutsModal(); },
-  closePermissionsModalOnBackdrop: function(el, event) { if (event.target === el) closePermissionsModal(); },
-  closeMoreSheetOnBackdrop: function(el, event) { if (event.target === el) closeMoreSheet(); },
-  closeCommandPaletteOnBackdrop: function(el, event) { if (event.target === el) closeCommandPalette(); },
-  closeAccountModalOnBackdrop: function(el, event) { if (event.target === el) closeAccountModal(); },
-  // change / input
-  alertSaveConfig: function() { alertSaveConfig(); },
-  alertToggleMaster: function(el) { alertToggleMaster(el.checked); },
-  hostsLoad: function() { hostsLoad(); },
-  toggleLogAutoRefresh: function() { toggleLogAutoRefresh(); },
-  termModeChanged: function() { termModeChanged(); },
-  setLanguage: function(el) { setLanguage(el.value); },
-  liveSetInterval: function(el) { liveSetInterval(el.value); },
-  claudeModeChanged: function() { claudeModeChanged(); },
-  aiSelectCustomerFromDropdown: function(el) { aiSelectCustomerFromDropdown(el); },
-  customersFilter: function() { customersFilter(); },
-  // keydown
-  doSetupOnEnter: function(el, event) { if (event.key === 'Enter') doSetup(); },
-  doLoginOnEnter: function(el, event) { if (event.key === 'Enter') doLogin(); },
-  aiSendOnEnter: function(el, event) {
-    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); aiSend(); }
-  },
-  // Plain calls.
-  copyDeviceUrl: function() { copyDeviceUrl(); },
-  closeReportViewer: function() { closeReportViewer(); },
-  doSetup: function() { doSetup(); },
-  doLogin: function() { doLogin(); },
-  toggleToolsMenu: function(el, event) { toggleToolsMenu(event); },
-  switchBillingTab: function(el) { switchBillingTab(el, el.dataset.tab); },
-  billingExportCurrentTab: function() { billingExportCurrentTab(); },
-  toggleCommandPalette: function() { toggleCommandPalette(); },
-  toggleNotifications: function() { toggleNotifications(); },
-  promptPwaInstall: function() { promptPwaInstall(); },
-  toggleTheme: function() { toggleTheme(); },
-  doLogout: function() { doLogout(); },
-  dashExportCurrentTab: function() { dashExportCurrentTab(); },
-  exportDashboardExcel: function() { exportDashboardExcel(); },
-  copyOverviewToClipboard: function(el) { copyOverviewToClipboard(el); },
-  generateQBR: function() { generateQBR(); },
-  closeAccountModal: function() { closeAccountModal(); },
-  closePermissionsModal: function() { closePermissionsModal(); },
-  closeShortcutsModal: function() { closeShortcutsModal(); },
-  aiClearChat: function() { aiClearChat(); },
-  aiSend: function() { aiSend(); },
-  alertRunCheckNow: function() { alertRunCheckNow(); },
-  alsoSaveConfig: function() { alsoSaveConfig(); },
-  alsoSyncCustomers: function() { alsoSyncCustomers(); },
-  alsoTestConnection: function() { alsoTestConnection(); },
-  backupEncryptionKey: function() { backupEncryptionKey(); },
-  bulkDeleteCustomers: function() { bulkDeleteCustomers(); },
-  bulkTagCustomers: function() { bulkTagCustomers(); },
-  claudeCheckCli: function() { claudeCheckCli(); },
-  claudeSaveSettings: function() { claudeSaveSettings(); },
-  claudeTestConnection: function() { claudeTestConnection(); },
-  clearBulkSelection: function() { clearBulkSelection(); },
-  clearLogs: function() { clearLogs(); },
-  confirmITGlueOrgPick: function() { confirmITGlueOrgPick(); },
-  copyCode: function() { copyCode(); },
-  copyEncryptionKey: function() { copyEncryptionKey(); },
-  copyLogs: function() { copyLogs(); },
-  createBackup: function() { createBackup(); },
-  createUser: function() { createUser(); },
-  dashUnifiRefresh: function() { dashUnifiRefresh(); },
-  deleteSelectedRuns: function() { deleteSelectedRuns(); },
-  executeITGlueUpload: function() { executeITGlueUpload(); },
-  exportCustomersJSON: function() { exportCustomersJSON(); },
-  fgApiSave: function() { fgApiSave(); },
-  fgApiTest: function() { fgApiTest(); },
-  fgBootstrap: function() { fgBootstrap(); },
-  fgDownloadCredentials: function() { fgDownloadCredentials(); },
-  fgPollAll: function() { fgPollAll(); },
-  gdapDiscoverCustomers: function() { gdapDiscoverCustomers(); },
-  gdapImportSelected: function() { gdapImportSelected(); },
-  gdapSaveConfig: function() { gdapSaveConfig(); },
-  gdapTestConnection: function() { gdapTestConnection(); },
-  hostsAdd: function() { hostsAdd(); },
-  hostsHealthAll: function() { hostsHealthAll(); },
-  itglueSyncAllDocumentation: function() { itglueSyncAllDocumentation(); },
-  loadConfigBackups: function() { loadConfigBackups(); },
-  loadLogs: function() { loadLogs(); },
-  migrateEncryption: function() { migrateEncryption(); },
-  openITGlueImport: function() { openITGlueImport(); },
-  openNewCustomer: function() { openNewCustomer(); },
-  newCustomerWithM365: function() { newCustomerWithM365(); },
-  newCustomerManual: function() { newCustomerManual(); },
-  openMoreSheet: function() { openMoreSheet(); },
-  openPrivateBrowser: function() { openPrivateBrowser(); },
-  provisionStart: function() { provisionStart(); },
-  resetAuditDir: function() { resetAuditDir(); },
-  resetBrandColor: function() { resetBrandColor(); },
-  restoreBackup: function() { restoreBackup(); },
-  restoreEncryptionKey: function() { restoreEncryptionKey(); },
-  runCmsScan: function() { runCmsScan(); },
-  runComparison: function() { runComparison(); },
-  runCredentialTest: function() { runCredentialTest(); },
-  runDnsPentest: function() { runDnsPentest(); },
-  runITGlueImport: function() { runITGlueImport(); },
-  runNetworkQuickAudit: function() { runNetworkQuickAudit(); },
-  runPentest: function() { runPentest(); },
-  runSegTest: function() { runSegTest(); },
-  runSmbEnum: function() { runSmbEnum(); },
-  runSubnetScan: function() { runSubnetScan(); },
-  runTakeoverCheck: function() { runTakeoverCheck(); },
-  runTlsAudit: function() { runTlsAudit(); },
-  saveEmailSettings: function() { saveEmailSettings(); },
-  saveITGlueSettings: function() { saveITGlueSettings(); },
-  saveSettings: function() { saveSettings(); },
-  saveWebhookSettings: function() { saveWebhookSettings(); },
-  showAddUserForm: function() { showAddUserForm(); },
-  showRestoreKeyInput: function() { showRestoreKeyInput(); },
-  sshShowExec: function() { sshShowExec(); },
-  sshShowKeys: function() { sshShowKeys(); },
-  startSetup: function() { startSetup(); },
-  submitManualCustomer: function() { submitManualCustomer(); },
-  taskSchedRefresh: function() { taskSchedRefresh(); },
-  termConnect: function() { termConnect(); },
-  termDisconnect: function() { termDisconnect(); },
-  testAutotask: function() { testAutotask(); },
-  testMyITProcess: function() { testMyITProcess(); },
-  testEmail: function() { testEmail(); },
-  testITGlue: function() { testITGlue(); },
-  testWebhook: function() { testWebhook(); },
-  tsSaveConfig: function() { tsSaveConfig(); },
-  tsTestConnection: function() { tsTestConnection(); },
-  unifiSmAuth: function() { unifiSmAuth(); },
-  unifiSmLoadCoverage: function() { unifiSmLoadCoverage(); },
-  unifiSmLoadSites: function() { unifiSmLoadSites(); },
-  unifiSmSave: function() { unifiSmSave(); },
-  unifiSmSaveController: function() { unifiSmSaveController(); },
-  unifiSmTestController: function() { unifiSmTestController(); },
-  uniwebSaveConfig: function() { uniwebSaveConfig(); },
-  uniwebSync: function() { uniwebSync(); },
-  uploadLogo: function() { uploadLogo(); },
-  vpnLoadProfiles: function() { vpnLoadProfiles(); },
-  vpnShowCreate: function() { vpnShowCreate(); },
-  vpnShowImport: function() { vpnShowImport(); },
-});
-
 // ── Command Palette (Cmd+K) ──────────────────────────────────────────────────
 var _cmdPaletteOpen = false;
 var _cmdSelectedIdx = -1;
 // The actions runCommandPaletteItem calls, by data-index.
 var _cmdActions = [];
 
-function toggleCommandPalette() { _cmdPaletteOpen ? closeCommandPalette() : openCommandPalette(); }
+export function toggleCommandPalette() { _cmdPaletteOpen ? closeCommandPalette() : openCommandPalette(); }
 
 function openCommandPalette() {
   var el = document.getElementById('cmd-palette');
@@ -243,7 +110,7 @@ function openCommandPalette() {
     else if (e.key === 'Escape') { closeCommandPalette(); }
   };
 }
-function closeCommandPalette() {
+export function closeCommandPalette() {
   document.getElementById('cmd-palette').style.display = 'none';
   _cmdPaletteOpen = false;
 }
@@ -363,10 +230,10 @@ function _renderCmdResults(query) {
   _cmdActions = results.map(function(r){return r.action});
 }
 
-// Called once on load (app-chrome.js, after the strings) and again after a
+// Called once on load (main.js, after the strings) and again after a
 // sign-in. Not shared between callers: a check that began before the sign-in
 // would answer "signed out" for the one after it.
-async function checkAuth() {
+export async function checkAuth() {
   try {
     var res = await fetch('/api/auth/status');
     var data = await res.json();
@@ -420,11 +287,11 @@ var _connState = 'ok';
 var _vpnTunnelUp = false;
 
 // The VPN badge (app-chrome.js) says whether a tunnel is up.
-function setVpnTunnelUp(up) {
+export function setVpnTunnelUp(up) {
   _vpnTunnelUp = up;
 }
 
-function _syncConnChip() {
+export function _syncConnChip() {
   var box = document.getElementById('conn-status');
   if (box) box.style.display = (_vpnTunnelUp || _connState !== 'ok') ? 'flex' : 'none';
 }
@@ -510,10 +377,10 @@ function updateUserDisplay() {
   // An audit may already be running — started by a schedule, another tab, or
   // another technician. Ask rather than assume; the badge should reflect the
   // server on every load, not only when somebody opens the audit view.
-  if (typeof _reconcileAuditState === 'function') _reconcileAuditState();
+  _reconcileAuditState();
 }
 
-function applyFeatureVisibility() {
+export function applyFeatureVisibility() {
   // Marked elements name a feature; unmarked ones are visible to anyone who
   // signed in. Same shape as data-write, and deliberately a separate attribute:
   // "may change things" and "may reach this at all" are different questions and
@@ -544,7 +411,7 @@ function _setGated(el, allowed) {
   el.classList.toggle('gated-hidden', !allowed);
 }
 
-function applyWriteCapability() {
+export function applyWriteCapability() {
   var write = canWrite();
   document.body.classList.toggle('is-readonly', !write);
   // Second tier: an account with can_write but not tenant_write sees ordinary
@@ -566,7 +433,7 @@ function applyWriteCapability() {
 
 // ── Verktøy ───────────────────────────────────────────────────────────────────
 // Opens on hover (CSS) and on a click, so touch and keyboard reach it too.
-function toggleToolsMenu(e) {
+export function toggleToolsMenu(e) {
   if (e) e.stopPropagation();
   var dd = document.getElementById('nav-tools-dd');
   if (!dd) return;
@@ -615,7 +482,7 @@ function _syncToolsMenu() {
 }
 
 // ── Avatar account menu ──────────────────────────────────────────────────────
-function toggleAvatarMenu(e) {
+export function toggleAvatarMenu(e) {
   if (e) e.stopPropagation();
   var m = document.getElementById('avatar-menu');
   var b = document.getElementById('avatar-btn');
@@ -632,7 +499,7 @@ function toggleAvatarMenu(e) {
     _detachAvatarMenuListeners();
   }
 }
-function closeAvatarMenu() {
+export function closeAvatarMenu() {
   var m = document.getElementById('avatar-menu');
   var b = document.getElementById('avatar-btn');
   if (m) m.classList.remove('open');
@@ -650,7 +517,7 @@ function _closeAvatarMenuOutside(e) {
 }
 function _closeAvatarMenuEsc(e) { if (e.key === 'Escape') closeAvatarMenu(); }
 
-async function doLogin() {
+export async function doLogin() {
   var u = document.getElementById('login-username').value.trim();
   var p = document.getElementById('login-password').value;
   if (!u || !p) return;
@@ -667,11 +534,11 @@ async function doLogin() {
 
 // Mirrors validate_password() on the server, so a form can state the rule
 // instead of a round-trip teaching it. The server stays the authority.
-function passwordMeetsRule(p) {
+export function passwordMeetsRule(p) {
   return typeof p === 'string' && p.length >= 10 && /[A-Za-z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p);
 }
 
-async function doSetup() {
+export async function doSetup() {
   var u = document.getElementById('setup-username').value.trim();
   var p = document.getElementById('setup-password').value;
   var n = document.getElementById('setup-displayname').value.trim();
@@ -688,7 +555,7 @@ async function doSetup() {
   } catch(e) { console.error('Request failed:', e); showToast(t('err_setup_failed','Setup failed'),'error'); }
 }
 
-async function doLogout() {
+export async function doLogout() {
   await apiFetch('/api/auth/logout', {method:'POST'});
   setAuth(null, null);
   setCurrentUser(null);
@@ -710,13 +577,13 @@ async function _ensureCustomerList() {
 }
 
 // This tab's current customer, if this account can still see it.
-async function toolCustomerId() {
+export async function toolCustomerId() {
   var list = await _ensureCustomerList();
   var id = currentCustomerId();
   return list.some(function(c) { return c._id === id; }) ? id : null;
 }
 
-async function renderToolCustomerPickers() {
+export async function renderToolCustomerPickers() {
   var bars = document.querySelectorAll('[data-tool-customer]');
   if (!bars.length) return;
   var list = await _ensureCustomerList();
@@ -732,7 +599,7 @@ async function renderToolCustomerPickers() {
   });
 }
 
-function toolNoCustomerHtml() {
+export function toolNoCustomerHtml() {
   return '<div class="empty-signpost"><p>' + esc(t('msg_tool_choose_customer', 'Velg kunden verktøyet skal gjelde, i feltet Kunde over.')) + '</p></div>';
 }
 
@@ -746,7 +613,7 @@ registerUiHandlers({
 });
 
 // ── State ──────────────────────────────────────────────────────────────────────
-let currentView = 'home';
+export let currentView = 'home';
 
 // ── View routing ───────────────────────────────────────────────────────────────
 
@@ -817,7 +684,7 @@ function _cleanupViewTimers() {
   stopAlsoScans();
 }
 
-function showView(name) {
+export function showView(name) {
   // Integrasjoner was a page of its own; it is a pane of Administrasjon now.
   if (name === 'integrations') { openAdmin('integrations'); return; }
   // TLS-monitor is a tab of Nettverk.
@@ -875,7 +742,7 @@ function showView(name) {
 // does not push the same address again.
 var _routeApplying = false;
 
-function syncRoute(name, customerId) {
+export function syncRoute(name, customerId) {
   if (_routeApplying || !name) return;
   var target = '#/' + name;
   if (name === 'customer-detail' && customerId) target = _custHash();
@@ -924,13 +791,13 @@ async function applyRoute() {
 window.addEventListener('popstate', function() { if (_currentUser) applyRoute(); });
 
 // Opens Nettverk on one of its tabs: TLS-monitor is reached this way.
-function showNetworkTab(tabId) {
+export function showNetworkTab(tabId) {
   if (currentView !== 'network') showView('network');
   var btn = document.querySelector('.net-sub-btn[data-tab="' + tabId + '"]');
   if (btn) switchNetSub(btn, tabId);
 }
 
-function switchNetSub(btn, tabId) {
+export function switchNetSub(btn, tabId) {
   document.querySelectorAll('.net-sub-content').forEach(function(c) { c.style.display = 'none'; });
   document.querySelectorAll('.net-sub-btn').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById(tabId).style.display = 'block';

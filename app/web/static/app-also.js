@@ -2,7 +2,15 @@
 // ALSO RENEWAL ACTION LIST
 // ═══════════════════════════════════════════════════════════════════
 
-// Handlers for the markup this file builds (see registerUiHandlers in app.js).
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {icon} from './app-icons.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {_currentUser} from './app-state.js';
+import {makeSortable, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+
+// Handlers for the markup this file builds (see registerUiHandlers in app-handlers.js).
 registerUiHandlers({
   renewalShowAll: function() { _renewalIntervalFilter = null; dashLoadRenewals(); },
   renewalSetFilter: function(el) { _setRenewalFilter(el.dataset.filterKey); },
@@ -45,7 +53,7 @@ function _setRenewalFilter(key) {
   dashLoadRenewals();
 }
 
-async function dashLoadRenewals() {
+export async function dashLoadRenewals() {
   var el = document.getElementById('dash-renewals-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_loading_renewals','Laster fornyelser ...') + '</div>';
 
@@ -400,7 +408,7 @@ function _renderUniwebAr(data) {
 
 // KPIs + aging + open-invoice table — shared by the partner card and the
 // per-customer section in the Hub (app.js), so both render identically.
-function _uwArBody(data) {
+export function _uwArBody(data) {
   data = data || {};
   var aging = data.aging || {};
   var invoices = data.invoices || [];
@@ -616,7 +624,7 @@ async function alsoRefreshApiStats() {
 var _priceScanTimer = null;
 
 // Leaving the view stops both scans' progress polling.
-function stopAlsoScans() {
+export function stopAlsoScans() {
   if (_renewalScanTimer) { clearInterval(_renewalScanTimer); _renewalScanTimer = null; }
   if (_priceScanTimer) { clearInterval(_priceScanTimer); _priceScanTimer = null; }
 }

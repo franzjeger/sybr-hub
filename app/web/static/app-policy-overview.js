@@ -11,6 +11,12 @@
 // screens are expected to build on classes (the assessment library does).
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {_lang, t} from './app-i18n.js';
+import {_custPage} from './app-state.js';
+import {formatRunName} from './app-format.js';
+import {apiFetch} from './app-api.js';
+
 // The customer whose page this tab is on.
 function _poCustomerId() {
   return _custPage.id || '';
@@ -19,7 +25,7 @@ function _poCustomerName() {
   return (_custPage.cust && _custPage.cust.customer_name) || '';
 }
 
-async function policyOverviewLoad() {
+export async function policyOverviewLoad() {
   var el = document.getElementById('policy-overview-content');
   if (!el) return;
   el.innerHTML = '<div class="po-loading"><div class="loader"></div></div>';

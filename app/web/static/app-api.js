@@ -2,7 +2,11 @@
 // API: apiFetch, the one way the interface calls the server
 // ═══════════════════════════════════════════════════════════════════
 
-function setAuth() {
+import {_lang, t} from './app-i18n.js';
+import {_currentUser, _writeExempt, canWrite} from './app-state.js';
+import {showLoginView, showToast, showToastWithRetry} from './app-ui.js';
+
+export function setAuth() {
   // Remove credentials left by versions that persisted bearer tokens.
   localStorage.removeItem('msptk_token');
   localStorage.removeItem('msptk_refresh');
@@ -43,7 +47,7 @@ function recoverSession() {
   return _sessionRecovery;
 }
 
-async function apiFetch(url, options, _retryCount, _authRetried) {
+export async function apiFetch(url, options, _retryCount, _authRetried) {
   if (_retryCount === undefined) _retryCount = 0;
   var maxRetries = 2;
   // Answered here as well as by the server. Marking every control that writes

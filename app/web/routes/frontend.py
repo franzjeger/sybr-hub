@@ -25,7 +25,7 @@ from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.models.user import Role, User
@@ -138,10 +138,107 @@ def _file_digest(path: Path) -> str | None:
     return digest
 
 
+# ── ES modules ───────────────────────────────────────────────────────────────
+# The shell loads one module, main.js; every other module is reached through
+# an import in another. A browser resolves import './app-ui.js' against the
+# importing module's URL without its query, so the ?v= on main.js would not
+# reach the modules it imports, and after a deploy the browser (or the service
+# worker, which serves /static/ cache-first) would hand the new main.js the
+# modules it already held.
+#
+# So the server versions the imports too. Every module in the graph is served
+# with each relative import specifier rewritten to './x.js?v=<D>', and the
+# shell's main.js carries the same ?v=<D>, where D is one digest over the
+# bytes of every module in the graph. Change any module and every module URL
+# changes; change none and every URL can be cached for good.
+#
+# One digest for the graph rather than one per file: a module's served bytes
+# hold its imports' versions, so its own version would have to cover theirs,
+# and theirs their imports', through a graph that has cycles. A deploy that
+# touches one module re-downloads all of them (a few hundred kB), as the
+# service worker's cache version already makes it do.
+#
+# The rewrite only has to understand the imports scripts/js-modules.cjs
+# allows: static `import {a, b} from './x.js'` and `import './x.js'` at the
+# start of a line, with './name.js' specifiers. Anything else fails that check.
+_MODULE_TAG = re.compile(r'<script\b[^>]*\btype="module"[^>]*\bsrc="/static/([^"?]+\.js)"')
+_MODULE_IMPORT = re.compile(
+    r"""^(\s*import\s*(?:\{[^}]*\}\s*from\s*)?)(['"])\./([A-Za-z0-9_-]+\.js)(?:\?v=[^'"]*)?\2""",
+    re.M,
+)
+_module_graph_cache: dict[str, tuple[list[Path], tuple, str]] = {}
+
+
+def _module_imports(path: Path) -> list[str]:
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [m.group(3) for m in _MODULE_IMPORT.finditer(source)]
+
+
+def _stamp(paths: list[Path]) -> tuple:
+    return tuple((str(p), p.stat().st_mtime_ns, p.stat().st_size) for p in paths)
+
+
+def _module_graph() -> tuple[frozenset[Path], str]:
+    """Every module the shell's entry reaches, and one digest over all of them.
+
+    The offline page's offline.js is a module too, but imports nothing and is
+    served like any other file. Memoised against each module's and the
+    shell's (mtime_ns, size): a deploy changes them, and a new module only
+    joins the graph through an import in one that changed.
+    """
+    import hashlib
+
+    shells = [s for s in [_STATIC_DIR / "index.html"] if s.is_file()]
+    cached = _module_graph_cache.get(str(_STATIC_DIR))
+    if cached is not None:
+        paths, stamp, digest = cached
+        try:
+            if stamp == _stamp(shells + paths):
+                return frozenset(paths), digest
+        except OSError:
+            pass
+
+    queue: list[str] = []
+    for shell in shells:
+        queue.extend(_MODULE_TAG.findall(shell.read_text(encoding="utf-8")))
+    found: list[Path] = []
+    seen: set[Path] = set()
+    while queue:
+        path = _safe_child(_STATIC_DIR, queue.pop(0))
+        if path is None or path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        found.append(path)
+        queue.extend(_module_imports(path))
+    paths = sorted(found)
+    root = _STATIC_DIR.resolve()
+    h = hashlib.sha256()
+    for path in paths:
+        h.update(path.relative_to(root).as_posix().encode() + b"\0")
+        h.update(path.read_bytes() + b"\0")
+    digest = h.hexdigest()[:12]
+    _module_graph_cache.clear()
+    _module_graph_cache[str(_STATIC_DIR)] = (paths, _stamp(shells + paths), digest)
+    return frozenset(paths), digest
+
+
+def _versioned_module(source: str, digest: str) -> str:
+    """The module's source with every relative import carrying ?v=<digest>."""
+    return _MODULE_IMPORT.sub(
+        lambda m: f"{m.group(1)}{m.group(2)}./{m.group(3)}?v={digest}{m.group(2)}", source
+    )
+
+
 def _versioned(match: re.Match) -> str:
     ref = match.group(1)
     path = _safe_child(_STATIC_DIR, ref[len("/static/") :])
-    digest = _file_digest(path) if path is not None and path.is_file() else None
+    if path is None or not path.is_file():
+        return match.group(0)
+    modules, graph_digest = _module_graph()
+    digest = graph_digest if path in modules else _file_digest(path)
     return f"{ref}?v={digest}" if digest else match.group(0)
 
 
@@ -199,11 +296,14 @@ def _digest_inputs() -> list[Path]:
             if path is not None and path.is_file() and path not in seen:
                 seen.add(path)
                 paths.append(path)
-    # ui_i18n.json is fetched by app.js rather than referenced in the markup,
-    # so the scan above cannot see it.
-    extra = _STATIC_DIR / "ui_i18n.json"
-    if extra.is_file() and extra not in seen:
-        paths.append(extra)
+    # ui_i18n.json is fetched by app-i18n.js rather than referenced in the
+    # markup, so the scan above cannot see it; nor the modules main.js
+    # imports, which no shell names.
+    modules, _ = _module_graph()
+    for extra in [_STATIC_DIR / "ui_i18n.json", *sorted(modules)]:
+        if extra.is_file() and extra not in seen:
+            seen.add(extra)
+            paths.append(extra)
     return sorted(paths)
 
 
@@ -267,7 +367,9 @@ async def service_worker() -> Response:
 
 
 @router.get("/static/{filename:path}")
-async def static_file(filename: str, v: str = "") -> Response:
+async def static_file(
+    filename: str, v: str = "", if_none_match: str | None = Header(default=None)
+) -> Response:
     if filename == "index.html":
         return JSONResponse({"error": "Not found"}, status_code=404)
     path = _safe_child(_STATIC_DIR, filename)
@@ -275,6 +377,9 @@ async def static_file(filename: str, v: str = "") -> Response:
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     if not path.is_file():
         return JSONResponse({"error": "Not found"}, status_code=404)
+    modules, graph_digest = _module_graph()
+    if path in modules:
+        return _module_response(path, v, graph_digest, if_none_match)
     # A URL carrying this file's own content hash can be kept forever: new
     # bytes get a new URL. Anything else revalidates on every load.
     immutable = bool(v) and v == _file_digest(path)
@@ -284,6 +389,25 @@ async def static_file(filename: str, v: str = "") -> Response:
             "Cache-Control": "public, max-age=31536000, immutable" if immutable else "no-cache"
         },
     )
+
+
+def _module_response(path: Path, v: str, graph_digest: str, if_none_match: str | None) -> Response:
+    """A module of the interface, its imports versioned (see _module_graph).
+
+    Under the graph's own ?v= it is immutable. Under any other URL (a bare
+    one, or an old ?v= after a deploy) it is the current module, revalidated
+    on every load: the ETag answers a repeat request with 304.
+    """
+    etag = f'"{graph_digest}-{_file_digest(path)}"'
+    immutable = v == graph_digest
+    headers = {
+        "Cache-Control": "public, max-age=31536000, immutable" if immutable else "no-cache",
+        "ETag": etag,
+    }
+    if if_none_match and etag in [tag.strip() for tag in if_none_match.split(",")]:
+        return Response(status_code=304, headers=headers)
+    source = _versioned_module(path.read_text(encoding="utf-8"), graph_digest)
+    return Response(source, media_type="text/javascript; charset=utf-8", headers=headers)
 
 
 @router.get("/branding/{filename}")

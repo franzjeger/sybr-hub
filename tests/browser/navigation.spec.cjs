@@ -2,6 +2,7 @@
 // the account and Administrasjon behind the avatar, every Administrasjon pane
 // reachable from its rail and by its address.
 const { test, expect } = require('@playwright/test');
+const { inApp, expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
@@ -15,7 +16,7 @@ async function login(page, username = 'browser-admin') {
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 // /auth/me answered as a technician's: the role, and the views a technician
@@ -142,7 +143,7 @@ test('every Administrasjon pane opens from the rail and from its address', async
   await expect(page.locator('#admin-pane-integrations')).toBeVisible();
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/admin/integrations');
   // Ctrl+, opens it from anywhere.
-  await page.evaluate(() => showView('overview'));
+  await inApp(page, app => app.showView('overview'));
   await page.keyboard.press('Control+,');
   await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
 });
@@ -179,7 +180,7 @@ test('Lagring og backup copes with settings that leave the storage paths out', a
     await route.fulfill({response, json: body});
   });
   await login(page);
-  await page.evaluate(() => openAdmin('storage'));
+  await inApp(page, app => app.openAdmin('storage'));
   const pane = page.locator('#admin-pane-storage');
   await expect(pane).toBeVisible();
   await expect(page.locator('#input-audit-dir')).toHaveValue('');
@@ -221,7 +222,7 @@ test('the customer page tabs switch in place, and the address carries the tab', 
   await openedTab(page, 'detaljer');
   // A reload lands on the tab in the address.
   await page.reload();
-  await expect.poll(() => page.evaluate(() => typeof _currentUser !== 'undefined' && !!_currentUser)).toBe(true);
+  await expect.poll(() => inApp(page, app => !!app._currentUser)).toBe(true);
   await openedTab(page, 'detaljer');
   await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
 });
@@ -237,7 +238,7 @@ test('each old address lands on the tab it became, for this tab\'s current custo
     'policy-deploy': 'policyer', 'baseline-deploy': 'policyer', assessments: 'vurderinger',
   };
   for (const [old, tab] of Object.entries(routes)) {
-    await page.evaluate(() => showView('overview'));
+    await inApp(page, app => app.showView('overview'));
     await page.evaluate(h => { location.hash = h; }, '#/' + old);
     await openedTab(page, tab);
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/customer/Browser_Beta' + (tab === 'funn' ? '' : '/' + tab));
@@ -245,14 +246,13 @@ test('each old address lands on the tab it became, for this tab\'s current custo
   }
   // A tab with no customer yet (nothing opened here, nothing in Nylige): an
   // old address goes to Kunder to choose one.
-  await page.evaluate(() => {
-    sessionStorage.removeItem('sybr_tab_customer');
+  await inApp(page, app => {
+    app.setCurrentCustomer(null);   // forgets this tab's, sessionStorage included
     localStorage.removeItem('sybr_recent_customers');
-    _tabCustomerId = null;
-    showView('overview');
+    app.showView('overview');
     location.hash = '#/audit';
   });
-  await expect.poll(() => page.evaluate(() => currentView)).toBe('customers');
+  await expect.poll(() => inApp(page, app => app.currentView)).toBe('customers');
 });
 
 test('the bell opens Varsler on Oversikt, with the events it used to list', async ({page}) => {
@@ -269,7 +269,7 @@ test('the bell opens Varsler on Oversikt, with the events it used to list', asyn
     {timestamp: now, action: 'customer_switched', detail: '', customer: 'Browser Beta', user: 'browser-admin'},
   ]}}));
   await login(page);
-  await page.evaluate(() => showView('customers'));
+  await inApp(page, app => app.showView('customers'));
   await page.locator('#notif-bell').click();
   await expect(page.locator('#view-overview')).toHaveClass(/\bactive\b/);
   await expect(page.locator('#view-overview .dash-tab-btn[data-tab="dash-alerts"]')).toHaveClass(/\bactive\b/);
@@ -287,7 +287,7 @@ test('the bell opens Varsler on Oversikt, with the events it used to list', asyn
 
 test('Oversikt leads with who needs attention, without tiles, charts or an integration strip', async ({page}) => {
   await login(page);
-  await page.evaluate(() => showView('overview'));
+  await inApp(page, app => app.showView('overview'));
   const rows = page.locator('.customer-overview-table tbody tr');
   await expect(rows.first()).toBeVisible();
   await expect(page.locator('#view-overview canvas, #view-overview .kpi-row')).toHaveCount(0);
@@ -295,8 +295,8 @@ test('Oversikt leads with who needs attention, without tiles, charts or an integ
   await expect(page.locator('#integration-health-widget')).toBeHidden();
   // Worst first: the order follows the open findings, and a customer never
   // audited sits above one with only low ones.
-  const weights = await page.evaluate(() => Array.from(document.querySelectorAll('.customer-overview-table tbody tr'))
-    .map(tr => _findingWeight(_overviewData.customers.find(c => c.customer_id === tr.dataset.customerId))));
+  const weights = await inApp(page, app => Array.from(document.querySelectorAll('.customer-overview-table tbody tr'))
+    .map(tr => app._findingWeight(app._overviewData.customers.find(c => c.customer_id === tr.dataset.customerId))));
   expect(weights).toEqual([...weights].sort((a, b) => b - a));
   await expect(page.locator('.customer-overview-table th', {hasText: 'Åpne funn'})).toContainText('▼');
 });

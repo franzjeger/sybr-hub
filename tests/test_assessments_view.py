@@ -19,8 +19,13 @@ STATIC = pathlib.Path("app/web/static")
 
 
 def test_the_script_is_served():
-    html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert re.search(r'src="/static/app-assessments\.js', html)
+    """The shell loads main.js, which imports every module of the interface."""
+    from app.web.routes import frontend
+
+    modules, _ = frontend._module_graph()
+    assert "app-assessments.js" in {path.name for path in modules}
+    main = (STATIC / "main.js").read_text(encoding="utf-8")
+    assert "import './app-assessments.js';" in main
 
 
 def test_the_view_exists_and_something_dispatches_to_it():

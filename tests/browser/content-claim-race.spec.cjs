@@ -3,6 +3,7 @@
 // (or a CI runner) holds it, so without the claim the late answer would
 // redraw the box and the form would vanish.
 const { test, expect } = require('@playwright/test');
+const { inApp } = require('./app.cjs');
 
 async function login(page) {
   await page.addInitScript(() => localStorage.setItem('onboarding_done', '1'));
@@ -30,7 +31,7 @@ async function holdBack(page, pattern) {
 test('the new VPN profile form survives a list that loads late', async ({page}) => {
   await login(page);
   const release = await holdBack(page, '**/api/vpn/profiles');
-  await page.evaluate(() => showView('vpn'));
+  await inApp(page, app => app.showView('vpn'));
   await page.locator('#view-vpn [data-click-handler="vpnShowCreate"]').click();
   await expect(page.locator('#vpn-create-protocol')).toBeVisible();
   release();
@@ -42,8 +43,8 @@ test('the new VPN profile form survives a list that loads late', async ({page}) 
 test('the SSH key generator survives a key list that loads late', async ({page}) => {
   await login(page);
   const release = await holdBack(page, '**/api/ssh/keys');
-  await page.evaluate(() => showView('ssh'));
-  await page.evaluate(() => sshGenKey());
+  await inApp(page, app => app.showView('ssh'));
+  await inApp(page, app => app.sshGenKey());
   await expect(page.locator('#ssh-content input, #ssh-content select').first()).toBeVisible();
   const form = await page.locator('#ssh-content').innerHTML();
   release();

@@ -2,8 +2,22 @@
 // SETTINGS — webhooks, branding, version, users & backup
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {_lang, t} from './app-i18n.js';
+import {icon} from './app-icons.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {onViewShown} from './app-hooks.js';
+import {_currentUser, canOpenView} from './app-state.js';
+import {timeAgo} from './app-format.js';
+import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {checkAuth, currentView, passwordMeetsRule, showView, syncRoute} from './app.js';
+import {claudeLoadSaved, fgApiLoadSaved, unifiSmLoadSaved} from './app-infra.js';
+import {dashLoadArchive} from './app-dashboard.js';
+import {alertLoadConfig, loadIntegrationStatus, taskSchedRefresh} from './app-integrations.js';
+
 // Handlers for the user list, the password dialog and the customer-access
-// panel (see registerUiHandlers in app.js).
+// panel (see registerUiHandlers in app-handlers.js).
 registerUiHandlers({
   chooseLogoFile: function() { chooseLogoFile(); },
   logoFileChosen: function() { logoFileChosen(); },
@@ -17,7 +31,7 @@ registerUiHandlers({
 });
 
 // ── Webhook test ────────────────────────────────────────────────────────────────
-async function testWebhook() {
+export async function testWebhook() {
   const url = document.getElementById('input-webhook-url').value.trim();
   const result = document.getElementById('webhook-test-result');
   if (!url) { result.textContent = '' + t('err_no_url'); return; }
@@ -34,7 +48,7 @@ async function testWebhook() {
 }
 
 // ── Email test ──────────────────────────────────────────────────────────────────
-async function testEmail() {
+export async function testEmail() {
   const result = document.getElementById('email-test-result');
   const server = document.getElementById('input-smtp-server').value.trim();
   if (!server) { result.textContent = '' + t('err_configure_smtp_first'); result.style.color = 'var(--red)'; return; }
@@ -82,7 +96,7 @@ function logoFileChosen() {
   name.textContent = f ? f.name : t('msg_no_file_chosen', 'Ingen fil valgt');
 }
 
-async function uploadLogo() {
+export async function uploadLogo() {
   const input = document.getElementById('input-logo-file');
   const msg = document.getElementById('logo-upload-msg');
   if (!input.files || !input.files[0]) { msg.textContent = t('msg_choose_file_first'); msg.style.color = 'var(--red)'; return; }
@@ -108,7 +122,7 @@ async function uploadLogo() {
 // so every way in (the avatar menu, Ctrl+,, the palette, a signpost elsewhere)
 // lands on the pane it meant, named by id rather than by position.
 var ADMIN_PANES = ['integrations', 'alerts', 'users', 'modules', 'branding', 'storage', 'system'];
-var _adminPane = 'integrations';
+export var _adminPane = 'integrations';
 
 function _adminPaneOrDefault(pane) {
   return ADMIN_PANES.indexOf(pane) !== -1 ? pane : 'integrations';
@@ -117,7 +131,7 @@ function _adminPaneOrDefault(pane) {
 // Opens Administrasjon on a pane. Only an administrator reaches the page; for
 // anyone else the settings that are theirs are the account's, so Ctrl+, opens
 // those instead of a page that would refuse them.
-function openAdmin(pane) {
+export function openAdmin(pane) {
   if (!canOpenView('admin')) { openAccountModal(); return; }
   _adminPane = _adminPaneOrDefault(pane || _adminPane);
   if (currentView === 'admin') { adminShowPane(_adminPane); return; }
@@ -132,7 +146,7 @@ onViewShown('admin', function() {
 // Shows one pane and loads what it lists. The form fields of every pane are
 // filled once per visit by _loadAdminSettings, so moving between panes keeps
 // what was typed.
-function adminShowPane(pane) {
+export function adminShowPane(pane) {
   _adminPane = _adminPaneOrDefault(pane);
   document.querySelectorAll('#admin-rail .admin-rail-item').forEach(function(b) {
     var on = b.dataset.pane === _adminPane;
@@ -302,7 +316,7 @@ function _initSettingsDirtyTracking() {
 
 // Leaving Administrasjon with unsaved edits asks first. True when it is fine
 // to go: nothing unsaved, or the person said to discard it.
-function adminMayLeave() {
+export function adminMayLeave() {
   if (!_isSettingsDirty()) return true;
   if (!confirm(t('du_har_ulagrede_endringer_vil'))) return false;
   _settingsSnapshot = null;
@@ -313,7 +327,7 @@ function adminMayLeave() {
 // ── Konto ──────────────────────────────────────────────────────────────────────
 // What belongs to the person rather than the installation: language, sign-in
 // confirmation and password.
-function openAccountModal() {
+export function openAccountModal() {
   var name = document.getElementById('account-name');
   var email = document.getElementById('account-email');
   if (_currentUser) {
@@ -325,18 +339,18 @@ function openAccountModal() {
   document.getElementById('account-modal').classList.add('open');
 }
 
-function closeAccountModal() {
+export function closeAccountModal() {
   document.getElementById('account-modal').classList.remove('open');
 }
 
 // ── Permission validation ──────────────────────────────────────────────────────
 
-function closePermissionsModal() {
+export function closePermissionsModal() {
   document.getElementById('permissions-modal').classList.remove('open');
 }
 
 // One customer's app permissions: the customer whose page the button is on.
-async function checkPermissions(customerId) {
+export async function checkPermissions(customerId) {
   if (!customerId) return;
   const modal = document.getElementById('permissions-modal');
   const title = document.getElementById('perm-modal-title');
@@ -425,7 +439,7 @@ function renderPermissionsResult(d) {
 }
 
 // ── Encryption key backup/restore ──────────────────────────────────────────────
-async function backupEncryptionKey() {
+export async function backupEncryptionKey() {
   if (!await showConfirm(t('dlg_confirm_show_key'))) return;
   try {
     const d = await apiFetch('/api/encryption/key-backup');
@@ -436,7 +450,7 @@ async function backupEncryptionKey() {
   } catch (e) { showToast(t('err_could_not_fetch_key', 'Kunne ikke hente nøkkel') + ': ' + e.message, 'error'); }
 }
 
-function copyEncryptionKey() {
+export function copyEncryptionKey() {
   const key = document.getElementById('encryption-key-value').textContent;
   navigator.clipboard.writeText(key).then(() => {
     document.getElementById('encryption-copy-msg').textContent = t('btn_copied');
@@ -444,12 +458,12 @@ function copyEncryptionKey() {
   });
 }
 
-function showRestoreKeyInput() {
+export function showRestoreKeyInput() {
   document.getElementById('encryption-restore-input').style.display = 'block';
   document.getElementById('encryption-restore-msg').textContent = '';
 }
 
-async function restoreEncryptionKey() {
+export async function restoreEncryptionKey() {
   const key = document.getElementById('input-restore-key').value.trim();
   const msg = document.getElementById('encryption-restore-msg');
   if (!key) { msg.textContent = t('msg_paste_key_first'); msg.style.color = 'var(--danger)'; return; }
@@ -471,7 +485,7 @@ async function restoreEncryptionKey() {
 
 // ── Settings tabs ────────────────────────────────────────────────────────────
 // ── Change Password ──────────────────────────────────────────────────────────
-async function showMfaSettings() {
+export async function showMfaSettings() {
   var status = await apiFetch('/api/auth/mfa');
   if (!status) return;
   var modal = document.getElementById('confirm-modal');
@@ -529,7 +543,7 @@ async function showMfaSettings() {
   document.querySelector('#confirm-modal .modal-actions').style.display = 'none'; modal.style.display = 'flex'; password.focus();
 }
 
-async function showChangePasswordModal() {
+export async function showChangePasswordModal() {
   var html = '<div style="font-size:var(--font-sm);font-weight:600;margin-bottom:var(--space-4);">' + t('btn_change_password','Change password') + '</div>'
     + '<input id="pw-current" type="password" class="field-input" placeholder="' + t('placeholder_current_password','Current password') + '" style="margin-bottom:var(--space-3);">'
     + '<input id="pw-new" type="password" class="field-input" placeholder="' + t('placeholder_new_password','New password (min 8)') + '" style="margin-bottom:var(--space-3);">'
@@ -564,7 +578,7 @@ async function doChangePassword() {
 }
 
 // ── User Management ──────────────────────────────────────────────────────────
-function showAddUserForm() { document.getElementById('add-user-form').style.display = 'block'; }
+export function showAddUserForm() { document.getElementById('add-user-form').style.display = 'block'; }
 
 async function loadUsers() {
   var el = document.getElementById('users-list');
@@ -596,7 +610,7 @@ async function loadUsers() {
   } catch(e) { el.innerHTML = ''; }
 }
 
-async function createUser() {
+export async function createUser() {
   var u = document.getElementById('new-user-username').value.trim();
   var n = document.getElementById('new-user-displayname').value.trim();
   var p = document.getElementById('new-user-password').value;
@@ -783,7 +797,7 @@ async function loadModuleSettings() {
 }
 
 // ── Branding / White-label ────────────────────────────────────────────────────
-async function applyBranding() {
+export async function applyBranding() {
   try {
     var d = await apiFetch('/api/settings');
     if (!d || !d.branding) return;
@@ -809,7 +823,7 @@ async function applyBranding() {
     }
   } catch(e) { /* branding is non-critical */ }
 }
-function resetBrandColor() {
+export function resetBrandColor() {
   document.getElementById('input-brand-color').value = '#4d9fb5';
   document.getElementById('input-brand-color-hex').value = '#4d9fb5';
 }
@@ -820,7 +834,7 @@ function _settingsMsgEl() {
     || document.querySelector('#view-admin [data-settings-msg]');
 }
 
-async function saveSettings() {
+export async function saveSettings() {
   const dir = document.getElementById('input-audit-dir').value.trim();
   const msg = _settingsMsgEl();
   msg.style.color = '';
@@ -897,7 +911,7 @@ async function saveSettings() {
   }
 }
 
-async function resetAuditDir() {
+export async function resetAuditDir() {
   document.getElementById('input-audit-dir').value = '';
   await saveSettings();
 }
@@ -919,7 +933,7 @@ async function loadBackupInfo() {
   } catch (e) { /* ignore */ }
 }
 
-async function createBackup() {
+export async function createBackup() {
   const msg = document.getElementById('backup-create-msg');
   msg.style.color = 'var(--text-muted)';
   msg.textContent = t('msg_creating_backup');
@@ -947,7 +961,7 @@ async function createBackup() {
   }
 }
 
-async function restoreBackup() {
+export async function restoreBackup() {
   const msg = document.getElementById('backup-restore-msg');
   const zipPath = document.getElementById('input-restore-path').value.trim();
   if (!zipPath) { msg.style.color = 'var(--red)'; msg.textContent = t('msg_provide_zip_path'); return; }

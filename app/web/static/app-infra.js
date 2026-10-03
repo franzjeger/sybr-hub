@@ -1,8 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════
 // UI handlers for the markup this file builds. Controls name them in
 // data-<event>-handler attributes and carry their arguments in data-*
-// attributes; see "Event handlers without inline JavaScript" in app.js.
+// attributes; see app-handlers.js.
 // ═══════════════════════════════════════════════════════════════════
+
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {registerToolCustomer} from './app-hooks.js';
+import {_allCustomers, _overviewData, currentCustomerId, setOverviewData} from './app-state.js';
+import {_formatBytes} from './app-format.js';
+import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {renderToolCustomerPickers, showView, toolCustomerId} from './app.js';
+import {dashLoadAlerts} from './app-dashboard.js';
+import {overviewSelectCustomer} from './app-customers.js';
+import {_checkVpnHeaderBadge, _syncBottomNav} from './app-chrome.js';
 
 registerUiHandlers({
   // Hosts and SSH
@@ -139,7 +152,7 @@ async function _populateCustomerSelect(selectId, selectedId) {
   if (!sel) return;
   if (!_infraCustomerCache) {
     try {
-      var ov = typeof _overviewData !== 'undefined' && _overviewData && _overviewData.customers
+      var ov = _overviewData && _overviewData.customers
         ? _overviewData : await apiFetch('/api/dashboard/overview');
       _infraCustomerCache = (ov && ov.customers) || [];
     } catch(e) { _infraCustomerCache = []; }
@@ -160,7 +173,7 @@ function _customerNameById(customerId) {
     var c = _infraCustomerCache.find(function(c){ return (c.customer_id || c._id) === customerId; });
     if (c) return c.customer_name || customerId;
   }
-  if (typeof _overviewData !== 'undefined' && _overviewData && _overviewData.customers) {
+  if (_overviewData && _overviewData.customers) {
     var c2 = _overviewData.customers.find(function(c){ return (c.customer_id || c._id) === customerId; });
     if (c2) return c2.customer_name || customerId;
   }
@@ -174,7 +187,7 @@ function _customerNameById(customerId) {
 // HOSTS MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════
 
-async function hostsLoad() {
+export async function hostsLoad() {
   var box = _claim('hosts-content');
   var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
@@ -255,7 +268,7 @@ async function hostsLoad() {
   el.innerHTML = html;
 }
 
-function hostsAdd() {
+export function hostsAdd() {
   var el = _claim('hosts-content').el;
 
   // Load keys for dropdown
@@ -386,7 +399,7 @@ async function hostsDoAdd() {
   if (data && data.ok) { showToast(t('msg_host_added','Host added'), 'success'); hostsLoad(); }
 }
 
-async function hostsHealthAll() {
+export async function hostsHealthAll() {
   showToast(t('msg_checking_all_hosts','Checking all hosts...'), 'info', 2000);
   var data = await apiFetch('/api/ssh/hosts/health', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
   if (data) { showToast(t('msg_health_check_done','Health check completed'), 'success'); hostsLoad(); }
@@ -396,7 +409,7 @@ async function hostsHealthAll() {
 // SSH MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════
 
-async function sshShowKeys() {
+export async function sshShowKeys() {
   var box = _claim('ssh-content');
   var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
@@ -421,7 +434,7 @@ async function sshShowKeys() {
   el.innerHTML = html;
 }
 
-function sshGenKey() {
+export function sshGenKey() {
   var el = _claim('ssh-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('hdr_generate_ssh_key','Generate SSH key') + '</h3>'
@@ -808,7 +821,7 @@ async function sshHealthAll() {
   if (data) { showToast(t('msg_health_check_done','Health check completed'),'success'); sshShowHosts(); }
 }
 
-async function sshShowExec() {
+export async function sshShowExec() {
   var box = _claim('ssh-content');
   var el = box.el;
   el.innerHTML = '<div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;">' + t('lbl_select_hosts_command','Select hosts and enter a command:') + '</label></div>'
@@ -870,7 +883,7 @@ function _vpnStatField(label, value) {
   return '<div><div style="color:var(--text-dim);">' + esc(label) + '</div><div style="font-family:var(--mono);color:var(--text);font-weight:600;">' + esc(String(value)) + '</div></div>';
 }
 
-async function vpnLoadProfiles() {
+export async function vpnLoadProfiles() {
   var box = _claim('vpn-content');
   var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
@@ -1106,7 +1119,7 @@ async function vpnDeleteProfile(id) {
   vpnLoadProfiles();
 }
 
-function vpnShowCreate() {
+export function vpnShowCreate() {
   var el = _claim('vpn-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">' + t('hdr_new_vpn_profile','New VPN profile') + '</h3>'
@@ -1291,7 +1304,7 @@ async function vpnDoEdit(profileId, protocol) {
   if (data && data.ok) { showToast(t('msg_profile_updated','Profile updated'),'success'); vpnLoadProfiles(); }
 }
 
-function vpnShowImport() {
+export function vpnShowImport() {
   var el = _claim('vpn-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">' + t('hdr_import_vpn_profile','Import VPN profile') + '</h3>'
@@ -1409,7 +1422,7 @@ async function vpnDoImport() {
 
 var _liveWs = null;
 
-async function livePollNow() {
+export async function livePollNow() {
   var statusEl = document.getElementById('live-status') || document.getElementById('fg-live-status');
   if (statusEl) statusEl.textContent = t('msg_updating','Updating...');
   var custId = await toolCustomerId();
@@ -1429,7 +1442,7 @@ async function fgBackupAll() {
   }
 }
 
-async function fgPollAll() {
+export async function fgPollAll() {
   var statusEl = document.getElementById('fg-live-status');
   if (statusEl) statusEl.textContent = t('msg_updating','Updating...');
   // Poll all customers that have FortiGate and merge live data into the FortiGate view
@@ -1454,7 +1467,7 @@ async function fgPollAll() {
   if (statusEl) statusEl.textContent = t('msg_last_updated','Sist oppdatert') + ': ' + new Date().toLocaleTimeString();
 }
 
-function liveSetInterval(seconds) {
+export function liveSetInterval(seconds) {
   if (_liveWs && _liveWs.readyState === WebSocket.OPEN) {
     _liveWs.send(JSON.stringify({type:'set_interval',interval:parseInt(seconds)}));
   }
@@ -1462,7 +1475,7 @@ function liveSetInterval(seconds) {
 
 var _liveDevices = [];
 
-function liveRenderDevices(devices) {
+export function liveRenderDevices(devices) {
   _liveDevices = devices;
   var el = document.getElementById('dash-fg-content');
   if (!devices.length) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;grid-column:1/-1;">' + t('ingen_enheter_funnet') + '</div>'; return; }
@@ -1752,14 +1765,14 @@ async function fgComplianceCheck(customerId) {
 
 var _aiConversationId = null;
 
-function aiQuickPrompt(text) {
+export function aiQuickPrompt(text) {
   document.getElementById('ai-input').value = text;
   aiSend();
 }
 
 var _aiCustomerList = [];
 
-async function aiLoadCustomers() {
+export async function aiLoadCustomers() {
   var data = await apiFetch('/api/customers');
   if (!data) return;
   _aiCustomerList = (data.customers || []).map(function(c) {
@@ -1782,7 +1795,7 @@ async function aiLoadCustomers() {
   }
 }
 
-function aiSelectCustomerFromDropdown(sel) {
+export function aiSelectCustomerFromDropdown(sel) {
   document.getElementById('ai-customer').value = sel.value;
 }
 
@@ -1810,7 +1823,7 @@ function aiApproval(parent, evt) {
   parent.appendChild(card);
 }
 
-async function aiSend() {
+export async function aiSend() {
   var input = document.getElementById('ai-input');
   var msg = input.value.trim();
   if (!msg) return;
@@ -1893,7 +1906,7 @@ async function aiSend() {
   }
 }
 
-function aiClearChat() {
+export function aiClearChat() {
   _aiConversationId = null;
   document.getElementById('ai-messages').innerHTML = '<div data-welcome style="color:var(--text-muted);text-align:center;padding:48px;"><img src="/static/sybrt-mascot.png" alt="Sybrt" style="width:48px;height:48px;border-radius:50%;margin-bottom:8px;opacity:0.9;"><br>' + t('msg_new_chat_started','New chat started. Type a message to begin.') + '</div>';
 }
@@ -1910,7 +1923,7 @@ var _provisionSuggested = null;
 // credentials are the only ones a deploy may use.
 registerToolCustomer('provisioning', function() { if (_provisionSession) provisionStart(); });
 
-async function provisionStart() {
+export async function provisionStart() {
   renderToolCustomerPickers();
   var customerId = await toolCustomerId();
   var data = await apiFetch('/api/provisioning/start', {
@@ -2321,7 +2334,7 @@ function provisionCopySummary() {
 // FORTIGATE DASHBOARD (ALL CUSTOMERS)
 // ═══════════════════════════════════════════════════════════════════
 
-async function dashLoadFortiGates() {
+export async function dashLoadFortiGates() {
   var el = document.getElementById('dash-fg-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading_fortigates','Loading all FortiGate firewalls...') + '</div>';
 
@@ -2660,7 +2673,7 @@ function dashFgDetail(customerId) {
 // CLAUDE AI INTEGRATION
 // ═══════════════════════════════════════════════════════════════════
 
-async function claudeLoadSaved() {
+export async function claudeLoadSaved() {
   var data = await apiFetch('/api/claude/status');
   if (!data) return;
   var dot = document.getElementById('claude-integ-dot');
@@ -2680,14 +2693,14 @@ async function claudeLoadSaved() {
   }
 }
 
-function claudeModeChanged() {
+export function claudeModeChanged() {
   var mode = document.getElementById('claude-mode').value;
   document.getElementById('claude-mode-api').style.display = mode === 'api' ? 'block' : 'none';
   document.getElementById('claude-mode-cli').style.display = mode === 'cli' ? 'block' : 'none';
   if (mode === 'cli') claudeCheckCli();
 }
 
-async function claudeCheckCli() {
+export async function claudeCheckCli() {
   var el = document.getElementById('claude-cli-status');
   el.textContent = t('msg_checking','Checking …');
   var data = await apiFetch('/api/claude/cli-status');
@@ -2698,7 +2711,7 @@ async function claudeCheckCli() {
   }
 }
 
-async function claudeSaveSettings() {
+export async function claudeSaveSettings() {
   var mode = document.getElementById('claude-mode').value;
   var key = document.getElementById('claude-api-key').value.trim();
   var model = document.getElementById('claude-model').value;
@@ -2713,7 +2726,7 @@ async function claudeSaveSettings() {
   }
 }
 
-async function claudeTestConnection() {
+export async function claudeTestConnection() {
   var msg = document.getElementById('claude-save-msg');
   msg.textContent = t('msg_testing','Testing...');
   var data = await apiFetch('/api/claude/status');
@@ -2728,7 +2741,7 @@ async function claudeTestConnection() {
 // FORTIGATE REST API INTEGRATION
 // ═══════════════════════════════════════════════════════════════════
 
-async function fgBootstrap() {
+export async function fgBootstrap() {
   var host = document.getElementById('fg-bootstrap-host').value.trim();
   var hostname = document.getElementById('fg-bootstrap-hostname').value.trim();
   var btn = document.getElementById('btn-fg-bootstrap');
@@ -2805,7 +2818,7 @@ function fgBootstrapAutoFill(host, token) {
 }
 
 // The credentials stored for the customer chosen on the card.
-async function fgDownloadCredentials() {
+export async function fgDownloadCredentials() {
   var active = await toolCustomerId();
   if (!active) { showToast(t('msg_tool_choose_customer', 'Velg kunden verktøyet skal gjelde, i feltet Kunde over.'), 'warning'); return; }
 
@@ -2848,7 +2861,7 @@ async function fgDownloadCredentials() {
   }
 }
 
-async function fgApiTest() {
+export async function fgApiTest() {
   var host = document.getElementById('fg-api-host').value.trim();
   var port = document.getElementById('fg-api-port').value || '443';
   var token = document.getElementById('fg-api-token').value.trim();
@@ -2870,7 +2883,7 @@ async function fgApiTest() {
   }
 }
 
-async function fgApiSave() {
+export async function fgApiSave() {
   var host = document.getElementById('fg-api-host').value.trim();
   var port = document.getElementById('fg-api-port').value || '443';
   var token = document.getElementById('fg-api-token').value.trim();
@@ -2895,7 +2908,7 @@ async function fgApiSave() {
 var _fgApiCustomerId = null;
 registerToolCustomer('fgapi', function() { fgApiLoadSaved(); });
 
-async function fgApiLoadSaved() {
+export async function fgApiLoadSaved() {
   renderToolCustomerPickers();
   var customerId = await toolCustomerId();
   _fgApiCustomerId = customerId;
@@ -2924,7 +2937,7 @@ async function fgApiLoadSaved() {
 // DASHBOARD SUB-TABS
 // ═══════════════════════════════════════════════════════════════════
 
-function switchDashTab(btn, tabId) {
+export function switchDashTab(btn, tabId) {
   // Only Oversikt's own tabs: the network and billing pages use the same
   // button class for their tabs, and lost their highlight to this.
   document.querySelectorAll('#view-overview .dash-tab-content').forEach(function(el) { el.style.display = 'none'; });
@@ -2937,7 +2950,7 @@ function switchDashTab(btn, tabId) {
   if (tabId === 'dash-alerts') dashLoadAlerts();
 }
 
-async function dashUnifiRefresh() {
+export async function dashUnifiRefresh() {
   document.querySelectorAll('.unifi-detail-panel').forEach(function(p) { p.remove(); });
   await dashLoadUnifiAll();
 }
@@ -2945,7 +2958,7 @@ async function dashUnifiRefresh() {
 // The devices the UniFi tab last listed, by row index (dashUnifiDetail).
 var _unifiDevices = [];
 
-async function dashLoadUnifiAll() {
+export async function dashLoadUnifiAll() {
   var el = document.getElementById('dash-unifi-content');
   if (!el) return;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
@@ -3488,7 +3501,7 @@ function _formatUptime(secs) {
 // and is enabled ONLY when the process affirmatively reports the capability, so
 // a failed/blank probe leaves it disabled rather than offering a scan the server
 // would refuse anyway (SR-006 review).
-async function loadPentestCapabilities() {
+export async function loadPentestCapabilities() {
   var warn = document.getElementById('pentest-capability-warning');
   var modeSel = document.getElementById('pentest-scan-mode');
   var stealthOpt = modeSel ? modeSel.querySelector('option[value="stealth"]') : null;
@@ -3515,7 +3528,7 @@ async function loadPentestCapabilities() {
   }
 }
 
-async function runPentest() {
+export async function runPentest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_et_target'), 'error'); return; }
   var scanType = document.getElementById('pentest-type').value;
@@ -3695,7 +3708,7 @@ function _pentestToggleExplain(rowId, idx) {
   }
 }
 
-async function runDnsPentest() {
+export async function runDnsPentest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_et_domene'), 'error'); return; }
   var el = document.getElementById('pentest-results');
@@ -3742,7 +3755,7 @@ async function runDnsPentest() {
   el.insertAdjacentHTML('afterbegin', html);
 }
 
-async function runCredentialTest() {
+export async function runCredentialTest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_host_ip'), 'error'); return; }
   var el = document.getElementById('pentest-results');
@@ -3791,7 +3804,7 @@ async function _pentestSave() {
   else showToast(t('kunne_ikke_lagre'), 'error');
 }
 
-async function runCmsScan() {
+export async function runCmsScan() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_url'), 'error'); return; }
   var el = document.getElementById('pentest-results');
@@ -3805,7 +3818,7 @@ async function runCmsScan() {
   _lastPentestData = data;
 }
 
-async function runSmbEnum() {
+export async function runSmbEnum() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_ip_hostname'), 'error'); return; }
   var el = document.getElementById('pentest-results');
@@ -3816,7 +3829,7 @@ async function runSmbEnum() {
   _lastPentestData = data;
 }
 
-async function runSegTest() {
+export async function runSegTest() {
   var el = document.getElementById('pentest-results');
   // The customer chosen in the bar above the tests (this tab's current one).
   var custId = await toolCustomerId();
@@ -3831,7 +3844,7 @@ async function runSegTest() {
   _lastPentestData = data;
 }
 
-async function runTlsAudit() {
+export async function runTlsAudit() {
   var raw = document.getElementById('pentest-target').value.trim();
   if (!raw) { showToast(t('pentest_msg_enter_host_port','Enter a hostname (or host:port)'), 'error'); return; }
   // Strip scheme and path; extract optional :port
@@ -3881,7 +3894,7 @@ async function runTlsAudit() {
   _lastPentestData = data;
 }
 
-async function runTakeoverCheck() {
+export async function runTakeoverCheck() {
   var raw = document.getElementById('pentest-target').value.trim();
   if (!raw) { showToast(t('pentest_msg_enter_domain','Enter a domain'), 'error'); return; }
   var domain = raw.replace(/^https?:\/\//,'').replace(/\/.*$/,'').replace(/:\d+$/,'');
@@ -3947,7 +3960,7 @@ function _unifiSmField(id, keepWhitespace) {
   return keepWhitespace ? el.value : el.value.trim();
 }
 
-async function unifiSmAuth() {
+export async function unifiSmAuth() {
   var apiKey = _unifiSmField('unifi-sm-apikey');
   var email = _unifiSmField('unifi-sm-email');
   var pass = _unifiSmField('unifi-sm-password', true);
@@ -4049,7 +4062,7 @@ function _unifiSmAuthSuccess() {
   unifiSmLoadCoverage();
 }
 
-async function unifiSmTestController() {
+export async function unifiSmTestController() {
   var host = document.getElementById('unifi-sm-ctrl-host').value.trim();
   var user = document.getElementById('unifi-sm-ctrl-user').value.trim();
   var pass = document.getElementById('unifi-sm-ctrl-pass').value;
@@ -4064,7 +4077,7 @@ async function unifiSmTestController() {
   }
 }
 
-async function unifiSmSaveController() {
+export async function unifiSmSaveController() {
   var host = document.getElementById('unifi-sm-ctrl-host').value.trim();
   var user = document.getElementById('unifi-sm-ctrl-user').value.trim();
   var pass = document.getElementById('unifi-sm-ctrl-pass').value;
@@ -4077,7 +4090,7 @@ async function unifiSmSaveController() {
   if (data && data.ok) showToast(t('msg_controller_access_saved','Controller access saved'),'success');
 }
 
-async function unifiSmSave() {
+export async function unifiSmSave() {
   var apiKey = document.getElementById('unifi-sm-apikey').value.trim();
   if (!apiKey) { showToast(t('err_fill_api_key_first','Enter API key first'),'error'); return; }
   var data = await apiFetch('/api/settings', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({unifi_site_manager_api_key: apiKey})});
@@ -4089,7 +4102,7 @@ async function unifiSmSave() {
 // Populates the field only. The card's dot and label belong to the setStatus
 // block in app.js that owns every other integration's status — painting them
 // here as well made two writers of one value, and whichever ran last won.
-async function unifiSmLoadSaved() {
+export async function unifiSmLoadSaved() {
   var data = await apiFetch('/api/settings');
   if (data && data.unifi_site_manager_api_key) {
     var el = document.getElementById('unifi-sm-apikey');
@@ -4103,7 +4116,7 @@ var _unifiSites = []; // cache for use in dashboard
 // clients endpoint, and the Network API behind a console is not reachable
 // through it. Everything past that needs a controller login stored against the
 // customer, and this is the only place that says where one is missing.
-async function unifiSmLoadCoverage() {
+export async function unifiSmLoadCoverage() {
   var list = document.getElementById('unifi-sm-coverage-list');
   if (!list) return;
   list.innerHTML = '<div class="loader"></div>';
@@ -4137,7 +4150,7 @@ async function unifiSmLoadCoverage() {
   list.innerHTML = h + '</div>';
 }
 
-async function unifiSmLoadSites() {
+export async function unifiSmLoadSites() {
   var container = document.getElementById('unifi-sm-sites');
   var list = document.getElementById('unifi-sm-sites-list');
   container.style.display = 'block';
@@ -4153,7 +4166,7 @@ async function unifiSmLoadSites() {
   list.innerHTML = _renderSiteTable(sites);
 }
 
-function _renderSiteTable(sites) {
+export function _renderSiteTable(sites) {
   // Split into multi-site controllers (ours) and standalone consoles
   var multiSite = sites.filter(function(s) { return s.sub_sites && s.sub_sites.length > 1; });
   var standalone = sites.filter(function(s) { return !s.sub_sites || s.sub_sites.length <= 1; });
@@ -4706,7 +4719,7 @@ function _termEnsureXterm() {
   window.addEventListener('resize', function() { if (_xtermFit) _xtermFit.fit(); });
 }
 
-function termModeChanged() {
+export function termModeChanged() {
   var mode = document.getElementById('term-mode').value;
   var sshOpts = document.getElementById('term-ssh-opts');
   sshOpts.style.display = mode === 'ssh' ? 'flex' : 'none';
@@ -4724,12 +4737,12 @@ async function termLoadHosts() {
 }
 
 var _termFontSize = parseInt(localStorage.getItem('sybr_term_fontsize') || '14');
-function termChangeFontSize(delta) {
+export function termChangeFontSize(delta) {
   _termFontSize = Math.max(10, Math.min(24, _termFontSize + delta));
   localStorage.setItem('sybr_term_fontsize', _termFontSize);
 }
 
-function termConnect() {
+export function termConnect() {
   if (_termWs) termDisconnect();
   _termEnsureXterm();
   _xterm.clear();
@@ -4792,7 +4805,7 @@ function termConnect() {
   };
 }
 
-function termDisconnect() {
+export function termDisconnect() {
   if (_termWs) {
     _termWs.close();
     _termWs = null;
@@ -4996,7 +5009,7 @@ function _createGuacSession(containerId, token, connectionId) {
 
 var _browserRunning = false;
 
-function browserInit() {
+export function browserInit() {
   var el = document.getElementById('browser-content');
   if (!el) return;
 
@@ -5201,7 +5214,7 @@ document.addEventListener('fullscreenchange', function() {
 var _rdpRunning = false;
 var _rdpPendingHostId = '';
 
-function rdpInit() {
+export function rdpInit() {
   var el = document.getElementById('rdp-content');
   if (!el) return;
 

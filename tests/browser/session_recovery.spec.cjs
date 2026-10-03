@@ -1,4 +1,5 @@
 const {test, expect} = require('@playwright/test');
+const { inApp, expectSignedIn, expectStrings } = require('./app.cjs');
 
 async function prepare(page) {
   await page.addInitScript(() => {
@@ -14,7 +15,7 @@ async function login(page) {
   await page.locator('#login-password').fill('Browser-test123!');
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.en)).toBe(true);
+  await expectSignedIn(page);
 }
 
 async function dropAccessCookie(page) {
@@ -31,10 +32,10 @@ test('a signed-out API call shows the login form, not a lost-connection alarm', 
   await prepare(page);
   await page.goto('/');
   await expect(page.locator('#login-password')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_i18n.en)).toBe(true);
+  await expectStrings(page);
   // Goes through session recovery against the real server: no access and no
   // refresh cookie, which is every first visit.
-  expect(await page.evaluate(() => apiFetch('/api/customers'))).toBeNull();
+  expect(await inApp(page, app => app.apiFetch('/api/customers'))).toBeNull();
   await expect(page.locator('#login-password')).toBeVisible();
   await expect(page.getByText('Lost connection to server')).toHaveCount(0);
 });
@@ -43,7 +44,7 @@ test('a refresh the server refuses with 400 signs out instead of alarming', asyn
   await login(page);
   await page.route('**/api/auth/me', route => route.fulfill({status: 401, json: {error: 'expired'}}));
   await page.route('**/api/auth/refresh', route => route.fulfill({status: 400, json: {error: 'missing'}}));
-  await page.evaluate(() => apiFetch('/api/auth/me'));
+  await inApp(page, app => app.apiFetch('/api/auth/me'));
   await expect(page.locator('#login-password')).toBeVisible();
   await expect(page.getByText('Lost connection to server')).toHaveCount(0);
 });
@@ -53,7 +54,7 @@ test('each recovery rotates the refresh cookie and the next one uses it', async 
   for (let round = 0; round < 2; round++) {
     const before = await refreshCookie(page);
     await dropAccessCookie(page);
-    const me = await page.evaluate(() => apiFetch('/api/auth/me'));
+    const me = await inApp(page, app => app.apiFetch('/api/auth/me'));
     expect(me && me.user).toBeTruthy();
     expect(await refreshCookie(page)).not.toBe(before);
   }

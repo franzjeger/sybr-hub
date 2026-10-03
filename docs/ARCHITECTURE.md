@@ -782,7 +782,7 @@ access to that customer (`require_customer_access`, or `check_customer_access`
 for a body field). There is no "active customer" on the server: a selection
 kept per user was shared by every browser tab of that user, so a customer
 opened in one tab decided where another tab's note, audit or report landed.
-The browser keeps the idea per tab (`currentCustomerId` in `app.js`,
+The browser keeps the idea per tab (`currentCustomerId` in `app-state.js`,
 sessionStorage) and only ever sends it as an explicit id.
 
 Authenticated web requests still bind a user-and-RBAC snapshot in
@@ -853,9 +853,16 @@ a path-scoped CSP and uses a fresh nonce for its bootstrap.
 
 **The cache key is a digest, not a version.** `index.html` is served with every
 asset URL rewritten to `?v=<sha256 prefix>` of the file, and a static file is
-immutable when its `v` matches. `sw.js` serves `/static/` cache-first, so its
-`CACHE_VERSION` is rewritten the same way, from a hash of every asset the page
-references. Do not add a hand-maintained list of assets beside either.
+immutable when its `v` matches. The ES modules are the exception, because a
+browser resolves `import './x.js'` without the importing URL's query: every
+module the entry reaches is served with its imports rewritten to
+`./x.js?v=<D>`, and the shell's `main.js` carries the same `?v=<D>`, where `D`
+is one digest over every module in the graph (one per file cannot work: a
+module's bytes hold its imports' versions, through a graph with cycles). A
+module is immutable under `?v=<D>` and revalidated (ETag, 304) under any other
+URL. `sw.js` serves `/static/` cache-first, so its `CACHE_VERSION` is rewritten
+the same way, from a hash of every asset the page references and every
+module. Do not add a hand-maintained list of assets beside either.
 
 **A new version waits to be accepted.** A changed asset installs a new service
 worker, which waits instead of taking over (`skipWaiting()` only on the
@@ -864,8 +871,18 @@ offered the reload, because it may hold a terminal or RDP session.
 
 ## Front-end structure
 
-The SPA is a set of classic scripts sharing one global scope, loaded in the
-order `index.html` lists them. Three rules keep that workable:
+The SPA is a graph of ES modules. `index.html` loads one, `static/main.js`,
+which imports the rest; nothing is shared through `window`, and a module
+imports what it uses from the module that declares it. `main.js` documents the
+layers: leaves that import nothing (`app-esc.js`, `app-i18n.js`,
+`app-icons.js`, `app-handlers.js`, `app-hooks.js`, `app-state.js`), services
+on top of them (`app-format.js`, `app-ui.js`, `app-api.js`), then the shell
+(`app.js`) and the features (`app-*.js`), which call each other and so import
+each other. Shared state (the signed-in account, this tab's customer, the
+customer page, the shared customer lists) lives in `app-state.js`, read
+anywhere and changed through its setters. The vendored libraries and
+`theme-init.js` (which must run before the first paint) stay classic scripts.
+Four rules keep it workable:
 
 - **No inline JavaScript.** Markup names a handler, `data-click-handler="x"`
   (also `input`, `change`, `keydown`, `submit` and the drag events), and the
@@ -877,17 +894,22 @@ order `index.html` lists them. Three rules keep that workable:
   `javascript:` URL, an unknown handler name or one nobody uses.
 - **Views hook in; nobody wraps `showView`.** A script that loads data when its
   view opens registers `onViewShown(name, fn)`.
-- **One shared scope, checked.** `scripts/js-globals.cjs` gives ESLint each
-  file's view of the others' top-level names, so `no-undef` and
-  `no-redeclare` see the real scope, and fails on a name declared in two files.
+- **Imports, checked.** ESLint's `no-undef` fails on a name used without an
+  import, `no-import-assign` on a module assigning another's binding.
+  `scripts/js-modules.cjs` checks the graph: every import names a module and
+  an export that exist, imports are static and relative (the form the server
+  versions), the layering above holds, and code a module runs while it loads
+  reads nothing imported from a module in its own import cycle, which may not
+  have run yet.
+- **Specs reach the app through its modules.** A Playwright spec calls an
+  exported function with `inApp(page, app => ...)` (`tests/browser/app.cjs`),
+  which imports the modules at the URLs the page loaded them from; a second
+  URL would load a second copy with its own state.
 
-Changing the active customer goes through `switchActiveCustomer()`, which runs
-one switch at a time: two in flight could land in either order and leave a
-different customer active than the page on screen.
-
-`npm run check` runs `node --check`, the globals check, the inline-handler
-check, the HTML-escaping check (enforced per file; the list of files not yet
-enforced only shrinks), the dash check below, and ESLint.
+`npm run check` parses every module, runs the module-graph check, the
+inline-handler check, the HTML-escaping check (which follows a value through
+imports; enforced per file, the list of files not yet enforced only shrinks),
+the dash check below, and ESLint.
 
 ## User-facing text
 
