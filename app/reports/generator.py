@@ -189,7 +189,9 @@ def build_report_context(
     warn_files = [n for n in file_contents if "WARN" in n.upper()]
     all_warns = [w for r in results for w in r.warns]
 
-    secure_score = _parse_secure_score(fc("09_secure_score.txt"))
+    secure_score = _parse_secure_score(
+        fc("09_secure_score.txt"), _sidecar(file_contents, "09_secure_score.txt")
+    )
     users = _parse_user_counts(
         fc("03_users_count.txt"), _sidecar(file_contents, "03_users_count.txt")
     )

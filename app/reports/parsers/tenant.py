@@ -9,7 +9,31 @@ from app.reports.i18n import T
 from app.reports.parsers.common import _first_prose_line, _sidecar
 
 
-def _parse_secure_score(text: str) -> dict:
+def _parse_secure_score(text: str, sidecar: dict | None = None) -> dict:
+    """Secure Score and its top ten improvement actions.
+
+    From 09_secure_score.json when the run has it, with each action's whole
+    title (the table cuts it to 70 characters) and the figures rounded to the
+    one decimal the table shows. The text is read for runs from before it.
+    """
+    if sidecar is not None:
+        improvements = []
+        for imp in (sidecar.get("improvements") or [])[:10]:
+            entry = {
+                "name": imp.get("title") or imp.get("control_id") or "",
+                "pct": round(float(imp.get("pct") or 0.0), 1),
+            }
+            if sidecar.get("by_impact") and imp.get("remaining") is not None:
+                entry["remaining"] = round(float(imp["remaining"]), 1)
+            entry["category"] = imp.get("category") or ""
+            improvements.append(entry)
+        return {
+            "current": round(float(sidecar.get("current") or 0.0), 1),
+            "max": round(float(sidecar.get("max") or 0.0), 1),
+            "pct": round(float(sidecar.get("pct") or 0.0), 1),
+            "improvements": improvements,
+            "has_data": True,
+        }
     m = re.search(r"Score\s*:\s*([\d.]+)\s*/\s*([\d.]+)\s*\(([\d.]+)%\)", text)
     if not m:
         return {"current": 0, "max": 0, "pct": 0, "improvements": [], "has_data": False}

@@ -99,8 +99,17 @@ _METHOD_LABEL_TO_POLICY: dict[str, set[str]] = {
 }
 
 
-def _disabled_auth_methods(policy_text: str) -> set[str]:
-    """Method IDs the authentication-methods policy (09b) reports as disabled."""
+def _disabled_auth_methods(policy_text: str, sidecar: dict | None = None) -> set[str]:
+    """Method IDs the authentication-methods policy (09b) reports as disabled.
+
+    From 09b_auth_methods_policy.json when the run has it.
+    """
+    if sidecar is not None:
+        return {
+            m.get("method") or ""
+            for m in sidecar.get("methods") or []
+            if str(m.get("state") or "").lower() == "disabled"
+        }
     disabled: set[str] = set()
     for line in policy_text.splitlines():
         parts = line.split()
@@ -109,7 +118,9 @@ def _disabled_auth_methods(policy_text: str) -> set[str]:
     return disabled
 
 
-def _auth_method_lockout_users(mfa: dict, policy_text: str) -> list[str]:
+def _auth_method_lockout_users(
+    mfa: dict, policy_text: str, sidecar: dict | None = None
+) -> list[str]:
     """Users whose EVERY registered method is disabled in the policy.
 
     Enforcing MFA would lock these accounts out — the report never compared the
@@ -117,7 +128,7 @@ def _auth_method_lockout_users(mfa: dict, policy_text: str) -> list[str]:
     an unrecognised method label is assumed usable, so this only fires when a
     user has methods and none of them can be used.
     """
-    disabled = _disabled_auth_methods(policy_text)
+    disabled = _disabled_auth_methods(policy_text, sidecar)
     if not disabled:
         return []
     locked_out: list[str] = []
@@ -426,9 +437,10 @@ def _auth_method_lockout(audit: _Audit) -> Iterator[dict]:
     # report never compared the two files (M365 review, F5).
     t = audit.t
     policy = audit.fc.get("09b_auth_methods_policy.txt", "")
-    if not (policy and audit.mfa.get("users")):
+    sidecar = _sidecar(audit.fc, "09b_auth_methods_policy.txt")
+    if not ((policy or sidecar is not None) and audit.mfa.get("users")):
         return
-    locked_out = _auth_method_lockout_users(audit.mfa, policy)
+    locked_out = _auth_method_lockout_users(audit.mfa, policy, sidecar)
     if locked_out:
         yield {
             "priority": "high",
