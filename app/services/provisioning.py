@@ -2070,7 +2070,7 @@ def _is_mgmt_vlan(vlan: dict) -> bool:
 def _unifi_option43(host: str) -> str:
     """DHCP option 43 pointing UniFi devices at the controller, or "" if unresolvable.
 
-    Sub-option 1, length 4, the IPv4 address: 70.34.194.40 -> 01044622c228.
+    Sub-option 1, length 4, the IPv4 address: 203.0.113.10 -> 0104cb00710a.
     """
     import socket
 
