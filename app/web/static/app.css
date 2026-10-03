@@ -2446,12 +2446,25 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .integ-card { display: flex; flex-direction: column; gap: var(--space-3); }
 .integ-head { display: flex; align-items: center; gap: var(--space-3); }
 .integ-logo {
-  width: 48px; height: 48px; border-radius: 8px;
+  width: 48px; height: 48px; border-radius: var(--radius-lg);
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-size: var(--font-md); font-weight: 700; color: var(--on-accent); flex-shrink: 0;
 }
+/* Brand tiles: each service in its own colours. The one place hues off the
+   palette are meant, because the tile stands for somebody else's product. */
 .integ-logo--mip { background: linear-gradient(135deg, #1f7a5a, #37b184); }
-.integ-name { font-weight: 600; font-size: var(--font-md, 14px); }
+.integ-logo--microsoft { background: linear-gradient(135deg, #0078d4, #00bcf2); }
+.integ-logo--autotask { background: linear-gradient(135deg, #0072bc, #00a3e0); }
+.integ-logo--itglue { background: linear-gradient(135deg, #1d6387, #4d9fb5); }
+.integ-logo--email { background: linear-gradient(135deg, #d29922, #e8b84b); }
+.integ-logo--teams { background: linear-gradient(135deg, #4b53bc, #7b83eb); }
+.integ-logo--fortigate { background: linear-gradient(135deg, #da291c, #f04e3e); }
+.integ-logo--unifi { background: linear-gradient(135deg, #0559c9, #0096fb); }
+.integ-logo--tailscale { background: linear-gradient(135deg, #242c3a, #3b4863); }
+.integ-logo--also { background: linear-gradient(135deg, #00a651, #00cc66); font-size: var(--font-base); }
+.integ-logo--uniweb { background: linear-gradient(135deg, #2b5797, #4a8bc2); font-size: var(--font-base); }
+.integ-logo--ai { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.integ-name { font-weight: 600; font-size: var(--font-base); }
 .integ-desc { font-size: var(--font-xs); color: var(--text-muted); }
 
 /* ── Assessment library (Fase B) ──────────────────────────────────────────
@@ -3142,6 +3155,29 @@ textarea.field-input { resize: vertical; }
 .code-display { font-family: var(--mono); font-size: var(--font-xl); font-weight: 700; letter-spacing: 2px; }
 .po-progress-fill { width: var(--bar-value, 0%); }
 
+/* ── Administrasjon ── */
+.flex-field { flex: 1 1 180px; min-width: 0; }
+.logo-preview { height: 40px; max-width: 180px; object-fit: contain; border-radius: var(--radius-sm); background: var(--bg-card); padding: var(--space-1); }
+.color-swatch { width: 40px; height: 32px; padding: 0; cursor: pointer; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.divider.is-dashed { border-top-style: dashed; margin: var(--space-4) 0; }
+.col-status-sm { width: 64px; }
+.uniweb-progress-fill { width: var(--bar-value, 0%); }
+/* A result that is either fine or not: connectivity, an import's errors. */
+.status-box { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-ui); border: 1px solid var(--border); background: var(--bg); }
+.status-box.is-ok { background: var(--color-success-bg); border-color: var(--color-success-border); }
+.status-box.is-bad { background: var(--color-danger-bg); border-color: var(--color-danger-border); }
+.status-box.is-warn { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+/* A dialog a script builds and removes again (Uniweb's import and match).
+   Not a .modal-backdrop: those are opened and closed by class and the
+   Escape handler would hide this one instead of removing it. */
+.overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: var(--space-4); background: var(--bg-overlay); }
+.overlay-panel { width: 640px; max-width: 100%; max-height: 80vh; overflow-y: auto; padding: var(--space-5); }
+.overlay-panel.is-sm { width: 400px; }
+/* Fields sized to what they hold: a number, a short code, a name. */
+.input-narrow { width: 64px; }
+.input-short { width: 120px; }
+.input-medium { width: 220px; }
+
 /* ── Shell ─────────────────────────────────────────────────────────────────
    The overlays and chrome around the views. The ones a script shows and
    hides with style.display start hidden here, not in an inline style. */
@@ -3272,6 +3308,7 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .flex-1 { flex: 1; }
 .shrink-0 { flex-shrink: 0; }
 .min-w-0 { min-width: 0; }
+.min-h-0 { min-height: 0; }
 .relative { position: relative; }
 
 /* Grid */
@@ -3300,9 +3337,13 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .gap-8 { gap: var(--space-8); }
 .gap-y-1 { row-gap: var(--space-1); }
 .gap-y-2 { row-gap: var(--space-2); }
+.gap-y-3 { row-gap: var(--space-3); }
+.gap-y-4 { row-gap: var(--space-4); }
+.gap-x-1 { column-gap: var(--space-1); }
 .gap-x-2 { column-gap: var(--space-2); }
 .gap-x-3 { column-gap: var(--space-3); }
 .gap-x-4 { column-gap: var(--space-4); }
+.gap-x-6 { column-gap: var(--space-6); }
 
 /* Margin */
 .m-0 { margin: 0; }
@@ -3493,6 +3534,7 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .align-middle { vertical-align: middle; }
 .align-top { vertical-align: top; }
 .cursor-pointer { cursor: pointer; }
+.cursor-not-allowed { cursor: not-allowed; }
 .transition-transform { transition: transform var(--duration-fast); }
 .opacity-50 { opacity: 0.5; }
 .opacity-60 { opacity: 0.6; }
