@@ -68,6 +68,7 @@ class SecureScoreSection(BaseSection):
         max_by_control = {n: p["max"] for n, p in profiles.items()}
 
         ranked: list[tuple[float, float, str, str]] = []
+        records: list[tuple[float, dict]] = []
         for ctrl in ctrl_scores:
             name = (ctrl.get("controlName") or "").strip()
             if not name:
@@ -86,8 +87,22 @@ class SecureScoreSection(BaseSection):
             # and so the title, could not be read.
             friendly = (profiles.get(name, {}).get("title") or "").strip() or name
             ranked.append((sort_key, ctrl_pct, friendly[:70], ctrl.get("controlCategory") or ""))
+            records.append(
+                (
+                    sort_key,
+                    {
+                        "control_id": name,
+                        "title": friendly,
+                        "pct": ctrl_pct,
+                        # Points still available; None without the control's profile.
+                        "remaining": remaining,
+                        "category": ctrl.get("controlCategory") or "",
+                    },
+                )
+            )
 
         ranked.sort(key=lambda r: r[0], reverse=True)
+        records.sort(key=lambda r: r[0], reverse=True)
         by_impact = bool(max_by_control)
 
         lines = [
@@ -112,6 +127,19 @@ class SecureScoreSection(BaseSection):
 
         lines += ["=" * 80, ""]
         self._save("09_secure_score.txt", "\n".join(lines))
+        # Every control left to improve, in the table's order, with its whole
+        # title: the table shows twenty, each cut to 70 characters.
+        self._save_sidecar(
+            "09_secure_score.txt",
+            {
+                "current": current,
+                "max": max_sc,
+                "pct": pct,
+                "as_of": created,
+                "by_impact": by_impact,
+                "improvements": [record for _, record in records],
+            },
+        )
 
     async def _control_profiles(self) -> dict[str, dict]:
         """Per-control points at stake and human title, keyed by control name.
@@ -162,13 +190,16 @@ class SecureScoreSection(BaseSection):
             f"  {'Method':<40} {'State'}",
             "  " + "-" * 66,
         ]
+        methods: list[dict] = []
         for cfg in configs:
             method = cfg.get("@odata.type", cfg.get("id", "Unknown"))
             method = method.split(".")[-1].replace("AuthenticationMethodConfiguration", "")
             state = cfg.get("state", "unknown")
             lines.append(f"  {method:<40} {state}")
+            methods.append({"method": method, "id": cfg.get("id"), "state": state})
         lines += ["=" * 70, ""]
         self._save("09b_auth_methods_policy.txt", "\n".join(lines))
+        self._save_sidecar("09b_auth_methods_policy.txt", {"methods": methods})
 
     # ── Auth Strength Policies ────────────────────────────────────────────────
 

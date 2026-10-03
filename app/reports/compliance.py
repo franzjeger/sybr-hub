@@ -275,8 +275,18 @@ def _mfa(audit: _Audit) -> _Verdict:
 _PHISHING_RESISTANT = frozenset({"fido2", "windowshelloforbusiness", "x509certificate"})
 
 
-def _phishing_resistant_methods(text: str) -> list[str]:
-    """Phishing-resistant methods the policy's "Method  State" table has enabled."""
+def _phishing_resistant_methods(text: str, sidecar: dict | None = None) -> list[str]:
+    """Phishing-resistant methods the policy's "Method  State" table has enabled.
+
+    From 09b_auth_methods_policy.json when the run has it.
+    """
+    if sidecar is not None:
+        return [
+            m.get("method") or ""
+            for m in sidecar.get("methods") or []
+            if (m.get("method") or "").lower().replace(" ", "") in _PHISHING_RESISTANT
+            and str(m.get("state") or "").lower() == "enabled"
+        ]
     enabled = []
     for line in text.splitlines():
         stripped = line.strip()
@@ -294,10 +304,11 @@ def _phishing_resistant_mfa(audit: _Audit) -> _Verdict:
     # CIS asks whether the tenant's policy enables these methods, not what share
     # of users has registered one.
     text = audit.fc.get("09b_auth_methods_policy.txt", "")
+    sidecar = _sidecar(audit.fc, "09b_auth_methods_policy.txt")
     # Any "Error" prefix: some sections write "Error fetching …" without a colon.
-    if not text.strip() or text.lstrip().startswith("Error"):
+    if sidecar is None and (not text.strip() or text.lstrip().startswith("Error")):
         return "info", _CANNOT_VERIFY + "autentiseringsmetode-policy utilgjengelig"
-    enabled = _phishing_resistant_methods(text)
+    enabled = _phishing_resistant_methods(text, sidecar)
     if enabled:
         return "pass", f"Phishing-resistant metoder aktivert: {', '.join(enabled)}"
     return (
