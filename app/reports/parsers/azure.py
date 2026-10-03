@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-from app.reports.parsers.common import _find_azure_files, _find_azure_json
+from app.reports.parsers.common import _find_azure_files, _find_azure_json, _sidecar
 
 # A protected item in one of these states is not backing the VM up: it was
 # stopped, paused or suspended, or never valid. Its recovery points may still
@@ -205,6 +205,30 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
     }
 
 
+def _vm_rows(sidecar: dict | None) -> list[dict] | None:
+    """The VM table from a 30_azure_vms sidecar, or None to read the text.
+
+    A sidecar from v1.2.0 carries only each VM's name and id, for the backup
+    cross-reference; the rest of the table is in its text.
+    """
+    if sidecar is None:
+        return None
+    vms = sidecar.get("vms") or []
+    if not all("location" in vm for vm in vms):
+        return None
+    return [
+        {
+            "name": vm.get("name") or "",
+            "rg": vm.get("resource_group") or "N/A",
+            "location": vm.get("location") or "",
+            "os": vm.get("os_type") or "N/A",
+            "size": vm.get("size") or "N/A",
+            "status": vm.get("power_state") or "N/A",
+        }
+        for vm in vms
+    ]
+
+
 def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
     """Parse Azure data files into a structured overview.
 
@@ -312,6 +336,10 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
     # ── VMs (aggregate across all subs) ────────────────────────────────────
     for fname, content, sub_name in _find_azure_files(file_contents, "30_azure_vms"):
         if "cpu_metrics" in fname:
+            continue
+        rows = _vm_rows(_sidecar(file_contents, fname))
+        if rows is not None:
+            result["vms"] += [{**row, "subscription": sub_name} for row in rows]
             continue
         for line in content.splitlines():
             stripped = line.strip()
