@@ -59,13 +59,12 @@ function switchDocsTab(btn, paneId) {
 // guide when the build has one. /api/docs/list names them and
 // /api/docs/file returns one; it is rendered client-side with marked.js and
 // sanitised through DOMPurify, so a document cannot run script in our
-// origin. The API reference and Swagger are for administrators.
+// origin. The API reference and Swagger are for administrators
+// ([data-admin-only], hidden by CSS for everyone else).
 
 var _docsRepoTreeLoaded = false;
 
 async function docsRepoLoad() {
-  var admin = !!(window._currentUser && _currentUser.role === 'admin');
-  document.querySelectorAll('#view-docs [data-admin-only]').forEach(function(el) { el.hidden = !admin; });
   if (_docsRepoTreeLoaded) return;
   var treeBox = document.getElementById('docs-repo-tree');
   if (!treeBox) return;

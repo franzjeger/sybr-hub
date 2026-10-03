@@ -146,8 +146,8 @@ async function openSettings() {
       document.getElementById('alert-mfa-threshold').value = (typeof ao.mfa_below_threshold === 'number' ? ao.mfa_below_threshold : 80);
     } catch (e) { console.warn('Scheduler settings init failed:', e); }
 
-    // Load backup info
-    loadBackupInfo();
+    // Backup is an administrator's tab; the routes refuse anyone else.
+    if (_currentUser && _currentUser.role === 'admin') loadBackupInfo();
 
     // Load version info into settings modal
     try {
@@ -156,7 +156,10 @@ async function openSettings() {
       if (vi) {
         // Line breaks come from CSS (white-space: pre-line), so the values
         // can go in as text rather than as markup.
-        vi.textContent = t('settings_version_info').replace('{version}', vr.describe || vr.version).replace('{commit}', vr.commit_hash || 'N/A').replace('{branch}', vr.branch || 'N/A').replace('{date}', vr.commit_date || 'N/A');
+        // The version a person can quote in a support case. Commit, branch
+        // and the host's Python, platform and PID are for whoever runs the
+        // server, who has them where the server runs.
+        vi.textContent = t('settings_version_info').replace('{version}', vr.version || vr.describe);
         // There is no in-app updater, so an
         // "Oppdater nå" button could only ever fail. Say where updates come
         // from instead.
@@ -165,23 +168,12 @@ async function openSettings() {
           note = document.createElement('div');
           note.id = 'settings-update-note';
           note.className = 'field-hint';
+          note.setAttribute('data-admin-only', '');
           vi.insertAdjacentElement('afterend', note);
         }
         note.textContent = t('settings_updates_runbook');
       }
     } catch (e) { /* ignore */ }
-    // System info
-    try {
-      var si = await apiFetch('/api/system-info');
-      var sEl = document.getElementById('settings-system-info');
-      if (sEl && si) {
-        sEl.innerHTML = 'Python: ' + esc(si.python_version) + '<br>'
-          + 'Platform: ' + esc(si.platform) + '<br>'
-          + 'DB: ' + Number(si.db_size_mb) + ' MB<br>'
-          + t('nav_files','Files') + ': ' + Number(si.audit_files) + ' (' + Number(si.audit_size_mb) + ' MB)<br>'
-          + 'PID: ' + Number(si.pid);
-      }
-    } catch(e) {}
   } catch (e) {
     document.getElementById('settings-current-dir').textContent = t('msg_loading_settings_failed');
   }
