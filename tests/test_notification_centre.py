@@ -32,6 +32,13 @@ class TestTheStreamIsMerged:
         for source in ("credential_expiry", "renewals", "uniweb"):
             assert source in collect, f"{source} is not folded into the stream"
 
+    def test_certificates_and_firmware_come_from_state_not_from_what_was_sent(self):
+        """The stored TLS and firmware state is read from /dashboard/alerts,
+        so it shows with no alert channel set up; the engine's history is a
+        separate band of its own."""
+        collect = JS[JS.index("function _notifCollect") : JS.index("function _notifRender")]
+        assert "data.certificates" in collect and "data.firmware" in collect
+
     def test_the_old_per_source_tables_are_gone(self):
         """Three <table> blocks under three headings was the thing being
         replaced; a table creeping back means the merge came undone."""
@@ -47,13 +54,18 @@ class TestTheStreamIsMerged:
         soon as one expired and the list shifted."""
         collect = JS[JS.index("function _notifCollect") : JS.index("function _notifRender")]
         ids = dict(re.findall(r"id:\s*'([a-z]+):'\s*\+([^,]+),", collect))
-        assert set(ids) == {"cred", "renew", "uniweb", "alert", "event"}, (
+        assert set(ids) == {"cred", "renew", "tls", "fw", "uniweb", "alert", "event"}, (
             f"expected one id builder per source, found {sorted(ids)}"
         )
         for prefix in ("cred", "renew", "uniweb"):
             assert "customer" in ids[prefix] or "item_name" in ids[prefix], (
                 f"the {prefix} id is not built from what identifies the alert: {ids[prefix]}"
             )
+        # A certificate is its endpoint and what is wrong with it; a device is
+        # its customer, vendor, key and the verdict on the version it runs.
+        assert "endpoint" in ids["tls"] and "i.kind" in ids["tls"]
+        for part in ("i.customer_id", "i.vendor", "i.device_key", "i.status"):
+            assert part in ids["fw"], ids["fw"]
         # A sent alert is the rule, the customer and the item it was about.
         assert ids["alert"].strip() == "key"
         assert (

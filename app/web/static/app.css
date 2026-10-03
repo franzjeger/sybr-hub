@@ -2926,3 +2926,24 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   position: absolute; top: 0; right: 0; background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
   min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: var(--radius-full); padding: 0 4px;
 }
+/* TLS: what the checks last saw (Verktøy › Nettverk › TLS). Every check stores
+   its reading on the server; this list is that state, most urgent first. */
+.tls-known { padding: var(--space-4); margin-bottom: var(--space-4); }
+.tls-known-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+.tls-known-title { font-size: 14px; font-weight: 600; }
+.tls-known-count { font-size: var(--font-xs); font-weight: 700; color: var(--text-muted); background: var(--bg-input); border-radius: var(--radius-full); padding: 1px 8px; }
+.tls-known-hint, .tls-known-empty { font-size: 12px; color: var(--text-muted); margin: 0 0 var(--space-3); line-height: 1.5; }
+.tls-known-empty { margin: 0; }
+.tls-known-scroll { overflow-x: auto; position: relative; }
+.tls-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tls-table th { text-align: left; padding: 8px; font-weight: 500; font-size: var(--font-xs); color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tls-table td { padding: 8px; border-bottom: 1px solid var(--row-divider); vertical-align: top; }
+.tls-table tr:last-child td { border-bottom: none; }
+.tls-endpoint { font-family: var(--mono); font-size: var(--font-xs); white-space: nowrap; }
+.tls-sub { display: block; font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.tls-warn, .tls-sub.tls-warn { color: var(--orange-deep); }
+.tls-chain-note { font-size: 12px; margin: 0 0 var(--space-2); }
+.tls-state { display: inline-block; font-size: var(--font-xs); font-weight: 600; border-radius: var(--radius-full); padding: 2px 8px; white-space: nowrap; color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 12%, transparent); }
+.tls-state--expired { color: var(--red-deep); background: color-mix(in srgb, var(--red) 12%, transparent); }
+.tls-state--expiring, .tls-state--invalid_chain, .tls-state--weak { color: var(--orange-deep); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+.tls-state--ok { color: var(--green-deep); background: color-mix(in srgb, var(--green) 12%, transparent); }

@@ -7,12 +7,15 @@ registerUiHandlers({
   tlsCheckSingle: function() { tlsCheckSingle(); },
   tlsAutoDiscover: function() { tlsAutoDiscover(); },
   tlsScanAll: function() { tlsScanAll(); },
+  tlsForget: function(el) { tlsForget(el.dataset.host, Number(el.dataset.port)); },
 });
 
 function tlsLoadView() {
   var el = document.getElementById('tls-content');
 
-  var html = '';
+  // What the checks found, kept. First, because it is the answer to "which
+  // certificates need attention"; the checks below are how it gets filled.
+  var html = '<div class="card tls-known" id="tls-known"><div class="loading-note">' + esc(t('msg_tls_loading', 'Laster...')) + '</div></div>';
 
   // ── Quick-check card ──
   html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
@@ -41,6 +44,105 @@ function tlsLoadView() {
   html += '</div>';
 
   el.innerHTML = html;
+  tlsLoadKnown();
+}
+
+// ── What the checks found, kept ──
+//
+// Every check (one endpoint, a scan, the nightly certificate check) stores
+// what it saw on the server; this lists it. An endpoint that stopped
+// answering keeps the certificate it was last seen with, marked as such.
+
+function tlsStateLabel(status) {
+  switch (status) {
+    case 'expired': return t('tls_state_expired', 'Utløpt');
+    case 'expiring': return t('tls_state_expiring', 'Utløper snart');
+    case 'invalid_chain': return t('tls_state_invalid_chain', 'Ugyldig kjede');
+    case 'unreachable': return t('tls_state_unreachable', 'Ikke nådd');
+    case 'weak': return t('tls_state_weak', 'Svak TLS');
+    case 'ok': return t('tls_state_ok', 'Gyldig');
+    default: return t('tls_state_unknown', 'Ukjent');
+  }
+}
+
+// Why a chain did not validate, as the server classifies it
+// (app/services/tls_monitor.py, _CHAIN_PROBLEMS). Varsler uses it too.
+function tlsChainLabel(code) {
+  switch (code) {
+    case 'self_signed': return t('tls_chain_self_signed', 'Selvsignert sertifikat');
+    case 'untrusted': return t('tls_chain_untrusted', 'Utstederen er ikke klarert');
+    case 'incomplete_chain': return t('tls_chain_incomplete_chain', 'Mellomsertifikat mangler, eller utstederen er ukjent');
+    case 'hostname_mismatch': return t('tls_chain_hostname_mismatch', 'Navnet passer ikke med sertifikatet');
+    case 'expired': return t('tls_chain_expired', 'Sertifikatet er utløpt');
+    case 'not_yet_valid': return t('tls_chain_not_yet_valid', 'Sertifikatet er ikke gyldig ennå');
+    case 'revoked': return t('tls_chain_revoked', 'Sertifikatet er trukket tilbake');
+    default: return t('tls_chain_other', 'Kjeden kunne ikke valideres');
+  }
+}
+
+async function tlsLoadKnown() {
+  var el = document.getElementById('tls-known');
+  if (!el) return;
+  var data = await apiFetch('/api/tls/certificates');
+  if (!data) {
+    el.innerHTML = '<p class="tls-known-hint">' + esc(t('tls_known_failed', 'Kunne ikke hente de lagrede sertifikatene.')) + '</p>';
+    return;
+  }
+  el.innerHTML = _tlsKnownHtml(data.endpoints || []);
+}
+
+function _tlsKnownHtml(rows) {
+  var html = '<div class="tls-known-head"><span class="tls-known-title">' + esc(t('tls_known_title', 'Kjente sertifikater'))
+    + '</span><span class="tls-known-count">' + Number(rows.length) + '</span></div>';
+  html += '<p class="tls-known-hint">' + esc(t('tls_known_hint', 'Det siste hver sjekk så. Sertifikatsjekken går gjennom listen hver natt, sammen med brannmurene og kontrollerne kundeoppsettet peker på.')) + '</p>';
+  if (!rows.length) {
+    return html + '<p class="tls-known-empty">' + esc(t('tls_known_empty', 'Ingen endepunkter er sjekket ennå. Sjekk ett nedenfor, eller skann kundenes endepunkter.')) + '</p>';
+  }
+  var write = canWrite();
+  html += '<div class="tls-known-scroll"><table class="tls-table"><thead><tr>';
+  html += '<th>' + esc(t('tls_status', 'Status')) + '</th>';
+  html += '<th>' + esc(t('tls_endpoint', 'Endepunkt')) + '</th>';
+  html += '<th>' + esc(t('col_customer', 'Kunde')) + '</th>';
+  html += '<th>' + esc(t('tls_subject', 'Sertifikat')) + '</th>';
+  html += '<th>' + esc(t('tls_expires', 'Utløper')) + '</th>';
+  html += '<th>' + esc(t('tls_checked', 'Sjekket')) + '</th>';
+  if (write) html += '<th><span class="sr-only">' + esc(t('btn_remove', 'Fjern')) + '</span></th>';
+  html += '</tr></thead><tbody>';
+  rows.forEach(function(r) {
+    var days = (r.days_remaining === null || r.days_remaining === undefined) ? '' : Number(r.days_remaining);
+    html += '<tr>';
+    html += '<td><span class="tls-state tls-state--' + esc(r.status) + '">' + esc(tlsStateLabel(r.status)) + '</span></td>';
+    html += '<td><span class="tls-endpoint">' + esc(r.host) + ':' + Number(r.port) + '</span>'
+      + (r.label ? '<span class="tls-sub">' + esc(r.label) + '</span>' : '') + '</td>';
+    html += '<td>' + esc(r.customer_name || '-') + '</td>';
+    html += '<td>' + esc(r.subject || '-')
+      + (r.issuer ? '<span class="tls-sub">' + esc(r.issuer) + '</span>' : '')
+      + (r.chain_valid === false ? '<span class="tls-sub tls-warn">' + esc(tlsChainLabel(r.chain_problem)) + '</span>' : '')
+      + '</td>';
+    html += '<td>' + esc((r.not_after || '').slice(0, 10) || '-')
+      + (days !== '' ? '<span class="tls-sub">' + esc(_notifDays(days)) + '</span>' : '') + '</td>';
+    html += '<td>' + esc((r.checked_at || '').slice(0, 10) || '-')
+      + (r.error ? '<span class="tls-sub tls-warn">' + esc(r.stale ? t('tls_last_check_failed', 'Siste sjekk nådde ikke fram') : r.error) + '</span>' : '')
+      + '</td>';
+    if (write) {
+      html += '<td><button class="btn btn-default btn-sm" data-click-handler="tlsForget"'
+        + ' data-host="' + esc(r.host) + '" data-port="' + Number(r.port) + '"'
+        + ' aria-label="' + esc(t('tls_forget', 'Fjern fra listen')) + ': ' + esc(r.host) + '">'
+        + esc(t('btn_remove', 'Fjern')) + '</button></td>';
+    }
+    html += '</tr>';
+  });
+  return html + '</tbody></table></div>';
+}
+
+async function tlsForget(host, port) {
+  var ok = await showConfirm(
+    t('tls_forget_title', 'Fjerne endepunktet fra listen?'),
+    t('tls_forget_body', 'Det sjekkes ikke lenger hver natt. Et endepunkt kundeoppsettet peker på, kommer tilbake ved neste sjekk.')
+  );
+  if (!ok) return;
+  var r = await apiFetch('/api/tls/certificates?host=' + encodeURIComponent(host) + '&port=' + Number(port), {method: 'DELETE'});
+  if (r) tlsLoadKnown();
 }
 
 async function tlsCheckSingle() {
@@ -56,6 +158,7 @@ async function tlsCheckSingle() {
   var data = await apiFetch('/api/tls/check', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:host, port:port})});
   if (!data) { el.innerHTML = '<span style="color:var(--red);">' + t('tls_connect_failed','Feil ved tilkobling') + '</span>'; return; }
   el.innerHTML = _tlsRenderSingleResult(data);
+  tlsLoadKnown();
 }
 
 function _tlsRenderSingleResult(r) {
@@ -64,8 +167,9 @@ function _tlsRenderSingleResult(r) {
       + '<strong style="color:var(--red);">' + t('tls_error','Error') + '</strong>: ' + esc(r.error) + '</div>';
   }
 
-  var statusColor = r.expired ? 'var(--red)' : r.expiring_soon ? 'var(--orange)' : r.weak_protocol || r.weak_cipher ? 'var(--orange)' : 'var(--green)';
-  var statusLabel = r.expired ? t('tls_expired','Expired') : r.expiring_soon ? t('tls_expiring_soon','Expiring soon') : r.weak_protocol || r.weak_cipher ? t('tls_weak','Weak') : t('tls_valid','Valid');
+  var chainBad = r.chain_valid === false;
+  var statusColor = r.expired ? 'var(--red)' : r.expiring_soon || chainBad || r.weak_protocol || r.weak_cipher ? 'var(--orange)' : 'var(--green)';
+  var statusLabel = r.expired ? t('tls_expired','Expired') : r.expiring_soon ? t('tls_expiring_soon','Expiring soon') : chainBad ? tlsStateLabel('invalid_chain') : r.weak_protocol || r.weak_cipher ? t('tls_weak','Weak') : t('tls_valid','Valid');
 
   var html = '<div class="card" style="padding:14px;border-left:3px solid '+statusColor+';">';
   html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
@@ -73,6 +177,7 @@ function _tlsRenderSingleResult(r) {
   html += '<strong style="font-size:14px;">' + esc(r.host) + ':' + Number(r.port) + '</strong>';
   html += '<span style="font-size:12px;color:'+statusColor+';font-weight:600;">' + statusLabel + '</span>';
   html += '</div>';
+  if (chainBad) html += '<p class="tls-warn tls-chain-note">' + esc(tlsChainLabel(r.chain_problem)) + '</p>';
 
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--text-muted);">';
   html += '<span>' + t('tls_subject','Certificate') + ': <strong style="color:var(--text);">' + esc(r.subject && r.subject.commonName || '-') + '</strong></span>';
@@ -176,6 +281,7 @@ async function tlsScanAll() {
     el.innerHTML = '<div style="color:var(--red);text-align:center;padding:16px;">' + t('tls_error','Error') + '</div>';
     return;
   }
+  tlsLoadKnown();
 
   // ── KPI summary row ──
   var html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">';
@@ -207,14 +313,16 @@ async function tlsScanAll() {
   html += '<th style="text-align:left;padding:8px;">' + t('tls_cipher','Cipher') + '</th>';
   html += '</tr></thead><tbody>';
 
-  // Sort: errors first, then expired, then expiring_soon, then weak, then valid
+  // Sort: errors first, then expired, then expiring_soon, then broken chains,
+  // then weak, then valid
   data.results.sort(function(a,b) {
     function score(r) {
       if (r.error) return 0;
       if (r.expired) return 1;
       if (r.expiring_soon) return 2;
-      if (r.weak_protocol || r.weak_cipher) return 3;
-      return 4;
+      if (r.chain_valid === false) return 3;
+      if (r.weak_protocol || r.weak_cipher) return 4;
+      return 5;
     }
     return score(a) - score(b);
   });
@@ -227,6 +335,8 @@ async function tlsScanAll() {
       statusColor = 'var(--red)'; statusText = t('tls_expired','Expired'); statusIcon = '&#10007;';
     } else if (r.expiring_soon) {
       statusColor = 'var(--orange)'; statusText = t('tls_expiring_soon','Expiring soon'); statusIcon = '';
+    } else if (r.chain_valid === false) {
+      statusColor = 'var(--orange)'; statusText = tlsStateLabel('invalid_chain'); statusIcon = '';
     } else if (r.weak_protocol || r.weak_cipher) {
       statusColor = 'var(--orange)'; statusText = t('tls_weak','Weak'); statusIcon = '';
     } else {
@@ -240,7 +350,8 @@ async function tlsScanAll() {
     if (r.error) {
       html += '<td colspan="5" style="padding:8px;color:var(--red);font-size:11px;">' + esc(r.error) + '</td>';
     } else {
-      html += '<td style="padding:8px;">' + esc(r.subject && r.subject.commonName || '-') + '</td>';
+      html += '<td style="padding:8px;">' + esc(r.subject && r.subject.commonName || '-')
+        + (r.chain_valid === false ? '<span class="tls-sub tls-warn">' + esc(tlsChainLabel(r.chain_problem)) + '</span>' : '') + '</td>';
       html += '<td style="padding:8px;color:var(--text-muted);">' + esc(r.issuer && (r.issuer.organizationName || r.issuer.commonName) || '-') + '</td>';
 
       var daysColor = r.days_remaining < 0 ? 'var(--red)' : r.days_remaining < 30 ? 'var(--orange)' : 'var(--green)';
@@ -260,4 +371,3 @@ async function tlsScanAll() {
 
   el.innerHTML = html;
 }
-

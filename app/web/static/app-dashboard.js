@@ -142,6 +142,7 @@ async function dashLoadAlerts() {
 
   window._notifItems = _notifCollect(data, uniweb, history, activity);
   window._notifConfig = cfg;
+  window._notifCoverage = data.coverage || null;
   _notifRender();
 }
 
@@ -175,6 +176,52 @@ function _notifCollect(data, uniweb, history, activity) {
       days: i.days_remaining, when: i.contract_end,
       handled: !!i.handled,
       action: t('btn_see_renewal', 'Se fornyelse'), act: 'customer'
+    });
+  });
+
+  // What the TLS checks last saw, read from stored state rather than from
+  // what the alert engine managed to send: the engine records an alert only
+  // once a Teams or e-mail channel took it, so with no channel set up an
+  // expiring certificate showed nowhere. Expired, expiring within 30 days, or
+  // a chain that does not validate.
+  (data.certificates || []).forEach(function(i) {
+    var endpoint = (i.host || '') + ':' + (i.port || '');
+    var detail = [];
+    if (i.label) detail.push(i.label);
+    if (i.chain_problem) detail.push(tlsChainLabel(i.chain_problem));
+    if (i.stale) detail.push(t('tls_last_check_failed', 'Siste sjekk nådde ikke fram'));
+    var tlsTab = canOpenView('network');
+    out.push({
+      id: 'tls:' + endpoint + ':' + (i.kind || '') + ':' + (i.not_after || ''),
+      sev: i.category || 'warning',
+      title: (i.kind === 'chain' ? t('notif_tls_chain', 'Ugyldig sertifikatkjede') : t('notif_tls_cert', 'TLS-sertifikat')) + ': ' + endpoint,
+      customer: i.customer_name || '', customerId: i.customer_id || '',
+      source: t('src_certificates', 'Sertifikater'),
+      // The expiry date for an expiring certificate; for a broken chain, the
+      // day it was last checked, as for firmware.
+      days: i.days_remaining, when: i.kind === 'chain' ? String(i.checked_at || '').slice(0, 10) : (i.not_after || ''),
+      detail: detail.join(' · '),
+      action: tlsTab ? t('btn_open_tls', 'Åpne TLS') : t('btn_open_customer', 'Åpne kunde'),
+      act: tlsTab ? 'tls' : 'customer', tab: 'nettverk'
+    });
+  });
+
+  // The firmware each device was last read with: end of life, or behind.
+  (data.firmware || []).forEach(function(i) {
+    // An end-of-life model's "latest" is its last release, often the one it
+    // runs; only a device that is behind has somewhere to go.
+    var behind = i.status === 'outdated' && i.latest && i.latest !== i.version;
+    var detail = (i.vendor === 'fortigate' ? 'FortiGate' : 'UniFi') + (i.model ? ' ' + i.model : '')
+      + (i.version ? ', ' + i.version : '') + (behind ? ' → ' + i.latest : '');
+    if (i.read_error) detail += ' · ' + t('fw_last_read_failed', 'Siste lesing feilet');
+    out.push({
+      id: 'fw:' + (i.customer_id || '') + ':' + (i.vendor || '') + ':' + (i.device_key || '') + ':' + (i.status || '') + ':' + (i.version || ''),
+      sev: i.category || 'warning',
+      title: (i.status === 'eol' ? t('notif_fw_eol', 'Enheten har nådd end of life') : t('notif_fw_outdated', 'Utdatert firmware')) + ': ' + (i.device_name || ''),
+      customer: i.customer_name || '', customerId: i.customer_id || '',
+      source: t('src_firmware', 'Firmware'),
+      days: null, when: String(i.checked_at || '').slice(0, 10), detail: detail,
+      action: t('btn_open_network_tab', 'Åpne Nettverk'), act: 'customer', tab: 'nettverk'
     });
   });
 
@@ -237,11 +284,14 @@ function _notifCollect(data, uniweb, history, activity) {
     });
   });
 
-  // Soonest first inside every group, expired at the top.
+  // Soonest first inside every group, expired at the top; without a date,
+  // the most severe first (an end-of-life firewall before a self-signed
+  // certificate).
+  var rank = {critical: 0, warning: 1, info: 2};
   out.sort(function(a, b) {
     var x = (a.days === null || a.days === undefined) ? 9e9 : a.days;
     var y = (b.days === null || b.days === undefined) ? 9e9 : b.days;
-    return x - y;
+    return (x - y) || ((rank[a.sev] === undefined ? 3 : rank[a.sev]) - (rank[b.sev] === undefined ? 3 : rank[b.sev]));
   });
   return out;
 }
@@ -287,7 +337,7 @@ function _notifRender() {
     html += '<div class="notif-card" style="text-align:center;padding:40px;color:var(--text-muted);">'
          + (items.length
              ? t('msg_no_alerts_in_filter', 'Ingen varsler i dette filteret.')
-             : t('msg_all_clear', 'Ingenting krever handling. Ingen legitimasjon, fornyelser eller domener utløper innen 30 dager.'))
+             : t('msg_all_clear', 'Ingenting krever handling. Ingen legitimasjon, fornyelser, domener eller sertifikater utløper innen 30 dager, og ingen av enhetene som er lest, har utdatert firmware.'))
          + '</div>';
   } else {
     // Urgency bands, not calendar days: these alerts describe what is about
@@ -366,6 +416,16 @@ function notifAct(id, readOnly) {
   var n = (window._notifItems || []).filter(function(x) { return x.id === id; })[0];
   _notifMarkRead(id);
   if (!readOnly && n) {
+    // A certificate is handled on Verktøy › Nettverk › TLS, where it can be
+    // checked again; firmware on the customer's Nettverk tab.
+    if (n.act === 'tls' && canOpenView('network')) {
+      showNetworkTab('net-tls');
+      return;
+    }
+    if (n.act === 'customer' && n.tab && n.customerId && typeof openCustomerPage === 'function') {
+      openCustomerPage(n.customerId, n.tab);
+      return;
+    }
     if (n.act === 'customer' && typeof showCustomerDetail === 'function' && n.customerId) {
       showCustomerDetail(n.customerId, n.customer);
       return;
@@ -385,7 +445,8 @@ function _notifSidebar() {
   var html = '<div class="notif-side"><div class="notif-card"><h4>' + esc(t('hdr_delivery', 'Levering')) + '</h4>';
   if (cfg) {
     var chans = [];
-    if (cfg.notify_teams) chans.push('Teams');
+    // The switch alone sends nothing: Teams needs a stored webhook.
+    if (cfg.notify_teams && cfg.teams_webhook_set !== false) chans.push('Teams');
     if (cfg.notify_email && cfg.email_recipient) chans.push(cfg.email_recipient);
     html += '<p class="notif-side-text">'
          + esc(chans.length
@@ -401,7 +462,31 @@ function _notifSidebar() {
   html += canOpenView('admin')
     ? '<button class="btn btn-default btn-sm" data-click-handler="notifOpenRules">' + esc(t('btn_change_channels', 'Endre kanaler')) + '</button>'
     : '<p class="notif-side-text">' + esc(t('msg_rules_admin_only', 'Bare administratorer kan endre reglene.')) + '</p>';
-  return html + '</div></div>';
+  return html + '</div>' + _notifCoverageCard() + '</div>';
+}
+
+// What the certificate and firmware items rest on. An empty list means
+// nothing needs action only if something was looked at; this says how much
+// was, and when.
+function _notifCoverageCard() {
+  var cov = window._notifCoverage;
+  if (!cov) return '';
+  var html = '<div class="notif-card"><h4>' + esc(t('hdr_checked_state', 'Hva er sjekket')) + '</h4>';
+  var tls = cov.tls || {};
+  var fw = cov.firmware || {};
+  var day = function(iso) { return String(iso || '').slice(0, 10); };
+  var line;
+  if (tls.unavailable) line = t('msg_cov_tls_unavailable', 'Lagrede sertifikater kunne ikke leses.');
+  else if (!tls.endpoints) line = t('msg_cov_tls_none', 'Ingen TLS-endepunkter er sjekket ennå.');
+  else line = t('msg_cov_tls', 'TLS-endepunkter sjekket: {n}, sist {date}.').replace('{n}', Number(tls.endpoints)).replace('{date}', day(tls.last_checked))
+    + (tls.unreachable ? ' ' + t('msg_cov_tls_unreachable', 'Ikke nådd: {n}.').replace('{n}', Number(tls.unreachable)) : '');
+  html += '<p class="notif-side-text">' + esc(line) + '</p>';
+  if (fw.unavailable) line = t('msg_cov_fw_unavailable', 'Lagret firmware kunne ikke leses.');
+  else if (!fw.devices) line = t('msg_cov_fw_none', 'Ingen enheters firmware er lest ennå.');
+  else line = t('msg_cov_fw', 'Enheter med lest firmware: {n}, sist {date}.').replace('{n}', Number(fw.devices)).replace('{date}', day(fw.last_read))
+    + (fw.unknown ? ' ' + t('msg_cov_fw_unknown', 'Firmware ikke bekreftet: {n}.').replace('{n}', Number(fw.unknown)) : '');
+  html += '<p class="notif-side-text' + (fw.unknown ? ' is-warn' : '') + '">' + esc(line) + '</p>';
+  return html + '</div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════

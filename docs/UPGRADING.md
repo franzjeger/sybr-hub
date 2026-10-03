@@ -1,3 +1,24 @@
+# Varsler from stored state (unreleased)
+
+- **Database migrations 25 and 26** add `tls_endpoints` and
+  `device_firmware`. Both start empty and fill as TLS checks and firmware
+  reads run; Varsler lists certificates and firmware from them whether or not
+  an alert channel is set up.
+- **The daily `cert_expiry_check` now connects to customer endpoints.** Besides
+  the hub's own Tailscale certificate it re-checks every stored TLS endpoint
+  and every FortiGate, UniFi controller and network appliance the customer
+  settings name (a TLS handshake on the configured port, nothing else).
+- **New daily task `firmware_check` (05:30, on by default)** polls every
+  FortiGate and every UniFi controller in controller mode that the hub reaches
+  directly. Customers reachable only over VPN are recorded as unread until the
+  site collector or a network audit reads them. Switch it off under
+  Administrasjon › Varsler og planlagte oppgaver if that traffic is unwanted.
+- `GET /api/tls/auto-discover` now lists only the caller's customers'
+  endpoints, and each carries `customer_id`. `GET /api/alerts/config` adds
+  `teams_webhook_set`.
+
+---
+
 # Navigation (unreleased)
 
 - **Settings moved to Administrasjon,** a page in the avatar menu
