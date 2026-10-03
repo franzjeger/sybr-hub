@@ -19,6 +19,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.modules.m365_audit.sections.azure_compute import AzureComputeSection
+from app.modules.m365_audit.sections.azure_governance import AzureGovernanceSection
 from app.modules.m365_audit.sections.azure_network import AzureNetworkSection
 from app.modules.m365_audit.sections.azure_storage import AzureStorageSection
 from app.reports.parsers import _parse_azure_overview
@@ -408,3 +409,114 @@ async def test_each_subscription_reads_its_own_nsg_files(tmp_path):
         {"subscription": "Prod-B", "count": 2},
     ]
     assert sorted(_nsg_rec(files)["sub_items"]) == sorted(_risky(SUB_A) + _risky(SUB_B))
+
+
+# ── Azure Advisor (51_azure_advisor) ──────────────────────────────────────────
+
+
+def _advice(category, impact, problem, resource):
+    return SimpleNamespace(
+        category=category,
+        impact=impact,
+        short_description=SimpleNamespace(problem=problem, solution=problem),
+        impacted_value=resource,
+    )
+
+
+ADVICE = [
+    _advice("Security", "High", "Enable MFA for accounts with owner permissions", "sub-a"),
+    _advice("Security", "Medium", "Restrict access through internet-facing endpoint", "vm-01"),
+    _advice("Cost", "Low", "Right-size or shutdown underutilized virtual machines", "vm-02"),
+    _advice("Cost", "Low", "Right-size or shutdown underutilized virtual machines", "vm-03"),
+    _advice("Cost", "Medium", "Buy reserved instances to save money", "sub-a"),
+]
+
+
+async def _collect_advisor(tmp_path, per_sub: dict, *, multi: bool) -> None:
+    auth = FakeAzureAuth(
+        subscriptions={
+            sub: {"advisor": {"recommendations.list": recs}} for sub, recs in per_sub.items()
+        }
+    )
+    for sub, name in SUBS:
+        if sub in per_sub:
+            await AzureGovernanceSection(
+                tmp_path, auth, sub_id=sub, sub_name=name, multi=multi
+            )._collect_advisor()
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_advisor_recommendations_survive_the_round_trip(tmp_path, sidecars):
+    await _collect_advisor(tmp_path, {SUB_A: ADVICE}, multi=False)
+    files = _read(tmp_path, sidecars=sidecars)
+
+    azure = _parse_azure_overview(files)
+
+    assert azure["advisor_recs"] == 5
+    assert [
+        (a["category"], a["impact"], a["description"], a["resource"])
+        for a in azure["advisor_details"]
+    ] == [
+        ("Cost", "Low", "Right-size or shutdown underutilized virtual machines", "vm-02"),
+        ("Cost", "Low", "Right-size or shutdown underutilized virtual machines", "vm-03"),
+        ("Cost", "Medium", "Buy reserved instances to save money", "sub-a"),
+        ("Security", "High", "Enable MFA for accounts with owner permissions", "sub-a"),
+        ("Security", "Medium", "Restrict access through internet-facing endpoint", "vm-01"),
+    ]
+    assert [(s["description"], s["count"]) for s in azure["advisor_summary"]] == [
+        ("Enable MFA for accounts with owner permissions", 1),
+        ("Buy reserved instances to save money", 1),
+        ("Restrict access through internet-facing endpoint", 1),
+        ("Right-size or shutdown underutilized virtual machines", 2),
+    ]
+
+
+async def test_two_recommendations_sharing_their_first_80_characters_stay_apart(tmp_path):
+    """The text cuts a description at 80 characters, and the report groups
+    Advisor items by description: two different actions became one, counted
+    twice, and the second never reached the recommendation."""
+    stem = "Enable soft delete for blob storage accounts that hold production data in region "
+    assert len(stem) > 80
+    long_resource = "/subscriptions/x/resourceGroups/rg-prod/providers/Microsoft.Storage/x"
+    await _collect_advisor(
+        tmp_path,
+        {
+            SUB_A: [
+                _advice("HighAvailability", "High", stem + "norwayeast", long_resource),
+                _advice("HighAvailability", "High", stem + "westeurope", long_resource),
+            ]
+        },
+        multi=False,
+    )
+
+    with_json = _parse_azure_overview(_read(tmp_path, sidecars=True))
+    text_only = _parse_azure_overview(_read(tmp_path, sidecars=False))
+
+    assert [s["description"] for s in with_json["advisor_summary"]] == [
+        stem + "norwayeast",
+        stem + "westeurope",
+    ]
+    assert with_json["advisor_details"][0]["resource"] == long_resource
+    assert len(text_only["advisor_summary"]) == 1, "the text alone cannot keep them apart"
+
+
+async def test_a_subscription_whose_advisor_was_not_read_is_not_hidden(tmp_path):
+    await _collect_advisor(
+        tmp_path, {SUB_A: ADVICE[:2], SUB_B: PermissionError("AuthorizationFailed")}, multi=True
+    )
+    files = _read(tmp_path, sidecars=True)
+
+    assert "51_azure_advisor_Prod-B.json" not in files
+    azure = _parse_azure_overview(files)
+    assert azure["advisor_recs"] == 2
+    assert {a["subscription"] for a in azure["advisor_details"]} == {"Prod-A"}
+
+
+async def test_each_subscription_reads_its_own_advisor_files(tmp_path):
+    await _collect_advisor(tmp_path, {SUB_A: ADVICE[:2], SUB_B: ADVICE[2:]}, multi=True)
+    files = _drop(_read(tmp_path, sidecars=True), "51_azure_advisor_Prod-B")
+
+    azure = _parse_azure_overview(files)
+
+    assert azure["advisor_recs"] == 5
+    assert [a["subscription"] for a in azure["advisor_details"]] == ["Prod-A"] * 2 + ["Prod-B"] * 3
