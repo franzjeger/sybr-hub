@@ -9,6 +9,7 @@ come from Graph, through a real GraphClient over the rig's fake transport.
 from __future__ import annotations
 
 from app.modules.m365_audit.sections.exchange import ExchangeSection
+from app.reports.compliance import _build_compliance_map
 from app.reports.parsers import _parse_exchange_overview
 from app.reports.parsers.tenant import _parse_shared_mailbox_upns
 from tests.collector_rig import FakeGraph, run_sections
@@ -149,3 +150,32 @@ async def test_the_external_column_says_whether_the_target_is_external(tmp_path)
         if "Nordmann" in line
     }
     assert rows == {"Kari": "No", "Ola": "Yes"}
+
+
+# ── Defender for Office 365: Safe Links / Safe Attachments ────────────────────
+
+
+def _controls(files: dict, **context) -> dict[str, dict]:
+    rows = _build_compliance_map({"file_contents": files, **context})
+    return {r["cis_id"]: r for r in rows}
+
+
+async def test_a_tenant_with_only_the_built_in_policy_keeps_its_defender_file(tmp_path):
+    """ConvertTo-Json writes a single result as an object, not a one-item list.
+
+    A tenant whose only Safe Links policy is the Built-In Protection Policy
+    therefore sent a dict, the collector iterated its keys, and the whole file
+    was lost: CIS 4.5 and 4.6 read "cannot verify" for a protected tenant.
+    """
+    exo = {
+        "defender_policies": {
+            "safe_links": {"Name": "Built-In Protection Policy", "IsEnabled": True},
+            "safe_attachments": {"Name": "Built-In Protection Policy", "Action": "Block"},
+        }
+    }
+    files, section = await _collect(tmp_path, exo)
+
+    assert not any("Defender" in w for w in section.result.warns), section.result.warns
+    controls = _controls(files)
+    assert controls["4.5"]["status"] == "pass"
+    assert controls["4.6"]["status"] == "pass"
