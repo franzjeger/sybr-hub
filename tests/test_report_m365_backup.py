@@ -173,7 +173,7 @@ def _rec(files: dict, lang: str = "no") -> dict | None:
 
 def _control(files: dict, lang: str = "no") -> dict:
     rows = _build_compliance_map({"file_contents": files}, lang=lang)
-    return next(r for r in rows if r["cis_id"] == "11.2")
+    return next(r for r in rows if r["cis_id"] == "CIS v8 11.2")
 
 
 # ── Microsoft 365 Backup enabled ──────────────────────────────────────────────
@@ -711,7 +711,7 @@ async def test_the_report_context_carries_the_reading(tmp_path):
     assert ctx["m365_backup"]["gaps"] == ["exchange", "onedrive", "sharepoint"]
     titles = [r["title"] for r in ctx["recommendations"]]
     assert "Microsoft 365: ingen backup funnet for 3 arbeidslast(er)" in titles
-    row = next(c for c in ctx["compliance"] if c["cis_id"] == "11.2")
+    row = next(c for c in ctx["compliance"] if c["cis_id"] == "CIS v8 11.2")
     assert row["status"] == "fail"
     assert row["evidence"] == ["34_m365_backup.json", "34_m365_backup.txt"]
     assert row["nist_id"].startswith("PR.DS-11")

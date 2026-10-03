@@ -179,7 +179,7 @@ _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
     ),
     "9.3": ("18_risky_users.json", "18_risky_users.txt"),
     # Microsoft 365 Backup and the backup vendors' apps, both in one section.
-    "11.2": ("34_m365_backup.json", "34_m365_backup.txt"),
+    "CIS v8 11.2": ("34_m365_backup.json", "34_m365_backup.txt"),
 }
 
 
