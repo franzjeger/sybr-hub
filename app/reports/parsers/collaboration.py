@@ -217,6 +217,7 @@ def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
 
     _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     section = ""
+    fixed_width = False
 
     for line in text.splitlines():
         stripped = line.strip()
@@ -227,6 +228,22 @@ def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
             section = "app"
             continue
         elif not stripped or stripped.startswith("===") or stripped.startswith("-"):
+            continue
+
+        # The current collector's table, read by column offset. It writes
+        #   f"  {client:<40} {resource:<40} {scopes}"
+        # with each name trimmed to its column. A 40-character name fills the
+        # column and leaves one space before the next, so the split on runs of
+        # spaces below merged two columns and dropped the grant; so did an empty
+        # scope. A doubled space inside a name cut the name short, and "App:" in
+        # one sent the row down the pipe format's branch with no scopes. Every
+        # one of those hid a grant, high-privilege ones included.
+        if line.startswith("  Client App") and line[43:51] == "Resource":
+            fixed_width = True
+            continue
+        if fixed_width:
+            scopes = [s.strip() for s in line[84:].split(",") if s.strip()]
+            admin_consent.append({"app": line[2:42].strip(), "scopes": scopes})
             continue
 
         # Format 1: Pipe-delimited with "App:" prefix
