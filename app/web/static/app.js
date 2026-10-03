@@ -1185,6 +1185,10 @@ function canOpenView(name) {
 function _wouldBeRefused(url, options) {
   var method = ((options && options.method) || 'GET').toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+  // Until /auth/me has answered, the account and its exempt paths are not
+  // known, and refusing then turned a customer switch made during start-up
+  // into a "read access" toast for an admin. The server decides that case.
+  if (!_currentUser) return false;
   if (canWrite()) return false;
   var path = String(url).split('?')[0].replace(/\/$/, '');
   return _writeExempt.indexOf(path) === -1;
