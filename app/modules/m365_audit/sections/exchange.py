@@ -52,6 +52,18 @@ def _records(val: Any) -> list[dict]:
     return [val] if isinstance(val, dict) else []
 
 
+def _flag(val: Any) -> bool | None:
+    """A yes/no setting as a boolean, or None when its value says neither.
+
+    The same four words the report's text reader accepts, so a setting reads
+    the same from the sidecar as from the text.
+    """
+    if isinstance(val, bool):
+        return val
+    word = str(val).strip().lower() if isinstance(val, str) else ""
+    return {"true": True, "yes": True, "false": False, "no": False}.get(word)
+
+
 def _policy_state(policies: list[dict], kind: str) -> dict[str, int]:
     """How many Defender policies of one PolicyType there are, and how many are on.
 
@@ -503,6 +515,12 @@ class ExchangeSection(BaseSection):
             lines.append(f"  {k}: {_fmt_val(v)}")
         lines += ["=" * 80, ""]
         self._save("27c_exchange_org_config.txt", "\n".join(lines))
+        # Every setting as the helper gave it, with the one CIS 4.1 reads as a
+        # boolean, or null when the helper's value says neither.
+        self._save_sidecar(
+            "27c_exchange_org_config.txt",
+            {**cfg, "AuditDisabled": _flag(cfg.get("AuditDisabled"))},
+        )
 
     # ── Admin Audit Log Config (CIS 9.1) ──────────────────────────────────────
 
@@ -526,6 +544,11 @@ class ExchangeSection(BaseSection):
         lines.append(f"  UnifiedAuditLogIngestionEnabled: {_fmt_val(val)}")
         lines += ["=" * 80, ""]
         self._save("27d_exchange_admin_audit_log_config.txt", "\n".join(lines))
+        # null is "not collected", as N/A is in the text: cannot verify, never a fail.
+        self._save_sidecar(
+            "27d_exchange_admin_audit_log_config.txt",
+            {"UnifiedAuditLogIngestionEnabled": _flag(val)},
+        )
 
     # ── Mailbox Forwarding ────────────────────────────────────────────────────
 

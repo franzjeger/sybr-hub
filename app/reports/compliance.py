@@ -41,6 +41,7 @@ from app.reports.parsers.collaboration import (
 )
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.common import _record_count
+from app.reports.parsers.common import _record_count, _sidecar
 from app.reports.parsers.email import _defender_policies
 
 # Names shown next to the ids, so the cross-reference columns are readable.
@@ -222,6 +223,19 @@ def _bool_setting(text: str, key: str, *, first_line_only: bool) -> bool | None:
             if first_line_only:
                 return None
     return None
+
+
+def _setting(fc: dict, filename: str, key: str, *, first_line_only: bool) -> bool | None:
+    """A yes/no setting from the file's JSON sidecar, or from its text.
+
+    The sidecar holds it as a boolean or null; a run from before the sidecar
+    is read by _bool_setting, as it always was.
+    """
+    data = _sidecar(fc, filename)
+    if data is None:
+        return _bool_setting(fc.get(filename, ""), key, first_line_only=first_line_only)
+    value = data.get(key)
+    return value if isinstance(value, bool) else None
 
 
 def _purview_count(purview: dict, key: str) -> int:
@@ -677,7 +691,9 @@ def _sharepoint_sharing(audit: _Audit) -> _Verdict:
 
 def _mailbox_audit(audit: _Audit) -> _Verdict:
     text = audit.fc.get("27c_exchange_org_config.txt", "")
-    disabled = _bool_setting(text, "AuditDisabled", first_line_only=False)
+    disabled = _setting(
+        audit.fc, "27c_exchange_org_config.txt", "AuditDisabled", first_line_only=False
+    )
     if disabled is False:
         return "pass", "Mailbox audit er aktivert (AuditDisabled=False)"
     if disabled is True:
@@ -947,8 +963,9 @@ def _teams_guest_access(audit: _Audit) -> _Verdict:
 def _unified_audit_log(audit: _Audit) -> _Verdict:
     # The Exchange/Purview ingestion toggle from Get-AdminAuditLogConfig. The
     # Entra directory audit log is always on and says nothing about it.
-    enabled = _bool_setting(
-        audit.fc.get("27d_exchange_admin_audit_log_config.txt", ""),
+    enabled = _setting(
+        audit.fc,
+        "27d_exchange_admin_audit_log_config.txt",
         "UnifiedAuditLogIngestionEnabled",
         first_line_only=True,
     )
