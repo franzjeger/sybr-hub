@@ -2086,49 +2086,49 @@
 </div>
 
 <!-- ── IT Glue Upload modal ── -->
-<div class="modal-backdrop" id="itglue-upload-modal" data-click-handler="hideOnBackdrop" style="display:none;">
-  <div class="modal" style="max-width:600px;">
+<div class="modal-backdrop" id="itglue-upload-modal" data-click-handler="hideOnBackdrop">
+  <div class="modal">
     <div class="modal-title" data-i18n="hdr_itglue_upload">Last opp rapporter til IT Glue</div>
     <div class="modal-desc" data-i18n="itglue_upload_desc">Velg hvilke rapporter du vil laste opp og til hvilken organisasjon.</div>
-    <div id="itglue-upload-content" style="margin:16px 0;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+    <div id="itglue-upload-content" class="my-4"></div>
+    <div class="flex gap-2 justify-end mt-4">
       <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-upload-modal" data-i18n="btn_cancel">Avbryt</button>
-      <button data-write class="btn btn-primary" id="btn-itglue-upload-go" data-click-handler="executeITGlueUpload" disabled style="padding:8px 20px;" data-i18n="btn_upload">Last opp</button>
+      <button data-write class="btn btn-primary" id="btn-itglue-upload-go" data-click-handler="executeITGlueUpload" disabled data-i18n="btn_upload">Last opp</button>
     </div>
   </div>
 </div>
 
 <!-- ── IT Glue Org Picker modal ── -->
-<div class="modal-backdrop" id="itglue-org-picker-modal" data-click-handler="hideOnBackdrop" style="display:none;">
-  <div class="modal" style="max-width:500px;">
+<div class="modal-backdrop" id="itglue-org-picker-modal" data-click-handler="hideOnBackdrop">
+  <div class="modal">
     <div class="modal-title" data-i18n="hdr_itglue_org_picker">Velg IT Glue-organisasjon</div>
     <div class="modal-desc" data-i18n="itglue_org_picker_desc">Velg organisasjonen rapportene skal lastes opp til.</div>
-    <div id="itglue-org-picker-content" style="margin:16px 0;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+    <div id="itglue-org-picker-content" class="my-4"></div>
+    <div class="flex gap-2 justify-end mt-4">
       <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-org-picker-modal" data-i18n="btn_cancel">Avbryt</button>
-      <button class="btn btn-primary" id="btn-itglue-org-pick" data-click-handler="confirmITGlueOrgPick" disabled style="padding:8px 20px;" data-i18n="btn_select">Velg</button>
+      <button class="btn btn-primary" id="btn-itglue-org-pick" data-click-handler="confirmITGlueOrgPick" disabled data-i18n="btn_select">Velg</button>
     </div>
   </div>
 </div>
 
 <!-- ── IT Glue Import modal ── -->
-<div class="modal-backdrop" id="itglue-import-modal" data-click-handler="deactivateOnBackdrop" style="display:none;">
-  <div class="modal" style="max-width:600px;">
+<div class="modal-backdrop" id="itglue-import-modal" data-click-handler="deactivateOnBackdrop">
+  <div class="modal">
     <div class="modal-title" data-i18n="hdr_itglue_import">Importer kunder fra IT Glue</div>
     <div class="modal-desc" data-i18n="itglue_import_desc">Velg organisasjoner du vil importere. Kunder som allerede finnes hoppes over.</div>
-    <div id="itglue-import-content" style="margin:16px 0;">
-      <div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div><span data-i18n="msg_fetching_orgs_itglue">Henter organisasjoner fra IT Glue...</span></div>
+    <div id="itglue-import-content" class="my-4">
+      <div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div><span data-i18n="msg_fetching_orgs_itglue">Henter organisasjoner fra IT Glue...</span></div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+    <div class="flex gap-2 justify-end mt-4">
       <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-import-modal" data-i18n="btn_cancel">Avbryt</button>
-      <button data-write class="btn btn-primary" id="btn-itglue-import" data-click-handler="runITGlueImport" disabled style="padding:8px 20px;" data-i18n="btn_import_selected">Importer valgte</button>
+      <button data-write class="btn btn-primary" id="btn-itglue-import" data-click-handler="runITGlueImport" disabled data-i18n="btn_import_selected">Importer valgte</button>
     </div>
   </div>
 </div>
 
 <!-- ── Manual customer modal ── -->
-<div class="modal-backdrop" id="manual-customer-modal" data-click-handler="hideOnBackdrop" style="display:none;">
-  <div class="modal" style="max-width:480px;">
+<div class="modal-backdrop" id="manual-customer-modal" data-click-handler="hideOnBackdrop">
+  <div class="modal">
     <div class="modal-title" data-i18n="nav_new_customer">Ny kunde</div>
     <div class="new-cust-choices" id="new-cust-choices">
       <button class="new-cust-choice" data-write data-view-gate="setup" data-click-handler="newCustomerWithM365">
@@ -2142,33 +2142,33 @@
     </div>
     <div class="new-cust-form" id="new-cust-form" hidden>
       <div>
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_customer_name">Kundenavn</label>
-        <input id="manual-cust-name" type="text" class="field-input" style="width:100%;padding:8px 12px;" required>
+        <label class="field-label" data-i18n="lbl_customer_name">Kundenavn</label>
+        <input id="manual-cust-name" type="text" class="field-input" required>
       </div>
       <div>
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_primary_domain">Primærdomene</label>
-        <input id="manual-cust-domain" type="text" class="field-input" style="width:100%;padding:8px 12px;" placeholder="example.com">
+        <label class="field-label" data-i18n="lbl_primary_domain">Primærdomene</label>
+        <input id="manual-cust-domain" type="text" class="field-input" placeholder="example.com">
       </div>
-      <div style="display:flex;gap:12px;">
-        <div style="flex:1;">
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_contact_email">Kontakt-epost</label>
-          <input id="manual-cust-email" type="email" class="field-input" style="width:100%;padding:8px 12px;">
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <label class="field-label" data-i18n="lbl_contact_email">Kontakt-epost</label>
+          <input id="manual-cust-email" type="email" class="field-input">
         </div>
-        <div style="flex:1;">
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_contact_phone">Kontakttelefon</label>
-          <input id="manual-cust-phone" type="text" class="field-input" style="width:100%;padding:8px 12px;">
+        <div class="flex-1">
+          <label class="field-label" data-i18n="lbl_contact_phone">Kontakttelefon</label>
+          <input id="manual-cust-phone" type="text" class="field-input">
         </div>
       </div>
       <div>
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_org_number">Org.nr</label>
-        <input id="manual-cust-orgnum" type="text" class="field-input" style="width:100%;padding:8px 12px;">
+        <label class="field-label" data-i18n="lbl_org_number">Org.nr</label>
+        <input id="manual-cust-orgnum" type="text" class="field-input">
       </div>
       <div>
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;" data-i18n="lbl_notes">Notater</label>
-        <textarea id="manual-cust-notes" class="field-input" style="width:100%;padding:8px 12px;min-height:60px;resize:vertical;"></textarea>
+        <label class="field-label" data-i18n="lbl_notes">Notater</label>
+        <textarea id="manual-cust-notes" class="field-input textarea-sm"></textarea>
       </div>
     </div>
-    <div id="manual-cust-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
+    <div id="manual-cust-error" class="text-danger text-sm mb-2" style="display:none;"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" data-click-handler="hideElement" data-target="manual-customer-modal" data-i18n="btn_cancel">Avbryt</button>
       <button data-write class="btn btn-primary" id="btn-manual-cust-save" data-click-handler="submitManualCustomer" data-i18n="btn_save" hidden>Lagre</button>
@@ -2201,12 +2201,12 @@
 
 <!-- ── Permissions check modal ── -->
 <div class="modal-backdrop" id="permissions-modal" role="dialog" aria-modal="true" data-i18n-aria-label="tilganger" aria-label="Tilganger" data-click-handler="closePermissionsModalOnBackdrop">
-  <div class="modal" style="width:600px;">
+  <div class="modal modal-lg">
     <div class="modal-title" id="perm-modal-title" data-i18n="hdr_permissions_check">Sjekk Graph API-tillatelser</div>
     <div class="modal-desc" id="perm-modal-desc" data-i18n="permissions_checking_desc">Kontrollerer at alle nodvendige tillatelser er gitt...</div>
-    <div id="perm-modal-body" style="max-height:50vh;overflow-y:auto;">
-      <div style="display:flex;align-items:center;gap:8px;padding:24px 0;justify-content:center;">
-        <div class="loader"></div><span style="color:var(--text-muted);" data-i18n="msg_checking_permissions">Sjekker tillatelser...</span>
+    <div id="perm-modal-body" class="max-h-half overflow-y-auto">
+      <div class="flex items-center gap-2 py-6 px-0 justify-center">
+        <div class="loader"></div><span class="text-muted" data-i18n="msg_checking_permissions">Sjekker tillatelser...</span>
       </div>
     </div>
     <div class="modal-actions">

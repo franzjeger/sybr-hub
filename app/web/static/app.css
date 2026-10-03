@@ -3595,6 +3595,7 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .max-h-sm { max-height: 200px; }
 .max-h-md { max-height: 300px; }
 .max-h-lg { max-height: 400px; }
+.max-h-half { max-height: 50vh; }
 .overflow-hidden { overflow: hidden; }
 .overflow-auto { overflow: auto; }
 .overflow-y-auto { overflow-y: auto; }
