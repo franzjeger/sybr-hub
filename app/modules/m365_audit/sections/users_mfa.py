@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -129,6 +128,17 @@ class UsersSection(BaseSection):
                 "",
             ]
             self._save("03_users_count.txt", "\n".join(count_lines))
+            self._save_sidecar(
+                "03_users_count.txt",
+                {
+                    "total": total,
+                    "enabled": enabled,
+                    "disabled": disabled,
+                    "guests": guests,
+                    "cloud": cloud,
+                    "hybrid": hybrid,
+                },
+            )
             self._detect_stale_accounts()
             self._report(SectionStatus.DONE)
         except Exception as e:
@@ -165,10 +175,11 @@ class UsersSection(BaseSection):
                 days_inactive = None  # never signed in
 
             is_licensed = bool(u.get("assignedLicenses"))
+            # Untrimmed: the table trims to its columns, the sidecar does not.
             stale.append(
                 {
-                    "name": (u.get("displayName") or "")[:35],
-                    "upn": (u.get("userPrincipalName") or "")[:45],
+                    "name": u.get("displayName") or "",
+                    "upn": u.get("userPrincipalName") or "",
                     "last_sign_in": last_dt,
                     "days_inactive": days_inactive,
                     "licensed": is_licensed,
@@ -191,6 +202,12 @@ class UsersSection(BaseSection):
             lines.append("  Unable to detect stale accounts.")
             lines += ["", "=" * 120, ""]
             self._save("03b_stale_accounts.txt", "\n".join(lines))
+            # Not a failed read: the users were read, and none carries a
+            # sign-in date. Said outright, so it is not mistaken for "none stale".
+            self._save_sidecar(
+                "03b_stale_accounts.txt",
+                {"threshold_days": _STALE_DAYS, "sign_in_data": False, "accounts": []},
+            )
             return
 
         lines.append(f"  Stale accounts found: {len(stale)}")
@@ -211,11 +228,20 @@ class UsersSection(BaseSection):
                 days_str = str(s["days_inactive"]) if s["days_inactive"] is not None else "N/A"
                 lic_str = "Yes" if s["licensed"] else "No"
                 lines.append(
-                    f"  {s['name']:<35} {s['upn']:<45} {last_str:<22} {days_str:>5} {lic_str:>8}"
+                    f"  {s['name'][:35]:<35} {s['upn'][:45]:<45} {last_str:<22} "
+                    f"{days_str:>5} {lic_str:>8}"
                 )
 
         lines += ["", "=" * 120, ""]
         self._save("03b_stale_accounts.txt", "\n".join(lines))
+        self._save_sidecar(
+            "03b_stale_accounts.txt",
+            {
+                "threshold_days": _STALE_DAYS,
+                "sign_in_data": True,
+                "accounts": [_stale_record(s) for s in stale],
+            },
+        )
 
         # Warn about licensed stale accounts (wasted licenses)
         licensed_stale = [s for s in stale if s["licensed"]]
@@ -239,9 +265,31 @@ class UsersSection(BaseSection):
                     s["last_sign_in"].strftime("%Y-%m-%d %H:%M") if s["last_sign_in"] else "Never"
                 )
                 days_str = str(s["days_inactive"]) if s["days_inactive"] is not None else "N/A"
-                warn_lines.append(f"  {s['name']:<35} {s['upn']:<45} {last_str:<22} {days_str:>5}")
+                warn_lines.append(
+                    f"  {s['name'][:35]:<35} {s['upn'][:45]:<45} {last_str:<22} {days_str:>5}"
+                )
             warn_lines += ["", "=" * 120, ""]
             self._save("03c_stale_accounts_WARN.txt", "\n".join(warn_lines))
+            self._save_sidecar(
+                "03c_stale_accounts_WARN.txt",
+                {
+                    "threshold_days": _STALE_DAYS,
+                    "count": len(licensed_stale),
+                    "accounts": [_stale_record(s) for s in licensed_stale],
+                },
+            )
+
+
+def _stale_record(account: dict) -> dict:
+    """One stale account as the 03b/03c sidecars carry it."""
+    last = account["last_sign_in"]
+    return {
+        "display_name": account["name"],
+        "upn": account["upn"],
+        "last_sign_in": last.isoformat() if last else None,
+        "days_inactive": account["days_inactive"],
+        "licensed": account["licensed"],
+    }
 
 
 def _policy_enforces_mfa(policy: dict) -> bool:
@@ -253,6 +301,23 @@ def _policy_enforces_mfa(policy: dict) -> bool:
     if "mfa" in built_in:
         return True
     return bool(grant.get("authenticationStrength"))
+
+
+def _mfa_policy_record(policy: dict) -> dict:
+    """One MFA-enforcing CA policy as the 04b sidecar carries it."""
+    grant = policy.get("grantControls") or {}
+    users_cond = (policy.get("conditions") or {}).get("users") or {}
+    return {
+        "id": policy.get("id"),
+        "name": policy.get("displayName") or policy.get("id") or "(unnamed)",
+        "state": policy.get("state", "unknown"),
+        "built_in_controls": list(grant.get("builtInControls") or []),
+        "authentication_strength": bool(grant.get("authenticationStrength")),
+        "include_users": list(users_cond.get("includeUsers") or []),
+        "include_groups": list(users_cond.get("includeGroups") or []),
+        "exclude_users": list(users_cond.get("excludeUsers") or []),
+        "exclude_groups": list(users_cond.get("excludeGroups") or []),
+    }
 
 
 class MFASection(BaseSection):
@@ -330,11 +395,11 @@ class MFASection(BaseSection):
         """Analyse CA policies for MFA enforcement.
 
         Returns:
-            mfa_policies  – list of CA policy dicts that enforce MFA
-            covered_ids   – set of user IDs covered by group-based MFA CA policies
-            excluded_ids  – set of user IDs explicitly excluded from MFA CA policies
-            group_names   – mapping of group ID → list of member display names
-            group_info    – mapping of group ID → group metadata (for dynamic groups)
+            mfa_policies  - list of CA policy dicts that enforce MFA
+            covered_ids   - set of user IDs covered by group-based MFA CA policies
+            excluded_ids  - set of user IDs explicitly excluded from MFA CA policies
+            group_names   - mapping of group ID → list of member display names
+            group_info    - mapping of group ID → group metadata (for dynamic groups)
         """
         mfa_policies: list[dict] = [p for p in self.ca_policies if _policy_enforces_mfa(p)]
 
@@ -495,10 +560,70 @@ class MFASection(BaseSection):
             "",
         ]
 
+        # Build lookup from user id → upn
+        user_lookup = {
+            u["id"]: u.get("userPrincipalName") or u.get("displayName") or u["id"]
+            for u in self.users
+            if u.get("id")
+        }
+
+        # The coverage is measured against *active member* users only — the same
+        # base ``collect()`` uses for its MFA-method check. Deactivated accounts
+        # and guests cannot sign in, so folding them into the denominator is what
+        # turns "5 of 5 active users have MFA" into a misleading "60%". They are
+        # reported on their own line, never silently counted in the base.
+        #
+        # The four label lines below are a *contract* with the report generator:
+        # ``generator._parse_mfa`` regex-parses them ("Users covered by CA MFA",
+        # "excluded from CA MFA", "Effectively covered", "NOT covered (N)") as the
+        # fallback when the MFA-methods JSON is absent. The numbers are now
+        # active-member-based; the labels are unchanged so that parser keeps
+        # working. Runs since 04b_mfa_ca_analysis.json carry them as numbers.
+        active_ids = {
+            u["id"]
+            for u in self.users
+            if u.get("id") and u.get("accountEnabled") and u.get("userType", "Member") == "Member"
+        }
+        deactivated_ids = set(user_lookup) - active_ids
+
+        covered_active = covered_ids & active_ids
+        excluded_active = excluded_ids & active_ids
+        covered_not_excluded = covered_active - excluded_active
+        not_covered = active_ids - covered_not_excluded
+
+        gi = group_info or {}
+        all_gids = set(group_names.keys()) | set(gi.keys())
+
+        def labels(ids: set[str]) -> list[str]:
+            return [user_lookup.get(uid, uid) for uid in sorted(ids)]
+
+        sidecar = {
+            "mfa_policies": [_mfa_policy_record(p) for p in mfa_policies],
+            "groups": [
+                {
+                    "id": gid,
+                    "name": gi.get(gid, {}).get("displayName") or gid,
+                    "dynamic": "DynamicMembership" in (gi.get(gid, {}).get("groupTypes") or []),
+                    "membership_rule": gi.get(gid, {}).get("membershipRule"),
+                    "members": sorted(group_names.get(gid, [])),
+                }
+                for gid in sorted(all_gids)
+            ],
+            "covered": len(covered_active),
+            "excluded": len(excluded_active),
+            "effectively_covered": len(covered_not_excluded),
+            "not_covered": len(not_covered),
+            "deactivated": len(deactivated_ids),
+            "effectively_covered_users": labels(covered_not_excluded),
+            "not_covered_users": labels(not_covered),
+            "deactivated_users": labels(deactivated_ids),
+        }
+
         if not mfa_policies:
             lines.append("  No Conditional Access policies that enforce MFA were found.")
             lines += ["", "=" * 120, ""]
             self._save("04b_mfa_ca_analysis.txt", "\n".join(lines))
+            self._save_sidecar("04b_mfa_ca_analysis.txt", sidecar)
             return
 
         # ── Section 1: Policies that enforce MFA ────────────────────────────
@@ -537,11 +662,9 @@ class MFASection(BaseSection):
             lines.append("")
 
         # ── Section 2: Targeted groups and their members ────────────────────
-        gi = group_info or {}
         if group_names or gi:
             lines.append("  TARGETED GROUPS AND MEMBERS")
             lines.append("  " + "-" * 80)
-            all_gids = set(group_names.keys()) | set(gi.keys())
             for gid in sorted(all_gids):
                 info = gi.get(gid, {})
                 display_name = info.get("displayName") or gid
@@ -563,40 +686,9 @@ class MFASection(BaseSection):
         lines.append("  USER COVERAGE SUMMARY")
         lines.append("  " + "-" * 80)
 
-        # Build lookup from user id → upn
-        user_lookup = {
-            u["id"]: u.get("userPrincipalName") or u.get("displayName") or u["id"]
-            for u in self.users
-            if u.get("id")
-        }
-
-        # The coverage is measured against *active member* users only — the same
-        # base ``collect()`` uses for its MFA-method check. Deactivated accounts
-        # and guests cannot sign in, so folding them into the denominator is what
-        # turns "5 of 5 active users have MFA" into a misleading "60%". They are
-        # reported on their own line, never silently counted in the base.
-        #
-        # The four label lines below are a *contract* with the report generator:
-        # ``generator._parse_mfa`` regex-parses them ("Users covered by CA MFA",
-        # "excluded from CA MFA", "Effectively covered", "NOT covered (N)") as the
-        # fallback when the MFA-methods JSON is absent. The numbers are now
-        # active-member-based; the labels are unchanged so that parser keeps
-        # working.
-        active_ids = {
-            u["id"]
-            for u in self.users
-            if u.get("id") and u.get("accountEnabled") and u.get("userType", "Member") == "Member"
-        }
-        deactivated_ids = set(user_lookup) - active_ids
-
-        covered_active = covered_ids & active_ids
-        excluded_active = excluded_ids & active_ids
-        covered_not_excluded = covered_active - excluded_active
-        not_covered = active_ids - covered_not_excluded
-
         lines.append(f"  Users covered by CA MFA (incl. groups) : {len(covered_active)}")
         lines.append(f"  Users excluded from CA MFA             : {len(excluded_active)}")
-        lines.append(f"  Effectively covered (covered − excluded): {len(covered_not_excluded)}")
+        lines.append(f"  Effectively covered (covered − excluded): {len(covered_not_excluded)}")  # noqa: RUF001
         lines.append("")
 
         if deactivated_ids:
@@ -621,6 +713,7 @@ class MFASection(BaseSection):
 
         lines += ["=" * 120, ""]
         self._save("04b_mfa_ca_analysis.txt", "\n".join(lines))
+        self._save_sidecar("04b_mfa_ca_analysis.txt", sidecar)
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -732,7 +825,7 @@ class MFASection(BaseSection):
                 )
 
             self._save("04_mfa_methods.txt", "\n".join(lines))
-            self._save("04_mfa_methods.json", json.dumps({"users": records}, indent=1))
+            self._save_sidecar("04_mfa_methods.txt", {"users": records})
 
             # ── Save CA analysis report ─────────────────────────────────────
             self._save_ca_analysis(mfa_policies, covered_ids, excluded_ids, group_names, group_info)

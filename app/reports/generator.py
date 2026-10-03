@@ -190,9 +190,15 @@ def build_report_context(
     all_warns = [w for r in results for w in r.warns]
 
     secure_score = _parse_secure_score(fc("09_secure_score.txt"))
-    users = _parse_user_counts(fc("03_users_count.txt"))
+    users = _parse_user_counts(
+        fc("03_users_count.txt"), _sidecar(file_contents, "03_users_count.txt")
+    )
     mfa = _parse_mfa(
-        fc("04_mfa_methods.txt"), fc("04b_mfa_ca_analysis.txt"), results, fc("04_mfa_methods.json")
+        fc("04_mfa_methods.txt"),
+        fc("04b_mfa_ca_analysis.txt"),
+        results,
+        fc("04_mfa_methods.json"),
+        _sidecar(file_contents, "04b_mfa_ca_analysis.txt"),
     )
     licenses = _parse_licenses(fc("02_licenses.txt"), _sidecar(file_contents, "02_licenses.txt"))
     license_optimization = _analyze_license_optimization(licenses, file_contents, lang=lang)

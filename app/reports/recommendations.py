@@ -464,9 +464,10 @@ _STALE_COUNT = (
 def _stale_accounts(audit: _Audit) -> Iterator[dict]:
     t = audit.t
     text = audit.fc.get("03c_stale_accounts_WARN.txt", "")
-    if not (text and text.strip()):
+    sidecar = _sidecar(audit.fc, "03c_stale_accounts_WARN.txt")
+    if sidecar is None and not (text and text.strip()):
         return
-    count = _stale_account_count(text)
+    count = int(sidecar.get("count") or 0) if sidecar is not None else _stale_account_count(text)
     if count > 0:
         yield {
             "priority": "medium",
