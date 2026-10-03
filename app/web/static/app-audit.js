@@ -462,7 +462,7 @@ function handleProgress(d) {
   if (terminal.includes(status)) {
     sectionDone++;
     updateProgress(sectionDone, sectionTotal);
-    setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', sectionDone).replace('{total}', sectionTotal) + '</span>');
+    setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', sectionDone).replace('{total}', Number(sectionTotal)) + '</span>');
   }
 }
 
@@ -656,7 +656,7 @@ async function pollAuditProgress() {
     // list; take the denominator from it and let the SSE handler move the
     // numerator between polls.
     if (typeof d.total_sections === 'number' && d.total_sections > 0) {
-      sectionTotal = Number(d.total_sections);
+      sectionTotal = d.total_sections;
       if (currentView === 'audit') updateProgress(d.completed, sectionTotal);
     }
     // Update floating progress bar (shown on non-audit views)
