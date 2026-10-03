@@ -746,7 +746,6 @@
   .cd-creds b { font-weight: 600; color: var(--text); }
   .cd-creds .mono { font-family: var(--mono); }
 
-  #changelog-modal .modal { width: 640px; max-height: 80vh; }
   .changelog-content h2 { font-size: 16px; font-weight: 700; color: var(--blue); margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
   .changelog-content h2:first-child { margin-top: 0; }
   .changelog-content h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 8px 0 12px; }
@@ -1404,7 +1403,6 @@
   .hidden { display: none !important; }
   /* Version block in the advanced settings tab: one value per line, set as
      text by app-settings.js. */
-  #settings-version-info { white-space: pre-line; }
 
   /* ── Divider ── */
   .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
@@ -1752,17 +1750,6 @@
         var(--bg-card);
     }
 
-    /* ── Settings modal: true full-height sheet on phones ─────────────── */
-    #settings-modal .modal {
-      max-height: 100vh !important;
-      max-height: 100dvh !important;
-      height: 100vh !important;
-      height: 100dvh !important;
-      border-radius: 0 !important;
-      padding-bottom: max(24px, var(--safe-bottom));
-    }
-    #settings-modal .modal::before { display: none; }  /* full-sheet, no handle */
-
     /* ── Dropdown/select menus inside forms: readable height ──────────── */
     .nav-dropdown-menu-inner button { min-height: 44px; }
 
@@ -1792,8 +1779,6 @@
     main { padding-top: 12px; padding-bottom: max(12px, var(--safe-bottom)); }
     .card { padding: 12px; }
     #view-overview canvas { max-height: 140px !important; }
-    /* Settings sheet still full-height — just trim the header area. */
-    #settings-modal .modal { padding-top: 12px; }
     /* Notch is on the side in landscape — give it real room. */
     main, header, #active-customer-bar {
       padding-left: max(16px, var(--safe-left));
@@ -2835,12 +2820,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
    a 260 px tree beside the text, which left the text about 70 px on a phone. */
 #view-docs { max-width: 900px; }
 .docs-head { margin-bottom: var(--space-4); }
-.docs-title { font-size: 18px; font-weight: 700; }
-.docs-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: var(--space-5); }
 .docs-doc-list[hidden] { display: none; }
-.docs-tab-btn { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: var(--space-2) var(--space-4); font-size: var(--font-sm); }
-.docs-tab-btn.active { border-bottom-color: var(--blue); font-weight: 600; }
-.docs-swagger { margin-left: auto; align-self: center; padding: var(--space-2) var(--space-4); font-size: var(--font-sm); color: var(--text-muted); text-decoration: none; }
 .docs-doc-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
 .docs-doc {
   font: inherit; font-size: var(--font-sm); color: var(--text); cursor: pointer;
@@ -2906,3 +2886,61 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .hover-link:hover { color: var(--blue) !important; }
 .hover-border-accent:hover { border-color: var(--blue) !important; }
 .hover-scale:hover { transform: scale(1.2); }
+
+/* ── Page titles ──────────────────────────────────────────────────────────
+   One heading style for every page and pane, so Kunder, Administrasjon and
+   the tools read as one product rather than a page per author. */
+.page-title { font-size: var(--font-lg); font-weight: 700; line-height: 1.3; margin: 0 0 var(--space-4); color: var(--text); }
+.page-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-4); }
+.page-head .page-title { margin: 0; }
+
+/* ── Administrasjon: a left rail and one pane at a time ─────────────────── */
+.admin-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.admin-rail { position: sticky; top: var(--space-4); display: flex; flex-direction: column; gap: 2px; }
+.admin-rail-title { font-size: var(--font-xs); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 var(--space-3) var(--space-2); }
+.admin-rail-item {
+  font: inherit; font-size: var(--font-sm); text-align: left; color: var(--text-muted);
+  background: none; border: none; border-left: 2px solid transparent; border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-2) var(--space-3); cursor: pointer;
+}
+.admin-rail-item:hover { color: var(--text); background: var(--bg-card-hover); }
+.admin-rail-item.active { color: var(--text); font-weight: 600; border-left-color: var(--blue); background: var(--bg-card); }
+.admin-main { min-width: 0; max-width: 1000px; }
+.admin-card { padding: var(--space-5); margin-bottom: var(--space-4); }
+.admin-card-title { font-size: var(--font-base); font-weight: 700; margin: 0 0 var(--space-3); }
+.admin-section-title { font-size: var(--font-md); font-weight: 700; margin: var(--space-6) 0 var(--space-3); }
+.admin-section-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0 var(--space-3); }
+.admin-section-head .admin-section-title { margin: 0; }
+.admin-save-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.admin-save-msg { font-size: var(--font-sm); color: var(--text-muted); }
+.admin-hint { font-size: var(--font-sm); color: var(--text-muted); margin: 0 0 var(--space-3); }
+.admin-table-box { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.admin-table-box > .admin-hint { padding: var(--space-4); margin: 0; }
+.admin-rule { border: none; border-top: 1px solid var(--border); margin: var(--space-4) 0; }
+.admin-rule-cell { padding: 8px; }
+.admin-version { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.8; font-family: var(--mono); white-space: pre-line; }
+.admin-api > summary { cursor: pointer; font-size: var(--font-sm); color: var(--blue); margin-top: var(--space-3); }
+@media (max-width: 900px) {
+  .admin-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  /* The rail becomes a strip of pills that scrolls sideways inside itself,
+     never the page. */
+  .admin-rail { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; gap: var(--space-1); padding-bottom: var(--space-1); }
+  .admin-rail::-webkit-scrollbar { display: none; }
+  .admin-rail-title { display: none; }
+  .admin-rail-item { flex-shrink: 0; white-space: nowrap; border: 1px solid var(--border); border-radius: var(--radius-full); }
+  .admin-rail-item.active { border-color: var(--blue); }
+}
+
+/* ── Konto ─────────────────────────────────────────────────────────────── */
+.account-modal { width: 420px; }
+.account-identity { display: flex; flex-direction: column; gap: 2px; margin: var(--space-2) 0 var(--space-4); }
+.account-name { font-weight: 600; }
+.account-email { font-size: var(--font-xs); color: var(--text-dim); font-family: var(--mono); }
+.account-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.avatar-version { display: block; font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-top: 2px; }
+.avatar-label { flex: 1; }
+
+/* A sentence that says where something is set up, with the way there. */
+.empty-signpost { text-align: center; padding: var(--space-10) var(--space-4); color: var(--text-muted); font-size: var(--font-sm); }
+.empty-signpost p { margin: 0 0 var(--space-3); }
+.crumb-link { color: var(--text-muted); text-decoration: none; }

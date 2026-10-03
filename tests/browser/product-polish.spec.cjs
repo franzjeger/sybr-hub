@@ -143,7 +143,9 @@ test.describe('signed in as an administrator', () => {
     await page.locator('#view-overview .dash-tab-btn', {hasText: 'Varsler'}).click();
     await page.getByRole('button', {name: 'Endre kanaler'}).click();
 
-    await expect(page.locator('#view-integrations')).toBeVisible();
+    await expect(page.locator('#view-admin')).toBeVisible();
+    await expect(page.locator('#admin-pane-alerts')).toBeVisible();
+    expect(await page.evaluate(() => location.hash)).toBe('#/admin/alerts');
     expect(await page.locator('.view.active').count()).toBe(1);
     await expect(page.locator('#alert-master-toggle')).toBeInViewport();
     await expect(page.locator('#alert-notify-teams')).toBeVisible();
@@ -182,13 +184,9 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('settings offer no in-app update and say where updates come from', async () => {
-    await page.evaluate(async () => {
-      await openSettings();
-      switchSettingsTab(document.querySelector('.settings-tab-btn[data-tab="stab-advanced"]'), 'stab-advanced');
-    });
+    await page.evaluate(() => openAdmin('system'));
     await expect(page.locator('#settings-update-note')).toContainText('DEPLOYMENT.md');
-    await expect(page.getByRole('button', {name: 'Oppdater nå'})).toHaveCount(0);
-    await page.evaluate(() => closeSettings());
+    await expect(page.locator('#admin-pane-system').getByRole('button', {name: 'Oppdater nå'})).toHaveCount(0);
   });
 
   test('a finished audit offers downloads but no server folder', async () => {
@@ -203,7 +201,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('integrations lead with what the product is for and drop placeholders', async () => {
-    await page.evaluate(() => showView('integrations'));
+    await page.evaluate(() => openAdmin('integrations'));
     const grid = page.locator('#integ-active .integ-grid');
     await expect(grid).not.toContainText('Kommer snart');
     await expect(grid).not.toContainText('ConnectWise');
@@ -219,7 +217,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('"Ikke konfigurert" looks the same on every card and gates what needs setup', async () => {
-    await page.evaluate(() => showView('integrations'));
+    await page.evaluate(() => openAdmin('integrations'));
     // Wait until the cards have been painted from the server.
     await expect(page.locator('#itglue-integ-label')).toHaveText('Ikke konfigurert');
     await expect(page.locator('#claude-integ-label')).toHaveText('Ikke konfigurert');
@@ -241,7 +239,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('scheduled tasks show their schedule in Norwegian', async () => {
-    await page.evaluate(() => showView('integrations'));
+    await page.evaluate(() => openAdmin('alerts'));
     const table = page.locator('#task-scheduler-table');
     await expect(table).toContainText('Daglig 02:00');
     await expect(table).toContainText('Søndag 03:00');

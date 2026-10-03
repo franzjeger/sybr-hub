@@ -312,7 +312,7 @@ async function uploadReportsToITGlue(btn) {
     var settings = await apiFetch('/api/settings');
     if (!settings.itglue_api_key_set) {
       if (await showConfirm(t('dlg_confirm_itglue_setup'))) {
-        showView('integrations');
+        openAdmin('integrations');
         setTimeout(function(){ toggleIntegConfig('itglue-config'); }, 300);
       }
       return;
@@ -469,7 +469,7 @@ async function uploadToITGlue(btn) {
     const settings = await apiFetch('/api/settings');
     if (!settings.itglue_api_key_set) {
       if (await showConfirm(t('dlg_confirm_itglue_setup_full'))) {
-        showView('integrations');
+        openAdmin('integrations');
         setTimeout(function(){ toggleIntegConfig('itglue-config'); }, 300);
       }
       return;

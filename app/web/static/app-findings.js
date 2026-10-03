@@ -178,7 +178,9 @@ function _findingsNotices(d) {
   if (!(integ.autotask || {}).configured && !(integ.myitprocess || {}).configured && hasFeature('integrations')) {
     out += '<div class="findings-notice is-muted">'
       + '<span>' + esc(t('msg_setup_psa_to_push', 'Sett opp Autotask eller myITprocess for å lage saker av funn.')) + '</span>'
-      + '<button class="btn btn-ghost btn-sm" data-action="goto-integrations">' + esc(t('nav_integrations', 'Integrasjoner')) + '</button>'
+      // The way there is Administrasjon › Integrasjoner, which only an
+      // administrator opens; anyone else reads where it is set up.
+      + (canOpenView('admin') ? '<button class="btn btn-ghost btn-sm" data-action="goto-integrations">' + esc(t('nav_integrations', 'Integrasjoner')) + '</button>' : '')
       + '</div>';
   }
   return out;
@@ -244,7 +246,7 @@ async function _onFindingsClick(el, e) {
     state.showClosed = !state.showClosed;
     _renderFindings(el);
   } else if (action === 'goto-integrations') {
-    showView('integrations');
+    openAdmin('integrations');
   } else if (action === 'link') {
     openLinkPicker(state.customerId, state.data.customer_name, control.dataset.system, function() {
       _reloadFindings(el);

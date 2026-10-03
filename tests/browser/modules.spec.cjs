@@ -16,8 +16,8 @@ test('switching the AI module off in Settings removes it everywhere', async ({pa
   await login(page);
   await expect(page.locator('#nav-ai')).toBeVisible();
   try {
-    await page.evaluate(() => openSettings());
-    await page.locator('.settings-tab-btn', {hasText: 'Moduler'}).click();
+    await page.evaluate(() => openAdmin());
+    await page.locator('#admin-rail .admin-rail-item', {hasText: 'Moduler'}).click();
     const toggle = page.locator('.module-toggle[data-module-key="ai"]');
     await expect(toggle).toBeChecked();
     await toggle.uncheck();

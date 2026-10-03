@@ -136,7 +136,7 @@ function _pdForm() {
   html += '<button class="btn btn-primary" id="pd-plan-btn" disabled data-click-handler="policyDeployPlan">'
        + t('btn_plan', 'Show plan') + '</button>';
   if (!canTenantWrite()) {
-    html += '<p class="pd-no-grant" id="pd-no-grant">' + esc(t('msg_pd_needs_tenant_write', 'Kontoen din kan ikke endre kundens tenant, så knappene er av. En administrator gir tilgangen under Innstillinger, Brukere (Tenant).')) + '</p>';
+    html += '<p class="pd-no-grant" id="pd-no-grant">' + esc(t('msg_pd_needs_tenant_write', 'Kontoen din kan ikke endre kundens tenant, så knappene er av. En administrator gir tilgangen under Administrasjon › Brukere (Tenant).')) + '</p>';
   }
   html += '</div><div id="pd-adopt"></div><div id="pd-plan"></div>'
        + '<div id="pd-enforce"></div><div id="pd-restore"></div>';

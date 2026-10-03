@@ -2306,7 +2306,7 @@ async function dashLoadFortiGates() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading_fortigates','Loading all FortiGate firewalls...') + '</div>';
 
   var data = await apiFetch('/api/fortigate/all');
-  if (!data || !data.fortigates) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('msg_no_fortigates','No FortiGates configured. Add under Integrations per customer.') + '</div>'; return; }
+  if (!data || !data.fortigates) { el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_fortigates','Ingen FortiGater konfigurert. Legg dem til per kunde under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>'; return; }
 
   var fgs = data.fortigates;
   if (!fgs.length) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('msg_no_fortigates_short','No FortiGates configured.') + '</div>'; return; }
@@ -2908,7 +2908,6 @@ function switchDashTab(btn, tabId) {
   if (tabId === 'dash-alerts') dashLoadAlerts();
   if (tabId === 'dash-costs') dashLoadCosts();
   if (tabId === 'dash-domains') dashLoadDomains();
-  if (tabId === 'dash-archive') dashLoadArchive();
 }
 
 async function dashUnifiRefresh() {
@@ -2928,7 +2927,7 @@ async function dashLoadUnifiAll() {
   var summary = data.summary || {};
 
   if (!devices.length && !summary.configured_customers) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('inf_no_unifi','Ingen UniFi-enheter konfigurert. Legg til under Integrasjoner per kunde.') + '</div>';
+    el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('inf_no_unifi','Ingen UniFi-enheter konfigurert. Legg dem til per kunde under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>';
     return;
   }
 
@@ -3887,7 +3886,7 @@ async function dashLoadSites() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
   var data = await apiFetch('/api/unifi/site-manager/sites');
   if (!data || !data.sites) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('inf_no_sites','Ingen siter tilgjengelig. Konfigurer UniFi Site Manager under Integrasjoner.') + '</div>';
+    el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('inf_no_sites','Ingen siter tilgjengelig. Sett opp UniFi Site Manager under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>';
     return;
   }
   _unifiSites = data.sites;

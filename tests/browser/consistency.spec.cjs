@@ -28,6 +28,10 @@ async function seenAsTechnician(page) {
     const response = await route.fetch();
     const body = await response.json();
     (body.user || body).role = 'technician';
+    // And the views a technician resolves to: the administrator's pages are
+    // not among them (app/core/features.py).
+    const adminViews = ['admin', 'setup', 'logs', 'provision'];
+    if (Array.isArray(body.views)) body.views = body.views.filter(v => adminViews.indexOf(v) === -1);
     await route.fulfill({response, json: body});
   });
 }
@@ -172,7 +176,8 @@ test('opening Tailscale without a key shows how to set it up, not an error toast
   await expect(empty).toContainText('Tailscale er ikke satt opp');
   await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual([]);
   await empty.getByRole('button', {name: 'Åpne Integrasjoner'}).click();
-  await expect(page.locator('#view-integrations')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#admin-pane-integrations')).toBeVisible();
 });
 
 test('Policy-utrulling without the tenant grant says why, raises no toast, and is not offered in the menu', async ({page}) => {
@@ -199,10 +204,10 @@ test('the Wiki tab and its load errors are gone from Integrasjoner', async ({pag
   await login(page);
   const missing = [];
   page.on('response', r => { if (r.url().includes('/api/docs/file') && r.status() === 404) missing.push(r.url()); });
-  await page.evaluate(() => showView('integrations'));
+  await page.evaluate(() => openAdmin('integrations'));
   await expect(page.locator('#integ-active')).toBeVisible();
   await expect(page.locator('#integ-wiki')).toHaveCount(0);
-  await expect(page.locator('#view-integrations')).not.toContainText('Kunne ikke laste dokumentasjon');
+  await expect(page.locator('#admin-pane-integrations')).not.toContainText('Kunne ikke laste dokumentasjon');
   expect(missing).toEqual([]);
 });
 
@@ -211,29 +216,32 @@ test('a technician sees the changelog in Docs, not the API reference', async ({p
   await login(page);
   await page.evaluate(() => showView('docs'));
   await expect(page.locator('#docs-repo-content h1').first()).toHaveText('Endringslogg');
-  await expect(page.locator('#view-docs .docs-tabs')).toBeHidden();
+  // The API reference is under Administrasjon › System, not in Hjelp.
+  await expect(page.locator('#view-docs')).not.toContainText('REST API');
   await expect(page.locator('#view-docs')).not.toContainText(/ARCHITECTURE|TODO|CRITICAL REVIEW/);
 });
 
-test('Settings show the version, not the host, and paths only to an admin', async ({page}) => {
+test('Administrasjon shows the version, not the host, and only to an admin', async ({page}) => {
   await login(page);
-  await page.evaluate(() => openSettings());
-  await page.locator('.settings-tab-btn[data-tab="stab-advanced"]').click();
-  const modal = page.locator('#settings-modal');
+  await page.evaluate(() => openAdmin('system'));
+  const admin = page.locator('#view-admin');
   await expect(page.locator('#settings-version-info')).toHaveText(/^Versjon: \d/);
-  await expect(modal).not.toContainText(/Python:|Platform:|PID:|Branch:/);
+  await expect(admin).not.toContainText(/Python:|Platform:|PID:|Branch:/);
   // The old product name is not a label or a placeholder any more.
-  const placeholders = await modal.locator('input[placeholder]').evaluateAll(els => els.map(e => e.placeholder).join(' '));
+  const placeholders = await admin.locator('input[placeholder]').evaluateAll(els => els.map(e => e.placeholder).join(' '));
   expect(placeholders).not.toContain('MSPToolkit');
-  await page.locator('.settings-tab-btn[data-tab="stab-general"]').click();
+  await page.locator('#admin-rail [data-pane="storage"]').click();
   await expect(page.locator('#settings-current-dir')).toBeVisible();
 
   const tech = await page.context().browser().newPage();
   await seenAsTechnician(tech);
   await login(tech);
-  await tech.evaluate(() => openSettings());
+  // Ctrl+, opens the account's own settings for anyone but an administrator.
+  await tech.evaluate(() => openAdmin('storage'));
+  await expect(tech.locator('#view-admin')).not.toHaveClass(/\bactive\b/);
+  await expect(tech.locator('#account-modal')).toHaveClass(/\bopen\b/);
   await expect(tech.locator('#input-audit-dir')).toBeHidden();
-  await expect(tech.locator('.settings-tab-btn[data-tab="stab-backup"]')).toBeHidden();
+  await expect(tech.locator('#avatar-menu [data-click-handler="avatarOpenAdmin"]')).toBeHidden();
   await tech.close();
 });
 
@@ -247,8 +255,7 @@ test('Filer names reports and runs without server paths', async ({page}) => {
 
 test('the system account cannot be deleted from Brukere', async ({page}) => {
   await login(page);
-  await page.evaluate(() => openSettings());
-  await page.locator('.settings-tab-btn[data-tab="stab-users"]').click();
+  await page.evaluate(() => openAdmin('users'));
   const row = page.locator('#users-list [data-user-id]', {hasText: '@sybr-system'});
   await expect(row).toBeVisible();
   await expect(row.locator('[data-click-handler="deleteUser"]')).toHaveCount(0);
@@ -286,7 +293,7 @@ test.describe('on a 375 px phone', () => {
     expect((await score.boundingBox()).height).toBeLessThan(30);
   });
 
-  for (const view of ['hosts', 'browser', 'integrations', 'docs']) {
+  for (const view of ['hosts', 'browser', 'docs']) {
     test(`${view} has no sideways scroll`, async ({page}) => {
       await login(page);
       await page.evaluate(v => showView(v), view);
@@ -296,9 +303,17 @@ test.describe('on a 375 px phone', () => {
     });
   }
 
+  test('Administrasjon has no sideways scroll', async ({page}) => {
+    await login(page);
+    await page.evaluate(() => openAdmin('integrations'));
+    await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
+    await page.waitForTimeout(500);
+    expect(await overflow(page)).toBe(0);
+  });
+
   test('the alert channel labels read as words', async ({page}) => {
     await login(page);
-    await page.evaluate(() => showView('integrations'));
+    await page.evaluate(() => openAdmin('alerts'));
     const label = page.locator('label', {has: page.locator('#alert-notify-teams')});
     expect((await label.boundingBox()).height).toBeLessThan(40);
   });

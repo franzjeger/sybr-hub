@@ -25,7 +25,7 @@ test('a rejected provider token cannot log a valid Hub user out', async ({page})
     return route.fulfill({status:401,json:{error:'Vendor token rejected', error_type:'auth_error'}});
   });
   await page.evaluate(() => {
-    showView('integrations');
+    openAdmin('integrations');
     toggleIntegConfig('ts-config');
     document.querySelector('#input-ts-api-key').value = 'synthetic-token';
     return tsTestConnection();
@@ -39,7 +39,7 @@ test('a rejected provider token cannot log a valid Hub user out', async ({page})
 
 test('CSS-hidden Autotask and myITprocess panels toggle and close each other', async ({page}) => {
   await login(page);
-  await page.evaluate(() => { showView('integrations'); toggleIntegConfig('autotask-config'); });
+  await page.evaluate(() => { openAdmin('integrations'); toggleIntegConfig('autotask-config'); });
   await expect(page.locator('#autotask-config')).toBeVisible();
   await page.evaluate(() => toggleIntegConfig('myitprocess-config'));
   await expect(page.locator('#autotask-config')).not.toBeVisible();
@@ -126,7 +126,7 @@ for (const width of [1280, 390]) {
       id:'synthetic', name:'Synthetic Account', customer_name:'Synthetic Customer',domain_count:3,
       subscription_count:2,monthly_total:100,earliest_renewal:'2027-01-01'}]}}));
     await page.evaluate(async () => {
-      showView('integrations');
+      openAdmin('integrations');
       toggleIntegConfig('also-config');
       toggleIntegConfig('uniweb-config');
       await Promise.all([uniwebLoadAccounts(),uniwebPollStatus()]);

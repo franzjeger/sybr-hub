@@ -43,21 +43,12 @@ onViewShown('ai', function() {
     if (!el || !d) return;
     if (d.available) { el.textContent = d.model; return; }
     // Not set up: say where, with a way there. The key lives on the Sybrt
-    // AI card under Integrasjoner, not in Settings.
-    el.innerHTML = esc(t('msg_not_configured_setup_api_key', 'Ikke satt opp. Legg inn API-nøkkelen på Sybrt AI-kortet under Integrasjoner.'))
-      + ' <button class="btn btn-ghost btn-sm" data-click-handler="showView" data-view="integrations">' + esc(t('btn_open_integrations', 'Åpne Integrasjoner')) + '</button>';
+    // AI card under Administrasjon › Integrasjoner.
+    el.innerHTML = esc(t('msg_not_configured_setup_api_key', 'Ikke satt opp. Legg inn API-nøkkelen på Sybrt AI-kortet under Administrasjon › Integrasjoner.'))
+      + ' ' + adminSignpostButton('integrations', 'btn_open_integrations', 'btn-ghost btn-sm');
   });
 });
 
-
-// ── Docs tab switching ───────────────────────────────────────────────────────
-function switchDocsTab(btn, paneId) {
-  document.querySelectorAll('.docs-tab-btn').forEach(function(b) { b.classList.remove('active'); });
-  btn.classList.add('active');
-  document.querySelectorAll('.docs-tab-pane').forEach(function(p) { p.style.display = 'none'; });
-  var pane = document.getElementById(paneId);
-  if (pane) pane.style.display = 'block';
-}
 
 // ── In-app docs viewer ───────────────────────────────────────────────────
 // The documents a person using the app reads: the changelog, and a user
@@ -948,8 +939,6 @@ async function taskSchedRunNow(taskId, btn) {
   }
 }
 
-onViewShown('integrations', function() { taskSchedRefresh(); });
-
 // ── Automatic Alerts ────────────────────────────────────────────────────────
 
 var _alertSaveTimeout = null;
@@ -978,6 +967,7 @@ async function alertLoadConfig() {
     'rule-firmware-outdated': ['firmware_outdated', null, null],
     'rule-also-license': ['also_license_expiry', 'rule-also-days', 'days'],
     'rule-mfa-coverage': ['mfa_coverage', 'rule-mfa-threshold', 'threshold'],
+    'rule-pentest-critical': ['pentest_critical', null, null],
   };
 
   Object.keys(ruleMap).forEach(function(checkId) {
@@ -1035,6 +1025,10 @@ async function _alertDoSave() {
       mfa_coverage: {
         enabled: !!document.getElementById('rule-mfa-coverage').checked,
         threshold: parseInt(document.getElementById('rule-mfa-threshold').value) || 80,
+      },
+      // The dashboard's rule list switched this one too; it lives here now.
+      pentest_critical: {
+        enabled: !!document.getElementById('rule-pentest-critical').checked,
       },
     },
   };
