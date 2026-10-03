@@ -175,11 +175,9 @@ function applyTheme(theme) {
   }
 }
 
-// Handlers for the activity log and changelog controls (see registerUiHandlers
-// in app.js).
+// Handlers for the activity log controls (see registerUiHandlers in app.js).
 registerUiHandlers({
   loadMoreActivity: function() { loadActivityLog(true); },
-  showChangelogTab: function(el) { _changelogTab = el.dataset.tab; _renderChangelogTab(); },
 });
 
 // ── Activity log ─────────────────────────────────────────────────────────────
@@ -340,77 +338,6 @@ document.addEventListener('click', function(e) {
   var nav = document.getElementById('main-nav');
   if (nav) nav.classList.remove('open');
 });
-
-// ── Changelog modal ──────────────────────────────────────────────────────────
-function parseChangelogMd(md) {
-  var html = '', inList = false, inCode = false, lines = md.split('\n');
-  // Escaped first, as the server's renderer does, so the fallback cannot
-  // turn the changelog into markup either.
-  function fmt(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>'); }
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    if (line.match(/^```/)) { if (inList) { html += '</ul>'; inList = false; } if (inCode) { html += '</pre>'; inCode = false; } else { html += '<pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:12px;overflow-x:auto;">'; inCode = true; } continue; }
-    if (inCode) { html += esc(line) + '\n'; continue; }
-    if (line.match(/^## /)) { if (inList) { html += '</ul>'; inList = false; } html += '<h2>' + fmt(line.replace(/^## /, '')) + '</h2>'; }
-    else if (line.match(/^### /)) { if (inList) { html += '</ul>'; inList = false; } html += '<h3>' + fmt(line.replace(/^### /, '')) + '</h3>'; }
-    else if (line.match(/^\s*- /)) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + fmt(line.replace(/^\s*- /, '')) + '</li>'; }
-    else if (line.match(/^\*\*/)) { if (inList) { html += '</ul>'; inList = false; } html += '<p>' + fmt(line) + '</p>'; }
-    else if (line.trim() === '') { if (inList) { html += '</ul>'; inList = false; } }
-    else { if (inList) { html += '</ul>'; inList = false; } html += '<p style="margin:4px 0;color:var(--text-muted);">' + fmt(line) + '</p>'; }
-  }
-  if (inList) html += '</ul>';
-  if (inCode) html += '</pre>';
-  return html;
-}
-var _changelogCache = null;
-var _changelogFull = '';
-var _changelogLatest = '';
-var _changelogTab = 'latest';
-
-function openChangelogModal() {
-  document.getElementById('changelog-modal').classList.add('open');
-  if (_changelogCache) { _renderChangelogTab(); return; }
-  apiFetch('/api/changelog').then(function(data) {
-    // CHANGELOG.md is not package data, so a wheel or container install does
-    // not carry it. An empty panel read as "no releases yet".
-    if (data && data.available === false) {
-      document.getElementById('changelog-content').innerHTML =
-        '<p style="color:var(--text-dim);">'
-        + esc(t('changelog_not_in_this_build',
-                'Endringsloggen følger ikke med denne installasjonen.'))
-        + '</p>';
-      return;
-    }
-    // Use server-rendered HTML if available, fall back to JS parser
-    _changelogFull = (/* safe-html: the server escapes the changelog before it renders it (_md_to_html) */ data.html) || parseChangelogMd(data.content || '');
-    _changelogLatest = (/* safe-html: rendered by the same escaping renderer as data.html */ data.latest_html) || _changelogFull;
-    _changelogCache = true;
-    _renderChangelogTab();
-  }).catch(function() { document.getElementById('changelog-content').innerHTML = '<p style="color:var(--text-dim);">' + t('err_could_not_load_changelog') + '</p>'; });
-}
-
-function _renderChangelogTab() {
-  var content = _changelogTab === 'latest' ? _changelogLatest : _changelogFull;
-  var tabs = '<div style="display:flex;gap:8px;margin-bottom:16px;">'
-    + '<button class="btn btn-sm ' + (_changelogTab === 'latest' ? 'btn-primary' : 'btn-ghost') + '" data-click-handler="showChangelogTab" data-tab="latest">' + t('siste_endringer') + '</button>'
-    + '<button class="btn btn-sm ' + (_changelogTab === 'all' ? 'btn-primary' : 'btn-ghost') + '" data-click-handler="showChangelogTab" data-tab="all">' + t('alle_versjoner') + '</button>'
-    + '</div>';
-  document.getElementById('changelog-content').innerHTML = tabs + content;
-}
-
-function closeChangelogModal() { document.getElementById('changelog-modal').classList.remove('open'); }
-function filterChangelog() {
-  var q = (document.getElementById('changelog-search').value || '').toLowerCase();
-  if (!q) { _renderChangelogTab(); return; }
-  // Search the full changelog, not only the tab that is open. The full text
-  // was looked up here and then never rendered, so a search on the default
-  // "latest" tab only ever searched the latest release.
-  var box = document.getElementById('changelog-content');
-  box.innerHTML = _changelogFull;
-  box.querySelectorAll('h2,h3,p,li,strong,ul').forEach(function(el) {
-    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function openShortcutsModal() {
@@ -590,10 +517,11 @@ document.addEventListener('keydown', function(e) {
       showView(views[e.key]);
       return;
     }
-    // Ctrl+, — open settings
+    // Ctrl+, opens Administrasjon (the account's own settings for anyone
+    // who is not an administrator).
     if (e.key === ',') {
       e.preventDefault();
-      openSettings();
+      openAdmin();
       return;
     }
   }
@@ -1044,21 +972,6 @@ function toggleLogAutoRefresh() {
     _logAutoRefreshTimer = null;
   }
 }
-
-function toggleLogTabVisibility() {
-  var show = document.getElementById('input-show-log-tab').checked;
-  var btn = document.getElementById('nav-logs');
-  if (btn) btn.style.display = show ? 'inline-flex' : 'none';
-  localStorage.setItem('msptk_show_log_tab', show ? '1' : '0');
-}
-
-// Restore tab visibility on page load
-(function() {
-  if (localStorage.getItem('msptk_show_log_tab') === '1') {
-    const btn = document.getElementById('nav-logs');
-    if (btn) btn.style.display = 'inline-flex';
-  }
-})();
 
 // Check auth on load
 checkAuth();

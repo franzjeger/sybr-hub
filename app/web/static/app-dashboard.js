@@ -94,19 +94,18 @@ function notifSetFilter(kind, value) {
 }
 
 function notifOpenRules() {
-  // Rules, thresholds and delivery channels are edited under "Automatiske
-  // varsler" on the Integrations page. This used to open a 'settings' view,
-  // which does not exist: every view was hidden and the screen went blank.
-  showView('integrations');
-  // The card sits inside a wrapper that also holds its heading; land on that.
-  // Not smooth: the cards above repaint as their status loads, which cut a
-  // smooth scroll short halfway down the page.
+  // Rules, thresholds and delivery channels are edited under Administrasjon ›
+  // Varsler. This used to open a 'settings' view, which does not exist: every
+  // view was hidden and the screen went blank.
+  openAdmin('alerts');
+  // Land on the alert card, past the Automatisk audit card above it. Not
+  // smooth: the panes repaint as their status loads, which cut a smooth
+  // scroll short.
   var toggle = document.getElementById('alert-master-toggle');
   var card = toggle && toggle.closest('.card');
-  var section = card && card.parentElement;
-  if (!section) return;
+  if (!card) return;
   requestAnimationFrame(function() {
-    section.scrollIntoView({block: 'start'});
+    card.scrollIntoView({block: 'start'});
     toggle.focus({preventScroll: true});
   });
 }
@@ -367,7 +366,7 @@ function _notifSidebar() {
     });
     if (!cfg.enabled) {
       html += '<div style="font-size:11px;color:var(--orange-deep);margin-top:10px;">'
-           + t('msg_alerts_disabled', 'Automatiske varsler er slått av, så ingen av reglene sender noe. Slå dem på i Innstillinger.')
+           + t('msg_alerts_disabled', 'Automatiske varsler er slått av, så ingen av reglene sender noe. Slå dem på under Administrasjon › Varsler.')
            + '</div>';
     }
     if (!isAdmin) {
@@ -1143,7 +1142,7 @@ async function loadIntegrationHealthStrip() {
   widget.innerHTML = '' +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2);">' +
       '<div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">' + esc(t('hdr_integration_health', 'Integrasjonsstatus')) + '</div>' +
-      '<a href="#" data-click-handler="showView" data-view="integrations" style="font-size:var(--font-xs);color:var(--blue);text-decoration:none;">' + esc(t('lbl_manage', 'Administrer')) + ' &rarr;</a>' +
+      (canOpenView('admin') ? '<a href="#" data-click-handler="openAdmin" data-pane="integrations" style="font-size:var(--font-xs);color:var(--blue);text-decoration:none;">' + esc(t('lbl_manage', 'Administrer')) + ' &rarr;</a>' : '') +
     '</div>' +
     // A grid, so a short last row keeps the cards' size instead of stretching them.
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:var(--space-3);">' + cards.join('') + '</div>';
@@ -1151,11 +1150,11 @@ async function loadIntegrationHealthStrip() {
   widget.style.display = 'block';
 }
 
-// Delegated click → open Integrasjoner view
+// Delegated click → Administrasjon › Integrasjoner
 document.addEventListener('click', function(e) {
   var card = e.target.closest('#integration-health-widget .integ-health-card');
-  if (!card) return;
-  showView('integrations');
+  if (!card || !canOpenView('admin')) return;
+  openAdmin('integrations');
 });
 
 async function loadOverview() {

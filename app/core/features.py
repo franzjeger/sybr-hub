@@ -73,10 +73,11 @@ FEATURES: tuple[Feature, ...] = (
         module="remote",
     ),
     Feature("vpn", Role.technician, views=("vpn",)),
-    Feature("integrations", Role.technician, views=("integrations",)),
+    # Its settings are a pane of Administrasjon now, which is the admin view.
+    Feature("integrations", Role.technician, views=()),
     Feature("ai", Role.technician, views=("ai",), module="ai"),
     # ── Admin: changing how the toolkit itself behaves ──
-    Feature("settings", Role.admin, views=("setup",)),
+    Feature("settings", Role.admin, views=("setup", "admin")),
     Feature("users", Role.admin, views=()),
     Feature("provisioning", Role.admin, views=("provision",), module="provisioning"),
     Feature("logs", Role.admin, views=("logs",)),

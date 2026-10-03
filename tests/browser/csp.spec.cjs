@@ -91,7 +91,7 @@ test('every main view opens through the navigation without a policy violation', 
   test.setTimeout(90000);
   const monitor = await watch(page);
   await login(page);
-  const views = ['overview', 'customers', 'home', 'audit', 'history', 'files', 'network', 'integrations',
+  const views = ['overview', 'customers', 'home', 'audit', 'history', 'files', 'network',
     'docs', 'logs', 'hosts', 'ssh', 'vpn', 'tailscale', 'tls', 'policy-overview', 'policy-deploy',
     'baseline-deploy', 'assessments', 'provision', 'ai', 'browser', 'setup'];
   for (const view of views) {
@@ -128,22 +128,17 @@ test.describe('migrated controls, view by view', () => {
     await page.context().close();
   });
 
-  test('header: avatar menu, changelog tabs, search and backdrop', async () => {
+  test('header: avatar menu, the Konto dialog and its backdrop', async () => {
     await page.locator('#avatar-btn').click();
     await expect(page.locator('#avatar-menu')).toHaveClass(/\bopen\b/);
-    // A click elsewhere closes it: toggleAvatarMenu stopped its own click from
-    // reaching that document listener, and still must.
-    await page.locator('#avatar-menu [data-click-handler="openChangelogModal"]').click();
-    await expect(page.locator('#changelog-modal')).toHaveClass(/\bopen\b/);
-    const tabs = page.locator('#changelog-content [data-click-handler="showChangelogTab"]');
-    if (await tabs.count()) {
-      await tabs.nth(1).click();
-      await expect(tabs.nth(1)).toHaveClass(/btn-primary/);
-    }
-    await page.locator('#changelog-search').fill('zzzz-no-such-entry');
-    await page.locator('#changelog-search').fill('');
-    await page.locator('#changelog-modal').click({position: {x: 5, y: 5}});
-    await expect(page.locator('#changelog-modal')).not.toHaveClass(/\bopen\b/);
+    // The item closes the menu before it acts: toggleAvatarMenu stopped its
+    // own click from reaching the document listener, and still must.
+    await page.locator('#avatar-menu [data-click-handler="avatarOpenAccount"]').click();
+    await expect(page.locator('#avatar-menu')).not.toHaveClass(/\bopen\b/);
+    await expect(page.locator('#account-modal')).toHaveClass(/\bopen\b/);
+    await expect(page.locator('#input-language')).toHaveValue('no');
+    await page.locator('#account-modal').click({position: {x: 5, y: 5}});
+    await expect(page.locator('#account-modal')).not.toHaveClass(/\bopen\b/);
   });
 
   test('command palette: an item runs its action', async () => {
@@ -153,7 +148,8 @@ test.describe('migrated controls, view by view', () => {
     const item = page.locator('#cmd-results [data-click-handler="runCommandPaletteItem"]').first();
     await item.click();
     await expect(page.locator('#cmd-palette')).toBeHidden();
-    await expect(page.locator('#view-integrations')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#admin-pane-integrations')).toBeVisible();
   });
 
   test('toasts close from their button', async () => {
@@ -163,24 +159,23 @@ test.describe('migrated controls, view by view', () => {
     await expect(toast).toHaveCount(0);
   });
 
-  test('settings: tabs switch and the customer-access panel opens and closes', async () => {
+  test('Administrasjon: the rail switches panes and the customer-access panel opens and closes', async () => {
     await page.locator('#avatar-btn').click();
-    await page.locator('#avatar-menu [data-click-handler="avatarOpenSettings"]').click();
-    await expect(page.locator('#settings-modal')).toHaveClass(/\bopen\b/);
-    await page.locator('.settings-tab-btn[data-tab="stab-users"]').click();
-    await expect(page.locator('#stab-users')).toBeVisible();
-    const access = page.locator('#stab-users [data-click-handler="editUserCustomers"]').first();
+    await page.locator('#avatar-menu [data-click-handler="avatarOpenAdmin"]').click();
+    await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
+    await page.locator('#admin-rail [data-pane="users"]').click();
+    await expect(page.locator('#admin-pane-users')).toBeVisible();
+    expect(await page.evaluate(() => location.hash)).toBe('#/admin/users');
+    const access = page.locator('#admin-pane-users [data-click-handler="editUserCustomers"]').first();
     await expect(access).toBeVisible();
     await access.click();
     const panel = page.locator('[id^="rbac-panel-"]');
     await expect(panel).toHaveCount(1);
     await panel.locator('[data-click-handler="removeElement"]').click();
     await expect(panel).toHaveCount(0);
-    await page.locator('.settings-tab-btn[data-tab="stab-advanced"]').click();
-    await expect(page.locator('#stab-advanced')).toBeVisible();
-    // A click on the backdrop, not the dialog, closes it.
-    await page.locator('#settings-modal').click({position: {x: 5, y: 5}});
-    await expect(page.locator('#settings-modal')).not.toHaveClass(/\bopen\b/);
+    await page.locator('#admin-rail [data-pane="system"]').click();
+    await expect(page.locator('#admin-pane-system')).toBeVisible();
+    await expect(page.locator('#admin-pane-users')).toBeHidden();
   });
 
   test('overview: tabs, quick filters, sorting, and the row menu does not open the row', async () => {
@@ -250,7 +245,8 @@ test.describe('migrated controls, view by view', () => {
   });
 
   test('integrations: a card opens its settings', async () => {
-    await openView(page, 'integrations');
+    await page.evaluate(() => openAdmin('integrations'));
+    await expect(page.locator('#admin-pane-integrations')).toBeVisible();
     await page.locator('[data-click-handler="toggleIntegConfig"][data-config="webhook-config"]').click();
     await expect(page.locator('#webhook-config')).toBeVisible();
     await page.locator('[data-click-handler="toggleIntegConfig"][data-config="webhook-config"]').click();
@@ -313,11 +309,10 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#scope-body')).toBeHidden();
   });
 
-  test('docs: the tabs switch and the changelog opens, not the repository notes', async () => {
-    await openView(page, 'docs');
-    await page.locator('[data-click-handler="switchDocsTab"][data-tab="docs-api"]').click();
-    await expect(page.locator('#docs-api')).toBeVisible();
-    await page.locator('[data-click-handler="switchDocsTab"][data-tab="docs-repo"]').click();
+  test('Hjelp: the changelog opens, not the repository notes', async () => {
+    await page.locator('#avatar-btn').click();
+    await page.locator('#avatar-menu [data-click-handler="avatarOpenHelp"]').click();
+    await expect(page.locator('#view-docs')).toHaveClass(/\bactive\b/);
     const content = page.locator('#docs-repo-content');
     // The one document on offer opens by itself; with nothing to choose
     // between there is no list.

@@ -7,6 +7,7 @@ function icon(name, size) {
     refresh:   'M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
     download:  'M12 16l-5-5 1.41-1.41L11 12.17V4h2v8.17l2.59-2.58L17 11l-5 5zM5 18v2h14v-2H5z',
     warning:   'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+    bell:      'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z',
     check:     'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z',
     x:         'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z',
     lock:      'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z',
@@ -163,13 +164,8 @@ registerUiHandlers({
   // Arguments come from data-* attributes on the control.
   generateReport: function(el) { generateReport(el.dataset.format, el.dataset.reportType); },
   toggleIntegConfig: function(el) { toggleIntegConfig(el.dataset.config); },
-  switchSettingsTab: function(el) { switchSettingsTab(el, el.dataset.tab); },
   switchNetSub: function(el) { switchNetSub(el, el.dataset.tab); },
   switchDashTab: function(el) { switchDashTab(el, el.dataset.tab); },
-  switchDocsTab: function(el) {
-    switchDocsTab(el, el.dataset.tab);
-    if (el.dataset.tab === 'docs-repo') docsRepoLoad();
-  },
   termChangeFontSize: function(el) { termChangeFontSize(Number(el.dataset.delta)); },
   resolveConfirm: function(el) { resolveConfirm(el.dataset.answer === 'true'); },
   uploadToITGlue: function(el) { uploadToITGlue(el); },
@@ -180,33 +176,36 @@ registerUiHandlers({
   toggleAvatarMenu: function(el, event) { toggleAvatarMenu(event); },
   toggleActiveCustomerSwitcher: function(el, event) { toggleActiveCustomerSwitcher(event); },
   moreSheetShowView: function(el) { closeMoreSheet(); showView(el.dataset.view); },
-  moreSheetOpenSettings: function() { closeMoreSheet(); openSettings(); },
+  moreSheetOpenAdmin: function() { closeMoreSheet(); openAdmin(); },
+  moreSheetOpenAccount: function() { closeMoreSheet(); openAccountModal(); },
   moreSheetLogout: function() { closeMoreSheet(); doLogout(); },
-  avatarShowMfaSettings: function() { closeAvatarMenu(); showMfaSettings(); },
-  avatarShowChangePassword: function() { closeAvatarMenu(); showChangePasswordModal(); },
+  avatarOpenAccount: function() { closeAvatarMenu(); openAccountModal(); },
   avatarOpenShortcuts: function() { closeAvatarMenu(); openShortcutsModal(); },
-  avatarOpenSettings: function() { closeAvatarMenu(); openSettings(); },
+  avatarOpenAdmin: function() { closeAvatarMenu(); openAdmin(); },
+  avatarOpenHelp: function() { closeAvatarMenu(); showView('docs'); },
+  accountShowMfaSettings: function() { closeAccountModal(); showMfaSettings(); },
+  accountShowChangePassword: function() { closeAccountModal(); showChangePasswordModal(); },
+  // Administrasjon: the rail, and a signpost elsewhere that names a pane.
+  adminShowPane: function(el) { adminShowPane(el.dataset.pane); },
+  openAdmin: function(el) { openAdmin(el.dataset.pane); },
   // Modal backdrops: only a click on the backdrop itself closes them.
   deactivateOnBackdrop: function(el, event) { if (event.target === el) el.classList.remove('active'); },
   cancelConfirmOnBackdrop: function(el, event) { if (event.target === el) resolveConfirm(false); },
   closeShortcutsModalOnBackdrop: function(el, event) { if (event.target === el) closeShortcutsModal(); },
   closePermissionsModalOnBackdrop: function(el, event) { if (event.target === el) closePermissionsModal(); },
   closeMoreSheetOnBackdrop: function(el, event) { if (event.target === el) closeMoreSheet(); },
-  closeChangelogModalOnBackdrop: function(el, event) { if (event.target === el) closeChangelogModal(); },
   closeCommandPaletteOnBackdrop: function(el, event) { if (event.target === el) closeCommandPalette(); },
-  closeSettingsOnBackdrop: function(el, event) { closeSettingsOnBackdrop(event); },
+  closeAccountModalOnBackdrop: function(el, event) { if (event.target === el) closeAccountModal(); },
   // change / input
   alertSaveConfig: function() { alertSaveConfig(); },
   alertToggleMaster: function(el) { alertToggleMaster(el.checked); },
   hostsLoad: function() { hostsLoad(); },
-  toggleLogTabVisibility: function() { toggleLogTabVisibility(); },
   toggleLogAutoRefresh: function() { toggleLogAutoRefresh(); },
   termModeChanged: function() { termModeChanged(); },
   setLanguage: function(el) { setLanguage(el.value); },
   liveSetInterval: function(el) { liveSetInterval(el.value); },
   claudeModeChanged: function() { claudeModeChanged(); },
   aiSelectCustomerFromDropdown: function(el) { aiSelectCustomerFromDropdown(el); },
-  filterChangelog: function() { filterChangelog(); },
   customersFilter: function() { customersFilter(); },
   // keydown
   doSetupOnEnter: function(el, event) { if (event.key === 'Enter') doSetup(); },
@@ -231,16 +230,14 @@ registerUiHandlers({
   promptPwaInstall: function() { promptPwaInstall(); },
   toggleTheme: function() { toggleTheme(); },
   doLogout: function() { doLogout(); },
-  openChangelogModal: function() { openChangelogModal(); },
   loadCustomerLicensesFromActive: function() { loadCustomerLicensesFromActive(); },
   dashExportCurrentTab: function() { dashExportCurrentTab(); },
   exportDashboardExcel: function() { exportDashboardExcel(); },
   copyOverviewToClipboard: function(el) { copyOverviewToClipboard(el); },
   generateQBR: function() { generateQBR(); },
-  closeSettings: function() { closeSettings(); },
+  closeAccountModal: function() { closeAccountModal(); },
   closePermissionsModal: function() { closePermissionsModal(); },
   closeShortcutsModal: function() { closeShortcutsModal(); },
-  closeChangelogModal: function() { closeChangelogModal(); },
   aiClearChat: function() { aiClearChat(); },
   aiSend: function() { aiSend(); },
   alertRunCheckNow: function() { alertRunCheckNow(); },
@@ -655,11 +652,18 @@ function _renderCmdResults(query) {
     {label:'Tailscale',       view:'tailscale', action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:'link'},
     {label:t('bc_provisioning','Provisjonering'), view:'provision', action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:'gear'},
     {label:'Sybrt',           view:'ai', action:function(){showView('ai')},         section:'',                 icon:'sparkle'},
-    {label:t('nav_integrations','Integrations'), view:'integrations', action:function(){showView('integrations')},section:'',                icon:'plug'},
-    {label:t('bc_log','Log'), view:'logs', action:function(){showView('logs')},        section:'',                icon:'document'},
-    {label:t('hdr_settings','Settings'), action:function(){openSettings()}, section:'',                icon:'gear'},
-    {label:t('tab_users','Users'), admin:true, action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:'users'},
-    {label:t('hdr_branding','Branding'), action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[1],'stab-branding')},100)}, section:t('hdr_settings'), icon:'palette'},
+    // Administrasjon and its panes, named by id: the palette used to pick
+    // a settings tab by its position in the strip.
+    {label:t('nav_admin','Administrasjon'), view:'admin', action:function(){openAdmin()}, section:'', icon:'gear'},
+    {label:t('nav_integrations','Integrations'), view:'admin', action:function(){openAdmin('integrations')}, section:t('nav_admin'), icon:'plug'},
+    {label:t('admin_alerts','Varsler og planlagte oppgaver'), view:'admin', action:function(){openAdmin('alerts')}, section:t('nav_admin'), icon:'bell'},
+    {label:t('tab_users','Users'), view:'admin', action:function(){openAdmin('users')}, section:t('nav_admin'), icon:'users'},
+    {label:t('tab_modules','Moduler'), view:'admin', action:function(){openAdmin('modules')}, section:t('nav_admin'), icon:'grid'},
+    {label:t('hdr_branding','Branding'), view:'admin', action:function(){openAdmin('branding')}, section:t('nav_admin'), icon:'palette'},
+    {label:t('admin_storage','Lagring og backup'), view:'admin', action:function(){openAdmin('storage')}, section:t('nav_admin'), icon:'document'},
+    {label:t('admin_system','System'), view:'admin', action:function(){openAdmin('system')}, section:t('nav_admin'), icon:'gear'},
+    {label:t('bc_log','Log'), view:'logs', action:function(){showView('logs')}, section:t('nav_admin'), icon:'document'},
+    {label:t('konto','Konto'), action:function(){openAccountModal()}, section:'', icon:'users'},
   ];
   // A page the account cannot open is not offered: the palette listed every
   // view, and picking one this account may not see opened a blank page.
@@ -673,7 +677,6 @@ function _renderCmdResults(query) {
   // Actions
   var actions = [
     {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:'play'},
-    {label:t('hdr_settings','Settings'),      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:'gear'},
     {label:t('btn_export_excel','Export Excel'), action:function(){exportDashboardExcel()},                    hint:'',             icon:'chart'},
   ];
   if (!canWrite()) actions = actions.filter(function(a) { return a.label !== t('btn_run_audit'); });
@@ -1426,8 +1429,7 @@ function _updateBreadcrumb(name) {
     tailscale:    [{label:t('nav_tools','Verktøy')}, {label:'Tailscale'}],
     provision:    [{label:t('nav_tools','Verktøy')}, {label:t('bc_provisioning','Provisjonering')}],
     ai:           [{label:'Sybrt'}],
-    integrations: [{label:t('nav_integrations')}],
-    logs:         [{label:t('bc_log','Log')}],
+    logs:         [{label:t('nav_admin','Administrasjon'),admin:'system'}, {label:t('bc_log','Log')}],
     'customer-detail': [{label:t('nav_customers'),view:'customers'}, {label:t('bc_customer_detail','Customer detail')}],
   };
   var crumbs = map[name] || [{label:name}];
@@ -1435,7 +1437,9 @@ function _updateBreadcrumb(name) {
   bc.style.display = 'block';
   items.innerHTML = crumbs.map(function(c, i) {
     var sep = i > 0 ? ' <span style="margin:0 var(--space-2);color:var(--text-dim);opacity:0.5;">/</span> ' : '';
-    if (i < crumbs.length - 1 && c.view) {
+    if (i < crumbs.length - 1 && c.admin) {
+      return sep + '<a href="#" class="hover-link crumb-link" data-click-handler="openAdmin" data-pane="' + esc(c.admin) + '">' + esc(c.label) + '</a>';
+    } else if (i < crumbs.length - 1 && c.view) {
       return sep + '<a href="#" class="hover-link" data-click-handler="showView" data-view="' + esc(c.view) + '" style="color:var(--text-muted);text-decoration:none;transition:color 0.15s;">' + esc(c.label) + '</a>';
     } else if (i < crumbs.length - 1) {
       return sep + '<span style="color:var(--text-muted);">' + esc(c.label) + '</span>';
@@ -1482,15 +1486,11 @@ function onViewShown(name, fn) {
 }
 
 function showView(name) {
+  // Integrasjoner was a page of its own; it is a pane of Administrasjon now.
+  if (name === 'integrations') { openAdmin('integrations'); return; }
+  // Leaving Administrasjon with unsaved edits asks first.
+  if (currentView === 'admin' && name !== 'admin' && !adminMayLeave()) return;
   _cleanupViewTimers();
-  // Check for unsaved settings changes if the settings modal is open
-  var settingsModal = document.getElementById('settings-modal');
-  if (settingsModal && settingsModal.classList.contains('open') && _settingsDirty && _isSettingsDirty()) {
-    if (!confirm(t('du_har_ulagrede_endringer_vil'))) return;
-    _settingsSnapshot = null;
-    _settingsDirty = false;
-    settingsModal.classList.remove('open');
-  }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   var viewEl = document.getElementById('view-' + name);
   if (viewEl) { viewEl.classList.add('active'); viewEl.style.animation = 'view-fade-in 0.25s ease-out'; }
@@ -1564,11 +1564,6 @@ function showView(name) {
   } else if (name === 'history') {
     document.getElementById('history-content').innerHTML = skeletonHTML('history');
     loadHistory();
-  } else if (name === 'integrations') {
-    loadIntegrationStatus();
-    unifiSmLoadSaved();
-    fgApiLoadSaved();
-    claudeLoadSaved();
   } else if (name === 'logs') {
     loadLogs();
   } else if (name === 'audit') {
@@ -1598,19 +1593,30 @@ var _routeApplying = false;
 
 function syncRoute(name, customerId) {
   if (_routeApplying || !name) return;
-  var target = name === 'customer-detail' && customerId
-    ? '#/customer/' + encodeURIComponent(customerId)
-    : '#/' + name;
+  var target = '#/' + name;
+  if (name === 'customer-detail' && customerId) target = '#/customer/' + encodeURIComponent(customerId);
+  else if (name === 'admin') target = '#/admin/' + _adminPane;
   if (location.hash !== target) history.pushState(null, '', target);
 }
 
 async function applyRoute() {
   var customer = /^#\/customer\/([^/]+)$/.exec(location.hash);
+  var admin = /^#\/admin(?:\/([a-z-]+))?$/.exec(location.hash);
   var view = /^#\/([a-z0-9-]+)$/.exec(location.hash);
   _routeApplying = true;
   try {
     if (customer) {
       await overviewSelectCustomer(decodeURIComponent(customer[1]));
+    } else if (admin || (view && view[1] === 'integrations')) {
+      // #/integrations was a page of its own; it is a pane of Administrasjon now.
+      var pane = admin ? admin[1] : 'integrations';
+      if (canOpenView('admin')) {
+        openAdmin(pane);
+        history.replaceState(null, '', '#/admin/' + _adminPane);
+      } else {
+        showView('overview');
+        history.replaceState(null, '', '#/overview');
+      }
     } else if (view && document.getElementById('view-' + view[1])
         && (!_allowedViews.length || _allowedViews.indexOf(view[1]) !== -1)) {
       showView(view[1]);
@@ -2055,6 +2061,15 @@ function timeAgo(dateStr) {
     if (diff < 604800) return Math.floor(diff/86400) + ' ' + t('time_days_ago','days ago');
     return d.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'nb-NO', {day:'2-digit',month:'short'});
   } catch(e) { return dateStr; }
+}
+
+// A button to a pane of Administrasjon, for the places that say "set this up
+// under Administrasjon". Nothing for an account that cannot open the page:
+// the sentence beside it still says where, for the administrator to act on.
+function adminSignpostButton(pane, labelKey, extraClass) {
+  if (!canOpenView('admin')) return '';
+  return '<button class="btn ' + esc(extraClass || 'btn-default btn-sm') + '" data-click-handler="openAdmin" data-pane="' + esc(pane) + '">'
+    + esc(t(labelKey)) + '</button>';
 }
 
 function esc(str) {

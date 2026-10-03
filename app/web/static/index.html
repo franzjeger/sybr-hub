@@ -196,12 +196,9 @@
         </div></div>
       </div>
 
-      <button data-view-gate="integrations" data-write class="nav-btn" id="nav-integrations" data-click-handler="showView" data-view="integrations" data-i18n="nav_integrations">Integrasjoner</button>
-
       <!-- Hidden nav IDs so showView() active-highlighting keeps working for
            child/moved views (Fjerntilgang, Workshop, VPN, etc.). -->
       <button class="nav-btn" id="nav-remote" style="display:none;"></button>
-      <button data-view-gate="logs" class="nav-btn" id="nav-logs" data-click-handler="showView" data-view="logs" style="display:none;" data-i18n="nav_logs">Logg</button>
       <button class="nav-btn" id="nav-m365" style="display:none;"></button>
       <button class="nav-btn" id="nav-home" style="display:none;"></button>
       <button class="nav-btn" id="nav-history" style="display:none;"></button>
@@ -261,14 +258,14 @@
           <div class="avatar-head">
             <span class="name" id="avatar-name"></span>
             <span class="email" id="avatar-email"></span>
+            <span class="avatar-version" id="header-version"></span>
           </div>
-          <button class="avatar-item" data-click-handler="avatarOpenSettings"><span class="ic"></span><span style="flex:1;" data-i18n="innstillinger">Innstillinger</span><span class="kbd">Ctrl+,</span></button>
-          <button class="avatar-item" data-click-handler="toggleTheme"><span class="ic">&#9680;</span><span style="flex:1;" data-i18n="bytt_tema">Bytt tema</span></button>
-          <button class="avatar-item" data-click-handler="avatarOpenShortcuts"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span style="flex:1;" data-i18n="tastatursnarveier_2">Tastatursnarveier</span><span class="kbd">?</span></button>
-          <button class="avatar-item" data-click-handler="avatarShowMfaSettings"><span data-i18n="lbl_mfa_settings">MFA / bekreft innlogging</span></button>
-          <button class="avatar-item" data-click-handler="avatarShowChangePassword"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"></path></svg></span><span style="flex:1;" data-i18n="bytt_passord">Bytt passord</span></button>
-          <button class="avatar-item danger" data-click-handler="doLogout"><span class="ic">&#8617;</span><span style="flex:1;" data-i18n="logg_ut">Logg ut</span></button>
-          <button class="avatar-foot" data-click-handler="openChangelogModal" data-i18n-title="tip_show_changelog" title="Vis endringslogg"><span id="header-version"></span> &#183; <span data-i18n="lbl_changelog">endringslogg</span></button>
+          <button class="avatar-item" data-click-handler="avatarOpenAccount"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"></circle><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"></path></svg></span><span class="avatar-label" data-i18n="konto">Konto</span></button>
+          <button class="avatar-item" data-click-handler="toggleTheme"><span class="ic">&#9680;</span><span class="avatar-label" data-i18n="lbl_theme">Tema</span></button>
+          <button class="avatar-item" data-click-handler="avatarOpenShortcuts"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg></span><span class="avatar-label" data-i18n="lbl_shortcuts">Snarveier</span><span class="kbd">?</span></button>
+          <button class="avatar-item" data-admin-only data-view-gate="admin" data-click-handler="avatarOpenAdmin"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg></span><span class="avatar-label" data-i18n="nav_admin">Administrasjon</span><span class="kbd">Ctrl+,</span></button>
+          <button class="avatar-item" data-view-gate="docs" data-click-handler="avatarOpenHelp"><span class="ic">?</span><span class="avatar-label" data-i18n="nav_help">Hjelp</span></button>
+          <button class="avatar-item danger" data-click-handler="doLogout"><span class="ic">&#8617;</span><span class="avatar-label" data-i18n="logg_ut">Logg ut</span></button>
         </div>
       </div>
 
@@ -315,7 +312,6 @@
         <button class="dash-tab-btn" data-module="billing" data-click-handler="switchDashTab" data-tab="dash-renewals"><span data-i18n="dash_tab_renewals">Fornyelser</span><span id="dash-badge-renewals" class="tab-badge" style="display:none;"></span></button>
         <button class="dash-tab-btn" data-module="billing" data-click-handler="switchDashTab" data-tab="dash-costs"><span data-i18n="dash_tab_costs">Kostnader</span></button>
         <button class="dash-tab-btn" data-module="billing" data-click-handler="switchDashTab" data-tab="dash-domains"><span data-i18n="dash_tab_domains">Domener</span></button>
-        <button class="dash-tab-btn" data-click-handler="switchDashTab" data-tab="dash-archive"><span data-i18n="dash_tab_archive">Rapporter</span></button>
         <div style="flex:1;"></div>
         <span class="dash-updated" id="dash-updated-wrap" style="display:none;"><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
         <div class="nav-dropdown">
@@ -354,9 +350,6 @@
       </div>
       <div id="dash-domains" class="dash-tab-content" style="display:none;">
         <div id="dash-domains-content"></div>
-      </div>
-      <div id="dash-archive" class="dash-tab-content" style="display:none;">
-        <div id="dash-archive-content"></div>
       </div>
     </div>
 
@@ -598,20 +591,6 @@
           </div>
         </div>
 
-        <!-- Encryption -->
-        <div class="card tooltip" data-tip="Alle kundedata krypteres med AES-256 p&#229; disk" data-i18n-title="tip_encryption">
-          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span><span data-i18n="hdr_encryption_card">Kryptering</span></div>
-          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
-            <span data-i18n="msg_all_files_encrypted">Alle nye filer krypteres automatisk med AES-256-GCM. Krypteringsnøkkelen lagres i OS-nøkkelringen.</span>
-            <span data-i18n="msg_encrypt_existing_desc">Bruk knappen under for å kryptere eksisterende data som ble opprettet før kryptering ble aktivert.</span>
-          </div>
-          <div class="btn-row">
-            <button data-write class="btn btn-primary" data-click-handler="migrateEncryption" style="font-size:12px;" id="btn-migrate-encrypt">
-              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_encrypt_existing">Krypter eksisterende data</span>
-            </button>
-            <span id="migrate-encrypt-result" style="font-size:12px;color:var(--text-muted);"></span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -900,11 +879,26 @@
       </div>
     </div>
 
-    <!-- ════════════ INTEGRATIONS VIEW ════════════ -->
-    <div class="view" id="view-integrations">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-        <div style="font-size:18px;font-weight:700;" data-i18n="hdr_integrations">Integrasjoner</div>
-      </div>
+  <!-- ════════════ ADMINISTRASJON ════════════
+       One page with a left rail, where the settings modal and the
+       Integrasjoner view used to be. Panes are shown one at a time and the
+       address carries the pane: #/admin/<pane>. -->
+  <div class="view" id="view-admin" data-admin-only>
+    <div class="admin-layout">
+      <nav class="admin-rail" id="admin-rail" data-i18n-aria-label="nav_admin" aria-label="Administrasjon">
+        <div class="admin-rail-title" data-i18n="nav_admin">Administrasjon</div>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="integrations" data-i18n="nav_integrations">Integrasjoner</button>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="alerts" data-i18n="admin_alerts">Varsler og planlagte oppgaver</button>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="users" data-i18n="tab_users">Brukere</button>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="modules" data-i18n="tab_modules">Moduler</button>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="branding" data-i18n="hdr_branding">Branding</button>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="storage" data-i18n="admin_storage">Lagring og backup</button>
+        <button class="admin-rail-item" data-click-handler="adminShowPane" data-pane="system" data-i18n="admin_system">System</button>
+      </nav>
+      <div class="admin-main">
+
+      <section class="admin-pane" id="admin-pane-integrations">
+        <h1 class="page-title" data-i18n="nav_integrations">Integrasjoner</h1>
       <div id="integ-active">
         <div id="integ-summary" style="display:flex;gap:var(--space-4);margin-bottom:var(--space-4);font-size:var(--font-xs);color:var(--text-dim);"></div>
         <div class="integ-grid">
@@ -1445,12 +1439,39 @@
             </div>
           </div>
         </div>
-        <!-- ═══════════ AUTOMATIC ALERTS ═══════════ -->
-        <div style="margin-top:32px;">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-            <div style="font-size:16px;font-weight:700;" data-i18n="hdr_auto_alerts">Automatiske varsler</div>
+      </div>
+      </section>
+
+      <section class="admin-pane" id="admin-pane-alerts" hidden>
+        <h1 class="page-title" data-i18n="admin_alerts">Varsler og planlagte oppgaver</h1>
+        <div class="card admin-card" data-settings-form>
+          <h2 class="admin-card-title" data-i18n="hdr_auto_audit">Automatisk audit</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="checkbox" id="input-scheduler-enabled">
+          <label for="input-scheduler-enabled" style="font-size:13px;" data-i18n="settings_scheduler_enabled">Aktiver automatisk audit</label>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="checkbox" id="input-scheduler-audit-all" checked>
+          <label for="input-scheduler-audit-all" style="font-size:13px;" data-i18n="settings_scheduler_audit_all">Audit alle kunder</label>
+          <span style="font-size:11px;color:var(--text-muted);" data-i18n="settings_scheduler_hint">(deaktivert = kun aktiv kunde)</span>
+        </div>
+
+        <label class="field-label" for="input-scheduler-interval" data-i18n="lbl_interval_hours">Intervall (timer)</label>
+        <input class="field-input" id="input-scheduler-interval" type="number" value="168" min="1" data-i18n-placeholder="ukentlig" placeholder="168 (ukentlig)">
+
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input type="checkbox" id="input-scheduler-backup">
+          <label for="input-scheduler-backup" style="font-size:13px;" data-i18n="settings_scheduler_backup">Opprett backup etter alle audits er ferdige</label>
+        </div>
+          <div class="admin-save-row">
+            <button data-write class="btn btn-primary" data-click-handler="saveSettings" data-i18n="btn_save">Lagre</button>
+            <span class="admin-save-msg" data-settings-msg></span>
           </div>
-          <div class="card" style="padding:20px;">
+        </div>
+        <h2 class="admin-section-title" data-i18n="hdr_auto_alerts">Automatiske varsler</h2>
+          <div class="card admin-card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
               <div style="display:flex;align-items:center;gap:12px;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -1513,10 +1534,15 @@
                     <td style="padding:8px;" data-i18n="alert_also_license">ALSO lisens utloper</td>
                     <td style="padding:8px;"><input type="number" id="rule-also-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
                   </tr>
-                  <tr>
+                  <tr style="border-bottom:1px solid var(--border);">
                     <td style="padding:8px;"><input type="checkbox" id="rule-mfa-coverage" data-change-handler="alertSaveConfig"></td>
                     <td style="padding:8px;" data-i18n="alert_mfa_coverage">MFA-dekning under terskel</td>
                     <td style="padding:8px;"><input type="number" id="rule-mfa-threshold" value="80" min="1" max="100" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> %</td>
+                  </tr>
+                  <tr data-module="pentest">
+                    <td class="admin-rule-cell"><input type="checkbox" id="rule-pentest-critical" data-change-handler="alertSaveConfig"></td>
+                    <td class="admin-rule-cell" data-i18n="rule_pentest">Kritiske pentest-funn</td>
+                    <td class="admin-rule-cell admin-hint" data-i18n="lbl_auto_detect">Autodeteksjon</td>
                   </tr>
                 </tbody>
               </table>
@@ -1531,47 +1557,186 @@
               <div id="alert-history-container" style="margin-top:8px;max-height:300px;overflow-y:auto;"></div>
             </details>
           </div>
+        <div class="admin-section-head">
+          <h2 class="admin-section-title" data-i18n="hdr_scheduled_tasks">Planlagte oppgaver</h2>
+          <button class="btn btn-ghost btn-sm" data-click-handler="taskSchedRefresh" data-i18n="btn_refresh">Oppdater</button>
         </div>
-        <!-- ═══════════ SCHEDULED TASKS ═══════════ -->
-        <div style="margin-top:32px;">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-            <div style="font-size:16px;font-weight:700;" data-i18n="hdr_scheduled_tasks">Planlagte oppgaver</div>
-            <button class="btn btn-ghost" data-click-handler="taskSchedRefresh" style="padding:4px 12px;font-size:11px;" data-i18n="btn_refresh">Oppdater</button>
-          </div>
-          <div id="task-scheduler-table" style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;">
-            <div style="padding:16px;color:var(--text-muted);font-size:13px;" data-i18n="msg_loading">Laster...</div>
+        <div id="task-scheduler-table" class="admin-table-box">
+          <div class="admin-hint" data-i18n="msg_loading">Laster...</div>
+        </div>
+      </section>
+
+      <section class="admin-pane" id="admin-pane-users" hidden>
+        <div class="page-head">
+          <h1 class="page-title" data-i18n="tab_users">Brukere</h1>
+          <button class="btn btn-primary btn-sm" data-click-handler="showAddUserForm" data-i18n="btn_add_user">Legg til bruker</button>
+        </div>
+      <div id="add-user-form" style="display:none;padding:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-4);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
+          <input id="new-user-username" class="field-input" type="text" data-i18n-placeholder="placeholder_username" placeholder="Username">
+          <input id="new-user-displayname" class="field-input" type="text" data-i18n-placeholder="placeholder_display_name" placeholder="Display name">
+          <input id="new-user-password" class="field-input" type="password" data-i18n-placeholder="placeholder_password" placeholder="Password (min 8)">
+          <select id="new-user-role" class="field-input">
+            <option value="viewer" data-i18n="viewer">Viewer</option>
+            <option value="technician" selected data-i18n="technician">Technician</option>
+            <option value="admin" data-i18n="admin">Admin</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:var(--space-2);">
+          <button data-write class="btn btn-primary btn-sm" data-click-handler="createUser" data-i18n="btn_create">Create</button>
+          <button class="btn btn-ghost btn-sm" data-click-handler="hideElement" data-target="add-user-form" data-i18n="btn_cancel">Cancel</button>
+        </div>
+        <div id="add-user-msg" style="font-size:var(--font-xs);margin-top:var(--space-2);"></div>
+      </div>
+      <div id="users-list" style="font-size:var(--font-sm);"></div>
+      </section>
+
+      <section class="admin-pane" id="admin-pane-modules" hidden>
+        <h1 class="page-title" data-i18n="tab_modules">Moduler</h1>
+        <p class="modules-intro" data-i18n="modules_intro">Kjernen er alltid på: kunder, audit, funn, rapporter, nettverksaudit og VPN. Disse delene slår du av eller på for hele installasjonen.</p>
+        <div id="modules-list" class="modules-list"></div>
+      </section>
+
+      <section class="admin-pane" id="admin-pane-branding" hidden>
+        <h1 class="page-title" data-i18n="hdr_branding">Branding</h1>
+        <div class="card admin-card" data-settings-form>
+        <label class="field-label" for="input-company-name" data-i18n="lbl_company_name">Firmanavn</label>
+        <input class="field-input" id="input-company-name" type="text" data-i18n-placeholder="sybr_as" placeholder="SYBR AS">
+
+        <label class="field-label" for="input-contact-email" style="margin-top:10px;" data-i18n="lbl_contact_email">Kontakt-epost</label>
+        <input class="field-input" id="input-contact-email" type="text" data-i18n-placeholder="post_firma_no" placeholder="post@firma.no">
+
+        <label class="field-label" for="input-website" style="margin-top:10px;" data-i18n="lbl_website">Nettside</label>
+        <input class="field-input" id="input-website" type="text" data-i18n-placeholder="ph_company_url" placeholder="https://www.firma.no">
+
+        <label class="field-label" style="margin-top:10px;" data-i18n="lbl_company_logo">Firmalogo</label>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+          <img id="logo-preview" alt="" style="height:40px;max-width:180px;object-fit:contain;border-radius:4px;background:var(--bg-card);padding:4px;display:none;">
+          <span id="logo-no-preview" style="font-size:11px;color:var(--text-muted);" data-i18n="err_no_logo_uploaded">Ingen logo lastet opp</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="file" id="input-logo-file" class="visually-hidden-file" accept=".png,.jpg,.jpeg,.svg" data-change-handler="logoFileChosen">
+          <button type="button" class="btn btn-default btn-sm" data-click-handler="chooseLogoFile" data-i18n="btn_choose_file">Velg fil</button>
+          <span id="logo-file-name" class="logo-file-name" data-i18n="msg_no_file_chosen">Ingen fil valgt</span>
+          <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="uploadLogo" data-i18n="btn_upload">Last opp</button>
+          <span id="logo-upload-msg" style="font-size:11px;color:var(--text-muted);"></span>
+        </div>
+        <div class="field-hint" data-i18n="settings_logo_hint">PNG, JPG eller SVG. Vises i rapporter og brev. Maks 5 MB.</div>
+
+        <label class="field-label" style="margin-top:14px;" data-i18n="lbl_brand_color">Merkefarge (primær)</label>
+        <div style="display:flex;align-items:center;gap:var(--space-3);">
+          <input type="color" id="input-brand-color" value="#4d9fb5" style="width:40px;height:32px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:transparent;padding:0;">
+          <input class="field-input" id="input-brand-color-hex" type="text" placeholder="#4d9fb5" style="width:100px;font-family:var(--mono);font-size:12px;" maxlength="7">
+          <button class="btn btn-ghost btn-sm" data-click-handler="resetBrandColor" data-i18n="btn_reset">Tilbakestill</button>
+        </div>
+        <div class="field-hint" data-i18n="settings_brand_color_hint">Brukes i header, knapper, grafer og navigasjon. Påvirker hele grensesnittet.</div>
+          <div class="admin-save-row">
+            <button data-write class="btn btn-primary" data-click-handler="saveSettings" data-i18n="btn_save">Lagre</button>
+            <span class="admin-save-msg" data-settings-msg></span>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
 
+      <section class="admin-pane" id="admin-pane-storage" hidden>
+        <h1 class="page-title" data-i18n="admin_storage">Lagring og backup</h1>
+        <div class="card admin-card" data-settings-form>
+          <h2 class="admin-card-title" data-i18n="hdr_storage_paths">Lagringsmapper</h2>
+        <label class="field-label" for="input-audit-dir" data-i18n="lbl_audit_dir">Lagringsmappe for audit-data</label>
+        <input class="field-input" id="input-audit-dir" type="text" data-i18n-placeholder="ph_default_folder" placeholder="Standardmappen">
+        <div class="field-hint" id="settings-current-dir"></div>
 
-  <!-- ════════════ DOCS VIEW ════════════ -->
-  <div class="view" id="view-docs">
-    <div class="docs-head">
-      <div class="docs-title" data-i18n="nav_docs">Dokumentasjon</div>
-    </div>
+        <label class="field-label" for="input-cert-dir" style="margin-top:10px;" data-i18n="lbl_cert_dir">Lagringsmappe for sertifikater</label>
+        <input class="field-input" id="input-cert-dir" type="text" data-i18n-placeholder="standard_samme_som_audit_data" placeholder="Standard (samme som audit-data)">
+        <div class="field-hint" data-i18n="settings_cert_hint">Sertifikatfiler (.pfx) er alltid passordbeskyttet. Passord lagres i OS-nøkkelringen.</div>
+    
+          <div class="admin-save-row">
+            <button data-write class="btn btn-primary" data-click-handler="saveSettings" data-i18n="btn_save">Lagre</button>
+            <button class="btn btn-default" data-write data-click-handler="resetAuditDir" data-i18n="btn_reset_default">Tilbakestill til standard</button>
+            <span class="admin-save-msg" data-settings-msg></span>
+          </div>
+        </div>
+        <div class="card admin-card">
+          <h2 class="admin-card-title" data-i18n="hdr_backup">Backup</h2>
+        <div id="backup-last-info" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;"></div>
 
-    <!-- The documents come from /api/docs/list + /api/docs/file. The API
-         reference and Swagger are for administrators. Do not stamp release
-         numbers into this markup; the live value comes from /api/version. -->
-    <div class="docs-tabs" data-admin-only>
-      <button class="btn btn-ghost docs-tab-btn active" data-click-handler="switchDocsTab" data-tab="docs-repo" data-i18n="docs_tab_documentation">Dokumentasjon</button>
-      <button class="btn btn-ghost docs-tab-btn" data-click-handler="switchDocsTab" data-tab="docs-api" data-i18n-title="rest_api_endpoints_reference" title="REST API endpoints reference">API</button>
-      <a href="/docs" target="_blank" rel="noopener" class="btn btn-ghost docs-swagger" data-i18n-title="openapi_swagger_ui" title="OpenAPI / Swagger UI">Swagger ↗</a>
-    </div>
+        <label class="field-label" for="input-backup-dest" data-i18n="lbl_backup_dest">Lagringsmappe (valgfritt)</label>
+        <input class="field-input" id="input-backup-dest" type="text" data-i18n-placeholder="ph_default_folder" placeholder="Standardmappen">
+        <div class="field-hint" id="backup-default-dir"></div>
 
-    <div id="docs-repo" class="docs-tab-pane">
-      <div id="docs-repo-tree" class="docs-doc-list"></div>
-      <div id="docs-repo-content" class="markdown-body docs-content">
-        <div class="docs-dim" data-i18n="msg_loading_ellipsis">Laster …</div>
-      </div>
-    </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" data-click-handler="createBackup" data-i18n="btn_create_backup">Opprett backup</button>
+          <span id="backup-create-msg" style="font-size:11px;color:var(--text-muted);"></span>
+        </div>
 
-    <!-- Tab: API -->
-    <div id="docs-api" class="docs-tab-pane" style="display:none;">
-      <div class="card">
-        <h3 style="font-size:var(--font-md);font-weight:700;margin-bottom:var(--space-3);"><span data-i18n="hdr_rest_endpoints">REST API-endepunkter</span> <span id="api-version-label"></span></h3>
+        <hr style="border:none;border-top:1px dashed var(--border);margin:14px 0;">
+
+        <label class="field-label" for="input-restore-path" data-i18n="lbl_restore_from_backup">Gjenopprett fra backup</label>
+        <input class="field-input" id="input-restore-path" type="text" data-i18n-placeholder="placeholder_zip_path" placeholder="Sti til .zip-fil">
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="restoreBackup" data-i18n="btn_restore_backup">Gjenopprett backup</button>
+          <span id="backup-restore-msg" style="font-size:11px;color:var(--text-muted);"></span>
+        </div>
+        </div>
+        <div class="card admin-card">
+          <h2 class="admin-card-title" data-i18n="hdr_report_archive">Rapportarkiv</h2>
+          <div id="dash-archive-content"></div>
+        </div>
+        <div class="card admin-card">
+          <h2 class="admin-card-title" data-i18n="hdr_encryption">Kryptering</h2>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+            <span data-i18n="msg_all_files_encrypted">Alle nye filer krypteres automatisk med AES-256-GCM. Krypteringsnøkkelen lagres i OS-nøkkelringen.</span>
+            <span data-i18n="msg_encrypt_existing_desc">Bruk knappen under for å kryptere eksisterende data som ble opprettet før kryptering ble aktivert.</span>
+          </div>
+          <div class="btn-row">
+            <button data-write class="btn btn-primary" data-click-handler="migrateEncryption" style="font-size:12px;" id="btn-migrate-encrypt">
+              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_encrypt_existing">Krypter eksisterende data</span>
+            </button>
+            <span id="migrate-encrypt-result" style="font-size:12px;color:var(--text-muted);"></span>
+          </div>
+          <hr class="admin-rule">
+        <div style="font-size:12px;color:var(--danger);font-weight:600;margin-bottom:10px;" data-i18n="msg_encryption_key_warning">
+          Denne nøkkelen er den ENESTE måten å dekryptere dataene dine. Lagre den trygt!
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="backupEncryptionKey" data-i18n="btn_backup_key">Backup nøkkel</button>
+          <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="showRestoreKeyInput" data-i18n="btn_restore_key">Gjenopprett nøkkel</button>
+        </div>
+
+        <div id="encryption-key-display" style="display:none;margin-bottom:10px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;" data-i18n="lbl_master_key">Master-nøkkel (klikk for å kopiere):</div>
+          <code id="encryption-key-value" data-click-handler="copyEncryptionKey" style="cursor:pointer;font-size:11px;word-break:break-all;display:block;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></code>
+          <span id="encryption-copy-msg" style="font-size:11px;color:var(--success);"></span>
+        </div>
+
+        <div id="encryption-restore-input" style="display:none;margin-bottom:10px;">
+          <input class="field-input" id="input-restore-key" type="text" data-i18n-placeholder="msg_paste_key_here" placeholder="Lim inn base64-nøkkel her" style="font-size:11px;margin-bottom:6px;">
+          <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" data-click-handler="restoreEncryptionKey" data-i18n="btn_import_key">Importer nøkkel</button>
+          <span id="encryption-restore-msg" style="font-size:11px;margin-left:8px;"></span>
+        </div>
+
+    
+        </div>
+      </section>
+
+      <section class="admin-pane" id="admin-pane-system" hidden>
+        <h1 class="page-title" data-i18n="admin_system">System</h1>
+        <div class="card admin-card">
+          <h2 class="admin-card-title" data-i18n="hdr_version">Versjon</h2>
+          <div id="settings-version-info" class="admin-version"></div>
+        </div>
+        <div class="card admin-card" data-view-gate="logs">
+          <h2 class="admin-card-title" data-i18n="hdr_troubleshooting">Feilsøking</h2>
+          <p class="admin-hint" data-i18n="admin_logs_desc">Applikasjonsloggen viser feil og advarsler fra serveren.</p>
+          <button class="btn btn-default btn-sm" data-view-gate="logs" data-click-handler="showView" data-view="logs" data-i18n="btn_open_log">Åpne logg</button>
+        </div>
+        <div class="card admin-card">
+          <h2 class="admin-card-title"><span data-i18n="hdr_rest_endpoints">REST API-endepunkter</span> <span id="api-version-label"></span></h2>
+          <div class="admin-save-row">
+            <a href="/docs" target="_blank" rel="noopener" class="btn btn-default btn-sm" data-i18n-title="openapi_swagger_ui" title="OpenAPI / Swagger UI">Swagger ↗</a>
+          </div>
+          <details class="admin-api">
+            <summary data-i18n="lbl_show_endpoints">Vis endepunktene</summary>
         <p style="font-size:var(--font-sm);color:var(--text-muted);margin-bottom:var(--space-3);"><span data-i18n="msg_api_auth_note">Alle endepunkter krever JWT Bearer-token unntatt offentlige stier. Base URL:</span> <code>https://&lt;server&gt;:8099/api</code></p>
         <div style="font-family:var(--mono);font-size:var(--font-xs);line-height:2.2;color:var(--text-muted);">
 
@@ -1687,8 +1852,32 @@
           POST /proxy/fetch &middot; GET /proxy/raw
 
         </div>
+          </details>
+        </div>
+      </section>
+
       </div>
     </div>
+  </div>
+
+
+  <!-- ════════════ DOCS VIEW ════════════ -->
+  <div class="view" id="view-docs">
+    <div class="docs-head">
+      <h1 class="page-title" data-i18n="nav_help">Hjelp</h1>
+    </div>
+
+    <!-- The documents come from /api/docs/list + /api/docs/file. Do not
+         stamp release numbers into this markup; the live value comes from
+         /api/version. The API reference is under Administrasjon › System. -->
+
+    <div id="docs-repo" class="docs-tab-pane">
+      <div id="docs-repo-tree" class="docs-doc-list"></div>
+      <div id="docs-repo-content" class="markdown-body docs-content">
+        <div class="docs-dim" data-i18n="msg_loading_ellipsis">Laster …</div>
+      </div>
+    </div>
+
 
 
   </div>
@@ -1983,10 +2172,10 @@
       <div class="more-group-title" data-i18n="nav_customers">Kunder</div>
       <button class="more-row" data-click-handler="moreSheetShowView" data-view="home"><span class="more-ic"></span><span data-i18n="m_status">M365-status</span></button>
       <button class="more-row" data-click-handler="moreSheetShowView" data-view="history"><span class="more-ic">&#9636;</span><span data-i18n="audit_historikk">Audit-historikk</span></button>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="integrations"><span class="more-ic">&#9635;</span><span data-i18n="nav_integrations">Integrasjoner</span></button>
       <div class="more-group-title" data-i18n="konto">Konto</div>
       <button class="more-row" data-view-gate="ai" data-click-handler="moreSheetShowView" data-view="ai"><span class="more-ic">&#10035;</span><span data-i18n="sybrt_assistent">Sybrt-assistent</span></button>
-      <button class="more-row" data-click-handler="moreSheetOpenSettings"><span class="more-ic"></span><span data-i18n="innstillinger_3">Innstillinger</span></button>
+      <button class="more-row" data-admin-only data-view-gate="admin" data-click-handler="moreSheetOpenAdmin"><span class="more-ic"></span><span data-i18n="nav_admin">Administrasjon</span></button>
+      <button class="more-row" data-click-handler="moreSheetOpenAccount"><span class="more-ic"></span><span data-i18n="konto">Konto</span></button>
       <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
       <button class="more-row danger" data-click-handler="moreSheetLogout"><span class="more-ic">&#8617;</span><span data-i18n="logg_ut_2">Logg ut</span></button>
     </div>
@@ -2088,204 +2277,25 @@
   </div>
 </div>
 
-<!-- ── Settings modal ── -->
-<div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" data-i18n-aria-label="innstillinger_2" aria-label="Innstillinger" data-click-handler="closeSettingsOnBackdrop">
-  <div class="modal" style="width:620px;">
-    <div class="modal-title" data-i18n="hdr_settings">Innstillinger</div>
-
-    <!-- Settings tabs -->
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:var(--space-4);">
-      <button class="btn btn-ghost settings-tab-btn active" data-click-handler="switchSettingsTab" data-tab="stab-general" style="border:none;border-bottom:2px solid var(--blue);border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_general">Generelt</button>
-      <button class="btn btn-ghost settings-tab-btn" data-click-handler="switchSettingsTab" data-tab="stab-branding" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="hdr_branding">Branding</button>
-      <button class="btn btn-ghost settings-tab-btn" data-click-handler="switchSettingsTab" data-tab="stab-schedule" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_schedule">Automatisk audit</button>
-      <button class="btn btn-ghost settings-tab-btn" data-admin-only data-click-handler="switchSettingsTab" data-tab="stab-backup" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="hdr_backup">Backup</button>
-      <button class="btn btn-ghost settings-tab-btn" data-click-handler="switchSettingsTab" data-tab="stab-users" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_users">Users</button>
-      <button class="btn btn-ghost settings-tab-btn" data-feature="settings" data-click-handler="switchSettingsTab" data-tab="stab-modules" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_modules">Moduler</button>
-      <button class="btn btn-ghost settings-tab-btn" data-click-handler="switchSettingsTab" data-tab="stab-advanced" style="border:none;border-bottom:2px solid transparent;border-radius:0;padding:var(--space-2) var(--space-4);font-size:var(--font-sm);" data-i18n="tab_advanced">Avansert</button>
+<!-- ── Account (Konto) ── -->
+<div class="modal-backdrop" id="account-modal" role="dialog" aria-modal="true" data-i18n-aria-label="konto" aria-label="Konto" data-click-handler="closeAccountModalOnBackdrop">
+  <div class="modal account-modal">
+    <div class="modal-title" data-i18n="konto">Konto</div>
+    <div class="account-identity">
+      <span class="account-name" id="account-name"></span>
+      <span class="account-email" id="account-email"></span>
     </div>
-
-    <!-- Tab: General -->
-    <div id="stab-general" class="settings-tab-pane">
-    <div style="margin-bottom:16px;">
-        <label style="font-weight:600;display:block;margin-bottom:6px;" data-i18n="settings_language">Språk</label>
-        <select id="input-language" data-change-handler="setLanguage" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);width:100%;">
-            <option value="no" data-i18n="norsk">Norsk</option>
-            <option value="en" data-i18n="english">English</option>
-        </select>
+    <label class="field-label" for="input-language" data-i18n="settings_language">Språk</label>
+    <select id="input-language" class="field-input" data-change-handler="setLanguage">
+      <option value="no" data-i18n="norsk">Norsk</option>
+      <option value="en" data-i18n="english">English</option>
+    </select>
+    <div class="account-actions">
+      <button class="btn btn-default" data-click-handler="accountShowMfaSettings" data-i18n="lbl_mfa_settings">MFA / bekreft innlogging</button>
+      <button class="btn btn-default" data-click-handler="accountShowChangePassword" data-i18n="bytt_passord">Bytt passord</button>
     </div>
-
-    <div data-admin-only>
-    <label class="field-label" for="input-audit-dir" data-i18n="lbl_audit_dir">Lagringsmappe for audit-data</label>
-    <input class="field-input" id="input-audit-dir" type="text" data-i18n-placeholder="ph_default_folder" placeholder="Standardmappen">
-    <div class="field-hint" id="settings-current-dir"></div>
-
-    <label class="field-label" for="input-cert-dir" style="margin-top:10px;" data-i18n="lbl_cert_dir">Lagringsmappe for sertifikater</label>
-    <input class="field-input" id="input-cert-dir" type="text" data-i18n-placeholder="standard_samme_som_audit_data" placeholder="Standard (samme som audit-data)">
-    <div class="field-hint" data-i18n="settings_cert_hint">Sertifikatfiler (.pfx) er alltid passordbeskyttet. Passord lagres i OS-nøkkelringen.</div>
-    </div>
-    </div>
-
-    <!-- Tab: Branding -->
-    <div id="stab-branding" class="settings-tab-pane" style="display:none;">
-
-    <label class="field-label" for="input-company-name" data-i18n="lbl_company_name">Firmanavn</label>
-    <input class="field-input" id="input-company-name" type="text" data-i18n-placeholder="sybr_as" placeholder="SYBR AS">
-
-    <label class="field-label" for="input-contact-email" style="margin-top:10px;" data-i18n="lbl_contact_email">Kontakt-epost</label>
-    <input class="field-input" id="input-contact-email" type="text" data-i18n-placeholder="post_firma_no" placeholder="post@firma.no">
-
-    <label class="field-label" for="input-website" style="margin-top:10px;" data-i18n="lbl_website">Nettside</label>
-    <input class="field-input" id="input-website" type="text" data-i18n-placeholder="ph_company_url" placeholder="https://www.firma.no">
-
-    <label class="field-label" style="margin-top:10px;" data-i18n="lbl_company_logo">Firmalogo</label>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
-      <img id="logo-preview" alt="" style="height:40px;max-width:180px;object-fit:contain;border-radius:4px;background:var(--bg-card);padding:4px;display:none;">
-      <span id="logo-no-preview" style="font-size:11px;color:var(--text-muted);" data-i18n="err_no_logo_uploaded">Ingen logo lastet opp</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <input type="file" id="input-logo-file" class="visually-hidden-file" accept=".png,.jpg,.jpeg,.svg" data-change-handler="logoFileChosen">
-      <button type="button" class="btn btn-default btn-sm" data-click-handler="chooseLogoFile" data-i18n="btn_choose_file">Velg fil</button>
-      <span id="logo-file-name" class="logo-file-name" data-i18n="msg_no_file_chosen">Ingen fil valgt</span>
-      <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="uploadLogo" data-i18n="btn_upload">Last opp</button>
-      <span id="logo-upload-msg" style="font-size:11px;color:var(--text-muted);"></span>
-    </div>
-    <div class="field-hint" data-i18n="settings_logo_hint">PNG, JPG eller SVG. Vises i rapporter og brev. Maks 5 MB.</div>
-
-    <label class="field-label" style="margin-top:14px;" data-i18n="lbl_brand_color">Merkefarge (primær)</label>
-    <div style="display:flex;align-items:center;gap:var(--space-3);">
-      <input type="color" id="input-brand-color" value="#4d9fb5" style="width:40px;height:32px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:transparent;padding:0;">
-      <input class="field-input" id="input-brand-color-hex" type="text" placeholder="#4d9fb5" style="width:100px;font-family:var(--mono);font-size:12px;" maxlength="7">
-      <button class="btn btn-ghost btn-sm" data-click-handler="resetBrandColor" data-i18n="btn_reset">Tilbakestill</button>
-    </div>
-    <div class="field-hint" data-i18n="settings_brand_color_hint">Brukes i header, knapper, grafer og navigasjon. Påvirker hele grensesnittet.</div>
-    </div>
-
-    <!-- Tab: Email (placeholder — actual SMTP fields are loaded below) -->
-    <div id="stab-schedule" class="settings-tab-pane" style="display:none;">
-    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_auto_audit">Automatisk audit</div>
-
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <input type="checkbox" id="input-scheduler-enabled">
-      <label for="input-scheduler-enabled" style="font-size:13px;" data-i18n="settings_scheduler_enabled">Aktiver automatisk audit</label>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <input type="checkbox" id="input-scheduler-audit-all" checked>
-      <label for="input-scheduler-audit-all" style="font-size:13px;" data-i18n="settings_scheduler_audit_all">Audit alle kunder</label>
-      <span style="font-size:11px;color:var(--text-muted);" data-i18n="settings_scheduler_hint">(deaktivert = kun aktiv kunde)</span>
-    </div>
-
-    <label class="field-label" for="input-scheduler-interval" data-i18n="lbl_interval_hours">Intervall (timer)</label>
-    <input class="field-input" id="input-scheduler-interval" type="number" value="168" min="1" data-i18n-placeholder="ukentlig" placeholder="168 (ukentlig)">
-
-
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
-      <input type="checkbox" id="input-scheduler-backup">
-      <label for="input-scheduler-backup" style="font-size:13px;" data-i18n="settings_scheduler_backup">Opprett backup etter alle audits er ferdige</label>
-    </div>
-
-    </div>
-
-    <!-- Tab: Backup -->
-    <div id="stab-backup" class="settings-tab-pane" style="display:none;">
-    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_backup">Backup</div>
-
-    <div id="backup-last-info" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;"></div>
-
-    <label class="field-label" for="input-backup-dest" data-i18n="lbl_backup_dest">Lagringsmappe (valgfritt)</label>
-    <input class="field-input" id="input-backup-dest" type="text" data-i18n-placeholder="ph_default_folder" placeholder="Standardmappen">
-    <div class="field-hint" id="backup-default-dir"></div>
-
-    <div style="display:flex;gap:8px;margin-top:10px;">
-      <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" data-click-handler="createBackup" data-i18n="btn_create_backup">Opprett backup</button>
-      <span id="backup-create-msg" style="font-size:11px;color:var(--text-muted);"></span>
-    </div>
-
-    <hr style="border:none;border-top:1px dashed var(--border);margin:14px 0;">
-
-    <label class="field-label" for="input-restore-path" data-i18n="lbl_restore_from_backup">Gjenopprett fra backup</label>
-    <input class="field-input" id="input-restore-path" type="text" data-i18n-placeholder="placeholder_zip_path" placeholder="Sti til .zip-fil">
-    <div style="display:flex;gap:8px;margin-top:6px;">
-      <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="restoreBackup" data-i18n="btn_restore_backup">Gjenopprett backup</button>
-      <span id="backup-restore-msg" style="font-size:11px;color:var(--text-muted);"></span>
-    </div>
-
-    </div>
-
-    <!-- Tab: Advanced -->
-    <!-- Tab: Users -->
-    <div id="stab-users" class="settings-tab-pane" style="display:none;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">
-        <div class="modal-title" style="font-size:14px;margin:0;" data-i18n="hdr_user_management">User Management</div>
-        <button class="btn btn-primary btn-sm" data-click-handler="showAddUserForm" data-i18n="btn_add_user">Add User</button>
-      </div>
-      <div id="add-user-form" style="display:none;padding:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-4);">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
-          <input id="new-user-username" class="field-input" type="text" data-i18n-placeholder="placeholder_username" placeholder="Username">
-          <input id="new-user-displayname" class="field-input" type="text" data-i18n-placeholder="placeholder_display_name" placeholder="Display name">
-          <input id="new-user-password" class="field-input" type="password" data-i18n-placeholder="placeholder_password" placeholder="Password (min 8)">
-          <select id="new-user-role" class="field-input">
-            <option value="viewer" data-i18n="viewer">Viewer</option>
-            <option value="technician" selected data-i18n="technician">Technician</option>
-            <option value="admin" data-i18n="admin">Admin</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:var(--space-2);">
-          <button data-write class="btn btn-primary btn-sm" data-click-handler="createUser" data-i18n="btn_create">Create</button>
-          <button class="btn btn-ghost btn-sm" data-click-handler="hideElement" data-target="add-user-form" data-i18n="btn_cancel">Cancel</button>
-        </div>
-        <div id="add-user-msg" style="font-size:var(--font-xs);margin-top:var(--space-2);"></div>
-      </div>
-      <div id="users-list" style="font-size:var(--font-sm);"></div>
-    </div>
-
-    <div id="stab-modules" class="settings-tab-pane" style="display:none;">
-      <p class="modules-intro" data-i18n="modules_intro">Kjernen er alltid på: kunder, audit, funn, rapporter, nettverksaudit og VPN. Disse delene slår du av eller på for hele installasjonen.</p>
-      <div id="modules-list" class="modules-list"></div>
-    </div>
-    <div id="stab-advanced" class="settings-tab-pane" style="display:none;">
-    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_encryption">Kryptering</div>
-    <div style="font-size:12px;color:var(--danger);font-weight:600;margin-bottom:10px;" data-i18n="msg_encryption_key_warning">
-      Denne nøkkelen er den ENESTE måten å dekryptere dataene dine. Lagre den trygt!
-    </div>
-
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="backupEncryptionKey" data-i18n="btn_backup_key">Backup nøkkel</button>
-      <button class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="showRestoreKeyInput" data-i18n="btn_restore_key">Gjenopprett nøkkel</button>
-    </div>
-
-    <div id="encryption-key-display" style="display:none;margin-bottom:10px;">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;" data-i18n="lbl_master_key">Master-nøkkel (klikk for å kopiere):</div>
-      <code id="encryption-key-value" data-click-handler="copyEncryptionKey" style="cursor:pointer;font-size:11px;word-break:break-all;display:block;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></code>
-      <span id="encryption-copy-msg" style="font-size:11px;color:var(--success);"></span>
-    </div>
-
-    <div id="encryption-restore-input" style="display:none;margin-bottom:10px;">
-      <input class="field-input" id="input-restore-key" type="text" data-i18n-placeholder="msg_paste_key_here" placeholder="Lim inn base64-nøkkel her" style="font-size:11px;margin-bottom:6px;">
-      <button data-write class="btn btn-primary" style="padding:4px 10px;font-size:11px;" data-click-handler="restoreEncryptionKey" data-i18n="btn_import_key">Importer nøkkel</button>
-      <span id="encryption-restore-msg" style="font-size:11px;margin-left:8px;"></span>
-    </div>
-
-    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
-    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_troubleshooting">Feilsøking</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <input type="checkbox" id="input-show-log-tab" data-change-handler="toggleLogTabVisibility">
-      <label for="input-show-log-tab" style="font-size:13px;" data-i18n="settings_show_log_tab">Vis Feilsøking-fane i navigasjonsmenyen</label>
-    </div>
-    <div class="field-hint" data-i18n="settings_log_tab_hint">Gir tilgang til applikasjonslogg for feilsøking. Kan skjules igjen her.</div>
-
-
-    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
-    <div class="modal-title" style="font-size:14px;" data-i18n="hdr_version">Versjon</div>
-    <div id="settings-version-info" style="font-size:12px;color:var(--text-muted);line-height:1.8;font-family:var(--mono);"></div>
-    </div><!-- end stab-advanced -->
-
-    <div id="settings-msg" style="margin-top:10px;font-size:13px;min-height:20px;"></div>
-
     <div class="modal-actions">
-      <button class="btn btn-default" data-click-handler="closeSettings" data-i18n="btn_cancel">Avbryt</button>
-      <button class="btn btn-default" data-admin-only data-click-handler="resetAuditDir" data-i18n="btn_reset_default">Tilbakestill til standard</button>
-      <button data-write class="btn btn-primary" data-click-handler="saveSettings" data-i18n="btn_save">Lagre</button>
+      <button class="btn btn-ghost" data-click-handler="closeAccountModal" data-i18n="btn_close">Lukk</button>
     </div>
   </div>
 </div>
@@ -2324,26 +2334,12 @@
       <li><span class="shortcut-desc" data-i18n="shortcut_command_palette">Kommandopalett / Hurtigsøk</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>K</kbd></span></li>
       <li><span class="shortcut-desc" data-i18n="shortcut_start_audit">Start audit</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>A</kbd></span></li>
       <li><span class="shortcut-desc" data-i18n="shortcut_toggle_theme">Bytt tema</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></span></li>
-      <li><span class="shortcut-desc" data-i18n="shortcut_settings">Innstillinger</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>,</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="nav_admin">Administrasjon</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>,</kbd></span></li>
       <li><span class="shortcut-desc" data-i18n="shortcut_close_modal">Lukk modal / meny</span><span class="shortcut-keys"><kbd>Esc</kbd></span></li>
       <li><span class="shortcut-desc" data-i18n="shortcut_show_shortcuts">Vis snarveier</span><span class="shortcut-keys"><kbd>?</kbd></span></li>
     </ul>
     <div class="modal-actions">
       <button class="btn btn-ghost" data-click-handler="closeShortcutsModal" data-i18n="btn_close">Lukk</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Changelog modal ── -->
-<div class="modal-backdrop" id="changelog-modal" role="dialog" aria-modal="true" data-i18n-aria-label="endringslogg" aria-label="Endringslogg" data-click-handler="closeChangelogModalOnBackdrop">
-  <div class="modal">
-    <div class="modal-title" data-i18n="hdr_changelog">Endringslogg</div>
-    <input id="changelog-search" type="text" class="field-input" data-i18n-placeholder="placeholder_search" placeholder="Search..." data-input-handler="filterChangelog" style="margin-bottom:var(--space-3);padding:6px 10px;font-size:var(--font-sm);">
-    <div class="changelog-content" id="changelog-content" style="max-height:60vh;overflow-y:auto;">
-      <p style="color:var(--text-dim);" data-i18n="msg_loading">Laster...</p>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" data-click-handler="closeChangelogModal" data-i18n="btn_close">Lukk</button>
     </div>
   </div>
 </div>

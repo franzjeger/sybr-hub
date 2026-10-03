@@ -26,5 +26,11 @@ def test_no_script_reassigns_show_view():
 
 def test_the_integrations_views_still_load_when_opened():
     source = (STATIC / "app-integrations.js").read_text(encoding="utf-8")
-    for view in ("hosts", "vpn", "tls", "tailscale", "docs", "integrations"):
+    for view in ("hosts", "vpn", "tls", "tailscale", "docs"):
         assert f"onViewShown('{view}'" in source, view
+
+
+def test_administrasjon_loads_when_opened():
+    """The settings modal and the Integrasjoner view became one page."""
+    source = (STATIC / "app-settings.js").read_text(encoding="utf-8")
+    assert "onViewShown('admin'" in source

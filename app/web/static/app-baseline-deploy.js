@@ -59,7 +59,7 @@ function _renderBaselineForm(schema) {
   // would only earn a 403. Off, with the reason beside it.
   var granted = canTenantWrite();
   html += '<button class="btn btn-primary" data-click-handler="baselineDeployPlan"' + (granted ? '' : ' disabled') + '>' + t('bd_plan_deployment','Planlegg utrulling') + '</button>';
-  if (!granted) html += '<p class="pd-no-grant">' + esc(t('msg_pd_needs_tenant_write', 'Kontoen din kan ikke endre kundens tenant, så knappene er av. En administrator gir tilgangen under Innstillinger, Brukere (Tenant).')) + '</p>';
+  if (!granted) html += '<p class="pd-no-grant">' + esc(t('msg_pd_needs_tenant_write', 'Kontoen din kan ikke endre kundens tenant, så knappene er av. En administrator gir tilgangen under Administrasjon › Brukere (Tenant).')) + '</p>';
   html += '<div id="bd-plan" class="bd-plan-box"></div>';
   html += '</div>';
   return html;

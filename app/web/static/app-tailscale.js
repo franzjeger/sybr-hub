@@ -86,11 +86,11 @@ async function tsLoadDevices() {
     return;
   }
   if (data.configured === false) {
-    // The key is set on the Tailscale card under Integrasjoner, its own view.
+    // The key is set on the Tailscale card under Administrasjon › Integrasjoner.
     el.innerHTML = '<div class="empty-state" id="ts-not-configured">'
       + '<div class="empty-title">' + esc(t('ts_not_configured_title', 'Tailscale er ikke satt opp')) + '</div>'
-      + '<div class="empty-desc">' + esc(t('ts_not_configured', 'Legg inn en API-nøkkel på Tailscale-kortet under Integrasjoner.')) + '</div>'
-      + '<button class="btn btn-primary" data-click-handler="showView" data-view="integrations">' + esc(t('btn_open_integrations', 'Åpne Integrasjoner')) + '</button>'
+      + '<div class="empty-desc">' + esc(t('ts_not_configured', 'Legg inn en API-nøkkel på Tailscale-kortet under Administrasjon › Integrasjoner.')) + '</div>'
+      + adminSignpostButton('integrations', 'btn_open_integrations', 'btn-primary')
       + '</div>';
     return;
   }

@@ -102,8 +102,66 @@ async function uploadLogo() {
   } catch(e) { msg.textContent = t('status_error') + ': ' + e.message; msg.style.color = 'var(--red)'; }
 }
 
-// ── Settings modal ─────────────────────────────────────────────────────────────
-async function openSettings() {
+// ── Administrasjon ─────────────────────────────────────────────────────────────
+// One page with a left rail where the settings modal used to be. The rail
+// names the panes and the address carries the one on screen (#/admin/<pane>),
+// so every way in (the avatar menu, Ctrl+,, the palette, a signpost elsewhere)
+// lands on the pane it meant, named by id rather than by position.
+var ADMIN_PANES = ['integrations', 'alerts', 'users', 'modules', 'branding', 'storage', 'system'];
+var _adminPane = 'integrations';
+
+function _adminPaneOrDefault(pane) {
+  return ADMIN_PANES.indexOf(pane) !== -1 ? pane : 'integrations';
+}
+
+// Opens Administrasjon on a pane. Only an administrator reaches the page; for
+// anyone else the settings that are theirs are the account's, so Ctrl+, opens
+// those instead of a page that would refuse them.
+function openAdmin(pane) {
+  if (!canOpenView('admin')) { openAccountModal(); return; }
+  _adminPane = _adminPaneOrDefault(pane || _adminPane);
+  if (currentView === 'admin') { adminShowPane(_adminPane); return; }
+  showView('admin');
+}
+
+onViewShown('admin', function() {
+  _loadAdminSettings();
+  adminShowPane(_adminPane);
+});
+
+// Shows one pane and loads what it lists. The form fields of every pane are
+// filled once per visit by _loadAdminSettings, so moving between panes keeps
+// what was typed.
+function adminShowPane(pane) {
+  _adminPane = _adminPaneOrDefault(pane);
+  document.querySelectorAll('#admin-rail .admin-rail-item').forEach(function(b) {
+    var on = b.dataset.pane === _adminPane;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('#view-admin .admin-pane').forEach(function(p) {
+    p.hidden = p.id !== 'admin-pane-' + _adminPane;
+  });
+  if (_adminPane === 'integrations') {
+    loadIntegrationStatus();
+    unifiSmLoadSaved();
+    fgApiLoadSaved();
+    claudeLoadSaved();
+  } else if (_adminPane === 'alerts') {
+    alertLoadConfig();
+    taskSchedRefresh();
+  } else if (_adminPane === 'users') {
+    loadUsers();
+  } else if (_adminPane === 'modules') {
+    loadModuleSettings();
+  } else if (_adminPane === 'storage') {
+    loadBackupInfo();
+    dashLoadArchive();
+  }
+  syncRoute('admin');
+}
+
+async function _loadAdminSettings() {
   try {
     const d = await apiFetch('/api/settings');
     document.getElementById('input-audit-dir').value = d.audit_dir_custom || '';
@@ -120,13 +178,7 @@ async function openSettings() {
     refreshLogoPreview();
     document.getElementById('settings-current-dir').textContent =
       t('lbl_active_dir') + ': ' + d.audit_dir;
-    document.getElementById('settings-msg').textContent = '';
-    var _slt = document.getElementById('input-show-log-tab');
-    if (_slt) _slt.checked = localStorage.getItem('msptk_show_log_tab') === '1';
-
-    // Set language selector
-    var langSel = document.getElementById('input-language');
-    if (langSel) langSel.value = _lang;
+    document.querySelectorAll('#view-admin [data-settings-msg]').forEach(function(m) { m.textContent = ''; });
 
     // Load IT Glue settings
     document.getElementById('input-itglue-key').value = d.itglue_api_key || '';
@@ -163,10 +215,7 @@ async function openSettings() {
       document.getElementById('alert-mfa-threshold').value = (typeof ao.mfa_below_threshold === 'number' ? ao.mfa_below_threshold : 80);
     } catch (e) { console.warn('Scheduler settings init failed:', e); }
 
-    // Backup is an administrator's tab; the routes refuse anyone else.
-    if (_currentUser && _currentUser.role === 'admin') loadBackupInfo();
-
-    // Load version info into settings modal
+    // Load version info into the System pane
     try {
       const vr = await apiFetch('/api/version');
       const vi = document.getElementById('settings-version-info');
@@ -194,7 +243,6 @@ async function openSettings() {
   } catch (e) {
     document.getElementById('settings-current-dir').textContent = t('msg_loading_settings_failed');
   }
-  document.getElementById('settings-modal').classList.add('open');
   // Snapshot form values for dirty-flag detection
   _snapshotSettingsForm();
   _initSettingsDirtyTracking();
@@ -204,10 +252,16 @@ async function openSettings() {
 var _settingsSnapshot = null;
 var _settingsDirty = false;
 
+// The fields the Lagre on Branding, Lagring and Automatisk audit sends. The
+// integration cards and the alert rules save themselves, so they are no part
+// of "unsaved changes".
+function _settingsFormFields() {
+  return document.querySelectorAll('#view-admin [data-settings-form] input, #view-admin [data-settings-form] select, #view-admin [data-settings-form] textarea');
+}
+
 function _snapshotSettingsForm() {
-  var modal = document.getElementById('settings-modal');
   var data = {};
-  modal.querySelectorAll('input, select, textarea').forEach(function(el) {
+  _settingsFormFields().forEach(function(el) {
     var key = el.id || el.name;
     if (!key) return;
     if (el.type === 'checkbox' || el.type === 'radio') {
@@ -221,10 +275,9 @@ function _snapshotSettingsForm() {
 }
 
 function _isSettingsDirty() {
-  if (!_settingsSnapshot) return false;
-  var modal = document.getElementById('settings-modal');
+  if (!_settingsSnapshot || !_settingsDirty) return false;
   var dirty = false;
-  modal.querySelectorAll('input, select, textarea').forEach(function(el) {
+  _settingsFormFields().forEach(function(el) {
     var key = el.id || el.name;
     if (!key) return;
     var current = (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value;
@@ -237,22 +290,38 @@ var _settingsDirtyTrackingInit = false;
 function _initSettingsDirtyTracking() {
   if (_settingsDirtyTrackingInit) return;
   _settingsDirtyTrackingInit = true;
-  var modal = document.getElementById('settings-modal');
-  modal.addEventListener('input', function() { _settingsDirty = true; });
-  modal.addEventListener('change', function() { _settingsDirty = true; });
+  var page = document.getElementById('view-admin');
+  page.addEventListener('input', function(e) { if (e.target.closest('[data-settings-form]')) _settingsDirty = true; });
+  page.addEventListener('change', function(e) { if (e.target.closest('[data-settings-form]')) _settingsDirty = true; });
 }
 
-function closeSettings() {
-  if (_settingsDirty && _isSettingsDirty()) {
-    if (!confirm(t('du_har_ulagrede_endringer_vil'))) return;
-  }
+// Leaving Administrasjon with unsaved edits asks first. True when it is fine
+// to go: nothing unsaved, or the person said to discard it.
+function adminMayLeave() {
+  if (!_isSettingsDirty()) return true;
+  if (!confirm(t('du_har_ulagrede_endringer_vil'))) return false;
   _settingsSnapshot = null;
   _settingsDirty = false;
-  document.getElementById('settings-modal').classList.remove('open');
+  return true;
 }
 
-function closeSettingsOnBackdrop(e) {
-  if (e.target === document.getElementById('settings-modal')) closeSettings();
+// ── Konto ──────────────────────────────────────────────────────────────────────
+// What belongs to the person rather than the installation: language, sign-in
+// confirmation and password.
+function openAccountModal() {
+  var name = document.getElementById('account-name');
+  var email = document.getElementById('account-email');
+  if (_currentUser) {
+    if (name) name.textContent = _currentUser.display_name || _currentUser.username || '';
+    if (email) email.textContent = _currentUser.email || _currentUser.username || '';
+  }
+  var lang = document.getElementById('input-language');
+  if (lang) lang.value = _lang;
+  document.getElementById('account-modal').classList.add('open');
+}
+
+function closeAccountModal() {
+  document.getElementById('account-modal').classList.remove('open');
 }
 
 // ── Permission validation ──────────────────────────────────────────────────────
@@ -670,20 +739,6 @@ async function clearUserCustomers(userId) {
   showToast(t('rbac_no_customers'), 'success', 2000);
 }
 
-function switchSettingsTab(btn, paneId) {
-  document.querySelectorAll('.settings-tab-btn').forEach(function(b) {
-    b.classList.remove('active');
-    b.style.borderBottomColor = 'transparent';
-  });
-  btn.classList.add('active');
-  btn.style.borderBottomColor = 'var(--blue)';
-  document.querySelectorAll('.settings-tab-pane').forEach(function(p) { p.style.display = 'none'; });
-  var pane = document.getElementById(paneId);
-  if (pane) pane.style.display = 'block';
-  if (paneId === 'stab-users') loadUsers();
-  if (paneId === 'stab-modules') loadModuleSettings();
-}
-
 // ── Modules ───────────────────────────────────────────────────────────────────
 // One switch per optional module. A change reloads the page: navigation,
 // views and routes all depend on it, and a reload is the one way to be sure
@@ -752,9 +807,16 @@ function resetBrandColor() {
   document.getElementById('input-brand-color-hex').value = '#4d9fb5';
 }
 
+// The status line beside the Lagre on the pane on screen.
+function _settingsMsgEl() {
+  return document.querySelector('#admin-pane-' + _adminPane + ' [data-settings-msg]')
+    || document.querySelector('#view-admin [data-settings-msg]');
+}
+
 async function saveSettings() {
   const dir = document.getElementById('input-audit-dir').value.trim();
-  const msg = document.getElementById('settings-msg');
+  const msg = _settingsMsgEl();
+  msg.style.color = '';
   msg.textContent = t('btn_saving');
   try {
     const d = await apiFetch('/api/settings', {
