@@ -385,7 +385,7 @@
 
     <!-- ════════════ CUSTOMERS VIEW ════════════ -->
     <div class="view" id="view-customers">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h1 class="page-title page-title-inline" data-i18n="hdr_customers">Kunder</h1>
         <div class="cust-list-actions">
           <button class="btn btn-ghost btn-sm" data-click-handler="exportCustomersJSON" data-i18n="btn_export_json">Export JSON</button>
@@ -393,20 +393,20 @@
           <button data-write class="btn btn-primary" data-click-handler="openNewCustomer" data-i18n="btn_new_customer">+ Ny kunde</button>
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+      <div class="flex gap-2 mb-4 items-center">
         <input id="customers-search" type="text" data-i18n-placeholder="placeholder_search_customer" placeholder="Søk navn, domene, tag, tenant..." data-input-handler="customersFilter"
-          style="flex:1;max-width:400px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
-        <span id="customers-count" style="font-size:12px;color:var(--text-muted);"></span>
+          class="field-input flex-1 max-w-sm">
+        <span id="customers-count" class="text-sm text-muted"></span>
       </div>
-      <div id="customers-bulk-bar" style="display:none;padding:var(--space-2) var(--space-4);background:var(--bg-card);border:1px solid var(--blue);border-radius:var(--radius-md);margin-bottom:var(--space-3);display:none;align-items:center;gap:var(--space-3);">
-        <span id="customers-bulk-count" style="font-size:var(--font-sm);font-weight:600;color:var(--blue);"></span>
+      <div id="customers-bulk-bar" class="bulk-bar">
+        <span id="customers-bulk-count" class="text-sm fw-semibold text-accent"></span>
         <button data-write class="btn btn-ghost btn-sm" data-click-handler="bulkTagCustomers" data-i18n="btn_tag">Tag</button>
         <button data-write class="btn btn-danger btn-sm" data-click-handler="bulkDeleteCustomers" data-i18n="btn_archive">Slett</button>
-        <button class="btn btn-ghost btn-sm" data-click-handler="clearBulkSelection" style="margin-left:auto;" data-i18n="btn_cancel">Avbryt</button>
+        <button class="btn btn-ghost btn-sm ml-auto" data-click-handler="clearBulkSelection" data-i18n="btn_cancel">Avbryt</button>
       </div>
       <div id="customers-content">
-        <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
-          <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+        <div class="empty-note">
+          <div class="loader loader-lg mx-auto mt-0 mb-4"></div>
           <span data-i18n="msg_loading">Laster...</span>
         </div>
       </div>
@@ -1224,7 +1224,7 @@
           </div>
           <div class="btn-row">
             <button data-write class="btn btn-primary" data-click-handler="migrateEncryption" style="font-size:12px;" id="btn-migrate-encrypt">
-              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_encrypt_existing">Krypter eksisterende data</span>
+              <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span> <span data-i18n="btn_encrypt_existing">Krypter eksisterende data</span>
             </button>
             <span id="migrate-encrypt-result" style="font-size:12px;color:var(--text-muted);"></span>
           </div>
@@ -1527,17 +1527,17 @@
            below answers "did every section run"; a technician's first question
            after a run is "what is wrong", and that answer was spread across
            twenty-six rows with the longest lists truncated behind "+n til". -->
-      <div id="audit-findings" style="display:none;margin-bottom:16px;"></div>
+      <div id="audit-findings" class="mb-4" style="display:none;"></div>
 
       <!-- Sections table -->
-      <div class="card" style="padding:0;overflow:hidden;">
+      <div class="card p-0 overflow-hidden">
         <div class="table-wrap">
           <table class="section-table" id="section-table">
             <thead>
               <tr>
-                <th style="width:28px;"></th>
+                <th class="col-icon"></th>
                 <th data-i18n="lbl_section">Seksjon</th>
-                <th style="width:110px;" data-i18n="lbl_status">Status</th>
+                <th class="col-status" data-i18n="lbl_status">Status</th>
                 <th data-i18n="lbl_details">Detaljer</th>
               </tr>
             </thead>
@@ -1547,7 +1547,7 @@
       </div>
 
       <!-- Post-audit: summary + actions (hidden until done) -->
-      <div id="audit-done-area" style="display:none;margin-top:16px;">
+      <div id="audit-done-area" class="mt-4" style="display:none;">
         <div class="summary-grid">
           <div class="summary-box">
             <div class="summary-num num-ok"  id="sum-done">0</div>
@@ -1571,16 +1571,16 @@
       <div class="cust-section-head">
         <h3 class="cust-section-title" data-i18n="hdr_runs">Kjøringer</h3>
         <div class="cust-section-actions" id="compare-bar">
-          <button data-write class="btn btn-default" id="btn-delete-selected" style="display:none;padding:6px 12px;font-size:12px;color:var(--red);border-color:var(--red);"
+          <button data-write class="btn btn-default btn-sm text-danger border-danger" id="btn-delete-selected" style="display:none;"
             data-click-handler="deleteSelectedRuns" data-i18n="btn_delete_selected">Slett valgte</button>
-          <button class="btn btn-primary" id="btn-compare" style="display:none;padding:6px 16px;font-size:13px;background:#1d6387;"
+          <button class="btn btn-primary" id="btn-compare" style="display:none;"
             data-click-handler="runComparison" data-i18n="btn_compare_selected">Sammenlign valgte</button>
         </div>
       </div>
       <div id="compare-result" style="display:none;"></div>
       <div id="history-content">
-        <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
-          <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
+        <div class="empty-note">
+          <div class="loader loader-lg mx-auto mt-0 mb-4"></div>
           <span data-i18n="msg_loading_history">Laster historikk...</span>
         </div>
       </div>
@@ -1601,7 +1601,7 @@
         </div>
       </div>
       <div id="view-policy-overview">
-    <div class="po-page" style="padding:0;">
+    <div class="po-page p-0">
       <div id="policy-overview-content">
         <div class="po-loading" data-i18n="msg_loading">Laster...</div>
       </div>
@@ -1610,23 +1610,23 @@
       </div>
       <div id="view-policy-deploy" hidden>
         <button class="btn btn-ghost btn-sm cust-back" data-click-handler="custPolicySub" data-sub="" data-i18n="btn_back_to_policy_overview">Tilbake til Policy-oversikt</button>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div class="flex items-center gap-3 mb-4 flex-wrap">
       <h3 class="cust-section-title" data-i18n="nav_policy_deploy_ca">Rull ut Conditional Access</h3>
-      <span style="font-size:12px;color:var(--text-muted);" data-i18n="msg_policy_deploy_intro">Sammenlign kundens Conditional Access mot en Sybr-standard. Ingenting sendes før du har lest planen.</span>
+      <span class="text-sm text-muted" data-i18n="msg_policy_deploy_intro">Sammenlign kundens Conditional Access mot en Sybr-standard. Ingenting sendes før du har lest planen.</span>
     </div>
     <div id="policy-deploy-content">
-      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_loading">Laster...</div>
+      <div class="empty-note" data-i18n="msg_loading">Laster...</div>
     </div>
   
       </div>
       <div id="view-baseline-deploy" hidden>
         <button class="btn btn-ghost btn-sm cust-back" data-click-handler="custPolicySub" data-sub="" data-i18n="btn_back_to_policy_overview">Tilbake til Policy-oversikt</button>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div class="flex items-center gap-3 mb-4 flex-wrap">
       <h3 class="cust-section-title" data-i18n="nav_baseline_deploy_full">Rull ut Intune og Entra</h3>
-      <span style="font-size:12px;color:var(--text-muted);" data-i18n="nav_baseline_deploy_desc">Granulær baseline-utrulling for Intune og Entra</span>
+      <span class="text-sm text-muted" data-i18n="nav_baseline_deploy_desc">Granulær baseline-utrulling for Intune og Entra</span>
     </div>
     <div id="baseline-deploy-content">
-      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_loading">Laster...</div>
+      <div class="empty-note" data-i18n="msg_loading">Laster...</div>
     </div>
   
       </div>
@@ -1672,41 +1672,41 @@
       <div id="cust-details-body"></div>
       <div id="view-files">
       <div id="files-no-customer" style="display:none;">
-        <div style="text-align:center;padding:48px 0;color:var(--text-muted);">
-          <div style="margin-bottom:12px;"><span class="ic" style="width:32px;height:32px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span></div>
-          <div style="font-size:14px;" data-i18n="files_no_customer">Ingen kunde valgt.</div>
-          <div style="font-size:13px;margin-top:8px;" data-i18n="files_select_customer">Velg en kunde fra kundelisten først.</div>
+        <div class="text-center py-12 px-0 text-muted">
+          <div class="mb-3"><span class="ic"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span></div>
+          <div class="text-base" data-i18n="files_no_customer">Ingen kunde valgt.</div>
+          <div class="text-ui mt-2" data-i18n="files_select_customer">Velg en kunde fra kundelisten først.</div>
         </div>
       </div>
 
       <div id="files-content" style="display:none;">
         <!-- Credentials -->
         <div class="card">
-          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span><span data-i18n="hdr_connection_info">Tilkoblingsinformasjon</span></div>
-          <div id="files-creds" style="font-size:13px;"></div>
-          <div class="btn-row" style="margin-top:12px;">
+          <div class="card-title"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span><span data-i18n="hdr_connection_info">Tilkoblingsinformasjon</span></div>
+          <div id="files-creds" class="text-ui"></div>
+          <div class="btn-row mt-3">
             <button class="btn btn-default btn-sm" data-write data-click-handler="uploadToITGlue">
-              <span class="ic" style="width:13px;height:13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_to_itglue">Last opp til IT-Glue</span>
+              <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span> <span data-i18n="btn_upload_to_itglue">Last opp til IT-Glue</span>
             </button>
           </div>
         </div>
 
         <!-- Certificate -->
         <div class="card">
-          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></span><span data-i18n="hdr_certificate">Sertifikat</span></div>
-          <div id="files-cert" style="font-size:13px;"></div>
+          <div class="card-title"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></span><span data-i18n="hdr_certificate">Sertifikat</span></div>
+          <div id="files-cert" class="text-ui"></div>
         </div>
 
         <!-- Audit Reports -->
         <div class="card">
-          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span><span data-i18n="hdr_audit_reports">Audit-rapporter</span></div>
-          <div id="files-reports" style="font-size:13px;"></div>
+          <div class="card-title"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span><span data-i18n="hdr_audit_reports">Audit-rapporter</span></div>
+          <div id="files-reports" class="text-ui"></div>
         </div>
 
         <!-- Audit Raw Data -->
         <div class="card">
-          <div class="card-title"><span class="ic" style="width:14px;height:14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span><span data-i18n="hdr_audit_raw_data">Audit-data (radata)</span></div>
-          <div id="files-rawdata" style="font-size:13px;"></div>
+          <div class="card-title"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span><span data-i18n="hdr_audit_raw_data">Audit-data (radata)</span></div>
+          <div id="files-rawdata" class="text-ui"></div>
         </div>
 
       </div>

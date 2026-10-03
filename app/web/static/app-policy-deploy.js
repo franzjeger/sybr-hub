@@ -18,6 +18,7 @@ import {esc} from './app-esc.js';
 import {_lang, t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {_custPage, canTenantWrite} from './app-state.js';
+import {toneClass} from './app-format.js';
 import {showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 
@@ -42,7 +43,7 @@ var _pdTemplates = [];
 export async function policyDeployLoad() {
   var el = document.getElementById('policy-deploy-content');
   if (!el) return;
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:32px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-lg mx-auto my-8"></div>';
 
   var d = await apiFetch('/api/policy-deploy/templates?lang=' + _lang);
   if (!d || !d.templates) { el.innerHTML = '<div class="alert alert-error">' + t('status_error') + '</div>'; return; }
@@ -72,16 +73,16 @@ async function _pdLoadPolicies() {
   if (descEl) {
     var meta = (_pdTemplates || []).filter(function(x) { return x.id === tid.value; })[0];
     descEl.innerHTML = (meta && meta.description)
-      ? '<div style="font-size:var(--font-xs);color:var(--text-dim);margin:-8px 0 var(--space-4);line-height:1.5;">' + esc(meta.description) + '</div>'
+      ? '<div class="text-xs text-dim mt-0 mb-4 lh-normal">' + esc(meta.description) + '</div>'
       : '';
   }
   var d = await apiFetch('/api/policy-deploy/template/' + encodeURIComponent(tid.value) + '?lang=' + _lang).catch(function(){ return null; });
   if (!d || !d.policies || d.policies.length <= 1) return;
   var tierLabel = { essential: t('lbl_tier_essential', 'Essential'), recommended: t('lbl_tier_recommended', 'Recommended'), extended: t('lbl_tier_extended', 'Extended') };
-  var html = '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:6px;">' + t('lbl_pick_policies', 'Choose which policies to deploy') + '</div>';
+  var html = '<div class="text-xs text-muted mb-2">' + t('lbl_pick_policies', 'Choose which policies to deploy') + '</div>';
   d.policies.forEach(function(p) {
     var badges = '';
-    if (p.tier) badges += '<span class="po-badge" style="background:var(--bg-input); color:var(--text-dim);">' + esc(tierLabel[p.tier] || p.tier) + '</span>';
+    if (p.tier) badges += '<span class="po-badge bg-input text-dim">' + esc(tierLabel[p.tier] || p.tier) + '</span>';
     if (p.requires_license) badges += '<span class="po-badge po-badge-report">' + esc(p.requires_license.toUpperCase().replace('ENTRA_', '')) + '</span>';
     html += '<label class="pd-pol-card">';
     html += '<input type="checkbox" class="pd-pol" value="' + esc(p.name) + '" checked>';
@@ -100,13 +101,13 @@ function _pdSelectedPolicies() {
 
 function _pdForm() {
   var cust = _pdCustomerName() || t('msg_no_customer_selected', 'No customer selected');
-  var html = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">';
-  html += '<div style="font-size:var(--font-sm);color:var(--text-muted);margin-bottom:var(--space-4);">'
+  var html = '<div class="card p-5 mb-4">';
+  html += '<div class="text-sm text-muted mb-4">'
        + t('lbl_customer', 'Customer') + ': <strong>' + esc(cust) + '</strong></div>';
 
-  html += '<label style="display:block;font-size:var(--font-xs);color:var(--text-muted);margin-bottom:4px;">'
+  html += '<label class="field-label">'
        + t('lbl_standard', 'Standard') + '</label>';
-  html += '<select id="pd-template" data-change-handler="_pdLoadPolicies" style="width:100%;padding:8px;margin-bottom:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
+  html += '<select id="pd-template" data-change-handler="_pdLoadPolicies" class="inset w-full mb-4 text-default">';
   _pdTemplates.forEach(function(tpl) {
     html += '<option value="' + esc(tpl.id) + '">' + esc(tpl.name) + ' ' + esc(tpl.version)
          + ' · ' + Number(tpl.policies) + ' ' + t('lbl_policies', 'policies') + '</option>';
@@ -117,19 +118,19 @@ function _pdForm() {
   // _pdLoadPolicies(). A one-policy standard shows a description but no list —
   // there is nothing to pick.
   html += '<div id="pd-desc"></div>';
-  html += '<div id="pd-select" style="margin-bottom:var(--space-4);"></div>';
+  html += '<div id="pd-select" class="mb-4"></div>';
 
   // Required, never defaulted. An unfilled exclusion excludes nobody, inside a
   // policy that applies to everybody — so the field is empty and the button
   // stays disabled until it is not.
-  html += '<label style="display:block;font-size:var(--font-xs);color:var(--text-muted);margin-bottom:4px;">'
+  html += '<label class="field-label">'
        + t('lbl_break_glass', 'Break-glass group (object ID)') + '</label>';
   html += '<input id="pd-breakglass" data-input-handler="_pdValidate" placeholder="00000000-0000-0000-0000-000000000000" '
-       + 'style="width:100%;padding:8px;font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
-  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin:6px 0 var(--space-4);">'
+       + 'class="inset w-full font-mono text-default">';
+  html += '<div class="text-xs text-dim mt-2 mb-4">'
        + t('msg_break_glass_help', 'Every policy in the standard excludes this group. It must hold at least one account that can never be locked out.') + '</div>';
 
-  html += '<button class="btn btn-ghost" id="pd-adopt-btn" disabled data-click-handler="policyAdoptionLoad" style="margin-right:var(--space-2);">'
+  html += '<button class="btn btn-ghost mr-2" id="pd-adopt-btn" disabled data-click-handler="policyAdoptionLoad">'
        + t('btn_check_existing', 'Check existing policies') + '</button>';
   html += '<button class="btn btn-primary" id="pd-plan-btn" disabled data-click-handler="policyDeployPlan">'
        + t('btn_plan', 'Show plan') + '</button>';
@@ -150,23 +151,23 @@ function _pdForm() {
 async function policyConsentStart() {
   var box = document.getElementById('pd-consent');
   if (!box) return;
-  box.innerHTML = '<div class="loader" style="width:18px;height:18px;margin:12px 0;"></div>';
+  box.innerHTML = '<div class="loader loader-md my-3"></div>';
 
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/consent/start', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
   });
   if (!d || !d.user_code) { box.innerHTML = ''; return; }
 
-  var html = '<div style="margin-top:var(--space-3);padding:var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg);">';
-  html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:6px;">'
+  var html = '<div class="inset mt-3">';
+  html += '<div class="text-xs text-muted mb-2">'
        + t('msg_consent_step1', 'Open this page and sign in as a Global Admin of the customer tenant:') + '</div>';
-  html += '<div><a href="' + esc(d.verification_uri) + '" target="_blank" rel="noopener noreferrer" style="color:var(--blue);">'
+  html += '<div><a href="' + esc(d.verification_uri) + '" target="_blank" rel="noopener noreferrer" class="text-accent">'
        + esc(d.verification_uri) + '</a></div>';
-  html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin:10px 0 4px;">'
+  html += '<div class="text-xs text-muted mt-3 mb-1">'
        + t('msg_consent_step2', 'Enter this code:') + '</div>';
-  html += '<div style="font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:2px;">'
+  html += '<div class="code-display">'
        + esc(d.user_code) + '</div>';
-  html += '<div id="pd-consent-status" style="font-size:var(--font-xs);color:var(--text-dim);margin-top:10px;">'
+  html += '<div id="pd-consent-status" class="text-xs text-dim mt-3">'
        + t('msg_consent_waiting', 'Waiting for the sign-in to complete...') + '</div>';
   html += '</div>';
   box.innerHTML = html;
@@ -199,7 +200,7 @@ function _pdValues() {
 
 async function policyAdoptionLoad() {
   var el = document.getElementById('pd-adopt');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:16px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md mx-auto my-4"></div>';
 
   var body = { template: document.getElementById('pd-template').value, values: _pdValues() };
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/adoption/suggest', {
@@ -210,24 +211,24 @@ async function policyAdoptionLoad() {
   var confirmed = {};
   (d.confirmed || []).forEach(function(c) { confirmed[c.template] = c.policy_id; });
 
-  var html = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">';
-  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-2);">'
+  var html = '<div class="card p-5 mt-4">';
+  html += '<div class="card-title mb-2">'
        + t('hdr_adoption', 'Existing policies') + '</div>';
-  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">'
+  html += '<div class="text-xs text-dim mb-3">'
        + t('msg_adoption_intro', 'The tenant may already have a policy doing the same job under another name. Choosing it means the standard takes it over and renames it, instead of adding a second one beside it. Suggestions are matched on what a policy does, never on its wording — nothing is adopted until you save.')
        + '</div>';
 
   var any = false;
   Object.keys(d.suggestions || {}).forEach(function(name) {
     var candidates = d.suggestions[name] || [];
-    html += '<div style="padding:var(--space-3) 0;border-bottom:1px solid var(--border);">';
-    html += '<div style="font-weight:600;font-size:var(--font-xs);">' + esc(name) + '</div>';
+    html += '<div class="py-3 px-0 border-b">';
+    html += '<div class="fw-semibold text-xs">' + esc(name) + '</div>';
     if (!candidates.length && !confirmed[name]) {
-      html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:2px;">'
+      html += '<div class="text-xs text-dim mt-0-5">'
            + t('msg_no_candidate', 'Nothing in the tenant resembles this. It will be created.') + '</div>';
     } else {
       any = true;
-      html += '<select data-adopt="' + esc(name) + '" style="width:100%;margin-top:6px;padding:6px;font-size:var(--font-xs);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">';
+      html += '<select data-adopt="' + esc(name) + '" class="w-full mt-2 p-2 text-xs bg-base border rounded-sm text-default">';
       html += '<option value="">' + t('opt_create_new', 'Create a new policy') + '</option>';
       candidates.forEach(function(c) {
         var sel = confirmed[name] === c.policy_id ? ' selected' : '';
@@ -239,10 +240,10 @@ async function policyAdoptionLoad() {
     html += '</div>';
   });
 
-  html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" data-write="tenant" data-click-handler="policyAdoptionSave">'
+  html += '<button class="btn btn-primary mt-3" data-write="tenant" data-click-handler="policyAdoptionSave">'
        + t('btn_save_adoption', 'Save choices') + '</button>';
   if (!any) {
-    html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:var(--space-2);">'
+    html += '<div class="text-xs text-dim mt-2">'
          + t('msg_nothing_to_adopt', 'Nothing to take over — every policy in the standard will be created.') + '</div>';
   }
   html += '</div>';
@@ -288,21 +289,21 @@ async function policyEnforceLoad() {
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/report-only');
   if (!d || !d.policies || !d.policies.length) { el.innerHTML = ''; return; }
 
-  var html = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">';
-  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-2);">'
+  var html = '<div class="card p-5 mt-4">';
+  html += '<div class="card-title mb-2">'
        + t('hdr_enforce', 'Report-only policies') + '</div>';
-  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">'
+  html += '<div class="text-xs text-dim mb-3">'
        + t('msg_enforce_intro', 'These are live but block nobody. Read the sign-in logs in Entra to see who they would have stopped, then enforce.') + '</div>';
-  html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+  html += '<table class="data-table data-table--compact">';
   d.policies.forEach(function(p) {
-    html += '<tr style="border-bottom:1px solid var(--border);vertical-align:top;">';
-    html += '<td style="padding:8px 0;">' + esc(p.name);
+    html += '<tr class="align-top">';
+    html += '<td class="py-2 px-0">' + esc(p.name);
     if (p.refused) {
-      html += '<div style="color:var(--red);margin-top:2px;">' + esc(p.refused) + '</div>';
+      html += '<div class="text-danger mt-0-5">' + esc(p.refused) + '</div>';
     }
-    html += '</td><td style="padding:8px 0;text-align:right;white-space:nowrap;">';
+    html += '</td><td class="py-2 px-0 text-right nowrap">';
     if (p.refused) {
-      html += '<span style="color:var(--text-dim);">' + t('lbl_cannot_enforce', 'Cannot enforce') + '</span>';
+      html += '<span class="text-dim">' + t('lbl_cannot_enforce', 'Cannot enforce') + '</span>';
     } else {
       html += '<button class="btn btn-ghost btn-sm" data-write="tenant" data-click-handler="policyEnforce" data-policy-id="' + esc(p.policy_id) + '" data-name="' + esc(p.name) + '">'
            + t('btn_enforce', 'Enforce') + '</button>';
@@ -345,12 +346,12 @@ async function policyRestoreLoad() {
   var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/sources');
   if (!d || !d.sources || !d.sources.length) { el.innerHTML = ''; return; }
 
-  var html = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">';
-  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-2);">'
+  var html = '<div class="card p-5 mt-4">';
+  html += '<div class="card-title mb-2">'
        + t('hdr_restore', 'Restore') + '</div>';
-  html += '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-bottom:var(--space-3);">'
+  html += '<div class="text-xs text-dim mb-3">'
        + t('msg_restore_intro', 'Put the tenant back to a stored state. Restore points are taken immediately before a deployment; audit snapshots are older and coarser.') + '</div>';
-  html += '<select id="pd-restore-source" style="width:100%;padding:8px;margin-bottom:var(--space-3);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
+  html += '<select id="pd-restore-source" class="inset w-full mb-3 text-default">';
   d.sources.forEach(function(s) {
     var kind = s.kind === 'deployment' ? t('lbl_before_deploy', 'before a deployment') : t('lbl_audit_run', 'audit run');
     html += '<option value="' + esc(s.kind) + '|' + esc(s.ref) + '">'
@@ -370,7 +371,7 @@ function _pdRestoreChoice() {
 
 async function policyRestorePlan() {
   var box = document.getElementById('pd-restore-plan');
-  box.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:16px auto;"></div>';
+  box.innerHTML = '<div class="loader loader-md mx-auto my-4"></div>';
   _pdPlan = null;
 
   var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/plan', {
@@ -386,25 +387,25 @@ var _pdRestore = null;
 
 function _pdRenderRestorePlan(plan) {
   if (plan.missing_consent) {
-    return '<div class="alert alert-error" style="margin-top:var(--space-3);"><strong>'
+    return '<div class="alert alert-error mt-3"><strong>'
       + t('hdr_missing_consent', 'Consent missing') + '.</strong> ' + t('msg_missing_consent', '') + '</div>';
   }
   if (!plan.changes.length) {
-    return '<div style="margin-top:var(--space-3);color:var(--text-muted);font-size:var(--font-xs);">'
+    return '<div class="mt-3 text-muted text-xs">'
       + t('msg_already_matches', 'The tenant already matches this stored state.') + '</div>';
   }
-  var html = '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;margin-top:var(--space-3);">';
+  var html = '<table class="data-table data-table--compact mt-3">';
   plan.changes.forEach(function(c) {
     var colour = c.refused ? 'var(--red)' : (c.action === 'delete' ? 'var(--orange)' : 'var(--green)');
     var label = c.refused ? t('lbl_refused', 'Refused') : t('lbl_action_' + c.action, c.action);
-    html += '<tr style="border-bottom:1px solid var(--border);vertical-align:top;">'
-      + '<td style="padding:6px 10px 6px 0;color:' + colour + ';font-weight:600;white-space:nowrap;">' + esc(label) + '</td>'
-      + '<td style="padding:6px 0;">' + esc(c.name)
-      + (c.refused ? '<div style="color:var(--red);margin-top:2px;">' + esc(c.refused) + '</div>' : '')
+    html += '<tr class="align-top">'
+      + '<td class="' + toneClass(colour) + ' fw-semibold nowrap">' + esc(label) + '</td>'
+      + '<td>' + esc(c.name)
+      + (c.refused ? '<div class="text-danger mt-0-5">' + esc(c.refused) + '</div>' : '')
       + '</td></tr>';
   });
   html += '</table>';
-  html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" ' + (plan.applicable ? '' : 'disabled ')
+  html += '<button class="btn btn-primary mt-3" ' + (plan.applicable ? '' : 'disabled ')
        + 'data-write="tenant" data-click-handler="policyRestoreApply">' + t('btn_apply_restore', 'Restore {n} policy change(s)').replace('{n}', Number(plan.applicable)) + '</button>';
   return html;
 }
@@ -479,25 +480,25 @@ function _pdCustomerName() {
 }
 
 function _pdRenderPlan(plan) {
-  var html = '<div class="card" style="padding:var(--space-5);">';
-  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">'
+  var html = '<div class="card p-5">';
+  html += '<div class="card-title mb-3">'
        + t('hdr_plan', 'Plan') + '</div>';
 
   if (plan.missing_consent) {
-    html += '<div class="alert alert-error" style="margin-bottom:var(--space-4);"><strong>'
+    html += '<div class="alert alert-error mb-4"><strong>'
          + t('hdr_missing_consent', 'Consent missing') + '.</strong> '
          + t('msg_missing_consent', 'This tenant has not consented to Policy.ReadWrite.ConditionalAccess. The plan is shown, and nothing can be applied.')
-         + '<div style="margin-top:var(--space-3);"><button class="btn btn-primary" data-write="tenant" data-click-handler="policyConsentStart">'
+         + '<div class="mt-3"><button class="btn btn-primary" data-write="tenant" data-click-handler="policyConsentStart">'
          + t('btn_request_consent', 'Sign in as Global Admin and grant it') + '</button></div>'
          + '<div id="pd-consent"></div></div>';
   }
 
   if (!plan.changes.length) {
-    html += '<div style="color:var(--text-muted);">' + t('msg_no_changes', 'The tenant already matches this standard.') + '</div></div>';
+    html += '<div class="text-muted">' + t('msg_no_changes', 'The tenant already matches this standard.') + '</div></div>';
     return html;
   }
 
-  html += '<div style="border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden;">';
+  html += '<div class="border rounded-lg overflow-hidden">';
   plan.changes.forEach(function(c) {
     var refused = !!c.refused;
     var cls = refused ? 'pd-diff-refused' : (c.action === 'delete' ? 'pd-diff-rem' : (c.action === 'update' ? 'pd-diff-chg' : 'pd-diff-add'));
@@ -507,31 +508,31 @@ function _pdRenderPlan(plan) {
     html += '<div class="pd-diff-row">';
     html += '<div class="pd-diff-head">';
     html += '<span class="pd-diff-icon ' + cls + '" aria-label="' + esc(label) + '" title="' + esc(label) + '">' + icon + '</span>';
-    html += '<div style="flex:1;">';
-    html += '<div style="font-weight:600; color:var(--text);">' + esc(c.name) + ' <span style="font-size:11px; font-weight:600; padding:2px 6px; border-radius:10px; margin-left:8px;" class="' + cls + '">' + esc(label) + '</span></div>';
+    html += '<div class="flex-1">';
+    html += '<div class="fw-semibold text-default">' + esc(c.name) + ' <span class="' + cls + ' text-xs fw-semibold py-0-5 px-2 rounded-full ml-2">' + esc(label) + '</span></div>';
     
     if (c.adopts) {
-      html += '<div style="color:var(--blue);margin-top:4px; font-size:12px;">'
+      html += '<div class="text-accent mt-1 text-sm">'
            + t('msg_adopts', 'Takes over «{name}» and renames it').replace('{name}', esc(c.adopts)) + '</div>';
     }
-    if (c.why) html += '<div style="color:var(--text-dim);margin-top:4px; font-size:12px; font-style:italic;">' + esc(c.why) + '</div>';
+    if (c.why) html += '<div class="text-dim mt-1 text-sm italic">' + esc(c.why) + '</div>';
     if (c.fields && c.fields.length) {
-      html += '<div style="color:var(--text-muted);margin-top:4px; font-size:11px;">' + t('drift_fields', 'Fields changed') + ': ' + esc(c.fields.join(', ')) + '</div>';
+      html += '<div class="text-muted mt-1 text-xs">' + t('drift_fields', 'Fields changed') + ': ' + esc(c.fields.join(', ')) + '</div>';
     }
-    if (refused) html += '<div style="color:var(--red);margin-top:4px; font-size:12px; font-weight:500;">' + esc(c.refused) + '</div>';
+    if (refused) html += '<div class="text-danger mt-1 text-sm fw-medium">' + esc(c.refused) + '</div>';
     
     html += '</div></div></div>';
   });
   html += '</div>';
 
-  html += '<div style="margin-top:var(--space-4);font-size:var(--font-xs);color:var(--text-dim);font-family:var(--mono);">'
+  html += '<div class="mt-4 text-xs text-dim font-mono">'
        + t('lbl_fingerprint', 'Tenant fingerprint') + ': ' + esc(plan.fingerprint) + '</div>';
 
   var blocked = plan.missing_consent || plan.applicable === 0;
-  html += '<div style="margin-top:var(--space-4);display:flex;gap:var(--space-3);align-items:center;">';
+  html += '<div class="mt-4 flex gap-3 items-center">';
   html += '<button class="btn btn-primary" ' + (blocked ? 'disabled ' : '') + 'data-write="tenant" data-click-handler="policyDeployApply">'
        + t('btn_apply', 'Apply {n} change(s)').replace('{n}', Number(plan.applicable)) + '</button>';
-  html += '<span style="font-size:var(--font-xs);color:var(--text-muted);">'
+  html += '<span class="text-xs text-muted">'
        + t('msg_apply_note', 'Applying re-checks the tenant and refuses if it has changed since this plan.') + '</span>';
   html += '</div></div>';
   return html;
@@ -570,19 +571,19 @@ async function policyDeployApply() {
   if (!d) return;
 
   var box = document.getElementById('pd-plan');
-  var html = '<div class="card" style="padding:var(--space-5);">';
-  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;margin-bottom:var(--space-3);">'
+  var html = '<div class="card p-5">';
+  html += '<div class="card-title mb-3">'
        + t('hdr_result', 'Result') + '</div>';
   (d.applied || []).forEach(function(c) {
-    html += '<div style="padding:4px 0;color:var(--green);">&#10003; ' + esc(c.name) + '</div>';
+    html += '<div class="py-1 px-0 text-success">&#10003; ' + esc(c.name) + '</div>';
   });
   (d.failed || []).forEach(function(c) {
-    html += '<div style="padding:4px 0;color:var(--red);">&#10007; ' + esc(c.name) + ' · ' + esc(c.error || '') + '</div>';
+    html += '<div class="py-1 px-0 text-danger">&#10007; ' + esc(c.name) + ' · ' + esc(c.error || '') + '</div>';
   });
   (d.refused || []).forEach(function(c) {
-    html += '<div style="padding:4px 0;color:var(--text-dim);">&#8211; ' + esc(c.name) + ' · ' + esc(c.refused || '') + '</div>';
+    html += '<div class="py-1 px-0 text-dim">&#8211; ' + esc(c.name) + ' · ' + esc(c.refused || '') + '</div>';
   });
-  html += '<div style="margin-top:var(--space-3);font-size:var(--font-xs);color:var(--text-muted);">'
+  html += '<div class="mt-3 text-xs text-muted">'
        + t('msg_restore_point', 'A restore point holding the policies as they were was written before anything changed.') + '</div>';
   html += '</div>';
   box.innerHTML = html;
