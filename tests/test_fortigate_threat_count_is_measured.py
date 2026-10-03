@@ -144,6 +144,10 @@ def test_the_dashboard_does_not_hardcode_a_threat_count():
 
 def test_the_card_omits_a_count_it_does_not_have():
     source = (ROOT / "app/web/static/app-dashboard.js").read_text(encoding="utf-8")
+    if "threat_count" not in source:
+        # The dashboard's Helse tab, the one place that drew the figure, was
+        # removed. Anything that draws it again is held to the rule below.
+        return
     assert "c.threat_count !== null && c.threat_count !== undefined" in source, (
         "null must fall through to the em-dash placeholder rather than being "
         "coloured as a measured zero"
