@@ -56,7 +56,9 @@ def _parse_entra_devices(count_text: str, detail_text: str, sidecar: dict | None
     return result
 
 
-def _parse_intune_devices(count_text: str, detail_text: str) -> dict:
+def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | None = None) -> dict:
+    """The Intune register. ``sidecar`` is 10_intune_devices.json when the run
+    wrote one, read instead of the two text files; a refused read writes none."""
     result = {
         "total": 0,
         "windows": 0,
@@ -71,6 +73,26 @@ def _parse_intune_devices(count_text: str, detail_text: str) -> dict:
         "unavailable": False,
         "unavailable_reason": "",
     }
+
+    if sidecar is not None:
+        for key in ("total", "windows", "ios", "android", "macos"):
+            result[key] = int(sidecar.get(key) or 0)
+        for key in ("compliant", "noncompliant", "unknown"):
+            result[key] = int(sidecar.get(key) or 0)
+        result["compliance_pct"] = float(sidecar.get("compliance_pct") or 0.0)
+        result["devices"] = [
+            {
+                "name": d.get("name") or "",
+                "os": d.get("os") or "",
+                "user": d.get("owner") or "",
+                "compliance": d.get("compliance") or "",
+                "enrolled": d.get("last_sync") or "",
+            }
+            for d in sidecar.get("devices") or []
+        ]
+        result["noncompliant_devices"] = _noncompliant(result["devices"])
+        result["has_data"] = True
+        return result
 
     # Track whether the audit produced a parseable report at all — even a
     # zero-device tenant gets the "INTUNE DEVICE COUNT SUMMARY" banner from
@@ -194,11 +216,13 @@ def _parse_intune_devices(count_text: str, detail_text: str) -> dict:
                             "enrolled": enrolled,
                         }
                     )
-    result["noncompliant_devices"] = [
-        d for d in result["devices"] if d.get("compliance", "").lower() not in ("compliant", "")
-    ]
+    result["noncompliant_devices"] = _noncompliant(result["devices"])
     # has_data means "audit produced a parseable report" — NOT "≥1 device
     # exists". A small M365-only tenant with no Intune-enrolled devices
     # legitimately reports 0; that's a measurement, not a gap.
     result["has_data"] = audit_succeeded or result["total"] > 0 or len(result["devices"]) > 0
     return result
+
+
+def _noncompliant(devices: list[dict]) -> list[dict]:
+    return [d for d in devices if d.get("compliance", "").lower() not in ("compliant", "")]

@@ -199,7 +199,11 @@ def build_report_context(
     spf_dmarc = _parse_spf_dmarc(fc("26_email_dns_spf_dmarc.txt"))
     ca = _parse_ca_policies(fc("08_conditional_access.txt"))
     admin_roles = _parse_admin_roles(fc("07_admin_roles.txt"))
-    intune = _parse_intune_devices(fc("10_intune_devices_count.txt"), fc("10_intune_devices.txt"))
+    intune = _parse_intune_devices(
+        fc("10_intune_devices_count.txt"),
+        fc("10_intune_devices.txt"),
+        _sidecar(file_contents, "10_intune_devices.txt"),
+    )
     entra_devices = _parse_entra_devices(
         fc("15_entra_devices_count.txt"),
         fc("15_entra_devices.txt"),

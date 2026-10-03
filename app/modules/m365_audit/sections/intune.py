@@ -1,4 +1,4 @@
-"""Section 10–14 — Intune.
+"""Section 10-14 — Intune.
 
 The Entra device register moved to its own section. It reads /devices, a
 directory endpoint, while everything here reads deviceManagement — a separate
@@ -15,6 +15,20 @@ from typing import ClassVar
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
+
+
+def _platform(operating_system: str) -> str:
+    """The report's platform column for an Intune operatingSystem value, or ""."""
+    name = operating_system.lower()
+    if name.startswith("windows"):
+        return "windows"
+    if name in ("ios", "ipados"):
+        return "ios"
+    if name.startswith("android"):
+        return "android"
+    if name.startswith("mac"):
+        return "macos"
+    return ""
 
 
 class IntuneSection(BaseSection):
@@ -187,6 +201,37 @@ class IntuneSection(BaseSection):
         ]
         self._save("10_intune_devices_count.txt", "\n".join(count_lines))
 
+        # The register and its counts untrimmed, for the report. The count file
+        # has never carried the per-platform split the report shows, and the
+        # table cuts device names at 35 characters.
+        platforms = {"windows": 0, "ios": 0, "android": 0, "macos": 0}
+        for d in devices:
+            bucket = _platform(d.get("operatingSystem") or "")
+            if bucket:
+                platforms[bucket] += 1
+        self._save_sidecar(
+            "10_intune_devices.txt",
+            {
+                "total": total,
+                "compliant": compliant,
+                "noncompliant": noncompliant,
+                "unknown": unknown,
+                "compliance_pct": round(compliant / total * 100, 1) if total else 0.0,
+                **platforms,
+                "devices": [
+                    {
+                        "name": d.get("deviceName") or "",
+                        "os": d.get("operatingSystem") or "",
+                        "os_version": d.get("osVersion") or "",
+                        "owner": d.get("managedDeviceOwnerType") or "",
+                        "compliance": d.get("complianceState") or "unknown",
+                        "last_sync": d.get("lastSyncDateTime"),
+                    }
+                    for d in devices
+                ],
+            },
+        )
+
         if noncompliant > 0:
             self._warn(f"{noncompliant} Intune device(s) are non-compliant")
 
@@ -222,6 +267,25 @@ class IntuneSection(BaseSection):
             lines.append(f"  {name:<50} {platform:<20} {created}")
         lines += ["=" * 80, ""]
         self._save("11_intune_compliance_policies.txt", "\n".join(lines))
+        # Counted from the list, not from the table: a row counter skips a
+        # policy whose name starts with "No " ("No jailbroken devices") as a
+        # placeholder line.
+        self._save_sidecar(
+            "11_intune_compliance_policies.txt",
+            {
+                "count": len(policies),
+                "policies": [
+                    {
+                        "name": p.get("displayName") or "",
+                        "platform": (p.get("@odata.type") or "")
+                        .split(".")[-1]
+                        .replace("CompliancePolicy", ""),
+                        "created": p.get("createdDateTime"),
+                    }
+                    for p in policies
+                ],
+            },
+        )
 
     # ── Configuration Profiles ────────────────────────────────────────────────
 
