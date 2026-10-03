@@ -127,6 +127,13 @@ class TeamsPoliciesSection(BaseSection):
             b2b_in = cross_tenant.get("b2bCollaborationInbound", {})
             b2b_out = cross_tenant.get("b2bCollaborationOutbound", {})
             b2b_direct_in = cross_tenant.get("b2bDirectConnectInbound", {})
+            cross_defaults = {
+                "b2b_collaboration_inbound": b2b_in.get("usersAndGroups", {}).get("accessType"),
+                "b2b_collaboration_outbound": b2b_out.get("usersAndGroups", {}).get("accessType"),
+                "b2b_direct_connect_inbound": b2b_direct_in.get("usersAndGroups", {}).get(
+                    "accessType"
+                ),
+            }
 
             lines += [
                 "  Cross-Tenant Defaults:",
@@ -139,9 +146,24 @@ class TeamsPoliciesSection(BaseSection):
             logger.debug("Failed to fetch cross-tenant access policy: %s", e)
             lines.append("  Cross-Tenant Defaults    : Not available")
             lines.append("")
+            cross_defaults = None
 
         lines += ["=" * 90, ""]
         self._save("30b_teams_guest_access.txt", "\n".join(lines))
+        # Graph's values beside the readable names the text and CIS 8.1.2 use.
+        # None where Graph gave nothing, which the text writes as "N/A".
+        raw_invite = auth_policy.get("allowInvitesFrom")
+        raw_role = auth_policy.get("guestUserRoleId")
+        self._save_sidecar(
+            "30b_teams_guest_access.txt",
+            {
+                "allow_invites_from": raw_invite,
+                "allow_invites_from_label": None if raw_invite is None else guest_invite_name,
+                "guest_user_role_id": raw_role,
+                "guest_user_role": None if raw_role is None else guest_role_name,
+                "cross_tenant_defaults": cross_defaults,
+            },
+        )
 
         # Warn if guest access is too open
         if guest_invite == "everyone":

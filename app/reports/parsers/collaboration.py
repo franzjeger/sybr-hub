@@ -162,6 +162,48 @@ def _onedrive_scan(file_contents: dict[str, str]) -> dict:
     }
 
 
+def _teams_cross_tenant(file_contents: dict[str, str]) -> dict | None:
+    """The default inbound access types CIS 8.1.1 grades, or None if unread.
+
+    {"collab": str, "direct": str, "partners": str | None}: an access type is
+    "" where nothing was read, and "partners" is the text the partner-only
+    fallback searches for "blocked" and the like, or None when there are no
+    partner configurations. From 16c_teams_external_access.json where the run
+    has it, and from the labelled lines of the text otherwise.
+    """
+    data = _sidecar(file_contents, "16c_teams_external_access.txt")
+    if data is not None:
+        partners = data.get("partners") or []
+        return {
+            "collab": data.get("b2b_collaboration_inbound") or "",
+            "direct": data.get("b2b_direct_connect_inbound") or "",
+            "partners": " ".join(str(p.get("b2b_collaboration_inbound") or "N/A") for p in partners)
+            if partners
+            else None,
+        }
+    text = file_contents.get("16c_teams_external_access.txt", "")
+    if not text.strip():
+        return None
+    return {
+        "collab": _labelled_value(text, "B2B Collaboration"),
+        "direct": _labelled_value(text, "B2B Direct Connect"),
+        "partners": text if "Partner Configurations (" in text else None,
+    }
+
+
+def _teams_guest_settings(file_contents: dict[str, str]) -> tuple[str, str]:
+    """(who may invite guests, the guest role), as the readable names, "" if unread.
+
+    From 30b_teams_guest_access.json where the run has it, and from the
+    labelled lines of the text otherwise.
+    """
+    data = _sidecar(file_contents, "30b_teams_guest_access.txt")
+    if data is not None:
+        return data.get("allow_invites_from_label") or "", data.get("guest_user_role") or ""
+    text = file_contents.get("30b_teams_guest_access.txt", "")
+    return _labelled_value(text, "Allow Invites From"), _labelled_value(text, "Guest User Role")
+
+
 def _parse_oauth_grants(text: str, app_reg_text: str = "") -> dict:
     admin_consent: list[dict] = []
     app_permissions: list[dict] = []
