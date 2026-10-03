@@ -1,3 +1,41 @@
+# Every call names its customer (unreleased)
+
+- **The server keeps no "active customer".** Each browser tab works on its
+  own customer, so two tabs on two customers no longer save notes, list runs
+  or build reports for each other. `POST /api/customers/switch` is gone, and
+  `/api/customers`, `/api/dashboard/overview` and `/api/search/customers` no
+  longer return `active_id` / `is_active`. A script must name the customer:
+  - in the path: `/api/customer/{id}/notes`, `/api/customer/{id}/tags`
+    (body `{tags}`), `/api/customer/{id}/files` (was `/api/files`),
+    `/api/customer/{id}/status` (was `/api/status`),
+    `/api/remediation/{id}` and `/api/remediation/{id}/summary`,
+    `/api/fortigate/save/{id}`, `/api/unifi/save/{id}`,
+    `/api/network-devices/{id}`, `/api/network/quick-audit/{id}`,
+    `/api/network/config-backups/{id}`, `/api/network/save-config-backup/{id}`;
+  - as `?customer_id=`: `/api/audit/stream`, `/api/audit/scope`,
+    `/api/audit/sections`, `/api/audit/validate-permissions`,
+    `/api/dashboard`, `/api/itglue/available-reports`;
+  - as `customer_id` in the body: `/api/history/load`, `/api/report/generate`,
+    `/api/report/csv`, `/api/email/send-report`, `/api/customer/wipe`,
+    `/api/customer/renew`, `/api/itglue/upload/{audit,reports,credentials}`.
+    `/api/fortigate/bootstrap` and `/api/provisioning/start` take it
+    optionally; without it nothing is stored for, or bound to, a customer.
+  - `GET /api/audit/progress` answers for the caller's running audit,
+    whichever customer it is for, and says which (`customer_id`).
+- **Removed, nothing in the app called them:** `/api/dashboard/security-report`,
+  `/api/dashboard/vpn-status`, `/api/customer/{id}/unified` and
+  `/api/latest-report`.
+- **Trend rows of earlier audits may name the wrong customer.** Their
+  customer id came from the setup staging file. `python
+  scripts/rebuild_metrics_trend.py --apply` rebuilds them from the runs.
+- **Tailscale nodes per customer.** Migration 28 adds the table
+  `tailscale_node_customers`. A node tagged `tag:customer-<slug>` in the
+  tailnet (the customer id lowercased, other characters as `-`) shows on
+  that customer's Tilgang tab; a technician can also assign a node by hand
+  there, which wins over the tag.
+
+---
+
 # Varsler from stored state (unreleased)
 
 - **Database migrations 26 and 27** add `tls_endpoints` and
@@ -28,7 +66,8 @@
   opens Konto: language, MFA and password.
 - **M365-status, Filer, Historikk and the policy views are tabs of the
   customer page.** Bookmarks to the old addresses redirect to the matching
-  tab of the active customer, or to Kunder when none is active.
+  tab of the customer the browser tab last opened, or to Kunder when there
+  is none.
 - **The active-customer bar is gone.** Switch customer from Kunder, Oversikt
   or the search (Ctrl+K), which lists recent customers first.
 - **The dashboard's Helse, Fornyelser, Kostnader and Domener tabs are gone
