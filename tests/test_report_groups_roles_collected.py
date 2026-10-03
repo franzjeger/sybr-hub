@@ -91,6 +91,19 @@ async def test_a_group_name_longer_than_its_column_is_still_a_group(tmp_path):
     }
 
 
+async def test_the_text_alone_still_counts_a_group_whose_name_fills_its_column(tmp_path):
+    """A run from before the sidecar: the name is cut, the group is still counted."""
+    groups_in = [*ORDINARY_GROUPS, _group("g-lang", LONG_GROUP)]
+    files = await _collect_groups(tmp_path, groups_in, sidecars=False)
+
+    groups = _parse_groups(files["06_groups.txt"])
+
+    assert groups["total"] == 5
+    by_name = {g["name"]: g for g in groups["groups"]}
+    assert by_name[LONG_GROUP[:50]]["type"] == "Security"
+    assert by_name[LONG_GROUP[:50]]["members"] == 12
+
+
 async def test_the_groups_sidecar_is_what_the_reader_reads(tmp_path):
     files = await _collect_groups(tmp_path, ORDINARY_GROUPS, sidecars=True)
 

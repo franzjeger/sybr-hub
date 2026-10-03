@@ -634,6 +634,25 @@ def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
     }
 
 
+_GROUP_TYPES = {"Microsoft 365", "Dynamic", "Security", "Distribution", "Other"}
+
+
+def _group_row_by_column(line: str) -> tuple[str, str, str] | None:
+    """(name, type, members) from a row of the collector's own groups table.
+
+    groups_roles writes f"  {name:<50} {type:<16} {members:>8}" with the name
+    cut to 50. A name that fills its column leaves one space before the type,
+    and a split on runs of two or more spaces then found two columns, not
+    three, and dropped the group from every count. None for any other layout.
+    """
+    if len(line) < 71 or line[52] != " " or line[69] != " ":
+        return None
+    gtype = line[53:69].strip()
+    if gtype not in _GROUP_TYPES:
+        return None
+    return line[2:52].strip(), gtype, line[70:].strip()
+
+
 def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
     """Parse 06_groups.txt into group metadata.
 
@@ -680,7 +699,8 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
                     members_known = False
         else:
             # Columnar: at least Name + Type + (Members or "N/A")
-            cols = re.split(r"\s{2,}", stripped)
+            fixed = _group_row_by_column(line)
+            cols = list(fixed) if fixed else re.split(r"\s{2,}", stripped)
             if len(cols) < 3:
                 continue
             name = cols[0].strip()
