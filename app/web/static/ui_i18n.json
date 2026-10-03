@@ -3018,7 +3018,12 @@
     "ctx_audited_days_ago": "Auditert for {n} d siden",
     "docs_title_changelog": "Endringslogg",
     "docs_title_guide": "Brukerveiledning",
-    "ph_default_folder": "Standardmappen"
+    "ph_default_folder": "Standardmappen",
+    "dash_domains_total": "Domener totalt",
+    "dash_domains_healthy": "Friske",
+    "dash_domains_warning": "Advarsel",
+    "dash_domains_critical": "Kritisk",
+    "lbl_expired_short": "Utløpt"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -6039,6 +6044,11 @@
     "ctx_audited_days_ago": "Audited {n} d ago",
     "docs_title_changelog": "Changelog",
     "docs_title_guide": "User guide",
-    "ph_default_folder": "The default folder"
+    "ph_default_folder": "The default folder",
+    "dash_domains_total": "Domains in total",
+    "dash_domains_healthy": "Healthy",
+    "dash_domains_warning": "Warning",
+    "dash_domains_critical": "Critical",
+    "lbl_expired_short": "Expired"
   }
 }
