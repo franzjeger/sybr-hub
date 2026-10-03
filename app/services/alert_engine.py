@@ -600,7 +600,7 @@ async def send_teams_alert(webhook_url: str, alerts: list[dict]) -> None:
     critical = [a for a in alerts if a["severity"] == "critical"]
     warnings = [a for a in alerts if a["severity"] == "warning"]
 
-    lines = [f"🚨 **SYBR MSP Toolkit — {len(alerts)} varsel(er)**"]
+    lines = [f"🚨 **Sybr HUB: {len(alerts)} nye varsler**"]
     if critical:
         lines.append(f"**Kritiske ({len(critical)}):**")
         for a in critical[:10]:
@@ -710,8 +710,8 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
 
     body_html = f"""\
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:700px;margin:0 auto;color:#1a3148;">
-  <h2 style="margin-bottom:4px;">SYBR MSP Toolkit — Automatiske varsler</h2>
-  <p style="color:#57606a;margin-top:0;">{len(alerts)} varsel(er) oppdaget — {len(critical)} kritiske, {len(warnings)} advarsler</p>
+  <h2 style="margin-bottom:4px;">Sybr HUB: automatiske varsler</h2>
+  <p style="color:#57606a;margin-top:0;">{len(alerts)} nye varsler: {len(critical)} kritiske og {len(warnings)} advarsler</p>
   <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px;">
     <thead>
       <tr style="background:#f5f7fa;">
@@ -724,7 +724,7 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
     <tbody>{rows_html}</tbody>
   </table>
   <hr style="border:none;border-top:1px solid #d0d7de;margin:20px 0;">
-  <p style="color:#8b949e;font-size:11px;">Sendt automatisk fra SYBR MSP Toolkit</p>
+  <p style="color:#8b949e;font-size:11px;">Sendt automatisk fra Sybr HUB</p>
 </div>"""
 
     try:
@@ -733,7 +733,7 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
             None,
             lambda: send_report_email(
                 to=recipient,
-                subject=f"SYBR MSP Toolkit — {len(alerts)} varsel(er)",
+                subject=f"Sybr HUB: {len(alerts)} nye varsler",
                 body_html=body_html,
                 smtp_config=smtp_config,
             ),
@@ -747,12 +747,28 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
 # ── Main alert check ─────────────────────────────────────────────────────────
 
 
-async def run_alert_check() -> dict:
+async def run_alert_check(*, scheduled: bool = False) -> dict:
     """Run all alert checks, deduplicate, and send notifications.
 
     Returns a summary dict with alerts found, sent, and deduplicated counts.
+
+    ``scheduled`` is the unattended sweep, which runs only while automatic
+    alerts are on. Nothing read that switch: with "Automatiske varsler er
+    slått av" on the screen and a webhook stored, the six-hourly sweep still
+    sent. An admin's "check now" is not automatic and still runs.
     """
     config = get_alert_config()
+    if scheduled and not config.get("enabled"):
+        return {
+            "total_found": 0,
+            "new_alerts": 0,
+            "deduplicated": 0,
+            "channels_notified": 0,
+            "failed_checks": [],
+            "delivered": True,
+            "alerts": [],
+            "disabled": True,
+        }
     rules = config.get("rules", {})
     settings = load_app_settings()
 
@@ -841,7 +857,7 @@ async def run_alert_check() -> dict:
 
                 ok = await send_webhook(
                     webhook_url,
-                    title=f"🚨 SYBR MSP Toolkit — {len(new_alerts)} varsel(er)",
+                    title=f"🚨 Sybr HUB: {len(new_alerts)} nye varsler",
                     alerts=new_alerts,
                     subtitle=f"{critical_count} kritiske, {warning_count} advarsler",
                     facts=facts,
