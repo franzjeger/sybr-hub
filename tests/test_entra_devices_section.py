@@ -87,3 +87,29 @@ def test_the_collector_runs_both_sections():
 
     assert "EntraDevicesSection" in source
     assert '"Entra Devices"' in source, "a section absent from the list is one nothing shows"
+
+
+async def test_a_refused_register_says_why_in_its_evidence_file(tmp_path):
+    """The section called a helper it never had, so a 403 wrote no file and no
+    warning. The overview showed "'EntraDevicesSection' object has no attribute
+    '_save_unavailable'", and the report could not tell a refusal from a
+    section that never ran."""
+    from app.reports.parsers import _parse_entra_devices
+    from tests.collector_rig import FakeGraph, read_output, refused
+
+    async with FakeGraph({"devices": refused()}) as fake:
+        result = await EntraDevicesSection(tmp_path, fake.client).collect()
+
+    assert result.status == SectionStatus.FAILED
+    assert result.warns, "the refusal is recorded as a warning too"
+
+    files = read_output(tmp_path)
+    assert "(not available)" in files["15_entra_devices.txt"]
+    assert "15_entra_devices.json" not in files, "a refusal writes no sidecar"
+
+    parsed = _parse_entra_devices(
+        files.get("15_entra_devices_count.txt", ""), files["15_entra_devices.txt"]
+    )
+    assert parsed["unavailable"] is True
+    assert parsed["has_data"] is False
+    assert "Device.Read.All" in parsed["unavailable_reason"]

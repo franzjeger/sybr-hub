@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
-from app.modules.m365_audit.graph_client import GraphClient
+from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
 
 
 class EntraDevicesSection(BaseSection):
@@ -43,6 +43,35 @@ class EntraDevicesSection(BaseSection):
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result
+
+    def _save_unavailable(self, filename: str, err: Exception) -> None:
+        """Record why the register is missing, in the form the report reads back.
+
+        The same "(not available)" block the Intune section writes, so the
+        parser can say "refused, and why" instead of "no devices". The section
+        called this when it was split from Intune but never got its own copy:
+        a refusal raised AttributeError, wrote no file and no warning, and the
+        overview showed the AttributeError as the reason.
+        """
+        if isinstance(err, GraphPermissionError):
+            reason = (
+                f"Graph refused this collection with {err.status}: the app "
+                f"registration is missing {self._PERMISSION[filename]} or its admin consent."
+            )
+        else:
+            reason = f"The collection failed before it could be read: {err}"
+        lines = [
+            "=" * 80,
+            f"  {self._TITLE[filename]}  (not available)",
+            "=" * 80,
+            "",
+            f"  {reason}",
+        ]
+        if isinstance(err, GraphPermissionError) and (err.code or err.message):
+            lines += ["", f"  Graph said: {err.code} — {err.message}"[:300]]
+        lines += ["", "  Error details for troubleshooting:", f"    {err}", "", "=" * 80, ""]
+        self._save(filename, "\n".join(lines))
+        self._failed = reason
 
     async def _collect(self) -> None:
         """Every device the directory knows, enrolled in Intune or not.
