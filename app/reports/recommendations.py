@@ -33,6 +33,7 @@ from app.reports.parsers import (
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers.identity import _risky_users_from_text
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -407,25 +408,11 @@ def _users_at_risk(t: T, text: str, users: list[dict] | None = None) -> list[str
             for u in users
             if u["state"].lower().replace(" ", "") not in _HANDLED_RISK_STATES
         ]
-    items = []
-    for line in text.splitlines():
-        line = line.strip()
-        if (
-            not line
-            or line.startswith("=")
-            or line.startswith("-")
-            or "UPN" in line
-            or "RISKY" in line
-        ):
-            continue
-        cols = re.split(r"\s{2,}", line)
-        if len(cols) < 3:
-            continue
-        upn, level, state = cols[0].strip(), cols[1].strip(), cols[2].strip()
-        if state.lower().replace(" ", "") in _HANDLED_RISK_STATES:
-            continue
-        items.append(t("rec_risky_user_line", upn=upn, level=level, state=state))
-    return items
+    return [
+        t("rec_risky_user_line", upn=u["upn"], level=u["level"], state=u["state"])
+        for u in _risky_users_from_text(text)
+        if u["state"].lower().replace(" ", "") not in _HANDLED_RISK_STATES
+    ]
 
 
 def _global_admins(audit: _Audit) -> Iterator[dict]:

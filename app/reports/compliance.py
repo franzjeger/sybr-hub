@@ -53,6 +53,7 @@ from app.reports.parsers.email import (
     _third_party_dkim,
     _unverified_forwarding_count,
 )
+from app.reports.parsers.identity import _risky_users_from_text
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -1124,23 +1125,8 @@ def _defender_alerts(audit: _Audit) -> _Verdict:
 
 def _risky_user_rows(text: str) -> tuple[int, int]:
     """(rows, high- or medium-risk rows) in the "upn  risk-level  state" table."""
-    rows = high = 0
-    for line in text.splitlines():
-        stripped = line.strip()
-        if (
-            not stripped
-            or stripped.startswith("=")
-            or stripped.startswith("-")
-            or "UPN" in stripped
-            or "RISKY USERS" in stripped.upper()
-        ):
-            continue
-        cols = re.split(r"\s{2,}", stripped)
-        if len(cols) >= 3 and "@" in cols[0]:
-            rows += 1
-            if cols[1].strip().lower() in ("high", "medium"):
-                high += 1
-    return rows, high
+    users = _risky_users_from_text(text)
+    return len(users), sum(1 for u in users if u["level"].lower() in ("high", "medium"))
 
 
 def _risky_users(audit: _Audit) -> _Verdict:
