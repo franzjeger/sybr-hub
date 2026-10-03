@@ -223,6 +223,26 @@ class IdentitySecuritySection(BaseSection):
             lines.append(f"  {upn:<50} {level:<15} {state:<20} {updated}")
         lines += ["=" * 90, ""]
         self._save("18_risky_users.txt", "\n".join(lines))
+        # A UPN of 50 characters or more leaves one space before the level in
+        # the table, and the readers split on runs of spaces: the sidecar keeps
+        # each field apart and whole.
+        self._save_sidecar(
+            "18_risky_users.txt",
+            {
+                "count": len(users),
+                "users": [
+                    {
+                        "upn": u.get("userPrincipalName") or "",
+                        "display_name": u.get("userDisplayName"),
+                        "risk_level": u.get("riskLevel") or "none",
+                        "risk_state": u.get("riskState") or "none",
+                        "risk_detail": u.get("riskDetail"),
+                        "last_updated": u.get("riskLastUpdatedDateTime"),
+                    }
+                    for u in users
+                ],
+            },
+        )
 
     # ── Risk Detections ─────────────────────────────────────────────────────
 
@@ -343,6 +363,21 @@ class IdentitySecuritySection(BaseSection):
         ]
         self._save("18c_cross_tenant_access_policy.txt", "\n".join(lines))
 
+        def access_type(setting: dict):
+            return (setting.get("usersAndGroups") or {}).get("accessType")
+
+        # Each default setting's accessType ("allowed", "blocked"), null when
+        # Graph gave none.
+        self._save_sidecar(
+            "18c_cross_tenant_access_policy.txt",
+            {
+                "b2b_collaboration_inbound": access_type(b2b_in),
+                "b2b_collaboration_outbound": access_type(b2b_out),
+                "b2b_direct_connect_inbound": access_type(dc_in),
+                "is_service_default": is_default,
+            },
+        )
+
     # ── PIM Eligible Assignments ──────────────────────────────────────────────
 
     async def _collect_pim_eligible(self) -> None:
@@ -363,6 +398,7 @@ class IdentitySecuritySection(BaseSection):
             f"  {'Role':<45} {'Principal':<40} {'Type':<15} Expiry",
             "  " + "-" * 96,
         ]
+        records: list[dict] = []
         for a in assignments:
             role_def = a.get("roleDefinition") or {}
             principal = a.get("principal") or {}
@@ -374,8 +410,24 @@ class IdentitySecuritySection(BaseSection):
             schedule = a.get("scheduleInfo") or {}
             expiry = (schedule.get("expiration") or {}).get("endDateTime") or "Permanent"
             lines.append(f"  {role_name:<45} {prin_name:<40} {prin_type:<15} {expiry}")
+            records.append(
+                {
+                    "role": role_def.get("displayName") or "",
+                    "principal": principal.get("displayName")
+                    or principal.get("userPrincipalName")
+                    or "",
+                    "principal_upn": principal.get("userPrincipalName"),
+                    "principal_type": (principal.get("@odata.type") or "").split(".")[-1] or None,
+                    # None is permanent eligibility, as "Permanent" in the table.
+                    "expiry": (schedule.get("expiration") or {}).get("endDateTime"),
+                }
+            )
         lines += ["=" * 100, ""]
         self._save("07b_pim_eligible_assignments.txt", "\n".join(lines))
+        self._save_sidecar(
+            "07b_pim_eligible_assignments.txt",
+            {"count": len(assignments), "assignments": records},
+        )
 
     # ── Directory Audits ──────────────────────────────────────────────────────
 
@@ -495,6 +547,25 @@ class IdentitySecuritySection(BaseSection):
             lines.append(f"  {title:<50} {severity:<12} {status:<15} {created}")
         lines += ["=" * 110, ""]
         self._save("19b_defender_active_alerts.txt", "\n".join(lines))
+        # The count by severity is in 19b_defender_alert_count.txt too; that
+        # file gets no sidecar of its own, its figures are here.
+        self._save_sidecar(
+            "19b_defender_active_alerts.txt",
+            {
+                "count": len(alerts),
+                "by_severity": dict(sorted(sev_counts.items())),
+                "alerts": [
+                    {
+                        "id": a.get("id"),
+                        "title": a.get("title") or "",
+                        "severity": a.get("severity") or "unknown",
+                        "status": a.get("status"),
+                        "created": a.get("createdDateTime"),
+                    }
+                    for a in alerts
+                ],
+            },
+        )
 
         # Count summary
         count_lines = ["=" * 40, "  DEFENDER ALERT COUNT BY SEVERITY", "=" * 40]
@@ -529,6 +600,9 @@ class IdentitySecuritySection(BaseSection):
                 "",
             ]
             self._save("07c_emergency_access_check.txt", "\n".join(lines))
+            self._save_sidecar(
+                "07c_emergency_access_check.txt", {"skipped": True, "global_admins": 0}
+            )
             return
 
         lines += [
@@ -549,6 +623,7 @@ class IdentitySecuritySection(BaseSection):
 
         candidates = 0
         ca_excluded_admins = 0
+        admins: list[dict] = []
         for uid in self.global_admin_ids:
             # Try to look up MFA methods
             try:
@@ -605,6 +680,20 @@ class IdentitySecuritySection(BaseSection):
             if not ca_known:
                 notes.append("CA policies not collected — cannot confirm exclusion")
             lines.append(f"  {label[:45]:<45} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}")
+            admins.append(
+                {
+                    "id": uid,
+                    "upn": user.get("userPrincipalName"),
+                    "display_name": user.get("displayName"),
+                    # None: the methods could not be read, which is not "no MFA".
+                    "mfa_registered": has_mfa,
+                    # None: the exclusions were not collected.
+                    "ca_excluded": ca_excluded if ca_known else None,
+                    "last_sign_in_days": days_ago,
+                    "break_glass_candidate": ca_excluded and not actively_used,
+                    "notes": notes,
+                }
+            )
 
         # Machine-readable summary for CIS 1.1.6. A genuine break-glass account is
         # a Global Admin *intentionally excluded from Conditional Access* so it
@@ -624,6 +713,18 @@ class IdentitySecuritySection(BaseSection):
         )
         lines += ["=" * 90, ""]
         self._save("07c_emergency_access_check.txt", "\n".join(lines))
+        # The SUMMARY line's figures, which CIS 1.1.6 reads, and each admin.
+        self._save_sidecar(
+            "07c_emergency_access_check.txt",
+            {
+                "skipped": False,
+                "break_glass_candidates": candidates,
+                "ca_exclusions_known": ca_known,
+                "ca_excluded_admins": ca_excluded_admins,
+                "global_admins": len(self.global_admin_ids),
+                "admins": admins,
+            },
+        )
 
     # ── Access Reviews ────────────────────────────────────────────────────────
 
@@ -654,3 +755,22 @@ class IdentitySecuritySection(BaseSection):
             lines.append(f"  {name:<50} {status:<15} {pat:<20} {created}")
         lines += ["=" * 100, ""]
         self._save("07d_access_reviews.txt", "\n".join(lines))
+        self._save_sidecar(
+            "07d_access_reviews.txt",
+            {
+                "count": len(reviews),
+                "reviews": [
+                    {
+                        "id": r.get("id"),
+                        "name": r.get("displayName") or "",
+                        "status": r.get("status"),
+                        "recurrence": r.get("settings", {})
+                        .get("recurrence", {})
+                        .get("pattern", {})
+                        .get("type", "once"),
+                        "created": r.get("createdDateTime"),
+                    }
+                    for r in reviews
+                ],
+            },
+        )

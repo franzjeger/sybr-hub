@@ -32,6 +32,7 @@ from app.reports.parsers import (
     _count_data_lines,
     _is_audit_relevant_domain,
     _parse_banner_count,
+    _risky_users_from_sidecar,
 )
 from app.reports.parsers.collaboration import (
     _app_credential_counts,
@@ -345,10 +346,11 @@ def _conditional_access(audit: _Audit) -> _Verdict:
 
 def _pim(audit: _Audit) -> _Verdict:
     text = audit.fc.get("07b_pim_eligible_assignments.txt", "")
+    sidecar = _sidecar(audit.fc, "07b_pim_eligible_assignments.txt")
     # The banner's own count: the header is written even with no assignments,
     # and counting lines would count the column header.
-    count = _parse_banner_count(text)
-    if _missing_or_error(text):
+    count = int(sidecar.get("count") or 0) if sidecar is not None else _parse_banner_count(text)
+    if sidecar is None and _missing_or_error(text):
         return "info", _CANNOT_VERIFY + "PIM-data utilgjengelig"
     if count is not None and count > 0:
         return "pass", f"{count} PIM-berettigede rolletildelinger funnet"
@@ -366,26 +368,39 @@ def _emergency_access(audit: _Audit) -> _Verdict:
     # A break-glass account is a cloud admin deliberately excluded from
     # Conditional Access. The file lists every Global Admin, so the verdict
     # comes from the section's summary line, never from counting rows.
-    text = audit.fc.get("07c_emergency_access_check.txt", "")
-    skipped = "skipping check" in text.lower()
-    summary = _BREAK_GLASS_SUMMARY.search(text)
-    # Optional, absent on older evidence: tells "an excluded admin is in active
-    # use" apart from "no admin is excluded".
-    excluded = _CA_EXCLUDED_ADMINS.search(text)
-    if _missing_or_error(text) or skipped or summary is None:
+    # The summary's figures come from 07c_emergency_access_check.json when the
+    # run has it, and from the SUMMARY line otherwise.
+    sidecar = _sidecar(audit.fc, "07c_emergency_access_check.txt")
+    if sidecar is not None:
+        unavailable = bool(sidecar.get("skipped"))
+        known = bool(sidecar.get("ca_exclusions_known"))
+        candidates = int(sidecar.get("break_glass_candidates") or 0)
+        excluded_admins = int(sidecar.get("ca_excluded_admins") or 0)
+    else:
+        text = audit.fc.get("07c_emergency_access_check.txt", "")
+        skipped = "skipping check" in text.lower()
+        summary = _BREAK_GLASS_SUMMARY.search(text)
+        # Optional, absent on older evidence: tells "an excluded admin is in active
+        # use" apart from "no admin is excluded".
+        excluded = _CA_EXCLUDED_ADMINS.search(text)
+        unavailable = _missing_or_error(text) or skipped or summary is None
+        known = summary is not None and summary.group(2) == "yes"
+        candidates = int(summary.group(1)) if summary is not None else 0
+        excluded_admins = int(excluded.group(1)) if excluded is not None else 0
+    if unavailable:
         return (
             "info",
             _CANNOT_VERIFY + "break-glass-sjekken ble hoppet over eller mangler oppsummering",
         )
-    if summary.group(2) != "yes":
+    if not known:
         return (
             "info",
             _CANNOT_VERIFY
             + "CA-unntak ble ikke samlet inn, så nødtilgangskontoer kan ikke bekreftes",
         )
-    if int(summary.group(1)) > 0:
-        return "pass", f"{int(summary.group(1))} nødtilgangskonto(er) (break glass) oppdaget"
-    if excluded is not None and int(excluded.group(1)) > 0:
+    if candidates > 0:
+        return "pass", f"{candidates} nødtilgangskonto(er) (break glass) oppdaget"
+    if excluded_admins > 0:
         return (
             "warn",
             "Adminkonto(er) er unntatt fra Conditional Access, men ingen fungerer som en gyldig "
@@ -504,8 +519,9 @@ def _baseline_sign_in(audit: _Audit) -> _Verdict:
 
 def _access_reviews(audit: _Audit) -> _Verdict:
     text = audit.fc.get("07d_access_reviews.txt", "")
-    reviews = _parse_banner_count(text)
-    if _missing_or_error(text):
+    sidecar = _sidecar(audit.fc, "07d_access_reviews.txt")
+    reviews = int(sidecar.get("count") or 0) if sidecar is not None else _parse_banner_count(text)
+    if sidecar is None and _missing_or_error(text):
         return "info", _CANNOT_VERIFY + "data om tilgangsgjennomganger utilgjengelig"
     if reviews:
         return "pass", f"{reviews} tilgangsgjennomgang(er) definert"
@@ -534,10 +550,20 @@ def _cross_tenant_access(audit: _Audit) -> _Verdict:
     # shared channels without a guest account), and a tenant still on
     # Microsoft's system default, which has never decided anything here.
     text = audit.fc.get("18c_cross_tenant_access_policy.txt", "")
-    settings = _colon_settings(text)
-    direct_in = settings.get("b2b direct connect in", "")
-    system_default = settings.get("system default", "")
-    if _missing_or_error(text) or not direct_in:
+    sidecar = _sidecar(audit.fc, "18c_cross_tenant_access_policy.txt")
+    if sidecar is not None:
+        # As the text spells them, lower-cased, with "n/a" for a value Graph
+        # did not give.
+        def spelled(value) -> str:
+            return "n/a" if value is None else str(value).lower()
+
+        direct_in = spelled(sidecar.get("b2b_direct_connect_inbound"))
+        system_default = spelled(sidecar.get("is_service_default"))
+    else:
+        settings = _colon_settings(text)
+        direct_in = settings.get("b2b direct connect in", "")
+        system_default = settings.get("system default", "")
+    if (sidecar is None and _missing_or_error(text)) or not direct_in:
         return "info", _CANNOT_VERIFY + "kryssleie-innstillinger utilgjengelig"
     if direct_in == "allowed":
         return (
@@ -1009,12 +1035,18 @@ def _unified_audit_log(audit: _Audit) -> _Verdict:
 
 def _defender_alerts(audit: _Audit) -> _Verdict:
     text = audit.fc.get("19b_defender_active_alerts.txt", "")
-    # Rows are counted rather than a phrase matched; the header's wording varies.
-    open_alerts = _count_data_lines(text) if text.strip() else 0
+    sidecar = _sidecar(audit.fc, "19b_defender_active_alerts.txt")
+    if sidecar is not None:
+        open_alerts = int(sidecar.get("count") or 0)
+    else:
+        # Rows are counted rather than a phrase matched; the header's wording varies.
+        open_alerts = _count_data_lines(text) if text.strip() else 0
     if open_alerts > 0:
         return "warn", f"{open_alerts} aktive Defender-varsler krever oppfølging"
     # An empty alerts file means "no alerts" only if the query ran.
-    if _section_ran(audit.fc, "19b_defender_alert_count.txt", "19b_defender_active_alerts.txt"):
+    if sidecar is not None or _section_ran(
+        audit.fc, "19b_defender_alert_count.txt", "19b_defender_active_alerts.txt"
+    ):
         return "pass", "Ingen aktive Defender-varsler"
     return "info", _CANNOT_VERIFY + "Defender-varseldata utilgjengelig"
 
@@ -1044,9 +1076,14 @@ def _risky_users(audit: _Audit) -> _Verdict:
     # Structured rows, not the word "high" anywhere in the file.
     raw = audit.context.get("risky_users")
     text = raw if isinstance(raw, str) else ""
-    if _evidence_unavailable(text):
+    users = _risky_users_from_sidecar(audit.fc)
+    if users is None and _evidence_unavailable(text):
         return "info", _CANNOT_VERIFY + "risky-users-data utilgjengelig (krever Entra ID P2)"
-    rows, high = _risky_user_rows(text)
+    if users is not None:
+        rows = len(users)
+        high = sum(1 for u in users if u["level"].lower() in ("high", "medium"))
+    else:
+        rows, high = _risky_user_rows(text)
     if high > 0:
         return "fail", f"{high} brukere med høy/medium risiko er oppdaget og må undersøkes"
     if rows > 0:

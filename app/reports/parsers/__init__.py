@@ -50,6 +50,7 @@ from app.reports.parsers.identity import (
     _parse_mfa,
     _parse_signin_risk,
     _parse_user_counts,
+    _risky_users_from_sidecar,
 )
 from app.reports.parsers.network import _parse_network_audit
 from app.reports.parsers.tenant import (
@@ -90,6 +91,7 @@ __all__ = [
     "_parse_spf_dmarc",
     "_parse_usage",
     "_parse_user_counts",
+    "_risky_users_from_sidecar",
     "_severity",
     "_sku_friendly",
 ]

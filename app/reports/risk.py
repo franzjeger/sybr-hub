@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.reports.evidence import _evidence_unavailable, _reported_count
 from app.reports.i18n import T
 from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers.common import _sidecar
 
 
 def _is_open_wlan(wlan: dict) -> bool:
@@ -90,9 +91,14 @@ def _compute_risk(
     network: dict | None = None,
     lang: str = "no",
     unavailable_sections: list[str] | None = None,
-    file_contents: dict | None = None,
+    file_contents: dict[str, str] | None = None,
 ) -> dict:
     """Compute a security health score from 0 (worst) to 100 (best).
+
+    ``file_contents`` gives the external forwarding rows, the risky-user count
+    and the Defender-alert count from their JSON sidecars; without it, or for a
+    run without them, they are read from the ``ext_fwd``, ``risky_users`` and
+    ``defender`` text.
 
     Weight budget (100 points total):
       - MFA coverage:         35 pts
@@ -249,8 +255,13 @@ def _compute_risk(
     # finding was already here; what was missing is that it said nothing. A
     # tenant without Entra ID P2, or one where the fetch was refused, scored
     # identically to one verified to have no risky users.
-    _risky_n = _reported_count(risky_users)
-    if _evidence_unavailable(risky_users):
+    risky_sidecar = _sidecar(file_contents or {}, "18_risky_users.txt")
+    _risky_n = (
+        int(risky_sidecar.get("count") or 0)
+        if risky_sidecar is not None
+        else _reported_count(risky_users)
+    )
+    if risky_sidecar is None and _evidence_unavailable(risky_users):
         # Only when the file exists and turned out to be prose. An absent file
         # means the section never ran, and that is already declared by name
         # through unavailable_sections; this branch covers the case that one
@@ -272,13 +283,18 @@ def _compute_risk(
     # endpoint scored the same as a tenant with a live phishing alert, with
     # nothing to say the alert was invented. Every other reader of this file
     # already checks; the score was the one that did not.
-    if _evidence_unavailable(defender):
+    defender_sidecar = _sidecar(file_contents or {}, "19b_defender_active_alerts.txt")
+    if defender_sidecar is None and _evidence_unavailable(defender):
         if defender and defender.strip():
             data_quality_issues.append(
                 "Defender-varsler utilgjengelig: aktive varsler er ikke vurdert"
             )
     else:
-        alert_count = _reported_count(defender)
+        alert_count = (
+            int(defender_sidecar.get("count") or 0)
+            if defender_sidecar is not None
+            else _reported_count(defender)
+        )
         if alert_count is None and defender and "No active" not in defender and defender.strip():
             # No count in the header. Fall back to counting rows, as before.
             alert_lines = [
