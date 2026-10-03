@@ -138,13 +138,14 @@ def test_the_client_does_not_keep_its_own_copy_of_the_exemptions():
     for the paths themselves — those appear all over app.js as call sites,
     which is what an earlier version of this test could not tell apart.
     """
-    app_js = (STATIC / "app.js").read_text(encoding="utf-8")
+    # Any script may assign it; app-state.js is the one that does.
+    app_js = "\n".join(path.read_text(encoding="utf-8") for path in sorted(STATIC.glob("app*.js")))
 
     assignments = re.findall(r"_writeExempt\s*=\s*([^;\n]+)", app_js)
 
     assert assignments, "_writeExempt is never assigned — the gate cannot work"
     for value in assignments:
-        assert value.strip() in ("[]", "_me.write_exempt"), (
+        assert value.strip() in ("[]", "me.write_exempt"), (
             f"_writeExempt assigned {value.strip()!r} — the list must come from "
             f"/auth/me, not from a literal the server never sees"
         )

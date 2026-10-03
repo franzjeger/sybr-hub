@@ -22,6 +22,12 @@ let _scopeLoaded = false;
 let _scopeCustomerId = null;
 let _scopePanelOpen = false;
 
+// The chooser reads its sections again for the next customer page.
+function resetAuditScope() {
+  _scopeLoaded = false;
+  _scopeSections = [];
+}
+
 function toggleScopePanel() {
   _scopePanelOpen = !_scopePanelOpen;
   const body = document.getElementById('scope-body');
@@ -226,12 +232,125 @@ function getSelectedSectionNames() {
   return enabled;
 }
 
+// ── Audit state ────────────────────────────────────────────────────────────────
+let auditRunning = false;
+// The customer the running audit (this account's one at a time) is for. The
+// customer page shows the run only on that customer's Audit tab.
+let auditCustomerId = null;
+let sectionTotal = 0;
+let sectionDone = 0;
+
+// The one authority on whether an audit is running is the server. A client
+// flag that outlives its run leaves a badge lit with nothing behind it.
+async function _reconcileAuditState() {
+  try {
+    // This account's running audit, whichever customer it is for.
+    var d = await apiFetch('/api/audit/progress');
+    if (!d || d.running === undefined) return;   // older server: leave as-is
+    if (d.running && !auditRunning) {
+      // Started elsewhere — another tab, a schedule, another technician.
+      auditRunning = true;
+      auditCustomerId = d.customer_id || null;
+      var ind = document.getElementById('audit-running-indicator');
+      if (ind) ind.style.display = 'flex';
+      _showAuditRunOrIdle();
+      startAuditProgressPolling();
+      // We never had a stream to lose; with the customer known, the watcher
+      // can re-attach to the run's live stream.
+      _watchAuditUntilServerIdle(true, auditCustomerId ? '/api/audit/stream?customer_id=' + encodeURIComponent(auditCustomerId) : null);
+    } else if (d.running) {
+      auditCustomerId = d.customer_id || auditCustomerId;
+      _showAuditRunOrIdle();
+    } else if (auditRunning) {
+      _finishAuditWithoutStream();
+    } else {
+      _clearStaleAuditBadge();
+      if (custAuditTabOpen()) _renderAuditIdle();
+    }
+  } catch (_) { /* offline: say nothing rather than claim either state */ }
+}
+
+// The audit view's markup is written as though you can only ever arrive
+// mid-run: a spinner, "Starting audit…", "0 / 0 sections", 0%. Open it when
+// nothing is running and it announces a run that does not exist. These two
+// functions give it the state it never had.
+function _auditChrome() {
+  return [
+    document.getElementById('audit-status-bar'),
+    document.querySelector('#view-audit .progress-row'),
+    document.getElementById('section-table') ? document.getElementById('section-table').closest('.card') : null,
+  ];
+}
+
+function _showAuditRunningChrome() {
+  var idle = document.getElementById('audit-idle');
+  if (idle) idle.style.display = 'none';
+  _auditChrome().forEach(function(el) { if (el) el.style.display = ''; });
+}
+
+// Whether the run in progress is this page's customer's.
+function _auditRunIsThisPages() {
+  return (auditRunning || _auditStarting) && (!auditCustomerId || auditCustomerId === _custPage.id);
+}
+
+// The run on its own customer's Audit tab; on any other customer's, the idle
+// state, while the floating bar says a run is going on elsewhere.
+function _showAuditRunOrIdle() {
+  if (_auditRunIsThisPages()) _showAuditRunningChrome();
+  else if (currentView === 'customer-detail' && _custPage.tab === 'audit') _renderAuditIdle();
+}
+
+function _renderAuditIdle() {
+  var view = document.getElementById('view-audit');
+  if (!view || _auditRunIsThisPages()) return;
+
+  // Nothing is running, so the running chrome is a lie. Put it away.
+  _auditChrome().forEach(function(el) { if (el) el.style.display = 'none'; });
+  var tbody = document.getElementById('section-tbody');
+  if (tbody && !tbody.children.length) {
+    var findings = document.getElementById('audit-findings');
+    if (findings) findings.style.display = 'none';
+  }
+
+  var idle = document.getElementById('audit-idle');
+  if (!idle) {
+    idle = document.createElement('div');
+    idle.id = 'audit-idle';
+    idle.className = 'card';
+    var bar = document.getElementById('audit-status-bar');
+    if (bar && bar.parentNode) bar.parentNode.insertBefore(idle, bar); else view.appendChild(idle);
+  }
+  idle.style.display = '';
+
+  // The last run of the customer whose page this is, as its head says.
+  var last = _custPage.cust && _custPage.cust.last_audit;
+  var when = last ? formatRunName(last) : '';
+
+  // The page's one Kjør audit is in its head; the runs are listed below.
+  idle.innerHTML =
+      '<div class="card-title">' + esc(t('hdr_audit_idle')) + '</div>'
+    + '<div class="cust-card-text">' + esc(t('msg_audit_idle_body_tab', 'Ingen audit kjører for kunden nå. Kjør audit starter en, og fremdriften vises her.')) + '</div>'
+    + '<div class="cust-card-text">' + esc(t('lbl_last_audit')) + ': '
+    +   '<strong>' + esc(when || t('lbl_never')) + '</strong></div>';
+}
+
+function _clearStaleAuditBadge() {
+  auditRunning = false;
+  auditCustomerId = null;
+  stopAuditProgressPolling();
+  _hideAuditProgressBar();
+  var ind = document.getElementById('audit-running-indicator');
+  if (ind) ind.style.display = 'none';
+}
+
 // ── Audit flow ─────────────────────────────────────────────────────────────────
 const sectionRows = {}; // name -> tr element
 // Between the click and the run's stream: the Audit tab opening meanwhile
 // must not ask the server, which does not know of the run yet, and paint it
 // idle over the run starting.
 var _auditStarting = false;
+// When the run on screen started, for the elapsed time in its summary.
+var _auditStartTime = null;
 const statusOrder = { pending: 0, running: 1, done: 2, skipped: 3, failed: 4 };
 
 // Audits one customer: the one named, else the page on screen, else this
@@ -266,8 +385,7 @@ async function startAudit(customerId) {
   document.getElementById('report-result').innerHTML = '';
   setAuditStatus('<div class="loader"></div><span>' + t('msg_starting') + '</span>');
   updateProgress(0, sectionTotal);
-  window._auditStartTime = Date.now();
-  window._auditSectionCount = 0;
+  _auditStartTime = Date.now();
 
   // The run shows on its customer's Audit tab.
   await openCustomerPage(customerId, 'audit');
@@ -594,14 +712,14 @@ function handleAuditDone(results) {
   }
 
   updateProgress(results.length, results.length);
-  var elapsed = window._auditStartTime ? Math.round((Date.now() - window._auditStartTime) / 1000) : 0;
+  var elapsed = _auditStartTime ? Math.round((Date.now() - _auditStartTime) / 1000) : 0;
   var elapsedStr = elapsed >= 60 ? Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's' : elapsed + 's';
   var totalFiles = results.reduce(function(s,r){ return s + (r.files ? r.files.length : 0); }, 0);
   setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + Number(totalFiles) + ' ' + t('nav_files','files') + ')</span></span>');
 
   // What Rapport builds from: this run, which the server now holds for its
   // customer.
-  _custReportRun = {customerId: auditCustomerId};
+  setCustReportRun({customerId: auditCustomerId});
   custSyncReportButton();
   custPageAuditFinished();
   document.getElementById('sum-done').textContent = done;
@@ -789,7 +907,7 @@ async function loadHistory(customerId) {
   if (customerId && customerId !== _custPage.id) return;
   if (d) {
     var runs = (d.history || []).filter(function(r) { return !customerId || r.customer_id === customerId; });
-    _custRuns = runs;
+    setCustRuns(runs);
     renderHistory(runs, !!customerId);
     custSyncReportButton();
   } else {

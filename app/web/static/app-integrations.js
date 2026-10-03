@@ -228,7 +228,7 @@ async function alsoSyncCustomers() {
       });
       html += '</div></details>';
       // Store matched data for the link action
-      window._alsoMatchedForLink = unlinked;
+      _alsoMatchedForLink = unlinked;
     }
     html += '</div>';
     msg.innerHTML = html;
@@ -236,6 +236,9 @@ async function alsoSyncCustomers() {
     msg.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
   }
 }
+
+// The matched ALSO customers not yet linked, for alsoLinkMatched.
+var _alsoMatchedForLink = [];
 
 async function alsoDoImport() {
   var cbs = document.querySelectorAll('.also-import-cb:checked');
@@ -250,7 +253,7 @@ async function alsoDoImport() {
 }
 
 async function alsoLinkMatched() {
-  var matches = window._alsoMatchedForLink || [];
+  var matches = _alsoMatchedForLink || [];
   if (!matches.length) { showToast(t('no_matches_to_link'), 'warning'); return; }
   var btn = document.getElementById('also-link-btn');
   if (btn) { btn.disabled = true; btn.textContent = t('msg_linking','Linking …'); }
@@ -603,6 +606,10 @@ async function uniwebShowDetail(accountId) {
 
 // ── Uniweb Import ────────────────────────────────────────────────────────────
 
+// The open import dialog's row count and its Escape listener.
+var _uniwebImportTotal = 0;
+var _uniwebImportKeyHandler = null;
+
 async function uniwebShowImport() {
   var d = await apiFetch('/api/uniweb/matches');
   if (!d) return;
@@ -675,23 +682,23 @@ async function uniwebShowImport() {
   document.body.insertAdjacentHTML('beforeend', html);
 
   // Store total count for counter updates
-  window._uniwebImportTotal = unmatched.length;
+  _uniwebImportTotal = unmatched.length;
 
   // Keyboard support — Escape to close
-  window._uniwebImportKeyHandler = function(e) {
+  _uniwebImportKeyHandler = function(e) {
     if (e.key === 'Escape') {
       uniwebCloseImport();
     }
   };
-  document.addEventListener('keydown', window._uniwebImportKeyHandler);
+  document.addEventListener('keydown', _uniwebImportKeyHandler);
 }
 
 function uniwebCloseImport() {
   var modal = document.getElementById('uniweb-import-modal');
   if (modal) modal.remove();
-  if (window._uniwebImportKeyHandler) {
-    document.removeEventListener('keydown', window._uniwebImportKeyHandler);
-    window._uniwebImportKeyHandler = null;
+  if (_uniwebImportKeyHandler) {
+    document.removeEventListener('keydown', _uniwebImportKeyHandler);
+    _uniwebImportKeyHandler = null;
   }
 }
 
@@ -716,7 +723,7 @@ function uniwebToggleAllImport(checked) {
 
 function uniwebUpdateImportBtn() {
   var checked = document.querySelectorAll('.uniweb-import-cb:checked').length;
-  var total = window._uniwebImportTotal || 0;
+  var total = _uniwebImportTotal || 0;
   var btn = document.getElementById('uniweb-import-btn');
   if (btn) {
     btn.disabled = checked === 0;

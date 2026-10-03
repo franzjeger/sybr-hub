@@ -370,7 +370,7 @@ async function _loadUniwebMoney() {
 
   // Partner-wide receivables are an admin view — the route is admin-only, so a
   // non-admin would only get a 403. Don't render the card for them at all.
-  var isAdmin = window._currentUser && window._currentUser.role === 'admin';
+  var isAdmin = _currentUser && _currentUser.role === 'admin';
   var card = document.getElementById('uniweb-ar-card');
   if (!isAdmin) { if (card) card.remove(); return; }
 
@@ -614,6 +614,12 @@ async function alsoRefreshApiStats() {
 }
 
 var _priceScanTimer = null;
+
+// Leaving the view stops both scans' progress polling.
+function stopAlsoScans() {
+  if (_renewalScanTimer) { clearInterval(_renewalScanTimer); _renewalScanTimer = null; }
+  if (_priceScanTimer) { clearInterval(_priceScanTimer); _priceScanTimer = null; }
+}
 
 async function alsoPriceScan() {
   var btn = document.getElementById('renewal-scan-btn');

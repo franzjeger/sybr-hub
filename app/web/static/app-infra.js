@@ -2937,6 +2937,9 @@ async function dashUnifiRefresh() {
   await dashLoadUnifiAll();
 }
 
+// The devices the UniFi tab last listed, by row index (dashUnifiDetail).
+var _unifiDevices = [];
+
 async function dashLoadUnifiAll() {
   var el = document.getElementById('dash-unifi-content');
   if (!el) return;
@@ -2967,7 +2970,7 @@ async function dashLoadUnifiAll() {
   html += '</div>';
 
   // Store globally for detail panel
-  window._unifiDevices = devices;
+  _unifiDevices = devices;
 
   // Device cards
   if (devices.length) {
@@ -3022,7 +3025,7 @@ async function dashLoadUnifiAll() {
 }
 
 function dashUnifiDetail(idx) {
-  var d = (window._unifiDevices || [])[idx];
+  var d = (_unifiDevices || [])[idx];
   if (!d) return;
   var panelId = 'unifi-detail-' + Number(idx);
 
@@ -3527,6 +3530,9 @@ async function runPentest() {
   _renderPentestResults(data, el, target);
 }
 
+// The pentest result on screen, for the KB lookup, exports and follow-up scans.
+var _lastPentestData = null;
+
 function _renderPentestResults(data, el, target) {
   var findings = data.findings || [];
   var summary = data.summary || data.finding_summary || {};
@@ -3597,7 +3603,7 @@ function _renderPentestResults(data, el, target) {
   html += '</div>';
   html += '<div style="font-size:10px;color:var(--text-dim);margin-top:8px;">Skannet: ' + new Date(data.timestamp).toLocaleString('no-NO') + '</div>';
   el.innerHTML = html;
-  window._lastPentestData = data;
+  _lastPentestData = data;
 }
 
 // ── Pentest knowledge base lookup ────────────────────────────────────────────
@@ -3663,7 +3669,7 @@ function _pentestToggleExplain(rowId, idx) {
   var row = document.getElementById(rowId);
   if (!row) return;
   var inner = row.querySelector('div');
-  var findings = (window._lastPentestData && window._lastPentestData.findings) || [];
+  var findings = (_lastPentestData && _lastPentestData.findings) || [];
   var f = findings[idx];
   if (!f) return;
 
@@ -3753,7 +3759,7 @@ async function runCredentialTest() {
 }
 
 async function _pentestReport() {
-  var data = window._lastPentestData;
+  var data = _lastPentestData;
   if (!data || !data.findings || !data.findings.length) { showToast(t('kjoer_en_scan_foerst'), 'error'); return; }
   var target = document.getElementById('pentest-target').value.trim() || 'unknown';
 
@@ -3772,7 +3778,7 @@ async function _pentestReport() {
 }
 
 async function _pentestSave() {
-  var data = window._lastPentestData;
+  var data = _lastPentestData;
   if (!data || !data.findings) { showToast(t('kjoer_en_scan_foerst'), 'error'); return; }
   var target = document.getElementById('pentest-target').value.trim() || 'unknown';
   var r = await apiFetch('/api/pentest/save-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target:target, findings:data.findings, summary:data.summary||data.finding_summary, scan_type:'full'})});
@@ -3791,7 +3797,7 @@ async function runCmsScan() {
   var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('cms') + '</strong> ' + esc(cms.cms||t('inf_none_detected','Ingen detektert')) + (cms.version ? ' v'+esc(cms.version) : '') + '</div>';
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:new Date().toISOString()}, el, target);
   el.innerHTML = html + el.innerHTML;
-  window._lastPentestData = data;
+  _lastPentestData = data;
 }
 
 async function runSmbEnum() {
@@ -3802,7 +3808,7 @@ async function runSmbEnum() {
   var data = await apiFetch('/api/pentest/smb-enum', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:new Date().toISOString()}, el, target);
-  window._lastPentestData = data;
+  _lastPentestData = data;
 }
 
 async function runSegTest() {
@@ -3817,7 +3823,7 @@ async function runSegTest() {
   var html = '<div class="card" style="padding:12px;margin-bottom:12px;"><strong>' + t('segmentering') + '</strong> ' + Number(s.pass) + ' OK, ' + Number(s.fail) + ' ' + t('inf_failed_of','feilet av') + ' ' + Number(s.total_tests) + ' tester</div>';
   _renderPentestResults({ok:true, findings:data.findings||[], summary:{critical:s.critical||0,high:s.high||0,medium:s.medium||0,low:0,info:s.total_tests-(s.critical||0)-(s.high||0)-(s.medium||0),total:data.findings.length}, timestamp:new Date().toISOString()}, el, 'segmentering');
   el.innerHTML = html + el.innerHTML;
-  window._lastPentestData = data;
+  _lastPentestData = data;
 }
 
 async function runTlsAudit() {
@@ -3867,7 +3873,7 @@ async function runTlsAudit() {
 
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:data.timestamp}, el, host);
   el.innerHTML = topHtml + el.innerHTML;
-  window._lastPentestData = data;
+  _lastPentestData = data;
 }
 
 async function runTakeoverCheck() {
@@ -3895,7 +3901,7 @@ async function runTakeoverCheck() {
     _renderPentestResults({ok:true, findings:data.findings, summary:{critical:s.critical||0,high:s.high||0,medium:0,low:0,info:s.info||0,total:data.findings.length}, timestamp:data.timestamp}, el, domain);
     el.innerHTML = topHtml + el.innerHTML;
   }
-  window._lastPentestData = data;
+  _lastPentestData = data;
 }
 
 async function dashLoadSites() {
@@ -4395,7 +4401,7 @@ async function _loadSubSiteLiveData(siteName) {
   if (!_overviewData || !_overviewData.customers) {
     try {
       var ov = await apiFetch('/api/dashboard/overview');
-      if (ov) _overviewData = {customers: ov.customers || []};
+      if (ov) setOverviewData({customers: ov.customers || []});
     } catch(e) {}
   }
   if (!_overviewData || !_overviewData.customers) return;
@@ -4716,10 +4722,6 @@ var _termFontSize = parseInt(localStorage.getItem('sybr_term_fontsize') || '14')
 function termChangeFontSize(delta) {
   _termFontSize = Math.max(10, Math.min(24, _termFontSize + delta));
   localStorage.setItem('sybr_term_fontsize', _termFontSize);
-  if (window._term) {
-    window._term.options.fontSize = _termFontSize;
-    if (window._termFit) window._termFit.fit();
-  }
 }
 
 function termConnect() {

@@ -640,8 +640,6 @@ async function runITGlueImport() {
 }
 
 // ── Customers management ────────────────────────────────────────────────────────
-var _allCustomers = [];
-
 async function loadCustomers() {
   const box = document.getElementById('customers-content');
   try {
@@ -651,7 +649,7 @@ async function loadCustomers() {
     ]);
     if (!d) { box.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_customers') + '</div>'; return; }
     if (expiryResult) _expiryData = expiryResult;
-    _allCustomers = d.customers || [];
+    setAllCustomers(d.customers || []);
     // Through the filter whatever the search box holds. This used to render
     // the whole list whenever the box was *not* empty, so a list that
     // finished loading after you typed showed every customer again.

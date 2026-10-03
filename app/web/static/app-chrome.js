@@ -29,7 +29,7 @@ async function _checkVpnHeaderBadge() {
     // is up (the old standalone #vpn-header-badge was merged into #conn-status).
     var prefix = document.getElementById('vpn-chip-prefix');
     if (!prefix) return;
-    _vpnTunnelUp = !!(d && d.state === 'connected');
+    setVpnTunnelUp(!!(d && d.state === 'connected'));
     _syncConnChip();
     if (d && d.state === 'connected') {
       prefix.style.display = 'inline';
@@ -278,7 +278,7 @@ document.addEventListener('keydown', function(e) {
   // if no modal was actually open.
   if (e.key === 'Escape') {
     if (closeTopModal()) return;
-    if (_gradeFilter) { _gradeFilter = ''; filterOverview(); }
+    if (_gradeFilter) clearGradeFilter();
     return;
   }
 
@@ -574,7 +574,7 @@ var _ONBOARDING_KEY = 'onboarding_done';
 var _onboarding = null;  // {overlay, step} while the tour is open
 
 function _onboardingUserKey() {
-  var u = window._currentUser;
+  var u = _currentUser;
   return u && (u.id || u.username) ? _ONBOARDING_KEY + ':' + (u.id || u.username) : null;
 }
 
@@ -676,26 +676,12 @@ function showOnboardingGuide() {
 }
 
 // Signing in ends in _postAuthInit (app.js) on every path: a password login, a
-// restored session, first-run setup and finished MFA enrolment. Hooking it
-// here keeps the tour out of the login screen without app.js knowing about it,
-// and hooking showLoginView takes it down if the session ends while it is open.
-(function() {
-  var afterSignIn = window._postAuthInit;
-  if (typeof afterSignIn === 'function') {
-    window._postAuthInit = function() {
-      var result = afterSignIn.apply(this, arguments);
-      showOnboardingGuide();
-      return result;
-    };
-  }
-  var toLogin = window.showLoginView;
-  if (typeof toLogin === 'function') {
-    window.showLoginView = function() {
-      _onboardingRemove();
-      return toLogin.apply(this, arguments);
-    };
-  }
-})();
+// restored session, first-run setup and finished MFA enrolment. The tour hooks
+// in there, which keeps it out of the login screen without app.js knowing
+// about it, and the login screen takes it down if the session ends while it is
+// open.
+onSignedIn(showOnboardingGuide);
+onLoginViewShown(_onboardingRemove);
 
 // ── Fetch version on startup ──
 (async function loadVersion() {
@@ -764,6 +750,14 @@ function copyLogs() {
   navigator.clipboard.writeText(text).then(function() {
     showToast(t('msg_log_copied','Log copied to clipboard'), 'success', 2000);
   });
+}
+
+// Leaving the view stops the refresh and unticks its box.
+function stopLogAutoRefresh() {
+  if (!_logAutoRefreshTimer) return;
+  clearInterval(_logAutoRefreshTimer); _logAutoRefreshTimer = null;
+  var cb = document.getElementById('log-auto-refresh');
+  if (cb) cb.checked = false;
 }
 
 function toggleLogAutoRefresh() {

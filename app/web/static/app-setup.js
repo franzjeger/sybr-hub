@@ -27,6 +27,7 @@ async function renewCreds(customerId) {
 
 // Setup ends by registering the customer it set up; the answer says which, and
 // "Åpne kunden" opens that one (openSetupCustomer).
+var _setupCustomerId = null;
 async function _registerSetupCustomer() {
   var reg = await apiFetch('/api/customers/register', {method: 'POST'});
   if (reg && reg.customer_id) _setupCustomerId = reg.customer_id;
