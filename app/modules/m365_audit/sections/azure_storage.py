@@ -1,4 +1,4 @@
-"""Section 35–36 — Azure Storage: Storage Accounts and Managed Disks.
+"""Section 35-36 — Azure Storage: Storage Accounts and Managed Disks.
 
 Azure SDK clients are synchronous; dispatched to a thread-pool executor.
 """
@@ -14,6 +14,11 @@ from app.modules.m365_audit.auth import AuthManager
 
 def _run_sync(fn):
     return asyncio.get_event_loop().run_in_executor(None, fn)
+
+
+def _plain(value):
+    """An Azure SDK enum as its value; anything else as it is."""
+    return getattr(value, "value", value)
 
 
 class AzureStorageSection(BaseSection):
@@ -81,6 +86,7 @@ class AzureStorageSection(BaseSection):
             "  " + "-" * 116,
         ]
 
+        record: list[dict] = []
         for sa in accounts:
             name = (sa.name or "")[:30]
             sku = (sa.sku.name if sa.sku else "N/A")[:18]
@@ -110,9 +116,26 @@ class AzureStorageSection(BaseSection):
                 f"  {name:<30} {sku:<18} {kind:<15} {tls:<10} "
                 f"{https_str:>11} {blob_str:>9}  {flag_str}"
             )
+            record.append(
+                {
+                    "name": sa.name,
+                    "sku": _plain(sa.sku.name) if sa.sku else None,
+                    "kind": _plain(sa.kind),
+                    "min_tls": _plain(tls),
+                    "https_only": bool(https_only),
+                    "public_blob": bool(pub_blob),
+                    "flags": flags,
+                }
+            )
 
         lines += ["=" * 120, ""]
         self._save(self._fname("35_azure_storage.txt"), "\n".join(lines))
+        # The text cuts the kind at 15 characters, and "BlockBlobStorage" is
+        # 16: it ran into the TLS column and the overview showed the account
+        # as kind "BlockBlobStorag TLS1_2".
+        self._save_sidecar(
+            self._fname("35_azure_storage.txt"), {"count": len(accounts), "accounts": record}
+        )
 
     # ── Managed Disks ─────────────────────────────────────────────────────────
 
