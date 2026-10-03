@@ -13,22 +13,22 @@ or not. The listing also stopped at 15 items per vault and cut names at 40
 characters.
 
 So the files here come from the collectors themselves, run against fake Azure
-clients, and the parser reads exactly what a real run leaves on disk.
+clients (tests/collector_rig.py), and the parser reads exactly what a real run
+leaves on disk.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import ClassVar
 
 import pytest
 
-from app.core.encryption import encrypted_read_text
 from app.modules.m365_audit.sections.azure_compute import AzureComputeSection
 from app.modules.m365_audit.sections.azure_governance import AzureGovernanceSection
 from app.reports.parsers import _parse_backup_coverage
 from app.reports.recommendations import _build_recommendations
+from tests.collector_rig import FakeAzureAuth, read_output
 
 SUB = "00000000-0000-0000-0000-0000000000aa"
 
@@ -72,50 +72,27 @@ def _vault(name: str = "rsv-prod") -> SimpleNamespace:
     )
 
 
-class _FakeBackupClient:
-    """Stands in for RecoveryServicesBackupClient: items per vault name."""
+async def _collect(tmp_path, monkeypatch, vms, vaults, items, *, sidecars=True) -> dict:
+    """Run both collectors and return what they wrote, as the report reads it.
 
-    items: ClassVar[dict[str, list | Exception]] = {}
+    ``items`` maps a vault name to the items it protects, or to the exception
+    listing them raises.
+    """
 
-    def __init__(self, credential, subscription_id):
-        self.backup_protected_items = SimpleNamespace(list=self._list)
-
-    def _list(self, vault_name, resource_group):
-        found = self.items.get(vault_name, [])
+    def protected_items(vault_name, resource_group):
+        found = items.get(vault_name, [])
         if isinstance(found, Exception):
             raise found
         return found
 
-
-def _auth(vms, vaults):
-    return SimpleNamespace(
-        compute_client_for=lambda sub: SimpleNamespace(
-            virtual_machines=SimpleNamespace(list_all=lambda: vms)
-        ),
-        recovery_client_for=lambda sub: SimpleNamespace(
-            vaults=SimpleNamespace(list_by_subscription_id=lambda: vaults)
-        ),
-        _az_credential=lambda: None,
-    )
-
-
-async def _collect(tmp_path, monkeypatch, vms, vaults, items, *, sidecars=True) -> dict:
-    """Run both collectors and return what they wrote, as the report reads it."""
-    import azure.mgmt.recoveryservicesbackup as rsb
-
-    _FakeBackupClient.items = items
-    monkeypatch.setattr(rsb, "RecoveryServicesBackupClient", _FakeBackupClient)
-    auth = _auth(vms, vaults)
+    auth = FakeAzureAuth(
+        compute={"virtual_machines.list_all": vms},
+        recovery={"vaults.list_by_subscription_id": vaults},
+        backup={"backup_protected_items.list": protected_items},
+    ).install(monkeypatch)
     await AzureComputeSection(tmp_path, auth, sub_id=SUB)._collect_vms()
     await AzureGovernanceSection(tmp_path, auth, sub_id=SUB)._collect_backup()
-    files = {
-        p.name: encrypted_read_text(p)
-        for p in sorted(tmp_path.iterdir())
-        if p.suffix in (".txt", ".json")
-    }
-    if not sidecars:
-        files = {name: text for name, text in files.items() if name.endswith(".txt")}
-    return files
+    return read_output(tmp_path, sidecars=sidecars)
 
 
 # ── Coverage from real collector output ───────────────────────────────────────
