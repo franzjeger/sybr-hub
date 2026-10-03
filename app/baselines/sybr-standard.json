@@ -14,7 +14,7 @@
         "en": "At least 95% of users have registered an MFA method"
       },
       "why": {
-        "no": "En Conditional Access-policy tvinger MFA ved pålogging, men en bruker uten registrert metode møter en registreringsprompt i stedet for en innlogging — ofte i det øyeblikket de har dårligst tid.",
+        "no": "En Conditional Access-policy tvinger MFA ved pålogging, men en bruker uten registrert metode møter en registreringsprompt i stedet for en innlogging, ofte i det øyeblikket de har dårligst tid.",
         "en": "A Conditional Access policy forces MFA at sign-in, but a user with no registered method meets a registration prompt instead of a login — usually at the moment they have least time for it."
       },
       "path": "mfa.registered_pct",
@@ -142,7 +142,7 @@
         "en": "No security policy has been removed since the previous audit"
       },
       "why": {
-        "no": "En policy som forsvinner senker ikke Secure Score nevneverdig og utløser ingen varsling hos Microsoft. Den er borte, og alt den beskyttet er ubeskyttet fra det øyeblikket — som regel oppdaget først ved neste hendelse. Avvik her betyr ikke nødvendigvis feil: det betyr at noen må bekrefte at fjerningen var tilsiktet.",
+        "no": "En policy som forsvinner senker ikke Secure Score nevneverdig og utløser ingen varsling hos Microsoft. Den er borte, og alt den beskyttet er ubeskyttet fra det øyeblikket. Som regel oppdages det først ved neste hendelse. Avvik her betyr ikke nødvendigvis feil: det betyr at noen må bekrefte at fjerningen var tilsiktet.",
         "en": "A policy that disappears barely moves the Secure Score and raises no alert from Microsoft. It is gone, and everything it protected is unprotected from that moment — usually discovered at the next incident. A deviation here does not necessarily mean something is wrong: it means somebody must confirm the removal was intended."
       },
       "path": "drift.removed_total",

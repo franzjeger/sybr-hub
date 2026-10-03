@@ -2,7 +2,7 @@
   "id": "sybr-baseline-ca",
   "version": "2026.2",
   "name": {
-    "no": "Sybr grunnsikring — Conditional Access",
+    "no": "Sybr grunnsikring: Conditional Access",
     "en": "Sybr baseline — Conditional Access"
   },
   "description": {
@@ -11,7 +11,7 @@
   },
   "requires": {
     "break_glass_group": {
-      "no": "Gruppe som unntas fra alle policyer — må finnes i tenanten og inneholde minst én konto som aldri låses ute",
+      "no": "Gruppe som unntas fra alle policyer. Den må finnes i tenanten og inneholde minst én konto som aldri låses ute",
       "en": "Group excluded from every policy — must exist in the tenant and hold at least one account that can never be locked out"
     }
   },

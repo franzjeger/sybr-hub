@@ -31,6 +31,34 @@ def test_no_dashes_in_norwegian_text():
     assert not dashed, f"Norwegian strings with an em or en dash: {dashed}"
 
 
+def _norwegian_in(node, path=""):
+    """Every "no" string in a bilingual data file, with where it sits."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "no" and isinstance(value, str):
+                yield f"{path}/no", value
+            else:
+                yield from _norwegian_in(value, f"{path}/{key}")
+    elif isinstance(node, list):
+        for i, value in enumerate(node):
+            yield from _norwegian_in(value, f"{path}[{i}]")
+
+
+@pytest.mark.parametrize("folder", ["app/baselines", "app/policy_templates"])
+def test_no_dashes_in_norwegian_data(folder):
+    # The frameworks on the Vurderinger tab and the policy standards carry
+    # their own Norwegian text, which the copy pass never read: "CIS 1.1.1 —
+    # Ingen bruker står helt uten MFA". Policy display names are English and
+    # matched by name in the tenant, so only the "no" fields are held here.
+    dashed = [
+        f"{path.name}{where}"
+        for path in sorted((ROOT / folder).glob("*.json"))
+        for where, text in _norwegian_in(json.loads(path.read_text(encoding="utf-8")))
+        if "\N{EM DASH}" in text or "\N{EN DASH}" in text
+    ]
+    assert not dashed, f"Norwegian text with an em or en dash: {dashed}"
+
+
 @pytest.mark.parametrize(
     ("pattern", "use"),
     [

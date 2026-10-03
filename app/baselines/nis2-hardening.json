@@ -4,14 +4,14 @@
   "name": "NIS2 hardening (Article 21)",
   "tags": ["nis2", "eu", "hardening"],
   "description": {
-    "no": "Herdingsveiledning, ikke en sertifisering. NIS2 artikkel 21(2) krever risikostyringstiltak; flere av dem — hendelseshåndtering, forsyningskjede, opplæring, styringssystemer — er organisatoriske og kan ikke leses ut av en teknisk audit. Dette utsnittet dekker de tiltakene en Microsoft 365- og Azure-audit faktisk måler: MFA og sterk autentisering (21.2.j), tilgangsstyring (21.2.i), sikkerhetskopi og kontinuitet (21.2.c), og grunnleggende cyberhygiene (21.2.g). Bestått her betyr at de målbare kontrollene er på plass, ikke at virksomheten er NIS2-etterlevende.",
+    "no": "Herdingsveiledning, ikke en sertifisering. NIS2 artikkel 21(2) krever risikostyringstiltak. Flere av dem, som hendelseshåndtering, forsyningskjede, opplæring og styringssystemer, er organisatoriske og kan ikke leses ut av en teknisk audit. Dette utsnittet dekker de tiltakene en Microsoft 365- og Azure-audit faktisk måler: MFA og sterk autentisering (21.2.j), tilgangsstyring (21.2.i), sikkerhetskopi og kontinuitet (21.2.c), og grunnleggende cyberhygiene (21.2.g). Bestått her betyr at de målbare kontrollene er på plass, ikke at virksomheten er NIS2-etterlevende.",
     "en": "Hardening guidance, not a certification. NIS2 Article 21(2) requires risk-management measures; several of them — incident handling, supply chain, training, governance — are organisational and cannot be read from a technical audit. This subset covers the measures a Microsoft 365 and Azure audit actually measures: MFA and strong authentication (21.2.j), access control (21.2.i), backup and continuity (21.2.c), and basic cyber hygiene (21.2.g). Passing here means the measurable controls are in place, not that the organisation is NIS2-compliant."
   },
   "checks": [
     {
       "id": "nis2-mfa-all-users",
       "title": {
-        "no": "Art. 21.2.j — Ingen bruker står uten MFA",
+        "no": "Art. 21.2.j: Ingen bruker står uten MFA",
         "en": "Art. 21.2.j — No user is without MFA"
       },
       "why": {
@@ -43,7 +43,7 @@
     {
       "id": "nis2-legacy-auth",
       "title": {
-        "no": "Art. 21.2.j — Eldre autentisering er blokkert",
+        "no": "Art. 21.2.j: Eldre autentisering er blokkert",
         "en": "Art. 21.2.j — Legacy authentication is blocked"
       },
       "why": {
@@ -58,7 +58,7 @@
     {
       "id": "nis2-access-control-admins",
       "title": {
-        "no": "Art. 21.2.i — Høyst fire globale administratorer",
+        "no": "Art. 21.2.i: Høyst fire globale administratorer",
         "en": "Art. 21.2.i — At most four global administrators"
       },
       "why": {
@@ -74,7 +74,7 @@
     {
       "id": "nis2-asset-managed-devices",
       "title": {
-        "no": "Art. 21.2.i — Ingen enhet er uten administrasjon",
+        "no": "Art. 21.2.i: Ingen enhet er uten administrasjon",
         "en": "Art. 21.2.i — No device goes unmanaged"
       },
       "why": {
@@ -94,7 +94,7 @@
         "en": "At least 90% of devices are compliant"
       },
       "why": {
-        "no": "Etterlevelsespolicyer håndhever kryptering og oppdateringsnivå — de tekniske delene av grunnleggende cyberhygiene på enhetslaget.",
+        "no": "Etterlevelsespolicyer håndhever kryptering og oppdateringsnivå, som er de tekniske delene av grunnleggende cyberhygiene på enhetslaget.",
         "en": "Compliance policies enforce encryption and patch level — the technical parts of basic cyber hygiene at the device tier."
       },
       "path": "intune.compliance_pct",
@@ -106,7 +106,7 @@
     {
       "id": "nis2-backup-continuity",
       "title": {
-        "no": "Art. 21.2.c — Minst 95 % av virtuelle maskiner er sikkerhetskopiert",
+        "no": "Art. 21.2.c: Minst 95 % av virtuelle maskiner er sikkerhetskopiert",
         "en": "Art. 21.2.c — At least 95% of virtual machines are backed up"
       },
       "why": {
@@ -122,7 +122,7 @@
     {
       "id": "nis2-cyber-hygiene-secure-score",
       "title": {
-        "no": "Art. 21.2.g — Microsoft Secure Score over 70 %",
+        "no": "Art. 21.2.g: Microsoft Secure Score over 70 %",
         "en": "Art. 21.2.g — Microsoft Secure Score above 70%"
       },
       "why": {
@@ -138,7 +138,7 @@
     {
       "id": "nis2-external-access-sharing",
       "title": {
-        "no": "Art. 21.2.i — Ekstern deling i SharePoint er begrenset",
+        "no": "Art. 21.2.i: Ekstern deling i SharePoint er begrenset",
         "en": "Art. 21.2.i — SharePoint external sharing is restricted"
       },
       "why": {
@@ -158,7 +158,7 @@
         "en": "No mailbox forwards to an external address"
       },
       "why": {
-        "no": "Ekstern videresending er den vanligste stille exfiltrasjonskanalen fra en kompromittert konto — relevant både for hendelseshåndtering og tilgangskontroll.",
+        "no": "Ekstern videresending er den vanligste stille exfiltrasjonskanalen fra en kompromittert konto. Den er relevant både for hendelseshåndtering og tilgangskontroll.",
         "en": "External forwarding is the most common quiet exfiltration channel from a compromised account — relevant to both incident handling and access control."
       },
       "path": "exchange.forwarding_count",
