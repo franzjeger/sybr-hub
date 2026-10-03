@@ -14,7 +14,7 @@ msal>=1.28.0,<2.0
 
 # Azure SDK
 azure-identity>=1.16.0,<2.0
-azure-mgmt-compute>=30.3.0,<32.0
+azure-mgmt-compute>=30.3.0,<39.0
 azure-mgmt-network>=25.3.0,<33.0
 azure-mgmt-resource>=23.1.0,<27.0
 azure-mgmt-storage>=21.1.0,<26.0
