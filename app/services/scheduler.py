@@ -88,6 +88,16 @@ DEFAULT_TASKS: dict[str, dict[str, Any]] = {
         "label_no": "Sertifikatutløp-sjekk",
         "label_en": "TLS certificate expiry check",
     },
+    # Reads every FortiGate and UniFi controller the hub reaches directly and
+    # keeps each device's firmware, so Varsler shows end-of-life and outdated
+    # devices without anybody opening a network page first.
+    "firmware_check": {
+        "enabled": True,
+        "type": "daily",
+        "time": "05:30",
+        "label_no": "Firmware-sjekk",
+        "label_en": "Firmware check",
+    },
     "guacamole_cleanup": {
         "enabled": True,
         "type": "interval",
@@ -627,6 +637,17 @@ async def _do_cert_expiry_check() -> str:
     )
 
 
+async def _do_firmware_check() -> str:
+    """Read and keep every directly reachable device's firmware."""
+    from app.services import firmware_inventory
+
+    found = await firmware_inventory.refresh_all()
+    return (
+        f"{found['fortigates']} FortiGate(s), {found['unifi_controllers']} UniFi "
+        f"controller(s) read, {found['unread']} unreadable"
+    )
+
+
 async def _tailscale_cert_status() -> str:
     """Warn when Tailscale TLS certs are close to expiry or have expired.
 
@@ -687,6 +708,7 @@ _TASK_RUNNERS = {
     "db_cleanup": _do_db_cleanup,
     "app_backup": _do_app_backup,
     "cert_expiry_check": _do_cert_expiry_check,
+    "firmware_check": _do_firmware_check,
     "guacamole_cleanup": _do_guacamole_cleanup,
 }
 

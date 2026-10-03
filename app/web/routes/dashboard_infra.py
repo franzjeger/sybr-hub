@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core.exceptions import (
     ForbiddenError,
     NotFoundError,
+    ValidationError,
 )
 from app.core.rbac import (
     check_customer_access,
@@ -535,13 +536,26 @@ async def _build_network_inventory_for_customer(cust: dict) -> dict | None:
             # alert, reading as a customer with no UniFi rather than one whose
             # controller could not be reached. Surface it as an alert so the
             # gap is visible.
-            from app.modules.api_result import read_failed
+            from app.modules.api_result import read_error, read_failed
+            from app.services import firmware_inventory
 
             if read_failed(devices_raw):
+                await firmware_inventory.record_quietly(
+                    firmware_inventory.record_read_failure,
+                    cust_id,
+                    "unifi",
+                    read_error(devices_raw) or "read failed",
+                    key="controller",
+                    name=str(uf_host),
+                )
                 read_unavailable = True
                 alerts.append(
                     f"UniFi-kontrolleren kunne ikke leses ({cust.get('UniFiHost', '?')}) "
                     "— enheter mangler i oversikten"
+                )
+            else:
+                await firmware_inventory.record_quietly(
+                    firmware_inventory.record_unifi_devices, cust_id, list(devices_raw)
                 )
 
             # Build AP → client count map
@@ -615,8 +629,21 @@ async def _build_network_inventory_for_customer(cust: dict) -> dict | None:
                         }
                     )
 
+        except (NotFoundError, ValidationError) as e:
+            # Not configured (no host, no stored credentials): nothing was read.
+            logger.debug("UniFi fetch skipped for %s: %s", name, e)
         except Exception as e:
             logger.debug("UniFi fetch failed for %s: %s", name, e)
+            from app.services import firmware_inventory
+
+            await firmware_inventory.record_quietly(
+                firmware_inventory.record_read_failure,
+                cust_id,
+                "unifi",
+                str(e),
+                key="controller",
+                name=str(uf_host),
+            )
 
     # ── FortiGate ──
     fg_host = cust.get("FortiGateHost")
