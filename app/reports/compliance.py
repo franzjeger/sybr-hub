@@ -39,8 +39,6 @@ from app.reports.parsers.collaboration import (
     _teams_cross_tenant,
     _teams_guest_settings,
 )
-from app.reports.parsers.common import _sidecar
-from app.reports.parsers.common import _record_count
 from app.reports.parsers.common import _record_count, _sidecar
 from app.reports.parsers.email import _defender_policies
 
