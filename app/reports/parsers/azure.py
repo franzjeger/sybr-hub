@@ -404,6 +404,11 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
     for fname, content, sub_name in _find_azure_files(file_contents, "32_azure_nsgs"):
         if "risky" in fname or "WARN" in fname:
             continue
+        nsgs = _sidecar(file_contents, fname)
+        if nsgs is not None:
+            if int(nsgs.get("count") or 0) > 0:
+                result["nsgs"].append({"subscription": sub_name, "count": int(nsgs["count"])})
+            continue
         m = re.search(r"\((\d+) total\)", content)
         if m and int(m.group(1)) > 0:
             result["nsgs"].append({"subscription": sub_name, "count": int(m.group(1))})

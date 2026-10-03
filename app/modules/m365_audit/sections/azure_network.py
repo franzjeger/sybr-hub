@@ -1,4 +1,4 @@
-"""Section 31–34 — Azure Network: VNets, NSGs, Public IPs, VPN Gateways, Orphans.
+"""Section 31-34 — Azure Network: VNets, NSGs, Public IPs, VPN Gateways, Orphans.
 
 Azure SDK clients are synchronous; dispatched to a thread-pool executor.
 """
@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 def _run_sync(fn):
     return asyncio.get_event_loop().run_in_executor(None, fn)
+
+
+def _plain(value):
+    """An Azure SDK enum as its value; anything else as it is."""
+    return getattr(value, "value", value)
+
+
+def _resource_group(resource_id: str | None) -> str | None:
+    parts = (resource_id or "").split("/")
+    return parts[4] if len(parts) > 4 else None
 
 
 class AzureNetworkSection(BaseSection):
@@ -117,6 +127,7 @@ class AzureNetworkSection(BaseSection):
             f"  AZURE NETWORK SECURITY GROUPS  ({len(nsgs)} total)",
             "=" * 110,
         ]
+        record: list[dict] = []
         for nsg in nsgs:
             rg = (nsg.id or "").split("/")[4] if nsg.id else "N/A"
             rules = sorted(nsg.security_rules or [], key=lambda r: r.priority)
@@ -124,6 +135,13 @@ class AzureNetworkSection(BaseSection):
                 f"\n  NSG: {nsg.name}  (RG: {rg}  Location: {nsg.location})",
                 f"    Rules ({len(rules)}):",
             ]
+            entry: dict = {
+                "name": nsg.name,
+                "resource_group": _resource_group(nsg.id),
+                "location": nsg.location,
+                "rules": [],
+            }
+            record.append(entry)
             for r in rules:
                 dst_ports = r.destination_port_range or ", ".join(r.destination_port_ranges or [])
                 flag = ""
@@ -139,6 +157,22 @@ class AzureNetworkSection(BaseSection):
                     f"-> Dst:{r.destination_address_prefix or '*':<18} "
                     f"Port:{dst_ports}{flag}"
                 )
+                entry["rules"].append(
+                    {
+                        "name": r.name,
+                        "priority": r.priority,
+                        "access": _plain(r.access),
+                        "direction": _plain(r.direction),
+                        "source": r.source_address_prefix,
+                        "destination": r.destination_address_prefix,
+                        "ports": (
+                            [r.destination_port_range]
+                            if r.destination_port_range
+                            else list(r.destination_port_ranges or [])
+                        ),
+                        "wildcard_allow": bool(flag),
+                    }
+                )
         lines += ["", "=" * 110, ""]
         self._save(self._fname("32_azure_nsgs.txt"), "\n".join(lines))
 
@@ -146,6 +180,7 @@ class AzureNetworkSection(BaseSection):
         HIGH_RISK_PORTS = {"22", "3389", "445", "1433", "3306", "5432"}
         OPEN_SOURCES = {"*", "0.0.0.0/0", "Internet"}
         risky_lines: list[str] = []
+        risky: list[dict] = []
 
         for nsg in nsgs:
             for r in nsg.security_rules or []:
@@ -189,6 +224,16 @@ class AzureNetworkSection(BaseSection):
                         f"allows inbound from {src} to port(s) {ports_str}"
                     )
                     risky_lines.append(f"  ⚠ {detail}")
+                    risky.append(
+                        {
+                            "nsg": nsg.name,
+                            "rule": r.name,
+                            "priority": r.priority,
+                            "source": src,
+                            "ports": sorted(set(matched_ports)),
+                            "detail": detail,
+                        }
+                    )
                     self._warn(detail)
 
         if risky_lines:
@@ -206,6 +251,15 @@ class AzureNetworkSection(BaseSection):
                 self._fname("32b_azure_nsg_risky_rules_WARN.txt"),
                 "\n".join(warn_content),
             )
+
+        # Every group and rule as Azure gave it, and the risky inbound rules
+        # the WARN file lists. One sidecar for both: a JSON file named like a
+        # WARN file would be counted as a finding of its own by every reader
+        # that lists the WARN files.
+        self._save_sidecar(
+            self._fname("32_azure_nsgs.txt"),
+            {"count": len(nsgs), "nsgs": record, "risky_rules": risky},
+        )
 
     # ── Public IPs ────────────────────────────────────────────────────────────
 

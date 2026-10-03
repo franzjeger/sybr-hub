@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from app.reports.evidence import _evidence_unavailable
 from app.reports.i18n import T
 from app.reports.parsers import _is_audit_relevant_domain, _mfa_user_records
+from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -765,12 +766,16 @@ def _sharepoint_legacy_auth(audit: _Audit) -> Iterator[dict]:
 
 
 def _nsg(audit: _Audit) -> Iterator[dict]:
-    # From the per-subscription WARN files, rule by rule.
+    # Rule by rule, from each subscription's NSG sidecar, or from its WARN
+    # file when the run is from before the sidecar.
     fc, t = audit.fc, audit.t
     nsg_warns = [k for k in fc if "nsg_risky" in k.lower() and "WARN" in k]
-    if not nsg_warns:
+    nsg_sub_items, replaced = _risky_nsg_rules_from_sidecars(fc)
+    nsg_sub_items += [
+        rule for k in nsg_warns if k not in replaced for rule in _risky_nsg_rules(fc[k])
+    ]
+    if not nsg_warns and not nsg_sub_items:
         return
-    nsg_sub_items = [rule for k in nsg_warns for rule in _risky_nsg_rules(fc[k])]
     yield {
         "priority": "critical",
         "finding_id": "finding-nsg",
@@ -780,6 +785,20 @@ def _nsg(audit: _Audit) -> Iterator[dict]:
         "effort": t.rec_effort_medium,
         "sub_items": nsg_sub_items,
     }
+
+
+def _risky_nsg_rules_from_sidecars(fc: dict) -> tuple[list[str], set[str]]:
+    """The risky inbound rules in each 32_azure_nsgs sidecar, and the WARN
+    files they stand in for, which are then not read a second time."""
+    rules: list[str] = []
+    replaced: set[str] = set()
+    for fname, _content, sub in _find_azure_files(fc, "32_azure_nsgs"):
+        nsgs = _sidecar(fc, fname)
+        if nsgs is None:
+            continue
+        rules += [rule.get("detail") or "" for rule in nsgs.get("risky_rules") or []]
+        replaced.add(f"32b_azure_nsg_risky_rules_WARN{'_' + sub if sub else ''}.txt")
+    return rules, replaced
 
 
 def _risky_nsg_rules(text: str) -> list[str]:
