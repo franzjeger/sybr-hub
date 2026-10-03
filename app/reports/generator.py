@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from app.core.config import get_branding, get_logo_path
 from app.modules.base import SectionResult, SectionStatus
-from app.reports.compliance import _build_compliance_map
+from app.reports.compliance import _build_compliance_map, dkim_status_by_domain
 from app.reports.evidence import _EVIDENCE_MAP, _reported_count
 from app.reports.i18n import T
 from app.reports.metrics import (
@@ -421,6 +421,11 @@ def build_report_context(
 
     # Build compliance mapping after context is ready
     compliance = _build_compliance_map(context, lang=lang, frameworks=frameworks)
+    # The email table shows DKIM per domain: from the control's verdict, not a
+    # second judgement of its own that could contradict it.
+    dkim_status = dkim_status_by_domain(context)
+    for record in spf_dmarc:
+        record["dkim_status"] = dkim_status.get(str(record.get("domain") or ""))
 
     # The break-glass check embeds a machine-readable "SUMMARY: break_glass_…"
     # line in 07c for CIS 1.1.6 to parse — which it just did, above. That token

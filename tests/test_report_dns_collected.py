@@ -283,3 +283,39 @@ async def test_the_report_context_reads_dkim_from_the_sidecars(tmp_path, monkeyp
     }
     assert statuses["acme.example"] == "pass"
     assert statuses["av.example"] == "warn"
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_customer_reports_dkim_cell_says_what_the_control_says(
+    tmp_path, monkeypatch, sidecars
+):
+    """The email table judged DKIM on its own: "Found" unless every summary said MISSING.
+
+    av.example has its M365 selectors published and signing switched off in
+    Exchange: CIS 5.2.3 warns, and the table beside it printed "Found".
+    """
+    import re
+
+    from app.reports.generator import _jinja_env
+    from app.reports.i18n import T
+
+    run = tmp_path / "Acme_AS" / "2026-10-03_0900"
+    run.mkdir(parents=True)
+    await _collect_dkim(run, monkeypatch, exo={"dkim": DKIM_CONFIGS}, sidecars=sidecars)
+    if not sidecars:
+        for path in run.glob("*.json"):
+            path.unlink()
+    ctx = build_report_context("Acme AS", "acme.example", run, [], lang="en", persist_metrics=False)
+    ctx.update(t=T("en"), lang="en", theme="light")
+    html = _jinja_env().get_template("report_customer.html.j2").render(**ctx)
+
+    def dkim_cell(domain: str) -> str:
+        row = re.search(
+            rf'<td style="font-weight:600;">{re.escape(domain)}</td>(.*?)</tr>', html, re.DOTALL
+        )
+        assert row, domain
+        return re.findall(r'<span class="status-pill [a-z]+">([^<]*)</span>', row.group(1))[2]
+
+    assert dkim_cell("acme.example") == "OK"
+    assert dkim_cell("av.example") == "Missing"
+    assert dkim_cell("gmail.example") == "OK"
