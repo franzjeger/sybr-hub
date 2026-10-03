@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient
+
+logger = logging.getLogger(__name__)
 
 
 class TeamsPoliciesSection(BaseSection):
