@@ -7,6 +7,7 @@ import re
 from app.reports.evidence import _labelled_int, _labelled_value
 from app.reports.i18n import T
 from app.reports.parsers.common import _count_data_lines, _extract_policy_names, _sidecar
+from app.reports.parsers.common import _count_data_lines, _policy_names, _sidecar
 
 
 def _site_table_rows(sites_text: str) -> int | None:
@@ -363,6 +364,31 @@ def _parse_oauth_grants(
     }
 
 
+def _sensitivity_labels(file_contents: dict[str, str]) -> list[dict] | None:
+    """The labels in 19c_purview_sensitivity_labels.json, or None without it.
+
+    The text cuts each name at 45 characters, and its reader skips any line
+    that reads like a heading: a label named "No restrictions" or "Purview
+    test" was not counted.
+    """
+    data = _sidecar(file_contents, "19c_purview_sensitivity_labels.txt")
+    if data is None:
+        return None
+    labels = []
+    for row in data.get("labels") or []:
+        if not isinstance(row, dict):
+            continue
+        priority = row.get("priority")
+        labels.append(
+            {
+                "name": str(row.get("name") or ""),
+                "priority": priority if isinstance(priority, int) else 0,
+                "active": bool(row.get("active")),
+            }
+        )
+    return labels
+
+
 def _parse_purview(file_contents: dict[str, str]) -> dict:
     """Parse Purview/DLP data: sensitivity labels, DLP policies, retention policies."""
     result: dict = {
@@ -377,7 +403,12 @@ def _parse_purview(file_contents: dict[str, str]) -> dict:
 
     # Sensitivity labels (19c_purview_sensitivity_labels.txt)
     labels_text = file_contents.get("19c_purview_sensitivity_labels.txt", "")
-    if labels_text.strip():
+    sidecar_labels = _sensitivity_labels(file_contents)
+    if sidecar_labels is not None:
+        result["sensitivity_labels"] = sidecar_labels
+        result["sensitivity_label_count"] = len(sidecar_labels)
+        result["has_data"] = bool(sidecar_labels)
+    elif labels_text.strip():
         for line in labels_text.splitlines():
             stripped = line.strip()
             if not stripped or stripped.startswith("=") or stripped.startswith("-"):
@@ -433,14 +464,18 @@ def _parse_purview(file_contents: dict[str, str]) -> dict:
     # Delegate to the block parser so empty -> 0 and each policy counts once.
     dlp_text = file_contents.get("19d_purview_dlp_policies.txt", "")
     if dlp_text.strip():
-        result["dlp_policies"] = [{"name": n} for n in _extract_policy_names(dlp_text)]
+        result["dlp_policies"] = [
+            {"name": n} for n in _policy_names(file_contents, "19d_purview_dlp_policies.txt")
+        ]
         result["dlp_policy_count"] = len(result["dlp_policies"])
         if result["dlp_policy_count"] > 0:
             result["has_data"] = True
 
     retention_text = file_contents.get("19e_purview_retention_policies.txt", "")
     if retention_text.strip():
-        result["retention_policies"] = [{"name": n} for n in _extract_policy_names(retention_text)]
+        result["retention_policies"] = [
+            {"name": n} for n in _policy_names(file_contents, "19e_purview_retention_policies.txt")
+        ]
         result["retention_policy_count"] = len(result["retention_policies"])
         if result["retention_policy_count"] > 0:
             result["has_data"] = True
