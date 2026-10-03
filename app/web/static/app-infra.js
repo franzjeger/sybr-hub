@@ -172,7 +172,8 @@ function _customerNameById(customerId) {
 // ═══════════════════════════════════════════════════════════════════
 
 async function hostsLoad() {
-  var el = document.getElementById('hosts-content');
+  var box = _claim('hosts-content');
+  var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
   // Pre-load customer cache for name resolution
@@ -188,6 +189,8 @@ async function hostsLoad() {
   if (params.length) url += '?' + params.join('&');
 
   var data = await apiFetch(url);
+
+  if (!box.owns()) return;
   if (!data) return;
   var hosts = data.hosts || [];
 
@@ -250,7 +253,7 @@ async function hostsLoad() {
 }
 
 function hostsAdd() {
-  var el = document.getElementById('hosts-content');
+  var el = _claim('hosts-content').el;
 
   // Load keys for dropdown
   apiFetch('/api/ssh/keys').then(function(keysData) {
@@ -391,10 +394,11 @@ async function hostsHealthAll() {
 // ═══════════════════════════════════════════════════════════════════
 
 async function sshShowKeys() {
-  var el = document.getElementById('ssh-content');
+  var box = _claim('ssh-content');
+  var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
   var data = await apiFetch('/api/ssh/keys');
-  if (!data) return;
+  if (!box.owns() || !data) return;
   var keys = data.keys || [];
   var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" data-write data-click-handler="sshGenKey" style="padding:6px 14px;font-size:12px;">' + t('btn_generate_key','Generate key') + '</button><button class="btn btn-ghost" data-write data-click-handler="sshImportKey" style="padding:6px 14px;font-size:12px;">' + t('btn_import_key','Import key') + '</button></div>';
   if (!keys.length) { html += '<p style="color:var(--text-muted);">' + t('msg_no_ssh_keys','No SSH keys created yet.') + '</p>'; }
@@ -415,7 +419,7 @@ async function sshShowKeys() {
 }
 
 function sshGenKey() {
-  var el = document.getElementById('ssh-content');
+  var el = _claim('ssh-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('hdr_generate_ssh_key','Generate SSH key') + '</h3>'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
@@ -466,7 +470,7 @@ async function sshDoGenKey() {
 }
 
 function sshImportKey() {
-  var el = document.getElementById('ssh-content');
+  var el = _claim('ssh-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('hdr_import_ssh_key','Import SSH key') + '</h3>'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
@@ -514,10 +518,11 @@ async function sshDoImportKey() {
 }
 
 async function sshViewKey(keyId) {
+  var box = _claim('ssh-content');
   var data = await apiFetch('/api/ssh/keys/' + encodeURIComponent(keyId));
-  if (!data || !data.key) return;
+  if (!box.owns() || !data || !data.key) return;
   var k = data.key;
-  var el = document.getElementById('ssh-content');
+  var el = box.el;
   var html = '<div style="max-width:560px;">'
     + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">'
     + '<button class="btn btn-ghost" data-click-handler="sshShowKeys" style="padding:4px 10px;font-size:12px;">' + t('tilbake') + '</button>'
@@ -555,10 +560,11 @@ async function sshDeleteKey(id) {
 }
 
 async function sshShowHosts() {
-  var el = document.getElementById('ssh-content');
+  var box = _claim('ssh-content');
+  var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
   var data = await apiFetch('/api/ssh/hosts');
-  if (!data) return;
+  if (!box.owns() || !data) return;
   var hosts = data.hosts || [];
   var html = '<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" data-write data-click-handler="sshAddHost" style="padding:6px 14px;font-size:12px;">' + t('legg_til_vert') + '</button><button class="btn btn-ghost" data-click-handler="sshHealthAll" style="padding:6px 14px;font-size:12px;">' + t('sjekk_alle') + '</button></div>';
   if (!hosts.length) { html += '<p style="color:var(--text-muted);">' + t('msg_no_hosts_short','No hosts registered.') + '</p>'; }
@@ -591,13 +597,15 @@ async function sshShowHosts() {
 }
 
 function sshAddHost() {
+  var box = _claim('ssh-content');
   // Load keys for dropdown
   apiFetch('/api/ssh/keys').then(function(keysData) {
+    if (!box.owns()) return;
     var keys = (keysData && keysData.keys) || [];
     var keyOpts = '<option value="">' + t('ingen_bruk_passord') + '</option>';
     keys.forEach(function(k) { keyOpts += '<option value="'+esc(k.id)+'">'+esc(k.name)+' ('+esc(k.key_type)+' · '+esc(k.fingerprint.slice(0,20))+'...)</option>'; });
 
-    var el = document.getElementById('ssh-content');
+    var el = box.el;
     el.innerHTML = '<div style="max-width:560px;">'
       + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('legg_til_vertsmaskin') + '</h3>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
@@ -704,8 +712,10 @@ async function sshDeleteHost(id) {
 }
 
 async function sshEditHost(hostId) {
+  // The hosts view when it is there, else the SSH view.
+  var box = _claim(document.getElementById('hosts-content') ? 'hosts-content' : 'ssh-content');
   var data = await apiFetch('/api/ssh/hosts/' + encodeURIComponent(hostId));
-  if (!data || !data.host) return;
+  if (!box.owns() || !data || !data.host) return;
   var h = data.host;
 
   // Load keys for dropdown
@@ -714,8 +724,8 @@ async function sshEditHost(hostId) {
   var keyOpts = '<option value="">' + t('ingen_bruk_passord') + '</option>';
   keys.forEach(function(k) { keyOpts += '<option value="'+esc(k.id)+'"'+(k.id===h.auth_key_id?' selected':'')+'>'+esc(k.name)+' ('+esc(k.fingerprint.slice(0,20))+'...)</option>'; });
 
-  // Use hosts-content if available, else ssh-content
-  var el = document.getElementById('hosts-content') || document.getElementById('ssh-content');
+  if (!box.owns()) return;
+  var el = box.el;
   el.innerHTML = '<div style="max-width:560px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('rediger_vertsmaskin') + '</h3>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
@@ -796,14 +806,15 @@ async function sshHealthAll() {
 }
 
 async function sshShowExec() {
-  var el = document.getElementById('ssh-content');
+  var box = _claim('ssh-content');
+  var el = box.el;
   el.innerHTML = '<div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;">' + t('lbl_select_hosts_command','Select hosts and enter a command:') + '</label></div>'
     + '<div id="ssh-exec-hosts" style="margin-bottom:12px;"></div>'
     + '<div style="display:flex;gap:8px;"><input id="ssh-exec-cmd" type="text" placeholder="f.eks. uptime" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" data-keydown-handler="sshExecRunOnEnter"><button class="btn btn-primary" data-write data-click-handler="sshExecRun" style="padding:8px 16px;">' + t('btn_run','Run') + '</button></div>'
     + '<div id="ssh-exec-results" style="margin-top:16px;"></div>';
   // Load hosts for checkboxes
   var data = await apiFetch('/api/ssh/hosts');
-  if (!data) return;
+  if (!box.owns() || !data) return;
   var hhtml = '';
   (data.hosts||[]).forEach(function(h) {
     hhtml += '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:13px;cursor:pointer;"><input type="checkbox" class="ssh-exec-host-cb" value="'+esc(h.id)+'"> '+esc(h.label)+'</label>';
@@ -836,12 +847,29 @@ async function sshExecRun() {
 // VPN MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════
 
+// A view's content box holds a list or one form at a time. Whatever takes a
+// box over claims it, and an async load checks owns() before writing: if
+// something else claimed the box meanwhile, the late answer is dropped.
+// Without this, opening "new profile" before the VPN list had loaded lost the
+// form the moment the list arrived; the hosts and SSH views had the same race.
+var _contentSeq = {};
+function _claim(id) {
+  var seq = (_contentSeq[id] || 0) + 1;
+  _contentSeq[id] = seq;
+  return {
+    el: document.getElementById(id),
+    owns: function() { return _contentSeq[id] === seq; },
+  };
+}
+
 async function vpnLoadProfiles() {
-  var el = document.getElementById('vpn-content');
+  var box = _claim('vpn-content');
+  var el = box.el;
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
   if (!_infraCustomerCache) { await _populateCustomerSelect('_dummy_nonexistent_'); }
   var data = await apiFetch('/api/vpn/profiles');
   var status = await apiFetch('/api/vpn/status');
+  if (!box.owns()) return;
   if (!data) return;
   // Update status badge
   var badge = document.getElementById('vpn-status-badge');
@@ -990,7 +1018,7 @@ async function vpnConnectAzure(profileId) {
   if (!data || !data.ok) { showToast(data?.error||t('err_azure_login_failed','Could not start Azure login'),'error'); return; }
 
   // Show PKCE paste-back UI
-  var vpnEl = document.getElementById('vpn-content');
+  var vpnEl = _claim('vpn-content').el;
   var html = '<div class="card" style="padding:24px;margin-bottom:16px;" id="pkce-panel">';
   html += '<div style="font-size:16px;font-weight:700;margin-bottom:12px;">' + t('azure_vpn_innlogging') + '</div>';
   html += '<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">' + t('1_aapne_denne_lenken_i_en_nettleser_kan_') + '</div>';
@@ -1071,7 +1099,7 @@ async function vpnDeleteProfile(id) {
 }
 
 function vpnShowCreate() {
-  var el = document.getElementById('vpn-content');
+  var el = _claim('vpn-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">' + t('hdr_new_vpn_profile','New VPN profile') + '</h3>'
     + '<input id="vpn-create-name" type="text" placeholder="' + t('placeholder_profile_name','Profile name') + '" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
@@ -1194,7 +1222,7 @@ async function vpnEditProfile(profileId) {
   var p = data.profile;
   var config = typeof p.config === 'string' ? JSON.parse(p.config) : p.config;
 
-  var el = document.getElementById('vpn-content');
+  var el = _claim('vpn-content').el;
   var html = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">' + t('rediger_vpn_profil') + '</h3>'
     + '<label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('navn_2') + '</label>'
@@ -1256,7 +1284,7 @@ async function vpnDoEdit(profileId, protocol) {
 }
 
 function vpnShowImport() {
-  var el = document.getElementById('vpn-content');
+  var el = _claim('vpn-content').el;
   el.innerHTML = '<div style="max-width:500px;">'
     + '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">' + t('hdr_import_vpn_profile','Import VPN profile') + '</h3>'
     + '<input id="vpn-import-name" type="text" placeholder="' + t('placeholder_profile_name','Profile name') + '" style="width:100%;padding:8px 12px;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">'
