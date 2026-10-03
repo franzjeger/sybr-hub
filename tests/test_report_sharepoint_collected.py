@@ -111,9 +111,8 @@ async def test_the_site_count_does_not_hang_on_the_table_layout(tmp_path):
     encrypted_write_text(path, "\n".join(ln for ln in text.splitlines() if "----" not in ln))
 
     assert report(tmp_path)["sharepoint"]["site_count"] == 5
-    assert report(tmp_path, sidecars=False)["sharepoint"]["site_count"] == 3, (
-        "the row counter reads 'Notes' and 'No Code Lab' as furniture"
-    )
+    # The shared row counter used to read 'Notes' and 'No Code Lab' as furniture.
+    assert report(tmp_path, sidecars=False)["sharepoint"]["site_count"] == 5
 
 
 async def test_the_sharing_posture_does_not_hang_on_the_settings_labels(tmp_path):

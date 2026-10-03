@@ -190,16 +190,17 @@ async def test_configured_policies_are_counted_either_way(tmp_path, sidecars):
 
 
 async def test_a_policy_named_like_a_placeholder_still_counts(tmp_path):
-    """The row counter skips a line starting with "No " as a "(none)"-style
-    placeholder, so a tenant whose one policy is "No jailbroken devices" read
-    as having no compliance policy at all, and failed 6.1.1 on it."""
+    """The row counter used to skip any line starting with "No " as a
+    "(none)"-style placeholder, so a tenant whose one policy is "No jailbroken
+    devices" read as having no compliance policy at all, and failed 6.1.1 on it.
+    The sidecar carries the policy; the text is now counted right as well."""
     only = [{**POLICIES[1], "displayName": "No jailbroken devices"}]
 
     with_json = _row(await _context(tmp_path / "a", sidecars=True, policies=only), "6.1.1")
     text_only = _row(await _context(tmp_path / "b", sidecars=False, policies=only), "6.1.1")
 
     assert with_json["status"] == "partial"
-    assert text_only["status"] == "fail", "the text alone cannot carry this policy"
+    assert text_only["status"] == "partial"
 
 
 # ── Entra register ────────────────────────────────────────────────────────────
