@@ -50,7 +50,9 @@ class Feature:
 # Ordered as the navigation is, so a reader can check it against the menu.
 FEATURES: tuple[Feature, ...] = (
     # ── What everybody who signs in can do ──
-    Feature("dashboard", Role.viewer, views=("overview", "home", "customer-detail")),
+    # Lisenser og hosting (billing) reads what the dashboard tabs it came from
+    # read; the billing module hides it when off.
+    Feature("dashboard", Role.viewer, views=("overview", "home", "customer-detail", "billing")),
     Feature("customers", Role.viewer, views=("customers", "history", "history-report", "files")),
     # Browsing named baselines and reading a customer's conformance is a read,
     # the same one the customer card already shows a viewer — so viewer-level,
@@ -65,7 +67,7 @@ FEATURES: tuple[Feature, ...] = (
     Feature("documentation", Role.viewer, views=("docs",)),
     # ── Technician: reaching customer systems ──
     Feature("audit", Role.technician, views=("audit",)),
-    Feature("network", Role.technician, views=("network", "tls", "tailscale")),
+    Feature("network", Role.technician, views=("network", "tailscale", "pentest")),
     Feature(
         "remote",
         Role.technician,

@@ -26,8 +26,13 @@ def test_no_script_reassigns_show_view():
 
 def test_the_integrations_views_still_load_when_opened():
     source = (STATIC / "app-integrations.js").read_text(encoding="utf-8")
-    for view in ("hosts", "vpn", "tls", "tailscale", "docs"):
+    for view in ("hosts", "vpn", "tailscale", "pentest", "docs"):
         assert f"onViewShown('{view}'" in source, view
+
+
+def test_tls_monitor_loads_as_a_tab_of_nettverk():
+    source = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "if (tabId === 'net-tls') tlsLoadView();" in source
 
 
 def test_administrasjon_loads_when_opened():

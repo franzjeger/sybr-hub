@@ -93,6 +93,10 @@ async function loadCustomerDetail(customerId) {
       <button class="cust-tab" id="cust-tab-status">${esc(t('nav_m365_status'))}</button>
       <button class="cust-tab" id="cust-tab-history">${esc(t('nav_history'))}</button>
       <button class="cust-tab" id="cust-tab-files">${esc(t('nav_files', 'Filer'))}</button>
+      ${canOpenView('policy-overview') ? '<button class="cust-tab" id="cust-tab-policy-overview">' + esc(t('nav_policy_overview')) + '</button>' : ''}
+      ${canOpenView('assessments') ? '<button class="cust-tab" id="cust-tab-assessments">' + esc(t('nav_assessments')) + '</button>' : ''}
+      ${canOpenView('policy-deploy') ? '<button class="cust-tab" id="cust-tab-policy-deploy">' + esc(t('nav_policy_deploy')) + '</button>' : ''}
+      ${canOpenView('baseline-deploy') ? '<button class="cust-tab" id="cust-tab-baseline-deploy">' + esc(t('nav_baseline_deploy')) + '</button>' : ''}
       ${cust.also_account_id && hasModule('billing') ? '<button class="cust-tab" id="cust-tab-licenses">' + esc(t('nav_licenses', 'Lisenser')) + '</button>' : ''}
     </nav>
 
@@ -252,7 +256,9 @@ function _wireCustomerHead(customerId, cust) {
   if (report) report.addEventListener('click', function() {
     window.open('/api/reports/customer-summary/' + encodeURIComponent(customerId), '_blank');
   });
-  [['cust-tab-status', 'home'], ['cust-tab-history', 'history'], ['cust-tab-files', 'files']].forEach(function(pair) {
+  [['cust-tab-status', 'home'], ['cust-tab-history', 'history'], ['cust-tab-files', 'files'],
+   ['cust-tab-policy-overview', 'policy-overview'], ['cust-tab-assessments', 'assessments'],
+   ['cust-tab-policy-deploy', 'policy-deploy'], ['cust-tab-baseline-deploy', 'baseline-deploy']].forEach(function(pair) {
     var tab = document.getElementById(pair[0]);
     if (tab) tab.addEventListener('click', async function() {
       if (await activateCustomer(customerId)) showView(pair[1]);

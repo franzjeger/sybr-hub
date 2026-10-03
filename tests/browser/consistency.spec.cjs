@@ -152,7 +152,7 @@ test('the dashboard has no second scoreboard: the Helse tab is gone', async ({pa
   await expect(page.locator('.dash-tab-btn[data-tab="dash-health"]')).toHaveCount(0);
 });
 
-test('Domener is part of the billing module', async ({page}) => {
+test('Lisenser og hosting (Domener among them) is part of the billing module', async ({page}) => {
   // Billing off for this page only: the session reports the modules.
   await page.route('**/api/auth/me', async route => {
     const response = await route.fetch();
@@ -163,7 +163,10 @@ test('Domener is part of the billing module', async ({page}) => {
   await login(page);
   await page.evaluate(() => showView('overview'));
   await expect(page.locator('.dash-tab-btn[data-tab="dash-customers"]')).toBeVisible();
-  await expect(page.locator('.dash-tab-btn[data-tab="dash-domains"]')).toBeHidden();
+  // Not on Oversikt at all any more, and gone from Verktøy with the module.
+  await expect(page.locator('#view-overview .dash-tab-btn[data-tab="dash-domains"]')).toHaveCount(0);
+  await expect(page.locator('#nav-tools-menu [data-view="billing"]')).toHaveClass(/gated-hidden/);
+  await expect(page.locator('#nav-tools-menu [data-view="network"]')).not.toHaveClass(/gated-hidden/);
 });
 
 // ── Normal states are not errors ─────────────────────────────────────────────
@@ -180,12 +183,13 @@ test('opening Tailscale without a key shows how to set it up, not an error toast
   await expect(page.locator('#admin-pane-integrations')).toBeVisible();
 });
 
-test('Policy-utrulling without the tenant grant says why, raises no toast, and is not offered in the menu', async ({page}) => {
+test('Policy-utrulling without the tenant grant says why, raises no toast, and is not offered on the customer page', async ({page}) => {
   await login(page);
-  await asBeta(page);
-  // Hidden by the grant rule itself, not only by the closed menu around it.
-  const entry = page.locator('.navdd-item[data-view="policy-deploy"]');
-  expect(await entry.evaluate(el => getComputedStyle(el).display)).toBe('none');
+  await page.goto('/#/customer/Browser_Beta');
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+  // The account resolves to no policy-deploy view, so the page offers none.
+  await expect(page.locator('#cust-tab-policy-deploy')).toHaveCount(0);
+  await expect(page.locator('#cust-tab-policy-overview')).toBeVisible();
   await recordToasts(page);
   const refused = [];
   page.on('response', r => { if (r.status() === 403) refused.push(r.url()); });

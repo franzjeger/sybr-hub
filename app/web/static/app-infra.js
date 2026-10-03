@@ -2904,10 +2904,7 @@ function switchDashTab(btn, tabId) {
   if (tab) tab.style.display = 'block';
   btn.classList.add('active');
 
-  if (tabId === 'dash-renewals') dashLoadRenewals();
   if (tabId === 'dash-alerts') dashLoadAlerts();
-  if (tabId === 'dash-costs') dashLoadCosts();
-  if (tabId === 'dash-domains') dashLoadDomains();
 }
 
 async function dashUnifiRefresh() {

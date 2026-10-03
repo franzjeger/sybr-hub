@@ -325,9 +325,9 @@ function notifAct(id, readOnly) {
       showCustomerDetail(n.customerId, n.customer);
       return;
     }
-    if (n.act === 'domains' && hasModule('billing')) {
-      var btn = document.querySelector('.dash-tab-btn[data-tab="dash-domains"]');
-      if (btn) { switchDashTab(btn, 'dash-domains'); return; }
+    if (n.act === 'domains' && canOpenView('billing')) {
+      showBillingTab('dash-domains');
+      return;
     }
   }
   _notifRender();
@@ -777,8 +777,40 @@ function _dashExportTableCSV(containerId, filename) {
 }
 
 function dashExportAlerts() { _dashExportTableCSV('dash-alerts-content', 'alerts'); }
-function dashExportCosts() { _dashExportTableCSV('dash-costs-content', 'costs'); }
-function dashExportDomains() { _dashExportTableCSV('dash-domains-content', 'domains'); }
+
+// ── Lisenser og hosting (Verktøy, billing module) ───────────────────────────
+// Fornyelser, Kostnader and Domener were dashboard tabs; they are distributor
+// finance, not "who needs me today", so they are a tool of their own.
+var _billingTab = 'dash-renewals';
+
+function switchBillingTab(btn, tabId) {
+  _billingTab = tabId;
+  document.querySelectorAll('#view-billing .billing-tab-btn').forEach(function(b) {
+    var on = b.dataset.tab === tabId;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('#view-billing .billing-tab-content').forEach(function(p) { p.hidden = p.id !== tabId; });
+  // Fornyelser carries its own export among its tools; one is enough.
+  var exp = document.getElementById('billing-export');
+  if (exp) exp.hidden = tabId === 'dash-renewals';
+  if (tabId === 'dash-renewals') dashLoadRenewals();
+  if (tabId === 'dash-costs') dashLoadCosts();
+  if (tabId === 'dash-domains') dashLoadDomains();
+}
+
+function showBillingTab(tabId) {
+  if (currentView !== 'billing') showView('billing');
+  var btn = document.querySelector('#view-billing .billing-tab-btn[data-tab="' + tabId + '"]');
+  if (btn) switchBillingTab(btn, tabId);
+}
+
+onViewShown('billing', function() { showBillingTab(_billingTab); });
+
+function billingExportCurrentTab() {
+  var names = {'dash-renewals': 'renewals', 'dash-costs': 'costs', 'dash-domains': 'domains'};
+  _dashExportTableCSV(_billingTab + '-content', names[_billingTab] || 'export');
+}
 
 // Navigate to customer detail view from dashboard tables
 function showCustomerDetail(customerId, customerName) {
@@ -793,11 +825,7 @@ function dashExportCurrentTab() {
   if (!active) return;
   var id = active.id;
   if (id === 'dash-alerts') dashExportAlerts();
-  else if (id === 'dash-costs') dashExportCosts();
-  else if (id === 'dash-domains') dashExportDomains();
-  else if (id === 'dash-renewals') _dashExportTableCSV('dash-renewals-content', 'renewals');
   else if (id === 'dash-customers') _dashExportTableCSV('overview-content', 'customers');
-  else if (id === 'dash-archive') showToast(t('err_no_export','Export not available for this tab'), 'info');
   else showToast(t('err_no_export','Export not available for this tab'), 'info');
 }
 

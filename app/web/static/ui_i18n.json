@@ -917,7 +917,7 @@
     "msg_loading_unifi_sites": "Henter UniFi-siter...",
     "m365_tab_status": "Status",
     "m365_tab_audit": "Audit",
-    "net_tab_devices": "Oversikt",
+    "net_tab_devices": "Enheter",
     "net_tab_fortigate": "FortiGate",
     "net_tab_unifi": "UniFi",
     "net_tab_live": "Enheter (Live)",
@@ -1802,8 +1802,7 @@
     "api_group_proxy": "Proxy",
     "scroll_to_top": "Scroll to top",
     "meny": "Meny",
-    "dashboard_ctrl": "Dashboard (Ctrl+1)",
-    "kunder_ctrl": "Kunder (Ctrl+3)",
+    "kunder_ctrl": "Kunder (Ctrl+2)",
     "sybrt": "Sybrt",
     "sybrt_2": "Sybrt",
     "sybrt_3": "Sybrt",
@@ -3046,7 +3045,14 @@
     "lbl_show_endpoints": "Vis endepunktene",
     "lbl_theme": "Tema",
     "lbl_shortcuts": "Snarveier",
-    "nav_help": "Hjelp"
+    "nav_help": "Hjelp",
+    "nav_overview": "Oversikt",
+    "tip_overview_ctrl": "Oversikt (Ctrl+1)",
+    "nav_network_desc": "FortiGate, UniFi, nettverksaudit og TLS",
+    "nav_remote_access_desc2": "Verter, terminal, RDP, nettleser og SSH-nøkler",
+    "nav_pentest_desc": "Skann en kundes eksterne flate",
+    "nav_billing": "Lisenser og hosting",
+    "nav_billing_desc": "Fornyelser, kostnader og domener"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -3966,7 +3972,7 @@
     "msg_loading_unifi_sites": "Loading UniFi sites...",
     "m365_tab_status": "Status",
     "m365_tab_audit": "Audit",
-    "net_tab_devices": "Overview",
+    "net_tab_devices": "Devices",
     "net_tab_fortigate": "FortiGate",
     "net_tab_unifi": "UniFi",
     "net_tab_live": "Devices (Live)",
@@ -4851,8 +4857,7 @@
     "api_group_proxy": "Proxy",
     "scroll_to_top": "Scroll to top",
     "meny": "Menu",
-    "dashboard_ctrl": "Dashboard (Ctrl+1)",
-    "kunder_ctrl": "Customers (Ctrl+3)",
+    "kunder_ctrl": "Customers (Ctrl+2)",
     "sybrt": "Sybrt",
     "sybrt_2": "Sybrt",
     "sybrt_3": "Sybrt",
@@ -6095,6 +6100,13 @@
     "lbl_show_endpoints": "Show the endpoints",
     "lbl_theme": "Theme",
     "lbl_shortcuts": "Shortcuts",
-    "nav_help": "Help"
+    "nav_help": "Help",
+    "nav_overview": "Overview",
+    "tip_overview_ctrl": "Overview (Ctrl+1)",
+    "nav_network_desc": "FortiGate, UniFi, network audit and TLS",
+    "nav_remote_access_desc2": "Hosts, terminal, RDP, browser and SSH keys",
+    "nav_pentest_desc": "Scan a customer's external surface",
+    "nav_billing": "Licences and hosting",
+    "nav_billing_desc": "Renewals, costs and domains"
   }
 }

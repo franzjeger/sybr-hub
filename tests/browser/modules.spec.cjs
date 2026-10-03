@@ -14,7 +14,8 @@ async function login(page) {
 
 test('switching the AI module off in Settings removes it everywhere', async ({page}) => {
   await login(page);
-  await expect(page.locator('#nav-ai')).toBeVisible();
+  const entry = page.locator('#nav-tools-menu [data-view="ai"]');
+  await expect(entry).not.toHaveClass(/gated-hidden/);
   try {
     await page.evaluate(() => openAdmin());
     await page.locator('#admin-rail .admin-rail-item', {hasText: 'Moduler'}).click();
@@ -22,7 +23,7 @@ test('switching the AI module off in Settings removes it everywhere', async ({pa
     await expect(toggle).toBeChecked();
     await toggle.uncheck();
     await page.waitForEvent('load');
-    await expect(page.locator('#nav-ai')).toBeHidden();
+    await expect(entry).toHaveClass(/gated-hidden/);
     expect((await page.request.get('/api/claude/status')).status()).toBe(404);
     const me = await (await page.request.get('/api/auth/me')).json();
     expect(me.modules).not.toContain('ai');
