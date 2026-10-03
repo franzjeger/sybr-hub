@@ -4977,16 +4977,16 @@ function browserInit() {
   if (document.getElementById('browser-url-input')) return;
 
   el.innerHTML =
-    '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">' +
-      '<input id="browser-url-input" type="text" placeholder="http://192.168.1.1" style="flex:1;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" data-keydown-handler="browserNavigateOnEnter">' +
+    '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">' +
+      '<input id="browser-url-input" type="text" placeholder="http://192.168.1.1" style="flex:1 1 200px;min-width:0;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" data-keydown-handler="browserNavigateOnEnter">' +
       '<button class="btn btn-primary" id="browser-go-btn" data-write data-click-handler="browserNavigate" style="padding:8px 16px;font-size:13px;">' + t('gaa') + '</button>' +
       '<button class="btn btn-success" id="browser-start-btn" data-write data-click-handler="browserStart" style="padding:8px 16px;font-size:13px;">' + t('start_nettleser') + '</button>' +
       '<button class="btn btn-danger" id="browser-stop-btn" data-write data-click-handler="browserStop" style="padding:8px 16px;font-size:13px;display:none;">' + t('stopp') + '</button>' +
-      '<button class="btn btn-ghost" id="browser-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="browser-guac-container" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
+      '<button class="btn btn-ghost" id="browser-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="browser-guac-container" style="padding:8px 12px;font-size:13px;display:none;">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="browser-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
     '<div id="browser-frame-wrap" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:transparent;min-height:500px;position:relative;">' +
-      '<div id="browser-placeholder" style="display:flex;align-items:center;justify-content:center;height:500px;color:#888;font-size:14px;">Klikk &laquo;Start nettleser&raquo; for &aring; &aring;pne en ekstern nettleser</div>' +
+      '<div id="browser-placeholder" style="display:flex;align-items:center;justify-content:center;height:500px;color:#888;font-size:14px;padding:0 16px;text-align:center;">' + esc(t('browser_placeholder', 'Klikk «Start nettleser» for å åpne en ekstern nettleser.')) + '</div>' +
       '<div id="browser-guac-container" style="width:100%;height:calc(100vh - 160px);overflow:hidden;display:none;"></div>' +
     '</div>';
 
@@ -5183,13 +5183,13 @@ function rdpInit() {
 
   el.innerHTML =
     '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">' +
-      '<select id="rdp-host-input" style="flex:2;min-width:200px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;"><option value="">' + t('rdp_select_host','Velg registrert host ...') + '</option></select>' +
+      '<select id="rdp-host-input" style="flex:2 1 200px;min-width:0;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;"><option value="">' + t('rdp_select_host','Velg registrert host ...') + '</option></select>' +
       '<input id="rdp-port-input" type="text" placeholder="3389" style="width:70px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-user-input" type="text" placeholder="' + t('inf_ph_username','Brukernavn') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">' +
       '<input id="rdp-pass-input" type="password" placeholder="' + t('inf_ph_password','Passord') + '" style="flex:1;min-width:120px;padding:8px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;" data-keydown-handler="rdpStartOnEnter">' +
       '<button class="btn btn-success" id="rdp-start-btn" data-write data-click-handler="rdpStart" style="padding:8px 16px;font-size:13px;">' + t('koble_til') + '</button>' +
       '<button class="btn btn-danger" id="rdp-stop-btn" data-write data-click-handler="rdpStop" style="padding:8px 16px;font-size:13px;display:none;">' + t('koble_fra') + '</button>' +
-      '<button class="btn btn-ghost" id="rdp-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="rdp-guac-container" style="padding:8px 12px;font-size:13px;display:none;" title="Fullskjerm">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
+      '<button class="btn btn-ghost" id="rdp-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="rdp-guac-container" style="padding:8px 12px;font-size:13px;display:none;">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="rdp-status" style="font-size:12px;color:var(--text-muted);min-width:80px;text-align:right;"></span>' +
     '</div>' +
     '<div id="rdp-frame-wrap" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:transparent;position:relative;">' +

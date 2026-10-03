@@ -3033,7 +3033,8 @@
     "msg_pd_needs_tenant_write": "Kontoen din kan ikke endre kundens tenant, så knappene er av. En administrator gir tilgangen under Innstillinger, Brukere (Tenant).",
     "footer_stats": "{customers} kunder · {audited} auditert · {warns} advarsler",
     "btn_choose_file": "Velg fil",
-    "msg_no_file_chosen": "Ingen fil valgt"
+    "msg_no_file_chosen": "Ingen fil valgt",
+    "browser_placeholder": "Klikk «Start nettleser» for å åpne en ekstern nettleser."
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -6069,6 +6070,7 @@
     "msg_pd_needs_tenant_write": "Your account cannot change the customer's tenant, so the buttons are off. An administrator grants it under Settings, Users (Tenant).",
     "footer_stats": "{customers} customers · {audited} audited · {warns} warnings",
     "btn_choose_file": "Choose file",
-    "msg_no_file_chosen": "No file chosen"
+    "msg_no_file_chosen": "No file chosen",
+    "browser_placeholder": "Click «Start browser» to open a remote browser."
   }
 }
