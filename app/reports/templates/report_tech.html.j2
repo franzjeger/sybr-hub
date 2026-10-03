@@ -1424,7 +1424,10 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <!-- ── 14. Critical Findings ── -->
 <a name="kritiske"></a><h2 id="kritiske">{{ t.critical_findings }}</h2>
 
-{% if defender_alerts and 'No active' not in defender_alerts and defender_alerts.strip() %}
+{# A count of 0 is a clean tenant's "(0 unresolved)" table, not a finding. #}
+{% set _no_alerts = defender_alert_count is defined and defender_alert_count == 0 %}
+{% set _no_risky = risky_user_count is defined and risky_user_count == 0 %}
+{% if defender_alerts and 'No active' not in defender_alerts and defender_alerts.strip() and not _no_alerts %}
 <div class="alert critical"><strong>{{ t.active_defender_alerts }}</strong></div>
 <div class="data-section">
   <div class="data-header"><span>Defender Alerts</span><span class="fn">19b_defender_active_alerts.txt</span></div>
@@ -1448,7 +1451,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </div>
 {% endif %}
 
-{% if risky_users and 'No risky' not in risky_users and risky_users.strip() %}
+{% if risky_users and 'No risky' not in risky_users and risky_users.strip() and not _no_risky %}
 <div class="alert warning"><strong>{{ t.risky_users_idp }}</strong></div>
 <div class="data-section">
   <div class="data-header"><span>{{ t.risky_users_header }}</span><span class="fn">18_risky_users.txt</span></div>
@@ -1466,7 +1469,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 </table>
 {% endif %}
 
-{% if not (defender_alerts and 'No active' not in defender_alerts) and not ext_fwd_warn and not inbox_rule_warn and not (risky_users and 'No risky' not in risky_users) and not all_warns %}
+{% if not (defender_alerts and 'No active' not in defender_alerts and not _no_alerts) and not ext_fwd_warn and not inbox_rule_warn and not (risky_users and 'No risky' not in risky_users and not _no_risky) and not all_warns %}
 <div class="alert ok"><strong>&#x2713; {{ t.no_critical_findings }}</strong>{{ t.no_critical_desc }}</div>
 {% endif %}
 

@@ -800,6 +800,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   {% endif %}
 {% endfor %}
 {% endif %}
+{# A clean tenant's table has a header and no rows: no card. #}
+{% if risky_entries %}
 <div class="finding warning" id="finding-risky">
   <div class="finding-body">
     <h4>{{ t('risky_users_title', count=risky_entries|length if risky_entries else '') }}</h4>
@@ -827,6 +829,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   </div>
   <div class="finding-badge"><span class="badge warning">{{ t.high_risk }}</span></div>
 </div>
+{% endif %}
 {% endif %}
 
 <!-- Admin roles -->
