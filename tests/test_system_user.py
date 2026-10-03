@@ -284,3 +284,62 @@ async def test_brukere_cannot_delete_it_and_says_why():
     assert await system_user.get() is not None
     assert allowed.status_code == 200, allowed.text
     _reset_users_exist_cache()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"role": "admin"},
+        {"role": "viewer"},
+        {"can_write": False},
+        {"tenant_write": True},
+        {"is_active": False},
+    ],
+    ids=["promoted", "demoted", "write taken", "tenant write given", "switched off"],
+)
+async def test_brukere_cannot_change_its_role_or_capabilities(change):
+    """Deleting it was refused; changing what it is allowed to do was not.
+
+    A role change, a capability or switching it off broke the scheduled work
+    and tunnels it owns as surely as deleting it, and handing it admin or
+    tenant write gave an account nobody signs in to powers nobody watches.
+    """
+    from fastapi.testclient import TestClient
+
+    import app.web.middleware.rate_limit as rate_limit
+    from app.core.auth import create_access_token, get_user_by_id
+    from app.core.rbac import set_can_write
+    from app.web.middleware.auth import _reset_users_exist_cache
+    from app.web.server import create_app
+
+    _reset_users_exist_cache()
+    rate_limit._hits.clear()
+    rate_limit._sensitive_hits.clear()
+    system = await system_user.ensure()
+    admin = await create_user("editing-admin", GOOD_PASSWORD, "Admin", role=Role.admin)
+    await set_can_write(admin.id, True)
+    admin = await get_user_by_username("editing-admin")
+    headers = {"Authorization": f"Bearer {await create_access_token(admin)}"}
+
+    with TestClient(create_app()) as client:
+        refused = client.put(f"/api/auth/users/{system.id}", headers=headers, json=change)
+        # Its own values sent back, and a new display name, are not a change of powers.
+        unchanged = client.put(
+            f"/api/auth/users/{system.id}",
+            headers=headers,
+            json={"role": "technician", "can_write": True, "display_name": "Sybr HUB"},
+        )
+
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["error_key"] == "err_auth_cannot_change_system"
+    assert "systemkontoen kan ikke endres" in refused.json()["error"]
+    after = await get_user_by_id(system.id)
+    assert (after.role, after.can_write, after.tenant_write, after.is_active) == (
+        Role.technician,
+        True,
+        False,
+        True,
+    )
+    assert unchanged.status_code == 200, unchanged.text
+    assert after.display_name == "Sybr HUB"
+    _reset_users_exist_cache()
