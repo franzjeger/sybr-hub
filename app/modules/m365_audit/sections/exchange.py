@@ -1,4 +1,4 @@
-"""Section 20–29 — Exchange Online (data sourced from EXO PowerShell helper),
+"""Section 20-29 — Exchange Online (data sourced from EXO PowerShell helper),
 plus the Purview trio 19c/19d/19e.
 
 19d and 19e come from the EXO helper. 19c (sensitivity labels) comes from
@@ -229,8 +229,31 @@ class ExchangeSection(BaseSection):
 
     # ── Connectors ────────────────────────────────────────────────────────────
 
+    def _connectors(self) -> list[dict]:
+        """One dict per connector, inbound and outbound alike.
+
+        The helper returns {"inbound": ..., "outbound": ...}, and each side is a
+        list, a single object (ConvertTo-Json unwraps a one-item pipeline) or
+        null. _get() wrapped that whole dict as one record, so the report
+        counted one connector for a tenant with none and one for a tenant with
+        five. A list, or a dict without those two keys, is already one record
+        per connector and is kept as it is.
+        """
+        raw = self.exo_data.get("connectors")
+        if not isinstance(raw, dict) or not raw.keys() & {"inbound", "outbound"}:
+            return self._get("connectors")
+        connectors: list[dict] = []
+        for direction in ("inbound", "outbound"):
+            side = raw.get(direction)
+            for c in side if isinstance(side, list) else [side]:
+                if isinstance(c, dict):
+                    connectors.append(
+                        {"Name": c.get("Name"), "Direction": direction.capitalize(), **c}
+                    )
+        return connectors
+
     def _save_connectors(self) -> None:
-        connectors = self._get("connectors")
+        connectors = self._connectors()
         content = _section_block(
             "EXCHANGE CONNECTORS",
             connectors,
