@@ -6,13 +6,16 @@ from app.reports.evidence import _evidence_unavailable
 from app.reports.parsers.common import _first_prose_line
 
 
-def _parse_entra_devices(count_text: str, detail_text: str) -> dict:
+def _parse_entra_devices(count_text: str, detail_text: str, sidecar: dict | None = None) -> dict:
     """The directory's own device register, beside the Intune one.
 
     Its whole purpose is the gap between the two counts: devices the tenant
     has, minus devices Intune manages, is the unmanaged-endpoint finding. With
     only the Intune figure, a tenant with forty joined machines and no
     enrolment read as "no devices found".
+
+    ``sidecar`` is 15_entra_devices.json when the run wrote one; its counts are
+    read instead of the text. A refused read writes no sidecar.
     """
     result = {
         "total": 0,
@@ -23,6 +26,11 @@ def _parse_entra_devices(count_text: str, detail_text: str) -> dict:
         "unavailable": False,
         "unavailable_reason": "",
     }
+    if sidecar is not None:
+        for key in ("total", "managed", "unmanaged", "enabled"):
+            result[key] = int(sidecar.get(key) or 0)
+        result["has_data"] = True
+        return result
     if _evidence_unavailable(count_text) and _evidence_unavailable(detail_text):
         if (count_text or detail_text or "").strip():
             result["unavailable"] = True

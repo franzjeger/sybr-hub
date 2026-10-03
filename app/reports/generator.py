@@ -46,6 +46,7 @@ from app.reports.parsers import (
     _parse_user_counts,
     _severity,
 )
+from app.reports.parsers.common import _sidecar
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
 from app.reports.risk import _apply_critical_floor, _compute_risk
@@ -200,7 +201,9 @@ def build_report_context(
     admin_roles = _parse_admin_roles(fc("07_admin_roles.txt"))
     intune = _parse_intune_devices(fc("10_intune_devices_count.txt"), fc("10_intune_devices.txt"))
     entra_devices = _parse_entra_devices(
-        fc("15_entra_devices_count.txt"), fc("15_entra_devices.txt")
+        fc("15_entra_devices_count.txt"),
+        fc("15_entra_devices.txt"),
+        _sidecar(file_contents, "15_entra_devices.txt"),
     )
     usage = _parse_usage(fc("16_usage_summary.txt"), fc("16_usage_active_users.txt"))
     # The claim the Intune figure alone cannot make. Only stated when both
