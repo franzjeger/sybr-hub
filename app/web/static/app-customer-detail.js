@@ -1636,7 +1636,7 @@ async function loadUnifiedDashboard() {
     var _ssc = (a.secure_score_pct||0) >= 70 ? 'var(--green)' : (a.secure_score_pct||0) >= 40 ? 'var(--orange)' : 'var(--red)';
     var _mfc = (a.mfa_coverage_pct||0) >= 90 ? 'var(--green)' : (a.mfa_coverage_pct||0) >= 70 ? 'var(--orange)' : 'var(--red)';
     var _nmc = (a.users_no_mfa||0) > 0 ? 'var(--red)' : 'var(--green)';
-    html += '<div class="cd-card"><div class="cd-card-title">' + t('siste_m365_audit') + ' <span class="sub">'+esc(a.audit_date||'')+'</span><span class="link" data-click-handler="openLatestReport">' + t('full_rapport') + '</span></div>'
+    html += '<div class="cd-card"><div class="cd-card-title">' + t('siste_m365_audit') + ' <span class="sub">'+esc(formatRunName(a.audit_date||''))+'</span><span class="link" data-click-handler="openLatestReport">' + t('full_rapport') + '</span></div>'
       + '<div class="cd-stat-grid">'
       + '<div class="cd-stat"><div class="n" style="color:'+_gv+';">'+esc(_grade)+'</div><div class="l">' + t('grade') + '</div></div>'
       + '<div class="cd-stat"><div class="n">'+Math.round(a.risk_score||0)+'</div><div class="l">' + t('risikoscore') + '</div></div>'

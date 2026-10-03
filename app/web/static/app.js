@@ -1130,15 +1130,26 @@ function metricCount(value) {
 // Run folders are named "YYYY-MM-DD_HHMMSS" (older ones "YYYY-MM-DD_HHMM",
 // some with a suffix after). That name is for the file system; a person reads
 // the date and time. Returns the input unchanged when it is not a run name.
-function formatRunName(name) {
+// `short` gives the date alone in a compact form, for tables and lists.
+function formatRunName(name, short) {
   var m = /^(\d{4})-(\d{2})-(\d{2})(?:[_T ](\d{2}):?(\d{2}))?/.exec(String(name || ''));
   if (!m) return String(name || '');
   var locale = _lang === 'en' ? 'en-GB' : 'nb-NO';
   var date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   if (isNaN(date.getTime())) return String(name);
+  if (short) return date.toLocaleDateString(locale, {day: 'numeric', month: 'short', year: 'numeric'});
   var day = date.toLocaleDateString(locale, {day: 'numeric', month: 'long', year: 'numeric'});
   if (!m[4]) return day;
   return t('fmt_run_date_time', '{date} kl. {time}').replace('{date}', day).replace('{time}', m[4] + ':' + m[5]);
+}
+
+// "Auditert i dag" / "Auditert for 3 d siden" from a run name, for the
+// context bar. One function, because two places wrote that element.
+function auditAgeLabel(name) {
+  var date = new Date(String(name || '').substring(0, 10));
+  var days = Math.floor((Date.now() - date.getTime()) / 86400000);
+  if (isNaN(days) || days < 0) return t('lbl_audited_on', 'Auditert {date}').replace('{date}', formatRunName(name, true));
+  return days === 0 ? t('ctx_audited_today', 'Auditert i dag') : t('ctx_audited_days_ago', 'Auditert for {n} d siden').replace('{n}', days);
 }
 
 // Paths the server keeps open without the write capability. Sent by /auth/me
@@ -1671,7 +1682,7 @@ async function _renderAuditIdle() {
   var when = '';
   try {
     var dash = await apiFetch('/api/dashboard');
-    if (dash && dash.run_date) when = String(dash.run_date).substring(0, 16).replace('T', ' ');
+    if (dash && dash.run_date) when = formatRunName(dash.run_date);
   } catch (_) { /* the last run's date is a nicety, not a precondition */ }
 
   idle.innerHTML =
@@ -1735,7 +1746,7 @@ async function loadStatus() {
         var dash = await apiFetch('/api/dashboard');
         if (dash && dash.run_date) {
           var lel = document.getElementById('active-customer-last-audit');
-          if (lel) lel.textContent = dash.run_date.substring(0,10);
+          if (lel) lel.textContent = auditAgeLabel(dash.run_date);
         }
       } catch(e) {}
     }
@@ -1838,12 +1849,8 @@ function _updateActiveCustomerBar(d) {
     }
   }
   if (lastEl && d && d.run_date) {
-    // Relative "Audit N d siden" (frame 3a) instead of a bare date.
-    var _rd = new Date(d.run_date.substring(0, 10));
-    var _days = Math.floor((Date.now() - _rd.getTime()) / 86400000);
-    lastEl.textContent = (!isNaN(_days) && _days >= 0)
-      ? (_days === 0 ? 'Audit i dag' : 'Audit ' + _days + ' d siden')
-      : 'Audit ' + d.run_date.substring(0, 10);
+    // Relative ("Auditert for 3 d siden", frame 3a) instead of a bare date.
+    lastEl.textContent = auditAgeLabel(d.run_date);
   } else if (lastEl) {
     lastEl.textContent = '';
   }

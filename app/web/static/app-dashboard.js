@@ -1588,10 +1588,7 @@ function renderOverview(customers, activeId) {
   }
 
   function fmtDate(d) {
-    if (!d) return '-';
-    const dm = d.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
-    if (dm) return `${dm[3]}.${dm[2]}.${dm[1]}`;
-    return d.substring(0, 10);
+    return d ? formatRunName(d, true) : '-';
   }
 
   var tagFilterHtml = '<select id="overview-tag-filter" data-change-handler="filterOverview" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);margin-left:12px;"><option value="">' + t('alle_tags') + '</option>';
