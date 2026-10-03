@@ -132,6 +132,7 @@ class AzureGovernanceSection(BaseSection):
             f"  AZURE ADVISOR RECOMMENDATIONS  ({len(recs)} total)",
             "=" * 110,
         ]
+        record: list[dict] = []
         for cat, items in sorted(by_cat.items()):
             lines += [f"\n  [{cat}]  ({len(items)} recommendations)", "  " + "-" * 70]
             for r in items:
@@ -141,8 +142,23 @@ class AzureGovernanceSection(BaseSection):
                 res = (r.impacted_value or "N/A")[:50]
                 lines.append(f"    [{impact:<8}]  {desc}")
                 lines.append(f"               Resource: {res}")
+                record.append(
+                    {
+                        "category": _enum_text(cat),
+                        "impact": _enum_text(impact),
+                        "description": getattr(sd, "problem", None)
+                        or getattr(sd, "solution", None),
+                        "resource": r.impacted_value,
+                    }
+                )
         lines += ["", "=" * 110, ""]
         self._save(self._fname("51_azure_advisor.txt"), "\n".join(lines))
+        # The text cuts a description at 80 characters and a resource at 50.
+        # The report groups recommendations by description, so two that share
+        # their first 80 characters were counted as one.
+        self._save_sidecar(
+            self._fname("51_azure_advisor.txt"), {"count": len(recs), "recommendations": record}
+        )
 
     # ── Recovery Services Vaults / Backup ─────────────────────────────────────
 

@@ -414,7 +414,21 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
             result["nsgs"].append({"subscription": sub_name, "count": int(m.group(1))})
 
     # ── Advisor recommendations (with details) ──────────────────────────────
-    for _fname, content, sub_name in _find_azure_files(file_contents, "51_azure_advisor"):
+    for fname, content, sub_name in _find_azure_files(file_contents, "51_azure_advisor"):
+        advisor = _sidecar(file_contents, fname)
+        if advisor is not None:
+            result["advisor_recs"] += int(advisor.get("count") or 0)
+            result["advisor_details"] += [
+                {
+                    "category": rec.get("category") or "General",
+                    "impact": rec.get("impact") or "Medium",
+                    "description": rec.get("description") or "N/A",
+                    "resource": rec.get("resource") or "N/A",
+                    "subscription": sub_name,
+                }
+                for rec in advisor.get("recommendations") or []
+            ]
+            continue
         m = re.search(r"\((\d+) total\)", content)
         if m:
             result["advisor_recs"] += int(m.group(1))
