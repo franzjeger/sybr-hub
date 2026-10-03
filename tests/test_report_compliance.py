@@ -16,6 +16,8 @@ rather than un-assessed.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.reports.compliance import _build_compliance_map
@@ -596,15 +598,107 @@ def test_every_control_declares_where_its_verdict_comes_from():
     assert not undeclared, f"controls with no evidence source: {undeclared}"
 
 
-def test_every_named_file_is_one_a_collector_actually_writes():
-    """Guards against drift: a link to a file no run produces is worse than none."""
+_SIDECAR_WRITE = re.compile(r"""_save_sidecar\(\s*(?:self\._fname\(\s*)?["']([^"']+)\.txt["']""")
+
+
+def _written_by_collectors() -> str:
+    """The collectors' source, plus "x.json" for each _save_sidecar("x.txt", ...).
+
+    A sidecar's name is built from its text file's, so it never appears in
+    the source as written: matching literal names alone made the guard below
+    refuse every sidecar the evidence map named.
+    """
     import pathlib
 
+    source = " ".join(p.read_text() for p in pathlib.Path("app/modules").rglob("*.py"))
+    sidecars = " ".join(f"{stem}.json" for stem in _SIDECAR_WRITE.findall(source))
+    return f"{source} {sidecars}"
+
+
+def test_every_named_file_is_one_a_collector_actually_writes():
+    """Guards against drift: a link to a file no run produces is worse than none."""
     from app.reports.evidence import _EVIDENCE_MAP
 
-    written = " ".join(p.read_text() for p in pathlib.Path("app/modules").rglob("*.py"))
+    written = _written_by_collectors()
     missing = sorted({f for files in _EVIDENCE_MAP.values() for f in files if f not in written})
     assert not missing, f"evidence files no collector writes: {missing}"
+
+
+def test_the_guard_sees_the_sidecars_the_collectors_write():
+    written = _written_by_collectors()
+    # Written as _save_sidecar("09_secure_score.txt", ...), never spelled out.
+    assert "09_secure_score.json" in written
+    # Through self._fname(...), as the Azure collectors name their files.
+    assert "30_azure_vms.json" in written
+    assert "99_never_written.json" not in written
+
+
+def test_every_control_cites_the_sidecar_its_verdict_is_read_from():
+    """A verdict read from a sidecar names it, as 1.1.1 names 04_mfa_methods.json.
+
+    The appendix carries every .json beside its .txt, so the link lands; a
+    technician tracing a verdict shown only the text it falls back to was
+    shown the wrong file.
+    """
+    from app.reports.evidence import _EVIDENCE_MAP
+
+    expected = {
+        "1.1.1": {"04_mfa_methods.json", "04b_mfa_ca_analysis.json"},
+        "1.1.2": {"09b_auth_methods_policy.json"},
+        "1.1.3": {"07_admin_roles.json"},
+        "1.1.4": {"08_conditional_access.json"},
+        "1.1.5": {"07b_pim_eligible_assignments.json"},
+        "1.1.6": {"07c_emergency_access_check.json"},
+        "1.1.7": {"31b_smart_lockout.json", "08_conditional_access.json"},
+        "1.1.8": {"07d_access_reviews.json"},
+        "1.1.9": {"18c_cross_tenant_access_policy.json"},
+        "1.2.1": {"31_password_protection.json"},
+        "1.4": {"09_secure_score.json"},
+        "2.1": {"17b_oauth_consent_grants.json", "17_app_registrations.json"},
+        "2.1.2": {"17c_app_credential_expiry.json"},
+        "3.1.1": {"19d_purview_dlp_policies.json"},
+        "3.2.1": {"19c_purview_sensitivity_labels.json"},
+        "4.1": {"27c_exchange_org_config.json"},
+        "4.2": {"23_exchange_antiphish.json"},
+        "4.3": {"24_exchange_antispam.json"},
+        "4.4": {
+            "28_exchange_mailbox_forwarding.json",
+            "29_exchange_inbox_rules_external_fwd.json",
+        },
+        "4.5": {"27_exchange_defender_policies.json"},
+        "4.6": {"27_exchange_defender_policies.json"},
+        "5.1.1": {"08_conditional_access.json"},
+        "5.2.1": {"26_email_dns_spf_dmarc.json"},
+        "5.2.2": {"26_email_dns_spf_dmarc.json"},
+        "5.2.3": {"25_exchange_dkim.json", "26_email_dns_spf_dmarc.json"},
+        "6.1.1": {"11_intune_compliance_policies.json", "10_intune_devices.json"},
+        "7.2.1": {"15b_sharepoint_settings.json"},
+        "7.2.2": {"19e_purview_retention_policies.json"},
+        "7.2.3": {"15b_sharepoint_settings.json"},
+        "7.2.4": {"25_onedrive_sharing.json"},
+        "8.1.1": {"16c_teams_external_access.json"},
+        "8.1.2": {"30b_teams_guest_access.json"},
+        "9.1": {"27d_exchange_admin_audit_log_config.json"},
+        "9.2": {"19b_defender_active_alerts.json"},
+        "9.3": {"18_risky_users.json"},
+    }
+    missing = {
+        cis_id: sorted(files - set(_EVIDENCE_MAP.get(cis_id, ())))
+        for cis_id, files in expected.items()
+        if files - set(_EVIDENCE_MAP.get(cis_id, ()))
+    }
+    assert not missing, f"verdicts read from a sidecar the evidence does not cite: {missing}"
+
+
+def test_a_cited_sidecar_reaches_the_row_when_the_run_has_it():
+    from app.reports.compliance import _build_compliance_map
+
+    fc = {
+        "09_secure_score.txt": "  Score         : 40.0 / 80.0  (50.0%)\n",
+        "09_secure_score.json": '{"current": 40.0, "max": 80.0, "pct": 50.0}',
+    }
+    row = next(r for r in _build_compliance_map({"file_contents": fc}) if r["cis_id"] == "1.4")
+    assert row["evidence"] == ["09_secure_score.json", "09_secure_score.txt"]
 
 
 def test_evidence_lists_only_files_this_run_collected():
@@ -719,8 +813,8 @@ def test_sharepoint_legacy_protocols_kept_as_their_own_control():
 def test_the_two_controls_read_different_files():
     from app.reports.evidence import _EVIDENCE_MAP
 
-    assert _EVIDENCE_MAP["5.1.1"] == ("08_conditional_access.txt",)
-    assert _EVIDENCE_MAP["7.2.3"] == ("15b_sharepoint_settings.txt",)
+    assert _EVIDENCE_MAP["5.1.1"] == ("08_conditional_access.json", "08_conditional_access.txt")
+    assert _EVIDENCE_MAP["7.2.3"] == ("15b_sharepoint_settings.json", "15b_sharepoint_settings.txt")
 
 
 def test_a_broad_block_policy_is_not_a_legacy_auth_block():

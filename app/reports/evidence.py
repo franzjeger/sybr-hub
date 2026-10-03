@@ -79,69 +79,107 @@ _CANNOT_VERIFY = "Kan ikke verifiseres: "
 # spf_dmarc, intune) come from the files named where build_report_context calls
 # the parsers, and the rest read fc directly.
 #
-# 5.1.1 is the one worth a note: it reads SharePoint's legacy-auth protocol
-# flag, not Entra's. A tenant can block legacy auth with a Conditional Access
-# policy and still fail this, or the reverse. The file named here is the one
-# the verdict actually comes from, whatever the title suggests.
+# A verdict read from a JSON sidecar names the sidecar first, then the text it
+# falls back to for runs from before it: the sidecar is where the figure comes
+# from, and the appendix carries it beside the text. Naming only the text
+# showed a technician tracing a verdict the file the reader did not use.
 _EVIDENCE_MAP: dict[str, tuple[str, ...]] = {
-    # The JSON sidecar first: it is what _mfa_user_records actually reads, and
-    # leaving it undeclared meant removing every file this control named still
-    # left the verdict standing on the one file nobody had listed. A technician
-    # tracing an MFA pass was shown the fixed-width table the reader falls back
-    # to, not the source of the number.
-    "1.1.1": ("04_mfa_methods.json", "04_mfa_methods.txt", "04b_mfa_ca_analysis.txt"),
-    "1.1.2": ("09b_auth_methods_policy.txt",),
-    "1.1.3": ("07_admin_roles.txt",),
-    "1.1.4": ("08_conditional_access.txt",),
-    "1.1.5": ("07b_pim_eligible_assignments.txt", "32_pim_roles.txt"),
-    "1.1.6": ("07c_emergency_access_check.txt",),
-    "1.1.7": ("31b_smart_lockout.txt", "08_conditional_access.txt"),
-    "1.1.8": ("07d_access_reviews.txt",),
-    "1.1.9": ("18c_cross_tenant_access_policy.txt",),
-    "1.2.1": ("31_password_protection.txt",),
-    "1.4": ("09_secure_score.txt",),
-    "2.1": ("17b_oauth_consent_grants.txt", "17_app_registrations.txt"),
+    # Leaving the MFA sidecar undeclared meant removing every file this control
+    # named still left the verdict standing on the one file nobody had listed.
+    "1.1.1": (
+        "04_mfa_methods.json",
+        "04_mfa_methods.txt",
+        "04b_mfa_ca_analysis.json",
+        "04b_mfa_ca_analysis.txt",
+    ),
+    "1.1.2": ("09b_auth_methods_policy.json", "09b_auth_methods_policy.txt"),
+    "1.1.3": ("07_admin_roles.json", "07_admin_roles.txt"),
+    "1.1.4": ("08_conditional_access.json", "08_conditional_access.txt"),
+    "1.1.5": (
+        "07b_pim_eligible_assignments.json",
+        "07b_pim_eligible_assignments.txt",
+        "32_pim_roles.txt",
+    ),
+    "1.1.6": ("07c_emergency_access_check.json", "07c_emergency_access_check.txt"),
+    "1.1.7": (
+        "31b_smart_lockout.json",
+        "31b_smart_lockout.txt",
+        "08_conditional_access.json",
+        "08_conditional_access.txt",
+    ),
+    "1.1.8": ("07d_access_reviews.json", "07d_access_reviews.txt"),
+    "1.1.9": ("18c_cross_tenant_access_policy.json", "18c_cross_tenant_access_policy.txt"),
+    "1.2.1": ("31_password_protection.json", "31_password_protection.txt"),
+    "1.4": ("09_secure_score.json", "09_secure_score.txt"),
+    "2.1": (
+        "17b_oauth_consent_grants.json",
+        "17b_oauth_consent_grants.txt",
+        "17_app_registrations.json",
+        "17_app_registrations.txt",
+    ),
     # 17_app_registrations.txt is not incidental here: it is what separates
     # "no expired credentials" from "the section never ran", so the verdict is
     # formed from it as much as from the expiry files.
     "2.1.2": (
         "17_app_registrations.txt",
+        "17c_app_credential_expiry.json",
         "17c_app_credential_expiry.txt",
         "17c_app_credential_expiry_WARN.txt",
     ),
-    "3.1.1": ("19d_purview_dlp_policies.txt",),
-    "3.2.1": ("19c_purview_sensitivity_labels.txt",),
-    "4.1": ("27c_exchange_org_config.txt",),
-    "4.2": ("23_exchange_antiphish.txt",),
-    "4.3": ("24_exchange_antispam.txt",),
+    "3.1.1": ("19d_purview_dlp_policies.json", "19d_purview_dlp_policies.txt"),
+    "3.2.1": ("19c_purview_sensitivity_labels.json", "19c_purview_sensitivity_labels.txt"),
+    "4.1": ("27c_exchange_org_config.json", "27c_exchange_org_config.txt"),
+    "4.2": ("23_exchange_antiphish.json", "23_exchange_antiphish.txt"),
+    "4.3": ("24_exchange_antispam.json", "24_exchange_antispam.txt"),
     # The two WARN files carry the finding; the two plain files are what say
     # the scan ran at all, and the "pass" branch is formed from those. Listing
     # only three of the four meant a technician tracing a pass was shown every
-    # file except the one that produced it.
+    # file except the one that produced it. The plain files' sidecars count
+    # the forwarding the run could not place, which makes it "cannot verify".
     "4.4": (
+        "28_exchange_mailbox_forwarding.json",
         "28_exchange_mailbox_forwarding.txt",
         "28b_exchange_external_forwarding_WARN.txt",
+        "29_exchange_inbox_rules_external_fwd.json",
         "29_exchange_inbox_rules_external_fwd.txt",
         "29_exchange_inbox_rules_external_fwd_WARN.txt",
     ),
-    "4.5": ("27_exchange_defender_policies.txt",),
-    "4.6": ("27_exchange_defender_policies.txt",),
-    "5.1.1": ("08_conditional_access.txt",),
-    "5.2.1": ("26_email_dns_spf_dmarc.txt",),
-    "5.2.2": ("26_email_dns_spf_dmarc.txt",),
+    "4.5": ("27_exchange_defender_policies.json", "27_exchange_defender_policies.txt"),
+    "4.6": ("27_exchange_defender_policies.json", "27_exchange_defender_policies.txt"),
+    "5.1.1": ("08_conditional_access.json", "08_conditional_access.txt"),
+    "5.2.1": ("26_email_dns_spf_dmarc.json", "26_email_dns_spf_dmarc.txt"),
+    "5.2.2": ("26_email_dns_spf_dmarc.json", "26_email_dns_spf_dmarc.txt"),
     # Whether Exchange signs for the domain (25), and who sends its mail and
     # which DKIM keys are published (26).
-    "5.2.3": ("25_exchange_dkim.txt", "26_email_dns_spf_dmarc.txt"),
-    "6.1.1": ("11_intune_compliance_policies.txt", "10_intune_devices_count.txt"),
-    "7.2.1": ("15b_sharepoint_settings.txt",),
-    "7.2.2": ("19e_purview_retention_policies.txt",),
-    "7.2.3": ("15b_sharepoint_settings.txt",),
-    "7.2.4": ("25_onedrive_sharing.txt",),
-    "8.1.1": ("16c_teams_external_access.txt",),
-    "8.1.2": ("30b_teams_guest_access.txt",),
-    "9.1": ("27d_exchange_admin_audit_log_config.txt",),
-    "9.2": ("19b_defender_active_alerts.txt", "19b_defender_alert_count.txt"),
-    "9.3": ("18_risky_users.txt",),
+    "5.2.3": (
+        "25_exchange_dkim.json",
+        "25_exchange_dkim.txt",
+        "26_email_dns_spf_dmarc.json",
+        "26_email_dns_spf_dmarc.txt",
+    ),
+    "6.1.1": (
+        "11_intune_compliance_policies.json",
+        "11_intune_compliance_policies.txt",
+        "10_intune_devices.json",
+        "10_intune_devices_count.txt",
+    ),
+    "7.2.1": ("15b_sharepoint_settings.json", "15b_sharepoint_settings.txt"),
+    "7.2.2": ("19e_purview_retention_policies.json", "19e_purview_retention_policies.txt"),
+    # SharePoint's own legacy-protocol flag, not Entra's: that is 5.1.1.
+    "7.2.3": ("15b_sharepoint_settings.json", "15b_sharepoint_settings.txt"),
+    "7.2.4": ("25_onedrive_sharing.json", "25_onedrive_sharing.txt"),
+    "8.1.1": ("16c_teams_external_access.json", "16c_teams_external_access.txt"),
+    "8.1.2": ("30b_teams_guest_access.json", "30b_teams_guest_access.txt"),
+    "9.1": (
+        "27d_exchange_admin_audit_log_config.json",
+        "27d_exchange_admin_audit_log_config.txt",
+    ),
+    "9.2": (
+        "19b_defender_active_alerts.json",
+        "19b_defender_active_alerts.txt",
+        "19b_defender_alert_count.txt",
+    ),
+    "9.3": ("18_risky_users.json", "18_risky_users.txt"),
 }
 
 
