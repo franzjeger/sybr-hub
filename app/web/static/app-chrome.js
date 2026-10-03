@@ -15,7 +15,7 @@ function toggleNotifications() {
   var badge = document.getElementById('notif-badge');
   if (badge) badge.hidden = true;
   var bnav = document.getElementById('bnav-alerts-badge');
-  if (bnav) bnav.style.display = 'none';
+  if (bnav) bnav.hidden = true;
   openOverviewTab('dash-alerts');
 }
 
@@ -64,10 +64,10 @@ async function _checkNotifBadge() {
     if (newCount > 0) {
       var _nb = newCount > 9 ? '9+' : String(newCount);
       badge.textContent = _nb; badge.hidden = false;
-      if (bnavBadge) { bnavBadge.textContent = _nb; bnavBadge.style.display = 'block'; }
+      if (bnavBadge) { bnavBadge.textContent = _nb; bnavBadge.hidden = false; }
     } else {
       badge.hidden = true;
-      if (bnavBadge) bnavBadge.style.display = 'none';
+      if (bnavBadge) bnavBadge.hidden = true;
     }
   } catch(e) { /* notification poll — retries periodically */ }
 }
@@ -124,16 +124,19 @@ function closeMoreSheet() {
 }
 function _closeMoreSheetEsc(e) { if (e.key === 'Escape') closeMoreSheet(); }
 function _syncBottomNav(name) {
-  // Map every view onto one of the five bottom-tab groups.
+  // Map every view onto one of the bottom tabs. Søk opens the palette over
+  // whatever is showing, so it never stays lit; Varsler is Oversikt's
+  // Varsler tab; Verktøy, Administrasjon and Hjelp live in Mer.
   var map = {
     overview: 'dashboard',
     customers: 'customers', setup: 'customers', 'customer-detail': 'customers',
-    network: 'network', vpn: 'network', tailscale: 'network', provision: 'network',
-    hosts: 'more', terminal: 'more', rdp: 'more', ssh: 'more', browser: 'more',
-    pentest: 'more', billing: 'more', ai: 'more', admin: 'more', docs: 'more', logs: 'more',
     more: 'more',
   };
-  var active = map[name] || '';
+  var active = map[name] || (name ? 'more' : '');
+  if (name === 'overview') {
+    var tab = document.querySelector('#view-overview .dash-tab-btn.active');
+    if (tab && tab.dataset.tab === 'dash-alerts') active = 'alerts';
+  }
   document.querySelectorAll('.bnav-item').forEach(function(el) {
     el.classList.toggle('active', el.getAttribute('data-bnav') === active);
   });

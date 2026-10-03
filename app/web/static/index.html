@@ -2020,7 +2020,7 @@
 
   <!-- ── Mobile bottom tab bar: replaces the top bar on phones ── -->
   <nav class="bottom-nav" id="bottom-nav" data-i18n-aria-label="hovedmeny" aria-label="Hovedmeny">
-    <button data-view-gate="overview" class="bnav-item active" data-bnav="dashboard" data-click-handler="showView" data-view="overview">
+    <button data-view-gate="overview" class="bnav-item active" data-bnav="dashboard" data-click-handler="openOverviewTab" data-tab="dash-customers">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
       <span data-i18n="nav_overview">Oversikt</span>
     </button>
@@ -2028,14 +2028,14 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
       <span data-i18n="nav_customers">Kunder</span>
     </button>
-    <button data-view-gate="network" class="bnav-item" data-bnav="network" data-click-handler="showView" data-view="network">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-      <span data-i18n="nav_network">Nettverk</span>
+    <button class="bnav-item" id="bnav-search" data-bnav="search" data-click-handler="toggleCommandPalette">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <span data-i18n="lbl_search">Søk</span>
     </button>
-    <button class="bnav-item" data-notif-toggle data-bnav="alerts" data-click-handler="toggleNotifications">
+    <button data-view-gate="overview" class="bnav-item" data-notif-toggle data-bnav="alerts" data-click-handler="toggleNotifications">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-      <span data-i18n="hdr_notifications">Varslinger</span>
-      <span class="bnav-badge" id="bnav-alerts-badge" style="display:none;"></span>
+      <span data-i18n="lbl_alerts">Varsler</span>
+      <span class="bnav-badge" id="bnav-alerts-badge" hidden></span>
     </button>
     <button class="bnav-item" data-bnav="more" data-click-handler="openMoreSheet">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
@@ -2057,10 +2057,12 @@
       <button class="more-row" data-view-gate="provision" data-write data-click-handler="moreSheetShowView" data-view="provision"><span class="more-ic">&#8853;</span><span data-i18n="provisjonering">Provisjonering</span></button>
       <button class="more-row" data-view-gate="billing" data-module="billing" data-click-handler="moreSheetShowView" data-view="billing"><span class="more-ic">&#8362;</span><span data-i18n="nav_billing">Lisenser og hosting</span></button>
       <button class="more-row" data-view-gate="ai" data-write data-click-handler="moreSheetShowView" data-view="ai"><span class="more-ic">&#10035;</span><span data-i18n="sybrt">Sybrt</span></button>
+      <div class="more-group-title" data-admin-only data-i18n="nav_admin">Administrasjon</div>
+      <button class="more-row" data-admin-only data-view-gate="admin" data-click-handler="moreSheetOpenAdmin"><span class="more-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg></span><span data-i18n="nav_admin">Administrasjon</span></button>
       <div class="more-group-title" data-i18n="konto">Konto</div>
-      <button class="more-row" data-admin-only data-view-gate="admin" data-click-handler="moreSheetOpenAdmin"><span class="more-ic"></span><span data-i18n="nav_admin">Administrasjon</span></button>
-      <button class="more-row" data-click-handler="moreSheetOpenAccount"><span class="more-ic"></span><span data-i18n="konto">Konto</span></button>
+      <button class="more-row" data-click-handler="moreSheetOpenAccount"><span class="more-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span><span data-i18n="konto">Konto</span></button>
       <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
+      <button class="more-row" data-view-gate="docs" data-click-handler="moreSheetShowView" data-view="docs"><span class="more-ic">?</span><span data-i18n="nav_help">Hjelp</span></button>
       <button class="more-row danger" data-click-handler="moreSheetLogout"><span class="more-ic">&#8617;</span><span data-i18n="logg_ut_2">Logg ut</span></button>
     </div>
   </div>

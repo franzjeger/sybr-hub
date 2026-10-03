@@ -35,3 +35,19 @@ test('a search field reads in the body face, not the code face', async ({page}) 
   const font = await search.evaluate(el => getComputedStyle(el).fontFamily);
   expect(font).not.toContain('monospace');
 });
+
+test('Mer opens as a sheet that fits the screen, down to Logg ut', async ({page}) => {
+  await login(page);
+  await page.locator('.bnav-item[data-bnav="more"]').click();
+  const sheet = page.locator('#more-sheet');
+  await expect(sheet).toBeVisible();
+  const box = await sheet.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(375);
+  const logout = sheet.locator('[data-click-handler="moreSheetLogout"]');
+  await logout.scrollIntoViewIfNeeded();
+  await expect(logout).toBeInViewport();
+  expect(await overflow(page)).toBe(0);
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+});
