@@ -1622,11 +1622,33 @@ def _parse_groups(text: str) -> dict:
     }
 
 
-def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
-    """Cross-reference Azure VMs with backup protected items."""
-    # Collect all VM names
-    vm_names: list[str] = []
-    for fname, content, _sub_name in _find_azure_files(file_contents, "30_azure_vms"):
+# A protected item in one of these states is not backing the VM up: it was
+# stopped, paused or suspended, or never valid. Its recovery points may still
+# exist, but nothing new is being taken.
+_BACKUP_INACTIVE_STATES = {"protectionstopped", "protectionpaused", "backupssuspended", "invalid"}
+
+# The VM listing trims names to this width. A legacy run without the JSON
+# sidecar can only match a trimmed name by prefix.
+_VM_NAME_WIDTH = 35
+
+
+def _vm_inventory(file_contents: dict[str, str]) -> list[dict]:
+    """Every VM, as {"name", "id"}. The JSON sidecar when the run wrote one."""
+    vms: list[dict] = []
+    sidecars = [
+        f for f in _find_azure_json(file_contents, "30_azure_vms") if "cpu_metrics" not in f[0]
+    ]
+    for _fname, content, _sub in sidecars:
+        try:
+            data = json.loads(content)
+        except ValueError:
+            continue
+        for vm in data.get("vms") or []:
+            if vm.get("name"):
+                vms.append({"name": vm["name"], "id": (vm.get("id") or "").lower()})
+    if sidecars:
+        return vms
+    for fname, content, _sub in _find_azure_files(file_contents, "30_azure_vms"):
         if "cpu_metrics" in fname:
             continue
         for line in content.splitlines():
@@ -1637,70 +1659,121 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
                 or stripped.startswith("-")
                 or "VM Name" in stripped
                 or "AZURE VIRTUAL" in stripped
+                or stripped.startswith("Error")
             ):
                 continue
             cols = re.split(r"\s{2,}", stripped)
             if len(cols) >= 4:
-                vm_names.append(cols[0])
+                vms.append({"name": cols[0], "id": ""})
+    return vms
 
-    # Collect all backup protected item names.
-    #
-    # backup_data_read is the whole point of this block. Coverage is a
-    # cross-reference between two independently-collected files, and if the
-    # backup half is absent or errored then backed_up_names is empty and every
-    # VM falls into vms_not_backed_up — a high-priority "these servers have no
-    # backup" finding, naming each one, derived entirely from a file we never
-    # read. An empty *successful* read is a different thing and still a real
-    # finding.
-    backed_up_names: set[str] = set()
-    vault_names: set[str] = set()
-    backup_data_read = False
-    for _fname, content, _sub_name in _find_azure_files(file_contents, "52_azure_backup"):
+
+def _backup_inventory(file_contents: dict[str, str]) -> dict:
+    """What the vaults protect: {"read", "complete", "vaults", "items"}.
+
+    read: some vault data was read successfully (an empty read counts).
+    complete: every vault's item list was read in full. When it was not, a VM
+    missing from the list may still be protected, so it cannot be named.
+    """
+    out: dict = {"read": False, "complete": True, "vaults": set(), "items": []}
+    sidecars = _find_azure_json(file_contents, "52_azure_backup")
+    for _fname, content, _sub in sidecars:
+        try:
+            data = json.loads(content)
+        except ValueError:
+            continue
+        out["read"] = True
+        for vault in data.get("vaults") or []:
+            out["vaults"].add(vault.get("name") or "")
+            if vault.get("items_error"):
+                out["complete"] = False
+            for item in vault.get("items") or []:
+                state = (item.get("protection_state") or "").lower()
+                out["items"].append(
+                    {
+                        "name": (item.get("friendly_name") or item.get("name") or "").lower(),
+                        "id": (item.get("source_resource_id") or "").lower(),
+                        "active": state not in _BACKUP_INACTIVE_STATES,
+                    }
+                )
+    if sidecars:
+        return out
+
+    # A run from before the sidecar. This is the format _collect_backup writes:
+    # a "Vault    : name" block per vault, then "      - <name>  Status:..."
+    # per protected item. The item lines start with "-", and an earlier parser
+    # skipped every line that did, so it read no items at all and listed every
+    # VM as unprotected.
+    for _fname, content, _sub in _find_azure_files(file_contents, "52_azure_backup"):
         if not content.strip() or content.strip().startswith("Error:"):
             continue
-        backup_data_read = True
-        current_vault = ""
+        out["read"] = True
         for line in content.splitlines():
             stripped = line.strip()
-            if not stripped or stripped.startswith("="):
-                continue
-            # Detect vault name lines
-            if "vault" in stripped.lower() and (":" in stripped or "[" in stripped):
-                vault_match = re.search(r"(?:Vault|vault)\s*[:\[]\s*(.+?)[\]\s]*$", stripped)
-                if vault_match:
-                    current_vault = vault_match.group(1).strip()
-                    vault_names.add(current_vault)
-                continue
-            if (
-                stripped.startswith("-")
-                or stripped.upper().startswith("NO ")
-                or stripped.upper().startswith("NOTE")
-            ):
-                continue
-            # Parse protected item lines
-            cols = re.split(r"\s{2,}", stripped)
-            if cols:
-                item_name = cols[0].strip()
-                if item_name and item_name not in (
-                    "Name",
-                    "Protected Item",
-                    "Item Name",
-                    "Container",
-                ):
-                    backed_up_names.add(item_name.lower())
+            vault = re.match(r"Vault\s*:\s*(.+)$", stripped)
+            if vault:
+                out["vaults"].add(vault.group(1).strip())
+            elif stripped.startswith("Protected Items:") and "Error" in stripped:
+                out["complete"] = False
+            elif re.match(r"\.\.\. and \d+ more items", stripped):
+                # Listings were cut at 15 items per vault.
+                out["complete"] = False
+            elif stripped.startswith("- "):
+                name = re.split(r"\s{2,}", stripped[2:].strip())[0]
+                state = re.search(r"State:(\S+)", stripped)
+                active = not state or state.group(1).lower() not in _BACKUP_INACTIVE_STATES
+                out["items"].append({"name": name.lower(), "id": "", "active": active})
+    return out
 
-    # Cross-reference — only meaningful when both halves were read.
-    vms_total = len(vm_names)
-    coverage_known = backup_data_read and vms_total > 0
+
+def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
+    """Cross-reference Azure VMs with the items the backup vaults protect.
+
+    Coverage is a cross-reference between two independently collected files.
+    If the backup half was not read, every VM would fall into
+    vms_not_backed_up: a high-priority "these servers have no backup" finding,
+    naming each one, from a file nobody read. So coverage is only known when
+    the vault data was read, and when the item lists were complete or every VM
+    was found in them anyway. An empty *successful* read is a real finding.
+
+    A VM matches an item by resource id when the run recorded ids, otherwise by
+    name. An item whose protection was stopped, paused or suspended does not
+    count: nothing new is being backed up.
+    """
+    vms = _vm_inventory(file_contents)
+    backup = _backup_inventory(file_contents)
+    by_id = {i["id"]: i for i in backup["items"] if i["id"]}
+    by_name = {}
+    for item in backup["items"]:
+        by_name.setdefault(item["name"], item)
+
+    def match(vm: dict) -> dict | None:
+        if vm["id"] and vm["id"] in by_id:
+            return by_id[vm["id"]]
+        name = vm["name"].lower()
+        if name in by_name:
+            return by_name[name]
+        if len(vm["name"]) == _VM_NAME_WIDTH:
+            return next((i for n, i in by_name.items() if n.startswith(name)), None)
+        return None
+
+    vms_total = len(vms)
+    matched = {vm["name"]: match(vm) for vm in vms}
+    all_found = bool(vms) and all(item is not None for item in matched.values())
+    coverage_known = backup["read"] and vms_total > 0 and (backup["complete"] or all_found)
 
     vms_backed_up = 0
     vms_not_backed_up: list[str] = []
+    vms_backup_stopped: list[str] = []
     if coverage_known:
-        for vm in vm_names:
-            if vm.lower() in backed_up_names:
+        for vm in vms:
+            item = matched[vm["name"]]
+            if item is not None and item["active"]:
                 vms_backed_up += 1
             else:
-                vms_not_backed_up.append(vm)
+                vms_not_backed_up.append(vm["name"])
+                if item is not None:
+                    vms_backup_stopped.append(vm["name"])
 
     backup_pct = (vms_backed_up / vms_total * 100) if coverage_known else 0.0
 
@@ -1708,10 +1781,11 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
         "vms_total": vms_total,
         "vms_backed_up": vms_backed_up,
         "vms_not_backed_up": vms_not_backed_up,  # empty unless coverage_known
+        "vms_backup_stopped": vms_backup_stopped,  # a subset of the above
         "backup_pct": round(backup_pct, 1),
-        "vaults": len(vault_names),
+        "vaults": len(backup["vaults"]),
         "coverage_known": coverage_known,
-        "has_data": vms_total > 0 or len(vault_names) > 0,
+        "has_data": vms_total > 0 or len(backup["vaults"]) > 0,
     }
 
 
@@ -2084,6 +2158,20 @@ def _find_azure_files(file_contents: dict[str, str], prefix: str) -> list[tuple[
         elif rest.startswith("_") and rest.endswith(".txt"):
             sub_name = rest[1:-4]  # strip leading _ and .txt
             matches.append((fname, content, sub_name))
+    return matches
+
+
+def _find_azure_json(file_contents: dict[str, str], prefix: str) -> list[tuple[str, str, str]]:
+    """Like _find_azure_files, for the .json sidecars some collectors write."""
+    matches = []
+    for fname, content in file_contents.items():
+        if not fname.startswith(prefix):
+            continue
+        rest = fname[len(prefix) :]
+        if rest == ".json":
+            matches.append((fname, content, ""))
+        elif rest.startswith("_") and rest.endswith(".json"):
+            matches.append((fname, content, rest[1:-5]))
     return matches
 
 

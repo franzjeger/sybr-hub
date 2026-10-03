@@ -1,5 +1,5 @@
 {
-  "total": 68,
+  "total": 67,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -77,6 +77,7 @@
     "app/modules/m365_audit/sections/__init__.py",
     "app/modules/m365_audit/sections/apps_oauth.py",
     "app/modules/m365_audit/sections/azure_compute.py",
+    "app/modules/m365_audit/sections/azure_governance.py",
     "app/modules/m365_audit/sections/compliance_score.py",
     "app/modules/m365_audit/sections/conditional_access.py",
     "app/modules/m365_audit/sections/defender_office.py",
@@ -255,6 +256,7 @@
     "tests/test_auth_sessions.py",
     "tests/test_autotask.py",
     "tests/test_autotask_write_side.py",
+    "tests/test_azure_client_imports.py",
     "tests/test_azure_device_code_owner.py",
     "tests/test_azure_governance_section.py",
     "tests/test_azure_vpn_connect.py",
@@ -467,7 +469,6 @@
     "app/models/user.py": 1,
     "app/models/vpn.py": 2,
     "app/modules/m365_audit/collector.py": 1,
-    "app/modules/m365_audit/sections/azure_governance.py": 1,
     "app/modules/m365_audit/sections/azure_network.py": 1,
     "app/modules/m365_audit/sections/azure_storage.py": 1,
     "app/modules/m365_audit/sections/exchange.py": 1,

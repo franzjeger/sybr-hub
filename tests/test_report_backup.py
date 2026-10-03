@@ -1,48 +1,235 @@
-"""Regression tests for Azure VM backup coverage.
+"""Azure VM backup coverage, from the files the collectors actually write.
 
-Coverage is a cross-reference between two independently-collected files:
-``30_azure_vms*`` for the VM list and ``52_azure_backup*`` for protected items.
-``_parse_backup_coverage`` ran the cross-reference unconditionally, so when the
-backup half was missing or errored, ``backed_up_names`` was empty and every VM
-fell into ``vms_not_backed_up``.
+Coverage is a cross-reference between two independently collected files:
+``30_azure_vms*`` for the VM list and ``52_azure_backup*`` for the items the
+Recovery Services vaults protect.
 
-Two consumers then stated it as fact: a **high**-priority recommendation
-listing each VM by name, and a red panel in the report headed "VMs without
-backup". Telling a customer their servers are unprotected is about the most
-consequential false finding this report can make — and it needed nothing more
-than one collector section failing.
+These tests used to feed the parser a format the collector never wrote
+("Vault: x" and a "Name  Type  Status" table). They passed while real output
+failed: the collector writes each protected item as "      - <name>  Status:...",
+and the parser skipped every line starting with "-". It read no items, so every
+VM landed in a high-priority "these servers have no backup" finding, backed up
+or not. The listing also stopped at 15 items per vault and cut names at 40
+characters.
 
-An empty *successful* read is a different thing entirely and still a finding.
+So the files here come from the collectors themselves, run against fake Azure
+clients, and the parser reads exactly what a real run leaves on disk.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import ClassVar
+
 import pytest
 
+from app.core.encryption import encrypted_read_text
+from app.modules.m365_audit.sections.azure_compute import AzureComputeSection
+from app.modules.m365_audit.sections.azure_governance import AzureGovernanceSection
 from app.reports.parsers import _parse_backup_coverage
 from app.reports.recommendations import _build_recommendations
 
-VMS = (
-    "AZURE VIRTUAL MACHINES\n"
-    "=======================\n"
-    "VM Name        Size          Location    Status\n"
-    "vm-dc-01       Standard_D2   westeurope  running\n"
-    "vm-app-01      Standard_D4   westeurope  running\n"
-)
-
-BACKUP_BOTH = (
-    "Vault: rsv-prod\n"
-    "Name           Type          Status\n"
-    "vm-dc-01       AzureVM       Protected\n"
-    "vm-app-01      AzureVM       Protected\n"
-)
-
-BACKUP_PARTIAL = (
-    "Vault: rsv-prod\nName           Type          Status\nvm-dc-01       AzureVM       Protected\n"
-)
+SUB = "00000000-0000-0000-0000-0000000000aa"
 
 
-# ── The parser ────────────────────────────────────────────────────────────────
+def _vm_id(name: str, rg: str = "rg-prod") -> str:
+    return f"/subscriptions/{SUB}/resourceGroups/{rg}/providers/Microsoft.Compute/virtualMachines/{name}"
+
+
+def _vm(name: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        name=name,
+        id=_vm_id(name),
+        location="westeurope",
+        storage_profile=None,
+        hardware_profile=None,
+        instance_view=None,
+    )
+
+
+def _item(vm_name: str, state: str = "Protected") -> SimpleNamespace:
+    return SimpleNamespace(
+        name=f"VM;iaasvmcontainerv2;rg-prod;{vm_name}",
+        properties=SimpleNamespace(
+            friendly_name=vm_name,
+            workload_type="VM",
+            protection_state=state,
+            protection_status="Healthy",
+            health_status="Passed",
+            last_backup_time=datetime(2026, 10, 2, 22, 0, tzinfo=UTC),
+            source_resource_id=_vm_id(vm_name),
+        ),
+    )
+
+
+def _vault(name: str = "rsv-prod") -> SimpleNamespace:
+    return SimpleNamespace(
+        name=name,
+        id=f"/subscriptions/{SUB}/resourceGroups/rg-backup/providers/Microsoft.RecoveryServices/vaults/{name}",
+        location="westeurope",
+        sku=SimpleNamespace(name="Standard"),
+    )
+
+
+class _FakeBackupClient:
+    """Stands in for RecoveryServicesBackupClient: items per vault name."""
+
+    items: ClassVar[dict[str, list | Exception]] = {}
+
+    def __init__(self, credential, subscription_id):
+        self.backup_protected_items = SimpleNamespace(list=self._list)
+
+    def _list(self, vault_name, resource_group):
+        found = self.items.get(vault_name, [])
+        if isinstance(found, Exception):
+            raise found
+        return found
+
+
+def _auth(vms, vaults):
+    return SimpleNamespace(
+        compute_client_for=lambda sub: SimpleNamespace(
+            virtual_machines=SimpleNamespace(list_all=lambda: vms)
+        ),
+        recovery_client_for=lambda sub: SimpleNamespace(
+            vaults=SimpleNamespace(list_by_subscription_id=lambda: vaults)
+        ),
+        _az_credential=lambda: None,
+    )
+
+
+async def _collect(tmp_path, monkeypatch, vms, vaults, items, *, sidecars=True) -> dict:
+    """Run both collectors and return what they wrote, as the report reads it."""
+    import azure.mgmt.recoveryservicesbackup as rsb
+
+    _FakeBackupClient.items = items
+    monkeypatch.setattr(rsb, "RecoveryServicesBackupClient", _FakeBackupClient)
+    auth = _auth(vms, vaults)
+    await AzureComputeSection(tmp_path, auth, sub_id=SUB)._collect_vms()
+    await AzureGovernanceSection(tmp_path, auth, sub_id=SUB)._collect_backup()
+    files = {
+        p.name: encrypted_read_text(p)
+        for p in sorted(tmp_path.iterdir())
+        if p.suffix in (".txt", ".json")
+    }
+    if not sidecars:
+        files = {name: text for name, text in files.items() if name.endswith(".txt")}
+    return files
+
+
+# ── Coverage from real collector output ───────────────────────────────────────
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_backed_up_vms_are_not_reported_as_unprotected(tmp_path, monkeypatch, sidecars):
+    vms = [_vm("vm-dc-01"), _vm("vm-app-01")]
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        vms,
+        [_vault()],
+        {"rsv-prod": [_item("vm-dc-01"), _item("vm-app-01")]},
+        sidecars=sidecars,
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["coverage_known"] is True
+    assert result["vms_not_backed_up"] == []
+    assert result["vms_backed_up"] == 2
+    assert result["backup_pct"] == 100.0
+    assert result["vaults"] == 1
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_vm_without_a_protected_item_is_named(tmp_path, monkeypatch, sidecars):
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm("vm-dc-01"), _vm("vm-app-01")],
+        [_vault()],
+        {"rsv-prod": [_item("vm-dc-01")]},
+        sidecars=sidecars,
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["coverage_known"] is True
+    assert result["vms_not_backed_up"] == ["vm-app-01"]
+    assert result["backup_pct"] == 50.0
+
+
+async def test_more_than_fifteen_items_in_a_vault_all_count(tmp_path, monkeypatch):
+    """The listing used to stop at 15 items; VM 16 onwards read as unprotected."""
+    names = [f"vm-{n:02d}" for n in range(20)]
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm(n) for n in names],
+        [_vault()],
+        {"rsv-prod": [_item(n) for n in names]},
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["vms_backed_up"] == 20 and result["vms_not_backed_up"] == []
+
+
+async def test_a_name_longer_than_the_listing_columns_still_matches(tmp_path, monkeypatch):
+    long_name = "vm-" + "x" * 50
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm(long_name)],
+        [_vault()],
+        {"rsv-prod": [_item(long_name)]},
+    )
+
+    assert _parse_backup_coverage(files)["vms_not_backed_up"] == []
+
+
+async def test_stopped_protection_does_not_count_as_backup(tmp_path, monkeypatch):
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm("vm-dc-01"), _vm("vm-app-01")],
+        [_vault()],
+        {"rsv-prod": [_item("vm-dc-01"), _item("vm-app-01", state="ProtectionStopped")]},
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["vms_not_backed_up"] == ["vm-app-01"]
+    assert result["vms_backup_stopped"] == ["vm-app-01"]
+
+
+async def test_a_vault_whose_items_could_not_be_read_leaves_coverage_unknown(tmp_path, monkeypatch):
+    """A VM missing from an unread list may well be protected: do not name it."""
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm("vm-dc-01"), _vm("vm-app-01")],
+        [_vault("rsv-a"), _vault("rsv-b")],
+        {"rsv-a": [_item("vm-dc-01")], "rsv-b": PermissionError("AuthorizationFailed")},
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["coverage_known"] is False
+    assert result["vms_not_backed_up"] == []
+
+
+async def test_no_vaults_at_all_is_a_real_finding(tmp_path, monkeypatch):
+    files = await _collect(tmp_path, monkeypatch, [_vm("vm-dc-01")], [], {})
+
+    result = _parse_backup_coverage(files)
+
+    assert result["coverage_known"] is True
+    assert result["vms_not_backed_up"] == ["vm-dc-01"]
+
+
+# ── Backup data that was never read ───────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -55,59 +242,25 @@ BACKUP_PARTIAL = (
     ],
     ids=["absent", "empty", "whitespace", "error"],
 )
-def test_unread_backup_data_does_not_mark_every_vm_unprotected(backup_files):
-    result = _parse_backup_coverage({"30_azure_vms.txt": VMS, **backup_files})
+async def test_unread_backup_data_does_not_mark_every_vm_unprotected(
+    tmp_path, monkeypatch, backup_files
+):
+    files = await _collect(tmp_path, monkeypatch, [_vm("vm-dc-01"), _vm("vm-app-01")], [], {})
+    files = {n: t for n, t in files.items() if not n.startswith("52_azure_backup")}
 
-    assert result["vms_not_backed_up"] == [], (
-        "every VM was listed as unprotected on the strength of a file we never read"
-    )
+    result = _parse_backup_coverage({**files, **backup_files})
+
+    assert result["vms_not_backed_up"] == []
     assert result["vms_backed_up"] == 0
     assert result["vms_total"] == 2, "the VM list itself was readable"
     assert result["coverage_known"] is False
-
-
-def test_successfully_read_backup_data_still_finds_gaps():
-    result = _parse_backup_coverage(
-        {"30_azure_vms.txt": VMS, "52_azure_backup.txt": BACKUP_PARTIAL}
-    )
-
-    assert result["coverage_known"] is True
-    assert result["vms_not_backed_up"] == ["vm-app-01"]
-    assert result["vms_backed_up"] == 1
-    assert result["backup_pct"] == 50.0
-
-
-def test_full_coverage_reports_no_gaps():
-    result = _parse_backup_coverage({"30_azure_vms.txt": VMS, "52_azure_backup.txt": BACKUP_BOTH})
-
-    assert result["coverage_known"] is True
-    assert result["vms_not_backed_up"] == []
-    assert result["backup_pct"] == 100.0
-
-
-def test_a_vault_with_no_protected_items_is_a_real_finding():
-    """ "We read the vault and nothing is in it" is not the same as not reading it."""
-    result = _parse_backup_coverage(
-        {
-            "30_azure_vms.txt": VMS,
-            "52_azure_backup.txt": "Vault: rsv-prod\nNO PROTECTED ITEMS\n",
-        }
-    )
-
-    assert sorted(result["vms_not_backed_up"]) == ["vm-app-01", "vm-dc-01"]
-    assert result["coverage_known"] is True
+    assert result["backup_pct"] == 0.0
 
 
 def test_no_vms_means_nothing_to_cross_reference():
-    result = _parse_backup_coverage({"52_azure_backup.txt": BACKUP_BOTH})
+    result = _parse_backup_coverage({"52_azure_backup.json": '{"vaults": []}'})
     assert result["coverage_known"] is False
     assert result["vms_not_backed_up"] == []
-
-
-def test_backup_pct_is_not_fabricated_when_coverage_is_unknown():
-    result = _parse_backup_coverage({"30_azure_vms.txt": VMS})
-    assert result["backup_pct"] == 0.0
-    assert result["coverage_known"] is False
 
 
 # ── The recommendation ────────────────────────────────────────────────────────
@@ -126,14 +279,27 @@ def _backup_rec(backup_coverage: dict):
     return next((r for r in recs if "backup" in r.get("title", "").lower()), None)
 
 
-def test_no_backup_recommendation_when_vault_data_was_never_read():
-    cov = _parse_backup_coverage({"30_azure_vms.txt": VMS})
-    assert _backup_rec(cov) is None
+async def test_fully_backed_up_vms_raise_no_recommendation(tmp_path, monkeypatch):
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm("vm-dc-01"), _vm("vm-app-01")],
+        [_vault()],
+        {"rsv-prod": [_item("vm-dc-01"), _item("vm-app-01")]},
+        sidecars=False,
+    )
+    assert _backup_rec(_parse_backup_coverage(files)) is None
 
 
-def test_backup_recommendation_still_fires_on_a_real_gap():
-    cov = _parse_backup_coverage({"30_azure_vms.txt": VMS, "52_azure_backup.txt": BACKUP_PARTIAL})
-    rec = _backup_rec(cov)
+async def test_a_real_gap_still_raises_the_recommendation(tmp_path, monkeypatch):
+    files = await _collect(
+        tmp_path,
+        monkeypatch,
+        [_vm("vm-dc-01"), _vm("vm-app-01")],
+        [_vault()],
+        {"rsv-prod": [_item("vm-dc-01")]},
+    )
+    rec = _backup_rec(_parse_backup_coverage(files))
     assert rec is not None
     assert rec["priority"] == "high"
     assert rec["sub_items"] == ["vm-app-01"]
