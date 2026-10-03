@@ -2389,6 +2389,9 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   .cust-standard-table td { padding: 4px 8px 0 0; }
   .cust-standard-reason { grid-column: 2; text-align: left; padding-bottom: 6px; }
 }
+/* A file input kept for its picker, out of sight; a translated button opens it. */
+.visually-hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.logo-file-name { font-size: var(--font-xs); color: var(--text-muted); overflow-wrap: anywhere; }
 .pd-no-grant { margin: var(--space-3) 0 0; font-size: var(--font-sm); color: var(--text-muted); }
 .cust-infra-empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); color: var(--text-dim); font-size: var(--font-sm); }
 .cust-infra-empty span { flex: 1 1 260px; }
