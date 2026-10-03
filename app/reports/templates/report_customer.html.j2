@@ -1878,9 +1878,12 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
         {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
       </td>
       <td>
-        {% set d1 = d.get('dkim1','') %}{% set d2 = d.get('dkim2','') %}
-        {% if 'MISSING' in d1 and 'MISSING' in d2 %}<span class="status-pill critical">{{ t.missing_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.found_label }}</span>{% endif %}
+        {# CIS 5.2.3's verdict for the domain, so this cell cannot say "Found"
+           beside a control that warns signing is off. #}
+        {% set ds = d.get('dkim_status') %}
+        {% if ds == 'pass' %}<span class="status-pill ok">{{ t.ok }}</span>
+        {% elif ds in ('warn', 'fail') %}<span class="status-pill critical">{{ t.missing_label }}</span>
+        {% else %}<span class="status-pill unknown">{{ t.data_unavailable }}</span>{% endif %}
       </td>
       <td>
         {% set s = d.get('mta_sts','') %}

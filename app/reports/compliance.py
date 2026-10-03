@@ -961,6 +961,21 @@ def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
     return "warn", detail
 
 
+def dkim_status_by_domain(context: dict) -> dict[str, str]:
+    """CIS 5.2.3's status for each mail domain, for a table that shows DKIM per domain.
+
+    The customer report's email table judged DKIM itself, "found" unless every
+    selector summary said MISSING somewhere, so it could print "Found" beside
+    a 5.2.3 that warned signing was off, on the same page.
+    """
+    audit = _Audit.of(context, T("no"))
+    return {
+        str(record.get("domain") or ""): _dkim(audit, record, str(record.get("domain") or ""))[0]
+        for record in audit.spf_dmarc
+        if isinstance(record, dict)
+    }
+
+
 # ── Devices ───────────────────────────────────────────────────────────────────
 
 
