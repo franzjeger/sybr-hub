@@ -493,7 +493,11 @@ async function loadUsers() {
         + '</select>'
         + _capabilityToggles(u)
         + '<button class="btn btn-ghost btn-sm" data-click-handler="editUserCustomers" data-user-id="' + esc(u.id) + '" data-display-name="' + esc(u.display_name) + '" title="' + esc(t('tip_customer_access','Customer access')) + '" aria-label="' + esc(t('tip_customer_access','Customer access')) + '">' + icon('users', 14) + '</button>'
-        + (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" data-click-handler="deleteUser" data-user-id="' + esc(u.id) + '" data-username="' + esc(u.username) + '">' + t('btn_delete') + '</button>' : '')
+        // No delete for yourself, and none for the system account: the server
+        // refuses both, so the button would only earn an error.
+        + (u.is_system
+          ? '<span class="user-system-badge" title="' + esc(t('tip_system_account', 'Sybr HUB bruker kontoen til planlagte jobber og tunneler. Den kan ikke logge inn eller slettes.')) + '">' + esc(t('lbl_system_account', 'Systemkonto')) + '</span>'
+          : (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" data-click-handler="deleteUser" data-user-id="' + esc(u.id) + '" data-username="' + esc(u.username) + '">' + t('btn_delete') + '</button>' : ''))
         + '</div>';
     }).join('');
   } catch(e) { el.innerHTML = ''; }

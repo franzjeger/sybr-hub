@@ -404,6 +404,8 @@ async def auth_list_users(user: User = Depends(require_role(Role.admin))) -> dic
             {
                 **_public_user(u),
                 "is_active": u.is_active,
+                # The system account: listed, never deletable.
+                "is_system": bool(u.is_system),
                 "created_at": u.created_at.isoformat(),
                 "last_login": u.last_login.isoformat() if u.last_login else None,
             }
@@ -497,6 +499,11 @@ async def auth_delete_user(
     target = await get_user_by_id(user_id)
     if not target:
         raise refusal(NotFoundError, "err_auth_user_not_found")
+    # The system account owns the tunnels and the scheduled work, and the
+    # activity log names it. Deleting it from Brukere broke both and was one
+    # click away; it is not an account a person administers.
+    if target.is_system:
+        raise refusal(ValidationError, "err_auth_cannot_delete_system")
     if target.role == Role.admin:
         await _guard_last_admin(refusal(ValidationError, "err_auth_last_admin_delete"))
 
