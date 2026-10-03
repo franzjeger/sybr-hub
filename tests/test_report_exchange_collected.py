@@ -187,6 +187,125 @@ async def test_every_inbound_and_outbound_connector_counts(tmp_path):
     assert "Name: Til arkiv" in text and "Direction: Outbound" in text
 
 
+# ── Transport rules, connectors, anti-phishing and anti-spam ──────────────────
+
+TRANSPORT_RULES = [
+    {
+        "Name": "Ekstern advarsel",
+        "State": "Enabled",
+        "Priority": 0,
+        # Get-TransportRule's Description wraps over several lines.
+        "Description": (
+            "If the message:\n\tIs received from 'Outside the organization'\n"
+            "Take the following actions:\n\tPrepend the subject with '[EKSTERN] '"
+        ),
+    },
+    {"Name": "Skanner-unntak", "State": "Disabled", "Priority": 1, "Description": "Bypass"},
+]
+CONNECTORS = {
+    "inbound": {"Name": "Fra skanner", "Enabled": True, "Type": "OnPremises", "RequireTls": True},
+    "outbound": [
+        {
+            "Name": "Til partner",
+            "Enabled": True,
+            "Type": "Partner",
+            "TlsSettings": "DomainValidation",
+        },
+        {"Name": "Til arkiv", "Enabled": False, "Type": "Partner", "TlsSettings": ""},
+    ],
+}
+ANTI_PHISH = [
+    {
+        "Name": "Office365 AntiPhish Default",
+        "IsDefault": True,
+        "EnableTargetedUserProtection": False,
+        "EnableSpoofIntelligence": True,
+        "EnableFirstContactSafetyTips": False,
+    },
+    {
+        "Name": "Ledelse",
+        "IsDefault": False,
+        "EnableTargetedUserProtection": True,
+        "EnableSpoofIntelligence": True,
+        "EnableFirstContactSafetyTips": True,
+    },
+]
+ANTI_SPAM = [
+    {
+        "Name": "Default",
+        "SpamAction": "MoveToJmf",
+        "HighConfidenceSpamAction": "Quarantine",
+        "BulkSpamAction": "MoveToJmf",
+    }
+]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_rules_connectors_and_policies_survive_the_round_trip(tmp_path, sidecars):
+    exo = {
+        "transport_rules": TRANSPORT_RULES,
+        "connectors": CONNECTORS,
+        "anti_phish": ANTI_PHISH,
+        "anti_spam": ANTI_SPAM,
+    }
+    files, _ = await _collect(tmp_path, exo, sidecars=sidecars)
+    assert ("21_exchange_transport_rules.json" in files) is sidecars
+
+    overview = _parse_exchange_overview(files)
+    assert overview["transport_rules"] == 2
+    assert overview["connectors"] == 3
+    assert overview["antiphish_policies"] == ["Office365 AntiPhish Default", "Ledelse"]
+    assert overview["antispam_policies"] == ["Default"]
+
+    controls = _controls(files)
+    assert controls["4.2"]["status"] == controls["4.3"]["status"] == "pass"
+    assert controls["4.2"]["detail"].startswith("2 anti-phishing")
+    assert controls["4.3"]["detail"].startswith("1 anti-spam")
+
+
+async def test_a_value_that_reads_like_a_count_does_not_change_the_count(tmp_path):
+    """A second "(n policies)" in the file leaves the text counter two banners.
+
+    It then counts lines instead, so a rule described "(replaces 2 policies)"
+    and a policy named "Ledelse (5 mailboxes)" turned two records into many.
+    The sidecar carries the collector's own count.
+    """
+    rules = [
+        {
+            "Name": "Arkivkopi",
+            "State": "Enabled",
+            "Priority": 0,
+            "Description": "(replaces 2 policies)",
+        },
+        {"Name": "Skanner-unntak", "State": "Enabled", "Priority": 1, "Description": "Bypass"},
+    ]
+    exo = {
+        "transport_rules": rules,
+        "connectors": {"inbound": None, "outbound": [{"Name": "Partner (3 results)"}]},
+        "anti_phish": [ANTI_PHISH[0], {**ANTI_PHISH[1], "Name": "Ledelse (5 mailboxes)"}],
+        "anti_spam": [{**ANTI_SPAM[0], "Name": "Streng (2 policies)"}],
+    }
+    files, _ = await _collect(tmp_path, exo)
+
+    overview = _parse_exchange_overview(files)
+    assert (overview["transport_rules"], overview["connectors"]) == (2, 1)
+    assert _controls(files)["4.2"]["detail"].startswith("2 anti-phishing")
+    assert _controls(files)["4.3"]["detail"].startswith("1 anti-spam")
+
+    text_only = {k: v for k, v in files.items() if not k.endswith(".json")}
+    overview = _parse_exchange_overview(text_only)
+    assert overview["transport_rules"] != 2 and overview["connectors"] != 1, "the text cannot say"
+    assert not _controls(text_only)["4.2"]["detail"].startswith("2 ")
+    assert not _controls(text_only)["4.3"]["detail"].startswith("1 ")
+
+
+async def test_the_policy_names_come_from_the_sidecar(tmp_path):
+    files, _ = await _collect(tmp_path, {"anti_spam": ANTI_SPAM})
+    files["24_exchange_antispam.txt"] = ""  # only the sidecar can answer now
+
+    assert _parse_exchange_overview(files)["antispam_policies"] == ["Default"]
+
+
 # ── Mailbox forwarding ────────────────────────────────────────────────────────
 
 # 51 characters, in a verified domain. Cut to the 45-character column it ends

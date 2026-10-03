@@ -404,6 +404,47 @@ def _extract_policy_names(text: str) -> list[str]:
     return names
 
 
+def _record_count(file_contents: dict[str, str], text_filename: str) -> int:
+    """How many records a section holds: its sidecar's "count", or the text's.
+
+    The text is counted by _count_data_lines, which trusts the banner. A value
+    that itself reads like a banner count, say a rule described as "(2
+    policies merged)", leaves two banners in the file and the count falls back
+    to counting lines. The sidecar's number is the collector's own.
+    """
+    data = _sidecar(file_contents, text_filename)
+    count = data.get("count") if data else None
+    if isinstance(count, int) and not isinstance(count, bool):
+        return count
+    return _count_data_lines(file_contents.get(text_filename, ""))
+
+
+def _policy_names(file_contents: dict[str, str], text_filename: str) -> list[str]:
+    """One name per policy: from the sidecar's "policies", or the text's blocks.
+
+    The names follow _extract_policy_names: the first of Name, Identity,
+    PolicyName or Policy, else "Policy n".
+    """
+    data = _sidecar(file_contents, text_filename)
+    policies = data.get("policies") if data else None
+    if not isinstance(policies, list):
+        return _extract_policy_names(file_contents.get(text_filename, ""))
+    names: list[str] = []
+    for policy in policies:
+        if not isinstance(policy, dict):
+            continue
+        name = next(
+            (
+                str(policy[k]).strip()
+                for k in ("Name", "Identity", "PolicyName", "Policy")
+                if policy.get(k) not in (None, "")
+            ),
+            "",
+        )
+        names.append(name or f"Policy {len(names) + 1}")
+    return names
+
+
 def _is_error_payload(text: str) -> bool:
     """True if a section file holds a collector's error instead of its data.
 

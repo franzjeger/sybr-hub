@@ -41,6 +41,7 @@ from app.reports.parsers.collaboration import (
     _teams_guest_settings,
 )
 from app.reports.parsers.common import _sidecar
+from app.reports.parsers.common import _record_count
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -693,7 +694,7 @@ def _policy_count(audit: _Audit, file: str, found: str, none: str, gap: str) -> 
     # tenant; a section that did not run is no reading at all.
     if not _section_ran(audit.fc, file):
         return "info", _CANNOT_VERIFY + gap
-    count = _count_data_lines(audit.fc.get(file, ""))
+    count = _record_count(audit.fc, file)
     if count > 0:
         return "pass", f"{count} {found}"
     return "fail", none
