@@ -73,6 +73,7 @@
        a primary button). White in both themes: the fills are dark enough. */
     --on-accent: #fff;
     --mono:      'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    --sans:      'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --logo-src:  url('/branding/SYBR_3.png');
     --logo-footer: url('/branding/300 x 86.png');
     /* ── Typography ──
@@ -175,7 +176,7 @@
     height: 100%;
     background: var(--bg);
     color: var(--text);
-    font-family: 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--sans);
     font-size: var(--font-base);
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
@@ -3178,6 +3179,112 @@ textarea.field-input { resize: vertical; }
 .input-short { width: 120px; }
 .input-medium { width: 220px; }
 
+/* ── Tones ── a status colour as --tone, for a component that draws an edge,
+   a fill or a mark in it (toneVar() in app-format.js picks the class). */
+.tone-success { --tone: var(--green); }
+.tone-danger { --tone: var(--red); }
+.tone-warning { --tone: var(--orange); }
+.tone-accent { --tone: var(--blue); }
+.tone-info { --tone: var(--info); }
+.tone-purple { --tone: var(--purple); }
+.tone-default { --tone: var(--text); }
+.tone-muted { --tone: var(--text-muted); }
+.tone-dim { --tone: var(--text-dim); }
+.tone-border { --tone: var(--border); }
+.edge-tone { border-left: 3px solid var(--tone, var(--border)); }
+.top-tone { border-top: 2px solid var(--tone, var(--border)); }
+.bg-purple { background: var(--purple); }
+.bg-warning { background: var(--orange); }
+
+/* ── KPI card ── a KPI on its own card with a top edge in its tone; the
+   value takes the tone through a text utility where it should. */
+.kpi-card { border-top: 2px solid var(--tone, var(--text-dim)); text-align: center; padding: var(--space-4) var(--space-2); min-height: 80px; }
+.kpi-card.is-active { border-top-width: 4px; filter: brightness(1.2); }
+.kpi-card .kpi-value { font-size: var(--font-xl); }
+.kpi-sub { font-size: var(--font-2xs); color: var(--text-dim); }
+
+/* ── Device card ── a host, a firewall, a site: name, one line about it,
+   then its actions; the left edge in the device's state. */
+.device-card { padding: var(--space-3); display: grid; grid-template-rows: 24px 20px 1fr; height: 100%; border-left: 3px solid var(--tone, var(--border)); }
+.device-card.is-short { grid-template-rows: 24px 1fr; }
+.device-card-head { display: flex; align-items: center; height: 24px; overflow: hidden; }
+.device-card-sub { font-size: var(--font-sm); color: var(--text-muted); line-height: 20px; height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-card-tag {
+  font-size: var(--font-2xs); color: var(--text-dim); background: var(--bg); border-radius: var(--radius-sm);
+  padding: 0 var(--space-1); margin-left: var(--space-2); min-width: 0; max-width: 45%; flex-shrink: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.justify-self-start { justify-self: start; }
+.col-span-3 { grid-column: span 3; }
+.btn.is-disabled { opacity: 0.3; pointer-events: none; }
+/* A connected tunnel or session: a green edge and a faint green wash. */
+.card.is-live { border-color: var(--green); background: color-mix(in srgb, var(--green) 5%, var(--bg-card)); box-shadow: 0 0 0 1px var(--color-success-border); }
+.dot-pulse { animation: pulse 1.5s infinite; }
+
+/* ── Verktøy ── */
+.textarea-sm { height: 60px; }
+.textarea-md { height: 120px; }
+.textarea-lg { height: 200px; }
+.resize-y { resize: vertical; }
+.resize-none { resize: none; }
+.content-start { align-content: start; }
+/* A copy button over the corner of a key or a code block. */
+.copy-overlay {
+  position: absolute; top: var(--space-1); right: var(--space-1); cursor: pointer;
+  padding: var(--space-0-5) var(--space-2); font: inherit; font-size: var(--font-xs); color: var(--text-muted);
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.kv-key { padding: var(--space-2); color: var(--text-muted); width: 140px; }
+.drop-zone { border: 2px dashed var(--border); border-radius: var(--radius-lg); padding: var(--space-8); text-align: center; cursor: pointer; transition: border-color var(--duration-fast); }
+/* Sybrt's face, in four sizes. */
+.avatar-xs, .avatar-sm, .avatar-lg, .avatar-xl { border-radius: 50%; }
+.avatar-xs { width: 16px; height: 16px; vertical-align: middle; margin-right: var(--space-1); }
+.avatar-sm { width: 28px; height: 28px; }
+.avatar-lg { width: 48px; height: 48px; margin-bottom: var(--space-2); opacity: 0.9; }
+.avatar-xl { width: 64px; height: 64px; margin-bottom: var(--space-3); opacity: 0.9; }
+.chat-layout { display: flex; flex-direction: column; height: calc(100vh - 140px); }
+/* The steps of the provisioning wizard. */
+.step-bar { flex: 1; height: 4px; border-radius: var(--radius-full); background: var(--border); }
+.step-bar.is-done { background: var(--green); }
+.step-bar.is-current { background: var(--blue); }
+.col-actions { width: 90px; }
+.col-host { min-width: 130px; }
+.col-type { min-width: 100px; }
+.col-bar { width: 180px; }
+/* A table that scrolls sideways rather than squeeze its columns. */
+.table-wide { min-width: 800px; }
+.code-input { text-align: center; letter-spacing: 3px; font-size: var(--font-md); }
+.site-controller {
+  background: linear-gradient(135deg, var(--bg-card), var(--bg)); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); cursor: pointer;
+}
+/* Remote sessions (Nettleser, RDP): the toolbar status and the frame. */
+.flex-field-2 { flex: 2 1 200px; }
+.session-status { font-size: var(--font-sm); color: var(--text-muted); min-width: 80px; text-align: right; }
+.session-frame { position: relative; min-height: 500px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.session-placeholder { display: flex; align-items: center; justify-content: center; height: 500px; padding: 0 var(--space-4); text-align: center; color: var(--text-dim); font-size: var(--font-base); }
+.session-placeholder.is-tall { height: calc(100vh - 180px); background: var(--bg); }
+.session-canvas { width: 100%; height: calc(100vh - 160px); overflow: hidden; }
+.session-canvas.is-tall { height: calc(100vh - 180px); }
+/* The terminal paints its own dark background in both themes. */
+.term-container { background: #0d1117; height: calc(100vh - 160px); padding: var(--space-1); }
+.icon-btn-sm {
+  display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; cursor: pointer;
+  background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted);
+}
+.log-box {
+  font-family: var(--mono); font-size: var(--font-sm); line-height: 1.6; max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-3);
+}
+/* Lisenser og hosting: a stacked bar of what a customer pays for. */
+.stack-bar { display: flex; height: 14px; border-radius: var(--radius-sm); overflow: hidden; width: var(--bar-value, 0%); }
+.stack-seg { width: var(--bar-value, 0%); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: var(--space-1); vertical-align: middle; }
+.health-mark { display: inline-block; width: 22px; height: 22px; line-height: 22px; border-radius: 50%; background: var(--tone, var(--text-dim)); color: var(--on-accent); font-weight: 700; font-size: var(--font-xs); }
+/* An urgency group's head, tinted by the group's tone. */
+.group-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--tone, var(--border)) 6%, transparent); }
+.bar-pct { font-size: var(--font-xs); color: var(--text-muted); min-width: 40px; }
+
 /* ── Shell ─────────────────────────────────────────────────────────────────
    The overlays and chrome around the views. The ones a script shows and
    hides with style.display start hidden here, not in an inline style. */
@@ -3327,6 +3434,7 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .kv-grid { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--space-1) var(--space-3); }
 
 /* Gap */
+.gap-0 { gap: 0; }
 .gap-0-5 { gap: var(--space-0-5); }
 .gap-1 { gap: var(--space-1); }
 .gap-2 { gap: var(--space-2); }
@@ -3343,6 +3451,7 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .gap-x-2 { column-gap: var(--space-2); }
 .gap-x-3 { column-gap: var(--space-3); }
 .gap-x-4 { column-gap: var(--space-4); }
+.gap-x-5 { column-gap: var(--space-5); }
 .gap-x-6 { column-gap: var(--space-6); }
 
 /* Margin */
@@ -3509,6 +3618,8 @@ footer { display: flex; align-items: center; justify-content: space-between; pad
 .fw-bold { font-weight: 700; }
 .fw-heavy { font-weight: 800; }
 .font-mono { font-family: var(--mono); }
+/* An address in the code face; the sentence that asks for it in the body face. */
+.font-mono::placeholder, .field-input.mono::placeholder { font-family: var(--sans); }
 .italic { font-style: italic; }
 .text-left { text-align: left; }
 .text-center { text-align: center; }

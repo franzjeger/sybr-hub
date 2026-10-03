@@ -76,7 +76,7 @@ export function _renderSetupIdle() {
   intro.style.display = '';
   intro.innerHTML =
       '<div class="card-title">' + esc(t('setup_intro_title')) + '</div>'
-    + '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">'
+    + '<div class="text-ui text-muted lh-relaxed mb-4">'
     +   esc(t('setup_intro_body'))
     + '</div>'
     // What the operator will actually do. The sign-in is PKCE out-of-band: a
@@ -88,10 +88,10 @@ export function _renderSetupIdle() {
     +   '<li>' + esc(t('setup_intro_step_signin')) + '</li>'
     +   '<li>' + esc(t('setup_intro_step_paste')) + '</li>'
     + '</ol>'
-    + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
+    + '<div class="flex items-center gap-3 flex-wrap">'
     +   '<button data-write class="btn btn-primary" data-click-handler="startSetup">'
     +     esc(t('btn_start_setup')) + '</button>'
-    +   '<span style="font-size:12px;color:var(--text-dim);">' + esc(t('setup_intro_needs_ga')) + '</span>'
+    +   '<span class="text-sm text-dim">' + esc(t('setup_intro_needs_ga')) + '</span>'
     + '</div>';
 
   // The button is a write action; re-run the gate so a read-only user sees the
@@ -132,27 +132,27 @@ async function startPkceAuth() {
         <div class="device-code-title">${esc(t('pkce_login_req'))}</div>
         <div class="device-code-step">${esc(t('pkce_desc'))}</div>
         
-        <div style="margin: 12px 0; font-size: 13px;">
+        <div class="my-3 text-ui">
           1. ${t('pkce_step1_txt')}<br>
           2. ${t('pkce_step2_txt')}<br>
           3. ${t('pkce_step3_txt')}<br>
           4. ${t('pkce_step4_txt')}
         </div>
         
-        <div style="margin:2px 0 16px; display:flex; align-items:center; gap:8px;">
-          <span style="font-size:11px; color:var(--text-dim); font-weight: bold;">${esc(t('pkce_lbl_step1'))}</span>
-          <input type="text" id="pkce-url-out" readonly value="${esc(data.url)}" style="flex: 1; padding: 6px; font-size: 11px; background: var(--bg); border: 1px solid var(--border); color: var(--text);">
-          <button class="btn btn-default" style="padding: 4px 8px; font-size: 11px;" data-click-handler="setupCopyPkceUrl">${esc(t('btn_copy'))}</button>
+        <div class="mt-0-5 mb-4 flex items-center gap-2">
+          <span class="text-xs text-dim fw-bold">${esc(t('pkce_lbl_step1'))}</span>
+          <input type="text" id="pkce-url-out" readonly value="${esc(data.url)}" class="flex-1 p-2 text-xs bg-base border text-default">
+          <button class="btn btn-default btn-sm" data-click-handler="setupCopyPkceUrl">${esc(t('btn_copy'))}</button>
         </div>
         
-        <div style="margin:16px 0 2px; display:flex; align-items:center; gap:8px;">
-          <span style="font-size:11px; color:var(--text-dim); font-weight: bold;">${esc(t('pkce_lbl_step4'))}</span>
-          <input type="text" id="pkce-oob-input" placeholder="https://login.microsoftonline.com/common/oauth2/nativeclient?code=..." style="flex: 1; padding: 6px; font-size: 11px; background: var(--bg); border: 1px solid var(--border); color: var(--text);">
-          <button class="btn btn-default" style="padding: 4px 8px; font-size: 11px;" data-click-handler="setupPastePkceOob">${esc(t('btn_paste'))}</button>
+        <div class="mt-4 mb-0-5 flex items-center gap-2">
+          <span class="text-xs text-dim fw-bold">${esc(t('pkce_lbl_step4'))}</span>
+          <input type="text" id="pkce-oob-input" placeholder="https://login.microsoftonline.com/common/oauth2/nativeclient?code=..." class="flex-1 p-2 text-xs bg-base border text-default">
+          <button class="btn btn-default btn-sm" data-click-handler="setupPastePkceOob">${esc(t('btn_paste'))}</button>
         </div>
         
-        <div style="margin-top:12px;">
-          <button class="btn btn-primary" data-click-handler="submitPkceOob" style="width: 100%;">${esc(t('pkce_btn_complete'))}</button>
+        <div class="mt-3">
+          <button class="btn btn-primary w-full" data-click-handler="submitPkceOob">${esc(t('pkce_btn_complete'))}</button>
         </div>
       `;
     } else {

@@ -7,6 +7,7 @@ import {t} from './app-i18n.js';
 import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {_currentUser} from './app-state.js';
+import {toneClass, toneVar} from './app-format.js';
 import {makeSortable, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 
@@ -55,12 +56,12 @@ function _setRenewalFilter(key) {
 
 export async function dashLoadRenewals() {
   var el = document.getElementById('dash-renewals-content');
-  el.innerHTML = '<div class="loader loader-md"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_loading_renewals','Laster fornyelser ...') + '</div>';
+  el.innerHTML = '<div class="loader loader-md"></div><div class="text-center text-muted text-sm">' + t('also_loading_renewals','Laster fornyelser ...') + '</div>';
 
   var data = await apiFetch('/api/also/renewals?days=365');
   if (!data) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12px;">' + t('also_unavailable','ALSO Cloud ikke tilgjengelig') + '</div>'
-      + '<div id="dash-uniweb-renewals" style="margin-top:16px;"><div class="loader" style="width:16px;height:16px;margin:16px auto;"></div></div>';
+    el.innerHTML = '<div class="text-muted text-center p-6 text-sm">' + t('also_unavailable','ALSO Cloud ikke tilgjengelig') + '</div>'
+      + '<div id="dash-uniweb-renewals" class="mt-4"><div class="loader mx-auto my-4"></div></div>';
     _loadUniwebRenewals();
     return;
   }
@@ -81,7 +82,7 @@ export async function dashLoadRenewals() {
   // ── KPI row ──
   var mrrText = data.total_mrr > 0 ? data.total_mrr.toFixed(0) + ' ' + esc(data.currency || '') : '-';
   var af = _renewalIntervalFilter;
-  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;">';
+  var html = '<div class="grid grid-auto-sm gap-3 mb-4">';
   var kpis = [
     {label:t('kpi_cached','Cached'),     value:Number(data.all_cached),  color:'var(--blue)',   filterKey:null},
     {label:t('kpi_expired','Expired'),   value:Number(data.expired),     color:data.expired>0?'var(--red)':'var(--text-dim)',     filterKey:'expired'},
@@ -95,14 +96,10 @@ export async function dashLoadRenewals() {
   kpis.forEach(function(k) {
     var isActive = (k.filterKey !== null && af === k.filterKey) || (k.filterKey === null && af === null && !k.noClick);
     var clickable = !k.noClick;
-    var borderWidth = isActive && k.filterKey !== null ? '4px' : (af === null && k.filterKey === null && !k.noClick) ? '4px' : '2px';
     // "Bufret" card is highlighted when no filter active (it means "all")
     if (k.filterKey === null && !k.noClick) {
       isActive = (af === null);
-      borderWidth = isActive ? '4px' : '2px';
     }
-    var brightness = isActive ? 'filter:brightness(1.2);' : '';
-    var cursor = clickable ? 'cursor:pointer;' : '';
     var clickAttrs = '';
     if (clickable) {
       if (k.filterKey === null) {
@@ -111,64 +108,64 @@ export async function dashLoadRenewals() {
         clickAttrs = ' data-click-handler="renewalSetFilter" data-filter-key="'+esc(k.filterKey)+'"';
       }
     }
-    html += '<div class="card" style="padding:12px 8px;text-align:center;border-top:'+borderWidth+' solid '+k.color+';height:80px;box-sizing:border-box;'+cursor+brightness+'"'+clickAttrs+'>';
-    html += '<div style="font-size:18px;font-weight:700;line-height:22px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);line-height:14px;">'+k.label+'</div>';
+    html += '<div class="card kpi-card ' + toneVar(k.color) + (clickable ? ' cursor-pointer' : '') + (isActive ? ' is-active' : '') + '"'+clickAttrs+'>';
+    html += '<div class="kpi-value ' + toneClass(k.color) + '">'+k.value+'</div>';
+    html += '<div class="kpi-label">'+k.label+'</div>';
     html += '</div>';
   });
   html += '</div>';
 
   // ── Action bar ──
-  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
-  html += '<button class="btn btn-ghost" data-click-handler="dashLoadRenewals" style="padding:4px 12px;font-size:11px;">'+t('btn_refresh','Refresh')+'</button>';
-  html += '<button class="btn btn-primary" data-write data-click-handler="alsoCombinedSync" id="renewal-scan-btn" style="padding:4px 12px;font-size:11px;">'+t('btn_sync','Sync')+'</button>';
-  html += '<button class="btn btn-ghost" data-write data-click-handler="alsoBulkHandled" style="padding:4px 12px;font-size:11px;">'+t('btn_mark_handled','Mark selected handled')+'</button>';
-  html += '<button class="btn btn-ghost" data-click-handler="alsoExportCSV" style="padding:4px 12px;font-size:11px;">'+t('btn_export_csv','Export CSV')+'</button>';
-  html += '<button class="btn btn-ghost" data-click-handler="alsoDownloadPDF" style="padding:4px 12px;font-size:11px;">'+icon('document',13)+' '+t('btn_pdf_report','PDF Report')+'</button>';
-  html += '<button class="btn btn-ghost" data-click-handler="alsoShowLicenseOptimization" style="padding:4px 12px;font-size:11px;">'+t('btn_license_opt','Lisensoptimalisering')+'</button>';
-  html += '<select id="renewal-filter-vendor" data-change-handler="dashLoadRenewals" style="padding:3px 8px;font-size:11px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);"><option value="">'+t('lbl_all_vendors','All vendors')+'</option></select>';
+  html += '<div class="flex items-center gap-3 mb-3 flex-wrap">';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="dashLoadRenewals">'+t('btn_refresh','Refresh')+'</button>';
+  html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="alsoCombinedSync" id="renewal-scan-btn">'+t('btn_sync','Sync')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="alsoBulkHandled">'+t('btn_mark_handled','Mark selected handled')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="alsoExportCSV">'+t('btn_export_csv','Export CSV')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="alsoDownloadPDF">'+icon('document',13)+' '+t('btn_pdf_report','PDF Report')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="alsoShowLicenseOptimization">'+t('btn_license_opt','Lisensoptimalisering')+'</button>';
+  html += '<select id="renewal-filter-vendor" data-change-handler="dashLoadRenewals" class="field-input field-input-sm w-auto"><option value="">'+t('lbl_all_vendors','All vendors')+'</option></select>';
   // Show "Vis alle" link when interval filter is active
   if (_renewalIntervalFilter) {
-    html += '<a href="#" data-click-handler="renewalShowAll" style="font-size:11px;color:var(--blue);text-decoration:underline;cursor:pointer;">'+t('lbl_show_all','Show all')+'</a>';
+    html += '<a href="#" data-click-handler="renewalShowAll" class="text-xs text-accent underline cursor-pointer">'+t('lbl_show_all','Show all')+'</a>';
   }
-  html += '<span id="renewal-scan-msg" style="font-size:11px;color:var(--text-muted);"></span>';
-  html += '<span id="also-api-stats" style="font-size:10px;color:var(--text-dim);margin-left:auto;font-family:var(--mono);"></span>';
+  html += '<span id="renewal-scan-msg" class="text-xs text-muted"></span>';
+  html += '<span id="also-api-stats" class="text-2xs text-dim ml-auto font-mono"></span>';
   html += '</div>';
 
   if (!renewals.length) {
-    html += '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);">';
-    html += '<div style="font-size:32px;margin-bottom:8px;">'+icon('document',32)+'</div>';
+    html += '<div class="card empty-note is-compact">';
+    html += '<div class="text-3xl mb-2">'+icon('document',32)+'</div>';
     if (_lastRenewals.length === 0) {
-      html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">'+t('msg_no_renewal_data','No renewal data cached yet')+'</div>';
-      html += '<div style="font-size:12px;">'+t('msg_no_renewal_data_hint','View licenses on a customer, or click "Sync" to build the cache.')+'</div>';
+      html += '<div class="text-base fw-semibold mb-1">'+t('msg_no_renewal_data','No renewal data cached yet')+'</div>';
+      html += '<div class="text-sm">'+t('msg_no_renewal_data_hint','View licenses on a customer, or click "Sync" to build the cache.')+'</div>';
     } else {
-      html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">'+t('msg_no_renewals_filter','No renewals in this filter')+'</div>';
-      html += '<div style="font-size:12px;"><a href="#" data-click-handler="renewalShowAll" style="color:var(--blue);">'+t('lbl_show_all','Show all')+'</a></div>';
+      html += '<div class="text-base fw-semibold mb-1">'+t('msg_no_renewals_filter','No renewals in this filter')+'</div>';
+      html += '<div class="text-sm"><a href="#" data-click-handler="renewalShowAll" class="text-accent">'+t('lbl_show_all','Show all')+'</a></div>';
     }
     html += '</div>';
     // Still show Uniweb renewals even when ALSO has no data
-    html += '<div id="dash-uniweb-renewals" style="margin-top:16px;"><div class="loader" style="width:16px;height:16px;margin:16px auto;"></div></div>';
+    html += '<div id="dash-uniweb-renewals" class="mt-4"><div class="loader mx-auto my-4"></div></div>';
     el.innerHTML = html;
     _loadUniwebRenewals();
     return;
   }
 
   // ── Table ──
-  html += '<div class="card" style="padding:0;overflow-x:auto;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:2px solid var(--border);">';
-  html += '<th style="text-align:center;padding:8px;width:40px;"><input type="checkbox" data-change-handler="alsoToggleAll" title="'+t('tip_select_all','Select all')+'"></th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_customer','Customer')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_product','Product')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_vendor','Vendor')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_term','Term')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_qty','Qty')+'</th>';
-  html += '<th style="text-align:right;padding:8px;">'+t('col_price','Price')+'</th>';
-  html += '<th style="text-align:right;padding:8px;">'+t('col_monthly','Monthly')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_renews','Renews')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_days','Days')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_status','Status')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_notes','Notes')+'</th>';
+  html += '<div class="card p-0 overflow-x-auto">';
+  html += '<table class="data-table">';
+  html += '<thead><tr>';
+  html += '<th class="text-center p-2 col-check"><input type="checkbox" class="checkbox" data-change-handler="alsoToggleAll" title="'+t('tip_select_all','Select all')+'"></th>';
+  html += '<th class="p-2">'+t('col_customer','Customer')+'</th>';
+  html += '<th class="p-2">'+t('col_product','Product')+'</th>';
+  html += '<th class="p-2">'+t('col_vendor','Vendor')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_term','Term')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_qty','Qty')+'</th>';
+  html += '<th class="text-right p-2">'+t('col_price','Price')+'</th>';
+  html += '<th class="text-right p-2">'+t('col_monthly','Monthly')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_renews','Renews')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_days','Days')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_status','Status')+'</th>';
+  html += '<th class="p-2">'+t('col_notes','Notes')+'</th>';
   html += '</tr></thead><tbody>';
 
   var lastCustomer = '';
@@ -178,56 +175,55 @@ export async function dashLoadRenewals() {
     var daysLeft = r.days_left;
     var daysColor = daysLeft === null ? 'var(--text-dim)' : daysLeft < 0 ? 'var(--red)' : daysLeft <= 30 ? 'var(--red)' : daysLeft <= 60 ? 'var(--orange)' : 'var(--green)';
     var daysLabel = daysLeft === null ? '-' : daysLeft < 0 ? 'UTL\u00d8PT' : Number(daysLeft) + 'd';
-    var rowBg = r.handled ? 'rgba(0,200,0,0.04)' : i % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
     var renewDate = r.contract_end ? esc(r.contract_end.slice(0,10)) : '-';
 
     // Customer subtotal separator
     if (r.customer_name !== lastCustomer && lastCustomer !== '' && customerMrr > 0) {
-      html += '<tr style="background:var(--bg);border-bottom:2px solid var(--border);"><td colspan="7" style="padding:4px 8px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);">'+esc(lastCustomer)+' MRR:</td><td style="padding:4px 8px;text-align:right;font-weight:700;font-family:var(--mono);font-size:11px;">'+customerMrr.toFixed(2)+'</td><td colspan="4"></td></tr>';
+      html += '<tr class="bg-base"><td colspan="7" class="text-right text-xs fw-semibold text-muted">'+esc(lastCustomer)+' MRR:</td><td class="text-right fw-bold font-mono text-xs">'+customerMrr.toFixed(2)+'</td><td colspan="4"></td></tr>';
       customerMrr = 0;
     }
     lastCustomer = r.customer_name;
     customerMrr += (r.monthly_cost || 0);
 
-    html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);'+(r.handled?'opacity:0.6;':'')+'">';
-    html += '<td style="padding:6px 8px;text-align:center;"><input type="checkbox" class="renewal-cb" data-id="'+Number(r.id)+'" '+(r.handled?'checked':'')+' data-change-handler="alsoToggleHandled" style="cursor:pointer;"></td>';
-    html += '<td style="padding:6px 8px;font-weight:500;">'+esc(r.customer_name)+'</td>';
-    html += '<td style="padding:6px 8px;">'+esc(r.service_display)+'</td>';
-    html += '<td style="padding:6px 8px;color:var(--text-muted);">'+esc(r.vendor)+'</td>';
+    html += '<tr' + (r.handled ? ' class="row-success opacity-60"' : '') + '>';
+    html += '<td class="text-center"><input type="checkbox" class="renewal-cb checkbox" data-id="'+Number(r.id)+'" '+(r.handled?'checked':'')+' data-change-handler="alsoToggleHandled"></td>';
+    html += '<td class="fw-medium">'+esc(r.customer_name)+'</td>';
+    html += '<td>'+esc(r.service_display)+'</td>';
+    html += '<td class="text-muted">'+esc(r.vendor)+'</td>';
 
     var term = r.term || '-';
     var termLabel = term === 'Monthly' ? t('term_monthly','Monthly') : term === 'Annual' ? t('term_annual','Annual') : term === 'Quarterly' ? t('term_quarterly','Quarterly') : term;
     var termIcon = term === 'Monthly' ? '\ud83d\udd04' : term === 'Annual' ? '\ud83d\udcc6' : term === 'Quarterly' ? '\ud83d\udcc5' : term.indexOf('Year') !== -1 ? '\ud83d\udcc6' : '';
     var termColor = term === 'Monthly' ? 'var(--blue)' : term === 'Annual' ? 'var(--purple)' : 'var(--text-muted)';
-    html += '<td style="padding:6px 8px;text-align:center;font-size:11px;"><span style="color:'+termColor+';font-weight:600;">'+termIcon+' '+esc(termLabel)+'</span></td>';
+    html += '<td class="text-center text-xs"><span class="' + toneClass(termColor) + ' fw-semibold">'+termIcon+' '+esc(termLabel)+'</span></td>';
 
     // Qty / Price / Monthly — show dash if not yet cached
     var qty = Number(r.quantity) || 0;
     var price = r.unit_price || 0;
     var monthly = r.monthly_cost || 0;
-    html += '<td style="padding:6px 8px;text-align:center;font-weight:600;">'+(qty > 0 ? qty : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-    html += '<td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:11px;">'+(price > 0 ? price.toFixed(2) : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-    html += '<td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-weight:600;">'+(monthly > 0 ? monthly.toFixed(2) : '<span style="color:var(--text-dim);">-</span>')+'</td>';
+    html += '<td class="text-center fw-semibold">'+(qty > 0 ? qty : '<span class="text-dim">-</span>')+'</td>';
+    html += '<td class="text-right font-mono text-xs">'+(price > 0 ? price.toFixed(2) : '<span class="text-dim">-</span>')+'</td>';
+    html += '<td class="text-right font-mono fw-semibold">'+(monthly > 0 ? monthly.toFixed(2) : '<span class="text-dim">-</span>')+'</td>';
 
-    html += '<td style="padding:6px 8px;text-align:center;font-size:11px;">'+renewDate+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;font-weight:700;color:'+daysColor+';">'+daysLabel+'</td>';
+    html += '<td class="text-center text-xs">'+renewDate+'</td>';
+    html += '<td class="text-center fw-bold ' + toneClass(daysColor) + '">'+daysLabel+'</td>';
 
     var stColor = r.account_state === 'Active' ? 'var(--green)' : 'var(--orange)';
-    html += '<td style="padding:6px 8px;text-align:center;"><span style="font-size:10px;color:'+stColor+';font-weight:600;">'+esc(r.account_state)+'</span></td>';
+    html += '<td class="text-center"><span class="text-2xs ' + toneClass(stColor) + ' fw-semibold">'+esc(r.account_state)+'</span></td>';
 
-    html += '<td style="padding:6px 8px;"><input type="text" value="'+esc(r.notes||'')+'" placeholder="'+t('lbl_add_note','Add note...')+'" data-change-handler="alsoSaveNote" data-id="'+Number(r.id)+'" style="width:100%;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;"></td>';
+    html += '<td><input type="text" value="'+esc(r.notes||'')+'" placeholder="'+t('lbl_add_note','Add note...')+'" data-change-handler="alsoSaveNote" data-id="'+Number(r.id)+'" class="field-input field-input-sm"></td>';
     html += '</tr>';
   });
 
   // Final customer subtotal
   if (lastCustomer && customerMrr > 0) {
-    html += '<tr style="background:var(--bg);border-bottom:2px solid var(--border);"><td colspan="7" style="padding:4px 8px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);">'+esc(lastCustomer)+' MRR:</td><td style="padding:4px 8px;text-align:right;font-weight:700;font-family:var(--mono);font-size:11px;">'+customerMrr.toFixed(2)+'</td><td colspan="4"></td></tr>';
+    html += '<tr class="bg-base"><td colspan="7" class="text-right text-xs fw-semibold text-muted">'+esc(lastCustomer)+' MRR:</td><td class="text-right fw-bold font-mono text-xs">'+customerMrr.toFixed(2)+'</td><td colspan="4"></td></tr>';
   }
 
   html += '</tbody></table></div>';
 
   // Uniweb renewals placeholder
-  html += '<div id="dash-uniweb-renewals" style="margin-top:16px;"><div class="loader" style="width:16px;height:16px;margin:16px auto;"></div></div>';
+  html += '<div id="dash-uniweb-renewals" class="mt-4"><div class="loader mx-auto my-4"></div></div>';
 
   el.innerHTML = html;
 
@@ -268,10 +264,10 @@ async function _loadUniwebRenewals() {
   try {
     var data = await apiFetch('/api/uniweb/alerts?days=365');
     if (!data || !data.items || data.items.length === 0) {
-      container.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--green);">'
-        + '<div style="font-size:28px;margin-bottom:6px;">&#10003;</div>'
-        + '<div style="font-size:13px;font-weight:600;">'+t('msg_no_uniweb_renewals','Ingen Uniweb-fornyelser')+'</div>'
-        + '<div style="font-size:12px;color:var(--text-muted);">'+t('msg_no_uniweb_renewals_hint','Ingen domener, abonnementer eller SSL-sertifikater utløper innen ett år.')+'</div>'
+      container.innerHTML = '<div class="card p-6 text-center text-success">'
+        + '<div class="text-2xl mb-2">&#10003;</div>'
+        + '<div class="text-ui fw-semibold">'+t('msg_no_uniweb_renewals','Ingen Uniweb-fornyelser')+'</div>'
+        + '<div class="text-sm text-muted">'+t('msg_no_uniweb_renewals_hint','Ingen domener, abonnementer eller SSL-sertifikater utløper innen ett år.')+'</div>'
         + '</div>';
       return;
     }
@@ -288,7 +284,7 @@ async function _loadUniwebRenewals() {
     var html = '';
 
     // KPI row
-    html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">';
+    html += '<div class="grid grid-cols-5 gap-3 mb-4">';
     var kpis = [
       {label:t('kpi_cached','Totalt'), value:Number(data.total), color:'var(--blue)'},
       {label:t('kpi_expired','Utløpt/Kritisk')+ ' (<7d)', value:kritisk.length, color:kritisk.length>0?'var(--red)':'var(--text-dim)'},
@@ -297,26 +293,26 @@ async function _loadUniwebRenewals() {
       {label:'90-365 '+t('col_days','dager'), value:langt.length, color:langt.length>0?'var(--green)':'var(--text-dim)'},
     ];
     kpis.forEach(function(k) {
-      html += '<div class="card" style="padding:12px 8px;text-align:center;border-top:2px solid '+k.color+';height:80px;box-sizing:border-box;">';
-      html += '<div style="font-size:18px;font-weight:700;line-height:22px;color:'+k.color+';">'+k.value+'</div>';
-      html += '<div style="font-size:10px;color:var(--text-muted);line-height:14px;">'+k.label+'</div>';
+      html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
+      html += '<div class="kpi-value ' + toneClass(k.color) + '">'+k.value+'</div>';
+      html += '<div class="kpi-label">'+k.label+'</div>';
       html += '</div>';
     });
     html += '</div>';
 
     // Section header
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-    html += '<div style="font-size:14px;font-weight:600;color:var(--text);">' + t('also_uniweb_renewals','Uniweb-fornyelser') + '</div>';
-    html += '<button class="btn btn-ghost" data-click-handler="_loadUniwebRenewals" style="padding:4px 12px;font-size:11px;">' + t('also_refresh','Oppdater') + '</button>';
+    html += '<div class="flex items-center justify-between mb-3">';
+    html += '<div class="text-base fw-semibold text-default">' + t('also_uniweb_renewals','Uniweb-fornyelser') + '</div>';
+    html += '<button class="btn btn-ghost btn-sm" data-click-handler="_loadUniwebRenewals">' + t('also_refresh','Oppdater') + '</button>';
     html += '</div>';
 
     // Render each urgency group. The items stay out of the style table so
     // the table holds only our own constants.
     var groups = [
-      {label:'Kritisk', subtitle:t('also_exp_7d','Utløper innen 7 dager'), color:'var(--red)', bgTint:'rgba(255,59,48,0.06)'},
-      {label:'Snart', subtitle:t('also_exp_30d','Utløper innen 30 dager'), color:'var(--orange)', bgTint:'rgba(255,149,0,0.06)'},
-      {label:'Kommende', subtitle:t('also_exp_90d','Utløper innen 90 dager'), color:'#c9a800', bgTint:'rgba(201,168,0,0.06)'},
-      {label:'Langsiktig', subtitle:t('also_exp_365d','90–365 dager'), color:'var(--green)', bgTint:'rgba(59,185,80,0.06)'},
+      {label:'Kritisk', subtitle:t('also_exp_7d','Utløper innen 7 dager'), color:'var(--red)'},
+      {label:'Snart', subtitle:t('also_exp_30d','Utløper innen 30 dager'), color:'var(--orange)'},
+      {label:'Kommende', subtitle:t('also_exp_90d','Utløper innen 90 dager'), color:'#c9a800'},
+      {label:'Langsiktig', subtitle:t('also_exp_365d','90–365 dager'), color:'var(--green)'},
     ];
     var groupItems = [kritisk, snart, kommende, langt];
 
@@ -324,33 +320,32 @@ async function _loadUniwebRenewals() {
       var gItems = groupItems[gi];
       if (gItems.length === 0) return;
 
-      html += '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;border-left:3px solid '+g.color+';">';
-      html += '<div style="padding:12px 16px;background:'+g.bgTint+';border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">';
-      html += '<div><span style="font-size:13px;font-weight:700;color:'+g.color+';">'+g.label+'</span>';
-      html += '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">'+g.subtitle+'</span></div>';
-      html += '<span style="font-size:12px;font-weight:600;color:'+g.color+';">'+gItems.length+' element'+(gItems.length!==1?'er':'')+'</span>';
+      html += '<div class="card p-0 overflow-hidden mb-3 edge-tone ' + toneVar(g.color) + '">';
+      html += '<div class="group-head">';
+      html += '<div><span class="text-ui fw-bold ' + toneClass(g.color) + '">'+g.label+'</span>';
+      html += '<span class="text-xs text-muted ml-2">'+g.subtitle+'</span></div>';
+      html += '<span class="text-sm fw-semibold ' + toneClass(g.color) + '">'+gItems.length+' element'+(gItems.length!==1?'er':'')+'</span>';
       html += '</div>';
 
-      html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-      html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
-      html += '<th style="text-align:left;padding:7px 10px;">' + t('also_col_customer','Kunde') + '</th>';
-      html += '<th style="text-align:left;padding:7px 10px;">' + t('also_col_type','Type') + '</th>';
-      html += '<th style="text-align:left;padding:7px 10px;">' + t('also_col_name','Navn') + '</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">' + t('also_col_expiry','Utløpsdato') + '</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">' + t('also_col_days_left','Dager igjen') + '</th>';
+      html += '<table class="data-table">';
+      html += '<thead><tr>';
+      html += '<th class="py-2 px-3">' + t('also_col_customer','Kunde') + '</th>';
+      html += '<th class="py-2 px-3">' + t('also_col_type','Type') + '</th>';
+      html += '<th class="py-2 px-3">' + t('also_col_name','Navn') + '</th>';
+      html += '<th class="text-center py-2 px-3">' + t('also_col_expiry','Utløpsdato') + '</th>';
+      html += '<th class="text-center py-2 px-3">' + t('also_col_days_left','Dager igjen') + '</th>';
       html += '</tr></thead><tbody>';
 
       gItems.forEach(function(item, idx) {
         var daysColor = item.days_remaining < 0 ? 'var(--red)' : item.days_remaining < 7 ? 'var(--red)' : item.days_remaining < 14 ? 'var(--orange)' : '#c9a800';
         var daysLabel = item.days_remaining < 0 ? 'UTLOPT' : Number(item.days_remaining) + 'd';
-        var rowBg = idx % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
 
-        html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
-        html += '<td style="padding:6px 10px;font-weight:500;">'+esc(item.customer_name)+'</td>';
-        html += '<td style="padding:6px 10px;"><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--bg-tertiary);color:var(--text-muted);">'+esc(typeLabels[item.type] || item.type)+'</span></td>';
-        html += '<td style="padding:6px 10px;">'+esc(item.item_name)+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-size:11px;font-family:var(--mono);">'+esc(item.expiry_date)+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+daysColor+';">'+daysLabel+'</td>';
+        html += '<tr>';
+        html += '<td class="fw-medium">'+esc(item.customer_name)+'</td>';
+        html += '<td><span class="text-2xs fw-semibold py-0-5 px-2 rounded-full text-muted">'+esc(typeLabels[item.type] || item.type)+'</span></td>';
+        html += '<td>'+esc(item.item_name)+'</td>';
+        html += '<td class="text-center text-xs font-mono">'+esc(item.expiry_date)+'</td>';
+        html += '<td class="text-center fw-bold ' + toneClass(daysColor) + '">'+daysLabel+'</td>';
         html += '</tr>';
       });
 
@@ -359,7 +354,7 @@ async function _loadUniwebRenewals() {
 
     container.innerHTML = html;
   } catch (e) {
-    container.innerHTML = '<div class="card" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_uniweb_load_failed','Kunne ikke laste Uniweb-fornyelser. Sjekk at Uniweb er konfigurert.') + '</div>';
+    container.innerHTML = '<div class="card p-4 text-center text-muted text-sm">' + t('also_uniweb_load_failed','Kunne ikke laste Uniweb-fornyelser. Sjekk at Uniweb er konfigurert.') + '</div>';
   }
 }
 
@@ -567,12 +562,12 @@ async function alsoRenewalScan() {
   btn.textContent = t('msg_scanning','Scanning …');
 
   // Show progress bar
-  msg.innerHTML = '<div style="margin-top:4px;">'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
-    + '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'
-    + '<div id="renewal-scan-bar" style="width:0%;height:100%;background:var(--blue);border-radius:3px;transition:width 0.5s;"></div></div>'
-    + '<span id="renewal-scan-pct" style="font-size:11px;color:var(--text-muted);min-width:40px;">0%</span></div>'
-    + '<div id="renewal-scan-detail" style="font-size:11px;color:var(--text-dim);">' + t('also_starting','Starter ...') + '</div></div>';
+  msg.innerHTML = '<div class="mt-1">'
+    + '<div class="flex items-center gap-2 mb-1">'
+    + '<div class="bar flex-1">'
+    + '<div id="renewal-scan-bar" class="bar-fill"></div></div>'
+    + '<span id="renewal-scan-pct" class="bar-pct">0%</span></div>'
+    + '<div id="renewal-scan-detail" class="text-xs text-dim">' + t('also_starting','Starter ...') + '</div></div>';
 
   // Start polling progress
   _renewalScanTimer = setInterval(async function() {
@@ -599,15 +594,15 @@ async function alsoRenewalScan() {
 
     if (remaining > 0) {
       btn.textContent = t('also_scan_next_batch','Skann neste batch') + ' (' + remaining + ' ' + t('also_remaining','gjenstår') + ')';
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_scanned','Skannet') + ' '+Number(d.scanned)+' \u00b7 '+Number(d.already_cached)+' ' + t('also_already_cached','allerede bufret') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+Number(d.errors)+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
+      msg.innerHTML = '<span class="text-success">\u2713 ' + t('also_scanned','Skannet') + ' '+Number(d.scanned)+' \u00b7 '+Number(d.already_cached)+' ' + t('also_already_cached','allerede bufret') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span class="text-warning">'+Number(d.errors)+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
     } else {
       btn.textContent = t('btn_sync','Sync');
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all','Alle') + ' '+Number(d.total_linked)+' ' + t('also_customers_cached','kunder ferdig bufret') + '</span>';
+      msg.innerHTML = '<span class="text-success">\u2713 ' + t('also_all','Alle') + ' '+Number(d.total_linked)+' ' + t('also_customers_cached','kunder ferdig bufret') + '</span>';
     }
     return d;
   } else {
     btn.textContent = t('btn_sync','Sync');
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error || 'Skanning feilet') + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(d && d.error || 'Skanning feilet') + '</span>';
     return null;
   }
 }
@@ -618,7 +613,7 @@ async function alsoRefreshApiStats() {
   var s = await apiFetch('/api/also/api-stats');
   if (!s || !s.total_calls) { el.textContent = t('msg_api_zero_calls','API: 0 calls'); return; }
   el.innerHTML = 'API: <strong>'+Number(s.total_calls)+'</strong> kall \u00b7 '+Number(s.last_1min)+'/min \u00b7 '+Number(s.last_5min)+'/5min \u00b7 snitt '+Number(s.avg_response_ms)+'ms'
-    + (s.errors > 0 ? ' \u00b7 <span style="color:var(--red);">'+Number(s.errors)+' ' + t('also_errors','feil') + '</span>' : '');
+    + (s.errors > 0 ? ' \u00b7 <span class="text-danger">'+Number(s.errors)+' ' + t('also_errors','feil') + '</span>' : '');
 }
 
 var _priceScanTimer = null;
@@ -635,12 +630,12 @@ async function alsoPriceScan() {
   btn.disabled = true;
   btn.textContent = t('also_fetching_prices','Henter priser ...');
 
-  msg.innerHTML = '<div style="margin-top:4px;">'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
-    + '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'
-    + '<div id="price-scan-bar" style="width:0%;height:100%;background:var(--green);border-radius:3px;transition:width 0.5s;"></div></div>'
-    + '<span id="price-scan-pct" style="font-size:11px;color:var(--text-muted);min-width:40px;">0%</span></div>'
-    + '<div id="price-scan-detail" style="font-size:11px;color:var(--text-dim);">' + t('also_fetching_prices','Henter priser ...') + '</div></div>';
+  msg.innerHTML = '<div class="mt-1">'
+    + '<div class="flex items-center gap-2 mb-1">'
+    + '<div class="bar flex-1">'
+    + '<div id="price-scan-bar" class="bar-fill is-success"></div></div>'
+    + '<span id="price-scan-pct" class="bar-pct">0%</span></div>'
+    + '<div id="price-scan-detail" class="text-xs text-dim">' + t('also_fetching_prices','Henter priser ...') + '</div></div>';
 
   _priceScanTimer = setInterval(async function() {
     var p = await apiFetch('/api/also/price-scan/progress');
@@ -666,15 +661,15 @@ async function alsoPriceScan() {
 
     if (remaining > 0) {
       btn.textContent = t('also_next_price_batch','Neste prisbatch') + ' (' + remaining + ' ' + t('also_remaining','gjenstår') + ')';
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_priced','Priset') + ' '+Number(d.scanned)+' ' + t('also_subscriptions_lc','abonnementer') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+Number(d.errors)+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
+      msg.innerHTML = '<span class="text-success">\u2713 ' + t('also_priced','Priset') + ' '+Number(d.scanned)+' ' + t('also_subscriptions_lc','abonnementer') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span class="text-warning">'+Number(d.errors)+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
     } else {
       btn.textContent = t('btn_sync','Sync');
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all_priced','Alle abonnementer priset') + '</span>';
+      msg.innerHTML = '<span class="text-success">\u2713 ' + t('also_all_priced','Alle abonnementer priset') + '</span>';
     }
     return d;
   } else {
     btn.textContent = t('btn_sync','Sync');
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error || 'Prisskanning feilet') + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(d && d.error || 'Prisskanning feilet') + '</span>';
     return null;
   }
 }
@@ -714,7 +709,7 @@ async function alsoCombinedSync() {
 
   if (priceResult && (!priceResult.remaining || priceResult.remaining === 0)) {
     btn.textContent = t('btn_sync','Sync');
-    msg.innerHTML = '<span style="color:var(--green);">\u2713</span>';
+    msg.innerHTML = '<span class="text-success">\u2713</span>';
     dashLoadRenewals();
   } else if (priceResult && priceResult.remaining > 0) {
     btn.textContent = t('btn_sync','Sync') + ' (' + priceResult.remaining + ')';
@@ -733,14 +728,14 @@ var _licOptData = null;
 async function alsoShowLicenseOptimization() {
   var el = document.getElementById('dash-renewals-content');
   el.innerHTML = '<div class="loader loader-md"></div>'
-    + '<div style="text-align:center;color:var(--text-muted);font-size:12px;">'
+    + '<div class="text-center text-muted text-sm">'
     + t('lbl_loading_lic_opt','Loading license optimization...') + '</div>';
 
   var data = await apiFetch('/api/also/license-optimization');
   if (!data) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12px;">'
+    el.innerHTML = '<div class="text-muted text-center p-6 text-sm">'
       + t('msg_lic_opt_unavailable','Could not load license optimization data') + '</div>'
-      + '<div style="text-align:center;margin-top:8px;"><button class="btn btn-ghost" data-click-handler="dashLoadRenewals" style="font-size:11px;">'
+      + '<div class="text-center mt-2"><button class="btn btn-ghost btn-sm" data-click-handler="dashLoadRenewals">'
       + t('btn_back_renewals','Back to renewals') + '</button></div>';
     return;
   }
@@ -755,14 +750,14 @@ function _renderLicenseOptimization(data, el) {
   var html = '';
 
   // ── Header + back button ──
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
-  html += '<div style="font-size:16px;font-weight:700;">'+t('hdr_license_opt','License Optimization')+'</div>';
-  html += '<button class="btn btn-ghost" data-click-handler="dashLoadRenewals" style="padding:4px 12px;font-size:11px;">'
+  html += '<div class="flex items-center justify-between mb-4">';
+  html += '<div class="text-md fw-bold">'+t('hdr_license_opt','License Optimization')+'</div>';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="dashLoadRenewals">'
     + t('btn_back_renewals','Back to renewals') + '</button>';
   html += '</div>';
 
   // ── KPI row ──
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;">';
+  html += '<div class="grid grid-auto-sm gap-3 mb-4">';
   var kpis = [
     {label:t('kpi_total_waste','Total waste/mo'), value:s.total_waste > 0 ? s.total_waste.toFixed(0)+' '+cur : '0 '+cur, color:s.total_waste>0?'var(--red)':'var(--green)'},
     {label:t('kpi_over_licensed','Over-licensed'),  value:Number(s.over_licensed_count),  color:s.over_licensed_count>0?'var(--orange)':'var(--text-dim)'},
@@ -770,17 +765,17 @@ function _renderLicenseOptimization(data, el) {
     {label:t('kpi_optimal','Optimal'),              value:Number(s.optimal_count),        color:s.optimal_count>0?'var(--green)':'var(--text-dim)'},
   ];
   kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:12px 8px;text-align:center;border-top:3px solid '+k.color+';height:80px;box-sizing:border-box;">';
-    html += '<div style="font-size:18px;font-weight:700;line-height:22px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:10px;color:var(--text-muted);line-height:14px;">'+k.label+'</div>';
+    html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
+    html += '<div class="kpi-value ' + toneClass(k.color) + '">'+k.value+'</div>';
+    html += '<div class="kpi-label">'+k.label+'</div>';
     html += '</div>';
   });
   html += '</div>';
 
   if (customers.length === 0) {
-    html += '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);">';
-    html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">'+t('msg_no_lic_opt','No license optimization data')+'</div>';
-    html += '<div style="font-size:12px;">'+t('msg_no_lic_opt_hint','Run audit on ALSO-linked customers and sync subscriptions first.')+'</div>';
+    html += '<div class="card empty-note is-compact">';
+    html += '<div class="text-base fw-semibold mb-1">'+t('msg_no_lic_opt','No license optimization data')+'</div>';
+    html += '<div class="text-sm">'+t('msg_no_lic_opt_hint','Run audit on ALSO-linked customers and sync subscriptions first.')+'</div>';
     html += '</div>';
     el.innerHTML = html;
     return;
@@ -791,37 +786,36 @@ function _renderLicenseOptimization(data, el) {
     var wasteColor = c.total_monthly_waste > 0 ? 'var(--red)' : 'var(--green)';
     var borderColor = c.total_monthly_waste > 500 ? 'var(--red)' : c.total_monthly_waste > 0 ? 'var(--orange)' : 'var(--green)';
 
-    html += '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;border-left:3px solid '+borderColor+';">';
+    html += '<div class="card p-0 overflow-hidden mb-3 edge-tone ' + toneVar(borderColor) + '">';
 
     // Customer header
-    html += '<div style="padding:12px 16px;background:var(--bg-tertiary);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">';
-    html += '<div style="font-size:13px;font-weight:700;">'+esc(c.customer_name)+'</div>';
-    html += '<div style="display:flex;gap:16px;font-size:11px;">';
-    html += '<span style="color:var(--text-muted);">'+t('lbl_paid','Paid')+': <strong>'+Number(c.total_paid)+'</strong></span>';
-    html += '<span style="color:var(--text-muted);">'+t('lbl_assigned','Assigned')+': <strong>'+Number(c.total_assigned)+'</strong></span>';
+    html += '<div class="py-3 px-4 border-b flex items-center justify-between">';
+    html += '<div class="text-ui fw-bold">'+esc(c.customer_name)+'</div>';
+    html += '<div class="flex gap-4 text-xs">';
+    html += '<span class="text-muted">'+t('lbl_paid','Paid')+': <strong>'+Number(c.total_paid)+'</strong></span>';
+    html += '<span class="text-muted">'+t('lbl_assigned','Assigned')+': <strong>'+Number(c.total_assigned)+'</strong></span>';
     if (c.total_monthly_waste > 0) {
-      html += '<span style="color:'+wasteColor+';font-weight:700;">'+t('lbl_waste','Waste')+': '+c.total_monthly_waste.toFixed(0)+' '+cur+'/'+t('lbl_mo','mo')+'</span>';
+      html += '<span class="' + toneClass(wasteColor) + ' fw-bold">'+t('lbl_waste','Waste')+': '+c.total_monthly_waste.toFixed(0)+' '+cur+'/'+t('lbl_mo','mo')+'</span>';
     }
     if (!c.has_audit_data) {
-      html += '<span style="color:var(--orange);font-size:10px;">'+t('lbl_no_audit','No audit data')+'</span>';
+      html += '<span class="text-warning text-2xs">'+t('lbl_no_audit','No audit data')+'</span>';
     }
     html += '</div></div>';
 
     // License table
     if (c.licenses.length > 0) {
-      html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-      html += '<thead><tr style="background:var(--bg);border-bottom:1px solid var(--border);">';
-      html += '<th style="text-align:left;padding:7px 10px;">'+t('col_product','Product')+'</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">'+t('col_paid_qty','Paid')+'</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">'+t('col_assigned_qty','Assigned')+'</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">'+t('col_excess','Excess')+'</th>';
-      html += '<th style="text-align:center;padding:7px 10px;">'+t('col_lic_status','Status')+'</th>';
-      html += '<th style="text-align:right;padding:7px 10px;">'+t('col_unit_price','Unit price')+'</th>';
-      html += '<th style="text-align:right;padding:7px 10px;">'+t('col_monthly_waste','Waste/mo')+'</th>';
+      html += '<table class="data-table">';
+      html += '<thead><tr class="bg-base">';
+      html += '<th class="py-2 px-3">'+t('col_product','Product')+'</th>';
+      html += '<th class="text-center py-2 px-3">'+t('col_paid_qty','Paid')+'</th>';
+      html += '<th class="text-center py-2 px-3">'+t('col_assigned_qty','Assigned')+'</th>';
+      html += '<th class="text-center py-2 px-3">'+t('col_excess','Excess')+'</th>';
+      html += '<th class="text-center py-2 px-3">'+t('col_lic_status','Status')+'</th>';
+      html += '<th class="text-right py-2 px-3">'+t('col_unit_price','Unit price')+'</th>';
+      html += '<th class="text-right py-2 px-3">'+t('col_monthly_waste','Waste/mo')+'</th>';
       html += '</tr></thead><tbody>';
 
       c.licenses.forEach(function(lic, idx) {
-        var rowBg = idx % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
         var statusColor, statusLabel;
         switch (lic.status) {
           case 'over_licensed':
@@ -838,14 +832,14 @@ function _renderLicenseOptimization(data, el) {
             statusColor = 'var(--text-muted)'; statusLabel = esc(lic.status); break;
         }
 
-        html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
-        html += '<td style="padding:6px 10px;font-weight:500;">'+esc(lic.product)+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:600;">'+Number(lic.paid_qty)+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:600;">'+(lic.assigned_qty > 0 ? Number(lic.assigned_qty) : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+(lic.excess > 0 ? statusColor : 'var(--text-dim)')+';">'+(lic.excess > 0 ? (lic.status === 'under_licensed' ? '+' : '')+Number(lic.excess) : '-')+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;"><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--bg-tertiary);color:'+statusColor+';">'+statusLabel+'</span></td>';
-        html += '<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-size:11px;">'+(lic.unit_price > 0 ? lic.unit_price.toFixed(2) : '-')+'</td>';
-        html += '<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:'+(lic.monthly_waste > 0 ? 'var(--red)' : 'var(--text-dim)')+';">'+(lic.monthly_waste > 0 ? lic.monthly_waste.toFixed(2) : '-')+'</td>';
+        html += '<tr>';
+        html += '<td class="fw-medium">'+esc(lic.product)+'</td>';
+        html += '<td class="text-center fw-semibold">'+Number(lic.paid_qty)+'</td>';
+        html += '<td class="text-center fw-semibold">'+(lic.assigned_qty > 0 ? Number(lic.assigned_qty) : '<span class="text-dim">-</span>')+'</td>';
+        html += '<td class="text-center fw-bold '+toneClass(lic.excess > 0 ? statusColor : 'var(--text-dim)')+'">'+(lic.excess > 0 ? (lic.status === 'under_licensed' ? '+' : '')+Number(lic.excess) : '-')+'</td>';
+        html += '<td class="text-center"><span class="text-2xs fw-semibold py-0-5 px-2 rounded-full ' + toneClass(statusColor) + '">'+statusLabel+'</span></td>';
+        html += '<td class="text-right font-mono text-xs">'+(lic.unit_price > 0 ? lic.unit_price.toFixed(2) : '-')+'</td>';
+        html += '<td class="text-right font-mono fw-bold '+(lic.monthly_waste > 0 ? 'text-danger' : 'text-dim')+'">'+(lic.monthly_waste > 0 ? lic.monthly_waste.toFixed(2) : '-')+'</td>';
         html += '</tr>';
       });
 
