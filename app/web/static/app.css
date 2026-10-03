@@ -167,6 +167,11 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  /* Form controls do not inherit the page font: buttons and the top nav
+     rendered in the browser's Arial at 13.33 px beside Cairo. Inherit it;
+     the classes that set a size (.btn, .nav-btn, .field-input, ...) come
+     later and still win. */
+  button, input, select, textarea { font: inherit; }
 
   /* ── Layout ── */
   .layout {
