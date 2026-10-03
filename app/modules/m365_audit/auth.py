@@ -175,7 +175,7 @@ class AuthManager:
         return NetworkManagementClient(self._az_credential(), self.subscription_id)
 
     def resource_client(self):
-        from azure.mgmt.resource import ResourceManagementClient
+        from azure.mgmt.resource.resources import ResourceManagementClient
 
         return ResourceManagementClient(self._az_credential(), self.subscription_id)
 
@@ -238,7 +238,7 @@ class AuthManager:
         return NetworkManagementClient(self._az_credential(), sub_id)
 
     def resource_client_for(self, sub_id: str):
-        from azure.mgmt.resource import ResourceManagementClient
+        from azure.mgmt.resource.resources import ResourceManagementClient
 
         return ResourceManagementClient(self._az_credential(), sub_id)
 
