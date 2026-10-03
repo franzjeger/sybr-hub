@@ -87,6 +87,12 @@ class PasswordProtectionSection(BaseSection):
             "  ENTRA ID PASSWORD PROTECTION",
             "=" * 90,
         ]
+        # The structured twin, written only when the settings were measured.
+        sidecar: dict = {
+            "source": None,
+            "custom_banned_list_active": False,
+            "password_method_state": password_config.get("state") if password_config else None,
+        }
 
         if pp_data:
             lines += [
@@ -94,8 +100,21 @@ class PasswordProtectionSection(BaseSection):
                 f"  Banned Password List            : {pp_data.get('bannedPasswordList', 'N/A')}",
                 "",
             ]
+            enabled = pp_data.get("enableCustomBannedPasswords")
+            sidecar |= {
+                "source": "settings/passwords",
+                "custom_banned_passwords_enabled": enabled,
+                "banned_password_list": pp_data.get("bannedPasswordList"),
+                "custom_banned_list_active": str(enabled).lower() in ("true", "yes"),
+            }
         elif mode is not None:
             has_custom = bool(custom_banned) if custom_banned else False
+            sidecar |= {
+                "source": "directory settings",
+                "check_mode": mode,
+                "enforce_on_premises": enforce_on_prem,
+                "custom_banned_list_active": has_custom,
+            }
             lines += [
                 f"  Password Check Mode             : {mode}",
                 f"  Enforce On-Premises             : {enforce_on_prem or 'N/A'}",
@@ -139,6 +158,8 @@ class PasswordProtectionSection(BaseSection):
 
         lines += ["=" * 90, ""]
         self._save("31_password_protection.txt", "\n".join(lines))
+        if pp_data or settings_read:
+            self._save_sidecar("31_password_protection.txt", sidecar)
 
     # ── Smart Lockout ──────────────────────────────────────────────────────
 
@@ -178,12 +199,28 @@ class PasswordProtectionSection(BaseSection):
                 "",
             ]
 
+        # The structured twin. Security Defaults is null when the policy was not
+        # there to read (a 404) or carried no isEnabled; named locations are
+        # null when their read failed.
+        sidecar: dict = {
+            "security_defaults_enabled": (sec_defaults or {}).get("isEnabled"),
+            "named_locations": None,
+        }
+
         # Try to get named locations (useful context for lockout)
         try:
             locations = await self.graph.get_all(
                 "identity/conditionalAccess/namedLocations",
                 params={"$top": "999"},
             )
+            sidecar["named_locations"] = [
+                {
+                    "name": loc.get("displayName") or "",
+                    "type": (loc.get("@odata.type") or "").split(".")[-1],
+                    "trusted": loc.get("isTrusted"),
+                }
+                for loc in locations
+            ]
             if locations:
                 lines += [
                     f"  Named Locations ({len(locations)}):",
@@ -201,6 +238,7 @@ class PasswordProtectionSection(BaseSection):
 
         lines += ["=" * 90, ""]
         self._save("31b_smart_lockout.txt", "\n".join(lines))
+        self._save_sidecar("31b_smart_lockout.txt", sidecar)
 
     # ── Password Methods Policy ────────────────────────────────────────────
 

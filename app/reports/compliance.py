@@ -417,12 +417,18 @@ def _banned_passwords(audit: _Audit) -> _Verdict:
     # 31_password_protection.txt states the setting explicitly; only an enabled
     # custom list passes.
     text = audit.fc.get("31_password_protection.txt", "")
-    if _missing_or_error(text):
+    # The sidecar is written only when the settings were measured.
+    sidecar = _sidecar(audit.fc, "31_password_protection.txt")
+    if sidecar is None and _missing_or_error(text):
         return "info", _CANNOT_VERIFY + "data utilgjengelig"
-    if "were not measured" in text.lower():
+    if sidecar is None and "were not measured" in text.lower():
         # The section says it could not read the directory settings.
         return "info", _CANNOT_VERIFY + "katalog-innstillinger kunne ikke leses"
-    if _custom_banned_list_active(text):
+    if (
+        bool(sidecar.get("custom_banned_list_active"))
+        if sidecar is not None
+        else _custom_banned_list_active(text)
+    ):
         return "pass", "Egendefinert forbudt passordliste er aktiv"
     if _lacks(audit.capabilities, "entra_p1"):
         # The custom list needs Entra ID P1; no configuration clears this without it.
@@ -477,7 +483,12 @@ def _security_defaults(text: str) -> str:
 def _baseline_sign_in(audit: _Audit) -> _Verdict:
     # Security Defaults off is correct once Conditional Access is in place, so
     # the CA count is part of the verdict.
-    sd = _security_defaults(audit.fc.get("31b_smart_lockout.txt", ""))
+    sidecar = _sidecar(audit.fc, "31b_smart_lockout.txt")
+    if sidecar is not None:
+        enabled = sidecar.get("security_defaults_enabled")
+        sd = "" if enabled is None else str(enabled).lower()
+    else:
+        sd = _security_defaults(audit.fc.get("31b_smart_lockout.txt", ""))
     ca = audit.ca
     if sd not in ("true", "false"):
         return "info", _CANNOT_VERIFY + "Security Defaults-status utilgjengelig"
