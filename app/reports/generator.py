@@ -209,7 +209,11 @@ def build_report_context(
         fc("15_entra_devices.txt"),
         _sidecar(file_contents, "15_entra_devices.txt"),
     )
-    usage = _parse_usage(fc("16_usage_summary.txt"), fc("16_usage_active_users.txt"))
+    usage = _parse_usage(
+        fc("16_usage_summary.txt"),
+        fc("16_usage_active_users.txt"),
+        _sidecar(file_contents, "16_usage_summary.txt"),
+    )
     # The claim the Intune figure alone cannot make. Only stated when both
     # sides were actually read: an unmanaged count derived from a refusal is
     # the same mistake in a new place.

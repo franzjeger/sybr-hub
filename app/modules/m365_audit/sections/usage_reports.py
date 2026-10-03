@@ -134,6 +134,18 @@ class UsageReportsSection(BaseSection):
             f"Names concealed: {'yes' if concealed else 'no'}",
         ]
         self._save("16_usage_summary.txt", "\n".join(count_lines))
+        self._save_sidecar(
+            "16_usage_summary.txt",
+            {
+                "period_days": _INACTIVE_DAYS,
+                "total": total,
+                "deleted": deleted,
+                "active": len(live) - len(never),
+                "no_activity": len(never),
+                "licensed_idle": len(licensed_never),
+                "concealed": concealed,
+            },
+        )
 
         if licensed_never:
             self._warn(
