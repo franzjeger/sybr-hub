@@ -40,7 +40,7 @@ from tests.audit_fixture import FULL_AUDIT
 # a bounded depth, and records every discovery/refusal/folder gap. A complete
 # scan can therefore pass; any gap still leaves the control unassessed.
 #
-# Then 35 -> 36 with 11.2, backup of the Microsoft 365 data. The fixture
+# Then 35 -> 36 with CIS v8 11.2, backup of the Microsoft 365 data. The fixture
 # gained 34_m365_backup (Microsoft 365 Backup on, a policy per workload), so
 # the healthy tenant passes it: assessed 33 -> 34, pass 32 -> 33, info and pct
 # unchanged (33/34 rounds to 97 as 32/33 did).

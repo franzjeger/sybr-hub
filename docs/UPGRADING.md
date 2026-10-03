@@ -48,7 +48,7 @@
   backup". Third-party backup apps (Veeam, Keepit, AvePoint, Datto and others)
   are still recognised, from the service principals the audit can already
   read.
-- **A new CIS row, 11.2,** and a new check in the Essential Eight and NIS2
+- **A new CIS row, CIS v8 11.2 (backup of the Microsoft 365 data),** and a new check in the Essential Eight and NIS2
   baselines (both now version 2026.2). A tenant where neither Microsoft 365
   Backup nor a known backup app reaches mail, OneDrive or SharePoint gets a
   high-priority recommendation. Reports regenerated from older runs show the

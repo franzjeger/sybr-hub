@@ -1372,11 +1372,12 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
         iso="A.8.12",
         check=_retention_policies,
     ),
-    # The M365 benchmark has no backup control. 11.2 is the CIS Controls v8
-    # safeguard "Perform automated backups", the nearest CIS reference. The
+    # The M365 benchmark has no backup control. CIS Controls v8 safeguard 11.2,
+    # "Perform automated backups", is the nearest CIS reference; the id names
+    # the framework so the row is not read as an M365 benchmark number. The
     # verdict is formed in parsers/m365_backup.py from 34_m365_backup.
     _Control(
-        "11.2",
+        "CIS v8 11.2",
         "Ensure Microsoft 365 data is backed up",
         _DATA,
         nist="PR.DS-11",
