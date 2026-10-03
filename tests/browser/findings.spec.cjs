@@ -92,14 +92,17 @@ test('a configured but unlinked PSA offers one way to link, and the picker sugge
   const picker = page.locator('.link-picker');
   await expect(picker).toBeVisible();
   await expect(picker.locator('.link-result').first()).toContainText('Browser Beta');
+  // Linking re-reads the findings. Wait for that answer, or under a loaded
+  // parallel run the request was still in the route handler when the test
+  // ended, and the test failed after every assertion had passed.
+  const reread = page.waitForResponse(r => /\/api\/hub\/[^/]+\/findings$/.test(new URL(r.url()).pathname));
   await picker.locator('.link-result').first().click();
   await expect(picker).toHaveCount(0);
+  await reread;
   const record = await (await page.request.get('/api/hub/' + encodeURIComponent(id))).json();
   expect(record.autotask.status).not.toBe('not_linked');
   // Undo through the same picker, so the shared fixture is unchanged.
   await page.request.post('/api/hub/' + encodeURIComponent(id) + '/link', {data: {autotask_account_id: null}});
-  // Linking re-reads the findings; under a loaded parallel run that request
-  // could still be in the route handler when the test ended.
   await page.unrouteAll({behavior: 'ignoreErrors'});
 });
 
