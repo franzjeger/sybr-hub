@@ -245,3 +245,42 @@ async def test_the_refusal_names_only_profiles_the_caller_may_see(tunnels, monke
         await vpn_routes._refuse_if_system_holds_tunnels(SimpleNamespace(id="u1"))
     assert "Kunde B hovedkontor" not in str(exc.value)
     assert "1 tunnel for andre kunder" in str(exc.value)
+
+
+async def test_brukere_cannot_delete_it_and_says_why():
+    """It owns the scheduled work and the tunnels, and the activity log names
+    it. Settings > Brukere offered a delete button for it like any other row.
+    The server refuses with a sentence, and the list marks it so the
+    interface can leave the button out."""
+    from fastapi.testclient import TestClient
+
+    import app.web.middleware.rate_limit as rate_limit
+    from app.core.auth import create_access_token
+    from app.core.rbac import set_can_write
+    from app.web.middleware.auth import _reset_users_exist_cache
+    from app.web.server import create_app
+
+    _reset_users_exist_cache()
+    rate_limit._hits.clear()
+    rate_limit._sensitive_hits.clear()
+    system = await system_user.ensure()
+    admin = await create_user("deleting-admin", GOOD_PASSWORD, "Admin", role=Role.admin)
+    await set_can_write(admin.id, True)
+    admin = await get_user_by_username("deleting-admin")
+    other = await create_user("ordinary-tech", GOOD_PASSWORD, "Tech", role=Role.technician)
+    headers = {"Authorization": f"Bearer {await create_access_token(admin)}"}
+
+    with TestClient(create_app()) as client:
+        users = client.get("/api/auth/users", headers=headers).json()["users"]
+        refused = client.delete(f"/api/auth/users/{system.id}", headers=headers)
+        allowed = client.delete(f"/api/auth/users/{other.id}", headers=headers)
+
+    listed = {u["username"]: u for u in users}
+    assert listed[system_user.USERNAME]["is_system"] is True
+    assert listed["ordinary-tech"]["is_system"] is False
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["error_key"] == "err_auth_cannot_delete_system"
+    assert "Systemkontoen kan ikke slettes" in refused.json()["error"]
+    assert await system_user.get() is not None
+    assert allowed.status_code == 200, allowed.text
+    _reset_users_exist_cache()

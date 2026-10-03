@@ -278,6 +278,10 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Kan ikke slette deg selv",
         "You cannot delete yourself",
     ),
+    "err_auth_cannot_delete_system": (
+        "Systemkontoen kan ikke slettes. Sybr HUB bruker den til planlagte jobber og tunneler.",
+        "The system account cannot be deleted. Sybr HUB uses it for scheduled jobs and tunnels.",
+    ),
     "err_auth_invalid_customer_id": (
         "Ugyldig kunde-ID",
         "Invalid customer ID",

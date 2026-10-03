@@ -3023,7 +3023,9 @@
     "dash_domains_healthy": "Friske",
     "dash_domains_warning": "Advarsel",
     "dash_domains_critical": "Kritisk",
-    "lbl_expired_short": "Utløpt"
+    "lbl_expired_short": "Utløpt",
+    "lbl_system_account": "Systemkonto",
+    "tip_system_account": "Sybr HUB bruker kontoen til planlagte jobber og tunneler. Den kan ikke logge inn eller slettes."
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -6049,6 +6051,8 @@
     "dash_domains_healthy": "Healthy",
     "dash_domains_warning": "Warning",
     "dash_domains_critical": "Critical",
-    "lbl_expired_short": "Expired"
+    "lbl_expired_short": "Expired",
+    "lbl_system_account": "System account",
+    "tip_system_account": "Sybr HUB uses this account for scheduled jobs and tunnels. It cannot sign in or be deleted."
   }
 }
