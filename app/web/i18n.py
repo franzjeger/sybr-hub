@@ -651,6 +651,10 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Tailscale API returnerte {status}",
         "The Tailscale API returned {status}",
     ),
+    "err_tailscale_unreachable": (
+        "Tailscale svarte ikke, så nodene kunne ikke hentes",
+        "Tailscale did not answer, so the nodes could not be read",
+    ),
     # FortiGate and UniFi.
     "err_fortigate_host_token_required": (
         "Host og API-token er påkrevd",

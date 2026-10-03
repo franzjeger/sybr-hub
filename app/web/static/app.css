@@ -2203,8 +2203,26 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .tool-customer-select { flex: 1 1 200px; min-width: 0; max-width: 360px; margin: 0; }
 .tool-customer-bar-inline { margin: var(--space-3) 0 0; }
 
-.cust-tailscale-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); font-size: var(--font-sm); color: var(--text-muted); }
-.cust-tailscale-note span { flex: 1 1 260px; }
+/* Tilgang: the customer's Tailscale nodes. */
+.cust-ts { margin-top: var(--space-4); }
+.cust-ts-table { width: 100%; font-size: var(--font-xs); border-collapse: collapse; margin-bottom: var(--space-3); }
+.cust-ts-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); }
+.cust-ts-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cust-ts-name { font-weight: 600; }
+.cust-ts-os { color: var(--text-dim); }
+.cust-ts-state { color: var(--text-dim); }
+.cust-ts-state.is-online { color: var(--green); }
+.cust-ts-connect { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.cust-ts-addr { font-family: var(--mono); font-size: var(--font-xs); color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px; cursor: copy; }
+.cust-ts-addr:hover { border-color: var(--blue); }
+.cust-ts-hint { font-size: var(--font-xs); }
+.cust-ts-assign { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.cust-ts-assign select { flex: 1 1 240px; max-width: 360px; margin: 0; }
+@media (max-width: 767px) {
+  .cust-ts-table thead { display: none; }
+  .cust-ts-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .cust-ts-table td { border-bottom: 0; padding: 2px 8px 2px 0; }
+}
 /* The section chooser above the run. */
 .cust-scope { margin-bottom: var(--space-4); }
 .cust-scope-head { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; user-select: none; }

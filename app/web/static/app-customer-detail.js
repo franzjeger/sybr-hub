@@ -27,6 +27,10 @@ registerUiHandlers({
   custPolicySub: function(el) { showCustomerTab('policyer', el.dataset.sub); },
   // After setup: the customer it created or renewed.
   openSetupCustomer: function() { openSetupCustomer(); },
+  // Tilgang's Tailscale nodes: hand a node to this customer, or take it back.
+  custTsAssign: function(el) { _custTsAssign(el.dataset.customerId, el); },
+  custTsUnassign: function(el) { _custTsUnassign(el.dataset.customerId, el.dataset.deviceId); },
+  custTsCopy: function(el) { _custTsCopy(el.dataset.value); },
 });
 
 // ── The customer page ─────────────────────────────────────────────────────────
@@ -463,8 +467,10 @@ function _custLoadNetwork(customerId) {
 
 function _custLoadAccess(customerId) {
   var body = document.getElementById('cust-access-body');
-  body.innerHTML = '<div id="customer-infra-panel"></div>';
+  body.innerHTML = '<div id="customer-infra-panel"></div>'
+    + (hasModule('tailscale') && canOpenView('tailscale') ? '<div id="customer-tailscale-panel" class="card cust-ts"></div>' : '');
   _loadCustomerInfraCard(customerId);
+  if (document.getElementById('customer-tailscale-panel')) _loadCustomerTailscale(customerId);
 }
 
 async function _custLoadDetails(customerId) {
@@ -2167,4 +2173,107 @@ async function alsoToggleSubDetail(rowEl, subId) {
 
   html += '</div>';
   cell.innerHTML = html;
+}
+
+// ── Tilgang: this customer's Tailscale nodes ────────────────────────────────
+// A node belongs to a customer when a technician assigned it here, or when it
+// carries the customer's tag (tag:customer-<slug>) in the tailnet; the server
+// decides (app/services/tailscale_customers.py). Each row says how to reach
+// the node; a hand assignment can be taken back, a tag is changed in Tailscale.
+async function _loadCustomerTailscale(customerId) {
+  var el = document.getElementById('customer-tailscale-panel');
+  if (!el) return;
+  el.innerHTML = '<div class="cust-card-title">Tailscale</div><div class="loading-note"><div class="loader"></div></div>';
+  var d = await apiFetch('/api/tailscale/customer/' + encodeURIComponent(customerId) + '/nodes').catch(function() { return null; });
+  if (!el.isConnected || _custPage.id !== customerId) return;
+  var head = '<div class="cust-card-head"><div class="cust-card-title">Tailscale</div>'
+    + '<button class="btn btn-ghost btn-sm" data-view-gate="tailscale" data-click-handler="showView" data-view="tailscale">' + esc(t('btn_all_tailscale_nodes', 'Alle noder')) + '</button>'
+    + '</div>';
+  if (!d) {
+    el.innerHTML = head + '<p class="cust-card-text">' + esc(t('err_tailscale_nodes', 'Nodene kunne ikke hentes fra Tailscale.')) + '</p>';
+    return;
+  }
+  if (!d.configured) {
+    el.innerHTML = head + '<p class="cust-card-text">' + esc(t('msg_tailscale_not_configured', 'Tailscale er ikke satt opp. API-nøkkelen legges inn under Administrasjon.')) + '</p>';
+    return;
+  }
+
+  var html = head;
+  var nodes = d.nodes || [];
+  if (!nodes.length) {
+    html += '<p class="cust-card-text">' + esc(t('msg_tailscale_no_nodes', 'Ingen Tailscale-noder er knyttet til kunden.')) + '</p>';
+  } else {
+    html += '<table class="cust-ts-table"><thead><tr>'
+      + '<th>' + esc(t('lbl_host_name', 'Navn')) + '</th>'
+      + '<th>' + esc(t('lbl_status', 'Status')) + '</th>'
+      + '<th>' + esc(t('lbl_connect_to', 'Koble til')) + '</th>'
+      + '<th>' + esc(t('lbl_linked_by', 'Knyttet')) + '</th>'
+      + '<th></th></tr></thead><tbody>';
+    nodes.forEach(function(n) {
+      var status = n.online
+        ? '<span class="cust-ts-state is-online">' + esc(t('lbl_ts_online', 'Pålogget')) + '</span>'
+        : '<span class="cust-ts-state">' + esc(t('lbl_ts_offline', 'Frakoblet')) + (n.last_seen_ago ? ' · ' + esc(n.last_seen_ago) : '') + '</span>';
+      var connect = '';
+      [n.ip, n.dns_name].forEach(function(v) {
+        if (v) connect += '<button class="cust-ts-addr" data-click-handler="custTsCopy" data-value="' + esc(v) + '" title="' + esc(t('tip_click_to_copy', 'Klikk for å kopiere')) + '">' + esc(v) + '</button>';
+      });
+      var source = n.source === 'manual' ? t('lbl_linked_manual', 'for hånd') : t('lbl_linked_tag', 'med tag');
+      var remove = n.source === 'manual'
+        ? '<button class="btn btn-ghost btn-sm" data-write data-click-handler="custTsUnassign" data-customer-id="' + esc(customerId) + '" data-device-id="' + esc(n.id) + '">' + esc(t('btn_remove_link', 'Fjern')) + '</button>'
+        : '';
+      html += '<tr>'
+        + '<td><span class="cust-ts-name">' + esc(n.name || n.hostname || '') + '</span> <span class="cust-ts-os">' + esc(n.os || '') + '</span></td>'
+        + '<td>' + status + '</td>'
+        + '<td><div class="cust-ts-connect">' + (connect || '-') + '</div></td>'
+        + '<td>' + esc(source) + '</td>'
+        + '<td>' + remove + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '<p class="cust-card-text cust-ts-hint">' + esc(t('msg_tailscale_tag_hint', 'Noder med taggen {tag} i Tailscale knyttes hit av seg selv.').replace('{tag}', d.tag || '')) + '</p>';
+  html += '<div class="cust-ts-assign" data-write>'
+    + '<select class="field-input" id="cust-ts-device" aria-label="' + esc(t('lbl_tailscale_assign', 'Knytt en node til kunden')) + '"><option value="">' + esc(t('lbl_tailscale_assign', 'Knytt en node til kunden')) + '</option></select>'
+    + '<button class="btn btn-default btn-sm" data-click-handler="custTsAssign" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_link_node', 'Knytt til')) + '</button>'
+    + '</div>';
+  el.innerHTML = html;
+  applyWriteCapability();
+  if (canWrite()) _custTsFillChoices(customerId);
+}
+
+// The nodes no customer has yet, for the assign list.
+async function _custTsFillChoices(customerId) {
+  var all = await apiFetch('/api/tailscale/devices').catch(function() { return null; });
+  var sel = document.getElementById('cust-ts-device');
+  if (!sel || !all || _custPage.id !== customerId) return;
+  (all.devices || []).filter(function(dev) { return !dev.customer_id && !dev.customer_hidden; }).forEach(function(dev) {
+    var opt = document.createElement('option');
+    opt.value = dev.id;
+    opt.textContent = (dev.given_name || dev.hostname || dev.name || dev.id) + (dev.tailscale_ip ? ' (' + dev.tailscale_ip + ')' : '');
+    sel.appendChild(opt);
+  });
+}
+
+async function _custTsAssign(customerId, btn) {
+  var sel = document.getElementById('cust-ts-device');
+  if (!sel || !sel.value || _custPage.id !== customerId) return;
+  btn.disabled = true;
+  var d = await apiFetch('/api/tailscale/device/' + encodeURIComponent(sel.value) + '/customer', {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
+  });
+  btn.disabled = false;
+  if (d && d.ok) _loadCustomerTailscale(customerId);
+}
+
+async function _custTsUnassign(customerId, deviceId) {
+  if (_custPage.id !== customerId) return;
+  var d = await apiFetch('/api/tailscale/device/' + encodeURIComponent(deviceId) + '/customer', {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: null}),
+  });
+  if (d && d.ok) _loadCustomerTailscale(customerId);
+}
+
+function _custTsCopy(value) {
+  if (!value || !navigator.clipboard) return;
+  navigator.clipboard.writeText(value).then(function() { showToast(t('msg_copied', 'Kopiert til utklippstavle'), 'success', 1500); });
 }
