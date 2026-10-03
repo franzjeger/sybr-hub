@@ -1073,12 +1073,17 @@ async def test_transport_rules_survive_the_round_trip():
 
 @pytest.mark.asyncio
 async def test_a_connector_whose_fields_are_lower_case_is_still_one_record():
-    """What the helper actually returned on a live tenant.
+    """A record whose field names are lower case is still one record.
 
-    The record was {"outbound": ..., "inbound": ...} — lower case — and the
-    multi-line detector required a capitalised field name, so the file was read
-    as a plain table and its one connector counted as three lines of one. That
-    number is printed on the customer-facing report.
+    The multi-line detector required a capitalised field name, so a block of
+    lower-case fields was read as a plain table and one record counted as
+    three lines. That number is printed on the customer-facing report. The
+    helper's live output had that shape, {"inbound": ..., "outbound": ...},
+    which the collector once wrote as one record. It no longer does: it writes
+    each inbound and outbound connector as its own record, with its Direction
+    (see tests/test_report_exchange_collected.py). A list is kept record by
+    record as the helper sent it, so this one lower-case record still tests
+    the detector on lower-case fields.
 
     The first version of the test above used capitalised keys and let a
     mutation reverting the fix pass, which is the same assumption-as-fixture
