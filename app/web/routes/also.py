@@ -1279,6 +1279,24 @@ def _normalize_product_name(service_display: str) -> str:
     return name
 
 
+def _licence_sidecar(lic_path) -> dict | None:
+    """02_licenses.json beside the table, parsed, or None to read the table.
+
+    It carries the utilisation unrounded, where the table prints whole percents.
+    """
+    from app.core.encryption import encrypted_read_text
+    from app.reports.parsers.common import _sidecar
+
+    json_path = lic_path.with_suffix(".json")
+    if not json_path.exists():
+        return None
+    try:
+        return _sidecar({json_path.name: encrypted_read_text(json_path)}, lic_path.name)
+    except Exception:
+        logger.debug("Unreadable licence sidecar %s, reading the table", json_path, exc_info=True)
+        return None
+
+
 @router.get("/also/license-optimization")
 async def license_optimization(user: User = Depends(get_current_user)):
     """Compare ALSO-paid M365 licenses with actual assigned users from audit data.
@@ -1387,7 +1405,7 @@ async def license_optimization(user: User = Depends(get_current_user)):
                         text = lic_path.read_text(encoding="utf-8", errors="replace")
                     from app.reports.parsers import _parse_licenses
 
-                    parsed = _parse_licenses(text)
+                    parsed = _parse_licenses(text, _licence_sidecar(lic_path))
                     if parsed:
                         license_data_by_customer[cid] = parsed
                 except Exception as e:
