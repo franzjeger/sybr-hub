@@ -1800,49 +1800,6 @@
     }
   }
 
-  /* ── Customer-overview table: mobile-friendly ── */
-  @media (max-width: 767px) {
-    .overview-table-wrap {
-      /* Signal the user that there's more content to the right. A linear-
-         gradient pinned to the right edge fades from transparent to the
-         card background; once scrolled far enough, background-attachment
-         local keeps it visible only at the rightmost edge. */
-      background:
-        linear-gradient(to right, var(--bg-card) 30%, rgba(22, 27, 34, 0)) 0 0 / 16px 100% no-repeat local,
-        linear-gradient(to left,  var(--bg-card) 30%, rgba(22, 27, 34, 0)) 100% 0 / 16px 100% no-repeat local,
-        radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.25), transparent) 0 0 / 16px 100% no-repeat scroll,
-        radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.25), transparent) 100% 0 / 16px 100% no-repeat scroll,
-        var(--bg-card);
-    }
-    .customer-overview-table { min-width: 640px; }
-    /* Sticky first column — customer name stays visible while scrolling. */
-    .customer-overview-table th:first-child,
-    .customer-overview-table td:first-child {
-      position: sticky;
-      left: 0;
-      background: var(--bg-card);
-      z-index: 1;
-      box-shadow: 2px 0 4px -2px rgba(0,0,0,0.2);
-    }
-    .customer-overview-table tbody tr:hover td:first-child { background: var(--bg-card-hover, var(--bg-card)); }
-    /* Hide lower-priority columns on narrow screens. 12-column layout is
-       crushed otherwise; keep Name, Grade, MFA%, Last audit, actions. */
-    .customer-overview-table th:nth-child(4),   /* Risk score */
-    .customer-overview-table td:nth-child(4),
-    .customer-overview-table th:nth-child(6),   /* Secure Score */
-    .customer-overview-table td:nth-child(6),
-    .customer-overview-table th:nth-child(7),   /* Users */
-    .customer-overview-table td:nth-child(7),
-    .customer-overview-table th:nth-child(9),   /* MRR */
-    .customer-overview-table td:nth-child(9),
-    .customer-overview-table th:nth-child(10),  /* Trend */
-    .customer-overview-table td:nth-child(10),
-    .customer-overview-table th:nth-child(12),  /* Tags */
-    .customer-overview-table td:nth-child(12) {
-      display: none;
-    }
-  }
-
   /* ── Responsive: Phones (< 480px) ── */
   @media (max-width: 479px) {
     html, body { font-size: 13px; }
@@ -2894,7 +2851,15 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .admin-table-box { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
 .admin-table-box > .admin-hint { padding: var(--space-4); margin: 0; }
 .admin-rule { border: none; border-top: 1px solid var(--border); margin: var(--space-4) 0; }
-.admin-rule-cell { padding: 8px; }
+.admin-rules-wrap { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--space-4); }
+.admin-rules { width: 100%; border-collapse: collapse; font-size: 12px; }
+.admin-rules th { text-align: left; padding: 8px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); }
+.admin-rules td { padding: 8px; }
+.admin-rules tbody tr:not(:last-child) { border-bottom: 1px solid var(--border); }
+.admin-rules td.admin-hint { font-size: 11px; }
+.admin-rule-nowrap { white-space: nowrap; }
+.admin-rule-num { width: 60px; padding: 2px 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text); }
+.admin-hint-after { margin: var(--space-4) 0 0; }
 .admin-version { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.8; font-family: var(--mono); white-space: pre-line; }
 .admin-api > summary { cursor: pointer; font-size: var(--font-sm); color: var(--blue); margin-top: var(--space-3); }
 @media (max-width: 900px) {
@@ -2927,3 +2892,67 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .loading-note { color: var(--text-muted); text-align: center; padding: var(--space-12) 0; font-size: var(--font-sm); }
 /* hidden means hidden, whatever display a class gives the element. */
 [hidden] { display: none !important; }
+
+/* ── Oversikt: who needs me today ─────────────────────────────────────── */
+.attn-strip--clear { --attn: var(--green); --attn-text: var(--green-deep); }
+.attn-strip--clear .attn-title { white-space: normal; font-weight: 600; }
+.dash-toolbar-spacer { flex: 1; }
+.overview-search { width: 260px; max-width: 100%; padding: 7px 10px; font-size: 13px; }
+.overview-filters { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-3); }
+.filter-clear { font: inherit; font-size: var(--font-xs); color: var(--text-dim); background: none; border: none; cursor: pointer; text-decoration: underline; }
+.overview-table-wrap { padding: 0; overflow: auto; background: var(--bg-panel); }
+@media (max-width: 767px) {
+  /* On a phone each row is its own card; the wrapper steps back. */
+  .overview-table-wrap { overflow: visible; background: none; border: none; box-shadow: none; }
+  .customer-overview-table tbody td:first-child { padding-left: 0; }
+}
+.cust-cell-text { min-width: 0; }
+.sev-counts { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+.sev-count {
+  font-size: var(--font-xs); font-weight: 600; white-space: nowrap;
+  padding: 2px var(--space-2); border-radius: var(--radius-full); border: 1px solid currentColor;
+}
+.sev-count.sev-critical { color: var(--red-deep); background: color-mix(in srgb, var(--red) 12%, transparent); }
+.sev-count.sev-high { color: var(--orange-deep); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+.sev-count.sev-medium { color: var(--blue-deep); background: color-mix(in srgb, var(--blue) 10%, transparent); }
+.sev-count.sev-low { color: var(--text-muted); border-color: var(--border); }
+.sev-count.sev-none { color: var(--green-deep); border-color: transparent; font-weight: 500; }
+.sev-count.sev-unknown { color: var(--text-dim); border-style: dashed; font-weight: 500; }
+.overview-mfa.is-good { color: var(--green); }
+.overview-mfa.is-warn { color: var(--orange); }
+.overview-mfa.is-bad { color: var(--red); }
+.overview-mfa.is-unknown { color: var(--text-muted); }
+.overview-last { color: var(--text-muted); font-size: var(--font-sm); white-space: nowrap; }
+.overview-age { display: block; font-size: 10px; color: var(--text-dim); }
+.overview-age.is-stale { color: var(--orange); }
+.overview-menu-col { width: 40px; text-align: center; }
+.row-actions-wrap { position: relative; display: inline-block; }
+.row-actions-btn { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text-dim); padding: 2px 6px; border-radius: var(--radius-sm); }
+.row-actions-btn:hover { background: rgba(255,255,255,0.06); }
+.row-actions-menu {
+  position: absolute; right: 0; top: 100%; z-index: 50; min-width: 190px; padding: var(--space-1) 0;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.row-actions-menu > button {
+  display: flex; align-items: center; width: 100%; padding: 8px 14px; background: none; border: none;
+  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.row-actions-menu > .hover-menu-item-danger { color: var(--red); }
+.row-actions-sep { border-top: 1px solid var(--border); margin: var(--space-1) 0; }
+.overview-pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-4) 0; font-size: var(--font-sm); color: var(--text-muted); }
+.integ-failing-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-sm);
+  border: 1px solid var(--color-warning-border); background: var(--color-warning-bg); color: var(--orange-deep);
+}
+.integ-failing-banner span { flex: 1 1 240px; }
+.notif-side-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0 0 var(--space-3); }
+.notif-side-text.is-warn { color: var(--orange-deep); }
+.notif-detail { color: var(--text-dim); }
+/* The bell: an icon button with a count. */
+.hdr-bell { position: relative; background: none; border: none; cursor: pointer; padding: 4px 6px; color: var(--text-muted); display: inline-flex; align-items: center; }
+.hdr-bell:hover { color: var(--text); }
+.hdr-bell-badge {
+  position: absolute; top: 0; right: 0; background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
+  min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: var(--radius-full); padding: 0 4px;
+}

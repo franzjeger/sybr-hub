@@ -177,17 +177,8 @@
         <span data-i18n="msg_audit_running_indicator">Audit kjører</span>
       </button>
 
-      <!-- Notifications bell -->
-      <div style="position:relative;display:inline-block;">
-        <button id="notif-bell" data-notif-toggle data-click-handler="toggleNotifications" data-i18n-aria-label="varsler_2" aria-label="Varslinger" data-i18n-title="varsler" title="Varslinger" style="background:none;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:var(--text-muted);position:relative;transition:color var(--duration-fast);" class="hover-text"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--radius-full);padding:0 4px;"></span></button>
-        <div id="notif-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;max-height:420px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;z-index:150;animation:dropdown-in var(--duration-fast) var(--ease-out);">
-          <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:var(--font-sm);font-weight:600;" data-i18n="hdr_notifications">Varslinger</span>
-            <button class="btn btn-ghost btn-sm" data-click-handler="markAllNotificationsRead" data-i18n="btn_mark_all_read" style="font-size:var(--font-xs);">Merk alle som lest</button>
-          </div>
-          <div id="notif-list" style="overflow-y:auto;max-height:360px;"></div>
-        </div>
-      </div>
+      <!-- The bell opens Oversikt's Varsler; the badge counts what is new. -->
+      <button id="notif-bell" class="hdr-bell" data-click-handler="toggleNotifications" data-i18n-aria-label="dash_tab_alerts" aria-label="Varsler" data-i18n-title="dash_tab_alerts" title="Varsler"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg><span id="notif-badge" class="hdr-bell-badge" hidden></span></button>
 
       <!-- PWA install (conditional). -->
       <button id="pwa-install-btn" data-click-handler="promptPwaInstall" data-i18n-aria-label="installer_app" aria-label="Installer app" data-i18n-title="installer_som_app" title="Installer som app" style="display:none;align-items:center;gap:4px;background:none;border:1px solid var(--blue);color:var(--blue);padding:4px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;"><span data-i18n="btn_install_app">Installer</span></button>
@@ -226,7 +217,7 @@
     <!-- ════════════ OVERVIEW DASHBOARD VIEW ════════════ -->
     <div class="view" id="view-overview" style="max-width:1200px;">
       <div class="dash-tabs">
-        <button class="dash-tab-btn active" data-click-handler="switchDashTab" data-tab="dash-customers"><span data-i18n="dash_tab_customers">Kunder</span></button>
+        <button class="dash-tab-btn active" data-click-handler="switchDashTab" data-tab="dash-customers"><span data-i18n="dash_tab_followup">Oppfølging</span></button>
         <button class="dash-tab-btn" data-click-handler="switchDashTab" data-tab="dash-alerts"><span data-i18n="dash_tab_alerts">Varsler</span><span id="dash-badge-alerts" class="tab-badge tab-badge-red" style="display:none;"></span></button>
         <div style="flex:1;"></div>
         <span class="dash-updated" id="dash-updated-wrap" style="display:none;"><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
@@ -242,10 +233,10 @@
         <button id="dash-autorefresh-btn" class="dash-tab-tool" data-click-handler="dashToggleAutoRefresh" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
       </div>
       <div id="dash-customers" class="dash-tab-content" style="display:block;">
-        <!-- Integration health strip — populated by renderIntegrationHealthStrip().
-             Lives outside #overview-content so renderOverview()'s innerHTML
-             replacement doesn't wipe it on each refresh. -->
-        <div id="integration-health-widget" style="display:none;margin-bottom:var(--space-4);"></div>
+        <!-- A banner only when a scheduled task is failing, from
+             loadIntegrationHealthStrip(). Outside #overview-content so a
+             re-render of the list does not wipe it. -->
+        <div id="integration-health-widget" hidden></div>
         <div id="overview-content">
           <div style="color:var(--text-muted);text-align:center;padding:48px 0;">
             <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
@@ -1039,50 +1030,50 @@
             </div>
 
             <!-- Alert rules -->
-            <div style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:16px;">
-              <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <div class="admin-rules-wrap">
+              <table class="admin-rules">
                 <thead>
-                  <tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">
-                    <th style="text-align:left;padding:8px;white-space:nowrap;" data-i18n="col_active">Aktiv</th>
-                    <th style="text-align:left;padding:8px;" data-i18n="col_alert_type">Varseltype</th>
-                    <th style="text-align:left;padding:8px;" data-i18n="col_threshold">Terskel</th>
+                  <tr>
+                    <th class="admin-rule-nowrap" data-i18n="col_active">Aktiv</th>
+                    <th data-i18n="col_alert_type">Varseltype</th>
+                    <th data-i18n="col_threshold">Terskel</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px;"><input type="checkbox" id="rule-ssl-expiry" data-change-handler="alertSaveConfig"></td>
-                    <td style="padding:8px;" data-i18n="alert_ssl_expiry">SSL-sertifikat utloper</td>
-                    <td style="padding:8px;"><input type="number" id="rule-ssl-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
+                  <tr>
+                    <td><input type="checkbox" id="rule-ssl-expiry" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="alert_ssl_expiry">SSL-sertifikat utloper</td>
+                    <td><input type="number" id="rule-ssl-days" value="14" min="1" max="90" class="admin-rule-num" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
                   </tr>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px;"><input type="checkbox" id="rule-domain-expiry" data-change-handler="alertSaveConfig"></td>
-                    <td style="padding:8px;" data-i18n="alert_domain_expiry">Domene utloper</td>
-                    <td style="padding:8px;"><input type="number" id="rule-domain-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
+                  <tr>
+                    <td><input type="checkbox" id="rule-domain-expiry" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="alert_domain_expiry">Domene utloper</td>
+                    <td><input type="number" id="rule-domain-days" value="14" min="1" max="90" class="admin-rule-num" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
                   </tr>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px;"><input type="checkbox" id="rule-fortigate-threats" data-change-handler="alertSaveConfig"></td>
-                    <td style="padding:8px;" data-i18n="alert_fortigate_threats">FortiGate trusler/dag</td>
-                    <td style="padding:8px;"><input type="number" id="rule-fg-threshold" value="50" min="1" max="10000" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_events">hendelser</span></td>
+                  <tr>
+                    <td><input type="checkbox" id="rule-fortigate-threats" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="alert_fortigate_threats">FortiGate trusler/dag</td>
+                    <td><input type="number" id="rule-fg-threshold" value="50" min="1" max="10000" class="admin-rule-num" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_events">hendelser</span></td>
                   </tr>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px;"><input type="checkbox" id="rule-firmware-outdated" data-change-handler="alertSaveConfig"></td>
-                    <td style="padding:8px;" data-i18n="alert_firmware_outdated">Firmware utdatert</td>
-                    <td style="padding:8px;color:var(--text-muted);font-size:11px;" data-i18n="lbl_auto_detect">Autodeteksjon</td>
+                  <tr>
+                    <td><input type="checkbox" id="rule-firmware-outdated" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="alert_firmware_outdated">Firmware utdatert</td>
+                    <td class="admin-hint" data-i18n="lbl_auto_detect">Autodeteksjon</td>
                   </tr>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px;"><input type="checkbox" id="rule-also-license" data-change-handler="alertSaveConfig"></td>
-                    <td style="padding:8px;" data-i18n="alert_also_license">ALSO lisens utloper</td>
-                    <td style="padding:8px;"><input type="number" id="rule-also-days" value="14" min="1" max="90" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
+                  <tr>
+                    <td><input type="checkbox" id="rule-also-license" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="alert_also_license">ALSO lisens utloper</td>
+                    <td><input type="number" id="rule-also-days" value="14" min="1" max="90" class="admin-rule-num" data-change-handler="alertSaveConfig"> <span data-i18n="lbl_days">dager</span></td>
                   </tr>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px;"><input type="checkbox" id="rule-mfa-coverage" data-change-handler="alertSaveConfig"></td>
-                    <td style="padding:8px;" data-i18n="alert_mfa_coverage">MFA-dekning under terskel</td>
-                    <td style="padding:8px;"><input type="number" id="rule-mfa-threshold" value="80" min="1" max="100" style="width:60px;padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;" data-change-handler="alertSaveConfig"> %</td>
+                  <tr>
+                    <td><input type="checkbox" id="rule-mfa-coverage" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="alert_mfa_coverage">MFA-dekning under terskel</td>
+                    <td><input type="number" id="rule-mfa-threshold" value="80" min="1" max="100" class="admin-rule-num" data-change-handler="alertSaveConfig"> %</td>
                   </tr>
                   <tr data-module="pentest">
-                    <td class="admin-rule-cell"><input type="checkbox" id="rule-pentest-critical" data-change-handler="alertSaveConfig"></td>
-                    <td class="admin-rule-cell" data-i18n="rule_pentest">Kritiske pentest-funn</td>
-                    <td class="admin-rule-cell admin-hint" data-i18n="lbl_auto_detect">Autodeteksjon</td>
+                    <td><input type="checkbox" id="rule-pentest-critical" data-change-handler="alertSaveConfig"></td>
+                    <td data-i18n="rule_pentest">Kritiske pentest-funn</td>
+                    <td class="admin-hint" data-i18n="lbl_auto_detect">Autodeteksjon</td>
                   </tr>
                 </tbody>
               </table>
@@ -1096,6 +1087,7 @@
               <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--blue);" data-i18n="hdr_alert_history">Varselhistorikk</summary>
               <div id="alert-history-container" style="margin-top:8px;max-height:300px;overflow-y:auto;"></div>
             </details>
+            <p class="admin-hint admin-hint-after" data-i18n="msg_read_local">Hva som er merket som lest under Oversikt › Varsler lagres i nettleseren til den enkelte. En kollega ser sin egen status.</p>
           </div>
         <div class="admin-section-head">
           <h2 class="admin-section-title" data-i18n="hdr_scheduled_tasks">Planlagte oppgaver</h2>

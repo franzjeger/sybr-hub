@@ -46,15 +46,36 @@ class TestTheStreamIsMerged:
         """An id built from the list index would mark the wrong alert read as
         soon as one expired and the list shifted."""
         collect = JS[JS.index("function _notifCollect") : JS.index("function _notifRender")]
-        ids = re.findall(r"id:\s*'([a-z]+):'\s*\+([^,]+),", collect)
-        assert len(ids) == 3, f"expected three id builders, found {ids}"
-        for prefix, expr in ids:
-            assert "customer" in expr or "item_name" in expr, (
-                f"the {prefix} id is not built from what identifies the alert: {expr}"
+        ids = dict(re.findall(r"id:\s*'([a-z]+):'\s*\+([^,]+),", collect))
+        assert set(ids) == {"cred", "renew", "uniweb", "alert", "event"}, (
+            f"expected one id builder per source, found {sorted(ids)}"
+        )
+        for prefix in ("cred", "renew", "uniweb"):
+            assert "customer" in ids[prefix] or "item_name" in ids[prefix], (
+                f"the {prefix} id is not built from what identifies the alert: {ids[prefix]}"
             )
+        # A sent alert is the rule, the customer and the item it was about.
+        assert ids["alert"].strip() == "key"
+        assert (
+            "var key = (h.type || '') + ':' + (h.customer || '') + ':' + (h.item || '')" in collect
+        )
+        # An event is the moment it happened and what happened.
+        assert "e.timestamp" in ids["event"] and "e.action" in ids["event"]
+        for prefix, expr in ids.items():
             assert "idx" not in expr and "index" not in expr, (
                 f"the {prefix} id depends on list position"
             )
+
+    def test_the_bells_events_and_what_was_sent_are_in_the_stream(self):
+        """The bell had its own dropdown of events and the Varsler tab its own
+        list of deadlines; the bell now opens the tab, so the tab carries both,
+        plus what the automatic alerts actually sent."""
+        loader = JS[JS.index("async function dashLoadAlerts") : JS.index("function _notifCollect")]
+        assert "/api/alerts/history" in loader and "/api/activity-log" in loader
+        chrome = (STATIC / "app-chrome.js").read_text()
+        toggle = chrome[chrome.index("function toggleNotifications") :]
+        toggle = toggle[: toggle.index("\n}\n")]
+        assert "openOverviewTab('dash-alerts')" in toggle
 
 
 class TestSeverityIsAFilterNotALayout:
@@ -84,47 +105,49 @@ class TestSeverityIsAFilterNotALayout:
 
 
 class TestNoControlLiesAboutWhatItDoes:
+    """The rule switches lived in the Varsler sidebar, where a technician saw
+    them disabled. They are settings, so they moved to the Varsler pane
+    of Administrasjon, which only an administrator can open."""
+
+    HTML = (STATIC / "index.html").read_text()
+    ALERTS_PANE = HTML[HTML.index('id="admin-pane-alerts"') :]
+    ALERTS_PANE = ALERTS_PANE[: ALERTS_PANE.index("</section>")]
+
+    def test_the_varsler_sidebar_has_no_switches_left(self):
+        sidebar = JS[JS.index("function _notifSidebar") :]
+        sidebar = sidebar[: sidebar.index("\n}\n")]
+        assert '<input type="checkbox"' not in sidebar
+        assert "notifToggleRule" not in JS
+
     def test_the_rule_toggles_read_the_real_config(self):
-        """The sidebar in the design is a set of switches. They are wired to
-        /api/alerts/config, not to a local array that forgets on reload."""
-        assert "/api/alerts/config" in JS
-        sidebar = JS[
-            JS.index("function _notifSidebar") : JS.index("async function notifToggleRule")
-        ]
-        assert "window._notifConfig" in sidebar
+        """Wired to /api/alerts/config, not to a local array that forgets on
+        reload."""
+        integ = (STATIC / "app-integrations.js").read_text()
+        load = integ[integ.index("async function alertLoadConfig") :]
+        assert load.index("/api/alerts/config") < 200
+        assert 'id="rule-ssl-expiry"' in self.ALERTS_PANE
 
-    def test_a_non_admin_sees_the_switches_disabled(self):
-        """Writing the config is admin-only server-side. Showing a technician
-        a live-looking switch that 403s is worse than showing a dead one."""
-        sidebar = JS[
-            JS.index("function _notifSidebar") : JS.index("async function notifToggleRule")
-        ]
-        # Match the conditional itself, not the word "disabled" — msg_alerts_disabled
-        # contains it too, so a looser check passed even with the guard removed.
-        assert re.search(r"isAdmin\s*\?\s*''\s*:\s*' disabled'", sidebar), (
-            "the switches are not disabled for a non-admin"
-        )
-
-    def test_a_rejected_toggle_snaps_back(self):
-        """Leaving the switch showing a state the server refused would make
-        the screen disagree with the system it describes."""
-        toggle = JS[JS.index("async function notifToggleRule") :]
-        assert "if (!saved)" in toggle and "_notifRender()" in toggle
+    def test_only_an_administrator_reaches_the_switches(self):
+        """Writing the config is admin-only server-side. The page holding the
+        switches is admin-only, and the Varsler sidebar offers the way there
+        only to an account that can open it."""
+        assert '<div class="view" id="view-admin" data-admin-only>' in self.HTML
+        sidebar = JS[JS.index("function _notifSidebar") :]
+        assert "canOpenView('admin')" in sidebar[: sidebar.index("\n}\n")]
 
     def test_the_switch_is_a_real_checkbox(self):
         """So it keeps its keyboard and screen-reader behaviour."""
-        assert '<input type="checkbox"' in JS[JS.index("function _notifSidebar") :]
-        assert ".switch input:focus-visible ~ .track" in CSS, "no visible focus ring"
+        assert '<input type="checkbox" id="rule-' in self.ALERTS_PANE
 
     def test_alerts_being_switched_off_is_stated(self):
         """Rules that are on inside a feature that is off send nothing. The
-        sidebar says so rather than showing seven enabled switches."""
+        sidebar says so rather than implying the deadlines are being sent."""
         assert "msg_alerts_disabled" in JS
 
     def test_read_state_says_where_it_lives(self):
-        """It is per-browser. Two technicians will disagree, and the screen
-        admits that instead of implying a shared inbox."""
-        assert "msg_read_local" in JS
+        """It is per-browser. Two technicians will disagree, and the settings
+        page admits that instead of implying a shared inbox."""
+        assert 'data-i18n="msg_read_local"' in self.ALERTS_PANE
         assert "localStorage" in JS
 
 

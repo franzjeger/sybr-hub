@@ -155,11 +155,11 @@ test.describe('signed in as an administrator', () => {
     // The fixture has one audited customer (Browser Beta); every other one,
     // including those other specs add, has never been audited.
     await page.evaluate(() => showView('overview'));
-    await page.locator('#view-overview .dash-tab-btn', {hasText: 'Kunder'}).click();
+    await page.locator('#view-overview .dash-tab-btn', {hasText: 'Oppfølging'}).click();
     const overview = await (await page.request.get('/api/dashboard/overview')).json();
     const never = overview.customers.filter(c => !c.last_audit).length;
     expect(never).toBeGreaterThan(0);
-    const attention = page.locator('#kpi-needs-attention .kpi-value');
+    const attention = page.locator('.attn-strip .attn-title');
     await expect.poll(async () => Number(await attention.getAttribute('data-count'))).toBeGreaterThanOrEqual(never);
     const count = await attention.getAttribute('data-count');
     const green = await page.evaluate(() => {
@@ -172,9 +172,10 @@ test.describe('signed in as an administrator', () => {
     });
     expect(await attention.evaluate(el => getComputedStyle(el).color)).not.toBe(green);
     await expect(page.locator('.attn-strip')).toContainText(never + ' uten audit');
-
-    // One audit is enough to plot; the empty-chart notice is for no audits at all.
-    await expect(page.locator('.chart-empty')).toHaveCount(0);
+    // A never-audited customer's findings are unknown, not none.
+    const row = page.locator('.customer-overview-table tbody tr', {hasText: 'Browser Alpha'});
+    await expect(row.locator('.sev-count.sev-unknown')).toHaveText('Aldri auditert');
+    await expect(row.locator('.sev-count.sev-none')).toHaveCount(0);
 
     await page.locator('.attn-action').click();
     await expect(page.locator('#overview-attention-badge')).toBeVisible();

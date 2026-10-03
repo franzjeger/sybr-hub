@@ -192,14 +192,15 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#admin-pane-users')).toBeHidden();
   });
 
-  test('overview: tabs, quick filters, sorting, and the row menu does not open the row', async () => {
+  test('overview: tabs, the attention filter, sorting, and the row menu does not open the row', async () => {
     await openView(page, 'overview');
     await page.locator('#view-overview .dash-tab-btn[data-tab="dash-customers"]').click();
     const table = page.locator('.customer-overview-table');
     await expect(table).toBeVisible();
-    await page.locator('#qp-problems').click();
-    await expect(page.locator('#qp-problems')).toHaveClass(/\bactive\b/);
-    await page.locator('#qp-all').click();
+    await page.locator('.attn-strip .attn-action').click();
+    await expect(page.locator('#overview-attention-badge')).toBeVisible();
+    await page.locator('#overview-active-filters [data-click-handler="dashClearAllFilters"]').click();
+    await expect(page.locator('#overview-active-filters')).toBeHidden();
     await page.locator('th[data-click-handler="sortOverview"][data-sort="customer_name"]').click();
     await expect(page.locator('th[data-click-handler="sortOverview"][data-sort="customer_name"]')).toContainText(/[▲▼]/);
     const row = table.locator('tbody tr', {hasText: 'Browser Beta'});

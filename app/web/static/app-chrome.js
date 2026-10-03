@@ -4,80 +4,19 @@
 
 // ── Theme toggle ────────────────────────────────────────────────────────────────
 // ── Notification bell ─────────────────────────────────────────────────────────
-var _notifOpen = false;
 var _notifLastSeen = localStorage.getItem('sybr_notif_seen') || '';
 
+// The bell opens Varsler on Oversikt, where the bell's events sit with the
+// expiring credentials, renewals, domains and what the automatic alerts sent.
+// Opening it is seeing what was new.
 function toggleNotifications() {
-  _notifOpen = !_notifOpen;
-  var dd = document.getElementById('notif-dropdown');
-  dd.style.display = _notifOpen ? 'block' : 'none';
-  if (_notifOpen) loadNotifications();
-}
-
-async function loadNotifications() {
-  try {
-    var d = await apiFetch('/api/activity-log?limit=20');
-    var entries = d.entries || [];
-    var list = document.getElementById('notif-list');
-    if (entries.length === 0) {
-      list.innerHTML = '<div style="padding:var(--space-8) var(--space-4);text-align:center;color:var(--text-dim);font-size:var(--font-sm);">' + t('msg_no_notifications','Ingen varsler') + '</div>';
-      return;
-    }
-    // Filter out low-value noise
-    var _hideActions = new Set(['settings_changed','customer_switched']);
-    entries = entries.filter(function(e) { return !_hideActions.has(e.action); });
-
-    var actionIcons = {
-      audit_started: '\u25B6', audit_completed: '\u2713', report_generated: '',
-      customer_added: '', itglue_uploaded: '',
-      email_sent: '', backup_created: '',
-      backup_restored: '', history_deleted: '',
-      remediation_updated: '',
-    };
-    var actionLabels = {
-      audit_started: t('notif_audit_started','Audit started'),
-      audit_completed: t('notif_audit_completed','Audit completed'),
-      report_generated: t('notif_report_generated','Report generated'),
-      customer_added: t('notif_customer_added','Customer added'),
-      email_sent: t('notif_email_sent','Email sent'),
-      backup_created: t('notif_backup_created','Backup created'),
-      backup_restored: t('notif_backup_restored','Backup restored'),
-      history_deleted: t('notif_history_deleted','History deleted'),
-      itglue_uploaded: t('notif_itglue_uploaded','Uploaded to IT Glue'),
-      remediation_updated: t('notif_remediation_updated','Remediation updated'),
-    };
-    var actionColors = {
-      audit_completed: 'var(--green)', report_generated: 'var(--blue)',
-      backup_created: 'var(--green)', email_sent: 'var(--blue)',
-    };
-    if (entries.length === 0) {
-      list.innerHTML = '<div style="padding:var(--space-8) var(--space-4);text-align:center;color:var(--text-dim);font-size:var(--font-sm);">' + t('msg_no_notifications','No notifications') + '</div>';
-      return;
-    }
-    list.innerHTML = entries.map(function(e) {
-      var icon = actionIcons[e.action] || '';
-      var color = actionColors[e.action] || 'var(--text-muted)';
-      var label = actionLabels[e.action] || e.action.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase()});
-      var timeStr = e.timestamp ? timeAgo(e.timestamp) : '';
-      var isNew = _notifLastSeen && e.timestamp > _notifLastSeen;
-      return '<div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;gap:var(--space-3);align-items:flex-start;'+(isNew?'background:rgba(77,159,181,0.06);':'')+'" class="hover-tint-strong">'+
-        '<span style="font-size:16px;flex-shrink:0;margin-top:2px;color:'+color+';">'+icon+'</span>'+
-        '<div style="flex:1;min-width:0;">'+
-          '<div style="font-size:var(--font-sm);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+
-            (e.customer ? ' · <span style="color:var(--blue);">'+esc(e.customer)+'</span>' : '')+
-          '</div>'+
-          (e.detail ? '<div style="font-size:var(--font-xs);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(e.detail)+'</div>' : '')+
-          '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:2px;">'+esc(timeStr)+(e.user ? ' · '+esc(e.user) : '')+'</div>'+
-        '</div></div>';
-    }).join('');
-  } catch(e) { /* non-critical */ }
-}
-
-function markAllNotificationsRead() {
   _notifLastSeen = new Date().toISOString();
-  localStorage.setItem('sybr_notif_seen', _notifLastSeen);
-  document.getElementById('notif-badge').style.display = 'none';
-  loadNotifications();
+  try { localStorage.setItem('sybr_notif_seen', _notifLastSeen); } catch (e) { /* private mode */ }
+  var badge = document.getElementById('notif-badge');
+  if (badge) badge.hidden = true;
+  var bnav = document.getElementById('bnav-alerts-badge');
+  if (bnav) bnav.style.display = 'none';
+  openOverviewTab('dash-alerts');
 }
 
 async function _checkVpnHeaderBadge() {
@@ -124,27 +63,14 @@ async function _checkNotifBadge() {
     var bnavBadge = document.getElementById('bnav-alerts-badge');
     if (newCount > 0) {
       var _nb = newCount > 9 ? '9+' : String(newCount);
-      badge.textContent = _nb; badge.style.display = 'block';
+      badge.textContent = _nb; badge.hidden = false;
       if (bnavBadge) { bnavBadge.textContent = _nb; bnavBadge.style.display = 'block'; }
     } else {
-      badge.style.display = 'none';
+      badge.hidden = true;
       if (bnavBadge) bnavBadge.style.display = 'none';
     }
   } catch(e) { /* notification poll — retries periodically */ }
 }
-
-// Close notification dropdown when clicking outside.
-// Match the toggles by data attribute, not by aria-label: translatePage()
-// rewrites aria-label from data-i18n-aria-label, so on any locale but
-// Norwegian the selector missed the bell and the same click that opened the
-// dropdown closed it again — the bell looked dead. The attribute also covers
-// the bottom-nav toggle, which the old selector never matched in any locale.
-document.addEventListener('click', function(e) {
-  if (_notifOpen && !e.target.closest('#notif-dropdown') && !e.target.closest('[data-notif-toggle]')) {
-    _notifOpen = false;
-    document.getElementById('notif-dropdown').style.display = 'none';
-  }
-});
 
 function toggleTheme() {
   const root = document.documentElement;

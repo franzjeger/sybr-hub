@@ -26,6 +26,48 @@ from app.models.ticket import RemediationItem
 log = logging.getLogger(__name__)
 
 VALID_STATUSES = frozenset({"open", "in_progress", "done", "ignored"})
+# A finding someone has closed: fixed, or decided against. In progress is open.
+CLOSED_STATUSES = frozenset({"done", "ignored"})
+SEVERITIES = ("critical", "high", "medium", "low")
+
+
+async def open_finding_counts(recommendations: dict[str, list]) -> dict[str, dict[str, int]]:
+    """Open findings per customer and severity.
+
+    ``recommendations`` maps a customer id to its newest run's
+    recommendations; what has been decided about each comes from the
+    remediation table, read once for all of them. A recommendation is keyed by
+    its ``rec_id``, or by its title for runs from before ids existed, exactly
+    as the customer page keys it. An unknown or missing priority counts as
+    medium, as the page shows it.
+    """
+    if not recommendations:
+        return {}
+    async with get_session() as session:
+        stmt = select(RemediationItem).where(
+            RemediationItem.customer_id.in_(list(recommendations))  # type: ignore[attr-defined]
+        )
+        rows = (await session.execute(stmt)).scalars().all()
+    decided: dict[str, dict[str, str]] = {}
+    for row in rows:
+        decided.setdefault(row.customer_id, {})[row.recommendation_id] = row.status
+
+    counts: dict[str, dict[str, int]] = {}
+    for customer_id, recs in recommendations.items():
+        tally = dict.fromkeys(SEVERITIES, 0)
+        statuses = decided.get(customer_id, {})
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            title = str(rec.get("title", ""))
+            rec_id = str(rec.get("rec_id") or title)
+            status = statuses.get(rec_id) or statuses.get(title) or "open"
+            if status in CLOSED_STATUSES:
+                continue
+            priority = str(rec.get("priority") or "medium")
+            tally[priority if priority in tally else "medium"] += 1
+        counts[customer_id] = tally
+    return counts
 
 
 def _row_to_entry(row) -> dict:

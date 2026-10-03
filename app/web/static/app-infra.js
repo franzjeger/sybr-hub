@@ -2897,9 +2897,10 @@ async function fgApiLoadSaved() {
 // ═══════════════════════════════════════════════════════════════════
 
 function switchDashTab(btn, tabId) {
-  document.querySelectorAll('.dash-tab-content').forEach(function(el) { el.style.display = 'none'; });
-  // Active state is CSS-driven now (.dash-tab-btn.active); just toggle the class.
-  document.querySelectorAll('.dash-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  // Only Oversikt's own tabs: the network and billing pages use the same
+  // button class for their tabs, and lost their highlight to this.
+  document.querySelectorAll('#view-overview .dash-tab-content').forEach(function(el) { el.style.display = 'none'; });
+  document.querySelectorAll('#view-overview .dash-tab-btn').forEach(function(b) { b.classList.remove('active'); });
   var tab = document.getElementById(tabId);
   if (tab) tab.style.display = 'block';
   btn.classList.add('active');
