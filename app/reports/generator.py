@@ -194,7 +194,7 @@ def build_report_context(
     mfa = _parse_mfa(
         fc("04_mfa_methods.txt"), fc("04b_mfa_ca_analysis.txt"), results, fc("04_mfa_methods.json")
     )
-    licenses = _parse_licenses(fc("02_licenses.txt"))
+    licenses = _parse_licenses(fc("02_licenses.txt"), _sidecar(file_contents, "02_licenses.txt"))
     license_optimization = _analyze_license_optimization(licenses, file_contents, lang=lang)
     spf_dmarc = _parse_spf_dmarc(fc("26_email_dns_spf_dmarc.txt"))
     ca = _parse_ca_policies(fc("08_conditional_access.txt"))

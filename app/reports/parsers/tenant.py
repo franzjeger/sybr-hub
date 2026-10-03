@@ -66,8 +66,12 @@ def _parse_secure_score(text: str) -> dict:
     }
 
 
-def _parse_licenses(text: str) -> list[dict]:
+def _parse_licenses(text: str, sidecar: dict | None = None) -> list[dict]:
     """Parse 02_licenses.txt into a list of {part, used, total, pct, warn}.
+
+    From the 02_licenses.json sidecar when the run has one: it carries the
+    utilisation unrounded, where the table prints whole percents. Otherwise
+    from the table, as below.
 
     The collector appends a status suffix ("  *** OVER 90% ***") to lines
     where utilisation is ≥90%. Without stripping that suffix, rsplit takes
@@ -75,6 +79,18 @@ def _parse_licenses(text: str) -> list[dict]:
     which means the over-utilised licences (precisely the ones the auditor
     cares about) never reach the report.
     """
+    if sidecar is not None and isinstance(sidecar.get("skus"), list):
+        return [
+            {
+                "part": sku["part"],
+                "name": _sku_friendly(sku["part"]),
+                "used": sku["used"],
+                "total": sku["total"],
+                "pct": float(sku["pct"]),
+                "warn": bool(sku["warn"]),
+            }
+            for sku in sidecar["skus"]
+        ]
     licenses = []
     for line in text.splitlines():
         if "%" not in line or ":" in line:
