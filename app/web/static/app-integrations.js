@@ -146,7 +146,7 @@ async function docsRepoOpen(path) {
       return;
     }
     var rendered = window.marked.parse(data.content, { gfm: true, breaks: false });
-    content.innerHTML = window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
+    content.innerHTML = /* safe-html: DOMPurify output */ window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
     content.scrollTop = 0;
     // Highlight selected file in the tree
     document.querySelectorAll('.docs-tree-file').forEach(function(el) {
@@ -211,7 +211,7 @@ function _wikiRenderInto(body, content) {
     return;
   }
   var rendered = window.marked.parse(content, { gfm: true, breaks: false });
-  body.innerHTML = window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
+  body.innerHTML = /* safe-html: DOMPurify output */ window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
 }
 
 async function _wikiLoadOneCard(card, lang) {
@@ -300,7 +300,7 @@ async function alsoSyncCustomers() {
     var matched = d.customers.filter(function(c){return c.status === 'matched'});
 
     var html = '<div style="margin-top:var(--space-3);font-size:var(--font-sm);">'
-      + '<div style="margin-bottom:var(--space-2);"><strong>' + t('also') + '</strong> ' + d.also_total + ' | <span style="color:var(--green);">Matched: ' + d.matched + '</span> | <span style="color:var(--blue);">New: ' + d.new + '</span></div>';
+      + '<div style="margin-bottom:var(--space-2);"><strong>' + t('also') + '</strong> ' + Number(d.also_total) + ' | <span style="color:var(--green);">Matched: ' + Number(d.matched) + '</span> | <span style="color:var(--blue);">New: ' + Number(d.new) + '</span></div>';
 
     if (newC.length > 0) {
       html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-3);">';
@@ -350,7 +350,7 @@ async function alsoDoImport() {
   var d = await apiFetch('/api/also/sync-customers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customers:toImport})});
   if (d && d.ok) {
     showToast(t('msg_imported','Imported') + ' ' + d.imported + ' ' + t('nav_customers').toLowerCase(), 'success', 3000);
-    document.getElementById('also-config-msg').innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_imported','Importert') + ': ' + d.imported + '</span>';
+    document.getElementById('also-config-msg').innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_imported','Importert') + ': ' + Number(d.imported) + '</span>';
   } else { showToast(d && d.error ? d.error : t('status_error'), 'error'); }
 }
 
@@ -444,8 +444,8 @@ async function uniwebPollStatus() {
     var elapsed = Date.now() - startTime;
     var elapsedStr = _uniwebFormatDuration(elapsed);
 
-    var synced = d.accounts_synced || 0;
-    var total = d.total_accounts || 0;
+    var synced = Number(d.accounts_synced) || 0;
+    var total = Number(d.total_accounts) || 0;
     var pct = total > 0 ? Math.round((synced / total) * 100) : 0;
 
     // Estimate remaining time
@@ -482,9 +482,9 @@ async function uniwebPollStatus() {
     // Domains found so far
     if (d.domains_found > 0) {
       html += '<div class="uniweb-sync-row" style="margin-top:4px;">';
-      html += '<span class="uniweb-sync-label">' + t('uniweb_domains_found').replace('{count}', d.domains_found) + '</span>';
+      html += '<span class="uniweb-sync-label">' + t('uniweb_domains_found').replace('{count}', Number(d.domains_found)) + '</span>';
       if (d.errors_count > 0) {
-        html += '<span class="uniweb-sync-label" style="color:var(--orange);">' + t('integ_error','Feil') + ': ' + d.errors_count + '</span>';
+        html += '<span class="uniweb-sync-label" style="color:var(--orange);">' + t('integ_error','Feil') + ': ' + Number(d.errors_count) + '</span>';
       }
       html += '</div>';
     }
@@ -512,10 +512,10 @@ async function uniwebPollStatus() {
 
       // Summary cards
       html += '<div class="uniweb-summary">';
-      html += '<div class="uniweb-summary-card"><div class="val">' + (d.total_accounts || 0) + '</div><div class="lbl">' + t('kontoer') + '</div></div>';
-      html += '<div class="uniweb-summary-card"><div class="val">' + (d.domains_found || 0) + '</div><div class="lbl">' + t('domener_2') + '</div></div>';
+      html += '<div class="uniweb-summary-card"><div class="val">' + (Number(d.total_accounts) || 0) + '</div><div class="lbl">' + t('kontoer') + '</div></div>';
+      html += '<div class="uniweb-summary-card"><div class="val">' + (Number(d.domains_found) || 0) + '</div><div class="lbl">' + t('domener_2') + '</div></div>';
       if (d.errors_count > 0) {
-        html += '<div class="uniweb-summary-card" style="border:1px solid var(--orange);"><div class="val" style="color:var(--orange);">' + d.errors_count + '</div><div class="lbl">' + t('feil') + '</div></div>';
+        html += '<div class="uniweb-summary-card" style="border:1px solid var(--orange);"><div class="val" style="color:var(--orange);">' + Number(d.errors_count) + '</div><div class="lbl">' + t('feil') + '</div></div>';
       }
       html += '</div>';
       html += '</div>';
@@ -544,10 +544,10 @@ async function uniwebLoadAccounts() {
   var unmatchedCount = d.accounts.filter(function(a) { return !a.customer_name; }).length;
   var unmatchedBadge = '';
   if (unmatchedCount > 0) {
-    unmatchedBadge = ' <span style="display:inline-block;background:var(--orange);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;">' + unmatchedCount + ' ' + t('integ_of','av') + ' ' + d.total + ' ' + t('integ_customers_unlinked','kunder ikke koblet') + '</span>';
+    unmatchedBadge = ' <span style="display:inline-block;background:var(--orange);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;">' + unmatchedCount + ' ' + t('integ_of','av') + ' ' + Number(d.total) + ' ' + t('integ_customers_unlinked','kunder ikke koblet') + '</span>';
   }
 
-  var html = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">' + t('kontoer') + ' (' + d.total + ')' + unmatchedBadge + '</div>';
+  var html = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">' + t('kontoer') + ' (' + Number(d.total) + ')' + unmatchedBadge + '</div>';
   html += '<div class="uniweb-accounts-scroll" role="region" aria-label="' + esc(t('uniweb_accounts_label')) + '" tabindex="0">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
   html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
@@ -570,10 +570,10 @@ async function uniwebLoadAccounts() {
     html += '<tr style="border-bottom:1px solid var(--border);">';
     html += '<td style="padding:6px 8px;"><a href="#" data-click-handler="uniwebShowDetail" data-id="' + esc(a.id) + '" style="color:var(--blue);text-decoration:none;">' + esc(a.name) + '</a></td>';
     html += '<td style="padding:6px 8px;">' + customerCol + '</td>';
-    html += '<td style="text-align:center;padding:6px 8px;">' + a.domain_count + '</td>';
-    html += '<td style="text-align:center;padding:6px 8px;">' + a.subscription_count + '</td>';
+    html += '<td style="text-align:center;padding:6px 8px;">' + Number(a.domain_count) + '</td>';
+    html += '<td style="text-align:center;padding:6px 8px;">' + Number(a.subscription_count) + '</td>';
     html += '<td style="text-align:right;padding:6px 8px;font-family:var(--mono);">' + (a.monthly_total > 0 ? a.monthly_total.toFixed(0) : '-') + '</td>';
-    html += '<td style="text-align:center;padding:6px 8px;">' + (a.earliest_renewal || '-') + '</td>';
+    html += '<td style="text-align:center;padding:6px 8px;">' + esc(a.earliest_renewal || '-') + '</td>';
     html += '</tr>';
   });
 
@@ -1159,10 +1159,10 @@ async function alertRunCheckNow() {
     var html = '<div style="padding:10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-md);">';
     html += '<div style="font-weight:600;margin-bottom:6px;">' + t('lbl_check_result','Sjekkresultat') + '</div>';
     html += '<div style="display:flex;gap:16px;font-size:12px;">';
-    html += '<span>' + t('lbl_found','Funnet') + ': <strong>' + d.total_found + '</strong></span>';
-    html += '<span>' + t('lbl_new_alerts','Nye') + ': <strong style="color:' + (d.new_alerts > 0 ? 'var(--red)' : 'var(--green)') + ';">' + d.new_alerts + '</strong></span>';
-    html += '<span>' + t('lbl_deduplicated','Deduplisert') + ': ' + d.deduplicated + '</span>';
-    html += '<span>' + t('lbl_channels_notified','Kanaler varslet') + ': ' + d.channels_notified + '</span>';
+    html += '<span>' + t('lbl_found','Funnet') + ': <strong>' + Number(d.total_found) + '</strong></span>';
+    html += '<span>' + t('lbl_new_alerts','Nye') + ': <strong style="color:' + (d.new_alerts > 0 ? 'var(--red)' : 'var(--green)') + ';">' + Number(d.new_alerts) + '</strong></span>';
+    html += '<span>' + t('lbl_deduplicated','Deduplisert') + ': ' + Number(d.deduplicated) + '</span>';
+    html += '<span>' + t('lbl_channels_notified','Kanaler varslet') + ': ' + Number(d.channels_notified) + '</span>';
     html += '</div>';
 
     if (d.alerts && d.alerts.length > 0) {
@@ -1671,9 +1671,9 @@ async function gdapSaveConfig() {
   });
   if (d && d.ok) {
     if (d.validated) {
-      msg.innerHTML = '<span style="color:var(--green);">' + t('msg_saved') + ' · ' + d.customer_count + ' ' + t('gdap_customers_found', 'kunder funnet') + '</span>';
+      msg.innerHTML = '<span style="color:var(--green);">' + t('msg_saved') + ' · ' + Number(d.customer_count) + ' ' + t('gdap_customers_found', 'kunder funnet') + '</span>';
     } else {
-      msg.innerHTML = '<span style="color:var(--orange);">' + t('msg_saved') + ' · ' + (d.warning || '') + '</span>';
+      msg.innerHTML = '<span style="color:var(--orange);">' + t('msg_saved') + ' · ' + esc(d.warning || '') + '</span>';
     }
     if (d.validated) {
       setStatus('gdap-integ-dot', 'gdap-integ-label', true);
@@ -1718,7 +1718,7 @@ async function gdapDiscoverCustomers() {
     var gdapBadge = c.gdap_status === 'active' ? '<span style="background:var(--green);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px;">GDAP</span>' : '';
     var importedBadge = imported ? '<span style="background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px;">' + (c.local_auth_mode === 'gdap' ? 'GDAP' : 'Legacy') + '</span>' : '';
     html += '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;">';
-    html += '<input type="checkbox" class="gdap-import-cb" value="' + c.tenant_id + '" ' + (imported ? 'checked disabled' : '') + ' style="flex-shrink:0;">';
+    html += '<input type="checkbox" class="gdap-import-cb" value="' + esc(c.tenant_id) + '" ' + (imported ? 'checked disabled' : '') + ' style="flex-shrink:0;">';
     html += '<div style="flex:1;min-width:0;">';
     html += '<div style="font-weight:600;">' + esc(c.company_name) + gdapBadge + importedBadge + '</div>';
     html += '<div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);">' + esc(c.domain || c.tenant_id) + '</div>';
