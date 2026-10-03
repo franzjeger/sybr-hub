@@ -47,37 +47,34 @@ onViewShown('ai', function() {
 
 // ── Docs tab switching ───────────────────────────────────────────────────────
 function switchDocsTab(btn, paneId) {
-  document.querySelectorAll('.docs-tab-btn').forEach(function(b) {
-    b.classList.remove('active');
-    b.style.borderBottomColor = 'transparent';
-  });
+  document.querySelectorAll('.docs-tab-btn').forEach(function(b) { b.classList.remove('active'); });
   btn.classList.add('active');
-  btn.style.borderBottomColor = 'var(--blue)';
   document.querySelectorAll('.docs-tab-pane').forEach(function(p) { p.style.display = 'none'; });
   var pane = document.getElementById(paneId);
   if (pane) pane.style.display = 'block';
 }
 
 // ── In-app docs viewer ───────────────────────────────────────────────────
-// Renders the markdown files shipped under docs/ in the repo. Tree pulled
-// from /api/docs/list, individual files from /api/docs/file?path=…, then
-// rendered client-side with marked.js + sanitised through DOMPurify so a
-// future contributor can't sneak <script> into a doc and run it in our
-// origin.
+// The documents a person using the app reads: the changelog, and a user
+// guide when the build has one. /api/docs/list names them and
+// /api/docs/file returns one; it is rendered client-side with marked.js and
+// sanitised through DOMPurify, so a document cannot run script in our
+// origin. The API reference and Swagger are for administrators.
 
 var _docsRepoTreeLoaded = false;
 
 async function docsRepoLoad() {
+  var admin = !!(window._currentUser && _currentUser.role === 'admin');
+  document.querySelectorAll('#view-docs [data-admin-only]').forEach(function(el) { el.hidden = !admin; });
   if (_docsRepoTreeLoaded) return;
   var treeBox = document.getElementById('docs-repo-tree');
   if (!treeBox) return;
-  treeBox.innerHTML = '<div style="color:var(--text-muted);">' + t('laster') + '</div>';
+  treeBox.innerHTML = '<div class="docs-dim">' + esc(t('laster')) + '</div>';
   try {
     var data = await apiFetch('/api/docs/list');
     if (!data || !data.root) throw new Error('no tree');
-    // docs/ is not package data, so a wheel or container install has no
-    // documentation tree to draw. Say which of the two this is instead of
-    // rendering an empty list that reads as "there are no documents".
+    // The documents are not package data, so an install may carry none. Say
+    // so instead of an empty list that reads as "there are no documents".
     if (data.available === false) {
       treeBox.innerHTML = '<div class="docs-unavailable">'
         + esc(t('docs_not_in_this_build',
@@ -85,29 +82,21 @@ async function docsRepoLoad() {
         + '</div>';
       return;
     }
-    treeBox.innerHTML = _docsRenderTree(data.root, 0);
-    _docsRepoTreeLoaded = true;
-    // Auto-open a sensible default so the right pane isn't empty — chosen
-    // from what the tree actually offers. It used to name USER_GUIDE.md, or
-    // no/HURTIGSTART.md on a Norwegian UI, and docs/ holds neither: every
-    // visit to this tab opened on "Could not open the document", with a
-    // working list of files beside it.
     var offered = _docsFileList(data.root);
-    var preferred = (typeof _lang !== 'undefined' && _lang === 'no')
-      ? ['no/HURTIGSTART.md', 'README.md']
-      : ['USER_GUIDE.md', 'README.md'];
-    var defaultDoc = null;
-    for (var i = 0; i < preferred.length && !defaultDoc; i++) {
-      if (offered.indexOf(preferred[i]) !== -1) defaultDoc = preferred[i];
-    }
-    if (!defaultDoc && offered.length) defaultDoc = offered[0];
-    if (defaultDoc) docsRepoOpen(defaultDoc);
+    // One document needs no list to choose from.
+    treeBox.innerHTML = offered.length > 1 ? _docsRenderTree(data.root) : '';
+    treeBox.hidden = offered.length < 2;
+    _docsRepoTreeLoaded = true;
+    // Open the first document the listing offers (the user guide when there
+    // is one). A name of our own here would be a second list, and the last
+    // one drifted: it opened files docs/ did not hold.
+    if (offered.length) docsRepoOpen(offered[0]);
   } catch (e) {
-    treeBox.innerHTML = '<div style="color:var(--color-danger);">' + t('integ_docs_load_failed','Kunne ikke laste dokumentasjon') + ': ' + esc(String(e)) + '</div>';
+    treeBox.innerHTML = '<div class="docs-error">' + esc(t('integ_docs_load_failed','Kunne ikke laste dokumentasjon')) + ': ' + esc(String(e)) + '</div>';
   }
 }
 
-// Every file path in the tree, depth-first, in the order the tree shows them.
+// Every file path in the listing, in the order it gives them.
 function _docsFileList(node) {
   if (!node) return [];
   if (node.type === 'file') return [node.path];
@@ -118,19 +107,12 @@ function _docsFileList(node) {
   return out;
 }
 
-function _docsRenderTree(node, depth) {
-  if (node.type === 'file') {
-    var pretty = node.name.replace(/\.md$/i, '').replace(/_/g, ' ');
-    var safePath = esc(node.path);
-    return '<div class="docs-tree-file" data-docs-path="' + safePath + '" style="padding:4px 6px;cursor:pointer;border-radius:var(--radius-sm);font-family:var(--mono);font-size:12px;color:var(--text);" data-click-handler="docsRepoOpen">' + esc(pretty) + '</div>';
-  }
-  // dir
-  var label = depth === 0 ? '' : (
-    '<div style="font-weight:600;margin-top:8px;color:var(--blue);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">' + esc(node.name) + '/</div>'
-  );
-  var indent = depth === 0 ? '' : 'margin-left:12px;border-left:1px dashed var(--border);padding-left:8px;';
-  var children = (node.children || []).map(function(c) { return _docsRenderTree(c, depth + 1); }).join('');
-  return label + '<div style="' + indent + '">' + children + '</div>';
+// The documents as buttons, titled in the reader's language.
+function _docsRenderTree(root) {
+  return (root.children || []).filter(function(n) { return n.type === 'file'; }).map(function(n) {
+    var title = t('docs_title_' + n.key, '') || n.name.replace(/\.md$/i, '');
+    return '<button type="button" class="docs-doc" data-docs-path="' + esc(n.path) + '" data-click-handler="docsRepoOpen">' + esc(title) + '</button>';
+  }).join('');
 }
 
 async function docsRepoOpen(path) {
@@ -148,9 +130,8 @@ async function docsRepoOpen(path) {
     var rendered = window.marked.parse(data.content, { gfm: true, breaks: false });
     content.innerHTML = /* safe-html: DOMPurify output */ window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
     content.scrollTop = 0;
-    // Highlight selected file in the tree
-    document.querySelectorAll('.docs-tree-file').forEach(function(el) {
-      el.style.background = el.getAttribute('data-docs-path') === path ? 'rgba(77,159,181,0.18)' : '';
+    document.querySelectorAll('.docs-doc').forEach(function(el) {
+      el.classList.toggle('is-active', el.getAttribute('data-docs-path') === path);
     });
   } catch (e) {
     content.innerHTML = '<div style="color:var(--color-danger);">' + t('integ_doc_open_failed','Kunne ikke åpne dokumentet') + ': ' + esc(String(e)) + '</div>';

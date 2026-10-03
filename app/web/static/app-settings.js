@@ -106,8 +106,6 @@ async function openSettings() {
     document.getElementById('settings-msg').textContent = '';
     var _slt = document.getElementById('input-show-log-tab');
     if (_slt) _slt.checked = localStorage.getItem('msptk_show_log_tab') === '1';
-    var _sdt = document.getElementById('input-show-docs-tab');
-    if (_sdt) _sdt.checked = localStorage.getItem('msptk_show_docs_tab') === '1';
 
     // Set language selector
     var langSel = document.getElementById('input-language');

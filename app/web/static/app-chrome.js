@@ -1052,21 +1052,10 @@ function toggleLogTabVisibility() {
   localStorage.setItem('msptk_show_log_tab', show ? '1' : '0');
 }
 
-function toggleDocsTabVisibility() {
-  var show = document.getElementById('input-show-docs-tab').checked;
-  var btn = document.getElementById('nav-docs');
-  if (btn) btn.style.display = show ? 'inline-flex' : 'none';
-  localStorage.setItem('msptk_show_docs_tab', show ? '1' : '0');
-}
-
 // Restore tab visibility on page load
 (function() {
   if (localStorage.getItem('msptk_show_log_tab') === '1') {
     const btn = document.getElementById('nav-logs');
-    if (btn) btn.style.display = 'inline-flex';
-  }
-  if (localStorage.getItem('msptk_show_docs_tab') === '1') {
-    const btn = document.getElementById('nav-docs');
     if (btn) btn.style.display = 'inline-flex';
   }
 })();

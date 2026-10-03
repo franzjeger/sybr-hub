@@ -2795,6 +2795,31 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
    budget is a ratchet and new markup is expected to arrive clean. */
 .docs-unavailable { color: var(--text-muted); font-size: var(--font-sm); padding: var(--space-3); line-height: 1.5; }
 
+/* The Docs view: the documents above, the open one full width below. It was
+   a 260 px tree beside the text, which left the text about 70 px on a phone. */
+#view-docs { max-width: 900px; }
+.docs-head { margin-bottom: var(--space-4); }
+.docs-title { font-size: 18px; font-weight: 700; }
+.docs-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: var(--space-5); }
+.docs-tabs[hidden], .docs-doc-list[hidden] { display: none; }
+.docs-tab-btn { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: var(--space-2) var(--space-4); font-size: var(--font-sm); }
+.docs-tab-btn.active { border-bottom-color: var(--blue); font-weight: 600; }
+.docs-swagger { margin-left: auto; align-self: center; padding: var(--space-2) var(--space-4); font-size: var(--font-sm); color: var(--text-muted); text-decoration: none; }
+.docs-doc-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.docs-doc {
+  font: inherit; font-size: var(--font-sm); color: var(--text); cursor: pointer;
+  padding: var(--space-1) var(--space-3); border: 1px solid var(--border);
+  border-radius: var(--radius-full); background: var(--bg-card);
+}
+.docs-doc.is-active { border-color: var(--blue); color: var(--blue); }
+.docs-content {
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card);
+  padding: var(--space-5); min-height: 300px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere;
+}
+.docs-dim { color: var(--text-muted); }
+.docs-error { color: var(--color-danger); }
+@media (max-width: 479px) { .docs-content { padding: var(--space-3); } }
+
 /* Uniweb email-security cross-audit chips (app.js _renderCustomerEmailDns). */
 .uwed-chip, .uwed-fix { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
 /* Same treatment as the policy badges: the *-deep label colours on a
