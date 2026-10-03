@@ -87,15 +87,14 @@ async def test_every_domain_survives_the_round_trip(tmp_path, monkeypatch, sidec
     # published M365 selectors say signing was set up, not that it is on:
     # cannot verify. svak.example has no M365 selector, so Exchange cannot
     # sign with it, and its Google key does not count, since its SPF record
-    # does not say Google sends its mail: a finding (it failed before; the
-    # control now grades a missing signature warn).
+    # does not say Google sends its mail: a failed control.
     assert _verdicts(records) == {
         ("5.2.1", "acme.example"): "pass",
         ("5.2.2", "acme.example"): "pass",
         ("5.2.3", "acme.example"): "info",
         ("5.2.1", "svak.example"): "fail",
         ("5.2.2", "svak.example"): "partial",
-        ("5.2.3", "svak.example"): "warn",
+        ("5.2.3", "svak.example"): "fail",
         ("5.2.1", "brutt.example"): "info",
         ("5.2.2", "brutt.example"): "fail",
         ("5.2.3", "brutt.example"): "info",
@@ -235,10 +234,10 @@ async def test_dkim_is_decided_on_who_sends_each_domains_mail(tmp_path, monkeypa
     assert statuses == {
         "acme.example": "pass",
         # A Mailchimp CNAME used to pass an Exchange DKIM control.
-        "av.example": "warn",
+        "av.example": "fail",
         # A Google key used to fail: the collector writes "TXT present", never "k=rsa".
         "gmail.example": "pass",
-        "svak.example": "warn",
+        "svak.example": "fail",
         "parkert.example": "pass",
         LONG_DOMAIN: "pass",
     }
@@ -282,7 +281,7 @@ async def test_the_report_context_reads_dkim_from_the_sidecars(tmp_path, monkeyp
         if r["cis_id"] == "5.2.3"
     }
     assert statuses["acme.example"] == "pass"
-    assert statuses["av.example"] == "warn"
+    assert statuses["av.example"] == "fail"
 
 
 @pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
@@ -292,7 +291,7 @@ async def test_the_customer_reports_dkim_cell_says_what_the_control_says(
     """The email table judged DKIM on its own: "Found" unless every summary said MISSING.
 
     av.example has its M365 selectors published and signing switched off in
-    Exchange: CIS 5.2.3 warns, and the table beside it printed "Found".
+    Exchange: CIS 5.2.3 fails, and the table beside it printed "Found".
     """
     import re
 
