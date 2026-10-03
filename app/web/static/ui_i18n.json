@@ -3062,7 +3062,10 @@
     "bl_section_sharepoint": "SharePoint-innstillingene",
     "bl_section_usage": "aktivitetsdataene",
     "bl_section_unknown": "grunnlaget for dette kravet",
-    "btn_show_requirements": "Vis kravene ({n})"
+    "btn_show_requirements": "Vis kravene ({n})",
+    "lbl_metrics_only": "Bare nøkkeltall",
+    "btn_summary_report": "Sammendragsrapport",
+    "tip_summary_report": "Kjøringen har ingen bevisfiler, så hele rapporten kan ikke bygges. Sammendraget leser nøkkeltallene."
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -6127,6 +6130,9 @@
     "bl_section_sharepoint": "SharePoint settings",
     "bl_section_usage": "activity data",
     "bl_section_unknown": "the evidence for this requirement",
-    "btn_show_requirements": "Show the requirements ({n})"
+    "btn_show_requirements": "Show the requirements ({n})",
+    "lbl_metrics_only": "Metrics only",
+    "btn_summary_report": "Summary report",
+    "tip_summary_report": "The run has no evidence files, so the full report cannot be built. The summary reads the metrics."
   }
 }
