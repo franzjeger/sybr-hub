@@ -8,6 +8,27 @@ from app.reports.i18n import T
 from app.reports.parsers.common import _count_data_lines, _extract_policy_names
 
 
+def _site_table_rows(sites_text: str) -> int | None:
+    """Rows of the collector's site table, or None for a file without one.
+
+    Every line between the "---" rule under the column header and the closing
+    "===" frame is a site, whatever its first word. The shared row counter
+    decides by that word, and files a site called "Notes" as a NOTE line and
+    one called "No Code Lab" as a "No ..." placeholder.
+    """
+    lines = [line.strip() for line in sites_text.splitlines()]
+    rule = next((i for i, line in enumerate(lines) if line.startswith("---")), None)
+    if rule is None:
+        return None
+    rows = 0
+    for line in lines[rule + 1 :]:
+        if line.startswith("==="):
+            break
+        if line:
+            rows += 1
+    return rows
+
+
 def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = "no") -> dict:
     t = T(lang)
     settings: dict[str, str] = {}
@@ -48,8 +69,11 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
     # Counted through the shared helper rather than a local loop. The loop here
     # skipped only "===" lines, so the banner, the column header and the "---"
     # rule were each counted as a site: a tenant with 105 sites was reported as
-    # having 108.
-    site_count = _count_data_lines(sites_text)
+    # having 108. The collector's own table is counted row by row, though: the
+    # shared counter drops a site whose name starts like table furniture.
+    site_count = _site_table_rows(sites_text)
+    if site_count is None:
+        site_count = _count_data_lines(sites_text)
 
     # A personal site is identified by its host, not by the word "personal"
     # appearing anywhere on the line. This tenant has an ordinary team site
