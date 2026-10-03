@@ -426,7 +426,8 @@ async def test_a_mailbox_called_no_reply_still_counts_as_forwarding(tmp_path):
     files, _ = await _collect(tmp_path, {"forwarding": FORWARDING})
 
     assert _parse_exchange_overview(files)["forwarding_count"] == 3
-    assert _parse_exchange_overview(_text_only(files))["forwarding_count"] == 2, "the text drops it"
+    # The text used to drop it: the row counter took "No Reply" for a placeholder.
+    assert _parse_exchange_overview(_text_only(files))["forwarding_count"] == 3
 
 
 async def test_the_forwarding_findings_come_from_the_sidecar(tmp_path):

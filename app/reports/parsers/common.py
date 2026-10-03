@@ -118,6 +118,18 @@ _BANNER_COUNT_RE = re.compile(
 
 _EMPTY_PLACEHOLDER_RE = re.compile(r"^\(?\s*(none|ingen|n/?a|empty|tom)\s*\)?\.?$", re.IGNORECASE)
 
+# The prose a collector writes instead of rows: "NOTE: ..." and "Note that
+# ...", and "No ... found/available/configured ..." sentences. Anything else
+# that starts with "No" or "Note" is data: an Intune policy called "No
+# jailbroken devices", a transport rule called "No external forwarding", a
+# SharePoint site called "Notes". Matching on the first word alone dropped
+# all of those from every count.
+_NOTE_RE = re.compile(r"^note(?:\s*:|\s+that\b)", re.IGNORECASE)
+_NO_DATA_RE = re.compile(
+    r"^no\s+.*\b(found|detected|available|returned|configured|received|provided|exists?)\b",
+    re.IGNORECASE,
+)
+
 
 # "[1]" — the per-record index a multi-line section writes before its fields.
 _RECORD_INDEX_RE = re.compile(r"^\[\d+\]$")
@@ -227,7 +239,7 @@ def _is_furniture(stripped: str, *, near_rule: bool = True) -> bool:
         return True
     if stripped.startswith(("=", "-", "#")):
         return True
-    if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
+    if _NOTE_RE.match(stripped) or _NO_DATA_RE.match(stripped):
         return True
     if _EMPTY_PLACEHOLDER_RE.match(stripped):
         return True
