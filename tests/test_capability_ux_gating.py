@@ -108,8 +108,9 @@ def test_css_hides_each_tier():
 
 
 def test_js_toggles_both_body_classes():
+    state = (STATIC / "app-state.js").read_text(encoding="utf-8")
+    assert "function canTenantWrite" in state
     js = (STATIC / "app.js").read_text(encoding="utf-8")
-    assert "function canTenantWrite" in js
     assert "'is-readonly'" in js and "'is-no-tenant-write'" in js
 
 

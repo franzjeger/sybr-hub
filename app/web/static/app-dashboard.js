@@ -22,7 +22,7 @@ registerUiHandlers({
   filterOverview: function() { filterOverview(); },
   dashSetQuickFilter: function(el) { _quickFilter = el.dataset.quickFilter; filterOverview(); },
   dashClearSearchFilter: function() { document.getElementById('overview-search').value = ''; filterOverview(); },
-  dashClearGradeFilter: function() { _gradeFilter = ''; filterOverview(); },
+  dashClearGradeFilter: function() { clearGradeFilter(); },
   dashClearAllFilters: function() {
     document.getElementById('overview-search').value = '';
     _gradeFilter = '';
@@ -31,8 +31,8 @@ registerUiHandlers({
   },
   startBulkAudit: function() { startBulkAudit(); },
   sortOverview: function(el) { sortOverview(el.dataset.sort); },
-  dashPagePrev: function() { window._dashPage = Math.max(1, window._dashPage - 1); filterOverview(); },
-  dashPageNext: function(el) { window._dashPage = Math.min(Number(el.dataset.totalPages), window._dashPage + 1); filterOverview(); },
+  dashPagePrev: function() { _dashPage = Math.max(1, _dashPage - 1); filterOverview(); },
+  dashPageNext: function(el) { _dashPage = Math.min(Number(el.dataset.totalPages), _dashPage + 1); filterOverview(); },
   // Customer overview rows. The controls inside a row stop the click so the
   // row's own handler does not open the customer as well.
   dashOverviewSelectCustomer: function(el) { overviewSelectCustomer(el.dataset.customerId); },
@@ -78,7 +78,7 @@ function _notifMarkRead(id) {
 }
 
 function notifMarkAllRead() {
-  (window._notifItems || []).forEach(function(n) { _notifMarkRead(n.id); });
+  (_notifItems || []).forEach(function(n) { _notifMarkRead(n.id); });
   _notifRender();
 }
 
@@ -117,6 +117,12 @@ function _notifDays(n) {
   return n < 0 ? t('lbl_expired', 'Utløpt') : n + ' ' + t('lbl_days_short', 'd');
 }
 
+// What Varsler last loaded: its items, the alert settings and the coverage
+// the server reported. Unset until it has loaded once.
+var _notifItems;
+var _notifConfig;
+var _notifCoverage;
+
 async function dashLoadAlerts() {
   var el = document.getElementById('dash-alerts-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
@@ -140,9 +146,9 @@ async function dashLoadAlerts() {
     return;
   }
 
-  window._notifItems = _notifCollect(data, uniweb, history, activity);
-  window._notifConfig = cfg;
-  window._notifCoverage = data.coverage || null;
+  _notifItems = _notifCollect(data, uniweb, history, activity);
+  _notifConfig = cfg;
+  _notifCoverage = data.coverage || null;
   _notifRender();
 }
 
@@ -299,7 +305,7 @@ function _notifCollect(data, uniweb, history, activity) {
 function _notifRender() {
   var el = document.getElementById('dash-alerts-content');
   if (!el) return;
-  var items = window._notifItems || [];
+  var items = _notifItems || [];
 
   // Chip counts describe the whole stream, not the filtered view — a chip
   // that recounted itself after being clicked could never be clicked back.
@@ -413,7 +419,7 @@ function _notifRow(n) {
 // One click both acts and marks read — a technician who has opened the
 // customer has plainly seen the alert.
 function notifAct(id, readOnly) {
-  var n = (window._notifItems || []).filter(function(x) { return x.id === id; })[0];
+  var n = (_notifItems || []).filter(function(x) { return x.id === id; })[0];
   _notifMarkRead(id);
   if (!readOnly && n) {
     // A certificate is handled on Verktøy › Nettverk › TLS, where it can be
@@ -441,7 +447,7 @@ function notifAct(id, readOnly) {
 // Where the alerts go, and the way to the rules: the switches themselves are
 // under Administrasjon › Varsler.
 function _notifSidebar() {
-  var cfg = window._notifConfig;
+  var cfg = _notifConfig;
   var html = '<div class="notif-side"><div class="notif-card"><h4>' + esc(t('hdr_delivery', 'Levering')) + '</h4>';
   if (cfg) {
     var chans = [];
@@ -469,7 +475,7 @@ function _notifSidebar() {
 // nothing needs action only if something was looked at; this says how much
 // was, and when.
 function _notifCoverageCard() {
-  var cov = window._notifCoverage;
+  var cov = _notifCoverage;
   if (!cov) return '';
   var html = '<div class="notif-card"><h4>' + esc(t('hdr_checked_state', 'Hva er sjekket')) + '</h4>';
   var tls = cov.tls || {};
@@ -805,6 +811,10 @@ async function dashLoadDomains() {
 var _dashRefreshInterval = null;
 var _dashRefreshSeconds = 120; // 2 minutes
 
+function stopDashRefreshInterval() {
+  if (_dashRefreshInterval) { clearInterval(_dashRefreshInterval); _dashRefreshInterval = null; }
+}
+
 function dashToggleAutoRefresh(btn) {
   if (_dashRefreshInterval) {
     clearInterval(_dashRefreshInterval);
@@ -1020,7 +1030,6 @@ async function dashArchiveCleanup(months) {
 // ═══════════════════════════════════════════════════════════════════
 
 // ── Multi-customer dashboard overview ────────────────────────────────────────
-let _overviewData = null;
 // Worst open finding first: who needs attention leads.
 let _overviewSortKey = 'open_findings';
 let _overviewSortAsc = false;
@@ -1121,7 +1130,7 @@ async function loadOverview() {
   loadIntegrationHealthStrip().catch(function(e) { console.debug('integration banner failed:', e); });
   const d = await apiFetch('/api/dashboard/overview');
   if (d) {
-    _overviewData = {customers: d.customers || []};
+    setOverviewData({customers: d.customers || []});
     filterOverview();
     // Update footer stats
     var fs = document.getElementById('footer-stats');
@@ -1193,7 +1202,14 @@ function _findingWeight(c) {
 }
 
 var _gradeFilter = '';
+
+function clearGradeFilter() {
+  _gradeFilter = '';
+  filterOverview();
+}
 var _quickFilter = 'all';
+// The overview table's page, 1-based; unset until the table has rendered.
+var _dashPage;
 function filterByGrade(grade) {
   if (_gradeFilter === grade) { _gradeFilter = ''; } // toggle off
   else { _gradeFilter = grade; }
@@ -1204,7 +1220,7 @@ function filterByGrade(grade) {
 function filterOverview() {
   if (!_overviewData) return;
   const search = (document.getElementById('overview-search')?.value || '').toLowerCase();
-  var qf = window._quickFilter || 'all';
+  var qf = _quickFilter || 'all';
   let filtered = _overviewData.customers.filter(c => {
     if (search && !c.customer_name.toLowerCase().includes(search) && !(c.primary_domain||'').toLowerCase().includes(search)) return false;
     if (_gradeFilter && (!c.has_metrics || c.metrics.risk_grade !== _gradeFilter)) return false;
@@ -1353,8 +1369,8 @@ function renderOverview(customers) {
   // Pagination
   var _pageSize = 25;
   var _totalPages = Math.ceil(customers.length / _pageSize);
-  if (!window._dashPage || window._dashPage > _totalPages) window._dashPage = 1;
-  var _startIdx = (window._dashPage - 1) * _pageSize;
+  if (!_dashPage || _dashPage > _totalPages) _dashPage = 1;
+  var _startIdx = (_dashPage - 1) * _pageSize;
   var _pagedCustomers = customers.slice(_startIdx, _startIdx + _pageSize);
 
   for (const c of _pagedCustomers) {
@@ -1407,9 +1423,9 @@ function renderOverview(customers) {
 
   if (_totalPages > 1) {
     html += '<div class="overview-pager">'
-      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPagePrev" ' + (window._dashPage <= 1 ? 'disabled' : '') + '>&laquo; ' + esc(t('btn_prev','Prev')) + '</button>'
-      + '<span>' + Number(window._dashPage) + ' / ' + Number(_totalPages) + '</span>'
-      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPageNext" data-total-pages="' + Number(_totalPages) + '" ' + (window._dashPage >= _totalPages ? 'disabled' : '') + '>' + esc(t('btn_next','Next')) + ' &raquo;</button>'
+      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPagePrev" ' + (_dashPage <= 1 ? 'disabled' : '') + '>&laquo; ' + esc(t('btn_prev','Prev')) + '</button>'
+      + '<span>' + Number(_dashPage) + ' / ' + Number(_totalPages) + '</span>'
+      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPageNext" data-total-pages="' + Number(_totalPages) + '" ' + (_dashPage >= _totalPages ? 'disabled' : '') + '>' + esc(t('btn_next','Next')) + ' &raquo;</button>'
       + '</div>';
   }
 

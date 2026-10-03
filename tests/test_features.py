@@ -122,12 +122,16 @@ def test_a_missing_role_reaches_nothing():
 def test_the_client_holds_no_copy_of_the_rules():
     """It is sent by /auth/me. A copy is the thing that goes stale, and it goes
     stale in the direction of offering what the server refuses."""
-    js = pathlib.Path("app/web/static/app.js").read_text(encoding="utf-8")
+    # Any script may assign it; app-state.js is the one that does.
+    js = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(pathlib.Path("app/web/static").glob("app*.js"))
+    )
 
     assignments = re.findall(r"_features\s*=\s*([^;\n]+)", js)
     assert assignments, "_features is never assigned"
     for value in assignments:
-        assert value.strip() in ("[]", "_me.features || []"), (
+        assert value.strip() in ("[]", "me.features || []"), (
             f"_features assigned {value.strip()!r} — the list must come from the server"
         )
 

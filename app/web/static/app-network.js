@@ -131,6 +131,10 @@ var _unifiDirectDevices = [];
 // customer another tab opened since.
 var _netCustomerId = null;
 
+function setNetCustomerId(id) {
+  _netCustomerId = id;
+}
+
 registerToolCustomer('network', function() { loadNetworkDevices(); _clearNetworkAudit(); });
 
 function _clearNetworkAudit() {

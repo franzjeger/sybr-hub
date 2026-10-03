@@ -160,7 +160,7 @@ registerUiHandlers({
 registerUiHandlers({
   runCommandPaletteItem: function(el) {
     closeCommandPalette();
-    window._cmdActions[Number(el.dataset.index)]();
+    _cmdActions[Number(el.dataset.index)]();
   },
   dismissToast: function(el) { dismissToast(el.parentNode); },
   retryToast: function(el) { retryToast(el.closest('.toast')); },
@@ -594,6 +594,8 @@ function resolveConfirm(val) {
 // ── Command Palette (Cmd+K) ──────────────────────────────────────────────────
 var _cmdPaletteOpen = false;
 var _cmdSelectedIdx = -1;
+// The actions runCommandPaletteItem calls, by data-index.
+var _cmdActions = [];
 
 function toggleCommandPalette() { _cmdPaletteOpen ? closeCommandPalette() : openCommandPalette(); }
 
@@ -610,7 +612,7 @@ function openCommandPalette() {
   // before anything had loaded it, the palette had neither.
   if (!_overviewData) {
     apiFetch('/api/dashboard/overview').then(function(d) {
-      if (d && !_overviewData) _overviewData = {customers: d.customers || []};
+      if (d && !_overviewData) setOverviewData({customers: d.customers || []});
       if (_cmdPaletteOpen) _renderCmdResults(input.value);
     });
   }
@@ -740,8 +742,7 @@ function _renderCmdResults(query) {
     });
   }
   document.getElementById('cmd-results').innerHTML = html;
-  // The actions runCommandPaletteItem calls, by data-index.
-  window._cmdActions = results.map(function(r){return r.action});
+  _cmdActions = results.map(function(r){return r.action});
 }
 
 // ── Toast notification system ─────────────────────────────────────────────────
@@ -779,32 +780,29 @@ function showToastWithRetry(message, retryFn, type, dedupeKey) {
     '<div class="toast-actions"><button data-click-handler="retryToast">' +
     t('toast_retry') + '</button></div></div>' +
     '<button class="toast-close" data-click-handler="dismissToast" aria-label="' + t('btn_close') + '">&times;</button>';
-  if (!window._toastRetryFns) window._toastRetryFns = {};
-  window._toastRetryFns[_toastRetryId] = retryFn;
+  _toastRetryFns[_toastRetryId] = retryFn;
   _toastRetryId++;
   container.appendChild(toast);
   return toast;
 }
 var _toastRetryId = 0;
+// Each retry toast's action, by its data-retry-id, until it is dismissed.
+var _toastRetryFns = {};
 
 function retryToast(el) {
-  var retryFn = el && window._toastRetryFns && window._toastRetryFns[el.dataset.retryId];
+  var retryFn = el && _toastRetryFns[el.dataset.retryId];
   dismissToast(el);
   if (retryFn) retryFn();
 }
 
 function dismissToast(el) {
   if (!el || el.classList.contains('removing')) return;
-  if (el.dataset.retryId && window._toastRetryFns) delete window._toastRetryFns[el.dataset.retryId];
+  if (el.dataset.retryId) delete _toastRetryFns[el.dataset.retryId];
   el.classList.add('removing');
   setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
 }
 
 // ── apiFetch wrapper ──────────────────────────────────────────────────────────
-// Authentication is cookie-only in the browser. The HttpOnly tokens cannot
-// be read by injected JavaScript and do not survive in localStorage dumps.
-var _currentUser = null;
-
 function setAuth() {
   // Remove credentials left by versions that persisted bearer tokens.
   localStorage.removeItem('msptk_token');
@@ -833,19 +831,19 @@ async function checkAuth() {
     }
     if (!me.ok) { showLoginView('login'); return; }
     if (me.ok) {
-      // /auth/me answers {user: {...}}. Storing the envelope meant every read
-      // of _currentUser.role and _currentUser.display_name was undefined, so
-      // the avatar has been showing "?" for as long as it has existed.
       var _me = await me.json();
-      _currentUser = _me.user || _me;
-      if (_me.write_exempt) _writeExempt = _me.write_exempt;
-      _features = _me.features || [];
-      _modules = _me.modules || [];
-      _allowedViews = _me.views || [];
+      setSession(_me);
       hideLoginView(); updateUserDisplay();
       if (_me.mfa_required) { await showMfaSettings(); } else { _postAuthInit(); }
     }
   } catch(e) { console.error('Request failed:', e); showLoginView('login'); }
+}
+
+// What other scripts do once someone has signed in (app-chrome.js: the tour).
+var _signedInHooks = [];
+
+function onSignedIn(fn) {
+  _signedInHooks.push(fn);
 }
 
 function _postAuthInit() {
@@ -857,6 +855,7 @@ function _postAuthInit() {
   _checkNotifBadge();
   _checkVpnHeaderBadge();
   startConnectionMonitor();
+  _signedInHooks.forEach(function(fn) { fn(); });
 }
 
 // ── Live connection monitor ───────────────────────────────────────────────
@@ -872,6 +871,11 @@ var _connLastOk = true;
 // up, and when the server cannot be reached.
 var _connState = 'ok';
 var _vpnTunnelUp = false;
+
+// The VPN badge (app-chrome.js) says whether a tunnel is up.
+function setVpnTunnelUp(up) {
+  _vpnTunnelUp = up;
+}
 
 function _syncConnChip() {
   var box = document.getElementById('conn-status');
@@ -938,7 +942,16 @@ function startConnectionMonitor() {
   window.addEventListener('offline', _pollConnection);
 }
 
+// What other scripts do when the login screen comes up (app-chrome.js: take
+// the tour down).
+var _loginViewHooks = [];
+
+function onLoginViewShown(fn) {
+  _loginViewHooks.push(fn);
+}
+
 function showLoginView(mode) {
+  _loginViewHooks.forEach(function(fn) { fn(); });
   var el = document.getElementById('auth-overlay');
   if (!el) return;
   el.style.display = 'flex';
@@ -983,22 +996,6 @@ function updateUserDisplay() {
   if (typeof _reconcileAuditState === 'function') _reconcileAuditState();
 }
 
-// ── Read-only accounts ───────────────────────────────────────────────────────
-// The server decides; this only stops the interface offering what it will
-// refuse. Anything marked data-write is hidden without the capability, and a
-// badge says why rather than leaving someone hunting for a menu that is gone.
-function canWrite() {
-  return !!(_currentUser && _currentUser.can_write);
-}
-
-// The second, stricter tier. tenant_write is what lets a control change a
-// customer's Microsoft tenant (policy deploy/enforce/restore, consent). The
-// server checks it separately via require_tenant_write, and it implies
-// can_write — so a control marked data-write="tenant" needs both.
-function canTenantWrite() {
-  return !!(_currentUser && _currentUser.tenant_write);
-}
-
 function applyFeatureVisibility() {
   // Marked elements name a feature; unmarked ones are visible to anyone who
   // signed in. Same shape as data-write, and deliberately a separate attribute:
@@ -1016,10 +1013,6 @@ function applyFeatureVisibility() {
     _setGated(el, hasModule(el.getAttribute('data-module')));
   });
   _syncToolsMenu();
-}
-
-function hasModule(key) {
-  return _modules.indexOf(key) !== -1;
 }
 
 // A gate answers "may this be seen at all", never "is this showing right now".
@@ -1181,7 +1174,7 @@ async function doSetup() {
 async function doLogout() {
   await apiFetch('/api/auth/logout', {method:'POST'});
   setAuth(null, null);
-  _currentUser = null;
+  setCurrentUser(null);
   showLoginView('login');
 }
 
@@ -1232,30 +1225,6 @@ function auditAgeLabel(name) {
   return days === 0 ? t('ctx_audited_today', 'Auditert i dag') : t('ctx_audited_days_ago', 'Auditert for {n} d siden').replace('{n}', days);
 }
 
-// Paths the server keeps open without the write capability. Sent by /auth/me
-// rather than restated here — a second copy of the rule is the one that goes
-// stale, and it would go stale in the direction of offering something the
-// server refuses.
-var _writeExempt = [];
-
-// What this account reaches, resolved by the server. The interface holds no
-// copy of the rules — it hides what is not in these lists, so a screen cannot
-// drift from the route it leads to.
-var _features = [];
-var _modules = [];
-var _allowedViews = [];
-
-function hasFeature(key) {
-  // Empty until /auth/me answers. Hiding everything for that instant is the
-  // right way round: showing a control and taking it away reads as a bug, and
-  // offering one that will 403 reads as a broken tool.
-  return _features.indexOf(key) !== -1;
-}
-
-function canOpenView(name) {
-  return _allowedViews.indexOf(name) !== -1;
-}
-
 function _wouldBeRefused(url, options) {
   var method = ((options && options.method) || 'GET').toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
@@ -1291,48 +1260,6 @@ function recoverSession() {
   return _sessionRecovery;
 }
 
-// ── The current customer ────────────────────────────────────────────────────
-// The server keeps no "active customer": every call made for a customer names
-// it. What is left of the idea lives here, in the browser, per tab:
-//
-//   * the current customer is the one whose page this tab opened last. The
-//     customer page always uses its own id (_custPage.id); the tools that act
-//     on one customer at a time (Nettverk's devices and audit, the FortiGate
-//     form, provisioning, the Sybrt console, pentest's segmentation test)
-//     default to this one and say which customer it is.
-//   * it is kept in sessionStorage, which is per tab: a second tab on another
-//     customer changes nothing here. A tab opened fresh starts from the most
-//     recent customer in Nylige.
-//   * Nylige (the palette's recent customers) is the last five customers
-//     opened in any tab, in localStorage.
-//
-// A per-user selection on the server was shared by every tab of that user,
-// so opening customer B in one tab made the next note, audit or report in the
-// other tab land on B.
-var _tabCustomerId = null;
-
-function currentCustomerId() {
-  if (_tabCustomerId) return _tabCustomerId;
-  try {
-    _tabCustomerId = sessionStorage.getItem('sybr_tab_customer')
-      || JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]')[0] || null;
-  } catch (e) { _tabCustomerId = null; }
-  return _tabCustomerId;
-}
-
-function setCurrentCustomer(customerId) {
-  _tabCustomerId = customerId || null;
-  try {
-    if (customerId) sessionStorage.setItem('sybr_tab_customer', customerId);
-    else sessionStorage.removeItem('sybr_tab_customer');
-    if (!customerId) return;
-    var recent = JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]');
-    recent = recent.filter(function(id) { return id !== customerId; });
-    recent.unshift(customerId);
-    localStorage.setItem('sybr_recent_customers', JSON.stringify(recent.slice(0, 5)));
-  } catch (e) { /* private mode: the tab still remembers it until reload */ }
-}
-
 // ── Tools that act on one customer ──────────────────────────────────────────
 // Nettverk's Enheter and Audit and the FortiGate API form each work on one
 // customer at a time. They say which in a customer bar ([data-tool-customer]),
@@ -1346,7 +1273,7 @@ function registerToolCustomer(tool, reload) { _toolReloaders[tool] = reload; }
 async function _ensureCustomerList() {
   if (!_allCustomers || !_allCustomers.length) {
     var cs = await apiFetch('/api/customers');
-    if (cs) _allCustomers = cs.customers || [];
+    if (cs) setAllCustomers(cs.customers || []);
   }
   return _allCustomers || [];
 }
@@ -1489,15 +1416,6 @@ window.onunhandledrejection = function(event) {
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let currentView = 'home';
-let auditRunning = false;
-// The customer the running audit (this account's one at a time) is for. The
-// customer page shows the run only on that customer's Audit tab.
-let auditCustomerId = null;
-let auditOutDir = null;
-let sectionTotal = 0;
-let sectionDone = 0;
-
-let SECTION_COUNT = 0; // auto-detected from actual sections
 
 // ── Skeleton loading ───────────────────────────────────────────────────────────
 function skeletonHTML(type) {
@@ -1618,23 +1536,12 @@ function _registerViewTimer(id) { if (id) _viewTimers.push(id); return id; }
 function _cleanupViewTimers() {
   _viewTimers.forEach(function(id) { clearInterval(id); });
   _viewTimers = [];
-  // Also clear known named timers
-  if (typeof stopDashAutoRefresh === 'function') stopDashAutoRefresh();
-  if (typeof stopAuditProgressPolling === 'function') stopAuditProgressPolling();
-  if (typeof _logAutoRefreshTimer !== 'undefined' && _logAutoRefreshTimer) {
-    clearInterval(_logAutoRefreshTimer); _logAutoRefreshTimer = null;
-    var cb = document.getElementById('log-auto-refresh');
-    if (cb) cb.checked = false;
-  }
-  if (typeof _dashRefreshInterval !== 'undefined' && _dashRefreshInterval) {
-    clearInterval(_dashRefreshInterval); _dashRefreshInterval = null;
-  }
-  if (typeof _renewalScanTimer !== 'undefined' && _renewalScanTimer) {
-    clearInterval(_renewalScanTimer); _renewalScanTimer = null;
-  }
-  if (typeof _priceScanTimer !== 'undefined' && _priceScanTimer) {
-    clearInterval(_priceScanTimer); _priceScanTimer = null;
-  }
+  // And the named timers the views own.
+  stopDashAutoRefresh();
+  stopAuditProgressPolling();
+  stopLogAutoRefresh();
+  stopDashRefreshInterval();
+  stopAlsoScans();
 }
 
 // A script that owns a view says what to do when it opens with
@@ -1755,109 +1662,6 @@ async function applyRoute() {
 
 window.addEventListener('popstate', function() { if (_currentUser) applyRoute(); });
 
-// The one authority on whether an audit is running is the server. A client
-// flag that outlives its run leaves a badge lit with nothing behind it.
-async function _reconcileAuditState() {
-  try {
-    // This account's running audit, whichever customer it is for.
-    var d = await apiFetch('/api/audit/progress');
-    if (!d || d.running === undefined) return;   // older server: leave as-is
-    if (d.running && !auditRunning) {
-      // Started elsewhere — another tab, a schedule, another technician.
-      auditRunning = true;
-      auditCustomerId = d.customer_id || null;
-      var ind = document.getElementById('audit-running-indicator');
-      if (ind) ind.style.display = 'flex';
-      _showAuditRunOrIdle();
-      startAuditProgressPolling();
-      // We never had a stream to lose; with the customer known, the watcher
-      // can re-attach to the run's live stream.
-      _watchAuditUntilServerIdle(true, auditCustomerId ? '/api/audit/stream?customer_id=' + encodeURIComponent(auditCustomerId) : null);
-    } else if (d.running) {
-      auditCustomerId = d.customer_id || auditCustomerId;
-      _showAuditRunOrIdle();
-    } else if (auditRunning) {
-      _finishAuditWithoutStream();
-    } else {
-      _clearStaleAuditBadge();
-      if (custAuditTabOpen()) _renderAuditIdle();
-    }
-  } catch (_) { /* offline: say nothing rather than claim either state */ }
-}
-
-// The audit view's markup is written as though you can only ever arrive
-// mid-run: a spinner, "Starting audit…", "0 / 0 sections", 0%. Open it when
-// nothing is running and it announces a run that does not exist. These two
-// functions give it the state it never had.
-function _auditChrome() {
-  return [
-    document.getElementById('audit-status-bar'),
-    document.querySelector('#view-audit .progress-row'),
-    document.getElementById('section-table') ? document.getElementById('section-table').closest('.card') : null,
-  ];
-}
-
-function _showAuditRunningChrome() {
-  var idle = document.getElementById('audit-idle');
-  if (idle) idle.style.display = 'none';
-  _auditChrome().forEach(function(el) { if (el) el.style.display = ''; });
-}
-
-// Whether the run in progress is this page's customer's.
-function _auditRunIsThisPages() {
-  return (auditRunning || _auditStarting) && (!auditCustomerId || auditCustomerId === _custPage.id);
-}
-
-// The run on its own customer's Audit tab; on any other customer's, the idle
-// state, while the floating bar says a run is going on elsewhere.
-function _showAuditRunOrIdle() {
-  if (_auditRunIsThisPages()) _showAuditRunningChrome();
-  else if (currentView === 'customer-detail' && _custPage.tab === 'audit') _renderAuditIdle();
-}
-
-function _renderAuditIdle() {
-  var view = document.getElementById('view-audit');
-  if (!view || _auditRunIsThisPages()) return;
-
-  // Nothing is running, so the running chrome is a lie. Put it away.
-  _auditChrome().forEach(function(el) { if (el) el.style.display = 'none'; });
-  var tbody = document.getElementById('section-tbody');
-  if (tbody && !tbody.children.length) {
-    var findings = document.getElementById('audit-findings');
-    if (findings) findings.style.display = 'none';
-  }
-
-  var idle = document.getElementById('audit-idle');
-  if (!idle) {
-    idle = document.createElement('div');
-    idle.id = 'audit-idle';
-    idle.className = 'card';
-    var bar = document.getElementById('audit-status-bar');
-    if (bar && bar.parentNode) bar.parentNode.insertBefore(idle, bar); else view.appendChild(idle);
-  }
-  idle.style.display = '';
-
-  // The last run of the customer whose page this is, as its head says.
-  var last = _custPage.cust && _custPage.cust.last_audit;
-  var when = last ? formatRunName(last) : '';
-
-  // The page's one Kjør audit is in its head; the runs are listed below.
-  idle.innerHTML =
-      '<div class="card-title">' + esc(t('hdr_audit_idle')) + '</div>'
-    + '<div class="cust-card-text">' + esc(t('msg_audit_idle_body_tab', 'Ingen audit kjører for kunden nå. Kjør audit starter en, og fremdriften vises her.')) + '</div>'
-    + '<div class="cust-card-text">' + esc(t('lbl_last_audit')) + ': '
-    +   '<strong>' + esc(when || t('lbl_never')) + '</strong></div>';
-}
-
-function _clearStaleAuditBadge() {
-  auditRunning = false;
-  auditCustomerId = null;
-  stopAuditProgressPolling();
-  _hideAuditProgressBar();
-  var ind = document.getElementById('audit-running-indicator');
-  if (ind) ind.style.display = 'none';
-}
-
 // Opens Nettverk on one of its tabs: TLS-monitor is reached this way.
 function showNetworkTab(tabId) {
   if (currentView !== 'network') showView('network');
@@ -1873,7 +1677,7 @@ function switchNetSub(btn, tabId) {
   if (tabId === 'net-audit') {
     // The audit tab works on the same customer as Enheter.
     renderToolCustomerPickers();
-    toolCustomerId().then(function(id) { _netCustomerId = id; });
+    toolCustomerId().then(function(id) { setNetCustomerId(id); });
   }
 
   if (tabId === 'net-fortigates') dashLoadFortiGates();

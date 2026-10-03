@@ -61,6 +61,11 @@ function _renderBaselineForm(schema) {
   return html;
 }
 
+// The plan's request body and the customer it was planned for, which Apply
+// sends unchanged.
+var _bdLastReq = null;
+var _bdLastCustomer = null;
+
 async function baselineDeployPlan() {
   var box = document.getElementById('bd-plan');
   box.innerHTML = '<div class="loader loader-md"></div>';
@@ -88,8 +93,8 @@ async function baselineDeployPlan() {
   });
 
   // Store request body for apply, with the customer it was planned for
-  window._bdLastReq = body;
-  window._bdLastCustomer = cid;
+  _bdLastReq = body;
+  _bdLastCustomer = cid;
   html += '<button class="btn btn-primary bd-apply-btn" data-click-handler="baselineDeployApply">' + t('bd_apply_changes','Rull ut endringene') + '</button>';
   html += '</div>';
   box.innerHTML = html;
@@ -100,9 +105,9 @@ async function baselineDeployApply() {
   box.innerHTML = '<div class="loader loader-md"></div>';
 
   // Only the customer the plan was made for, and only on its page.
-  if (!window._bdLastCustomer || window._bdLastCustomer !== _custPage.id) { box.innerHTML = ''; return; }
-  var d = await apiFetch('/api/baseline-deploy/' + encodeURIComponent(window._bdLastCustomer) + '/apply', {
-    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(window._bdLastReq)
+  if (!_bdLastCustomer || _bdLastCustomer !== _custPage.id) { box.innerHTML = ''; return; }
+  var d = await apiFetch('/api/baseline-deploy/' + encodeURIComponent(_bdLastCustomer) + '/apply', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(_bdLastReq)
   });
 
   if (!d) { box.innerHTML = ''; return; }

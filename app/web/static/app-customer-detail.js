@@ -42,7 +42,6 @@ registerUiHandlers({
 // cannot reach into this one. Every late answer is checked against the id it
 // was asked for before it is shown.
 var CUSTOMER_TABS = ['funn', 'audit', 'policyer', 'vurderinger', 'nettverk', 'tilgang', 'detaljer'];
-var _custPage = {id: null, cust: null, tab: 'funn', sub: '', loaded: {}};
 var _detailChartInstance = null;
 
 // The pages that were about "the active customer" are its tabs now. An old
@@ -73,9 +72,9 @@ async function openCustomerPage(customerId, tab, sub) {
   var seq = ++_custPageSeq;
   // This tab's current customer, and Nylige in the palette (app.js).
   setCurrentCustomer(customerId);
-  _scopeLoaded = false; _scopeSections = [];
+  resetAuditScope();
   _custReportRun = null;
-  _custPage = {id: customerId, cust: null, tab: tab, sub: sub || '', loaded: {}};
+  setCustPage({id: customerId, cust: null, tab: tab, sub: sub || '', loaded: {}});
   showView('customer-detail');
   _custShowPanels(tab, sub || '');
   syncRoute('customer-detail', customerId);
@@ -92,9 +91,8 @@ async function openCurrentCustomerTab(tab, sub) {
   await openCustomerPage(id, tab, sub);
 }
 
-// Setup registers the customer it set up and says which; that is the page
-// "Åpne kunden" opens.
-var _setupCustomerId = null;
+// Setup registers the customer it set up and says which (_setupCustomerId,
+// app-setup.js); that is the page "Åpne kunden" opens.
 function openSetupCustomer() {
   if (_setupCustomerId) openCustomerPage(_setupCustomerId, 'funn');
   else showView('customers');
@@ -221,7 +219,7 @@ async function loadCustomerDetail(customerId) {
   // or a decision on another page may have changed its figures.
   try {
     var ovData = await apiFetch('/api/dashboard/overview');
-    if (ovData) _overviewData = {customers: ovData.customers || []};
+    if (ovData) setOverviewData({customers: ovData.customers || []});
   } catch(e) { console.warn('Overview data load failed:', e); }
   if (_custPage.id !== customerId) return;
   var cust = null;
@@ -375,6 +373,9 @@ function _wireCustomerHead(customerId, cust) {
 // runs before it, for this customer.
 var _custRuns = [];
 var _custReportRun = null;
+
+function setCustRuns(runs) { _custRuns = runs; }
+function setCustReportRun(run) { _custReportRun = run; }
 
 function _custLoadAudit() {
   if (_auditRunIsThisPages()) _showAuditRunningChrome();
