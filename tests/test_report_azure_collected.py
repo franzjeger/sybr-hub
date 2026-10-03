@@ -648,6 +648,9 @@ def _pip(sub: str, name: str, *, attached: bool, ip="192.0.2.10"):
         id=_id(sub, "rg-net", "Microsoft.Network/publicIPAddresses", name),
         ip_configuration=SimpleNamespace(id="ipconfig") if attached else None,
         ip_address=ip,
+        sku=SimpleNamespace(name="Standard"),
+        public_ip_allocation_method="Static",
+        dns_settings=None,
     )
 
 
@@ -705,3 +708,108 @@ def test_a_run_from_before_the_fix_does_not_count_its_error_line():
 
     assert azure["orphaned"] == 1
     assert [o["type"] for o in azure["orphaned_details"]] == ["NIC"]
+
+
+def _orphan_clients_for(sub: str) -> dict:
+    return _orphan_clients(
+        [_disk(sub, "disk-old", attached=False), _disk(sub, "vm-01-os", attached=True)],
+        [_nic(sub, "nic-old", attached=False), _nic(sub, "vm-01-nic", attached=True)],
+        [_pip(sub, "pip-old", attached=False), _pip(sub, "pip-vm", attached=True)],
+    )
+
+
+def _orphans(azure: dict) -> list[tuple]:
+    """The orphan details, with the text's column padding taken out."""
+    return [
+        (o["type"], o["status"], " ".join(o["detail"].split()), o["subscription"])
+        for o in azure["orphaned_details"]
+    ]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_orphaned_resources_survive_the_round_trip(tmp_path, sidecars):
+    await _collect_orphans(tmp_path, {SUB_A: _orphan_clients_for(SUB_A)}, multi=False)
+
+    azure = _parse_azure_overview(_read(tmp_path, sidecars=sidecars))
+
+    assert azure["orphaned"] == 3
+    assert _orphans(azure) == [
+        ("DISK", "unattached", "disk-old 128 GB Premium_LRS RG: rg-prod", ""),
+        ("NIC", "unattached", "nic-old RG: rg-net", ""),
+        ("PUBLIC IP", "unattached", "pip-old IP: 192.0.2.10 RG: rg-net", ""),
+    ]
+
+
+async def test_the_orphans_are_read_from_the_sidecar(tmp_path):
+    """With the text emptied, the count and every orphan come from the sidecar."""
+    await _collect_orphans(tmp_path, {SUB_A: _orphan_clients_for(SUB_A)}, multi=False)
+    files = _read(tmp_path, sidecars=True)
+    expected = _orphans(_parse_azure_overview(files))
+    files["61_azure_orphaned_resources.txt"] = ""
+
+    azure = _parse_azure_overview(files)
+
+    assert azure["orphaned"] == 3
+    assert _orphans(azure) == expected
+
+
+async def test_a_failed_listing_is_kept_apart_in_the_sidecar(tmp_path):
+    await _collect_orphans(
+        tmp_path,
+        {
+            SUB_A: _orphan_clients(
+                PermissionError("AuthorizationFailed"), [_nic(SUB_A, "nic-old", attached=False)], []
+            )
+        },
+        multi=False,
+    )
+    files = _read(tmp_path, sidecars=True)
+
+    sidecar = json.loads(files["61_azure_orphaned_resources.json"])
+    assert sidecar["count"] == 1
+    assert [e["listing"] for e in sidecar["errors"]] == ["disks"]
+    assert _parse_azure_overview(files)["orphaned"] == 1
+
+
+async def test_each_subscription_reads_its_own_orphan_files(tmp_path):
+    """Sub B could list nothing; sub A is read from its text, B from its sidecar."""
+    refused = PermissionError("AuthorizationFailed")
+    await _collect_orphans(
+        tmp_path,
+        {SUB_A: _orphan_clients_for(SUB_A), SUB_B: _orphan_clients(refused, refused, refused)},
+        multi=True,
+    )
+    files = _drop(_read(tmp_path, sidecars=True), "61_azure_orphaned_resources_Prod-A")
+
+    azure = _parse_azure_overview(files)
+
+    assert azure["orphaned"] == 3
+    assert {o[3] for o in _orphans(azure)} == {"Prod-A"}
+    assert len(json.loads(files["61_azure_orphaned_resources_Prod-B.json"])["errors"]) == 2
+
+
+async def test_the_network_sections_orphan_list_is_read(tmp_path):
+    """When governance does not run, the network section's own orphan file
+    stands. Its text has no "(N found)" banner, so it read as no orphans."""
+    auth = FakeAzureAuth(
+        network={
+            "public_ip_addresses.list_all": [
+                _pip(SUB_A, "pip-old", attached=False),
+                _pip(SUB_A, "pip-vm", attached=True),
+            ],
+            "network_interfaces.list_all": [_nic(SUB_A, "nic-old", attached=False)],
+        }
+    )
+    section = AzureNetworkSection(tmp_path, auth, sub_id=SUB_A)
+    lines = await section._collect_public_ips() + await section._collect_orphaned_nics()
+    await section._save_orphans(lines)
+
+    with_json = _parse_azure_overview(_read(tmp_path, sidecars=True))
+    text_only = _parse_azure_overview(_read(tmp_path, sidecars=False))
+
+    assert with_json["orphaned"] == 2
+    assert _orphans(with_json) == [
+        ("PUBLIC IP", "unattached", "pip-old IP: 192.0.2.10 RG: rg-net", ""),
+        ("NIC", "unattached", "nic-old RG: rg-net", ""),
+    ]
+    assert text_only["orphaned"] == 0, "the text alone cannot carry them"

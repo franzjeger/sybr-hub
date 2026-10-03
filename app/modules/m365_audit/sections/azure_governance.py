@@ -336,10 +336,11 @@ class AzureGovernanceSection(BaseSection):
 
     async def _collect_orphaned_resources(self) -> None:
         orphans: list[str] = []
+        found: list[dict] = []
         # A listing that failed is written among the orphans so a reader sees
         # it, but it is not one: counted in "(N found)", a refused disk
         # listing raised an orphaned-resource finding for a tenant with none.
-        errors = 0
+        errors: list[dict] = []
 
         # Unattached managed disks
         try:
@@ -352,9 +353,19 @@ class AzureGovernanceSection(BaseSection):
                         f"  DISK (unattached)     : {(d.name or ''):<40}  "
                         f"{d.disk_size_gb or 0:>5} GB  {(d.sku.name if d.sku else 'N/A'):<20}  RG: {grp}"
                     )
+                    found.append(
+                        {
+                            "type": "DISK",
+                            "status": "unattached",
+                            "name": d.name,
+                            "resource_group": grp,
+                            "size_gb": d.disk_size_gb or 0,
+                            "sku": _enum_text(d.sku.name) if d.sku else None,
+                        }
+                    )
         except Exception as ex:
             orphans.append(f"  DISK (list error)     : {ex}")
-            errors += 1
+            errors.append({"listing": "disks", "error": str(ex)})
 
         # Unattached NICs + Public IPs
         try:
@@ -364,6 +375,14 @@ class AzureGovernanceSection(BaseSection):
                 if not nic.virtual_machine:
                     grp = _rg(nic.id or "")
                     orphans.append(f"  NIC (unattached)      : {(nic.name or ''):<40}  RG: {grp}")
+                    found.append(
+                        {
+                            "type": "NIC",
+                            "status": "unattached",
+                            "name": nic.name,
+                            "resource_group": grp,
+                        }
+                    )
 
             pips = await _run_sync(lambda: list(network.public_ip_addresses.list_all()))
             for pip in pips:
@@ -373,18 +392,33 @@ class AzureGovernanceSection(BaseSection):
                         f"  PUBLIC IP (unattached): {(pip.name or ''):<40}  "
                         f"IP: {(pip.ip_address or 'unassigned'):<18}  RG: {grp}"
                     )
+                    found.append(
+                        {
+                            "type": "PUBLIC IP",
+                            "status": "unattached",
+                            "name": pip.name,
+                            "resource_group": grp,
+                            "ip_address": pip.ip_address,
+                        }
+                    )
         except Exception as ex:
             orphans.append(f"  NETWORK (list error)  : {ex}")
-            errors += 1
+            errors.append({"listing": "network", "error": str(ex)})
 
         lines = [
             "=" * 100,
-            f"  AZURE ORPHANED RESOURCES  ({len(orphans) - errors} found)",
+            f"  AZURE ORPHANED RESOURCES  ({len(orphans) - len(errors)} found)",
             "=" * 100,
         ]
         lines += orphans if orphans else ["  No orphaned resources detected."]
         lines += ["=" * 100, ""]
         self._save(self._fname("61_azure_orphaned_resources.txt"), "\n".join(lines))
+        # The orphans and the listings that failed, apart: a listing that
+        # failed is no orphan, and leaves the count a lower bound.
+        self._save_sidecar(
+            self._fname("61_azure_orphaned_resources.txt"),
+            {"count": len(found), "orphans": found, "errors": errors},
+        )
 
     # ── Cost Analysis (ARM REST) ──────────────────────────────────────────────
 

@@ -229,6 +229,17 @@ def _vm_rows(sidecar: dict | None) -> list[dict] | None:
     ]
 
 
+def _orphan_detail(orphan: dict) -> str:
+    """One orphan from the 61 sidecar, worded as the text's line after the colon."""
+    parts = [orphan.get("name") or ""]
+    if "size_gb" in orphan:
+        parts += [f"{orphan.get('size_gb') or 0} GB", orphan.get("sku") or "N/A"]
+    if "ip_address" in orphan:
+        parts.append(f"IP: {orphan.get('ip_address') or 'unassigned'}")
+    parts.append(f"RG: {orphan.get('resource_group') or 'N/A'}")
+    return "  ".join(parts)
+
+
 def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
     """Parse Azure data files into a structured overview.
 
@@ -495,9 +506,20 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
     )
 
     # ── Orphaned resources (with details) ──────────────────────────────────
-    for _fname, content, sub_name in _find_azure_files(
-        file_contents, "61_azure_orphaned_resources"
-    ):
+    for fname, content, sub_name in _find_azure_files(file_contents, "61_azure_orphaned_resources"):
+        orphans = _sidecar(file_contents, fname)
+        if orphans is not None:
+            result["orphaned"] += int(orphans.get("count") or 0)
+            result["orphaned_details"] += [
+                {
+                    "type": orphan.get("type") or "",
+                    "status": orphan.get("status") or "",
+                    "detail": _orphan_detail(orphan),
+                    "subscription": sub_name,
+                }
+                for orphan in orphans.get("orphans") or []
+            ]
+            continue
         m = re.search(r"\((\d+) found\)", content)
         listed = len(result["orphaned_details"])
         for line in content.splitlines():

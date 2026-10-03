@@ -48,6 +48,10 @@ class AzureNetworkSection(BaseSection):
         self._sub_prefix = (
             "".join(c if c.isalnum() or c in "-_" else "_" for c in sub_name)[:20] if multi else ""
         )
+        # The unattached public IPs and NICs, and the listings that failed,
+        # for the orphan sidecar _save_orphans writes.
+        self._orphans: list[dict] = []
+        self._orphan_errors: list[dict] = []
         super().__init__(out_dir, progress_cb)
         if sub_name:
             self.name = f"Azure Network ({sub_name})"
@@ -270,6 +274,7 @@ class AzureNetworkSection(BaseSection):
             pips = await _run_sync(lambda: list(client.public_ip_addresses.list_all()))
         except Exception as ex:
             self._save(self._fname("33_azure_public_ips.txt"), f"Error: {ex}\n")
+            self._orphan_errors.append({"listing": "public_ips", "error": str(ex)})
             return orphans
 
         lines = [
@@ -291,6 +296,15 @@ class AzureNetworkSection(BaseSection):
                 rg = (pip.id or "").split("/")[4] if pip.id else "N/A"
                 orphans.append(
                     f"  Unattached Public IP : {pip.name:<35}  IP: {ip_addr:<20}  RG: {rg}"
+                )
+                self._orphans.append(
+                    {
+                        "type": "PUBLIC IP",
+                        "status": "unattached",
+                        "name": pip.name,
+                        "resource_group": rg,
+                        "ip_address": pip.ip_address,
+                    }
                 )
         lines += ["=" * 110, ""]
         self._save(self._fname("33_azure_public_ips.txt"), "\n".join(lines))
@@ -352,10 +366,19 @@ class AzureNetworkSection(BaseSection):
                 if not nic.virtual_machine:
                     rg = (nic.id or "").split("/")[4] if nic.id else "N/A"
                     orphans.append(f"  Unattached NIC       : {(nic.name or ''):<35}  RG: {rg}")
-        except Exception:
+                    self._orphans.append(
+                        {
+                            "type": "NIC",
+                            "status": "unattached",
+                            "name": nic.name,
+                            "resource_group": rg,
+                        }
+                    )
+        except Exception as ex:
             # Orphan-NIC enumeration is additive; the section still reports
             # everything else it collected.
             logger.debug("Could not enumerate network interfaces", exc_info=True)
+            self._orphan_errors.append({"listing": "network_interfaces", "error": str(ex)})
         return orphans
 
     # ── Save orphan list ──────────────────────────────────────────────────────
@@ -371,4 +394,14 @@ class AzureNetworkSection(BaseSection):
             ]
             self._save(
                 self._fname("61_azure_orphaned_resources.txt"), "\n".join(header + lines) + "\n"
+            )
+            # This text has no "(N found)" banner, so the overview read it as
+            # no orphans at all. Governance overwrites both files when it runs.
+            self._save_sidecar(
+                self._fname("61_azure_orphaned_resources.txt"),
+                {
+                    "count": len(self._orphans),
+                    "orphans": self._orphans,
+                    "errors": self._orphan_errors,
+                },
             )
