@@ -1254,7 +1254,7 @@ async def test_signin_failures_carry_error_codes_and_geography():
             {
                 "userPrincipalName": "post@x.no",
                 "status": {"errorCode": 50126, "failureReason": "Invalid username or password"},
-                "ipAddress": "185.220.101.5",
+                "ipAddress": "203.0.113.5",
                 "location": {"countryOrRegion": "RU"},
             }
             for _ in range(60)
@@ -1263,7 +1263,7 @@ async def test_signin_failures_carry_error_codes_and_geography():
             {
                 "userPrincipalName": "post@x.no",
                 "status": {"errorCode": 50053, "failureReason": "Account locked"},
-                "ipAddress": "185.220.101.5",
+                "ipAddress": "203.0.113.5",
                 "location": {"countryOrRegion": "RU"},
             }
             for _ in range(10)
@@ -1284,7 +1284,7 @@ async def test_signin_failures_carry_error_codes_and_geography():
     assert "50126" in codes and "50053" in codes, "error codes must survive to the report"
     assert any(r["reason"].startswith("Invalid") for r in parsed["top_error_codes"])
     assert {r["country"] for r in parsed["top_source_countries"]} == {"RU"}
-    assert {r["ip"] for r in parsed["top_source_ips"]} == {"185.220.101.5"}
+    assert {r["ip"] for r in parsed["top_source_ips"]} == {"203.0.113.5"}
 
     # The breakdown must not pollute the per-user / reason aggregates.
     assert parsed["brute_force_suspects"] == ["post@x.no"]
