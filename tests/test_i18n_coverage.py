@@ -762,22 +762,6 @@ def test_every_text_bearing_attribute_can_actually_be_translated():
 # batch that removed them was unprotected. These name the keys instead.
 
 _KEYS_THAT_REPLACED_LITERALS = (
-    "st_not_configured",
-    "st_configured",
-    "st_secret_expired",
-    "st_secret_days_left",
-    "st_expired",
-    "st_none",
-    "find_users_no_mfa",
-    "find_secret_expiring",
-    "find_subs_expired",
-    "find_subs_expiring",
-    "lbl_see_audit",
-    "lbl_see_subscriptions",
-    "hdr_needs_action",
-    "msg_none_expiring_soon",
-    "lbl_others_over_90d",
-    "src_m365_audit",
     # The Tailscale toasts, the TLS host check and the baseline deployment view.
     "ts_toast_route_approved",
     "ts_toast_route_disabled",

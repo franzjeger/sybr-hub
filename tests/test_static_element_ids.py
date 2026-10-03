@@ -32,18 +32,23 @@ VENDORED = {"guacamole.min.js"}
 KNOWN_BROKEN: set[str] = set()
 
 
+def _ids_in(text: str) -> set[str]:
+    """The ids one file assigns in markup or builds in a JS string."""
+    ids = set(re.findall(r"""id\s*=\s*\\?['"]([A-Za-z0-9_:-]+)""", text))
+    # An id assembled by concatenation, e.g. id="row-' + i + '"
+    ids.update(re.findall(r"""id\s*=\s*\\?['"]([A-Za-z0-9_:-]+)['"]?\s*\+""", text))
+    # An id passed as an object property and written into markup by a
+    # helper — `_cdChip(..., {id: 'x'})`. Missing this reported a live
+    # element as dangling, and acting on that report deleted working code.
+    ids.update(re.findall(r"""\bid\s*:\s*['"]([A-Za-z0-9_:-]+)['"]""", text))
+    return ids
+
+
 def _created_ids() -> set[str]:
     """Every id assigned in markup or built by a JS template string."""
     created: set[str] = set()
     for path in list(STATIC.glob("*.html")) + list(STATIC.glob("*.js")):
-        text = path.read_text(encoding="utf-8")
-        created.update(re.findall(r"""id\s*=\s*\\?['"]([A-Za-z0-9_:-]+)""", text))
-        # An id assembled by concatenation, e.g. id="row-' + i + '"
-        created.update(re.findall(r"""id\s*=\s*\\?['"]([A-Za-z0-9_:-]+)['"]?\s*\+""", text))
-        # An id passed as an object property and written into markup by a
-        # helper — `_cdChip(..., {id: 'x'})`. Missing this reported a live
-        # element as dangling, and acting on that report deleted working code.
-        created.update(re.findall(r"""\bid\s*:\s*['"]([A-Za-z0-9_:-]+)['"]""", text))
+        created.update(_ids_in(path.read_text(encoding="utf-8")))
     return created
 
 
@@ -123,8 +128,9 @@ def test_no_javascript_dereferences_a_variable_holding_a_missing_element():
 
 
 def test_an_id_passed_as_an_object_property_counts_as_created():
-    # `_cdChip(name, colour, status, {id: 'unified-uniweb-status'})` writes the
-    # id into its markup. Reading only `id="..."` reported that element as
-    # dangling, and the report was acted on: working code was deleted because a
-    # detector did not know a second way of spelling the same thing.
-    assert "unified-uniweb-status" in _created_ids()
+    # `_cdChip(name, colour, status, {id: 'uniweb-status'})` writes the id into
+    # its markup. Reading only `id="..."` reported that element as dangling,
+    # and the report was acted on: working code was deleted because a
+    # detector did not know a second way of spelling the same thing. (The
+    # chip that did this went with the M365-status page; the rule stays.)
+    assert "uniweb-status" in _ids_in("_cdChip('Hosting', c, s, {id: 'uniweb-status'})")
