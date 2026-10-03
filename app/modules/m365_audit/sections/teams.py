@@ -149,3 +149,24 @@ class TeamsSection(BaseSection):
 
         lines += ["=" * 70, ""]
         self._save("16c_teams_external_access.txt", "\n".join(lines))
+
+        def access(setting: dict | None) -> str | None:
+            return ((setting or {}).get("usersAndGroups") or {}).get("accessType")
+
+        self._save_sidecar(
+            "16c_teams_external_access.txt",
+            {
+                "b2b_collaboration_inbound": access(b2b_collab),
+                "b2b_direct_connect_inbound": access(b2b_direct),
+                # None when the partner list could not be read: unknown, not none.
+                "partners": None
+                if partner_configs is None
+                else [
+                    {
+                        "tenant_id": pc.get("tenantId"),
+                        "b2b_collaboration_inbound": access(pc.get("b2bCollaborationInbound")),
+                    }
+                    for pc in partner_configs
+                ],
+            },
+        )

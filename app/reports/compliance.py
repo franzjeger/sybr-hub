@@ -23,7 +23,6 @@ from app.reports.evidence import (
     _EVIDENCE_MAP,
     _NOT_LICENSED,
     _evidence_unavailable,
-    _labelled_value,
     _lacks,
     _licensed_capabilities,
     _section_ran,
@@ -37,6 +36,11 @@ from app.reports.parsers import (
 )
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.collaboration import _onedrive_scan
+from app.reports.parsers.collaboration import (
+    _onedrive_scan,
+    _teams_cross_tenant,
+    _teams_guest_settings,
+)
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -902,13 +906,11 @@ def _teams_access_from_text(text: str) -> _Verdict:
 
 
 def _teams_external_access(audit: _Audit) -> _Verdict:
-    text = audit.fc.get("16c_teams_external_access.txt", "")
-    collab = _labelled_value(text, "B2B Collaboration")
-    direct = _labelled_value(text, "B2B Direct Connect")
-    has_partners = "Partner Configurations (" in text
-    if not text.strip():
+    access = _teams_cross_tenant(audit.fc)
+    if access is None:
         return "info", _CANNOT_VERIFY + "Teams external access-data utilgjengelig"
-    if not collab and not direct and not has_partners:
+    collab, direct, partners = access["collab"], access["direct"], access["partners"]
+    if not collab and not direct and partners is None:
         # Every access type N/A and no partner configurations: the policy was
         # not returned, or the tenant is on defaults. No evidence either way.
         return (
@@ -918,15 +920,13 @@ def _teams_external_access(audit: _Audit) -> _Verdict:
         )
     if collab or direct:
         return _teams_b2b_verdict(collab, direct)
-    return _teams_access_from_text(text)
+    return _teams_access_from_text(partners)
 
 
 def _teams_guest_access(audit: _Audit) -> _Verdict:
     # Read from the Teams section's guest file, where teams_policies.py has
     # already mapped the Graph values to readable names.
-    text = audit.fc.get("30b_teams_guest_access.txt", "")
-    invites = _labelled_value(text, "Allow Invites From")
-    role = _labelled_value(text, "Guest User Role")
+    invites, role = _teams_guest_settings(audit.fc)
     if not invites:
         return "info", _CANNOT_VERIFY + "gjesteinnstillinger ble ikke hentet"
     detail = f"Invitasjoner: {invites}. Gjesterolle: {role or 'ukjent'}"
