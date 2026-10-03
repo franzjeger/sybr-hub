@@ -227,6 +227,9 @@ class TlsEndpoint(BaseModel):
     port: int = 443
     label: str = ""
     source: str | None = None
+    # The customer discovery found it under; the scan route refuses one the
+    # caller does not hold, and files the reading under it.
+    customer_id: str | None = Field(default=None, max_length=128)
 
 
 class TlsScanRequest(BaseModel):

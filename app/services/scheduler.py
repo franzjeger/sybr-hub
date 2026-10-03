@@ -610,6 +610,24 @@ async def _do_app_backup() -> str:
 
 
 async def _do_cert_expiry_check() -> str:
+    """Re-check every known TLS endpoint, and the hub's own Tailscale cert.
+
+    The endpoints are the ones any TLS check has stored plus the ones customer
+    configuration names (app/services/tls_inventory.py); their readings are
+    what Varsler lists, whether or not an alert channel is set up. A failure to
+    store raises, so the task shows as failed rather than as a quiet success.
+    """
+    from app.services import tls_inventory
+
+    own = await _tailscale_cert_status()
+    found = await tls_inventory.recheck_known()
+    return (
+        f"{found['checked']} endpoints checked: {found['expired']} expired, "
+        f"{found['expiring_soon']} expiring, {found['errors']} unreachable; Tailscale: {own}"
+    )
+
+
+async def _tailscale_cert_status() -> str:
     """Warn when Tailscale TLS certs are close to expiry or have expired.
 
     Logs WARNING at 30/7/1 days remaining and ERROR after expiry so operators

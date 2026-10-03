@@ -1012,6 +1012,10 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Ingen domener oppgitt",
         "No domains given",
     ),
+    "err_tls_endpoint_not_found": (
+        "Endepunktet finnes ikke i listen",
+        "That endpoint is not in the list",
+    ),
     # The docs viewer, GDAP, and Conditional Access deploy, restore and backup.
     # These were English literals, so the Norwegian interface was the one
     # refused in the wrong language here.
