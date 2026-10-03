@@ -26,6 +26,13 @@ async function policyOverviewLoad() {
   if (!el) return;
   el.innerHTML = '<div class="po-loading"><div class="loader"></div></div>';
 
+  // The active customer lives in state the Kunder view fills. Opened first
+  // (after a reload, or from the switcher) this screen said "Ingen kunde
+  // valgt" for a session that has one; Policy-utrulling already asks.
+  if (!_customersActiveId) {
+    var cs = await apiFetch('/api/customers');
+    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; }
+  }
   var cid = _poCustomerId();
   if (!cid) {
     el.innerHTML = '<div class="card po-dim">'
