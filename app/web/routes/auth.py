@@ -448,6 +448,21 @@ async def auth_update_user(
     target = await get_user_by_id(user_id)
     if not target:
         raise refusal(NotFoundError, "err_auth_user_not_found")
+    # The system account was protected from deletion and nothing else: a role
+    # change, a capability or switching it off went through, and broke the
+    # scheduled work and tunnels it owns as surely as deleting it. Sending a
+    # value it already has is not a change, so a form that sends everything
+    # back still saves.
+    if target.is_system and any(
+        sent is not None and sent != current
+        for sent, current in (
+            (body.role, target.role),
+            (body.is_active, target.is_active),
+            (body.can_write, target.can_write),
+            (body.tenant_write, target.tenant_write),
+        )
+    ):
+        raise refusal(ValidationError, "err_auth_cannot_change_system")
 
     if body.role and body.role != Role.admin and target.role == Role.admin:
         await _guard_last_admin(refusal(ValidationError, "err_auth_last_admin_demote"))

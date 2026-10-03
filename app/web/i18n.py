@@ -282,6 +282,12 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Systemkontoen kan ikke slettes. Sybr HUB bruker den til planlagte jobber og tunneler.",
         "The system account cannot be deleted. Sybr HUB uses it for scheduled jobs and tunnels.",
     ),
+    "err_auth_cannot_change_system": (
+        "Rollen, tilgangene og statusen til systemkontoen kan ikke endres. Sybr HUB bruker "
+        "den til planlagte jobber og tunneler.",
+        "The system account's role, capabilities and status cannot be changed. Sybr HUB uses "
+        "it for scheduled jobs and tunnels.",
+    ),
     "err_auth_invalid_customer_id": (
         "Ugyldig kunde-ID",
         "Invalid customer ID",
