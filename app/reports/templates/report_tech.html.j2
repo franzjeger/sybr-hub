@@ -829,7 +829,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 {% if license_optimization.optimization_suggestions %}
 <table class="audit-table">
-  <tr><th>{{ t.lo_suggestions }}</th><th>Priority</th><th>{{ t.lo_savings }}</th></tr>
+  <tr><th>{{ t.lo_suggestions }}</th><th>{{ t.priority }}</th><th>{{ t.lo_savings }}</th></tr>
   {% for s in license_optimization.optimization_suggestions %}
   <tr>
     <td><strong>{{ s.title }}</strong><br><span style="font-size:0.9em;color:#666;">{{ s.detail }}</span></td>
@@ -880,7 +880,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     {% for it in wl['items'] %}
     <tr style="border-bottom:1px solid #eee;">
       <td style="padding:5px 8px 5px 0;white-space:nowrap;vertical-align:top;font-weight:700;color:{% if it.state == 'on' %}#2e7d32{% elif it.state == 'report-only' %}#e08600{% elif it.state == 'trusted' %}#0f4c81{% else %}#888{% endif %};">{% if it.state == 'on' %}{{ t.policy_state_on }}{% elif it.state == 'report-only' %}{{ t.policy_state_report }}{% elif it.state == 'off' %}{{ t.policy_state_off }}{% elif it.state == 'trusted' %}{{ t.policy_state_trusted }}{% else %}{{ it.state }}{% endif %}</td>
-      <td style="padding:5px 8px 5px 0;font-weight:600;vertical-align:top;">{{ it.name }}</td>
+      <td style="padding:5px 8px 5px 0;font-weight:600;vertical-align:top;">{{ t.policy_unnamed if it.unnamed else it.name }}</td>
       <td style="padding:5px 0;color:var(--muted);">{{ it.summary[lang] or it.summary['no'] }}</td>
     </tr>
     {% endfor %}

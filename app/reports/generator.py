@@ -586,7 +586,9 @@ def build_report_context(
     # included, since a check on "no policy disappeared since last audit" is
     # exactly the kind a versioned standard should carry.
     context["drift"] = _drift_for(out_dir)
-    context["baseline"] = _baseline_for(context)
+    # In the report's language: the standard's requirements and their reasons
+    # were Norwegian in an English report.
+    context["baseline"] = _baseline_for(context, lang)
 
     # The policies in production, consolidated from this run's snapshots, each
     # with a plain-language line. Same source the customer card reads, so the

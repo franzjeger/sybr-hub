@@ -91,6 +91,16 @@ _CONTROL = {
 }
 
 
+# The interface's placeholder for a policy Graph returned without a name. The
+# report words it in its own language from "unnamed" instead.
+_UNNAMED = "(uten navn)"
+
+
+def _named(name: object) -> dict:
+    """An item's name, or the placeholder and the flag that says it is one."""
+    return {"name": name or _UNNAMED, "unnamed": not name}
+
+
 def _snapshot_dir(out_dir: Path) -> Path:
     return out_dir / "policy_snapshots"
 
@@ -178,7 +188,7 @@ def _ca_items(env: dict) -> list[dict]:
             continue
         items.append(
             {
-                "name": p.get("displayName") or "(uten navn)",
+                **_named(p.get("displayName")),
                 "state": _CA_STATE.get(str(p.get("state")), str(p.get("state") or "?")),
                 "summary": _describe_ca(p),
             }
@@ -202,7 +212,7 @@ def _named_location_items(env: dict) -> list[dict]:
             detail_en = f"{len(ip_ranges)} IP ranges"
         items.append(
             {
-                "name": loc.get("displayName") or "(uten navn)",
+                **_named(loc.get("displayName")),
                 "state": "trusted" if trusted else "on",
                 "summary": {
                     "no": ("Betrodd lokasjon — " if trusted else "Lokasjon — ") + detail_no,
@@ -230,7 +240,7 @@ def _intune_items(env: dict) -> list[dict]:
         )
         items.append(
             {
-                "name": pol.get("displayName") or "(uten navn)",
+                **_named(pol.get("displayName")),
                 "state": "on",
                 "summary": {
                     "no": f"Plattform: {platform}",
@@ -251,7 +261,7 @@ def _settings_catalog_items(env: dict) -> list[dict]:
         platform = str(pol.get("platforms") or "").strip() or "—"
         items.append(
             {
-                "name": pol.get("name") or pol.get("displayName") or "(uten navn)",
+                **_named(pol.get("name") or pol.get("displayName")),
                 "state": "on",
                 "summary": {"no": f"Plattform: {platform}", "en": f"Platform: {platform}"},
             }
@@ -275,7 +285,7 @@ def _app_protection_items(env: dict) -> list[dict]:
             platform = "app"
         items.append(
             {
-                "name": pol.get("displayName") or "(uten navn)",
+                **_named(pol.get("displayName")),
                 "state": "on",
                 "summary": {"no": f"Plattform: {platform}", "en": f"Platform: {platform}"},
             }
@@ -292,7 +302,7 @@ def _fixed_summary_items(env: dict, summary_no: str, summary_en: str) -> list[di
             continue
         items.append(
             {
-                "name": pol.get("displayName") or pol.get("name") or "(uten navn)",
+                **_named(pol.get("displayName") or pol.get("name")),
                 "state": "on",
                 "summary": {"no": summary_no, "en": summary_en},
             }

@@ -280,8 +280,8 @@ def _drift_for(out_dir: Path) -> dict:
         return unmeasured("comparison_failed")
 
 
-def _baseline_for(context: dict) -> dict | None:
-    """Judge the finished context against the house standard.
+def _baseline_for(context: dict, lang: str = "no") -> dict | None:
+    """Judge the finished context against the house standard, worded in *lang*.
 
     Returns None when there is no baseline to judge by — a malformed or
     missing document is a fault in our configuration, and the report says
@@ -292,7 +292,7 @@ def _baseline_for(context: dict) -> dict | None:
 
     baseline_id = default_baseline_id()
     try:
-        return evaluate(baseline_id, context)
+        return evaluate(baseline_id, context, lang)
     except BaselineError as e:
         log.warning("Baseline %s could not judge this run: %s", baseline_id, e)
         return None
