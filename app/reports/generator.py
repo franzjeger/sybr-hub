@@ -12,7 +12,7 @@ from jinja2 import Environment, FileSystemLoader
 from app.core.config import get_branding, get_logo_path
 from app.modules.base import SectionResult, SectionStatus
 from app.reports.compliance import _build_compliance_map
-from app.reports.evidence import _EVIDENCE_MAP
+from app.reports.evidence import _EVIDENCE_MAP, _reported_count
 from app.reports.i18n import T
 from app.reports.metrics import (
     _baseline_for,
@@ -276,6 +276,13 @@ def build_report_context(
     ext_fwd = fc("28b_exchange_external_forwarding_WARN.txt")
     risky = fc("18_risky_users.txt")
     defender = fc("19b_defender_active_alerts.txt")
+
+    def _listed(name: str, text: str) -> int | None:
+        # How many rows the collector listed: its sidecar's count, else the
+        # count in its header; None when neither says.
+        sidecar = _sidecar(file_contents, name)
+        return int(sidecar.get("count") or 0) if sidecar is not None else _reported_count(text)
+
     network = _parse_network_audit(file_contents)
     _unavailable = [
         r.name for r in results if r.status in (SectionStatus.SKIPPED, SectionStatus.FAILED)
@@ -386,6 +393,12 @@ def build_report_context(
         "risky_users": risky,
         # The risky users as rows, from their sidecar; None for a run without it.
         "risky_user_rows": _risky_users_from_sidecar(file_contents),
+        # The templates showed both files as findings whenever they were not
+        # empty and did not say "No risky" / "No active", phrases no collector
+        # writes: a clean tenant's "(0 total)" table was a finding. These say
+        # how many rows there are, None when the file does not say.
+        "risky_user_count": _listed("18_risky_users.txt", risky),
+        "defender_alert_count": _listed("19b_defender_active_alerts.txt", defender),
         "defender_alerts": defender,
         "advisor_data": fc("51_azure_advisor.txt"),
         "compliance_policies": fc("11_intune_compliance_policies.txt"),

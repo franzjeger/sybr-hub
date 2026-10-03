@@ -15,6 +15,8 @@ import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from app.modules.m365_audit.sections.conditional_access import ConditionalAccessSection
 from app.modules.m365_audit.sections.groups_roles import AdminRolesSection, GroupsSection
 from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
@@ -183,11 +185,14 @@ ORDINARY_RISKY = [
 ]
 
 
-async def _audit(tmp_path: Path, *, groups=ORDINARY_GROUPS, risky=ORDINARY_RISKY) -> Path:
+async def _audit(
+    tmp_path: Path, *, groups=ORDINARY_GROUPS, risky=ORDINARY_RISKY, routes: dict | None = None
+) -> Path:
     """Run every identity collector into a run directory, as the audit wires them."""
     out = tmp_path / "Acme_AS" / "2026-10-03_0900"
     out.mkdir(parents=True)
-    async with FakeGraph(_routes(groups=groups, risky=risky), page_size=3) as fake:
+    answers = {**_routes(groups=groups, risky=risky), **(routes or {})}
+    async with FakeGraph(answers, page_size=3) as fake:
         graph = fake.client
         users = UsersSection(out, graph)
         ca = ConditionalAccessSection(out, graph)
@@ -339,7 +344,48 @@ async def test_the_sidecars_reach_the_report_where_the_text_falls_short(tmp_path
     ].startswith("1 brukere med høy/medium risiko")
 
     # The customer report's risky-user table shows the whole UPN and its level.
-    ctx["t"], ctx["lang"], ctx["theme"] = T("no"), "no", "light"
-    html = _jinja_env().get_template("report_customer.html.j2").render(**ctx)
+    html = _render(ctx, "report_customer.html.j2")
     assert f'<td style="font-size:12px;">{LONG_UPN}</td>' in html
     assert '<span class="tag tag-no">high</span>' in html
+
+
+def _render(ctx: dict, template: str) -> str:
+    ctx["t"], ctx["lang"], ctx["theme"] = T("no"), "no", "light"
+    return _jinja_env().get_template(template).render(**ctx)
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_clean_tenant_shows_no_risky_users_and_no_defender_alerts(tmp_path, sidecars):
+    """The collectors write a "(0 total)" table for a clean tenant, not "No risky users".
+
+    The templates treated any such file as a finding unless it held "No risky"
+    or "No active", phrases no collector writes: every clean tenant's customer
+    report carried a "risky users detected" card, and its technical report
+    listed Defender alerts and risky users under critical findings and never
+    said there were none.
+    """
+    run = await _audit(tmp_path, risky=[], routes={"security/alerts_v2": []})
+    ctx = _context(run if sidecars else _without_sidecars(run, tmp_path))
+    t = T("no")
+
+    customer = _render(dict(ctx), "report_customer.html.j2")
+    tech = _render(dict(ctx), "report_tech.html.j2")
+
+    assert 'id="finding-risky"' not in customer
+    assert t.active_defender_alerts not in tech
+    assert t.risky_users_idp not in tech
+    assert t.no_critical_findings in tech
+
+
+async def test_a_tenant_with_alerts_and_risky_users_still_shows_them(tmp_path):
+    run = await _audit(tmp_path)
+    ctx = _context(run)
+    t = T("no")
+
+    customer = _render(dict(ctx), "report_customer.html.j2")
+    tech = _render(dict(ctx), "report_tech.html.j2")
+
+    assert 'id="finding-risky"' in customer
+    assert t.active_defender_alerts in tech
+    assert t.risky_users_idp in tech
+    assert t.no_critical_findings not in tech
