@@ -428,6 +428,7 @@
     "tests/test_settings_logo.py",
     "tests/test_setup_serverside.py",
     "tests/test_shared_customer_pool.py",
+    "tests/test_sidecar_helpers.py",
     "tests/test_site_collector.py",
     "tests/test_ssh_host_security.py",
     "tests/test_ssh_key_deploy.py",
