@@ -300,6 +300,20 @@ class AzureGovernanceSection(BaseSection):
             summary.append(f"  {grp:<45} {cnt:>6}")
         summary += ["=" * 90, ""]
         self._save(self._fname("60_azure_resource_inventory_summary.txt"), "\n".join(summary))
+        self._save_sidecar(
+            self._fname("60_azure_resource_inventory_summary.txt"),
+            {
+                "total": total,
+                "by_type": [
+                    {"type": rtype, "count": cnt}
+                    for rtype, cnt in sorted(by_type.items(), key=lambda x: -x[1])
+                ],
+                "by_resource_group": [
+                    {"name": grp, "count": cnt}
+                    for grp, cnt in sorted(by_rg.items(), key=lambda x: -x[1])
+                ],
+            },
+        )
 
         # Full
         full = [
