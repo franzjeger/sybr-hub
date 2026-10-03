@@ -566,6 +566,7 @@ class ExchangeSection(BaseSection):
             "  " + "-" * 96,
         ]
         external_fwd: list[dict] = []
+        rows: list[dict] = []
         for fwd in fwd_list:
             mbx = str(
                 fwd.get("DisplayName")
@@ -596,9 +597,28 @@ class ExchangeSection(BaseSection):
             # that keeps no copy read "External: No".
             is_ext = "Yes" if is_external else "No"
             lines.append(f"  {mbx[:45]:<45} {fwd_to[:45]:<45} {is_ext:>9}")
+            rows.append(
+                {
+                    "mailbox": mbx,
+                    "primary_smtp_address": fwd.get("PrimarySmtpAddress"),
+                    "forward_to": fwd_to,
+                    "forwarding_address": fwd.get("ForwardingAddress"),
+                    "forwarding_smtp_address": (
+                        fwd.get("ForwardingSmtp") or fwd.get("ForwardingSmtpAddress")
+                    ),
+                    "deliver_and_forward": bool(
+                        fwd.get("DeliverAndForward") or fwd.get("DeliverToMailboxAndForward")
+                    ),
+                    "external": is_external,
+                }
+            )
 
         lines += ["=" * 100, ""]
         self._save("28_exchange_mailbox_forwarding.txt", "\n".join(lines))
+        self._save_sidecar(
+            "28_exchange_mailbox_forwarding.txt",
+            {"count": len(rows), "external_count": len(external_fwd), "forwarding": rows},
+        )
 
         if external_fwd:
             self._warn(
@@ -610,6 +630,7 @@ class ExchangeSection(BaseSection):
                 f"  EXTERNAL MAILBOX FORWARDING WARNING  ({len(external_fwd)} mailboxes)",
                 "=" * 100,
             ]
+            ext_rows: list[dict] = []
             for fwd in external_fwd:
                 mbx_name = (
                     fwd.get("DisplayName")
@@ -625,8 +646,13 @@ class ExchangeSection(BaseSection):
                     or "?"
                 )
                 ext_lines.append(f"  {mbx_name}  →  {fwd_target}")
+                ext_rows.append({"mailbox": mbx_name, "forward_to": fwd_target})
             ext_lines += ["=" * 100, ""]
             self._save("28b_exchange_external_forwarding_WARN.txt", "\n".join(ext_lines))
+            self._save_sidecar(
+                "28b_exchange_external_forwarding_WARN.txt",
+                {"count": len(ext_rows), "forwarding": ext_rows},
+            )
 
     # ── Inbox Rules ───────────────────────────────────────────────────────────
 
@@ -650,6 +676,7 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "Mailbox", "ForwardTo", "RedirectTo", "Enabled"],
         )
         self._save(filename, content)
+        self._save_sidecar(filename, {"count": len(rules), "rules": rules})
         if rules:
             self._warn(
                 f"{len(rules)} inbox rule(s) forwarding to external addresses found",

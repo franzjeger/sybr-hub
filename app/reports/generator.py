@@ -282,6 +282,7 @@ def build_report_context(
         network=network,
         lang=lang,
         unavailable_sections=_unavailable,
+        file_contents=file_contents,
     )
     recs = _build_recommendations(
         mfa,
