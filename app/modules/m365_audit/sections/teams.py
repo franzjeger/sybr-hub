@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient
+
+logger = logging.getLogger(__name__)
 
 
 class TeamsSection(BaseSection):
@@ -96,14 +99,26 @@ class TeamsSection(BaseSection):
     # ── Cross-Tenant / External Access (beta) ────────────────────────────────
 
     async def _collect_external_access(self) -> None:
+        # "default" and "partners" are relationships on crossTenantAccessPolicy,
+        # not properties of it: a GET on the policy returns only displayName and
+        # allowedCloudEndpoints. Read off that response, both access types were
+        # "N/A" and the partner list empty on every tenant, so CIS 8.1.1 could
+        # only ever say "cannot verify". Each lives on its own endpoint, as the
+        # identity section's 18c already reads it.
         try:
-            data = await self.graph.get("policies/crossTenantAccessPolicy", beta=True)
+            default = await self.graph.get("policies/crossTenantAccessPolicy/default", beta=True)
         except Exception as ex:
             self._save("16c_teams_external_access.txt", f"Error: {ex}\n")
             self._warn(f"Cross-tenant access policy fetch failed: {ex}")
             return
+        try:
+            partner_configs: list[dict] | None = await self.graph.get_all(
+                "policies/crossTenantAccessPolicy/partners", beta=True
+            )
+        except Exception:
+            logger.debug("Cross-tenant partner configurations not read", exc_info=True)
+            partner_configs = None
 
-        default = data.get("default", {})
         b2b_collab = default.get("b2bCollaborationInbound", {})
         b2b_direct = default.get("b2bDirectConnectInbound", {})
 
@@ -117,8 +132,9 @@ class TeamsSection(BaseSection):
             "",
         ]
 
-        partner_configs = data.get("partnerConfigurations", {}).get("value", [])
-        if partner_configs:
+        if partner_configs is None:
+            lines.append("  Partner Configurations: not available")
+        elif partner_configs:
             lines.append(f"  Partner Configurations ({len(partner_configs)}):")
             for pc in partner_configs:
                 tenant_id = pc.get("tenantId", "N/A")
