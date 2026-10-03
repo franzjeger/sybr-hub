@@ -92,6 +92,11 @@ REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "SecurityAlert.Read.All",
     "SecurityIncident.Read.All",
     "SensitivityLabels.Read.All",
+    # Microsoft 365 Backup: the service status, and its protection policies
+    # and units. Warn-only in GraphClient: a registration from before these
+    # were added still audits, and the backup section says it could not read.
+    "BackupRestore-Control.Read.All",
+    "BackupRestore-Configuration.Read.All",
 ]
 
 GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"  # Microsoft Graph

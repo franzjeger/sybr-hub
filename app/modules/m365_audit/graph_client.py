@@ -430,6 +430,10 @@ class GraphClient:
         "AccessReview.Read.All",
         "SecurityAlert.Read.All",
         "SecurityIncident.Read.All",
+        # Without these the backup section records Microsoft 365 Backup as
+        # unreadable, with the reason; nothing else depends on them.
+        "BackupRestore-Control.Read.All",
+        "BackupRestore-Configuration.Read.All",
     }
 
     async def validate_permissions(self) -> dict[str, Any]:

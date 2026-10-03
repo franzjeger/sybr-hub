@@ -35,7 +35,7 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 
 | path | type | fixture value |
 | --- | --- | --- |
-| `app_version` | str | `'v1.1.8'` |
+| `app_version` | str | `'v1.2.0'` |
 
 ## `azure`
 
@@ -87,7 +87,7 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 
 | path | type | fixture value |
 | --- | --- | --- |
-| `compliance_assessed` | int | `33` |
+| `compliance_assessed` | int | `34` |
 
 ## `compliance_fail`
 
@@ -111,7 +111,7 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 
 | path | type | fixture value |
 | --- | --- | --- |
-| `compliance_pass` | int | `32` |
+| `compliance_pass` | int | `33` |
 
 ## `compliance_pct`
 
@@ -123,13 +123,19 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 
 | path | type | fixture value |
 | --- | --- | --- |
-| `compliance_total` | int | `35` |
+| `compliance_total` | int | `36` |
 
 ## `customer_name`
 
 | path | type | fixture value |
 | --- | --- | --- |
 | `customer_name` | str | `'Acme AS'` |
+
+## `defender_alert_count`
+
+| path | type | fixture value |
+| --- | --- | --- |
+| `defender_alert_count` | int | `0` |
 
 ## `done_sections`
 
@@ -170,8 +176,10 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 | `exchange.transport_rules` | int | `0` |
 | `exchange.connectors` | int | `0` |
 | `exchange.forwarding_count` | int | `0` |
+| `exchange.forwarding_unverified` | int | `0` |
 | `exchange.external_forwarding` | bool | `False` |
 | `exchange.inbox_rules_external` | int | `0` |
+| `exchange.inbox_rules_unverified` | int | `0` |
 | `exchange.has_data` | bool | `True` |
 
 ## `failed_sections`
@@ -218,6 +226,26 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 | `license_optimization.total_waste_estimate` | int | `0` |
 | `license_optimization.has_data` | bool | `True` |
 | `license_optimization.no_data_reason` | NoneType | `None` |
+
+## `m365_backup`
+
+| path | type | fixture value |
+| --- | --- | --- |
+| `m365_backup.has_data` | bool | `True` |
+| `m365_backup.assessed` | bool | `True` |
+| `m365_backup.workloads_without_backup` | int | `0` |
+| `m365_backup.service.read` | bool | `True` |
+| `m365_backup.service.status` | str | `'enabled'` |
+| `m365_backup.service.error_kind` | str | `''` |
+| `m365_backup.service.error` | str | `''` |
+| `m365_backup.service.disable_reason` | str | `'none'` |
+| `m365_backup.service.consumer` | str | `'firstparty'` |
+| `m365_backup.native_read` | bool | `True` |
+| `m365_backup.third_party_read` | bool | `True` |
+| `m365_backup.policies_read` | bool | `True` |
+| `m365_backup.policies_error` | str | `''` |
+| `m365_backup.third_party_error` | str | `''` |
+| `m365_backup.scanned` | int | `1` |
 
 ## `mfa`
 
@@ -318,13 +346,13 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 
 | path | type | fixture value |
 | --- | --- | --- |
-| `report_date` | str | `'2026-09-21 18:27 UTC'` |
+| `report_date` | str | `'2026-10-03 14:12 UTC'` |
 
 ## `report_date_no`
 
 | path | type | fixture value |
 | --- | --- | --- |
-| `report_date_no` | str | `'21.09.2026'` |
+| `report_date_no` | str | `'03.10.2026'` |
 
 ## `risk`
 
@@ -345,6 +373,18 @@ Regenerate with `python scripts/gen_baseline_paths.py`.
 | `risk_radar.E-post` | int | `100` |
 | `risk_radar.Azure` | int | `80` |
 | `risk_radar.Data` | int | `100` |
+
+## `risky_user_count`
+
+| path | type | fixture value |
+| --- | --- | --- |
+| `risky_user_count` | int | `0` |
+
+## `risky_user_rows`
+
+| path | type | fixture value |
+| --- | --- | --- |
+| `risky_user_rows` | NoneType | `None` |
 
 ## `secure_score`
 

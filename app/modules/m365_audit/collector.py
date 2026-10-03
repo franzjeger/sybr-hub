@@ -45,6 +45,7 @@ class AuditCollector:
         "Exchange Online",
         "Defender for Office 365",
         "OneDrive Sharing",
+        "Microsoft 365 Backup",
         "Compliance Score",
         "Usage Reports",
     ]
@@ -253,6 +254,7 @@ class AuditCollector:
         from app.modules.m365_audit.sections.identity_security import IdentitySecuritySection
         from app.modules.m365_audit.sections.intune import IntuneSection
         from app.modules.m365_audit.sections.licenses import LicensesSection
+        from app.modules.m365_audit.sections.m365_backup import M365BackupSection
         from app.modules.m365_audit.sections.onedrive_sharing import OneDriveSharingSection
         from app.modules.m365_audit.sections.password_protection import PasswordProtectionSection
         from app.modules.m365_audit.sections.pim import PIMSection
@@ -324,6 +326,7 @@ class AuditCollector:
                 users_ref=users_sec.users,
                 users_complete=lambda: users_sec.result.status == SectionStatus.DONE,
             ),
+            M365BackupSection(self.out_dir, graph, self.progress_cb),
             ComplianceScoreSection(self.out_dir, graph, self.progress_cb),
             UsageReportsSection(self.out_dir, graph, self.progress_cb),
         ]

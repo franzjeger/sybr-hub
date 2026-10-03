@@ -308,6 +308,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <li><a href="#enheter">{{ t.devices_intune }}</a></li>
     <li><a href="#sharepoint">{{ t.sharepoint_teams }}</a></li>
     <li><a href="#apper">{{ t.apps_oauth }}</a></li>
+    {% if m365_backup and m365_backup.has_data %}<li><a href="#m365backup">{{ t.m365_backup_title }}</a></li>{% endif %}
     <li><a href="#kritiske">{{ t.critical_findings }}</a></li>
     <li><a href="#rawdata">{{ t.raw_data }}</a></li>
   </ol>
@@ -1299,6 +1300,98 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr><td>{{ pol.name }}</td></tr>
   {% endfor %}
 </table>
+{% endif %}
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Backup of the Microsoft 365 data ── -->
+{% if m365_backup and m365_backup.has_data %}
+<h2 id="m365backup">{{ t.m365_backup_title }}</h2>
+<p>{{ t.m365_backup_intro }}</p>
+
+<table>
+  <tr><th>{{ t.m365_backup_col_workload }}</th><th>{{ t.m365_backup_col_status }}</th><th>{{ t.m365_backup_col_native }}</th><th>{{ t.m365_backup_col_third_party }}</th></tr>
+  {% for w in m365_backup.workloads %}
+  <tr>
+    <td style="font-weight:500;">{{ w.label }}</td>
+    <td><span class="tag {{ w.level }}">{{ w.verdict_label }}</span></td>
+    <td style="font-size:12px;">{{ w.native_text }}</td>
+    <td style="font-size:12px;">{{ w.third_text }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h3>{{ t.m365_backup_service_heading }}</h3>
+{% if m365_backup.service.read %}
+<table>
+  <tr><td>{{ t.m365_backup_service_status }}</td><td style="font-family:var(--mono);">{{ m365_backup.service.status }}</td></tr>
+  <tr><td>{{ t.m365_backup_disable_reason }}</td><td style="font-family:var(--mono);">{{ m365_backup.service.disable_reason }}</td></tr>
+  <tr><td>{{ t.m365_backup_consumer }}</td><td style="font-family:var(--mono);">{{ m365_backup.service.consumer or '-' }}</td></tr>
+</table>
+{% endif %}
+{% if m365_backup.policies_read %}
+<h3>{{ t.m365_backup_policies_heading }}</h3>
+{% if m365_backup.policies %}
+<table>
+  <tr><th>{{ t.m365_backup_col_policy }}</th><th>{{ t.m365_backup_col_workload }}</th><th>{{ t.status }}</th><th>{{ t.m365_backup_col_mode }}</th><th style="text-align:right;">{{ t.m365_backup_col_protected }}</th><th style="text-align:right;">{{ t.m365_backup_col_in_progress }}</th><th style="text-align:right;">{{ t.m365_backup_col_failed }}</th><th style="text-align:right;">{{ t.m365_backup_col_total }}</th><th style="text-align:right;">{{ t.m365_backup_col_counted }}</th></tr>
+  {% for p in m365_backup.policies %}
+  <tr>
+    <td style="font-weight:500;">{{ p.name }}</td>
+    <td>{{ p.workload_label }}</td>
+    <td style="font-family:var(--mono);">{{ p.status }}</td>
+    <td style="font-family:var(--mono);">{{ p.mode or 'standard' }}</td>
+    {% if p.units.read %}
+    <td style="text-align:right;">{{ p.units.protected }}</td>
+    <td style="text-align:right;">{{ p.units.in_progress }}</td>
+    <td style="text-align:right;">{{ p.units.failed }}</td>
+    <td style="text-align:right;">{{ p.units.total }}</td>
+    {% else %}
+    <td colspan="4" style="color:var(--muted);">{{ t.m365_backup_verdict_unknown }}</td>
+    {% endif %}
+    <td style="text-align:right;">{% if p.total is not none %}{{ p.total }}{% else %}&mdash;{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="alert info">{{ t.m365_backup_no_policies }}</div>
+{% endif %}
+{% endif %}
+
+<h3>{{ t.m365_backup_apps_heading }}</h3>
+{% if m365_backup.third_party_read %}
+<p style="font-size:12px;color:var(--muted);">{{ t('m365_backup_apps_scanned', count=m365_backup.scanned) }}</p>
+{% if m365_backup.apps %}
+<table>
+  <tr><th>{{ t.m365_backup_col_product }}</th><th>{{ t.m365_backup_col_app }}</th><th>{{ t.m365_backup_col_match }}</th><th>{{ t.m365_backup_col_access }}</th><th>{{ t.m365_backup_col_permissions }}</th></tr>
+  {% for a in m365_backup.apps %}
+  <tr>
+    <td style="font-weight:500;">{{ a.name }}{% if not a.enabled %} <span class="tag skip">{{ t.m365_backup_app_disabled }}</span>{% endif %}</td>
+    <td style="font-size:11px;">{{ a.display_name }}<br><span style="font-family:var(--mono);color:var(--muted);">{{ a.app_id }}</span></td>
+    <td style="font-size:11px;">{{ t('m365_backup_match_' ~ a.match) }}</td>
+    <td style="font-size:11px;">{% if a.permissions_read and a.access %}{{ a.access }}{% elif a.permissions_read %}&mdash;{% else %}{{ t.m365_backup_verdict_unknown }}{% endif %}</td>
+    <td style="font-size:11px;font-family:var(--mono);word-break:break-word;">
+      {% for p in a.application_permissions %}{{ p.value }}{% if p.resource %} ({{ p.resource }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+      {% if a.delegated_scopes %}<br>{% for p in a.delegated_scopes %}{{ p.value }}{% if p.resource %} ({{ p.resource }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+      {% if a.permissions_error %}<br><span style="color:var(--muted);">{{ a.permissions_error }}</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+<div class="alert info">{{ t.m365_backup_proof_note }}</div>
+{% else %}
+<div class="alert info">{{ t.m365_backup_no_apps }}</div>
+{% endif %}
+{% endif %}
+
+{% if m365_backup.unread_notes %}
+<div class="alert warning">
+  <strong>{{ t.m365_backup_unread_heading }}</strong>
+  {% for note in m365_backup.unread_notes %}<div>{{ note }}</div>{% endfor %}
+  {% if not m365_backup.service.read %}<div style="font-size:11px;font-family:var(--mono);margin-top:6px;">{{ t.m365_backup_graph_said }}: {{ m365_backup.service.error }}</div>{% endif %}
+  {% if not m365_backup.policies_read and m365_backup.policies_error %}<div style="font-size:11px;font-family:var(--mono);margin-top:6px;">{{ t.m365_backup_graph_said }}: {{ m365_backup.policies_error }}</div>{% endif %}
+  {% if not m365_backup.third_party_read and m365_backup.third_party_error %}<div style="font-size:11px;font-family:var(--mono);margin-top:6px;">{{ t.m365_backup_graph_said }}: {{ m365_backup.third_party_error }}</div>{% endif %}
+  {% if not m365_backup.service.read or not m365_backup.policies_read %}<div style="margin-top:6px;">{{ t.m365_backup_grant_hint }}</div>{% endif %}
+</div>
 {% endif %}
 {% endif %}
 

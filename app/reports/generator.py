@@ -35,6 +35,7 @@ from app.reports.parsers import (
     _parse_groups,
     _parse_intune_devices,
     _parse_licenses,
+    _parse_m365_backup,
     _parse_mfa,
     _parse_network_audit,
     _parse_oauth_grants,
@@ -278,6 +279,16 @@ def build_report_context(
     azure = _parse_azure_overview(file_contents)
     exchange = _parse_exchange_overview(file_contents)
     backup_coverage = _parse_backup_coverage(file_contents)
+    # Backup of the Microsoft 365 data, compared with what the audit counted
+    # elsewhere: mailboxes in Exchange, team sites in SharePoint. Only counts
+    # that were read are offered; a zero from an unread section is no total.
+    mailboxes = exchange.get("mailbox_total") if exchange.get("has_data") else None
+    team_sites = sharepoint.get("team_sites") if sharepoint.get("has_data") else None
+    m365_backup = _parse_m365_backup(
+        file_contents,
+        lang=lang,
+        totals={"exchange": mailboxes or None, "sharepoint": team_sites or None},
+    )
     signin_risk = _parse_signin_risk(file_contents)
     purview = _parse_purview(file_contents)
     ext_fwd = fc("28b_exchange_external_forwarding_WARN.txt")
@@ -383,6 +394,7 @@ def build_report_context(
         "azure": azure,
         "exchange": exchange,
         "backup_coverage": backup_coverage,
+        "m365_backup": m365_backup,
         "signin_risk": signin_risk,
         "purview": purview,
         "network": network,

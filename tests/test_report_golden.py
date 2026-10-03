@@ -39,6 +39,11 @@ from tests.audit_fixture import FULL_AUDIT
 # site's drive roots. The replacement covers site drives and user OneDrives to
 # a bounded depth, and records every discovery/refusal/folder gap. A complete
 # scan can therefore pass; any gap still leaves the control unassessed.
+#
+# Then 35 -> 36 with 11.2, backup of the Microsoft 365 data. The fixture
+# gained 34_m365_backup (Microsoft 365 Backup on, a policy per workload), so
+# the healthy tenant passes it: assessed 33 -> 34, pass 32 -> 33, info and pct
+# unchanged (33/34 rounds to 97 as 32/33 did).
 GOLDEN = {
     "ca_enabled": 4,
     # Two controls moved off "cannot be verified" as the fixture grew to cover
@@ -50,11 +55,11 @@ GOLDEN = {
     # real setting (Get-AdminAuditLogConfig | UnifiedAuditLogIngestionEnabled,
     # file 27d). The healthy fixture has UAL ingestion on, so 9.1 now passes:
     # assessed 32→33, info 3→2, pass 31→32; pct unchanged.
-    "compliance_assessed": 33,
+    "compliance_assessed": 34,
     "compliance_info": 2,
-    "compliance_pass": 32,
+    "compliance_pass": 33,
     "compliance_pct": 97.0,
-    "compliance_total": 35,
+    "compliance_total": 36,
     "exchange_connectors": 0,
     "exchange_transport_rules": 0,
     "ga_count": 3,

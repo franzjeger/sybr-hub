@@ -1,6 +1,6 @@
 {
   "id": "essential-8-l1",
-  "version": "2026.1",
+  "version": "2026.2",
   "name": "Essential Eight — Maturity Level 1",
   "tags": ["acsc", "essential-eight", "hardening"],
   "description": {
@@ -126,13 +126,29 @@
         "en": "At least 95% of virtual machines are backed up"
       },
       "why": {
-        "no": "«Regelmessig sikkerhetskopi» måles her mot Azure-VM-dekning, som er det auditen ser. Merk at sikkerhetskopi av selve Microsoft 365-dataene ikke inngår i denne målingen; dette dekker serverlaget.",
-        "en": "'Regular backups' is measured here against Azure VM coverage — what the audit sees. Note that backup of the Microsoft 365 data itself is not part of this measurement; this covers the server tier."
+        "no": "«Regelmessig sikkerhetskopi» måles her mot Azure-VM-dekning, som er det auditen ser. Dette dekker serverlaget. Sikkerhetskopi av selve Microsoft 365-dataene måles i en egen sjekk.",
+        "en": "'Regular backups' is measured here against Azure VM coverage — what the audit sees. This covers the server tier; backup of the Microsoft 365 data itself is measured in a check of its own."
       },
       "path": "backup_coverage.backup_pct",
       "op": "gte",
       "value": 95,
       "measured_when": "backup_coverage.coverage_known",
+      "severity": "high"
+    },
+    {
+      "id": "e8-m365-backup",
+      "title": {
+        "no": "Spor av backup finnes for e-post, OneDrive og SharePoint",
+        "en": "Evidence of backup exists for email, OneDrive and SharePoint"
+      },
+      "why": {
+        "no": "«Regelmessig sikkerhetskopi» gjelder også Microsoft 365-dataene, som Microsoft ikke tar backup av for kunden. Sjekken består når hver av de tre arbeidslastene er beskyttet av Microsoft 365 Backup eller nås av en kjent backupapp. En app med tilgang viser at produktet er installert, ikke at backupen kjører. Arbeidslaster auditen ikke fikk lese, regnes ikke med.",
+        "en": "'Regular backups' covers the Microsoft 365 data too, which Microsoft does not back up for the customer. The check passes when each of the three workloads is protected by Microsoft 365 Backup or reached by a known backup app. An app with access shows the product is installed, not that its backups run. Workloads the audit could not read are not counted."
+      },
+      "path": "m365_backup.workloads_without_backup",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "m365_backup.assessed",
       "severity": "high"
     }
   ]

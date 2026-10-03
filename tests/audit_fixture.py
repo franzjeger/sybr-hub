@@ -527,6 +527,76 @@ FULL_AUDIT: dict[str, str] = {
         "\n"
         "==============================================================\n"
     ),
+    # Microsoft 365 Backup on, with an active policy per workload protecting
+    # every unit, as sections/m365_backup.py writes it, text and sidecar.
+    "34_m365_backup.txt": (
+        "=" * 100 + "\n"
+        "  MICROSOFT 365 BACKUP  (mailboxes, OneDrive, SharePoint, Teams)\n" + "=" * 100 + "\n"
+        "\n"
+        "  NATIVE: MICROSOFT 365 BACKUP\n"
+        "  " + "-" * 96 + "\n"
+        "  Service status    : enabled\n"
+        "  Disable reason    : none\n"
+        "  Controlled by     : firstparty\n"
+        "  Policies          : 3\n"
+        "    exchange | active | standard | protected=12 in_progress=0 failed=0 total=12"
+        " | Acme e-post\n"
+        "    sharepoint | active | standard | protected=6 in_progress=0 failed=0 total=6"
+        " | Acme SharePoint\n"
+        "    onedrive | active | standard | protected=10 in_progress=0 failed=0 total=10"
+        " | Acme OneDrive\n"
+        "\n"
+        "  THIRD-PARTY BACKUP APPS\n"
+        "  " + "-" * 96 + "\n"
+        "  Apps found        : 0 (of 1 service principals)\n"
+        "\n" + "=" * 100 + "\n"
+    ),
+    "34_m365_backup.json": json.dumps(
+        {
+            "native": {
+                "service": {
+                    "read": True,
+                    "status": "enabled",
+                    "disable_reason": "none",
+                    "consumer": "firstparty",
+                    "error_kind": "",
+                    "error": "",
+                },
+                "policies": {
+                    "read": True,
+                    "error_kind": "",
+                    "error": "",
+                    "items": [
+                        {
+                            "id": f"pol-{workload}",
+                            "name": name,
+                            "type": f"#microsoft.graph.{kind}ProtectionPolicy",
+                            "workload": workload,
+                            "status": "active",
+                            "mode": "standard",
+                            "retention": [{"interval": "R/PT10M", "period": "P2W"}],
+                            "units": {
+                                "read": True,
+                                "source": "artifact_count",
+                                "total": units,
+                                "protected": units,
+                                "in_progress": 0,
+                                "failed": 0,
+                                "error_kind": "",
+                                "error": "",
+                            },
+                        }
+                        for workload, kind, name, units in (
+                            ("exchange", "exchange", "Acme e-post", 12),
+                            ("sharepoint", "sharePoint", "Acme SharePoint", 6),
+                            ("onedrive", "oneDriveForBusiness", "Acme OneDrive", 10),
+                        )
+                    ],
+                },
+            },
+            "third_party": {"read": True, "error_kind": "", "error": "", "scanned": 1, "apps": []},
+        }
+    ),
     "51_azure_advisor.txt": (
         "AZURE ADVISOR RECOMMENDATIONS\n=============================\n2 recommendations\n"
     ),

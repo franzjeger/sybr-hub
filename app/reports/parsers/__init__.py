@@ -10,6 +10,7 @@ write:
     collaboration  SharePoint, OAuth consent grants and app registrations, Purview
     devices        Intune and Entra ID devices
     azure          Azure inventory, VMs and backup coverage
+    m365_backup    backup of the Microsoft 365 data: Microsoft 365 Backup, vendor apps
     network        FortiGate and UniFi quick audits
 
 The names below are re-exported so code written against the single module this
@@ -52,6 +53,7 @@ from app.reports.parsers.identity import (
     _parse_user_counts,
     _risky_users_from_sidecar,
 )
+from app.reports.parsers.m365_backup import _parse_m365_backup
 from app.reports.parsers.network import _parse_network_audit
 from app.reports.parsers.tenant import (
     _analyze_license_optimization,
@@ -81,6 +83,7 @@ __all__ = [
     "_parse_groups",
     "_parse_intune_devices",
     "_parse_licenses",
+    "_parse_m365_backup",
     "_parse_mfa",
     "_parse_network_audit",
     "_parse_oauth_grants",

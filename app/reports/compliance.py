@@ -68,6 +68,7 @@ from app.reports.parsers.email import (
     _unverified_forwarding_count,
 )
 from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.m365_backup import m365_backup_control
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -78,6 +79,7 @@ _NIST_NAMES = {
     "PR.DS-01": "Data-at-rest is protected",
     "PR.DS-02": "Data-in-transit is protected",
     "PR.DS-10": "Data-in-use is protected",
+    "PR.DS-11": "Backups of data are created, protected, maintained, and tested",
     "PR.PS-04": "Log records are generated and made available for monitoring",
     "PR.PS-05": "Installation and execution of unauthorized software are prevented",
     "DE.AE-03": "Information is correlated from multiple sources",
@@ -96,6 +98,7 @@ _ISO_NAMES = {
     "A.8.7": "Protection against malware",
     "A.8.8": "Management of technical vulnerabilities",
     "A.8.12": "Data leakage prevention",
+    "A.8.13": "Information backup",
     "A.8.15": "Logging",
     "A.8.16": "Monitoring activities",
     "A.8.24": "Use of cryptography",
@@ -1368,6 +1371,17 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
         nist="PR.DS-01",
         iso="A.8.12",
         check=_retention_policies,
+    ),
+    # The M365 benchmark has no backup control. 11.2 is the CIS Controls v8
+    # safeguard "Perform automated backups", the nearest CIS reference. The
+    # verdict is formed in parsers/m365_backup.py from 34_m365_backup.
+    _Control(
+        "11.2",
+        "Ensure Microsoft 365 data is backed up",
+        _DATA,
+        nist="PR.DS-11",
+        iso="A.8.13",
+        check=m365_backup_control,
     ),
     _Control(
         "8.1.1",
