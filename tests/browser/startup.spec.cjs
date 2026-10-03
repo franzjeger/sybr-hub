@@ -16,6 +16,31 @@ async function login(page) {
   await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
 }
 
+test('after sign-in the app appears only once it knows who signed in', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('onboarding_done', '1');
+    localStorage.setItem('ui_lang', 'no');
+  });
+  // The signed-out check on load ends with a refused refresh; after that the
+  // form is the page's.
+  const refused = page.waitForResponse(r => r.url().endsWith('/api/auth/refresh'));
+  await page.goto('/');
+  await refused;
+  // /auth/me answers slowly, as on a loaded server. The app used to appear
+  // the moment the sign-in was accepted, with menus live for an account it
+  // did not know yet: Administrasjon then opened Konto, as for a viewer.
+  await page.route('**/api/auth/me', async route => {
+    await new Promise(r => setTimeout(r, 600));
+    await route.continue();
+  });
+  await page.locator('#login-username').fill('browser-tabs');
+  await page.locator('#login-password').fill(PASSWORD);
+  await page.locator('#login-password').press('Enter');
+  await expect(page.locator('#login-password')).not.toBeVisible();
+  expect(await page.evaluate(() => !!_currentUser && _allowedViews.length > 0)).toBe(true);
+  await page.unrouteAll({behavior: 'ignoreErrors'});
+});
+
 test('a page load asks the server for each start-up answer once', async ({browser}) => {
   const context = await browser.newContext();
   await context.addInitScript(() => {

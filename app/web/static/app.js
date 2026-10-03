@@ -1148,8 +1148,10 @@ async function doLogin() {
     var res = await fetch('/api/auth/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,otp:document.getElementById('login-otp').value.trim()})});
     if (!res.ok) { var err = await res.json(); showToast(err.error||t('err_login_failed','Login failed'),'error'); return; }
     setAuth();
-    hideLoginView();
-    checkAuth();
+    // checkAuth shows the app once /auth/me has said who signed in. Shown
+    // here, the menus were live for an account the page did not know yet:
+    // Administrasjon clicked in that moment opened Konto, as for a viewer.
+    await checkAuth();
   } catch(e) { console.error('Request failed:', e); showToast(t('err_login_failed','Login failed'),'error'); }
 }
 
