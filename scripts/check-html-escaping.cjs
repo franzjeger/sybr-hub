@@ -22,6 +22,11 @@ const ENFORCED = new Set([
   'app-network.js',
   'app-tailscale.js',
   'app-also.js',
+  'app-assessments.js',
+  'app-audit.js',
+  'app-baseline-deploy.js',
+  'app-policy-deploy.js',
+  'app-policy-overview.js',
 ]);
 
 const HTML_PROPS = new Set(['innerHTML', 'outerHTML', 'srcdoc']);
