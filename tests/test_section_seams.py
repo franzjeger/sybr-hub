@@ -1295,3 +1295,19 @@ async def test_signin_failures_carry_error_codes_and_geography():
     # Nor the section banner, nor the threshold flag on a high-failure row.
     assert not any("SIGN-IN FAILURES" in r for r in reasons)
     assert not any(r.startswith("*") or "THRESHOLD" in r for r in reasons)
+
+
+@pytest.mark.asyncio
+async def test_a_user_with_no_failures_is_not_listed_among_the_failures():
+    """The activity table's defaultdict reads added every user to the failure table at zero."""
+    from app.modules.m365_audit.sections.signins import SignInsSection
+
+    events = [
+        {"userPrincipalName": "post@x.no", "status": {"errorCode": 50126}} for _ in range(3)
+    ] + [{"userPrincipalName": "ok@x.no", "status": {"errorCode": 0}} for _ in range(5)]
+    out = await _run(SignInsSection(_tmp(), _FakeGraph({"auditLogs/signIns": events})))
+    text = _read(out, "05b_signin_failures.txt")
+
+    assert "ok@x.no" not in text
+    parsed = _parse_signin_risk({"05b_signin_failures.txt": text})
+    assert parsed["top_failure_users"] == [{"user": "post@x.no", "count": 3}]
