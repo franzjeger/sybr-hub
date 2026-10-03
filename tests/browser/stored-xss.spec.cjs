@@ -208,8 +208,9 @@ test('ALSO and Uniweb renewal data is rendered as text, numbers included', async
     total_outstanding: 100, overdue_total: 0, overdue_count: 0, open_count: XSS, aging: {}, invoices: [],
   });
 
-  await page.evaluate(() => showView('overview'));
-  await page.locator('.dash-tab-btn[data-tab="dash-renewals"]').click();
+  // Fornyelser is a tab of Verktøy › Lisenser og hosting, its first.
+  await page.evaluate(() => showView('billing'));
+  await page.locator('#view-billing .dash-tab-btn[data-tab="dash-renewals"]').click();
   const row = page.locator('#dash-renewals-content table').first().locator('tbody tr').first();
   await expect(row.locator('td').nth(1)).toHaveText(XSS);
   // The contract end date is cut to ten characters, then escaped.

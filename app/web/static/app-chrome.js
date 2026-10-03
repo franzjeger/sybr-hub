@@ -90,6 +90,8 @@ async function _checkVpnHeaderBadge() {
     // is up (the old standalone #vpn-header-badge was merged into #conn-status).
     var prefix = document.getElementById('vpn-chip-prefix');
     if (!prefix) return;
+    _vpnTunnelUp = !!(d && d.state === 'connected');
+    _syncConnChip();
     if (d && d.state === 'connected') {
       prefix.style.display = 'inline';
       var stats = d.stats || {};
@@ -277,19 +279,6 @@ function formatActivityTime(isoStr) {
   }
 }
 
-// ── Mobile nav toggle ────────────────────────────────────────────────────────
-// showView() already closes the mobile nav after a nav-item click. This file
-// owns the open/close state and resize-driven auto-close.
-
-// Must match the @media (max-width) breakpoint in app.css that collapses the
-// top nav into a hamburger. Keep these in sync.
-var _NAV_MOBILE_BREAKPOINT = 1100;
-
-function toggleMobileNav() {
-  var nav = document.getElementById('main-nav');
-  if (nav) nav.classList.toggle('open');
-}
-
 // ── Mobile bottom nav + «Mer» sheet (frame 4a) ──────────────────────────────
 function openMoreSheet() {
   var b = document.getElementById('more-backdrop');
@@ -310,7 +299,9 @@ function _syncBottomNav(name) {
     overview: 'dashboard',
     customers: 'customers', home: 'customers', audit: 'customers', history: 'customers',
     files: 'customers', setup: 'customers', 'customer-detail': 'customers',
-    network: 'network', vpn: 'network', tls: 'network', tailscale: 'network', provision: 'network',
+    network: 'network', vpn: 'network', tailscale: 'network', provision: 'network',
+    hosts: 'more', terminal: 'more', rdp: 'more', ssh: 'more', browser: 'more',
+    pentest: 'more', billing: 'more', ai: 'more', admin: 'more', docs: 'more', logs: 'more',
     more: 'more',
   };
   var active = map[name] || '';
@@ -318,26 +309,6 @@ function _syncBottomNav(name) {
     el.classList.toggle('active', el.getAttribute('data-bnav') === active);
   });
 }
-
-window.addEventListener('resize', function() {
-  if (window.innerWidth > _NAV_MOBILE_BREAKPOINT) {
-    var nav = document.getElementById('main-nav');
-    if (nav) nav.classList.remove('open');
-  }
-});
-
-// Belt-and-suspenders: close mobile nav on any nav-btn click inside #main-nav,
-// even if the click handler doesn't route through showView() (e.g. Integrasjoner
-// dropdown items, future additions). Uses event delegation so we don't need to
-// wire per-button handlers.
-document.addEventListener('click', function(e) {
-  var target = e.target.closest('#main-nav .nav-btn, #main-nav .nav-dropdown-menu-inner button');
-  if (!target) return;
-  // Only act below the breakpoint — desktop doesn't need this.
-  if (window.innerWidth > _NAV_MOBILE_BREAKPOINT) return;
-  var nav = document.getElementById('main-nav');
-  if (nav) nav.classList.remove('open');
-});
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function openShortcutsModal() {
@@ -511,7 +482,7 @@ document.addEventListener('keydown', function(e) {
 
   // Ctrl/Cmd + number — navigation
   if (mod && !e.shiftKey) {
-    var views = { '1': 'overview', '2': 'home', '3': 'customers', '4': 'files', '5': 'history' };
+    var views = { '1': 'overview', '2': 'customers' };
     if (views[e.key]) {
       e.preventDefault();
       showView(views[e.key]);

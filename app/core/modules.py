@@ -36,10 +36,10 @@ MODULES: tuple[Module, ...] = (
         "remote", views=("hosts", "terminal", "rdp", "ssh", "browser"), tasks=("guacamole_cleanup",)
     ),
     Module("tailscale", views=("tailscale",)),
-    Module("pentest"),
+    Module("pentest", views=("pentest",)),
     Module("provisioning", views=("provision",)),
     # ALSO licensing and Uniweb hosting: distributor finance rather than audit.
-    Module("billing", tasks=("uniweb_sync", "also_price_refresh")),
+    Module("billing", views=("billing",), tasks=("uniweb_sync", "also_price_refresh")),
     Module("ai", views=("ai",)),
 )
 

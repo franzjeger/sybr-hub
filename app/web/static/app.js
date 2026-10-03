@@ -218,12 +218,11 @@ registerUiHandlers({
   closeReportViewer: function() { closeReportViewer(); },
   doSetup: function() { doSetup(); },
   doLogin: function() { doLogin(); },
-  toggleMobileNav: function() { toggleMobileNav(); },
   openLatestReport: function() { openLatestReport(); },
   startAudit: function() { startAudit(); },
-  // Verktøy holds documentation too, so it stays when the remote module is
-  // off; its own click opens the first thing in it this account may use.
-  openToolsDefault: function() { showView(canOpenView('hosts') ? 'hosts' : 'docs'); },
+  toggleToolsMenu: function(el, event) { toggleToolsMenu(event); },
+  switchBillingTab: function(el) { switchBillingTab(el, el.dataset.tab); },
+  billingExportCurrentTab: function() { billingExportCurrentTab(); },
   toggleCommandPalette: function() { toggleCommandPalette(); },
   toggleNotifications: function() { toggleNotifications(); },
   markAllNotificationsRead: function() { markAllNotificationsRead(); },
@@ -640,18 +639,22 @@ function _renderCmdResults(query) {
 
   // Pages / Navigation
   var pages = [
-    {label:t('nav_dashboard','Dashboard'), view:'overview', action:function(){showView('overview')},  section:t('nav_dashboard'), icon:'grid'},
+    {label:t('nav_overview','Oversikt'), view:'overview', action:function(){showView('overview')},  section:'', icon:'grid'},
     {label:t('nav_customers','Customers'), view:'customers', action:function(){showView('customers')}, section:t('nav_customers'), icon:'users'},
     {label:t('nav_m365_status'),     view:'home', action:function(){showView('home')},      section:t('nav_customers'), icon:'cloud'},
     {label:t('nav_history','History'), view:'history', action:function(){showView('history')},    section:t('nav_customers'), icon:'calendar'},
-    {label:t('bc_hosts_ssh','Hosts'), view:'hosts', action:function(){showView('hosts')},      section:t('nav_remote_access','Fjerntilgang'),    icon:'monitor'},
-    {label:t('bc_network','FortiGate / UniFi'), view:'network', action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:'globe'},
-    {label:'VPN',             view:'vpn', action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:'lock'},
-    {label:'TLS Monitor',     view:'tls', action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:'shield'},
-    {label:t('nav_browser2','Browser'), view:'browser', action:function(){showView('browser')}, section:t('nav_tools','Verktøy'),    icon:'globe'},
-    {label:'Tailscale',       view:'tailscale', action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:'link'},
-    {label:t('bc_provisioning','Provisjonering'), view:'provision', action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:'gear'},
-    {label:'Sybrt',           view:'ai', action:function(){showView('ai')},         section:'',                 icon:'sparkle'},
+    // Verktøy, in the order of its menu.
+    {label:t('nav_network','Nettverk'), view:'network', action:function(){showView('network')}, section:t('nav_tools','Verktøy'), icon:'globe'},
+    {label:t('tls_monitor','TLS-monitor'), view:'network', action:function(){showNetworkTab('net-tls')}, section:t('nav_network','Nettverk'), icon:'shield'},
+    {label:'VPN', view:'vpn', action:function(){showView('vpn')}, section:t('nav_tools','Verktøy'), icon:'lock'},
+    {label:t('nav_remote_access2','Fjerntilgang'), view:'hosts', action:function(){showView('hosts')}, section:t('nav_tools','Verktøy'), icon:'monitor'},
+    {label:t('nav_browser2','Browser'), view:'browser', action:function(){showView('browser')}, section:t('nav_remote_access2','Fjerntilgang'), icon:'globe'},
+    {label:'Tailscale', view:'tailscale', action:function(){showView('tailscale')}, section:t('nav_tools','Verktøy'), icon:'link'},
+    {label:t('pentest','Pentest'), view:'pentest', action:function(){showView('pentest')}, section:t('nav_tools','Verktøy'), icon:'shield'},
+    {label:t('provisjonering','Provisjonering'), view:'provision', action:function(){showView('provision')}, section:t('nav_tools','Verktøy'), icon:'gear'},
+    {label:t('nav_billing','Lisenser og hosting'), view:'billing', action:function(){showView('billing')}, section:t('nav_tools','Verktøy'), icon:'chart'},
+    {label:'Sybrt', view:'ai', action:function(){showView('ai')}, section:t('nav_tools','Verktøy'), icon:'sparkle'},
+    {label:t('nav_help','Hjelp'), view:'docs', action:function(){showView('docs')}, section:'', icon:'document'},
     // Administrasjon and its panes, named by id: the palette used to pick
     // a settings tab by its position in the strip.
     {label:t('nav_admin','Administrasjon'), view:'admin', action:function(){openAdmin()}, section:'', icon:'gear'},
@@ -862,12 +865,24 @@ function _postAuthInit() {
 var _connMonitorInterval = null;
 var _connLastOk = true;
 
+// The chip is quiet when everything is fine: it shows while a VPN tunnel is
+// up, and when the server cannot be reached.
+var _connState = 'ok';
+var _vpnTunnelUp = false;
+
+function _syncConnChip() {
+  var box = document.getElementById('conn-status');
+  if (box) box.style.display = (_vpnTunnelUp || _connState !== 'ok') ? 'flex' : 'none';
+}
+
 function _setConnStatus(state, label, title) {
   var box = document.getElementById('conn-status');
   var dot = document.getElementById('conn-status-dot');
   var lbl = document.getElementById('conn-status-label');
   if (!box || !dot) return;
-  box.style.display = 'flex';
+  // A check in flight is no news; keep what the last answer said.
+  if (state !== 'checking') _connState = state;
+  _syncConnChip();
   var colors = {
     ok:       'var(--color-success)',
     checking: 'var(--color-warning)',
@@ -997,6 +1012,7 @@ function applyFeatureVisibility() {
   document.querySelectorAll('[data-module]').forEach(function(el) {
     _setGated(el, hasModule(el.getAttribute('data-module')));
   });
+  _syncToolsMenu();
 }
 
 function hasModule(key) {
@@ -1033,6 +1049,56 @@ function applyWriteCapability() {
     badge.title = t('tip_readonly', 'Your account has read access. Changes require write.');
     badge.textContent = t('lbl_readonly', 'Read-only');
   }
+}
+
+// ── Verktøy ───────────────────────────────────────────────────────────────────
+// Opens on hover (CSS) and on a click, so touch and keyboard reach it too.
+function toggleToolsMenu(e) {
+  if (e) e.stopPropagation();
+  var dd = document.getElementById('nav-tools-dd');
+  if (!dd) return;
+  if (dd.classList.contains('open')) { closeToolsMenu(); return; }
+  dd.classList.remove('is-resting');
+  dd.classList.add('open');
+  var btn = document.getElementById('nav-tools');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+  setTimeout(function() {
+    document.addEventListener('click', _closeToolsMenuOutside);
+    document.addEventListener('keydown', _closeToolsMenuEsc);
+  }, 0);
+}
+function closeToolsMenu() {
+  var dd = document.getElementById('nav-tools-dd');
+  if (dd) {
+    dd.classList.remove('open');
+    // Chosen with the pointer still over the menu, hover would hold it open
+    // over the page that just opened; it rests until the pointer leaves.
+    if (dd.matches(':hover')) {
+      dd.classList.add('is-resting');
+      dd.addEventListener('mouseleave', function rest() {
+        dd.classList.remove('is-resting');
+        dd.removeEventListener('mouseleave', rest);
+      });
+    }
+  }
+  var btn = document.getElementById('nav-tools');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  document.removeEventListener('click', _closeToolsMenuOutside);
+  document.removeEventListener('keydown', _closeToolsMenuEsc);
+}
+function _closeToolsMenuOutside(e) {
+  var dd = document.getElementById('nav-tools-dd');
+  if (dd && !dd.contains(e.target)) closeToolsMenu();
+}
+function _closeToolsMenuEsc(e) { if (e.key === 'Escape') closeToolsMenu(); }
+
+// Verktøy with nothing in it this account may open is no menu at all.
+function _syncToolsMenu() {
+  var dd = document.getElementById('nav-tools-dd');
+  if (!dd) return;
+  var items = dd.querySelectorAll('.navdd-item');
+  var any = Array.prototype.some.call(items, function(el) { return getComputedStyle(el).display !== 'none'; });
+  dd.classList.toggle('gated-hidden', !any);
 }
 
 // ── Avatar account menu ──────────────────────────────────────────────────────
@@ -1404,31 +1470,47 @@ function skeletonHTML(type) {
 }
 
 // ── View routing ───────────────────────────────────────────────────────────────
-// M365 sub-views that should highlight the "M365 / Azure" nav button
+// M365 sub-views: they sit under the strip of M365 tabs.
 var _m365SubViews = {home: true, files: true, audit: true, setup: true};
+
+// Which top-bar item a view belongs to, so the bar, the breadcrumb and the
+// mobile bar agree. Views the avatar menu opens (Administrasjon, Hjelp) light
+// none of the three.
+var _NAV_GROUP = {
+  overview: 'overview',
+  customers: 'customers', 'customer-detail': 'customers', setup: 'customers', 'history-report': 'customers',
+  home: 'customers', audit: 'customers', history: 'customers', files: 'customers',
+  'policy-overview': 'customers', 'policy-deploy': 'customers', 'baseline-deploy': 'customers', assessments: 'customers',
+  network: 'tools', vpn: 'tools', hosts: 'tools', terminal: 'tools', rdp: 'tools', ssh: 'tools',
+  browser: 'tools', tailscale: 'tools', pentest: 'tools', provision: 'tools', billing: 'tools', ai: 'tools',
+};
 
 function _updateBreadcrumb(name) {
   var bc = document.getElementById('breadcrumb');
   var items = document.getElementById('breadcrumb-items');
   if (!bc || !items) return;
+  var tools = {label:t('nav_tools','Verktøy')};
+  var remote = {label:t('nav_remote_access2','Fjerntilgang'),view:'hosts'};
   var map = {
-    overview:     [{label:t('nav_dashboard')}],
+    overview:     [{label:t('nav_overview','Oversikt')}],
     customers:    [{label:t('nav_customers')}],
     home:         [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status')}],
     audit:        [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status'),view:'home'}, {label:'Audit'}],
     history:      [{label:t('nav_customers'),view:'customers'}, {label:t('nav_history')}],
     assessments:  [{label:t('nav_customers'),view:'customers'}, {label:t('nav_assessments','Vurderingsbibliotek')}],
-    hosts:        [{label:t('nav_remote_access','Fjerntilgang')}, {label:t('bc_hosts_ssh','Verter')}],
-    terminal:     [{label:t('nav_remote_access','Fjerntilgang'),view:'hosts'}, {label:'Terminal'}],
-    rdp:          [{label:t('nav_remote_access','Fjerntilgang'),view:'hosts'}, {label:'RDP'}],
-    ssh:          [{label:t('nav_remote_access','Fjerntilgang'),view:'hosts'}, {label:t('bc_ssh_keys','SSH-nøkler')}],
-    network:      [{label:t('nav_network','Nettverk')}],
-    vpn:          [{label:t('nav_network','Nettverk')}, {label:'VPN'}],
-    tls:          [{label:t('nav_network','Nettverk')}, {label:'TLS Monitor'}],
-    browser:      [{label:t('nav_tools','Verktøy')}, {label:'Nettleser'}],
-    tailscale:    [{label:t('nav_tools','Verktøy')}, {label:'Tailscale'}],
-    provision:    [{label:t('nav_tools','Verktøy')}, {label:t('bc_provisioning','Provisjonering')}],
-    ai:           [{label:'Sybrt'}],
+    setup:        [{label:t('nav_customers'),view:'customers'}, {label:t('nav_new_customer','Ny kunde')}],
+    network:      [tools, {label:t('nav_network','Nettverk')}],
+    vpn:          [tools, {label:'VPN'}],
+    hosts:        [tools, {label:t('nav_remote_access2','Fjerntilgang')}],
+    terminal:     [tools, remote, {label:t('hdr_terminal','Terminal')}],
+    rdp:          [tools, remote, {label:'RDP'}],
+    ssh:          [tools, remote, {label:t('bc_ssh_keys','SSH-nøkler')}],
+    browser:      [tools, remote, {label:t('nettleser','Nettleser')}],
+    tailscale:    [tools, {label:'Tailscale'}],
+    pentest:      [tools, {label:t('pentest','Pentest')}],
+    provision:    [tools, {label:t('provisjonering','Provisjonering')}],
+    billing:      [tools, {label:t('nav_billing','Lisenser og hosting')}],
+    ai:           [tools, {label:t('sybrt','Sybrt')}],
     logs:         [{label:t('nav_admin','Administrasjon'),admin:'system'}, {label:t('bc_log','Log')}],
     'customer-detail': [{label:t('nav_customers'),view:'customers'}, {label:t('bc_customer_detail','Customer detail')}],
   };
@@ -1488,6 +1570,8 @@ function onViewShown(name, fn) {
 function showView(name) {
   // Integrasjoner was a page of its own; it is a pane of Administrasjon now.
   if (name === 'integrations') { openAdmin('integrations'); return; }
+  // TLS-monitor is a tab of Nettverk.
+  if (name === 'tls') { showNetworkTab('net-tls'); return; }
   // Leaving Administrasjon with unsaved edits asks first.
   if (currentView === 'admin' && name !== 'admin' && !adminMayLeave()) return;
   _cleanupViewTimers();
@@ -1495,34 +1579,14 @@ function showView(name) {
   var viewEl = document.getElementById('view-' + name);
   if (viewEl) { viewEl.classList.add('active'); viewEl.style.animation = 'view-fade-in 0.25s ease-out'; }
 
-  // Highlight correct nav button
-  // IA (frame 2a): Fjernaksess/Terminal/Nettleser/Workshop live under Verktøy;
-  // Tailscale + Provisjonering under Nettverk. _remoteViews kept (empty) so the
-  // branch below stays valid; hosts/terminal/rdp now highlight Verktøy.
-  var _remoteViews = {};
-  var _networkViews = {network:1, vpn:1, tls:1, tailscale:1, provision:1};
-  var _toolViews = {hosts:1, terminal:1, rdp:1, ssh:1, browser:1};
-  var _customerViews = {customers:1, home:1, audit:1, history:1, files:1, setup:1, 'customer-detail':1, 'history-report':1, 'policy-overview':1, 'policy-deploy':1, 'baseline-deploy':1, 'assessments':1};
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  if (_m365SubViews[name]) {
-    const nb = document.getElementById('nav-customers');
-    if (nb) nb.classList.add('active');
-  } else if (_remoteViews[name]) {
-    const nb = document.getElementById('nav-remote');
-    if (nb) nb.classList.add('active');
-  } else if (_networkViews[name]) {
-    const nb = document.getElementById('nav-network');
-    if (nb) nb.classList.add('active');
-  } else if (_toolViews[name]) {
-    const nb = document.getElementById('nav-tools');
-    if (nb) nb.classList.add('active');
-  } else if (_customerViews[name]) {
-    const nb = document.getElementById('nav-customers');
-    if (nb) nb.classList.add('active');
-  } else {
-    const nb = document.getElementById('nav-' + name);
-    if (nb) nb.classList.add('active');
-  }
+  // Light the top-bar item the view belongs to.
+  document.querySelectorAll('.nav-btn').forEach(function(b) {
+    b.classList.remove('active');
+    b.removeAttribute('aria-current');
+  });
+  var navBtn = document.getElementById('nav-' + (_NAV_GROUP[name] || ''));
+  if (navBtn) { navBtn.classList.add('active'); navBtn.setAttribute('aria-current', 'page'); }
+  closeToolsMenu();
   _syncBottomNav(name);
 
   // Show/hide M365 sub-tab bar
@@ -1536,10 +1600,6 @@ function showView(name) {
       b.style.color = isCurrent ? 'var(--blue)' : '';
     });
   }
-
-  // Close mobile nav when a view is selected
-  var nav = document.getElementById('main-nav');
-  if (nav) nav.classList.remove('open');
 
   currentView = name;
   _updateBreadcrumb(name);
@@ -1617,6 +1677,9 @@ async function applyRoute() {
         showView('overview');
         history.replaceState(null, '', '#/overview');
       }
+    } else if (view && view[1] === 'tls') {
+      // TLS-monitor was a page of its own; it is a tab of Nettverk now.
+      showNetworkTab('net-tls');
     } else if (view && document.getElementById('view-' + view[1])
         && (!_allowedViews.length || _allowedViews.indexOf(view[1]) !== -1)) {
       showView(view[1]);
@@ -1732,21 +1795,22 @@ function _clearStaleAuditBadge() {
   if (back) back.disabled = false;
 }
 
+// Opens Nettverk on one of its tabs: TLS-monitor is reached this way.
+function showNetworkTab(tabId) {
+  if (currentView !== 'network') showView('network');
+  var btn = document.querySelector('.net-sub-btn[data-tab="' + tabId + '"]');
+  if (btn) switchNetSub(btn, tabId);
+}
+
 function switchNetSub(btn, tabId) {
   document.querySelectorAll('.net-sub-content').forEach(function(c) { c.style.display = 'none'; });
-  document.querySelectorAll('.net-sub-btn').forEach(function(b) {
-    b.classList.remove('active');
-    b.style.borderBottom = 'none';
-    b.style.color = '';
-  });
+  document.querySelectorAll('.net-sub-btn').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById(tabId).style.display = 'block';
   btn.classList.add('active');
-  btn.style.borderBottom = '2px solid var(--blue)';
-  btn.style.color = 'var(--blue)';
 
   if (tabId === 'net-fortigates') dashLoadFortiGates();
   if (tabId === 'net-unifi') dashLoadUnifiAll();
-  if (tabId === 'net-pentest' && typeof loadPentestCapabilities === 'function') loadPentestCapabilities();
+  if (tabId === 'net-tls') tlsLoadView();
 }
 
 // ── Home: load status ──────────────────────────────────────────────────────────

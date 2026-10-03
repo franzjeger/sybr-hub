@@ -91,11 +91,18 @@ test('every main view opens through the navigation without a policy violation', 
   test.setTimeout(90000);
   const monitor = await watch(page);
   await login(page);
+  // Through the control that opens it where the markup has one (the top
+  // bar, Verktøy, a page's own links); the rest are reached from a customer
+  // or a dialog, and are opened the way those do.
   const views = ['overview', 'customers', 'home', 'audit', 'history', 'files', 'network',
-    'docs', 'logs', 'hosts', 'ssh', 'vpn', 'tailscale', 'tls', 'policy-overview', 'policy-deploy',
-    'baseline-deploy', 'assessments', 'provision', 'ai', 'browser', 'setup'];
+    'docs', 'logs', 'hosts', 'ssh', 'vpn', 'tailscale', 'pentest', 'billing', 'policy-overview',
+    'policy-deploy', 'baseline-deploy', 'assessments', 'provision', 'ai', 'browser', 'setup', 'admin'];
   for (const view of views) {
-    await openView(page, view);
+    const control = page.locator(`[data-click-handler="showView"][data-view="${view}"]`);
+    if (await control.count()) await activate(control);
+    else if (view === 'admin') await page.evaluate(() => openAdmin());
+    else await page.evaluate(v => showView(v), view);
+    await expect(page.locator('#view-' + view)).toHaveClass(/\bactive\b/);
     // Let the view's loaders render what they build. Some views poll, so the
     // network never goes idle; the spinners going away is the signal.
     await expect(page.locator('#view-' + view + ' .loader:visible')).toHaveCount(0, {timeout: 10000});
@@ -283,10 +290,11 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#view-ssh [data-click-handler="sshGenKey"]')).toBeVisible();
   });
 
-  test('TLS: checking with no endpoint says so', async () => {
-    await openView(page, 'tls');
+  test('TLS: a tab of Nettverk; checking with no endpoint says so', async () => {
+    await openView(page, 'network');
+    await page.locator('.net-sub-btn[data-tab="net-tls"]').click();
     await expect(page.locator('#tls-single-result')).toBeEmpty();
-    await page.locator('#view-tls [data-click-handler="tlsCheckSingle"]').click();
+    await page.locator('#net-tls [data-click-handler="tlsCheckSingle"]').click();
     await expect(page.locator('#tls-single-result')).not.toBeEmpty();
   });
 

@@ -29,16 +29,15 @@ def test_the_view_exists_and_something_dispatches_to_it():
     assert "policyDeployLoad()" in dispatcher, "the view is markup nothing opens"
 
 
-def test_the_menu_entry_is_hidden_from_read_only_accounts():
-    """It leads only to actions a read-only account cannot take."""
-    html = (STATIC / "index.html").read_text(encoding="utf-8")
+def test_the_entry_is_hidden_from_accounts_that_cannot_deploy():
+    """It leads only to actions that need the tenant grant, which the view
+    list only carries for an account that has it (app/core/features.py)."""
+    page = (STATIC / "app-customer-detail.js").read_text(encoding="utf-8")
 
-    entry = next(
-        line
-        for line in html.splitlines()
-        if 'data-click-handler="showView" data-view="policy-deploy"' in line
+    assert (
+        'canOpenView(\'policy-deploy\') ? \'<button class="cust-tab" id="cust-tab-policy-deploy"'
+        in page
     )
-    assert "data-write" in entry
 
 
 def test_apply_sends_the_reviewed_fingerprint_not_a_fresh_one():

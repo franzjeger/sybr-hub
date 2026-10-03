@@ -108,107 +108,51 @@
       <img id="header-logo-dark" class="logo-dark" src="/branding/sybr-logo-hvit.png" alt="SYBR" width="100" height="29">
       <img id="header-logo-light" class="logo-light" src="/branding/sybr-logo-blue.png" alt="SYBR" width="100" height="29">
     </div>
-    <button class="hamburger" id="hamburger-btn" data-click-handler="toggleMobileNav" data-i18n-aria-label="meny" aria-label="Meny">&#9776;</button>
-    <nav class="nav" id="main-nav">
+    <nav class="nav" id="main-nav" data-i18n-aria-label="hovedmeny" aria-label="Hovedmeny">
       <span id="readonly-badge" style="display:none;align-self:center;margin-right:10px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-dark,#1e3a4a);color:var(--blue,#4d9fb5);border:1px solid rgba(77,159,181,0.35);"></span>
-      <button data-view-gate="overview" class="nav-btn" id="nav-overview" data-click-handler="showView" data-view="overview" data-i18n="nav_dashboard" data-i18n-title="dashboard_ctrl" title="Dashboard (Ctrl+1)">Dashboard</button>
+      <button data-view-gate="overview" class="nav-btn" id="nav-overview" data-click-handler="showView" data-view="overview" data-i18n="nav_overview" data-i18n-title="tip_overview_ctrl" title="Oversikt (Ctrl+1)">Oversikt</button>
+      <button data-view-gate="customers" class="nav-btn" id="nav-customers" data-click-handler="showView" data-view="customers" data-i18n="nav_customers" data-i18n-title="kunder_ctrl" title="Kunder (Ctrl+2)">Kunder</button>
 
-      <div class="nav-dropdown">
-        <button data-view-gate="customers" class="nav-btn nav-caret" id="nav-customers" data-click-handler="showView" data-view="customers" data-i18n="nav_customers" data-i18n-title="kunder_ctrl" title="Kunder (Ctrl+3)">Kunder</button>
-        <div class="nav-dropdown-menu"><div class="navdd-panel">
-          <button data-view-gate="customers" class="navdd-item" data-click-handler="showView" data-view="customers">
-            <span class="navdd-ic">&#9638;</span>
-            <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_customer_overview">Kundeoversikt</span> <span class="navdd-kbd">Ctrl+3</span></span><span class="navdd-desc" data-i18n="nav_customer_overview_desc">Alle kunder med sikkerhetsscore, MFA og MRR</span></span>
-          </button>
-          <button data-view-gate="home" class="navdd-item" data-click-handler="showView" data-view="home">
-            <span class="navdd-ic"></span>
-            <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_m365_status">M365-status</span> <span class="navdd-kbd">Ctrl+2</span></span><span class="navdd-desc" data-i18n="nav_m365_status_desc">Status og filer for aktiv kunde</span></span>
-          </button>
-          <button data-view-gate="history" class="navdd-item" data-click-handler="showView" data-view="history">
-            <span class="navdd-ic">&#9636;</span>
-            <span class="navdd-txt"><span class="navdd-label"><span data-i18n="nav_audit_history">Audit-historikk</span> <span class="navdd-kbd">Ctrl+5</span></span><span class="navdd-desc" data-i18n="nav_audit_history_desc">Tidligere kj&#248;ringer og rapporter</span></span>
-          </button>
-          <button data-view-gate="assessments" class="navdd-item" data-click-handler="showView" data-view="assessments">
-            <span class="navdd-ic">&#9707;</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_assessments">Vurderingsbibliotek</span><span class="navdd-desc" data-i18n="nav_assessments_desc">Rammeverk kunden m&#229;les mot</span></span>
-          </button>
-          <button data-view-gate="policy-overview" class="navdd-item" data-click-handler="showView" data-view="policy-overview">
-            <span class="navdd-ic"></span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_policy_overview">Policy-oversikt</span><span class="navdd-desc" data-i18n="nav_policy_overview_desc">Hva kunden har, drift siden sist, og standardgap</span></span>
-          </button>
-          <button data-view-gate="policy-deploy" class="navdd-item" data-write="tenant" data-click-handler="showView" data-view="policy-deploy">
-            <span class="navdd-ic"></span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_policy_deploy">Policy-utrulling</span><span class="navdd-desc" data-i18n="nav_policy_deploy_desc">Rull ut Conditional Access-standarden</span></span>
-          </button>
-          <button data-view-gate="baseline-deploy" class="navdd-item" data-write="tenant" data-click-handler="showView" data-view="baseline-deploy">
-            <span class="navdd-ic"></span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_baseline_deploy">Intune og Entra</span><span class="navdd-desc" data-i18n="nav_baseline_deploy_desc">Granulær baseline-utrulling for Intune og Entra</span></span>
-          </button>
-          <button data-view-gate="setup" data-write class="navdd-item" data-click-handler="showView" data-view="setup">
-            <span class="navdd-ic">&#8853;</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_new_customer">Ny kunde</span><span class="navdd-desc" data-i18n="nav_new_customer_desc">Registrer og koble til integrasjoner</span></span>
-          </button>
-          <div class="navdd-sep"></div>
-          <button class="navdd-foot" data-click-handler="openLatestReport"><span class="navdd-ic">&#8599;</span><span data-i18n="nav_open_latest_report">&#197;pne siste rapport for aktiv kunde</span></button>
-        </div></div>
-      </div>
-
-      <div class="nav-dropdown">
-        <button data-view-gate="network" class="nav-btn nav-caret" id="nav-network" data-click-handler="showView" data-view="network" data-i18n="nav_network">Nettverk</button>
-        <div class="nav-dropdown-menu"><div class="navdd-panel">
+      <!-- Verktøy: what works across customers. The menu opens on hover and
+           on a click (touch, keyboard); an entry the account may not open is
+           gone, and Verktøy with it when nothing is left. -->
+      <div class="nav-dropdown" id="nav-tools-dd">
+        <button class="nav-btn nav-caret" id="nav-tools" data-click-handler="toggleToolsMenu" aria-haspopup="true" aria-expanded="false" aria-controls="nav-tools-menu" data-i18n="nav_tools">Verkt&#248;y</button>
+        <div class="nav-dropdown-menu" id="nav-tools-menu"><div class="navdd-panel">
           <button data-view-gate="network" class="navdd-item" data-click-handler="showView" data-view="network">
             <span class="navdd-ic">&#9635;</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_fortigate_unifi">FortiGate / UniFi</span><span class="navdd-desc" data-i18n="nav_fortigate_unifi_desc">Enheter, firmware og policy-audit</span></span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_network">Nettverk</span><span class="navdd-desc" data-i18n="nav_network_desc">FortiGate, UniFi, nettverksaudit og TLS</span></span>
           </button>
           <button data-view-gate="vpn" data-write class="navdd-item" data-click-handler="showView" data-view="vpn">
             <span class="navdd-ic">&#8644;</span>
             <span class="navdd-txt"><span class="navdd-label">VPN</span><span class="navdd-desc" data-i18n="nav_vpn_tunnels_desc">Tunneler mot kundenett: status og tilkobling</span></span>
           </button>
-          <button data-view-gate="tls" class="navdd-item" data-click-handler="showView" data-view="tls">
-            <span class="navdd-ic">&#10003;</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_tls_monitor">TLS-monitor</span><span class="navdd-desc" data-i18n="nav_tls_monitor_desc">Sertifikater som utl&#248;per</span></span>
+          <button data-view-gate="hosts" data-write class="navdd-item" data-click-handler="showView" data-view="hosts">
+            <span class="navdd-ic">&#8997;</span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_remote_access2">Fjerntilgang</span><span class="navdd-desc" data-i18n="nav_remote_access_desc2">Verter, terminal, RDP, nettleser og SSH-n&#248;kler</span></span>
           </button>
           <button data-view-gate="tailscale" data-write class="navdd-item" data-click-handler="showView" data-view="tailscale">
             <span class="navdd-ic">&#8734;</span>
             <span class="navdd-txt"><span class="navdd-label">Tailscale</span><span class="navdd-desc" data-i18n="nav_mesh_desc">Mesh-tilgang og noder</span></span>
           </button>
-          <button data-view-gate="provision" class="navdd-foot" data-write data-click-handler="showView" data-view="provision"><span class="navdd-ic"></span><span data-i18n="nav_provisioning_desc">Provisjonering av nytt kundenett</span></button>
+          <button data-view-gate="pentest" class="navdd-item" data-click-handler="showView" data-view="pentest">
+            <span class="navdd-ic">&#9678;</span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="pentest">Pentest</span><span class="navdd-desc" data-i18n="nav_pentest_desc">Skann en kundes eksterne flate</span></span>
+          </button>
+          <button data-view-gate="provision" data-write class="navdd-item" data-click-handler="showView" data-view="provision">
+            <span class="navdd-ic">&#8853;</span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="provisjonering">Provisjonering</span><span class="navdd-desc" data-i18n="nav_provisioning_desc">Provisjonering av nytt kundenett</span></span>
+          </button>
+          <button data-view-gate="billing" data-module="billing" class="navdd-item" data-click-handler="showView" data-view="billing">
+            <span class="navdd-ic">&#8362;</span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_billing">Lisenser og hosting</span><span class="navdd-desc" data-i18n="nav_billing_desc">Fornyelser, kostnader og domener</span></span>
+          </button>
+          <button data-view-gate="ai" data-write class="navdd-item" data-click-handler="showView" data-view="ai">
+            <span class="navdd-ic">&#10035;</span>
+            <span class="navdd-txt"><span class="navdd-label" data-i18n="sybrt">Sybrt</span><span class="navdd-desc" data-i18n="integ_claude_ai_desc">AI-assistent med verkt&#248;ytilgang</span></span>
+          </button>
         </div></div>
       </div>
-
-      <div class="nav-dropdown">
-        <button data-view-gate="docs" class="nav-btn nav-caret" id="nav-tools" data-click-handler="openToolsDefault" data-i18n="nav_tools">Verkt&#248;y</button>
-        <div class="nav-dropdown-menu"><div class="navdd-panel">
-          <button data-view-gate="hosts" data-write class="navdd-item" data-click-handler="showView" data-view="hosts">
-            <span class="navdd-ic">&#8997;</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_remote_access2">Fjerntilgang</span><span class="navdd-desc" data-i18n="nav_remote_access_desc">Hosts, RDP og WebRemote-lenker</span></span>
-          </button>
-          <button data-view-gate="ssh" data-write class="navdd-item" data-click-handler="showView" data-view="ssh">
-            <span class="navdd-ic" style="font-family:var(--mono);font-size:11px;">&gt;_</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_terminal_ssh">Terminal / SSH</span><span class="navdd-desc" data-i18n="nav_terminal_ssh_desc">&#216;kter og SSH-n&#248;kler</span></span>
-          </button>
-          <button data-view-gate="browser" data-write class="navdd-item" data-click-handler="showView" data-view="browser">
-            <span class="navdd-ic">&#9707;</span>
-            <span class="navdd-txt"><span class="navdd-label" data-i18n="nav_browser2">Nettleser</span><span class="navdd-desc" data-i18n="nav_browser_desc">Proxy mot kundens interne grensesnitt</span></span>
-          </button>
-          <div class="navdd-sep"></div>
-          <button data-view-gate="docs" class="navdd-foot" data-click-handler="showView" data-view="docs"><span class="navdd-ic">?</span><span data-i18n="nav_docs_desc">Dokumentasjon og endringslogg</span></button>
-        </div></div>
-      </div>
-
-      <!-- Hidden nav IDs so showView() active-highlighting keeps working for
-           child/moved views (Fjerntilgang, Workshop, VPN, etc.). -->
-      <button class="nav-btn" id="nav-remote" style="display:none;"></button>
-      <button class="nav-btn" id="nav-m365" style="display:none;"></button>
-      <button class="nav-btn" id="nav-home" style="display:none;"></button>
-      <button class="nav-btn" id="nav-history" style="display:none;"></button>
-      <button class="nav-btn" id="nav-hosts" style="display:none;"></button>
-      <button class="nav-btn" id="nav-ssh" style="display:none;"></button>
-      <button class="nav-btn" id="nav-vpn" style="display:none;"></button>
-      <button class="nav-btn" id="nav-terminal" style="display:none;"></button>
-      <button class="nav-btn" id="nav-provision" style="display:none;"></button>
-      <button class="nav-btn" id="nav-browser" style="display:none;"></button>
-      <button class="nav-btn" id="nav-customer-detail" style="display:none;"></button>
     </nav>
     <div class="header-right">
       <!-- Search field — opens the command palette (same as ⌘K). -->
@@ -218,11 +162,8 @@
         <span class="kbd-chip">&#8984;K</span>
       </button>
 
-      <!-- Sybrt assistant — a global tool, so an icon button rather than a nav slot. -->
-      <button data-view-gate="ai" data-write class="hdr-icon-btn" id="nav-ai" data-click-handler="showView" data-view="ai" data-i18n-title="sybrt" title="Sybrt" data-i18n-aria-label="sybrt_2" aria-label="Sybrt"><img src="/static/sybrt-mascot.png" data-i18n-alt="sybrt_3" alt="Sybrt"></button>
-
-      <!-- One status chip: server-live dot, with a VPN prefix when a tunnel is up.
-           Merges the old vpn-header-badge + conn-status pair. Polls /api/health. -->
+      <!-- The VPN chip: shown while a tunnel is up, and when the server
+           cannot be reached; quiet when everything is fine. Polls /api/health. -->
       <button data-view-gate="vpn" data-write class="status-chip" id="conn-status" data-click-handler="showView" data-view="vpn" data-i18n-title="live" title="Live" style="display:none;">
         <span class="dot" id="conn-status-dot"></span>
         <span id="vpn-chip-prefix" style="display:none;">VPN&#160;&#183;&#160;</span>
@@ -309,9 +250,6 @@
       <div class="dash-tabs">
         <button class="dash-tab-btn active" data-click-handler="switchDashTab" data-tab="dash-customers"><span data-i18n="dash_tab_customers">Kunder</span></button>
         <button class="dash-tab-btn" data-click-handler="switchDashTab" data-tab="dash-alerts"><span data-i18n="dash_tab_alerts">Varsler</span><span id="dash-badge-alerts" class="tab-badge tab-badge-red" style="display:none;"></span></button>
-        <button class="dash-tab-btn" data-module="billing" data-click-handler="switchDashTab" data-tab="dash-renewals"><span data-i18n="dash_tab_renewals">Fornyelser</span><span id="dash-badge-renewals" class="tab-badge" style="display:none;"></span></button>
-        <button class="dash-tab-btn" data-module="billing" data-click-handler="switchDashTab" data-tab="dash-costs"><span data-i18n="dash_tab_costs">Kostnader</span></button>
-        <button class="dash-tab-btn" data-module="billing" data-click-handler="switchDashTab" data-tab="dash-domains"><span data-i18n="dash_tab_domains">Domener</span></button>
         <div style="flex:1;"></div>
         <span class="dash-updated" id="dash-updated-wrap" style="display:none;"><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
         <div class="nav-dropdown">
@@ -337,19 +275,8 @@
           </div>
         </div>
       </div>
-      <div id="dash-renewals" class="dash-tab-content" style="display:none;">
-        <div id="dash-renewals-content">
-          <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_click_load_renewals">Klikk for å laste fornyelsesdata</div>
-        </div>
-      </div>
       <div id="dash-alerts" class="dash-tab-content" style="display:none;">
         <div id="dash-alerts-content"></div>
-      </div>
-      <div id="dash-costs" class="dash-tab-content" style="display:none;">
-        <div id="dash-costs-content"></div>
-      </div>
-      <div id="dash-domains" class="dash-tab-content" style="display:none;">
-        <div id="dash-domains-content"></div>
       </div>
     </div>
 
@@ -596,12 +523,13 @@
 
     <!-- ════════════ NETWORK VIEW ════════════ -->
     <div class="view" id="view-network">
-      <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);">
-        <button class="btn btn-ghost net-sub-btn active" data-sub="net-devices" data-click-handler="switchNetSub" data-tab="net-devices" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;border-bottom:2px solid var(--blue);" data-i18n="net_tab_devices">Oversikt</button>
-        <button class="btn btn-ghost net-sub-btn" data-sub="net-fortigates" data-click-handler="switchNetSub" data-tab="net-fortigates" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_fortigate">FortiGate</button>
-        <button class="btn btn-ghost net-sub-btn" data-sub="net-unifi" data-click-handler="switchNetSub" data-tab="net-unifi" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_unifi">UniFi</button>
-        <button class="btn btn-ghost net-sub-btn" data-sub="net-audit" data-click-handler="switchNetSub" data-tab="net-audit" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="net_tab_audit">Audit</button>
-        <button class="btn btn-ghost net-sub-btn" data-module="pentest" data-sub="net-pentest" data-click-handler="switchNetSub" data-tab="net-pentest" style="padding:8px 16px;font-size:13px;border-radius:6px 6px 0 0;" data-i18n="pentest">Pentest</button>
+      <h1 class="page-title" data-i18n="nav_network">Nettverk</h1>
+      <div class="dash-tabs" role="tablist">
+        <button class="dash-tab-btn net-sub-btn active" data-sub="net-devices" data-click-handler="switchNetSub" data-tab="net-devices" data-i18n="net_tab_devices">Enheter</button>
+        <button class="dash-tab-btn net-sub-btn" data-sub="net-fortigates" data-click-handler="switchNetSub" data-tab="net-fortigates" data-i18n="net_tab_fortigate">FortiGate</button>
+        <button class="dash-tab-btn net-sub-btn" data-sub="net-unifi" data-click-handler="switchNetSub" data-tab="net-unifi" data-i18n="net_tab_unifi">UniFi</button>
+        <button class="dash-tab-btn net-sub-btn" data-sub="net-audit" data-click-handler="switchNetSub" data-tab="net-audit" data-i18n="net_tab_audit">Audit</button>
+        <button class="dash-tab-btn net-sub-btn" data-sub="net-tls" data-click-handler="switchNetSub" data-tab="net-tls">TLS</button>
       </div>
 
       <div id="net-devices" class="net-sub-content">
@@ -679,87 +607,10 @@
         </div>
       </div>
 
-      <div id="net-pentest" class="net-sub-content" style="display:none;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <div style="font-size:16px;font-weight:600;"><span class="ic" style="width:16px;height:16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span> <span data-i18n="pentest_2">Pentest</span></div>
-          <span style="font-size:11px;color:var(--text-muted);" data-i18n="pentest_subtitle"></span>
+      <div id="net-tls" class="net-sub-content" style="display:none;">
+        <div id="tls-content">
+          <div class="loading-note" data-i18n="msg_tls_loading">Laster...</div>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;" data-i18n="pentest_intro"></div>
-
-        <!-- Target input -->
-        <div class="card" style="margin-bottom:12px;">
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-            <div style="flex:1;min-width:240px;">
-              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_target_label"></label>
-              <input id="pentest-target" type="text" data-i18n-placeholder="pentest_target_placeholder" placeholder="" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_scan_type_label"></label>
-              <select id="pentest-type" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
-                <option value="full" data-i18n="pentest_scan_type_full"></option>
-                <option value="port" data-i18n="pentest_scan_type_port"></option>
-                <option value="web" data-i18n="pentest_scan_type_web"></option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_port_mode_label"></label>
-              <select id="pentest-scan-mode" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
-                <option value="fast" data-i18n="pentest_port_mode_fast"></option>
-                <option value="full" data-i18n="pentest_port_mode_full"></option>
-                <!-- Default-disabled: a SYN/FIN stealth scan needs CAP_NET_RAW.
-                     loadPentestCapabilities() enables it only when the process
-                     affirmatively reports the capability (SR-006, fail closed). -->
-                <option value="stealth" disabled data-i18n="pentest_port_mode_stealth"></option>
-              </select>
-            </div>
-            <button class="btn btn-primary" data-click-handler="runPentest" style="padding:8px 20px;font-size:13px;" data-i18n="pentest_btn_run" data-i18n-title="pentest_btn_run_tip"></button>
-          </div>
-          <!-- Filled by loadPentestCapabilities() when raw-socket scans (SYN/stealth)
-               are unavailable — the process runs unprivileged (SR-006). Classes,
-               not inline styles, per tests/test_frontend_csp_budget.py. -->
-          <div id="pentest-capability-warning" class="pentest-capability-warning"></div>
-        </div>
-
-        <!-- Phase 1: Recon -->
-        <div class="card" style="margin-bottom:10px;border-left:3px solid #4a90e2;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="font-size:13px;font-weight:600;color:#4a90e2;" data-i18n="pentest_phase1_title"></span>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase1_desc"></div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button data-write class="btn btn-ghost" data-click-handler="runDnsPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_dns" data-i18n-title="pentest_btn_dns_tip"></button>
-            <button class="btn btn-ghost" data-click-handler="runPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_port" data-i18n-title="pentest_btn_port_tip"></button>
-          </div>
-        </div>
-
-        <!-- Phase 2: Service tests -->
-        <div class="card" style="margin-bottom:10px;border-left:3px solid #f5a623;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="font-size:13px;font-weight:600;color:#f5a623;" data-i18n="pentest_phase2_title"></span>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase2_desc"></div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-ghost" data-click-handler="runPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_web" data-i18n-title="pentest_btn_web_tip"></button>
-            <button data-write class="btn btn-ghost" data-click-handler="runTlsAudit" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_tls" data-i18n-title="pentest_btn_tls_tip"></button>
-            <button data-write class="btn btn-ghost" data-click-handler="runCmsScan" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_cms" data-i18n-title="pentest_btn_cms_tip"></button>
-            <button data-write class="btn btn-ghost" data-click-handler="runSmbEnum" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_smb" data-i18n-title="pentest_btn_smb_tip"></button>
-            <button data-write class="btn btn-ghost" data-click-handler="runCredentialTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_creds" data-i18n-title="pentest_btn_creds_tip"></button>
-          </div>
-        </div>
-
-        <!-- Phase 3: Post-recon / exploitation -->
-        <div class="card" style="margin-bottom:16px;border-left:3px solid #d0021b;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="font-size:13px;font-weight:600;color:#d0021b;" data-i18n="pentest_phase3_title"></span>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase3_desc"></div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button data-write class="btn btn-ghost" data-click-handler="runTakeoverCheck" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_takeover" data-i18n-title="pentest_btn_takeover_tip"></button>
-            <button data-write class="btn btn-ghost" data-click-handler="runSegTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_seg" data-i18n-title="pentest_btn_seg_tip"></button>
-          </div>
-        </div>
-
-        <div id="pentest-results" style="font-size:13px;color:var(--text-muted);text-align:center;padding:24px;" data-i18n="pentest_empty_state"></div>
       </div>
     </div>
 
@@ -1917,9 +1768,14 @@
   <div class="view" id="view-hosts">
     <!-- No sub-tabs — SSH/RDP/Terminal accessed from host cards -->
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-      <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_hosts">Verter</h2>
+      <h1 class="page-title page-title-inline" data-i18n="nav_remote_access2">Fjerntilgang</h1>
       <button class="btn btn-primary" data-click-handler="hostsAdd" style="padding:6px 16px;font-size:13px;" data-i18n="btn_add_host">Legg til vert</button>
       <button class="btn btn-ghost" data-click-handler="hostsHealthAll" style="padding:6px 16px;font-size:13px;" data-i18n="btn_check_all">Sjekk alle</button>
+      <span class="hosts-tools">
+        <button data-view-gate="terminal" class="btn btn-ghost btn-sm" data-click-handler="showView" data-view="terminal" data-i18n="hdr_terminal">Terminal</button>
+        <button data-view-gate="browser" class="btn btn-ghost btn-sm" data-click-handler="showView" data-view="browser" data-i18n="nettleser">Nettleser</button>
+        <button data-view-gate="ssh" class="btn btn-ghost btn-sm" data-click-handler="showView" data-view="ssh" data-i18n="hdr_ssh_keys">SSH-n&#248;kler</button>
+      </span>
       <select id="hosts-filter-type" data-change-handler="hostsLoad" style="margin-left:auto;max-width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <option value="" data-i18n="opt_all_types">Alle typer</option>
         <option value="windows">Windows</option>
@@ -2047,15 +1903,6 @@
     </div>
   </div>
 
-  <div class="view" id="view-tls">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-      <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_tls_monitor">TLS / Sertifikatmonitor</h2>
-    </div>
-    <div id="tls-content">
-      <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_tls_loading">Laster...</div>
-    </div>
-  </div>
-
   <!-- ════════════ WEB PROXY / NETTLESER VIEW ════════════ -->
   <div class="view" id="view-browser">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
@@ -2114,6 +1961,114 @@
     </div>
   </div>
 
+  <!-- ════════════ PENTEST VIEW ════════════ -->
+  <div class="view" id="view-pentest">
+        <div class="page-head">
+          <h1 class="page-title" data-i18n="pentest_2">Pentest</h1>
+          <span class="page-subtitle" data-i18n="pentest_subtitle"></span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;" data-i18n="pentest_intro"></div>
+
+        <!-- Target input -->
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:240px;">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_target_label"></label>
+              <input id="pentest-target" type="text" data-i18n-placeholder="pentest_target_placeholder" placeholder="" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_scan_type_label"></label>
+              <select id="pentest-type" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+                <option value="full" data-i18n="pentest_scan_type_full"></option>
+                <option value="port" data-i18n="pentest_scan_type_port"></option>
+                <option value="web" data-i18n="pentest_scan_type_web"></option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="pentest_port_mode_label"></label>
+              <select id="pentest-scan-mode" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+                <option value="fast" data-i18n="pentest_port_mode_fast"></option>
+                <option value="full" data-i18n="pentest_port_mode_full"></option>
+                <!-- Default-disabled: a SYN/FIN stealth scan needs CAP_NET_RAW.
+                     loadPentestCapabilities() enables it only when the process
+                     affirmatively reports the capability (SR-006, fail closed). -->
+                <option value="stealth" disabled data-i18n="pentest_port_mode_stealth"></option>
+              </select>
+            </div>
+            <button class="btn btn-primary" data-click-handler="runPentest" style="padding:8px 20px;font-size:13px;" data-i18n="pentest_btn_run" data-i18n-title="pentest_btn_run_tip"></button>
+          </div>
+          <!-- Filled by loadPentestCapabilities() when raw-socket scans (SYN/stealth)
+               are unavailable — the process runs unprivileged (SR-006). Classes,
+               not inline styles, per tests/test_frontend_csp_budget.py. -->
+          <div id="pentest-capability-warning" class="pentest-capability-warning"></div>
+        </div>
+
+        <!-- Phase 1: Recon -->
+        <div class="card" style="margin-bottom:10px;border-left:3px solid #4a90e2;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:#4a90e2;" data-i18n="pentest_phase1_title"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase1_desc"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button data-write class="btn btn-ghost" data-click-handler="runDnsPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_dns" data-i18n-title="pentest_btn_dns_tip"></button>
+            <button class="btn btn-ghost" data-click-handler="runPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_port" data-i18n-title="pentest_btn_port_tip"></button>
+          </div>
+        </div>
+
+        <!-- Phase 2: Service tests -->
+        <div class="card" style="margin-bottom:10px;border-left:3px solid #f5a623;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:#f5a623;" data-i18n="pentest_phase2_title"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase2_desc"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-ghost" data-click-handler="runPentest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_web" data-i18n-title="pentest_btn_web_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runTlsAudit" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_tls" data-i18n-title="pentest_btn_tls_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runCmsScan" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_cms" data-i18n-title="pentest_btn_cms_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runSmbEnum" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_smb" data-i18n-title="pentest_btn_smb_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runCredentialTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_creds" data-i18n-title="pentest_btn_creds_tip"></button>
+          </div>
+        </div>
+
+        <!-- Phase 3: Post-recon / exploitation -->
+        <div class="card" style="margin-bottom:16px;border-left:3px solid #d0021b;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:13px;font-weight:600;color:#d0021b;" data-i18n="pentest_phase3_title"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;" data-i18n="pentest_phase3_desc"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button data-write class="btn btn-ghost" data-click-handler="runTakeoverCheck" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_takeover" data-i18n-title="pentest_btn_takeover_tip"></button>
+            <button data-write class="btn btn-ghost" data-click-handler="runSegTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_seg" data-i18n-title="pentest_btn_seg_tip"></button>
+          </div>
+        </div>
+
+        <div id="pentest-results" style="font-size:13px;color:var(--text-muted);text-align:center;padding:24px;" data-i18n="pentest_empty_state"></div>
+  </div>
+
+  <!-- ════════════ LISENSER OG HOSTING (billing module) ════════════ -->
+  <div class="view" id="view-billing" data-module="billing">
+    <div class="page-head">
+      <h1 class="page-title" data-i18n="nav_billing">Lisenser og hosting</h1>
+      <button class="btn btn-ghost btn-sm" id="billing-export" data-click-handler="billingExportCurrentTab" data-i18n="btn_export_csv" hidden>Eksporter CSV</button>
+    </div>
+    <div class="dash-tabs" role="tablist">
+      <button class="dash-tab-btn billing-tab-btn active" role="tab" data-click-handler="switchBillingTab" data-tab="dash-renewals"><span data-i18n="dash_tab_renewals">Fornyelser</span><span id="dash-badge-renewals" class="tab-badge" style="display:none;"></span></button>
+      <button class="dash-tab-btn billing-tab-btn" role="tab" data-click-handler="switchBillingTab" data-tab="dash-costs"><span data-i18n="dash_tab_costs">Kostnader</span></button>
+      <button class="dash-tab-btn billing-tab-btn" role="tab" data-click-handler="switchBillingTab" data-tab="dash-domains"><span data-i18n="dash_tab_domains">Domener</span></button>
+    </div>
+      <div id="dash-renewals" class="billing-tab-content">
+        <div id="dash-renewals-content">
+          <div style="color:var(--text-muted);text-align:center;padding:48px;" data-i18n="msg_click_load_renewals">Klikk for å laste fornyelsesdata</div>
+        </div>
+      </div>
+      <div id="dash-costs" class="billing-tab-content" hidden>
+        <div id="dash-costs-content"></div>
+      </div>
+      <div id="dash-domains" class="billing-tab-content" hidden>
+        <div id="dash-domains-content"></div>
+      </div>
+  </div>
+
   <!-- ════════════ PROVISIONING WIZARD VIEW ════════════ -->
   <div class="view" id="view-provision">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_network_provisioning">Nettverksprovisjonering</h2>
@@ -2130,11 +2085,11 @@
 
   </main>
 
-  <!-- ── Mobile bottom tab bar (frame 4a) — replaces the hamburger drawer on phones ── -->
+  <!-- ── Mobile bottom tab bar: replaces the top bar on phones ── -->
   <nav class="bottom-nav" id="bottom-nav" data-i18n-aria-label="hovedmeny" aria-label="Hovedmeny">
     <button data-view-gate="overview" class="bnav-item active" data-bnav="dashboard" data-click-handler="showView" data-view="overview">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
-      <span data-i18n="nav_dashboard">Dashboard</span>
+      <span data-i18n="nav_overview">Oversikt</span>
     </button>
     <button data-view-gate="customers" class="bnav-item" data-bnav="customers" data-click-handler="showView" data-view="customers">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -2161,19 +2116,18 @@
       <div class="more-handle"></div>
       <div class="more-title" data-i18n="mer_2">Mer</div>
       <div class="more-group-title" data-i18n="nav_tools">Verkt&#248;y</div>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="hosts"><span class="more-ic">&#8997;</span><span data-i18n="fjernaksess">Fjerntilgang</span></button>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="ssh"><span class="more-ic" style="font-family:var(--mono);font-size:12px;">&gt;_</span><span data-i18n="terminal_ssh">Terminal / SSH</span></button>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="browser"><span class="more-ic">&#9707;</span><span data-i18n="nettleser_2">Nettleser</span></button>
-      <div class="more-group-title" data-i18n="nav_network">Nettverk</div>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="vpn"><span class="more-ic">&#8644;</span><span>VPN</span><span class="more-meta" id="more-vpn-meta"></span></button>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="tls"><span class="more-ic">&#10003;</span><span data-i18n="tls_monitor">TLS-monitor</span></button>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="tailscale"><span class="more-ic">&#8734;</span><span>Tailscale</span></button>
-      <button class="more-row" data-click-handler="moreSheetShowView" data-view="provision"><span class="more-ic"></span><span data-i18n="provisjonering">Provisjonering</span></button>
+      <button class="more-row" data-view-gate="network" data-click-handler="moreSheetShowView" data-view="network"><span class="more-ic">&#9635;</span><span data-i18n="nav_network">Nettverk</span></button>
+      <button class="more-row" data-view-gate="vpn" data-write data-click-handler="moreSheetShowView" data-view="vpn"><span class="more-ic">&#8644;</span><span>VPN</span><span class="more-meta" id="more-vpn-meta"></span></button>
+      <button class="more-row" data-view-gate="hosts" data-write data-click-handler="moreSheetShowView" data-view="hosts"><span class="more-ic">&#8997;</span><span data-i18n="nav_remote_access2">Fjerntilgang</span></button>
+      <button class="more-row" data-view-gate="tailscale" data-write data-click-handler="moreSheetShowView" data-view="tailscale"><span class="more-ic">&#8734;</span><span>Tailscale</span></button>
+      <button class="more-row" data-view-gate="pentest" data-click-handler="moreSheetShowView" data-view="pentest"><span class="more-ic">&#9678;</span><span data-i18n="pentest">Pentest</span></button>
+      <button class="more-row" data-view-gate="provision" data-write data-click-handler="moreSheetShowView" data-view="provision"><span class="more-ic">&#8853;</span><span data-i18n="provisjonering">Provisjonering</span></button>
+      <button class="more-row" data-view-gate="billing" data-module="billing" data-click-handler="moreSheetShowView" data-view="billing"><span class="more-ic">&#8362;</span><span data-i18n="nav_billing">Lisenser og hosting</span></button>
+      <button class="more-row" data-view-gate="ai" data-write data-click-handler="moreSheetShowView" data-view="ai"><span class="more-ic">&#10035;</span><span data-i18n="sybrt">Sybrt</span></button>
       <div class="more-group-title" data-i18n="nav_customers">Kunder</div>
       <button class="more-row" data-click-handler="moreSheetShowView" data-view="home"><span class="more-ic"></span><span data-i18n="m_status">M365-status</span></button>
       <button class="more-row" data-click-handler="moreSheetShowView" data-view="history"><span class="more-ic">&#9636;</span><span data-i18n="audit_historikk">Audit-historikk</span></button>
       <div class="more-group-title" data-i18n="konto">Konto</div>
-      <button class="more-row" data-view-gate="ai" data-click-handler="moreSheetShowView" data-view="ai"><span class="more-ic">&#10035;</span><span data-i18n="sybrt_assistent">Sybrt-assistent</span></button>
       <button class="more-row" data-admin-only data-view-gate="admin" data-click-handler="moreSheetOpenAdmin"><span class="more-ic"></span><span data-i18n="nav_admin">Administrasjon</span></button>
       <button class="more-row" data-click-handler="moreSheetOpenAccount"><span class="more-ic"></span><span data-i18n="konto">Konto</span></button>
       <button class="more-row" data-click-handler="toggleTheme"><span class="more-ic">&#9680;</span><span data-i18n="bytt_tema_3">Bytt tema</span></button>
@@ -2323,11 +2277,8 @@
     <div class="modal-desc" data-i18n="shortcuts_desc">Hurtigtaster for vanlige handlinger.</div>
     <div class="shortcuts-section" data-i18n="nav_navigation">Navigasjon</div>
     <ul class="shortcuts-list">
-      <li><span class="shortcut-desc" data-i18n="shortcut_dashboard">Dashboard</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>1</kbd></span></li>
-      <li><span class="shortcut-desc" data-i18n="shortcut_home">Hjem</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>2</kbd></span></li>
-      <li><span class="shortcut-desc" data-i18n="shortcut_customers">Kunder</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>3</kbd></span></li>
-      <li><span class="shortcut-desc" data-i18n="shortcut_files">Filer</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>4</kbd></span></li>
-      <li><span class="shortcut-desc" data-i18n="shortcut_history">Historikk</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>5</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="nav_overview">Oversikt</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>1</kbd></span></li>
+      <li><span class="shortcut-desc" data-i18n="shortcut_customers">Kunder</span><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>2</kbd></span></li>
     </ul>
     <div class="shortcuts-section" data-i18n="nav_actions">Handlinger</div>
     <ul class="shortcuts-list">

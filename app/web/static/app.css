@@ -292,7 +292,8 @@
     animation: dropdown-in var(--duration-fast) var(--ease-out);
   }
   @keyframes dropdown-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-  .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+  .nav-dropdown:hover .nav-dropdown-menu, .nav-dropdown.open .nav-dropdown-menu { display: block; }
+  .nav-dropdown.is-resting:hover .nav-dropdown-menu { display: none; }
   .nav-dropdown-menu-inner button {
     display: flex;
     align-items: center;
@@ -611,16 +612,15 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     REDESIGN 4a — mobile: a 5-item bottom tab bar replaces the hamburger
-     drawer, «Mer» opens a bottom sheet, the customer table becomes cards.
+     REDESIGN 4a — mobile: a 5-item bottom tab bar replaces the top bar,
+     «Mer» opens a bottom sheet, the customer table becomes cards.
      Base state hides the bottom-nav bits on desktop; the media query below
      switches them on for phones.
      ══════════════════════════════════════════════════════════════════════ */
   .bottom-nav, .more-backdrop { display: none; }
 
   @media (max-width: 767px) {
-    /* Retire the hamburger drawer + the 200px header search on phones. */
-    .hamburger { display: none !important; }
+    /* The bottom bar replaces the top bar's items and search on phones. */
     #main-nav { display: none !important; }
     .header-right .hdr-search { display: none; }
 
@@ -1310,7 +1310,7 @@
   }
 
   @media print {
-    header, footer, .hamburger, .header-right, #active-customer-bar,
+    header, footer, .header-right, #active-customer-bar,
     #breadcrumb, .btn, .nav, .modal-backdrop, #cmd-palette,
     #report-viewer-modal, #toast-container, #confirm-modal,
     .row-actions-wrap, .customer-bulk-cb { display: none !important; }
@@ -1473,23 +1473,7 @@
   /* ── Responsive table wrapper ── */
   .table-wrap { overflow-x: auto; }
 
-  /* ── Hamburger menu button (hidden on desktop) ── */
-  .hamburger {
-    display: none;
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 2px 6px;
-    font-size: 28px;
-    line-height: 1;
-    transition: color 0.15s, border-color 0.15s;
-    flex-shrink: 0;
-  }
-  .hamburger:hover { color: var(--text); border-color: var(--blue); }
-
-  /* ── Responsive: Collapse nav to hamburger when it won't fit ── */
+  /* ── Responsive: tighter chrome below 1100 px ── */
   @media (max-width: 1100px) {
     /* Pick up real device insets once we're in the mobile layout. */
     :root {
@@ -1526,37 +1510,9 @@
     }
     /* Bottom-sheet modal sits above the home-indicator */
     .modal-backdrop.open .modal { padding-bottom: calc(20px + var(--safe-bottom)); }
-    /* Hamburger visible */
-    .hamburger { display: inline-flex; }
-
-    /* Nav collapses */
-    .nav {
-      display: none;
-      position: absolute;
-      top: 52px;
-      left: 0;
-      right: 0;
-      flex-direction: column;
-      background: var(--bg-card);
-      border-bottom: 2px solid var(--border);
-      padding: 8px 0;
-      z-index: 90;
-      gap: 0;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-    }
-    .nav.open { display: flex; }
-    .nav-btn {
-      padding: 10px 24px;
-      border-radius: 0;
-      text-align: left;
-      font-size: 14px;
-    }
-    .nav-btn.active { border-bottom: none; border-left: 3px solid var(--blue); border-radius: 0; }
-
-    /* Dropdowns: inline in collapsed nav instead of absolute overlay */
-    .nav-dropdown-menu { position: static; padding-top: 0; }
-    .nav-dropdown-menu-inner { box-shadow: none; border: none; border-radius: 0; padding: 0; background: transparent; }
-    .nav-dropdown-menu-inner button { padding-left: 40px; font-size: 13px; }
+    /* Three items fit at any width the top bar is shown at, so it never
+       collapses into a drawer; below 768 px the bottom bar takes over. */
+    .nav-btn { padding: 8px 10px; }
 
     header {
       position: relative;
@@ -2944,3 +2900,9 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .empty-signpost { text-align: center; padding: var(--space-10) var(--space-4); color: var(--text-muted); font-size: var(--font-sm); }
 .empty-signpost p { margin: 0 0 var(--space-3); }
 .crumb-link { color: var(--text-muted); text-decoration: none; }
+.page-subtitle { font-size: var(--font-xs); color: var(--text-muted); }
+.page-title-inline { margin: 0; }
+.hosts-tools { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+.loading-note { color: var(--text-muted); text-align: center; padding: var(--space-12) 0; font-size: var(--font-sm); }
+/* hidden means hidden, whatever display a class gives the element. */
+[hidden] { display: none !important; }
