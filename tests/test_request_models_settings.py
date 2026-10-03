@@ -12,6 +12,7 @@ from tests.request_body_fixtures import (  # autouse fixtures apply to this modu
     _reset_middleware_state,
     admin_client,
     assert_refused,
+    tech_client,
 )
 
 # ── POST /api/settings ───────────────────────────────────────────────────────
@@ -281,3 +282,36 @@ async def test_saving_the_webhook_card_leaves_the_schedule_on(admin_client):
     block = _stored()["scheduler"]
     assert block["enabled"] is True and block["interval_hours"] == 24
     assert block["webhook_url"] == "https://hooks.example.no/x"
+
+
+# ── GET /api/settings: the server's paths are for the admin ──────────────────
+
+_PATH_KEYS = {
+    "audit_dir",
+    "audit_dir_default",
+    "audit_dir_custom",
+    "cert_dir",
+    "cert_dir_default",
+    "cert_dir_custom",
+}
+
+
+async def test_a_technician_is_not_sent_the_servers_paths(tech_client):
+    """The interface shows the storage folders to admins only; the server sent them to all.
+
+    A technician's settings screen reads the rest of the response as before:
+    language, branding and the integration cards it is shown.
+    """
+    r = tech_client.get("/api/settings")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert not _PATH_KEYS & set(body), sorted(_PATH_KEYS & set(body))
+    assert "branding" in body and "itglue_region" in body
+
+
+async def test_an_admin_is_sent_the_paths_they_choose(admin_client):
+    body = admin_client.get("/api/settings").json()
+
+    assert set(body) >= _PATH_KEYS
+    assert body["audit_dir"]
