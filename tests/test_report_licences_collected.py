@@ -1,7 +1,7 @@
-"""Licences, from the file the Licenses collector writes.
+"""Licences and their use, from the files the Licenses and Usage collectors write.
 
-The collector writes a fixed-width table for a person and a JSON sidecar for
-the report. The report reads the sidecar and falls back to
+Both collectors write a fixed-width or "Key: value" text for a person and a
+JSON sidecar for the report. The report reads the sidecar and falls back to
 the text for runs recorded before it existed, so both must give the same
 answer wherever the text is precise enough to carry it. Where it is not (the
 table prints utilisation as a whole percent) the sidecar is what is right.
@@ -12,10 +12,11 @@ from __future__ import annotations
 import pytest
 
 from app.modules.m365_audit.sections.licenses import LicensesSection
+from app.modules.m365_audit.sections.usage_reports import UsageReportsSection
 from app.reports.parsers import _parse_licenses
 from app.web.routes.also import _licence_sidecar
-from tests.collector_rig import FakeGraph, read_output, refused, run_sections
-from tests.report_from_run import report
+from tests.collector_rig import CsvReport, FakeGraph, read_output, refused, run_sections
+from tests.report_from_run import relabel, report
 
 
 def _sku(part: str, used: int, total: int) -> dict:
@@ -100,3 +101,82 @@ async def test_a_refused_licence_read_writes_nothing_to_misread(tmp_path):
 
     assert "02_licenses.json" not in files
     assert report(tmp_path)["licenses"] == [], "no inventory, as before: not an empty one"
+
+
+# ── Usage ────────────────────────────────────────────────────────────────────
+
+_USAGE = "reports/getOffice365ActiveUserDetail(period='D90')"
+
+
+def _usage_row(upn: str, *, last: str = "", products: str = "", deleted: bool = False) -> dict:
+    return {
+        "User Principal Name": upn,
+        "Is Deleted": "True" if deleted else "False",
+        "Exchange Last Activity Date": last,
+        "OneDrive Last Activity Date": "",
+        "SharePoint Last Activity Date": "",
+        "Teams Last Activity Date": "",
+        "Assigned Products": products,
+    }
+
+
+USAGE_ROWS = [
+    _usage_row("kari@acme.example", last="2026-09-30", products="MICROSOFT 365 E3"),
+    _usage_row("ola@acme.example", products="MICROSOFT 365 E3+MICROSOFT TEAMS"),  # licensed, idle
+    _usage_row("per@acme.example"),  # unlicensed, idle
+    _usage_row("sluttet@acme.example", last="2026-07-01", deleted=True),
+]
+
+
+async def _usage(tmp_path, routes: dict) -> dict[str, str]:
+    async with FakeGraph(routes) as fake:
+        return await run_sections(UsageReportsSection(tmp_path, fake.client))
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_usage_summary_survives_the_round_trip(tmp_path, sidecars):
+    files = await _usage(tmp_path, {_USAGE: CsvReport(USAGE_ROWS)})
+    assert "16_usage_summary.json" in files
+
+    usage = report(tmp_path, sidecars=sidecars)["usage"]
+
+    assert usage["has_data"] is True
+    assert usage["total"] == 4
+    assert usage["active"] == 1
+    assert usage["no_activity"] == 2
+    assert usage["licensed_idle"] == 1, "Ola: licensed, nothing in 90 days"
+    assert usage["period_days"] == 90
+    assert usage["concealed"] is False
+    assert usage["unavailable"] is False
+
+
+async def test_the_usage_figures_do_not_hang_on_the_summary_labels(tmp_path):
+    """The point of the sidecar: the text can change its layout freely."""
+    await _usage(tmp_path, {_USAGE: CsvReport(USAGE_ROWS)})
+    relabel(tmp_path / "16_usage_summary.txt")
+
+    usage = report(tmp_path)["usage"]
+    assert (usage["total"], usage["licensed_idle"]) == (4, 1)
+
+    assert report(tmp_path, sidecars=False)["usage"]["has_data"] is False, (
+        "the relabelled text alone no longer parses"
+    )
+
+
+async def test_concealed_names_reach_the_report_either_way(tmp_path):
+    rows = [_usage_row("8F1C2A9D0B7E", last="2026-09-30"), _usage_row("0A1B2C3D4E5F")]
+    await _usage(tmp_path, {_USAGE: CsvReport(rows)})
+
+    from_json = report(tmp_path)["usage"]
+    assert from_json["concealed"] is True
+    assert from_json == report(tmp_path, sidecars=False)["usage"]
+
+
+async def test_a_refused_usage_report_writes_no_sidecar(tmp_path):
+    files = await _usage(tmp_path, {_USAGE: refused()})
+
+    assert "16_usage_summary.json" not in files
+    usage = report(tmp_path)["usage"]
+    assert usage["has_data"] is False
+    assert usage["unavailable"] is True, "the refusal is explained, as before"
+    assert "Reports.Read.All" in usage["unavailable_reason"]

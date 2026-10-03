@@ -462,13 +462,21 @@ def _analyze_license_optimization(
     }
 
 
-def _parse_usage(summary_text: str, detail_text: str) -> dict:
+_USAGE_COUNTS = ("total", "active", "no_activity", "licensed_idle", "period_days")
+
+
+def _parse_usage(summary_text: str, detail_text: str, sidecar: dict | None = None) -> dict:
     """Licence usage, which the licence inventory alone cannot report.
 
     subscribedSkus says how many seats are assigned. It says nothing about
     whether anyone signed into them, and "106 of 106 assigned" reads as
     healthy right up until you learn a fifth of them have not been touched
     in a quarter.
+
+    The figures come from the 16_usage_summary.json sidecar when the run has
+    one, and from the summary's "Key: value" lines otherwise. A failed read
+    writes no sidecar, so its absence routes to the text and its "(not
+    available)" explanation, as before.
     """
     result = {
         "total": 0,
@@ -481,6 +489,11 @@ def _parse_usage(summary_text: str, detail_text: str) -> dict:
         "unavailable": False,
         "unavailable_reason": "",
     }
+    if sidecar is not None and all(key in sidecar for key in (*_USAGE_COUNTS, "concealed")):
+        result.update({key: int(sidecar[key]) for key in _USAGE_COUNTS})
+        result["concealed"] = bool(sidecar["concealed"])
+        result["has_data"] = True
+        return result
     if _evidence_unavailable(summary_text) and _evidence_unavailable(detail_text):
         if (summary_text or detail_text or "").strip():
             result["unavailable"] = True
