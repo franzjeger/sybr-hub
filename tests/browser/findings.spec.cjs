@@ -98,6 +98,9 @@ test('a configured but unlinked PSA offers one way to link, and the picker sugge
   expect(record.autotask.status).not.toBe('not_linked');
   // Undo through the same picker, so the shared fixture is unchanged.
   await page.request.post('/api/hub/' + encodeURIComponent(id) + '/link', {data: {autotask_account_id: null}});
+  // Linking re-reads the findings; under a loaded parallel run that request
+  // could still be in the route handler when the test ended.
+  await page.unrouteAll({behavior: 'ignoreErrors'});
 });
 
 test('the picker closes on Escape without saving', async ({page}) => {

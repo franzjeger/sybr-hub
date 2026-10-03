@@ -20,6 +20,18 @@ async function login(page, username = 'browser-admin') {
   await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
 }
 
+// The page believes it is a technician's: /auth/me is answered with the
+// technician role. Signing in as one of the shared technician accounts would
+// collide with specs that enrol them in MFA or switch their customer.
+async function seenAsTechnician(page) {
+  await page.route('**/api/auth/me', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    (body.user || body).role = 'technician';
+    await route.fulfill({response, json: body});
+  });
+}
+
 async function asBeta(page) {
   await page.evaluate(() => switchActiveCustomer('Browser_Beta'));
 }
@@ -195,7 +207,8 @@ test('the Wiki tab and its load errors are gone from Integrasjoner', async ({pag
 });
 
 test('a technician sees the changelog in Docs, not the API reference', async ({page}) => {
-  await login(page, 'browser-tech');
+  await seenAsTechnician(page);
+  await login(page);
   await page.evaluate(() => showView('docs'));
   await expect(page.locator('#docs-repo-content h1').first()).toHaveText('Endringslogg');
   await expect(page.locator('#view-docs .docs-tabs')).toBeHidden();
@@ -216,7 +229,8 @@ test('Settings show the version, not the host, and paths only to an admin', asyn
   await expect(page.locator('#settings-current-dir')).toBeVisible();
 
   const tech = await page.context().browser().newPage();
-  await login(tech, 'browser-tech');
+  await seenAsTechnician(tech);
+  await login(tech);
   await tech.evaluate(() => openSettings());
   await expect(tech.locator('#input-audit-dir')).toBeHidden();
   await expect(tech.locator('.settings-tab-btn[data-tab="stab-backup"]')).toBeHidden();
