@@ -230,11 +230,15 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#view-customer-detail')).toHaveClass(/\bactive\b/);
   });
 
-  test('history: the empty state leads to running an audit', async () => {
-    // The fixture's audit has metrics but no report files, so it lists no runs.
+  test('history: a run without evidence files offers the summary report', async () => {
+    // The fixture's run holds metrics and no evidence files: it is listed,
+    // and its button opens the summary report rather than the full one.
     await openView(page, 'history');
-    await page.locator('#view-history [data-click-handler="showView"][data-view="home"]').click();
-    await expect(page.locator('#view-home')).toHaveClass(/\bactive\b/);
+    const summary = page.locator('#view-history [data-click-handler="openCustomerSummary"]');
+    await expect(summary).toHaveCount(1);
+    const [popup] = await Promise.all([page.waitForEvent('popup'), summary.click()]);
+    expect(new URL(popup.url()).pathname).toBe('/api/reports/customer-summary/Browser_Beta');
+    await popup.close();
   });
 
   test('network: the sub-tabs switch', async () => {
