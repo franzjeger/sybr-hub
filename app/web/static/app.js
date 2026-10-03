@@ -163,6 +163,7 @@ registerUiHandlers({
   toggleIntegConfig: function(el) { toggleIntegConfig(el.dataset.config); },
   switchNetSub: function(el) { switchNetSub(el, el.dataset.tab); },
   switchDashTab: function(el) { switchDashTab(el, el.dataset.tab); },
+  openOverviewTab: function(el) { openOverviewTab(el.dataset.tab); },
   termChangeFontSize: function(el) { termChangeFontSize(Number(el.dataset.delta)); },
   resolveConfirm: function(el) { resolveConfirm(el.dataset.answer === 'true'); },
   uploadToITGlue: function(el) { uploadToITGlue(el); },

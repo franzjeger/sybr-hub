@@ -2904,6 +2904,7 @@ function switchDashTab(btn, tabId) {
   var tab = document.getElementById(tabId);
   if (tab) tab.style.display = 'block';
   btn.classList.add('active');
+  _syncBottomNav('overview');
 
   if (tabId === 'dash-alerts') dashLoadAlerts();
 }

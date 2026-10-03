@@ -156,7 +156,9 @@ def test_every_navigation_control_is_gated_on_the_view_it_opens():
     unmarked = []
     opened = 0
     for m in re.finditer(
-        r"""<button\b((?:[^>"]|"[^"]*")*?)data-click-handler="showView" data-view="([a-z-]+)"((?:[^>"]|"[^"]*")*?)>""",
+        # The Mer sheet on a phone opens views through its own handler, which
+        # closes the sheet first; its rows are navigation all the same.
+        r"""<button\b((?:[^>"]|"[^"]*")*?)data-click-handler="(?:showView|moreSheetShowView)" data-view="([a-z-]+)"((?:[^>"]|"[^"]*")*?)>""",
         html,
     ):
         opened += 1
@@ -176,7 +178,7 @@ def test_the_gate_names_the_view_the_button_actually_opens():
     html = pathlib.Path("app/web/static/index.html").read_text(encoding="utf-8")
 
     for m in re.finditer(
-        r'''<button\b[^>]*?data-view-gate="([a-z-]+)"[^>]*?data-click-handler="showView" data-view="([a-z-]+)"''',
+        r'''<button\b[^>]*?data-view-gate="([a-z-]+)"[^>]*?data-click-handler="(?:showView|moreSheetShowView)" data-view="([a-z-]+)"''',
         html,
     ):
         assert m.group(1) == m.group(2), f'gated on "{m.group(1)}" but opens "{m.group(2)}"'

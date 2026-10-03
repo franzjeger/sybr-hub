@@ -286,3 +286,88 @@ test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({
   await modal.getByRole('button', {name: 'Avbryt'}).click();
   await expect(modal).toBeHidden();
 });
+
+// ── A 375 px phone ───────────────────────────────────────────────────────────
+
+test.describe('on a 375 px phone', () => {
+  test.use({viewport: {width: 375, height: 812}});
+
+  const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const tab = (page, name) => page.locator('.bnav-item[data-bnav="' + name + '"]');
+
+  test('the bottom bar holds Oversikt, Kunder, Søk, Varsler and Mer; Søk opens the palette', async ({page}) => {
+    await login(page);
+    await expect(page.locator('#main-nav')).toBeHidden();
+    // The label, not Varsler's unread count beside it.
+    await expect(page.locator('.bnav-item:visible > span[data-i18n]')).toHaveText(['Oversikt', 'Kunder', 'Søk', 'Varsler', 'Mer']);
+    // The bar carries Varsler, so the header does not carry the bell twice.
+    await expect(page.locator('#notif-bell')).toBeHidden();
+
+    await page.locator('#bnav-search').click();
+    await expect(page.locator('#cmd-palette')).toBeVisible();
+    await expect(page.locator('#cmd-input')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#cmd-palette')).toBeHidden();
+    await expect(tab(page, 'search')).not.toHaveClass(/\bactive\b/);
+
+    // Varsler is Oversikt's Varsler tab and lights its own item; Oversikt
+    // goes back to the follow-up list.
+    await tab(page, 'alerts').click();
+    await expect(page.locator('#dash-alerts')).toBeVisible();
+    await expect(tab(page, 'alerts')).toHaveClass(/\bactive\b/);
+    await expect(tab(page, 'dashboard')).not.toHaveClass(/\bactive\b/);
+    await tab(page, 'dashboard').click();
+    await expect(page.locator('#dash-customers')).toBeVisible();
+    await expect(tab(page, 'dashboard')).toHaveClass(/\bactive\b/);
+    await tab(page, 'customers').click();
+    await expect(page.locator('#view-customers')).toHaveClass(/\bactive\b/);
+    await expect(tab(page, 'customers')).toHaveClass(/\bactive\b/);
+  });
+
+  test('Mer holds Verktøy, Administrasjon and the account', async ({page}) => {
+    await login(page);
+    await tab(page, 'more').click();
+    const sheet = page.locator('#more-sheet');
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator('.more-group-title:visible')).toHaveText(['Verktøy', 'Administrasjon', 'Konto']);
+    await expect(sheet.locator('[data-click-handler="moreSheetShowView"]:visible > span:nth-child(2)')).toHaveText([
+      'Nettverk', 'VPN', 'Fjerntilgang', 'Tailscale', 'Pentest', 'Provisjonering', 'Lisenser og hosting', 'Sybrt', 'Hjelp',
+    ]);
+    await sheet.locator('[data-click-handler="moreSheetShowView"][data-view="tailscale"]').click();
+    await expect(sheet).toBeHidden();
+    await expect(page.locator('#view-tailscale')).toHaveClass(/\bactive\b/);
+    await expect(tab(page, 'more')).toHaveClass(/\bactive\b/);
+    await tab(page, 'more').click();
+    await sheet.locator('[data-click-handler="moreSheetOpenAdmin"]').click();
+    await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
+    await expect(tab(page, 'more')).toHaveClass(/\bactive\b/);
+  });
+
+  test('a technician has no Administrasjon in Mer', async ({page}) => {
+    await seenAsTechnician(page);
+    await login(page);
+    await tab(page, 'more').click();
+    const sheet = page.locator('#more-sheet');
+    await expect(sheet.locator('.more-group-title:visible')).toHaveText(['Verktøy', 'Konto']);
+    await expect(sheet.locator('[data-click-handler="moreSheetOpenAdmin"]')).toBeHidden();
+  });
+
+  // The customer page changes the active customer, which other specs read
+  // from browser-admin, so it signs in as browser-switcher.
+  for (const [label, hash, ready, user] of [
+    ['Oversikt', '#/overview', '.customer-overview-table tbody tr', 'browser-admin'],
+    ['Kunder', '#/customers', '#customers-content .cust-card', 'browser-admin'],
+    ['a customer tab', '#/customer/Browser_Beta/audit', '#cust-panel-audit #view-history', 'browser-switcher'],
+    ['Administrasjon', '#/admin/integrations', '#admin-pane-integrations', 'browser-admin'],
+    ['Varsler', '#/overview', '#dash-alerts-content .notif-toolbar', 'browser-admin'],
+  ]) {
+    test(`${label} has no sideways scroll`, async ({page}) => {
+      await login(page, user);
+      await page.evaluate(h => { location.hash = h; }, hash);
+      if (label === 'Varsler') await tab(page, 'alerts').click();
+      await expect(page.locator(ready).first()).toBeVisible();
+      await page.waitForTimeout(300);
+      expect(await overflow(page)).toBe(0);
+    });
+  }
+});
