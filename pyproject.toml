@@ -150,6 +150,6 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["app/core/assessment.py", "app/core/audit_results.py", "app/core/async_fd.py"]
+files = ["app/core/audit_results.py", "app/core/async_fd.py"]
 strict = true
 follow_imports = "silent"

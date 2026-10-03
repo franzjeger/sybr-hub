@@ -134,12 +134,13 @@ async def test_a_broken_customer_list_names_the_check(monkeypatch):
 
 
 def test_the_dashboard_does_not_hardcode_a_threat_count():
+    # The route that set it (/dashboard/security-report) is gone; nothing
+    # called it. Whatever builds the figure next is held to the same rule.
     source = (ROOT / "app/web/routes/dashboard_infra.py").read_text(encoding="utf-8")
     assert "threat_count = 0" not in source, (
         "a literal zero was rendered as a green '0 threats' for every online "
         "firewall — the route never opens a threat log"
     )
-    assert "threat_count = None" in source
 
 
 def test_the_card_omits_a_count_it_does_not_have():

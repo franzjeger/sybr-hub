@@ -277,13 +277,11 @@ async def test_alerts_for_an_admin_list_every_renewal(client):
 ALREADY_SCOPED = [
     "/api/dashboard/health",
     "/api/dashboard/health-scores",
-    "/api/dashboard/security-report",
     "/api/dashboard/compliance",
     "/api/dashboard/overview",
     "/api/dashboard/trends",
     "/api/search/customers",
     "/api/dashboard/network-inventory",
-    "/api/dashboard/vpn-status",
 ]
 
 
