@@ -1,4 +1,4 @@
-"""Parsers for SharePoint, app consent grants and registrations, and Purview."""
+"""Parsers for SharePoint and OneDrive, Teams access, apps and their grants, and Purview."""
 
 from __future__ import annotations
 
