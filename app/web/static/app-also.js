@@ -71,18 +71,18 @@ async function dashLoadRenewals() {
   if (vf) renewals = renewals.filter(function(r) { return r.vendor === vf; });
 
   // ── KPI row ──
-  var mrrText = data.total_mrr > 0 ? data.total_mrr.toFixed(0) + ' ' + (data.currency || '') : '-';
+  var mrrText = data.total_mrr > 0 ? data.total_mrr.toFixed(0) + ' ' + esc(data.currency || '') : '-';
   var af = _renewalIntervalFilter;
   var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;">';
   var kpis = [
-    {label:t('kpi_cached','Cached'),     value:data.all_cached,  color:'var(--blue)',   filterKey:null},
-    {label:t('kpi_expired','Expired'),   value:data.expired,     color:data.expired>0?'var(--red)':'var(--text-dim)',     filterKey:'expired'},
-    {label:t('kpi_30d','< 30 days'),     value:data.urgent_30d,  color:data.urgent_30d>0?'var(--red)':'var(--text-dim)',  filterKey:'30'},
-    {label:t('kpi_30_60d','30–60 days'), value:data.soon_60d, color:data.soon_60d>0?'var(--orange)':'var(--text-dim)',filterKey:'60'},
-    {label:t('kpi_60_365d','60–365 days'), value:data.upcoming, color:data.upcoming>0?'var(--orange)':'var(--text-dim)',filterKey:'365'},
-    {label:t('kpi_1yr','> 1 year'),      value:data.beyond||0,   color:'var(--green)',  filterKey:'1yr'},
+    {label:t('kpi_cached','Cached'),     value:Number(data.all_cached),  color:'var(--blue)',   filterKey:null},
+    {label:t('kpi_expired','Expired'),   value:Number(data.expired),     color:data.expired>0?'var(--red)':'var(--text-dim)',     filterKey:'expired'},
+    {label:t('kpi_30d','< 30 days'),     value:Number(data.urgent_30d),  color:data.urgent_30d>0?'var(--red)':'var(--text-dim)',  filterKey:'30'},
+    {label:t('kpi_30_60d','30–60 days'), value:Number(data.soon_60d), color:data.soon_60d>0?'var(--orange)':'var(--text-dim)',filterKey:'60'},
+    {label:t('kpi_60_365d','60–365 days'), value:Number(data.upcoming), color:data.upcoming>0?'var(--orange)':'var(--text-dim)',filterKey:'365'},
+    {label:t('kpi_1yr','> 1 year'),      value:Number(data.beyond)||0,   color:'var(--green)',  filterKey:'1yr'},
     {label:t('kpi_mrr_cached','MRR (cached)'), value:mrrText,    color:data.total_mrr>0?'var(--green)':'var(--text-dim)', filterKey:null, noClick:true},
-    {label:t('kpi_priced','Priced'),     value:data.priced_count+'/'+data.all_cached, color:data.priced_count>0?'var(--blue)':'var(--text-dim)', filterKey:null, noClick:true},
+    {label:t('kpi_priced','Priced'),     value:Number(data.priced_count)+'/'+Number(data.all_cached), color:data.priced_count>0?'var(--blue)':'var(--text-dim)', filterKey:null, noClick:true},
   ];
   kpis.forEach(function(k) {
     var isActive = (k.filterKey !== null && af === k.filterKey) || (k.filterKey === null && af === null && !k.noClick);
@@ -169,9 +169,9 @@ async function dashLoadRenewals() {
   renewals.forEach(function(r, i) {
     var daysLeft = r.days_left;
     var daysColor = daysLeft === null ? 'var(--text-dim)' : daysLeft < 0 ? 'var(--red)' : daysLeft <= 30 ? 'var(--red)' : daysLeft <= 60 ? 'var(--orange)' : 'var(--green)';
-    var daysLabel = daysLeft === null ? '-' : daysLeft < 0 ? 'UTL\u00d8PT' : daysLeft + 'd';
+    var daysLabel = daysLeft === null ? '-' : daysLeft < 0 ? 'UTL\u00d8PT' : Number(daysLeft) + 'd';
     var rowBg = r.handled ? 'rgba(0,200,0,0.04)' : i % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
-    var renewDate = r.contract_end ? r.contract_end.slice(0,10) : '-';
+    var renewDate = r.contract_end ? esc(r.contract_end.slice(0,10)) : '-';
 
     // Customer subtotal separator
     if (r.customer_name !== lastCustomer && lastCustomer !== '' && customerMrr > 0) {
@@ -182,7 +182,7 @@ async function dashLoadRenewals() {
     customerMrr += (r.monthly_cost || 0);
 
     html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);'+(r.handled?'opacity:0.6;':'')+'">';
-    html += '<td style="padding:6px 8px;text-align:center;"><input type="checkbox" class="renewal-cb" data-id="'+r.id+'" '+(r.handled?'checked':'')+' data-change-handler="alsoToggleHandled" style="cursor:pointer;"></td>';
+    html += '<td style="padding:6px 8px;text-align:center;"><input type="checkbox" class="renewal-cb" data-id="'+Number(r.id)+'" '+(r.handled?'checked':'')+' data-change-handler="alsoToggleHandled" style="cursor:pointer;"></td>';
     html += '<td style="padding:6px 8px;font-weight:500;">'+esc(r.customer_name)+'</td>';
     html += '<td style="padding:6px 8px;">'+esc(r.service_display)+'</td>';
     html += '<td style="padding:6px 8px;color:var(--text-muted);">'+esc(r.vendor)+'</td>';
@@ -194,7 +194,7 @@ async function dashLoadRenewals() {
     html += '<td style="padding:6px 8px;text-align:center;font-size:11px;"><span style="color:'+termColor+';font-weight:600;">'+termIcon+' '+esc(termLabel)+'</span></td>';
 
     // Qty / Price / Monthly — show dash if not yet cached
-    var qty = r.quantity || 0;
+    var qty = Number(r.quantity) || 0;
     var price = r.unit_price || 0;
     var monthly = r.monthly_cost || 0;
     html += '<td style="padding:6px 8px;text-align:center;font-weight:600;">'+(qty > 0 ? qty : '<span style="color:var(--text-dim);">-</span>')+'</td>';
@@ -282,7 +282,7 @@ async function _loadUniwebRenewals() {
     // KPI row
     html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">';
     var kpis = [
-      {label:t('kpi_cached','Totalt'), value:data.total, color:'var(--blue)'},
+      {label:t('kpi_cached','Totalt'), value:Number(data.total), color:'var(--blue)'},
       {label:t('kpi_expired','Utløpt/Kritisk')+ ' (<7d)', value:kritisk.length, color:kritisk.length>0?'var(--red)':'var(--text-dim)'},
       {label:t('kpi_30d','< 30 dager'), value:snart.length, color:snart.length>0?'var(--orange)':'var(--text-dim)'},
       {label:'30-90 '+t('col_days','dager'), value:kommende.length, color:kommende.length>0?'#c9a800':'var(--text-dim)'},
@@ -302,22 +302,25 @@ async function _loadUniwebRenewals() {
     html += '<button class="btn btn-ghost" data-click-handler="_loadUniwebRenewals" style="padding:4px 12px;font-size:11px;">' + t('also_refresh','Oppdater') + '</button>';
     html += '</div>';
 
-    // Render each urgency group
+    // Render each urgency group. The items stay out of the style table so
+    // the table holds only our own constants.
     var groups = [
-      {label:'Kritisk', subtitle:t('also_exp_7d','Utløper innen 7 dager'), items:kritisk, color:'var(--red)', bgTint:'rgba(255,59,48,0.06)'},
-      {label:'Snart', subtitle:t('also_exp_30d','Utløper innen 30 dager'), items:snart, color:'var(--orange)', bgTint:'rgba(255,149,0,0.06)'},
-      {label:'Kommende', subtitle:t('also_exp_90d','Utløper innen 90 dager'), items:kommende, color:'#c9a800', bgTint:'rgba(201,168,0,0.06)'},
-      {label:'Langsiktig', subtitle:t('also_exp_365d','90–365 dager'), items:langt, color:'var(--green)', bgTint:'rgba(59,185,80,0.06)'},
+      {label:'Kritisk', subtitle:t('also_exp_7d','Utløper innen 7 dager'), color:'var(--red)', bgTint:'rgba(255,59,48,0.06)'},
+      {label:'Snart', subtitle:t('also_exp_30d','Utløper innen 30 dager'), color:'var(--orange)', bgTint:'rgba(255,149,0,0.06)'},
+      {label:'Kommende', subtitle:t('also_exp_90d','Utløper innen 90 dager'), color:'#c9a800', bgTint:'rgba(201,168,0,0.06)'},
+      {label:'Langsiktig', subtitle:t('also_exp_365d','90–365 dager'), color:'var(--green)', bgTint:'rgba(59,185,80,0.06)'},
     ];
+    var groupItems = [kritisk, snart, kommende, langt];
 
-    groups.forEach(function(g) {
-      if (g.items.length === 0) return;
+    groups.forEach(function(g, gi) {
+      var gItems = groupItems[gi];
+      if (gItems.length === 0) return;
 
       html += '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;border-left:3px solid '+g.color+';">';
       html += '<div style="padding:12px 16px;background:'+g.bgTint+';border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">';
       html += '<div><span style="font-size:13px;font-weight:700;color:'+g.color+';">'+g.label+'</span>';
       html += '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">'+g.subtitle+'</span></div>';
-      html += '<span style="font-size:12px;font-weight:600;color:'+g.color+';">'+g.items.length+' element'+(g.items.length!==1?'er':'')+'</span>';
+      html += '<span style="font-size:12px;font-weight:600;color:'+g.color+';">'+gItems.length+' element'+(gItems.length!==1?'er':'')+'</span>';
       html += '</div>';
 
       html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
@@ -329,9 +332,9 @@ async function _loadUniwebRenewals() {
       html += '<th style="text-align:center;padding:7px 10px;">' + t('also_col_days_left','Dager igjen') + '</th>';
       html += '</tr></thead><tbody>';
 
-      g.items.forEach(function(item, idx) {
+      gItems.forEach(function(item, idx) {
         var daysColor = item.days_remaining < 0 ? 'var(--red)' : item.days_remaining < 7 ? 'var(--red)' : item.days_remaining < 14 ? 'var(--orange)' : '#c9a800';
-        var daysLabel = item.days_remaining < 0 ? 'UTLOPT' : item.days_remaining + 'd';
+        var daysLabel = item.days_remaining < 0 ? 'UTLOPT' : Number(item.days_remaining) + 'd';
         var rowBg = idx % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
 
         html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
@@ -409,7 +412,7 @@ function _uwArBody(data) {
   var kpis = [
     {label: t('uniweb_ar_outstanding', 'Utestående'), value: _uwKr(data.total_outstanding), cls: 'uwar-blue'},
     {label: t('uniweb_ar_overdue', 'Forfalt'), value: _uwKr(overdueTotal), cls: overdueTotal > 0 ? 'uwar-red' : 'uwar-dim'},
-    {label: t('uniweb_ar_open', 'Åpne fakturaer'), value: (data.open_count || 0), cls: ''},
+    {label: t('uniweb_ar_open', 'Åpne fakturaer'), value: (Number(data.open_count) || 0), cls: ''},
     {label: t('uniweb_ar_overdue_count', 'Forfalte'), value: overdueCount, cls: overdueCount > 0 ? 'uwar-red' : 'uwar-dim'},
   ];
   kpis.forEach(function(k) {
@@ -582,16 +585,16 @@ async function alsoRenewalScan() {
   btn.disabled = false;
 
   if (d && d.ok) {
-    var remaining = d.remaining || 0;
+    var remaining = Number(d.remaining) || 0;
     var bar = document.getElementById('renewal-scan-bar');
     if (bar) bar.style.width = '100%';
 
     if (remaining > 0) {
       btn.textContent = t('also_scan_next_batch','Skann neste batch') + ' (' + remaining + ' ' + t('also_remaining','gjenstår') + ')';
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_scanned','Skannet') + ' '+d.scanned+' \u00b7 '+d.already_cached+' ' + t('also_already_cached','allerede bufret') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+d.errors+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_scanned','Skannet') + ' '+Number(d.scanned)+' \u00b7 '+Number(d.already_cached)+' ' + t('also_already_cached','allerede bufret') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+Number(d.errors)+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
     } else {
       btn.textContent = t('btn_sync','Sync');
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all','Alle') + ' '+d.total_linked+' ' + t('also_customers_cached','kunder ferdig bufret') + '</span>';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all','Alle') + ' '+Number(d.total_linked)+' ' + t('also_customers_cached','kunder ferdig bufret') + '</span>';
     }
     return d;
   } else {
@@ -606,8 +609,8 @@ async function alsoRefreshApiStats() {
   if (!el) return;
   var s = await apiFetch('/api/also/api-stats');
   if (!s || !s.total_calls) { el.textContent = t('msg_api_zero_calls','API: 0 calls'); return; }
-  el.innerHTML = 'API: <strong>'+s.total_calls+'</strong> kall \u00b7 '+s.last_1min+'/min \u00b7 '+s.last_5min+'/5min \u00b7 snitt '+s.avg_response_ms+'ms'
-    + (s.errors > 0 ? ' \u00b7 <span style="color:var(--red);">'+s.errors+' ' + t('also_errors','feil') + '</span>' : '');
+  el.innerHTML = 'API: <strong>'+Number(s.total_calls)+'</strong> kall \u00b7 '+Number(s.last_1min)+'/min \u00b7 '+Number(s.last_5min)+'/5min \u00b7 snitt '+Number(s.avg_response_ms)+'ms'
+    + (s.errors > 0 ? ' \u00b7 <span style="color:var(--red);">'+Number(s.errors)+' ' + t('also_errors','feil') + '</span>' : '');
 }
 
 var _priceScanTimer = null;
@@ -643,13 +646,13 @@ async function alsoPriceScan() {
   btn.disabled = false;
 
   if (d && d.ok) {
-    var remaining = d.remaining || 0;
+    var remaining = Number(d.remaining) || 0;
     var bar = document.getElementById('price-scan-bar');
     if (bar) bar.style.width = '100%';
 
     if (remaining > 0) {
       btn.textContent = t('also_next_price_batch','Neste prisbatch') + ' (' + remaining + ' ' + t('also_remaining','gjenstår') + ')';
-      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_priced','Priset') + ' '+d.scanned+' ' + t('also_subscriptions_lc','abonnementer') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+d.errors+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
+      msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_priced','Priset') + ' '+Number(d.scanned)+' ' + t('also_subscriptions_lc','abonnementer') + ' \u00b7 '+remaining+' ' + t('also_remaining','gjenstår')+(d.errors?' \u00b7 <span style="color:var(--orange);">'+Number(d.errors)+' ' + t('also_errors','feil') + '</span>':'')+'</span>';
     } else {
       btn.textContent = t('btn_sync','Sync');
       msg.innerHTML = '<span style="color:var(--green);">\u2713 ' + t('also_all_priced','Alle abonnementer priset') + '</span>';
@@ -734,7 +737,7 @@ async function alsoShowLicenseOptimization() {
 function _renderLicenseOptimization(data, el) {
   var s = data.summary || {};
   var customers = data.customers || [];
-  var cur = s.currency || 'NOK';
+  var cur = esc(s.currency || 'NOK');
   var html = '';
 
   // ── Header + back button ──
@@ -748,9 +751,9 @@ function _renderLicenseOptimization(data, el) {
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;">';
   var kpis = [
     {label:t('kpi_total_waste','Total waste/mo'), value:s.total_waste > 0 ? s.total_waste.toFixed(0)+' '+cur : '0 '+cur, color:s.total_waste>0?'var(--red)':'var(--green)'},
-    {label:t('kpi_over_licensed','Over-licensed'),  value:s.over_licensed_count,  color:s.over_licensed_count>0?'var(--orange)':'var(--text-dim)'},
-    {label:t('kpi_under_licensed','Under-licensed'), value:s.under_licensed_count, color:s.under_licensed_count>0?'var(--red)':'var(--text-dim)'},
-    {label:t('kpi_optimal','Optimal'),              value:s.optimal_count,        color:s.optimal_count>0?'var(--green)':'var(--text-dim)'},
+    {label:t('kpi_over_licensed','Over-licensed'),  value:Number(s.over_licensed_count),  color:s.over_licensed_count>0?'var(--orange)':'var(--text-dim)'},
+    {label:t('kpi_under_licensed','Under-licensed'), value:Number(s.under_licensed_count), color:s.under_licensed_count>0?'var(--red)':'var(--text-dim)'},
+    {label:t('kpi_optimal','Optimal'),              value:Number(s.optimal_count),        color:s.optimal_count>0?'var(--green)':'var(--text-dim)'},
   ];
   kpis.forEach(function(k) {
     html += '<div class="card" style="padding:12px 8px;text-align:center;border-top:3px solid '+k.color+';height:80px;box-sizing:border-box;">';
@@ -780,8 +783,8 @@ function _renderLicenseOptimization(data, el) {
     html += '<div style="padding:12px 16px;background:var(--bg-tertiary);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">';
     html += '<div style="font-size:13px;font-weight:700;">'+esc(c.customer_name)+'</div>';
     html += '<div style="display:flex;gap:16px;font-size:11px;">';
-    html += '<span style="color:var(--text-muted);">'+t('lbl_paid','Paid')+': <strong>'+c.total_paid+'</strong></span>';
-    html += '<span style="color:var(--text-muted);">'+t('lbl_assigned','Assigned')+': <strong>'+c.total_assigned+'</strong></span>';
+    html += '<span style="color:var(--text-muted);">'+t('lbl_paid','Paid')+': <strong>'+Number(c.total_paid)+'</strong></span>';
+    html += '<span style="color:var(--text-muted);">'+t('lbl_assigned','Assigned')+': <strong>'+Number(c.total_assigned)+'</strong></span>';
     if (c.total_monthly_waste > 0) {
       html += '<span style="color:'+wasteColor+';font-weight:700;">'+t('lbl_waste','Waste')+': '+c.total_monthly_waste.toFixed(0)+' '+cur+'/'+t('lbl_mo','mo')+'</span>';
     }
@@ -818,14 +821,14 @@ function _renderLicenseOptimization(data, el) {
           case 'no_audit_data':
             statusColor = 'var(--text-dim)'; statusLabel = t('status_no_audit','No audit'); break;
           default:
-            statusColor = 'var(--text-muted)'; statusLabel = lic.status; break;
+            statusColor = 'var(--text-muted)'; statusLabel = esc(lic.status); break;
         }
 
         html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
         html += '<td style="padding:6px 10px;font-weight:500;">'+esc(lic.product)+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:600;">'+lic.paid_qty+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:600;">'+(lic.assigned_qty > 0 ? lic.assigned_qty : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-        html += '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+(lic.excess > 0 ? statusColor : 'var(--text-dim)')+';">'+(lic.excess > 0 ? (lic.status === 'under_licensed' ? '+' : '')+lic.excess : '-')+'</td>';
+        html += '<td style="padding:6px 10px;text-align:center;font-weight:600;">'+Number(lic.paid_qty)+'</td>';
+        html += '<td style="padding:6px 10px;text-align:center;font-weight:600;">'+(lic.assigned_qty > 0 ? Number(lic.assigned_qty) : '<span style="color:var(--text-dim);">-</span>')+'</td>';
+        html += '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+(lic.excess > 0 ? statusColor : 'var(--text-dim)')+';">'+(lic.excess > 0 ? (lic.status === 'under_licensed' ? '+' : '')+Number(lic.excess) : '-')+'</td>';
         html += '<td style="padding:6px 10px;text-align:center;"><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--bg-tertiary);color:'+statusColor+';">'+statusLabel+'</span></td>';
         html += '<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-size:11px;">'+(lic.unit_price > 0 ? lic.unit_price.toFixed(2) : '-')+'</td>';
         html += '<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:'+(lic.monthly_waste > 0 ? 'var(--red)' : 'var(--text-dim)')+';">'+(lic.monthly_waste > 0 ? lic.monthly_waste.toFixed(2) : '-')+'</td>';
