@@ -52,6 +52,11 @@ async function policyDeployLoad() {
   _pdPlan = null;
   el.innerHTML = _pdForm();
   _pdLoadPolicies();
+  // Without the tenant-write grant this screen can be read but not used, and
+  // its report-only and restore lists are behind the same grant: asking for
+  // them only produced two identical red 403 toasts. The form says why its
+  // buttons are off instead.
+  if (!canTenantWrite()) return;
   policyEnforceLoad();
   policyRestoreLoad();
 }
@@ -130,6 +135,9 @@ function _pdForm() {
        + t('btn_check_existing', 'Check existing policies') + '</button>';
   html += '<button class="btn btn-primary" id="pd-plan-btn" disabled data-click-handler="policyDeployPlan">'
        + t('btn_plan', 'Show plan') + '</button>';
+  if (!canTenantWrite()) {
+    html += '<p class="pd-no-grant" id="pd-no-grant">' + esc(t('msg_pd_needs_tenant_write', 'Kontoen din kan ikke endre kundens tenant, så knappene er av. En administrator gir tilgangen under Innstillinger, Brukere (Tenant).')) + '</p>';
+  }
   html += '</div><div id="pd-adopt"></div><div id="pd-plan"></div>'
        + '<div id="pd-enforce"></div><div id="pd-restore"></div>';
   return html;
@@ -436,7 +444,8 @@ var _GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function _pdValidate() {
   var v = (document.getElementById('pd-breakglass') || {}).value || '';
-  var ok = _GUID.test(v.trim());
+  // Without the grant the buttons stay off; the line under them says why.
+  var ok = _GUID.test(v.trim()) && canTenantWrite();
   ['pd-plan-btn', 'pd-adopt-btn'].forEach(function(id) {
     var b = document.getElementById(id);
     if (b) b.disabled = !ok;

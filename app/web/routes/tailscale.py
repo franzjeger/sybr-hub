@@ -90,9 +90,23 @@ async def tailscale_status(user: User = _tech):
 
 @router.get("/tailscale/devices")
 async def tailscale_devices(user: User = _tech):
-    """List all devices in the tailnet."""
+    """List all devices in the tailnet.
+
+    No key yet is the normal state of a fresh install, not a failed request:
+    it answers ``configured: false`` with an empty list, and the view shows
+    where to set the key. A 400 here made opening the page raise a red
+    error toast.
+    """
     if not _ensure_configured():
-        raise refusal(ValidationError, "err_tailscale_not_configured")
+        return {
+            "configured": False,
+            "devices": [],
+            "total": 0,
+            "online": 0,
+            "offline": 0,
+            "stale": 0,
+            "expiring_keys": 0,
+        }
     try:
         from app.services import tailscale_api
 
@@ -110,6 +124,7 @@ async def tailscale_devices(user: User = _tech):
         ]
 
         return {
+            "configured": True,
             "devices": devices,
             "total": len(devices),
             "online": len(online),
