@@ -25,20 +25,17 @@ from dataclasses import dataclass
 
 from app.reports.evidence import _evidence_unavailable
 from app.reports.i18n import T
-from app.reports.parsers import _is_audit_relevant_domain, _mfa_user_records
-from app.reports.parsers.collaboration import _app_credential_counts
-from app.reports.parsers.common import _find_azure_files, _sidecar
-from app.reports.parsers.email import _external_forwarding_items
 from app.reports.parsers import (
     _is_audit_relevant_domain,
     _mfa_user_records,
     _risky_users_from_sidecar,
 )
-from app.reports.parsers.common import _sidecar
+from app.reports.parsers.collaboration import _app_credential_counts
+from app.reports.parsers.common import _find_azure_files, _sidecar
+from app.reports.parsers.email import _external_forwarding_items
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
-log = logging.getLogger(__name__)
 
 
 def relocalise_recommendations(metrics: dict, lang: str) -> dict:
@@ -1206,7 +1203,7 @@ def _label_recommendations(recs: list[dict]) -> list[dict]:
         # remediation state, so they are separated and the collision logged.
         seen[rec_id] = seen.get(rec_id, 0) + 1
         if seen[rec_id] > 1:
-            log.warning("Recommendation id %r is not unique - disambiguating", rec_id)
+            logger.warning("Recommendation id %r is not unique - disambiguating", rec_id)
             rec_id = f"{rec_id}#{seen[rec_id]}"
         rec["rec_id"] = rec_id
     return recs

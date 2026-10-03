@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from app.reports.evidence import _evidence_unavailable, _reported_count
 from app.reports.i18n import T
-from app.reports.parsers.email import _external_forwarding_items
 from app.reports.parsers.common import _sidecar
+from app.reports.parsers.email import _external_forwarding_items
 
 
 def _is_open_wlan(wlan: dict) -> bool:
