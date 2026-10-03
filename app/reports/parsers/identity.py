@@ -547,9 +547,24 @@ def _admin_role_record(line: str) -> dict | None:
     return _record(sep, upn_start)
 
 
-def _parse_admin_roles(text: str) -> dict:
-    roles: list[dict] = []
-    for line in text.splitlines():
+def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
+    """Admin role assignments, from 07_admin_roles.json when the run has it.
+
+    The table cuts role names to 40 characters, display names to 30 and UPNs
+    to 45; a cut UPN matched no account in the MFA records, so a Global Admin
+    with a long UPN was not recognised as one there. The text is read only for
+    runs from before the sidecar.
+    """
+    roles: list[dict] = [
+        {
+            "role": a.get("role") or "",
+            "user": a.get("display_name") or "",
+            # The table's third column: the UPN, or the id of a member without one.
+            "email": a.get("upn") or a.get("member_id") or "",
+        }
+        for a in (sidecar or {}).get("assignments") or []
+    ]
+    for line in [] if sidecar is not None else text.splitlines():
         stripped = line.strip()
         if (
             not stripped
@@ -619,16 +634,26 @@ def _parse_admin_roles(text: str) -> dict:
     }
 
 
-def _parse_groups(text: str) -> dict:
+def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
     """Parse 06_groups.txt into group metadata.
 
-    The collector writes a 3-column table (Name, Type, Members) — accepts
-    that as the primary format. A legacy pipe-delimited format is also
-    accepted so historical audit runs still parse. Without the columnar
-    branch the report silently reported zero groups for every tenant.
+    From 06_groups.json when the run has it. Otherwise the collector writes a
+    3-column table (Name, Type, Members) — accepts that as the primary format.
+    A legacy pipe-delimited format is also accepted so historical audit runs
+    still parse. Without the columnar branch the report silently reported
+    zero groups for every tenant.
     """
-    groups: list[dict] = []
-    for line in text.splitlines():
+    groups: list[dict] = [
+        {
+            "name": g.get("name") or "",
+            "type": g.get("type") or "",
+            "members": g["members"] if isinstance(g.get("members"), int) else 0,
+            "members_known": isinstance(g.get("members"), int),
+        }
+        for g in (sidecar or {}).get("groups") or []
+        if g.get("name")
+    ]
+    for line in [] if sidecar is not None else text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("=") or stripped.startswith("-"):
             continue

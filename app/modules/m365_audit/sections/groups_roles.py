@@ -60,6 +60,7 @@ class GroupsSection(BaseSection):
             ]
 
             _consistency_hdr = {"ConsistencyLevel": "eventual"}
+            records: list[dict] = []
 
             for g in groups:
                 gid = g.get("id", "")
@@ -112,9 +113,20 @@ class GroupsSection(BaseSection):
                         )
 
                 lines.append(f"  {name:<50} {gtype:<16} {member_count:>8}")
+                records.append(
+                    {
+                        "id": gid,
+                        "name": g.get("displayName") or "",
+                        "type": gtype,
+                        "dynamic": is_dynamic,
+                        # None when neither count could be read: unknown, not 0.
+                        "members": int(member_count) if member_count.isdigit() else None,
+                    }
+                )
 
             lines += ["=" * 80, ""]
             self._save("06_groups.txt", "\n".join(lines))
+            self._save_sidecar("06_groups.txt", {"count": len(groups), "groups": records})
             self._report(SectionStatus.DONE)
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
@@ -139,18 +151,48 @@ class AdminRolesSection(BaseSection):
 
     def _get_last_signin(self, upn: str) -> str:
         """Look up last sign-in from the users list (already fetched by UsersSection)."""
+        user = self._find_user(upn)
+        if user is None:
+            return ""
+        # Most recent of interactive AND non-interactive sign-in (see
+        # latest_signin): keying on interactive alone showed a stale date
+        # as an admin's last sign-in when they were signing in
+        # non-interactively far more recently (M365 review follow-up).
+        dt = latest_signin(user.get("signInActivity"))
+        if dt:
+            return dt.strftime("%Y-%m-%d %H:%M")  # "2026-03-20 14:30"
+        return "Aldri"
+
+    def _find_user(self, upn: str) -> dict | None:
         upn_lower = upn.lower()
         for u in self._users_ref:
             if (u.get("userPrincipalName") or "").lower() == upn_lower:
-                # Most recent of interactive AND non-interactive sign-in (see
-                # latest_signin): keying on interactive alone showed a stale date
-                # as an admin's last sign-in when they were signing in
-                # non-interactively far more recently (M365 review follow-up).
-                dt = latest_signin(u.get("signInActivity"))
-                if dt:
-                    return dt.strftime("%Y-%m-%d %H:%M")  # "2026-03-20 14:30"
-                return "Aldri"
-        return ""
+                return u
+        return None
+
+    def _assignment_record(
+        self, role_name: str, role_id: str, member: dict, has_signin: bool
+    ) -> dict:
+        """One role assignment as 07_admin_roles.json carries it: nothing trimmed.
+
+        The table cuts the role to 40 characters, the name to 30 and the UPN to
+        45, and a UPN cut short no longer matches the same account elsewhere.
+        """
+        record = {
+            "role": role_name,
+            "role_id": role_id,
+            "member_id": member.get("id"),
+            "display_name": member.get("displayName") or "",
+            # None for a member without one, a service principal: the table
+            # shows its id in this column.
+            "upn": member.get("userPrincipalName"),
+            "member_type": (member.get("@odata.type") or "").split(".")[-1] or None,
+        }
+        if has_signin:
+            user = self._find_user(member.get("userPrincipalName") or member.get("id") or "")
+            last = latest_signin(user.get("signInActivity")) if user else None
+            record["last_sign_in"] = last.isoformat() if last else None
+        return record
 
     async def collect(self) -> SectionResult:
         self._report(SectionStatus.RUNNING)
@@ -177,6 +219,8 @@ class AdminRolesSection(BaseSection):
             ]
 
             global_admin_count = 0
+            assignments: list[dict] = []
+            failed_roles: list[dict] = []
 
             for role in roles:
                 role_id = role.get("id", "")
@@ -190,6 +234,7 @@ class AdminRolesSection(BaseSection):
                 except Exception as ex:
                     lines.append(f"  {role_name:<40} {'N/A — ' + str(ex)[:50]}")
                     self._warn(f"Members fetch failed for role '{role_name}': {ex}")
+                    failed_roles.append({"role": role_name, "role_id": role_id, "error": str(ex)})
                     continue
 
                 if not members:
@@ -209,6 +254,7 @@ class AdminRolesSection(BaseSection):
                         last_signin = self._get_last_signin(upn)
                         line += f" {last_signin}"
                     lines.append(line)
+                    assignments.append(self._assignment_record(role_name, role_id, m, has_signin))
                     if role_name in ("Global Administrator", "Company Administrator"):
                         global_admin_count += 1
                         member_id = m.get("id")
@@ -217,6 +263,14 @@ class AdminRolesSection(BaseSection):
 
             lines += ["=" * 130, ""]
             self._save("07_admin_roles.txt", "\n".join(lines))
+            self._save_sidecar(
+                "07_admin_roles.txt",
+                {
+                    "assignments": assignments,
+                    "failed_roles": failed_roles,
+                    "global_admin_count": global_admin_count,
+                },
+            )
 
             if global_admin_count > _GA_WARN_THRESHOLD:
                 self._warn(
