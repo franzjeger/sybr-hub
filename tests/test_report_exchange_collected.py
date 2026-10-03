@@ -447,6 +447,71 @@ async def test_a_policy_of_the_other_type_named_safe_links_is_not_a_safe_links_p
     assert _controls(_text_only(files))["4.5"]["status"] == "fail", "the text cannot tell"
 
 
+# ── Organization config (CIS 4.1) and Unified Audit Log ingestion (CIS 9.1) ──
+
+ORG_CONFIG = {
+    "OAuth2ClientProfileEnabled": True,
+    "MapiHttpEnabled": True,
+    "DefaultAuthenticationPolicy": None,
+    "SmtpClientAuthenticationDisabled": True,
+    "ActivityBasedAuthenticationTimeoutEnabled": True,
+    "ActivityBasedAuthenticationTimeoutInterval": "06:00:00",
+}
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+@pytest.mark.parametrize(
+    ("value", "mailbox_audit", "unified_audit_log"),
+    [(True, "fail", "pass"), (False, "pass", "fail"), (None, "info", "info")],
+    ids=["on", "off", "not returned"],
+)
+async def test_the_audit_settings_survive_the_round_trip(
+    tmp_path, sidecars, value, mailbox_audit, unified_audit_log
+):
+    # AuditDisabled=True is the bad value; ingestion enabled=True the good one.
+    exo = {
+        "org_config": {**ORG_CONFIG, "AuditDisabled": value},
+        "admin_audit_log_config": {"UnifiedAuditLogIngestionEnabled": value},
+    }
+    files, _ = await _collect(tmp_path, exo, sidecars=sidecars)
+    assert ("27c_exchange_org_config.json" in files) is sidecars
+
+    controls = _controls(files)
+    assert controls["4.1"]["status"] == mailbox_audit
+    assert controls["9.1"]["status"] == unified_audit_log
+
+
+async def test_the_audit_settings_come_from_the_sidecar(tmp_path):
+    exo = {
+        "org_config": {**ORG_CONFIG, "AuditDisabled": False},
+        "admin_audit_log_config": {"UnifiedAuditLogIngestionEnabled": True},
+    }
+    files, _ = await _collect(tmp_path, exo)
+    # Text the reader cannot read: only the sidecar can answer now.
+    files["27c_exchange_org_config.txt"] = "EXCHANGE ORG CONFIG\n"
+    files["27d_exchange_admin_audit_log_config.txt"] = "EXCHANGE ADMIN AUDIT LOG CONFIG\n"
+
+    controls = _controls(files)
+    assert controls["4.1"]["status"] == "pass"
+    assert controls["9.1"]["status"] == "pass"
+
+
+async def test_a_setting_the_helper_sent_as_a_word_is_typed_in_the_sidecar(tmp_path):
+    exo = {
+        "org_config": {**ORG_CONFIG, "AuditDisabled": "False"},
+        "admin_audit_log_config": {"UnifiedAuditLogIngestionEnabled": "True"},
+    }
+    files, _ = await _collect(tmp_path, exo)
+
+    assert '"AuditDisabled": false' in files["27c_exchange_org_config.json"]
+    assert (
+        '"UnifiedAuditLogIngestionEnabled": true'
+        in files["27d_exchange_admin_audit_log_config.json"]
+    )
+    controls = _controls(files)
+    assert (controls["4.1"]["status"], controls["9.1"]["status"]) == ("pass", "pass")
+
+
 # ── A read the helper reports as failed ───────────────────────────────────────
 #
 # Each block of exo_collector.ps1 records its failure under its own *_error key
@@ -475,6 +540,8 @@ async def test_a_failed_read_is_written_as_an_error_not_as_none(tmp_path, error_
     for name in names:
         assert name in files, f"{name} is written, so the report can say why it is empty"
         assert files[name] == "", f"{name} must read as not collected, as an error stub does"
+        sidecar = name[:-4] + ".json"
+        assert sidecar not in files, f"no {sidecar}: a missing sidecar never means empty"
 
 
 async def test_a_compliance_session_that_did_not_connect_is_not_a_tenant_without_dlp(tmp_path):
