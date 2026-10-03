@@ -196,7 +196,11 @@ class ExchangeSection(BaseSection):
         ]
         for m in mailboxes:
             name = str(m.get("DisplayName") or "")[:40]
-            upn = str(m.get("UserPrincipalName") or "")[:45]
+            # The helper did not send UserPrincipalName until it was added
+            # beside PrimarySmtpAddress, so this column was blank in every
+            # run, and licence optimisation, which looks for the shared and
+            # room mailboxes here, never found one.
+            upn = str(m.get("UserPrincipalName") or m.get("PrimarySmtpAddress") or "")[:45]
             mtype = str(m.get("RecipientTypeDetails") or m.get("RecipientType") or "")[:20]
             quota = str(m.get("TotalItemSize") or m.get("ProhibitSendReceiveQuota") or "N/A")[:20]
             lines.append(f"  {name:<40} {upn:<45} {mtype:<20} {quota}")
