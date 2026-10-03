@@ -6,6 +6,25 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Varsler viser det som faktisk trenger deg
+
+- Varsler lister sertifikater som har gått ut eller går ut innen 30 dager,
+  sertifikatkjeder som ikke valideres, og enheter med utdatert firmware eller
+  firmware som ikke lenger får oppdateringer. Det virker også uten at Teams
+  eller e-post er satt opp. Før viste Varsler bare det varselmotoren hadde
+  klart å sende.
+- Hver TLS-sjekk lagres, og fanen TLS under Nettverk starter med alle kjente
+  sertifikater, det mest presserende først. Selvsignerte sertifikater på
+  brannmurer vises der, men ikke i Varsler, med mindre de går ut.
+- Hver enhets siste firmwareavlesning lagres. En enhet som ikke kunne leses,
+  regnes aldri som oppdatert.
+- Et kort viser hvor mange endepunkter og enheter som er sjekket, og når, så
+  en tom liste ikke leses som at alt er i orden når ingenting er sjekket.
+- Den automatiske varselsjekken sendte til Teams og e-post selv når
+  automatiske varsler var slått av. Det gjør den ikke lenger.
+- Varsler som sendes ut, heter «Sybr HUB: N nye varsler».
+- Automatisk søk etter TLS-endepunkter viste alle kunders brannmurer og
+  kontrollere til enhver tekniker. Nå ser du bare dine egne kunder.
 ### Backup av Microsoft 365-data
 
 - Auditen sjekker om e-post, OneDrive og SharePoint har backup. Den leser
