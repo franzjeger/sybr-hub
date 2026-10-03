@@ -14,6 +14,9 @@ from app.modules.m365_audit.graph_client import (
 )
 
 _FAILURE_THRESHOLD = 50
+_WINDOW_DAYS = 30
+# The bucket for sign-in events that carry no userPrincipalName.
+_NO_UPN = "(unknown)"
 
 # auditLogs/signIns is gated on the tenant's Entra ID tier, not on a Graph
 # permission: AuditLog.Read.All can be granted and consented and the endpoint
@@ -107,7 +110,7 @@ class SignInsSection(BaseSection):
             source_ips: dict[str, int] = defaultdict(int)
 
             for s in signins:
-                upn = s.get("userPrincipalName") or "(unknown)"
+                upn = s.get("userPrincipalName") or _NO_UPN
                 status = s.get("status") or {}
                 if "errorCode" not in status:
                     unknown_counts[upn] += 1
@@ -162,6 +165,26 @@ class SignInsSection(BaseSection):
                 )
             lines += ["=" * 90, ""]
             self._save("05_signin_activity.txt", "\n".join(lines))
+            self._save_sidecar(
+                "05_signin_activity.txt",
+                {
+                    "days": _WINDOW_DAYS,
+                    "events": len(signins),
+                    "unknown_status_events": total_unknown,
+                    "users": [
+                        {
+                            "upn": None if upn == _NO_UPN else upn,
+                            "success": success_counts[upn],
+                            "failures": failure_counts[upn],
+                            "unknown": unknown_counts[upn],
+                            "total": success_counts[upn]
+                            + failure_counts[upn]
+                            + unknown_counts[upn],
+                        }
+                        for upn in sorted_upns
+                    ],
+                },
+            )
 
             # ── Failure file ──────────────────────────────────────────────────
             # Only users with a failure. The activity table above reads
@@ -207,6 +230,37 @@ class SignInsSection(BaseSection):
 
             fail_lines += ["=" * 70, ""]
             self._save("05b_signin_failures.txt", "\n".join(fail_lines))
+            # Every code, country and address, not the text's top ten; and the
+            # sign-ins without a UPN under null, not under a name the reader
+            # would take for a failure reason.
+            self._save_sidecar(
+                "05b_signin_failures.txt",
+                {
+                    "days": _WINDOW_DAYS,
+                    "threshold": _FAILURE_THRESHOLD,
+                    "total_failures": sum(failure_counts.values()),
+                    "users": [
+                        {
+                            "upn": None if upn == _NO_UPN else upn,
+                            "failures": failure_counts[upn],
+                            "threshold_exceeded": failure_counts[upn] > _FAILURE_THRESHOLD,
+                        }
+                        for upn in failed_upns
+                    ],
+                    "error_codes": [
+                        {"code": code, "reason": reason, "count": cnt}
+                        for (code, reason), cnt in sorted(error_codes.items(), key=lambda x: -x[1])
+                    ],
+                    "countries": [
+                        {"country": country, "count": cnt}
+                        for country, cnt in sorted(source_countries.items(), key=lambda x: -x[1])
+                    ],
+                    "ips": [
+                        {"ip": ip, "count": cnt}
+                        for ip, cnt in sorted(source_ips.items(), key=lambda x: -x[1])
+                    ],
+                },
+            )
 
             self._report(SectionStatus.DONE)
         except GraphPermissionError as e:

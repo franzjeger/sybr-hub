@@ -8,6 +8,7 @@ import re
 
 from app.modules.base import SectionResult
 from app.reports.evidence import _evidence_unavailable
+from app.reports.parsers.common import _sidecar
 
 
 def _parse_user_counts(text: str, sidecar: dict | None = None) -> dict:
@@ -735,9 +736,20 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
     # successes interleaved with the failures) from a real password attack.
     success_by_user: dict[str, int] = {}
 
-    # Parse sign-in activity (05_signin_activity.txt)
+    # Parse sign-in activity (05_signin_activity.txt), from its sidecar when the
+    # run has one. A failed read writes no sidecar, so the text below then
+    # explains the gap as before.
     signin_text = file_contents.get("05_signin_activity.txt", "")
-    if _evidence_unavailable(signin_text):
+    activity = _sidecar(file_contents, "05_signin_activity.txt")
+    if activity is not None:
+        named = [u for u in activity.get("users") or [] if u.get("upn")]
+        result["total_signins"] = int(activity.get("events") or 0)
+        result["unique_users"] = len({u["upn"].lower() for u in named})
+        for u in named:
+            key = u["upn"].lower()
+            success_by_user[key] = success_by_user.get(key, 0) + int(u.get("success") or 0)
+        result["has_data"] = True
+    elif _evidence_unavailable(signin_text):
         # The collector writes a "(not available)" block naming the cause.
         # Reading it as data would have set has_data from its mere presence and
         # published a tenant with zero sign-ins and zero failures; writing no
@@ -805,7 +817,8 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
 
     # Parse sign-in failures (05b_signin_failures.txt)
     failure_text = file_contents.get("05b_signin_failures.txt", "")
-    if not _evidence_unavailable(failure_text):
+    failures = _sidecar(file_contents, "05b_signin_failures.txt")
+    if failures is not None or not _evidence_unavailable(failure_text):
         result["has_data"] = True
         failure_users: dict[str, int] = {}
         failure_reasons: dict[str, int] = {}
@@ -822,7 +835,8 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
             tail = cols[-1].replace(",", "") if cols else ""
             return int(tail) if tail.isdigit() else None
 
-        for line in failure_text.splitlines():
+        # A run with the sidecar is read from it, below, and its text not at all.
+        for line in [] if failures is not None else failure_text.splitlines():
             stripped = line.strip()
             upper = stripped.upper()
             if upper.startswith("TOP ERROR CODES"):
@@ -929,6 +943,33 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
                         total_failures += count
                     if reason:
                         failure_reasons[reason] = failure_reasons.get(reason, 0) + count
+
+        if failures is not None:
+            # Sign-ins without a UPN count towards the total but are nobody's:
+            # the text wrote them as "(unknown)", which the loop above took for
+            # a failure reason and left out of the total.
+            for u in failures.get("users") or []:
+                if u.get("upn"):
+                    failure_users[u["upn"]] = failure_users.get(u["upn"], 0) + int(
+                        u.get("failures") or 0
+                    )
+            result["total_failures"] = int(failures.get("total_failures") or 0)
+            error_code_rows = [
+                {
+                    "code": str(c.get("code")),
+                    "reason": c.get("reason") or "",
+                    "count": int(c.get("count") or 0),
+                }
+                for c in failures.get("error_codes") or []
+            ]
+            country_rows = [
+                {"country": c.get("country") or "", "count": int(c.get("count") or 0)}
+                for c in failures.get("countries") or []
+            ]
+            ip_rows = [
+                {"ip": c.get("ip") or "", "count": int(c.get("count") or 0)}
+                for c in failures.get("ips") or []
+            ]
 
         if result["total_failures"] == 0:
             result["total_failures"] = total_failures
