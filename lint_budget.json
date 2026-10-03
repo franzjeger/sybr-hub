@@ -268,6 +268,7 @@
     "tests/test_activity_log.py",
     "tests/test_activity_log_scope.py",
     "tests/test_ai_limits.py",
+    "tests/test_alerts_master_switch.py",
     "tests/test_alerts_record_only_what_was_sent.py",
     "tests/test_also_customer_scope.py",
     "tests/test_also_scheduler_rotation.py",
