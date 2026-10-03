@@ -6,6 +6,23 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Engelske rapporter er på engelsk
+
+- En rapport på engelsk hadde norske forklaringer i hver CIS-, NIST- og
+  ISO-rad, norske merknader under en score som ikke kunne beregnes, og
+  Sybr-standarden på norsk. Nå er alt på engelsk, bortsett fra kundens egne
+  data. Norske rapporter er uendret.
+- En rapport som lages på nytt, viser ikke lenger appens egen nøkkeltallsfil
+  blant rådataene.
+- Anbefalinger fra eldre kjøringer vises på språket du leser på, også ord som
+  «Ukjent antall» og «bruker(e)» som ble lagret ferdig oversatt.
+- Når både FortiGate- og UniFi-filen ikke kunne leses, delte de én
+  anbefaling, og statusen du satte fulgte den filen som kom først. Nå har hver
+  fil sin egen. Lagret status flyttes med ved oppgraderingen der auditen kan
+  si hvilken fil den gjaldt.
+- Policybeskrivelsene på kundesiden og i den tekniske rapporten er skrevet
+  uten tankestrek.
+
 ### Ny navigasjon: kunden er sentrum
 
 - Toppmenyen er Oversikt, Kunder og Verktøy. Under Verktøy ligger Nettverk,
