@@ -426,24 +426,29 @@ class ExchangeSection(BaseSection):
                 or fwd.get("PrimarySmtpAddress")
                 or fwd.get("Mailbox")
                 or ""
-            )[:45]
+            )
             fwd_to = str(
                 fwd.get("ForwardingSmtp")
                 or fwd.get("ForwardingSmtpAddress")
                 or fwd.get("ForwardingAddress")
                 or ""
-            )[:45]
-            is_ext = (
-                "Yes"
-                if fwd.get("DeliverAndForward") or fwd.get("DeliverToMailboxAndForward")
-                else "No"
             )
-            lines.append(f"  {mbx:<45} {fwd_to:<45} {is_ext:>9}")
-
-            # Detect external (not in verified domains)
+            # Detect external (not in verified domains), on the whole address.
+            # It used to be decided on the column below, cut to 45 characters,
+            # which turned a long address in a verified domain into one ending
+            # "@subsidiary.acme.exa", unverified, so external: a critical
+            # finding for forwarding that never left the tenant.
             domain_part = fwd_to.split("@")[-1].lower().rstrip(">")
-            if domain_part and not any(d.lower() == domain_part for d in self.verified_domains):
+            is_external = bool(domain_part) and not any(
+                d.lower() == domain_part for d in self.verified_domains
+            )
+            if is_external:
                 external_fwd.append(fwd)
+            # The column is headed External and used to show
+            # DeliverToMailboxAndForward, so an address outside the tenant
+            # that keeps no copy read "External: No".
+            is_ext = "Yes" if is_external else "No"
+            lines.append(f"  {mbx[:45]:<45} {fwd_to[:45]:<45} {is_ext:>9}")
 
         lines += ["=" * 100, ""]
         self._save("28_exchange_mailbox_forwarding.txt", "\n".join(lines))
