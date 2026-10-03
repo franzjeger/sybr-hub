@@ -204,7 +204,9 @@ def build_report_context(
     license_optimization = _analyze_license_optimization(licenses, file_contents, lang=lang)
     spf_dmarc = _spf_dmarc_records(file_contents)
     ca = _parse_ca_policies(fc("08_conditional_access.txt"))
-    admin_roles = _parse_admin_roles(fc("07_admin_roles.txt"))
+    admin_roles = _parse_admin_roles(
+        fc("07_admin_roles.txt"), _sidecar(file_contents, "07_admin_roles.txt")
+    )
     intune = _parse_intune_devices(
         fc("10_intune_devices_count.txt"),
         fc("10_intune_devices.txt"),
@@ -260,7 +262,7 @@ def build_report_context(
     # blanking, so derive the authoritative signal here: a 17b that was an error
     # payload means the consent-grants read failed (fix review).
     oauth["grants_read"] = "17b_oauth_consent_grants.txt" not in error_files
-    groups = _parse_groups(fc("06_groups.txt"))
+    groups = _parse_groups(fc("06_groups.txt"), _sidecar(file_contents, "06_groups.txt"))
     azure = _parse_azure_overview(file_contents)
     exchange = _parse_exchange_overview(file_contents)
     backup_coverage = _parse_backup_coverage(file_contents)
