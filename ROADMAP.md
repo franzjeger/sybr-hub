@@ -169,7 +169,10 @@ fit elsewhere:
       ask about.
 - [x] The customer page is the hub of the work: findings first, worst
       first, with ticket and plan actions and the PSA/IT Glue links on the
-      page itself (October 2026). The top navigation is still per feature.
+      page itself (October 2026). Since then the navigation follows it:
+      Oversikt, Kunder and Verktøy on top, Administrasjon as a page, no
+      active-customer bar, and the customer page's tabs (Funn, Audit,
+      Policyer, Vurderinger, Nettverk, Tilgang, Detaljer) in the address.
 
 ## Out of scope (deliberately)
 
@@ -212,24 +215,34 @@ its own review rather than being smuggled into an unrelated one.
 - [x] **The recommendations builder.** `_build_recommendations` (806 lines)
   is a table of 31 rules, pinned by its own characterisation snapshot.
 - **Recommendation ids that move.** Remediation state is keyed on a rec's id.
-  Azure Advisor recs put the *translated* category in the id, so state
-  recorded in Norwegian is not found in English; fixing it needs a data
-  migration of stored ids. Two unreadable network files share one id, so
-  state follows position, not file. And a few translated fragments (the
-  Advisor category, "Ukjent antall", "bruker(e)") are frozen into stored
-  params, so a relocalised rec keeps them in the original language.
-- **The parsers read text the collectors wrote.** The collectors write 83
-  text files with fixed-width columns and `app/reports/parsers/` reads them
-  back. Structured output per collector would remove a class of bugs; it is a
-  large change and wants its own plan.
+  The Azure Advisor ids no longer depend on the language (migration 24,
+  October 2026). Still open: two unreadable network files share one id, so
+  state follows position, not file; and a few translated fragments
+  ("Ukjent antall", "bruker(e)") are frozen into stored params, so a
+  relocalised rec keeps them in the original language.
+- [x] **The parsers read text the collectors wrote.** Every collector the
+  report reads now writes a JSON sidecar beside its text file
+  (`BaseSection._save_sidecar`), and the parsers read it first, with the text
+  as the fallback for older runs (October 2026). Sections nothing reads are
+  still text only.
 - **English reports carry Norwegian details.** Most CIS row details in
   `compliance.py` are Norwegian whatever the report language. Give them keys
   when an English-speaking customer needs the report.
 - **Verify the SSH provisioning path on a real FortiGate.** It sends whole
   `config` blocks and reads the answer for errors, which is how FortiOS keeps
   context, but it has only run against a fake device.
-- **Inline styles.** 4,532 `style=` attributes remain in the SPA, held by a
-  budget that only goes down. Move them to classes as views are touched.
+- **Inline styles.** About 3,800 `style=` attributes remain in the SPA (down
+  from 4,532), held by a budget that only goes down. Planned as its own wave,
+  together with moving the frontend to ES modules without globals.
+- **One active customer per user, on the server.** Many endpoints still work
+  on the user's active customer rather than a customer id in the request, so
+  two tabs of one user share it, and a customer page's network data follows
+  the server's choice, not the page's. Passing the id explicitly removes the
+  class.
+- **Verify against live systems.** Autotask and myITprocess were written
+  against their published references; the Exchange helper's recipient lookup
+  for forwarding (`exo_collector.ps1`) has been parsed and mock-tested but not
+  run against a tenant.
 
 ## Versioning
 
