@@ -43,6 +43,9 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 - Policy-utrulling uten skrivetilgang til tenanten ber ikke om lister den
   ikke får lese. Knappene er deaktivert med en forklaring.
 - Kommandopaletten viser bare sider kontoen kan åpne.
+- Et kundebytte gjort mens appen fortsatt startet, ga en administrator
+  beskjed om at kontoen bare hadde lesetilgang, og siden ble stående på
+  «Laster...».
 - Knappen heter «Kjør audit», med ett ikon.
 - Skjemafelt bruker sidens skrift, og Kunder, Verter, Nettleser, RDP og
   Integrasjoner passer på en telefon på 375 piksler.
