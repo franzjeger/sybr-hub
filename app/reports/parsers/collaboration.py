@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 
+from app.reports.evidence import _labelled_int, _labelled_value
 from app.reports.i18n import T
-from app.reports.parsers.common import _count_data_lines, _extract_policy_names
+from app.reports.parsers.common import _count_data_lines, _extract_policy_names, _sidecar
 
 
 def _site_table_rows(sites_text: str) -> int | None:
@@ -129,6 +130,35 @@ def _parse_sharepoint_settings(
         "personal_sites": personal_sites,
         "team_sites": max(0, site_count - personal_sites),
         "has_data": bool(settings) or site_count > 0,
+    }
+
+
+def _onedrive_scan(file_contents: dict[str, str]) -> dict:
+    """What the OneDrive sharing scan found and how far it got.
+
+    {"anyone": int | None, "scanned", "refused", "discovery", "folders": int,
+    "scope": "complete" | "partial" | ""}. From 25_onedrive_sharing.json where
+    the run has it, and from the labelled lines of the text otherwise. "anyone"
+    is None when there is no reading at all.
+    """
+    data = _sidecar(file_contents, "25_onedrive_sharing.txt")
+    if data is not None and "anyone_link_count" in data:
+        return {
+            "anyone": int(data["anyone_link_count"]),
+            "scanned": int(data.get("drives_scanned") or 0),
+            "refused": int(data.get("drives_refused") or 0),
+            "discovery": len(data.get("discovery_failures") or []),
+            "folders": len(data.get("folder_failures") or []),
+            "scope": "complete" if data.get("complete") else "partial",
+        }
+    text = file_contents.get("25_onedrive_sharing.txt", "")
+    return {
+        "anyone": _labelled_int(text, "'Anyone' links"),
+        "scanned": _labelled_int(text, "Drives scanned") or 0,
+        "refused": _labelled_int(text, "Drives refused") or 0,
+        "discovery": _labelled_int(text, "Discovery failures") or 0,
+        "folders": _labelled_int(text, "Folder failures") or 0,
+        "scope": _labelled_value(text, "Scan scope"),
     }
 
 
