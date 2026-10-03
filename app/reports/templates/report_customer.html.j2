@@ -784,6 +784,11 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 
 <!-- Risky users -->
 {% if risky_users and 'No risky' not in risky_users and 'not available' not in risky_users.lower() and risky_users.strip() %}
+{# The rows from 18_risky_users.json when the run has it; the table, split on
+   runs of spaces, for a run from before it. #}
+{% if risky_user_rows is defined and risky_user_rows is not none %}
+{% set risky_entries = risky_user_rows %}
+{% else %}
 {% set risky_entries = [] %}
 {% for line in risky_users.splitlines() %}
   {% set l = line.strip() %}
@@ -794,6 +799,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% endif %}
   {% endif %}
 {% endfor %}
+{% endif %}
 <div class="finding warning" id="finding-risky">
   <div class="finding-body">
     <h4>{{ t('risky_users_title', count=risky_entries|length if risky_entries else '') }}</h4>

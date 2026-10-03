@@ -29,6 +29,12 @@ from app.reports.parsers import _is_audit_relevant_domain, _mfa_user_records
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers import (
+    _is_audit_relevant_domain,
+    _mfa_user_records,
+    _risky_users_from_sidecar,
+)
+from app.reports.parsers.common import _sidecar
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -371,9 +377,10 @@ _HANDLED_RISK_STATES = ("remediated", "dismissed", "confirmedsafe", "safe")
 
 def _risky_users(audit: _Audit) -> Iterator[dict]:
     text, t = audit.risky_users, audit.t
-    if not text or "No risky" in text or _evidence_unavailable(text):
+    users = _risky_users_from_sidecar(audit.fc)
+    if users is None and (not text or "No risky" in text or _evidence_unavailable(text)):
         return
-    risky_items = _users_at_risk(t, text)
+    risky_items = _users_at_risk(t, text, users)
     # A header with no rows (the audit ran, nobody matches) is not a finding:
     # an empty "Risky users detected" would be a false positive.
     if risky_items:
@@ -390,12 +397,19 @@ def _risky_users(audit: _Audit) -> Iterator[dict]:
         }
 
 
-def _users_at_risk(t: T, text: str) -> list[str]:
+def _users_at_risk(t: T, text: str, users: list[dict] | None = None) -> list[str]:
     """A line per user still at risk, from the columnar risky-users report.
 
     A remediated or dismissed account is no longer a live risk; listing it told
     the customer to investigate something already handled (accuracy sweep).
+    ``users`` are the rows from 18_risky_users.json; the text is read without it.
     """
+    if users is not None:
+        return [
+            t("rec_risky_user_line", upn=u["upn"], level=u["level"], state=u["state"])
+            for u in users
+            if u["state"].lower().replace(" ", "") not in _HANDLED_RISK_STATES
+        ]
     items = []
     for line in text.splitlines():
         line = line.strip()

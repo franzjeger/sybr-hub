@@ -43,6 +43,7 @@ from app.reports.parsers import (
     _parse_signin_risk,
     _parse_usage,
     _parse_user_counts,
+    _risky_users_from_sidecar,
     _severity,
 )
 from app.reports.parsers.common import _sidecar
@@ -383,6 +384,8 @@ def build_report_context(
         "ext_fwd_warn": ext_fwd,
         "inbox_rule_warn": fc("29_exchange_inbox_rules_external_fwd_WARN.txt"),
         "risky_users": risky,
+        # The risky users as rows, from their sidecar; None for a run without it.
+        "risky_user_rows": _risky_users_from_sidecar(file_contents),
         "defender_alerts": defender,
         "advisor_data": fc("51_azure_advisor.txt"),
         "compliance_policies": fc("11_intune_compliance_policies.txt"),

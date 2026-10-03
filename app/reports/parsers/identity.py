@@ -1082,3 +1082,24 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         result["stale_credential_users"] = stale
 
     return result
+
+
+def _risky_users_from_sidecar(file_contents: dict[str, str]) -> list[dict] | None:
+    """Each risky user as {"upn", "level", "state"}, from 18_risky_users.json.
+
+    None for a run without the sidecar (or whose read failed), and the caller
+    then reads the table. The table cuts the UPN to 50 characters and pads it
+    to that width, so a UPN that long runs into the risk level, and every
+    reader that splits on runs of spaces took the state for the level.
+    """
+    sidecar = _sidecar(file_contents, "18_risky_users.txt")
+    if sidecar is None:
+        return None
+    return [
+        {
+            "upn": u.get("upn") or "",
+            "level": u.get("risk_level") or "none",
+            "state": u.get("risk_state") or "none",
+        }
+        for u in sidecar.get("users") or []
+    ]
