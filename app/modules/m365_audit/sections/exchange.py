@@ -870,10 +870,14 @@ class ExchangeSection(BaseSection):
 
         # Every forwarding rule and where it goes: the scan ran, and this is
         # what it found. Only the external ones are a finding, in the WARN file.
-        plain = "29_exchange_inbox_rules_external_fwd.txt"
-        self._save(plain, self._inbox_rule_block("INBOX RULES THAT FORWARD OR REDIRECT", placed))
+        # The names are spelled out at each call: the evidence-map guard finds
+        # the files a collector writes by them.
+        self._save(
+            "29_exchange_inbox_rules_external_fwd.txt",
+            self._inbox_rule_block("INBOX RULES THAT FORWARD OR REDIRECT", placed),
+        )
         self._save_sidecar(
-            plain,
+            "29_exchange_inbox_rules_external_fwd.txt",
             {
                 "count": len(placed),
                 "external_count": len(external),
@@ -882,11 +886,14 @@ class ExchangeSection(BaseSection):
             },
         )
         if external:
-            warn = "29_exchange_inbox_rules_external_fwd_WARN.txt"
             self._save(
-                warn, self._inbox_rule_block("INBOX RULES WITH EXTERNAL FORWARDING", external)
+                "29_exchange_inbox_rules_external_fwd_WARN.txt",
+                self._inbox_rule_block("INBOX RULES WITH EXTERNAL FORWARDING", external),
             )
-            self._save_sidecar(warn, {"count": len(external), "rules": external})
+            self._save_sidecar(
+                "29_exchange_inbox_rules_external_fwd_WARN.txt",
+                {"count": len(external), "rules": external},
+            )
             self._warn(
                 f"{len(external)} inbox rule(s) forwarding to external addresses found",
                 level="critical",
