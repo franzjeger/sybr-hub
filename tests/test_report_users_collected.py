@@ -200,15 +200,18 @@ async def test_the_sidecar_is_what_the_stale_reader_reads(tmp_path):
     assert {u["upn"] for u in result["unused_licenses"]} == {LONG_UPN, "ola@acme.example"}
 
 
-async def test_stale_accounts_from_the_text_alone_still_find_the_short_rows(tmp_path):
+async def test_stale_accounts_from_the_text_alone_lose_only_what_the_table_cut(tmp_path):
     files = await _collect(tmp_path, sidecars=False)
 
     result = _analyze_license_optimization([], files)
 
     assert result["has_data"] is True
-    upns = {u["upn"] for u in result["unused_licenses"]}
-    assert "ola@acme.example" in upns
-    assert LONG_UPN not in upns, "the table cut it to 45 characters"
+    unused = {u["name"]: u for u in result["unused_licenses"]}
+    assert set(unused) == {LONG_NAME, "Ola Nordmann"}
+    # A name filling its column is still one column, and its licence flag is
+    # still read from the licence column.
+    assert unused[LONG_NAME]["days_inactive"] == 120
+    assert unused[LONG_NAME]["upn"] == LONG_UPN[:45], "the table cut it to 45 characters"
 
 
 async def test_a_tenant_without_sign_in_data_reads_as_unmeasured_from_either_file(tmp_path):
