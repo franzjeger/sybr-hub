@@ -58,6 +58,7 @@ from tests.compliance_characterisation import (
     decode,
     encode,
     encode_context,
+    exception_text,
 )
 
 SNAPSHOT = Path(__file__).with_name("recommendations_characterisation.json")
@@ -137,7 +138,7 @@ def observe(build: Callable, context: dict, lang: str) -> dict:
     try:
         recs = build(**context, lang=lang)
     except Exception as exc:
-        seen: dict = {"raises": f"{type(exc).__name__}: {exc}"}
+        seen: dict = {"raises": exception_text(exc)}
     else:
         seen = {
             "dump": json.dumps(recs, sort_keys=True, ensure_ascii=False),

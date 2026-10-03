@@ -176,11 +176,25 @@ def row_shape(row: dict) -> list[list[str]]:
     return shape
 
 
+# CPython words some of its own errors differently between versions: 3.14
+# says "argument of type 'int' is not a container or iterable" where 3.11 to
+# 3.13 say "... is not iterable". The snapshot pins which error is raised and
+# what our code puts in it, not the interpreter's phrasing.
+_CPYTHON_WORDING = ((" is not a container or iterable", " is not iterable"),)
+
+
+def exception_text(exc: BaseException) -> str:
+    text = f"{type(exc).__name__}: {exc}"
+    for newer, older in _CPYTHON_WORDING:
+        text = text.replace(newer, older)
+    return text
+
+
 def observe(build: Callable, context, lang: str, frameworks: str) -> dict:
     try:
         rows = build(context, lang=lang, frameworks=frameworks)
     except Exception as exc:
-        return {"raises": f"{type(exc).__name__}: {exc}"}
+        return {"raises": exception_text(exc)}
     return {
         "dump": json.dumps(rows, sort_keys=True, ensure_ascii=False),
         "rows": rows,
