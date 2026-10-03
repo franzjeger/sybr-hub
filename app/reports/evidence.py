@@ -64,8 +64,6 @@ def _section_ran(fc: dict, *names: str) -> bool:
     return any(not _evidence_unavailable(fc.get(name, "")) for name in names)
 
 
-_CANNOT_VERIFY = "Kan ikke verifiseres: "
-
 # Which collected files each CIS verdict is formed from.
 #
 # The technical report already carries every file the audit produced, so the
@@ -209,8 +207,6 @@ def _labelled_int(text: str, label: str) -> int | None:
     except (ValueError, IndexError):
         return None
 
-
-_NOT_LICENSED = "Ikke lisensiert: "
 
 # Which SKU part numbers carry which capability. Only the ones a CIS control
 # actually gates on; this is not meant to be a complete Microsoft catalogue,

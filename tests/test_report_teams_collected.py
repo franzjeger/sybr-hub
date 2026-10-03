@@ -107,12 +107,12 @@ async def test_teams_access_verdicts_survive_the_round_trip(tmp_path, sidecars):
 
     assert _verdict(ctx, "8.1.1") == (
         "warn",
-        "B2B Collaboration innkommende tillater ekstern tilgang og bør begrenses mot policy",
+        "Inbound B2B Collaboration allows external access and should be restricted to policy",
     )
     assert _verdict(ctx, "8.1.2") == (
         "warn",
-        "Invitasjoner: Admins, Guest Inviters, and Members. "
-        "Gjesterolle: Limited access (default). Alle ansatte kan invitere gjester",
+        "Invitations: Admins, Guest Inviters, and Members. "
+        "Guest role: Limited access (default). Every employee can invite guests",
     )
 
 
@@ -136,7 +136,7 @@ async def test_open_settings_fail_either_way(tmp_path, sidecars):
     assert _verdict(ctx, "8.1.1")[0] == "fail", "Direct Connect inbound is open"
     status, detail = _verdict(ctx, "8.1.2")
     assert status == "fail"
-    assert detail.endswith("Gjester har samme tilgang som ansatte")
+    assert detail.endswith("Guests have the same access as employees")
 
 
 @pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
@@ -146,7 +146,7 @@ async def test_partner_configurations_alone_are_graded_either_way(tmp_path, side
 
     assert _verdict(report(tmp_path, sidecars=sidecars), "8.1.1") == (
         "pass",
-        "Ekstern tilgang er begrenset",
+        "External access is restricted",
     )
 
 

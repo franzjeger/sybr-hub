@@ -233,7 +233,7 @@ async def test_a_clean_complete_scan_passes_either_way(tmp_path, sidecars):
 
     status, detail = _verdict(report(tmp_path, sidecars=sidecars), "7.2.4")
     assert status == "pass"
-    assert "2 stasjon" in detail, "both drives were read"
+    assert "in 2 drive(s)" in detail, "both drives were read"
 
 
 @pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
@@ -251,7 +251,7 @@ async def test_a_refused_drive_keeps_absence_unproven_either_way(tmp_path, sidec
 
     status, detail = _verdict(report(tmp_path, sidecars=sidecars), "7.2.4")
     assert status == "info"
-    assert "1 stasjon(er) kunne ikke leses" in detail
+    assert "1 drive(s) could not be read" in detail
 
 
 async def test_the_scan_verdict_does_not_hang_on_the_text_labels(tmp_path):

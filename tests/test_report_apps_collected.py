@@ -214,7 +214,7 @@ async def test_expired_credentials_are_found_either_way(tmp_path, sidecars):
 
     ctx = report(tmp_path, sidecars=sidecars)
 
-    assert _verdict(ctx, "2.1.2") == ("fail", "1 utløpte app-credentials oppdaget")
+    assert _verdict(ctx, "2.1.2") == ("fail", "1 expired app credentials detected")
     finding = _finding(ctx, "finding-cred-expiry")
     assert finding["priority"] == "high"
     assert str(finding["title"]).startswith("App registrations: 2 credential(s)")
@@ -230,7 +230,7 @@ async def test_healthy_credentials_pass_either_way(tmp_path, sidecars):
     assert "17c_app_credential_expiry_WARN.txt" not in files, "nothing to warn about"
 
     ctx = report(tmp_path, sidecars=sidecars)
-    assert _verdict(ctx, "2.1.2") == ("pass", "Ingen utløpte app-credentials")
+    assert _verdict(ctx, "2.1.2") == ("pass", "No expired app credentials")
     assert _finding(ctx, "finding-cred-expiry") is None
 
 
@@ -289,10 +289,10 @@ async def test_expiring_soon_is_one_rule_in_both_files_and_the_report(
     if soon:
         assert _verdict(ctx, "2.1.2") == (
             "warn",
-            f"1 app-credentials utløper snart (innen {EXPIRY_SOON_DAYS} dager)",
+            f"1 app credentials expire soon (within {EXPIRY_SOON_DAYS} days)",
         )
     else:
-        assert _verdict(ctx, "2.1.2") == ("pass", "Ingen utløpte app-credentials")
+        assert _verdict(ctx, "2.1.2") == ("pass", "No expired app credentials")
 
 
 def test_the_recommendation_names_the_collectors_threshold():

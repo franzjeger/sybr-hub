@@ -10,6 +10,22 @@ Every check keeps three cases apart: a reading that passes, a reading that
 does not, and no reading at all. A refusal, an error stub, a licence the
 tenant lacks or a section that never ran is "info" (cannot verify), never a
 zero and never a pass, and "info" rows stay out of the compliance percentage.
+
+Every detail a reader sees is a key in ``app/reports/i18n.py``, in both
+languages, so an English report reads English. A check writes it with:
+
+* ``audit.say("cis_x", count=n)``: the sentence, as plain text;
+* ``audit.cannot_verify("cis_gap_x")``: "Cannot be verified: " and why, for
+  a row with no reading (status "info");
+* ``audit.not_licensed("cis_lic_x")``: "Not licensed: " and which licence.
+
+Keys are named ``cis_<topic>_<case>``; the reasons for a missing reading are
+``cis_gap_*`` and for a missing licence ``cis_lic_*``. Placeholders are named,
+and a value from the tenant (a domain, a count, a policy name) goes in a
+placeholder, never into the key. The oldest rows call ``audit.t(...)``
+directly, which gives the same text with its key attached; nothing reads the
+difference. A new control adds its keys to i18n.py, its entry to
+``_CONTROLS`` below and its files to ``_EVIDENCE_MAP`` in evidence.py.
 """
 
 from __future__ import annotations
@@ -20,9 +36,7 @@ from dataclasses import dataclass
 
 from app.modules.m365_audit.sections.apps_oauth import EXPIRY_SOON_DAYS
 from app.reports.evidence import (
-    _CANNOT_VERIFY,
     _EVIDENCE_MAP,
-    _NOT_LICENSED,
     _evidence_unavailable,
     _lacks,
     _licensed_capabilities,
@@ -127,6 +141,18 @@ class _Audit:
             oauth=context.get("oauth", {}),
             purview=context.get("purview", {}),
         )
+
+    def say(self, key: str, **params) -> str:
+        """The detail *key* in the report's language, as plain text."""
+        return str(self.t(key, **params))
+
+    def cannot_verify(self, key: str, **params) -> str:
+        """A row with no reading: "Cannot be verified: " and the reason *key*."""
+        return self.say("cis_cannot_verify", reason=self.say(key, **params))
+
+    def not_licensed(self, key: str, **params) -> str:
+        """A row the tenant's licences rule out: "Not licensed: " and the reason *key*."""
+        return self.say("cis_not_licensed", reason=self.say(key, **params))
 
 
 @dataclass(frozen=True)
@@ -258,14 +284,14 @@ def _purview_count(purview: dict, key: str) -> int:
 
 
 def _found_or_gap(
-    audit: _Audit, found: bool, file: str, found_detail: str, none_detail: str, gap_detail: str
+    audit: _Audit, found: bool, file: str, found_detail: str, none_detail: str, gap_key: str
 ) -> _Verdict:
     """Pass when found; warn when the section ran and found none; else cannot verify."""
     if found:
         return "pass", found_detail
     if _section_ran(audit.fc, file):
         return "warn", none_detail
-    return "info", _CANNOT_VERIFY + gap_detail
+    return "info", audit.cannot_verify(gap_key)
 
 
 # ── Identity & access ─────────────────────────────────────────────────────────
@@ -320,21 +346,17 @@ def _phishing_resistant_mfa(audit: _Audit) -> _Verdict:
     sidecar = _sidecar(audit.fc, "09b_auth_methods_policy.txt")
     # Any "Error" prefix: some sections write "Error fetching …" without a colon.
     if sidecar is None and (not text.strip() or text.lstrip().startswith("Error")):
-        return "info", _CANNOT_VERIFY + "autentiseringsmetode-policy utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_auth_methods_policy")
     enabled = _phishing_resistant_methods(text, sidecar)
     if enabled:
-        return "pass", f"Phishing-resistant metoder aktivert: {', '.join(enabled)}"
-    return (
-        "warn",
-        "Ingen phishing-resistant metoder (FIDO2 / Windows Hello / "
-        "x509Certificate) er aktivert i autentiseringsmetode-policyen",
-    )
+        return "pass", audit.say("cis_phish_resistant_enabled", methods=", ".join(enabled))
+    return "warn", audit.say("cis_phish_resistant_none")
 
 
 def _global_admins(audit: _Audit) -> _Verdict:
     admin, t = audit.admin_roles, audit.t
     if not admin.get("has_data"):
-        return "info", _CANNOT_VERIFY + "admin-rolle data utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_admin_roles")
     ga = admin.get("global_admin_count", 0)
     if 2 <= ga <= 4:
         return "pass", t("cis_ga_count", count=ga)
@@ -344,7 +366,7 @@ def _global_admins(audit: _Audit) -> _Verdict:
         return "warn", t("cis_ga_too_few", count=ga)
     # Role data but no standing Global Admin: typically PIM/JIT, where every
     # Global Admin is eligible only. Not verifiable from here, so not omitted.
-    return "info", "Ingen faste Global Admin-tildelinger funnet. Verifiser PIM/JIT-oppsettet"
+    return "info", audit.say("cis_ga_none_standing")
 
 
 def _conditional_access(audit: _Audit) -> _Verdict:
@@ -353,7 +375,7 @@ def _conditional_access(audit: _Audit) -> _Verdict:
         return "pass", audit.t("cis_active_policies", count=ca["enabled"])
     if ca.get("has_data"):
         return "fail", audit.t.cis_no_active_ca
-    return "info", _CANNOT_VERIFY + "audit-data utilgjengelig"
+    return "info", audit.cannot_verify("cis_gap_audit_data")
 
 
 def _pim(audit: _Audit) -> _Verdict:
@@ -363,13 +385,13 @@ def _pim(audit: _Audit) -> _Verdict:
     # and counting lines would count the column header.
     count = int(sidecar.get("count") or 0) if sidecar is not None else _parse_banner_count(text)
     if sidecar is None and _missing_or_error(text):
-        return "info", _CANNOT_VERIFY + "PIM-data utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_pim")
     if count is not None and count > 0:
-        return "pass", f"{count} PIM-berettigede rolletildelinger funnet"
+        return "pass", audit.say("cis_pim_found", count=count)
     if _lacks(audit.capabilities, "entra_p2"):
         # Without an assigned P2 seat there is nothing to configure.
-        return "info", _NOT_LICENSED + "PIM krever Entra ID P2, som ikke er tildelt noen bruker"
-    return "warn", "Ingen PIM-tildelinger funnet, så roller kan være permanent tildelt"
+        return "info", audit.not_licensed("cis_lic_pim")
+    return "warn", audit.say("cis_pim_none")
 
 
 _BREAK_GLASS_SUMMARY = re.compile(r"break_glass_candidates=(\d+)\s+ca_exclusions_known=(yes|no)")
@@ -400,29 +422,14 @@ def _emergency_access(audit: _Audit) -> _Verdict:
         candidates = int(summary.group(1)) if summary is not None else 0
         excluded_admins = int(excluded.group(1)) if excluded is not None else 0
     if unavailable:
-        return (
-            "info",
-            _CANNOT_VERIFY + "break-glass-sjekken ble hoppet over eller mangler oppsummering",
-        )
+        return "info", audit.cannot_verify("cis_gap_break_glass_skipped")
     if not known:
-        return (
-            "info",
-            _CANNOT_VERIFY
-            + "CA-unntak ble ikke samlet inn, så nødtilgangskontoer kan ikke bekreftes",
-        )
+        return "info", audit.cannot_verify("cis_gap_ca_exclusions")
     if candidates > 0:
-        return "pass", f"{candidates} nødtilgangskonto(er) (break glass) oppdaget"
+        return "pass", audit.say("cis_break_glass_found", count=candidates)
     if excluded_admins > 0:
-        return (
-            "warn",
-            "Adminkonto(er) er unntatt fra Conditional Access, men ingen fungerer som en gyldig "
-            "nødtilgangskonto (kontoen(e) er i aktiv bruk)",
-        )
-    return (
-        "warn",
-        "Ingen administrator er unntatt fra Conditional Access, og ingen dedikert "
-        "nødtilgangskonto er konfigurert",
-    )
+        return "warn", audit.say("cis_break_glass_in_use")
+    return "warn", audit.say("cis_break_glass_none")
 
 
 def _custom_banned_list_active(text: str) -> bool:
@@ -447,31 +454,27 @@ def _banned_passwords(audit: _Audit) -> _Verdict:
     # The sidecar is written only when the settings were measured.
     sidecar = _sidecar(audit.fc, "31_password_protection.txt")
     if sidecar is None and _missing_or_error(text):
-        return "info", _CANNOT_VERIFY + "data utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_data")
     if sidecar is None and "were not measured" in text.lower():
         # The section says it could not read the directory settings.
-        return "info", _CANNOT_VERIFY + "katalog-innstillinger kunne ikke leses"
+        return "info", audit.cannot_verify("cis_gap_directory_settings")
     if (
         bool(sidecar.get("custom_banned_list_active"))
         if sidecar is not None
         else _custom_banned_list_active(text)
     ):
-        return "pass", "Egendefinert forbudt passordliste er aktiv"
+        return "pass", audit.say("cis_banned_pw_active")
     if _lacks(audit.capabilities, "entra_p1"):
         # The custom list needs Entra ID P1; no configuration clears this without it.
-        return (
-            "info",
-            _NOT_LICENSED + "egendefinert passordliste krever Entra ID P1, "
-            "som ikke er tildelt noen bruker",
-        )
-    return "fail", "Kun Microsofts standardliste, ingen egendefinerte forbudte passord"
+        return "info", audit.not_licensed("cis_lic_banned_pw")
+    return "fail", audit.say("cis_banned_pw_default_only")
 
 
 def _secure_score(audit: _Audit) -> _Verdict:
     ss = audit.secure_score
     # A failed fetch has no pct; reading it as 0 would report a measured FAIL.
     if not ss.get("has_data"):
-        return "info", _CANNOT_VERIFY + "Secure Score-data utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_secure_score")
     pct = ss.get("pct", 0)
     if pct >= 75:
         status = "pass"
@@ -487,17 +490,13 @@ def _legacy_auth_blocked(audit: _Audit) -> _Verdict:
     # and grant control, never its name. SharePoint's own protocols are 7.2.3.
     ca = audit.ca
     if not ca.get("has_data"):
-        return "info", _CANNOT_VERIFY + "Conditional Access-data utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_ca")
     if not ca.get("has_client_app_data"):
         # Audits from before the client-app scope was collected.
-        return (
-            "info",
-            _CANNOT_VERIFY + "auditen er kjørt før klientapp-omfang ble samlet inn. "
-            "Kjør en ny audit",
-        )
+        return "info", audit.cannot_verify("cis_gap_client_app_scope")
     if ca.get("blocks_legacy_auth"):
-        return "pass", "En aktivert CA-policy blokkerer eldre klienter (exchangeActiveSync, other)"
-    return "fail", "Ingen aktivert CA-policy blokkerer eldre autentisering"
+        return "pass", audit.say("cis_legacy_blocked")
+    return "fail", audit.say("cis_legacy_not_blocked")
 
 
 def _security_defaults(text: str) -> str:
@@ -518,15 +517,15 @@ def _baseline_sign_in(audit: _Audit) -> _Verdict:
         sd = _security_defaults(audit.fc.get("31b_smart_lockout.txt", ""))
     ca = audit.ca
     if sd not in ("true", "false"):
-        return "info", _CANNOT_VERIFY + "Security Defaults-status utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_security_defaults")
     if sd == "true":
-        return "pass", "Security Defaults er aktivert"
+        return "pass", audit.say("cis_sd_enabled")
     if not ca.get("has_data"):
         # Off, with the CA side unknown: no verdict either way.
-        return "info", _CANNOT_VERIFY + "Security Defaults er av, men CA-data er utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_sd_off_ca_unknown")
     if ca.get("enabled", 0) > 0:
-        return "pass", f"Security Defaults er av, men {ca.get('enabled')} CA-policyer er aktive"
-    return "fail", "Verken Security Defaults eller aktive CA-policyer"
+        return "pass", audit.say("cis_sd_off_ca_active", count=ca.get("enabled"))
+    return "fail", audit.say("cis_sd_off_no_ca")
 
 
 def _access_reviews(audit: _Audit) -> _Verdict:
@@ -534,17 +533,13 @@ def _access_reviews(audit: _Audit) -> _Verdict:
     sidecar = _sidecar(audit.fc, "07d_access_reviews.txt")
     reviews = int(sidecar.get("count") or 0) if sidecar is not None else _parse_banner_count(text)
     if sidecar is None and _missing_or_error(text):
-        return "info", _CANNOT_VERIFY + "data om tilgangsgjennomganger utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_access_reviews")
     if reviews:
-        return "pass", f"{reviews} tilgangsgjennomgang(er) definert"
+        return "pass", audit.say("cis_access_reviews_found", count=reviews)
     if _lacks(audit.capabilities, "entra_p2"):
         # Without an assigned P2 seat there is nothing to configure.
-        return (
-            "info",
-            _NOT_LICENSED
-            + "tilgangsgjennomganger krever Entra ID P2, som ikke er tildelt noen bruker",
-        )
-    return "warn", "Ingen tilgangsgjennomganger definert"
+        return "info", audit.not_licensed("cis_lic_access_reviews")
+    return "warn", audit.say("cis_access_reviews_none")
 
 
 def _colon_settings(text: str) -> dict[str, str]:
@@ -576,16 +571,12 @@ def _cross_tenant_access(audit: _Audit) -> _Verdict:
         direct_in = settings.get("b2b direct connect in", "")
         system_default = settings.get("system default", "")
     if (sidecar is None and _missing_or_error(text)) or not direct_in:
-        return "info", _CANNOT_VERIFY + "kryssleie-innstillinger utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_cross_tenant")
     if direct_in == "allowed":
-        return (
-            "warn",
-            "B2B direct connect inn er tillatt, så eksterne organisasjoner kan nå "
-            "delte Teams-kanaler uten gjestekonto",
-        )
+        return "warn", audit.say("cis_xt_direct_in_allowed")
     if system_default == "true":
-        return "warn", "Kjører Microsofts systemstandard: kryssleie-tilgang er aldri vurdert"
-    return "pass", "Kryssleie-tilgang er konfigurert, og direct connect inn er ikke tillatt"
+        return "warn", audit.say("cis_xt_system_default")
+    return "pass", audit.say("cis_xt_configured")
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
@@ -615,23 +606,20 @@ def _app_credentials(audit: _Audit) -> _Verdict:
     warn = audit.fc.get("17c_app_credential_expiry_WARN.txt", "")
     if counts is None and not warn.strip():
         if not _section_ran(audit.fc, "17_app_registrations.txt"):
-            return "info", _CANNOT_VERIFY + "app-registreringer utilgjengelig"
-        return "pass", "Ingen utløpte app-credentials"
+            return "info", audit.cannot_verify("cis_gap_app_registrations")
+        return "pass", audit.say("cis_app_creds_none_expired")
     if counts is None:
         # The collector's summary line, not "expired" anywhere: the banner says it too.
         m = _CREDENTIAL_SUMMARY.search(warn)
         counts = (int(m.group(1)) if m else 0, int(m.group(2)) if m else 0)
     expired, expiring = counts
     if expired > 0:
-        return "fail", f"{expired} utløpte app-credentials oppdaget"
+        return "fail", audit.say("cis_app_creds_expired", count=expired)
     if expiring > 0:
         # The collector's own rule, fewer than EXPIRY_SOON_DAYS whole days
         # left, not the "at most 30" this used to print over its count.
-        return (
-            "warn",
-            f"{expiring} app-credentials utløper snart (innen {EXPIRY_SOON_DAYS} dager)",
-        )
-    return "pass", "Ingen utløpte app-credentials"
+        return "warn", audit.say("cis_app_creds_expiring", count=expiring, days=EXPIRY_SOON_DAYS)
+    return "pass", audit.say("cis_app_creds_none_expired")
 
 
 # ── Data protection, SharePoint & OneDrive ────────────────────────────────────
@@ -648,9 +636,9 @@ def _dlp_policies(audit: _Audit) -> _Verdict:
         audit,
         found,
         "19d_purview_dlp_policies.txt",
-        f"{count} DLP-policyer konfigurert" if count else "DLP-policyer funnet",
-        "Ingen DLP-policyer funnet",
-        "Purview DLP-data utilgjengelig",
+        audit.say("cis_dlp_count", count=count) if count else audit.say("cis_dlp_found"),
+        audit.say("cis_dlp_none"),
+        "cis_gap_dlp",
     )
 
 
@@ -660,9 +648,9 @@ def _sensitivity_labels(audit: _Audit) -> _Verdict:
         audit,
         count > 0,
         "19c_purview_sensitivity_labels.txt",
-        f"{count} sensitivitetsetiketter publisert",
-        "Ingen sensitivitetsetiketter funnet",
-        "Purview-etikettdata utilgjengelig",
+        audit.say("cis_labels_count", count=count),
+        audit.say("cis_labels_none"),
+        "cis_gap_labels",
     )
 
 
@@ -672,13 +660,13 @@ def _retention_policies(audit: _Audit) -> _Verdict:
         audit,
         count > 0,
         "19e_purview_retention_policies.txt",
-        f"{count} oppbevaringspolicyer",
-        "Ingen oppbevaringspolicyer funnet",
-        "Purview-oppbevaringsdata utilgjengelig",
+        audit.say("cis_retention_count", count=count),
+        audit.say("cis_retention_none"),
+        "cis_gap_retention",
     )
 
 
-def _onedrive_scan_gaps(scan: dict) -> list[str] | None:
+def _onedrive_scan_gaps(audit: _Audit, scan: dict) -> list[str] | None:
     """What kept the sharing scan from covering the tenant; None if nothing did."""
     refused, discovery, folders = scan["refused"], scan["discovery"], scan["folders"]
     scope = scan["scope"]
@@ -686,13 +674,13 @@ def _onedrive_scan_gaps(scan: dict) -> list[str] | None:
         return None
     gaps = []
     if refused:
-        gaps.append(f"{refused} stasjon(er) kunne ikke leses")
+        gaps.append(audit.say("cis_od_gap_refused", count=refused))
     if discovery:
-        gaps.append(f"{discovery} oppdagelseskall feilet")
+        gaps.append(audit.say("cis_od_gap_discovery", count=discovery))
     if folders:
-        gaps.append(f"{folders} mappe(r) kunne ikke leses")
+        gaps.append(audit.say("cis_od_gap_folders", count=folders))
     if scope and not scope.startswith("complete"):
-        gaps.append("søket nådde en grense før det var ferdig")
+        gaps.append(audit.say("cis_od_gap_limit"))
     return gaps
 
 
@@ -701,20 +689,16 @@ def _anonymous_links(audit: _Audit) -> _Verdict:
     # scan was; but a zero is only as broad as the scan behind it.
     scan = _onedrive_scan(audit.fc)
     anyone = scan["anyone"]
-    gaps = _onedrive_scan_gaps(scan)
+    gaps = _onedrive_scan_gaps(audit, scan)
     scanned = scan["scanned"]
     if anyone is None:
-        return "info", _CANNOT_VERIFY + "OneDrive-delingsdata utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_onedrive")
     if anyone == 0 and gaps is not None:
-        return (
-            "info",
-            "Ingen anonyme delingslenker funnet i det som ble gjennomsøkt, men "
-            + (" og ".join(gaps) or "omfanget av søket er ukjent")
-            + ", så fravær er ikke bekreftet for hele tenanten",
-        )
+        joined = audit.say("cis_joiner_and").join(gaps) or audit.say("cis_od_scope_unknown")
+        return "info", audit.say("cis_od_partial", gaps=joined)
     if anyone == 0:
-        return "pass", f"Ingen anonyme delingslenker funnet i {scanned} stasjon(er)"
-    return "fail", f"{anyone} anonym(e) delingslenke(r) som kan åpnes uten pålogging"
+        return "pass", audit.say("cis_od_none", count=scanned)
+    return "fail", audit.say("cis_od_anyone", count=anyone)
 
 
 def _sharepoint_legacy_auth(audit: _Audit) -> _Verdict:
@@ -722,12 +706,9 @@ def _sharepoint_legacy_auth(audit: _Audit) -> _Verdict:
     # it means nothing without has_data and legacy_auth_known.
     sp = audit.sharepoint
     if not sp.get("has_data"):
-        return "info", _CANNOT_VERIFY + "SharePoint-tenant-innstillinger utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_sp_tenant")
     if not sp.get("legacy_auth_known"):
-        return (
-            "info",
-            _CANNOT_VERIFY + "auditen er kjørt før dette feltet ble samlet inn. Kjør en ny audit",
-        )
+        return "info", audit.cannot_verify("cis_gap_field_not_collected")
     if sp.get("legacy_auth"):
         return "fail", audit.t.cis_legacy_auth_enabled
     return "pass", audit.t.cis_legacy_auth_disabled
@@ -738,7 +719,7 @@ def _sharepoint_sharing(audit: _Audit) -> _Verdict:
     # the separate admin-settings file, and "unknown" means it was not read.
     sp, t = audit.sharepoint, audit.t
     if not sp.get("has_data") or sp.get("sharing_level") == "unknown":
-        return "info", _CANNOT_VERIFY + "SharePoint-innstillinger utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_sp_settings")
     level = sp.get("sharing_level", "")
     raw = (sp.get("sharing") or "").lower().replace(" ", "")
     if level == "ok":
@@ -758,34 +739,35 @@ def _mailbox_audit(audit: _Audit) -> _Verdict:
         audit.fc, "27c_exchange_org_config.txt", "AuditDisabled", first_line_only=False
     )
     if disabled is False:
-        return "pass", "Mailbox audit er aktivert (AuditDisabled=False)"
+        return "pass", audit.say("cis_mailbox_audit_on")
     if disabled is True:
-        return "fail", "Mailbox audit er deaktivert (AuditDisabled=True)"
+        return "fail", audit.say("cis_mailbox_audit_off")
     if text.strip():
-        return "info", "Kunne ikke fastslå audit-status fra org-config"
+        return "info", audit.say("cis_mailbox_audit_unclear")
     # Every other control with nothing to read says so in an info row; this
     # one used to drop out of the report instead.
-    return "info", _CANNOT_VERIFY + "Exchange-organisasjonsoppsettet ble ikke samlet inn"
+    return "info", audit.cannot_verify("cis_gap_exo_org_config")
 
 
 def _policy_count(audit: _Audit, file: str, found: str, none: str, gap: str) -> _Verdict:
+    """*found* takes the count; *none* and *gap* are keys as they are."""
     # A section that ran and lists no policies is a reading of an unprotected
     # tenant; a section that did not run is no reading at all.
     if not _section_ran(audit.fc, file):
-        return "info", _CANNOT_VERIFY + gap
+        return "info", audit.cannot_verify(gap)
     count = _record_count(audit.fc, file)
     if count > 0:
-        return "pass", f"{count} {found}"
-    return "fail", none
+        return "pass", audit.say(found, count=count)
+    return "fail", audit.say(none)
 
 
 def _antiphish(audit: _Audit) -> _Verdict:
     return _policy_count(
         audit,
         "23_exchange_antiphish.txt",
-        "anti-phishing-policy(er) konfigurert",
-        "Ingen anti-phishing-policyer konfigurert",
-        "anti-phishing-data utilgjengelig",
+        "cis_antiphish_found",
+        "cis_antiphish_none",
+        "cis_gap_antiphish",
     )
 
 
@@ -793,9 +775,9 @@ def _antispam(audit: _Audit) -> _Verdict:
     return _policy_count(
         audit,
         "24_exchange_antispam.txt",
-        "anti-spam-policy(er) konfigurert",
-        "Ingen anti-spam-policyer konfigurert",
-        "anti-spam-data utilgjengelig (kjør Get-HostedContentFilterPolicy i EOP)",
+        "cis_antispam_found",
+        "cis_antispam_none",
+        "cis_gap_antispam",
     )
 
 
@@ -807,27 +789,25 @@ def _external_forwarding(audit: _Audit) -> _Verdict:
     external = fc.get("28b_exchange_external_forwarding_WARN.txt", "")
     inbox_rules = fc.get("29_exchange_inbox_rules_external_fwd_WARN.txt", "")
     if external.strip() or inbox_rules.strip():
-        return "warn", "Ekstern videresending oppdaget på en eller flere postbokser"
+        return "warn", audit.say("cis_fwd_external")
     # A target the run could not place inside or outside the tenant is
     # neither a finding nor a pass.
     unverified = [
-        f"{n} {what}"
-        for n, what in (
-            (_unverified_forwarding_count(fc), "postboks(er)"),
-            (_inbox_rule_counts(fc)["unverified"], "innboksregel(er)"),
+        audit.say(key, count=n)
+        for n, key in (
+            (_unverified_forwarding_count(fc), "cis_fwd_unverified_mailboxes"),
+            (_inbox_rule_counts(fc)["unverified"], "cis_fwd_unverified_rules"),
         )
         if n
     ]
     if unverified:
-        return "info", _CANNOT_VERIFY + (
-            " og ".join(unverified) + " videresender til en mottaker auditen ikke "
-            "kunne plassere innenfor eller utenfor tenanten"
-        )
+        what = audit.say("cis_joiner_and").join(unverified)
+        return "info", audit.cannot_verify("cis_fwd_unverified", what=what)
     if _section_ran(
         fc, "28_exchange_mailbox_forwarding.txt", "29_exchange_inbox_rules_external_fwd.txt"
     ):
-        return "pass", "Ingen ekstern videresending oppdaget"
-    return "info", _CANNOT_VERIFY + "videresendingsdata utilgjengelig"
+        return "pass", audit.say("cis_fwd_none")
+    return "info", audit.cannot_verify("cis_gap_forwarding")
 
 
 def _defender_policy(audit: _Audit, kind: str, label: str) -> _Verdict:
@@ -835,15 +815,15 @@ def _defender_policy(audit: _Audit, kind: str, label: str) -> _Verdict:
     state = _defender_policies(audit.fc)[kind]
     enabled = state["enabled"]
     if enabled > 0:
-        return "pass", f"{enabled} aktiv(e) {label}-policy(er)"
+        return "pass", audit.say("cis_defender_active", count=enabled, policy=label)
     if state["present"]:
-        return "fail", f"{label}-policy(er) finnes men er deaktivert"
+        return "fail", audit.say("cis_defender_disabled", policy=label)
     if _lacks(audit.capabilities, "defender_office"):
         # Not in the tenant's SKUs: the absence is the licence, not the setup.
-        return "info", _NOT_LICENSED + f"{label} krever Defender for Office 365 Plan 1"
+        return "info", audit.not_licensed("cis_lic_defender", policy=label)
     if _section_ran(audit.fc, "27_exchange_defender_policies.txt"):
-        return "warn", f"Ingen {label}-policyer funnet"
-    return "info", _CANNOT_VERIFY + "Defender-policydata utilgjengelig"
+        return "warn", audit.say("cis_defender_none", policy=label)
+    return "info", audit.cannot_verify("cis_gap_defender_policies")
 
 
 # Enabled counts come from the parsed policy blocks: a policy named "Safe Links"
@@ -868,7 +848,7 @@ def _spf(audit: _Audit, record: dict, domain: str) -> _Verdict:
     if "OK" in spf:
         return "pass", spf
     if unresolved:
-        return "info", _CANNOT_VERIFY + f"SPF-oppslaget for {domain} feilet med {spf}"
+        return "info", audit.cannot_verify("cis_gap_spf_lookup", domain=domain, result=spf)
     return "fail", spf or audit.t.cis_spf_missing
 
 
@@ -883,9 +863,11 @@ def _dmarc(audit: _Audit, record: dict, domain: str) -> _Verdict:
     if "quarantine" in dmarc.lower():
         return "partial", detail
     if "p=none" in dmarc.lower() or "p=none" in published.lower():
-        return "partial", f"p=none (kun overvåking): {published}" if published else dmarc
+        return "partial", (
+            audit.say("cis_dmarc_monitor_only", record=published) if published else dmarc
+        )
     if dmarc.strip().upper().startswith("ERROR"):
-        return "info", _CANNOT_VERIFY + f"DMARC-oppslaget for {domain} feilet med {dmarc}"
+        return "info", audit.cannot_verify("cis_gap_dmarc_lookup", domain=domain, result=dmarc)
     return "fail", dmarc or audit.t.cis_dmarc_missing
 
 
@@ -903,28 +885,24 @@ def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
     """
     signs = _exchange_signs(_exchange_dkim_configs(audit.fc), domain)
     if signs:
-        return "pass", f"DKIM-signering er aktivert i Exchange Online for {domain}"
+        return "pass", audit.say("cis_dkim_exchange_signs", domain=domain)
     senders = _spf_senders(record)
     if senders == {"none"}:
-        return "pass", f"{domain} sender ikke e-post (SPF: v=spf1 -all), så DKIM trengs ikke"
+        return "pass", audit.say("cis_dkim_no_mail", domain=domain)
     keys = _third_party_dkim(record)
     if senders and "exchange" not in senders:
         # The data names who sends the domain's mail, and it is not Exchange.
         signed = [(name, selector) for name, selector in keys if name in senders]
         if signed:
             name, selector = signed[0]
-            return (
-                "pass",
-                f"{domain} sender e-post via {name}, som har publisert DKIM-nøkkel "
-                f"(selektor {selector})",
+            return "pass", audit.say(
+                "cis_dkim_third_party_signs", domain=domain, name=name, selector=selector
             )
-        return (
-            "warn",
-            f"{domain} sender e-post via {', '.join(sorted(senders))}, men ingen DKIM-nøkkel "
-            "for avsenderen er funnet",
+        return "warn", audit.say(
+            "cis_dkim_third_party_unsigned", domain=domain, senders=", ".join(sorted(senders))
         )
     # Exchange sends the domain's mail, or the data does not say who does.
-    detail = f"DKIM-signering er ikke aktivert i Exchange Online for {domain}"
+    detail = audit.say("cis_dkim_exchange_not_signing", domain=domain)
     if signs is None:
         # Exchange's signing config was not collected. DNS can still say no:
         # without the M365 selectors published, Exchange cannot sign with the
@@ -934,30 +912,16 @@ def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
         dkim1 = str(record.get("dkim1") or "")
         m365 = [_dkim_selectors(record).get(s) for s in ("selector1", "selector2")]
         if "error" in dkim1.lower():
-            return (
-                "info",
-                _CANNOT_VERIFY
-                + f"DKIM-oppslaget for M365-selektorene til {domain} feilet med {dkim1}",
-            )
+            return "info", audit.cannot_verify("cis_gap_dkim_lookup", domain=domain, result=dkim1)
         if any(s and _key_published(s) for s in m365):
-            return "info", _CANNOT_VERIFY + (
-                f"DKIM-signeringen i Exchange Online for {domain} ble ikke hentet, "
-                "men M365-selektorene er publisert i DNS"
-            )
+            return "info", audit.cannot_verify("cis_gap_dkim_not_fetched", domain=domain)
         if not all(s == "MISSING" for s in m365):
-            return "info", _CANNOT_VERIFY + "DKIM ikke kontrollert for dette domenet"
-        detail = (
-            f"Ingen M365 DKIM-selektorer er publisert for {domain}, så Exchange Online "
-            "signerer ikke e-posten med domenet"
-        )
+            return "info", audit.cannot_verify("cis_gap_dkim_unchecked")
+        detail = audit.say("cis_dkim_no_m365_selectors", domain=domain)
     if keys:
         names = ", ".join(sorted({name for name, _ in keys}))
-        detail += (
-            f"; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender, "
-            "og SPF viser at Exchange Online også sender for domenet"
-            if senders
-            else f"; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender"
-        )
+        scope = "cis_dkim_key_scope_exchange_too" if senders else "cis_dkim_key_scope"
+        detail = audit.say(scope, detail=detail, names=names)
     # Exchange Online does not sign this domain's mail: the control's own
     # question answered no, graded like a missing SPF or DMARC record.
     return "fail", detail
@@ -999,8 +963,11 @@ def _device_compliance(audit: _Audit) -> _Verdict:
     has_policies = policy_count > 0
     has_devices = intune.get("has_data") and intune.get("total", 0) > 0
     if intune.get("unavailable") and not has_policies:
-        reason = intune.get("unavailable_reason") or "Intune-data utilgjengelig"
-        return "info", _CANNOT_VERIFY + reason
+        # The collector's own words for the refusal, when it gave any.
+        reason = intune.get("unavailable_reason")
+        if reason:
+            return "info", audit.say("cis_cannot_verify", reason=reason)
+        return "info", audit.cannot_verify("cis_gap_intune")
     if not has_policies and not has_devices and intune.get("entra_total", 0) > 0:
         # Devices the directory knows and Intune manages none of: every endpoint
         # sits outside compliance management.
@@ -1008,15 +975,12 @@ def _device_compliance(audit: _Audit) -> _Verdict:
     if not has_policies and not has_devices:
         return "info", t.cis_no_intune
     if not has_policies and unreadable:
-        return "info", _CANNOT_VERIFY + "Intune-compliance-policyer utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_intune_policies")
     if not has_policies:
         # With no policy to evaluate, device compliance is undefined.
-        return "fail", "Enheter er enrolled, men ingen Intune-compliance-policyer er konfigurert"
+        return "fail", audit.say("cis_devices_no_policies")
     if not has_devices:
-        return (
-            "pass",
-            f"{policy_count} compliance-policy(er) konfigurert (ingen enheter enrolled)",
-        )
+        return "pass", audit.say("cis_policies_no_devices", count=policy_count)
     pct = intune.get("compliance_pct", 0)
     if pct >= 90:
         return "pass", t("cis_compliance_pct", pct=pct)
@@ -1030,7 +994,7 @@ def _device_compliance(audit: _Audit) -> _Verdict:
 _RESTRICTED = ("block", "disabl", "none", "restrict", "denied")
 
 
-def _teams_b2b_verdict(collab: str, direct: str) -> _Verdict:
+def _teams_b2b_verdict(audit: _Audit, collab: str, direct: str) -> _Verdict:
     # Graded per access type: Microsoft's default blocks Direct Connect while
     # allowing collaboration, so "blocked" is in almost every file. Direct
     # Connect inbound open grants shared-channel trust and fails; open
@@ -1038,41 +1002,34 @@ def _teams_b2b_verdict(collab: str, direct: str) -> _Verdict:
     collab_open = bool(collab) and not any(k in collab.lower() for k in _RESTRICTED)
     direct_open = bool(direct) and not any(k in direct.lower() for k in _RESTRICTED)
     if direct_open:
-        return "fail", "B2B Direct Connect innkommende tillater ekstern tilgang uten begrensning"
+        return "fail", audit.say("cis_teams_direct_open")
     if collab_open:
-        return (
-            "warn",
-            "B2B Collaboration innkommende tillater ekstern tilgang og bør begrenses mot policy",
-        )
-    return "pass", "Ekstern tilgang er begrenset"
+        return "warn", audit.say("cis_teams_collab_open")
+    return "pass", audit.say("cis_teams_restricted")
 
 
-def _teams_access_from_text(text: str) -> _Verdict:
+def _teams_access_from_text(audit: _Audit, text: str) -> _Verdict:
     # Older federation-style output, or partner configurations only.
     low = text.lower()
     if "blocked" in low or "disabled" in low:
-        return "pass", "Ekstern tilgang er begrenset"
+        return "pass", audit.say("cis_teams_restricted")
     if "allowed for all" in low or "everyone" in low or "no restrictions" in low:
-        return "fail", "Ekstern tilgang er uten begrensninger (anyone-mode)"
-    return "warn", "Ekstern tilgang er aktivert med begrensninger og bør gjennomgås mot policy"
+        return "fail", audit.say("cis_teams_unrestricted")
+    return "warn", audit.say("cis_teams_limited")
 
 
 def _teams_external_access(audit: _Audit) -> _Verdict:
     access = _teams_cross_tenant(audit.fc)
     if access is None:
-        return "info", _CANNOT_VERIFY + "Teams external access-data utilgjengelig"
+        return "info", audit.cannot_verify("cis_gap_teams_external")
     collab, direct, partners = access["collab"], access["direct"], access["partners"]
     if not collab and not direct and partners is None:
         # Every access type N/A and no partner configurations: the policy was
         # not returned, or the tenant is on defaults. No evidence either way.
-        return (
-            "info",
-            _CANNOT_VERIFY
-            + "kryssleie-tilgangspolicy ikke innsamlet eller tenant på Microsoft-standard",
-        )
+        return "info", audit.cannot_verify("cis_gap_teams_policy_default")
     if collab or direct:
-        return _teams_b2b_verdict(collab, direct)
-    return _teams_access_from_text(partners)
+        return _teams_b2b_verdict(audit, collab, direct)
+    return _teams_access_from_text(audit, partners)
 
 
 def _teams_guest_access(audit: _Audit) -> _Verdict:
@@ -1080,15 +1037,17 @@ def _teams_guest_access(audit: _Audit) -> _Verdict:
     # already mapped the Graph values to readable names.
     invites, role = _teams_guest_settings(audit.fc)
     if not invites:
-        return "info", _CANNOT_VERIFY + "gjesteinnstillinger ble ikke hentet"
-    detail = f"Invitasjoner: {invites}. Gjesterolle: {role or 'ukjent'}"
+        return "info", audit.cannot_verify("cis_gap_guest_settings")
+    detail = audit.say(
+        "cis_guest_settings", invites=invites, role=role or audit.say("cis_guest_role_unknown")
+    )
     if "same as member" in role.lower():
         # Worse than any invitation setting: whoever gets in sees what a member sees.
-        return "fail", detail + ". Gjester har samme tilgang som ansatte"
+        return "fail", audit.say("cis_guest_same_as_member", detail=detail)
     if invites.lower().startswith("everyone"):
-        return "fail", detail + ". Gjester kan invitere flere gjester"
+        return "fail", audit.say("cis_guest_can_invite", detail=detail)
     if "member" in invites.lower():
-        return "warn", detail + ". Alle ansatte kan invitere gjester"
+        return "warn", audit.say("cis_guest_members_invite", detail=detail)
     return "pass", detail
 
 
@@ -1105,21 +1064,10 @@ def _unified_audit_log(audit: _Audit) -> _Verdict:
         first_line_only=True,
     )
     if enabled is True:
-        return (
-            "pass",
-            "Unified Audit Log-ingestion er aktivert (UnifiedAuditLogIngestionEnabled=True)",
-        )
+        return "pass", audit.say("cis_ual_on")
     if enabled is False:
-        return (
-            "fail",
-            "Unified Audit Log-ingestion er deaktivert (UnifiedAuditLogIngestionEnabled=False). "
-            "Kjør Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true",
-        )
-    return (
-        "info",
-        _CANNOT_VERIFY + "Unified Audit Log-innstillingen ble ikke hentet. "
-        "Verifiser Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled manuelt",
-    )
+        return "fail", audit.say("cis_ual_off")
+    return "info", audit.cannot_verify("cis_gap_ual")
 
 
 def _defender_alerts(audit: _Audit) -> _Verdict:
@@ -1131,13 +1079,13 @@ def _defender_alerts(audit: _Audit) -> _Verdict:
         # Rows are counted rather than a phrase matched; the header's wording varies.
         open_alerts = _count_data_lines(text) if text.strip() else 0
     if open_alerts > 0:
-        return "warn", f"{open_alerts} aktive Defender-varsler krever oppfølging"
+        return "warn", audit.say("cis_defender_alerts_open", count=open_alerts)
     # An empty alerts file means "no alerts" only if the query ran.
     if sidecar is not None or _section_ran(
         audit.fc, "19b_defender_alert_count.txt", "19b_defender_active_alerts.txt"
     ):
-        return "pass", "Ingen aktive Defender-varsler"
-    return "info", _CANNOT_VERIFY + "Defender-varseldata utilgjengelig"
+        return "pass", audit.say("cis_defender_alerts_none")
+    return "info", audit.cannot_verify("cis_gap_defender_alerts")
 
 
 def _risky_user_rows(text: str) -> tuple[int, int]:
@@ -1152,17 +1100,17 @@ def _risky_users(audit: _Audit) -> _Verdict:
     text = raw if isinstance(raw, str) else ""
     users = _risky_users_from_sidecar(audit.fc)
     if users is None and _evidence_unavailable(text):
-        return "info", _CANNOT_VERIFY + "risky-users-data utilgjengelig (krever Entra ID P2)"
+        return "info", audit.cannot_verify("cis_gap_risky_users")
     if users is not None:
         rows = len(users)
         high = sum(1 for u in users if u["level"].lower() in ("high", "medium"))
     else:
         rows, high = _risky_user_rows(text)
     if high > 0:
-        return "fail", f"{high} brukere med høy/medium risiko er oppdaget og må undersøkes"
+        return "fail", audit.say("cis_risky_high", count=high)
     if rows > 0:
-        return "warn", f"{rows} brukere er flagget med lav risiko og bør gjennomgås"
-    return "pass", "Ingen risikobrukere oppdaget"
+        return "warn", audit.say("cis_risky_low", count=rows)
+    return "pass", audit.say("cis_risky_none")
 
 
 # ── The controls, in report order ─────────────────────────────────────────────
