@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from app.reports.parsers.common import (
-    _policy_names,
-    _record_count,
-    _sidecar,
-)
+from app.reports.parsers.common import _policy_names, _record_count, _sidecar
 
 
 def _parse_spf_dmarc(text: str) -> list[dict]:

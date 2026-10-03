@@ -584,7 +584,7 @@ class ExchangeSection(BaseSection):
             # Detect external (not in verified domains), on the whole address.
             # It used to be decided on the column below, cut to 45 characters,
             # which turned a long address in a verified domain into one ending
-            # "@subsidiary.acme.exa", unverified, so external: a critical
+            # "@subsidiary.acme.e", unverified, so external: a critical
             # finding for forwarding that never left the tenant.
             domain_part = fwd_to.split("@")[-1].lower().rstrip(">")
             is_external = bool(domain_part) and not any(
