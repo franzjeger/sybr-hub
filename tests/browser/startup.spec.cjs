@@ -1,9 +1,10 @@
 // Start-up asks the server for each answer once. The bootstrap ran twice
 // (checkAuth after the strings had loaded, and again at the end of
-// app-chrome.js), so every page load sent /auth/me, /settings, the bell's
+// app-chrome.js; it is main.js's now), so every page load sent /auth/me, /settings, the bell's
 // /activity-log and the VPN badge's /vpn/status twice, and opened the
 // address's customer page twice.
 const { test, expect } = require('@playwright/test');
+const { inApp, expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
@@ -13,7 +14,7 @@ async function login(page) {
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 test('after sign-in the app appears only once it knows who signed in', async ({page}) => {
@@ -37,7 +38,7 @@ test('after sign-in the app appears only once it knows who signed in', async ({p
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  expect(await page.evaluate(() => !!_currentUser && _allowedViews.length > 0)).toBe(true);
+  expect(await inApp(page, app => !!app._currentUser && app._allowedViews.length > 0)).toBe(true);
   await page.unrouteAll({behavior: 'ignoreErrors'});
 });
 

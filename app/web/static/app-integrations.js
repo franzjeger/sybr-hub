@@ -1,3 +1,22 @@
+import {esc} from './app-esc.js';
+import {_lang, t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {onViewShown} from './app-hooks.js';
+import {hasModule} from './app-state.js';
+import {adminSignpostButton, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {renderToolCustomerPickers} from './app.js';
+import {
+  aiLoadCustomers, browserInit, hostsLoad, livePollNow, loadPentestCapabilities, rdpInit,
+  sshShowKeys, vpnLoadProfiles,
+} from './app-infra.js';
+import {tsLoadView} from './app-tailscale.js';
+import {policyDeployLoad} from './app-policy-deploy.js';
+import {baselineDeployLoad} from './app-baseline-deploy.js';
+import {policyOverviewLoad} from './app-policy-overview.js';
+import {assessmentsLoad} from './app-assessments.js';
+import {loadCustomers} from './app-customers.js';
+
 // Handlers for the markup this file builds: the docs tree, the ALSO and
 // Uniweb import and match dialogs, and the task scheduler.
 registerUiHandlers({
@@ -135,7 +154,7 @@ async function docsRepoOpen(path) {
 }
 
 // ── ALSO Cloud Marketplace ───────────────────────────────────────────────────
-async function alsoTestConnection() {
+export async function alsoTestConnection() {
   var msg = document.getElementById('also-config-msg');
   msg.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_testing','Testing...') + '</span>';
   try {
@@ -163,7 +182,7 @@ async function alsoTestConnection() {
   }
 }
 
-async function alsoSaveConfig() {
+export async function alsoSaveConfig() {
   var msg = document.getElementById('also-config-msg');
   var settings = await apiFetch('/api/settings');
   var body = Object.assign({}, settings || {}, {
@@ -184,7 +203,7 @@ async function alsoSaveConfig() {
   }
 }
 
-async function alsoSyncCustomers() {
+export async function alsoSyncCustomers() {
   var msg = document.getElementById('also-config-msg');
   msg.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_loading','Loading...') + '</span>';
   try {
@@ -278,7 +297,7 @@ async function alsoLinkMatched() {
 
 // ── Uniweb Hosting ──────────────────────────────────────────────────────────
 
-async function uniwebSaveConfig() {
+export async function uniwebSaveConfig() {
   var msg = document.getElementById('uniweb-config-msg');
   var email = document.getElementById('input-uniweb-email').value.trim();
   var password = document.getElementById('input-uniweb-password').value.trim();
@@ -312,7 +331,7 @@ function _uniwebFormatDuration(ms) {
   return mins + 'm ' + (secs < 10 ? '0' : '') + secs + 's';
 }
 
-async function uniwebSync() {
+export async function uniwebSync() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
   msg.innerHTML = '<span style="color:var(--text-muted);">' + t('starter_synkronisering') + '</span>';
@@ -329,7 +348,7 @@ async function uniwebSync() {
   }
 }
 
-async function uniwebPollStatus() {
+export async function uniwebPollStatus() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
   var d = await apiFetch('/api/uniweb/status');
@@ -428,7 +447,7 @@ async function uniwebPollStatus() {
   }
 }
 
-async function uniwebLoadAccounts() {
+export async function uniwebLoadAccounts() {
   var container = document.getElementById('uniweb-accounts-container');
   if (!container) return;
 
@@ -789,9 +808,7 @@ async function uniwebDoImport() {
       showToast(t('importerte') + ' ' + d.imported + ' ' + t('integ_customers_from_uniweb','kunde(r) fra Uniweb'), 'success', 5000);
 
       // Refresh the main customer list if available
-      if (typeof loadCustomers === 'function') {
-        try { loadCustomers(); } catch(e) { /* ignore */ }
-      }
+      try { loadCustomers(); } catch(e) { /* ignore */ }
     }
 
     if (!d.errors || d.errors.length === 0) {
@@ -815,7 +832,7 @@ async function uniwebDoImport() {
 
 // ── Task Scheduler (Planlagte oppgaver) ─────────────────────────────────────
 
-async function taskSchedRefresh() {
+export async function taskSchedRefresh() {
   var container = document.getElementById('task-scheduler-table');
   if (!container) return;
   try {
@@ -830,7 +847,7 @@ async function taskSchedRefresh() {
 // The API sends the schedule as fields and as an English summary ("daily
 // 02:00", "every 6h", "sunday 03:00"). The summary was printed as it came, in
 // English in a Norwegian table; the label is built from the fields instead.
-function _taskSchedLabel(task) {
+export function _taskSchedLabel(task) {
   var time = task.time || '';
   if (task.type === 'interval') {
     var hours = Number(task.interval_hours) || 0;
@@ -852,7 +869,7 @@ function _taskSchedLabel(task) {
 function taskSchedRender(tasks) {
   var container = document.getElementById('task-scheduler-table');
   if (!container) return;
-  var lang = (typeof _lang !== 'undefined' ? _lang : 'no');
+  var lang = _lang;
 
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
   html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
@@ -951,7 +968,7 @@ async function taskSchedRunNow(taskId, btn) {
 
 var _alertSaveTimeout = null;
 
-async function alertLoadConfig() {
+export async function alertLoadConfig() {
   var d = await apiFetch('/api/alerts/config');
   if (!d) return;
 
@@ -993,13 +1010,13 @@ async function alertLoadConfig() {
   alertLoadHistory();
 }
 
-function alertToggleMaster(enabled) {
+export function alertToggleMaster(enabled) {
   var dot = document.getElementById('alert-status-dot');
   if (dot) dot.style.background = enabled ? 'var(--green)' : 'var(--text-dim)';
   alertSaveConfig();
 }
 
-function alertSaveConfig() {
+export function alertSaveConfig() {
   if (_alertSaveTimeout) clearTimeout(_alertSaveTimeout);
   _alertSaveTimeout = setTimeout(function() { _alertDoSave(); }, 400);
 }
@@ -1053,7 +1070,7 @@ async function _alertDoSave() {
   }
 }
 
-async function alertRunCheckNow() {
+export async function alertRunCheckNow() {
   var resultEl = document.getElementById('alert-check-result');
   if (resultEl) resultEl.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_checking','Sjekker...') + '</span>';
 
@@ -1155,7 +1172,7 @@ async function uniwebCheckStatus() {
 
 // ── IT Glue Documentation Sync ─────────────────────────────────────────────
 
-async function itglueSyncAllDocumentation() {
+export async function itglueSyncAllDocumentation() {
   var btn = document.getElementById('itglue-sync-doc-btn');
   var status = document.getElementById('itglue-sync-status');
   if (!btn || !status) return;
@@ -1220,7 +1237,7 @@ async function itglueSyncAllDocumentation() {
 
 // ── Integrations ──────────────────────────────────────────────────────────────
 
-function toggleIntegConfig(id) {
+export function toggleIntegConfig(id) {
   const el = document.getElementById(id);
   if (!el) return;
   // Computed, not inline. A panel whose hidden state comes from a stylesheet
@@ -1309,7 +1326,7 @@ function _integGateActions(prefix, configured) {
 // The alert settings sit on the same view, so they are loaded with it. This
 // used to be done by reassigning loadIntegrationStatus at the bottom of the
 // file, which hid from every reader of this function that it did more.
-async function loadIntegrationStatus() {
+export async function loadIntegrationStatus() {
   await _loadIntegrationCards();
   alertLoadConfig();
 }
@@ -1404,7 +1421,7 @@ async function _loadIntegrationCards() {
     var _uwPass = document.getElementById('input-uniweb-password');
     if (_uwEmail) _uwEmail.value = d.uniweb_email || '';
     if (_uwPass) _uwPass.value = d.uniweb_password || '';
-    if (d.uniweb_password_set && typeof uniwebCheckStatus === 'function') uniwebCheckStatus();
+    if (d.uniweb_password_set) uniwebCheckStatus();
     // Update summary. The dot is green only when something is set up; a green
     // dot beside "0 of 9" read as all clear.
     var sumEl = document.getElementById('integ-summary');
@@ -1440,7 +1457,7 @@ async function _loadIntegrationCards() {
   } catch(e) { console.warn('Alert options init failed:', e); }
 }
 
-async function testMyITProcess() {
+export async function testMyITProcess() {
   const out = document.getElementById('myitprocess-test-result');
   out.textContent = t('msg_testing', 'Tester…');
   out.style.color = 'var(--text-muted)';
@@ -1480,7 +1497,7 @@ async function _saveMyITProcessSettings() {
   return !!(d && !d.error);
 }
 
-async function testAutotask() {
+export async function testAutotask() {
   const out = document.getElementById('autotask-test-result');
   out.textContent = t('msg_testing', 'Tester…');
   out.style.color = 'var(--text-muted)';
@@ -1526,7 +1543,7 @@ async function _saveAutotaskSettings() {
   return !!(d && !d.error);
 }
 
-async function saveITGlueSettings() {
+export async function saveITGlueSettings() {
   const msg = document.getElementById('itglue-save-msg');
   msg.textContent = t('btn_saving'); msg.style.color = 'var(--text-muted)';
   const d = await apiFetch('/api/settings', {
@@ -1546,7 +1563,7 @@ async function saveITGlueSettings() {
 }
 
 // ── GDAP / Partner Center ─────────────────────────────────────────────────
-async function gdapSaveConfig() {
+export async function gdapSaveConfig() {
   var msg = document.getElementById('gdap-config-msg');
   msg.textContent = t('btn_saving'); msg.style.color = 'var(--text-muted)';
   var tenant = document.getElementById('input-gdap-tenant').value.trim();
@@ -1583,14 +1600,14 @@ async function gdapSaveConfig() {
   }
 }
 
-async function gdapTestConnection() {
+export async function gdapTestConnection() {
   var msg = document.getElementById('gdap-config-msg');
   msg.textContent = t('msg_checking'); msg.style.color = 'var(--text-muted)';
   // Save first (in case credentials changed)
   await gdapSaveConfig();
 }
 
-async function gdapDiscoverCustomers() {
+export async function gdapDiscoverCustomers() {
   var panel = document.getElementById('gdap-discover-panel');
   var list = document.getElementById('gdap-discover-list');
   panel.style.display = 'block';
@@ -1622,7 +1639,7 @@ async function gdapDiscoverCustomers() {
   list.innerHTML = html;
 }
 
-async function gdapImportSelected() {
+export async function gdapImportSelected() {
   var cbs = document.querySelectorAll('.gdap-import-cb:checked:not(:disabled)');
   var tenantIds = [];
   cbs.forEach(function(cb) { tenantIds.push(cb.value); });
@@ -1650,7 +1667,7 @@ async function gdapImportSelected() {
   }
 }
 
-async function saveEmailSettings() {
+export async function saveEmailSettings() {
   const msg = document.getElementById('email-save-msg');
   msg.textContent = t('btn_saving'); msg.style.color = 'var(--text-muted)';
   const d = await apiFetch('/api/settings', {
@@ -1674,7 +1691,7 @@ async function saveEmailSettings() {
   setTimeout(() => { msg.textContent = ''; }, 3000);
 }
 
-async function saveWebhookSettings() {
+export async function saveWebhookSettings() {
   const msg = document.getElementById('webhook-save-msg');
   msg.textContent = t('btn_saving'); msg.style.color = 'var(--text-muted)';
   const d = await apiFetch('/api/scheduler', {

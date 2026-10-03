@@ -17,6 +17,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const acorn = require('acorn');
+const {sourceTypeOf} = require('./js-modules.cjs');
 
 const STATIC_DIR = path.join(__dirname, '..', 'app', 'web', 'static');
 const THIRD_PARTY = new Set(['guacamole.min.js']);
@@ -87,7 +88,7 @@ function main() {
   // Scripts.
   for (const file of fs.readdirSync(STATIC_DIR).filter(f => f.endsWith('.js') && !THIRD_PARTY.has(f)).sort()) {
     const text = fs.readFileSync(path.join(STATIC_DIR, file), 'utf8');
-    const ast = acorn.parse(text, {ecmaVersion: 'latest', sourceType: 'script', locations: true});
+    const ast = acorn.parse(text, {ecmaVersion: 'latest', sourceType: sourceTypeOf(file), locations: true});
     const where = node => `app/web/static/${file}:${node.loc.start.line}`;
 
     for (const statement of ast.body) {
@@ -114,7 +115,7 @@ function main() {
 
     (function walk(node, parent) {
       if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'registerUiHandlers' && !node.__topLevel) {
-        report(where(node), 'registerUiHandlers() must be called at the top level of a script, while it loads');
+        report(where(node), 'registerUiHandlers() must be called at the top level of a module, while it loads');
       }
       if (node.type === 'Literal' && typeof node.value === 'string') {
         scanMarkup(node.value, where(node), {dynamicTail: parent && parent.type === 'BinaryExpression' && parent.left === node});

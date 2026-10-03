@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { inApp } = require('./app.cjs');
 const { createHmac } = require('node:crypto');
 
 async function login(page, username) {
@@ -36,7 +37,7 @@ test('stored customer data stays data across two users and keyboard activation',
   // The actual renderer against the actual authenticated API: the Kunder
   // list prints the name and hands it to the archive button's handler,
   // which shows it in the typed confirmation.
-  await page.evaluate(() => showView('customers'));
+  await inApp(page, app => app.showView('customers'));
   const card = page.locator('#customers-content').getByText(attack, {exact: true});
   await expect(card).toBeVisible();
   const archive = page.locator(`#customers-content [data-click-handler="deleteCustomer"][data-name="${attack.replace(/"/g, '\\"')}"]`);
@@ -59,13 +60,13 @@ test('handler arguments escaped into data attributes reach the handler intact', 
     // attribute it is just text. (CR LF becomes LF in any parsed attribute.)
     "x\ny\u2028z\tq", '<img src=x onerror=alert(1)>'];
   for (const value of payloads) {
-    await page.evaluate(value => {
+    await inApp(page, (app, value) => {
       const host = document.createElement('div'); host.id = 'escape-fixture';
       // The element the handler acts on, named by the hostile value itself.
       const target = document.createElement('p'); target.id = value; target.textContent = 'target';
       host.appendChild(target);
       host.insertAdjacentHTML('beforeend',
-        '<button data-click-handler="hideElement" data-target="' + esc(value) + '">test</button>');
+        '<button data-click-handler="hideElement" data-target="' + app.esc(value) + '">test</button>');
       document.body.appendChild(host);
     }, value);
     const button = page.locator('#escape-fixture button');
@@ -90,7 +91,7 @@ test('logout rejects copied refresh and access tokens', async ({page}) => {
 
 test('MFA enrollment displays recovery once and subsequent login requires it', async ({page}) => {
   await login(page, 'browser-tech');
-  await page.evaluate(() => showMfaSettings());
+  await inApp(page, app => app.showMfaSettings());
   const modal = page.locator('#confirm-modal');
   await modal.locator('input[type=password]').fill('Browser-test123!');
   await modal.locator('.btn-primary').click();

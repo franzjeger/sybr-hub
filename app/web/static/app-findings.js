@@ -15,6 +15,13 @@
 // Controls carry data-action attributes and one delegated listener per mount
 // handles them, so no customer data ever sits inside inline JavaScript.
 
+import {esc} from './app-esc.js';
+import {_lang, t} from './app-i18n.js';
+import {_currentUser, canOpenView, canWrite, hasFeature} from './app-state.js';
+import {showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {openAdmin} from './app-settings.js';
+
 var _FINDING_SEVERITIES = ['critical', 'high', 'medium', 'low'];
 var _FINDING_STATUSES = ['open', 'in_progress', 'done', 'ignored'];
 var _FINDING_CLOSED = {done: true, ignored: true};
@@ -72,7 +79,7 @@ function _statusLabel(st) {
 // Mount the findings list for one customer into `el`. Returns a promise that
 // settles when the first render is done. `opts.onLinked` runs after a link
 // changes, so the page around the list can refresh its own chips.
-async function mountCustomerFindings(el, customerId, opts) {
+export async function mountCustomerFindings(el, customerId, opts) {
   if (!el) return;
   var state = {customerId: customerId, data: null, showClosed: false, opts: opts || {}};
   el._findings = state;
@@ -150,7 +157,7 @@ function _renderFindings(el) {
   el.innerHTML = '<section class="findings">' + head + body + '</section>';
 }
 
-function _auditDateLabel(runName) {
+export function _auditDateLabel(runName) {
   var date = String(runName || '').substring(0, 10);
   var parsed = new Date(date);
   if (isNaN(parsed.getTime())) return date;
@@ -409,7 +416,7 @@ async function _fetchLinkCandidates(system, query) {
 
 // A modal to pick the record this customer is in the other system. Suggests
 // by name; the server refuses a record another customer already holds.
-function openLinkPicker(customerId, customerName, system, onDone) {
+export function openLinkPicker(customerId, customerName, system, onDone) {
   var sys = _LINK_SYSTEMS[system];
   if (!sys) return;
   var backdrop = document.createElement('div');

@@ -12,11 +12,11 @@
 // every wrapper after it.
 var _viewOpeners = {};
 
-function onViewShown(name, fn) {
+export function onViewShown(name, fn) {
   (_viewOpeners[name] = _viewOpeners[name] || []).push(fn);
 }
 
-function viewShown(name) {
+export function viewShown(name) {
   (_viewOpeners[name] || []).forEach(function(fn) {
     try { fn(); } catch (e) { console.error('Opening view ' + name + ' failed:', e); }
   });
@@ -25,11 +25,11 @@ function viewShown(name) {
 // What other scripts do once someone has signed in (app-chrome.js: the tour).
 var _signedInHooks = [];
 
-function onSignedIn(fn) {
+export function onSignedIn(fn) {
   _signedInHooks.push(fn);
 }
 
-function signedIn() {
+export function signedIn() {
   _signedInHooks.forEach(function(fn) { fn(); });
 }
 
@@ -37,11 +37,11 @@ function signedIn() {
 // the tour down).
 var _loginViewHooks = [];
 
-function onLoginViewShown(fn) {
+export function onLoginViewShown(fn) {
   _loginViewHooks.push(fn);
 }
 
-function loginViewShown() {
+export function loginViewShown() {
   _loginViewHooks.forEach(function(fn) { fn(); });
 }
 
@@ -49,9 +49,9 @@ function loginViewShown() {
 // says how to reload when the bar's choice changes.
 var _toolReloaders = {};
 
-function registerToolCustomer(tool, reload) { _toolReloaders[tool] = reload; }
+export function registerToolCustomer(tool, reload) { _toolReloaders[tool] = reload; }
 
-function reloadToolCustomer(tool) {
+export function reloadToolCustomer(tool) {
   var reload = _toolReloaders[tool];
   if (reload) reload();
 }

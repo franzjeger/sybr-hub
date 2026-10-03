@@ -2,6 +2,13 @@
 // CUSTOMER SETUP — actions, credentials & PKCE flow
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {showConfirm, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {applyWriteCapability, showView} from './app.js';
+
 registerUiHandlers({
   setupCopyPkceUrl: function() { const el = document.getElementById('pkce-url-out'); el.select(); document.execCommand('copy'); },
   setupPastePkceOob: function() { navigator.clipboard.readText().then(text => document.getElementById('pkce-oob-input').value = text); },
@@ -10,7 +17,7 @@ registerUiHandlers({
 
 // ── Customer actions ───────────────────────────────────────────────────────────
 // Renews one customer's credentials: the one whose page the button is on.
-async function renewCreds(customerId) {
+export async function renewCreds(customerId) {
   if (!customerId) return;
   if (!await showConfirm(t('dlg_confirm_renew'))) return;
   // Renewal issues a fresh certificate + client secret — exactly what first-run
@@ -27,7 +34,7 @@ async function renewCreds(customerId) {
 
 // Setup ends by registering the customer it set up; the answer says which, and
 // "Åpne kunden" opens that one (openSetupCustomer).
-var _setupCustomerId = null;
+export var _setupCustomerId = null;
 async function _registerSetupCustomer() {
   var reg = await apiFetch('/api/customers/register', {method: 'POST'});
   if (reg && reg.customer_id) _setupCustomerId = reg.customer_id;
@@ -46,7 +53,7 @@ function _setupProgressCard() {
 }
 
 // What this screen looks like before anybody has asked for anything.
-function _renderSetupIdle() {
+export function _renderSetupIdle() {
   if (_setupRunning) return;   // a run owns the screen; leave it alone
 
   var view = document.getElementById('view-setup');
@@ -89,11 +96,11 @@ function _renderSetupIdle() {
 
   // The button is a write action; re-run the gate so a read-only user sees the
   // explanation without an action they cannot take.
-  if (typeof applyWriteCapability === 'function') applyWriteCapability();
+  applyWriteCapability();
 }
 
 
-function startSetup() {
+export function startSetup() {
   _setupRunning = true;
   showView('setup');
   var intro = document.getElementById('setup-intro');
@@ -307,7 +314,7 @@ function showDeviceCode(d) {
 // and no flag or API changes it. So this opens a normal tab and the UI says
 // plainly that a private session is the reader's own step. Being honest
 // about it beats a button that claims something it never did.
-function openPrivateBrowser() {
+export function openPrivateBrowser() {
   if (!_deviceCodeUrl) return;
   var info = document.getElementById('dc-browser-info');
   var win = window.open(_deviceCodeUrl, '_blank', 'noopener,noreferrer');
@@ -322,7 +329,7 @@ function hideDeviceCode() {
   document.getElementById('device-code-card').classList.remove('visible');
 }
 
-function copyCode() {
+export function copyCode() {
   const code = document.getElementById('dc-code').textContent;
   navigator.clipboard.writeText(code).then(() => {
     document.getElementById('dc-copy-hint').textContent = t('msg_copied');
@@ -337,7 +344,7 @@ function copyCode() {
 // the operator wants a different browser entirely — copy-paste is the reliable
 // path. The URL is short and fixed (login.microsoft.com/device), but typing it
 // by hand from another machine is exactly the friction this removes.
-function copyDeviceUrl() {
+export function copyDeviceUrl() {
   if (!_deviceCodeUrl) return;
   navigator.clipboard.writeText(_deviceCodeUrl).then(() => {
     showToast(t('msg_copied_short', 'Kopiert!'), 'success', 1500);

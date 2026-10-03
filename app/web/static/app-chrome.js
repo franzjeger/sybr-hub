@@ -2,6 +2,19 @@
 // CHROME — theme, notifications, shortcuts, onboarding & bootstrap
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {onLoginViewShown, onSignedIn} from './app-hooks.js';
+import {_currentUser, hasFeature} from './app-state.js';
+import {_formatBytes} from './app-format.js';
+import {showToast, showToastWithRetry} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {_syncConnChip, currentView, setVpnTunnelUp, showView, toggleCommandPalette} from './app.js';
+import {aiQuickPrompt} from './app-infra.js';
+import {_gradeFilter, clearGradeFilter, openOverviewTab} from './app-dashboard.js';
+import {auditRunning, startAudit} from './app-audit.js';
+import {openAdmin} from './app-settings.js';
+
 // ── Theme toggle ────────────────────────────────────────────────────────────────
 // ── Notification bell ─────────────────────────────────────────────────────────
 var _notifLastSeen = localStorage.getItem('sybr_notif_seen') || '';
@@ -9,7 +22,7 @@ var _notifLastSeen = localStorage.getItem('sybr_notif_seen') || '';
 // The bell opens Varsler on Oversikt, where the bell's events sit with the
 // expiring credentials, renewals, domains and what the automatic alerts sent.
 // Opening it is seeing what was new.
-function toggleNotifications() {
+export function toggleNotifications() {
   _notifLastSeen = new Date().toISOString();
   try { localStorage.setItem('sybr_notif_seen', _notifLastSeen); } catch (e) { /* private mode */ }
   var badge = document.getElementById('notif-badge');
@@ -19,7 +32,7 @@ function toggleNotifications() {
   openOverviewTab('dash-alerts');
 }
 
-async function _checkVpnHeaderBadge() {
+export async function _checkVpnHeaderBadge() {
   // Signed-out pages and accounts without the VPN feature have nothing to show
   // here, and the server refuses them.
   if (!_currentUser || !hasFeature('vpn')) return;
@@ -49,7 +62,7 @@ async function _checkVpnHeaderBadge() {
 // Re-check VPN status periodically
 setInterval(_checkVpnHeaderBadge, 30000);
 
-async function _checkNotifBadge() {
+export async function _checkNotifBadge() {
   try {
     var d = await apiFetch('/api/activity-log?limit=5');
     var entries = d.entries || [];
@@ -72,7 +85,7 @@ async function _checkNotifBadge() {
   } catch(e) { /* notification poll — retries periodically */ }
 }
 
-function toggleTheme() {
+export function toggleTheme() {
   const root = document.documentElement;
   const current = root.getAttribute('data-theme') || 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
@@ -104,18 +117,18 @@ function applyTheme(theme) {
 }
 
 // ── Activity log labels ─────────────────────────────────────────────────────
-function _activityLabel(key) {
+export function _activityLabel(key) {
   return t('activity_' + key, key.replace(/_/g, ' '));
 }
 
 
 // ── Mobile bottom nav + «Mer» sheet (frame 4a) ──────────────────────────────
-function openMoreSheet() {
+export function openMoreSheet() {
   var b = document.getElementById('more-backdrop');
   if (b) { b.classList.add('open'); document.addEventListener('keydown', _closeMoreSheetEsc); }
   _syncBottomNav('more');
 }
-function closeMoreSheet() {
+export function closeMoreSheet() {
   var b = document.getElementById('more-backdrop');
   if (b) b.classList.remove('open');
   document.removeEventListener('keydown', _closeMoreSheetEsc);
@@ -123,7 +136,7 @@ function closeMoreSheet() {
   _syncBottomNav(av ? av.id.replace('view-', '') : 'overview');
 }
 function _closeMoreSheetEsc(e) { if (e.key === 'Escape') closeMoreSheet(); }
-function _syncBottomNav(name) {
+export function _syncBottomNav(name) {
   // Map every view onto one of the bottom tabs. Søk opens the palette over
   // whatever is showing, so it never stays lit; Varsler is Oversikt's
   // Varsler tab; Verktøy, Administrasjon and Hjelp live in Mer.
@@ -143,10 +156,10 @@ function _syncBottomNav(name) {
 }
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
-function openShortcutsModal() {
+export function openShortcutsModal() {
   document.getElementById('shortcuts-modal').classList.add('open');
 }
-function closeShortcutsModal() {
+export function closeShortcutsModal() {
   document.getElementById('shortcuts-modal').classList.remove('open');
 }
 function closeAllModals() {
@@ -357,7 +370,7 @@ applyTheme(localStorage.getItem('sybr-theme') || (window.matchMedia && window.ma
 // Previously built from an inline <script> in index.html. Moved out so we can
 // drop 'unsafe-inline' from the CSP script-src directive. Uses addEventListener,
 // since the CSP runs no inline event-handler attributes either.
-function renderAiQuickPrompts() {
+export function renderAiQuickPrompts() {
   var el = document.getElementById('ai-quick-prompts');
   if (!el) return;
   var prompts = [
@@ -374,9 +387,7 @@ function renderAiQuickPrompts() {
     card.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;transition:background 0.1s;';
     card.textContent = p.icon + ' ' + t(p.label, p.labelFb);
     card.addEventListener('click', function() {
-      if (typeof aiQuickPrompt === 'function') {
-        aiQuickPrompt(t(p.prompt, p.promptFb));
-      }
+      aiQuickPrompt(t(p.prompt, p.promptFb));
     });
     card.addEventListener('mouseover', function() { card.style.background = 'var(--bg-card)'; });
     card.addEventListener('mouseout',  function() { card.style.background = ''; });
@@ -384,7 +395,6 @@ function renderAiQuickPrompts() {
   });
 }
 
-loadI18n().then(() => { renderAiQuickPrompts(); checkAuth(); });
 // ── PWA install prompt ─────────────────────────────────────────────────────
 // Two install paths:
 //   Chromium / Edge / Android Chrome: `beforeinstallprompt` fires when the
@@ -435,9 +445,7 @@ window.addEventListener('appinstalled', function() {
   _deferredPwaInstall = null;
   var btn = document.getElementById('pwa-install-btn');
   if (btn) btn.style.display = 'none';
-  if (typeof showToast === 'function') {
-    showToast(t('msg_pwa_installed', 'Appen er installert'), 'success', 2500);
-  }
+  showToast(t('msg_pwa_installed', 'Appen er installert'), 'success', 2500);
 });
 
 // Initial decision on load + whenever viewport crosses the mobile breakpoint.
@@ -448,7 +456,7 @@ if (document.readyState === 'loading') {
 }
 window.addEventListener('resize', _refreshPwaInstallButton);
 
-async function promptPwaInstall() {
+export async function promptPwaInstall() {
   if (_deferredPwaInstall) {
     _deferredPwaInstall.prompt();
     try {
@@ -517,28 +525,24 @@ if ('serviceWorker' in navigator) {
     if (_swReloadGuard) return;
     _swReloadGuard = true;
     if (_swUpdateAccepted) { location.reload(); return; }
-    if (typeof showToastWithRetry === 'function') {
-      showToastWithRetry(t('msg_pwa_update_available', 'Ny versjon tilgjengelig'), function() {
-        location.reload();
-      });
-    }
+    showToastWithRetry(t('msg_pwa_update_available', 'Ny versjon tilgjengelig'), function() {
+      location.reload();
+    });
   });
 }
 
 var _swUpdateAccepted = false;
 
 function _notifySwUpdateAvailable(worker) {
-  if (typeof showToastWithRetry === 'function') {
-    showToastWithRetry(t('msg_pwa_update_available', 'Ny versjon tilgjengelig'), function() {
-      _swUpdateAccepted = true;
-      worker.postMessage({ type: 'SKIP_WAITING' });
-    });
-  }
+  showToastWithRetry(t('msg_pwa_update_available', 'Ny versjon tilgjengelig'), function() {
+    _swUpdateAccepted = true;
+    worker.postMessage({ type: 'SKIP_WAITING' });
+  });
 }
 
 // Desktop notifications are asked for when an audit starts (startAudit),
 // a moment the operator can connect with the question, not on page load.
-function requestAuditNotifications() {
+export function requestAuditNotifications() {
   if ('Notification' in window && Notification.permission === 'default') {
     var asked = Notification.requestPermission();
     if (asked && asked.catch) asked.catch(function() {});
@@ -706,7 +710,7 @@ function levelColor(lvl) {
   return 'var(--text-dim)';
 }
 
-async function loadLogs() {
+export async function loadLogs() {
   var level = (document.getElementById('log-level-filter') || {}).value || 'WARNING';
   var box = document.getElementById('log-content');
   var data = await apiFetch('/api/logs?level=' + level + '&limit=300');
@@ -739,12 +743,12 @@ async function loadLogs() {
   document.getElementById('log-stats').innerHTML = statsArr.join(' &nbsp;·&nbsp; ');
 }
 
-async function clearLogs() {
+export async function clearLogs() {
   await apiFetch('/api/logs/clear', {method: 'POST'});
   loadLogs();
 }
 
-function copyLogs() {
+export function copyLogs() {
   var box = document.getElementById('log-content');
   var text = box ? box.innerText : '';
   navigator.clipboard.writeText(text).then(function() {
@@ -753,14 +757,14 @@ function copyLogs() {
 }
 
 // Leaving the view stops the refresh and unticks its box.
-function stopLogAutoRefresh() {
+export function stopLogAutoRefresh() {
   if (!_logAutoRefreshTimer) return;
   clearInterval(_logAutoRefreshTimer); _logAutoRefreshTimer = null;
   var cb = document.getElementById('log-auto-refresh');
   if (cb) cb.checked = false;
 }
 
-function toggleLogAutoRefresh() {
+export function toggleLogAutoRefresh() {
   var checked = document.getElementById('log-auto-refresh').checked;
   if (checked) {
     _logAutoRefreshTimer = setInterval(loadLogs, 3000);
@@ -769,10 +773,6 @@ function toggleLogAutoRefresh() {
     _logAutoRefreshTimer = null;
   }
 }
-
-// Auth is checked once on load, after the strings: loadI18n().then(checkAuth)
-// above. A second call here ran the whole start-up twice (/auth/me, the
-// route's customer page, /settings, the bell and the VPN badge, each twice).
 
 // ── Offline / Online connection indicator ────────────────────────────────────
 (function() {

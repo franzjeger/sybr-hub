@@ -865,8 +865,12 @@ def test_the_cache_version_covers_every_shell_asset():
     assert not referenced - covered, (
         f"a shell loads these but the cache key ignores them: {sorted(referenced - covered)}"
     )
+    # main.js is the one module the shell names; app.js and app-esc.js are
+    # reached only through imports and must be covered all the same.
     assert {
+        "main.js",
         "app.js",
+        "app-esc.js",
         "app.css",
         "index.html",
         "offline.html",

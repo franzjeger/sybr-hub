@@ -14,9 +14,16 @@
  * neither screen shows the internal path a check reads.
  */
 
+import {esc} from './app-esc.js';
+import {_lang, t, translatePage} from './app-i18n.js';
+import {_custPage} from './app-state.js';
+import {showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {_reason, baselineReason} from './app-customer-detail.js';
+
 var _asmtBaselines = null;
 
-async function assessmentsLoad() {
+export async function assessmentsLoad() {
   var el = document.getElementById('assessments-content');
   if (!el) return;
   el.innerHTML = '<div class="loader asmt-loader"></div>';

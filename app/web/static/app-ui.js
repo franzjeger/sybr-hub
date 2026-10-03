@@ -2,13 +2,19 @@
 // SHARED UI: toasts, confirm dialogs, the login screen and page furniture
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {loginViewShown} from './app-hooks.js';
+import {canOpenView} from './app-state.js';
+
 // ── Toast notification system ─────────────────────────────────────────────────
 registerUiHandlers({
   dismissToast: function(el) { dismissToast(el.parentNode); },
   retryToast: function(el) { retryToast(el.closest('.toast')); },
 });
 
-function showToast(message, type, duration) {
+export function showToast(message, type, duration) {
   if (type === undefined) type = 'error';
   if (duration === undefined) duration = 5000;
   var container = document.getElementById('toast-container');
@@ -24,7 +30,7 @@ function showToast(message, type, duration) {
   return toast;
 }
 
-function showToastWithRetry(message, retryFn, type, dedupeKey) {
+export function showToastWithRetry(message, retryFn, type, dedupeKey) {
   if (type === undefined) type = 'error';
   var container = document.getElementById('toast-container');
   if (!container) return;
@@ -51,7 +57,7 @@ var _toastRetryId = 0;
 // Each retry toast's action, by its data-retry-id, until it is dismissed.
 var _toastRetryFns = {};
 
-function retryToast(el) {
+export function retryToast(el) {
   var retryFn = el && _toastRetryFns[el.dataset.retryId];
   dismissToast(el);
   if (retryFn) retryFn();
@@ -89,7 +95,7 @@ var _confirmResolver = null;
 //   })
 // It once took an `actions` list of buttons whose onclick was a JavaScript
 // string. Nothing used it, and the CSP no longer runs inline handlers.
-function emptyStateHTML(opts) {
+export function emptyStateHTML(opts) {
   opts = opts || {};
   var cls = opts.variant === 'inline' ? 'empty-state-inline' : 'empty-state';
   var parts = ['<div class="' + cls + '">'];
@@ -100,7 +106,7 @@ function emptyStateHTML(opts) {
   return parts.join('');
 }
 
-function showConfirm(title, body) {
+export function showConfirm(title, body) {
   return new Promise(function(resolve) {
     _confirmResolver = resolve;
     document.getElementById('confirm-modal-title').textContent = title;
@@ -118,7 +124,7 @@ function showConfirm(title, body) {
 // for actions that are hard to reverse — deletes, bulk wipes, etc.
 //
 //   if (!await showTypedConfirm(customer.name, "Slett kunde", "Dette sletter alle audits, rapporter og credentials permanent.")) return;
-function showTypedConfirm(subject, title, body) {
+export function showTypedConfirm(subject, title, body) {
   return new Promise(function(resolve) {
     _confirmResolver = resolve;
     document.getElementById('confirm-modal-title').textContent = title;
@@ -178,7 +184,7 @@ function showTypedConfirm(subject, title, body) {
   });
 }
 
-function resolveConfirm(val) {
+export function resolveConfirm(val) {
   document.getElementById('confirm-modal').style.display = 'none';
   // Reset the OK button in case this was a typed-confirm
   var ok = document.getElementById('confirm-modal-ok');
@@ -191,7 +197,7 @@ function resolveConfirm(val) {
 }
 
 // ── Login screen ──────────────────────────────────────────────────────────────
-function showLoginView(mode) {
+export function showLoginView(mode) {
   loginViewShown();
   var el = document.getElementById('auth-overlay');
   if (!el) return;
@@ -206,7 +212,7 @@ function showLoginView(mode) {
   }).catch(function(){});
 }
 
-function hideLoginView() {
+export function hideLoginView() {
   var el = document.getElementById('auth-overlay');
   if (el) el.style.display = 'none';
   document.querySelector('header').style.display = '';
@@ -219,7 +225,7 @@ function hideLoginView() {
 // and btn.textContent = '…' flattens both spans into a bare string, so the
 // icon disappeared the first time the button changed state and never came
 // back. Writing to the label span leaves the icon alone.
-function setButtonLabel(btn, text) {
+export function setButtonLabel(btn, text) {
   if (!btn) return;
   var label = btn.querySelector('[data-i18n]');
   if (label) label.textContent = text;
@@ -227,7 +233,7 @@ function setButtonLabel(btn, text) {
 }
 
 // ── Reusable sortable table utility ──────────────────────────────────────────
-function makeSortable(tableEl) {
+export function makeSortable(tableEl) {
   if (!tableEl) return;
   var thead = tableEl.querySelector('thead');
   if (!thead) return;
@@ -292,7 +298,7 @@ function _sortTableByCol(tableEl, colIdx, asc) {
 }
 
 // ── Skeleton loading ───────────────────────────────────────────────────────────
-function skeletonHTML(type) {
+export function skeletonHTML(type) {
   var s = '<div class="skeleton ';
   var row = s + 'skeleton-row"></div>';
   var text = s + 'skeleton-text"></div>';
@@ -352,7 +358,7 @@ function skeletonHTML(type) {
 // A button to a pane of Administrasjon, for the places that say "set this up
 // under Administrasjon". Nothing for an account that cannot open the page:
 // the sentence beside it still says where, for the administrator to act on.
-function adminSignpostButton(pane, labelKey, extraClass) {
+export function adminSignpostButton(pane, labelKey, extraClass) {
   if (!canOpenView('admin')) return '';
   return '<button class="btn ' + esc(extraClass || 'btn-default btn-sm') + '" data-click-handler="openAdmin" data-pane="' + esc(pane) + '">'
     + esc(t(labelKey)) + '</button>';
@@ -364,7 +370,7 @@ function adminSignpostButton(pane, labelKey, extraClass) {
 // allow-modals are only there for this wrapper: it sizes the frame to the
 // report and sends Ctrl+P to the report itself, which then paginates at paper
 // width instead of printing one screen of the wrapper.
-function openReportWindow(html, title) {
+export function openReportWindow(html, title) {
   var win = window.open('', '_blank');
   if (!win) return null;
   var doc = win.document;

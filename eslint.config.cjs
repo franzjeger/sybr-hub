@@ -1,12 +1,14 @@
 'use strict';
-// Lints the browser scripts under app/web/static (not vendor/). The rules are
-// the ones that find defects in a codebase of classic scripts sharing one
-// global scope; style is left alone. See scripts/js-globals.cjs for how the
-// cross-file globals are worked out.
+// Lints the browser code under app/web/static (not vendor/). The interface is
+// a graph of ES modules (main.js is the entry); no-undef is what catches a
+// name used without an import. A few files stay classic scripts: theme-init.js
+// (runs in <head> before the first paint) and sw.js (the service worker).
+// scripts/js-modules.cjs checks what ESLint does not: that every import names
+// a module and an export that exist, and the layering in main.js.
 const globals = require('globals');
-const {declarationsByFile, globalsFor} = require('./scripts/js-globals.cjs');
 
-// Loaded by index.html from vendor/ (and guacamole.min.js) into the same scope.
+// Loaded by index.html from vendor/ (and guacamole.min.js) as classic scripts
+// before the entry module; modules read them as globals.
 const THIRD_PARTY_GLOBALS = {
   Chart: 'readonly',
   DOMPurify: 'readonly',
@@ -22,13 +24,17 @@ const THIRD_PARTY_GLOBALS = {
 const CONFUSING_GLOBALS = ['event', 'name', 'status', 'length', 'top', 'parent', 'closed', 'opener', 'origin', 'external'];
 
 const rules = {
+  // A name used without being declared or imported.
   'no-undef': 'error',
-  // builtinGlobals also reports a top-level declaration that collides with a
-  // name another script (or the browser) already declares.
+  // An imported binding is read-only; a module changes another's state
+  // through the setter it exports.
+  'no-import-assign': 'error',
+  // In a classic script, builtinGlobals also reports a top-level declaration
+  // that collides with a name the browser already declares.
   'no-redeclare': ['error', {builtinGlobals: true}],
   'no-restricted-globals': ['error', ...CONFUSING_GLOBALS],
-  // Top-level names are used from other files and from markup, so only local
-  // variables are checked.
+  // A module's top-level names are its own: one nothing reads or exports is
+  // dead code.
   'no-unused-vars': ['warn', {vars: 'local', args: 'none', caughtErrors: 'none'}],
   // Free today: every loose comparison in the codebase is `== null`, which
   // means null-or-undefined on purpose. Keep it that way.
@@ -74,11 +80,8 @@ const rules = {
 
 const browser = {...globals.browser, ...THIRD_PARTY_GLOBALS};
 
-const byFile = declarationsByFile();
-const shared = Object.keys(byFile).map(file => ({
-  files: ['app/web/static/' + file],
-  languageOptions: {globals: {...browser, ...globalsFor(file, byFile)}},
-}));
+// The scripts that are not modules.
+const CLASSIC = ['app/web/static/theme-init.js', 'app/web/static/sw.js'];
 
 module.exports = [
   {
@@ -88,13 +91,16 @@ module.exports = [
     files: ['app/web/static/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
-      sourceType: 'script',
+      sourceType: 'module',
       globals: browser,
     },
     linterOptions: {reportUnusedDisableDirectives: 'error'},
     rules,
   },
-  ...shared,
+  {
+    files: CLASSIC,
+    languageOptions: {sourceType: 'script'},
+  },
   {
     files: ['app/web/static/sw.js'],
     languageOptions: {globals: {...globals.serviceworker}},

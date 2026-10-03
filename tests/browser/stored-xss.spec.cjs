@@ -4,6 +4,7 @@
 // form, a link. Handler arguments travel in data attributes and must arrive
 // exactly as stored.
 const { test, expect } = require('@playwright/test');
+const { inApp } = require('./app.cjs');
 
 const XSS = '<img src=x onerror="window.__xss=1;window.opener&&(window.opener.__xss=1)">';
 const BREAKOUT = "x');window.__xss=1;//";
@@ -51,19 +52,28 @@ test('SSH host fields stay text in the Hosts view, the edit form and inline hand
     await route.fulfill({response, json: body});
   });
 
-  await page.evaluate(() => showView('hosts'));
+  await inApp(page, app => app.showView('hosts'));
   const card = page.locator('#hosts-content .card', {hasText: host.label});
   await expect(card.locator('strong')).toHaveText(host.label);
   await expect(card).toContainText(host.group_name);
   await expectInert(page, '#hosts-content');
 
-  // The RDP button passes hostname, username and id through data attributes.
-  await page.evaluate(() => { window.sshRdp = function() { window.__rdpArgs = Array.from(arguments); }; });
-  await card.getByRole('button', {name: 'RDP'}).click();
-  expect(await page.evaluate(() => window.__rdpArgs)).toEqual([host.hostname, host.username, hostId]);
+  // The RDP button carries hostname, username and id in data attributes, and
+  // its handler hands them to the RDP view exactly as stored.
+  const rdp = card.getByRole('button', {name: 'RDP'});
+  expect(await rdp.getAttribute('data-hostname')).toBe(host.hostname);
+  expect(await rdp.getAttribute('data-username')).toBe(host.username);
+  expect(await rdp.getAttribute('data-host-id')).toBe(hostId);
   await expectInert(page, '#hosts-content');
+  await rdp.click();
+  await expect(page.locator('#view-rdp')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#rdp-user-input')).toHaveValue(host.username);
+  await expect(page.locator('#rdp-host-input')).toHaveValue(hostId);
+  await expect(page.locator('#view-rdp img')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__xss)).toBeUndefined();
 
-  await page.evaluate(id => sshEditHost(id), hostId);
+  await page.locator('[data-click-handler="showView"][data-view="hosts"]').first().evaluate(el => el.click());
+  await page.locator('#hosts-content .card', {hasText: host.label}).locator('[data-click-handler="sshEditHost"]').click();
   await expect(page.locator('#ssh-e-label')).toHaveValue(host.label);
   await expect(page.locator('#ssh-e-group')).toHaveValue(host.group_name);
   await expect(page.locator('#ssh-e-user')).toHaveValue(host.username);
@@ -83,9 +93,9 @@ test('command output and errors from SSH devices are rendered as text', async ({
   ]}}));
 
   // Opening the view loads the key list; let it settle before switching tab.
-  await page.evaluate(() => showView('ssh'));
+  await inApp(page, app => app.showView('ssh'));
   await expect(page.locator('#ssh-content .loader')).toHaveCount(0);
-  await page.evaluate(() => sshShowExec());
+  await inApp(page, app => app.sshShowExec());
   await page.locator('#ssh-exec-hosts label', {hasText: label}).locator('input').check();
   await page.locator('#ssh-exec-cmd').fill('uname -a');
   await page.locator('#ssh-exec-cmd').press('Enter');
@@ -98,9 +108,8 @@ test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text',
   await login(page);
 
   // Live FortiGate view, fed the way the live WebSocket feeds it.
-  await page.evaluate(([xss, breakout]) => {
-    window.fgComplianceCheck = function(id) { window.__cisArg = id; };
-    liveRenderDevices([{
+  await inApp(page, (app, xss, breakout) => {
+    app.liveRenderDevices([{
       name: xss, status: 'online', vendor: 'fortigate', model: xss, firmware: xss, wan_ip: xss, uptime: xss,
       cpu_pct: 5, mem_pct: 7, sessions: 3, vpn_tunnels: 1, ha_mode: xss, clients: 2, error: xss, customer_id: breakout,
       extra: {
@@ -111,13 +120,20 @@ test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text',
         admins: [{name: xss, profile: xss}],
       },
     }]);
-  }, [XSS, BREAKOUT]);
+  }, XSS, BREAKOUT);
   await expect(page.locator('#dash-fg-content strong').first()).toContainText(XSS);
   await expectInert(page, '#dash-fg-content');
-  await page.evaluate(() => liveShowDeviceDetail(0));
+  // The live view is not on screen here, so the card gets the click directly.
+  await page.locator('#dash-fg-content [data-click-handler="liveShowDeviceDetail"]').first().evaluate(card => card.click());
   await expect(page.locator('#dash-fg-content h3')).toContainText(XSS);
-  await page.locator('#dash-fg-content button[data-click-handler="fgComplianceCheck"]').evaluate(button => button.click());
-  expect(await page.evaluate(() => window.__cisArg)).toBe(BREAKOUT);
+  // The CIS check asks for the device's customer exactly as stored.
+  await page.route(url => new URL(url).pathname.startsWith('/api/fortigate/compliance/'),
+    route => route.fulfill({json: {findings: []}}));
+  const [cis] = await Promise.all([
+    page.waitForRequest(r => new URL(r.url()).pathname.startsWith('/api/fortigate/compliance/')),
+    page.locator('#dash-fg-content button[data-click-handler="fgComplianceCheck"]').evaluate(button => button.click()),
+  ]);
+  expect(new URL(cis.url()).pathname).toBe('/api/fortigate/compliance/' + encodeURIComponent(BREAKOUT));
   await expectInert(page, '#dash-fg-content');
 
   // FortiGate fleet cards.
@@ -125,7 +141,7 @@ test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text',
     customer_id: BREAKOUT, hostname: XSS, customer_name: XSS, model: XSS, firmware: XSS, serial: XSS,
     uptime: XSS, status: 'online', cpu_pct: 1, mem_pct: 2, vpn_tunnels: 0, policy_count: 4,
   }]}}));
-  await page.evaluate(() => dashLoadFortiGates());
+  await inApp(page, app => app.dashLoadFortiGates());
   await expect(page.locator('#dash-fg-content .card strong').last()).toHaveText(XSS);
   await expectInert(page, '#dash-fg-content');
 
@@ -134,15 +150,15 @@ test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text',
     id: BREAKOUT, hostname: XSS, os: XSS, client_version: XSS, tailscale_ip: XSS, user: XSS,
     last_seen_ago: XSS, online: false, tags: ['tag:' + XSS],
   }]}}));
-  await page.evaluate(() => tsLoadView());
+  await inApp(page, app => app.tsLoadView());
   await expect(page.locator('#ts-content .card-clickable')).toContainText('OS: ' + XSS);
   await expectInert(page, '#ts-content');
 
   // UniFi Site Manager site table.
-  await page.evaluate(xss => {
+  await inApp(page, (app, xss) => {
     const host = document.createElement('div');
     host.id = 'unifi-fixture';
-    host.innerHTML = _renderSiteTable([
+    host.innerHTML = app._renderSiteTable([
       {name: xss, status: 'online', model: xss, wan_ip: xss, sub_sites: [{name: xss, device_count: 1}, {name: xss}]},
       {name: xss, status: 'offline', wan_ip: xss, isp: xss, firmware: xss, model: xss},
     ]);
@@ -159,16 +175,22 @@ test('generated reports open in a sandboxed frame where none of their content ru
   await page.route('**/api/reports/batch-summary', route => route.fulfill({contentType: 'text/html', body: report}));
   await page.route('**/api/pentest/report', route => route.fulfill({contentType: 'text/html', body: report}));
 
+  // A scan's findings are what the pentest report is made of: one scan,
+  // answered here, and the report button on its result.
+  await page.route('**/api/pentest/cms-scan', route => route.fulfill({json: {
+    ok: true, cms: {}, findings: [{title: 'Finding', severity: 'low'}], summary: {},
+  }}));
   const openers = {
-    qbr: () => generateQBR(),
-    pentest: () => {
-      window._lastPentestData = {findings: [{title: 'Finding'}], summary: {}};
-      document.getElementById('pentest-target').value = 'host.example.test';
-      return _pentestReport();
+    qbr: () => inApp(page, app => app.generateQBR()),
+    pentest: async () => {
+      await page.locator('[data-click-handler="showView"][data-view="pentest"]').first().evaluate(el => el.click());
+      await page.locator('#pentest-target').fill('host.example.test');
+      await page.locator('#view-pentest [data-click-handler="runCmsScan"]').click();
+      await page.locator('#pentest-results [data-click-handler="_pentestReport"]').click();
     },
   };
   for (const name of Object.keys(openers)) {
-    const [popup] = await Promise.all([page.waitForEvent('popup'), page.evaluate(openers[name])]);
+    const [popup] = await Promise.all([page.waitForEvent('popup'), openers[name]()]);
     const frame = popup.locator('iframe');
     const sandbox = await frame.getAttribute('sandbox');
     expect(sandbox, name).not.toBeNull();
@@ -209,7 +231,7 @@ test('ALSO and Uniweb renewal data is rendered as text, numbers included', async
   });
 
   // Fornyelser is a tab of Verktøy › Lisenser og hosting, its first.
-  await page.evaluate(() => showView('billing'));
+  await inApp(page, app => app.showView('billing'));
   await page.locator('#view-billing .dash-tab-btn[data-tab="dash-renewals"]').click();
   const row = page.locator('#dash-renewals-content table').first().locator('tbody tr').first();
   await expect(row.locator('td').nth(1)).toHaveText(XSS);
@@ -228,7 +250,7 @@ test('ALSO and Uniweb renewal data is rendered as text, numbers included', async
       licenses: [{product: XSS, paid_qty: 3, assigned_qty: 1, excess: 2, status: XSS, unit_price: 25, monthly_waste: 50}],
     }],
   });
-  await page.evaluate(() => alsoShowLicenseOptimization());
+  await page.locator('#dash-renewals-content [data-click-handler="alsoShowLicenseOptimization"]').click();
   const licence = page.locator('#dash-renewals-content tbody tr').first();
   await expect(licence.locator('td').first()).toHaveText(XSS);
   await expect(licence.locator('td').nth(4)).toHaveText(XSS);
@@ -251,7 +273,7 @@ test('TLS certificates and discovered endpoints are rendered as text', async ({p
     results: [Object.assign({label: XSS}, cert), {host: XSS, port: 8443, label: XSS, error: XSS}],
   });
 
-  await page.evaluate(() => showView('tls'));
+  await inApp(page, app => app.showView('tls'));
   await page.locator('#tls-host').fill('cert.example.test');
   await page.locator('#tls-content button[data-click-handler="tlsCheckSingle"]').click();
   await expect(page.locator('#tls-single-result strong').first()).toHaveText(XSS + ':443');
@@ -294,7 +316,7 @@ test('stored certificate and firmware state stays text in Varsler and the TLS li
   await serve(page, '/api/activity-log', {entries: []});
   await serve(page, '/api/alerts/history', {entries: [], total: 0});
   await serve(page, '/api/uniweb/alerts', {total: 0, items: []});
-  await page.evaluate(() => openOverviewTab('dash-alerts'));
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
   await expect(page.locator('#dash-alerts .notif-row')).toHaveCount(2);
   await expect(page.locator('#dash-alerts .notif-row .cust').first()).toHaveText(XSS);
   await expectInert(page, '#dash-alerts');
@@ -303,7 +325,7 @@ test('stored certificate and firmware state stays text in Varsler and the TLS li
     host: XSS, port: 443, label: XSS, customer_name: XSS, subject: XSS, issuer: XSS, not_after: XSS,
     days_remaining: 3, status: XSS, chain_valid: false, chain_problem: XSS, checked_at: XSS, error: XSS, stale: false,
   }]});
-  await page.evaluate(() => showView('tls'));
+  await inApp(page, app => app.showView('tls'));
   const row = page.locator('#tls-known .tls-table tbody tr');
   await expect(row).toHaveCount(1);
   await expect(row.locator('td').nth(2)).toHaveText(XSS);
@@ -327,10 +349,10 @@ test('the customer licence panel renders ALSO subscriptions as text', async ({pa
   }}));
 
   // Detaljer's Lisenser card holds them; the panel stands in for it here.
-  await page.evaluate(() => {
+  await inApp(page, app => {
     const box = document.createElement('div'); box.id = 'cust-licenses-panel';
     document.body.appendChild(box);
-    return loadCustomerLicenses('acct-1');
+    return app.loadCustomerLicenses('acct-1');
   });
   const row = page.locator('#cust-licenses-panel tbody tr').first();
   await expect(row.locator('td').first()).toHaveText(XSS);

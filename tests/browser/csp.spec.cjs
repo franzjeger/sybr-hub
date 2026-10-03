@@ -1,10 +1,11 @@
 // The application CSP runs no inline event handler (script-src-attr 'none').
 // Every control names a registered handler in a data-*-handler attribute
-// instead, dispatched by app.js. These tests walk the interface with the real
+// instead, dispatched by app-handlers.js. These tests walk the interface with the real
 // policy and fail on any CSP violation, on a control naming a handler nobody
 // registered, and on an uncaught error; and they click at least one migrated
 // control per view to show the dispatcher reaches it.
 const {test, expect} = require('@playwright/test');
+const { inApp, expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
@@ -48,7 +49,7 @@ async function login(page, username = 'browser-admin') {
   // Enter goes through the registered keydown handler on the password field.
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 // Clicks a control the way a user's click reaches it, even when it sits in a
@@ -99,8 +100,9 @@ test('every main view opens through the navigation without a policy violation', 
   for (const view of views) {
     const control = page.locator(`[data-click-handler="showView"][data-view="${view}"]`);
     if (await control.count()) await activate(control);
-    else if (view === 'admin') await page.evaluate(() => openAdmin());
-    else await page.evaluate(v => showView(v), view);
+    // Administrasjon opens from the avatar menu.
+    else if (view === 'admin') await activate(page.locator('[data-click-handler="avatarOpenAdmin"]'));
+    else await inApp(page, (app, v) => app.showView(v), view);
     await expect(page.locator('#view-' + view)).toHaveClass(/\bactive\b/);
     // Let the view's loaders render what they build. Some views poll, so the
     // network never goes idle; the spinners going away is the signal.
@@ -167,7 +169,7 @@ test.describe('migrated controls, view by view', () => {
   });
 
   test('toasts close from their button', async () => {
-    await page.evaluate(() => showToast('csp-test toast', 'info', 0));
+    await inApp(page, app => { app.showToast('csp-test toast', 'info', 0); });
     const toast = page.locator('.toast', {hasText: 'csp-test toast'});
     await toast.locator('[data-click-handler="dismissToast"]').click();
     await expect(toast).toHaveCount(0);
@@ -227,14 +229,15 @@ test.describe('migrated controls, view by view', () => {
     await expect(card).toBeVisible();
     await page.locator('#customers-search').fill('Browser Alpha');
     await expect(page.locator('#customers-content .card-clickable', {hasText: 'Browser Beta'})).toHaveCount(0);
-    const before = await page.evaluate(() => _getFavorites().length);
+    const favorites = () => page.evaluate(() => JSON.parse(localStorage.getItem('sybr_favorites') || '[]').length);
+    const before = await favorites();
     await card.locator('[data-click-handler="customerCardToggleFavorite"]').click();
-    await expect.poll(() => page.evaluate(() => _getFavorites().length)).toBe(before + 1);
+    await expect.poll(favorites).toBe(before + 1);
     await expect(page.locator('#view-customers')).toHaveClass(/\bactive\b/);
     // Back as it was for the other tests.
     await page.locator('#customers-content .card-clickable', {hasText: 'Browser Alpha'})
       .locator('[data-click-handler="customerCardToggleFavorite"]').click();
-    await expect.poll(() => page.evaluate(() => _getFavorites().length)).toBe(before);
+    await expect.poll(favorites).toBe(before);
     await page.locator('#customers-search').fill('');
     await page.locator('#customers-content .card-clickable', {hasText: 'Browser Beta'}).click();
     await expect(page.locator('#view-customer-detail')).toHaveClass(/\bactive\b/);
@@ -260,7 +263,8 @@ test.describe('migrated controls, view by view', () => {
   });
 
   test('integrations: a card opens its settings', async () => {
-    await page.evaluate(() => openAdmin('integrations'));
+    await activate(page.locator('[data-click-handler="avatarOpenAdmin"]'));
+    await page.locator('#admin-rail [data-pane="integrations"]').click();
     await expect(page.locator('#admin-pane-integrations')).toBeVisible();
     await page.locator('[data-click-handler="toggleIntegConfig"][data-config="webhook-config"]').click();
     await expect(page.locator('#webhook-config')).toBeVisible();

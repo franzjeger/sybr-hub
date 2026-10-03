@@ -1,4 +1,5 @@
 const {test, expect} = require('@playwright/test');
+const { inApp, expectSignedIn, expectStrings } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
@@ -16,13 +17,13 @@ async function signIn(page, username) {
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 // _postAuthInit, which opens the tour, runs in the same tick that sets
 // _currentUser, so once it is set the tour would already be showing.
 async function signedInAgain(page) {
-  await expect.poll(() => page.evaluate(() => !!_currentUser)).toBe(true);
+  await expect.poll(() => inApp(page, app => !!app._currentUser)).toBe(true);
 }
 
 // ── Onboarding tour ─────────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ test('the onboarding tour does not cover the login screen', async ({page}) => {
   await expect(page.locator('#login-username')).toBeVisible();
   // The old tour was built while the scripts loaded; once the translations
   // are in, every script has run and it would be on screen by now.
-  await expect.poll(() => page.evaluate(() => !!_i18n.no)).toBe(true);
+  await expectStrings(page);
   await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
 });
 
@@ -81,7 +82,7 @@ test('Escape dismisses the tour for good, and it is remembered per user', async 
   await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
 
   // A colleague signing in on the same browser has not seen it yet.
-  await page.evaluate(() => doLogout());
+  await inApp(page, app => app.doLogout());
   await expect(page.locator('#login-username')).toBeVisible();
   await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
   await signIn(page, 'browser-admin');
@@ -97,7 +98,7 @@ test('Escape dismisses the tour for good, and it is remembered per user', async 
 test('the first-run password hint states the rule the server enforces', async ({page}) => {
   await freshBrowser(page);
   await page.goto('/');
-  await page.evaluate(() => showLoginView('setup'));
+  await inApp(page, app => app.showLoginView('setup'));
   const field = page.locator('#setup-password');
   await expect(field).toHaveAttribute('placeholder', /10/);
   await expect(field).not.toHaveAttribute('placeholder', /8/);
@@ -131,7 +132,7 @@ test.describe('signed in as an administrator', () => {
       expect(res.ok()).toBe(true);
     }
     await page.goto('/');
-    await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+    await expectSignedIn(page);
   });
 
   test.afterAll(async () => {
@@ -139,7 +140,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('"Endre kanaler" opens the alert settings instead of a blank screen', async () => {
-    await page.evaluate(() => showView('overview'));
+    await inApp(page, app => app.showView('overview'));
     await page.locator('#view-overview .dash-tab-btn', {hasText: 'Varsler'}).click();
     await page.getByRole('button', {name: 'Endre kanaler'}).click();
 
@@ -154,7 +155,7 @@ test.describe('signed in as an administrator', () => {
   test('a customer that was never audited is not reported as all clear', async () => {
     // The fixture has one audited customer (Browser Beta); every other one,
     // including those other specs add, has never been audited.
-    await page.evaluate(() => showView('overview'));
+    await inApp(page, app => app.showView('overview'));
     await page.locator('#view-overview .dash-tab-btn', {hasText: 'Oppfølging'}).click();
     const overview = await (await page.request.get('/api/dashboard/overview')).json();
     const never = overview.customers.filter(c => !c.last_audit).length;
@@ -185,7 +186,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('settings offer no in-app update and say where updates come from', async () => {
-    await page.evaluate(() => openAdmin('system'));
+    await inApp(page, app => app.openAdmin('system'));
     await expect(page.locator('#settings-update-note')).toContainText('DEPLOYMENT.md');
     await expect(page.locator('#admin-pane-system').getByRole('button', {name: 'Oppdater nå'})).toHaveCount(0);
   });
@@ -209,7 +210,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('integrations lead with what the product is for and drop placeholders', async () => {
-    await page.evaluate(() => openAdmin('integrations'));
+    await inApp(page, app => app.openAdmin('integrations'));
     const grid = page.locator('#integ-active .integ-grid');
     await expect(grid).not.toContainText('Kommer snart');
     await expect(grid).not.toContainText('ConnectWise');
@@ -225,7 +226,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('"Ikke konfigurert" looks the same on every card and gates what needs setup', async () => {
-    await page.evaluate(() => openAdmin('integrations'));
+    await inApp(page, app => app.openAdmin('integrations'));
     // Wait until the cards have been painted from the server.
     await expect(page.locator('#itglue-integ-label')).toHaveText('Ikke konfigurert');
     await expect(page.locator('#claude-integ-label')).toHaveText('Ikke konfigurert');
@@ -247,7 +248,7 @@ test.describe('signed in as an administrator', () => {
   });
 
   test('scheduled tasks show their schedule in Norwegian', async () => {
-    await page.evaluate(() => openAdmin('alerts'));
+    await inApp(page, app => app.openAdmin('alerts'));
     const table = page.locator('#task-scheduler-table');
     await expect(table).toContainText('Daglig 02:00');
     await expect(table).toContainText('Søndag 03:00');

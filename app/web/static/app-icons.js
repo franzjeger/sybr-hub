@@ -2,7 +2,7 @@
 // ICONS: the inline SVG set the palette, menus and buttons share
 // ═══════════════════════════════════════════════════════════════════
 
-function icon(name, size) {
+export function icon(name, size) {
   var s = Number(size) || 16;
   var paths = {
     document:  'M6 2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.414A2 2 0 0 0 15.414 6L12 2.586A2 2 0 0 0 10.586 2H6zm5 1.414L14.586 7H12a1 1 0 0 1-1-1V3.414zM7 10h6v1.5H7V10zm0 3h4v1.5H7V13z',

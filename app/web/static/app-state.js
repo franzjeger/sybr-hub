@@ -11,23 +11,23 @@
 // ── The signed-in account ────────────────────────────────────────────────────
 // Authentication is cookie-only in the browser. The HttpOnly tokens cannot
 // be read by injected JavaScript and do not survive in localStorage dumps.
-var _currentUser = null;
+export var _currentUser = null;
 
 // Paths the server keeps open without the write capability. Sent by /auth/me
 // rather than restated here — a second copy of the rule is the one that goes
 // stale, and it would go stale in the direction of offering something the
 // server refuses.
-var _writeExempt = [];
+export var _writeExempt = [];
 
 // What this account reaches, resolved by the server. The interface holds no
 // copy of the rules — it hides what is not in these lists, so a screen cannot
 // drift from the route it leads to.
 var _features = [];
 var _modules = [];
-var _allowedViews = [];
+export var _allowedViews = [];
 
 // /auth/me answers {user: {...}, features, modules, views, write_exempt}.
-function setSession(me) {
+export function setSession(me) {
   // Storing the envelope meant every read of _currentUser.role and
   // _currentUser.display_name was undefined, so the avatar has been showing
   // "?" for as long as it has existed.
@@ -38,7 +38,7 @@ function setSession(me) {
   _allowedViews = me.views || [];
 }
 
-function setCurrentUser(user) {
+export function setCurrentUser(user) {
   _currentUser = user;
 }
 
@@ -46,7 +46,7 @@ function setCurrentUser(user) {
 // The server decides; this only stops the interface offering what it will
 // refuse. Anything marked data-write is hidden without the capability, and a
 // badge says why rather than leaving someone hunting for a menu that is gone.
-function canWrite() {
+export function canWrite() {
   return !!(_currentUser && _currentUser.can_write);
 }
 
@@ -54,22 +54,22 @@ function canWrite() {
 // customer's Microsoft tenant (policy deploy/enforce/restore, consent). The
 // server checks it separately via require_tenant_write, and it implies
 // can_write — so a control marked data-write="tenant" needs both.
-function canTenantWrite() {
+export function canTenantWrite() {
   return !!(_currentUser && _currentUser.tenant_write);
 }
 
-function hasFeature(key) {
+export function hasFeature(key) {
   // Empty until /auth/me answers. Hiding everything for that instant is the
   // right way round: showing a control and taking it away reads as a bug, and
   // offering one that will 403 reads as a broken tool.
   return _features.indexOf(key) !== -1;
 }
 
-function hasModule(key) {
+export function hasModule(key) {
   return _modules.indexOf(key) !== -1;
 }
 
-function canOpenView(name) {
+export function canOpenView(name) {
   return _allowedViews.indexOf(name) !== -1;
 }
 
@@ -93,7 +93,7 @@ function canOpenView(name) {
 // other tab land on B.
 var _tabCustomerId = null;
 
-function currentCustomerId() {
+export function currentCustomerId() {
   if (_tabCustomerId) return _tabCustomerId;
   try {
     _tabCustomerId = sessionStorage.getItem('sybr_tab_customer')
@@ -102,7 +102,7 @@ function currentCustomerId() {
   return _tabCustomerId;
 }
 
-function setCurrentCustomer(customerId) {
+export function setCurrentCustomer(customerId) {
   _tabCustomerId = customerId || null;
   try {
     if (customerId) sessionStorage.setItem('sybr_tab_customer', customerId);
@@ -119,9 +119,9 @@ function setCurrentCustomer(customerId) {
 // Which customer the page shows, its record once loaded, the tab and sub-tab
 // on screen and which tabs have loaded (app-customer-detail.js). Every call
 // the page and its tabs make names this customer (_custPage.id).
-var _custPage = {id: null, cust: null, tab: 'funn', sub: '', loaded: {}};
+export var _custPage = {id: null, cust: null, tab: 'funn', sub: '', loaded: {}};
 
-function setCustPage(page) {
+export function setCustPage(page) {
   _custPage = page;
 }
 
@@ -129,16 +129,16 @@ function setCustPage(page) {
 // The dashboard's per-customer overview ({customers: [...]}), loaded by
 // Oversikt, the customer page, the palette and the UniFi sub-site view; null
 // until one of them has.
-var _overviewData = null;
+export var _overviewData = null;
 
-function setOverviewData(data) {
+export function setOverviewData(data) {
   _overviewData = data;
 }
 
 // The customer registry (/api/customers), loaded by Kunder and the tools'
 // customer bars.
-var _allCustomers = [];
+export var _allCustomers = [];
 
-function setAllCustomers(list) {
+export function setAllCustomers(list) {
   _allCustomers = list;
 }

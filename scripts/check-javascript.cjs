@@ -1,11 +1,25 @@
-const { readdirSync } = require('node:fs');
+const { readdirSync, readFileSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
-for (const file of readdirSync('app/web/static').filter(f => f.endsWith('.js'))) {
-  const result = spawnSync(process.execPath, ['--check', 'app/web/static/' + file], {stdio: 'inherit'});
-  if (result.status !== 0) process.exit(1);
+const modules = require('./js-modules.cjs');
+
+// Syntax: the modules as modules (strict mode included), the classic scripts
+// with node itself.
+for (const file of readdirSync('app/web/static').filter(f => f.endsWith('.js')).sort()) {
+  if (modules.THIRD_PARTY.has(file)) continue;
+  if (modules.sourceTypeOf(file) === 'script') {
+    const result = spawnSync(process.execPath, ['--check', 'app/web/static/' + file], {stdio: 'inherit'});
+    if (result.status !== 0) process.exit(1);
+    continue;
+  }
+  try {
+    modules.parse(file, readFileSync('app/web/static/' + file, 'utf8'));
+  } catch (error) {
+    console.error(`app/web/static/${file}: ${error.message}`);
+    process.exit(1);
+  }
 }
-// A global declared in two scripts: the later one silently replaces the other.
-require('./js-globals.cjs').main();
+// The module graph: imports resolve, the layering holds, no cycle is read at load.
+modules.main();
 // The CSP runs no inline event handler; controls name registered ones instead.
 require('./check-inline-handlers.cjs').main();
 require('./check-html-escaping.cjs').main();

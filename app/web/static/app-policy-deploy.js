@@ -14,8 +14,15 @@
 // reason, the rationale for each policy, and the consent state. A plan
 // rendered as "3 changes" is not something a person can consent to.
 
+import {esc} from './app-esc.js';
+import {_lang, t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {_custPage, canTenantWrite} from './app-state.js';
+import {showToast, showTypedConfirm} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+
 // Handlers for the controls this screen renders (see registerUiHandlers in
-// app.js). The tenant-changing ones carry data-write="tenant" in the markup.
+// app-handlers.js). The tenant-changing ones carry data-write="tenant" in the markup.
 registerUiHandlers({
   _pdLoadPolicies: function() { _pdLoadPolicies(); },
   _pdValidate: function() { _pdValidate(); },
@@ -32,7 +39,7 @@ registerUiHandlers({
 var _pdPlan = null;
 var _pdTemplates = [];
 
-async function policyDeployLoad() {
+export async function policyDeployLoad() {
   var el = document.getElementById('policy-deploy-content');
   if (!el) return;
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:32px auto;"></div>';
@@ -307,14 +314,12 @@ async function policyEnforceLoad() {
 }
 
 async function policyEnforce(policyId, name) {
-  if (typeof showTypedConfirm === 'function') {
-    var ok = await showTypedConfirm(
-      name,
-      t('dlg_confirm_enforce', 'Start enforcing «{name}»?').replace('{name}', name),
-      t('dlg_enforce_warning', 'From this moment the policy turns sign-ins away. A restore point is taken first.')
-    );
-    if (!ok) return;
-  }
+  var ok = await showTypedConfirm(
+    name,
+    t('dlg_confirm_enforce', 'Start enforcing «{name}»?').replace('{name}', name),
+    t('dlg_enforce_warning', 'From this moment the policy turns sign-ins away. A restore point is taken first.')
+  );
+  if (!ok) return;
   var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/enable', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({policy_id: policyId}),
@@ -407,15 +412,13 @@ function _pdRenderRestorePlan(plan) {
 async function policyRestoreApply() {
   if (!_pdRestore) return;
   var name = _pdCustomerName() || 'RESTORE';
-  if (typeof showTypedConfirm === 'function') {
-    var ok = await showTypedConfirm(
-      name,
-      t('dlg_confirm_restore', 'Restore {n} policy change(s) on {customer}?')
-        .replace('{n}', _pdRestore.applicable).replace('{customer}', name),
-      t('dlg_restore_warning', 'This writes into the customer Microsoft tenant. A restore point of the current state is taken first.')
-    );
-    if (!ok) return;
-  }
+  var ok = await showTypedConfirm(
+    name,
+    t('dlg_confirm_restore', 'Restore {n} policy change(s) on {customer}?')
+      .replace('{n}', _pdRestore.applicable).replace('{customer}', name),
+    t('dlg_restore_warning', 'This writes into the customer Microsoft tenant. A restore point of the current state is taken first.')
+  );
+  if (!ok) return;
   var d = await apiFetch('/api/policy-restore/' + encodeURIComponent(_pdCustomerId()) + '/apply', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
@@ -538,16 +541,14 @@ async function policyDeployApply() {
   if (!_pdPlan) return;
   // Typed confirmation, as the destructive dialogs elsewhere use. This one
   // reaches into somebody else's production directory.
-  if (typeof showTypedConfirm === 'function') {
-    var name = _pdCustomerName() || 'APPLY';
-    var ok = await showTypedConfirm(
-      name,
-      t('dlg_confirm_deploy', 'Deploy {n} policy change(s) to {customer}?')
-        .replace('{n}', _pdPlan.applicable).replace('{customer}', name),
-      t('dlg_deploy_warning', 'This writes into the customer Microsoft tenant. New policies arrive in report-only mode.')
-    );
-    if (!ok) return;
-  }
+  var name = _pdCustomerName() || 'APPLY';
+  var ok = await showTypedConfirm(
+    name,
+    t('dlg_confirm_deploy', 'Deploy {n} policy change(s) to {customer}?')
+      .replace('{n}', _pdPlan.applicable).replace('{customer}', name),
+    t('dlg_deploy_warning', 'This writes into the customer Microsoft tenant. New policies arrive in report-only mode.')
+  );
+  if (!ok) return;
 
   var body = {
     template: _pdPlan.template,

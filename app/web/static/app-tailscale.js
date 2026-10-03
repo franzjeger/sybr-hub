@@ -2,6 +2,12 @@
 // TAILSCALE INTEGRATION
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {adminSignpostButton, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+
 // Handlers for the markup this file builds: the device cards and detail panel,
 // subnet routes and auth keys.
 registerUiHandlers({
@@ -21,7 +27,7 @@ registerUiHandlers({
   tsDoCreateKey: function() { tsDoCreateKey(); },
 });
 
-async function tsTestConnection() {
+export async function tsTestConnection() {
   var msg = document.getElementById('ts-config-msg');
   msg.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_testing','Testing...') + '</span>';
   try {
@@ -48,7 +54,7 @@ async function tsTestConnection() {
   }
 }
 
-async function tsSaveConfig() {
+export async function tsSaveConfig() {
   var msg = document.getElementById('ts-config-msg');
   var settings = await apiFetch('/api/settings');
   var body = Object.assign({}, settings || {}, {
@@ -71,7 +77,7 @@ async function tsSaveConfig() {
 
 var _tsDevices = [];
 
-function tsLoadView() {
+export function tsLoadView() {
   var el = document.getElementById('ts-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading','Loading...') + '</div>';
   tsLoadDevices();

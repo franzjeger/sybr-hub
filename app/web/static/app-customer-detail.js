@@ -2,6 +2,37 @@
 // CUSTOMER DETAIL VIEW
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {_lang, t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {
+  _custPage, _overviewData, canOpenView, canWrite, currentCustomerId, hasFeature, hasModule,
+  setCurrentCustomer, setCustPage, setOverviewData,
+} from './app-state.js';
+import {
+  _formatBytes, formatRunName, metricCount, metricKnown, metricPct, timeAgo,
+} from './app-format.js';
+import {setButtonLabel, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {
+  applyFeatureVisibility, applyWriteCapability, currentView, showView, syncRoute,
+} from './app.js';
+import {_uwArBody} from './app-also.js';
+import {policyDeployLoad} from './app-policy-deploy.js';
+import {baselineDeployLoad} from './app-baseline-deploy.js';
+import {policyOverviewLoad} from './app-policy-overview.js';
+import {assessmentsLoad} from './app-assessments.js';
+import {_setupCustomerId, startSetup} from './app-setup.js';
+import {
+  _auditRunIsThisPages, _reconcileAuditState, _renderAuditIdle, _scopeLoaded,
+  _showAuditRunningChrome, auditCustomerId, auditRunning, exportCSV, generateReport, loadHistory,
+  loadScopeSections, pollAuditProgress, resetAuditScope, startAudit, updateScopeSummary,
+} from './app-audit.js';
+import {loadFiles} from './app-network.js';
+import {renderExpiryBanner, tagPillsHtml, uploadReportsToITGlue} from './app-customers.js';
+import {_auditDateLabel, mountCustomerFindings, openLinkPicker} from './app-findings.js';
+import {_activityLabel, _syncBottomNav} from './app-chrome.js';
+
 // sshTerminal and vpnConnect (data-id) are registered by app-infra.js.
 registerUiHandlers({
   // FortiGate threat log: show or hide the rows past the first five.
@@ -46,13 +77,13 @@ var _detailChartInstance = null;
 
 // The pages that were about "the active customer" are its tabs now. An old
 // address or a call by the old name lands on the tab it became.
-var CUSTOMER_TAB_ALIASES = {
+export var CUSTOMER_TAB_ALIASES = {
   home: ['funn'], files: ['detaljer'], audit: ['audit'], history: ['audit'], 'history-report': ['audit'],
   'policy-overview': ['policyer'], 'policy-deploy': ['policyer', 'ca'], 'baseline-deploy': ['policyer', 'intune'],
   assessments: ['vurderinger'],
 };
 
-function _custHash() {
+export function _custHash() {
   var h = '#/customer/' + encodeURIComponent(_custPage.id || '');
   if (_custPage.tab && _custPage.tab !== 'funn') h += '/' + _custPage.tab;
   if (_custPage.tab === 'policyer' && _custPage.sub) h += '/' + _custPage.sub;
@@ -63,7 +94,7 @@ function _custHash() {
 // would otherwise render its page over the one asked for.
 var _custPageSeq = 0;
 
-async function openCustomerPage(customerId, tab, sub) {
+export async function openCustomerPage(customerId, tab, sub) {
   tab = CUSTOMER_TABS.indexOf(tab) !== -1 ? tab : 'funn';
   if (customerId === _custPage.id && currentView === 'customer-detail' && _custPage.cust) {
     showCustomerTab(tab, sub);
@@ -85,7 +116,7 @@ async function openCustomerPage(customerId, tab, sub) {
 
 // This tab's current customer's page on a tab: what showView('audit') and the
 // other old names mean now. With no customer yet the list is where to choose one.
-async function openCurrentCustomerTab(tab, sub) {
+export async function openCurrentCustomerTab(tab, sub) {
   var id = (currentView === 'customer-detail' && _custPage.id) || currentCustomerId();
   if (!id) { showView('customers'); return; }
   await openCustomerPage(id, tab, sub);
@@ -153,13 +184,13 @@ function showCustomerTab(tab, sub) {
 
 // Whether the run's own progress is on screen: the Audit tab of the customer
 // the run is for.
-function custAuditTabOpen() {
+export function custAuditTabOpen() {
   return currentView === 'customer-detail' && _custPage.tab === 'audit'
     && (!auditCustomerId || auditCustomerId === _custPage.id);
 }
 
 // After a run finishes, what it changed: the findings, the figures, the runs.
-function custPageAuditFinished() {
+export function custPageAuditFinished() {
   if (currentView !== 'customer-detail' || !_custPage.id) return;
   var id = _custPage.id;
   _custPage.loaded = {};
@@ -374,8 +405,8 @@ function _wireCustomerHead(customerId, cust) {
 var _custRuns = [];
 var _custReportRun = null;
 
-function setCustRuns(runs) { _custRuns = runs; }
-function setCustReportRun(run) { _custReportRun = run; }
+export function setCustRuns(runs) { _custRuns = runs; }
+export function setCustReportRun(run) { _custReportRun = run; }
 
 function _custLoadAudit() {
   if (_auditRunIsThisPages()) _showAuditRunningChrome();
@@ -393,7 +424,7 @@ function _custHasEvidenceRun() {
   return _custRuns.some(function(r) { return Number(r.file_count) > 0; });
 }
 
-function custSyncReportButton() {
+export function custSyncReportButton() {
   var main = document.getElementById('cust-report-main');
   if (!main) return;
   var full = _custHasEvidenceRun() || !!_custReportRun;
@@ -443,7 +474,7 @@ async function custReport(kind, btn) {
 }
 
 // A run picked in the runs list is what Rapport builds from.
-function custReportFromRun(timestamp) {
+export function custReportFromRun(timestamp) {
   _custReportRun = {customerId: _custPage.id, timestamp: timestamp};
   custSyncReportButton();
   var area = document.getElementById('report-result');
@@ -604,7 +635,7 @@ async function _loadCustomerLinks(customerId, customerName) {
 // reassuring zero.
 // Reason codes carry their values separately, so the sentence is assembled
 // in the reader's language rather than shipped from the server in one.
-function _reason(prefix, code, params) {
+export function _reason(prefix, code, params) {
   var out = t(prefix + code, '');
   if (!out) return '';
   Object.keys(params || {}).forEach(function(k) {
@@ -628,7 +659,7 @@ function _baselineValue(v) {
   return String(v);
 }
 
-function baselineReason(c) {
+export function baselineReason(c) {
   var p = c.params || {};
   var code = c.reason_code;
   if (code === 'guard_unset') {
@@ -1616,7 +1647,7 @@ async function _loadCustomerTrendChart(customerId) {
 
 var _currentAlsoAccountId = '';
 
-async function loadCustomerLicenses(accountId) {
+export async function loadCustomerLicenses(accountId) {
   _currentAlsoAccountId = accountId;
   // On the customer page's Detaljer tab, under Lisenser.
   var box = document.getElementById('cust-licenses-panel');
@@ -1752,7 +1783,7 @@ async function loadCustomerLicenses(accountId) {
 
 // ── Hosting card (billing module) ───────────────────────────────────────────
 
-async function _unifiedLoadUniwebCard(custId) {
+export async function _unifiedLoadUniwebCard(custId) {
   var cardEl = document.getElementById('customer-uniweb-panel');
 
   try {
@@ -2025,7 +2056,7 @@ async function _loadCustomerEmailDns(custId) {
   }
 }
 
-async function uwToggleDns(row, domain) {
+export async function uwToggleDns(row, domain) {
   // Check if DNS row already exists below
   var existing = row.nextElementSibling;
   var arrow = row.querySelector('.uw-dns-arrow');

@@ -5,6 +5,7 @@
 // second argument of t()), and a dash standing alone as a "no value" mark.
 const fs = require('node:fs');
 const acorn = require('acorn');
+const {sourceTypeOf} = require('./js-modules.cjs');
 
 const DIR = 'app/web/static/';
 const DASH = /[—–]/;
@@ -15,7 +16,7 @@ function main() {
   const problems = [];
   for (const file of fs.readdirSync(DIR).filter(f => f.endsWith('.js') && !f.includes('.min.') && f !== 'sw.js')) {
     const src = fs.readFileSync(DIR + file, 'utf8');
-    const ast = acorn.parse(src, {ecmaVersion: 'latest', locations: true});
+    const ast = acorn.parse(src, {ecmaVersion: 'latest', sourceType: sourceTypeOf(file), locations: true});
     const fallbacks = new Set();
     const visit = (node, fn) => {
       if (!node || typeof node.type !== 'string') return;

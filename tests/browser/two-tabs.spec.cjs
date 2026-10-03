@@ -5,6 +5,7 @@
 // customer page makes names its customer now; this drives both tabs in turns
 // and checks that each only ever shows, reads and writes its own.
 const { test, expect } = require('@playwright/test');
+const { inApp, expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 const ALPHA = 'Browser_Alpha';
@@ -16,7 +17,7 @@ async function login(page) {
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 // Every API call a page makes: the path with its query, and the body.
@@ -77,7 +78,7 @@ test('two tabs of one user each keep their own customer', async ({browser}) => {
   await openTab(b, 'audit');
   await openTab(a, 'audit');
   await expect(b.locator('#history-content')).toContainText('30. september 2026');
-  await expect(a.locator('#history-content')).toContainText(await a.evaluate(() => t('msg_no_prev_runs')));
+  await expect(a.locator('#history-content')).toContainText(await inApp(a, app => app.t('msg_no_prev_runs')));
   await expect(a.locator('#history-content')).not.toContainText('30. september 2026');
 
   // Nettverk: each reads its own customer's inventory.
@@ -99,7 +100,7 @@ test('two tabs of one user each keep their own customer', async ({browser}) => {
   expect(named(callsB, ALPHA)).toEqual([]);
   expect(callsA.concat(callsB).filter(c => c.includes('/customers/switch'))).toEqual([]);
   // Each tab's current customer is its own page's.
-  expect(await a.evaluate(() => currentCustomerId())).toBe(ALPHA);
-  expect(await b.evaluate(() => currentCustomerId())).toBe(BETA);
+  expect(await inApp(a, app => app.currentCustomerId())).toBe(ALPHA);
+  expect(await inApp(b, app => app.currentCustomerId())).toBe(BETA);
   await context.close();
 });

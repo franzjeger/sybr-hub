@@ -4,7 +4,7 @@
 
 // scripts/check-html-escaping.cjs enforces it: a value in an HTML string is
 // esc()'d, numeric, a literal translation, or markup checked where it is built.
-function esc(str) {
+export function esc(str) {
   if (!str) return '';
   return String(str)
     .replace(/&/g, '&amp;')

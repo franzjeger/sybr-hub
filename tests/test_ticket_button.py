@@ -29,18 +29,19 @@ import pytest
 STATIC = pathlib.Path("app/web/static")
 # The feature spans two of the split app files: the remediation view (state,
 # control, submit) lives in app-audit.js, the integration settings it reads
-# from in app-integrations.js. The core keeps the click-handler allowlist.
+# from in app-integrations.js. The handlers for index.html's own controls
+# are registered in app-markup-handlers.js.
 APP_JS = "\n\n".join(
     (STATIC / name).read_text(encoding="utf-8") for name in ("app-audit.js", "app-integrations.js")
 )
-CORE_JS = (STATIC / "app.js").read_text(encoding="utf-8")
+CORE_JS = (STATIC / "app-markup-handlers.js").read_text(encoding="utf-8")
 
 
 def _function(name: str) -> str:
     """Source of one top-level function, up to the next one."""
-    start = re.search(rf"^(?:async\s+)?function\s+{re.escape(name)}\b", APP_JS, re.M)
+    start = re.search(rf"^(?:export\s+)?(?:async\s+)?function\s+{re.escape(name)}\b", APP_JS, re.M)
     assert start, f"{name} not found in app-audit.js / app-integrations.js"
-    nxt = re.search(r"^(?:async\s+)?function\s+\w+", APP_JS[start.end() :], re.M)
+    nxt = re.search(r"^(?:export\s+)?(?:async\s+)?function\s+\w+", APP_JS[start.end() :], re.M)
     return APP_JS[start.start() : start.end() + (nxt.start() if nxt else len(APP_JS))]
 
 

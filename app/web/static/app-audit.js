@@ -2,6 +2,21 @@
 // AUDIT — scope, presets, flow & history
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {_custPage, currentCustomerId} from './app-state.js';
+import {formatRunName, metricPct} from './app-format.js';
+import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {currentView, showView} from './app.js';
+import {_celebrateConfetti} from './app-dashboard.js';
+import {
+  custAuditTabOpen, custPageAuditFinished, custReportFromRun, custSyncReportButton,
+  openCustomerPage, setCustReportRun, setCustRuns,
+} from './app-customer-detail.js';
+import {requestAuditNotifications} from './app-chrome.js';
+
 registerUiHandlers({
   toggleScopeGroup: function(el) { toggleScopeGroup(el, el.dataset.group); },
   onScopeChange: function() { onScopeChange(); },
@@ -18,17 +33,17 @@ registerUiHandlers({
 // save still pending when the page moves to another customer goes to the one
 // it belongs to.
 let _scopeSections = [];   // [{name, category, enabled}]
-let _scopeLoaded = false;
+export let _scopeLoaded = false;
 let _scopeCustomerId = null;
 let _scopePanelOpen = false;
 
 // The chooser reads its sections again for the next customer page.
-function resetAuditScope() {
+export function resetAuditScope() {
   _scopeLoaded = false;
   _scopeSections = [];
 }
 
-function toggleScopePanel() {
+export function toggleScopePanel() {
   _scopePanelOpen = !_scopePanelOpen;
   const body = document.getElementById('scope-body');
   const icon = document.getElementById('scope-toggle-icon');
@@ -38,7 +53,7 @@ function toggleScopePanel() {
   if (_scopePanelOpen && !_scopeLoaded) loadScopeSections();
 }
 
-async function loadScopeSections() {
+export async function loadScopeSections() {
   const customerId = _custPage.id;
   if (!customerId) return;
   const cid = encodeURIComponent(customerId);
@@ -110,7 +125,7 @@ function onScopeChange() {
   saveScopeDebounced();
 }
 
-function updateScopeSummary() {
+export function updateScopeSummary() {
   const el = document.getElementById('scope-summary');
   if (!el || !_scopeSections.length) return;
   const total = _scopeSections.length;
@@ -118,13 +133,13 @@ function updateScopeSummary() {
   el.textContent = t('lbl_sections_selected').replace('{count}', enabled).replace('{total}', total);
 }
 
-function scopeSelectAll() {
+export function scopeSelectAll() {
   _scopeSections.forEach(s => { s.enabled = true; });
   renderScopeSections();
   saveScopeDebounced();
 }
 
-function scopeDeselectAll() {
+export function scopeDeselectAll() {
   _scopeSections.forEach(s => { s.enabled = false; });
   renderScopeSections();
   saveScopeDebounced();
@@ -171,7 +186,7 @@ function renderPresetDropdown() {
   }
 }
 
-function applyPreset() {
+export function applyPreset() {
   const sel = document.getElementById('preset-select');
   const delBtn = document.getElementById('preset-delete-btn');
   if (!sel) return;
@@ -190,7 +205,7 @@ function applyPreset() {
   saveScopeDebounced();
 }
 
-async function saveCustomPreset() {
+export async function saveCustomPreset() {
   const name = prompt(t('dlg_preset_name'));
   if (!name || !name.trim()) return;
   const sections = _scopeSections.filter(s => s.enabled).map(s => s.name);
@@ -210,7 +225,7 @@ async function saveCustomPreset() {
   } catch (e) { showToast(t('err_could_not_save_preset').replace('{msg}', e.message), 'error'); }
 }
 
-async function deleteCustomPreset() {
+export async function deleteCustomPreset() {
   const sel = document.getElementById('preset-select');
   if (!sel || !sel.value) return;
   const name = sel.value;
@@ -233,16 +248,16 @@ function getSelectedSectionNames() {
 }
 
 // ── Audit state ────────────────────────────────────────────────────────────────
-let auditRunning = false;
+export let auditRunning = false;
 // The customer the running audit (this account's one at a time) is for. The
 // customer page shows the run only on that customer's Audit tab.
-let auditCustomerId = null;
+export let auditCustomerId = null;
 let sectionTotal = 0;
 let sectionDone = 0;
 
 // The one authority on whether an audit is running is the server. A client
 // flag that outlives its run leaves a badge lit with nothing behind it.
-async function _reconcileAuditState() {
+export async function _reconcileAuditState() {
   try {
     // This account's running audit, whichever customer it is for.
     var d = await apiFetch('/api/audit/progress');
@@ -282,14 +297,14 @@ function _auditChrome() {
   ];
 }
 
-function _showAuditRunningChrome() {
+export function _showAuditRunningChrome() {
   var idle = document.getElementById('audit-idle');
   if (idle) idle.style.display = 'none';
   _auditChrome().forEach(function(el) { if (el) el.style.display = ''; });
 }
 
 // Whether the run in progress is this page's customer's.
-function _auditRunIsThisPages() {
+export function _auditRunIsThisPages() {
   return (auditRunning || _auditStarting) && (!auditCustomerId || auditCustomerId === _custPage.id);
 }
 
@@ -300,7 +315,7 @@ function _showAuditRunOrIdle() {
   else if (currentView === 'customer-detail' && _custPage.tab === 'audit') _renderAuditIdle();
 }
 
-function _renderAuditIdle() {
+export function _renderAuditIdle() {
   var view = document.getElementById('view-audit');
   if (!view || _auditRunIsThisPages()) return;
 
@@ -355,7 +370,7 @@ const statusOrder = { pending: 0, running: 1, done: 2, skipped: 3, failed: 4 };
 
 // Audits one customer: the one named, else the page on screen, else this
 // tab's current customer (the keyboard shortcut has no page to ask).
-async function startAudit(customerId) {
+export async function startAudit(customerId) {
   customerId = customerId || (currentView === 'customer-detail' && _custPage.id) || currentCustomerId();
   if (!customerId) { showView('customers'); return; }
   // Asked here, inside the click, so the browser shows the prompt and the
@@ -439,7 +454,7 @@ async function _watchAuditUntilServerIdle(quiet, streamUrl) {
 }
 
 async function _watchAuditLoop(quiet, streamUrl) {
-  if (!quiet && typeof showToast === 'function') {
+  if (!quiet) {
     showToast(t('msg_audit_stream_lost'), 'warning', 8000);
   }
   setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
@@ -774,11 +789,11 @@ function startAuditProgressPolling() {
   _auditProgressTimer = setInterval(pollAuditProgress, 2000);
 }
 
-function stopAuditProgressPolling() {
+export function stopAuditProgressPolling() {
   if (_auditProgressTimer) { clearInterval(_auditProgressTimer); _auditProgressTimer = null; }
 }
 
-async function pollAuditProgress() {
+export async function pollAuditProgress() {
   if (!auditRunning) { stopAuditProgressPolling(); _hideAuditProgressBar(); return; }
   try {
     var d = await apiFetch('/api/audit/progress');
@@ -823,7 +838,7 @@ function _hideAuditProgressBar() {
 // ── Report generation ──────────────────────────────────────────────────────────
 // From the run selected for this customer (the one just audited, or one
 // picked in the runs list).
-async function generateReport(fmt, reportType, customerId) {
+export async function generateReport(fmt, reportType, customerId) {
   const area = document.getElementById('report-result');
   const label = reportType === 'customer' ? t('lbl_customer_report') : t('lbl_tech_report');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_report').replace('{label}', label);
@@ -869,12 +884,12 @@ function openReportViewer(url) {
   document.getElementById('report-viewer-title').textContent = url.split('/').pop() || '';
   document.getElementById('report-viewer-iframe').src = url;
 }
-function closeReportViewer() {
+export function closeReportViewer() {
   document.getElementById('report-viewer-modal').style.display = 'none';
   document.getElementById('report-viewer-iframe').src = 'about:blank';
 }
 
-async function exportCSV(customerId) {
+export async function exportCSV(customerId) {
   const area = document.getElementById('report-result');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_csv');
   try {
@@ -901,7 +916,7 @@ async function exportCSV(customerId) {
 // ── History ─────────────────────────────────────────────────────────────────────
 // The runs of the customer whose page is open: /api/history lists every
 // customer this account reaches.
-async function loadHistory(customerId) {
+export async function loadHistory(customerId) {
   const box = document.getElementById('history-content');
   const d = await apiFetch('/api/history');
   if (customerId && customerId !== _custPage.id) return;
@@ -938,7 +953,7 @@ function onCompareCheck(path, checked) {
   btnDelete.textContent = t('btn_delete_selected') + ' (' + _compareSelected.length + ')';
 }
 
-async function runComparison() {
+export async function runComparison() {
   if (_compareSelected.length !== 2) {
     showToast(t('msg_select_2_for_compare'), 'warning');
     return;
@@ -963,7 +978,7 @@ async function runComparison() {
   }
 }
 
-async function deleteSelectedRuns() {
+export async function deleteSelectedRuns() {
   if (_compareSelected.length === 0) return;
   var count = _compareSelected.length;
   if (!await showConfirm(t('dlg_confirm_delete_runs').replace('{count}', count))) return;

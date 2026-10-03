@@ -2,6 +2,20 @@
 // CUSTOMERS — notes, expiry, IT Glue, tags, management & switcher
 // ═══════════════════════════════════════════════════════════════════
 
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {icon} from './app-icons.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {_allCustomers, _overviewData, setAllCustomers} from './app-state.js';
+import {formatRunName, metricPct} from './app-format.js';
+import {setButtonLabel, showConfirm, showToast, showTypedConfirm} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {showView} from './app.js';
+import {toggleIntegConfig} from './app-integrations.js';
+import {startSetup} from './app-setup.js';
+import {openAdmin} from './app-settings.js';
+import {openCustomerPage} from './app-customer-detail.js';
+
 registerUiHandlers({
   // IT Glue organisation picker, upload and import dialogs.
   filterITGlueOrgPicker: function() { filterITGlueOrgPicker(); },
@@ -41,7 +55,7 @@ async function loadExpiryBanner() {
   } catch(e) { console.warn('loadExpiryBanner failed:', e); }
 }
 
-function renderExpiryBanner(d) {
+export function renderExpiryBanner(d) {
   const area = document.getElementById('expiry-banner-area');
   if (!area) return;
   const urgent = (d.items || []).filter(i => i.category === 'expired' || i.category === 'critical' || i.category === 'warning');
@@ -142,7 +156,7 @@ function filterITGlueOrgPicker() {
   });
 }
 
-function confirmITGlueOrgPick() {
+export function confirmITGlueOrgPick() {
   var selected = document.querySelector('input[name="itglue-org-pick"]:checked');
   if (!selected || !_itgluePickerCallback) return;
   document.getElementById('itglue-org-picker-modal').style.display = 'none';
@@ -154,7 +168,7 @@ var _itglueUploadBtn = null;
 // The customer whose reports the open upload dialog sends.
 var _itglueUploadCustomerId = null;
 
-async function uploadReportsToITGlue(btn, customerId) {
+export async function uploadReportsToITGlue(btn, customerId) {
   if (!customerId) return;
   _itglueUploadBtn = btn;
   _itglueUploadCustomerId = customerId;
@@ -277,7 +291,7 @@ function updateITGlueUploadBtn() {
   btn.textContent = fileCount > 0 ? t('btn_upload_count').replace('{count}', fileCount) : t('btn_upload');
 }
 
-async function executeITGlueUpload() {
+export async function executeITGlueUpload() {
   var selectedFiles = [];
   document.querySelectorAll('.itglue-file-cb:checked').forEach(function(cb) {
     selectedFiles.push(cb.value);
@@ -309,7 +323,7 @@ async function executeITGlueUpload() {
   }
 }
 
-async function uploadToITGlue(btn, customerId) {
+export async function uploadToITGlue(btn, customerId) {
   if (!customerId) return;
   // Determine upload type from card context
   const card = btn.closest('.card');
@@ -413,7 +427,7 @@ function pickITGlueOrg(orgs) {
   });
 }
 
-async function migrateEncryption() {
+export async function migrateEncryption() {
   const btn = document.getElementById('btn-migrate-encrypt');
   const result = document.getElementById('migrate-encrypt-result');
   btn.disabled = true;
@@ -435,7 +449,7 @@ async function migrateEncryption() {
 var TAG_SUGGESTIONS=['Premium','Standard','Basic',t('tag_priority','Priority'),t('tag_new_customer','New customer'),t('tag_trial','Trial')];
 var TAG_COLORS={'Premium':{bg:'#3fb95020',border:'#3fb95060',color:'#3fb950'},'Standard':{bg:'#4d9fb520',border:'#4d9fb560',color:'#4d9fb5'},'Basic':{bg:'#8b8b8b20',border:'#8b8b8b60',color:'#8b8b8b'},'Prioritert':{bg:'#f8514920',border:'#f8514960',color:'#f85149'},'Priority':{bg:'#f8514920',border:'#f8514960',color:'#f85149'},'Ny kunde':{bg:'#d2992220',border:'#d2992260',color:'#d29922'},'New customer':{bg:'#d2992220',border:'#d2992260',color:'#d29922'},'Proveperiode':{bg:'#a371f720',border:'#a371f760',color:'#a371f7'},'Trial':{bg:'#a371f720',border:'#a371f760',color:'#a371f7'}};
 function tagPillHtml(tag){var tc=TAG_COLORS[tag]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};return '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';margin-right:4px;margin-top:2px;white-space:nowrap;">'+esc(tag)+'</span>';}
-function tagPillsHtml(tags){if(!tags||tags.length===0)return '';return tags.map(tagPillHtml).join('');}
+export function tagPillsHtml(tags){if(!tags||tags.length===0)return '';return tags.map(tagPillHtml).join('');}
 async function saveCustomerTags(cid,tags){try{await apiFetch('/api/customer/'+encodeURIComponent(cid)+'/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tags:tags})})}catch(e){console.error('save tags:',e)}}
 function showTagEditor(cid,curTags){var ex=curTags?curTags.slice():[];var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var ct=_tagEl('tag-editor-'+si);if(!ct)return;var sf=TAG_SUGGESTIONS.filter(function(s){return ex.indexOf(s)===-1});var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;">';ex.forEach(function(t,i){var tc=TAG_COLORS[t]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};h+='<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';">'+esc(t)+' <span style="cursor:pointer;font-size:14px;line-height:1;opacity:0.7;" data-click-handler="removeTagAndRefresh" data-customer-id="'+esc(cid)+'" data-index="'+i+'">&times;</span></span>'});h+='</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';h+='<input type="text" id="tag-input-'+si+'" placeholder="' + t('lbl_write_tag') + '" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);width:120px;" data-keydown-handler="tagEditorAddOnEnter" data-customer-id="'+esc(cid)+'">';h+='<button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" data-click-handler="addTagFromInput" data-customer-id="'+esc(cid)+'">+</button></div>';if(sf.length>0){h+='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">';sf.forEach(function(s){h+='<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;border:1px dashed var(--border);border-radius:12px;" data-click-handler="addSuggestedTag" data-customer-id="'+esc(cid)+'" data-tag="'+esc(s)+'">+ '+esc(s)+'</button>'});h+='</div>'}ct.innerHTML=h;ct.style.display='block'}
 // The Kunder list and the customer page's Detaljer both carry a tag editor for
@@ -444,7 +458,7 @@ function _tagEl(id) {
   return document.querySelector('.view.active [id="' + id + '"]') || document.getElementById(id);
 }
 var _tagEditorData={};
-function openTagEditor(cid,tags){_tagEditorData[cid]=tags?tags.slice():[];showTagEditor(cid,_tagEditorData[cid])}
+export function openTagEditor(cid,tags){_tagEditorData[cid]=tags?tags.slice():[];showTagEditor(cid,_tagEditorData[cid])}
 function closeTagEditor(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var c=_tagEl('tag-editor-'+si);if(c){c.innerHTML='';c.style.display='none'}delete _tagEditorData[cid]}
 function addTagFromInput(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var inp=_tagEl('tag-input-'+si);if(!inp||!inp.value.trim())return;if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(inp.value.trim())===-1)_tagEditorData[cid].push(inp.value.trim());saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function addSuggestedTag(cid,tag){if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(tag)===-1)_tagEditorData[cid].push(tag);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
@@ -453,7 +467,7 @@ function refreshTagPills(cid,tags){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var
 
 // ── Manual Customer ─────────────────────────────────────────────────────────────
 
-function openNewCustomer() {
+export function openNewCustomer() {
   var modal = document.getElementById('manual-customer-modal');
   modal.style.display = 'flex';
   document.getElementById('new-cust-choices').hidden = false;
@@ -468,19 +482,19 @@ function openNewCustomer() {
   document.getElementById('manual-cust-error').style.display = 'none';
 }
 
-function newCustomerWithM365() {
+export function newCustomerWithM365() {
   document.getElementById('manual-customer-modal').style.display = 'none';
   startSetup();
 }
 
-function newCustomerManual() {
+export function newCustomerManual() {
   document.getElementById('new-cust-choices').hidden = true;
   document.getElementById('new-cust-form').hidden = false;
   document.getElementById('btn-manual-cust-save').hidden = false;
   document.getElementById('manual-cust-name').focus();
 }
 
-async function submitManualCustomer() {
+export async function submitManualCustomer() {
   var name = document.getElementById('manual-cust-name').value.trim();
   var errEl = document.getElementById('manual-cust-error');
   if (!name) {
@@ -522,7 +536,7 @@ async function submitManualCustomer() {
 // ── IT Glue Import ──────────────────────────────────────────────────────────────
 var _itglueImportOrgs = [];
 
-async function openITGlueImport() {
+export async function openITGlueImport() {
   var modal = document.getElementById('itglue-import-modal');
   var content = document.getElementById('itglue-import-content');
   var btn = document.getElementById('btn-itglue-import');
@@ -599,7 +613,7 @@ function updateITGlueImportBtn() {
   btn.textContent = count > 0 ? t('btn_import_selected') + ' (' + count + ')' : t('btn_import_selected');
 }
 
-async function runITGlueImport() {
+export async function runITGlueImport() {
   var selected = [];
   document.querySelectorAll('.itglue-import-cb:checked').forEach(function(cb) {
     var idx = parseInt(cb.dataset.idx);
@@ -640,7 +654,7 @@ async function runITGlueImport() {
 }
 
 // ── Customers management ────────────────────────────────────────────────────────
-async function loadCustomers() {
+export async function loadCustomers() {
   const box = document.getElementById('customers-content');
   try {
     const [d, expiryResult] = await Promise.all([
@@ -659,7 +673,7 @@ async function loadCustomers() {
   }
 }
 
-async function exportCustomersJSON() {
+export async function exportCustomersJSON() {
   try {
     var d = await apiFetch('/api/dashboard/overview');
     if (!d || !d.customers) { showToast(t('status_error'), 'error'); return; }
@@ -712,13 +726,13 @@ function toggleBulkCustomer(customerId, cb) {
   }
 }
 
-function clearBulkSelection() {
+export function clearBulkSelection() {
   _bulkSelectedCustomers = [];
   document.querySelectorAll('.customer-bulk-cb').forEach(function(cb){cb.checked=false});
   document.getElementById('customers-bulk-bar').style.display = 'none';
 }
 
-async function bulkTagCustomers() {
+export async function bulkTagCustomers() {
   var tag = prompt(t('msg_enter_tag','Enter tag name:'));
   if (!tag || !tag.trim()) return;
   tag = tag.trim();
@@ -742,7 +756,7 @@ async function bulkTagCustomers() {
   showToast(t('msg_tag_added','Tag added to') + ' ' + count + ' ' + t('nav_customers').toLowerCase(), 'success', 2000);
 }
 
-async function bulkDeleteCustomers() {
+export async function bulkDeleteCustomers() {
   // Retirement affects multiple registrations; require explicit acknowledgement.
   var sentinel = t('lbl_type_archive_sentinel', 'ARKIVER');
   var n = _bulkSelectedCustomers.length;
@@ -760,7 +774,7 @@ async function bulkDeleteCustomers() {
   showToast(t('msg_saved','OK'), 'success', 2000);
 }
 
-function customersFilter() {
+export function customersFilter() {
   var q = (document.getElementById('customers-search').value || '').toLowerCase();
   var filtered = _allCustomers;
   if (q) {
@@ -873,7 +887,7 @@ function renderCustomers(customers) {
   box.innerHTML = html;
 }
 
-async function deleteCustomer(customerId, name) {
+export async function deleteCustomer(customerId, name) {
   if (!await showTypedConfirm(
     name,
     t('dlg_confirm_delete_customer').replace('{name}', name),
@@ -892,7 +906,7 @@ async function deleteCustomer(customerId, name) {
 
 // ── Bulk Audit ──────────────────────────────────────────────────────────────
 // ── Dashboard Excel Export & Clipboard Copy ─────────────────────────────────
-async function exportDashboardExcel() {
+export async function exportDashboardExcel() {
   try {
     const r = await fetch('/api/export/excel', {method: 'POST'});
     if (!r.ok) { showToast(t('err_export_failed'), 'error'); return; }
@@ -913,7 +927,7 @@ async function exportDashboardExcel() {
 // The button is passed in. This read the global `event` inside the clipboard
 // promise's callback, where it is undefined, so every successful copy threw
 // and reported "could not copy" instead of showing the copied state.
-function copyOverviewToClipboard(button) {
+export function copyOverviewToClipboard(button) {
   if (!_overviewData || !_overviewData.customers) { showToast(t('msg_no_data_available'), 'warning'); return; }
   const customers = _overviewData.customers;
   const headers = ['Customer', 'Domain', 'Risk Grade', 'Risk Score', 'MFA Coverage %', 'Secure Score %', 'Total Users', 'Users Without MFA', 'CA Policies', 'Intune Compliance %', 'Global Admins', 'Last Audit Date', 'Tags'];
@@ -944,8 +958,8 @@ function copyOverviewToClipboard(button) {
   }).catch(function(e) { showToast(t('err_could_not_copy').replace('{msg}', e.message), 'error'); });
 }
 
-var _bulkAuditEventSource = null;
-function startBulkAudit() {
+export var _bulkAuditEventSource = null;
+export function startBulkAudit() {
   if (_bulkAuditEventSource) { showToast(t('err_bulk_audit_already_running'), 'warning'); return; }
   var btn = document.getElementById('bulk-audit-btn');
   if (btn) { btn.disabled = true; btn.textContent = t('status_running'); }
@@ -1078,6 +1092,6 @@ function finishBulkAudit() {
 
 // Opens a customer's page, on Funn. Kept by this name: the Kunder list, the
 // Oversikt rows and the palette all open customers through it.
-function overviewSelectCustomer(customerId) {
+export function overviewSelectCustomer(customerId) {
   return openCustomerPage(customerId, 'funn');
 }

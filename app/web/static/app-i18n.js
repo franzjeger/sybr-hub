@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 let _i18n = {};
-let _lang = localStorage.getItem('ui_lang') || 'no';
+export let _lang = localStorage.getItem('ui_lang') || 'no';
 
-async function loadI18n() {
+export async function loadI18n() {
     try {
         // The shell carries the content-versioned URL; a fixed number here
         // kept serving a cached file after the strings changed.
@@ -19,13 +19,13 @@ async function loadI18n() {
     }
 }
 
-function t(key, fallback) {
+export function t(key, fallback) {
     if (_i18n[_lang] && _i18n[_lang][key]) return _i18n[_lang][key];
     if (_i18n['no'] && _i18n['no'][key]) return _i18n['no'][key];
     return fallback || key;
 }
 
-function setLanguage(lang) {
+export function setLanguage(lang) {
     _lang = lang;
     localStorage.setItem('ui_lang', lang);
     translatePage();
@@ -37,7 +37,7 @@ function setLanguage(lang) {
 // language for everyone using a screen reader.
 var _I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'alt'];
 
-function translatePage(root) {
+export function translatePage(root) {
     var scope = root || document;
     // Single DOM scan with combined selector instead of one per attribute.
     var selector = '[data-i18n]' + _I18N_ATTRS.map(function (a) {

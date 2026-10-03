@@ -47,7 +47,8 @@ class Scope {
   declare(name, kind) {
     let binding = this.bindings.get(name);
     if (!binding) {
-      binding = {name, kind, values: [], unsafe: false, why: null, fn: null};
+      // moduleTop: declared at the top level of a module, where esc and t are.
+      binding = {name, kind, values: [], unsafe: false, why: null, fn: null, moduleTop: !!(this.node && this.node.type === 'Program')};
       this.bindings.set(name, binding);
       allBindings.push(binding);
     }
@@ -62,7 +63,8 @@ class Scope {
   }
 }
 
-// Per-analysis state, reset by analyze().
+// Per-analysis state, reset by analyze(). Each module has its own scope; the
+// global scope above them holds only what code assigns without declaring.
 let allBindings = [];
 let functionScopes = new Map();
 let functionReturns = new Map();
@@ -72,7 +74,7 @@ let globalScope = new Scope(null, null);
 function children(node) {
   const out = [];
   for (const key in node) {
-    if (key === 'type' || key === 'start' || key === 'end' || key === 'loc' || key === '__file') continue;
+    if (key === 'type' || key === 'start' || key === 'end' || key === 'loc' || key === '__file' || key === '__scope') continue;
     const value = node[key];
     if (Array.isArray(value)) {
       for (const child of value) if (child && typeof child.type === 'string') out.push(child);
@@ -244,9 +246,12 @@ function isHtmlExpression(node) {
   return false;
 }
 
+// esc, escJs and t as the helpers they are: a function declared at the top
+// level of a module (app-esc.js, app-i18n.js), reached here directly or
+// through an import, not a local of the same name.
 function isGlobalHelper(scope, name) {
   const binding = scope.lookup(name);
-  return binding && binding === globalScope.bindings.get(name) && binding.kind === 'function';
+  return binding && binding.moduleTop && binding.name === name && binding.kind === 'function';
 }
 
 function isBuiltin(scope, name) {
@@ -581,7 +586,7 @@ function checkFile(file, ast, findings) {
     }
     for (const child of children(node)) walk(child, scope, node, fnName);
   }
-  walk(ast, globalScope, null, '');
+  walk(ast, ast.__scope, null, '');
 }
 
 function annotatedStarts(text, comments) {
@@ -595,8 +600,11 @@ function annotatedStarts(text, comments) {
   return starts;
 }
 
-// Analyses scripts that share one global scope (as the SPA's do) and returns
-// every unescaped interpolation as {file, line, column, message}.
+// Analyses ES modules (as the SPA's are) and returns every unescaped
+// interpolation as {file, line, column, message}. An import resolves to the
+// exporting module's binding, so a value is followed across files: a
+// function in one module that returns unescaped data is unsafe wherever it is
+// imported. Sources are {file, text}; a specifier './x.js' names file 'x.js'.
 function analyze(sources) {
   allBindings = [];
   functionScopes = new Map();
@@ -605,16 +613,36 @@ function analyze(sources) {
   globalScope = new Scope(null, null);
   const parsed = sources.map(({file, text}) => {
     const comments = [];
-    const ast = acorn.parse(text, {ecmaVersion: 'latest', sourceType: 'script', locations: true, onComment: comments});
+    const ast = acorn.parse(text, {ecmaVersion: 'latest', sourceType: 'module', locations: true, onComment: comments});
     tagFile(ast, {file, text, annotated: annotatedStarts(text, comments)});
+    ast.__scope = new Scope(globalScope, ast);
     return {file, ast};
   });
-  for (const p of parsed) declarePass(p.ast, globalScope, null, []);
-  for (const p of parsed) assignPass(p.ast, globalScope);
+  for (const p of parsed) declarePass(p.ast, p.ast.__scope, null, []);
+  link(parsed);
+  for (const p of parsed) assignPass(p.ast, p.ast.__scope);
   solve();
   const findings = [];
   for (const p of parsed) checkFile(p.file, p.ast, findings);
   return findings;
+}
+
+// An imported name is the exporting module's own binding. An import this
+// analysis cannot follow (a file not among the sources, a name not declared
+// there) is treated as unknown data.
+function link(parsed) {
+  const byFile = new Map(parsed.map(p => [p.file, p.ast.__scope]));
+  for (const p of parsed) {
+    for (const node of p.ast.body) {
+      if (node.type !== 'ImportDeclaration') continue;
+      const target = byFile.get(String(node.source.value).replace(/^\.\//, ''));
+      for (const spec of node.specifiers) {
+        const exported = spec.type === 'ImportSpecifier' && target && target.bindings.get(spec.imported.name);
+        if (exported) p.ast.__scope.bindings.set(spec.local.name, exported);
+        else p.ast.__scope.declare(spec.local.name, 'import').values.push(UNSAFE);
+      }
+    }
+  }
 }
 
 function tagFile(node, info) {
@@ -626,7 +654,8 @@ function main() {
   const args = process.argv.slice(2);
   const listAll = args.includes('--all');
   const only = args.filter(a => !a.startsWith('--')).map(a => path.basename(a));
-  const files = fs.readdirSync(STATIC_DIR).filter(f => /^app(-[\w-]+)?\.js$/.test(f)).sort();
+  // Every module of the interface: app.js, app-*.js and the entry.
+  const files = fs.readdirSync(STATIC_DIR).filter(f => /^(app(-[\w-]+)?|main)\.js$/.test(f)).sort();
   const findings = analyze(files.map(file => ({file, text: fs.readFileSync(path.join(STATIC_DIR, file), 'utf8')})));
   const byFile = new Map();
   for (const f of findings) byFile.set(f.file, (byFile.get(f.file) || 0) + 1);
@@ -645,7 +674,7 @@ function main() {
     console.error(`${shown.length} unescaped HTML interpolation(s). Wrap text in esc() and numbers in Number().`);
     process.exit(1);
   }
-  console.log('HTML escaping check passed for all ' + files.filter(isEnforced).length + ' scripts');
+  console.log('HTML escaping check passed for all ' + files.filter(isEnforced).length + ' modules');
 }
 
 module.exports = {analyze, main};

@@ -24,7 +24,7 @@ from app.web.middleware.write_guard import ALLOWED_WITHOUT_WRITE
 STATIC = pathlib.Path("app/web/static")
 SKIP = {"guacamole.min.js", "sw.js"}
 
-_FUNCTION = re.compile(r"^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)", re.M)
+_FUNCTION = re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)", re.M)
 _MUTATING_CALL = re.compile(
     r"""(?:apiFetch|fetch)\(\s*['"`]([^'"`]+)['"`][^)]*?method\s*:\s*['"](\w+)['"]""", re.S
 )

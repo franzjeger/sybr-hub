@@ -3,6 +3,7 @@
 // TLS check and a firmware read store them, and sets up no alert channel: the
 // alert engine has sent nothing, so the page can only show them from state.
 const { test, expect } = require('@playwright/test');
+const { inApp, expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
@@ -16,12 +17,12 @@ async function login(page) {
   await page.locator('#login-password').fill(PASSWORD);
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
-  await expect.poll(() => page.evaluate(() => !!_currentUser && !!_i18n.no)).toBe(true);
+  await expectSignedIn(page);
 }
 
 test('Varsler lists a stored expiring certificate and an end-of-life device with no alert channel', async ({page}) => {
   await login(page);
-  await page.evaluate(() => openOverviewTab('dash-alerts'));
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
   const alerts = page.locator('#dash-alerts');
 
   // Nothing was ever sent, and the sidebar says why.
@@ -59,7 +60,7 @@ test('Varsler lists a stored expiring certificate and an end-of-life device with
   await expect(known).toContainText('Browser Beta');
 
   // The device on the customer's Nettverk tab.
-  await page.evaluate(() => openOverviewTab('dash-alerts'));
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
   await alerts.locator('.notif-row', {hasText: 'Browser AP lager'}).getByRole('button', {name: 'Åpne Nettverk'}).click();
   await expect(page.locator('#view-customer-detail')).toHaveClass(/\bactive\b/);
   await expect(page.locator('#cust-tabs .cust-tab[data-tab="nettverk"]')).toHaveAttribute('aria-selected', 'true');
@@ -70,7 +71,7 @@ test.describe('on a 375 px phone', () => {
 
   test('the stored certificate list scrolls inside its card, not the page', async ({page}) => {
     await login(page);
-    await page.evaluate(() => showNetworkTab('net-tls'));
+    await inApp(page, app => app.showNetworkTab('net-tls'));
     await expect(page.locator('#tls-known .tls-table tbody tr')).toHaveCount(1);
     const widths = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     expect(widths[0]).toBeLessThanOrEqual(widths[1]);

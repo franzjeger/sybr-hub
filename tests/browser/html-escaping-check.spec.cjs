@@ -2,10 +2,13 @@
 const { test, expect } = require('@playwright/test');
 const { analyze } = require('../../scripts/check-html-escaping.cjs');
 
-const helpers = {file: 'helpers.js', text: 'function esc(s) { return s; } function escJs(s) { return s; } function t(k, f) { return f || k; }'};
+// The SPA is ES modules: the helpers are exports, and a case imports them on
+// its first line, so line numbers stay those of the case.
+const helpers = {file: 'helpers.js', text: 'export function esc(s) { return s; } export function escJs(s) { return s; } export function t(k, f) { return f || k; }'};
+const IMPORT = "import {esc, escJs, t} from './helpers.js'; ";
 
-function findings(code) {
-  return analyze([helpers, {file: 'case.js', text: code}]).filter(f => f.file === 'case.js');
+function findings(code, others = []) {
+  return analyze([helpers, ...others, {file: 'case.js', text: IMPORT + code}]).filter(f => f.file === 'case.js');
 }
 
 test('raw server data in an innerHTML string is reported, escaped data is not', () => {
@@ -64,4 +67,25 @@ test('an element of a server array is data, an element of a constant array is no
 test('the safe-html marker opts a single value out', () => {
   expect(findings("function r(h) { el.innerHTML = '<div>' + /* safe-html: built by esc above */ h.markup + '</div>'; }"))
     .toEqual([]);
+});
+
+test('a value is followed through an import into another module', () => {
+  const rows = {file: 'rows.js', text: [
+    "import {esc} from './helpers.js';",
+    "export function rowHtml(h) { return '<td>' + esc(h.name) + '</td>'; }",
+    "export function rawLabel(h) { return h.label; }",
+  ].join('\n')};
+  const imports = "import {rowHtml, rawLabel} from './rows.js'; ";
+  expect(findings(imports + "function r(h) { el.innerHTML = '<tr>' + rowHtml(h) + '</tr>'; }", [rows])).toEqual([]);
+  const raw = findings(imports + "function r(h) { el.innerHTML = '<b>' + rawLabel(h) + '</b>'; }", [rows]);
+  expect(raw).toHaveLength(1);
+  expect(raw[0].message).toContain('rawLabel(h)');
+});
+
+test('only the imported helper counts as esc, not a local function of that name', () => {
+  const local = analyze([{file: 'case.js', text: "function r(h) { function esc(s) { return s; } el.innerHTML = '<b>' + esc(h.name) + '</b>'; }"}]);
+  expect(local).toHaveLength(1);
+  const unimported = analyze([{file: 'case.js', text: "function r(h) { el.innerHTML = '<b>' + esc(h.name) + '</b>'; }"}]);
+  expect(unimported).toHaveLength(1);
+  expect(unimported[0].message).toContain('esc(h.name)');
 });

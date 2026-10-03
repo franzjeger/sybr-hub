@@ -2,13 +2,15 @@
 // FORMATTING: figures, run names, dates and sizes as a person reads them
 // ═══════════════════════════════════════════════════════════════════
 
+import {_lang, t} from './app-i18n.js';
+
 // A metric that was never measured is null, not undefined — SQLite NULL comes
 // through JSON as null, and `null !== undefined` is true. Every guard here
 // used that test, so an unmeasured figure reached .toFixed and threw "Cannot
 // read properties of null". That became reachable the moment sections started
 // reporting "not measured" instead of a zero, which is the whole point of
 // them: intune_compliance_pct is null on any tenant without Intune.
-function metricPct(value, digits) {
+export function metricPct(value, digits) {
   if (value === null || value === undefined || value === '' || isNaN(value)) return null;
   return Number(value).toFixed(digits === undefined ? 0 : digits);
 }
@@ -17,10 +19,10 @@ function metricPct(value, digits) {
 // no such key in its metrics, and `Number(undefined) || 0` turned that into a
 // reassuring zero printed right under a finding about an admin without MFA.
 // Unmeasured reads "ukjent" on every card that shows the figure.
-function metricKnown(value) {
+export function metricKnown(value) {
   return !(value === null || value === undefined || value === '' || isNaN(value));
 }
-function metricCount(value) {
+export function metricCount(value) {
   return metricKnown(value) ? String(Number(value)) : t('lbl_unknown_value', 'ukjent');
 }
 
@@ -28,7 +30,7 @@ function metricCount(value) {
 // some with a suffix after). That name is for the file system; a person reads
 // the date and time. Returns the input unchanged when it is not a run name.
 // `short` gives the date alone in a compact form, for tables and lists.
-function formatRunName(name, short) {
+export function formatRunName(name, short) {
   var m = /^(\d{4})-(\d{2})-(\d{2})(?:[_T ](\d{2}):?(\d{2}))?/.exec(String(name || ''));
   if (!m) return String(name || '');
   var locale = _lang === 'en' ? 'en-GB' : 'nb-NO';
@@ -49,7 +51,7 @@ function auditAgeLabel(name) {
   return days === 0 ? t('ctx_audited_today', 'Auditert i dag') : t('ctx_audited_days_ago', 'Auditert for {n} d siden').replace('{n}', days);
 }
 
-function timeAgo(dateStr) {
+export function timeAgo(dateStr) {
   if (!dateStr) return '';
   try {
     var d = new Date(dateStr);
@@ -65,7 +67,7 @@ function timeAgo(dateStr) {
 
 // app-customer-detail.js used to declare a second _formatBytes; this is the
 // one kept.
-function _formatBytes(bytes) {
+export function _formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
   var units = ['B','KB','MB','GB','TB'];
   var i = Math.floor(Math.log(bytes) / Math.log(1024));

@@ -2,7 +2,27 @@
 // ALERTS DASHBOARD — MORNING OVERVIEW
 // ═══════════════════════════════════════════════════════════════════
 
-// Handlers for the markup this file builds (see registerUiHandlers in app.js).
+import {esc} from './app-esc.js';
+import {t} from './app-i18n.js';
+import {icon} from './app-icons.js';
+import {registerUiHandlers} from './app-handlers.js';
+import {onViewShown} from './app-hooks.js';
+import {_overviewData, canOpenView, hasModule, setOverviewData} from './app-state.js';
+import {formatRunName, metricPct, timeAgo} from './app-format.js';
+import {adminSignpostButton, openReportWindow, showToast} from './app-ui.js';
+import {apiFetch} from './app-api.js';
+import {currentView, showNetworkTab, showView} from './app.js';
+import {switchDashTab} from './app-infra.js';
+import {dashLoadRenewals} from './app-also.js';
+import {tlsChainLabel} from './app-tls.js';
+import {_taskSchedLabel} from './app-integrations.js';
+import {startAudit} from './app-audit.js';
+import {openAdmin} from './app-settings.js';
+import {deleteCustomer, overviewSelectCustomer, startBulkAudit} from './app-customers.js';
+import {openCustomerPage} from './app-customer-detail.js';
+import {_activityLabel} from './app-chrome.js';
+
+// Handlers for the markup this file builds (see registerUiHandlers in app-handlers.js).
 registerUiHandlers({
   // Notification centre
   notifSetSevFilter: function(el) { notifSetFilter('sev', el.dataset.sev); },
@@ -112,7 +132,7 @@ var _SEV = {
   info:     { label: 'Info',     color: 'var(--text-muted)',  dot: 'var(--text-dim)', tint: 'color-mix(in srgb, var(--text-muted) 12%, transparent)' }
 };
 
-function _notifDays(n) {
+export function _notifDays(n) {
   if (n === null || n === undefined) return '';
   return n < 0 ? t('lbl_expired', 'Utløpt') : n + ' ' + t('lbl_days_short', 'd');
 }
@@ -123,7 +143,7 @@ var _notifItems;
 var _notifConfig;
 var _notifCoverage;
 
-async function dashLoadAlerts() {
+export async function dashLoadAlerts() {
   var el = document.getElementById('dash-alerts-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
@@ -428,11 +448,11 @@ function notifAct(id, readOnly) {
       showNetworkTab('net-tls');
       return;
     }
-    if (n.act === 'customer' && n.tab && n.customerId && typeof openCustomerPage === 'function') {
+    if (n.act === 'customer' && n.tab && n.customerId) {
       openCustomerPage(n.customerId, n.tab);
       return;
     }
-    if (n.act === 'customer' && typeof showCustomerDetail === 'function' && n.customerId) {
+    if (n.act === 'customer' && n.customerId) {
       showCustomerDetail(n.customerId, n.customer);
       return;
     }
@@ -811,11 +831,11 @@ async function dashLoadDomains() {
 var _dashRefreshInterval = null;
 var _dashRefreshSeconds = 120; // 2 minutes
 
-function stopDashRefreshInterval() {
+export function stopDashRefreshInterval() {
   if (_dashRefreshInterval) { clearInterval(_dashRefreshInterval); _dashRefreshInterval = null; }
 }
 
-function dashToggleAutoRefresh(btn) {
+export function dashToggleAutoRefresh(btn) {
   if (_dashRefreshInterval) {
     clearInterval(_dashRefreshInterval);
     _dashRefreshInterval = null;
@@ -864,7 +884,7 @@ function _dashExportTableCSV(containerId, filename) {
 function dashExportAlerts() { _dashExportTableCSV('dash-alerts-content', 'alerts'); }
 
 // Oversikt on one of its tabs.
-function openOverviewTab(tabId) {
+export function openOverviewTab(tabId) {
   if (currentView !== 'overview') showView('overview');
   var btn = document.querySelector('#view-overview .dash-tab-btn[data-tab="' + tabId + '"]');
   if (btn) switchDashTab(btn, tabId);
@@ -875,7 +895,7 @@ function openOverviewTab(tabId) {
 // finance, not "who needs me today", so they are a tool of their own.
 var _billingTab = 'dash-renewals';
 
-function switchBillingTab(btn, tabId) {
+export function switchBillingTab(btn, tabId) {
   _billingTab = tabId;
   document.querySelectorAll('#view-billing .billing-tab-btn').forEach(function(b) {
     var on = b.dataset.tab === tabId;
@@ -899,7 +919,7 @@ function showBillingTab(tabId) {
 
 onViewShown('billing', function() { showBillingTab(_billingTab); });
 
-function billingExportCurrentTab() {
+export function billingExportCurrentTab() {
   var names = {'dash-renewals': 'renewals', 'dash-costs': 'costs', 'dash-domains': 'domains'};
   _dashExportTableCSV(_billingTab + '-content', names[_billingTab] || 'export');
 }
@@ -907,12 +927,10 @@ function billingExportCurrentTab() {
 // Navigate to customer detail view from dashboard tables
 function showCustomerDetail(customerId, customerName) {
   if (!customerId) return;
-  if (typeof overviewSelectCustomer === 'function') {
-    overviewSelectCustomer(customerId);
-  }
+  overviewSelectCustomer(customerId);
 }
 
-function dashExportCurrentTab() {
+export function dashExportCurrentTab() {
   var active = document.querySelector('.dash-tab-content[style*="display: block"], .dash-tab-content[style*="display:block"]');
   if (!active) return;
   var id = active.id;
@@ -926,7 +944,7 @@ function dashExportCurrentTab() {
 // REPORT ARCHIVE
 // ═══════════════════════════════════════════════════════════════════
 
-async function dashLoadArchive() {
+export async function dashLoadArchive() {
   var el = document.getElementById('dash-archive-content');
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
 
@@ -1000,7 +1018,7 @@ async function dashArchiveDelete(path) {
   }
 }
 
-async function generateQBR() {
+export async function generateQBR() {
   showToast(t('msg_generating','Generating...'), 'info', 2000);
   try {
     var r = await apiFetch('/api/reports/batch-summary', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
@@ -1079,14 +1097,14 @@ async function quickSwitchAndView(customerId, tab) {
   await openCustomerPage(customerId, tab);
 }
 
-function stopDashAutoRefresh() {
+export function stopDashAutoRefresh() {
   if (_dashAutoRefresh) { clearInterval(_dashAutoRefresh); _dashAutoRefresh = null; }
   var btn = document.getElementById('dash-autorefresh-btn');
   var cd = document.getElementById('dash-autorefresh-countdown');
   if (btn) btn.style.color = '';
   if (cd) cd.style.display = 'none';
 }
-function _celebrateConfetti() {
+export function _celebrateConfetti() {
   var colors = ['#3fb950','#4d9fb5','#d29922','#bc8cff','#58a6ff','#f85149'];
   for (var i = 0; i < 40; i++) {
     var el = document.createElement('div');
@@ -1123,7 +1141,7 @@ async function loadIntegrationHealthStrip() {
   widget.hidden = false;
 }
 
-async function loadOverview() {
+export async function loadOverview() {
   const box = document.getElementById('overview-content');
   // Independent of the customer list: a failing settings call must not
   // delay or break it.
@@ -1195,15 +1213,15 @@ function _needsAttention(c) {
 // The order of the list: worst open finding first. A customer never audited
 // ranks just below one with a high finding: nobody knows what it holds, which
 // is more urgent than a list of medium ones.
-function _findingWeight(c) {
+export function _findingWeight(c) {
   if (!c.has_metrics) return 9999;
   var f = _openFindings(c);
   return f.critical * 1e6 + f.high * 1e4 + f.medium * 1e2 + f.low;
 }
 
-var _gradeFilter = '';
+export var _gradeFilter = '';
 
-function clearGradeFilter() {
+export function clearGradeFilter() {
   _gradeFilter = '';
   filterOverview();
 }
