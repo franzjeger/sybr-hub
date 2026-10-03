@@ -1745,7 +1745,7 @@ async function loadStatus() {
   const d = await apiFetch('/api/status');
   if (d) {
     renderHome(d);
-    if (d.has_config && d.has_credentials) {
+    if (d.has_config && (d.m365_ready || d.has_credentials)) {
       _loadHealthGrid();
       // Fetch last audit date for active customer bar
       try {
@@ -1772,7 +1772,11 @@ async function _loadHealthGrid() {
     function healthCard(label, value, suffix, thresholds, hint) {
       var v = parseFloat(value);
       var color = 'var(--text-dim)';
-      if (!isNaN(v)) {
+      if (!isNaN(v) && thresholds.above !== undefined) {
+        // A count where any is too many (users without MFA): red from
+        // `above` up. The "below is bad" thresholds painted zero red.
+        color = v >= thresholds.above ? 'var(--red)' : 'var(--green)';
+      } else if (!isNaN(v)) {
         if (thresholds.red && v < thresholds.red) color = 'var(--red)';
         else if (thresholds.orange && v < thresholds.orange) color = 'var(--orange)';
         else color = 'var(--green)';
@@ -1784,7 +1788,7 @@ async function _loadHealthGrid() {
       return '<div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--bg);border-radius:var(--radius-md);border:1px solid var(--border);cursor:default;transition:border-color var(--duration-fast);" class="hover-border-accent"' + (tipText ? ' title="' + esc(tipText) + '"' : '') + '>'
         + dot
         + '<div style="flex:1;"><div style="font-size:var(--font-xs);color:var(--text-muted);">' + esc(label) + '</div></div>'
-        + '<div style="font-size:var(--font-md);font-weight:700;color:' + color + ';">' + (isNaN(v) ? '-' : v + esc(suffix||'')) + '</div></div>';
+        + '<div style="font-size:var(--font-md);font-weight:700;color:' + color + ';">' + (isNaN(v) ? esc(t('lbl_unknown_value', 'ukjent')) : v + esc(suffix||'')) + '</div></div>';
     }
 
     grid.style.display = 'grid';
@@ -1794,7 +1798,7 @@ async function _loadHealthGrid() {
       healthCard('MFA', m.mfa_coverage_pct, '%', {red:80, orange:95}) +
       healthCard(t('lbl_secure_score','Secure Score'), m.secure_score_pct, '%', {red:50, orange:75}) +
       healthCard(t('lbl_users','Users'), m.total_users, '', {}) +
-      healthCard(t('lbl_without_mfa','Without MFA'), m.users_no_mfa, '', {red:999, orange:1}) +
+      healthCard(t('lbl_users_without_mfa','Brukere uten MFA'), m.users_no_mfa, '', {above:1}) +
       healthCard(t('lbl_ca_policies','CA Policies'), m.ca_policies_enabled, '', {red:1, orange:3});
   } catch(e) {}
 }
@@ -1896,9 +1900,14 @@ function renderHome(d) {
     warnsHtml = `<div class="warn-badge"><ul>${items}</ul></div>`;
   }
 
+  // App credentials (a secret this app holds) and "can be audited" are two
+  // facts: a GDAP customer is audited through delegated access with no
+  // secret. The run button follows the second, as on the customer page; the
+  // permission check and secret renewal belong to the first.
   const hasCredentials = d.has_credentials !== false;
-  const runDisabled = d.audit_running ? 'disabled' : (!hasCredentials ? 'disabled' : '');
-  const runLabel    = d.audit_running ? t('btn_audit_running') : (!hasCredentials ? t('msg_missing_m365_setup','Missing M365 setup') : t('btn_run_audit'));
+  const canAudit = d.m365_ready !== undefined ? !!d.m365_ready : hasCredentials;
+  const runDisabled = d.audit_running ? 'disabled' : (!canAudit ? 'disabled' : '');
+  const runLabel    = d.audit_running ? t('btn_audit_running') : (!canAudit ? t('msg_missing_m365_setup','Missing M365 setup') : t('btn_run_audit'));
 
   box.innerHTML = `
     <div id="expiry-banner-area"></div>
@@ -1920,11 +1929,11 @@ function renderHome(d) {
       </div>
       ${warnsHtml}
       <div id="home-health-grid" style="display:none;margin-top:var(--space-4);"></div>
-      ${hasCredentials ? `
+      ${canAudit ? `
       <div class="btn-row">
         <button class="btn btn-primary tooltip" data-tip="${t('tip_run_full_audit','Runs a full security check of the customer M365/Azure environment')}" data-click-handler="startAudit" ${runDisabled}>${runLabel} <kbd style="font-size:9px;opacity:0.6;margin-left:4px;padding:1px 4px;background:rgba(255,255,255,0.15);border-radius:3px;">Ctrl+Shift+A</kbd></button>
-        <button class="btn btn-default tooltip" data-tip="${t('tip_check_permissions','Verifies that all required Graph API permissions are granted')}" data-click-handler="checkPermissions">${t('btn_check_permissions')}</button>
-        <button class="btn btn-warning" data-click-handler="renewCreds">${t('btn_renew_credentials')}</button>
+        ${hasCredentials ? `<button class="btn btn-default tooltip" data-tip="${t('tip_check_permissions','Verifies that all required Graph API permissions are granted')}" data-click-handler="checkPermissions">${t('btn_check_permissions')}</button>
+        <button class="btn btn-warning" data-click-handler="renewCreds">${t('btn_renew_credentials')}</button>` : ''}
         <button class="btn btn-ghost" data-click-handler="showView" data-view="customers">${t('btn_switch_customer')}</button>
       </div>` : `
       <div style="padding:14px;margin-bottom:8px;background:rgba(210,153,34,0.1);border:1px solid rgba(210,153,34,0.3);border-radius:8px;font-size:13px;color:var(--orange);">

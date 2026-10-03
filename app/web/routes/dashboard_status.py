@@ -161,9 +161,16 @@ async def get_status(user: User = Depends(get_current_user)):
 
         has_credentials = bool(get_secret(tenant_id, "client_secret"))
 
+    # Whether an audit can sign in, by the rule the customer page uses: app
+    # credentials or delegated (GDAP) access. has_credentials alone said a
+    # GDAP customer "has no M365 access configured" on M365-status while the
+    # customer page offered to audit it.
+    from app.core.credentials import m365_ready
+
     return {
         "has_config": True,
         "has_credentials": has_credentials,
+        "m365_ready": m365_ready(cfg),
         "customer": {
             "name": cfg.get("CustomerName", "Unknown"),
             "domain": cfg.get("PrimaryDomain", ""),
