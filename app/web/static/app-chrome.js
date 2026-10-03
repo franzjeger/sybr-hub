@@ -364,7 +364,7 @@ function renderAiQuickPrompts() {
     {icon:'\u{1F6E1}', label:'ai_prompt_fortigate',     labelFb:'Show FortiGate status',   prompt:'ai_prompt_fortigate_text',     promptFb:'Show status for all FortiGate firewalls'},
     {icon:'\u{1F5A5}', label:'ai_prompt_ssh',           labelFb:'SSH health check',        prompt:'ai_prompt_ssh_text',           promptFb:'List all SSH hosts and check health status'},
     {icon:'\u{1F512}', label:'ai_prompt_vpn',           labelFb:'VPN status',              prompt:'ai_prompt_vpn_text',           promptFb:'What is the current VPN status?'},
-    {icon:'\u{1F4CB}', label:'ai_prompt_cis',           labelFb:'CIS compliance',          prompt:'ai_prompt_cis_text',           promptFb:'Run CIS compliance check on active customer'},
+    {icon:'\u{1F4CB}', label:'ai_prompt_cis',           labelFb:'CIS compliance',          prompt:'ai_prompt_cis_text',           promptFb:'Run CIS compliance check on the chosen customer'},
     {icon:'\u{1F4E1}', label:'ai_prompt_unifi',         labelFb:'UniFi sites',             prompt:'ai_prompt_unifi_text',         promptFb:'List all UniFi sites with device status'},
     {icon:'\u{1F527}', label:'ai_prompt_troubleshoot',  labelFb:'Troubleshoot',            prompt:'ai_prompt_troubleshoot_text',  promptFb:'Help me troubleshoot network issues for this customer'},
   ];

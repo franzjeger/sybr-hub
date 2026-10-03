@@ -11,14 +11,12 @@
 // screens are expected to build on classes (the assessment library does).
 // ═══════════════════════════════════════════════════════════════════
 
+// The customer whose page this tab is on.
 function _poCustomerId() {
-  return _customersActiveId || '';
+  return _custPage.id || '';
 }
 function _poCustomerName() {
-  var c = (_allCustomers || []).find(function(x) {
-    return (x._id || x.customer_id) === _poCustomerId();
-  });
-  return (c && (c.CustomerName || c.customer_name)) || '';
+  return (_custPage.cust && _custPage.cust.customer_name) || '';
 }
 
 async function policyOverviewLoad() {
@@ -26,13 +24,6 @@ async function policyOverviewLoad() {
   if (!el) return;
   el.innerHTML = '<div class="po-loading"><div class="loader"></div></div>';
 
-  // The active customer lives in state the Kunder view fills. Opened first
-  // (after a reload, or from the switcher) this screen said "Ingen kunde
-  // valgt" for a session that has one; Policy-utrulling already asks.
-  if (!_customersActiveId) {
-    var cs = await apiFetch('/api/customers');
-    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; }
-  }
   var cid = _poCustomerId();
   if (!cid) {
     el.innerHTML = '<div class="card po-dim">'
@@ -42,6 +33,8 @@ async function policyOverviewLoad() {
 
   var po = await apiFetch('/api/policy-overview/' + encodeURIComponent(cid) + '?lang=' + _lang)
     .catch(function() { return null; });
+  // Another customer's page opened meanwhile: this answer is not its.
+  if (_poCustomerId() !== cid) return;
   if (!po) {
     el.innerHTML = '<div class="alert alert-error">' + esc(t('status_error', 'Error')) + '</div>';
     return;

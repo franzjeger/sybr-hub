@@ -43,11 +43,13 @@ def fake_fortigate(monkeypatch):
 
 
 def _active_customer(client) -> str:
+    """Register Customer A; the routes below name it in their path."""
     from app.core.customer import CustomerManager
 
-    cid = CustomerManager.save_customer({"CustomerName": "Customer A", "TenantId": "a"})
-    assert client.post("/api/customers/switch", json={"customer_id": cid}).status_code == 200
-    return cid
+    return CustomerManager.save_customer({"CustomerName": "Customer A", "TenantId": "a"})
+
+
+CID = "Customer_A"
 
 
 # ── FortiGate ────────────────────────────────────────────────────────────────
@@ -86,7 +88,7 @@ async def test_the_fortigate_save_form_still_saves(tech_client):
 
     cid = _active_customer(tech_client)
 
-    r = tech_client.post("/api/fortigate/save", json=FG_FORM)
+    r = tech_client.post(f"/api/fortigate/save/{CID}", json=FG_FORM)
 
     assert r.status_code == 200, r.text
     stored = CustomerManager.get_customer(cid)
@@ -101,9 +103,9 @@ async def test_a_null_port_from_the_form_still_leaves_the_port_alone(tech_client
     from app.core.customer import CustomerManager
 
     cid = _active_customer(tech_client)
-    tech_client.post("/api/fortigate/save", json=FG_FORM)
+    tech_client.post(f"/api/fortigate/save/{CID}", json=FG_FORM)
 
-    r = tech_client.post("/api/fortigate/save", json={**FG_FORM, "port": None})
+    r = tech_client.post(f"/api/fortigate/save/{CID}", json={**FG_FORM, "port": None})
 
     assert r.status_code == 200, r.text
     assert CustomerManager.get_customer(cid)["FortiGatePort"] == 8443
@@ -115,7 +117,7 @@ async def test_a_bad_fortigate_save_body_changes_nothing(tech_client, over):
 
     cid = _active_customer(tech_client)
 
-    assert_refused(tech_client.post("/api/fortigate/save", json={**FG_FORM, **over}), 422)
+    assert_refused(tech_client.post(f"/api/fortigate/save/{CID}", json={**FG_FORM, **over}), 422)
     assert "FortiGateHost" not in CustomerManager.get_customer(cid)
 
 
@@ -123,7 +125,7 @@ async def test_a_bad_fortigate_port_keeps_its_own_message(tech_client):
     _active_customer(tech_client)
 
     body = assert_refused(
-        tech_client.post("/api/fortigate/save", json={**FG_FORM, "port": "https"}), 400
+        tech_client.post(f"/api/fortigate/save/{CID}", json={**FG_FORM, "port": "https"}), 400
     )
     assert "Ugyldig port" in body["error"]
 
@@ -252,12 +254,12 @@ async def test_a_config_backup_must_be_text(tech_client):
     _active_customer(tech_client)
 
     r = tech_client.post(
-        "/api/network/save-config-backup", json={"host": "10.0.0.5", "config": "set x"}
+        f"/api/network/save-config-backup/{CID}", json={"host": "10.0.0.5", "config": "set x"}
     )
     assert r.status_code == 200, r.text
     assert_refused(
         tech_client.post(
-            "/api/network/save-config-backup", json={"host": "10.0.0.5", "config": {"x": 1}}
+            f"/api/network/save-config-backup/{CID}", json={"host": "10.0.0.5", "config": {"x": 1}}
         ),
         422,
     )
@@ -269,7 +271,7 @@ async def test_the_unifi_save_forms_still_save(tech_client):
     cid = _active_customer(tech_client)
     # saveUniFi(), then saveUniFiDirect()
     r = tech_client.post(
-        "/api/unifi/save",
+        f"/api/unifi/save/{CID}",
         json={
             "host": "unifi.customer-a.example",
             "username": "admin",
@@ -280,7 +282,7 @@ async def test_the_unifi_save_forms_still_save(tech_client):
     )
     assert r.status_code == 200, r.text
     r = tech_client.post(
-        "/api/unifi/save",
+        f"/api/unifi/save/{CID}",
         json={"mode": "direct", "devices": [{"host": "10.0.0.5", "label": "AP", "type": None}]},
     )
     assert r.status_code == 200, r.text
@@ -306,7 +308,7 @@ async def test_a_bad_unifi_save_body_changes_nothing(tech_client, body):
 
     cid = _active_customer(tech_client)
 
-    assert_refused(tech_client.post("/api/unifi/save", json=body), 422)
+    assert_refused(tech_client.post(f"/api/unifi/save/{CID}", json=body), 422)
     assert "UniFiHost" not in CustomerManager.get_customer(cid)
 
 

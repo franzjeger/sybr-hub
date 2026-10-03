@@ -68,15 +68,12 @@ async def test_an_unknown_manual_customer_key_is_refused(tech_client):
     )
 
 
-async def test_switching_customer_still_works_and_refuses_a_non_string(tech_client):
+async def test_there_is_no_customer_switch_any_more(tech_client):
+    """Each call names its customer; nothing on the server selects one."""
     cid = _add(tech_client)
 
     r = tech_client.post("/api/customers/switch", json={"customer_id": cid})
-    assert r.status_code == 200, r.text
-    assert r.json()["customer"]["_id"] == cid
-
-    assert_refused(tech_client.post("/api/customers/switch", json={"customer_id": 7}), 422)
-    assert_refused(tech_client.post("/api/customers/switch", json={"customer_id": "nope"}), 404)
+    assert r.status_code in (404, 405), r.text
 
 
 async def test_archiving_a_customer_still_needs_an_id(admin_client):
@@ -89,29 +86,33 @@ async def test_archiving_a_customer_still_needs_an_id(admin_client):
     assert r.json()["archived"] is True
 
 
-async def test_notes_still_save_for_the_active_customer(tech_client):
+async def test_notes_save_for_the_customer_in_the_path(tech_client):
     cid = _add(tech_client)
-    tech_client.post("/api/customers/switch", json={"customer_id": cid})
+    other = tech_client.post("/api/customers/add-manual", json={"name": "Customer Other"}).json()[
+        "customer_id"
+    ]
+    notes = f"/api/customer/{cid}/notes"
 
-    r = tech_client.post("/api/customer/notes", json={"notes": "Gate code 1234"})
+    r = tech_client.post(notes, json={"notes": "Gate code 1234"})
 
     assert r.status_code == 200, r.text
-    assert tech_client.get("/api/customer/notes").json()["notes"] == "Gate code 1234"
-    assert_refused(tech_client.post("/api/customer/notes", json={"notes": 1234}), 422)
-    assert_refused(tech_client.post("/api/customer/notes", json={"note": "typo"}), 422)
+    assert r.json()["customer_id"] == cid
+    assert tech_client.get(notes).json()["notes"] == "Gate code 1234"
+    assert tech_client.get(f"/api/customer/{other}/notes").json()["notes"] == ""
+    assert_refused(tech_client.post(notes, json={"notes": 1234}), 422)
+    assert_refused(tech_client.post(notes, json={"note": "typo"}), 422)
+    assert_refused(tech_client.post("/api/customer/nobody/notes", json={"notes": "x"}), 404)
 
 
 async def test_tags_still_save_and_must_be_a_list_of_strings(tech_client):
     cid = _add(tech_client)
 
-    r = tech_client.post(
-        "/api/customer/tags", json={"customer_id": cid, "tags": ["vip", " vip ", "m365"]}
-    )
+    r = tech_client.post(f"/api/customer/{cid}/tags", json={"tags": ["vip", " vip ", "m365"]})
 
     assert r.status_code == 200, r.text
     assert r.json()["tags"] == ["vip", "m365"]
     for tags in ("vip", [1, 2], {"vip": True}):
         assert_refused(
-            tech_client.post("/api/customer/tags", json={"customer_id": cid, "tags": tags}),
+            tech_client.post(f"/api/customer/{cid}/tags", json={"tags": tags}),
             422,
         )

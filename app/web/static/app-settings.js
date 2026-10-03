@@ -335,7 +335,9 @@ function closePermissionsModal() {
   document.getElementById('permissions-modal').classList.remove('open');
 }
 
-async function checkPermissions() {
+// One customer's app permissions: the customer whose page the button is on.
+async function checkPermissions(customerId) {
+  if (!customerId) return;
   const modal = document.getElementById('permissions-modal');
   const title = document.getElementById('perm-modal-title');
   const desc  = document.getElementById('perm-modal-desc');
@@ -347,7 +349,7 @@ async function checkPermissions() {
   modal.classList.add('open');
 
   try {
-    const d = await apiFetch('/api/audit/validate-permissions', { method: 'POST' });
+    const d = await apiFetch('/api/audit/validate-permissions?customer_id=' + encodeURIComponent(customerId), { method: 'POST' });
     renderPermissionsResult(d);
   } catch (e) {
     desc.textContent = '';

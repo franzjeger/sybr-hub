@@ -68,14 +68,17 @@ def test_applying_is_behind_a_typed_confirmation():
 
 def test_the_screen_reads_state_the_application_actually_keeps():
     """_currentCustomer does not exist — I invented it, and the screen would
-    have shown "no customer selected" for every session."""
+    have shown "no customer selected" for every session.
+
+    The screen is a tab of the customer page now, and reads that page's
+    customer (_custPage), not a server-side "active customer"."""
     js = (STATIC / "app-policy-deploy.js").read_text(encoding="utf-8")
-    app = (STATIC / "app-customers.js").read_text(encoding="utf-8")
+    page = (STATIC / "app-customer-detail.js").read_text(encoding="utf-8")
 
     assert "_currentCustomer" not in js
-    for name in ("_customersActiveId", "_allCustomers"):
-        assert name in js
-        assert f"var {name}" in app, f"{name} is not a variable app-customers.js declares"
+    assert "_customersActiveId" not in js
+    assert "_custPage.id" in js
+    assert "var _custPage" in page, "_custPage is not a variable app-customer-detail.js declares"
 
 
 def test_the_restore_panel_is_reachable_from_the_same_screen():

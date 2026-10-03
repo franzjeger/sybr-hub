@@ -14,12 +14,12 @@ from app.core import credentials as credential_store
 from app.core import job_state as state
 from app.core.activity_log import log_activity
 from app.core.customer import CustomerManager
-from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.rbac import check_customer_access, filter_customers, get_accessible_customer_ids
 from app.models.customer import CredentialResetTarget
 from app.models.user import Role, User
-from app.web.i18n import ui_t
-from app.web.middleware.auth import get_current_user, require_role
+from app.web.i18n import refusal, ui_t
+from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,9 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 # ── Files ─────────────────────────────────────────────────────────────────────
 
 
-@router.get("/files")
-async def get_files():
-    """List customer files: cert, config, reports, raw audit data.
+@router.get("/customer/{customer_id}/files")
+async def get_files(customer_id: str, user: User = Depends(require_customer_access(Role.viewer))):
+    """List one customer's files: cert, config, reports, raw audit data.
 
     Names, dates and sizes, not server paths: the person reading this screen
     cannot open /tmp/... or /home/... on the server, and the paths told them
@@ -44,12 +44,11 @@ async def get_files():
     from app.core.config import get_audit_dir
     from app.core.customer import customer_dir_name
 
-    active = CustomerManager.get_active()
+    active = CustomerManager.get_customer(customer_id)
     if not active:
-        return {"has_customer": False}
+        raise refusal(NotFoundError, "err_customer_not_found")
 
     customer_name = active.get("CustomerName", "unknown")
-    customer_id = active.get("_id", "")
 
     credentials = {
         "customer_name": customer_name,
@@ -99,7 +98,7 @@ async def get_files():
     )
 
     return {
-        "has_customer": True,
+        "customer_id": customer_id,
         "credentials": credentials,
         "certificate": certificate,
         "reports": reports[:50],
@@ -114,32 +113,22 @@ async def get_files():
 # ── Status ────────────────────────────────────────────────────────────────────
 
 
-@router.get("/status")
-async def get_status(user: User = Depends(get_current_user)):
-    from app.core.credentials import config_exists, load_config
+@router.get("/customer/{customer_id}/status")
+async def get_customer_status(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """One customer's M365 connection, expiry warnings and tags.
 
-    active_id = CustomerManager.get_active_id()
-    audit_run = state.get_user_audit(user.id, active_id) if active_id else None
+    Was /status, which answered for the caller's active customer: a second tab
+    on another customer changed what the first tab's Detaljer showed.
+    """
+    from app.core.credentials import get_secret, m365_ready
 
-    if not config_exists():
-        # No M365 config yet, but the customer still exists: the header names
-        # it either way, instead of claiming that no customer is selected.
-        active = CustomerManager.get_customer(active_id) if active_id else None
-        return {
-            "has_config": False,
-            "customer": None
-            if active is None
-            else {
-                "name": active.get("CustomerName", ""),
-                "domain": active.get("PrimaryDomain", ""),
-                "also_account_id": active.get("AlsoAccountId", ""),
-            },
-            "active_id": active_id or "",
-            "audit_running": bool(audit_run and audit_run.running),
-            "setup_running": state.setup_running,
-        }
+    cfg = CustomerManager.get_customer(customer_id)
+    if cfg is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    audit_run = state.get_user_audit(user.id, customer_id)
 
-    cfg = load_config()
     warns: list[str] = []
     for key, label in [("SecretExpiry", "Client secret"), ("CertExpiry", "Certificate")]:
         val = cfg.get(key, "")
@@ -152,23 +141,17 @@ async def get_status(user: User = Depends(get_current_user)):
             except ValueError:
                 pass
 
-    tags = CustomerManager.get_tags(active_id) if active_id else []
-
-    has_credentials = False
     tenant_id = cfg.get("TenantId", "")
-    if tenant_id and cfg.get("ClientId"):
-        from app.core.credentials import get_secret
-
-        has_credentials = bool(get_secret(tenant_id, "client_secret"))
+    has_credentials = bool(
+        tenant_id and cfg.get("ClientId") and get_secret(tenant_id, "client_secret")
+    )
 
     # Whether an audit can sign in, by the rule the customer page uses: app
     # credentials or delegated (GDAP) access. has_credentials alone said a
     # GDAP customer "has no M365 access configured" on M365-status while the
     # customer page offered to audit it.
-    from app.core.credentials import m365_ready
-
     return {
-        "has_config": True,
+        "customer_id": customer_id,
         "has_credentials": has_credentials,
         "m365_ready": m365_ready(cfg),
         "customer": {
@@ -177,75 +160,35 @@ async def get_status(user: User = Depends(get_current_user)):
             "also_account_id": cfg.get("AlsoAccountId", ""),
             "setup_date": cfg.get("SetupDate", "")[:10],
             "warns": warns,
-            "tags": tags,
+            "tags": CustomerManager.get_tags(customer_id),
             "tenant_id": tenant_id,
         },
-        "active_id": active_id or "",
         "audit_running": bool(audit_run and audit_run.running),
         "setup_running": state.setup_running,
     }
-
-
-# ── Latest report ────────────────────────────────────────────────────────────
-
-
-@router.get("/latest-report")
-async def get_latest_report():
-    """Return URL to the latest HTML report for the active customer."""
-    from app.core.config import AUDIT_DIR, get_audit_dir
-    from app.core.credentials import load_config
-
-    cfg = load_config()
-    if not cfg:
-        return {"has_report": False}
-
-    customer_name = cfg.get("CustomerName", "Unknown")
-    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in customer_name)
-    customer_dir = get_audit_dir() / safe_name
-
-    if not customer_dir.exists():
-        return {"has_report": False}
-
-    for run_dir in sorted(customer_dir.iterdir(), reverse=True):
-        if not run_dir.is_dir():
-            continue
-        for f in run_dir.iterdir():
-            if f.suffix == ".html" and "report" in f.name.lower():
-                rel = f.relative_to(AUDIT_DIR)
-                return {
-                    "has_report": True,
-                    "url": f"/audit_data/{rel}",
-                    "filename": f.name,
-                    "run": run_dir.name,
-                }
-
-    return {"has_report": False}
 
 
 # ── Customer actions ──────────────────────────────────────────────────────────
 
 
 async def _clear_customer_credentials(
-    request: Request, body: CredentialResetTarget | None, user: User, action: str
+    request: Request, body: CredentialResetTarget, user: User, action: str
 ) -> dict:
     """Delete the stored M365 credentials of one customer the caller may access.
 
-    The customer is the one named in the body, else the caller's active
-    customer. These endpoints used to delete the secrets of whatever tenant
-    the process-wide setup staging file named, which is simply the last setup
-    anybody ran: renewing customer A wiped customer B's credentials, whether
-    or not the caller could see B.
+    The customer is the one named in the body; there is no default. These
+    endpoints used to delete the secrets of whatever tenant the process-wide
+    setup staging file named, which is simply the last setup anybody ran:
+    renewing customer A wiped customer B's credentials, whether or not the
+    caller could see B. A later default, the caller's active customer, did the
+    same across two browser tabs.
 
     Secrets are keyed by tenant, so every registration on the same tenant
     shares them, and the caller needs access to each of those as well.
     Registration, certificate and history stay; setup issues fresh
     credentials and re-registers over them.
     """
-    # The browser sends no body; then the active customer applies.
-    requested = body.customer_id if body else None
-    customer_id = requested or CustomerManager.get_active_id()
-    if not customer_id:
-        raise ValidationError(ui_t("err_no_active_customer", request))
+    customer_id = body.customer_id
     if not await check_customer_access(user, customer_id):
         raise ForbiddenError(ui_t("err_customer_access_denied", request))
     customer = CustomerManager.get_customer(customer_id)
@@ -269,7 +212,7 @@ async def _clear_customer_credentials(
 @router.post("/customer/wipe")
 async def customer_wipe(
     request: Request,
-    body: CredentialResetTarget | None = None,
+    body: CredentialResetTarget,
     user: User = Depends(require_role(Role.technician)),
 ):
     # Technician floor: a viewer has no business deleting credentials.
@@ -279,7 +222,7 @@ async def customer_wipe(
 @router.post("/customer/renew")
 async def customer_renew(
     request: Request,
-    body: CredentialResetTarget | None = None,
+    body: CredentialResetTarget,
     user: User = Depends(require_role(Role.technician)),
 ):
     # The first half of renewal; the browser runs setup straight after.

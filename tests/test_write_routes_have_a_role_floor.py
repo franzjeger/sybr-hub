@@ -69,15 +69,15 @@ async def _writer(name: str, role: Role) -> dict:
 # 403 whatever the body is, and an accepted role falls through to validation
 # (some other status) — never a role 403.
 TECHNICIAN_ROUTES = [
-    ("post", "/api/customer/notes"),
-    ("post", "/api/customer/tags"),
+    ("post", "/api/customer/c1/notes"),
+    ("post", "/api/customer/c1/tags"),
     ("post", "/api/customers/add-manual"),
-    ("post", "/api/audit/scope"),
+    ("post", "/api/audit/scope?customer_id=c1"),
     ("post", "/api/audit/presets"),
     ("post", "/api/history/delete"),
     ("post", "/api/uniweb/sync"),
     ("post", "/api/itglue/sync-all"),
-    ("post", "/api/remediation"),
+    ("post", "/api/remediation/c1"),
 ]
 
 # These handle credentials/integration config, so the floor is admin, not tech.

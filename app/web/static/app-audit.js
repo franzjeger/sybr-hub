@@ -13,8 +13,13 @@ registerUiHandlers({
 });
 
 // ── Audit scope selector ────────────────────────────────────────────────────────
+// The sections of the customer whose page is open. _scopeCustomerId is the
+// customer they were read for, and the only one they are saved back to: a
+// save still pending when the page moves to another customer goes to the one
+// it belongs to.
 let _scopeSections = [];   // [{name, category, enabled}]
 let _scopeLoaded = false;
+let _scopeCustomerId = null;
 let _scopePanelOpen = false;
 
 function toggleScopePanel() {
@@ -28,11 +33,16 @@ function toggleScopePanel() {
 }
 
 async function loadScopeSections() {
+  const customerId = _custPage.id;
+  if (!customerId) return;
+  const cid = encodeURIComponent(customerId);
   try {
     const [secRes, scopeRes] = await Promise.all([
-      apiFetch('/api/audit/sections'),
-      apiFetch('/api/audit/scope'),
+      apiFetch('/api/audit/sections?customer_id=' + cid),
+      apiFetch('/api/audit/scope?customer_id=' + cid),
     ]);
+    if (_custPage.id !== customerId) return;
+    _scopeCustomerId = customerId;
     _scopeSections = secRes.sections || [];
     // Apply saved scope if available
     if (scopeRes.scope && scopeRes.scope.enabled_sections) {
@@ -121,9 +131,10 @@ function saveScopeDebounced() {
 }
 
 async function saveScope() {
+  if (!_scopeCustomerId) return;
   const enabled = _scopeSections.filter(s => s.enabled).map(s => s.name);
   try {
-    await apiFetch('/api/audit/scope', {
+    await apiFetch('/api/audit/scope?customer_id=' + encodeURIComponent(_scopeCustomerId), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled_sections: enabled }),
@@ -223,13 +234,18 @@ const sectionRows = {}; // name -> tr element
 var _auditStarting = false;
 const statusOrder = { pending: 0, running: 1, done: 2, skipped: 3, failed: 4 };
 
-async function startAudit() {
+// Audits one customer: the one named, else the page on screen, else this
+// tab's current customer (the keyboard shortcut has no page to ask).
+async function startAudit(customerId) {
+  customerId = customerId || (currentView === 'customer-detail' && _custPage.id) || currentCustomerId();
+  if (!customerId) { showView('customers'); return; }
   // Asked here, inside the click, so the browser shows the prompt and the
   // operator knows what it is for: a notice when the audit finishes.
   requestAuditNotifications();
+  const cid = encodeURIComponent(customerId);
   // Quick pre-flight permission check (non-blocking — warn only)
   try {
-    const d = await apiFetch('/api/audit/validate-permissions', { method: 'POST' });
+    const d = await apiFetch('/api/audit/validate-permissions?customer_id=' + cid, { method: 'POST' });
     if (d.missing && d.missing.length > 0) {
       const msg = t('dlg_permissions_missing').replace('{count}', d.missing.length).replace('{list}', d.missing.join('\n'));
       if (!await showConfirm(msg)) return;
@@ -239,6 +255,7 @@ async function startAudit() {
   }
 
   _auditStarting = true;
+  auditCustomerId = customerId;
   // Reset state
   Object.keys(sectionRows).forEach(k => delete sectionRows[k]);
   sectionDone = 0;
@@ -253,18 +270,19 @@ async function startAudit() {
   window._auditSectionCount = 0;
 
   // The run shows on its customer's Audit tab.
-  await openActiveCustomerTab('audit');
+  await openCustomerPage(customerId, 'audit');
   _showAuditRunningChrome();
   auditRunning = true;
   _auditStarting = false;
   var _ari = document.getElementById('audit-running-indicator'); if (_ari) _ari.style.display = 'flex';
   startAuditProgressPolling();
 
-  // Build stream URL with optional section filter
-  let streamUrl = '/api/audit/stream';
-  const _selectedSections = getSelectedSectionNames();
+  // Build stream URL: the customer, and the section filter if there is one.
+  // The sections are this customer's only when the chooser was read for it.
+  let streamUrl = '/api/audit/stream?customer_id=' + cid;
+  const _selectedSections = _scopeCustomerId === customerId ? getSelectedSectionNames() : null;
   if (_selectedSections) {
-    streamUrl += '?sections=' + encodeURIComponent(_selectedSections.join(','));
+    streamUrl += '&sections=' + encodeURIComponent(_selectedSections.join(','));
   }
   // Use fetch with auth header (EventSource can't send Authorization).
   // Wrapped in _runAuditStreamWithReconnect so a network blip doesn't
@@ -309,9 +327,7 @@ async function _watchAuditLoop(quiet, streamUrl) {
   setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
 
   // Re-attach URL forces attach-only, so a re-open can never start a new audit.
-  var attachUrl = streamUrl
-    ? streamUrl + (streamUrl.indexOf('?') === -1 ? '?' : '&') + 'attach=1'
-    : null;
+  var attachUrl = streamUrl ? streamUrl + '&attach=1' : null;
 
   while (auditRunning) {
     await new Promise(r => setTimeout(r, 3000));
@@ -583,8 +599,9 @@ function handleAuditDone(results) {
   var totalFiles = results.reduce(function(s,r){ return s + (r.files ? r.files.length : 0); }, 0);
   setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + Number(totalFiles) + ' ' + t('nav_files','files') + ')</span></span>');
 
-  // What Rapport builds from: this run, which the server now holds.
-  _custReportRun = {customerId: _customersActiveId};
+  // What Rapport builds from: this run, which the server now holds for its
+  // customer.
+  _custReportRun = {customerId: auditCustomerId};
   custSyncReportButton();
   custPageAuditFinished();
   document.getElementById('sum-done').textContent = done;
@@ -602,9 +619,11 @@ function handleAuditDone(results) {
   }
 
   // Check grade and celebrate if A!
+  var doneFor = auditCustomerId;
   setTimeout(async function() {
+    if (!doneFor) return;
     try {
-      var dash = await apiFetch('/api/dashboard');
+      var dash = await apiFetch('/api/dashboard?customer_id=' + encodeURIComponent(doneFor));
       if (dash && dash.metrics && dash.metrics.risk_grade === 'A') {
         _celebrateConfetti();
         showToast('' + t('msg_grade_a','Grade A — excellent security posture!'), 'success', 5000);
@@ -684,7 +703,9 @@ function _hideAuditProgressBar() {
 }
 
 // ── Report generation ──────────────────────────────────────────────────────────
-async function generateReport(fmt, reportType) {
+// From the run selected for this customer (the one just audited, or one
+// picked in the runs list).
+async function generateReport(fmt, reportType, customerId) {
   const area = document.getElementById('report-result');
   const label = reportType === 'customer' ? t('lbl_customer_report') : t('lbl_tech_report');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_report').replace('{label}', label);
@@ -693,7 +714,7 @@ async function generateReport(fmt, reportType) {
     const d_report = await apiFetch('/api/report/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format: fmt, report_type: reportType, lang: document.getElementById('report-lang')?.value || 'no', frameworks: document.getElementById('report-frameworks')?.value || 'all', theme: document.getElementById('report-theme')?.value || 'light' }),
+      body: JSON.stringify({ customer_id: customerId, format: fmt, report_type: reportType, lang: document.getElementById('report-lang')?.value || 'no', frameworks: document.getElementById('report-frameworks')?.value || 'all', theme: document.getElementById('report-theme')?.value || 'light' }),
     });
     const d = d_report;
     if (!d) { area.innerHTML = '<div class="alert alert-error">' + t('err_could_not_generate_report') + '</div>'; return; }
@@ -735,11 +756,13 @@ function closeReportViewer() {
   document.getElementById('report-viewer-iframe').src = 'about:blank';
 }
 
-async function exportCSV() {
+async function exportCSV(customerId) {
   const area = document.getElementById('report-result');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_csv');
   try {
-    const r = await fetch('/api/report/csv', { method: 'POST' });
+    const r = await fetch('/api/report/csv', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
+    });
     if (!r.ok) {
       try { const d = await r.json(); area.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`; } catch(_) { area.innerHTML = '<div class="alert alert-error">' + t('err_export_failed','Export failed') + '</div>'; }
       return;
@@ -999,17 +1022,19 @@ function renderHistory(runs, scoped) {
   box.innerHTML = html;
 }
 
-// A run picked in the list: the server selects it for this user, and the
-// Rapport button builds from it.
+// A run picked in the list: the server selects it for this user and this
+// customer, and the Rapport button builds from it.
 async function loadHistoryRun(path) {
+  const customerId = _custPage.id;
   const area = document.getElementById('report-result');
   if (area) area.innerHTML = '<div class="loader"></div> ' + esc(t('msg_loading_audit_data'));
   try {
     const d = await apiFetch('/api/history/load', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ customer_id: customerId, path }),
     });
+    if (_custPage.id !== customerId) return;
     if (!d || d.error) {
       if (area) area.innerHTML = d && d.error ? '<div class="alert alert-error">✗ ' + esc(d.error) + '</div>' : '';
       return;

@@ -1121,7 +1121,7 @@ async function loadOverview() {
   loadIntegrationHealthStrip().catch(function(e) { console.debug('integration banner failed:', e); });
   const d = await apiFetch('/api/dashboard/overview');
   if (d) {
-    _overviewData = {customers: d.customers || [], active_id: d.active_id};
+    _overviewData = {customers: d.customers || []};
     filterOverview();
     // Update footer stats
     var fs = document.getElementById('footer-stats');
@@ -1211,7 +1211,7 @@ function filterOverview() {
     if (qf === 'attention' && !_needsAttention(c)) return false;
     return true;
   });
-  renderOverview(filtered, _overviewData.active_id);
+  renderOverview(filtered);
 
   // Show active filter badges
   var afEl = document.getElementById('overview-active-filters');
@@ -1253,7 +1253,7 @@ function _openFindingChips(c) {
   return chips.length ? chips.join('') : '<span class="sev-count sev-none">' + esc(t('lbl_no_open_findings', 'Ingen åpne')) + '</span>';
 }
 
-function renderOverview(customers, activeId) {
+function renderOverview(customers) {
   const box = document.getElementById('overview-content');
 
   // Sort: worst open finding first unless the person chose otherwise.

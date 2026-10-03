@@ -226,7 +226,7 @@ test('the customer page tabs switch in place, and the address carries the tab', 
   await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
 });
 
-test('each old address lands on the tab it became, for the active customer', async ({page}) => {
+test('each old address lands on the tab it became, for this tab\'s current customer', async ({page}) => {
   await login(page, 'browser-switcher');
   await page.evaluate(() => { location.hash = '#/customer/Browser_Beta'; });
   await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
@@ -243,22 +243,16 @@ test('each old address lands on the tab it became, for the active customer', asy
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/customer/Browser_Beta' + (tab === 'funn' ? '' : '/' + tab));
     if (tab === 'policyer') await expect(page.locator('#view-policy-overview')).toBeVisible();
   }
-  // With no customer active, an old address goes to Kunder to choose one.
-  await page.route('**/api/customers', async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    body.active_id = null;
-    await route.fulfill({response, json: body});
+  // A tab with no customer yet (nothing opened here, nothing in Nylige): an
+  // old address goes to Kunder to choose one.
+  await page.evaluate(() => {
+    sessionStorage.removeItem('sybr_tab_customer');
+    localStorage.removeItem('sybr_recent_customers');
+    _tabCustomerId = null;
+    showView('overview');
+    location.hash = '#/audit';
   });
-  // The last tab's loader may still be reading /api/customers from before the
-  // route above, and puts the active customer back when it lands; try again
-  // until nothing is in flight to do that.
-  await expect.poll(async () => {
-    await page.evaluate(() => { _customersActiveId = null; showView('overview'); location.hash = '#/audit'; });
-    await page.waitForTimeout(300);
-    return page.evaluate(() => currentView);
-  }).toBe('customers');
-  await page.unrouteAll({behavior: 'ignoreErrors'});
+  await expect.poll(() => page.evaluate(() => currentView)).toBe('customers');
 });
 
 test('the bell opens Varsler on Oversikt, with the events it used to list', async ({page}) => {

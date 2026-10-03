@@ -50,10 +50,9 @@ SESSION = {
 }
 
 # ── Changing what you are looking at, not what is ───────────────────────────
-# switch is how the whole interface navigates between customers. Gating it
-# would leave a read-only account able to read exactly one tenant.
+# history/load picks the run a report is built from. Gating it would leave a
+# read-only account unable to read an older run's report.
 NAVIGATION = {
-    "/api/customers/switch",
     "/api/history/load",
     "/api/settings/language",
 }

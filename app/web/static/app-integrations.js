@@ -27,7 +27,8 @@ onViewShown('terminal', function() {
   var ts = document.getElementById('term-screen');
   if (ts) ts.focus();
 });
-onViewShown('pentest', function() { loadPentestCapabilities(); });
+onViewShown('pentest', function() { loadPentestCapabilities(); renderToolCustomerPickers(); });
+onViewShown('provision', function() { renderToolCustomerPickers(); });
 onViewShown('policy-overview', function() { policyOverviewLoad(); });
 onViewShown('policy-deploy', function() { policyDeployLoad(); });
 onViewShown('baseline-deploy', function() { baselineDeployLoad(); });

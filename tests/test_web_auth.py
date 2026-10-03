@@ -218,7 +218,7 @@ def test_route_walk_finds_the_whole_api(app):
         "/api/hub/{customer_id}",
         "/api/vpn/profiles",
         "/api/fortigate/all",
-        "/api/network-devices",
+        "/api/network-devices/{customer_id}",
     ):
         assert expected in paths, f"{expected} missing from route walk"
 
@@ -447,11 +447,11 @@ def test_public_paths_do_not_require_auth(client):
         ("get", "/api/vpn/profiles"),
         ("get", "/api/vpn/status"),
         ("post", "/api/vpn/force-disconnect"),
-        ("get", "/api/network-devices"),
-        ("get", "/api/network/config-backups"),
-        ("post", "/api/unifi/save"),
-        ("post", "/api/network/quick-audit"),
-        ("post", "/api/network/save-config-backup"),
+        ("get", "/api/network-devices/some-customer"),
+        ("get", "/api/network/config-backups/some-customer"),
+        ("post", "/api/unifi/save/some-customer"),
+        ("post", "/api/network/quick-audit/some-customer"),
+        ("post", "/api/network/save-config-backup/some-customer"),
         ("get", "/api/fortigate/all"),
         ("get", "/api/hub/some-customer"),
     ],
@@ -548,8 +548,8 @@ async def test_technician_cannot_reach_admin_route(client, existing_user):
     [
         ("get", "/api/vpn/profiles"),
         ("post", "/api/vpn/force-disconnect"),
-        ("get", "/api/network-devices"),
-        ("post", "/api/unifi/save"),
+        ("get", "/api/network-devices/some-customer"),
+        ("post", "/api/unifi/save/some-customer"),
         ("get", "/api/hub/some-customer"),
     ],
 )

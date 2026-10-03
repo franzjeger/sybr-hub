@@ -36,10 +36,12 @@ def test_renew_runs_setup_after_clearing_credentials():
     and nothing re-issued them, so the button "did nothing" the operator could
     use.
     """
-    m = re.search(r"function renewCreds\(\)\s*\{(.*?)\n\}", APP_JS, re.S)
+    m = re.search(r"function renewCreds\(customerId\)\s*\{(.*?)\n\}", APP_JS, re.S)
     assert m, "renewCreds not found"
     body = m.group(1)
     assert "/api/customer/renew" in body, "renew no longer clears the old credentials"
+    # The customer whose page the button is on, named: there is no default.
+    assert "customer_id: customerId" in body
     assert "startSetup()" in body, (
         "renew clears the credentials but never re-runs setup — the operator is "
         "left with none, which is the bug being fixed"

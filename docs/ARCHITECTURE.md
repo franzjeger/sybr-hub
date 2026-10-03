@@ -769,25 +769,35 @@ undo every item an operator had marked done. `tests/test_recommendation_identity
 holds both halves: the id is identical across languages, and unchanged when the
 count moves.
 
-Rows store the id, so `/api/remediation` resolves it back to a sentence from
+Rows store the id, so `/api/remediation/{id}` resolves it back to a sentence from
 the latest run. An id shown raw in the panel means the finding no longer
 appears — kept rather than hidden, because the note attached to it is worth
 more than the tidiness.
 
 ## Which customer are we talking to
 
-Authenticated web requests bind a user-and-RBAC snapshot in
-`AuthMiddleware`. `CustomerManager` stores each user's active selection under
-`customers/.active/<sha256(user-id)>.txt`; the identifier is encrypted and the
-file is private. `load_config()`, certificate lookup, notes, tags, audit scope,
-dashboards and integration routes resolve through that request context. A
-missing per-user selection never falls back to `active.txt`, and a selection
-whose customer access was revoked resolves to no customer.
+The one the request names. Every route that acts on a customer takes its id
+in the path, a required query parameter or the body, and checks the caller's
+access to that customer (`require_customer_access`, or `check_customer_access`
+for a body field). There is no "active customer" on the server: a selection
+kept per user was shared by every browser tab of that user, so a customer
+opened in one tab decided where another tab's note, audit or report landed.
+The browser keeps the idea per tab (`currentCustomerId` in `app.js`,
+sessionStorage) and only ever sends it as an explicit id.
 
-`active.txt`, the global config slot and the global certificate path remain
-only as a non-web compatibility context for the TUI, CLI and the scheduler's
-explicit "single active customer" mode. Web switching no longer copies a
-customer's config or certificate into those process-global slots.
+Authenticated web requests still bind a user-and-RBAC snapshot in
+`AuthMiddleware`, for the registry reads that filter on grants. Inside a
+request `load_config()` and `cert_path()` resolve to nothing, so code that
+still reaches for "the" customer gets none rather than the setup staging
+slot. That slot and the global certificate path remain for setup, the TUI,
+the CLI and the scheduler's single-customer mode.
+
+A running audit is the caller's, for one customer: `AuditRunContext` is kept
+per user and customer (`job_state`), `GET /api/audit/progress` reports the
+caller's running run with its customer, and a report is built from the run
+selected for the customer it names. The report context and the trend row take
+the run's customer from the caller, else from the run's folder when exactly
+one customer has that folder name.
 
 **A background job must never write them.** The scheduler used to: each
 iteration switched the active customer, copied that customer's config and

@@ -203,47 +203,54 @@ async def test_itglue_sync_all_covers_every_bound_customer_for_an_admin(client, 
     assert sorted(itglue) == sorted([ACME, BETA])
 
 
-# ── IT Glue uploads go to the active customer's own organization ────────────
-
-
-@pytest.fixture()
-def acme_is_active(monkeypatch):
-    monkeypatch.setattr(
-        "app.core.customer.CustomerManager.get_active", staticmethod(lambda: dict(CUSTOMERS[0]))
-    )
+# ── IT Glue uploads go to the named customer's own organization ─────────────
 
 
 @pytest.mark.parametrize("path", ["/api/itglue/upload/audit", "/api/itglue/upload/reports"])
-async def test_a_scoped_technician_cannot_upload_into_a_foreign_org(
-    client, itglue, acme_is_active, path
-):
+async def test_a_scoped_technician_cannot_upload_into_a_foreign_org(client, itglue, path):
     # 502 is beta's organization; the upload would carry acme's audit into it.
-    r = client.post(path, headers=await _tech(), json={"org_id": "502"})
+    r = client.post(path, headers=await _tech(), json={"customer_id": ACME, "org_id": "502"})
     assert r.status_code == 403
 
 
 @pytest.mark.parametrize("path", ["/api/itglue/upload/audit", "/api/itglue/upload/reports"])
-async def test_the_active_customers_own_org_passes_the_check(client, itglue, acme_is_active, path):
-    # No audit run exists here, so the request fails later — just not on scope.
+async def test_a_scoped_technician_cannot_upload_another_customers_data(client, itglue, path):
+    # Beta's own org, but beta is not this technician's customer.
+    r = client.post(path, headers=await _tech(), json={"customer_id": BETA, "org_id": "502"})
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize("path", ["/api/itglue/upload/audit", "/api/itglue/upload/reports"])
+async def test_an_upload_names_its_customer(client, itglue, path):
+    # There is no customer to assume.
     r = client.post(path, headers=await _tech(), json={"org_id": "501"})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/api/itglue/upload/audit", "/api/itglue/upload/reports"])
+async def test_the_customers_own_org_passes_the_check(client, itglue, path):
+    # No audit run exists here, so the request fails later — just not on scope.
+    r = client.post(path, headers=await _tech(), json={"customer_id": ACME, "org_id": "501"})
     assert r.status_code != 403
 
 
-async def test_an_upload_with_no_audit_says_so_rather_than_blaming_it_glue(
-    client, itglue, acme_is_active
-):
+async def test_an_upload_with_no_audit_says_so_rather_than_blaming_it_glue(client, itglue):
     # The refusal is raised inside the upload's try block, where a bare
     # "except Exception" turned it into "IT Glue upload failed" and a 502.
-    r = client.post("/api/itglue/upload/audit", headers=await _tech(), json={"org_id": "501"})
+    r = client.post(
+        "/api/itglue/upload/audit",
+        headers=await _tech(),
+        json={"customer_id": ACME, "org_id": "501"},
+    )
     assert r.status_code == 400, r.text
     assert r.json()["error"] == "Ingen audit-data tilgjengelig"
     assert r.json()["error_key"] == "err_no_audit_data"
 
 
-async def test_an_admin_may_upload_into_any_org(client, itglue, acme_is_active):
+async def test_an_admin_may_upload_into_any_org(client, itglue):
     r = client.post(
         "/api/itglue/upload/reports",
         headers=await login("boss", role=Role.admin),
-        json={"org_id": "502"},
+        json={"customer_id": ACME, "org_id": "502"},
     )
     assert r.status_code != 403

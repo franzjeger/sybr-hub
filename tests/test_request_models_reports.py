@@ -69,7 +69,11 @@ async def test_a_malformed_email_test_never_reaches_the_mailer(admin_client, sen
 
 
 async def test_send_report_refuses_a_malformed_recipient(admin_client, sent):
-    for body in ({"to": ["a@example.no"]}, {"recipient": "a@example.no"}):
+    for body in (
+        {"customer_id": "c1", "to": ["a@example.no"]},
+        {"customer_id": "c1", "recipient": "a@example.no"},
+        {"to": "a@example.no"},
+    ):
         assert_refused(admin_client.post("/api/email/send-report", json=body), 422)
     assert sent == []
 
@@ -79,6 +83,7 @@ async def test_a_report_the_screen_offers_gets_past_the_body(admin_client):
     r = admin_client.post(
         "/api/report/generate",
         json={
+            "customer_id": "c1",
             "format": "pdf",
             "report_type": "customer",
             "lang": "en",
@@ -94,7 +99,13 @@ async def test_a_report_the_screen_offers_gets_past_the_body(admin_client):
     [{"lang": "de"}, {"format": "docx"}, {"frameworks": ["cis"]}, {"report_type": "x"}, {"x": 1}],
 )
 async def test_a_report_option_the_generator_does_not_know_is_refused(admin_client, body):
-    assert_refused(admin_client.post("/api/report/generate", json=body), 422)
+    assert_refused(
+        admin_client.post("/api/report/generate", json={"customer_id": "c1", **body}), 422
+    )
+
+
+async def test_a_report_names_its_customer(admin_client):
+    assert_refused(admin_client.post("/api/report/generate", json={"format": "html"}), 422)
 
 
 async def test_archive_delete_keeps_its_messages(admin_client):

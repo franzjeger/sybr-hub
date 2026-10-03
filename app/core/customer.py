@@ -6,7 +6,6 @@ CustomerManager (multi-tenant registry).
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import threading
 import time
@@ -36,8 +35,18 @@ _request_customer_scope: ContextVar[_RequestCustomerScope | None] = ContextVar(
 )
 
 
+# There is no "active customer" for a web request. Every route that acts on a
+# customer names it (in the path, a required query parameter or the body) and
+# checks the caller's access to that one. A per-user selection kept on the
+# server was shared by every tab that user had open: a switch in one tab made
+# notes, audits and reports in another land on the wrong customer. What the
+# browser calls the current customer is its own, per tab (app.js,
+# currentCustomerId), and only ever reaches the server as an explicit id.
+#
+# This scope is the caller's identity and customer grants, for the registry
+# reads and writes below that filter on them.
 def bind_request_customer_scope(user_id: str, allowed_customer_ids: set[str] | None):
-    """Bind per-user customer selection state for the current async context."""
+    """Bind the caller's identity and customer grants for the current async context."""
     scope = _RequestCustomerScope(
         user_id=user_id,
         allowed_customer_ids=(
@@ -55,15 +64,6 @@ def reset_request_customer_scope(token) -> None:
 def has_request_customer_scope() -> bool:
     """Whether code is running for an authenticated web user."""
     return _request_customer_scope.get() is not None
-
-
-def _active_selection_path() -> Path:
-    """Return the current user's selection file, or the CLI legacy file."""
-    scope = _request_customer_scope.get()
-    if scope is None:
-        return _CUSTOMERS_DIR / "active.txt"
-    digest = hashlib.sha256(scope.user_id.encode("utf-8")).hexdigest()
-    return _CUSTOMERS_DIR / ".active" / f"{digest}.txt"
 
 
 # Tags cache: {customer_id: (tags_list, timestamp)}
@@ -379,46 +379,6 @@ class CustomerManager:
                 _tags_cache.pop(customer_id, None)
 
     @staticmethod
-    def set_active(customer_id: str) -> None:
-        """Set the active customer for this user (or the non-web context)."""
-        _validate_customer_id(customer_id)
-        from app.core.encryption import _atomic_private_write, encrypt_text
-
-        _atomic_private_write(_active_selection_path(), encrypt_text(customer_id))
-
-    @staticmethod
-    def get_active_id() -> str | None:
-        path = _active_selection_path()
-        if not path.exists():
-            return None
-        try:
-            from app.core.encryption import encrypted_read_text
-
-            active_id = encrypted_read_text(path).strip()
-            _validate_customer_id(active_id)
-        except Exception as exc:
-            logger.warning("Ignoring unreadable active-customer selection %s: %s", path, exc)
-            return None
-
-        scope = _request_customer_scope.get()
-        if (
-            scope is not None
-            and scope.allowed_customer_ids is not None
-            and active_id not in scope.allowed_customer_ids
-        ):
-            return None
-        if not (_CUSTOMERS_DIR / active_id / "config.json").is_file():
-            return None
-        return active_id
-
-    @staticmethod
-    def get_active() -> dict | None:
-        active_id = CustomerManager.get_active_id()
-        if active_id:
-            return CustomerManager.get_customer(active_id)
-        return None
-
-    @staticmethod
     def migrate_legacy() -> str | None:
         """Import legacy single-customer config if it exists."""
         from app.core.credentials import (
@@ -447,13 +407,6 @@ class CustomerManager:
             import shutil
 
             shutil.copy2(str(legacy_cert), str(CustomerManager.get_cert_path(cid)))
-        # Legacy migration belongs to the non-web/CLI context. An authenticated
-        # user must select a customer they are allowed to access for themselves.
-        token = _request_customer_scope.set(None)
-        try:
-            CustomerManager.set_active(cid)
-        finally:
-            _request_customer_scope.reset(token)
         return cid
 
 
@@ -501,6 +454,17 @@ def _audit_history_move(old_name: str, new_name: str):
 def _legacy_customer_dir_name(customer_name: str) -> str:
     """The variant UniFi used to write (spaces only). Read-compatibility."""
     return (customer_name or "unknown").replace(" ", "_")
+
+
+def customer_id_for_run_dir(run_dir: Path) -> str:
+    """The id of the one customer an audit run folder belongs to, or "".
+
+    For code handed a run without its customer (the scheduler, reading old
+    runs). Two customers can share a folder name; then nobody is named rather
+    than the first one guessed.
+    """
+    matches = customers_for_dir_name(Path(run_dir).parent.name)
+    return matches[0].get("_id", "") if len(matches) == 1 else ""
 
 
 def customers_for_dir_name(segment: str) -> list[dict]:

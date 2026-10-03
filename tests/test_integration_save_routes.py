@@ -12,9 +12,9 @@ with how they did it:
   "save direct devices" button sends ``{mode, devices}`` and nothing else, and
   therefore blanked the customer's controller host on every click while the
   stored username and password stayed behind.
-* Both take the customer from ``CustomerManager.get_active()``. The active
-  selection is now per-user, but the route still needs an access check so a
-  later RBAC revocation fails closed.
+* Both took the customer from ``CustomerManager.get_active()``. They name it
+  in the path now, and check the caller's access to that customer, so a
+  revoked grant fails closed and another tab cannot redirect the save.
 """
 
 from __future__ import annotations
@@ -77,7 +77,6 @@ def stored(monkeypatch):
     from app.core.customer import CustomerManager
 
     record = dict(CUSTOMER)
-    monkeypatch.setattr(CustomerManager, "get_active", staticmethod(lambda: dict(record)))
     monkeypatch.setattr(CustomerManager, "get_customer", staticmethod(lambda _id: dict(record)))
     monkeypatch.setattr(
         CustomerManager, "save_customer", staticmethod(lambda data: record.update(data))
@@ -120,7 +119,7 @@ class TestAPartialSaveDoesNotResetTheRest:
     ):
         # Exactly what saveUniFiDirect() sends.
         resp = client.post(
-            "/api/unifi/save",
+            "/api/unifi/save/acme",
             headers=_hdr(await _token()),
             json={"mode": "direct", "devices": [{"host": "10.0.0.5"}]},
         )
@@ -132,7 +131,7 @@ class TestAPartialSaveDoesNotResetTheRest:
 
     async def test_saving_only_a_fortigate_token_keeps_the_address_and_port(self, client, stored):
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=_hdr(await _token()),
             json={"api_token": "new-token"},
         )
@@ -143,7 +142,7 @@ class TestAPartialSaveDoesNotResetTheRest:
 
     async def test_a_field_that_is_present_is_still_written(self, client, stored):
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=_hdr(await _token()),
             json={"host": "10.20.0.9", "port": 443, "verify_ssl": True},
         )
@@ -154,7 +153,9 @@ class TestAPartialSaveDoesNotResetTheRest:
 
     async def test_clearing_a_field_on_purpose_still_works(self, client, stored):
         """Sending an explicit empty host is a deliberate clear, not an omission."""
-        resp = client.post("/api/fortigate/save", headers=_hdr(await _token()), json={"host": ""})
+        resp = client.post(
+            "/api/fortigate/save/acme", headers=_hdr(await _token()), json={"host": ""}
+        )
         assert resp.status_code == 200, resp.text
         assert stored["FortiGateHost"] == ""
 
@@ -162,7 +163,9 @@ class TestAPartialSaveDoesNotResetTheRest:
 class TestTheInputIsValidatedBeforeItIsStored:
     @pytest.mark.parametrize("port", ["abc", 0, 70000, "0", "99999"])
     async def test_a_bad_port_is_a_400_not_a_500(self, client, stored, port):
-        resp = client.post("/api/fortigate/save", headers=_hdr(await _token()), json={"port": port})
+        resp = client.post(
+            "/api/fortigate/save/acme", headers=_hdr(await _token()), json={"port": port}
+        )
         assert resp.status_code == 400, resp.text
         assert stored["FortiGatePort"] == 8443
 
@@ -170,13 +173,17 @@ class TestTheInputIsValidatedBeforeItIsStored:
     async def test_an_empty_port_leaves_the_stored_one_alone(self, client, stored, port):
         """A form serialising every key must not reset the port just because
         the field was blank — that is how a hardened 8443 became 443."""
-        resp = client.post("/api/fortigate/save", headers=_hdr(await _token()), json={"port": port})
+        resp = client.post(
+            "/api/fortigate/save/acme", headers=_hdr(await _token()), json={"port": port}
+        )
         assert resp.status_code == 200, resp.text
         assert stored["FortiGatePort"] == 8443
 
     @pytest.mark.parametrize("host", ["10.0.0.1;reboot", "http://x/y", "a b"])
     async def test_a_host_that_is_not_a_host_is_refused(self, client, stored, host):
-        resp = client.post("/api/fortigate/save", headers=_hdr(await _token()), json={"host": host})
+        resp = client.post(
+            "/api/fortigate/save/acme", headers=_hdr(await _token()), json={"host": host}
+        )
         assert resp.status_code == 400, resp.text
         assert stored["FortiGateHost"] == "10.20.0.1", "the bad value was stored anyway"
 
@@ -186,16 +193,16 @@ class TestWhoMayWriteTheseSettings:
         """It stores an API token and repoints the address the customer's own
         credentials are sent to — that is not a read-only operation."""
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=_hdr(await _token(Role.viewer)),
             json={"host": "10.0.0.9", "api_token": "t"},
         )
         assert resp.status_code == 403, resp.text
         assert stored["FortiGateHost"] == "10.20.0.1"
 
-    @pytest.mark.parametrize("path", ["/api/fortigate/save", "/api/unifi/save"])
+    @pytest.mark.parametrize("path", ["/api/fortigate/save/acme", "/api/unifi/save/acme"])
     async def test_a_technician_without_this_customer_is_refused(self, client, stored, path):
-        """A stale selection must not survive revocation as write access."""
+        """A customer the caller has no grant for is refused by its id."""
         resp = client.post(
             path,
             headers=_hdr(await _token(all_customers=False)),
@@ -218,7 +225,7 @@ class TestTheChangeIsRecorded:
             ),
         )
         resp = client.post(
-            "/api/fortigate/save", headers=_hdr(await _token()), json={"host": "10.20.0.9"}
+            "/api/fortigate/save/acme", headers=_hdr(await _token()), json={"host": "10.20.0.9"}
         )
         assert resp.status_code == 200, resp.text
         assert entries, "nothing was recorded"

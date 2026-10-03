@@ -133,13 +133,25 @@ async def test_a_malformed_itglue_import_creates_nothing(tech_client):
 
 
 async def test_itglue_uploads_keep_their_message_and_refuse_a_wrong_type(tech_client, admin_client):
-    body = assert_refused(tech_client.post("/api/itglue/upload/audit", json={}), 400)
+    body = assert_refused(
+        tech_client.post("/api/itglue/upload/audit", json={"customer_id": "c1"}), 400
+    )
     assert body["error"] == "org_id er påkrevd"
     for client, path, bad in (
-        (tech_client, "/api/itglue/upload/audit", {"org_id": ["501"]}),
-        (tech_client, "/api/itglue/upload/reports", {"org_id": "501", "files": "a.pdf"}),
-        (tech_client, "/api/itglue/upload/reports", {"org": "501"}),
-        (admin_client, "/api/itglue/upload/credentials", {"org_id": {"id": 1}}),
+        (tech_client, "/api/itglue/upload/audit", {"customer_id": "c1", "org_id": ["501"]}),
+        (
+            tech_client,
+            "/api/itglue/upload/reports",
+            {"customer_id": "c1", "org_id": "501", "files": "a.pdf"},
+        ),
+        (tech_client, "/api/itglue/upload/reports", {"customer_id": "c1", "org": "501"}),
+        (
+            admin_client,
+            "/api/itglue/upload/credentials",
+            {"customer_id": "c1", "org_id": {"id": 1}},
+        ),
+        # No customer: the upload would carry nobody's data.
+        (tech_client, "/api/itglue/upload/audit", {"org_id": "501"}),
     ):
         assert_refused(client.post(path, json=bad), 422)
 

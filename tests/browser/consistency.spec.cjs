@@ -36,8 +36,10 @@ async function seenAsTechnician(page) {
   });
 }
 
+// This tab's current customer, which the old page names (#/files and the
+// rest) open the page of.
 async function asBeta(page) {
-  await page.evaluate(() => switchActiveCustomer('Browser_Beta'));
+  await page.evaluate(() => setCurrentCustomer('Browser_Beta'));
 }
 
 // Every toast shown from here on, error or not, by its class and text.

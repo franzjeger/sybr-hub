@@ -15,6 +15,7 @@ from app.core.customer import CustomerManager
 from app.core.exceptions import (
     ForbiddenError,
     IntegrationError,
+    NotFoundError,
     ToolkitError,
     ValidationError,
 )
@@ -164,16 +165,27 @@ async def import_customers_from_itglue(
     }
 
 
-async def _require_active_customers_org(user: User, org_id) -> None:
-    """A scoped caller may upload only into the active customer's own org.
+async def _require_customer(user: User, customer_id: str) -> dict:
+    """The named customer, if the caller may act on it."""
+    from app.core.rbac import check_customer_access
 
-    The upload carries the active customer's audit, so any other organization
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_no_access")
+    customer = CustomerManager.get_customer(customer_id)
+    if customer is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    return customer
+
+
+async def _require_customers_org(user: User, customer: dict, org_id) -> None:
+    """A scoped caller may upload only into this customer's own org.
+
+    The upload carries this customer's audit, so any other organization
     would put one customer's findings in another customer's documentation.
     """
     if await get_accessible_customer_ids(user) is None:
         return
-    active = CustomerManager.get_active()
-    if not active or str(active.get("ITGlueOrgId") or "") != str(org_id):
+    if str(customer.get("ITGlueOrgId") or "") != str(org_id):
         raise refusal(ForbiddenError, "err_itglue_org_not_linked")
 
 
@@ -188,7 +200,8 @@ async def itglue_upload_audit(
     org_id = body.org_id
     if not org_id:
         raise refusal(ValidationError, "err_itglue_org_id_required")
-    await _require_active_customers_org(user, org_id)
+    customer = await _require_customer(user, body.customer_id)
+    await _require_customers_org(user, customer, org_id)
 
     settings = load_app_settings()
     client = ITGlueClient(
@@ -196,7 +209,7 @@ async def itglue_upload_audit(
         region=settings.get("itglue_region", "eu"),
     )
     try:
-        out_dir = await _resolve_audit_out_dir(user)
+        out_dir = await _resolve_audit_out_dir(user, customer)
         if not out_dir:
             raise refusal(ValidationError, "err_no_audit_data")
 
@@ -236,7 +249,7 @@ async def itglue_upload_audit(
 
         from app.core.activity_log import log_activity as _log_itg
 
-        _log_itg("itglue_uploaded", detail="audit data")
+        _log_itg("itglue_uploaded", detail="audit data", customer=customer.get("CustomerName", ""))
 
         return {"ok": True, "asset_id": result.get("id")}
     except ToolkitError:
@@ -250,19 +263,14 @@ async def itglue_upload_audit(
         await client.close()
 
 
-async def _resolve_audit_out_dir(user) -> Path | None:
-    """Return only an accessible run for the caller's active customer."""
-    # Fallback: find latest audit run for active customer
+async def _resolve_audit_out_dir(user, customer: dict) -> Path | None:
+    """The run this user selected for this customer, else the customer's latest."""
     try:
         from app.core.config import get_audit_dir
-        from app.core.customer import CustomerManager, customer_dir_name
+        from app.core.customer import customer_dir_name
         from app.core.rbac import check_audit_path_access
 
-        active = CustomerManager.get_active()
-        if not active:
-            return None
-        active_id = active.get("_id", "")
-        selected = state.get_user_audit(user.id, active_id)
+        selected = state.get_user_audit(user.id, customer.get("_id", ""))
         if (
             selected
             and selected.out_dir
@@ -270,7 +278,7 @@ async def _resolve_audit_out_dir(user) -> Path | None:
             and await check_audit_path_access(user, str(selected.out_dir))
         ):
             return selected.out_dir
-        name = active.get("CustomerName", "")
+        name = customer.get("CustomerName", "")
         customer_dir = get_audit_dir() / customer_dir_name(name)
         if not customer_dir.exists():
             return None
@@ -282,9 +290,12 @@ async def _resolve_audit_out_dir(user) -> Path | None:
 
 
 @router.get("/itglue/available-reports")
-async def itglue_available_reports(user=Depends(get_current_user)):
-    """List HTML/PDF reports available for upload."""
-    out_dir = await _resolve_audit_out_dir(user)
+async def itglue_available_reports(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """List one customer's HTML/PDF reports available for upload."""
+    customer = await _require_customer(user, customer_id)
+    out_dir = await _resolve_audit_out_dir(user, customer)
     if not out_dir:
         return {"files": []}
     files = []
@@ -309,9 +320,10 @@ async def itglue_upload_reports(
     file_names = body.files  # list of filenames to upload
     if not org_id:
         raise refusal(ValidationError, "err_itglue_org_id_required")
-    await _require_active_customers_org(user, org_id)
+    customer = await _require_customer(user, body.customer_id)
+    await _require_customers_org(user, customer, org_id)
 
-    out_dir = await _resolve_audit_out_dir(user)
+    out_dir = await _resolve_audit_out_dir(user, customer)
     if not out_dir:
         raise refusal(ValidationError, "err_no_audit_data")
 
@@ -373,14 +385,15 @@ async def itglue_upload_reports(
 async def itglue_upload_credentials(
     body: ITGlueUploadRequest, request: Request, _user: User = Depends(require_role(Role.admin))
 ):
-    """Upload tenant credentials to IT Glue."""
-    from app.core.credentials import get_secret, load_config
-    from app.core.customer import CustomerManager
+    """Upload the named customer's tenant credentials to IT Glue."""
+    from app.core.credentials import get_secret
     from app.integrations.itglue import ITGlueClient
 
     org_id = body.org_id
     if not org_id:
         raise refusal(ValidationError, "err_itglue_org_id_required")
+    cfg = await _require_customer(_user, body.customer_id)
+    await _require_customers_org(_user, cfg, org_id)
 
     settings = load_app_settings()
     client = ITGlueClient(
@@ -388,14 +401,11 @@ async def itglue_upload_credentials(
         region=settings.get("itglue_region", "eu"),
     )
     try:
-        cfg = load_config()
-        if not cfg:
-            raise ValidationError(ui_t("err_no_customer_config", request))
-
         tenant_id = cfg.get("TenantId", "")
+        if not tenant_id:
+            raise ValidationError(ui_t("err_no_customer_config", request))
         secret = get_secret(tenant_id, "client_secret") or ""
-        active_id = CustomerManager.get_active_id()
-        cert_path = CustomerManager.get_cert_path(active_id) if active_id else None
+        cert_path = CustomerManager.get_cert_path(body.customer_id)
 
         result = await client.upload_credentials(
             org_id=int(org_id),

@@ -2196,6 +2196,13 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 #cust-panel-detaljer .card { margin: 0 0 var(--space-4); }
 .cust-report-result:empty { display: none; }
 .cust-report-result { margin-bottom: var(--space-3); }
+/* The customer a tool (Nettverk's Enheter and Audit, the FortiGate form) works on. */
+.tool-customer-bar { margin-bottom: var(--space-4); }
+.tool-customer-label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--font-sm); color: var(--text-muted); max-width: 440px; }
+.tool-customer-label span { white-space: nowrap; }
+.tool-customer-select { flex: 1 1 200px; min-width: 0; max-width: 360px; margin: 0; }
+.tool-customer-bar-inline { margin: var(--space-3) 0 0; }
+
 .cust-tailscale-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); font-size: var(--font-sm); color: var(--text-muted); }
 .cust-tailscale-note span { flex: 1 1 260px; }
 /* The section chooser above the run. */

@@ -9,15 +9,14 @@ from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import (
     ConflictError,
-    ForbiddenError,
     NotFoundError,
     ValidationError,
 )
-from app.core.rbac import check_customer_access, filter_customers, get_accessible_customer_ids
+from app.core.rbac import filter_customers, get_accessible_customer_ids
 from app.models.customer import CustomerNotes, CustomerRef, CustomerTags, ManualCustomerCreate
 from app.models.user import Role, User
 from app.web.i18n import refusal, ui_t
-from app.web.middleware.auth import get_current_user, require_role
+from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -35,37 +34,16 @@ async def list_customers(user: User = Depends(get_current_user)):
     all_customers = CustomerManager.list_customers()
     allowed = await get_accessible_customer_ids(user)
     customers = filter_customers(all_customers, allowed)
-    active_id = CustomerManager.get_active_id()
     # Batch-annotate notes/tags (avoid N+1 file I/O)
     cids = [c.get("_id", "") for c in customers]
     tags_cache = {cid: CustomerManager.get_tags(cid) for cid in cids}
     for c in customers:
         cid = c.get("_id", "")
-        c["is_active"] = cid == active_id
         c["_has_notes"] = (CustomerManager.get_customer_dir(cid) / "notes.md").exists()
         c["_tags"] = tags_cache.get(cid, [])
-    return {"customers": customers, "active_id": active_id}
-
-
-@router.post("/customers/switch")
-async def switch_customer(
-    body: CustomerRef, request: Request, user: User = Depends(get_current_user)
-):
-    from app.core.customer import CustomerManager
-
-    customer_id = body.customer_id
-    customer = CustomerManager.get_customer(customer_id)
-    if not customer:
-        raise NotFoundError(ui_t("err_customer_not_found", request))
-    if not await check_customer_access(user, customer_id):
-        raise refusal(ForbiddenError, "err_customer_no_access")
-    CustomerManager.set_active(customer_id)
-
-    from app.core.activity_log import log_activity
-
-    log_activity("customer_switched", customer=customer.get("CustomerName", ""), user=user.username)
-
-    return {"ok": True, "customer": customer}
+    # No "active_id": the server keeps no current customer for a user. Which
+    # customer a tab is working on is that tab's business (app.js).
+    return {"customers": customers}
 
 
 @router.post("/customers/delete")
@@ -179,7 +157,6 @@ async def register_customer(user: User = Depends(require_role(Role.technician)))
         import shutil
 
         shutil.copy2(str(cp), str(CustomerManager.get_cert_path(cid)))
-    CustomerManager.set_active(cid)
 
     from app.core.activity_log import log_activity
 
@@ -191,72 +168,74 @@ async def register_customer(user: User = Depends(require_role(Role.technician)))
 # ── Customer notes ────────────────────────────────────────────────────────────
 
 
-@router.get("/customer/notes")
-async def get_customer_notes(user: User = Depends(get_current_user)):
+def _notes_path(customer_id: str):
+    from app.core.customer import CustomerManager
+
+    return CustomerManager.get_customer_dir(customer_id) / "notes.md"
+
+
+def _saved_at(path) -> str:
+    import os
+
+    return datetime.fromtimestamp(os.path.getmtime(path), tz=UTC).isoformat()
+
+
+@router.get("/customer/{customer_id}/notes")
+async def get_customer_notes(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_read_text
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise refusal(ValidationError, "err_no_active_customer")
-    notes_path = CustomerManager.get_customer_dir(active_id) / "notes.md"
-    notes = ""
-    last_saved = ""
-    if notes_path.exists():
-        notes = encrypted_read_text(notes_path)
-        import os
-
-        mtime = os.path.getmtime(notes_path)
-        last_saved = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-    return {"notes": notes, "last_saved": last_saved}
+    if CustomerManager.get_customer(customer_id) is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    notes_path = _notes_path(customer_id)
+    if not notes_path.exists():
+        return {"customer_id": customer_id, "notes": "", "last_saved": ""}
+    return {
+        "customer_id": customer_id,
+        "notes": encrypted_read_text(notes_path),
+        "last_saved": _saved_at(notes_path),
+    }
 
 
-@router.post("/customer/notes")
+@router.post("/customer/{customer_id}/notes")
 async def save_customer_notes(
-    body: CustomerNotes, request: Request, user: User = Depends(require_role(Role.technician))
+    customer_id: str,
+    body: CustomerNotes,
+    user: User = Depends(require_customer_access(Role.technician)),
 ):
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_write_text
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise ValidationError(ui_t("err_no_active_customer", request))
-    notes = body.notes
-    notes_path = CustomerManager.get_customer_dir(active_id) / "notes.md"
-    encrypted_write_text(notes_path, notes)
-    import os
-
-    mtime = os.path.getmtime(notes_path)
-    last_saved = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-    return {"ok": True, "last_saved": last_saved}
+    if CustomerManager.get_customer(customer_id) is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    notes_path = _notes_path(customer_id)
+    encrypted_write_text(notes_path, body.notes)
+    return {"ok": True, "customer_id": customer_id, "last_saved": _saved_at(notes_path)}
 
 
 # ── Customer tags ─────────────────────────────────────────────────────────────
 
 
-@router.get("/customer/tags")
-async def get_customer_tags(user: User = Depends(get_current_user)):
-    from app.core.customer import CustomerManager
-
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise refusal(ValidationError, "err_no_active_customer")
-    tags = CustomerManager.get_tags(active_id)
-    return {"customer_id": active_id, "tags": tags}
-
-
-@router.post("/customer/tags")
-async def set_customer_tags(
-    body: CustomerTags, request: Request, user: User = Depends(require_role(Role.technician))
+@router.get("/customer/{customer_id}/tags")
+async def get_customer_tags(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
 ):
     from app.core.customer import CustomerManager
 
-    customer_id = body.customer_id
-    if not customer_id:
-        customer_id = CustomerManager.get_active_id()
-    if not customer_id:
-        raise ValidationError(ui_t("err_no_active_customer", request))
-    if not await check_customer_access(user, customer_id):
-        raise refusal(ForbiddenError, "err_customer_no_access")
+    return {"customer_id": customer_id, "tags": CustomerManager.get_tags(customer_id)}
+
+
+@router.post("/customer/{customer_id}/tags")
+async def set_customer_tags(
+    customer_id: str,
+    body: CustomerTags,
+    user: User = Depends(require_customer_access(Role.technician)),
+):
+    from app.core.customer import CustomerManager
+
+    if CustomerManager.get_customer(customer_id) is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
     CustomerManager.set_tags(customer_id, body.tags)
     return {"ok": True, "tags": CustomerManager.get_tags(customer_id)}

@@ -134,10 +134,16 @@ class ITGlueImportRequest(BaseModel):
 
 
 class ITGlueUploadRequest(BaseModel):
-    """The organisation to upload into; a missing one keeps its message."""
+    """Whose data to upload, and the organisation to upload it into.
+
+    A missing organisation keeps its message. The customer is required: the
+    upload carries that customer's audit or credentials, and it was "the
+    active customer's", which another tab of the same account could change.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
+    customer_id: str = Field(min_length=1)
     org_id: _OrgId = None
 
 

@@ -654,12 +654,6 @@ def customers(monkeypatch):
         staticmethod(lambda cid: dict(store[cid]) if cid in store else None),
     )
     monkeypatch.setattr(
-        "app.core.customer.CustomerManager.get_active",
-        staticmethod(
-            lambda: {"_id": "kunde-b", "CustomerId": "kunde-b", "CustomerName": "Kunde B"}
-        ),
-    )
-    monkeypatch.setattr(
         "app.core.customer.CustomerManager.save_customer",
         staticmethod(lambda cfg, **kw: saved.append(cfg) or cfg.get("CustomerId", "")),
     )
@@ -916,7 +910,6 @@ async def test_the_cli_template_only_holds_lines_the_ssh_deploy_sends(ssh, with_
 
 @pytest.fixture()
 def session(monkeypatch):
-    monkeypatch.setattr("app.core.customer.CustomerManager.get_active", staticmethod(lambda: None))
     monkeypatch.setattr(
         "app.core.customer.CustomerManager.get_customer", staticmethod(lambda cid: None)
     )
@@ -992,9 +985,6 @@ async def admin_client(tmp_path, monkeypatch):
     await run_migrations()
     customer = {"_id": "testkunde", "CustomerName": "Testkunde AS", "FortiGateHost": "192.0.2.1"}
     monkeypatch.setattr(
-        "app.core.customer.CustomerManager.get_active", staticmethod(lambda: dict(customer))
-    )
-    monkeypatch.setattr(
         "app.core.customer.CustomerManager.get_customer",
         staticmethod(lambda cid: dict(customer) if cid == "testkunde" else None),
     )
@@ -1018,7 +1008,9 @@ async def admin_client(tmp_path, monkeypatch):
 
 
 def _start_with_config(client) -> str:
-    sid = client.post("/api/provisioning/start").json()["session_id"]
+    sid = client.post("/api/provisioning/start", json={"customer_id": "testkunde"}).json()[
+        "session_id"
+    ]
     client.put(
         f"/api/provisioning/{sid}/step/1",
         json={"name": "Testkunde AS", "target_host": "192.0.2.1", "password": "login-pw"},
@@ -1069,7 +1061,9 @@ async def test_the_route_files_a_clean_deploy_as_completed(admin_client, ssh):
 
 async def test_deploying_nothing_generated_is_a_400_not_a_crash(admin_client):
     client, activity = admin_client
-    sid = client.post("/api/provisioning/start").json()["session_id"]
+    sid = client.post("/api/provisioning/start", json={"customer_id": "testkunde"}).json()[
+        "session_id"
+    ]
 
     r = client.post(f"/api/provisioning/{sid}/deploy", json={"method": "ssh"})
 

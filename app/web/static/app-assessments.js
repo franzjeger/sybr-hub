@@ -21,12 +21,6 @@ async function assessmentsLoad() {
   if (!el) return;
   el.innerHTML = '<div class="loader asmt-loader"></div>';
 
-  // The view can be opened before the customer list has loaded elsewhere.
-  if (!_allCustomers || !_allCustomers.length || !_customersActiveId) {
-    var cs = await apiFetch('/api/customers').catch(function () { return null; });
-    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; }
-  }
-
   var d = await apiFetch('/api/baselines?lang=' + _lang).catch(function () { return null; });
   if (!d || !d.baselines) {
     el.innerHTML = '<div class="alert alert-error" data-i18n="status_error"></div>';
@@ -83,7 +77,7 @@ async function _asmtRun(baselineId) {
   var box = document.getElementById('asmt-result');
   if (!box || !baselineId) return;
   // The customer whose page this is.
-  var customerId = _custPage.id || _customersActiveId || '';
+  var customerId = _custPage.id || '';
   if (!customerId) { showToast(t('msg_no_customer_selected', 'No customer selected'), 'error'); return; }
 
   box.innerHTML = '<div class="loader asmt-loader"></div>';
@@ -96,6 +90,7 @@ async function _asmtRun(baselineId) {
     showToast(t('status_error', 'Something went wrong'), 'error');
     return;
   }
+  if (_custPage.id !== customerId) return;   // another customer's page opened meanwhile
   box.innerHTML = _asmtResultHTML(res);
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }

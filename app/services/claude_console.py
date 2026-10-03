@@ -96,7 +96,7 @@ Du snakker norsk med teknisk presisjon. Du kan utføre handlinger på vegne av t
 
 ### Kunder
 - `list_customers` — list alle kunder med status
-- `customer_status` — hent detaljert status for aktiv kunde
+- `customer_status` — hent detaljert status for kunden samtalen gjelder
 
 ## Regler
 - Bekreft alltid destruktive handlinger (reboot, wipe, slett) før du utfører dem
@@ -113,7 +113,7 @@ def _build_system_prompt(context: dict | None = None) -> str:
     if context:
         prompt += "\n## Nåværende kontekst\n"
         if context.get("customer_name"):
-            prompt += f"- Aktiv kunde: **{context['customer_name']}**\n"
+            prompt += f"- Valgt kunde: **{context['customer_name']}**\n"
         if context.get("customer_domain"):
             prompt += f"- Domene: {context['customer_domain']}\n"
         if context.get("fortigate_host"):
@@ -277,8 +277,17 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "customer_status",
-        "description": "Get detailed status for the currently active customer including config, expiry warnings, and tags.",
-        "input_schema": {"type": "object", "properties": {}, "required": []},
+        "description": "Get detailed status for a customer: the one given, else the one this conversation is about.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "string",
+                    "description": "Customer ID. Omit for the conversation's customer.",
+                },
+            },
+            "required": [],
+        },
     },
 ]
 
@@ -663,6 +672,7 @@ _CUSTOMER_SCOPED_TOOLS = {
     "fortigate_compliance",
     "fortigate_backup",
     "unifi_devices",
+    "customer_status",
 }
 # vpn_connect names a profile; vpn_disconnect may. Without one, disconnect only
 # ever picks among the caller's own profiles.
@@ -1088,20 +1098,15 @@ async def _dispatch_tool(
 
     if name == "customer_status":
         from app.core.customer import CustomerManager
-        from app.core.rbac import check_customer_access
 
-        # Checked explicitly rather than relying on load_config(), which only
-        # scopes to the caller inside a bound request context and otherwise
-        # falls back to the global staging config.
-        active_id = CustomerManager.get_active_id()
-        if not active_id:
-            return {"error": "Ingen aktiv kunde"}
-        if user is None or not await check_customer_access(user, active_id):
-            _log_denied("customer-access", user, name, active_id)
-            return _SCOPE_DENIED
-        cfg = CustomerManager.get_customer(active_id)
+        # The customer the conversation is about, as the console sent it, or
+        # one the model names; access was checked in _enforce_tool_scope. It
+        # used to be the caller's active customer, which a second tab could
+        # change mid-conversation.
+        cid = _effective_customer_id(params, customer_id)
+        cfg = CustomerManager.get_customer(cid) if cid else None
         if not cfg:
-            return {"error": "Ingen aktiv kunde"}
+            return {"error": "Kunden finnes ikke"}
         return {
             "name": cfg.get("CustomerName", ""),
             "domain": cfg.get("PrimaryDomain", ""),

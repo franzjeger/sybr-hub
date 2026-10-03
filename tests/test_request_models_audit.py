@@ -18,31 +18,31 @@ from tests.request_body_fixtures import (  # autouse fixtures apply to this modu
 
 
 def _activate(client) -> str:
+    """Register Customer A; the scope routes name it in their query."""
     from app.core.customer import CustomerManager
 
-    cid = CustomerManager.save_customer({"CustomerName": "Customer A", "TenantId": "a"})
-    assert client.post("/api/customers/switch", json={"customer_id": cid}).status_code == 200
-    return cid
+    return CustomerManager.save_customer({"CustomerName": "Customer A", "TenantId": "a"})
+
+
+SCOPE = "/api/audit/scope?customer_id=Customer_A"
 
 
 async def test_the_scope_the_spa_sends_is_stored_and_read_back(tech_client):
     _activate(tech_client)
 
-    r = tech_client.post("/api/audit/scope", json={"enabled_sections": ["mfa", "ca"]})
+    r = tech_client.post(SCOPE, json={"enabled_sections": ["mfa", "ca"]})
 
     assert r.status_code == 200, r.text
-    assert tech_client.get("/api/audit/scope").json()["scope"] == {
-        "enabled_sections": ["mfa", "ca"]
-    }
+    assert tech_client.get(SCOPE).json()["scope"] == {"enabled_sections": ["mfa", "ca"]}
 
 
 async def test_an_empty_scope_body_still_stores_no_choice(tech_client):
     """The page reads a stored list, even an empty one, as a choice."""
     _activate(tech_client)
 
-    tech_client.post("/api/audit/scope", json={})
+    tech_client.post(SCOPE, json={})
 
-    assert tech_client.get("/api/audit/scope").json()["scope"] == {}
+    assert tech_client.get(SCOPE).json()["scope"] == {}
 
 
 @pytest.mark.parametrize(
@@ -50,10 +50,10 @@ async def test_an_empty_scope_body_still_stores_no_choice(tech_client):
 )
 async def test_a_malformed_scope_is_refused_and_not_stored(tech_client, body):
     _activate(tech_client)
-    tech_client.post("/api/audit/scope", json={"enabled_sections": ["mfa"]})
+    tech_client.post(SCOPE, json={"enabled_sections": ["mfa"]})
 
-    assert_refused(tech_client.post("/api/audit/scope", json=body), 422)
-    assert tech_client.get("/api/audit/scope").json()["scope"] == {"enabled_sections": ["mfa"]}
+    assert_refused(tech_client.post(SCOPE, json=body), 422)
+    assert tech_client.get(SCOPE).json()["scope"] == {"enabled_sections": ["mfa"]}
 
 
 async def test_a_preset_is_still_saved(tech_client):

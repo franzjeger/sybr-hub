@@ -98,15 +98,16 @@ def _parse_port(raw, *, default: int) -> int:
     return port
 
 
-@router.post("/fortigate/save")
+@router.post("/fortigate/save/{customer_id}")
 async def fortigate_save(
+    customer_id: str,
     body: FortiGateSaveRequest,
     # Was get_current_user, so a viewer could rewrite which address a
     # customer's firewall credentials travel to and store a new API token
     # under that customer. The sibling /unifi/save has always been technician.
-    user: User = Depends(require_role(Role.technician)),
+    user: User = Depends(require_customer_access(Role.technician)),
 ):
-    """Save FortiGate config for the active customer.
+    """Save FortiGate config for the customer named in the path.
 
     The stored API token was entered for one address. Changing the host or
     port without supplying a token in the same request deletes it, so the
@@ -119,19 +120,12 @@ async def fortigate_save(
     from app.core.activity_log import log_activity
     from app.core.credentials import delete_secret, get_secret, store_secret
     from app.core.customer import CustomerManager
-    from app.core.rbac import check_customer_access
     from app.core.validation import validate_host
 
-    active = CustomerManager.get_active()
-    if not active:
-        raise refusal(ValidationError, "err_no_active_customer")
-
-    cust_id = active["_id"]
-    # The active customer is process-global, not per-session: whoever switched
-    # last decides what "active" means for everyone. Writing to it therefore
-    # needs the same access check as naming a customer outright.
-    if not await check_customer_access(user, cust_id):
-        raise refusal(ForbiddenError, "err_customer_access_denied")
+    # Named in the path. This saved to "the active customer", so a switch in
+    # another tab between opening the form and pressing Lagre sent this
+    # firewall's address and token to a different customer.
+    cust_id = customer_id
     config = CustomerManager.get_customer(cust_id)
     if not config:
         raise refusal(NotFoundError, "err_customer_not_found")
@@ -194,7 +188,7 @@ async def fortigate_save(
     save_data = {k: v for k, v in config.items() if not k.startswith("_")}
     CustomerManager.save_customer(save_data)
 
-    detail = f"Lagret FortiGate-oppsett for {active.get('CustomerName', cust_id)}"
+    detail = f"Lagret FortiGate-oppsett for {config.get('CustomerName', cust_id)}"
     if new_host != old_host:
         # The one change worth being able to reconstruct afterwards: it decides
         # where this customer's stored firewall credentials are sent.
@@ -382,8 +376,10 @@ async def fortigate_bootstrap(
 
     Connects via SSH with admin/empty password, sets a random admin password,
     applies basic hardening, creates a REST API user, and returns all credentials.
-    On success, credentials are persisted to keyring and the active customer's
-    config is updated so the credentials can be retrieved later if lost.
+    On success, when the body names a customer, the credentials are persisted
+    to the keyring and that customer's config is updated so they can be
+    retrieved later if lost. Without a customer nothing is stored: the
+    operator copies them from the answer.
     """
     from app.core.activity_log import log_activity
     from app.core.credentials import store_secret
@@ -407,11 +403,16 @@ async def fortigate_bootstrap(
     # The success path overwrites this customer's stored API token and admin
     # password with the newly minted ones. On the wrong customer that is a
     # destructive write against credentials the caller may not be allowed near,
-    # and the active customer is process-global — whoever switched last picks
-    # it for everyone.
-    active = CustomerManager.get_active()
-    if active and not await check_customer_access(user, active["_id"]):
-        raise refusal(ForbiddenError, "err_fortigate_active_customer_forbidden")
+    # so the customer is named by the caller and checked before anything runs.
+    # It used to be the caller's active customer, which another tab could
+    # change while the form was open.
+    active = None
+    if body.customer_id:
+        if not await check_customer_access(user, body.customer_id):
+            raise refusal(ForbiddenError, "err_fortigate_customer_forbidden")
+        active = CustomerManager.get_customer(body.customer_id)
+        if active is None:
+            raise refusal(NotFoundError, "err_customer_not_found")
 
     result = await factory_bootstrap(
         host=host,
@@ -420,10 +421,8 @@ async def fortigate_bootstrap(
         api_admin_name=api_admin_name,
     )
 
-    # Persist credentials so they can be recovered later (e.g. PC crash).
-    # Deliberately the *same* `active` the access check above ran against:
-    # re-reading a process global after a long-running SSH bootstrap would let
-    # another session's customer switch land between the check and the write.
+    # Persist credentials so they can be recovered later (e.g. PC crash), to
+    # the *same* customer the access check above ran against.
     if result.get("ok"):
         if active:
             cust_id = active["_id"]
@@ -462,7 +461,7 @@ async def fortigate_bootstrap(
                 result["persist_error"] = str(e)
         else:
             result["persisted"] = False
-            result["persist_error"] = "Ingen aktiv kunde — credentials ble ikke lagret"
+            result["persist_error"] = "Ingen kunde valgt, så credentials ble ikke lagret"
 
     status = 200 if result.get("ok") else 502
     return JSONResponse(result, status_code=status)

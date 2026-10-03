@@ -46,9 +46,11 @@ def run():
             for username, role in [
                 ("browser-admin", Role.admin),
                 ("browser-tech", Role.technician),
-                # Its own active customer: the switch-race spec moves it while
-                # other specs, signed in as browser-admin, read theirs.
+                # The switch-race spec opens customers in quick succession.
                 ("browser-switcher", Role.technician),
+                # Two tabs of one user on two customers (two-tabs.spec): its
+                # own account, so its audit runs and selections are its own.
+                ("browser-tabs", Role.technician),
             ]:
                 user = await create_user(
                     username, "Browser-test123!", username, role=role, all_customers=True

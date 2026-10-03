@@ -92,7 +92,6 @@ def acme(monkeypatch) -> dict:
         "UniFiHost": "unifi.acme.no",
         "UniFiMode": "controller",
     }
-    monkeypatch.setattr(CustomerManager, "get_active", staticmethod(lambda: dict(record)))
     monkeypatch.setattr(CustomerManager, "get_customer", staticmethod(lambda _id: dict(record)))
     monkeypatch.setattr(
         CustomerManager, "save_customer", staticmethod(lambda data: record.update(data))
@@ -117,7 +116,9 @@ class TestRepointingTheFortiGateClearsItsToken:
     ):
         secrets[("acme", "fortigate_api_token")] = "stored-token"
         resp = client.post(
-            "/api/fortigate/save", headers=await _token("tech", customers=["acme"]), json=change
+            "/api/fortigate/save/acme",
+            headers=await _token("tech", customers=["acme"]),
+            json=change,
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["token_cleared"] is True
@@ -126,7 +127,7 @@ class TestRepointingTheFortiGateClearsItsToken:
     async def test_a_new_address_with_a_new_token_keeps_that_token(self, client, acme, secrets):
         secrets[("acme", "fortigate_api_token")] = "stored-token"
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"host": "10.20.0.9", "api_token": "fresh-token"},
         )
@@ -137,7 +138,7 @@ class TestRepointingTheFortiGateClearsItsToken:
         """The settings form sends every field. Only a real change counts."""
         secrets[("acme", "fortigate_api_token")] = "stored-token"
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"host": "10.20.0.1", "port": 8443, "vdom": "root", "verify_ssl": True},
         )
@@ -148,7 +149,7 @@ class TestRepointingTheFortiGateClearsItsToken:
     async def test_the_rule_applies_to_admins_as_well(self, client, acme, secrets):
         secrets[("acme", "fortigate_api_token")] = "stored-token"
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=await _token("admin", Role.admin),
             json={"host": "10.20.0.9", "verify_ssl": False},
         )
@@ -162,7 +163,7 @@ class TestRepointingTheFortiGateClearsItsToken:
         secrets[("acme", "fortigate_api_token")] = "stored-token"
         secrets[("acme", "fortigate_admin_password")] = "bootstrap-pw"
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"host": "10.20.0.9", "api_token": "fresh-token"},
         )
@@ -177,7 +178,7 @@ class TestRepointingTheFortiGateClearsItsToken:
         secrets[("acme", "fortigate_api_token")] = "stored-token"
         secrets[("acme", "fortigate_admin_password")] = "bootstrap-pw"
         resp = client.post(
-            "/api/fortigate/save",
+            "/api/fortigate/save/acme",
             headers=await _token("admin", Role.admin),
             json={"host": "10.20.0.9"},
         )
@@ -192,7 +193,7 @@ class TestRepointingUniFiClearsItsLogin:
         secrets[("acme", "unifi_username")] = "admin"
         secrets[("acme", "unifi_password")] = "controller-pw"
         resp = client.post(
-            "/api/unifi/save",
+            "/api/unifi/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"host": "203.0.113.66"},
         )
@@ -205,7 +206,7 @@ class TestRepointingUniFiClearsItsLogin:
         secrets[("acme", "unifi_username")] = "admin"
         secrets[("acme", "unifi_password")] = "controller-pw"
         resp = client.post(
-            "/api/unifi/save",
+            "/api/unifi/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"host": "unifi2.acme.no", "password": "new-pw"},
         )
@@ -219,7 +220,7 @@ class TestRepointingUniFiClearsItsLogin:
         secrets[("acme", "unifi_username")] = "admin"
         secrets[("acme", "unifi_password")] = "controller-pw"
         resp = client.post(
-            "/api/unifi/save",
+            "/api/unifi/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"mode": "direct", "devices": [{"host": "203.0.113.66"}]},
         )
@@ -230,7 +231,7 @@ class TestRepointingUniFiClearsItsLogin:
         secrets[("acme", "unifi_username")] = "admin"
         secrets[("acme", "unifi_password")] = "controller-pw"
         resp = client.post(
-            "/api/unifi/save",
+            "/api/unifi/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={
                 "mode": "direct",
@@ -242,7 +243,7 @@ class TestRepointingUniFiClearsItsLogin:
 
     async def test_a_direct_device_host_is_validated(self, client, acme, secrets):
         resp = client.post(
-            "/api/unifi/save",
+            "/api/unifi/save/acme",
             headers=await _token("tech", customers=["acme"]),
             json={"mode": "direct", "devices": [{"host": "10.0.0.5;reboot"}]},
         )
