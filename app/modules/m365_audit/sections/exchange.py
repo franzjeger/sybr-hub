@@ -672,6 +672,35 @@ class ExchangeSection(BaseSection):
 
     # ── Mailbox Forwarding ────────────────────────────────────────────────────
 
+    def _forwarding_targets(self, fwd: dict) -> list[tuple[str, str]]:
+        """(label, scope) for each forwarding target a mailbox has set.
+
+        ForwardingSmtpAddress is an address, decided on its whole domain. It
+        used to be decided on the 45-character column, which turned a long
+        address in a verified domain into one ending "@subsidiary.acme.e",
+        unverified, so external: a critical finding for forwarding that never
+        left the tenant.
+
+        ForwardingAddress is a recipient identity, not an address, so the
+        domain test on it always failed and every one was external forwarding,
+        a mailbox forwarding to a colleague included. It is decided on what
+        the helper resolved it to (ForwardingRecipient), and is unverified
+        when the helper could not, or predates the lookup.
+
+        Both are kept when both are set: Exchange forwards to the recipient,
+        but an external address left beside it is not cleared, and is reported.
+        """
+        targets: list[tuple[str, str]] = []
+        smtp = str(fwd.get("ForwardingSmtp") or fwd.get("ForwardingSmtpAddress") or "").strip()
+        if smtp:
+            targets.append((smtp, _address_scope(smtp, self.verified_domains)))
+        identity = str(fwd.get("ForwardingAddress") or "").strip()
+        if identity:
+            scope, address = _recipient_scope(fwd.get("ForwardingRecipient"), self.verified_domains)
+            label = f"{identity} ({address})" if address and address != identity else identity
+            targets.append((label, scope))
+        return targets
+
     def _save_forwarding(self) -> None:
         fwd_list = self._get("forwarding")
         if self._read_failed(
@@ -682,10 +711,11 @@ class ExchangeSection(BaseSection):
             "=" * 100,
             f"  MAILBOX FORWARDING  ({len(fwd_list)} entries)",
             "=" * 100,
-            f"  {'Mailbox':<45} {'Forward To':<45} {'External':>9}",
+            f"  {'Mailbox':<45} {'Forward To':<45} {'External':>10}",
             "  " + "-" * 96,
         ]
-        external_fwd: list[dict] = []
+        external_fwd: list[tuple[str, str]] = []
+        unverified = 0
         rows: list[dict] = []
         for fwd in fwd_list:
             mbx = str(
@@ -695,41 +725,34 @@ class ExchangeSection(BaseSection):
                 or fwd.get("Mailbox")
                 or ""
             )
-            fwd_to = str(
-                fwd.get("ForwardingSmtp")
-                or fwd.get("ForwardingSmtpAddress")
-                or fwd.get("ForwardingAddress")
-                or ""
-            )
-            # Detect external (not in verified domains), on the whole address.
-            # It used to be decided on the column below, cut to 45 characters,
-            # which turned a long address in a verified domain into one ending
-            # "@subsidiary.acme.e", unverified, so external: a critical
-            # finding for forwarding that never left the tenant.
-            domain_part = fwd_to.split("@")[-1].lower().rstrip(">")
-            is_external = bool(domain_part) and not any(
-                d.lower() == domain_part for d in self.verified_domains
-            )
-            if is_external:
-                external_fwd.append(fwd)
+            targets = self._forwarding_targets(fwd)
+            scope = _overall_scope([s for _, s in targets])
+            fwd_to = ", ".join(label for label, _ in targets)
+            if scope == EXTERNAL:
+                outside = ", ".join(label for label, s in targets if s == EXTERNAL)
+                external_fwd.append((mbx or "?", outside))
+            elif scope == UNVERIFIED:
+                unverified += 1
             # The column is headed External and used to show
             # DeliverToMailboxAndForward, so an address outside the tenant
             # that keeps no copy read "External: No".
-            is_ext = "Yes" if is_external else "No"
-            lines.append(f"  {mbx[:45]:<45} {fwd_to[:45]:<45} {is_ext:>9}")
+            is_ext = {EXTERNAL: "Yes", INTERNAL: "No"}.get(scope, "Unverified")
+            lines.append(f"  {mbx[:45]:<45} {fwd_to[:45]:<45} {is_ext:>10}")
             rows.append(
                 {
                     "mailbox": mbx,
                     "primary_smtp_address": fwd.get("PrimarySmtpAddress"),
                     "forward_to": fwd_to,
                     "forwarding_address": fwd.get("ForwardingAddress"),
+                    "forwarding_recipient": fwd.get("ForwardingRecipient"),
                     "forwarding_smtp_address": (
                         fwd.get("ForwardingSmtp") or fwd.get("ForwardingSmtpAddress")
                     ),
                     "deliver_and_forward": bool(
                         fwd.get("DeliverAndForward") or fwd.get("DeliverToMailboxAndForward")
                     ),
-                    "external": is_external,
+                    "external": scope == EXTERNAL,
+                    "scope": scope,
                 }
             )
 
@@ -737,8 +760,19 @@ class ExchangeSection(BaseSection):
         self._save("28_exchange_mailbox_forwarding.txt", "\n".join(lines))
         self._save_sidecar(
             "28_exchange_mailbox_forwarding.txt",
-            {"count": len(rows), "external_count": len(external_fwd), "forwarding": rows},
+            {
+                "count": len(rows),
+                "external_count": len(external_fwd),
+                "unverified_count": unverified,
+                "forwarding": rows,
+            },
         )
+        if unverified:
+            self._warn(
+                f"{unverified} mailbox(es) forward to a recipient the audit could not "
+                "place inside or outside the tenant",
+                level="info",
+            )
 
         if external_fwd:
             self._warn(
@@ -751,20 +785,7 @@ class ExchangeSection(BaseSection):
                 "=" * 100,
             ]
             ext_rows: list[dict] = []
-            for fwd in external_fwd:
-                mbx_name = (
-                    fwd.get("DisplayName")
-                    or fwd.get("Name")
-                    or fwd.get("PrimarySmtpAddress")
-                    or fwd.get("Mailbox")
-                    or "?"
-                )
-                fwd_target = (
-                    fwd.get("ForwardingSmtp")
-                    or fwd.get("ForwardingSmtpAddress")
-                    or fwd.get("ForwardingAddress")
-                    or "?"
-                )
+            for mbx_name, fwd_target in external_fwd:
                 ext_lines.append(f"  {mbx_name}  →  {fwd_target}")
                 ext_rows.append({"mailbox": mbx_name, "forward_to": fwd_target})
             ext_lines += ["=" * 100, ""]

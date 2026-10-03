@@ -880,6 +880,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Innboksregler (ekstern fwd)",
         "en": "Inbox rules (external fwd)",
     },
+    "forwarding_unverified": {
+        "no": "Videresending (mottaker ikke avgjort)",
+        "en": "Forwarding (recipient not determined)",
+    },
     "inbox_rules_unverified": {
         "no": "Innboksregler (mottaker ikke avgjort)",
         "en": "Inbox rules (recipient not determined)",

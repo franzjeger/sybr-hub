@@ -161,6 +161,26 @@ def _external_forwarding_items(file_contents: dict[str, str]) -> list[str] | Non
     return items
 
 
+_FORWARDING = "28_exchange_mailbox_forwarding.txt"
+
+
+def _unverified_forwarding_count(file_contents: dict[str, str]) -> int:
+    """Mailboxes forwarding to a recipient the run could not place inside or outside.
+
+    From 28_exchange_mailbox_forwarding.json, or the text's External column,
+    which reads "Unverified" for them. Runs from before called every one of
+    them external, so they have none.
+    """
+    data = _sidecar(file_contents, _FORWARDING)
+    if data is not None:
+        return int(data.get("unverified_count") or 0)
+    return sum(
+        1
+        for line in file_contents.get(_FORWARDING, "").splitlines()
+        if line.rstrip().endswith(" Unverified")
+    )
+
+
 _INBOX_RULES = "29_exchange_inbox_rules_external_fwd.txt"
 _INBOX_RULES_WARN = "29_exchange_inbox_rules_external_fwd_WARN.txt"
 _UNVERIFIED_RULE = re.compile(r"^\s*Scope:\s*Unverified\s*$", re.MULTILINE | re.IGNORECASE)
@@ -201,6 +221,7 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
         "antiphish_policies": [],
         "antispam_policies": [],
         "forwarding_count": 0,
+        "forwarding_unverified": 0,
         "external_forwarding": False,
         "inbox_rules_external": 0,
         "inbox_rules_unverified": 0,
@@ -221,7 +242,8 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     result["antispam_policies"] = _policy_names(file_contents, "24_exchange_antispam.txt")
 
     # Mailbox forwarding count
-    result["forwarding_count"] = _record_count(file_contents, "28_exchange_mailbox_forwarding.txt")
+    result["forwarding_count"] = _record_count(file_contents, _FORWARDING)
+    result["forwarding_unverified"] = _unverified_forwarding_count(file_contents)
 
     # External forwarding warning flag
     ext_fwd_text = file_contents.get("28b_exchange_external_forwarding_WARN.txt", "")

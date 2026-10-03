@@ -41,7 +41,11 @@ from app.reports.parsers.collaboration import (
     _teams_guest_settings,
 )
 from app.reports.parsers.common import _record_count, _sidecar
-from app.reports.parsers.email import _defender_policies, _inbox_rule_counts
+from app.reports.parsers.email import (
+    _defender_policies,
+    _inbox_rule_counts,
+    _unverified_forwarding_count,
+)
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -793,11 +797,18 @@ def _external_forwarding(audit: _Audit) -> _Verdict:
         return "warn", "Ekstern videresending oppdaget på en eller flere postbokser"
     # A target the run could not place inside or outside the tenant is
     # neither a finding nor a pass.
-    unverified = _inbox_rule_counts(fc)["unverified"]
+    unverified = [
+        f"{n} {what}"
+        for n, what in (
+            (_unverified_forwarding_count(fc), "postboks(er)"),
+            (_inbox_rule_counts(fc)["unverified"], "innboksregel(er)"),
+        )
+        if n
+    ]
     if unverified:
         return "info", _CANNOT_VERIFY + (
-            f"{unverified} innboksregel(er) videresender til en mottaker auditen "
-            "ikke kunne plassere innenfor eller utenfor tenanten"
+            " og ".join(unverified) + " videresender til en mottaker auditen ikke "
+            "kunne plassere innenfor eller utenfor tenanten"
         )
     if _section_ran(
         fc, "28_exchange_mailbox_forwarding.txt", "29_exchange_inbox_rules_external_fwd.txt"
