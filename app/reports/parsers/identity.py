@@ -353,7 +353,30 @@ def _parse_mfa(
     }
 
 
-def _parse_ca_policies(text: str) -> dict:
+def _parse_ca_policies(text: str, sidecar: dict | None = None) -> dict:
+    """CA policy counts and the legacy-auth verdict, from 08_conditional_access.json first.
+
+    The sidecar lists every policy's client apps even when it has none, so a
+    tenant with no policies at all is not mistaken for an audit taken before
+    client apps were collected, which is all the text can say about it.
+    """
+    if sidecar is not None:
+        policies = sidecar.get("policies") or []
+        return {
+            "enabled": int(sidecar.get("enabled") or 0),
+            "disabled": int(sidecar.get("disabled") or 0),
+            "report_only": int(sidecar.get("report_only") or 0),
+            "has_data": True,
+            "blocks_legacy_auth": any(
+                _blocks_legacy_auth(
+                    (p.get("state") or "").lower(),
+                    [g.lower() for g in p.get("grant_controls") or []],
+                    {a.lower() for a in p.get("client_app_types") or []},
+                )
+                for p in policies
+            ),
+            "has_client_app_data": True,
+        }
     enabled = disabled = report_only = 0
     # Detect whether the audit produced a report (banner present) so a
     # tenant with zero CA policies — legitimate for tenants without Entra
@@ -436,6 +459,18 @@ _LEGACY_CLIENT_APPS = {"exchangeactivesync", "other"}
 _LEGACY_DENYING_GRANTS = {"block", "mfa"}
 
 
+def _blocks_legacy_auth(state: str, grants: list[str], apps: set[str]) -> bool:
+    """One policy's verdict, from its lower-cased state, grant controls and client apps."""
+    # Scoped to legacy clients only, and blocking. A policy covering "all"
+    # client apps is not a legacy-auth block even though it catches them.
+    return (
+        state == "enabled"
+        and bool(apps)
+        and apps <= _LEGACY_CLIENT_APPS
+        and bool(set(grants) & _LEGACY_DENYING_GRANTS)
+    )
+
+
 def _parse_ca_legacy_auth_block(text: str) -> dict:
     """Whether an enabled CA policy blocks legacy authentication.
 
@@ -456,14 +491,7 @@ def _parse_ca_legacy_auth_block(text: str) -> dict:
     apps: set[str] = set()
 
     def verdict() -> bool:
-        # Scoped to legacy clients only, and blocking. A policy covering "all"
-        # client apps is not a legacy-auth block even though it catches them.
-        return (
-            state == "enabled"
-            and bool(apps)
-            and apps <= _LEGACY_CLIENT_APPS
-            and bool(set(grants) & _LEGACY_DENYING_GRANTS)
-        )
+        return _blocks_legacy_auth(state, grants, apps)
 
     for line in text.splitlines():
         stripped = line.strip()

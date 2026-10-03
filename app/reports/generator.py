@@ -203,7 +203,9 @@ def build_report_context(
     licenses = _parse_licenses(fc("02_licenses.txt"), _sidecar(file_contents, "02_licenses.txt"))
     license_optimization = _analyze_license_optimization(licenses, file_contents, lang=lang)
     spf_dmarc = _spf_dmarc_records(file_contents)
-    ca = _parse_ca_policies(fc("08_conditional_access.txt"))
+    ca = _parse_ca_policies(
+        fc("08_conditional_access.txt"), _sidecar(file_contents, "08_conditional_access.txt")
+    )
     admin_roles = _parse_admin_roles(
         fc("07_admin_roles.txt"), _sidecar(file_contents, "07_admin_roles.txt")
     )
