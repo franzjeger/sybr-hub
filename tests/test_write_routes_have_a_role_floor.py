@@ -78,6 +78,7 @@ TECHNICIAN_ROUTES = [
     ("post", "/api/uniweb/sync"),
     ("post", "/api/itglue/sync-all"),
     ("post", "/api/remediation/c1"),
+    ("put", "/api/tailscale/device/d1/customer"),
 ]
 
 # These handle credentials/integration config, so the floor is admin, not tech.

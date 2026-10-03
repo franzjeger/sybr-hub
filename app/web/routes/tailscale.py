@@ -7,13 +7,16 @@ import logging
 from fastapi import APIRouter, Depends
 
 from app.core.exceptions import (
+    ForbiddenError,
     IntegrationError,
+    NotFoundError,
     ValidationError,
 )
 from app.models.tailscale import (
     TailscaleAuthorize,
     TailscaleKeyCreate,
     TailscaleKeyExpiry,
+    TailscaleNodeAssign,
     TailscaleRename,
     TailscaleRoutes,
     TailscaleTags,
@@ -21,7 +24,12 @@ from app.models.tailscale import (
 )
 from app.models.user import Role, User
 from app.web.i18n import refusal
-from app.web.middleware.auth import require_feature, require_module, require_role
+from app.web.middleware.auth import (
+    require_customer_access,
+    require_feature,
+    require_module,
+    require_role,
+)
 
 log = logging.getLogger(__name__)
 # The whole module is the 'network' feature (app/core/features.py); per-route
@@ -111,6 +119,7 @@ async def tailscale_devices(user: User = _tech):
         from app.services import tailscale_api
 
         devices = await tailscale_api.list_devices()
+        await _annotate_customers(devices, user)
 
         online = [d for d in devices if d["online"]]
         offline = [d for d in devices if not d["online"]]
@@ -135,6 +144,128 @@ async def tailscale_devices(user: User = _tech):
     except Exception as e:
         log.exception("Tailscale device list failed")
         raise IntegrationError(str(e)) from e
+
+
+async def _annotate_customers(devices: list[dict], user: User) -> None:
+    """Mark each node with the customer it belongs to, as far as the caller may see.
+
+    A node of a customer the caller cannot reach says only that it is taken
+    (``customer_hidden``), never whose it is.
+    """
+    from app.core.customer import CustomerManager
+    from app.core.rbac import get_accessible_customer_ids
+    from app.services import tailscale_customers
+
+    customers = {c["_id"]: c for c in CustomerManager.list_customers()}
+    owners = tailscale_customers.resolve(
+        devices, list(customers), await tailscale_customers.manual_assignments()
+    )
+    allowed = await get_accessible_customer_ids(user)
+    for device in devices:
+        owner = owners.get(str(device.get("id") or ""))
+        device["customer_id"] = None
+        device["customer_name"] = None
+        device["customer_source"] = None
+        device["customer_hidden"] = False
+        if owner is None:
+            continue
+        cid, source = owner
+        if allowed is not None and cid not in allowed:
+            device["customer_hidden"] = True
+            continue
+        device["customer_id"] = cid
+        device["customer_name"] = customers[cid].get("CustomerName", cid)
+        device["customer_source"] = source
+
+
+@router.get("/tailscale/customer/{customer_id}/nodes")
+async def tailscale_customer_nodes(
+    customer_id: str, user: User = Depends(require_customer_access(Role.technician))
+):
+    """This customer's nodes: assigned by hand, or tagged for it in the tailnet.
+
+    Each with its status and what to connect to. ``tag`` is the tag that would
+    map a node here without anyone assigning it.
+    """
+    from app.core.customer import CustomerManager
+    from app.services import tailscale_customers
+
+    if CustomerManager.get_customer(customer_id) is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    tag = tailscale_customers.customer_tag(customer_id)
+    if not _ensure_configured():
+        return {"configured": False, "customer_id": customer_id, "tag": tag, "nodes": []}
+    try:
+        from app.services import tailscale_api
+
+        devices = await tailscale_api.list_devices()
+    except Exception as e:
+        log.warning("Tailscale device list failed: %s", e)
+        raise refusal(IntegrationError, "err_tailscale_unreachable") from e
+
+    owners = tailscale_customers.resolve(
+        devices,
+        [c["_id"] for c in CustomerManager.list_customers()],
+        await tailscale_customers.manual_assignments(),
+    )
+    nodes = []
+    for device in devices:
+        owner = owners.get(str(device.get("id") or ""))
+        if owner is None or owner[0] != customer_id:
+            continue
+        nodes.append(
+            {
+                "id": device.get("id"),
+                "name": device.get("given_name") or device.get("hostname") or device.get("name"),
+                "hostname": device.get("hostname", ""),
+                "os": device.get("os", ""),
+                "online": bool(device.get("online")),
+                "last_seen": device.get("last_seen"),
+                "last_seen_ago": device.get("last_seen_ago"),
+                "tags": device.get("tags", []),
+                "source": owner[1],
+                "key_days_left": device.get("key_days_left"),
+                "key_expiry_disabled": device.get("key_expiry_disabled", False),
+                **tailscale_customers.connect_info(device),
+            }
+        )
+    nodes.sort(key=lambda n: (not n["online"], (n["name"] or "").lower()))
+    return {"configured": True, "customer_id": customer_id, "tag": tag, "nodes": nodes}
+
+
+@router.put("/tailscale/device/{device_id}/customer")
+async def tailscale_assign_customer(device_id: str, body: TailscaleNodeAssign, user: User = _tech):
+    """Assign a node to a customer by hand, or drop its hand assignment (null).
+
+    The caller needs access to the customer it is given to and, when it is
+    being moved, to the customer it is taken from: otherwise a scoped
+    technician could pull another customer's node onto one they can see.
+    The tag in the tailnet is not touched; a hand assignment wins over it.
+    """
+    from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
+    from app.services import tailscale_customers
+
+    target = body.customer_id or None
+    if target is not None:
+        if not await check_customer_access(user, target):
+            raise refusal(ForbiddenError, "err_customer_no_access")
+        if CustomerManager.get_customer(target) is None:
+            raise refusal(NotFoundError, "err_customer_not_found")
+    current = (await tailscale_customers.manual_assignments()).get(device_id)
+    if current and current != target and not await check_customer_access(user, current):
+        raise refusal(ForbiddenError, "err_customer_no_access")
+    await tailscale_customers.assign(device_id, target, user.username)
+
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "tailscale_node_assigned",
+        detail=f"{device_id} -> {target or '-'}",
+        customer=target or current or "",
+        user=user.username,
+    )
+    return {"ok": True, "device_id": device_id, "customer_id": target}
 
 
 @router.delete("/tailscale/device/{device_id}")

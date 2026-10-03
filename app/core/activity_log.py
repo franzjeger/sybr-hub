@@ -27,6 +27,7 @@ VALID_ACTIONS = {
     "audit_completed",
     "report_generated",
     "customer_added",
+    "tailscale_node_assigned",
     "itglue_uploaded",
     "settings_changed",
     "email_sent",

@@ -1336,7 +1336,8 @@
           DELETE /tailscale/device/{id} &middot; POST /tailscale/device/{id}/tags<br>
           POST /tailscale/device/{id}/authorize &middot; POST /tailscale/device/{id}/name &middot; POST /tailscale/device/{id}/key<br>
           GET /tailscale/device/{id}/routes &middot; POST /tailscale/device/{id}/routes<br>
-          GET /tailscale/keys &middot; POST /tailscale/keys &middot; DELETE /tailscale/keys/{id}<br><br>
+          GET /tailscale/keys &middot; POST /tailscale/keys &middot; DELETE /tailscale/keys/{id}<br>
+          GET /tailscale/customer/{id}/nodes &middot; PUT /tailscale/device/{id}/customer<br><br>
 
           <strong style="color:var(--blue);">ALSO Cloud (/api/also/*)</strong><br>
           POST /also/test &middot; GET /also/companies &middot; GET /also/company/{id} &middot; GET /also/api-stats<br>
@@ -1660,10 +1661,6 @@
         <h2 class="cust-panel-title" data-i18n="tab_access">Tilgang</h2>
       </div>
       <div id="cust-access-body"></div>
-      <div class="card cust-tailscale-note" data-module="tailscale" data-view-gate="tailscale">
-        <span data-i18n="msg_tailscale_not_per_customer">Tailscale-noder er ikke knyttet til kunder. De ligger samlet under Verktøy › Tailscale.</span>
-        <button class="btn btn-default btn-sm" data-view-gate="tailscale" data-click-handler="showView" data-view="tailscale">Tailscale</button>
-      </div>
     </section>
 
     <!-- Detaljer: tenant and connection, certificate, tags, notes, files and activity. -->

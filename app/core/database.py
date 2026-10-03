@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 27
+SCHEMA_VERSION = 28
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -786,6 +786,23 @@ _MIGRATIONS: list = [
         );
         CREATE INDEX IF NOT EXISTS idx_device_firmware_status
             ON device_firmware(status);
+        """,
+    ),
+    (
+        28,
+        "Tailscale nodes assigned to a customer by hand",
+        # One customer per node: the device id is the key. A node may also be
+        # mapped by its tag:customer-<slug> in the tailnet; a row here wins
+        # over the tag (app/services/tailscale_customers.py).
+        """
+        CREATE TABLE IF NOT EXISTS tailscale_node_customers (
+            device_id   TEXT PRIMARY KEY,
+            customer_id TEXT NOT NULL,
+            assigned_by TEXT NOT NULL DEFAULT '',
+            assigned_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tailscale_node_customers_customer
+            ON tailscale_node_customers(customer_id);
         """,
     ),
 ]

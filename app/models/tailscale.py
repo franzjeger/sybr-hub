@@ -9,6 +9,8 @@ any call to Tailscale is made.
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import text
+from sqlmodel import Field, SQLModel
 
 
 class TailscaleTags(BaseModel):
@@ -63,3 +65,22 @@ class TailscaleTest(BaseModel):
 
     api_key: str = ""
     tailnet: str = "-"
+
+
+class TailscaleNodeCustomer(SQLModel, table=True):
+    """A Tailscale node a technician assigned to a customer by hand."""
+
+    __tablename__ = "tailscale_node_customers"
+
+    device_id: str = Field(primary_key=True)
+    customer_id: str
+    assigned_by: str = Field(default="", sa_column_kwargs={"server_default": text("''")})
+    assigned_at: str
+
+
+class TailscaleNodeAssign(BaseModel):
+    """The customer a node belongs to; null removes the manual assignment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: str | None = None

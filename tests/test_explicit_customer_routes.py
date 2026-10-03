@@ -43,6 +43,7 @@ async def _isolated_state(tmp_path, monkeypatch):
     import app.core.customer as customer_module
     import app.core.database as database_module
     from app.core import job_state as state
+    from app.core import modules
 
     database_module.DB_PATH = tmp_path / "test.db"
     customer_root = tmp_path / "customers"
@@ -55,6 +56,7 @@ async def _isolated_state(tmp_path, monkeypatch):
     (tmp_path / "config").mkdir()
     monkeypatch.setattr(config_module, "CONFIG_DIR", tmp_path / "config")
     monkeypatch.setattr(config_module, "_DEFAULT_AUDIT_DIR", audit_root)
+    modules.set_enabled({"tailscale": True})
     state.clear_user_audits()
     await run_migrations()
     yield
@@ -126,6 +128,7 @@ ROUTES = [
     ("post", "/api/network/quick-audit/{cid}", None),
     ("get", "/api/itglue/available-reports?customer_id={cid}", None),
     ("post", "/api/itglue/upload/audit", {"customer_id": "{cid}", "org_id": "1"}),
+    ("get", "/api/tailscale/customer/{cid}/nodes", None),
 ]
 
 
