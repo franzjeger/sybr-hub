@@ -212,7 +212,7 @@
   /* Scroll containment: when a modal or dropdown is scrolled to its
      edge, iOS would rubber-band and scroll the body behind it. */
   .modal, .nav-dropdown-menu, #notif-dropdown, #cmd-palette,
-  #active-customer-switcher, .toast-container {
+  .toast-container {
     overscroll-behavior: contain;
   }
 
@@ -418,23 +418,6 @@
   .avatar-item .kbd { margin-left: auto; font-size: 10px; color: var(--text-dim); font-family: var(--mono); }
   .avatar-foot { padding: 8px 16px 6px; font-size: 11px; color: var(--text-dim); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: 6px; cursor: pointer; background: none; border-left: none; border-right: none; border-bottom: none; width: 100%; text-align: left; }
   .avatar-foot:hover { color: var(--blue); }
-
-  /* Context bar — customer identity + primary actions (replaces the old
-     active-customer action row). */
-  .context-bar {
-    position: relative;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 20px;
-    display: flex; align-items: center; gap: 12px;
-    flex-shrink: 0;
-  }
-  .context-bar .cust-name { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; }
-  .context-bar .cust-domain { color: var(--text-dim); font-size: 12px; font-family: var(--mono); }
-  .context-grade-pill { background: color-mix(in srgb, var(--blue) 12%, transparent); color: var(--blue); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full); white-space: nowrap; }
-  .context-audit { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
-  .context-ghost { color: var(--text-muted); font-size: 12px; padding: 5px 10px; background: none; border: none; cursor: pointer; white-space: nowrap; border-radius: var(--radius-sm); font-family: inherit; transition: background var(--duration-fast), color var(--duration-fast); }
-  .context-ghost:hover { background: var(--bg-card-hover); color: var(--text); }
 
   /* ══════════════════════════════════════════════════════════════════════
      REDESIGN 1b — dashboard body: text tabs, attention strip, KPI cards
@@ -1282,9 +1265,6 @@
   .markdown-body hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
   .docs-tree-file:hover { background: rgba(77,159,181,0.08); }
 
-  /* ── Active-customer quick switcher ── */
-  #active-customer-trigger:hover { background: rgba(77,159,181,0.12); }
-  #customer-switcher-list [data-switch-id]:hover { background: rgba(77,159,181,0.12) !important; }
   /* ── Integration health strip (Dashboard) ── */
   .integ-health-card:hover { border-color: var(--blue) !important; }
 
@@ -1310,7 +1290,7 @@
   }
 
   @media print {
-    header, footer, .header-right, #active-customer-bar,
+    header, footer, .header-right,
     #breadcrumb, .btn, .nav, .modal-backdrop, #cmd-palette,
     #report-viewer-modal, #toast-container, #confirm-modal,
     .row-actions-wrap, .customer-bulk-cb { display: none !important; }
@@ -1731,12 +1711,11 @@
      ═══════════════════════════════════════════════════════════════════════ */
   @media (max-width: 1100px) and (orientation: landscape) and (max-height: 500px) {
     header { height: calc(44px + var(--safe-top)); }
-    #active-customer-bar { min-height: 32px; }
     main { padding-top: 12px; padding-bottom: max(12px, var(--safe-bottom)); }
     .card { padding: 12px; }
     #view-overview canvas { max-height: 140px !important; }
     /* Notch is on the side in landscape — give it real room. */
-    main, header, #active-customer-bar {
+    main, header {
       padding-left: max(16px, var(--safe-left));
       padding-right: max(16px, var(--safe-right));
     }
@@ -1787,32 +1766,7 @@
     * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 
-  /* ── Active-customer bar: horizontal-scroll action buttons on mobile ── */
   @media (max-width: 767px) {
-    #active-customer-bar {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      /* The 32 px height doesn't fit the action buttons' 44 px tap target;
-         allow it to grow and wrap the bar instead of truncating. */
-      height: auto !important;
-      min-height: 36px;
-      padding-top: 4px;
-      padding-bottom: 4px;
-    }
-    #active-customer-bar > div[style*="flex:1"] { display: none; }  /* spacer */
-    #active-customer-bar .btn-ghost,
-    #active-customer-bar .btn-sm {
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    /* Active-customer switcher dropdown: full-width popup on phones. */
-    #active-customer-switcher {
-      left: 8px !important;
-      right: 8px !important;
-      width: auto !important;
-      max-width: calc(100vw - 16px);
-      min-width: 0 !important;
-    }
     /* Integration-health strip: chips should snap-scroll horizontally, not
        wrap into tiny unreadable rows. */
     #integration-health-widget > div:last-child {
@@ -2219,7 +2173,6 @@ body:not(.is-admin) [data-admin-only] { display: none !important; }
 .sm-coverage__state--none,
 .sm-coverage__state--direct { color: var(--text-dim); }
 
-body[data-view="customer-detail"] #context-run-audit { display: none; }
 
 /* ── Settings: modules ── */
 .modules-intro { font-size: var(--font-sm); color: var(--text-muted); margin: 0 0 var(--space-4); }

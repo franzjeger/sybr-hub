@@ -174,7 +174,6 @@ registerUiHandlers({
   scrollToTop: function() { window.scrollTo({top: 0, behavior: 'smooth'}); },
   // Menus that close themselves before acting.
   toggleAvatarMenu: function(el, event) { toggleAvatarMenu(event); },
-  toggleActiveCustomerSwitcher: function(el, event) { toggleActiveCustomerSwitcher(event); },
   moreSheetShowView: function(el) { closeMoreSheet(); showView(el.dataset.view); },
   moreSheetOpenAdmin: function() { closeMoreSheet(); openAdmin(); },
   moreSheetOpenAccount: function() { closeMoreSheet(); openAccountModal(); },
@@ -596,6 +595,14 @@ function openCommandPalette() {
   input.value = '';
   input.focus();
   _renderCmdResults('');
+  // Recent customers and customer search need the customer list. Opened
+  // before anything had loaded it, the palette had neither.
+  if (!_overviewData) {
+    apiFetch('/api/dashboard/overview').then(function(d) {
+      if (d && !_overviewData) _overviewData = {customers: d.customers || [], active_id: d.active_id};
+      if (_cmdPaletteOpen) _renderCmdResults(input.value);
+    });
+  }
   input.oninput = function() { _renderCmdResults(this.value); _cmdSelectedIdx = -1; };
   input.onkeydown = function(e) {
     var items = document.querySelectorAll('.cmd-item');
@@ -697,7 +704,7 @@ function _renderCmdResults(query) {
           label: c.customer_name,
           hint: c.primary_domain || '',
           icon: 'building',
-          action: function(){ switchActiveCustomer(c._id).then(function(){showView('home');loadStatus();}); },
+          action: function(){ overviewSelectCustomer(c.customer_id); },
           type: 'customer'
         });
       }
@@ -1298,6 +1305,12 @@ function switchActiveCustomer(customerId) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({customer_id: customerId}),
     });
+  }).then(function(d) {
+    // The views that act on "the active customer" read this cached id, and
+    // only the Kunder list used to refresh it: open Kunder, open another
+    // customer from Oversikt, and Policy-oversikt showed the first one.
+    if (d && d.ok && typeof _customersActiveId !== 'undefined') _customersActiveId = customerId;
+    return d;
   });
   _switchQueue = next.catch(function() {});
   return next;
@@ -1819,17 +1832,7 @@ async function loadStatus() {
   const d = await apiFetch('/api/status');
   if (d) {
     renderHome(d);
-    if (d.has_config && (d.m365_ready || d.has_credentials)) {
-      _loadHealthGrid();
-      // Fetch last audit date for active customer bar
-      try {
-        var dash = await apiFetch('/api/dashboard');
-        if (dash && dash.run_date) {
-          var lel = document.getElementById('active-customer-last-audit');
-          if (lel) lel.textContent = auditAgeLabel(dash.run_date);
-        }
-      } catch(e) {}
-    }
+    if (d.has_config && (d.m365_ready || d.has_credentials)) _loadHealthGrid();
   } else {
     box.innerHTML = `<div class="alert alert-error">${t('err_could_not_load_status')}</div>`;
   }
@@ -1877,82 +1880,8 @@ async function _loadHealthGrid() {
   } catch(e) {}
 }
 
-function _updateActiveCustomerBar(d) {
-  var bar = document.getElementById('active-customer-bar');
-  if (!bar) return;
-  var nameEl = document.getElementById('active-customer-name');
-  var domEl = document.getElementById('active-customer-domain');
-  var gradeEl = document.getElementById('active-customer-grade');
-  var lastEl = document.getElementById('active-customer-last-audit');
-  var licBtn = document.getElementById('active-bar-licenses-btn');
-
-  // Always show the bar once authenticated — even without an active
-  // customer, the bar is the persistent entry point to the switcher.
-  bar.style.display = 'flex';
-
-  var c = (d && d.customer) || {};
-  var name = c.name || '';
-
-  // The bar's audit button acts on the active customer, so it exists only
-  // when there is one.
-  var runBtn = document.getElementById('context-run-audit');
-  if (runBtn) runBtn.classList.toggle('hidden', !name);
-
-  if (!name) {
-    // Placeholder state: "Velg kunde" in dim italic, and collapse the
-    // empty domain/grade spans so the trigger's flex-gap doesn't leave
-    // the chevron floating across empty space.
-    nameEl.textContent = t('lbl_select_customer', 'Velg kunde');
-    nameEl.style.color = 'var(--text-dim)';
-    nameEl.style.fontStyle = 'italic';
-    if (domEl) domEl.style.display = 'none';
-    if (gradeEl) gradeEl.style.display = 'none';
-    if (lastEl) lastEl.textContent = '';
-    if (licBtn) licBtn.style.display = 'none';
-    return;
-  }
-
-  // Active customer state
-  nameEl.style.color = '';
-  nameEl.style.fontStyle = '';
-  nameEl.textContent = name;
-  if (domEl) {
-    domEl.style.display = '';
-    domEl.textContent = c.domain || '';
-  }
-  if (gradeEl) {
-    gradeEl.style.display = '';
-    if (d && d.risk_grade) {
-      // Tinted, grade-coloured pill "B · 78/100" (frame 3a). color-mix keeps
-      // the tint theme-adaptive without a second light-theme definition.
-      var gvar = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[d.risk_grade] || 'var(--text-muted)';
-      var scoreTxt = (d.risk_score !== undefined && d.risk_score !== null && d.risk_score !== '') ? ' · ' + d.risk_score + '/100' : '';
-      gradeEl.innerHTML = '<span class="context-grade-pill" style="color:' + gvar + ';background:color-mix(in srgb, ' + gvar + ' 12%, transparent);">' + esc(d.risk_grade + scoreTxt) + '</span>';
-    } else {
-      gradeEl.innerHTML = '';
-    }
-  }
-  if (lastEl && d && d.run_date) {
-    // Relative ("Auditert for 3 d siden", frame 3a) instead of a bare date.
-    lastEl.textContent = auditAgeLabel(d.run_date);
-  } else if (lastEl) {
-    lastEl.textContent = '';
-  }
-  // Show/hide licenses button based on ALSO linkage
-  if (licBtn) {
-    var alsoId = c.also_account_id || '';
-    if (alsoId) {
-      licBtn.style.display = '';
-      licBtn.onclick = function(){ loadCustomerLicenses(alsoId); };
-    } else {
-      licBtn.style.display = 'none';
-    }
-  }
-}
-
 function renderHome(d) {
   const box = document.getElementById('home-content');
-  _updateActiveCustomerBar(d);
 
   if (!d.has_config) {
     box.innerHTML = `

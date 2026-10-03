@@ -49,7 +49,8 @@ test('the customer page puts the findings first, worst first, for the customer i
   const id = await betaId(page);
   await page.goto('/#/customer/' + encodeURIComponent(id));
   await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
-  await expect(page.locator('#active-customer-name')).toHaveText('Browser Beta');
+  // The page is the context: opening it made Beta the server's active customer.
+  await expect.poll(async () => (await (await page.request.get('/api/dashboard/overview')).json()).active_id).toBe(id);
   const rows = page.locator('#cust-findings .finding');
   await expect(rows).toHaveCount(3);
   await expect(rows.locator('.sev-chip')).toHaveText(['Kritisk', 'Høy', 'Lav']);
