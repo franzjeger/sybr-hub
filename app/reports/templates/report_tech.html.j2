@@ -1017,16 +1017,19 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
       </td>
     </tr>
     <tr><td>{{ t.inbox_rules_ext_fwd }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.inbox_rules_external }}</td></tr>
+    {% if exchange.inbox_rules_unverified %}<tr><td>{{ t.inbox_rules_unverified }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.inbox_rules_unverified }}</td></tr>{% endif %}
     <tr><td>{{ t.transport_rules }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.transport_rules }}</td></tr>
     <tr><td>{{ t.connectors }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.connectors }}</td></tr>
   </table>
 </div>
 
 <!-- Exchange raw data sections -->
-{# 28b_ and 29_..._WARN are the files that carry the actual findings; the
-   collector renames 29_ rather than writing into it, so listing only the
-   plain name left the raw evidence out of the appendix exactly when there
-   was something to show. Missing keys are skipped by the guard below. #}
+{# 28b_ and 29_..._WARN are the files that carry the actual findings. Older
+   runs renamed 29_ rather than writing into it, so listing only the plain
+   name left the raw evidence out of the appendix exactly when there was
+   something to show; newer ones write every forwarding rule to the plain
+   file and the external ones to the WARN file. Missing keys are skipped by
+   the guard below. #}
 {% for key in ['20_exchange_mailboxes_count.txt', '21_exchange_transport_rules.txt', '22_exchange_connectors.txt', '23_exchange_antiphish.txt', '24_exchange_antispam.txt', '28_exchange_mailbox_forwarding.txt', '28b_exchange_external_forwarding_WARN.txt', '29_exchange_inbox_rules_external_fwd.txt', '29_exchange_inbox_rules_external_fwd_WARN.txt'] %}
 {% if file_contents.get(key, '') and file_contents.get(key, '').strip() %}
 <div class="data-section">

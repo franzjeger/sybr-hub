@@ -880,6 +880,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Innboksregler (ekstern fwd)",
         "en": "Inbox rules (external fwd)",
     },
+    "inbox_rules_unverified": {
+        "no": "Innboksregler (mottaker ikke avgjort)",
+        "en": "Inbox rules (recipient not determined)",
+    },
     # ── Apps & Integrations section ──
     "oauth_permissions_title": {
         "no": "OAuth-tillatelser og tredjepartsapper",

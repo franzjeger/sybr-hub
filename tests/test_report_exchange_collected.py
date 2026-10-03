@@ -24,6 +24,7 @@ from app.reports.parsers.tenant import _parse_shared_mailbox_upns, _shared_mailb
 from app.reports.recommendations import _build_recommendations
 from app.reports.risk import _compute_risk
 from tests.collector_rig import FakeGraph, refused, run_sections
+from tests.report_from_run import report
 
 LABELS_PATH = "beta/security/dataSecurityAndGovernance/sensitivityLabels"
 
@@ -445,9 +446,179 @@ async def test_the_forwarding_findings_come_from_the_sidecar(tmp_path):
 # ── Inbox rules ───────────────────────────────────────────────────────────────
 
 
-def _inbox_rule(mailbox: str, rule: str, *targets: str) -> dict:
-    """One rule as the helper's inbox-rule block writes it."""
-    return {"Mailbox": mailbox, "Rule": rule, "Enabled": True, "Targets": list(targets)}
+def _inbox_rule(mailbox: str, rule: str, *targets: str, recipients=()) -> dict:
+    """One rule as the helper's inbox-rule block writes it.
+
+    ``recipients`` are what the helper's Resolve-RecipientInfo found an
+    [EX:...] target to be, as (target, RecipientTypeDetails, address) tuples;
+    for a mail contact or mail user the address is its ExternalEmailAddress.
+    """
+    rule_ = {"Mailbox": mailbox, "Rule": rule, "Enabled": True, "Targets": list(targets)}
+    if recipients:
+        rule_["TargetRecipients"] = [
+            {
+                "Target": target,
+                "RecipientTypeDetails": kind,
+                "PrimarySmtpAddress": "" if kind in ("MailContact", "MailUser") else address,
+                "ExternalEmailAddress": f"SMTP:{address}"
+                if kind in ("MailContact", "MailUser")
+                else "",
+            }
+            for target, kind, address in recipients
+        ]
+    return rule_
+
+
+# A colleague, as Get-InboxRule writes a directory recipient.
+COLLEAGUE = (
+    '"Ola Nordmann" [EX:/o=ExchangeLabs/ou=Exchange Administrative Group '
+    "(FYDIBOHF23SPDLT)/cn=Recipients/cn=0a1b2c3d4e5f-ola]"
+)
+# A mail contact in the address list, which is a directory recipient too.
+CONTACT = (
+    '"Revisor" [EX:/o=ExchangeLabs/ou=Exchange Administrative Group '
+    "(FYDIBOHF23SPDLT)/cn=Recipients/cn=9f8e7d6c5b4a-revisor]"
+)
+
+
+def _rule_findings(files: dict, section) -> dict:
+    """What the report and the collector conclude about the run's inbox rules."""
+    overview = _parse_exchange_overview(files)
+    return {
+        "warn_file": bool(files.get("29_exchange_inbox_rules_external_fwd_WARN.txt")),
+        "external": overview["inbox_rules_external"],
+        "unverified": overview["inbox_rules_unverified"],
+        "cis_4_4": _controls(files)["4.4"]["status"],
+        "critical": any(
+            "inbox rule" in w and level == "critical"
+            for w, level in zip(section.result.warns, section.result.warn_levels, strict=True)
+        ),
+    }
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_rule_forwarding_to_a_colleague_is_not_external_forwarding(tmp_path, sidecars):
+    """Every forwarding rule went into the WARN file as external.
+
+    A rule forwarding to a colleague, or to an address in a verified domain,
+    was a critical warning, a CIS 4.4 warn and an "external forwarding" count
+    on both reports.
+    """
+    rules = [
+        _inbox_rule(
+            "kari@acme.example",
+            "Til Ola",
+            COLLEAGUE,
+            recipients=[(COLLEAGUE, "UserMailbox", "ola@acme.example")],
+        ),
+        _inbox_rule(
+            "per@acme.example",
+            "Til regnskap",
+            f'"Regnskap" [SMTP:{LONG_INTERNAL[5:]}]',
+        ),
+    ]
+    files, section = await _collect(
+        tmp_path,
+        {"inbox_rules_external": rules, "forwarding": []},
+        domains=("acme.example", "subsidiary.acme.example"),
+        sidecars=sidecars,
+    )
+
+    assert _rule_findings(files, section) == {
+        "warn_file": False,
+        "external": 0,
+        "unverified": 0,
+        "cis_4_4": "pass",
+        "critical": False,
+    }
+    assert "Til Ola" in files["29_exchange_inbox_rules_external_fwd.txt"], "listed, not hidden"
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_only_the_rules_that_leave_the_tenant_are_external(tmp_path, sidecars):
+    rules = [
+        _inbox_rule(
+            "kari@acme.example",
+            "Til Ola",
+            COLLEAGUE,
+            recipients=[(COLLEAGUE, "UserMailbox", "ola@acme.example")],
+        ),
+        # One internal target and one external: the rule forwards out of the tenant.
+        _inbox_rule(
+            "per@acme.example",
+            "Kopi hjem",
+            COLLEAGUE,
+            '"per" [SMTP:per@mail.example]',
+            recipients=[(COLLEAGUE, "UserMailbox", "ola@acme.example")],
+        ),
+        # A mail contact forwards to its external address.
+        _inbox_rule(
+            "lise@acme.example",
+            "Til revisor",
+            CONTACT,
+            recipients=[(CONTACT, "MailContact", "revisor@revisjon.example")],
+        ),
+    ]
+    files, section = await _collect(
+        tmp_path, {"inbox_rules_external": rules, "forwarding": []}, sidecars=sidecars
+    )
+
+    assert _rule_findings(files, section) == {
+        "warn_file": True,
+        "external": 2,
+        "unverified": 0,
+        "cis_4_4": "warn",
+        "critical": True,
+    }
+    warn = files["29_exchange_inbox_rules_external_fwd_WARN.txt"]
+    assert "Kopi hjem" in warn and "Til revisor" in warn
+    assert "Til Ola" not in warn
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_target_the_run_cannot_place_is_said_to_be_unverified(tmp_path, sidecars):
+    """A directory recipient the helper could not look up, or a shape nobody knows.
+
+    Neither external by default (a critical finding on no evidence) nor
+    internal in silence (a pass on no evidence): CIS 4.4 cannot be verified,
+    and says why.
+    """
+    rules = [
+        _inbox_rule("kari@acme.example", "Til Ola", COLLEAGUE),  # not looked up
+        _inbox_rule("per@acme.example", "Rart mål", "X500:/o=Acme/cn=per"),
+    ]
+    files, section = await _collect(
+        tmp_path, {"inbox_rules_external": rules, "forwarding": []}, sidecars=sidecars
+    )
+
+    assert _rule_findings(files, section) == {
+        "warn_file": False,
+        "external": 0,
+        "unverified": 2,
+        "cis_4_4": "info",
+        "critical": False,
+    }
+    assert "2 innboksregel(er)" in _controls(files)["4.4"]["detail"]
+    assert any("could not place" in w for w in section.result.warns)
+
+
+async def test_a_rule_to_a_colleague_costs_the_report_nothing(tmp_path):
+    """Through build_report_context: no finding, no CIS warn, no inbox-rule alert."""
+    rules = [
+        _inbox_rule(
+            "kari@acme.example",
+            "Til Ola",
+            COLLEAGUE,
+            recipients=[(COLLEAGUE, "UserMailbox", "ola@acme.example")],
+        )
+    ]
+    await _collect(tmp_path, {"inbox_rules_external": rules, "forwarding": []})
+
+    ctx = report(tmp_path)
+    assert ctx["exchange"]["inbox_rules_external"] == 0
+    assert not ctx["inbox_rule_warn"]
+    row = next(c for c in ctx["compliance"] if c["cis_id"] == "4.4")
+    assert row["status"] == "pass"
 
 
 @pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])

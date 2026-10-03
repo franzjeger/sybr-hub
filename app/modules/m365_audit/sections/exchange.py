@@ -8,6 +8,7 @@ outputs rather than splitting them across two.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,110 @@ def _flag(val: Any) -> bool | None:
         return val
     word = str(val).strip().lower() if isinstance(val, str) else ""
     return {"true": True, "yes": True, "false": False, "no": False}.get(word)
+
+
+# ── Where forwarding goes ─────────────────────────────────────────────────────
+#
+# Three answers, never two: a target inside the tenant, one outside it, and one
+# the run cannot place. "Cannot place" is never rounded to either side: called
+# external, a rule forwarding to a colleague was a critical finding; called
+# internal, a rule forwarding out of the tenant would pass CIS 4.4.
+
+INTERNAL, EXTERNAL, UNVERIFIED = "internal", "external", "unverified"
+
+# Recipient types that are the tenant's own: mail to one stays in Exchange
+# Online. A group counts as one, whatever its members.
+_INTERNAL_RECIPIENT_TYPES = frozenset(
+    t.lower()
+    for t in (
+        "UserMailbox",
+        "SharedMailbox",
+        "RoomMailbox",
+        "EquipmentMailbox",
+        "SchedulingMailbox",
+        "LinkedMailbox",
+        "TeamMailbox",
+        "GroupMailbox",
+        "DiscoveryMailbox",
+        "MailUniversalDistributionGroup",
+        "MailUniversalSecurityGroup",
+        "MailNonUniversalGroup",
+        "DynamicDistributionGroup",
+        "RoomList",
+        "PublicFolder",
+    )
+)
+# Recipients that stand for an address somewhere else: mail to one goes to its
+# ExternalEmailAddress, and that address decides.
+_ADDRESS_ELSEWHERE_TYPES = frozenset(("mailcontact", "mailuser", "guestmailuser"))
+
+# The address in an inbox-rule target: '"Kari" [SMTP:kari@example.com]' is a
+# one-off address, '"Kari" [EX:/o=ExchangeLabs/...]' a directory recipient.
+_RULE_TARGET = re.compile(r"\[(?P<kind>[A-Za-z0-9]+):(?P<value>[^\]]*)\]\s*$")
+
+
+def _bare_address(address: str) -> str:
+    """An address without its "smtp:" prefix or angle brackets."""
+    addr = address.strip().strip("<>").strip()
+    return addr[5:] if addr.lower().startswith("smtp:") else addr
+
+
+def _address_scope(address: str, domains: list[str]) -> str:
+    """Internal, external or unverified for one SMTP address, on its whole domain.
+
+    Unverified when it is not an address at all, or when the run has no
+    verified domains to hold it against: without them every address read as
+    external.
+    """
+    local, at, domain = _bare_address(address).rpartition("@")
+    domain = domain.strip().lower()
+    if not (at and local and domain) or not domains:
+        return UNVERIFIED
+    return INTERNAL if domain in {d.lower() for d in domains} else EXTERNAL
+
+
+def _recipient_scope(info: Any, domains: list[str]) -> tuple[str, str]:
+    """(scope, address) for a directory recipient the helper looked up.
+
+    ``info`` is what exo_collector.ps1's Resolve-RecipientInfo returned for it,
+    or None when the helper could not look it up (or predates the lookup).
+    """
+    if not isinstance(info, dict):
+        return UNVERIFIED, ""
+    kind = str(info.get("RecipientTypeDetails") or "").strip().lower()
+    smtp = _bare_address(str(info.get("PrimarySmtpAddress") or ""))
+    if kind in _INTERNAL_RECIPIENT_TYPES:
+        return INTERNAL, smtp
+    elsewhere = _bare_address(str(info.get("ExternalEmailAddress") or ""))
+    if kind in _ADDRESS_ELSEWHERE_TYPES and elsewhere:
+        return _address_scope(elsewhere, domains), elsewhere
+    return UNVERIFIED, smtp
+
+
+def _rule_target(target: Any, recipients: dict[str, dict], domains: list[str]) -> dict:
+    """{"target", "address", "scope"} for one inbox-rule target as Exchange wrote it."""
+    text = str(target or "").strip()
+    match = _RULE_TARGET.search(text)
+    if match and match["kind"].upper() == "SMTP":
+        address = _bare_address(match["value"])
+        scope = _address_scope(address, domains)
+    elif match and match["kind"].upper() == "EX":
+        scope, address = _recipient_scope(recipients.get(text), domains)
+    elif not match and "@" in text and not any(c.isspace() for c in text):
+        address = _bare_address(text)
+        scope = _address_scope(address, domains)
+    else:
+        scope, address = UNVERIFIED, ""
+    return {"target": text, "address": address, "scope": scope}
+
+
+def _overall_scope(scopes: list[str]) -> str:
+    """External if any target is, else unverified if any is, else internal."""
+    if EXTERNAL in scopes:
+        return EXTERNAL
+    if UNVERIFIED in scopes or not scopes:
+        return UNVERIFIED
+    return INTERNAL
 
 
 def _policy_state(policies: list[dict], kind: str) -> dict[str, int]:
@@ -671,6 +776,51 @@ class ExchangeSection(BaseSection):
 
     # ── Inbox Rules ───────────────────────────────────────────────────────────
 
+    def _inbox_rule(self, rule: dict) -> dict:
+        """One forwarding rule with each target placed inside or outside the tenant.
+
+        The helper sends every rule that forwards or redirects, to anyone. All
+        of them used to go into the WARN file as external forwarding, so a
+        rule forwarding to a colleague was a critical warning and a CIS 4.4
+        warn. A target is now decided on its own: an SMTP address on its whole
+        domain against the verified domains, a directory recipient ([EX:...])
+        on what the helper found it to be, and anything else is unverified.
+        """
+        recipients = {
+            str(r.get("Target") or "").strip(): r for r in _records(rule.get("TargetRecipients"))
+        }
+        raw = rule.get("Targets")
+        targets = [
+            _rule_target(t, recipients, self.verified_domains)
+            for t in (raw if isinstance(raw, list) else [raw])
+            if t not in (None, "")
+        ]
+        return {
+            "mailbox": rule.get("Mailbox"),
+            "rule": rule.get("Rule") or rule.get("Name"),
+            "enabled": rule.get("Enabled"),
+            "targets": targets,
+            "scope": _overall_scope([t["scope"] for t in targets]),
+        }
+
+    @staticmethod
+    def _inbox_rule_block(title: str, rules: list[dict]) -> str:
+        """The rules as the text evidence shows them, one target per line."""
+        return _section_block(
+            title,
+            [
+                {
+                    "Mailbox": r["mailbox"],
+                    "Rule": r["rule"],
+                    "Enabled": r["enabled"],
+                    "Scope": r["scope"].capitalize(),
+                    "Targets": [f"{t['target']} ({t['scope']})" for t in r["targets"]],
+                }
+                for r in rules
+            ],
+            key_fields=["Mailbox", "Rule", "Enabled", "Scope", "Targets"],
+        )
+
     def _save_inbox_rules(self) -> None:
         rules = self._get("inbox_rules_external")
         if self._read_failed(
@@ -680,22 +830,38 @@ class ExchangeSection(BaseSection):
             "29_exchange_inbox_rules_external_fwd.txt",
         ):
             return
-        filename = (
-            "29_exchange_inbox_rules_external_fwd_WARN.txt"
-            if rules
-            else "29_exchange_inbox_rules_external_fwd.txt"
+        placed = [self._inbox_rule(r) for r in rules]
+        external = [r for r in placed if r["scope"] == EXTERNAL]
+        unverified = [r for r in placed if r["scope"] == UNVERIFIED]
+
+        # Every forwarding rule and where it goes: the scan ran, and this is
+        # what it found. Only the external ones are a finding, in the WARN file.
+        plain = "29_exchange_inbox_rules_external_fwd.txt"
+        self._save(plain, self._inbox_rule_block("INBOX RULES THAT FORWARD OR REDIRECT", placed))
+        self._save_sidecar(
+            plain,
+            {
+                "count": len(placed),
+                "external_count": len(external),
+                "unverified_count": len(unverified),
+                "rules": placed,
+            },
         )
-        content = _section_block(
-            "INBOX RULES WITH EXTERNAL FORWARDING",
-            rules,
-            key_fields=["Name", "Mailbox", "ForwardTo", "RedirectTo", "Enabled"],
-        )
-        self._save(filename, content)
-        self._save_sidecar(filename, {"count": len(rules), "rules": rules})
-        if rules:
+        if external:
+            warn = "29_exchange_inbox_rules_external_fwd_WARN.txt"
+            self._save(
+                warn, self._inbox_rule_block("INBOX RULES WITH EXTERNAL FORWARDING", external)
+            )
+            self._save_sidecar(warn, {"count": len(external), "rules": external})
             self._warn(
-                f"{len(rules)} inbox rule(s) forwarding to external addresses found",
+                f"{len(external)} inbox rule(s) forwarding to external addresses found",
                 level="critical",
+            )
+        if unverified:
+            self._warn(
+                f"{len(unverified)} inbox rule(s) forward to a recipient the audit could "
+                "not place inside or outside the tenant",
+                level="info",
             )
 
     # ── Sensitivity Labels (Graph, not EXO) ───────────────────────────────────

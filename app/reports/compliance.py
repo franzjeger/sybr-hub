@@ -41,7 +41,7 @@ from app.reports.parsers.collaboration import (
     _teams_guest_settings,
 )
 from app.reports.parsers.common import _record_count, _sidecar
-from app.reports.parsers.email import _defender_policies
+from app.reports.parsers.email import _defender_policies, _inbox_rule_counts
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -783,14 +783,22 @@ def _antispam(audit: _Audit) -> _Verdict:
 
 
 def _external_forwarding(audit: _Audit) -> _Verdict:
-    # The findings are in the *_WARN files. 28_ is written whenever the check
-    # runs and lists internal forwarding too, and 29_ is the all-clear result,
-    # so those two only show that the check ran.
+    # The findings are in the *_WARN files. 28_ and 29_ are written whenever
+    # the check runs and list internal forwarding too (29_ in older runs was
+    # the all-clear result), so those two only show that the check ran.
     fc = audit.fc
     external = fc.get("28b_exchange_external_forwarding_WARN.txt", "")
     inbox_rules = fc.get("29_exchange_inbox_rules_external_fwd_WARN.txt", "")
     if external.strip() or inbox_rules.strip():
         return "warn", "Ekstern videresending oppdaget på en eller flere postbokser"
+    # A target the run could not place inside or outside the tenant is
+    # neither a finding nor a pass.
+    unverified = _inbox_rule_counts(fc)["unverified"]
+    if unverified:
+        return "info", _CANNOT_VERIFY + (
+            f"{unverified} innboksregel(er) videresender til en mottaker auditen "
+            "ikke kunne plassere innenfor eller utenfor tenanten"
+        )
     if _section_ran(
         fc, "28_exchange_mailbox_forwarding.txt", "29_exchange_inbox_rules_external_fwd.txt"
     ):
