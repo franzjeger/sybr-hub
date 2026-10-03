@@ -40,7 +40,12 @@ onViewShown('ai', function() {
   aiLoadCustomers();
   var el = document.getElementById('ai-status');
   apiFetch('/api/claude/status').then(function(d) {
-    if (el && d) el.textContent = d.available ? d.model : t('msg_not_configured_setup_api_key','Not configured — set up API key in Settings');
+    if (!el || !d) return;
+    if (d.available) { el.textContent = d.model; return; }
+    // Not set up: say where, with a way there. The key lives on the Sybrt
+    // AI card under Integrasjoner, not in Settings.
+    el.innerHTML = esc(t('msg_not_configured_setup_api_key', 'Ikke satt opp. Legg inn API-nøkkelen på Sybrt AI-kortet under Integrasjoner.'))
+      + ' <button class="btn btn-ghost btn-sm" data-click-handler="showView" data-view="integrations">' + esc(t('btn_open_integrations', 'Åpne Integrasjoner')) + '</button>';
   });
 });
 
