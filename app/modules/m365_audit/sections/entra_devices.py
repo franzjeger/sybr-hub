@@ -146,5 +146,30 @@ class EntraDevicesSection(BaseSection):
             count_lines.append(f"Trust {trust}: {n}")
         self._save("15_entra_devices_count.txt", "\n".join(count_lines))
 
+        # The register and its counts, untrimmed, for the report to read
+        # instead of the two text files above.
+        self._save_sidecar(
+            "15_entra_devices.txt",
+            {
+                "total": total,
+                "managed": managed,
+                "unmanaged": unmanaged,
+                "enabled": enabled,
+                "by_trust": dict(sorted(by_trust.items())),
+                "devices": [
+                    {
+                        "name": d.get("displayName") or "",
+                        "os": d.get("operatingSystem") or "",
+                        "os_version": d.get("operatingSystemVersion") or "",
+                        "trust_type": d.get("trustType") or "",
+                        "managed": d.get("isManaged") is True,
+                        "enabled": d.get("accountEnabled") is not False,
+                        "last_sign_in": d.get("approximateLastSignInDateTime"),
+                    }
+                    for d in sorted(devices, key=lambda x: (x.get("displayName") or "").lower())
+                ],
+            },
+        )
+
         if unmanaged:
             self._warn(f"{unmanaged} of {total} Entra-registered devices are not managed by Intune")
