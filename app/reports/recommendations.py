@@ -56,12 +56,12 @@ def relocalise_recommendations(metrics: dict, lang: str) -> dict:
     for rec in recs:
         if not isinstance(rec, dict):
             continue
-        out = dict(rec)
+        out = _advisor_in_current_shape(rec, t)
         for field in ("title", "detail"):
-            key = rec.get(f"{field}_key")
+            key = out.get(f"{field}_key")
             if key:
                 try:
-                    out[field] = str(t(key, **(rec.get(f"{field}_params") or {})))
+                    out[field] = str(t(key, **(out.get(f"{field}_params") or {})))
                 except (KeyError, IndexError):
                     # A stored param set that no longer matches its template.
                     # The stored sentence is stale in one language; a crash
@@ -878,16 +878,78 @@ def _advisor(audit: _Audit) -> Iterator[dict]:
         # Worth a finding with one high-impact item, or three of any.
         if not high_impact and len(items) < 3:
             continue
-        label_key = _ADVISOR_LABELS.get(cat)
-        cat_label = getattr(t, label_key) if label_key else cat
         sub_items = [_advisor_line(item) for item in items]
+        # "category" is Azure's own name and part of the id; the reader sees
+        # "category_label". The id used to be the translated label, so one
+        # finding had a Norwegian and an English id, and the remediation
+        # state recorded under one was lost under the other.
+        label = _advisor_label(cat, t)
         yield {
             "priority": _ADVISOR_PRIORITY.get(cat, "medium"),
-            "title": t("rec_advisor_title", category=cat_label, count=len(items)),
+            "title": t("rec_advisor_title", category=cat, category_label=label, count=len(items)),
             "detail": t("rec_advisor_detail", high_count=len(high_impact)),
             "effort": t.rec_effort_medium,
             "sub_items": sub_items,
         }
+
+
+def _advisor_label(category: str, t: T) -> str:
+    """An Advisor category in the reader's language, or as Azure names it."""
+    label_key = _ADVISOR_LABELS.get(category)
+    return getattr(t, label_key) if label_key else category
+
+
+# Until 2026-10 an Advisor recommendation was identified by its category's
+# translated label: "rec_advisor_title:Sikkerhet" in Norwegian and
+# "rec_advisor_title:Security" in English. These are the labels as they were
+# then, frozen, each to the Azure category it stood for. Database migration 24
+# moves the remediation state and tickets recorded under the old ids with it,
+# and relocalise_recommendations reads runs recorded before with it.
+ADVISOR_CATEGORY_BY_LABEL: dict[str, str] = {
+    "Sikkerhet": "Security",
+    "Security": "Security",
+    "Høy tilgjengelighet": "HighAvailability",
+    "High Availability": "HighAvailability",
+    "Kostnadsoptimalisering": "Cost",
+    "Cost Optimisation": "Cost",
+    "Ytelse": "Performance",
+    "Performance": "Performance",
+    "Drift": "OperationalExcellence",
+    "Operations": "OperationalExcellence",
+}
+
+
+def advisor_id_renames() -> dict[str, str]:
+    """{old rec_id: new rec_id} for every Advisor id the language used to change."""
+    return {
+        f"rec_advisor_title:{label}": f"rec_advisor_title:{category}"
+        for label, category in ADVISOR_CATEGORY_BY_LABEL.items()
+        if label != category
+    }
+
+
+def _advisor_in_current_shape(rec: dict, t: T) -> dict:
+    """A stored Advisor recommendation as this version writes it, labelled for *t*.
+
+    A run from before carries the translated label as "category" and its id:
+    it gets Azure's category back, and the id the remediation state was
+    migrated to. Either way the label is put in the reader's language, which
+    a stored label never was.
+    """
+    if rec.get("title_key") != "rec_advisor_title":
+        return dict(rec)
+    params = dict(rec.get("title_params") or {})
+    out = dict(rec)
+    if "category_label" not in params:
+        label = str(params.get("category") or "")
+        category = ADVISOR_CATEGORY_BY_LABEL.get(label, label)
+        params.update(category=category, category_label=label)
+        if label and out.get("rec_id") == f"rec_advisor_title:{label}":
+            out["rec_id"] = f"rec_advisor_title:{category}"
+    if params.get("category") in _ADVISOR_LABELS:
+        params["category_label"] = str(_advisor_label(params["category"], t))
+    out["title_params"] = params
+    return out
 
 
 def _advisor_line(item: dict) -> str:
