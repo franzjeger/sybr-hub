@@ -724,14 +724,27 @@ class ExchangeSection(BaseSection):
             f"  {'Label Name':<45} {'Priority':>9} {'Enabled':>8} {'Parent ID'}",
             "  " + "-" * 86,
         ]
+        rows: list[dict] = []
         for lbl in labels:
-            name = (lbl.get("name") or "")[:45]
-            priority = lbl.get("priority", 0)
-            enabled = "Yes" if lbl.get("isActive") else "No"
-            parent = lbl.get("parent", {}).get("id") or "(top-level)"
+            row = {
+                "id": lbl.get("id"),
+                "name": lbl.get("name"),
+                "priority": lbl.get("priority", 0),
+                "active": bool(lbl.get("isActive")),
+                # "or {}": a parent Graph sends as null must not cost the list.
+                "parent_id": (lbl.get("parent") or {}).get("id"),
+            }
+            rows.append(row)
+            name = (row["name"] or "")[:45]
+            priority = row["priority"]
+            enabled = "Yes" if row["active"] else "No"
+            parent = row["parent_id"] or "(top-level)"
             lines.append(f"  {name:<45} {priority:>9} {enabled:>8}  {parent}")
         lines += ["=" * 90, ""]
         self._save("19c_purview_sensitivity_labels.txt", "\n".join(lines))
+        self._save_sidecar(
+            "19c_purview_sensitivity_labels.txt", {"count": len(rows), "labels": rows}
+        )
 
     # ── DLP Policies ──────────────────────────────────────────────────────────
 
@@ -747,6 +760,9 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "Mode", "Priority", "Workload"],
         )
         self._save("19d_purview_dlp_policies.txt", content)
+        self._save_sidecar(
+            "19d_purview_dlp_policies.txt", {"count": len(policies), "policies": policies}
+        )
 
     # ── Retention Policies ────────────────────────────────────────────────────
 
@@ -762,6 +778,9 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "Enabled", "RetentionRuleTypes"],
         )
         self._save("19e_purview_retention_policies.txt", content)
+        self._save_sidecar(
+            "19e_purview_retention_policies.txt", {"count": len(policies), "policies": policies}
+        )
 
     # ── Mailbox Delegations ──────────────────────────────────────────────────
 

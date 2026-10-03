@@ -23,7 +23,7 @@ from app.reports.parsers import (
 from app.reports.parsers.tenant import _parse_shared_mailbox_upns, _shared_mailbox_upns
 from app.reports.recommendations import _build_recommendations
 from app.reports.risk import _compute_risk
-from tests.collector_rig import FakeGraph, run_sections
+from tests.collector_rig import FakeGraph, refused, run_sections
 
 LABELS_PATH = "beta/security/dataSecurityAndGovernance/sensitivityLabels"
 
@@ -602,6 +602,95 @@ async def test_a_setting_the_helper_sent_as_a_word_is_typed_in_the_sidecar(tmp_p
     )
     controls = _controls(files)
     assert (controls["4.1"]["status"], controls["9.1"]["status"]) == ("pass", "pass")
+
+
+# ── Purview: sensitivity labels (Graph), DLP and retention (the helper) ──────
+
+PARENT = "00000000-0000-0000-0000-00000000000a"
+
+
+def _label(name: str, priority: int, *, active: bool = True, parent: str | None = None) -> dict:
+    """One label as Graph's sensitivityLabels collection returns it."""
+    label = {"id": f"label-{priority}", "name": name, "priority": priority, "isActive": active}
+    if parent:
+        label["parent"] = {"id": parent}
+    return label
+
+
+LABELS = [
+    _label("Offentlig", 0),
+    _label("Intern", 1),
+    _label("Konfidensiell", 2, parent=PARENT),
+    _label("Utgått", 3, active=False),
+]
+DLP = [
+    {"Name": "Kundedata", "Mode": "Enable", "Workloads": "Exchange,SharePoint", "Priority": 0},
+    {
+        "Name": "Fødselsnummer",
+        "Mode": "TestWithNotifications",
+        "Workloads": "Exchange",
+        "Priority": 1,
+    },
+]
+RETENTION = [{"Name": "Sju år", "Enabled": True, "Workloads": "Exchange,SharePoint,OneDrive"}]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_purview_survives_the_round_trip(tmp_path, sidecars):
+    exo = {"dlp_policies": DLP, "retention_policies": RETENTION}
+    files, _ = await _collect(tmp_path, exo, labels=LABELS, sidecars=sidecars)
+    assert ("19c_purview_sensitivity_labels.json" in files) is sidecars
+
+    purview = _parse_purview(files)
+    assert purview["sensitivity_labels"] == [
+        {"name": "Offentlig", "priority": 0, "active": True},
+        {"name": "Intern", "priority": 1, "active": True},
+        {"name": "Konfidensiell", "priority": 2, "active": True},
+        {"name": "Utgått", "priority": 3, "active": False},
+    ]
+    assert [p["name"] for p in purview["dlp_policies"]] == ["Kundedata", "Fødselsnummer"]
+    assert [p["name"] for p in purview["retention_policies"]] == ["Sju år"]
+
+    controls = _controls(files, purview=purview)
+    assert controls["3.1.1"]["detail"] == "2 DLP-policyer konfigurert"
+    assert controls["3.2.1"]["detail"] == "4 sensitivitetsetiketter publisert"
+    assert controls["7.2.2"]["detail"] == "1 oppbevaringspolicyer"
+
+
+async def test_every_label_is_counted_under_its_whole_name(tmp_path):
+    """The text cuts names at 45 characters and skips lines that read like headings."""
+    long_name = "Strengt fortrolig - kun ledergruppen og styret i konsernet"
+    assert len(long_name) > 45
+    labels = [_label(long_name, 0), _label("No restrictions", 1), _label("Purview test", 2)]
+    files, _ = await _collect(tmp_path, {}, labels=labels)
+
+    purview = _parse_purview(files)
+    assert [label["name"] for label in purview["sensitivity_labels"]] == [
+        long_name,
+        "No restrictions",
+        "Purview test",
+    ]
+    assert _parse_purview(_text_only(files))["sensitivity_label_count"] == 1, "the text loses two"
+
+
+async def test_the_policy_names_come_from_the_purview_sidecars(tmp_path):
+    files, _ = await _collect(tmp_path, {"dlp_policies": DLP, "retention_policies": RETENTION})
+    for name in ("19d_purview_dlp_policies.txt", "19e_purview_retention_policies.txt"):
+        files[name] = files[name].replace("Name: ", "Name: Endret ")  # the text now disagrees
+
+    purview = _parse_purview(files)
+    assert [p["name"] for p in purview["dlp_policies"]] == ["Kundedata", "Fødselsnummer"]
+    assert [p["name"] for p in purview["retention_policies"]] == ["Sju år"]
+
+
+async def test_a_refused_label_read_writes_no_sidecar(tmp_path):
+    files, _ = await _collect(tmp_path, {}, labels=refused())
+
+    assert files["19c_purview_sensitivity_labels.txt"] == "", "an error stub, blanked"
+    assert "19c_purview_sensitivity_labels.json" not in files
+    purview = _parse_purview(files)
+    assert purview["sensitivity_label_count"] == 0
+    assert _controls(files, purview=purview)["3.2.1"]["status"] == "info"
 
 
 # ── A read the helper reports as failed ───────────────────────────────────────
