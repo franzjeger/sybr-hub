@@ -56,6 +56,41 @@ def _parse_spf_dmarc(text: str) -> list[dict]:
     return domains
 
 
+def _spf_dmarc_records(file_contents: dict[str, str]) -> list[dict]:
+    """Per mail domain, its SPF, DMARC, DKIM and MTA-STS findings.
+
+    From 26_email_dns_spf_dmarc.json, in the shape _parse_spf_dmarc reads the
+    text into, so every consumer of the list reads either the same way: the
+    statuses as the collector words them, a record only where one was looked
+    up ("" for DMARC when none is published), and the two DKIM summaries in
+    the text's "selector: status | ..." form. A run without the sidecar is
+    read from the text.
+    """
+    data = _sidecar(file_contents, "26_email_dns_spf_dmarc.txt")
+    if data is None:
+        return _parse_spf_dmarc(file_contents.get("26_email_dns_spf_dmarc.txt", ""))
+    records = []
+    for d in data.get("domains") or []:
+        if not isinstance(d, dict):
+            continue
+        record = {"domain": str(d.get("domain") or "").strip()}
+        record["spf"] = str(d.get("spf_status") or "").strip()
+        if isinstance(d.get("spf_record"), str) and d["spf_record"]:
+            record["spf_record"] = d["spf_record"].strip()
+        record["dmarc"] = str(d.get("dmarc_status") or "").strip()
+        if isinstance(d.get("dmarc_record"), str):
+            record["dmarc_record"] = d["dmarc_record"].strip()
+        dkim = d.get("dkim") if isinstance(d.get("dkim"), dict) else {}
+        m365 = ("selector1", "selector2")
+        record["dkim1"] = " | ".join(f"{s}: {dkim.get(s, 'MISSING')}" for s in m365)
+        record["dkim2"] = " | ".join(f"{s}: {v}" for s, v in dkim.items() if s not in m365)
+        found = d.get("dkim_found") if isinstance(d.get("dkim_found"), list) else []
+        record["dkim_found"] = ", ".join(str(s) for s in found) or "(none)"
+        record["mta_sts"] = str(d.get("mta_sts") or "").strip()
+        records.append(record)
+    return records
+
+
 # Domains to exclude from SPF/DMARC compliance checks — these are either
 # Microsoft infrastructure domains or third-party service domains where
 # the customer has no control over DNS records.
