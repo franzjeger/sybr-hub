@@ -236,7 +236,11 @@ def build_report_context(
             ),
         )
     sharepoint = _parse_sharepoint_settings(
-        fc("15b_sharepoint_settings.txt"), fc("15_sharepoint_sites.txt"), lang=lang
+        fc("15b_sharepoint_settings.txt"),
+        fc("15_sharepoint_sites.txt"),
+        lang=lang,
+        settings_json=_sidecar(file_contents, "15b_sharepoint_settings.txt"),
+        sites_json=_sidecar(file_contents, "15_sharepoint_sites.txt"),
     )
     oauth = _parse_oauth_grants(fc("17b_oauth_consent_grants.txt"), fc("17_app_registrations.txt"))
     # The reader blanks an error-payload file to "" before the parser sees it, so

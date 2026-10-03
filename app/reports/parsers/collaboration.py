@@ -29,13 +29,36 @@ def _site_table_rows(sites_text: str) -> int | None:
     return rows
 
 
-def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = "no") -> dict:
+def _flag(value) -> str:
+    """A sidecar's true/false/None as the text writes it: "true", "false" or ""."""
+    return "" if value is None else str(value).lower()
+
+
+def _parse_sharepoint_settings(
+    settings_text: str,
+    sites_text: str,
+    lang: str = "no",
+    settings_json: dict | None = None,
+    sites_json: dict | None = None,
+) -> dict:
+    """SharePoint sharing posture and site counts.
+
+    From the 15b_sharepoint_settings.json and 15_sharepoint_sites.json sidecars
+    where the run has them, each independently, and from the text otherwise.
+    """
     t = T(lang)
     settings: dict[str, str] = {}
     for line in settings_text.splitlines():
         if ":" in line and not line.strip().startswith("==="):
             k, v = line.split(":", 1)
             settings[k.strip().lower()] = v.strip()
+    if settings_json is not None:
+        # The sidecar, put in the vocabulary of the text it stands beside.
+        settings = {
+            "sharing capability": settings_json.get("sharing_capability") or "",
+            "legacy auth": _flag(settings_json.get("legacy_auth")),
+            "unmanaged devices": _flag(settings_json.get("unmanaged_devices")),
+        }
 
     sharing_raw = settings.get("sharing capability", "")
     sharing_map = {
@@ -74,6 +97,8 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
     site_count = _site_table_rows(sites_text)
     if site_count is None:
         site_count = _count_data_lines(sites_text)
+    if sites_json is not None and "count" in sites_json:
+        site_count = int(sites_json["count"])
 
     # A personal site is identified by its host, not by the word "personal"
     # appearing anywhere on the line. This tenant has an ordinary team site
@@ -84,6 +109,8 @@ def _parse_sharepoint_settings(settings_text: str, sites_text: str, lang: str = 
         for line in sites_text.splitlines()
         if "-my.sharepoint.com" in line.lower() or "/personal/" in line.lower()
     )
+    if sites_json is not None and "personal_count" in sites_json:
+        personal_sites = int(sites_json["personal_count"])
 
     return {
         "sharing": sharing_raw,

@@ -52,13 +52,34 @@ class SharePointSection(BaseSection):
             f"  {'Site Name':<45} {'Web URL':<60} {'Created'}",
             "  " + "-" * 106,
         ]
+        rows: list[dict] = []
         for s in sites:
             name = (s.get("displayName") or s.get("name") or "")[:45]
             url = (s.get("webUrl") or "")[:60]
             created = (s.get("createdDateTime") or "N/A")[:19]
             lines.append(f"  {name:<45} {url:<60} {created}")
+            full_url = s.get("webUrl") or ""
+            rows.append(
+                {
+                    "id": s.get("id"),
+                    "name": s.get("displayName") or s.get("name") or "",
+                    "web_url": full_url,
+                    "created": s.get("createdDateTime"),
+                    # A OneDrive, told by its host or path as the report does.
+                    "personal": "-my.sharepoint.com" in full_url.lower()
+                    or "/personal/" in full_url.lower(),
+                }
+            )
         lines += ["=" * 110, ""]
         self._save("15_sharepoint_sites.txt", "\n".join(lines))
+        self._save_sidecar(
+            "15_sharepoint_sites.txt",
+            {
+                "count": len(rows),
+                "personal_count": sum(1 for r in rows if r["personal"]),
+                "sites": rows,
+            },
+        )
         return sites
 
     # ── Settings ──────────────────────────────────────────────────────────────
@@ -104,6 +125,24 @@ class SharePointSection(BaseSection):
             "",
         ]
         self._save("15b_sharepoint_settings.txt", "\n".join(lines))
+        self._save_sidecar(
+            "15b_sharepoint_settings.txt",
+            {
+                "sharing_capability": data.get("sharingCapability"),
+                "sharing_domain_restriction_mode": data.get("sharingDomainRestrictionMode"),
+                "sharing_allowed_domains": data.get("sharingAllowedDomainList"),
+                "resharing_by_external_users": data.get("isResharingByExternalUsersEnabled"),
+                "require_accepting_user_to_match_invited_user": data.get(
+                    "isRequireAcceptingUserToMatchInvitedUserEnabled"
+                ),
+                "legacy_auth": data.get("isLegacyAuthProtocolsEnabled"),
+                # The report's "Unmanaged Devices": allowed unless the sync app
+                # is restricted. None when Graph did not say.
+                "unmanaged_devices": (
+                    None if unmanaged_restricted is None else not unmanaged_restricted
+                ),
+            },
+        )
 
         if sharing_cap == _WIDE_SHARING:
             self._warn(
