@@ -776,8 +776,9 @@ function toggleLogAutoRefresh() {
   }
 }
 
-// Check auth on load
-checkAuth();
+// Auth is checked once on load, after the strings: loadI18n().then(checkAuth)
+// above. A second call here ran the whole start-up twice (/auth/me, the
+// route's customer page, /settings, the bell and the VPN badge, each twice).
 
 // ── Offline / Online connection indicator ────────────────────────────────────
 (function() {
