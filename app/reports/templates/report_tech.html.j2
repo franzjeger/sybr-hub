@@ -1016,6 +1016,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
         {% if exchange.external_forwarding %}<span class="tag critical">{{ t.detected }}</span>{% else %}<span class="tag ok">{{ t.none }}</span>{% endif %}
       </td>
     </tr>
+    {% if exchange.forwarding_unverified %}<tr><td>{{ t.forwarding_unverified }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.forwarding_unverified }}</td></tr>{% endif %}
     <tr><td>{{ t.inbox_rules_ext_fwd }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.inbox_rules_external }}</td></tr>
     {% if exchange.inbox_rules_unverified %}<tr><td>{{ t.inbox_rules_unverified }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.inbox_rules_unverified }}</td></tr>{% endif %}
     <tr><td>{{ t.transport_rules }}</td><td style="text-align:right;font-family:var(--mono);">{{ exchange.transport_rules }}</td></tr>

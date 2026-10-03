@@ -410,6 +410,113 @@ def _forwarding_findings(files: dict) -> tuple[list[str], int]:
     return rows, clean - score
 
 
+def _forward_to_recipient(name: str, identity: str, recipient: dict | None) -> dict:
+    """A mailbox forwarding to a recipient (ForwardingAddress), as the helper writes it.
+
+    ``recipient`` is what the helper's Resolve-RecipientInfo found the identity
+    to be, or None when it could not look it up (or predates the lookup).
+    """
+    local = name.split()[0].lower()
+    return {
+        "DisplayName": name,
+        "PrimarySmtpAddress": f"{local}@acme.example",
+        "ForwardingAddress": identity,
+        "ForwardingRecipient": recipient,
+        "ForwardingSmtp": None,
+        "DeliverAndForward": True,
+    }
+
+
+COLLEAGUE_MAILBOX = {
+    "RecipientTypeDetails": "UserMailbox",
+    "PrimarySmtpAddress": "ola@acme.example",
+    "ExternalEmailAddress": "",
+}
+OUTSIDE_CONTACT = {
+    "RecipientTypeDetails": "MailContact",
+    "PrimarySmtpAddress": "revisor@revisjon.example",
+    "ExternalEmailAddress": "SMTP:revisor@revisjon.example",
+}
+
+
+def _forwarding_outcome(files: dict, section) -> dict:
+    overview = _parse_exchange_overview(files)
+    rows, cost = _forwarding_findings(files)
+    return {
+        "external": overview["external_forwarding"],
+        "unverified": overview["forwarding_unverified"],
+        "cis_4_4": _controls(files)["4.4"]["status"],
+        "finding": rows,
+        "cost": cost,
+        "critical": any(
+            "mailbox(es) forwarding" in w and level == "critical"
+            for w, level in zip(section.result.warns, section.result.warn_levels, strict=True)
+        ),
+    }
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_forwarding_to_a_colleague_by_recipient_is_not_external(tmp_path, sidecars):
+    """ForwardingAddress is a recipient identity, not an address.
+
+    The domain test on it always failed, so every mailbox forwarding to a
+    recipient was a critical external forward: a 28b WARN file, a CIS 4.4
+    warn, a critical recommendation and five points off the score.
+    """
+    exo = {
+        "forwarding": [_forward_to_recipient("Kari Nordmann", "Ola Nordmann", COLLEAGUE_MAILBOX)]
+    }
+    files, section = await _collect(tmp_path, exo, sidecars=sidecars)
+
+    assert "28b_exchange_external_forwarding_WARN.txt" not in files
+    assert _forwarding_outcome(files, section) == {
+        "external": False,
+        "unverified": 0,
+        "cis_4_4": "pass",
+        "finding": [],
+        "cost": 0,
+        "critical": False,
+    }
+    row = next(
+        line for line in files["28_exchange_mailbox_forwarding.txt"].splitlines() if "Kari" in line
+    )
+    assert "ola@acme.example" in row and row.split()[-1] == "No"
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_forwarding_to_a_mail_contact_outside_the_tenant_is_external(tmp_path, sidecars):
+    exo = {"forwarding": [_forward_to_recipient("Kari Nordmann", "Revisor", OUTSIDE_CONTACT)]}
+    files, section = await _collect(tmp_path, exo, sidecars=sidecars)
+
+    assert _forwarding_outcome(files, section) == {
+        "external": True,
+        "unverified": 0,
+        "cis_4_4": "warn",
+        "finding": ["Kari Nordmann → Revisor (revisor@revisjon.example)"],
+        "cost": 5,
+        "critical": True,
+    }
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_recipient_the_run_could_not_resolve_is_unverified(tmp_path, sidecars):
+    """Not a critical external forward on no evidence, and not a pass either."""
+    exo = {"forwarding": [_forward_to_recipient("Kari Nordmann", "Ola Nordmann", None)]}
+    files, section = await _collect(tmp_path, exo, sidecars=sidecars)
+
+    assert "28b_exchange_external_forwarding_WARN.txt" not in files
+    assert _forwarding_outcome(files, section) == {
+        "external": False,
+        "unverified": 1,
+        "cis_4_4": "info",
+        "finding": [],
+        "cost": 0,
+        "critical": False,
+    }
+    assert "1 postboks(er)" in _controls(files)["4.4"]["detail"]
+    assert any("could not place" in w for w in section.result.warns)
+
+
 @pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
 async def test_forwarding_findings_survive_the_round_trip(tmp_path, sidecars):
     files, _ = await _collect(tmp_path, {"forwarding": FORWARDING[:2]}, sidecars=sidecars)

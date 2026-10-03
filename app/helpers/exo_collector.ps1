@@ -233,11 +233,14 @@ try {
            Where-Object { $_.ForwardingAddress -or $_.ForwardingSmtpAddress }
     $result.forwarding = $fwd | ForEach-Object {
         @{
-            DisplayName        = $_.DisplayName
-            PrimarySmtpAddress = $_.PrimarySmtpAddress
-            ForwardingAddress  = $_.ForwardingAddress
-            ForwardingSmtp     = $_.ForwardingSmtpAddress
-            DeliverAndForward  = $_.DeliverToMailboxAndForward
+            DisplayName         = $_.DisplayName
+            PrimarySmtpAddress  = $_.PrimarySmtpAddress
+            ForwardingAddress   = $_.ForwardingAddress
+            # ForwardingAddress is a recipient identity, not an address: what
+            # it resolves to decides whether the forwarding leaves the tenant.
+            ForwardingRecipient = if ($_.ForwardingAddress) { Resolve-RecipientInfo "$($_.ForwardingAddress)" } else { $null }
+            ForwardingSmtp      = $_.ForwardingSmtpAddress
+            DeliverAndForward   = $_.DeliverToMailboxAndForward
         }
     }
 } catch { $result.forwarding_error = "$_" }
