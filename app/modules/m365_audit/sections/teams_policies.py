@@ -181,12 +181,13 @@ class TeamsPoliciesSection(BaseSection):
             "",
         ]
 
-        # External access / federation
+        # External access / federation. The partner configurations are a
+        # relationship on the policy, not a property: read off a GET on the
+        # policy itself they were "0 configured" on every tenant.
         try:
-            fed = await self.graph.get("policies/crossTenantAccessPolicy", beta=True)
-            partners = fed.get("partners", [])
-            if isinstance(partners, dict):
-                partners = partners.get("value", [])
+            partners = await self.graph.get_all(
+                "policies/crossTenantAccessPolicy/partners", beta=True
+            )
             lines += [
                 f"  External Federation Partners    : {len(partners)} configured",
             ]
