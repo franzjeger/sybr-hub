@@ -2384,6 +2384,12 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   .cust-standard-table td { padding: 4px 8px 0 0; }
   .cust-standard-reason { grid-column: 2; text-align: left; padding-bottom: 6px; }
 }
+.files-report-row {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--space-3);
+  padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.files-report-name { overflow-wrap: anywhere; min-width: 0; }
+.files-report-meta { color: var(--text-muted); white-space: nowrap; }
 .hist-files { font-family: var(--mono); color: var(--text-muted); }
 .hist-action { text-align: right; }
 .cust-trend { padding: var(--space-5); margin-bottom: var(--space-4); }
