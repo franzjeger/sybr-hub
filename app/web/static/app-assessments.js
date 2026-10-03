@@ -149,7 +149,7 @@ function _asmtResultHTML(res) {
     : (pct >= 90 ? 'asmt-pct-good' : (pct >= 70 ? 'asmt-pct-mid' : 'asmt-pct-bad'));
   // A percentage over one or two measured checks is not a score; show a dash so
   // the caution below carries the meaning instead of a misleading number.
-  var pctTxt = muted ? '&#8211;' : (pct + ' %');
+  var pctTxt = muted ? '&#8211;' : (Number(pct) + ' %');
   var pctLabel = muted ? t('lbl_not_scored', 'Not enough data') : t('lbl_conformance', 'conformance');
 
   var h = '<div class="asmt-result-head">';

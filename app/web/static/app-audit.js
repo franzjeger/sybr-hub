@@ -358,7 +358,7 @@ async function _attemptAuditStream(streamUrl) {
       // and there is no way to attach to the existing run's stream, so fall
       // through to watching its progress.
       if (resp.status === 409) return false;
-      setAuditStatus('<span style="color:var(--red)">✗ HTTP '+resp.status+'</span>');
+      setAuditStatus('<span style="color:var(--red)">✗ HTTP '+Number(resp.status)+'</span>');
       return 'done';
     }
     var reader = resp.body.getReader();
@@ -384,7 +384,7 @@ async function _attemptAuditStream(streamUrl) {
             // Re-attach replay: jump the status to where the run is now; live
             // 'progress' events follow and fill in the per-section detail.
             if (typeof d.completed === 'number' && typeof d.total_sections === 'number') {
-              setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', d.completed).replace('{total}', d.total_sections) + '</span>');
+              setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', Number(d.completed)).replace('{total}', Number(d.total_sections)) + '</span>');
             }
           } else if (d.type === 'ended') {
             // A re-attach found no active run (it finished or was cleared while
@@ -452,7 +452,7 @@ function handleProgress(d) {
     tr.innerHTML = `
       <td><span class="status-icon ${cls[status] || ''}">${icons[status] || '•'}</span></td>
       <td style="font-weight:500;">${esc(name)}</td>
-      <td><span class="status-text ${cls[status] || ''}">${statusLabel(status, labels)}</span></td>
+      <td><span class="status-text ${cls[status] || ''}">${esc(statusLabel(status, labels))}</span></td>
       <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}</td>`;
     tbody.appendChild(tr);
     sectionRows[name] = tr;
@@ -509,10 +509,11 @@ function renderAuditFindings(results) {
     return;
   }
 
+  var colours = {red: 'var(--red)', orange: 'var(--orange)', dim: 'var(--text-dim)'};
   function list(items, colour, heading) {
     if (!items.length) return '';
     return '<div style="margin-bottom:12px;">'
-      + '<div style="font-weight:600;color:' + colour + ';margin-bottom:6px;font-size:13px;">'
+      + '<div style="font-weight:600;color:' + colours[colour] + ';margin-bottom:6px;font-size:13px;">'
       + esc(heading) + ' (' + items.length + ')</div>'
       + items.map(function (f) {
           // Wraps rather than squeezing: a fixed basis pinched the section
@@ -532,12 +533,12 @@ function renderAuditFindings(results) {
   var anyCritical = findings.some(function (f) { return f.level === 'critical'; });
   box.innerHTML = '<div class="card" style="border-left:3px solid '
     + (failures.length || anyCritical ? 'var(--red)' : 'var(--orange)') + ';">'
-    + list(failures, 'var(--red)', t('status_failed', 'Feilet'))
+    + list(failures, 'red', t('status_failed', 'Feilet'))
     + list(findings.filter(function (f) { return f.level === 'critical'; }),
-           'var(--red)', t('status_critical_findings', 'Kritiske funn'))
+           'red', t('status_critical_findings', 'Kritiske funn'))
     + list(findings.filter(function (f) { return f.level !== 'critical'; }),
-           'var(--orange)', t('status_warnings', 'Varsler'))
-    + list(skipped, 'var(--text-dim)', t('status_skipped', 'Hoppet over'))
+           'orange', t('status_warnings', 'Varsler'))
+    + list(skipped, 'dim', t('status_skipped', 'Hoppet over'))
     + '</div>';
 }
 
@@ -582,7 +583,7 @@ function handleAuditDone(results) {
   var elapsed = window._auditStartTime ? Math.round((Date.now() - window._auditStartTime) / 1000) : 0;
   var elapsedStr = elapsed >= 60 ? Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's' : elapsed + 's';
   var totalFiles = results.reduce(function(s,r){ return s + (r.files ? r.files.length : 0); }, 0);
-  setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + totalFiles + ' ' + t('nav_files','files') + ')</span></span>');
+  setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + Number(totalFiles) + ' ' + t('nav_files','files') + ')</span></span>');
 
   document.getElementById('sum-done').textContent = done;
   document.getElementById('sum-warn').textContent = warns;
@@ -622,7 +623,7 @@ function updateProgress(done, total) {
 }
 
 function setAuditStatus(html) {
-  document.getElementById('audit-status-bar').innerHTML = html;
+  document.getElementById('audit-status-bar').innerHTML = /* safe-html: every caller passes markup built inline, which the check reads at the call */ html;
 }
 
 // ── Audit progress polling (REST) ───────────────────────────────────────────
@@ -647,7 +648,7 @@ async function pollAuditProgress() {
     var ind = document.getElementById('audit-running-indicator');
     if (ind && ind.style.display !== 'none') {
       ind.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> '
-        + 'Audit ' + d.progress + '% · ' + esc(d.current_section);
+        + 'Audit ' + Number(d.progress) + '% · ' + esc(d.current_section);
     }
     // The audit view's own bar used to derive its total from the sections that
     // had already announced themselves, so it read n / n after every section
@@ -655,7 +656,7 @@ async function pollAuditProgress() {
     // list; take the denominator from it and let the SSE handler move the
     // numerator between polls.
     if (typeof d.total_sections === 'number' && d.total_sections > 0) {
-      sectionTotal = d.total_sections;
+      sectionTotal = Number(d.total_sections);
       if (currentView === 'audit') updateProgress(d.completed, sectionTotal);
     }
     // Update floating progress bar (shown on non-audit views)
@@ -993,8 +994,8 @@ function renderHistory(runs) {
               data-change-handler="onCompareCheck"
               style="accent-color:#1d6387;width:15px;height:15px;cursor:pointer;">
           </td>
-          <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
-          <td style="font-family:var(--mono);color:var(--text-muted);">${run.file_count} ${t('nav_files','filer')}</td>
+          <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+esc(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
+          <td style="font-family:var(--mono);color:var(--text-muted);">${Number(run.file_count)} ${t('nav_files','filer')}</td>
           <td style="text-align:right;">
             <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;"
               data-click-handler="loadHistoryRun" data-path="${esc(run.path)}">
@@ -1043,7 +1044,7 @@ async function loadHistoryRun(path) {
     }
     document.getElementById('hist-report-subtitle').textContent = displayDate;
 
-    box.innerHTML = t('msg_sections_data_loaded').replace('{sections}', '<strong>' + d.sections + '</strong>').replace('{files}', '<strong>' + d.files + '</strong>').replace('{date}', esc(displayDate));
+    box.innerHTML = t('msg_sections_data_loaded').replace('{sections}', '<strong>' + Number(d.sections) + '</strong>').replace('{files}', '<strong>' + Number(d.files) + '</strong>').replace('{date}', esc(displayDate));
   } catch (e) {
     box.innerHTML = `<div class="alert alert-error">✗ ${t('err_network_error').replace('{msg}', esc(e.message))}</div>`;
   }

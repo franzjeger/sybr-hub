@@ -104,7 +104,7 @@ function _poWorkloadBlocks(workloads) {
     html += '<div class="po-block">';
     html += '<div class="po-sub">'
       + esc(_poLoc(wl.label))
-      + ' <span class="po-sub-count">' + (wl.count || 0) + '</span>'
+      + ' <span class="po-sub-count">' + (Number(wl.count) || 0) + '</span>'
       + '</div>';
     html += '<table class="po-tbl">';
     (wl.items || []).forEach(function(it) {
@@ -155,13 +155,13 @@ function _poDriftBlock(d) {
   html += '<div class="po-meta">'
     + t('lbl_drift_against', 'Against run') + ': ' + esc(d.compared_with || '—')
     + ' &middot; '
-    + '<span class="po-dr-count-add">' + (d.added_total || 0) + ' ' + t('lbl_added', 'added') + '</span>'
+    + '<span class="po-dr-count-add">' + (Number(d.added_total) || 0) + ' ' + t('lbl_added', 'added') + '</span>'
     + ' / '
-    + '<span class="po-dr-count-rem">' + (d.removed_total || 0) + ' ' + t('lbl_removed', 'removed') + '</span>'
+    + '<span class="po-dr-count-rem">' + (Number(d.removed_total) || 0) + ' ' + t('lbl_removed', 'removed') + '</span>'
     + ' / '
-    + '<span class="po-dr-count-chg">' + (d.changed_total || 0) + ' ' + t('lbl_changed', 'changed') + '</span>'
+    + '<span class="po-dr-count-chg">' + (Number(d.changed_total) || 0) + ' ' + t('lbl_changed', 'changed') + '</span>'
     + ' &middot; '
-    + (d.snapshots || []).reduce(function(acc, s) { return acc + (s.unchanged || 0); }, 0)
+    + Number((d.snapshots || []).reduce(function(acc, s) { return acc + (s.unchanged || 0); }, 0))
     + ' ' + t('lbl_unchanged', 'unchanged')
     + '</div>';
 
@@ -204,7 +204,7 @@ function _poDriftList(type, items, withFields) {
       + '" title="' + esc(label) + '">' + icon + '</span>';
     html += '<span class="po-dr-name">' + esc(p.name || p.id || '') + '</span>';
     if (withFields && p.fields && p.fields.length) {
-      html += '<span class="po-fields">(' + p.fields.map(esc).join(', ') + ')</span>';
+      html += '<span class="po-fields">(' + p.fields.map(function(f) { return esc(f); }).join(', ') + ')</span>';
     }
     html += '</div>';
   });

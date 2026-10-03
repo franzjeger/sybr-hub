@@ -47,8 +47,8 @@ function _renderBaselineForm(schema) {
       Object.keys(fields).forEach(fieldName => {
           var field = fields[fieldName];
           html += '<label class="bd-field-row">';
-          html += '<input type="checkbox" class="bd-pol" value="' + cat.key + '.' + fieldName + '" checked>';
-          html += '<span class="bd-field-body"><span class="bd-field-name">' + fieldName + '</span>';
+          html += '<input type="checkbox" class="bd-pol" value="' + cat.key + '.' + esc(fieldName) + '" checked>';
+          html += '<span class="bd-field-body"><span class="bd-field-name">' + esc(fieldName) + '</span>';
           html += '<span class="bd-field-desc">' + esc(field.description || '') + '</span>';
           html += '</span></label>';
       });

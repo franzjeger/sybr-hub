@@ -106,7 +106,7 @@ function _pdForm() {
   html += '<select id="pd-template" data-change-handler="_pdLoadPolicies" style="width:100%;padding:8px;margin-bottom:var(--space-4);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);">';
   _pdTemplates.forEach(function(tpl) {
     html += '<option value="' + esc(tpl.id) + '">' + esc(tpl.name) + ' ' + esc(tpl.version)
-         + ' · ' + tpl.policies + ' ' + t('lbl_policies', 'policies') + '</option>';
+         + ' · ' + Number(tpl.policies) + ' ' + t('lbl_policies', 'policies') + '</option>';
   });
   html += '</select>';
 
@@ -350,7 +350,7 @@ async function policyRestoreLoad() {
   d.sources.forEach(function(s) {
     var kind = s.kind === 'deployment' ? t('lbl_before_deploy', 'before a deployment') : t('lbl_audit_run', 'audit run');
     html += '<option value="' + esc(s.kind) + '|' + esc(s.ref) + '">'
-         + esc(s.captured_at) + ' · ' + kind + ' (' + s.count + ' ' + t('lbl_policies', 'policies') + ')</option>';
+         + esc(s.captured_at) + ' · ' + kind + ' (' + Number(s.count) + ' ' + t('lbl_policies', 'policies') + ')</option>';
   });
   html += '</select>';
   html += '<button class="btn btn-ghost" data-click-handler="policyRestorePlan">' + t('btn_plan_restore', 'Show restore plan') + '</button>';
@@ -401,7 +401,7 @@ function _pdRenderRestorePlan(plan) {
   });
   html += '</table>';
   html += '<button class="btn btn-primary" style="margin-top:var(--space-3);" ' + (plan.applicable ? '' : 'disabled ')
-       + 'data-write="tenant" data-click-handler="policyRestoreApply">' + t('btn_apply_restore', 'Restore {n} policy change(s)').replace('{n}', plan.applicable) + '</button>';
+       + 'data-write="tenant" data-click-handler="policyRestoreApply">' + t('btn_apply_restore', 'Restore {n} policy change(s)').replace('{n}', Number(plan.applicable)) + '</button>';
   return html;
 }
 
@@ -532,7 +532,7 @@ function _pdRenderPlan(plan) {
   var blocked = plan.missing_consent || plan.applicable === 0;
   html += '<div style="margin-top:var(--space-4);display:flex;gap:var(--space-3);align-items:center;">';
   html += '<button class="btn btn-primary" ' + (blocked ? 'disabled ' : '') + 'data-write="tenant" data-click-handler="policyDeployApply">'
-       + t('btn_apply', 'Apply {n} change(s)').replace('{n}', plan.applicable) + '</button>';
+       + t('btn_apply', 'Apply {n} change(s)').replace('{n}', Number(plan.applicable)) + '</button>';
   html += '<span style="font-size:var(--font-xs);color:var(--text-muted);">'
        + t('msg_apply_note', 'Applying re-checks the tenant and refuses if it has changed since this plan.') + '</span>';
   html += '</div></div>';
