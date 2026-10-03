@@ -6,6 +6,65 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Rapporten leser strukturerte data
+
+- Auditen lagrer nå en JSON-fil ved siden av tekstfilen for hver seksjon som
+  rapporten leser: identitet, enheter, e-post, SharePoint, OneDrive, Teams,
+  apper, lisenser, Purview og Azure. Rapporten bruker JSON-filen når den
+  finnes, og tekstfilen for auditer fra før denne versjonen. Tabeller som
+  kutter navn og adresser i faste kolonner, avgjør ikke lenger hva rapporten
+  ser.
+
+### Rene tenanter får ikke falske funn
+
+- Kunderapporten til en tenant uten risikable brukere viste kortet
+  «risikable brukere oppdaget» med merket «høy risiko», og den tekniske
+  rapporten listet Defender-varsler under kritiske funn uten å ha noen. Nå
+  vises disse bare når det finnes noe å vise.
+- Videresending til en lang adresse i et verifisert domene ble regnet som
+  ekstern videresending, med kritisk advarsel, CIS 4.4 og trekk i scoren.
+  Domenet leses nå fra hele adressen.
+- En mislykket lesing av diskene eller nettverket i Azure ble talt som en
+  foreldreløs ressurs og trakk ti poeng fra Azure-scoren.
+- En Exchange-lesing som feilet, ble skrevet som «ingen». En tenant der
+  compliance-økten ikke koblet til, fikk «ingen DLP-policyer» og «ingen
+  oppbevaringspolicyer». Rapporten sier nå at dataene ikke ble samlet inn.
+
+### Rapporten teller det som faktisk finnes
+
+- Rader som begynte med «No» eller «Note», ble lest som en plassholder og
+  hoppet over. En SharePoint-side som heter «Notes», en postboks som heter
+  «No Reply» og en compliance-policy som heter «No jailbroken devices»
+  forsvant fra tellingene. Nå telles de.
+- CIS 8.1.1 kunne aldri vurderes: auditen leste ekstern tilgang i Teams fra
+  et endepunkt som ikke inneholder den. Antallet eksterne partnere var 0 for
+  alle tenanter.
+- Fordelingen på Windows, iOS og Android i Intune var 0, 0 og 0 for alle
+  tenanter.
+- OAuth-samtykker med lange navn eller uten omfang ble hoppet over. En tenant
+  med seks samtykker ble lest som tre, og ingen av de tre med høye rettigheter
+  nådde CIS 2.1 eller risikoscoren.
+- En Global Admin som Conditional Access unntar fra MFA, og som har en UPN
+  lengre enn 45 tegn, gir igjen det kritiske funnet.
+- Grupper, inaktive kontoer og koblinger i Exchange telles riktig. Navn som
+  fyller hele kolonnen, gjorde at rader forsvant, og en tenant uten koblinger
+  hadde én.
+- Utstyrspostbokser telles for seg og ikke som brukerpostbokser.
+- Tabellen over mislykkede pålogginger listet alle brukere, også de uten
+  feil.
+- Tiltakene fra Secure Score viser kategorien sin i stedet for «()».
+- Delte postbokser ble foreslått fjernet som inaktive brukere, fordi
+  UPN-kolonnen i postbokstabellen alltid var tom.
+- En tenant med én Safe Links-policy fikk ingen Defender-fil, og CIS 4.5 og
+  4.6 kunne ikke vurderes.
+
+### Audit
+
+- En audit begrenset til utvalgte seksjoner hoppet over alle Azure-seksjoner
+  uten å si fra.
+- En nektet lesing av enhetsregisteret i Entra krasjet seksjonen. Nå sier den
+  hvilken tillatelse som mangler.
+
 ### Backup av Azure-VM-er rapporteres riktig
 
 - Rapporten listet alle virtuelle maskiner som «uten backup», også de som
