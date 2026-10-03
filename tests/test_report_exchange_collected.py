@@ -8,9 +8,11 @@ come from Graph, through a real GraphClient over the rig's fake transport.
 
 from __future__ import annotations
 
+import pytest
+
 from app.modules.m365_audit.sections.exchange import ExchangeSection
 from app.reports.compliance import _build_compliance_map
-from app.reports.parsers import _parse_exchange_overview
+from app.reports.parsers import _parse_exchange_overview, _parse_purview
 from app.reports.parsers.tenant import _parse_shared_mailbox_upns
 from tests.collector_rig import FakeGraph, run_sections
 
@@ -179,3 +181,63 @@ async def test_a_tenant_with_only_the_built_in_policy_keeps_its_defender_file(tm
     controls = _controls(files)
     assert controls["4.5"]["status"] == "pass"
     assert controls["4.6"]["status"] == "pass"
+
+
+# ── A read the helper reports as failed ───────────────────────────────────────
+#
+# Each block of exo_collector.ps1 records its failure under its own *_error key
+# and leaves the data out. Written as a section with "(0 entries)", that was a
+# reading of a tenant with none.
+
+FAILED_READS = [
+    ("mailboxes_error", ["20_exchange_mailboxes.txt", "20_exchange_mailboxes_count.txt"]),
+    ("transport_rules_error", ["21_exchange_transport_rules.txt"]),
+    ("connectors_error", ["22_exchange_connectors.txt"]),
+    ("dkim_error", ["25_exchange_dkim.txt"]),
+    ("defender_policies_error", ["27_exchange_defender_policies.txt"]),
+    ("quarantine_policies_error", ["27b_exchange_quarantine_policies.txt"]),
+    ("org_config_error", ["27c_exchange_org_config.txt"]),
+    ("admin_audit_log_config_error", ["27d_exchange_admin_audit_log_config.txt"]),
+    ("forwarding_error", ["28_exchange_mailbox_forwarding.txt"]),
+    ("inbox_rules_error", ["29_exchange_inbox_rules_external_fwd.txt"]),
+    ("dlp_error", ["19d_purview_dlp_policies.txt", "19e_purview_retention_policies.txt"]),
+]
+
+
+@pytest.mark.parametrize(("error_key", "names"), FAILED_READS, ids=[k for k, _ in FAILED_READS])
+async def test_a_failed_read_is_written_as_an_error_not_as_none(tmp_path, error_key, names):
+    files, _ = await _collect(tmp_path, {error_key: "The operation could not be performed."})
+
+    for name in names:
+        assert name in files, f"{name} is written, so the report can say why it is empty"
+        assert files[name] == "", f"{name} must read as not collected, as an error stub does"
+
+
+async def test_a_compliance_session_that_did_not_connect_is_not_a_tenant_without_dlp(tmp_path):
+    """The helper connects to Security & Compliance once for DLP and retention."""
+    exo = {
+        "dlp_error": "Connect-IPPSSession: the role assignment is missing.",
+        "dlp_policies": [],
+        "retention_policies": [],
+    }
+    files, _ = await _collect(tmp_path, exo)
+
+    controls = _controls(files, purview=_parse_purview(files))
+    assert controls["3.1.1"]["status"] == "info", controls["3.1.1"]
+    assert controls["7.2.2"]["status"] == "info", controls["7.2.2"]
+
+
+async def test_missing_defender_cmdlets_are_not_a_tenant_without_safe_links(tmp_path):
+    exo = {"defender_policies_error": "The term 'Get-SafeLinksPolicy' is not recognized."}
+    files, _ = await _collect(tmp_path, exo)
+
+    controls = _controls(files)
+    assert controls["4.5"]["status"] == "info", controls["4.5"]
+    assert controls["4.6"]["status"] == "info", controls["4.6"]
+
+
+async def test_a_forwarding_scan_that_failed_does_not_pass(tmp_path):
+    exo = {"forwarding_error": "Get-Mailbox failed.", "inbox_rules_error": "Get-Mailbox failed."}
+    files, _ = await _collect(tmp_path, exo)
+
+    assert _controls(files)["4.4"]["status"] == "info"
