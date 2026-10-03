@@ -33,19 +33,19 @@ test('stored customer data stays data across two users and keyboard activation',
   const admin = await browser.newContext();
   const page = await admin.newPage();
   await login(page, 'browser-admin');
-  await page.evaluate(async () => {
-    // Exercise the actual renderer against the actual authenticated API.
-    document.querySelector('#dash-health-content').style.display = 'block';
-    await dashLoadHealth();
-    // Other dashboard tabs can hide ancestors; reveal only this fixture's host.
-    let el = document.querySelector('#dash-health-content');
-    while (el) { el.style.display = 'block'; el = el.parentElement; }
-  });
-  const button = page.getByRole('button', {name: attack, exact: true});
-  await button.focus();
-  await expect(button).toBeFocused();
-  await button.press('Enter');
+  // The actual renderer against the actual authenticated API: the Kunder
+  // list prints the name and hands it to the archive button's handler,
+  // which shows it in the typed confirmation.
+  await page.evaluate(() => showView('customers'));
+  const card = page.locator('#customers-content').getByText(attack, {exact: true});
+  await expect(card).toBeVisible();
+  const archive = page.locator(`#customers-content [data-click-handler="deleteCustomer"][data-name="${attack.replace(/"/g, '\\"')}"]`);
+  await archive.focus();
+  await expect(archive).toBeFocused();
+  await archive.press('Enter');
+  await expect(page.locator('#confirm-modal-body strong')).toHaveText(attack);
   expect(await page.evaluate(() => globalThis.auditExecuted)).toBeUndefined();
+  await page.keyboard.press('Escape');
   await admin.close();
 });
 

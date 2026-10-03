@@ -2906,7 +2906,6 @@ function switchDashTab(btn, tabId) {
 
   if (tabId === 'dash-renewals') dashLoadRenewals();
   if (tabId === 'dash-alerts') dashLoadAlerts();
-  if (tabId === 'dash-health') dashLoadHealth();
   if (tabId === 'dash-costs') dashLoadCosts();
   if (tabId === 'dash-domains') dashLoadDomains();
   if (tabId === 'dash-archive') dashLoadArchive();
