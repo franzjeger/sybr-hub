@@ -287,19 +287,24 @@ test('the customer licence panel renders ALSO subscriptions as text', async ({pa
     subscription: {ContractId: XSS, Fields: [{DisplayName: XSS, Value: XSS}]},
   }}));
 
-  await page.evaluate(() => { showView('customer-detail'); return loadCustomerLicenses('acct-1'); });
-  const row = page.locator('#customer-detail-content tbody tr').first();
+  // Detaljer's Lisenser card holds them; the panel stands in for it here.
+  await page.evaluate(() => {
+    const box = document.createElement('div'); box.id = 'cust-licenses-panel';
+    document.body.appendChild(box);
+    return loadCustomerLicenses('acct-1');
+  });
+  const row = page.locator('#cust-licenses-panel tbody tr').first();
   await expect(row.locator('td').first()).toHaveText(XSS);
   await expect(row.locator('td').nth(2)).toHaveText('4');
   await expect(row.locator('td').nth(4)).toHaveText(XSS.slice(0, 10));
   await expect(row.locator('td').nth(6)).toHaveText(XSS);
-  await expectInert(page, '#customer-detail-content');
+  await expectInert(page, '#cust-licenses-panel');
 
   // The click handler finds the detail row by the id exactly as stored.
   await row.click();
-  const detail = page.locator('#customer-detail-content > div > table > tbody > tr').nth(1);
+  const detail = page.locator('#cust-licenses-panel > div > table > tbody > tr').nth(1);
   await expect(detail).toBeVisible();
   expect(await detail.getAttribute('id')).toBe('also-sub-' + accountId);
   await expect(detail).toContainText(XSS);
-  await expectInert(page, '#customer-detail-content');
+  await expectInert(page, '#cust-licenses-panel');
 });

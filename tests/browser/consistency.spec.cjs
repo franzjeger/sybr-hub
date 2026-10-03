@@ -97,7 +97,8 @@ test('the trend card is one line, not an empty chart frame, before a second run'
 
 test('the infrastructure card points at Verter and VPN, where hosts are linked', async ({page}) => {
   await login(page);
-  await page.goto('/#/customer/Browser_Beta');
+  // On the customer page's Tilgang tab.
+  await page.goto('/#/customer/Browser_Beta/tilgang');
   const infra = page.locator('#customer-infra-panel');
   await expect(infra).not.toContainText('Infrastruktur-seksjonen');
   await infra.getByRole('button', {name: 'Åpne Verter'}).click();
@@ -106,10 +107,9 @@ test('the infrastructure card points at Verter and VPN, where hosts are linked',
 
 // ── Other views about the same customer ──────────────────────────────────────
 
-test('Historikk lists the run the customer page reports, with a way to a report', async ({page}) => {
+test('the runs on the Audit tab list the run the customer page reports, with a way to a report', async ({page}) => {
   await login(page);
-  await asBeta(page);
-  await page.evaluate(() => showView('history'));
+  await page.goto('/#/customer/Browser_Beta/audit');
   const content = page.locator('#history-content');
   await expect(content).not.toContainText('Ingen tidligere kjøringer');
   const row = content.locator('tr', {hasText: '30. september 2026 kl. 12:00'});
@@ -130,19 +130,18 @@ test('Policy-oversikt reads unknown as unknown when no policies were captured', 
   await expect(standards.locator('.po-std-statuscell-missing')).toHaveCount(0);
 });
 
-test('the audit view and M365-status name the last run by date, and the button reads "Kjør audit" once', async ({page}) => {
+test('the Audit tab names the last run by date, and the page offers "Kjør audit" once', async ({page}) => {
   await login(page);
-  await asBeta(page);
-  await page.evaluate(() => showView('audit'));
+  await page.goto('/#/customer/Browser_Beta/audit');
   const idle = page.locator('#audit-idle');
   await expect(idle).toContainText('Siste audit: 30. september 2026 kl. 12:00');
-  await expect(idle.locator('[data-click-handler="startAudit"]')).toHaveText(/^\s*Kjør audit\s*$/);
-  await expect(idle.locator('[data-click-handler="startAudit"] svg')).toHaveCount(1);
-  await page.evaluate(() => showView('home'));
-  await expect(page.locator('#home-content')).toContainText('30. september 2026 kl. 12:00');
-  await expect(page.locator('#home-content')).not.toContainText('2026-09-30_');
-  // Beta is a GDAP customer: M365-status offers the audit the customer page offers.
-  await expect(page.locator('#home-content')).not.toContainText('ikke M365-tilganger konfigurert');
+  await expect(page.locator('#view-customer-detail')).not.toContainText('2026-09-30_');
+  // One Kjør audit on the page, in its head, and it is live: Beta is a GDAP
+  // customer, audited through delegated access.
+  const run = page.locator('#view-customer-detail button:visible', {hasText: /^\s*Kjør audit\s*$/});
+  await expect(run).toHaveCount(1);
+  await expect(page.locator('#cust-run-audit')).toBeEnabled();
+  await expect(page.locator('#view-customer-detail')).not.toContainText('ikke M365-tilganger konfigurert');
 });
 
 test('the dashboard has no second scoreboard: the Helse tab is gone', async ({page}) => {
@@ -183,20 +182,21 @@ test('opening Tailscale without a key shows how to set it up, not an error toast
   await expect(page.locator('#admin-pane-integrations')).toBeVisible();
 });
 
-test('Policy-utrulling without the tenant grant says why, raises no toast, and is not offered on the customer page', async ({page}) => {
+test('Rull ut is not offered without the tenant grant, and the old deploy address lands on Policy-oversikt quietly', async ({page}) => {
   await login(page);
-  await page.goto('/#/customer/Browser_Beta');
+  await page.goto('/#/customer/Browser_Beta/policyer');
   await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
-  // The account resolves to no policy-deploy view, so the page offers none.
-  await expect(page.locator('#cust-tab-policy-deploy')).toHaveCount(0);
-  await expect(page.locator('#cust-tab-policy-overview')).toBeVisible();
+  await expect(page.locator('#cust-tab-policyer')).toHaveClass(/\bactive\b/);
+  // browser-admin can write but has no tenant grant: Rull ut is hidden by
+  // the grant rule itself.
+  await expect(page.locator('#cust-deploy')).toBeHidden();
   await recordToasts(page);
   const refused = [];
   page.on('response', r => { if (r.status() === 403) refused.push(r.url()); });
-  await page.evaluate(() => showView('policy-deploy'));
-  await expect(page.locator('#pd-no-grant')).toContainText('Kontoen din kan ikke endre kundens tenant');
-  await page.locator('#pd-breakglass').fill('00000000-0000-0000-0000-000000000001');
-  await expect(page.locator('#pd-plan-btn')).toBeDisabled();
+  await page.evaluate(() => { location.hash = '#/policy-deploy'; });
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/customer/Browser_Beta/policyer');
+  await expect(page.locator('#view-policy-overview')).toBeVisible();
+  await expect(page.locator('#view-policy-deploy')).toBeHidden();
   await page.waitForTimeout(500);
   expect(refused).toEqual([]);
   expect(await page.evaluate(() => window.__toasts)).toEqual([]);

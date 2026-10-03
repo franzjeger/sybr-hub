@@ -155,21 +155,17 @@ registerUiHandlers({
   deleteCustomPreset: function() { deleteCustomPreset(); },
   scopeSelectAll: function() { scopeSelectAll(); },
   scopeDeselectAll: function() { scopeDeselectAll(); },
-  toggleNotesCard: function() { toggleNotesCard(); },
-  toggleActivityLog: function() { toggleActivityLog(); },
 });
 
 // Handlers for the static markup in index.html.
 registerUiHandlers({
   // Arguments come from data-* attributes on the control.
-  generateReport: function(el) { generateReport(el.dataset.format, el.dataset.reportType); },
   toggleIntegConfig: function(el) { toggleIntegConfig(el.dataset.config); },
   switchNetSub: function(el) { switchNetSub(el, el.dataset.tab); },
   switchDashTab: function(el) { switchDashTab(el, el.dataset.tab); },
   termChangeFontSize: function(el) { termChangeFontSize(Number(el.dataset.delta)); },
   resolveConfirm: function(el) { resolveConfirm(el.dataset.answer === 'true'); },
   uploadToITGlue: function(el) { uploadToITGlue(el); },
-  uploadReportsToITGlue: function(el) { uploadReportsToITGlue(el); },
   dashToggleAutoRefresh: function(el) { dashToggleAutoRefresh(el); },
   scrollToTop: function() { window.scrollTo({top: 0, behavior: 'smooth'}); },
   // Menus that close themselves before acting.
@@ -218,7 +214,6 @@ registerUiHandlers({
   doSetup: function() { doSetup(); },
   doLogin: function() { doLogin(); },
   openLatestReport: function() { openLatestReport(); },
-  startAudit: function() { startAudit(); },
   toggleToolsMenu: function(el, event) { toggleToolsMenu(event); },
   switchBillingTab: function(el) { switchBillingTab(el, el.dataset.tab); },
   billingExportCurrentTab: function() { billingExportCurrentTab(); },
@@ -242,7 +237,6 @@ registerUiHandlers({
   alsoSaveConfig: function() { alsoSaveConfig(); },
   alsoSyncCustomers: function() { alsoSyncCustomers(); },
   alsoTestConnection: function() { alsoTestConnection(); },
-  auditBack: function() { auditBack(); },
   backupEncryptionKey: function() { backupEncryptionKey(); },
   bulkDeleteCustomers: function() { bulkDeleteCustomers(); },
   bulkTagCustomers: function() { bulkTagCustomers(); },
@@ -260,7 +254,6 @@ registerUiHandlers({
   dashUnifiRefresh: function() { dashUnifiRefresh(); },
   deleteSelectedRuns: function() { deleteSelectedRuns(); },
   executeITGlueUpload: function() { executeITGlueUpload(); },
-  exportCSV: function() { exportCSV(); },
   exportCustomersJSON: function() { exportCustomersJSON(); },
   fgApiSave: function() { fgApiSave(); },
   fgApiTest: function() { fgApiTest(); },
@@ -275,11 +268,12 @@ registerUiHandlers({
   hostsHealthAll: function() { hostsHealthAll(); },
   itglueSyncAllDocumentation: function() { itglueSyncAllDocumentation(); },
   loadConfigBackups: function() { loadConfigBackups(); },
-  loadFiles: function() { loadFiles(); },
   loadLogs: function() { loadLogs(); },
   migrateEncryption: function() { migrateEncryption(); },
   openITGlueImport: function() { openITGlueImport(); },
-  openManualCustomer: function() { openManualCustomer(); },
+  openNewCustomer: function() { openNewCustomer(); },
+  newCustomerWithM365: function() { newCustomerWithM365(); },
+  newCustomerManual: function() { newCustomerManual(); },
   openMoreSheet: function() { openMoreSheet(); },
   openPrivateBrowser: function() { openPrivateBrowser(); },
   provisionStart: function() { provisionStart(); },
@@ -648,8 +642,6 @@ function _renderCmdResults(query) {
   var pages = [
     {label:t('nav_overview','Oversikt'), view:'overview', action:function(){showView('overview')},  section:'', icon:'grid'},
     {label:t('nav_customers','Customers'), view:'customers', action:function(){showView('customers')}, section:t('nav_customers'), icon:'users'},
-    {label:t('nav_m365_status'),     view:'home', action:function(){showView('home')},      section:t('nav_customers'), icon:'cloud'},
-    {label:t('nav_history','History'), view:'history', action:function(){showView('history')},    section:t('nav_customers'), icon:'calendar'},
     // Verktøy, in the order of its menu.
     {label:t('nav_network','Nettverk'), view:'network', action:function(){showView('network')}, section:t('nav_tools','Verktøy'), icon:'globe'},
     {label:t('tls_monitor','TLS-monitor'), view:'network', action:function(){showNetworkTab('net-tls')}, section:t('nav_network','Nettverk'), icon:'shield'},
@@ -686,7 +678,7 @@ function _renderCmdResults(query) {
 
   // Actions
   var actions = [
-    {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:'play'},
+    {label:t('btn_run_audit'),       action:function(){startAudit()}, hint:'Ctrl+Shift+A', icon:'play'},
     {label:t('btn_export_excel','Export Excel'), action:function(){exportDashboardExcel()},                    hint:'',             icon:'chart'},
   ];
   if (!canWrite()) actions = actions.filter(function(a) { return a.label !== t('btn_run_audit'); });
@@ -706,21 +698,6 @@ function _renderCmdResults(query) {
           icon: 'building',
           action: function(){ overviewSelectCustomer(c.customer_id); },
           type: 'customer'
-        });
-      }
-    });
-  }
-
-  // Audit findings (from last loaded audit results)
-  if (q && q.length >= 2 && window._lastAuditWarns) {
-    window._lastAuditWarns.forEach(function(w) {
-      if (w.toLowerCase().includes(q)) {
-        results.push({
-          label: w.length > 80 ? w.substring(0,77)+'...' : w,
-          hint: t('lbl_finding','Funn'),
-          icon: 'warning',
-          action: function(){ showView('home'); },
-          type: 'finding'
         });
       }
     });
@@ -852,7 +829,6 @@ async function checkAuth() {
 }
 
 function _postAuthInit() {
-  loadStatus();
   // Land where the address says, else on the cross-customer dashboard: the
   // question a technician arrives with is "which customer needs me", not
   // whichever customer was active last time.
@@ -1483,17 +1459,13 @@ function skeletonHTML(type) {
 }
 
 // ── View routing ───────────────────────────────────────────────────────────────
-// M365 sub-views: they sit under the strip of M365 tabs.
-var _m365SubViews = {home: true, files: true, audit: true, setup: true};
 
 // Which top-bar item a view belongs to, so the bar, the breadcrumb and the
 // mobile bar agree. Views the avatar menu opens (Administrasjon, Hjelp) light
 // none of the three.
 var _NAV_GROUP = {
   overview: 'overview',
-  customers: 'customers', 'customer-detail': 'customers', setup: 'customers', 'history-report': 'customers',
-  home: 'customers', audit: 'customers', history: 'customers', files: 'customers',
-  'policy-overview': 'customers', 'policy-deploy': 'customers', 'baseline-deploy': 'customers', assessments: 'customers',
+  customers: 'customers', 'customer-detail': 'customers', setup: 'customers',
   network: 'tools', vpn: 'tools', hosts: 'tools', terminal: 'tools', rdp: 'tools', ssh: 'tools',
   browser: 'tools', tailscale: 'tools', pentest: 'tools', provision: 'tools', billing: 'tools', ai: 'tools',
 };
@@ -1507,10 +1479,6 @@ function _updateBreadcrumb(name) {
   var map = {
     overview:     [{label:t('nav_overview','Oversikt')}],
     customers:    [{label:t('nav_customers')}],
-    home:         [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status')}],
-    audit:        [{label:t('nav_customers'),view:'customers'}, {label:t('nav_m365_status'),view:'home'}, {label:'Audit'}],
-    history:      [{label:t('nav_customers'),view:'customers'}, {label:t('nav_history')}],
-    assessments:  [{label:t('nav_customers'),view:'customers'}, {label:t('nav_assessments','Vurderingsbibliotek')}],
     setup:        [{label:t('nav_customers'),view:'customers'}, {label:t('nav_new_customer','Ny kunde')}],
     network:      [tools, {label:t('nav_network','Nettverk')}],
     vpn:          [tools, {label:'VPN'}],
@@ -1585,6 +1553,9 @@ function showView(name) {
   if (name === 'integrations') { openAdmin('integrations'); return; }
   // TLS-monitor is a tab of Nettverk.
   if (name === 'tls') { showNetworkTab('net-tls'); return; }
+  // M365-status, Filer, Audit, Historikk, the policy pages and Vurderinger
+  // are tabs of the customer page now: the active customer's.
+  if (CUSTOMER_TAB_ALIASES[name]) { openActiveCustomerTab(CUSTOMER_TAB_ALIASES[name][0], CUSTOMER_TAB_ALIASES[name][1]); return; }
   // Leaving Administrasjon with unsaved edits asks first.
   if (currentView === 'admin' && name !== 'admin' && !adminMayLeave()) return;
   _cleanupViewTimers();
@@ -1602,18 +1573,6 @@ function showView(name) {
   closeToolsMenu();
   _syncBottomNav(name);
 
-  // Show/hide M365 sub-tab bar
-  var subBar = document.getElementById('m365-subtab-bar');
-  if (subBar) {
-    subBar.style.display = _m365SubViews[name] ? 'block' : 'none';
-    // Highlight active sub-tab
-    document.querySelectorAll('.m365-sub-btn').forEach(function(b) {
-      var isCurrent = b.dataset.sub === name;
-      b.style.borderBottom = isCurrent ? '2px solid var(--blue)' : 'none';
-      b.style.color = isCurrent ? 'var(--blue)' : '';
-    });
-  }
-
   currentView = name;
   _updateBreadcrumb(name);
 
@@ -1624,31 +1583,16 @@ function showView(name) {
       document.getElementById('overview-content').innerHTML = skeletonHTML('dashboard');
       loadOverview();
     }
-  } else if (name === 'home') {
-    document.getElementById('home-content').innerHTML = skeletonHTML('home');
-    loadStatus();
   } else if (name === 'customers') {
     document.getElementById('customers-content').innerHTML = skeletonHTML('customers');
     loadCustomers();
-  } else if (name === 'files') {
-    loadFiles();
   } else if (name === 'network') {
     loadNetworkDevices();
-  } else if (name === 'history') {
-    document.getElementById('history-content').innerHTML = skeletonHTML('history');
-    loadHistory();
   } else if (name === 'logs') {
     loadLogs();
-  } else if (name === 'audit') {
-    // Opening a view must never start work. Reconcile with the server instead:
-    // the badge and this screen should show what is actually running, not what
-    // some tab believed when it was last looked at.
-    _reconcileAuditState();
   } else if (name === 'setup') {
     _renderSetupIdle();
   }
-  // Lets CSS drop chrome a view replaces, like the bar's audit button on the
-  // customer page, which has its own.
   document.body.dataset.view = name;
   // The customer page records its own address once it knows which customer.
   if (name !== 'customer-detail') syncRoute(name);
@@ -1667,19 +1611,25 @@ var _routeApplying = false;
 function syncRoute(name, customerId) {
   if (_routeApplying || !name) return;
   var target = '#/' + name;
-  if (name === 'customer-detail' && customerId) target = '#/customer/' + encodeURIComponent(customerId);
+  if (name === 'customer-detail' && customerId) target = _custHash();
   else if (name === 'admin') target = '#/admin/' + _adminPane;
   if (location.hash !== target) history.pushState(null, '', target);
 }
 
 async function applyRoute() {
-  var customer = /^#\/customer\/([^/]+)$/.exec(location.hash);
+  var customer = /^#\/customer\/([^/]+)(?:\/([a-z]+)(?:\/([a-z]+))?)?$/.exec(location.hash);
   var admin = /^#\/admin(?:\/([a-z-]+))?$/.exec(location.hash);
   var view = /^#\/([a-z0-9-]+)$/.exec(location.hash);
   _routeApplying = true;
   try {
     if (customer) {
-      await overviewSelectCustomer(decodeURIComponent(customer[1]));
+      await openCustomerPage(decodeURIComponent(customer[1]), customer[2], customer[3]);
+    } else if (view && CUSTOMER_TAB_ALIASES[view[1]]) {
+      // #/audit, #/history and the rest were pages about the active customer;
+      // they are its page's tabs now.
+      var alias = CUSTOMER_TAB_ALIASES[view[1]];
+      await openActiveCustomerTab(alias[0], alias[1]);
+      history.replaceState(null, '', currentView === 'customer-detail' ? _custHash() : '#/' + currentView);
     } else if (admin || (view && view[1] === 'integrations')) {
       // #/integrations was a page of its own; it is a pane of Administrasjon now.
       var pane = admin ? admin[1] : 'integrations';
@@ -1726,7 +1676,7 @@ async function _reconcileAuditState() {
       _finishAuditWithoutStream();
     } else {
       _clearStaleAuditBadge();
-      if (currentView === 'audit') _renderAuditIdle();
+      if (custAuditTabOpen()) _renderAuditIdle();
     }
   } catch (_) { /* offline: say nothing rather than claim either state */ }
 }
@@ -1749,9 +1699,9 @@ function _showAuditRunningChrome() {
   _auditChrome().forEach(function(el) { if (el) el.style.display = ''; });
 }
 
-async function _renderAuditIdle() {
+function _renderAuditIdle() {
   var view = document.getElementById('view-audit');
-  if (!view || auditRunning) return;
+  if (!view || auditRunning || _auditStarting) return;
 
   // Nothing is running, so the running chrome is a lie. Put it away.
   _auditChrome().forEach(function(el) { if (el) el.style.display = 'none'; });
@@ -1771,31 +1721,16 @@ async function _renderAuditIdle() {
   }
   idle.style.display = '';
 
-  var when = '';
-  try {
-    var dash = await apiFetch('/api/dashboard');
-    if (dash && dash.run_date) when = formatRunName(dash.run_date);
-  } catch (_) { /* the last run's date is a nicety, not a precondition */ }
+  // The last run of the customer whose page this is, as its head says.
+  var last = _custPage.cust && _custPage.cust.last_audit;
+  var when = last ? formatRunName(last) : '';
 
+  // The page's one Kjør audit is in its head; the runs are listed below.
   idle.innerHTML =
       '<div class="card-title">' + esc(t('hdr_audit_idle')) + '</div>'
-    + '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">'
-    +   esc(t('msg_audit_idle_body'))
-    + '</div>'
-    + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">'
-    +   esc(t('lbl_last_audit')) + ': '
-    +   '<strong style="color:var(--text);">' + esc(when || t('lbl_never')) + '</strong>'
-    + '</div>'
-    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-    +   '<button data-write class="btn btn-primary" data-click-handler="startAudit">'
-    +     icon('play', 14) + ' ' + esc(t('btn_run_audit')) + '</button>'
-    +   '<button class="btn btn-default" data-click-handler="showView" data-view="home">'
-    +     esc(t('btn_see_last_result')) + '</button>'
-    +   '<button class="btn btn-default" data-click-handler="showView" data-view="history">'
-    +     esc(t('nav_history', 'History')) + '</button>'
-    + '</div>';
-
-  if (typeof applyWriteCapability === 'function') applyWriteCapability();
+    + '<div class="cust-card-text">' + esc(t('msg_audit_idle_body_tab', 'Ingen audit kjører for kunden nå. Kjør audit starter en, og fremdriften vises her.')) + '</div>'
+    + '<div class="cust-card-text">' + esc(t('lbl_last_audit')) + ': '
+    +   '<strong>' + esc(when || t('lbl_never')) + '</strong></div>';
 }
 
 function _clearStaleAuditBadge() {
@@ -1804,8 +1739,6 @@ function _clearStaleAuditBadge() {
   _hideAuditProgressBar();
   var ind = document.getElementById('audit-running-indicator');
   if (ind) ind.style.display = 'none';
-  var back = document.getElementById('audit-back-btn');
-  if (back) back.disabled = false;
 }
 
 // Opens Nettverk on one of its tabs: TLS-monitor is reached this way.
@@ -1826,206 +1759,7 @@ function switchNetSub(btn, tabId) {
   if (tabId === 'net-tls') tlsLoadView();
 }
 
-// ── Home: load status ──────────────────────────────────────────────────────────
-async function loadStatus() {
-  const box = document.getElementById('home-content');
-  const d = await apiFetch('/api/status');
-  if (d) {
-    renderHome(d);
-    if (d.has_config && (d.m365_ready || d.has_credentials)) _loadHealthGrid();
-  } else {
-    box.innerHTML = `<div class="alert alert-error">${t('err_could_not_load_status')}</div>`;
-  }
-}
-
-async function _loadHealthGrid() {
-  try {
-    var d = await apiFetch('/api/dashboard');
-    if (!d || !d.has_data) return;
-    var m = d.metrics || {};
-    var grid = document.getElementById('home-health-grid');
-    if (!grid) return;
-
-    function healthCard(label, value, suffix, thresholds, hint) {
-      var v = parseFloat(value);
-      var color = 'var(--text-dim)';
-      if (!isNaN(v) && thresholds.above !== undefined) {
-        // A count where any is too many (users without MFA): red from
-        // `above` up. The "below is bad" thresholds painted zero red.
-        color = v >= thresholds.above ? 'var(--red)' : 'var(--green)';
-      } else if (!isNaN(v)) {
-        if (thresholds.red && v < thresholds.red) color = 'var(--red)';
-        else if (thresholds.orange && v < thresholds.orange) color = 'var(--orange)';
-        else color = 'var(--green)';
-      }
-      var dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';display:inline-block;"></span>';
-      var tipText = hint || '';
-      if (thresholds.red) tipText += (tipText ? ' · ' : '') + '< ' + thresholds.red + ' = ' + t('status_error','critical');
-      if (thresholds.orange) tipText += (tipText ? ' · ' : '') + '< ' + thresholds.orange + ' = ' + t('lbl_needs_attention','warning');
-      return '<div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--bg);border-radius:var(--radius-md);border:1px solid var(--border);cursor:default;transition:border-color var(--duration-fast);" class="hover-border-accent"' + (tipText ? ' title="' + esc(tipText) + '"' : '') + '>'
-        + dot
-        + '<div style="flex:1;"><div style="font-size:var(--font-xs);color:var(--text-muted);">' + esc(label) + '</div></div>'
-        + '<div style="font-size:var(--font-md);font-weight:700;color:' + color + ';">' + (isNaN(v) ? esc(t('lbl_unknown_value', 'ukjent')) : v + esc(suffix||'')) + '</div></div>';
-    }
-
-    grid.style.display = 'grid';
-    grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-top:var(--space-4);';
-    grid.innerHTML =
-      healthCard(t('lbl_risk','Risk Score'), m.risk_score, '', {red:50, orange:70}) +
-      healthCard('MFA', m.mfa_coverage_pct, '%', {red:80, orange:95}) +
-      healthCard(t('lbl_secure_score','Secure Score'), m.secure_score_pct, '%', {red:50, orange:75}) +
-      healthCard(t('lbl_users','Users'), m.total_users, '', {}) +
-      healthCard(t('lbl_users_without_mfa','Brukere uten MFA'), m.users_no_mfa, '', {above:1}) +
-      healthCard(t('lbl_ca_policies','CA Policies'), m.ca_policies_enabled, '', {red:1, orange:3});
-  } catch(e) {}
-}
-
-function renderHome(d) {
-  const box = document.getElementById('home-content');
-
-  if (!d.has_config) {
-    box.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-title">${t('msg_no_customer_configured')}</div>
-        <div class="empty-desc">
-          ${t('msg_first_time_setup_desc').replace('\n', '<br>')}
-        </div>
-        <button class="btn btn-primary" data-click-handler="startSetup">${t('btn_start_setup')}</button>
-      </div>`;
-    return;
-  }
-
-  const c = d.customer;
-  let warnsHtml = '';
-  if (c.warns && c.warns.length > 0) {
-    window._lastAuditWarns = c.warns;
-    const items = c.warns.map(w => `<li>${esc(w)}</li>`).join('');
-    warnsHtml = `<div class="warn-badge"><ul>${items}</ul></div>`;
-  }
-
-  // App credentials (a secret this app holds) and "can be audited" are two
-  // facts: a GDAP customer is audited through delegated access with no
-  // secret. The run button follows the second, as on the customer page; the
-  // permission check and secret renewal belong to the first.
-  const hasCredentials = d.has_credentials !== false;
-  const canAudit = d.m365_ready !== undefined ? !!d.m365_ready : hasCredentials;
-  const runDisabled = d.audit_running ? 'disabled' : (!canAudit ? 'disabled' : '');
-  const runLabel    = d.audit_running ? t('btn_audit_running') : (!canAudit ? t('msg_missing_m365_setup','Missing M365 setup') : t('btn_run_audit'));
-
-  box.innerHTML = `
-    <div id="expiry-banner-area"></div>
-    <div class="card">
-      <div class="card-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-        ${t('hdr_active_customer')}
-        <span style="margin-left:auto;font-size:11px;font-weight:400;"><a href="#" data-click-handler="showView" data-view="customers" style="color:var(--blue);text-decoration:none;">${t('tip_all_customers_link')}</a></span>
-      </div>
-      <div class="customer-name">${esc(c.name)}</div>
-      <div class="customer-domain">${esc(c.domain)}</div>
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;">
-        <span id="tag-pills-home">${tagPillsHtml(c.tags || [])}</span>
-        <button class="btn btn-ghost" style="padding:1px 6px;font-size:10px;border:1px dashed var(--border);border-radius:10px;" data-click-handler="openTagEditor" data-customer-id="${esc(d.active_id)}" data-tags="${esc(JSON.stringify(c.tags||[]))}">${t('tags')}</button>
-      </div>
-      <div id="tag-editor-${(d.active_id||'').replace(/[^a-zA-Z0-9_-]/g,'_')}" style="display:none;margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;"></div>
-      <div class="meta-row">
-        <div class="meta-item"><strong>${esc(c.setup_date)}</strong>${t('lbl_setup_date')}</div>
-      </div>
-      ${warnsHtml}
-      <div id="home-health-grid" style="display:none;margin-top:var(--space-4);"></div>
-      ${canAudit ? `
-      <div class="btn-row">
-        <button class="btn btn-primary tooltip" data-tip="${t('tip_run_full_audit','Runs a full security check of the customer M365/Azure environment')}" data-click-handler="startAudit" ${runDisabled}>${runLabel} <kbd style="font-size:9px;opacity:0.6;margin-left:4px;padding:1px 4px;background:rgba(255,255,255,0.15);border-radius:3px;">Ctrl+Shift+A</kbd></button>
-        ${hasCredentials ? `<button class="btn btn-default tooltip" data-tip="${t('tip_check_permissions','Verifies that all required Graph API permissions are granted')}" data-click-handler="checkPermissions">${t('btn_check_permissions')}</button>
-        <button class="btn btn-warning" data-click-handler="renewCreds">${t('btn_renew_credentials')}</button>` : ''}
-        <button class="btn btn-ghost" data-click-handler="showView" data-view="customers">${t('btn_switch_customer')}</button>
-      </div>` : `
-      <div style="padding:14px;margin-bottom:8px;background:rgba(210,153,34,0.1);border:1px solid rgba(210,153,34,0.3);border-radius:8px;font-size:13px;color:var(--orange);">
-        ${t('msg_no_m365_configured','This customer does not have M365 access configured yet.')}
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" data-click-handler="startSetup">${t('btn_setup_m365','Setup M365 access')}</button>
-        <button class="btn btn-ghost" data-click-handler="showView" data-view="customers">${t('btn_switch_customer')}</button>
-      </div>`}
-
-      <div id="scope-panel" class="tooltip" data-tip="${t('tip_select_audit_sections','Select which sections to include in the audit')}" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
-        <div style="display:flex;align-items:center;cursor:pointer;user-select:none;" data-click-handler="toggleScopePanel">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span style="font-weight:600;font-size:13px;">${t('hdr_select_sections')}</span>
-          <span id="scope-toggle-icon" style="margin-left:6px;font-size:10px;color:var(--text-muted);transition:transform .2s;">&#9654;</span>
-          <span id="scope-summary" style="margin-left:auto;font-size:11px;color:var(--text-muted);"></span>
-        </div>
-        <div id="scope-body" style="display:none;margin-top:10px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-            <select id="preset-select" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);" data-change-handler="applyPreset">
-              <option value="">${t('lbl_select_preset')}</option>
-            </select>
-            <button class="btn btn-ghost" style="padding:2px 10px;font-size:11px;" data-click-handler="saveCustomPreset">${t('btn_save_as_preset')}</button>
-            <button id="preset-delete-btn" class="btn btn-ghost" style="padding:2px 10px;font-size:11px;display:none;color:var(--red);" data-click-handler="deleteCustomPreset">${t('btn_delete_preset')}</button>
-          </div>
-          <div style="display:flex;gap:6px;margin-bottom:10px;">
-            <button class="btn btn-ghost" style="padding:2px 10px;font-size:11px;" data-click-handler="scopeSelectAll">${t('btn_select_all')}</button>
-            <button class="btn btn-ghost" style="padding:2px 10px;font-size:11px;" data-click-handler="scopeDeselectAll">${t('btn_deselect_all')}</button>
-          </div>
-          <div id="scope-sections" style="display:flex;gap:24px;flex-wrap:wrap;"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:16px;" id="customer-notes-card">
-      <div class="card-title" style="cursor:pointer;" data-click-handler="toggleNotesCard">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        ${t('hdr_customer_notes')}
-        <span id="notes-toggle-icon" style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400;">&#9660;</span>
-      </div>
-      <div id="notes-body">
-        <textarea id="customer-notes-textarea"
-          placeholder="${t('tip_notes_placeholder')}"
-          style="width:100%;min-height:120px;resize:vertical;font-family:var(--mono);font-size:13px;white-space:pre-wrap;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;box-sizing:border-box;line-height:1.5;"
-        ></textarea>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-          <span id="notes-save-status" style="font-size:11px;color:var(--text-dim);"></span>
-          <span id="notes-last-saved" style="font-size:11px;color:var(--text-dim);"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Module cards removed · FortiGate and UniFi are now fully integrated -->
-
-    <div class="card" style="margin-top:16px;" id="activity-log-card">
-      <div class="card-title" style="cursor:pointer;" data-click-handler="toggleActivityLog">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
-        ${t('hdr_activity_log')}
-        <span id="activity-log-toggle" style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400;">&#9660;</span>
-      </div>
-      <div id="activity-log-body">
-        <div id="activity-log-list" style="display:flex;flex-direction:column;gap:0;"></div>
-        <div id="activity-log-more" style="text-align:center;margin-top:8px;"></div>
-      </div>
-    </div>`;
-
-  // Load dashboard if config exists
-  if (d.has_config) {
-    loadDashboard();
-    var findingsBox = document.createElement('div');
-    findingsBox.id = 'home-findings';
-    findingsBox.className = 'card home-findings';
-    var firstCard = box.querySelector('.card');
-    if (firstCard) firstCard.insertAdjacentElement('afterend', findingsBox);
-    else box.appendChild(findingsBox);
-    mountCustomerFindings(findingsBox, d.active_id);
-  }
-
-  // Load expiry banner
-  loadExpiryBanner();
-
-  // Load activity log
-  loadActivityLog();
-
-  // Load customer notes
-  loadCustomerNotes();
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────// ── Helpers ────────────────────────────────────────────────────────────────────
 function _vpnStatField(label, value) {
   if (!value) return '';
   return '<div><div style="color:var(--text-dim);">' + esc(label) + '</div><div style="font-family:var(--mono);color:var(--text);font-weight:600;">' + esc(String(value)) + '</div></div>';

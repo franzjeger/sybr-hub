@@ -30,14 +30,14 @@ def test_the_view_exists_and_something_dispatches_to_it():
 
 
 def test_the_entry_is_hidden_from_accounts_that_cannot_deploy():
-    """It leads only to actions that need the tenant grant, which the view
-    list only carries for an account that has it (app/core/features.py)."""
-    page = (STATIC / "app-customer-detail.js").read_text(encoding="utf-8")
+    """Rull ut on the customer page's Policyer tab leads only to actions that
+    need the tenant grant: hidden without it (data-write="tenant") and gated
+    on the view the grant brings (app/core/features.py)."""
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
 
-    assert (
-        'canOpenView(\'policy-deploy\') ? \'<button class="cust-tab" id="cust-tab-policy-deploy"'
-        in page
-    )
+    entry = next(line for line in html.splitlines() if 'id="cust-deploy"' in line)
+    assert 'data-write="tenant"' in entry
+    assert 'data-view-gate="policy-deploy"' in entry
 
 
 def test_apply_sends_the_reviewed_fingerprint_not_a_fresh_one():

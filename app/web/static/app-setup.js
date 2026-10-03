@@ -9,12 +9,6 @@ registerUiHandlers({
 });
 
 // ── Customer actions ───────────────────────────────────────────────────────────
-async function newCustomer() {
-  if (!await showConfirm(t('dlg_confirm_wipe'))) return;
-  await apiFetch('/api/customer/wipe', { method: 'POST' });
-  loadStatus();
-}
-
 async function renewCreds() {
   if (!await showConfirm(t('dlg_confirm_renew'))) return;
   // Renewal issues a fresh certificate + client secret — exactly what first-run
@@ -183,9 +177,8 @@ async function submitPkceOob() {
         if (res && res.ok) {
             appendSetupLog({step: 'GRAPH', status: 'ok', msg: t('pkce_log_saved')});
             document.getElementById('pkce-login-card').classList.remove('visible');
-            document.getElementById('setup-result-area').innerHTML = '<div class="alert alert-success">'+esc(t('msg_setup_complete'))+'</div><button class="btn btn-primary" data-click-handler="showView" data-view="home">'+esc(t('btn_go_home'))+'</button>';
+            document.getElementById('setup-result-area').innerHTML = '<div class="alert alert-success">'+esc(t('msg_setup_complete'))+'</div><button class="btn btn-primary" data-click-handler="openActiveCustomer">'+esc(t('btn_open_customer'))+'</button>';
             apiFetch('/api/customers/register', {method:'POST'});
-            loadStatus();
         } else {
             appendSetupLog({step: 'GRAPH', status: 'error', msg: t('pkce_log_error')});
         }
@@ -243,7 +236,7 @@ async function _attemptSetupStream(url) {
             if (d.success) {
               apiFetch('/api/customers/register', {method:'POST'});
               document.getElementById('setup-result-area').innerHTML =
-                '<div class="alert alert-success">'+t('msg_setup_complete')+'</div><button class="btn btn-primary" data-click-handler="showView" data-view="home">'+t('btn_go_home')+'</button>';
+                '<div class="alert alert-success">'+t('msg_setup_complete')+'</div><button class="btn btn-primary" data-click-handler="openActiveCustomer">'+t('btn_open_customer')+'</button>';
             } else {
               document.getElementById('setup-result-area').innerHTML =
                 '<div class="alert alert-error">'+t('msg_setup_failed')+'</div><button class="btn btn-default" data-click-handler="startSetup">'+t('btn_try_again')+'</button>';

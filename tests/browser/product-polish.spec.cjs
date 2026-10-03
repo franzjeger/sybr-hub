@@ -189,15 +189,22 @@ test.describe('signed in as an administrator', () => {
     await expect(page.locator('#admin-pane-system').getByRole('button', {name: 'Oppdater nå'})).toHaveCount(0);
   });
 
-  test('a finished audit offers downloads but no server folder', async () => {
-    await page.evaluate(() => {
-      showView('audit');
-      document.getElementById('audit-done-area').style.display = 'block';
-    });
-    const done = page.locator('#audit-done-area');
-    await expect(done.getByRole('button', {name: 'CSV-eksport'})).toBeVisible();
-    await expect(done.getByRole('button', {name: 'PDF'}).first()).toBeVisible();
-    await expect(done.getByRole('button', {name: 'Åpne mappe'})).toHaveCount(0);
+  test('the Audit tab offers its reports from one button, and no server folder', async () => {
+    await page.evaluate(() => { location.hash = '#/customer/Browser_Beta/audit'; });
+    await expect(page.locator('#cust-panel-audit')).toBeVisible();
+    // Beta's one run kept only its figures: the summary report is the
+    // default, and the reports built from evidence are offered but off.
+    const main = page.locator('#cust-report-main');
+    await expect(main).toHaveText('Sammendragsrapport');
+    await page.locator('#cust-report .split-caret').click();
+    const menu = page.locator('#cust-report-menu');
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole('button', {name: 'CSV-eksport'})).toBeDisabled();
+    await expect(menu.getByRole('button', {name: 'Teknisk rapport (PDF)'})).toBeDisabled();
+    await expect(menu.getByRole('button', {name: 'Last opp rapporter til IT Glue'})).toBeVisible();
+    await expect(page.locator('#cust-panel-audit').getByRole('button', {name: 'Åpne mappe'})).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
   });
 
   test('integrations lead with what the product is for and drop placeholders', async () => {

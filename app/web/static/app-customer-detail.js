@@ -18,34 +18,223 @@ registerUiHandlers({
   },
   alsoToggleSubDetail: function(el) { alsoToggleSubDetail(el, el.dataset.subId); },
   uwToggleDns: function(el) { uwToggleDns(el, el.dataset.domain); },
+  // The customer page: its tabs, the Rapport button and Policyer's Rull ut.
+  custTab: function(el) { showCustomerTab(el.dataset.tab); },
+  custReportDefault: function(el) { custReport(el.dataset.kind || 'customer-pdf', el); },
+  custReport: function(el) { custReport(el.dataset.kind, el); },
+  custToggleReportMenu: function(el) { _custToggleMenu('cust-report-menu', el); },
+  custToggleDeployMenu: function(el) { _custToggleMenu('cust-deploy-menu', el); },
+  custPolicySub: function(el) { showCustomerTab('policyer', el.dataset.sub); },
+  // After setup: the customer it created or renewed is the active one.
+  openActiveCustomer: function() { openActiveCustomerTab('funn'); },
 });
 
-// ── Customer Detail View ──────────────────────────────────────────────────────
+// ── The customer page ─────────────────────────────────────────────────────────
+// The customer is the context. One page, its tabs switching in place and the
+// address carrying the tab: #/customer/<id> is Funn, #/customer/<id>/<tab> the
+// others, and Policyer's deploy flows add /ca or /intune. Audit, Policyer and
+// the rest still act on the server's active customer, so the page makes its
+// customer the active one before it shows anything (switchActiveCustomer is
+// queued, so the last customer asked for is the one left active).
+var CUSTOMER_TABS = ['funn', 'audit', 'policyer', 'vurderinger', 'nettverk', 'tilgang', 'detaljer'];
+var _custPage = {id: null, cust: null, tab: 'funn', sub: '', loaded: {}};
 var _detailChartInstance = null;
 
-async function loadCustomerDetail(customerId) {
-  syncRoute('customer-detail', customerId);
-  var box = document.getElementById('customer-detail-content');
-  box.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted);"><div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>' + t('msg_loading','Loading...') + '</div>';
+// The pages that were about "the active customer" are its tabs now. An old
+// address or a call by the old name lands on the tab it became.
+var CUSTOMER_TAB_ALIASES = {
+  home: ['funn'], files: ['detaljer'], audit: ['audit'], history: ['audit'], 'history-report': ['audit'],
+  'policy-overview': ['policyer'], 'policy-deploy': ['policyer', 'ca'], 'baseline-deploy': ['policyer', 'intune'],
+  assessments: ['vurderinger'],
+};
 
-  // Find customer from cached overview data — load if not cached yet
-  if (!_overviewData || !_overviewData.customers) {
-    try {
-      var ovData = await apiFetch('/api/dashboard/overview');
-      if (ovData) _overviewData = {customers: ovData.customers || [], active_id: ovData.active_id};
-    } catch(e) { console.warn('Overview data load failed:', e); }
+function _custHash() {
+  var h = '#/customer/' + encodeURIComponent(_custPage.id || '');
+  if (_custPage.tab && _custPage.tab !== 'funn') h += '/' + _custPage.tab;
+  if (_custPage.tab === 'policyer' && _custPage.sub) h += '/' + _custPage.sub;
+  return h;
+}
+
+// Only the last customer asked for opens. An earlier click still in flight
+// would otherwise render its page over the one asked for.
+var _custPageSeq = 0;
+
+async function openCustomerPage(customerId, tab, sub) {
+  tab = CUSTOMER_TABS.indexOf(tab) !== -1 ? tab : 'funn';
+  if (customerId === _custPage.id && currentView === 'customer-detail' && _custPage.cust) {
+    showCustomerTab(tab, sub);
+    return;
   }
+  var seq = ++_custPageSeq;
+  var d = await switchActiveCustomer(customerId);
+  if (seq !== _custPageSeq || !d || !d.ok) return;
+  // Nylige in the palette.
+  try {
+    var recent = JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]');
+    recent = recent.filter(function(id) { return id !== customerId; });
+    recent.unshift(customerId);
+    localStorage.setItem('sybr_recent_customers', JSON.stringify(recent.slice(0, 5)));
+  } catch (e) { /* private mode: no recents */ }
+  _scopeLoaded = false; _scopeSections = [];
+  _custReportRun = null;
+  _custPage = {id: customerId, cust: null, tab: tab, sub: sub || '', loaded: {}};
+  showView('customer-detail');
+  _custShowPanels(tab, sub || '');
+  syncRoute('customer-detail', customerId);
+  await loadCustomerDetail(customerId);
+  if (seq !== _custPageSeq || !_custPage.cust) return;
+  showCustomerTab(_custPage.tab, _custPage.sub);
+}
+
+// The active customer's page on a tab: what showView('audit') and the other
+// old names mean now. With no customer active the list is where to choose one.
+async function openActiveCustomerTab(tab, sub) {
+  var id = (currentView === 'customer-detail' && _custPage.id) || _customersActiveId;
+  if (!id) {
+    var cs = await apiFetch('/api/customers');
+    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; id = cs.active_id; }
+  }
+  if (!id) { showView('customers'); return; }
+  await openCustomerPage(id, tab, sub);
+}
+
+function _custShowPanels(tab, sub) {
+  document.querySelectorAll('#cust-tabs .cust-tab').forEach(function(b) {
+    var on = b.dataset.tab === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    b.tabIndex = on ? 0 : -1;
+  });
+  CUSTOMER_TABS.forEach(function(name) {
+    var panel = document.getElementById('cust-panel-' + name);
+    if (panel) panel.hidden = name !== tab;
+  });
+  if (tab === 'policyer') {
+    var po = document.getElementById('view-policy-overview');
+    var pd = document.getElementById('view-policy-deploy');
+    var bd = document.getElementById('view-baseline-deploy');
+    if (po) po.hidden = !!sub;
+    if (pd) pd.hidden = sub !== 'ca';
+    if (bd) bd.hidden = sub !== 'intune';
+  }
+}
+
+// Shows one tab of the page on screen, in place, and loads it the first time.
+function showCustomerTab(tab, sub) {
+  if (!_custPage.id) return;
+  tab = CUSTOMER_TABS.indexOf(tab) !== -1 ? tab : 'funn';
+  // A tab this account cannot open (gated away) is not shown by address either.
+  var btn = document.getElementById('cust-tab-' + tab);
+  if (btn && btn.classList.contains('gated-hidden')) { tab = 'funn'; sub = ''; }
+  sub = tab === 'policyer' && (sub === 'ca' || sub === 'intune') && canOpenView(sub === 'ca' ? 'policy-deploy' : 'baseline-deploy') ? sub : '';
+  _custPage.tab = tab;
+  _custPage.sub = sub;
+  _custShowPanels(tab, sub);
+  _custCloseMenus();
+  syncRoute('customer-detail', _custPage.id);
+  _syncBottomNav('customer-detail');
+  var key = tab === 'policyer' ? tab + ':' + sub : tab;
+  if (tab === 'audit') {
+    // The run is whatever the server says, every time the tab opens.
+    _custLoadAudit();
+  } else if (!_custPage.loaded[key]) {
+    _custPage.loaded[key] = true;
+    if (tab === 'policyer' && !sub) policyOverviewLoad();
+    else if (tab === 'policyer' && sub === 'ca') policyDeployLoad();
+    else if (tab === 'policyer' && sub === 'intune') baselineDeployLoad();
+    else if (tab === 'vurderinger') assessmentsLoad();
+    else if (tab === 'nettverk') _custLoadNetwork(_custPage.id);
+    else if (tab === 'tilgang') _custLoadAccess(_custPage.id);
+    else if (tab === 'detaljer') _custLoadDetails(_custPage.id);
+  }
+  // Out of a run on Audit the floating progress bar is the run's only sign.
+  if (auditRunning) pollAuditProgress();
+}
+
+// Whether the run's own progress is on screen.
+function custAuditTabOpen() {
+  return currentView === 'customer-detail' && _custPage.tab === 'audit';
+}
+
+// After a run finishes, what it changed: the findings, the figures, the runs.
+function custPageAuditFinished() {
+  if (currentView !== 'customer-detail' || !_custPage.id) return;
+  var id = _custPage.id;
+  _custPage.loaded = {};
+  loadCustomerDetail(id).then(function() {
+    if (_custPage.id === id && _custPage.tab === 'audit') loadHistory(id);
+  });
+}
+
+function _custCloseMenus() {
+  ['cust-report-menu', 'cust-deploy-menu'].forEach(function(id) {
+    var m = document.getElementById(id);
+    if (m && !m.hidden) {
+      m.hidden = true;
+      var btn = m.parentNode.querySelector('[aria-expanded]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+function _custToggleMenu(menuId, btn) {
+  var m = document.getElementById(menuId);
+  if (!m) return;
+  var open = m.hidden;
+  _custCloseMenus();
+  m.hidden = !open;
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.split-btn')) return;
+  _custCloseMenus();
+});
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _custCloseMenus(); });
+
+// Arrow keys move between the tabs, as a tab list should.
+document.addEventListener('keydown', function(e) {
+  if (!e.target.closest || !e.target.closest('#cust-tabs')) return;
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  var tabs = Array.prototype.filter.call(document.querySelectorAll('#cust-tabs .cust-tab'), function(b) {
+    return !b.classList.contains('gated-hidden') && getComputedStyle(b).display !== 'none';
+  });
+  var i = tabs.indexOf(document.activeElement);
+  if (i === -1) return;
+  e.preventDefault();
+  var next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+  next.focus();
+  showCustomerTab(next.dataset.tab);
+});
+
+// ── The head and Funn ─────────────────────────────────────────────────────────
+async function loadCustomerDetail(customerId) {
+  var head = document.getElementById('cust-page-head');
+  var box = document.getElementById('customer-detail-content');
+  box.innerHTML = '<div class="loading-note"><div class="loader"></div> ' + esc(t('msg_loading','Loading...')) + '</div>';
+
+  // The list the page reads its customer from; always fresh, since the page
+  // is opened after the switch that may have changed its figures.
+  try {
+    var ovData = await apiFetch('/api/dashboard/overview');
+    if (ovData) _overviewData = {customers: ovData.customers || [], active_id: ovData.active_id};
+  } catch(e) { console.warn('Overview data load failed:', e); }
+  if (_custPage.id !== customerId) return;
   var cust = null;
   if (_overviewData && _overviewData.customers) {
     cust = _overviewData.customers.find(function(c){ return c.customer_id === customerId || c._id === customerId; });
   }
-  if (!cust) { box.innerHTML = '<div class="alert alert-error">' + t('err_customer_not_found','Kunde ikke funnet') + '</div>'; return; }
+  if (!cust) {
+    head.innerHTML = '';
+    box.innerHTML = '<div class="alert alert-error">' + t('err_customer_not_found','Kunde ikke funnet') + '</div>';
+    return;
+  }
+  _custPage.cust = cust;
 
   var m = cust.metrics || {};
   var hasM = cust.has_metrics;
   var gradeColor = function(g) { return {A:'#3fb950', B:'#4d9fb5', C:'#d29922', D:'#f85149', F:'#8b0000'}[g] || 'var(--text-muted)'; };
 
-  // Update breadcrumb
   var bcItems = document.getElementById('breadcrumb-items');
   var bcNav = document.getElementById('breadcrumb');
   if (bcNav && bcItems) {
@@ -66,11 +255,9 @@ async function loadCustomerDetail(customerId) {
   var canAudit = !!cust.has_m365;
   var canSetup = hasFeature('audit') && canWrite();
 
-  // The page answers one question first: what is wrong here, and what do I do
-  // about it. Identity and the one primary action on top; links to the PSA
-  // and documentation next, because the actions on each finding depend on
-  // them; then the findings. Metrics and history follow.
-  box.innerHTML = `
+  // One primary action for the page, on every tab: Kjør audit. Reports are
+  // the Audit tab's.
+  head.innerHTML = `
     <div class="cust-head">
       <div class="cust-head-main">
         <h1 class="cust-title">${esc(cust.customer_name)}</h1>
@@ -81,26 +268,19 @@ async function loadCustomerDetail(customerId) {
         </div>
       </div>
       <div class="cust-head-actions">
-        <button class="btn btn-primary" id="cust-run-audit" data-write ${canAudit ? '' : 'disabled title="' + esc(t('tip_audit_needs_m365', 'M365-tilgang må settes opp før en audit kan kjøre')) + '"'}>${esc(t('btn_run_audit'))}</button>
-        <button class="btn btn-ghost" data-click-handler="openLatestReport">${esc(t('btn_open_report', 'Rapport'))}</button>
-        <button class="btn btn-ghost" id="cust-generate-report">${esc(t('btn_generate_report'))}</button>
+        <button class="btn btn-primary" id="cust-run-audit" data-write data-feature="audit" ${canAudit ? '' : 'disabled title="' + esc(t('tip_audit_needs_m365', 'M365-tilgang må settes opp før en audit kan kjøre')) + '"'}>${esc(t('btn_run_audit'))}</button>
       </div>
     </div>
-    ${canAudit ? '' : '<div class="findings-notice is-warning cust-access-notice"><span>' + esc(t('msg_m365_missing', 'M365-tilgang er ikke satt opp for denne kunden, så den kan ikke auditeres ennå.')) + '</span>' + (canSetup ? '<button class="btn btn-default btn-sm" id="cust-setup-m365">' + esc(t('btn_setup_m365', 'Sett opp M365-tilgang')) + '</button>' : '') + '</div>'}
+    ${canAudit ? '' : '<div class="findings-notice is-warning cust-access-notice"><span>' + esc(t('msg_m365_missing', 'M365-tilgang er ikke satt opp for denne kunden, så den kan ikke auditeres ennå.')) + '</span>' + (canSetup ? '<button class="btn btn-default btn-sm" id="cust-setup-m365">' + esc(t('btn_setup_m365', 'Sett opp M365-tilgang')) + '</button>' : '') + '</div>'}`;
+
+  // Funn: what is wrong here and what to do about it, first; the PSA and
+  // documentation links next, because the actions on each finding depend on
+  // them; then the figures and the trend.
+  box.innerHTML = `
     <div id="cust-links" class="cust-links"></div>
     <div id="cust-findings"></div>
-    <nav class="cust-tabs">
-      <button class="cust-tab" id="cust-tab-status">${esc(t('nav_m365_status'))}</button>
-      <button class="cust-tab" id="cust-tab-history">${esc(t('nav_history'))}</button>
-      <button class="cust-tab" id="cust-tab-files">${esc(t('nav_files', 'Filer'))}</button>
-      ${canOpenView('policy-overview') ? '<button class="cust-tab" id="cust-tab-policy-overview">' + esc(t('nav_policy_overview')) + '</button>' : ''}
-      ${canOpenView('assessments') ? '<button class="cust-tab" id="cust-tab-assessments">' + esc(t('nav_assessments')) + '</button>' : ''}
-      ${canOpenView('policy-deploy') ? '<button class="cust-tab" id="cust-tab-policy-deploy">' + esc(t('nav_policy_deploy')) + '</button>' : ''}
-      ${canOpenView('baseline-deploy') ? '<button class="cust-tab" id="cust-tab-baseline-deploy">' + esc(t('nav_baseline_deploy')) + '</button>' : ''}
-      ${cust.also_account_id && hasModule('billing') ? '<button class="cust-tab" id="cust-tab-licenses">' + esc(t('nav_licenses', 'Lisenser')) + '</button>' : ''}
-    </nav>
 
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);margin-bottom:var(--space-6);">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);margin:var(--space-6) 0;">
       <div class="card" style="text-align:center;padding:var(--space-5);">
         <div style="width:64px;height:64px;line-height:64px;border-radius:var(--radius-xl);font-weight:800;font-size:var(--font-2xl);color:#fff;background:${gradeColor(grade)};margin:0 auto var(--space-3);box-shadow:0 4px 12px ${gradeColor(grade)}40;">${esc(grade)}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">${t('lbl_grade')}</div>
@@ -120,96 +300,38 @@ async function loadCustomerDetail(customerId) {
     </div>
 
     <div id="customer-baseline-panel"></div>
-    <div id="customer-policies-panel"></div>
 
     <div class="card cust-trend" id="cust-trend">
       <div class="cust-card-title">${t('lbl_trend')}</div>
       <div class="cust-trend-body" id="cust-trend-body"></div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);">
-      <div class="card" style="padding:var(--space-5);">
-        <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-4);">${t('lbl_details')}</div>
-        <dl class="cust-details" id="cust-details">
-          ${_detailRow(t('lbl_users'), hasM, m.total_users)}
-          ${_detailRow(t('lbl_users_without_mfa', 'Brukere uten MFA'), hasM, m.users_no_mfa, 'is-bad')}
-          ${_detailRow(t('lbl_ca_policies'), hasM, m.ca_policies_enabled)}
-          <dt>${t('intune')}</dt><dd${hasM && metricPct(m.intune_compliance_pct) === null ? ' class="is-unknown"' : ''}>${!hasM ? '-' : metricPct(m.intune_compliance_pct) !== null ? metricPct(m.intune_compliance_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</dd>
-          <dt>${t('lbl_last_audit')}</dt><dd>${cust.last_audit ? esc(formatRunName(cust.last_audit)) : '-'}${_auditAgeSuffix(cust.last_audit)}</dd>
-          ${_detailRow(t('lbl_warnings_title', 'Advarsler'), hasM, m.total_warns, 'is-warn')}
-        </dl>
-      </div>
-      <div class="card" style="padding:var(--space-5);">
-        <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-4);">${t('lbl_tags')}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);">
-          ${(cust.tags || []).map(function(tag){ return '<span style="background:var(--blue-dark);color:var(--blue);padding:4px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);">'+esc(tag)+'</span>'; }).join('') || '<span style="color:var(--text-dim);font-size:var(--font-sm);">'+t('msg_no_tags','Ingen tags')+'</span>'}
-        </div>
-      </div>
+    <div class="card cust-figures">
+      <div class="cust-card-title">${esc(t('lbl_key_figures', 'Nøkkeltall'))}</div>
+      <dl class="cust-details" id="cust-details">
+        ${_detailRow(t('lbl_users'), hasM, m.total_users)}
+        ${_detailRow(t('lbl_users_without_mfa', 'Brukere uten MFA'), hasM, m.users_no_mfa, 'is-bad')}
+        ${_detailRow(t('lbl_ca_policies'), hasM, m.ca_policies_enabled)}
+        <dt>${t('intune')}</dt><dd${hasM && metricPct(m.intune_compliance_pct) === null ? ' class="is-unknown"' : ''}>${!hasM ? '-' : metricPct(m.intune_compliance_pct) !== null ? metricPct(m.intune_compliance_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</dd>
+        <dt>${t('lbl_last_audit')}</dt><dd>${cust.last_audit ? esc(formatRunName(cust.last_audit)) : '-'}${_auditAgeSuffix(cust.last_audit)}</dd>
+        ${_detailRow(t('lbl_warnings_title', 'Advarsler'), hasM, m.total_warns, 'is-warn')}
+      </dl>
     </div>
   `;
+  applyFeatureVisibility();
 
-  // Render gauge charts + trend chart + remediation
   setTimeout(function() { _renderGauges(score, hasM ? m.mfa_coverage_pct : null, hasM ? m.secure_score_pct : null); }, 50);
   _loadCustomerTrendChart(customerId);
   _loadCustomerBaselineCard(customerId);
-  _loadCustomerPoliciesCard(customerId);
 
   _wireCustomerHead(customerId, cust);
   _loadCustomerLinks(customerId, cust.customer_name);
   mountCustomerFindings(document.getElementById('cust-findings'), customerId, {
     onLinked: function() { _loadCustomerLinks(customerId, cust.customer_name); },
   });
-
-  // Add notes panel
-  var notesDiv = document.createElement('div');
-  notesDiv.className = 'card';
-  notesDiv.style.cssText = 'padding:var(--space-5);margin-top:var(--space-4);';
-  notesDiv.id = 'customer-notes-panel';
-  notesDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);">'
-    + '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">' + t('hdr_notes','Notater') + '</div>'
-    + '<div style="display:flex;gap:var(--space-2);align-items:center;">'
-    + '<span id="detail-notes-status" style="font-size:var(--font-xs);color:var(--text-dim);"></span>'
-    + '<button class="btn btn-ghost btn-sm" id="detail-notes-save">' + t('btn_save','Lagre') + '</button>'
-    + '</div></div>'
-    + '<textarea id="detail-notes-textarea" style="width:100%;min-height:120px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);padding:var(--space-3);font-family:inherit;font-size:var(--font-sm);resize:vertical;" placeholder="' + t('placeholder_notes','Skriv notater om denne kunden...') + '"></textarea>';
-  box.appendChild(notesDiv);
-  document.getElementById('detail-notes-save').addEventListener('click', saveDetailNotes);
-  _loadCustomerNotes();
-
-  // Activity log for this customer
-  var actDiv = document.createElement('div');
-  actDiv.className = 'card';
-  actDiv.style.cssText = 'padding:var(--space-5);margin-top:var(--space-4);';
-  actDiv.id = 'customer-activity-panel';
-  actDiv.innerHTML = '<div class="text-sm text-muted">' + t('msg_loading','Laster...') + '</div>';
-  box.appendChild(actDiv);
-  _loadCustomerActivity(cust.customer_name);
-
-  // Uniweb Hosting card, part of the billing module
-  if (hasModule('billing')) {
-    var uwDiv = document.createElement('div');
-    uwDiv.id = 'customer-uniweb-panel';
-    box.appendChild(uwDiv);
-    _unifiedLoadUniwebCard(customerId);
-  }
-
-  // Network Inventory card
-  var netDiv = document.createElement('div');
-  netDiv.className = 'card';
-  netDiv.style.cssText = 'padding:var(--space-5);margin-top:var(--space-4);';
-  netDiv.id = 'customer-network-panel';
-  netDiv.innerHTML = '<div class="text-sm text-muted">' + t('msg_loading_network','Loading network inventory...') + '</div>';
-  box.appendChild(netDiv);
-  _loadCustomerNetworkInventory(customerId);
-
-  // Infrastructure card (SSH hosts, VPN profiles, FortiGate, UniFi)
-  var infraDiv = document.createElement('div');
-  infraDiv.id = 'customer-infra-panel';
-  box.appendChild(infraDiv);
-  _loadCustomerInfraCard(customerId);
 }
 
-// One row of the Detaljer card: a count from the latest run's metrics, the
+// One row of the Nøkkeltall card: a count from the latest run's metrics, the
 // word "ukjent" when that run did not measure it, a dash with no run at all.
 // `alarm` colours a measured figure above zero.
 function _detailRow(label, hasMetrics, value, alarm) {
@@ -229,15 +351,12 @@ function _auditAgeSuffix(runName) {
   return ' <span style="color:var(--text-dim);font-weight:400;">(' + Number(days) + 'd)</span>';
 }
 
-// ── Customer page head: the one primary action, and the links strip ─────────
-
-// Switch the server's per-user active customer, then keep the header in step.
-// Audit, setup and the per-customer views still read it, so a page that names
-// a customer makes it the active one before acting.
+// Switch the server's per-user active customer. Audit, setup and the tabs
+// read it, so a page that names a customer makes it the active one before
+// acting.
 async function activateCustomer(customerId) {
   var d = await switchActiveCustomer(customerId);
-  if (d && typeof loadStatus === 'function') loadStatus();
-  return !!d;
+  return !!(d && d.ok);
 }
 
 function _wireCustomerHead(customerId, cust) {
@@ -245,27 +364,186 @@ function _wireCustomerHead(customerId, cust) {
   if (run) run.addEventListener('click', async function() {
     if (run.disabled) return;
     run.disabled = true;
+    // startAudit opens the Audit tab, where the run shows.
     if (await activateCustomer(customerId)) await startAudit();
-    run.disabled = false;
+    run.disabled = !cust.has_m365;
   });
   var setup = document.getElementById('cust-setup-m365');
   if (setup) setup.addEventListener('click', async function() {
     if (await activateCustomer(customerId)) startSetup();
   });
-  var report = document.getElementById('cust-generate-report');
-  if (report) report.addEventListener('click', function() {
-    window.open('/api/reports/customer-summary/' + encodeURIComponent(customerId), '_blank');
+}
+
+// ── Audit ─────────────────────────────────────────────────────────────────────
+// The run (live or idle), the section chooser, the Rapport button and the
+// runs before it, for this customer.
+var _custRuns = [];
+var _custReportRun = null;
+
+function _custLoadAudit() {
+  if (auditRunning || _auditStarting) _showAuditRunningChrome();
+  else if (hasFeature('audit')) _reconcileAuditState();
+  else _renderAuditIdle();
+  // The chooser's summary ("all 26 sections") before anyone opens it.
+  if (hasFeature('audit')) { if (_scopeLoaded) updateScopeSummary(); else loadScopeSections(); }
+  loadHistory(_custPage.id);
+}
+
+// Rapport: Kunderapport (PDF) unless the customer has no run with evidence
+// files to build it from, in which case the summary report, which reads the
+// figures, is the honest default.
+function _custHasEvidenceRun() {
+  return _custRuns.some(function(r) { return Number(r.file_count) > 0; });
+}
+
+function custSyncReportButton() {
+  var main = document.getElementById('cust-report-main');
+  if (!main) return;
+  var full = _custHasEvidenceRun() || !!_custReportRun;
+  main.dataset.kind = full ? 'customer-pdf' : 'summary';
+  setButtonLabel(main, full ? t('lbl_customer_report_pdf', 'Kunderapport (PDF)') : t('btn_summary_report', 'Sammendragsrapport'));
+  document.querySelectorAll('#cust-report-menu [data-kind]').forEach(function(b) {
+    var needsRun = ['tech-pdf', 'customer-html', 'tech-html', 'csv'].indexOf(b.dataset.kind) !== -1;
+    b.disabled = needsRun && !full;
+    if (b.dataset.kind === 'summary') b.hidden = !full;
   });
-  [['cust-tab-status', 'home'], ['cust-tab-history', 'history'], ['cust-tab-files', 'files'],
-   ['cust-tab-policy-overview', 'policy-overview'], ['cust-tab-assessments', 'assessments'],
-   ['cust-tab-policy-deploy', 'policy-deploy'], ['cust-tab-baseline-deploy', 'baseline-deploy']].forEach(function(pair) {
-    var tab = document.getElementById(pair[0]);
-    if (tab) tab.addEventListener('click', async function() {
-      if (await activateCustomer(customerId)) showView(pair[1]);
-    });
+}
+
+// The full reports are built from a run the server has selected for this
+// user: the one just audited, or one picked in the runs list. With neither,
+// the latest run that kept its evidence files.
+async function _custEnsureReportRun() {
+  if (_custReportRun && _custReportRun.customerId === _custPage.id) return true;
+  var run = _custRuns.find(function(r) { return Number(r.file_count) > 0; });
+  var area = document.getElementById('report-result');
+  if (!run) {
+    if (area) area.innerHTML = '<div class="alert alert-warning">' + esc(t('msg_no_evidence_run', 'Ingen kjøring har bevisfiler, så hele rapporten kan ikke bygges. Sammendragsrapporten leser nøkkeltallene.')) + '</div>';
+    return false;
+  }
+  var d = await apiFetch('/api/history/load', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: run.path}),
   });
-  var lic = document.getElementById('cust-tab-licenses');
+  if (!d || d.error) return false;
+  _custReportRun = {customerId: _custPage.id, timestamp: run.timestamp};
+  return true;
+}
+
+async function custReport(kind, btn) {
+  _custCloseMenus();
+  if (kind === 'summary') {
+    window.open('/api/reports/customer-summary/' + encodeURIComponent(_custPage.id), '_blank');
+    return;
+  }
+  if (kind === 'itglue') { uploadReportsToITGlue(btn); return; }
+  if (!(await _custEnsureReportRun())) return;
+  if (kind === 'csv') { exportCSV(); return; }
+  var spec = {
+    'customer-pdf': ['pdf', 'customer'], 'customer-html': ['html', 'customer'],
+    'tech-pdf': ['pdf', 'tech'], 'tech-html': ['html', 'tech'],
+  }[kind];
+  if (spec) generateReport(spec[0], spec[1]);
+}
+
+// A run picked in the runs list is what Rapport builds from.
+function custReportFromRun(timestamp) {
+  _custReportRun = {customerId: _custPage.id, timestamp: timestamp};
+  custSyncReportButton();
+  var area = document.getElementById('report-result');
+  if (area) area.innerHTML = '<div class="alert alert-info">' + esc(t('msg_report_from_run', 'Rapport bygges fra kjøringen {date}.').replace('{date}', formatRunName(timestamp))) + '</div>';
+  var bar = document.getElementById('cust-report');
+  if (bar) bar.scrollIntoView({block: 'nearest'});
+  _custToggleMenu('cust-report-menu', bar ? bar.querySelector('.split-caret') : null);
+}
+
+// ── Nettverk, Tilgang, Detaljer ───────────────────────────────────────────────
+function _custLoadNetwork(customerId) {
+  var body = document.getElementById('cust-network-body');
+  body.innerHTML = '<div class="card" id="customer-network-panel"><div class="loading-note">' + esc(t('msg_loading_network', 'Laster nettverk...')) + '</div></div>';
+  _loadCustomerNetworkInventory(customerId).then(function() {
+    var panel = document.getElementById('customer-network-panel');
+    if (!panel || panel.style.display !== 'none' || _custPage.id !== customerId) return;
+    // No device of this customer is known to the network integrations.
+    body.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_customer_network', 'Ingen FortiGate eller UniFi er knyttet til denne kunden.')) + '</p>'
+      + (canOpenView('network') ? '<button class="btn btn-default btn-sm" data-click-handler="showView" data-view="network">' + esc(t('btn_open_network_tool', 'Alle kunders nettverk')) + '</button>' : '')
+      + '</div>';
+  });
+}
+
+function _custLoadAccess(customerId) {
+  var body = document.getElementById('cust-access-body');
+  body.innerHTML = '<div id="customer-infra-panel"></div>';
+  _loadCustomerInfraCard(customerId);
+}
+
+async function _custLoadDetails(customerId) {
+  var cust = _custPage.cust || {};
+  var body = document.getElementById('cust-details-body');
+  var extra = document.getElementById('cust-details-extra');
+  body.innerHTML = '<div class="loading-note"><div class="loader"></div></div>';
+  extra.innerHTML = '';
+  var st = await apiFetch('/api/status');
+  if (_custPage.id !== customerId) return;
+  var c = (st && st.customer) || {};
+  var tags = c.tags || cust.tags || [];
+  var safeId = String(customerId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  var hasCredentials = !!(st && st.has_credentials !== false && st.has_config);
+
+  // Microsoft 365 access: the tenant connection, and the two things done
+  // with the app's credentials.
+  var html = '<div class="card cust-access-card">'
+    + '<div class="cust-card-title">' + esc(t('hdr_m365_access', 'Microsoft 365-tilgang')) + '</div>'
+    + '<p class="cust-card-text">' + esc(cust.has_m365 ? t('msg_m365_connected', 'Tenanten er koblet til, og kunden kan auditeres.') : t('msg_m365_missing', 'M365-tilgang er ikke satt opp for denne kunden, så den kan ikke auditeres ennå.')) + '</p>'
+    + (hasCredentials ? '<div class="btn-row">'
+      + '<button class="btn btn-default btn-sm" data-click-handler="checkPermissions">' + esc(t('btn_check_permissions')) + '</button>'
+      + '<button class="btn btn-default btn-sm" data-write data-click-handler="renewCreds">' + esc(t('btn_renew_credentials')) + '</button>'
+      + '</div>' : '')
+    + '</div>';
+
+  // Tags, editable here.
+  html += '<div class="card">'
+    + '<div class="cust-card-title">' + esc(t('lbl_tags')) + '</div>'
+    + '<div class="cust-tags-row"><span id="tag-pills-' + esc(safeId) + '">' + tagPillsHtml(tags) + '</span>'
+    + '<button class="btn btn-ghost btn-sm" data-write data-click-handler="openTagEditor" data-customer-id="' + esc(customerId) + '" data-tags="' + esc(JSON.stringify(tags)) + '">' + esc(t('btn_edit_tags', 'Endre tags')) + '</button></div>'
+    + '<div id="tag-editor-' + esc(safeId) + '" class="cust-tag-editor" style="display:none;"></div>'
+    + '</div>';
+
+  // Notes.
+  html += '<div class="card" id="customer-notes-panel">'
+    + '<div class="cust-card-head"><div class="cust-card-title">' + esc(t('hdr_notes', 'Notater')) + '</div>'
+    + '<span id="detail-notes-status" class="cust-card-status"></span>'
+    + '<button class="btn btn-ghost btn-sm" data-write id="detail-notes-save">' + esc(t('btn_save', 'Lagre')) + '</button></div>'
+    + '<textarea id="detail-notes-textarea" class="field-input cust-notes" placeholder="' + esc(t('placeholder_notes', 'Skriv notater om denne kunden...')) + '"></textarea>'
+    + '</div>';
+  body.innerHTML = html;
+  document.getElementById('detail-notes-save').addEventListener('click', saveDetailNotes);
+  _loadCustomerNotes();
+
+  // Files: names and dates.
+  loadFiles();
+
+  // Credential expiry for this customer, not every customer.
+  apiFetch('/api/expiry/check').then(function(d) {
+    if (!d || _custPage.id !== customerId) return;
+    renderExpiryBanner({items: (d.items || []).filter(function(i) { return i.customer_id === customerId; })});
+  });
+
+  // Hosting and licences (billing module), then what has happened here.
+  var extraHtml = '';
+  if (hasModule('billing')) {
+    extraHtml += '<div id="customer-uniweb-panel"></div>';
+    if (cust.also_account_id) {
+      extraHtml += '<div class="card"><div class="cust-card-head"><div class="cust-card-title">' + esc(t('nav_licenses', 'Lisenser')) + '</div>'
+        + '<button class="btn btn-ghost btn-sm" id="cust-load-licenses">' + esc(t('btn_show_licenses', 'Vis lisenser')) + '</button></div>'
+        + '<div id="cust-licenses-panel"></div></div>';
+    }
+  }
+  extraHtml += '<div class="card" id="customer-activity-panel"><div class="loading-note">' + esc(t('msg_loading','Laster...')) + '</div></div>';
+  extra.innerHTML = extraHtml;
+  if (hasModule('billing')) _unifiedLoadUniwebCard(customerId);
+  var lic = document.getElementById('cust-load-licenses');
   if (lic) lic.addEventListener('click', function() { loadCustomerLicenses(cust.also_account_id); });
+  _loadCustomerActivity(cust.customer_name || c.name || '');
+  applyWriteCapability();
 }
 
 // The PSA and documentation records this customer is linked to. Only
@@ -1192,7 +1470,9 @@ async function _loadCustomerActivity(customerName) {
   if (!el) return;
   try {
     var d = await apiFetch('/api/activity-log?limit=15&customer=' + encodeURIComponent(customerName));
-    var entries = d.entries || [];
+    // Opening the page switches the active customer, which logs a switch:
+    // noise here, as it is in the bell.
+    var entries = (d.entries || []).filter(function(e) { return e.action !== 'customer_switched' && e.action !== 'settings_changed'; });
     var actionIcons = {
       audit_started:'\u25B6', audit_completed:'\u2713', report_generated:'',
       email_sent:'', remediation_updated:'', backup_created:'',
@@ -1361,7 +1641,8 @@ function loadCustomerLicensesFromActive() {
 
 async function loadCustomerLicenses(accountId) {
   _currentAlsoAccountId = accountId;
-  var box = document.getElementById('customer-detail-content');
+  // On the customer page's Detaljer tab, under Lisenser.
+  var box = document.getElementById('cust-licenses-panel');
   if (!box) return;
 
   box.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted);"><div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>' + t('msg_loading_licenses','Loading licenses...') + '</div>';

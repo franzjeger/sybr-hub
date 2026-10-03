@@ -2245,6 +2245,74 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   padding: var(--space-2) var(--space-4); cursor: pointer;
 }
 .cust-tab:hover { color: var(--text); border-bottom-color: var(--border); }
+.cust-tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--blue); }
+.cust-tab:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+/* The tabs are one row; on a narrow screen it scrolls inside itself. */
+#cust-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: var(--space-4) 0 var(--space-5); }
+#cust-tabs::-webkit-scrollbar { display: none; }
+#cust-tabs .cust-tab { flex-shrink: 0; white-space: nowrap; }
+#view-customer-detail { max-width: 1000px; }
+.cust-panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-4); }
+.cust-panel-title { font-size: var(--font-md); font-weight: 700; margin: 0; }
+.cust-section-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-6) 0 var(--space-3); }
+.cust-section-title { font-size: var(--font-base); font-weight: 700; margin: 0; }
+.cust-section-actions { display: flex; gap: var(--space-2); align-items: center; }
+.cust-card-text { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.6; margin: 0 0 var(--space-3); }
+.cust-card-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.cust-card-head .cust-card-title { margin: 0; flex: 1; }
+.cust-card-status { font-size: var(--font-xs); color: var(--text-dim); }
+.cust-tags-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.cust-tag-editor { margin-top: var(--space-2); padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.cust-notes { width: 100%; min-height: 120px; resize: vertical; font-family: inherit; font-size: var(--font-sm); }
+.cust-figures, .cust-access-card { padding: var(--space-5); margin-bottom: var(--space-4); }
+.cust-back { margin-bottom: var(--space-3); }
+#cust-panel-detaljer .card { margin: 0 0 var(--space-4); }
+.cust-report-result:empty { display: none; }
+.cust-report-result { margin-bottom: var(--space-3); }
+.cust-tailscale-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); font-size: var(--font-sm); color: var(--text-muted); }
+.cust-tailscale-note span { flex: 1 1 260px; }
+/* The section chooser above the run. */
+.cust-scope { margin-bottom: var(--space-4); }
+.cust-scope-head { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; user-select: none; }
+.cust-scope-title { font-weight: 600; font-size: var(--font-sm); }
+.cust-scope-icon { font-size: 10px; color: var(--text-muted); }
+.cust-scope-summary { margin-left: auto; font-size: var(--font-xs); color: var(--text-muted); }
+.cust-scope-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+.cust-scope-select { width: auto; font-size: var(--font-sm); padding: 4px 8px; }
+.cust-scope-delete { color: var(--red); }
+.cust-scope-sections { display: flex; gap: var(--space-6); flex-wrap: wrap; margin-top: var(--space-3); }
+/* A button with a menu beside it: Rapport, Rull ut. */
+.split-btn { position: relative; display: inline-flex; }
+.split-btn .split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-btn .split-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: none; padding-left: var(--space-2); padding-right: var(--space-2); }
+.split-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 60; min-width: 260px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: var(--space-1) 0;
+}
+.split-item {
+  display: block; width: 100%; text-align: left; font: inherit; font-size: var(--font-sm); color: var(--text);
+  background: none; border: none; padding: var(--space-2) var(--space-4); cursor: pointer;
+}
+.split-item:hover:not(:disabled) { background: rgba(77,159,181,0.1); color: var(--blue); }
+.split-item:disabled { color: var(--text-dim); cursor: default; }
+.split-sep { border-top: 1px solid var(--border); margin: var(--space-1) 0; }
+.report-options { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-4); font-size: var(--font-xs); color: var(--text-muted); }
+.report-options select { width: 100%; }
+/* Ny kunde: two ways in. */
+.new-cust-choices { display: grid; gap: var(--space-3); margin: var(--space-4) 0; }
+.new-cust-choice {
+  display: flex; flex-direction: column; gap: var(--space-1); text-align: left; font: inherit; cursor: pointer;
+  padding: var(--space-4); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--text);
+}
+.new-cust-choice:hover { border-color: var(--blue); }
+.new-cust-choice-title { font-weight: 700; font-size: var(--font-base); }
+.new-cust-choice-desc { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.5; }
+.new-cust-form { display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0; }
+@media (max-width: 767px) {
+  /* Anchored to the button's right edge, which sits at the screen's. */
+  .split-menu { min-width: 0; width: min(280px, calc(100vw - 32px)); }
+}
 
 /* The Detaljer card: label and figure from the latest run. An unmeasured
    figure is dimmed text ("ukjent"), never a zero in the figure's colour. */

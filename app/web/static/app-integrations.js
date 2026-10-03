@@ -1635,7 +1635,6 @@ async function gdapImportSelected() {
     // Refresh the customer list. This called refreshCustomerList, which no
     // script defines, behind a typeof guard, so the imported customers only
     // appeared after the user reloaded the page.
-    loadDashboard();
     loadCustomers();
     showToast(t('gdap_import_success', 'Kunder importert fra Partner Center'), 'success');
   } else {

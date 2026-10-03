@@ -164,6 +164,10 @@ function adminShowPane(pane) {
 async function _loadAdminSettings() {
   try {
     const d = await apiFetch('/api/settings');
+    // The storage paths are an administrator's: the server leaves them out
+    // for anyone else, and a form filled from nothing must not post nothing
+    // back over them (an empty path resets it to the default).
+    _storagePathsLoaded = d.audit_dir !== undefined;
     document.getElementById('input-audit-dir').value = d.audit_dir_custom || '';
     document.getElementById('input-cert-dir').value = d.cert_dir_custom || '';
     document.getElementById('input-company-name').value = d.branding?.company_name || '';
@@ -177,7 +181,7 @@ async function _loadAdminSettings() {
     // Load logo preview
     refreshLogoPreview();
     document.getElementById('settings-current-dir').textContent =
-      t('lbl_active_dir') + ': ' + d.audit_dir;
+      d.audit_dir ? t('lbl_active_dir') + ': ' + d.audit_dir : '';
     document.querySelectorAll('#view-admin [data-settings-msg]').forEach(function(m) { m.textContent = ''; });
 
     // Load IT Glue settings
@@ -249,6 +253,7 @@ async function _loadAdminSettings() {
 }
 
 // ── Settings dirty-flag detection ─────────────────────────────────────────────
+var _storagePathsLoaded = false;
 var _settingsSnapshot = null;
 var _settingsDirty = false;
 
@@ -819,12 +824,7 @@ async function saveSettings() {
   msg.style.color = '';
   msg.textContent = t('btn_saving');
   try {
-    const d = await apiFetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        audit_dir: dir,
-        cert_dir: document.getElementById('input-cert-dir').value.trim(),
+    var body = {
         itglue_api_key: document.getElementById('input-itglue-key').value.trim(),
         itglue_region: document.getElementById('input-itglue-region').value,
         smtp_server: document.getElementById('input-smtp-server').value.trim(),
@@ -840,16 +840,29 @@ async function saveSettings() {
           website: document.getElementById('input-website').value.trim(),
           primary_color: document.getElementById('input-brand-color').value,
         },
-      }),
+    };
+    // The server keeps a field that was not sent; only paths it showed us go back.
+    if (_storagePathsLoaded) {
+      body.audit_dir = dir;
+      body.cert_dir = document.getElementById('input-cert-dir').value.trim();
+    }
+    const d = await apiFetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
-    
-    if (d.error) {
+
+    if (!d) {
+      // apiFetch has said why.
+      msg.textContent = '';
+      return;
+    } else if (d.error) {
       msg.style.color = 'var(--red)';
       msg.textContent = '✗ ' + d.error;
     } else {
       msg.style.color = 'var(--green)';
-      msg.textContent = t('msg_saved_active_dir').replace('{dir}', d.audit_dir);
-      document.getElementById('settings-current-dir').textContent = t('lbl_active_dir') + ': ' + d.audit_dir;
+      msg.textContent = d.audit_dir ? t('msg_saved_active_dir').replace('{dir}', d.audit_dir) : t('msg_saved', 'Lagret');
+      if (d.audit_dir) document.getElementById('settings-current-dir').textContent = t('lbl_active_dir') + ': ' + d.audit_dir;
       applyBranding(); // Re-apply brand colors immediately
       // Clear dirty flag and re-snapshot after successful save
       _snapshotSettingsForm();

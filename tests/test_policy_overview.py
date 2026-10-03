@@ -397,12 +397,10 @@ def test_the_view_exists_and_something_dispatches_to_it():
     assert "policyOverviewLoad()" in dispatcher, "the view is markup nothing opens"
 
 
-def test_the_customer_page_entry_is_gated_on_the_view_it_opens():
-    page = (STATIC / "app-customer-detail.js").read_text(encoding="utf-8")
-    assert (
-        'canOpenView(\'policy-overview\') ? \'<button class="cust-tab" id="cust-tab-policy-overview"'
-        in page
-    )
+def test_the_customer_page_tab_is_gated_on_the_view_it_opens():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    entry = next(line for line in html.splitlines() if 'id="cust-tab-policyer"' in line)
+    assert 'data-view-gate="policy-overview"' in entry
 
 
 def test_a_feature_owns_the_view_at_viewer_level():
