@@ -6,6 +6,47 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Grensesnittet sier det samme overalt
+
+- Et tall som ikke ble målt, står som «ukjent» og ikke som 0. Kundesiden
+  viste «uten MFA 0» rett under et funn om en administrator uten MFA.
+- Sybr Standard forklarer hvert krav i en setning, med målt verdi og kravet
+  ved siden av. Tidligere sto interne nøkler som `mfa.has_data` på skjermen
+  og i kundens PDF.
+- Historikk viser alle kjøringene kundesiden teller, også kjøringer som bare
+  har nøkkeltall. For dem tilbys sammendragsrapporten.
+- Policy-oversikt viser «ukjent, ikke samlet inn» for en kunde uten
+  policydata, i stedet for fjorten røde «mangler».
+- Kjøringer vises med dato og klokkeslett overalt, ikke med mappenavnet.
+- M365-status sa «ingen M365-tilgang» om GDAP-kunder og skjulte
+  audit-knappen. Nå følger den samme regel som kundesiden.
+
+### Ryddet bort det som ikke virket
+
+- Fanen Helse på dashbordet er fjernet. Den var en egen poengtavle med sin
+  egen «Karakter», som motsa kundelisten. Domener, e-post og lisenser er
+  flyttet til fanen Domener.
+- Fanen Wiki under Integrasjoner er fjernet. Den viste bare feilmeldinger.
+- Dokumentasjon viser endringsloggen, ikke utviklernotatene i repoet.
+  API-referansen vises bare for administratorer.
+- Innstillinger viser versjonen, ikke serverens stier, Python-versjon og
+  prosess-ID. Lagringsstier, backup og tilbakestilling vises bare for
+  administratorer.
+- Filer viser filnavn og dato, ikke stier på serveren. Visningen fulgte heller
+  ikke med når audit-mappen ble endret i Innstillinger.
+- Systemkontoen kan ikke slettes fra Brukere.
+
+### Feil bare når noe er feil
+
+- Tailscale uten nøkkel gir en tom side med en knapp til Integrasjoner, ikke
+  en rød feilmelding.
+- Policy-utrulling uten skrivetilgang til tenanten ber ikke om lister den
+  ikke får lese. Knappene er deaktivert med en forklaring.
+- Kommandopaletten viser bare sider kontoen kan åpne.
+- Knappen heter «Kjør audit», med ett ikon.
+- Skjemafelt bruker sidens skrift, og Kunder, Verter, Nettleser, RDP og
+  Integrasjoner passer på en telefon på 375 piksler.
+
 ### Rapporten leser strukturerte data
 
 - Auditen lagrer nå en JSON-fil ved siden av tekstfilen for hver seksjon som
