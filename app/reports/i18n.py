@@ -1027,25 +1027,28 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "... and {count} more types",
     },
     # ── Baseline & drift reason codes (one vocabulary, shared with ui_i18n.json) ──
+    # The params carry the internal path a check reads ("mfa.has_data"); the
+    # sentences do not use it. The requirement's title says what is measured,
+    # and a customer reading the report has no use for our field names.
     "bl_met": {
-        "no": "{path} er {actual}",
-        "en": "{path} is {actual}",
+        "no": "Målt: {actual}",
+        "en": "Measured: {actual}",
     },
     "bl_unmet": {
-        "no": "{path} er {actual}, men kravet er {op} {expected}",
-        "en": "{path} is {actual} — the requirement is {op} {expected}",
+        "no": "Målt: {actual}, kravet er {op} {expected}",
+        "en": "Measured: {actual}, the requirement is {op} {expected}",
     },
     "bl_guard_unset": {
-        "no": "Ikke vurdert: {guard} er ikke satt, så grunnlaget denne sjekken leser ble aldri samlet inn.",
-        "en": "Not assessed: {guard} is not set, so the evidence this check reads was never collected.",
+        "no": "Ikke vurdert: grunnlaget kravet leser ble ikke samlet inn i denne kjøringen.",
+        "en": "Not assessed: the evidence this requirement reads was not collected in this run.",
     },
     "bl_field_absent": {
-        "no": "Ikke vurdert: {path} manglet i auditen selv om seksjonen meldte at den hadde data. Det er en feil hos oss, ikke et funn om tenanten.",
-        "en": "Not assessed: {path} was absent from the audit even though the section reported data. That is a fault on our side, not a finding about the tenant.",
+        "no": "Ikke vurdert: tallet manglet i kjøringen selv om delen ble lest. Det er en feil hos oss, ikke et funn om tenanten.",
+        "en": "Not assessed: the figure was missing from the run although that part was read. That is a fault on our side, not a finding about the tenant.",
     },
     "bl_incomparable": {
-        "no": "Ikke vurdert: {path} er {actual}, som ikke lar seg sammenligne med {expected}.",
-        "en": "Not assessed: {path} is {actual}, which cannot be compared with {expected}.",
+        "no": "Ikke vurdert: verdien {actual} kan ikke sammenlignes med kravet {expected}.",
+        "en": "Not assessed: the value {actual} cannot be compared with the requirement {expected}.",
     },
     "drift_no_runs": {
         "no": "Denne kunden har ingen audit-kjøringer ennå.",
