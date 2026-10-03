@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.models.user import Role, User
-from app.web.middleware.auth import get_current_user, require_audit_path_access, require_role
+from app.web.middleware.auth import require_audit_path_access, require_role
 from app.web.middleware.security_headers import ARTEFACT_CSP
 
 log = logging.getLogger(__name__)
@@ -341,8 +341,12 @@ async def version_info() -> JSONResponse:
 
 
 @router.get("/api/system-info")
-async def system_info(_user: User = Depends(get_current_user)) -> dict:
-    """Environment summary for the admin panel."""
+async def system_info(_user: User = Depends(require_role(Role.admin))) -> dict:
+    """Environment summary for whoever runs the server.
+
+    Admin-only: it names the host's paths, Python, platform and PID, which a
+    technician has no use for. The settings screen no longer shows it.
+    """
     from app.core.config import DATA_DIR, get_audit_dir
     from app.core.database import DB_PATH
 

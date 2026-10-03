@@ -1015,6 +1015,9 @@ function applyWriteCapability() {
   // every [data-write] (tenant ones included), so this only has to catch the
   // in-between account; the overlap on a read-only user is harmless.
   document.body.classList.toggle('is-no-tenant-write', !canTenantWrite());
+  // [data-admin-only]: server paths, backup, the API reference. Hidden by
+  // CSS for everyone else, the same way is-readonly hides [data-write].
+  document.body.classList.toggle('is-admin', !!(_currentUser && _currentUser.role === 'admin'));
   applyFeatureVisibility();
   var badge = document.getElementById('readonly-badge');
   if (badge) {

@@ -2196,6 +2196,7 @@
    require_tenant_write. */
 body.is-readonly [data-write] { display: none !important; }
 body.is-no-tenant-write [data-write="tenant"] { display: none !important; }
+body:not(.is-admin) [data-admin-only] { display: none !important; }
 
 .vpn-capability-warning {
   border-color: var(--orange);
@@ -2801,7 +2802,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .docs-head { margin-bottom: var(--space-4); }
 .docs-title { font-size: 18px; font-weight: 700; }
 .docs-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: var(--space-5); }
-.docs-tabs[hidden], .docs-doc-list[hidden] { display: none; }
+.docs-doc-list[hidden] { display: none; }
 .docs-tab-btn { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: var(--space-2) var(--space-4); font-size: var(--font-sm); }
 .docs-tab-btn.active { border-bottom-color: var(--blue); font-weight: 600; }
 .docs-swagger { margin-left: auto; align-self: center; padding: var(--space-2) var(--space-4); font-size: var(--font-sm); color: var(--text-muted); text-decoration: none; }
