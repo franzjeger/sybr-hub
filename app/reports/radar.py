@@ -87,7 +87,13 @@ def _build_risk_radar(context: dict, lang: str = "no") -> dict:
     # control (every domain ignored, or the DNS section never ran) means no
     # axis — a fabricated 100 there would be an assurance we never earned, the
     # same rule every other axis on this chart already follows.
-    _email_credit = {"pass": 1.0, "partial": 0.5, "fail": 0.0}
+    #
+    # "warn" is half credit, as the report's own summary counts it with
+    # "partial". Left out, it was excluded like "info", though compliance_pct
+    # counts it against the tenant: external forwarding (4.4), no Safe Links
+    # policy (4.5) or a domain whose mail goes unsigned (5.2.3) lifted the axis
+    # instead of lowering it.
+    _email_credit = {"pass": 1.0, "partial": 0.5, "warn": 0.5, "fail": 0.0}
     email_controls = [
         c
         for c in context.get("compliance", [])
