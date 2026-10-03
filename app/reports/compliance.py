@@ -958,7 +958,9 @@ def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
             if senders
             else f"; DKIM-nøkkelen for {names} gjelder bare e-post {names} sender"
         )
-    return "warn", detail
+    # Exchange Online does not sign this domain's mail: the control's own
+    # question answered no, graded like a missing SPF or DMARC record.
+    return "fail", detail
 
 
 def dkim_status_by_domain(context: dict) -> dict[str, str]:

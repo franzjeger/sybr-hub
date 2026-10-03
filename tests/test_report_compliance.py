@@ -287,7 +287,7 @@ def test_a_domain_whose_dkim_was_never_looked_up_is_not_a_failure():
 def test_a_domain_checked_with_no_dkim_record_is_still_a_finding():
     """No M365 selector published: Exchange cannot sign with the domain.
 
-    That holds without Exchange's signing config, so it stays a finding (warn)
+    That holds without Exchange's signing config, so it stays a failed control
     rather than becoming "cannot verify".
     """
     ctrl = _control(
@@ -303,7 +303,7 @@ def test_a_domain_checked_with_no_dkim_record_is_still_a_finding():
         ),
         "5.2.3",
     )
-    assert ctrl["status"] == "warn"
+    assert ctrl["status"] == "fail"
     assert "acme.no" in ctrl["detail"]
 
 
@@ -338,7 +338,7 @@ def test_a_domain_exchange_signs_for_passes():
     }
 
     assert _control(_build_compliance_map(signed), "5.2.3")["status"] == "pass"
-    assert _control(_build_compliance_map(off), "5.2.3")["status"] == "warn"
+    assert _control(_build_compliance_map(off), "5.2.3")["status"] == "fail"
     # The selectors in DNS alone say signing was set up, not that it is on.
     assert _control(_build_compliance_map(_dns_ctx(record)), "5.2.3")["status"] == "info"
 
@@ -1142,7 +1142,7 @@ def test_5_2_3_m365_dkim_lookup_error_is_info_not_fail():
 
 def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_miss():
     # The M365 selectors definitively resolved to MISSING (a real "DKIM not
-    # configured" finding, graded warn); a transient error on a *speculative*
+    # configured" finding, graded fail); a transient error on a *speculative*
     # third-party selector probe must not flip that to cannot-verify and drop
     # it from the score.
     spf = [
@@ -1154,7 +1154,7 @@ def test_5_2_3_third_party_probe_error_does_not_suppress_a_definitive_m365_miss(
             "dkim2": "google: MISSING | k1: ERROR (timeout) | k2: MISSING | default: MISSING | dkim: MISSING",
         }
     ]
-    assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "warn"
+    assert _grade({}, "5.2.3", spf_dmarc=spf)["status"] == "fail"
 
 
 def test_9_1_directory_audit_presence_does_not_confirm_unified_audit_log():
