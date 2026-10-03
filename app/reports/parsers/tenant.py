@@ -215,6 +215,33 @@ def _sku_friendly(part: str) -> str:
     return _SKU_FRIENDLY.get((part or "").strip(), (part or "").strip())
 
 
+def _stale_row_by_column(line: str) -> dict | None:
+    """One row of the collector's own stale-account table, sliced by column.
+
+    users_mfa writes f"  {name:<35} {upn:<45} {last:<22} {days:>5} {licensed:>8}"
+    with the name and UPN cut to their widths. A name or UPN that fills its
+    column leaves one space before the next, and splitting on runs of two or
+    more spaces then merged them: the row lost a column, its licence flag was
+    read from the days column, and a licensed stale account dropped out of the
+    licence-waste figure. None when the line is not in that layout.
+    """
+    if len(line) < 116 or any(line[i] != " " for i in (37, 83, 106, 112)):
+        return None
+    days_str = line[107:112].strip()
+    licensed_str = line[113:121].strip()
+    if licensed_str not in ("Yes", "No") or not (days_str.isdigit() or days_str == "N/A"):
+        return None
+    name, upn = line[2:37].strip(), line[38:83].strip()
+    if not upn:
+        return None
+    return {
+        "name": name,
+        "upn": upn,
+        "days_inactive": int(days_str) if days_str.isdigit() else None,
+        "licensed": licensed_str == "Yes",
+    }
+
+
 def _parse_stale_accounts(text: str, sidecar: dict | None = None) -> list[dict]:
     """Parse 03b_stale_accounts.txt into a list of stale user dicts.
 
@@ -244,6 +271,10 @@ def _parse_stale_accounts(text: str, sidecar: dict | None = None) -> list[dict]:
             or "NOTE:" in stripped
             or "Stale accounts" in stripped
         ):
+            continue
+        fixed = _stale_row_by_column(line)
+        if fixed:
+            accounts.append(fixed)
             continue
         # Format: Name(35)  UPN(45)  LastSignIn(22)  Days(5)  Licensed(8)
         cols = re.split(r"\s{2,}", stripped)
