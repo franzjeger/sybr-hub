@@ -8,6 +8,9 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+# What save_audit_metrics writes into a run's directory, beside the collectors' files.
+METRICS_FILE = "_audit_metrics.json"
+
 # ── Trend comparison ──────────────────────────────────────────────────────────
 
 
@@ -91,7 +94,7 @@ def save_audit_metrics(out_dir: Path, context: dict) -> None:
     }
     from app.core.encryption import encrypted_write_json
 
-    path = out_dir / "_audit_metrics.json"
+    path = out_dir / METRICS_FILE
     encrypted_write_json(path, metrics)
 
     # Also persist to DB for trend tracking
@@ -160,11 +163,7 @@ def load_previous_metrics(out_dir: Path) -> dict | None:
 
     candidates: list[Path] = []
     for sibling in sorted(customer_dir.iterdir()):
-        if (
-            sibling.is_dir()
-            and sibling.name < current_name
-            and (sibling / "_audit_metrics.json").exists()
-        ):
+        if sibling.is_dir() and sibling.name < current_name and (sibling / METRICS_FILE).exists():
             candidates.append(sibling)
 
     if not candidates:
@@ -174,7 +173,7 @@ def load_previous_metrics(out_dir: Path) -> dict | None:
     try:
         from app.core.encryption import encrypted_read_json
 
-        return encrypted_read_json(prev_dir / "_audit_metrics.json")
+        return encrypted_read_json(prev_dir / METRICS_FILE)
     except Exception as e:
         # Deliberately broad. The old (json.JSONDecodeError, OSError) missed
         # cryptography's InvalidTag, so a metrics file that could not be
@@ -199,11 +198,7 @@ def load_metrics_history(out_dir: Path, max_runs: int = 5) -> list[dict]:
 
     candidates: list[Path] = []
     for sibling in sorted(customer_dir.iterdir()):
-        if (
-            sibling.is_dir()
-            and sibling.name < current_name
-            and (sibling / "_audit_metrics.json").exists()
-        ):
+        if sibling.is_dir() and sibling.name < current_name and (sibling / METRICS_FILE).exists():
             candidates.append(sibling)
 
     # Take the last N (most recent) candidates, keep oldest-first order
@@ -214,7 +209,7 @@ def load_metrics_history(out_dir: Path, max_runs: int = 5) -> list[dict]:
 
     for cdir in candidates:
         try:
-            data = encrypted_read_json(cdir / "_audit_metrics.json")
+            data = encrypted_read_json(cdir / METRICS_FILE)
             data["_run_label"] = cdir.name
             history.append(data)
         except Exception as e:

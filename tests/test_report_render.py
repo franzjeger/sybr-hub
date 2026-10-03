@@ -130,6 +130,22 @@ def test_oauth_consent_grants_error_reaches_the_score(tmp_path):
     assert any("OAuth" in g for g in ctx["risk"]["data_quality_issues"])
 
 
+def test_a_second_report_on_a_run_does_not_read_the_first_ones_metrics(tmp_path):
+    """build_report_context writes _audit_metrics.json into the run, and read it back.
+
+    A report generated again for the same run listed the metrics file in its
+    raw-data appendix as if a collector had written it, with the earlier
+    report's recommendations in the earlier report's language.
+    """
+    d = _audit_dir(tmp_path, FULL_AUDIT)
+    build_report_context("Acme AS", "acme.no", d, [], lang="no", frameworks="all")
+    assert (d / "_audit_metrics.json").exists()
+
+    html = _render_strict(tmp_path, "report_tech.html.j2", FULL_AUDIT, lang="en")
+
+    assert "_audit_metrics.json" not in html
+
+
 @pytest.mark.parametrize("report_type", ["customer", "tech"])
 def test_generate_reports_writes_readable_html(tmp_path, report_type):
     """Through the real entry point, including the encrypted write."""

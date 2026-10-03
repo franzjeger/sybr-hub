@@ -15,6 +15,7 @@ from app.reports.compliance import _build_compliance_map, dkim_status_by_domain
 from app.reports.evidence import _EVIDENCE_MAP, _reported_count
 from app.reports.i18n import T
 from app.reports.metrics import (
+    METRICS_FILE,
     _baseline_for,
     _compute_trends,
     _drift_for,
@@ -166,6 +167,12 @@ def build_report_context(
     # single run — so the sidecar that exists to make the figures reliable was
     # dead weight. Error-payload blanking below applies to both.
     for f in sorted([*out_dir.glob("*.txt"), *out_dir.glob("*.json")]):
+        if f.name == METRICS_FILE:
+            # This function's own output from an earlier report on the run, not
+            # something a collector found. Read as evidence it went into the
+            # raw-data appendix, its recommendations in the language that
+            # report was written in.
+            continue
         try:
             text = encrypted_read_text(f)
         except Exception:
