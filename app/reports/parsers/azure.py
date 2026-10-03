@@ -499,8 +499,7 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
         file_contents, "61_azure_orphaned_resources"
     ):
         m = re.search(r"\((\d+) found\)", content)
-        if m:
-            result["orphaned"] += int(m.group(1))
+        listed = len(result["orphaned_details"])
         for line in content.splitlines():
             line = line.strip()
             if (
@@ -521,6 +520,12 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
                         "subscription": sub_name,
                     }
                 )
+        if m:
+            # No more than the lines that name an orphan. Until the collector
+            # was fixed, "(N found)" also counted a listing that failed, whose
+            # "DISK (list error)" line names none.
+            found = len(result["orphaned_details"]) - listed
+            result["orphaned"] += min(int(m.group(1)), found)
 
     # Convert resource_types dict to sorted list
     result["resource_types_list"] = sorted(

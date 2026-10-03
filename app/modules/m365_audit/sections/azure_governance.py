@@ -336,6 +336,10 @@ class AzureGovernanceSection(BaseSection):
 
     async def _collect_orphaned_resources(self) -> None:
         orphans: list[str] = []
+        # A listing that failed is written among the orphans so a reader sees
+        # it, but it is not one: counted in "(N found)", a refused disk
+        # listing raised an orphaned-resource finding for a tenant with none.
+        errors = 0
 
         # Unattached managed disks
         try:
@@ -350,6 +354,7 @@ class AzureGovernanceSection(BaseSection):
                     )
         except Exception as ex:
             orphans.append(f"  DISK (list error)     : {ex}")
+            errors += 1
 
         # Unattached NICs + Public IPs
         try:
@@ -370,10 +375,11 @@ class AzureGovernanceSection(BaseSection):
                     )
         except Exception as ex:
             orphans.append(f"  NETWORK (list error)  : {ex}")
+            errors += 1
 
         lines = [
             "=" * 100,
-            f"  AZURE ORPHANED RESOURCES  ({len(orphans)} found)",
+            f"  AZURE ORPHANED RESOURCES  ({len(orphans) - errors} found)",
             "=" * 100,
         ]
         lines += orphans if orphans else ["  No orphaned resources detected."]

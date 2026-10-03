@@ -617,3 +617,91 @@ async def test_each_subscription_reads_its_own_inventory_files(tmp_path):
     assert total == 7
     assert [(s["name"], s["resources"]) for s in per_sub] == [("Prod-A", 5), ("Prod-B", 2)]
     assert {"type": "Microsoft.Compute/virtualMachines", "count": 2} in types
+
+
+# ── Orphaned resources (61_azure_orphaned_resources) ──────────────────────────
+
+
+def _disk(sub: str, name: str, *, attached: bool, size=128, sku="Premium_LRS"):
+    return SimpleNamespace(
+        name=name,
+        id=_id(sub, "rg-prod", "Microsoft.Compute/disks", name),
+        managed_by=_id(sub, "rg-prod", "Microsoft.Compute/virtualMachines", "vm")
+        if attached
+        else None,
+        disk_size_gb=size,
+        sku=SimpleNamespace(name=sku),
+    )
+
+
+def _nic(sub: str, name: str, *, attached: bool):
+    return SimpleNamespace(
+        name=name,
+        id=_id(sub, "rg-net", "Microsoft.Network/networkInterfaces", name),
+        virtual_machine=SimpleNamespace(id="vm") if attached else None,
+    )
+
+
+def _pip(sub: str, name: str, *, attached: bool, ip="192.0.2.10"):
+    return SimpleNamespace(
+        name=name,
+        id=_id(sub, "rg-net", "Microsoft.Network/publicIPAddresses", name),
+        ip_configuration=SimpleNamespace(id="ipconfig") if attached else None,
+        ip_address=ip,
+    )
+
+
+def _orphan_clients(disks, nics, pips) -> dict:
+    return {
+        "compute": {"disks.list": disks},
+        "network": {"network_interfaces.list_all": nics, "public_ip_addresses.list_all": pips},
+    }
+
+
+async def _collect_orphans(tmp_path, per_sub: dict, *, multi: bool) -> None:
+    auth = FakeAzureAuth(subscriptions=per_sub)
+    for sub, name in SUBS:
+        if sub in per_sub:
+            await AzureGovernanceSection(
+                tmp_path, auth, sub_id=sub, sub_name=name, multi=multi
+            )._collect_orphaned_resources()
+
+
+async def test_a_listing_that_failed_is_not_an_orphaned_resource(tmp_path):
+    """The disk listing is refused and one NIC is unattached. The error line
+    was counted in "(N found)", so the report raised one orphaned resource
+    more than there was, and an orphan finding for a tenant with none."""
+    await _collect_orphans(
+        tmp_path,
+        {
+            SUB_A: _orphan_clients(
+                PermissionError("AuthorizationFailed"), [_nic(SUB_A, "nic-old", attached=False)], []
+            )
+        },
+        multi=False,
+    )
+
+    azure = _parse_azure_overview(_read(tmp_path, sidecars=False))
+
+    assert azure["orphaned"] == 1
+    assert [o["type"] for o in azure["orphaned_details"]] == ["NIC"]
+
+
+def test_a_run_from_before_the_fix_does_not_count_its_error_line():
+    """What the collector wrote until now: the error counted in the banner."""
+    legacy = "\n".join(
+        [
+            "=" * 100,
+            "  AZURE ORPHANED RESOURCES  (2 found)",
+            "=" * 100,
+            "  DISK (list error)     : (AuthorizationFailed) The client does not have access",
+            f"  NIC (unattached)      : {'nic-old':<40}  RG: rg-net",
+            "=" * 100,
+            "",
+        ]
+    )
+
+    azure = _parse_azure_overview({"61_azure_orphaned_resources.txt": legacy})
+
+    assert azure["orphaned"] == 1
+    assert [o["type"] for o in azure["orphaned_details"]] == ["NIC"]
