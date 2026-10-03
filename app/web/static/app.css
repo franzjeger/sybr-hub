@@ -485,6 +485,13 @@
   .slim-table .cust-cell .cname { font-weight: 600; display: block; white-space: nowrap; }
   .slim-table .cust-cell .cdom { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
   .grade-tile { width: 30px; height: 30px; border-radius: var(--radius-md); font-weight: 800; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid; flex-shrink: 0; }
+  /* The grade's colour on its own tint: --tone, and --tone-deep for the
+     letter so it clears AA on the tint. */
+  .grade-tile { --tone: var(--text-muted); --tone-deep: var(--text-muted); color: var(--tone-deep); background: color-mix(in srgb, var(--tone) 12%, transparent); border-color: color-mix(in srgb, var(--tone) 40%, transparent); }
+  .grade-tile.grade-A { --tone: var(--green); --tone-deep: var(--green-deep); }
+  .grade-tile.grade-B { --tone: var(--blue); --tone-deep: var(--blue-deep); }
+  .grade-tile.grade-C { --tone: var(--orange); --tone-deep: var(--orange-deep); }
+  .grade-tile.grade-D, .grade-tile.grade-F { --tone: var(--red); --tone-deep: var(--red-deep); }
   .status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; border-radius: var(--radius-full); padding: 3px 9px; white-space: nowrap; }
   .col-opt.col-hidden { display: none; }
 
@@ -499,16 +506,22 @@
      is one click rather than three tables read in turn.
      ══════════════════════════════════════════════════════════════════════ */
   .notif-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-  .sev-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 12px; font-weight: 600; white-space: nowrap;
+  /* Varsler's severity filters. They shared a name with the findings'
+     severity label (.sev-chip, further down), which won and drew them as
+     small boxes; a filter is a pill. */
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    font: inherit; font-size: var(--font-sm); font-weight: 600; white-space: nowrap; color: var(--text);
     border: 1px solid var(--border); border-radius: var(--radius-full);
-    padding: 5px 12px; background: transparent; cursor: pointer;
+    padding: var(--space-1) var(--space-3); background: transparent; cursor: pointer;
     transition: border-color var(--duration-fast), background var(--duration-fast);
   }
-  .sev-chip:hover { border-color: var(--text-dim); }
-  .sev-chip.active { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 15%, transparent); }
-  .sev-chip b { font-weight: 700; }
+  .filter-chip:hover { border-color: var(--text-dim); }
+  .filter-chip.active { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 15%, transparent); }
+  .filter-chip b { font-weight: 700; }
+  .filter-chip.is-critical { color: var(--red-deep); }
+  .filter-chip.is-warning { color: var(--orange-deep); }
+  .filter-chip.is-info { color: var(--text-muted); }
   .notif-group-label {
     font-size: 11px; font-weight: 600; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
@@ -520,14 +533,19 @@
      anyone who cannot separate a 4% tint from the panel behind it. */
   .notif-row.unread { background: color-mix(in srgb, var(--blue) 5%, transparent); }
   .notif-row.unread .notif-title { font-weight: 700; }
-  .notif-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .notif-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--text-dim); }
+  .notif-dot.is-critical { background: var(--red); }
+  .notif-dot.is-warning { background: var(--orange); }
+  .notif-row.is-handled { opacity: 0.5; }
   .notif-body { flex: 1; min-width: 0; }
   .notif-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .notif-title { font-size: 13px; font-weight: 500; color: var(--text); }
-  .notif-sev { font-size: 10px; font-weight: 700; border-radius: var(--radius-sm); padding: 1px 6px; white-space: nowrap; }
+  .notif-sev { font-size: 10px; font-weight: 700; border-radius: var(--radius-sm); padding: 1px 6px; white-space: nowrap; color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 12%, transparent); }
+  .notif-sev.is-critical { color: var(--red-deep); background: var(--color-danger-bg); }
+  .notif-sev.is-warning { color: var(--orange-deep); background: var(--color-warning-bg); }
   .notif-meta { display: flex; align-items: center; gap: 10px; margin-top: 3px; font-size: 11px; color: var(--text-dim); flex-wrap: wrap; }
   .notif-meta .cust { color: var(--blue); font-weight: 600; white-space: nowrap; }
-  .notif-meta .src { font-family: var(--mono); white-space: nowrap; }
+  .notif-meta .src { white-space: nowrap; }
   .notif-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .notif-side { display: flex; flex-direction: column; gap: 16px; }
   .notif-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
@@ -847,6 +865,8 @@
   .btn-warning { background: #9e6a03;           color: #fff; }
   .btn-default { background: var(--bg-card); color: var(--text); border-color: var(--border); }
   .btn-ghost   { background: transparent; color: var(--blue); border-color: var(--border); }
+  /* A text button: an action that should not compete with the buttons beside it. */
+  .btn-link    { background: none; color: var(--blue); border-color: transparent; }
 
   .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: var(--space-5); }
 
@@ -1292,6 +1312,7 @@
   }
   .field-input.mono { font-family: var(--mono); }
   .field-input.field-input-lg { padding: var(--space-3); font-size: var(--font-base); }
+  .field-input.field-input-sm { padding: var(--space-1) var(--space-2); font-size: var(--font-sm); }
   .field-input:focus { border-color: var(--blue); }
   select.field-input option, select option { background: var(--bg-card); color: var(--text); }
   .field-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; }

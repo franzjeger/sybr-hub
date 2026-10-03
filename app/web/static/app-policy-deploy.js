@@ -448,7 +448,7 @@ function _pdValidate() {
 
 async function policyDeployPlan() {
   var box = document.getElementById('pd-plan');
-  box.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  box.innerHTML = '<div class="loader loader-md"></div>';
   _pdPlan = null;
 
   var selected = _pdSelectedPolicies();
