@@ -7,6 +7,7 @@ per-subscription Azure files and their JSON sidecars, the first line of a
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 
@@ -50,6 +51,28 @@ def _find_azure_files(file_contents: dict[str, str], prefix: str) -> list[tuple[
             sub_name = rest[1:-4]  # strip leading _ and .txt
             matches.append((fname, content, sub_name))
     return matches
+
+
+def _sidecar(file_contents: dict[str, str], text_filename: str) -> dict | None:
+    """The JSON sidecar beside a text evidence file, parsed, or None.
+
+    "15_sharepoint_settings.txt" has its sidecar in "15_sharepoint_settings.json"
+    (see BaseSection._save_sidecar). None when the run predates the sidecar, or
+    when it is empty or not a JSON object: the caller then reads the text, as it
+    did before. A run whose collector failed writes only the text error, so a
+    missing sidecar is never evidence of an empty result.
+    """
+    if not text_filename.endswith(".txt"):
+        raise ValueError(f"a sidecar sits beside a .txt file, not {text_filename!r}")
+    raw = file_contents.get(text_filename[:-4] + ".json")
+    if not raw or not raw.strip():
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        log.warning("Unreadable sidecar beside %s", text_filename)
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _find_azure_json(file_contents: dict[str, str], prefix: str) -> list[tuple[str, str, str]]:

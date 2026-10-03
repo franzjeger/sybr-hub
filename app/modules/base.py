@@ -76,6 +76,24 @@ class BaseSection(ABC):
         encrypted_write_text(path, content)
         self.result.files.append(filename)
 
+    def _save_sidecar(self, text_filename: str, data: dict) -> None:
+        """Write the structured twin of a text evidence file.
+
+        The .txt files are for a person: columns trimmed to a readable width.
+        The report used to parse them back with regexes, and every trimmed
+        column and changed layout was a way to read them wrong (Azure backup
+        read no protected items for months). The sidecar carries the same data
+        untrimmed, as JSON beside the text: "52_azure_backup.txt" gets
+        "52_azure_backup.json". Parsers read it first and fall back to the text
+        for runs from before it existed. ``data`` must be a JSON object; values
+        that are not JSON types (datetimes, SDK enums) are written as strings.
+        """
+        import json
+
+        if not text_filename.endswith(".txt"):
+            raise ValueError(f"a sidecar sits beside a .txt file, not {text_filename!r}")
+        self._save(text_filename[:-4] + ".json", json.dumps(data, indent=1, default=str))
+
     # Snapshots are the backup half of the audit. The .txt files beside them
     # are evidence — columns trimmed to a width a person reads — and a trimmed
     # policy cannot be put back. These carry the objects exactly as Graph gave
