@@ -127,9 +127,10 @@ function notifOpenRules() {
 // Severity vocabulary, shared by the chips, the dots and the badges so a
 // colour never means two things in one screen.
 var _SEV = {
-  critical: { label: 'Kritisk', color: 'var(--red-deep)',    dot: 'var(--red)',    tint: 'color-mix(in srgb, var(--red) 12%, transparent)' },
-  warning:  { label: 'Advarsel', color: 'var(--orange-deep)', dot: 'var(--orange)', tint: 'color-mix(in srgb, var(--orange) 12%, transparent)' },
-  info:     { label: 'Info',     color: 'var(--text-muted)',  dot: 'var(--text-dim)', tint: 'color-mix(in srgb, var(--text-muted) 12%, transparent)' }
+  // tone: the is-* modifier .filter-chip, .notif-dot and .notif-sev colour by.
+  critical: { label: 'Kritisk', tone: 'is-critical' },
+  warning:  { label: 'Advarsel', tone: 'is-warning' },
+  info:     { label: 'Info',     tone: 'is-info' }
 };
 
 export function _notifDays(n) {
@@ -145,7 +146,7 @@ var _notifCoverage;
 
 export async function dashLoadAlerts() {
   var el = document.getElementById('dash-alerts-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
 
   // Three sources, fetched together. Uniweb is optional — a customer without
   // it configured is not an error, so its failure narrows the stream rather
@@ -347,20 +348,20 @@ function _notifRender() {
   [['all', t('sev_all', 'Alle')], ['critical', _SEV.critical.label],
    ['warning', _SEV.warning.label], ['info', _SEV.info.label]].forEach(function(p) {
     var key = p[0];
-    var col = key === 'all' ? 'var(--text)' : _SEV[key].color;
-    html += '<button class="sev-chip' + (_notifState.sev === key ? ' active' : '') + '"'
-         + ' style="color:' + col + ';" data-click-handler="notifSetSevFilter" data-sev="' + esc(key) + '">'
+    var tone = key === 'all' ? 'is-all' : _SEV[key].tone;
+    html += '<button class="filter-chip ' + tone + (_notifState.sev === key ? ' active' : '') + '"'
+         + ' data-click-handler="notifSetSevFilter" data-sev="' + esc(key) + '">'
          + esc(p[1]) + ' <b>' + counts[key] + '</b></button>';
   });
   html += _notifSelect('source', t('lbl_source', 'Kilde'), Object.keys(sources));
   html += _notifSelect('customer', t('col_customer', 'Kunde'), Object.keys(customers));
-  html += '<div style="flex:1;"></div>';
-  html += '<button class="btn btn-default" style="font-size:12px;padding:5px 12px;color:var(--blue);border-color:transparent;" data-click-handler="notifMarkAllRead">' + t('btn_mark_all_read', 'Marker alle som lest') + '</button>';
+  html += '<div class="flex-1"></div>';
+  html += '<button class="btn btn-link btn-sm" data-click-handler="notifMarkAllRead">' + t('btn_mark_all_read', 'Marker alle som lest') + '</button>';
   html += '</div>';
 
   html += '<div class="notif-grid"><div>';
   if (!shown.length) {
-    html += '<div class="notif-card" style="text-align:center;padding:40px;color:var(--text-muted);">'
+    html += '<div class="notif-card empty-note">'
          + (items.length
              ? t('msg_no_alerts_in_filter', 'Ingen varsler i dette filteret.')
              : t('msg_all_clear', 'Ingenting krever handling. Ingen legitimasjon, fornyelser, domener eller sertifikater utløper innen 30 dager, og ingen av enhetene som er lest, har utdatert firmware.'))
@@ -379,7 +380,7 @@ function _notifRender() {
     bands.forEach(function(b) {
       var rows = shown.filter(b.test);
       if (!rows.length) return;
-      html += '<div style="margin-bottom:20px;"><div class="notif-group-label">' + esc(b.title) + ' (' + rows.length + ')</div>';
+      html += '<div class="mb-5"><div class="notif-group-label">' + esc(b.title) + ' (' + rows.length + ')</div>';
       html += '<div class="notif-list">';
       rows.forEach(function(n) { html += _notifRow(n); });
       html += '</div></div>';
@@ -391,7 +392,7 @@ function _notifRender() {
 }
 
 function _notifSelect(kind, label, values) {
-  var html = '<select class="field-input" style="font-size:12px;padding:4px 8px;width:auto;"'
+  var html = '<select class="field-input field-input-sm w-auto"'
            + ' aria-label="' + esc(label) + '"'
            + ' data-change-handler="notifSetFilter" data-kind="' + esc(kind) + '">';
   html += '<option value="all"' + (_notifState[kind] === 'all' ? ' selected' : '') + '>'
@@ -405,13 +406,13 @@ function _notifSelect(kind, label, values) {
 function _notifRow(n) {
   var sev = _SEV[n.sev] || _SEV.info;
   var unread = !_notifIsRead(n.id);
-  var html = '<div class="notif-row' + (unread ? ' unread' : '') + (n.handled ? '" style="opacity:0.5;' : '"') + '>';
-  html += '<span class="notif-dot" style="background:' + sev.dot + ';"></span>';
+  var html = '<div class="notif-row' + (unread ? ' unread' : '') + (n.handled ? ' is-handled' : '') + '">';
+  html += '<span class="notif-dot ' + sev.tone + '"></span>';
   html += '<div class="notif-body">';
   html += '<div class="notif-head"><span class="notif-title">' + esc(n.title) + '</span>';
-  html += '<span class="notif-sev" style="color:' + sev.color + ';background:' + sev.tint + ';">' + esc(sev.label.toUpperCase()) + '</span>';
+  html += '<span class="notif-sev ' + sev.tone + '">' + esc(sev.label.toUpperCase()) + '</span>';
   if (n.days !== null && n.days !== undefined) {
-    html += '<span class="notif-sev" style="color:' + sev.color + ';background:' + sev.tint + ';">' + esc(_notifDays(n.days)) + '</span>';
+    html += '<span class="notif-sev ' + sev.tone + '">' + esc(_notifDays(n.days)) + '</span>';
   }
   html += '</div>';
   html += '<div class="notif-meta">';
@@ -423,11 +424,11 @@ function _notifRow(n) {
   html += '<div class="notif-actions">';
   // An event or alert about no customer we know has nothing to open.
   if (n.act !== 'customer' || n.customerId) {
-    html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;"'
+    html += '<button class="btn btn-default btn-sm"'
          + ' data-click-handler="notifAct" data-id="' + esc(n.id) + '">' + esc(n.action) + '</button>';
   }
   if (unread) {
-    html += '<button class="btn btn-default" style="font-size:11px;padding:4px 8px;"'
+    html += '<button class="btn btn-default btn-sm"'
          + ' title="' + t('tip_mark_read', 'Marker som lest') + '"'
          + ' aria-label="' + t('tip_mark_read', 'Marker som lest') + '"'
          + ' data-click-handler="notifActReadOnly" data-id="' + esc(n.id) + '">&#10003;</button>';
@@ -596,7 +597,7 @@ function _fmtBytes(bytes) {
 
 async function dashLoadCosts() {
   var el = document.getElementById('dash-costs-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
 
   var data = await apiFetch('/api/dashboard/costs');
   if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_costs_load_failed','Kunne ikke laste kostnadsdata') + '</div>'; return; }
@@ -703,7 +704,7 @@ function _fmtNOK(val) {
 
 async function dashLoadDomains() {
   var el = document.getElementById('dash-domains-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>' +
+  el.innerHTML = '<div class="loader loader-md"></div>' +
     '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px;">' + t('dash_checking_tls','Sjekker TLS-sertifikater for alle domener ...') + '</div>';
 
   // The domain, mail and licence chain (paying twice for mail, a domain
@@ -946,7 +947,7 @@ export function dashExportCurrentTab() {
 
 export async function dashLoadArchive() {
   var el = document.getElementById('dash-archive-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
 
   var data = await apiFetch('/api/reports/archive');
   if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_load_failed','Kunne ikke laste') + '</div>'; return; }
@@ -1076,14 +1077,13 @@ function toggleDashAutoRefresh() {
 }
 function toggleRowActions(btn) {
   // Close any other open menus
-  document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.style.display = 'none'; });
-  var menu = btn.nextElementSibling;
-  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.hidden = true; });
+  btn.nextElementSibling.hidden = false;
 }
 // Close row action menus on outside click
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.row-actions-wrap')) {
-    document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.style.display = 'none'; });
+    document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.hidden = true; });
   }
 });
 
@@ -1401,15 +1401,13 @@ function renderOverview(customers) {
     const age = _auditAgeDays(c);
     const ageNote = !c.last_audit ? ''
       : _auditIsStale(c) ? '<span class="overview-age is-stale">' + esc(Math.floor(age) + 'd ' + t('lbl_since_audit', 'siden audit')) + '</span>' : '';
-    const gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[grade] || 'var(--text-muted)';
-    const gvd = {A:'var(--green-deep)',B:'var(--blue-deep)',C:'var(--orange-deep)',D:'var(--red-deep)',F:'var(--red-deep)'}[grade] || 'var(--text-muted)';
 
     html += `
           <tr data-click-handler="dashOverviewSelectCustomer" data-customer-id="${esc(c.customer_id)}"
               title="${esc(t('tip_click_to_open_customer', 'Åpne kunden'))}">
             <td>
               <div class="cust-cell">
-                <span class="grade-tile" style="color:${gvd};background:color-mix(in srgb, ${gv} 12%, transparent);border-color:color-mix(in srgb, ${gv} 40%, transparent);" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${esc(t('tip_click_filter_grade','Click to filter by grade'))}">${esc(grade)}</span>
+                <span class="grade-tile grade-${esc(grade.replace('-', 'none'))}" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${esc(t('tip_click_filter_grade','Click to filter by grade'))}">${esc(grade)}</span>
                 <span class="cust-cell-text">
                   <span class="cname">${esc(c.customer_name)}</span>
                   <span class="cdom">${esc(c.primary_domain || '')}</span>
@@ -1422,7 +1420,7 @@ function renderOverview(customers) {
             <td class="overview-menu-col">
               <div class="row-actions-wrap">
                 <button class="row-actions-btn" data-click-handler="dashToggleRowActions" aria-label="${esc(t('lbl_more_actions', 'Flere handlinger'))}">&#8943;</button>
-                <div class="row-actions-menu" style="display:none;">
+                <div class="row-actions-menu" hidden>
                   <button class="hover-menu-item" data-click-handler="dashRowDetails" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_open_customer', 'Åpne kunde'))}</button>
                   <button class="hover-menu-item" data-write data-click-handler="dashRowAudit" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_run_audit'))}</button>
                   <button class="hover-menu-item" data-click-handler="dashRowHistory" data-customer-id="${esc(c.customer_id)}">${esc(t('hdr_runs', 'Kjøringer'))}</button>

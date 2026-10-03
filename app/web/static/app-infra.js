@@ -190,7 +190,7 @@ function _customerNameById(customerId) {
 export async function hostsLoad() {
   var box = _claim('hosts-content');
   var el = box.el;
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
 
   // Pre-load customer cache for name resolution
   if (!_infraCustomerCache) { await _populateCustomerSelect('_dummy_nonexistent_'); }
@@ -412,7 +412,7 @@ export async function hostsHealthAll() {
 export async function sshShowKeys() {
   var box = _claim('ssh-content');
   var el = box.el;
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
   var data = await apiFetch('/api/ssh/keys');
   if (!box.owns() || !data) return;
   var keys = data.keys || [];
@@ -578,7 +578,7 @@ async function sshDeleteKey(id) {
 async function sshShowHosts() {
   var box = _claim('ssh-content');
   var el = box.el;
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
   var data = await apiFetch('/api/ssh/hosts');
   if (!box.owns() || !data) return;
   var hosts = data.hosts || [];
@@ -886,7 +886,7 @@ function _vpnStatField(label, value) {
 export async function vpnLoadProfiles() {
   var box = _claim('vpn-content');
   var el = box.el;
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
   if (!_infraCustomerCache) { await _populateCustomerSelect('_dummy_nonexistent_'); }
   var data = await apiFetch('/api/vpn/profiles');
   var status = await apiFetch('/api/vpn/status');
@@ -2336,7 +2336,7 @@ function provisionCopySummary() {
 
 export async function dashLoadFortiGates() {
   var el = document.getElementById('dash-fg-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading_fortigates','Loading all FortiGate firewalls...') + '</div>';
+  el.innerHTML = '<div class="loader loader-md"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading_fortigates','Loading all FortiGate firewalls...') + '</div>';
 
   var data = await apiFetch('/api/fortigate/all');
   if (!data || !data.fortigates) { el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_fortigates','Ingen FortiGater konfigurert. Legg dem til per kunde under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>'; return; }
@@ -2959,7 +2959,7 @@ var _unifiDevices = [];
 export async function dashLoadUnifiAll() {
   var el = document.getElementById('dash-unifi-content');
   if (!el) return;
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
 
   var data = await apiFetch('/api/unifi/all');
   if (!data) { el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">' + t('kunne_ikke_hente_unifi_data') + '</div>'; return; }
@@ -3532,7 +3532,7 @@ export async function runPentest() {
   var scanType = document.getElementById('pentest-type').value;
   var scanMode = document.getElementById('pentest-scan-mode').value;
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Scanner ' + esc(target) + '... ' + t('inf_may_take_5min','Dette kan ta opptil 5 minutter.') + '</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">Scanner ' + esc(target) + '... ' + t('inf_may_take_5min','Dette kan ta opptil 5 minutter.') + '</div>';
 
   var endpoint = scanType === 'port' ? '/api/pentest/port-scan' : scanType === 'web' ? '/api/pentest/web-scan' : '/api/pentest/full-scan';
   var body = scanType === 'web' ? {url: target} : {target: target, scan_type: scanMode};
@@ -3710,7 +3710,7 @@ export async function runDnsPentest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_et_domene'), 'error'); return; }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">DNS-sikkerhetsscan: ' + esc(target) + '...</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">DNS-sikkerhetsscan: ' + esc(target) + '...</div>';
 
   var data = await apiFetch('/api/pentest/dns-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain:target})});
   if (!data || !data.ok) {
@@ -3757,7 +3757,7 @@ export async function runCredentialTest() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_host_ip'), 'error'); return; }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('inf_testing_default_pw','Tester standard-passord på') + ' ' + esc(target) + '...</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('inf_testing_default_pw','Tester standard-passord på') + ' ' + esc(target) + '...</div>';
 
   var data = await apiFetch('/api/pentest/credential-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
   if (!data || !data.ok) {
@@ -3806,7 +3806,7 @@ export async function runCmsScan() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_url'), 'error'); return; }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">CMS-skanning: ' + esc(target) + '...</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">CMS-skanning: ' + esc(target) + '...</div>';
   var data = await apiFetch('/api/pentest/cms-scan', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:target})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   var cms = data.cms || {};
@@ -3820,7 +3820,7 @@ export async function runSmbEnum() {
   var target = document.getElementById('pentest-target').value.trim();
   if (!target) { showToast(t('skriv_inn_en_ip_hostname'), 'error'); return; }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">SMB-enumerering: ' + esc(target) + '... ' + t('inf_may_take_60s','(kan ta 60s)') + '</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">SMB-enumerering: ' + esc(target) + '... ' + t('inf_may_take_60s','(kan ta 60s)') + '</div>';
   var data = await apiFetch('/api/pentest/smb-enum', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:target})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   _renderPentestResults({ok:true, findings:data.findings||[], summary:data.summary, timestamp:new Date().toISOString()}, el, target);
@@ -3832,7 +3832,7 @@ export async function runSegTest() {
   // The customer chosen in the bar above the tests (this tab's current one).
   var custId = await toolCustomerId();
   if (!custId) { showToast(t('velg_en_kunde_med_fortigate'), 'error'); return; }
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + esc(t('tester_nettverkssegmentering_for_aktiv_kunde').replace('{customer}', _customerNameById(custId))) + '</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + esc(t('tester_nettverkssegmentering_for_aktiv_kunde').replace('{customer}', _customerNameById(custId))) + '</div>';
   var data = await apiFetch('/api/pentest/segmentation-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_id:custId})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   var s = data.summary||{};
@@ -3851,7 +3851,7 @@ export async function runTlsAudit() {
   var m = host.match(/^([^:]+):(\d+)$/);
   if (m) { host = m[1]; port = parseInt(m[2],10); }
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + esc(t('pentest_msg_tls_progress','TLS audit in progress — probing TLS 1.0–1.3...')) + ' (' + esc(host) + ':' + port + ')</div>';
+  el.innerHTML = '<div class="loader loader-lg"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + esc(t('pentest_msg_tls_progress','TLS audit in progress — probing TLS 1.0–1.3...')) + ' (' + esc(host) + ':' + port + ')</div>';
   var data = await apiFetch('/api/pentest/tls-audit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:host, port:port})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + esc(t('pentest_msg_tls_failed','TLS audit failed')) + ': ' + esc(data&&data.error?data.error:t('pentest_msg_unknown_error','Unknown error')) + '</div>'; return; }
 
@@ -3897,7 +3897,7 @@ export async function runTakeoverCheck() {
   if (!raw) { showToast(t('pentest_msg_enter_domain','Enter a domain'), 'error'); return; }
   var domain = raw.replace(/^https?:\/\//,'').replace(/\/.*$/,'').replace(/:\d+$/,'');
   var el = document.getElementById('pentest-results');
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div>'
+  el.innerHTML = '<div class="loader loader-lg"></div>'
     + '<div style="text-align:center;color:var(--text-muted);font-size:12px;">' + esc(t('pentest_msg_takeover_progress','Subdomain takeover check — enumerating subdomains...')) + ' (' + esc(domain) + ')</div>';
   var data = await apiFetch('/api/pentest/takeover-check', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain:domain})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + esc(t('pentest_msg_takeover_failed','Takeover check failed')) + ': ' + esc(data&&data.error?data.error:t('pentest_msg_unknown_error','Unknown error')) + '</div>'; return; }
@@ -3926,7 +3926,7 @@ async function dashLoadSites() {
     el.innerHTML = _renderSiteTable(_unifiSites);
     return;
   }
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
+  el.innerHTML = '<div class="loader loader-md"></div>';
   var data = await apiFetch('/api/unifi/site-manager/sites');
   if (!data || !data.sites) {
     el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('inf_no_sites','Ingen siter tilgjengelig. Sett opp UniFi Site Manager under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>';

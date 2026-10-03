@@ -55,7 +55,7 @@ function _setRenewalFilter(key) {
 
 export async function dashLoadRenewals() {
   var el = document.getElementById('dash-renewals-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_loading_renewals','Laster fornyelser ...') + '</div>';
+  el.innerHTML = '<div class="loader loader-md"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('also_loading_renewals','Laster fornyelser ...') + '</div>';
 
   var data = await apiFetch('/api/also/renewals?days=365');
   if (!data) {
@@ -732,7 +732,7 @@ var _licOptData = null;
 
 async function alsoShowLicenseOptimization() {
   var el = document.getElementById('dash-renewals-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>'
+  el.innerHTML = '<div class="loader loader-md"></div>'
     + '<div style="text-align:center;color:var(--text-muted);font-size:12px;">'
     + t('lbl_loading_lic_opt','Loading license optimization...') + '</div>';
 

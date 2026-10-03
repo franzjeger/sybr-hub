@@ -79,7 +79,7 @@ var _tsDevices = [];
 
 export function tsLoadView() {
   var el = document.getElementById('ts-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading','Loading...') + '</div>';
+  el.innerHTML = '<div class="loader loader-md"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('msg_loading','Loading...') + '</div>';
   tsLoadDevices();
 }
 
