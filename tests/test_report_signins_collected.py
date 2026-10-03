@@ -2,11 +2,13 @@
 
 05_signin_activity.txt and 05b_signin_failures.txt now have JSON twins, and
 _parse_signin_risk reads them first. Over ordinary sign-ins the two must give
-the same answer. The sidecar must also get right what the text cannot carry:
-the per-user failure table is split on runs of spaces and a row counts as a
-user only when its first column holds an "@", so failures from sign-ins with no
-UPN (written as "(unknown)") or with a bare account name were read as a
-"failure reason" and left out of the failure total and the brute-force check.
+the same answer, and over the rows the text used to misread too: the per-user
+tables were split on runs of spaces and a row counted as a user only when its
+first column held an "@", so failures from sign-ins with no UPN (written as
+"(unknown)") or with a bare account name were read as a "failure reason" and
+left out of the failure total and the brute-force check. The rows are now read
+by the collector's columns. What the text cannot carry is the breakdowns past
+their top ten.
 """
 
 from __future__ import annotations
@@ -120,8 +122,15 @@ def _attack_without_upns() -> list[dict]:
     )
 
 
-async def test_the_sidecar_counts_failures_the_text_reads_as_reasons(tmp_path):
-    files = await _collect(tmp_path, _attack_without_upns(), sidecars=True)
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_failures_without_a_upn_are_counted_from_either_file(tmp_path, sidecars):
+    """The text was read as "(unknown)" and "admin" being failure reasons.
+
+    A run from before the sidecar reported no failures and no brute-force
+    suspect for a spray at a bare account name. Its rows are now read by the
+    collector's columns, so the text gives the sidecar's answer.
+    """
+    files = await _collect(tmp_path, _attack_without_upns(), sidecars=sidecars)
 
     risk = _parse_signin_risk(files)
 
@@ -132,15 +141,20 @@ async def test_the_sidecar_counts_failures_the_text_reads_as_reasons(tmp_path):
     assert risk["unique_users"] == 2, "kari and admin; a missing UPN is nobody"
 
 
-async def test_the_text_alone_misreads_those_failures(tmp_path):
-    """What a run from before the sidecar still reports, kept as it was."""
-    files = await _collect(tmp_path, _attack_without_upns(), sidecars=False)
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_upn_longer_than_its_column_is_still_one_user(tmp_path, sidecars):
+    """The UPN is written whole and pushes the counts right; they stay its own."""
+    long_upn = "anne-marie.christoffersen-haugsland@kunde-a.acme.example"
+    assert len(long_upn) > 50
+    events = [_event(long_upn, 50126, reason=BAD_PASSWORD) for _ in range(51)]
+    files = await _collect(tmp_path, [*events, _event(long_upn, 0)], sidecars=sidecars)
 
     risk = _parse_signin_risk(files)
 
-    assert risk["total_failures"] == 0
-    assert {r["reason"] for r in risk["top_failure_reasons"]} == {"admin", "(unknown)"}
-    assert risk["brute_force_suspects"] == []
+    assert risk["total_failures"] == 51
+    assert risk["top_failure_users"] == [{"user": long_upn, "count": 51}]
+    assert risk["brute_force_suspects"] == [long_upn]
+    assert risk["unique_users"] == 1
 
 
 async def test_a_refused_read_writes_no_sidecar_and_reads_as_unmeasured(tmp_path):

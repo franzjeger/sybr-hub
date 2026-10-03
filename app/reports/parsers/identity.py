@@ -787,6 +787,59 @@ _LICENCE_GAP_RE = re.compile(r"licence gap|lisens", re.IGNORECASE)
 # credential (a device retrying an old password) rather than a guessing attack.
 _STALE_CREDENTIAL_SUCCESSES = 20
 
+# What the sign-in collector writes for a sign-in Graph logged without a UPN,
+# and after a user over the failure threshold.
+_NO_UPN = "(unknown)"
+_THRESHOLD_FLAG = "  *** THRESHOLD EXCEEDED ***"
+
+
+def _signin_row_by_column(line: str, widths: tuple[int, ...]) -> tuple[str, list[int]] | None:
+    """(upn, counts) from a row of one of the sign-in collector's own tables.
+
+    signins writes each row as f"  {upn:<50}" and then each count right-aligned
+    in its width, one space before each: (8, 9, 8, 6) for the activity table,
+    (9,) for the failure table, whose rows may end in the threshold flag. The
+    UPN is not cut, so one longer than 50 pushes the counts right; they are
+    then still the row's last fields. The readers split rows on runs of two or
+    more spaces and took a row for a user only when its first column held an
+    "@" (or, for activity, a "."), so a sign-in with no UPN ("(unknown)") or
+    with a bare account name ("admin") was read as a failure reason, left out
+    of the failure total and never reached the brute-force check. None for
+    any other layout.
+    """
+    body = line[: -len(_THRESHOLD_FLAG)] if line.endswith(_THRESHOLD_FLAG) else line
+    if not body.startswith("  ") or body[2:3] in ("", " "):
+        return None
+    fixed = 52 + sum(w + 1 for w in widths)
+    if len(body) == fixed and body[52] == " ":
+        upn, rest = body[2:52].strip(), body[52:]
+        fields, pos = [], 0
+        for width in widths:
+            if rest[pos] != " ":
+                return None
+            fields.append(rest[pos + 1 : pos + 1 + width].strip())
+            pos += width + 1
+    else:
+        parts = body[2:].split()
+        if len(parts) != len(widths) + 1 or len(parts[0]) <= 50:
+            return None
+        upn, fields = parts[0], parts[1:]
+    if not upn or " " in upn or not all(f.isdigit() for f in fields):
+        return None
+    return upn, [int(f) for f in fields]
+
+
+def _signin_failure_row_by_column(line: str) -> tuple[str, int] | None:
+    """(upn, failures) from a row of 05b's per-user failure table."""
+    row = _signin_row_by_column(line, (9,))
+    return (row[0], row[1][0]) if row else None
+
+
+def _signin_activity_row_by_column(line: str) -> tuple[str, int] | None:
+    """(upn, successes) from a row of 05's per-user activity table."""
+    row = _signin_row_by_column(line, (8, 9, 8, 6))
+    return (row[0], row[1][0]) if row else None
+
 
 def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
     """Parse sign-in activity and failure data for risk analysis."""
@@ -843,6 +896,14 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
             if not stripped or stripped.startswith("=") or stripped.startswith("-"):
                 continue
             if stripped.upper().startswith("NOTE") or stripped.upper().startswith("NO "):
+                continue
+            activity_row = _signin_activity_row_by_column(line)
+            if activity_row is not None:
+                upn, successes = activity_row
+                if upn != _NO_UPN:  # a sign-in without a UPN is nobody's
+                    users_seen.add(upn.lower())
+                    signin_count += 1
+                    success_by_user[upn.lower()] = successes
                 continue
             # The collector puts the event count in its banner —
             # "SIGN-IN ACTIVITY  (last 30 days — 1234 events)" — which carries
@@ -954,6 +1015,16 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
                 cnt = _num_tail(cols)
                 if cnt is not None and len(cols) >= 2:
                     ip_rows.append({"ip": " ".join(cols[:-1]), "count": cnt})
+                continue
+
+            failure_row = _signin_failure_row_by_column(line)
+            if failure_row is not None:
+                upn, count = failure_row
+                # A sign-in without a UPN counts towards the total and is
+                # nobody's, as the sidecar has it.
+                total_failures += count
+                if upn != _NO_UPN:
+                    failure_users[upn] = failure_users.get(upn, 0) + count
                 continue
 
             if ":" in stripped:
@@ -1082,6 +1153,53 @@ def _parse_signin_risk(file_contents: dict[str, str]) -> dict:
         result["stale_credential_users"] = stale
 
     return result
+
+
+def _risky_user_row_by_column(line: str) -> dict | None:
+    """{"upn", "level", "state"} from a row of the collector's own risky-users table.
+
+    identity_security writes f"  {upn:<50} {level:<15} {state:<20} {updated}"
+    with the UPN cut to 50. A UPN that fills its column leaves one space before
+    the level, and a split on runs of two or more spaces then took the level
+    and the UPN for one column and the state for the level: a medium-risk user
+    went uncounted by CIS 9.3, and a remediated one was listed as a live risk.
+    None for any other layout.
+    """
+    if len(line) < 70 or not line.startswith("  ") or line[2] == " ":
+        return None
+    if line[52] != " " or line[68] != " ":
+        return None
+    level, state = line[53:68].strip(), line[69:89].strip()
+    if not level or not state or " " in level or " " in state:
+        return None
+    return {"upn": line[2:52].strip(), "level": level, "state": state}
+
+
+def _risky_users_from_text(text: str) -> list[dict]:
+    """Each risky user in 18_risky_users.txt, for a run without the sidecar.
+
+    Rows in the collector's layout are read by column; any other row is split
+    on runs of spaces, as it always was, and kept when its first column is a
+    UPN.
+    """
+    users: list[dict] = []
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if (
+            not stripped
+            or stripped.startswith(("=", "-"))
+            or stripped.startswith("UPN")
+            or "RISKY USERS" in stripped.upper()
+        ):
+            continue
+        fixed = _risky_user_row_by_column(line)
+        if fixed is not None:
+            users.append(fixed)
+            continue
+        cols = re.split(r"\s{2,}", stripped)
+        if len(cols) >= 3 and "@" in cols[0]:
+            users.append({"upn": cols[0], "level": cols[1].strip(), "state": cols[2].strip()})
+    return users
 
 
 def _risky_users_from_sidecar(file_contents: dict[str, str]) -> list[dict] | None:

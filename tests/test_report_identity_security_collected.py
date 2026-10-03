@@ -4,9 +4,10 @@ alerts, read back from what the Identity Security collector writes.
 Six of its files now have JSON twins, and every reader of them prefers it:
 CIS 1.1.5, 1.1.6, 1.1.8, 1.1.9, 9.2 and 9.3, the risk score, and the risky-users
 recommendation. Over the same tenant each must reach the same verdict from the
-sidecar as from the text. The risky-users table is where the text falls short:
+sidecar as from the text. The risky-users table is where the text fell short:
 it cuts a UPN to 50 characters and pads it to that width, so a UPN that long
-runs into the risk level and every reader took the state for the level.
+runs into the risk level, and every reader took the state for the level until
+the rows were read by the collector's columns. The text still cuts the UPN.
 """
 
 from __future__ import annotations
@@ -298,8 +299,16 @@ RISKY_WITH_LONG_UPN = [
 ]
 
 
-async def test_a_long_upn_keeps_its_risk_level_and_state_in_the_sidecar(tmp_path):
-    files = await _collect(tmp_path, sidecars=True, riskyUsers=RISKY_WITH_LONG_UPN)
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_long_upn_keeps_its_risk_level_and_state(tmp_path, sidecars):
+    """The table cuts the UPN to 50 and pads it to that width.
+
+    A UPN that long left one space before the level, and the text was split on
+    runs of spaces: the medium level went uncounted by 9.3 and the remediated
+    user was listed as a live risk. Its rows are now read by the collector's
+    columns, so the text gives the sidecar's answer.
+    """
+    files = await _collect(tmp_path, sidecars=sidecars, riskyUsers=RISKY_WITH_LONG_UPN)
 
     assert _verdicts(files)["9.3"] == (
         "fail",
@@ -308,16 +317,6 @@ async def test_a_long_upn_keeps_its_risk_level_and_state_in_the_sidecar(tmp_path
     rec = _risky_rec(files)
     assert rec is not None
     assert len(rec["sub_items"]) == 1 and rec["sub_items"][0].startswith("kari@acme.example")
-
-
-async def test_the_text_alone_misreads_that_row(tmp_path):
-    """What a run from before the sidecar still reports, kept as it was."""
-    files = await _collect(tmp_path, sidecars=False, riskyUsers=RISKY_WITH_LONG_UPN)
-
-    _status, detail = _verdicts(files)["9.3"]
-    assert detail.startswith("1 brukere"), "the medium level was read as the state"
-    rec = _risky_rec(files)
-    assert len(rec["sub_items"]) == 2, "the remediated user is listed as a live risk"
 
 
 # ── Failed reads write no sidecar ─────────────────────────────────────────────
