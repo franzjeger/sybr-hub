@@ -43,13 +43,6 @@ registerUiHandlers({
   dashOverviewSelectCustomer: function(el) { overviewSelectCustomer(el.dataset.customerId); },
   dashRowQuickAudit: function(el, event) { event.preventDefault(); quickSwitchAndAudit(el.dataset.customerId); },
   dashFilterByGrade: function(el, event) { event.stopPropagation(); filterByGrade(el.dataset.grade); },
-  dashOpenHealthTab: function(el, event) {
-    event.stopPropagation();
-    showView('overview');
-    // The Helse tab button. This looked for [data-dash-tab=health], which no
-    // element has ever carried, so the badge opened the overview and stopped.
-    setTimeout(function() { var dt = document.querySelector('.dash-tab-btn[data-tab="dash-health"]'); if (dt) dt.click(); }, 200);
-  },
   dashToggleRowActions: function(el, event) { event.stopPropagation(); toggleRowActions(el); },
   dashRowDetails: function(el, event) { event.stopPropagation(); overviewSelectCustomer(el.dataset.customerId); },
   dashRowAudit: function(el, event) { event.stopPropagation(); quickSwitchAndAudit(el.dataset.customerId); },
@@ -424,202 +417,11 @@ async function notifToggleRule(key, on) {
   showToast(t('msg_rule_saved', 'Regel lagret'), 'success', 2000);
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// CUSTOMER HEALTH SCORES
-// ═══════════════════════════════════════════════════════════════════
-
-async function dashLoadHealth() {
-  var el = document.getElementById('dash-health-content');
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>';
-
-  // Fetch security report and domain-email chain in parallel
-  var results = await Promise.all([
-    apiFetch('/api/dashboard/security-report'),
-    apiFetch('/api/dashboard/domain-email-chain')
-  ]);
-  var secData = results[0];
-  var chainData = results[1];
-
-  if (!secData) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_load_failed','Kunne ikke laste') + '</div>'; return; }
-
-  var customers = secData.customers || [];
-  var summary = secData.summary || {};
-  var html = '';
-
-  // ── Security Report KPIs ──
-  html += '<div style="font-size:15px;font-weight:700;margin-bottom:10px;">'+icon('shield',16)+' '+t('hdr_security_report','Security Report')+'</div>';
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:16px;">';
-  var kpis = [
-    {label:t('lbl_avg_score','Average'), value:summary.avg_score === null || summary.avg_score === undefined ? '—' : Number(summary.avg_score)+'%', color:'var(--blue)'},
-    {label:t('lbl_grade_a','Grade A'), value:Number(summary.grade_a)||0, color:'var(--green)'},
-    {label:t('lbl_grade_b','Grade B'), value:Number(summary.grade_b)||0, color:'#6bcb77'},
-    {label:t('lbl_grade_c','Grade C'), value:Number(summary.grade_c)||0, color:'var(--orange)'},
-    {label:t('lbl_grade_d','Grade D'), value:Number(summary.grade_d)||0, color:'var(--red)'}
-  ];
-  kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
-    html += '<div style="font-size:22px;font-weight:700;line-height:24px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);line-height:16px;">'+k.label+'</div>';
-    html += '</div>';
-  });
-  html += '</div>';
-
-  // ── Security Report Table ──
-  var chkY = '<span style="color:var(--green);font-weight:700;font-size:14px;">&#10003;</span>';
-  var chkN = '<span style="color:var(--red);font-weight:700;font-size:14px;">&#10007;</span>';
-  var chkDash = '<span style="color:var(--text-dim);">—</span>';
-
-  html += '<div class="card" style="padding:0;overflow-x:auto;margin-bottom:20px;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:2px solid var(--border);">';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_customer','Customer')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_mfa_pct','MFA%')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_spf','SPF')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_dkim','DKIM')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_dmarc','DMARC')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_firmware','Firmware')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_threats','Threats')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_grade','Grade')+'</th>';
-  html += '</tr></thead><tbody>';
-
-  customers.forEach(function(c, i) {
-    var gradeColors = {A:'var(--green)',B:'#6bcb77',C:'var(--orange)',D:'var(--red)'};
-    var gColor = gradeColors[c.security_grade] || 'var(--text-dim)';
-    var rowBg = i % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
-
-    // MFA cell
-    var mfaHtml = chkDash;
-    if (c.mfa_pct !== null && c.mfa_pct !== undefined) {
-      var mfaColor = c.mfa_pct >= 100 ? 'var(--green)' : c.mfa_pct >= 80 ? 'var(--orange)' : 'var(--red)';
-      mfaHtml = '<span style="color:'+mfaColor+';font-weight:600;">'+Number(c.mfa_pct)+'%</span>';
-    }
-
-    // Firmware cell
-    var fwHtml = chkDash;
-    if (c.firmware === 'offline') {
-      fwHtml = '<span style="color:var(--red);font-size:10px;">'+t('lbl_offline','Offline')+'</span>';
-    } else if (c.firmware) {
-      var fwColor = c.firmware_outdated === true ? 'var(--orange)' : c.firmware_outdated === false ? 'var(--green)' : 'var(--text-dim)';
-      var fwLabel = c.firmware_outdated === true ? t('lbl_fw_outdated','Outdated') : c.firmware_outdated === false ? '' : t('lbl_unknown','Unknown');
-      fwHtml = '<span style="color:'+fwColor+';font-size:10px;" title="'+esc(c.firmware)+'">'+esc(c.firmware)+(fwLabel?' ('+fwLabel+')':'')+'</span>';
-    }
-
-    // Threat cell
-    var threatHtml = chkDash;
-    if (c.threat_count !== null && c.threat_count !== undefined) {
-      var thColor = c.threat_count > 0 ? 'var(--red)' : 'var(--green)';
-      threatHtml = '<span style="color:'+thColor+';font-weight:600;">'+Number(c.threat_count)+'</span>';
-    }
-
-    html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px 8px;font-weight:500;"><button type="button" class="btn btn-ghost btn-sm" data-customer-detail="' + esc(c.customer_id || '') + '" data-customer-name="' + esc(c.customer_name) + '">' + esc(c.customer_name) + '</button>' + (c.is_stale ? '<span title="' + esc(t('lbl_stale_data','Old or missing audit data')) + '"> [?]</span>' : '') + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+mfaHtml+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+(c.has_spf === true ? chkY : c.has_spf === false ? chkN : chkDash)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+(c.has_dkim === true ? chkY : c.has_dkim === false ? chkN : chkDash)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+(c.has_dmarc === true ? chkY : c.has_dmarc === false ? chkN : chkDash)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+fwHtml+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+threatHtml+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;"><span style="display:inline-block;width:28px;height:28px;line-height:28px;border-radius:50%;background:'+gColor+';color:#fff;font-weight:700;font-size:13px;">'+esc(c.security_grade)+'</span></td>';
-    html += '</tr>';
-  });
-
-  html += '</tbody></table></div>';
-
-  // ── Domain-Email Chain Alerts ──
-  html += _buildChainSection(chainData);
-
-  el.innerHTML = html;
-
-  el.querySelectorAll('[data-customer-detail]').forEach(function(button) {
-    button.addEventListener('click', function() {
-      if (typeof showCustomerDetail === 'function') showCustomerDetail(button.dataset.customerDetail, button.dataset.customerName);
-    });
-  });
-
-  // Make tables sortable
-  el.querySelectorAll('table').forEach(function(tbl) { makeSortable(tbl); });
-
-  // Wire up collapsible sections
-  el.querySelectorAll('[data-collapse-toggle]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var target = document.getElementById(btn.getAttribute('data-collapse-toggle'));
-      if (target) {
-        var hidden = target.style.display === 'none';
-        target.style.display = hidden ? '' : 'none';
-        btn.querySelector('.collapse-arrow').textContent = hidden ? '\u25BC' : '\u25B6';
-      }
-    });
-  });
-}
-
-// ── VPN Status section builder ──
-
-function _buildVpnSection(vpnData) {
-  var html = '';
-  html += '<div style="margin-bottom:20px;">';
-  html += '<div data-collapse-toggle="vpn-section-body" style="cursor:pointer;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;margin-bottom:10px;user-select:none;">';
-  html += icon('link',16)+' '+t('hdr_vpn_status','VPN Status');
-
-  if (vpnData && vpnData.total_tunnels > 0) {
-    // Field backward-compat: prefer new customers_with_vpn; fall back to the
-    // repurposed total_customers in case this UI runs against an older API.
-    var vpnCustCount = (vpnData.customers_with_vpn !== undefined)
-      ? vpnData.customers_with_vpn
-      : vpnData.total_customers;
-    html += ' <span style="font-size:12px;font-weight:400;color:var(--text-muted);">('+Number(vpnData.total_tunnels)+' '+t('lbl_total_tunnels','tunnels')+', '+Number(vpnCustCount)+' '+t('lbl_customers_with_vpn','customers with VPN')+')</span>';
-  }
-  html += ' <span class="collapse-arrow" style="font-size:11px;color:var(--text-muted);">&#9654;</span>';
-  html += '</div>';
-
-  html += '<div id="vpn-section-body" style="display:none;">';
-
-  if (!vpnData || !vpnData.customers || vpnData.customers.length === 0) {
-    html += '<div class="card" style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">'+t('msg_no_vpn_data','No VPN data available.')+'</div>';
-  } else {
-    vpnData.customers.forEach(function(cust) {
-      html += '<div class="card" style="padding:12px;margin-bottom:8px;">';
-      html += '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">'+esc(cust.customer_name);
-      if (cust.status === 'error') {
-        html += ' <span style="color:var(--red);font-size:11px;font-weight:400;">('+esc(cust.error || 'Error')+')</span>';
-      }
-      html += '</div>';
-
-      if (cust.tunnels && cust.tunnels.length > 0) {
-        html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-        html += '<thead><tr style="border-bottom:1px solid var(--border);">';
-        html += '<th style="text-align:left;padding:4px 6px;">'+t('col_tunnel_name','Tunnel')+'</th>';
-        html += '<th style="text-align:center;padding:4px 6px;">'+t('col_type','Type')+'</th>';
-        html += '<th style="text-align:center;padding:4px 6px;">'+t('col_status','Status')+'</th>';
-        html += '<th style="text-align:right;padding:4px 6px;">'+t('col_bytes_in','In')+'</th>';
-        html += '<th style="text-align:right;padding:4px 6px;">'+t('col_bytes_out','Out')+'</th>';
-        html += '</tr></thead><tbody>';
-        cust.tunnels.forEach(function(tun) {
-          var sColor = tun.status === 'up' ? 'var(--green)' : 'var(--red)';
-          var sLabel = tun.status === 'up' ? t('lbl_up','Up') : t('lbl_down','Down');
-          html += '<tr style="border-bottom:1px solid var(--border);">';
-          html += '<td style="padding:3px 6px;">'+esc(tun.name)+'</td>';
-          html += '<td style="padding:3px 6px;text-align:center;"><span style="font-size:10px;background:var(--bg-tertiary);padding:1px 6px;border-radius:8px;">'+esc(tun.type)+'</span></td>';
-          html += '<td style="padding:3px 6px;text-align:center;color:'+sColor+';font-weight:600;">'+sLabel+'</td>';
-          html += '<td style="padding:3px 6px;text-align:right;color:var(--text-muted);">'+_fmtBytes(tun.bytes_in)+'</td>';
-          html += '<td style="padding:3px 6px;text-align:right;color:var(--text-muted);">'+_fmtBytes(tun.bytes_out)+'</td>';
-          html += '</tr>';
-        });
-        html += '</tbody></table>';
-      } else if (cust.status !== 'error') {
-        html += '<div style="font-size:11px;color:var(--text-muted);">'+t('lbl_no_data','No data')+'</div>';
-      }
-      html += '</div>';
-    });
-  }
-  html += '</div></div>';
-  return html;
-}
-
 // ── Domain-Email Chain section builder ──
 
 function _buildChainSection(chainData) {
   var html = '';
-  html += '<div style="margin-bottom:20px;">';
+  html += '<div style="margin:20px 0;">';
   html += '<div style="font-size:15px;font-weight:700;margin-bottom:10px;">'+icon('mail',16)+' '+t('hdr_domain_email_chain','Domain-Email-License')+'</div>';
 
   if (!chainData || !chainData.items || chainData.items.length === 0) {
@@ -802,7 +604,15 @@ async function dashLoadDomains() {
   el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:24px auto;"></div>' +
     '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px;">' + t('dash_checking_tls','Sjekker TLS-sertifikater for alle domener ...') + '</div>';
 
-  var data = await apiFetch('/api/dashboard/domains');
+  // The domain, mail and licence chain (paying twice for mail, a domain
+  // with M365 mail but no licence) lived on the Helse tab. It is about
+  // domains, so it is read here.
+  var both = await Promise.all([
+    apiFetch('/api/dashboard/domains'),
+    apiFetch('/api/dashboard/domain-email-chain').catch(function() { return null; }),
+  ]);
+  var data = both[0];
+  var chainHtml = _buildChainSection(both[1]);
   if (!data) {
     el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_domains_load_failed','Kunne ikke laste domenedata') + '</div>';
     return;
@@ -841,7 +651,7 @@ async function dashLoadDomains() {
     html += '<div style="font-size:14px;">' + t('dash_no_domains','Ingen domener funnet') + '</div>';
     html += '<div style="font-size:12px;margin-top:4px;">' + t('dash_no_domains_hint','Synkroniser Uniweb-data for å se domener her.') + '</div>';
     html += '</div>';
-    el.innerHTML = html;
+    el.innerHTML = html + chainHtml;
     return;
   }
 
@@ -908,7 +718,7 @@ async function dashLoadDomains() {
   });
 
   html += '</tbody></table></div>';
-  el.innerHTML = html;
+  el.innerHTML = html + chainHtml;
 }
 
 
@@ -966,7 +776,6 @@ function _dashExportTableCSV(containerId, filename) {
 }
 
 function dashExportAlerts() { _dashExportTableCSV('dash-alerts-content', 'alerts'); }
-function dashExportHealth() { _dashExportTableCSV('dash-health-content', 'health_scores'); }
 function dashExportCosts() { _dashExportTableCSV('dash-costs-content', 'costs'); }
 function dashExportDomains() { _dashExportTableCSV('dash-domains-content', 'domains'); }
 
@@ -983,7 +792,6 @@ function dashExportCurrentTab() {
   if (!active) return;
   var id = active.id;
   if (id === 'dash-alerts') dashExportAlerts();
-  else if (id === 'dash-health') dashExportHealth();
   else if (id === 'dash-costs') dashExportCosts();
   else if (id === 'dash-domains') dashExportDomains();
   else if (id === 'dash-renewals') _dashExportTableCSV('dash-renewals-content', 'renewals');
@@ -1812,7 +1620,7 @@ function renderOverview(customers, activeId) {
             <td class="num" style="color:${mrrVal > 0 ? 'var(--text-muted)' : 'var(--text-dim)'};font-weight:${mrrVal > 0 ? '600' : '400'};">${mrrStr}</td>
             <td style="color:var(--text-muted);font-size:12px;white-space:nowrap;">${lastAudit}</td>
             <td class="col-opt col-hidden" data-optcol="health" style="text-align:center;">
-              <span data-click-handler="dashOpenHealthTab" style="display:inline-block;width:26px;height:26px;line-height:26px;border-radius:50%;font-weight:700;font-size:12px;color:#fff;background:${healthColor};cursor:pointer;" title="${t('lbl_health','Helse')}: ${esc(healthGrade)} (${esc(String(healthScore))}/100)">${esc(healthGrade)}</span>
+              <span style="display:inline-block;width:26px;height:26px;line-height:26px;border-radius:50%;font-weight:700;font-size:12px;color:#fff;background:${healthColor};" title="${t('lbl_health','Helse')}: ${esc(healthGrade)} (${esc(String(healthScore))}/100)">${esc(healthGrade)}</span>
             </td>
             <td class="num col-opt col-hidden" data-optcol="users">${esc(String(users))}</td>
             <td class="col-opt col-hidden" data-optcol="trend" style="text-align:center;"><span id="spark-${esc(c.customer_id || c._id || '')}" style="display:inline-block;width:72px;height:24px;"></span></td>
