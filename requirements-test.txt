@@ -1,0 +1,5 @@
+# What the installer needs to run the test suite on the target host. The
+# application itself is installed from requirements.lock with hashes.
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-timeout==2.4.0

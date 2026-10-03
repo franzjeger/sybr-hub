@@ -1,0 +1,185 @@
+{
+  "id": "sybr-iam-hardening",
+  "version": "2026.2",
+  "name": {
+    "no": "Sybr IAM — Enhet og sesjon",
+    "en": "Sybr IAM — Device & session"
+  },
+  "description": {
+    "no": "Herding på toppen av Kjerne: samsvarende/hybrid enhet og strammere sesjon for administratorer, MFA ved enhetsregistrering, og app-beskyttelse på mobil. Rulles ut ved siden av Kjerne.",
+    "en": "Hardening on top of Core: compliant/hybrid device and tighter sessions for administrators, MFA at device registration, and app protection on mobile. Deploy alongside Core."
+  },
+  "requires": {
+    "break_glass_group": {
+      "no": "Gruppe som unntas fra alle policyer — må finnes i tenanten og inneholde minst én konto som aldri låses ute",
+      "en": "Group excluded from every policy — must exist in the tenant and hold at least one account that can never be locked out"
+    }
+  },
+  "policies": [
+    {
+      "displayName": "Sybr — Require compliant or hybrid device for administrators",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "recommended",
+      "why": {
+        "no": "MFA beviser hvem som logger inn; enhetskravet beviser at det skjer fra en maskin dere styrer. For administratorer bør begge gjelde, så et lekket passord fra en ustyrt PC ikke er nok.",
+        "en": "MFA proves who signs in; the device requirement proves it happens from a machine you manage. For administrators both should hold, so a leaked password from an unmanaged PC is not enough."
+      },
+      "conditions": {
+        "users": {
+          "includeRoles": [
+            "62e90394-69f5-4237-9190-012177145e10",
+            "194ae4cb-b126-40b2-bd5b-6091b380977d",
+            "e8611ab8-c189-46e8-94e1-60213ab1f814"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "compliantDevice",
+          "domainJoinedDevice"
+        ]
+      },
+      "effect": {
+        "no": "Krever at administratorer logger inn fra en Intune-samsvarende eller Entra-hybrid-tilknyttet enhet, i tillegg til MFA. En admin på en ustyrt PC blir stoppet.",
+        "en": "Requires administrators to sign in from an Intune-compliant or Entra-hybrid-joined device, on top of MFA. An admin on an unmanaged PC is blocked."
+      }
+    },
+    {
+      "displayName": "Sybr — Sign-in frequency and no persistent browser for administrators",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "recommended",
+      "why": {
+        "no": "En administratorsesjon som aldri utløper er en stjålet token som aldri utløper. Krev ny pålogging jevnlig, og ikke la nettleseren huske sesjonen på delte maskiner.",
+        "en": "An administrator session that never expires is a stolen token that never expires. Require a fresh sign-in periodically, and do not let the browser persist the session on shared machines."
+      },
+      "conditions": {
+        "users": {
+          "includeRoles": [
+            "62e90394-69f5-4237-9190-012177145e10",
+            "194ae4cb-b126-40b2-bd5b-6091b380977d",
+            "e8611ab8-c189-46e8-94e1-60213ab1f814"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": null,
+      "sessionControls": {
+        "signInFrequency": {
+          "value": 4,
+          "type": "hours",
+          "isEnabled": true
+        },
+        "persistentBrowser": {
+          "mode": "never",
+          "isEnabled": true
+        }
+      },
+      "effect": {
+        "no": "Tvinger administratorer til ny pålogging hver 4. time og lar ikke nettleseren huske sesjonen. Bare administratorer berøres; vanlige brukere beholder normal sesjonslengde.",
+        "en": "Forces administrators to re-authenticate every 4 hours and does not let the browser persist the session. Only administrators are affected; ordinary users keep their normal session length."
+      }
+    },
+    {
+      "displayName": "Sybr — Require MFA to register or join devices",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "recommended",
+      "why": {
+        "no": "Enhetsregistrering er hvordan en maskin blir en betrodd identitet i tenanten. Uten MFA kan en angriper med ett passord registrere sin egen enhet og bygge seg et fotfeste.",
+        "en": "Device registration is how a machine becomes a trusted identity in the tenant. Without MFA an attacker holding one password can register their own device and build a foothold."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeUserActions": [
+            "urn:user:registerdevice"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "mfa"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA i det øyeblikket en enhet registreres eller tilknyttes tenanten. Påvirker bare selve registreringshandlingen, ikke daglig bruk.",
+        "en": "Requires MFA at the moment a device is registered or joined to the tenant. Affects only the registration action itself, not day-to-day use."
+      }
+    },
+    {
+      "displayName": "Sybr — Require app protection on mobile",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "extended",
+      "why": {
+        "no": "På private telefoner styrer dere ikke enheten, men dere kan styre appen. App-beskyttelse (MAM) holder firmadata inne i de administrerte Office-appene og ute av alt annet.",
+        "en": "On personal phones you do not control the device, but you can control the app. App protection (MAM) keeps company data inside the managed Office apps and out of everything else."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "Office365"
+          ]
+        },
+        "clientAppTypes": [
+          "mobileAppsAndDesktopClients"
+        ],
+        "platforms": {
+          "includePlatforms": [
+            "android",
+            "iOS"
+          ]
+        }
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "compliantApplication"
+        ]
+      },
+      "effect": {
+        "no": "Krever en app-beskyttelsespolicy (MAM) på Android/iOS for Office-apper, så firmadata holdes inne i de administrerte appene. Berører bare mobil; skrivebord påvirkes ikke.",
+        "en": "Requires an app-protection policy (MAM) on Android/iOS for the Office apps, so company data stays inside the managed apps. Affects mobile only; desktop is untouched."
+      }
+    }
+  ]
+}

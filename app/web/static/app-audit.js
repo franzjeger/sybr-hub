@@ -1,0 +1,1050 @@
+// ═══════════════════════════════════════════════════════════════════
+// AUDIT — scope, presets, flow & history
+// ═══════════════════════════════════════════════════════════════════
+
+registerUiHandlers({
+  toggleScopeGroup: function(el) { toggleScopeGroup(el, el.dataset.group); },
+  onScopeChange: function() { onScopeChange(); },
+  openReportViewer: function(el) { openReportViewer(el.dataset.url); },
+  deleteAllCustomerRuns: function(el) { deleteAllCustomerRuns(el.dataset.dir, el.dataset.customer, Number(el.dataset.count)); },
+  onCompareCheck: function(el) { onCompareCheck(el.dataset.path, el.checked); },
+  loadHistoryRun: function(el) { loadHistoryRun(el.dataset.path); },
+});
+
+// ── Audit scope selector ────────────────────────────────────────────────────────
+let _scopeSections = [];   // [{name, category, enabled}]
+let _scopeLoaded = false;
+let _scopePanelOpen = false;
+
+function toggleScopePanel() {
+  _scopePanelOpen = !_scopePanelOpen;
+  const body = document.getElementById('scope-body');
+  const icon = document.getElementById('scope-toggle-icon');
+  if (!body) return;
+  body.style.display = _scopePanelOpen ? 'block' : 'none';
+  if (icon) icon.innerHTML = _scopePanelOpen ? '&#9660;' : '&#9654;';
+  if (_scopePanelOpen && !_scopeLoaded) loadScopeSections();
+}
+
+async function loadScopeSections() {
+  try {
+    const [secRes, scopeRes] = await Promise.all([
+      apiFetch('/api/audit/sections'),
+      apiFetch('/api/audit/scope'),
+    ]);
+    _scopeSections = secRes.sections || [];
+    // Apply saved scope if available
+    if (scopeRes.scope && scopeRes.scope.enabled_sections) {
+      const saved = new Set(scopeRes.scope.enabled_sections);
+      _scopeSections.forEach(s => { s.enabled = saved.has(s.name); });
+    }
+    _scopeLoaded = true;
+    renderScopeSections();
+    loadPresets();
+  } catch (e) {
+    const box = document.getElementById('scope-sections');
+    if (box) box.innerHTML = '<div style="font-size:12px;color:var(--red);">' + t('err_could_not_load_sections') + '</div>';
+  }
+}
+
+function renderScopeSections() {
+  const box = document.getElementById('scope-sections');
+  if (!box) return;
+  const categories = {};
+  _scopeSections.forEach(s => {
+    if (!categories[s.category]) categories[s.category] = [];
+    categories[s.category].push(s);
+  });
+  let html = '';
+  for (const [cat, sections] of Object.entries(categories)) {
+    const catId = cat.replace(/[^a-zA-Z0-9]/g, '_');
+    const allChecked = sections.every(s => s.enabled);
+    html += '<div style="min-width:220px;flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2);">';
+    html += '<span style="font-weight:600;font-size:var(--font-xs);color:var(--blue);text-transform:uppercase;letter-spacing:.5px;">' + esc(cat) + ' <span style="color:var(--text-dim);font-weight:400;">(' + sections.length + ')</span></span>';
+    html += '<label style="font-size:10px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="checkbox" ' + (allChecked?'checked':'') + ' data-change-handler="toggleScopeGroup" data-group="' + esc(catId) + '"> ' + t('btn_select_all','Alle') + '</label>';
+    html += '</div>';
+    for (const s of sections) {
+      const id = 'scope-cb-' + s.name.replace(/[^a-zA-Z0-9]/g, '_');
+      html += '<label style="display:flex;align-items:center;gap:6px;font-size:var(--font-xs);padding:2px 0;cursor:pointer;" data-scope-group="' + catId + '">';
+      html += '<input type="checkbox" id="' + id + '" data-section="' + esc(s.name) + '" ' + (s.enabled ? 'checked' : '') + ' data-change-handler="onScopeChange">';
+      html += esc(s.name) + '</label>';
+    }
+    html += '</div>';
+  }
+  box.innerHTML = html;
+  updateScopeSummary();
+}
+
+function toggleScopeGroup(masterCb, groupId) {
+  document.querySelectorAll('[data-scope-group="' + groupId + '"] input[type=checkbox]').forEach(function(cb) {
+    cb.checked = masterCb.checked;
+  });
+  onScopeChange();
+}
+
+function onScopeChange() {
+  document.querySelectorAll('#scope-sections input[type=checkbox]').forEach(cb => {
+    const name = cb.getAttribute('data-section');
+    const sec = _scopeSections.find(s => s.name === name);
+    if (sec) sec.enabled = cb.checked;
+  });
+  updateScopeSummary();
+  saveScopeDebounced();
+}
+
+function updateScopeSummary() {
+  const el = document.getElementById('scope-summary');
+  if (!el || !_scopeSections.length) return;
+  const total = _scopeSections.length;
+  const enabled = _scopeSections.filter(s => s.enabled).length;
+  el.textContent = t('lbl_sections_selected').replace('{count}', enabled).replace('{total}', total);
+}
+
+function scopeSelectAll() {
+  _scopeSections.forEach(s => { s.enabled = true; });
+  renderScopeSections();
+  saveScopeDebounced();
+}
+
+function scopeDeselectAll() {
+  _scopeSections.forEach(s => { s.enabled = false; });
+  renderScopeSections();
+  saveScopeDebounced();
+}
+
+let _scopeSaveTimer = null;
+function saveScopeDebounced() {
+  clearTimeout(_scopeSaveTimer);
+  _scopeSaveTimer = setTimeout(saveScope, 500);
+}
+
+async function saveScope() {
+  const enabled = _scopeSections.filter(s => s.enabled).map(s => s.name);
+  try {
+    await apiFetch('/api/audit/scope', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ enabled_sections: enabled }),
+    });
+  } catch (_) {}
+}
+
+// ── Audit scope presets ──────────────────────────────────────────────────────
+let _presets = [];
+
+async function loadPresets() {
+  try {
+    const d = await apiFetch('/api/audit/presets');
+    _presets = d.presets || [];
+    renderPresetDropdown();
+  } catch (_) {}
+}
+
+function renderPresetDropdown() {
+  const sel = document.getElementById('preset-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">' + t('lbl_select_preset') + '</option>';
+  for (const p of _presets) {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.name + (p.builtin ? '' : ' ' + t('lbl_custom'));
+    sel.appendChild(opt);
+  }
+}
+
+function applyPreset() {
+  const sel = document.getElementById('preset-select');
+  const delBtn = document.getElementById('preset-delete-btn');
+  if (!sel) return;
+  const name = sel.value;
+  if (delBtn) delBtn.style.display = 'none';
+  if (!name) return;
+
+  const preset = _presets.find(p => p.name === name);
+  if (!preset) return;
+
+  if (delBtn && !preset.builtin) delBtn.style.display = '';
+
+  const enabledSet = new Set(preset.sections);
+  _scopeSections.forEach(s => { s.enabled = enabledSet.has(s.name); });
+  renderScopeSections();
+  saveScopeDebounced();
+}
+
+async function saveCustomPreset() {
+  const name = prompt(t('dlg_preset_name'));
+  if (!name || !name.trim()) return;
+  const sections = _scopeSections.filter(s => s.enabled).map(s => s.name);
+  if (sections.length === 0) { showToast(t('msg_select_min_one_section'), 'warning'); return; }
+  try {
+    const d = await apiFetch('/api/audit/presets', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name: name.trim(), sections }),
+    });
+
+    if (d.error) { showToast(d.error, 'error'); return; }
+    await loadPresets();
+    document.getElementById('preset-select').value = name.trim();
+    const delBtn = document.getElementById('preset-delete-btn');
+    if (delBtn) delBtn.style.display = '';
+  } catch (e) { showToast(t('err_could_not_save_preset').replace('{msg}', e.message), 'error'); }
+}
+
+async function deleteCustomPreset() {
+  const sel = document.getElementById('preset-select');
+  if (!sel || !sel.value) return;
+  const name = sel.value;
+  if (!await showConfirm(t('dlg_confirm_delete_preset').replace('{name}', name))) return;
+  try {
+    const d = await apiFetch('/api/audit/presets/' + encodeURIComponent(name), { method: 'DELETE' });
+    if (d.error) { showToast(d.error, 'error'); return; }
+    await loadPresets();
+    const delBtn = document.getElementById('preset-delete-btn');
+    if (delBtn) delBtn.style.display = 'none';
+  } catch (e) { showToast(t('err_could_not_delete_preset').replace('{msg}', e.message), 'error'); }
+}
+
+function getSelectedSectionNames() {
+  if (!_scopeLoaded || !_scopeSections.length) return null;
+  const enabled = _scopeSections.filter(s => s.enabled).map(s => s.name);
+  if (enabled.length === _scopeSections.length) return null;
+  if (enabled.length === 0) return null; // don't send empty — will run all as safety
+  return enabled;
+}
+
+// ── Audit flow ─────────────────────────────────────────────────────────────────
+const sectionRows = {}; // name -> tr element
+const statusOrder = { pending: 0, running: 1, done: 2, skipped: 3, failed: 4 };
+
+async function startAudit() {
+  // Asked here, inside the click, so the browser shows the prompt and the
+  // operator knows what it is for: a notice when the audit finishes.
+  requestAuditNotifications();
+  // Quick pre-flight permission check (non-blocking — warn only)
+  try {
+    const d = await apiFetch('/api/audit/validate-permissions', { method: 'POST' });
+    if (d.missing && d.missing.length > 0) {
+      const msg = t('dlg_permissions_missing').replace('{count}', d.missing.length).replace('{list}', d.missing.join('\n'));
+      if (!await showConfirm(msg)) return;
+    }
+  } catch (_) {
+    // Permission check failed — proceed anyway
+  }
+
+  // Reset state
+  Object.keys(sectionRows).forEach(k => delete sectionRows[k]);
+  sectionDone = 0;
+  sectionTotal = 0; // will grow dynamically as sections register
+
+  document.getElementById('section-tbody').innerHTML = '';
+  document.getElementById('audit-done-area').style.display = 'none';
+  document.getElementById('report-result').innerHTML = '';
+  document.getElementById('audit-title').textContent = t('hdr_audit_title');
+  document.getElementById('audit-subtitle').textContent = '';
+  setAuditStatus('<div class="loader"></div><span>' + t('msg_starting') + '</span>');
+  updateProgress(0, sectionTotal);
+  window._auditStartTime = Date.now();
+  window._auditSectionCount = 0;
+
+  showView('audit');
+  _showAuditRunningChrome();
+  document.getElementById('audit-back-btn').disabled = true;
+  auditRunning = true;
+  var _ari = document.getElementById('audit-running-indicator'); if (_ari) _ari.style.display = 'flex';
+  startAuditProgressPolling();
+
+  // Build stream URL with optional section filter
+  let streamUrl = '/api/audit/stream';
+  const _selectedSections = getSelectedSectionNames();
+  if (_selectedSections) {
+    streamUrl += '?sections=' + encodeURIComponent(_selectedSections.join(','));
+  }
+  // Use fetch with auth header (EventSource can't send Authorization).
+  // Wrapped in _runAuditStreamWithReconnect so a network blip doesn't
+  // kill the visual feedback for a multi-hour audit; the polling
+  // fallback (startAuditProgressPolling) keeps the progress bar alive
+  // and we retry the stream with exponential backoff in the background.
+  _runAuditStreamWithReconnect(streamUrl);
+}
+
+// Backoff sequence: 2s, 4s, 8s, 16s, 32s — caps at 32s, retries forever
+// while auditRunning is true. Operator can navigate away and back to
+// reset; closing the browser doesn't stop the server-side audit.
+async function _runAuditStreamWithReconnect(streamUrl) {
+  // The first call starts the audit. A dropped connection is a lost *view*, not
+  // a lost run — the collection continues on the server and saves its results
+  // regardless. Recovery re-attaches: GET /audit/stream now re-attaches to this
+  // user's running run instead of starting a fresh one, and the reconnect below
+  // adds ?attach=1 so a re-open can only ever attach, never launch a duplicate.
+  // (The older code could call this exactly once and then only poll, because a
+  // blind re-open used to start another audit.)
+  const ok = await _attemptAuditStream(streamUrl);
+  if (ok === 'done' || !auditRunning) return;
+  await _watchAuditUntilServerIdle(false, streamUrl);
+}
+
+// Follow a run we can no longer see, until the server says it is over.
+var _auditWatching = false;
+async function _watchAuditUntilServerIdle(quiet, streamUrl) {
+  if (_auditWatching) return;   // one watcher is enough; two would race
+  _auditWatching = true;
+  try {
+    await _watchAuditLoop(quiet, streamUrl);
+  } finally {
+    _auditWatching = false;
+  }
+}
+
+async function _watchAuditLoop(quiet, streamUrl) {
+  if (!quiet && typeof showToast === 'function') {
+    showToast(t('msg_audit_stream_lost'), 'warning', 8000);
+  }
+  setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
+
+  // Re-attach URL forces attach-only, so a re-open can never start a new audit.
+  var attachUrl = streamUrl
+    ? streamUrl + (streamUrl.indexOf('?') === -1 ? '?' : '&') + 'attach=1'
+    : null;
+
+  while (auditRunning) {
+    await new Promise(r => setTimeout(r, 3000));
+    let d = null;
+    try {
+      d = await apiFetch('/api/audit/progress');
+    } catch (_) {
+      continue;  // the server is unreachable; keep watching rather than guess
+    }
+    // Only an explicit false ends the watch. An older server that does not
+    // send `running` leaves it undefined, and guessing "finished" there would
+    // reintroduce exactly the wrong-by-assumption bug this replaced.
+    if (d && d.running === false) {
+      _finishAuditWithoutStream();
+      return;
+    }
+    // The run is alive on the server — go back to watching it *live* rather than
+    // polling. attach=1 guarantees this only ever re-attaches, and the running
+    // check above means we never re-open against a run that already ended.
+    if (attachUrl && d && d.running === true) {
+      var outcome = await _attemptAuditStream(attachUrl);
+      if (outcome === 'done' || !auditRunning) return;
+      // Dropped again — restore the no-stream header and keep watching.
+      setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_no_stream') + '</span>');
+    }
+  }
+}
+
+// The audit ended while we were not watching. We never received the results
+// payload, but the server wrote them to disk, so reload rather than invent.
+function _finishAuditWithoutStream() {
+  auditRunning = false;
+  document.title = _origTitle;
+  stopAuditProgressPolling();
+  _hideAuditProgressBar();
+  var ind = document.getElementById('audit-running-indicator');
+  if (ind) ind.style.display = 'none';
+  var back = document.getElementById('audit-back-btn');
+  if (back) back.disabled = false;
+  setAuditStatus('<span style="color:var(--orange)">' + t('msg_audit_done_stream_lost') + '</span>');
+  if (typeof loadStatus === 'function') loadStatus();
+}
+
+async function _attemptAuditStream(streamUrl) {
+  try {
+    const resp = await fetch(streamUrl, {method: streamUrl.indexOf('attach=1') === -1 ? 'POST' : 'GET'});
+    if (!resp.ok) {
+      // 409 = an audit is already running. Nothing was started by this call,
+      // and there is no way to attach to the existing run's stream, so fall
+      // through to watching its progress.
+      if (resp.status === 409) return false;
+      setAuditStatus('<span style="color:var(--red)">✗ HTTP '+resp.status+'</span>');
+      return 'done';
+    }
+    var reader = resp.body.getReader();
+    var decoder = new TextDecoder();
+    var buf = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buf += decoder.decode(chunk.value, {stream:true});
+      var lines = buf.split('\n'); buf = lines.pop();
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].startsWith('data: ')) continue;
+        try {
+          var d = JSON.parse(lines[i].slice(6));
+          if (d.type === 'started') {
+            var ts = new Date().toLocaleString('no-NO', {dateStyle:'short',timeStyle:'short'});
+            document.getElementById('audit-title').textContent = t('hdr_audit_title') + ' \u2014 ' + d.customer;
+            document.getElementById('audit-subtitle').textContent = ts;
+            setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running') + '</span>');
+          } else if (d.type === 'progress') {
+            handleProgress(d);
+          } else if (d.type === 'snapshot') {
+            // Re-attach replay: jump the status to where the run is now; live
+            // 'progress' events follow and fill in the per-section detail.
+            if (typeof d.completed === 'number' && typeof d.total_sections === 'number') {
+              setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', d.completed).replace('{total}', d.total_sections) + '</span>');
+            }
+          } else if (d.type === 'ended') {
+            // A re-attach found no active run (it finished or was cleared while
+            // we were away). Reload to whatever the server saved.
+            _finishAuditWithoutStream();
+            return 'done';
+          } else if (d.type === 'done') {
+            auditRunning = false; document.title = _origTitle;
+            stopAuditProgressPolling(); _hideAuditProgressBar();
+            var _ari_d = document.getElementById('audit-running-indicator'); if (_ari_d) _ari_d.style.display = 'none';
+            document.getElementById('audit-back-btn').disabled = false;
+            handleAuditDone(d.results || []);
+            if (d.email_status) {
+              var area = document.getElementById('report-result');
+              var color = d.email_status.ok ? 'var(--green)' : 'var(--orange)';
+              var icon = d.email_status.ok ? '✓' : '';
+              area.innerHTML += '<div class="alert" style="color:'+color+';margin-top:8px;font-size:13px;">'+icon+' '+esc(d.email_status.msg)+'</div>';
+            }
+            return 'done';
+          } else if (d.type === 'error') {
+            auditRunning = false; document.title = _origTitle;
+            stopAuditProgressPolling(); _hideAuditProgressBar();
+            var _ari_e = document.getElementById('audit-running-indicator'); if (_ari_e) _ari_e.style.display = 'none';
+            document.getElementById('audit-back-btn').disabled = false;
+            setAuditStatus('<span style="color:var(--red)">✗ '+t('status_error')+': '+esc(d.msg)+'</span>');
+            return 'done';
+          } else if (d.type === 'cancelled') {
+            auditRunning = false; document.title = _origTitle;
+            stopAuditProgressPolling(); _hideAuditProgressBar();
+            setAuditStatus('<span style="color:var(--orange)">'+esc(d.msg)+'</span>');
+            return 'done';
+          }
+        } catch(_) {}
+      }
+    }
+    // Stream closed cleanly without 'done' — let reconnect loop handle it
+    return false;
+  } catch (e) {
+    // Network error / connection reset — caller will retry with backoff
+    return false;
+  }
+}
+
+function handleProgress(d) {
+  const { name, status, detail } = d;
+  const icons = { pending:'', running:'', done:'✓', skipped:'→', failed:'✗' };
+  const cls   = { pending:'s-pending', running:'s-running', done:'s-done', skipped:'s-skipped', failed:'s-failed' };
+  const labels= { pending:t('status_pending'), running:t('status_running'), done:t('status_done'), skipped:t('status_skipped'), failed:t('status_failed') };
+
+  if (sectionRows[name]) {
+    const tr = sectionRows[name];
+    tr.querySelector('.status-icon').textContent = icons[status] || '•';
+    tr.querySelector('.status-icon').className = `status-icon ${cls[status] || ''}`;
+    tr.querySelector('.status-text').textContent = statusLabel(status, labels);
+    tr.querySelector('.status-text').className = `status-text ${cls[status] || ''}`;
+    if (detail && status === 'failed') {
+      tr.querySelector('.detail-cell').innerHTML += `<div class="err-text">${esc(detail)}</div>`;
+    }
+  } else {
+    const tbody = document.getElementById('section-tbody');
+    const tr = document.createElement('tr');
+    // No pointer and no expander: the findings live in the summary above, so
+    // there is nothing here to reveal. Every row used to offer the affordance,
+    // including the twelve with an empty detail cell and nothing behind it.
+    tr.innerHTML = `
+      <td><span class="status-icon ${cls[status] || ''}">${icons[status] || '•'}</span></td>
+      <td style="font-weight:500;">${esc(name)}</td>
+      <td><span class="status-text ${cls[status] || ''}">${statusLabel(status, labels)}</span></td>
+      <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}</td>`;
+    tbody.appendChild(tr);
+    sectionRows[name] = tr;
+  }
+
+  const terminal = ['done', 'skipped', 'failed'];
+  if (terminal.includes(status)) {
+    sectionDone++;
+    updateProgress(sectionDone, sectionTotal);
+    setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running_sections').replace('{done}', sectionDone).replace('{total}', sectionTotal) + '</span>');
+  }
+}
+
+// Everything the run flagged, gathered in one place and ordered by weight.
+//
+// The section table answers "did every section run", which is what you want
+// while it is running. Afterwards the question is "what is wrong", and that
+// answer was spread across twenty-six rows — most of them empty, since a
+// section with nothing to report still takes a full row — with the longest
+// lists truncated behind "+n til". Nothing is removed; this sits above it.
+// A section that finished as expected says nothing; the icon already does.
+// "Hoppet over" and "Feilet" keep their words, because those differ.
+function statusLabel(status, labels) {
+  return status === 'done' ? '' : (labels[status] || status);
+}
+
+function renderAuditFindings(results) {
+  var box = document.getElementById('audit-findings');
+  if (!box) return;
+
+  var failures = [], skipped = [], findings = [];
+  results.forEach(function (r) {
+    // A skipped section carries its reason in the same field a failed one
+    // uses, so "no Azure subscriptions found" — which is a legitimate skip on
+    // a tenant without Azure — was announced as four failures in red at the
+    // top of the list, while the table below correctly said "Hoppet over".
+    // Status decides; the reason is only the wording.
+    if (r.error && r.status === 'failed') failures.push({ section: r.name, text: r.error });
+    else if (r.error && r.status === 'skipped') skipped.push({ section: r.name, text: r.error });
+    (r.warns || []).forEach(function (w, i) {
+      var level = (r.warn_levels || [])[i] || 'warn';
+      findings.push({ section: r.name, text: w, level: level });
+    });
+  });
+
+  if (!failures.length && !findings.length && !skipped.length) {
+    box.style.display = 'block';
+    box.innerHTML = '<div class="card" style="border-left:3px solid var(--green);">'
+      + '<div style="font-weight:600;color:var(--green);">&#10003; '
+      + esc(t('audit_no_findings', 'Ingen varsler')) + '</div>'
+      + '<div style="color:var(--text-dim);font-size:12px;margin-top:4px;">'
+      + esc(t('audit_no_findings_detail', 'Alle seksjoner fullførte uten å flagge noe.'))
+      + '</div></div>';
+    return;
+  }
+
+  function list(items, colour, heading) {
+    if (!items.length) return '';
+    return '<div style="margin-bottom:12px;">'
+      + '<div style="font-weight:600;color:' + colour + ';margin-bottom:6px;font-size:13px;">'
+      + esc(heading) + ' (' + items.length + ')</div>'
+      + items.map(function (f) {
+          // Wraps rather than squeezing: a fixed basis pinched the section
+          // name to a few characters once the pane got narrow, and the app is
+          // otherwise built for that — the tables scroll, the layout breaks at
+          // 1100, 767 and 479.
+          return '<div style="display:flex;flex-wrap:wrap;gap:2px 8px;padding:4px 0;'
+            + 'border-bottom:1px solid var(--border);font-size:12px;">'
+            + '<span style="color:var(--text-dim);flex:0 0 150px;min-width:120px;">'
+            + esc(f.section) + '</span>'
+            + '<span style="flex:1 1 220px;">' + esc(f.text) + '</span></div>';
+        }).join('')
+      + '</div>';
+  }
+
+  box.style.display = 'block';
+  var anyCritical = findings.some(function (f) { return f.level === 'critical'; });
+  box.innerHTML = '<div class="card" style="border-left:3px solid '
+    + (failures.length || anyCritical ? 'var(--red)' : 'var(--orange)') + ';">'
+    + list(failures, 'var(--red)', t('status_failed', 'Feilet'))
+    + list(findings.filter(function (f) { return f.level === 'critical'; }),
+           'var(--red)', t('status_critical_findings', 'Kritiske funn'))
+    + list(findings.filter(function (f) { return f.level !== 'critical'; }),
+           'var(--orange)', t('status_warnings', 'Varsler'))
+    + list(skipped, 'var(--text-dim)', t('status_skipped', 'Hoppet over'))
+    + '</div>';
+}
+
+function handleAuditDone(results) {
+  let done = 0, warns = 0, failed = 0;
+
+  // Update rows with final data (fills in warns and files)
+  for (const r of results) {
+    const status = r.status;
+    const icons  = { pending:'', running:'', done:'✓', skipped:'→', failed:'✗' };
+    const cls    = { pending:'s-pending', running:'s-running', done:'s-done', skipped:'s-skipped', failed:'s-failed' };
+    const labels = { pending:t('status_pending'), running:t('status_running'), done:t('status_done'), skipped:t('status_skipped'), failed:t('status_failed') };
+
+    if (sectionRows[r.name]) {
+      const tr = sectionRows[r.name];
+      // Update icon/status in case last progress event was 'running'
+      tr.querySelector('.status-icon').textContent = icons[status] || '•';
+      tr.querySelector('.status-icon').className = `status-icon ${cls[status] || ''}`;
+      tr.querySelector('.status-text').textContent = statusLabel(status, labels);
+      tr.querySelector('.status-text').className = `status-text ${cls[status] || ''}`;
+
+      // The summary above carries every finding, labelled with its section.
+      // This table used to carry them too — three times over: the first three
+      // as pills, the remainder behind "+n til", and all of them again in an
+      // expander. Two of those three renderings were lossy, and the lossy ones
+      // were the visible ones.
+      //
+      // So the table keeps only what the summary cannot answer: whether each
+      // section ran. An error or a skip reason belongs to the section rather
+      // than to the findings list, so those stay.
+      const detailCell = tr.querySelector('.detail-cell');
+      if (r.warns && r.warns.length > 0) warns++;
+      detailCell.innerHTML = r.error ? `<div class="err-text">${esc(r.error)}</div>` : '';
+
+    }
+
+    if (status === 'done' || status === 'skipped') done++;
+    if (status === 'failed') { done++; failed++; }
+  }
+
+  updateProgress(results.length, results.length);
+  var elapsed = window._auditStartTime ? Math.round((Date.now() - window._auditStartTime) / 1000) : 0;
+  var elapsedStr = elapsed >= 60 ? Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's' : elapsed + 's';
+  var totalFiles = results.reduce(function(s,r){ return s + (r.files ? r.files.length : 0); }, 0);
+  setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + totalFiles + ' ' + t('nav_files','files') + ')</span></span>');
+
+  document.getElementById('sum-done').textContent = done;
+  document.getElementById('sum-warn').textContent = warns;
+  document.getElementById('sum-fail').textContent = failed;
+  document.getElementById('audit-done-area').style.display = 'block';
+  renderAuditFindings(results);
+
+  // Browser notification if tab is hidden
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    new Notification('Sybr HUB', {
+      body: t('msg_audit_complete','Audit complete').replace('{count}', results.length) + ' (' + elapsedStr + ')',
+      icon: '/branding/sybr_logo_transparent.png',
+    });
+  }
+
+  // Check grade and celebrate if A!
+  setTimeout(async function() {
+    try {
+      var dash = await apiFetch('/api/dashboard');
+      if (dash && dash.metrics && dash.metrics.risk_grade === 'A') {
+        _celebrateConfetti();
+        showToast('' + t('msg_grade_a','Grade A — excellent security posture!'), 'success', 5000);
+      }
+    } catch(e) {}
+  }, 1500);
+}
+
+var _origTitle = document.title;
+function updateProgress(done, total) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('progress-label').textContent = t('audit_sections_count').replace('{done}', done).replace('{total}', total);
+  // Update browser tab title with progress
+  if (auditRunning) document.title = t('lbl_audit','Audit') + ' ' + pct + '% · ' + _origTitle;
+  else document.title = _origTitle;
+}
+
+function setAuditStatus(html) {
+  document.getElementById('audit-status-bar').innerHTML = html;
+}
+
+// ── Audit progress polling (REST) ───────────────────────────────────────────
+var _auditProgressTimer = null;
+
+function startAuditProgressPolling() {
+  stopAuditProgressPolling();
+  pollAuditProgress();  // don't wait 2s for the first honest denominator
+  _auditProgressTimer = setInterval(pollAuditProgress, 2000);
+}
+
+function stopAuditProgressPolling() {
+  if (_auditProgressTimer) { clearInterval(_auditProgressTimer); _auditProgressTimer = null; }
+}
+
+async function pollAuditProgress() {
+  if (!auditRunning) { stopAuditProgressPolling(); _hideAuditProgressBar(); return; }
+  try {
+    var d = await apiFetch('/api/audit/progress');
+    if (!d || !d.total_sections) return;
+    // Update the global indicator in the header
+    var ind = document.getElementById('audit-running-indicator');
+    if (ind && ind.style.display !== 'none') {
+      ind.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> '
+        + 'Audit ' + d.progress + '% · ' + esc(d.current_section);
+    }
+    // The audit view's own bar used to derive its total from the sections that
+    // had already announced themselves, so it read n / n after every section
+    // and sat at 100% for the whole run. The server knows the real section
+    // list; take the denominator from it and let the SSE handler move the
+    // numerator between polls.
+    if (typeof d.total_sections === 'number' && d.total_sections > 0) {
+      sectionTotal = d.total_sections;
+      if (currentView === 'audit') updateProgress(d.completed, sectionTotal);
+    }
+    // Update floating progress bar (shown on non-audit views)
+    _showAuditProgressBar(d);
+  } catch(e) { /* expected during SSE transition */ }
+}
+
+function _showAuditProgressBar(d) {
+  var bar = document.getElementById('audit-progress-float');
+  if (!bar) return;
+  // Hide when already on the audit view (it has its own progress bar)
+  if (currentView === 'audit') { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  var pct = d.progress || 0;
+  bar.querySelector('.apf-fill').style.width = pct + '%';
+  bar.querySelector('.apf-text').textContent = pct + '% · ' + (d.current_section || '...');
+  bar.querySelector('.apf-counts').textContent = d.completed + ' / ' + d.total_sections;
+}
+
+function _hideAuditProgressBar() {
+  var bar = document.getElementById('audit-progress-float');
+  if (bar) bar.style.display = 'none';
+}
+
+function auditBack() {
+  if (auditRunning) return;
+  showView('home');
+}
+
+// ── Report generation ──────────────────────────────────────────────────────────
+async function generateReport(fmt, reportType) {
+  const area = currentView === 'history-report'
+    ? document.getElementById('hist-report-result')
+    : document.getElementById('report-result');
+  const label = reportType === 'customer' ? t('lbl_customer_report') : t('lbl_tech_report');
+  area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_report').replace('{label}', label);
+
+  try {
+    const d_report = await apiFetch('/api/report/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: fmt, report_type: reportType, lang: (currentView === 'history-report' ? document.getElementById('hist-report-lang')?.value : document.getElementById('report-lang')?.value) || 'no', frameworks: (currentView === 'history-report' ? document.getElementById('hist-report-frameworks')?.value : document.getElementById('report-frameworks')?.value) || 'all', theme: (currentView === 'history-report' ? document.getElementById('hist-report-theme')?.value : document.getElementById('report-theme')?.value) || 'light' }),
+    });
+    const d = d_report;
+    if (!d) { area.innerHTML = '<div class="alert alert-error">' + t('err_could_not_generate_report') + '</div>'; return; }
+    if (d.error) {
+      area.innerHTML = `<div class="alert alert-error">${esc(d.error)}</div>`;
+      return;
+    }
+    if (fmt === 'html' && d.html_url) {
+      area.innerHTML = '<div class="alert alert-success" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);">'
+        + '<span>' + esc(label) + '</span>'
+        + '<div style="display:flex;gap:var(--space-2);">'
+        + '<button class="btn btn-primary btn-sm" data-click-handler="openReportViewer" data-url="' + esc(d.html_url) + '">' + t('vis_i_app') + '</button>'
+        + '<a href="' + esc(d.html_url) + '" target="_blank" class="btn btn-ghost btn-sm">' + t('ny_fane') + '</a>'
+        + '</div></div>';
+    } else if (fmt === 'pdf' && d.pdf_url) {
+      // The link text is its own key. It used to be cut out of a sentence at
+      // its dash, so rewording the sentence would have shown "undefined".
+      var _dlLink = '<a href="' + esc(d.pdf_url) + '" download style="color:var(--green);">' + esc(t('btn_download', 'Last ned')) + '</a>';
+      area.innerHTML = '<div class="alert alert-success">✓ ' + esc(label) + ' (PDF) · ' + _dlLink + '</div>';
+      window.open(d.pdf_url, '_blank');
+    } else {
+      area.innerHTML = '<div class="alert alert-success">' + t('msg_report_generated').replace('{label}', esc(label)) + '</div>';
+    }
+  } catch (e) {
+    area.innerHTML = '<div class="alert alert-error">✗ ' + t('err_network_error').replace('{msg}', esc(e.message)) + '</div>';
+  }
+}
+
+// ── Report Viewer ─────────────────────────────────────────────────────────────
+function openReportViewer(url) {
+  var modal = document.getElementById('report-viewer-modal');
+  modal.style.display = 'flex';
+  document.getElementById('report-viewer-link').href = url;
+  document.getElementById('report-viewer-title').textContent = url.split('/').pop() || '';
+  document.getElementById('report-viewer-iframe').src = url;
+}
+function closeReportViewer() {
+  document.getElementById('report-viewer-modal').style.display = 'none';
+  document.getElementById('report-viewer-iframe').src = 'about:blank';
+}
+
+async function exportCSV() {
+  const area = currentView === 'history-report'
+    ? document.getElementById('hist-report-result')
+    : document.getElementById('report-result');
+  area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_csv');
+  try {
+    const r = await fetch('/api/report/csv', { method: 'POST' });
+    if (!r.ok) {
+      try { const d = await r.json(); area.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`; } catch(_) { area.innerHTML = '<div class="alert alert-error">' + t('err_export_failed','Export failed') + '</div>'; }
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'audit_export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    area.innerHTML = '<div class="alert alert-success">' + t('msg_csv_downloaded') + '</div>';
+  } catch(e) {
+    area.innerHTML = `<div class="alert alert-error">✗ ${esc(e.message)}</div>`;
+  }
+}
+
+// ── History ─────────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const box = document.getElementById('history-content');
+  const d = await apiFetch('/api/history');
+  if (d) {
+    renderHistory(d.history || []);
+  } else {
+    box.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_history') + '</div>';
+  }
+}
+
+let _compareSelected = [];
+
+function onCompareCheck(path, checked) {
+  if (checked) {
+    _compareSelected.push(path);
+  } else {
+    _compareSelected = _compareSelected.filter(p => p !== path);
+  }
+  var btnCompare = document.getElementById('btn-compare');
+  var btnDelete = document.getElementById('btn-delete-selected');
+  // Only allow compare if exactly 2 selected and both have metrics
+  var canCompare = _compareSelected.length === 2;
+  if (canCompare) {
+    var cbs = document.querySelectorAll('input.compare-cb:checked');
+    cbs.forEach(function(cb) {
+      if (cb.dataset.hasMetrics === 'false') canCompare = false;
+    });
+  }
+  btnCompare.style.display = canCompare ? 'inline-block' : 'none';
+  btnDelete.style.display = _compareSelected.length > 0 ? 'inline-block' : 'none';
+  btnDelete.textContent = t('btn_delete_selected') + ' (' + _compareSelected.length + ')';
+}
+
+async function runComparison() {
+  if (_compareSelected.length !== 2) {
+    showToast(t('msg_select_2_for_compare'), 'warning');
+    return;
+  }
+  const btn = document.getElementById('btn-compare');
+  btn.disabled = true;
+  btn.textContent = t('btn_loading');
+  const box = document.getElementById('compare-result');
+  box.style.display = 'block';
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  box.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div>' + t('msg_comparing') + '</div>';
+  try {
+    const d = await apiFetch('/api/audit/compare?run1=' + encodeURIComponent(_compareSelected[0]) + '&run2=' + encodeURIComponent(_compareSelected[1]));
+    if (d.error) { box.innerHTML = `<div class="alert alert-error">${esc(d.error)}</div>`; return; }
+    renderComparison(d, box);
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    box.innerHTML = `<div class="alert alert-error">${t('status_error')}: ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('btn_compare_selected');
+  }
+}
+
+async function deleteSelectedRuns() {
+  if (_compareSelected.length === 0) return;
+  var count = _compareSelected.length;
+  if (!await showConfirm(t('dlg_confirm_delete_runs').replace('{count}', count))) return;
+  try {
+    var d = await apiFetch('/api/history/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({paths: _compareSelected})
+    });
+
+    if (d.errors && d.errors.length > 0) {
+      showToast(t('hist_deleted_runs').replace('{count}', d.deleted) + ' · ' + d.errors.join(', '), 'warning', 8000);
+    }
+    _compareSelected = [];
+    document.getElementById('btn-delete-selected').style.display = 'none';
+    document.getElementById('btn-compare').style.display = 'none';
+    loadHistory();
+  } catch (e) {
+    showToast(t('err_delete_failed').replace('{msg}', e.message), 'error');
+  }
+}
+
+async function deleteAllCustomerRuns(customerDirName, customerName, runCount) {
+  if (!await showTypedConfirm(
+    customerName,
+    t('dlg_confirm_delete_all_runs').replace('{count}', runCount).replace('{name}', customerName),
+    t('dlg_destructive_audit_history', 'Dette fjerner {count} audit-kjøringer og tilhørende rapporter for denne kunden. Ikke reversibelt.').replace('{count}', runCount)
+  )) return;
+  try {
+    var d = await apiFetch('/api/history/delete-customer', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({customer_dir: customerDirName})
+    });
+
+    if (d.error) {
+      showToast(t('status_error') + ': ' + d.error, 'error');
+      return;
+    }
+    _compareSelected = [];
+    document.getElementById('btn-delete-selected').style.display = 'none';
+    document.getElementById('btn-compare').style.display = 'none';
+    loadHistory();
+  } catch (e) {
+    showToast(t('err_delete_failed').replace('{msg}', e.message), 'error');
+  }
+}
+
+function _fmtTs(ts) {
+  const m = ts.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
+  return m ? `${m[3]}.${m[2]}.${m[1]} kl. ${m[4]}:${m[5]}` : ts;
+}
+
+function renderComparison(data, box) {
+  const labels = {
+    risk_score: t('compare_risk_score'), risk_grade: t('compare_risk_grade'),
+    mfa_coverage_pct: t('compare_mfa_coverage'), secure_score_pct: t('compare_secure_score'),
+    total_users: t('compare_total_users'), users_no_mfa: t('compare_users_no_mfa'),
+    ca_policies_enabled: t('compare_ca_policies'), intune_compliance_pct: t('compare_intune_compliance'),
+    admin_roles_ga_count: t('compare_global_admins'), total_warns: t('compare_total_warnings'),
+  };
+  const ts1 = _fmtTs(data.run1.timestamp), ts2 = _fmtTs(data.run2.timestamp);
+  let rows = '';
+  for (const d of data.deltas) {
+    const label = labels[d.key] || d.key;
+    const v1 = d.run1 != null ? d.run1 : '\u2014';
+    const v2 = d.run2 != null ? d.run2 : '\u2014';
+    let arrow = '', color = 'var(--text-muted)', bg = 'transparent';
+    if (d.direction === 'improved') { arrow = ' \u2191'; color = '#22c55e'; bg = 'rgba(34,197,94,0.08)'; }
+    else if (d.direction === 'worsened') { arrow = ' \u2193'; color = '#ef4444'; bg = 'rgba(239,68,68,0.08)'; }
+    else if (d.direction === 'unchanged') { arrow = ' \u2192'; color = 'var(--text-muted)'; }
+    else { arrow = ' ~'; color = '#4d9fb5'; }
+    const deltaStr = d.delta != null ? (d.delta > 0 ? '+' + d.delta : '' + d.delta) : '';
+    const barWidth = d.delta != null ? Math.min(100, Math.abs(d.delta) * 2) : 0;
+    const barColor = d.direction === 'improved' ? '#22c55e' : d.direction === 'worsened' ? '#ef4444' : '#4d9fb5';
+    const barHtml = barWidth > 0 ? `<div style="display:inline-block;width:${barWidth}px;height:6px;border-radius:3px;background:${barColor};margin-left:6px;vertical-align:middle;"></div>` : '';
+    rows += `<tr class="hover-tint" style="background:${bg};transition:background var(--duration-fast);">
+      <td style="font-weight:500;">${esc(label)}</td>
+      <td style="text-align:center;font-family:var(--mono);">${esc(String(v1))}</td>
+      <td style="text-align:center;font-family:var(--mono);">${esc(String(v2))}</td>
+      <td style="text-align:center;font-weight:600;color:${color};font-family:var(--mono);">${deltaStr ? esc(deltaStr) : ''}${arrow}${barHtml}</td>
+    </tr>`;
+  }
+  box.innerHTML = `
+    <div class="card" style="margin-top:20px;border-left:3px solid #1d6387;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="card-title" style="margin:0;">${t('hdr_comparison')}</div>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" data-click-handler="hideElement" data-target="compare-result">${t('btn_close')}</button>
+      </div>
+      <div class="table-wrap">
+        <table class="section-table" style="width:100%;">
+          <thead><tr>
+            <th style="text-align:left;">${t('lbl_metric')}</th>
+            <th style="text-align:center;color:#1d6387;">${esc(ts1)}</th>
+            <th style="text-align:center;color:#4d9fb5;">${esc(ts2)}</th>
+            <th style="text-align:center;">${t('lbl_change')}</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderHistory(runs) {
+  const box = document.getElementById('history-content');
+  _compareSelected = [];
+  document.getElementById('btn-compare').style.display = 'none';
+  document.getElementById('compare-result').style.display = 'none';
+
+  if (runs.length === 0) {
+    box.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-title">${t('msg_no_prev_runs')}</div>
+        <div class="empty-desc">${t('msg_run_audit_first')}</div>
+        <button class="btn btn-primary" data-click-handler="showView" data-view="home" style="margin-top:var(--space-2);">${t('btn_run_audit')}</button>
+      </div>`;
+    return;
+  }
+
+  // Group by customer
+  const grouped = {};
+  for (const run of runs) {
+    if (!grouped[run.customer]) grouped[run.customer] = [];
+    grouped[run.customer].push(run);
+  }
+
+  let html = '';
+  for (const [customer, customerRuns] of Object.entries(grouped)) {
+    const customerDirName = customerRuns[0] && customerRuns[0].path ? customerRuns[0].path.split('/').slice(-2, -1)[0] : '';
+    html += `<div class="card" style="margin-bottom:16px;">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          ${esc(customer)} <span style="font-weight:400;font-size:12px;color:var(--text-muted);">${t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
+        </span>
+        <button class="btn btn-ghost" style="padding:3px 10px;font-size:11px;color:var(--red);"
+          data-click-handler="deleteAllCustomerRuns" data-dir="${esc(customerDirName)}" data-customer="${esc(customer)}" data-count="${customerRuns.length}">
+          ${t('btn_delete_all')}
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table class="section-table">
+          <thead>
+            <tr>
+              <th style="width:32px;text-align:center;" title="${t('tip_compare_delete')}">⇄</th>
+              <th>${t('lbl_date_time')}</th>
+              <th>${t('lbl_files')}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    for (const run of customerRuns) {
+      // Format timestamp: "2026-03-12_0945" -> "12.03.2026 kl. 09:45"
+      const ts = run.timestamp;
+      let displayDate = ts;
+      const m = ts.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
+      if (m) {
+        displayDate = `${m[3]}.${m[2]}.${m[1]} kl. ${m[4]}:${m[5]}`;
+      }
+
+      const canCompare = run.has_metrics !== false;
+      var runTip = canCompare && run.metrics ? t('lbl_grade')+': '+(run.metrics.risk_grade||'-')+' · Score: '+(run.metrics.risk_score||'-')+' · MFA: '+(metricPct(run.metrics.mfa_coverage_pct) !== null ? metricPct(run.metrics.mfa_coverage_pct)+'%' : '-') : '';
+      html += `
+        <tr${canCompare ? '' : ' style="opacity:0.6;"'}${runTip ? ' title="'+esc(runTip)+'"' : ''} class="hover-tint" style="cursor:pointer;transition:background var(--duration-fast);${canCompare ? '' : 'opacity:0.6;'}">
+          <td style="text-align:center;">
+            <input type="checkbox" class="compare-cb" data-path="${esc(run.path)}" data-has-metrics="${canCompare}"
+              data-change-handler="onCompareCheck"
+              style="accent-color:#1d6387;width:15px;height:15px;cursor:pointer;">
+          </td>
+          <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
+          <td style="font-family:var(--mono);color:var(--text-muted);">${run.file_count} ${t('nav_files','filer')}</td>
+          <td style="text-align:right;">
+            <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;"
+              data-click-handler="loadHistoryRun" data-path="${esc(run.path)}">
+              ${t('btn_generate_report')}
+            </button>
+          </td>
+        </tr>`;
+    }
+
+    html += `</tbody></table></div></div>`;
+  }
+
+  box.innerHTML = html;
+}
+
+async function loadHistoryRun(path) {
+  const box = document.getElementById('hist-report-info');
+  const resultBox = document.getElementById('hist-report-result');
+  resultBox.innerHTML = '';
+
+  showView('history-report');
+  document.getElementById('hist-report-title').textContent = t('msg_loading');
+  document.getElementById('hist-report-subtitle').textContent = '';
+  box.innerHTML = '<div class="loader"></div> ' + t('msg_loading_audit_data');
+
+  try {
+    const d = await apiFetch('/api/history/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+
+
+    if (d.error) {
+      box.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`;
+      return;
+    }
+
+    document.getElementById('hist-report-title').textContent = t('hdr_report_for').replace('{customer}', d.customer);
+
+    // Format timestamp
+    let displayDate = d.timestamp;
+    const m = d.timestamp.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
+    if (m) {
+      displayDate = `${m[3]}.${m[2]}.${m[1]} kl. ${m[4]}:${m[5]}`;
+    }
+    document.getElementById('hist-report-subtitle').textContent = displayDate;
+
+    box.innerHTML = t('msg_sections_data_loaded').replace('{sections}', '<strong>' + d.sections + '</strong>').replace('{files}', '<strong>' + d.files + '</strong>').replace('{date}', esc(displayDate));
+  } catch (e) {
+    box.innerHTML = `<div class="alert alert-error">✗ ${t('err_network_error').replace('{msg}', esc(e.message))}</div>`;
+  }
+}

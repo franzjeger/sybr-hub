@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!-- lang stays hard-coded here, unlike index.html: this page never loads
+     theme-init.js, so nothing would set it at runtime, and its body text is
+     Norwegian only. A missing lang is worse than a correct one. -->
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4d9fb5">
+<title>Offline — Sybr HUB</title>
+<link rel="stylesheet" href="/static/offline.css">
+<script defer src="/static/offline.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="alert">
+      <div class="icon" aria-hidden="true"></div>
+      <h1>Du er offline</h1>
+      <p>
+        Sybr HUB krever kontakt med serveren for å vise live data. Siden vil prøve
+        å laste på nytt når nettverket er tilbake.
+      </p>
+      <button class="retry" id="offline-retry" type="button">Prøv igjen</button>
+      <div class="hint"><span class="dot"></span><span id="status">Venter på forbindelse…</span></div>
+    </div>
+  </div>
+</body>
+</html>

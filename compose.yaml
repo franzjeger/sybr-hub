@@ -1,0 +1,28 @@
+services:
+  hub:
+    image: ${SYBR_IMAGE:?Set SYBR_IMAGE to a tested immutable image tag or digest}
+    platform: linux/amd64
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8099:8099"
+    environment:
+      SYBR_HUB_HOST: 0.0.0.0
+      # Only loopback is published; the host TLS proxy is the trust boundary.
+      SYBR_ALLOW_INSECURE_AUTH: "1"
+      SYBR_REQUIRE_MFA: "1"
+    volumes:
+      - sybr-data:/var/lib/sybr
+    secrets:
+      - key_wrap_secret
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=512m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 2m
+secrets:
+  key_wrap_secret:
+    file: ${SYBR_WRAP_SECRET_FILE:?Set the path to the separately stored wrapping secret}
+volumes:
+  sybr-data:

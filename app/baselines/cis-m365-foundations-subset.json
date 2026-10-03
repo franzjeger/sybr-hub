@@ -1,0 +1,154 @@
+{
+  "id": "cis-m365-foundations-subset",
+  "version": "2026.1",
+  "name": "CIS Microsoft 365 Foundations (subset)",
+  "tags": ["cis", "microsoft-365", "hardening"],
+  "description": {
+    "no": "Et ærlig utsnitt av CIS Microsoft 365 Foundations Benchmark — bare kontrollene denne auditen leser som strukturerte målinger: MFA, Conditional Access, eldre autentisering, antall globale administratorer, Secure Score, ekstern deling og enhetsetterlevelse. Kontroller som bare finnes som fritekst i innsamlingen (samtykkeflyt, postboksrevisjon, samlet revisjonslogg, Teams eksterntilgang, DKIM/DMARC per domene) er utelatt her og dekkes i stedet av samsvarskartet i rapporten. Dette er ikke en fullstendig CIS-vurdering.",
+    "en": "An honest subset of the CIS Microsoft 365 Foundations Benchmark — only the controls this audit reads as structured measurements: MFA, Conditional Access, legacy authentication, global-administrator count, Secure Score, external sharing and device compliance. Controls that exist only as free text in the collection (consent workflow, mailbox auditing, the unified audit log, Teams external access, per-domain DKIM/DMARC) are left out here and are covered instead by the report's compliance map. This is not a full CIS assessment."
+  },
+  "checks": [
+    {
+      "id": "cis-1-1-1-mfa-all-users",
+      "title": {
+        "no": "CIS 1.1.1 — Ingen bruker står helt uten MFA",
+        "en": "CIS 1.1.1 — No user is left without MFA"
+      },
+      "why": {
+        "no": "MFA er den enkeltkontrollen som stopper flest kontokompromitteringer. En konto uten metode og uten dekkende policy nås med passord alene.",
+        "en": "MFA is the single control that stops the most account compromises. An account with no method and no covering policy is reached with a password alone."
+      },
+      "path": "mfa.no_mfa",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "mfa.has_data",
+      "severity": "critical"
+    },
+    {
+      "id": "cis-1-1-1-mfa-registered",
+      "title": {
+        "no": "Minst 95 % av brukerne har registrert MFA",
+        "en": "At least 95% of users have registered MFA"
+      },
+      "why": {
+        "no": "En policy som krever MFA hjelper lite for en bruker som aldri har registrert en metode — vedkommende møter en registreringsprompt i stedet for reell beskyttelse.",
+        "en": "A policy requiring MFA helps little for a user who has never registered a method — they meet a registration prompt rather than real protection."
+      },
+      "path": "mfa.registered_pct",
+      "op": "gte",
+      "value": 95,
+      "measured_when": "mfa.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "cis-1-1-3-global-admins",
+      "title": {
+        "no": "CIS 1.1.3 — Færre enn fem globale administratorer",
+        "en": "CIS 1.1.3 — Fewer than five global administrators"
+      },
+      "why": {
+        "no": "CIS anbefaler to til fire. Hver global administrator er en konto med full kontroll over tenanten og et tilsvarende stort mål.",
+        "en": "CIS recommends two to four. Each global administrator is an account with full control of the tenant, and a correspondingly large target."
+      },
+      "path": "admin_roles.global_admin_count",
+      "op": "lt",
+      "value": 5,
+      "measured_when": "admin_roles.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "cis-1-1-4-ca-configured",
+      "title": {
+        "no": "CIS 1.1.4 — Conditional Access er konfigurert",
+        "en": "CIS 1.1.4 — Conditional Access is configured"
+      },
+      "why": {
+        "no": "Conditional Access er der pålogging faktisk styres. Uten minst én aktivert policy håndheves verken MFA eller enhetskrav.",
+        "en": "Conditional Access is where sign-in is actually governed. Without at least one enabled policy, neither MFA nor device requirements are enforced."
+      },
+      "path": "ca.enabled",
+      "op": "gte",
+      "value": 1,
+      "measured_when": "ca.has_data",
+      "severity": "high"
+    },
+    {
+      "id": "cis-5-1-1-legacy-auth-entra",
+      "title": {
+        "no": "CIS 5.1.1 — Eldre autentisering er blokkert",
+        "en": "CIS 5.1.1 — Legacy authentication is blocked"
+      },
+      "why": {
+        "no": "Eldre autentiseringsprotokoller kan ikke utføre MFA. Så lenge de er tillatt, finnes det en vei rundt MFA-kravet.",
+        "en": "Legacy authentication protocols cannot perform MFA. While they remain allowed, there is a path around the MFA requirement."
+      },
+      "path": "ca.blocks_legacy_auth",
+      "op": "is_true",
+      "measured_when": "ca.has_client_app_data",
+      "severity": "high"
+    },
+    {
+      "id": "cis-7-2-3-legacy-auth-sharepoint",
+      "title": {
+        "no": "CIS 7.2.3 — Eldre autentisering er avslått i SharePoint",
+        "en": "CIS 7.2.3 — Legacy authentication is disabled in SharePoint"
+      },
+      "why": {
+        "no": "SharePoint og OneDrive har sin egen bryter for eldre autentisering, uavhengig av Entra. Er den på, kan filer nås med protokoller som ikke støtter moderne pålogging.",
+        "en": "SharePoint and OneDrive carry their own legacy-authentication switch, independent of Entra. Left on, files can be reached with protocols that do not support modern sign-in."
+      },
+      "path": "sharepoint.legacy_auth",
+      "op": "is_false",
+      "measured_when": "sharepoint.legacy_auth_known",
+      "severity": "medium"
+    },
+    {
+      "id": "cis-1-4-secure-score",
+      "title": {
+        "no": "CIS 1.4 — Microsoft Secure Score over 75 %",
+        "en": "CIS 1.4 — Microsoft Secure Score above 75%"
+      },
+      "why": {
+        "no": "Secure Score samler Microsofts egne standardanbefalinger til ett tall. Under 75 % mangler tenanten som regel flere av dem.",
+        "en": "Secure Score rolls Microsoft's own default recommendations into one figure. Below 75% a tenant is usually missing several of them."
+      },
+      "path": "secure_score.pct",
+      "op": "gte",
+      "value": 75,
+      "measured_when": "secure_score.has_data",
+      "severity": "medium"
+    },
+    {
+      "id": "cis-7-2-1-external-sharing",
+      "title": {
+        "no": "CIS 7.2.1 — Ekstern deling i SharePoint er begrenset",
+        "en": "CIS 7.2.1 — SharePoint external sharing is restricted"
+      },
+      "why": {
+        "no": "På det mest åpne nivået kan hvem som helst med en lenke nå innhold uten pålogging. CIS anbefaler å begrense deling til eksisterende gjester eller mindre.",
+        "en": "At its most open level anyone with a link can reach content without signing in. CIS recommends restricting sharing to existing guests or tighter."
+      },
+      "path": "sharepoint.sharing_level",
+      "op": "eq",
+      "value": "ok",
+      "measured_when": "sharepoint.sharing_known",
+      "severity": "medium"
+    },
+    {
+      "id": "cis-6-1-device-compliance",
+      "title": {
+        "no": "CIS 6 — Minst 90 % av enhetene er etterlevende",
+        "en": "CIS 6 — At least 90% of devices are compliant"
+      },
+      "why": {
+        "no": "Etterlevelsespolicyer i Intune håndhever kryptering, oppdateringsnivå og skjermlås. En lav etterlevelsesgrad betyr at enheter når data uten at kravene gjelder.",
+        "en": "Intune compliance policies enforce encryption, patch level and screen lock. A low compliance rate means devices reach data without the requirements applying."
+      },
+      "path": "intune.compliance_pct",
+      "op": "gte",
+      "value": 90,
+      "measured_when": "intune.has_data",
+      "severity": "medium"
+    }
+  ]
+}

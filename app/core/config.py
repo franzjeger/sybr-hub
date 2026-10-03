@@ -1,0 +1,262 @@
+"""App-level configuration and paths."""
+
+from __future__ import annotations
+
+import contextlib
+import fcntl
+import os
+import threading
+from collections.abc import Callable, Iterator
+from pathlib import Path
+
+from platformdirs import user_config_dir, user_data_dir, user_documents_dir
+
+from app.core.version import get_version
+
+APP_NAME = "MSPToolkit"
+APP_AUTHOR = "MSP"
+VERSION = get_version()
+
+# Directories — env-var overrides for container / non-XDG deployments
+# (Docker, custom systemd unit with explicit paths). When set, the env var
+# wins over platformdirs.
+DATA_DIR = Path(os.environ.get("MSP_DATA_DIR") or user_data_dir(APP_NAME, APP_AUTHOR))
+CONFIG_DIR = Path(os.environ.get("MSP_CONFIG_DIR") or user_config_dir(APP_NAME, APP_AUTHOR))
+CERTS_DIR = DATA_DIR / "certs"
+
+# Ensure base dirs exist before reading settings
+for _d in (DATA_DIR, CONFIG_DIR, CERTS_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
+
+_DEFAULT_AUDIT_DIR = Path(
+    os.environ.get("MSP_AUDIT_DIR") or Path(user_documents_dir()) / "MSPToolkit" / "Audits"
+)
+
+
+def get_audit_dir() -> Path:
+    """Return the configured audit output directory, falling back to Documents/MSPToolkit/Audits."""
+    settings_path = CONFIG_DIR / "settings.json"
+    if settings_path.exists():
+        try:
+            from app.core.encryption import encrypted_read_json
+
+            val = encrypted_read_json(settings_path).get("audit_dir", "")
+            if val:
+                p = Path(val)
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).debug("Could not read audit_dir from settings: %s", e)
+    _DEFAULT_AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    return _DEFAULT_AUDIT_DIR
+
+
+# Module-level reference — resolved once at import, so it goes stale the
+# moment an operator changes the audit directory in Settings.
+#
+# Deprecated: call get_audit_dir() instead. Kept only so an out-of-tree import
+# doesn't break; nothing in app/ uses it any more.
+AUDIT_DIR = get_audit_dir()
+
+# Graph permissions required for audit. The single source: GraphClient
+# validates against this list, and setup_helper.ps1 is handed it on stdin
+# rather than carrying its own copy. It was written out three times — here, in
+# GraphClient, and in the PowerShell that actually grants the consent — with a
+# "keep in sync" comment standing in for a mechanism. They happened to agree,
+# which is the state a drift hazard is in right up until it isn't: adding a
+# permission to two of the three grants a consent nothing checks, or requires
+# one the wizard never asks for.
+REQUIRED_GRAPH_PERMISSIONS: list[str] = [
+    "AuditLog.Read.All",
+    "Application.Read.All",
+    "DeviceManagementApps.Read.All",
+    "DeviceManagementConfiguration.Read.All",
+    "DeviceManagementManagedDevices.Read.All",
+    "DeviceManagementServiceConfig.Read.All",
+    "Device.Read.All",
+    "Directory.Read.All",
+    "Group.Read.All",
+    "IdentityRiskyUser.Read.All",
+    "Organization.Read.All",
+    "Policy.Read.All",
+    "Reports.Read.All",
+    "RoleManagement.Read.Directory",
+    "SecurityEvents.Read.All",
+    "Sites.Read.All",
+    "SharePointTenantSettings.Read.All",
+    "User.Read.All",
+    "UserAuthenticationMethod.Read.All",
+    "AccessReview.Read.All",
+    "SecurityAlert.Read.All",
+    "SecurityIncident.Read.All",
+    "SensitivityLabels.Read.All",
+]
+
+GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"  # Microsoft Graph
+EXO_APP_ID = "00000002-0000-0ff1-ce00-000000000000"  # Exchange Online
+EXO_PERMISSION = "Exchange.ManageAsApp"
+AUDIT_APP_NAME = "MSP Toolkit Audit"
+
+AZURE_ROLES = ["Reader", "Cost Management Reader"]
+
+# Setup scopes (interactive / delegated — used only during first-run)
+SETUP_SCOPES = [
+    "https://graph.microsoft.com/Application.ReadWrite.All",
+    "https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All",
+    "https://graph.microsoft.com/RoleManagement.ReadWrite.Directory",
+    "https://graph.microsoft.com/Directory.ReadWrite.All",
+    "https://graph.microsoft.com/Organization.Read.All",
+]
+
+
+# Default branding — empty by default so a fresh install doesn't
+# accidentally publish reports under the vendor's own name.
+# Operators set their company name in Settings → Branding on first run.
+DEFAULT_BRANDING = {
+    "company_name": "",
+    "report_title": "IT-Sikkerhetsrapport",
+    "primary_color": "#0f4c81",
+    "accent_color": "#1a6fad",
+    "contact_email": "",
+    "contact_phone": "",
+    "website": "",
+}
+
+
+BRANDING_DIR = CONFIG_DIR / "branding"
+BRANDING_DIR.mkdir(parents=True, exist_ok=True)
+
+LOGO_PATH = BRANDING_DIR / "logo.png"
+
+
+def get_logo_path() -> Path | None:
+    """Return the custom logo path if it exists, else None."""
+    if LOGO_PATH.exists():
+        return LOGO_PATH
+    return None
+
+
+def get_branding() -> dict:
+    """Return branding settings, merging defaults with user overrides."""
+    settings = load_app_settings()
+    branding = {**DEFAULT_BRANDING}
+    branding.update(settings.get("branding", {}))
+    return branding
+
+
+DEFAULT_SCHEDULER = {
+    "enabled": False,
+    "interval_hours": 168,  # weekly
+    "audit_all_customers": True,  # True = rotate all customers, False = only active
+    "webhook_url": "",  # Teams/Slack incoming webhook URL
+    "alert_on": {
+        "audit_completed": True,
+        "risk_score_drop": 5,  # alert if score drops by N+ (False = disabled)
+        "new_risky_users": True,
+        "expired_credentials": True,
+        "secure_score_drop": 5,  # alert if score drops by N+ (False = disabled)
+        "new_nsg_warnings": True,
+        "mfa_below_threshold": 80,  # alert if MFA coverage < N% (False = disabled)
+    },
+}
+
+
+def get_scheduler_config() -> dict:
+    settings = load_app_settings()
+    scheduler = {**DEFAULT_SCHEDULER}
+    saved = settings.get("scheduler", {})
+    scheduler.update(saved)
+    # Deep-merge alert_on so new defaults are preserved
+    merged_alert = {**DEFAULT_SCHEDULER["alert_on"]}
+    merged_alert.update(saved.get("alert_on", {}))
+    scheduler["alert_on"] = merged_alert
+    return scheduler
+
+
+def get_cert_dir() -> Path:
+    """Return the configured certificate directory, falling back to DATA_DIR/certs."""
+    settings = load_app_settings()
+    val = settings.get("cert_dir", "")
+    if val:
+        p = Path(val)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    CERTS_DIR.mkdir(parents=True, exist_ok=True)
+    return CERTS_DIR
+
+
+# One writer at a time. Settings are one encrypted JSON blob, and every update
+# is read-modify-write. Without serialization two concurrent updates each load
+# the whole dict, change their field, and save — and the second save drops the
+# first update. The lock plus reading fresh *inside* it (update_app_settings)
+# means a focused update mutates only its own field against the latest on-disk
+# state, so nothing else is clobbered. Chosen over optimistic revision checks:
+# the transactions are short, so serializing them removes the staleness rather
+# than detecting it after the fact.
+#
+# The lock is not needed for reads: writes are atomic (os.replace via
+# _atomic_private_write), so a reader always sees a complete old or new file.
+_SETTINGS_LOCK = threading.Lock()
+
+
+def _settings_path() -> Path:
+    return CONFIG_DIR / "settings.json"
+
+
+@contextlib.contextmanager
+def _settings_write_lock() -> Iterator[None]:
+    """Serialise writers within this process and across processes.
+
+    The thread lock covers request handlers; the flock covers a second process
+    (the standby scheduler) writing task status while the web process saves an
+    operator's change. Either alone would let one of them drop the other's key.
+    """
+    with _SETTINGS_LOCK:
+        fd = os.open(CONFIG_DIR / ".settings.lock", os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)
+
+
+def load_app_settings() -> dict:
+    from app.core.encryption import encrypted_read_json
+
+    path = _settings_path()
+    if path.exists():
+        return encrypted_read_json(path)
+    return {}
+
+
+def save_app_settings(settings: dict) -> None:
+    """Persist the whole settings dict, serialized and atomically.
+
+    Prefer update_app_settings for a focused change: this replaces the entire
+    blob and so can still lose a concurrent update to a different key.
+    """
+    from app.core.encryption import encrypted_write_json
+
+    with _settings_write_lock():
+        encrypted_write_json(_settings_path(), settings)
+
+
+def update_app_settings(mutate: Callable[[dict], None]) -> dict:
+    """Serialized read-modify-write. Returns the settings after the change.
+
+    ``mutate`` receives the CURRENT settings (read fresh under the lock) and
+    changes it in place — set, pop, or edit a nested block. Because the read
+    happens inside the lock, the change lands on the latest state and cannot
+    drop a field another writer set meanwhile. If ``mutate`` raises, nothing is
+    written and the exception propagates (used by routes to 404 before saving).
+    """
+    from app.core.encryption import encrypted_read_json, encrypted_write_json
+
+    path = _settings_path()
+    with _settings_write_lock():
+        current = encrypted_read_json(path) if path.exists() else {}
+        mutate(current)
+        encrypted_write_json(path, current)
+        return current

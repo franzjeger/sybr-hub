@@ -1,0 +1,607 @@
+"""Azure P2S VPN backend (Entra ID + OpenVPN).
+
+Uses PKCE authorization-code flow (like SuperManager) with a local
+redirect URI handled by our web server. Opens a popup for MFA login.
+"""
+
+import asyncio
+import base64
+import hashlib
+import logging
+import os
+import pathlib
+import re
+import secrets
+
+import httpx
+
+from app.core.messages import invalid
+from app.core.utils import fire_and_forget
+from app.core.validation import (
+    validate_cidr,
+    validate_hostname,
+    validate_identifier,
+    validate_ip,
+    validate_pem_certificates,
+)
+
+logger = logging.getLogger(__name__)
+
+# An OpenVPN static key is 2048 bits; allow up to twice that in hex so an
+# unusual export still reaches openvpn3, which checks the length itself.
+_TLS_KEY_HEX_RE = re.compile(r"(?:[0-9a-fA-F]{2}){1,512}")
+
+# Pending auth state — stores code_verifier keyed by state parameter
+_pending_auth: dict[str, dict] = {}
+
+
+def get_auth_url(config: dict, redirect_uri: str) -> dict:
+    """Generate OAuth2 PKCE authorization URL for popup login.
+
+    Returns {url, state} — open url in popup, state is used to match callback.
+    """
+    tenant_id = config.get("tenant_id", "")
+    # Use the audience as client_id (SuperManager approach — avoids AADSTS650057)
+    client_id = config.get("client_id", "")
+
+    # PKCE
+    code_verifier = secrets.token_urlsafe(64)
+    code_challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+        .rstrip(b"=")
+        .decode()
+    )
+
+    state = secrets.token_urlsafe(32)
+
+    # Store for callback
+    _pending_auth[state] = {
+        "code_verifier": code_verifier,
+        "config": config,
+        "redirect_uri": redirect_uri,
+    }
+
+    scope = f"{client_id}/.default openid offline_access profile"
+
+    url = (
+        f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize?"
+        f"client_id={client_id}"
+        f"&response_type=code"
+        f"&redirect_uri={redirect_uri}"
+        f"&scope={scope.replace(' ', '+')}"
+        f"&state={state}"
+        f"&code_challenge={code_challenge}"
+        f"&code_challenge_method=S256"
+        f"&login_hint={_load_login_hint(client_id, tenant_id) or config.get('login_hint', '')}"
+    )
+
+    return {"url": url, "state": state}
+
+
+async def exchange_code(state: str, code: str) -> dict:
+    """Exchange authorization code for access token after user completes MFA."""
+    pending = _pending_auth.pop(state, None)
+    if not pending:
+        return {"ok": False, "error": "Ugyldig eller utløpt auth-forespørsel"}
+
+    config = pending["config"]
+    code_verifier = pending["code_verifier"]
+    redirect_uri = pending["redirect_uri"]
+
+    tenant_id = config.get("tenant_id", "")
+    client_id = config.get("client_id", "")
+
+    async with httpx.AsyncClient(timeout=30) as http:
+        resp = await http.post(
+            f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "code_verifier": code_verifier,
+            },
+        )
+        data = resp.json()
+
+        if "access_token" in data:
+            # Cache refresh token for silent re-auth later
+            refresh = data.get("refresh_token", "")
+            if refresh:
+                _save_refresh_token(client_id, tenant_id, refresh)
+
+            # Extract UPN from id_token for login_hint
+            id_token = data.get("id_token", "")
+            if id_token:
+                try:
+                    # Decode JWT payload (no verification needed, just for UPN)
+                    payload_b64 = id_token.split(".")[1]
+                    payload_b64 += "=" * (4 - len(payload_b64) % 4)
+                    import json as _json
+
+                    claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
+                    upn = claims.get(
+                        "preferred_username", claims.get("upn", claims.get("email", ""))
+                    )
+                    if upn:
+                        _save_login_hint(client_id, tenant_id, upn)
+                except Exception as e:
+                    logger.debug("Failed to extract UPN from id_token: %s", e)
+
+            return {
+                "ok": True,
+                "access_token": data["access_token"],
+                "refresh_token": refresh,
+                "expires_in": data.get("expires_in", 3600),
+            }
+
+        return {
+            "ok": False,
+            "error": data.get("error_description", data.get("error", "Token exchange feilet")),
+        }
+
+
+# ── Device Code Flow via MSAL (headless servers) ────────────────────────────
+
+_device_code_pending: dict[str, dict] = {}
+
+
+async def start_device_code_flow(config: dict) -> dict:
+    """Start device code flow for Azure P2S VPN using MSAL.
+
+    Uses the VPN gateway's audience (c632b3df) directly as client_id
+    via MSAL PublicClientApplication. MSAL handles it as a public client
+    even though raw HTTP calls fail with 'client_secret required'.
+    """
+    import msal
+
+    tenant_id = config.get("tenant_id", "")
+    # Use the VPN gateway's audience as both client_id and scope
+    # For device code to work, this app must be a public client (isFallbackPublicClient=true)
+    # If c632b3df doesn't work (confidential), use vpn_client_id from config
+    client_id = config.get("vpn_client_id", config.get("client_id", ""))
+    authority = f"https://login.microsoftonline.com/{tenant_id}"
+
+    app = msal.PublicClientApplication(client_id, authority=authority)
+    flow = app.initiate_device_flow(scopes=[f"{client_id}/.default"])
+
+    if "user_code" not in flow:
+        error = flow.get("error_description", flow.get("error", "Device code request failed"))
+        return {"ok": False, "error": error}
+
+    device_code = flow.get("device_code", "")
+
+    _device_code_pending[device_code] = {
+        "config": config,
+        "flow": flow,
+        "msal_app": app,
+        "status": "pending",
+        "token": None,
+        "error": None,
+    }
+
+    # Poll in background — MSAL blocks, so run in executor
+    fire_and_forget(_poll_device_code_msal(device_code))
+
+    return {
+        "ok": True,
+        "user_code": flow["user_code"],
+        "verification_uri": flow.get("verification_uri", "https://microsoft.com/devicelogin"),
+        "message": flow.get("message", ""),
+        "expires_in": flow.get("expires_in", 900),
+        "device_code": device_code,
+    }
+
+
+async def _poll_device_code_msal(device_code: str):
+    """Background: MSAL polls Azure until user completes login."""
+    pending = _device_code_pending.get(device_code)
+    if not pending:
+        return
+
+    app = pending["msal_app"]
+    flow = pending["flow"]
+    config = pending["config"]
+    tenant_id = config.get("tenant_id", "")
+
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(None, lambda: app.acquire_token_by_device_flow(flow))
+    except Exception as e:
+        pending["status"] = "error"
+        pending["error"] = str(e)
+        return
+
+    if "access_token" in result:
+        pending["status"] = "complete"
+        pending["token"] = result["access_token"]
+        logger.info("Device code flow completed via MSAL")
+
+        refresh = result.get("refresh_token", "")
+        client_id = config.get("vpn_client_id", config.get("client_id", ""))
+        if refresh:
+            _save_refresh_token(client_id, tenant_id, refresh)
+    else:
+        pending["status"] = "error"
+        pending["status"] = "error"
+        pending["error"] = result.get(
+            "error_description", result.get("error", "Authentication failed")
+        )
+
+
+def get_device_code_status(device_code: str) -> dict:
+    """Check the status of a device code flow."""
+    pending = _device_code_pending.get(device_code)
+    if not pending:
+        return {"status": "unknown", "error": "Device code not found"}
+    return {
+        "status": pending["status"],
+        "token": pending.get("token"),
+        "error": pending.get("error"),
+    }
+
+
+async def get_token_silent(config: dict) -> str | None:
+    """Try to get a new access token using a cached refresh token.
+
+    Returns access_token if successful, None if re-auth needed.
+    """
+    tenant_id = config.get("tenant_id", "")
+    client_id = config.get("client_id", "")
+
+    refresh_token = _load_refresh_token(client_id, tenant_id)
+    if not refresh_token:
+        return None
+
+    async with httpx.AsyncClient(timeout=30) as http:
+        resp = await http.post(
+            f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": client_id,
+                "refresh_token": refresh_token,
+                "scope": f"{client_id}/.default openid offline_access profile",
+            },
+        )
+        data = resp.json()
+
+        if "access_token" in data:
+            # Update cached refresh token
+            new_refresh = data.get("refresh_token", "")
+            if new_refresh:
+                _save_refresh_token(client_id, tenant_id, new_refresh)
+            logger.info("Azure VPN token refreshed silently (no MFA needed)")
+            return data["access_token"]
+
+        # Refresh token expired — need interactive login
+        logger.info("Azure refresh token expired, interactive login needed")
+        return None
+
+
+def _save_refresh_token(client_id: str, tenant_id: str, token: str):
+    from app.core.config import DATA_DIR
+    from app.core.encryption import encrypted_write_bytes
+
+    token_dir = DATA_DIR / "azure_vpn_tokens"
+    token_dir.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
+    encrypted_write_bytes(token_dir / f"{key}.token", token.encode())
+
+
+def _load_refresh_token(client_id: str, tenant_id: str) -> str | None:
+    from app.core.config import DATA_DIR
+    from app.core.encryption import encrypted_read_bytes
+
+    key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
+    token_path = DATA_DIR / "azure_vpn_tokens" / f"{key}.token"
+    if not token_path.exists():
+        return None
+    try:
+        return encrypted_read_bytes(token_path).decode()
+    except Exception as e:
+        logger.warning("Failed to load refresh token: %s", e)
+        return None
+
+
+def _save_login_hint(client_id: str, tenant_id: str, upn: str):
+    from app.core.config import DATA_DIR
+    from app.core.encryption import encrypted_write_bytes
+
+    token_dir = DATA_DIR / "azure_vpn_tokens"
+    token_dir.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
+    encrypted_write_bytes(token_dir / f"{key}.hint", upn.encode())
+
+
+def _load_login_hint(client_id: str, tenant_id: str) -> str:
+    from app.core.config import DATA_DIR
+    from app.core.encryption import encrypted_read_bytes
+
+    key = hashlib.sha256(f"{client_id}:{tenant_id}".encode()).hexdigest()[:16]
+    hint_path = DATA_DIR / "azure_vpn_tokens" / f"{key}.hint"
+    if not hint_path.exists():
+        return ""
+    try:
+        return encrypted_read_bytes(hint_path).decode()
+    except Exception as e:
+        logger.debug("Failed to load login hint: %s", e)
+        return ""
+
+
+def _cidr_to_netmask(prefix_len: int) -> str:
+    """Convert CIDR prefix length to dotted netmask."""
+    mask = (0xFFFFFFFF << (32 - prefix_len)) & 0xFFFFFFFF
+    return f"{(mask >> 24) & 0xFF}.{(mask >> 16) & 0xFF}.{(mask >> 8) & 0xFF}.{mask & 0xFF}"
+
+
+def _tls_key_hex(value: str) -> str:
+    """Return the TLS-auth key as bare hex, or raise.
+
+    Whitespace is cosmetic in a static key; anything else that is not a hex
+    digit could close the <tls-auth> block and open a directive.
+    """
+    if not isinstance(value, str):
+        raise invalid("err_field_not_text", field="server_secret_hex")
+    compact = "".join(value.split())
+    if not _TLS_KEY_HEX_RE.fullmatch(compact):
+        raise invalid("err_field_not_hex_key", field="server_secret_hex")
+    return compact
+
+
+def validate_config(config: dict) -> dict:
+    """Return a normalised Azure profile config, or raise ValidationError.
+
+    Run when a profile is saved; _build_ovpn_config checks the values that
+    reach the openvpn3 config again, for rows saved before this existed.
+    """
+    clean = dict(config)
+    clean["gateway_fqdn"] = validate_hostname(config.get("gateway_fqdn", ""), "gateway_fqdn")
+    for field in ("tenant_id", "client_id", "vpn_client_id"):
+        if config.get(field):
+            clean[field] = validate_identifier(config[field], field, max_length=128)
+    if config.get("ca_cert_pem"):
+        clean["ca_cert_pem"] = validate_pem_certificates(config["ca_cert_pem"], "ca_cert_pem")
+    if config.get("server_secret_hex"):
+        clean["server_secret_hex"] = _tls_key_hex(config["server_secret_hex"])
+    for field, check in (("dns_servers", validate_ip), ("routes", validate_cidr)):
+        values = config.get(field) or []
+        if not isinstance(values, list | tuple):
+            raise invalid("err_field_not_list", field=field)
+        clean[field] = [check(v, field) for v in values]
+    return clean
+
+
+def _build_ovpn_config(gw: str, ca_cert: str, tls_key_hex: str) -> str:
+    """Build the openvpn3 client config as a string.
+
+    The TLS-auth key is *inlined* as a <tls-auth> block rather than written to
+    a separate file. That key is a secret; the previous code wrote it to a
+    fixed, world-readable path (/tmp/azure_vpn_tls.key, chmod 644) that any
+    local user could read and that a symlink could redirect. Inlining removes
+    the file — and the question of who may read it — entirely. `openvpn3
+    session-start --config <file>` parses this as the calling user, so nothing
+    else needs access to the key.
+
+    Every interpolated value is validated first: a newline in the gateway, or
+    text around the PEM, would otherwise add directives of the caller's choice.
+    """
+    gw = validate_hostname(gw, "gateway_fqdn")
+    ca_cert = validate_pem_certificates(ca_cert, "ca_cert_pem") if (ca_cert or "").strip() else ""
+    tls_key_hex = _tls_key_hex(tls_key_hex) if (tls_key_hex or "").strip() else ""
+    lines = [
+        "client",
+        "dev tun",
+        "proto tcp",
+        f"remote {gw} 443",
+        "resolv-retry infinite",
+        "nobind",
+        "persist-tun",
+        "remote-cert-tls server",
+        "auth SHA256",
+        "cipher AES-256-GCM",
+        "data-ciphers AES-256-GCM",
+        "disable-dco",
+        "verb 3",
+        "auth-user-pass",
+    ]
+    if tls_key_hex and tls_key_hex.strip():
+        hex_clean = tls_key_hex.strip()
+        body = "\n".join(hex_clean[i : i + 32] for i in range(0, len(hex_clean), 32))
+        lines.append(
+            "<tls-auth>\n"
+            "-----BEGIN OpenVPN Static key V1-----\n"
+            f"{body}\n"
+            "-----END OpenVPN Static key V1-----\n"
+            "</tls-auth>"
+        )
+        # `tls-auth <file> 1` becomes `key-direction 1` with an inline block.
+        lines.append("key-direction 1")
+    if ca_cert and ca_cert.strip():
+        lines.append(f"<ca>\n{ca_cert.strip()}\n</ca>")
+    return "\n".join(lines) + "\n"
+
+
+def _write_private(content: str, suffix: str) -> pathlib.Path:
+    """Write *content* to a fresh 0600 file with an unpredictable name.
+
+    Replaces fixed /tmp/azure_vpn_*.{key,ovpn,txt} paths, which were a symlink
+    /TOCTOU target and let a local user read the secret from a name they could
+    predict. mkstemp creates the file O_EXCL with mode 0600, owned by us.
+    """
+    import tempfile
+
+    fd, name = tempfile.mkstemp(suffix=suffix, prefix="azvpn_")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(content)
+    except Exception:
+        os.unlink(name)
+        raise
+    return pathlib.Path(name)
+
+
+async def connect(config: dict, access_token: str) -> dict:
+    """Connect via OpenVPN 3 (openvpn3-client) with Azure AD token.
+
+    OpenVPN 3 handles large JWT tokens and EKM key derivation natively.
+    No patching or custom builds needed — just `apt install openvpn3-client`.
+    """
+    import shutil
+
+    gw = config.get("gateway_fqdn", "")
+    ca_cert = config.get("ca_cert_pem", "")
+    tls_key_hex = config.get("server_secret_hex", "")
+    dns_servers = config.get("dns_servers", [])
+
+    if not gw:
+        return {"ok": False, "error": "Ingen gateway FQDN konfigurert"}
+
+    if not shutil.which("openvpn3"):
+        return {
+            "ok": False,
+            "error": "openvpn3 ikke installert. Kjør: sudo apt install openvpn3-client",
+        }
+
+    # Build config with the TLS-auth key inlined (no separate key file), and
+    # write it to a private 0600 temp — the inlined key makes the config itself
+    # a secret. Removed in the finally below.
+    conf_path = _write_private(_build_ovpn_config(gw, ca_cert, tls_key_hex), ".ovpn")
+
+    try:
+        # Disconnect any existing session
+        kill_proc = await asyncio.create_subprocess_exec(
+            "openvpn3",
+            "sessions-list",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        sessions_out, _ = await kill_proc.communicate()
+        for line in sessions_out.decode().split("\n"):
+            if "Path:" in line:
+                spath = line.split("Path:")[1].strip()
+                await (
+                    await asyncio.create_subprocess_exec(
+                        "openvpn3",
+                        "session-manage",
+                        "--disconnect",
+                        "--path",
+                        spath,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                ).wait()
+        await asyncio.sleep(1)
+
+        # Start openvpn3 — pipe credentials via stdin
+        proc = await asyncio.create_subprocess_exec(
+            "openvpn3",
+            "session-start",
+            "--config",
+            str(conf_path),
+            "--timeout",
+            "15",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(input=f"AzureAD\n{access_token}\n".encode()), timeout=20
+        )
+    finally:
+        # Remove the inlined TLS-auth key even when a subprocess or timeout
+        # fails before OpenVPN has imported the configuration.
+        conf_path.unlink(missing_ok=True)
+
+    output = stdout.decode() + stderr.decode()
+    logger.info("openvpn3 output: %s", output[:300])
+
+    if proc.returncode != 0:
+        return {"ok": False, "error": f"openvpn3 feilet: {output[:500]}"}
+
+    # Check tun0
+    await asyncio.sleep(2)
+    check = await asyncio.create_subprocess_exec(
+        "ip",
+        "addr",
+        "show",
+        "dev",
+        "tun0",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    ip_out, _ = await check.communicate()
+
+    if check.returncode != 0 or b"inet " not in ip_out:
+        return {"ok": False, "error": f"openvpn3 startet men tun0 kom ikke opp.\n{output[:300]}"}
+
+    ip_line = [line for line in ip_out.decode().split("\n") if "inet " in line]
+    local_ip = ip_line[0].strip().split()[1].split("/")[0] if ip_line else "?"
+    logger.info("Azure VPN connected via openvpn3: tun0 = %s", local_ip)
+
+    # Set DNS. dns_servers is operator config, but it can be imported from an
+    # untrusted .ovpn — and it reaches `resolvectl` as an argument, where
+    # a value starting with "-" would be a flag. An IP cannot; validate first.
+    import ipaddress
+
+    for dns in dns_servers:
+        try:
+            ipaddress.ip_address(str(dns).strip())
+        except ValueError:
+            logger.warning("Ignoring invalid DNS server %r from config", dns)
+            continue
+        dns_proc = await asyncio.create_subprocess_exec(
+            "resolvectl",
+            "dns",
+            "tun0",
+            str(dns).strip(),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        if await dns_proc.wait() != 0:
+            logger.warning("Could not set DNS on tun0 without privilege elevation")
+
+    return {"ok": True, "interface": "tun0", "local_ip": local_ip}
+
+
+async def disconnect() -> dict:
+    """Disconnect all openvpn3 sessions."""
+    proc = await asyncio.create_subprocess_exec(
+        "openvpn3",
+        "sessions-list",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    out, _ = await proc.communicate()
+    disconnected = 0
+    for line in out.decode().split("\n"):
+        if "Path:" in line:
+            spath = line.split("Path:")[1].strip()
+            await (
+                await asyncio.create_subprocess_exec(
+                    "openvpn3",
+                    "session-manage",
+                    "--disconnect",
+                    "--path",
+                    spath,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+            ).wait()
+            disconnected += 1
+
+    return {"ok": True, "message": f"Disconnected {disconnected} session(s)"}
+
+
+async def get_status() -> dict:
+    """Check openvpn3 session status."""
+    proc = await asyncio.create_subprocess_exec(
+        "openvpn3",
+        "sessions-list",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    out, _ = await proc.communicate()
+    output = out.decode()
+    if "Client connected" in output:
+        return {"connected": True}
+    return {"connected": False}

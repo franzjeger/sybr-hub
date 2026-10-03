@@ -1,0 +1,27 @@
+.git
+.venv
+node_modules
+tests
+__pycache__
+**/__pycache__
+dist
+build
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+test-results
+playwright-report
+.env*
+*.zip
+*.db
+*.pfx
+*.key
+
+.local-secrets
+
+# Local-only material that must never reach a build context or its cache.
+secrets
+scratch
+sybr_brand_assets
+.claude

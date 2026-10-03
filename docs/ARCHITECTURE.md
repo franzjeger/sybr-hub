@@ -1,0 +1,968 @@
+# Architecture
+
+Module layout and the reasoning behind it. For wiring individual upstream
+systems see [`INTEGRATIONS.md`](INTEGRATIONS.md).
+
+## Shape
+
+Sybr HUB is a single FastAPI process with a SQLite database. Everything runs
+on the operator's own host: there is no cloud component, no message broker,
+and no background worker fleet.
+
+The same process runs the schedule (audits, backups, syncs, alerts).
+`services/schedule_owner.py` takes an exclusive `flock` on
+`$MSP_DATA_DIR/scheduler.lock` at startup; whoever holds it runs the jobs, so
+they never run twice whatever the deployment looks like. The optional
+`scripts/run_scheduler.py` waits on the same lock and takes over while the web
+process is down. The owner touches a heartbeat every 30 seconds and reconciles
+the running loops with the saved configuration, which is how a settings change
+made in a process that does not own the schedule reaches the one that does.
+`/api/ready` reports which process owns the schedule and whether it is alive.
+
+```
+main.py                     entry point — reads SYBR_HUB_* env vars, runs uvicorn
+app/
+  web/                      HTTP layer
+    server.py               create_app(): middleware, exception handler, routers
+    middleware/             security headers, rate limiting, auth (JWT + RBAC),
+                            the write guard, WebSocket security
+    transport.py            what may be believed about a connection: is it TLS,
+                            may a credential cross it, whose address is it
+    routes/                 one module per domain (hub, audit, reports, vpn, ...)
+    static/                 the SPA; vendor/ holds the third-party JS and CSS
+  core/                     cross-cutting concerns, no HTTP knowledge
+    auth.py                 password hashing, JWT, sessions, user CRUD,
+                            sign-in lockout, breached-password check (HIBP;
+                            k-anonymity, opt out with SYBR_DISABLE_HIBP=1)
+    rbac.py                 per-customer access checks
+    database.py             schema migrations, connection pool
+    encryption.py           AES-256-GCM at rest, master key in the OS keyring
+    credentials.py          per-customer secrets in the OS keyring
+    customer.py             multi-tenant customer registry
+    validation.py           input validators for values reaching a shell or device CLI
+    messages.py             keyed refusals in both languages for code below the web layer
+    config.py               paths, branding, app settings
+  services/                 device and tunnel access
+    vpn_manager.py          profile CRUD and connection state
+    vpn_backends/           wireguard, openvpn, fortigate_ipsec, azure
+    ssh_connection.py       SSH with trust-on-first-use host-key pinning
+    fortigate_api.py        FortiGate REST + CLI-over-SSH
+    unifi_api.py            UniFi controller and Site Manager
+    dns_checker.py          SPF / DKIM / DMARC / MTA-STS over live DNS
+    remediation.py          per-customer remediation tracking
+    latest_metrics.py       the newest audit_metrics row per customer, one query
+    provisioning.py         device provisioning as named steps with honest results
+  modules/                  audit collectors
+    m365_audit/             28 sections (24 M365 + 4 Azure), CIS / NIST CSF / ISO 27001 mapped
+    fortigate_audit/        policy and admin audit
+    unifi_audit/            device, firmware and subnet scanning
+  integrations/             write-side clients (autotask, itglue, myitprocess)
+  reports/                  Jinja2 templates + WeasyPrint PDF generation;
+                            compliance.py is a table of CIS controls, pinned
+                            by a characterisation snapshot
+  models/                   Pydantic models, one module per domain; every body
+                            a route reads has one, with extra="forbid"
+```
+
+## Layering
+
+Dependencies point inward: `web` → `services`/`modules` → `core`. Nothing in
+`core` imports from `web`. The audit collectors know nothing about HTTP and
+can be driven from a script.
+
+Function-local imports appear throughout. A few are load-bearing — `core.auth`
+and `core.encryption` are mutually dependent — but most are historical. Prefer
+module-level imports in new code: a deferred import hides a missing dependency
+until the feature is exercised, which is how four modules stayed absent from
+this repo while appearing to work.
+
+## Request path
+
+An authenticated request passes through, outermost first. Starlette runs the
+*last* registered middleware outermost, so the registration order in
+`create_app()` reads backwards from this list:
+
+1. **SecurityHeadersMiddleware** — the browser baseline (CSP, `nosniff`,
+   `Referrer-Policy`, HSTS) on every response, including the rate-limit and
+   authentication failures generated below it.
+2. **GZipMiddleware** — compresses responses over 1 KB. The SPA ships ~2.7 MB
+   of uncompressed assets, most of it on the first load.
+3. **RateLimitMiddleware** — per-IP budget, so a flood is rejected before it
+   costs a database round-trip. Stricter budget for `/api/auth/login`,
+   `/api/auth/setup` and the VPN endpoints. "Per IP" means whatever
+   `transport.client_ip()` returns — see **Trusting a proxy** below.
+4. **AuthMiddleware** — extracts the JWT from the `Authorization` header or
+   the `access_token` cookie, rejects blacklisted tokens, rejects tokens whose
+   session has been revoked, enforces MFA enrolment and verification, loads
+   the user onto `request.state` and binds the customer scope for the request.
+5. **WriteGuardMiddleware** — denies any non-`GET`/`HEAD`/`OPTIONS` request
+   from an account without `can_write`, unless the path appears in the
+   exemption table in `middleware/write_guard.py`. It is enforced centrally,
+   not per route, because 163 mutating endpoints are 163 chances to forget
+   one. **Read that table before adding a mutating endpoint** — a new route is
+   guarded by default, and the only way to open it is to name it there.
+6. **Route dependencies** — `require_role(...)` for a role floor,
+   `require_customer_access(...)` for routes carrying a `{customer_id}`,
+   `require_tenant_write(...)` for anything reaching a customer's tenant.
+7. **Handler**.
+
+WebSocket handshakes take a different path. Starlette returns early from
+`BaseHTTPMiddleware` for any scope that is not `http`, so *none* of the
+middleware above runs for one — neither authentication nor rate limiting.
+**WebSocketSecurityMiddleware** is pure ASGI for exactly that reason: it
+checks the `Origin`, authenticates the handshake, applies the same MFA rules,
+and then keeps watching for the life of the socket, closing it when the
+session is revoked, the token expires, the account is disabled or its customer
+scope changes. Routes use the `_ws` dependency variants; there is no
+first-run bypass.
+
+Errors raised as `ToolkitError` subclasses are mapped to their declared status
+codes by a handler registered in `create_app()`. Every refusal has one shape:
+`{"ok": false, "error": "...", "error_type": "..."}`. A request body that fails
+its model answers 422 in the same shape, plus a `detail` list of field, message
+and type; the submitted value is never echoed, because the fields that fail are
+often passwords and keys.
+
+A refusal that carries `message_key` (and `params` for its placeholders) is
+translated by the handler into the reader's language, which the SPA sends as
+`Accept-Language` on every call. Route messages live in `app/web/i18n.py`;
+code below the web layer raises through `app/core/messages.py`
+(`invalid()`, `conflict()`), whose table the web layer merges. The
+exception's own message stays Norwegian, for the log.
+
+## Trusting a proxy
+
+`transport.client_ip()` decides who a request is attributed to, and both the
+rate limiter and the login log read it. `X-Forwarded-For` is a list a client
+can start and each proxy appends to, so only the entries a trusted proxy wrote
+mean anything: the function counts from the right, and consults the header at
+all only when the direct peer is loopback.
+
+A reverse proxy appends *the address it received the request from*, not its
+own, so a single terminator — the shipped `tailscale serve` deployment — means
+the rightmost entry is the client and there is nothing to skip.
+`SYBR_TRUSTED_PROXY_HOPS` counts *additional* proxies behind that one and
+defaults to 0. Getting this off by one is not cosmetic: it returns a
+caller-supplied value, which buys a fresh rate-limit bucket per request and
+writes whatever the caller chose into the login log.
+
+Public paths bypass step 2 entirely and are listed in one place,
+`middleware/auth._PUBLIC_PATHS`. That list is the only sanctioned way to open
+a route up; a test asserts every other route carries an auth dependency.
+
+## Authentication
+
+- Argon2id password hashing (t=3, m=64 MiB, p=4).
+- JWT access tokens (60 min) and refresh tokens (30 days), HS256, signed with
+  a secret generated per install and stored encrypted in the database.
+- Sessions are rows in `sessions`. An access token carries its session id, and
+  the middleware rejects a token whose session is gone — that is what makes
+  "log out everywhere" immediate rather than eventual.
+- Revoked tokens go in an in-memory cache and the `token_blacklist` table, so
+  a restart does not resurrect them.
+- Tokens are also set as `HttpOnly` cookies with `SameSite=Strict`. There is
+  no separate CSRF token; `SameSite` is the defence for the cookie path.
+
+## Optional modules
+
+`core/modules.py` lists the parts of the toolkit an install may not want:
+remote access, Tailscale, pentest, provisioning, billing (ALSO and Uniweb)
+and the AI console. Each module's routers carry `require_module`, which
+answers 404 while it is off (the install decided the part does not exist; a
+403 would advertise that it does). A feature in an off module is out of reach
+for every role and leaves `/auth/me`, the scheduler neither runs nor lists the
+module's jobs, and the interface hides everything marked `data-module`. The
+first start decides the defaults once from evidence of use; a new install
+starts with all of them off. Settings → Moduler switches them.
+
+## What an account can reach
+
+Roles were applied a route at a time. 84 of 331 endpoints carried a
+`require_role`, the interface hid nothing at all, and the two facts compounded:
+a viewer saw the whole menu, clicked into things, and met a wall — or met no
+wall, because the route needing the check was one of the 247 without one.
+
+Decorating the remaining 247 is 247 chances to forget one. `core/features.py`
+names the *features* instead — a thing a person goes to do, with the role floor
+and any capability it needs, and the views it owns. Routes ask the table what
+they require via `require_feature`; `/auth/me` sends the list this account
+resolves to; the interface hides `data-view-gate` and `data-feature` elements
+that are not in it.
+
+One source, two readers. The screen cannot drift from the rule it displays
+because it does not hold a copy of it — a test asserts `_features` is only ever
+assigned from the server's answer.
+
+Three tests keep the table honest rather than decorative: every view in
+`index.html` belongs to exactly one feature, every navigation control is gated
+on the view it opens, and the gate names the view the button *actually* opens.
+Asking for a feature that does not exist raises rather than granting access —
+the worst failure a table like this could have is a silent yes.
+
+This is a different axis from `can_write` below, deliberately kept separate:
+"may reach this at all" and "may change things" are different questions, and
+conflating them is how one of them stops being asked.
+
+## The account the toolkit acts as
+
+Scheduled work still does things to customer systems, and those things want an
+identity. VPN tunnels held open to pull statistics from customer sites were
+opened under whichever technician happened to click, which made two problems at
+once: the activity log was wrong about who did it, and one person's session
+owned infrastructure everybody depended on.
+
+`core/system_user.py` is `sybr-system` — a user row with `is_system`, so it
+inherits customer access, capabilities and the activity log rather than needing
+a parallel model for each. **It cannot sign in.** `authenticate` refuses it
+after the password check, because an account with no human behind it and no
+usable password would otherwise be a standing invitation; the identity is for
+attribution and locking, not a second way through the front door.
+
+Technician, not admin: it opens tunnels and records what it finds, and
+administers nothing. `can_write` yes, `tenant_write` no — nothing running
+unattended should be able to change a customer's Microsoft tenant.
+
+Created on demand rather than by a migration. A migration that inserted a
+privileged account into every existing install should be a decision somebody
+made.
+
+**The job it exists for** is `services/site_collector.py`: for every VPN
+profile bound to a customer, bring the tunnel up as `sybr-system`, run the
+network audit that already reads a FortiGate and a UniFi controller, store the
+result beside that customer's audits, bring the tunnel down.
+
+That connect step is conditional on the host boundary. The shipped systemd
+unit has `NoNewPrivileges=yes` and no `CAP_NET_ADMIN`, so it deliberately
+reports VPN control as `external` and never tries `sudo`. In that deployment
+the route must already exist (created outside the web process); direct tunnel
+control is only available when the running process has the effective
+capability, or root for the strongSwan configuration path. The API and UI use
+the same per-protocol decision, and the service layer repeats it before
+loading profile secrets.
+
+One site at a time, and that is not a performance oversight — customer sites
+overlap on RFC1918, so two tunnels up at once means routes fighting and the
+collector reading whichever site won. The tunnel comes down in a `finally`, and
+again in a sweep at the end for anything the loop did not reach: a collector
+that dies holding a tunnel leaves the toolkit inside somebody's network with
+nobody aware of it. A profile a human is already using is skipped, because a
+background job that disconnects somebody mid-session to gather statistics has
+its priorities backwards. And a site where the tunnel came up but nothing
+answered is recorded as a failure rather than an empty reading — "no devices"
+and "nobody answered" are different claims, which is the mistake this codebase
+keeps finding.
+
+**VPN locks while it holds tunnels.** `system_held()` lists the profiles it has
+open or coming up, and connect, disconnect, force-disconnect and profile
+deletion refuse while that is non-empty, naming the profiles so the message is
+actionable. force-disconnect especially: unguarded it is simply the way around
+the guard on disconnect. The Azure sign-in flows and profile creation are
+deliberately *not* locked — they disturb no tunnel, and a wall with nothing
+behind it teaches people to route around walls.
+
+A tunnel in an error state does not hold the lock, or one failed collection
+would keep VPN shut until somebody restarted the service.
+
+## Write is a grant, not a role
+
+Every account is read-only. Changing anything needs `can_write`, and that is a
+per-user grant nobody inherits — admins included, because a capability implied
+by a role is not a capability.
+
+Enforced in `middleware/write_guard.py`, not on the routes. There are 163
+mutating endpoints; a decorator on each is 163 chances to forget one, and the
+forgotten one is the one that matters. A request that changes something is
+denied *unless nothing exempted it*.
+
+So the interesting content of that module is the exemption table, and it is
+meant to be read rather than scrolled past. Four groups, a sentence of
+reasoning each:
+
+| group | why it stays open |
+|---|---|
+| `SESSION` | login, logout, refresh, first-run setup, and changing your own password — none can depend on a capability the account may not have |
+| `NAVIGATION` | switching customer changes what you are looking at, not what is; gating it leaves a read-only account able to read one tenant |
+| `LOOKUPS` | a question with a body too big for a query string — DNS, TLS, connection tests |
+| `DOCUMENTS` | producing a report to read; archive *deletion* is not here |
+
+Matching is exact, never by prefix: a prefix rule silently covers whatever is
+added underneath it later. A test asserts every exemption names a route that
+actually exists, and another caps the list at a size somebody will still read —
+once it needs scrolling, default-deny has quietly become default-allow.
+
+Two capabilities, layered:
+
+- `can_write` — change Sybr HUB: notes, tags, hosts, settings, users.
+- `tenant_write` — change a customer's Microsoft tenant. Requires `can_write`
+  underneath it: an account that may not save a note here has no business
+  changing configuration there.
+
+**The migration turns it off for everyone**, which means the first grant cannot
+be made through the interface — granting is itself a write.
+`scripts/grant_write.py` is that key, and it ships in the same change, because
+a lock with no key is not a security model but an outage.
+
+The interface does the same thing twice, and the split matters.
+
+`apiFetch` refuses a mutating call the account cannot make and says why. That
+half cannot be forgotten, because every request goes through it — which is what
+makes it the load-bearing one: most controls are built at runtime out of
+`innerHTML`, so there is no list of them to mark and never will be.
+
+`data-write` hides the controls that live in `index.html`, so the interface
+does not show a button whose only outcome is a toast. That half *can* be
+forgotten, so `tests/test_write_controls_are_marked.py` maps each handler to
+the endpoints its function calls and fails on any that writes without the
+attribute. Adding a control without marking it fails there rather than in front
+of a customer.
+
+The client never keeps its own copy of the exemption list — `/auth/me` sends
+the middleware's own set. A second copy would go stale in exactly one
+direction: offering something the server refuses.
+
+## Authorization
+
+Two independent checks:
+
+- **Role floor** — `viewer < technician < admin`.
+- **Customer scope** — a user reaches a customer if they are an admin, hold
+  the `users.all_customers` grant, or have a matching `customer_access` row.
+
+Both are applied by `require_customer_access(min_role)`. Accounts created
+after schema version 14 start scoped; accounts that predate it were migrated
+with the blanket grant so nobody lost access on upgrade.
+
+## Data at rest
+
+- **SQLite** (`msp_toolkit.db`) holds users, sessions, VPN profiles, audit
+  metrics and caches. Table shapes are declared as **SQLModel** classes
+  (Pydantic + SQLAlchemy) in `app/models/`, and application code reads and
+  writes through the async ORM session in `app/core/orm.py`.
+
+  The schema has one authority: the migration runner in
+  `app/core/database.py` (`SCHEMA_VERSION` plus a numbered list applied on
+  boot, each step transactional). The SQLModel classes describe the same
+  tables for the ORM; they do not create or alter them.
+- **Encrypted files** hold per-customer config, certificates and the activity
+  log. AES-256-GCM with a magic header, so plaintext and encrypted files can
+  coexist during migration.
+- **OS keyring** holds the master encryption key and per-customer API tokens.
+  The master key is additionally backed up to three locations. Configure
+  `SYBR_KEY_WRAP_SECRET_FILE` (preferred) or `SYBR_KEY_WRAP_SECRET` to protect
+  those copies with an operator-managed secret; this produces authenticated v3
+  backups that remain recoverable after a hostname or machine-id change.
+  Legacy v2 backups use public machine identity only and are retained for
+  compatibility, not as a strong security boundary. Supplying a wrap secret
+  migrates readable v2 backups to v3 automatically. The independent
+  `SYBR_MASTER_KEY_FILE` override remains the disaster-recovery escape hatch.
+
+## Connection pooling
+
+`get_db()` serves connections from a pool keyed on **both** the database path
+and the running event loop. Both parts matter:
+
+- aiosqlite dispatches results back to the loop that created the connection,
+  and more than one loop is routine — a test client drives the app on its own
+  loop while the caller uses another.
+- aiosqlite starts one **non-daemon** thread per connection. An undisposed
+  connection therefore blocks interpreter exit. Every disposal path terminates
+  the thread: `close()` where a loop is alive, `abandon()` where it is not.
+
+If you add code that opens connections outside `get_db()`, make sure it closes
+them. A leaked connection does not fail loudly; it hangs shutdown.
+
+## Guacamole remote-access boundary
+
+RDP and the isolated browser use temporary Guacamole JDBC connections. Those
+rows necessarily contain the target password while the connection is live, so
+they are uniquely named, never updated/reused, deleted on stop and shutdown,
+and swept by instance prefix on the next startup after a crash. Set the stable
+`SYBR_GUAC_INSTANCE_ID` in production so a hostname change does not orphan the
+old prefix.
+
+The browser receives a random Sybr session token, not Guacamole's administrator
+token. The WebSocket route binds that token to the authenticated Sybr user and
+connection ID, then substitutes the backend token server-side. Guacamole's REST
+API and HTTP tunnels are not exposed by the reverse proxy. Deployments that
+require credentials never to enter the Guacamole database should use
+Guacamole's QuickConnect/in-memory extension; the JDBC fallback cannot provide
+that property, only tightly bounded lifetime and crash recovery.
+
+## A refusal is not a zero
+
+The rule the audit pipeline is built around, and the one most often broken
+before it was written down. It applies at four places in a row, and the
+failure looks the same at each: a collector cannot read something, the
+absence is stored as an empty result, and everything downstream treats that
+emptiness as a measurement of the tenant.
+
+The shape it takes:
+
+```python
+except Exception:
+    devices = []          # ← "we could not look" is now "there are none"
+```
+
+What that produced in practice: "Ingen Intune-enheter funnet" on a tenant
+whose consent was fine and whose Intune service was simply not subscribed;
+a CIS control recording a clean finding on evidence it had been refused;
+"Custom banned password list is not configured" printed beside the 400 that
+prevented the list from ever being read.
+
+The six places, and what each must do:
+
+1. **Collector.** Let `GraphPermissionError` reach the section, and write a
+   `(not available)` block naming the cause. `GraphPermissionError` already
+   separates a licence gap, a service refusal and a missing consent — see
+   below. A section that could not read part of itself ends `FAILED`, even
+   if the rest succeeded.
+2. **Reader.** `_is_error_payload` blanks a stub before the parsers see it,
+   which is what keeps a raw Graph status out of the customer report. Keep
+   the `Error:` opening for anything a customer might see.
+3. **Parser.** `_evidence_unavailable` recognises both shapes. Set
+   `has_data=False` and carry the reason; never derive a count from a file
+   that was not read.
+4. **Scoring and controls.** Guard on `has_data` before scoring. A control
+   with no evidence reports that it cannot verify — it does not pass and it
+   does not fail.
+5. **Baselines.** Every check in `app/baselines/*.json` declares
+   `measured_when`. A check whose guard is false reports `not_measured`, and
+   conformance is quoted over the checks that *were* assessed with the rest
+   counted beside it. Nothing assessed at all gives `conformance_pct: None`,
+   not `0` — zero conformance is a verdict and the absence of one is not.
+6. **Drift.** `compute_drift` returns `None` totals, never `0`, when there was
+   nothing to compare against. A first run, a predecessor that predates
+   snapshots and a snapshot that will not decrypt all look identical to a
+   clean diff otherwise — and "no policies were removed" is exactly the
+   reassurance a reader acts on.
+
+Layers 5 and 6 are belt and braces on each other by design: the drift check
+in the baseline carries `measured_when: drift.measured`, *and* the field it
+reads is `None` when unmeasured. Either alone would be correct. Both means
+the next person to write a check cannot get it wrong by forgetting the guard.
+
+There is a test at each boundary. When adding a collector, add one there too:
+the mistake is easy to reintroduce and silent when you do.
+
+### Telling refusals apart
+
+A 401 or 403 from Graph is three different problems wearing one status code,
+and each needs the opposite response:
+
+| signal in the body | meaning | what to do |
+|---|---|---|
+| `Authentication_RequestFromNonPremiumTenant`, "premium licence" | the tenant lacks the Entra tier | buy or ignore; consent will not help |
+| a `manage.microsoft.com` URL, nested `ErrorCode: Forbidden` | the service behind the endpoint declined | check the subscription, not the grant |
+| anything else | the app registration is missing a role or its consent | grant it |
+
+`GraphPermissionError` sets `is_licence_gap` and `is_service_refusal` from
+the response body. Do not infer any of this from the status code alone: Intune
+answers a tenant with no subscription with a 401 whose text is a Forbidden
+from a different service entirely.
+
+## Baselines, snapshots and drift
+
+Three things that share one set of files.
+
+## Deploying policies into a customer tenant
+
+The half that writes, and the only routes in this application that change
+anything outside it. `require_tenant_write` existed for months and guarded
+nothing until these arrived — a gate standing in a field.
+
+Two requests, deliberately. `/plan` reads the tenant, renders the template
+against it and returns what would change, including what it refuses and why,
+with each policy's rationale attached: a plan that says "3 policies will be
+created" is not one anybody can consent to. `/apply` takes the fingerprint
+that plan returned, and refuses if the tenant's policies have moved since —
+the operator approved a change to a state that no longer exists, and applying
+anyway overwrites whatever moved it.
+
+An adversarial read of this module before it ever ran against a tenant found
+four real defects in it. They are fixed, and worth recording because each was
+invisible from inside:
+
+- **PATCH replaces a complex property wholesale.** Sending a template's
+  `conditions` would have cleared whatever the live policy had beside them —
+  the customer's `excludeUsers`, trusted locations, risk levels. On an adopted
+  MFA policy that is the directory sync account losing its exclusion, silently,
+  under a plan that said "conditions changed". `merge_into` now merges the
+  standard into the live body, and the plan carries a before/after per field so
+  the reader sees values rather than key names. The cost, stated: a standard
+  cannot *remove* something this way, which is the safer direction to be wrong.
+- **A re-deploy un-enforced the baseline.** Templates ship report-only so a
+  human enables after review; the next deployment diffed `state` and PATCHed it
+  back. `would_weaken` makes state raise-only unless explicitly overridden.
+- **The lockout rail read `includeUsers` only**, so a policy over every
+  administrator *role* — the shape of our own template — passed, because "all"
+  is not in an empty set. It now covers roles and groups, and counts
+  `authenticationStrength` as a control that can fail.
+- **Nothing checked the break-glass group.** Graph accepts an unresolvable GUID
+  in `excludeGroups`, so a typo, another customer's id, a deleted group or an
+  empty one all satisfied the rail with an exclusion that excludes nobody. The
+  plan now resolves it and counts its members.
+
+Three more from the same review, fixed here:
+
+- **The fingerprint hashed the tenant, not the intent.** Apply rebuilds the
+  plan from inputs the tenant hash never covered — the adoption mapping is
+  loaded fresh from disk, the template could have been edited. So operator A
+  reviews a plan saying CREATE, operator B confirms an adoption, A clicks
+  apply, and a policy A never saw is PATCHed with the tenant check green.
+  `plan_fingerprint` now covers the rendered standard, the mapping and the
+  deletions alongside the tenant.
+- **Restore could not undo an adoption.** Adopting renames the policy and the
+  snapshot holds the old name, so a name-matched restore created a duplicate —
+  or, with deletion approved, removed the adopted policy and left the mapping
+  pointing at a dead id, hard-failing every plan afterwards. A desired policy
+  carrying an id the tenant still has now matches on that id, which is what a
+  snapshot always carries and a template never does.
+- **`allow_delete` was one boolean for every policy in the tenant.** Deletion
+  now names ids one at a time, and everything the standard does not contain is
+  reported as `unmanaged` so an operator can see it and choose.
+
+**Enabling is a separate step, on purpose.** Templates land report-only so a
+human can read what they would have blocked; acting on that reading used to
+mean the Entra portal, so half the lifecycle lived elsewhere — the half where a
+policy starts turning sign-ins away. `POST /policy-deploy/{id}/enable` takes one
+policy id at a time, because "enable the standard" is a sentence somebody says
+quickly. The lockout rail is evaluated against the policy *as it would be
+enforced*, which is the only state where it means anything: every policy passes
+it while report-only. A restore point is taken first, since enabling is the
+change most likely to need undoing in a hurry.
+
+**Drift is alerted, not just computed.** `_check_policy_drift` in the alert
+engine reports a removed policy as critical, per customer, with the restore
+route named in the recommendation. Changed policies are silent unless asked
+for: a policy that is gone is gone, while a policy whose fields moved is
+usually somebody working, and alerting on every edit is how a channel becomes
+something people mute. Drift that could not be measured wakes nobody — "no
+policy was removed" and "there was nothing to compare against" are different
+claims.
+
+Four rails, and they refuse rather than warn:
+
+| rail | why |
+|---|---|
+| **Lockout guard** | a policy targeting All users, excluding nobody, granting a control that can fail is the accident that ends tenants. Recovery is a support case with Microsoft measured in days. There is no override flag, because the flag would be clicked by the same hand |
+| **Report-only on arrival** | a new policy lands `enabledForReportingButNotEnforced`, so you learn it would have blocked the finance department before it does |
+| **Restore point first** | taken at the moment of the write, not borrowed from the last audit — a restore point from six hours ago describes a tenant that no longer exists |
+| **No deletion unless asked** | a policy in the tenant and not in the standard is far more often something the customer added on purpose |
+
+The screen is `app-policy-deploy.js`, reached from Tools. It shows what the
+API returns and adds nothing: the refusals with their reason, each policy's
+rationale, and the consent state. The confirmation carries the fingerprint the
+plan was *read* against rather than one computed at the moment of the click —
+recomputing would confirm whatever the tenant looks like then, which is exactly
+the state nobody reviewed. The break-glass field starts empty and gates the
+button, because an unfilled exclusion excludes nobody.
+
+**Adoption is how an inherited tenant is handled.** The plan matches template
+to tenant by display name, which is right for a tenant we set up and wrong for
+every tenant we take over: five sensible policies under five names nobody at
+Sybr chose, so deploying the standard beside them yields ten policies where
+five were meant, and overlapping Conditional Access is harder to reason about
+than no deployment at all.
+
+`suggest` scores a live policy against a template one on *what it does* — the
+controls granted, who is covered, which client apps are caught — and returns
+candidates with their reasons. "All users require MFA" and "Sybr — Require MFA
+for all users" share no words a matcher could use and are the same policy;
+two policies both called "MFA" can be nothing alike.
+
+It is a shortlist for a person and never an input to a plan. Adoption is an
+explicit mapping, confirmed once per customer and stored, and adopting renames:
+the policy takes the standard's name so every later comparison is the ordinary
+one, and the rename appears in the plan's changed fields because it is a real
+change. A mapping whose target has since been deleted raises rather than
+falling back to a create — that fallback would produce the duplicate adoption
+exists to prevent, at the moment somebody believed they had prevented it.
+
+**Restore is the same two requests pointed at a stored state.** Two kinds of
+source: restore points, written immediately before a deployment and holding
+exactly what it replaced, and audit snapshots, which are older and answer "what
+did this tenant look like last Tuesday" rather than "undo what I just did".
+
+It shares every rail rather than getting gentler ones, including the lockout
+guard — a deliberate trade. A stored policy that targets everyone with no
+exclusion was presumably working when captured, so refusing it is inconvenient;
+but "it worked before" is not a guarantee it works now, and a restore path that
+waives the guard is a deployment path that waives it, one POST away. Policies
+added since the source was captured are left alone unless asked for: a restore
+that removed them would roll back other people's work as well as the
+deployment.
+
+Templates live in `app/policy_templates/*.json`, the same shape as baselines
+and for the same reason. Placeholders are required, never defaulted: every
+policy excludes a break-glass group whose id differs per tenant, and an
+unfilled placeholder is an exclusion that excludes nobody inside a policy that
+applies to everybody. Rendering refuses while one is unset.
+
+### Asking for the permission
+
+Sybr HUB holds twenty-three Graph permissions and every one is read-only.
+It deliberately does **not** hold `AppRoleAssignment.ReadWrite.All`, so it
+cannot widen its own access — the property that keeps a compromised toolkit
+from becoming a way into every customer's tenant. A test asserts the app-only
+set never gains one of the four escalation permissions.
+
+That leaves one honest route to a write permission: a Global Admin signs in and
+grants it. `modules/m365_audit/consent.py` is that flow, in the product rather
+than as a page of portal instructions. Device code, because the operator is
+usually not at the machine the toolkit runs on, and because first-run setup
+already works that way. The delegated token lives for one grant and is never
+stored.
+
+Two things have to happen and the portal does them together, which makes them
+easy to conflate: *declaring* puts the permission on the registration, and
+*assigning* is the consent that makes it real. A registration declaring what
+nobody assigned still reports missing consent — the exact state this exists to
+leave behind. Both halves are idempotent, because re-running after an
+interruption is the ordinary case.
+
+This needs `Policy.ReadWrite.ConditionalAccess`, which is deliberately **not**
+in `REQUIRED_GRAPH_PERMISSIONS` — an MSP that never deploys should not see a
+consent gap reported on every audit for a power it does not want. The plan
+reads the granted roles and reports `missing_consent` separately from the
+capability check, so nobody goes to argue with the wrong party: `tenant_write`
+is ours to grant, the Graph consent is the customer's.
+
+**Snapshots.** Every audit stores the tenant's Conditional Access policies,
+named locations and Intune profiles under `<run>/policy_snapshots/`, exactly
+as Graph returned them, encrypted like every other artefact. The audit
+evidence beside them is trimmed to a width a person reads, and a trimmed
+policy cannot be put back — so the two files serve different readers and both
+are kept. Restore is deliberately absent: it writes into a customer's tenant,
+and every Graph permission this app asks for ends in `.Read.All`.
+`tests/test_policy_backup.py` asserts that no route in that module is
+anything but a GET.
+
+**Drift** (`app/core/policy_drift.py`) compares a run's snapshots with the
+newest *earlier* run that captured any — skipping empty ones, so one failed
+audit does not cost the comparison. Only ids, display names and changed
+*field names* travel; never field values, because a policy body carries group
+memberships and exclusion lists and a drift summary is read in places a
+policy dump should not appear.
+
+**Baselines** (`app/baselines/*.json`) are what Sybr requires of a customer it
+runs, as opposed to what CIS recommends in general. A baseline is data, not
+code: a check names a dotted path through the report context, a comparison, a
+severity, and one sentence of rationale written for the customer. Arguing
+about a threshold does not mean touching the evaluator.
+
+**No layer here emits prose.** A check returns a `reason_code` and the values
+behind it; the report template and the browser build the sentence. The first
+version wrote English sentences into `detail` while the baseline document
+carried Norwegian-only titles, so one card showed both languages at once and
+neither could be translated — and every i18n detector passed, because they
+read JavaScript and this was a JSON document and a Python f-string. Titles and
+rationales are `{"no": ..., "en": ...}`; `load_baseline` refuses a document
+missing either.
+
+To add or change a check:
+
+1. Add it to the JSON with a `measured_when` guard naming the `has_data` flag
+   (or equivalent) for the evidence it reads, and `title`/`why` in both
+   languages.
+2. **Bump `version`.** The version is what lets last year's report still be
+   read against the requirements that applied then. Changing the checks
+   without it silently rewrites old verdicts.
+3. Run `tests/test_baseline.py`. It builds a real report context from an
+   empty run and asserts every `path` and `measured_when` resolves — two
+   checks in the first draft named fields that existed nowhere, and the guard
+   would have reported them `not_measured` forever: safe, and silently
+   useless.
+
+A new reason code means a new entry in `REASON_CODES` in the module that
+emits it, plus a `bl_`/`drift_` string in **both** `app/reports/i18n.py` and
+`static/ui_i18n.json`, in both languages. `tests/test_i18n_coverage.py`
+enforces all of that: an untranslated code renders as nothing at all, which is
+worse than the wrong language.
+
+`SYBR_BASELINE` overrides which baseline is the house standard. It is an
+environment variable rather than a stored setting because reports are built
+by the scheduler as well as by a request, and the two must not be able to
+disagree about which standard judged a run.
+
+Where it surfaces: the customer report carries a Sybr Standard section ahead
+of the CIS one (what we require, then what the benchmark says) with drift
+below it; the technical report carries drift with ids under Conditional
+Access; the customer card shows conformance and the change list, reading the
+same two endpoints the report reads.
+
+## The runs are the record; audit_metrics is a cache of them
+
+Each run directory holds the evidence and `_audit_metrics.json`, the figures
+parsed from it. The `audit_metrics` table holds one row per run so a trend can
+be charted without re-parsing everything. When the two disagree, the run wins.
+
+They had drifted three ways, and the fixes are in `scripts/`:
+
+- **A row per write, not per run.** `save_audit_metrics` runs when an audit
+  finishes *and* when a report is generated from it, so most runs appeared two
+  or three times — sixty rows for twenty-one runs.
+- **Readings frozen at parse time.** A row keeps whatever the parsers said on
+  the day, so a fixed parser never reaches it. Two rows here recorded MFA
+  coverage of 101.6% and 100.5%, from a bug since fixed. A trend mixing
+  readings from before and after a fix describes which day each point was
+  parsed on, not the tenant.
+- **`audit_date` is the save time**, minutes after the run it belongs to, so a
+  row cannot be matched back to its run by time alone.
+
+`rebuild_metrics_trend.py` rebuilds the table from the runs: one row per run,
+dated from the run directory, holding what the current parsers read from
+evidence that has not changed. Rows for a customer with no surviving runs are
+left alone — they are the last trace of something.
+
+This is a repair a derived table can take and a record cannot. Correcting
+`_audit_metrics.json` in place is a different act, and
+`repair_metrics_timestamps.py` is deliberately narrow for that reason: it
+restores one field whose value is recoverable exactly from the run's own name.
+
+Every reader of `audit_metrics` today takes the newest row per customer
+(`ORDER BY audit_date DESC LIMIT 1`, or the equivalent first-wins loop in the
+security report), so the older rows were charting nothing. That is why this is
+tidiness rather than a fix — worth doing because an impossible figure sitting
+in a table is a trap for whoever writes the next chart.
+
+## Recommendations outlive the language they were written in
+
+A recommendation is produced once, when the audit runs, and read for months
+afterwards. Storing only the finished sentence meant a run collected in
+Norwegian showed Norwegian to an English reader forever, and the only way out
+was to run the audit again — a strange thing to ask of a report about last
+month.
+
+`T` returns `Localised`, a `str` subclass carrying the key and params it was
+built from. It *is* the text: templates, f-strings and `json.dumps` treat it as
+an ordinary string, which is why this needed no change at any of the
+twenty-eight places a recommendation is built. `_label_recommendations` reads
+the key and params back off it, so the sentence and its recipe cannot drift
+apart — they are the same object.
+
+`save_audit_metrics` persists both, and `/api/dashboard` rebuilds the text in
+the requesting language. A run from before this carries no recipe and keeps its
+stored words, which beats a blank line —
+`scripts/backfill_recommendation_recipes.py` gives those runs the recipe
+without re-auditing the tenant, since recommendations are a pure function of
+the audit files already on disk. It adds `rec_id` and the four recipe fields
+and **nothing else**: the stored sentence stays exactly as written, because an
+audit run is a record of what we said on a day, and rephrasing it to whatever
+today's code would say is an edit of that record rather than a repair. It is a
+dry run until `--apply`.
+
+**Identity is separate from wording.** Remediation state used to be keyed on
+the rendered title, so an operator who marked something done in Norwegian found
+it open again in English — the same finding under a name the database had never
+seen. Each recommendation now carries `rec_id`, built from the title key plus
+only those params that name *which* thing it is about:
+
+```python
+_REC_IDENTITY_PARAMS = ("domain", "part", "category", "sku", "name")
+```
+
+A count is deliberately excluded. "3 users without MFA" and "5 users without
+MFA" are one finding at two moments, and an id that moved with the number would
+undo every item an operator had marked done. `tests/test_recommendation_identity.py`
+holds both halves: the id is identical across languages, and unchanged when the
+count moves.
+
+Rows store the id, so `/api/remediation` resolves it back to a sentence from
+the latest run. An id shown raw in the panel means the finding no longer
+appears — kept rather than hidden, because the note attached to it is worth
+more than the tidiness.
+
+## Which customer are we talking to
+
+Authenticated web requests bind a user-and-RBAC snapshot in
+`AuthMiddleware`. `CustomerManager` stores each user's active selection under
+`customers/.active/<sha256(user-id)>.txt`; the identifier is encrypted and the
+file is private. `load_config()`, certificate lookup, notes, tags, audit scope,
+dashboards and integration routes resolve through that request context. A
+missing per-user selection never falls back to `active.txt`, and a selection
+whose customer access was revoked resolves to no customer.
+
+`active.txt`, the global config slot and the global certificate path remain
+only as a non-web compatibility context for the TUI, CLI and the scheduler's
+explicit "single active customer" mode. Web switching no longer copies a
+customer's config or certificate into those process-global slots.
+
+**A background job must never write them.** The scheduler used to: each
+iteration switched the active customer, copied that customer's config and
+certificate into the global slots, audited whatever the globals then said,
+and restored the original at the end. For the length of a cycle — minutes per
+tenant, hours in total — every technician's requests were reading a variable
+the scheduler was rewriting. A note saved during a cycle landed on whichever
+customer the scheduler had reached. And because an audit reads the customer
+*name* and the customer *credentials* as two separate reads of that global, a
+switch landing between them files one tenant's findings under another
+customer's name.
+
+The correct pattern is the one the bulk-audit route has always used, and it
+needs no globals at all:
+
+```python
+full_cust = CustomerManager.get_customer(cust_id)
+auth = get_auth_for_customer(full_cust, CustomerManager.get_cert_path(cust_id))
+collector = AuditCollector(auth=auth, out_dir=make_output_dir(cust_name))
+```
+
+Everything downstream already takes the customer explicitly —
+`make_output_dir`, `build_report_context` and the report/email step all do.
+Use `get_auth_for_customer` rather than `AuthManager.from_config`; it is also
+the only one of the two with a GDAP branch.
+
+`tests/test_scheduler_isolation.py` makes `set_active`, `save_config` and the
+certificate copy raise, so a background job that reaches for a global fails
+loudly in CI rather than quietly in production.
+
+`tests/test_customer_context_isolation.py` drives two authenticated users with
+different active customers, checks the status/config view for both, exercises
+concurrent task contexts, and then revokes access after selection. This locks
+both isolation and the fail-closed direction.
+
+Audit output state follows the same rule. `web/state.py` keeps the selected
+run per user: customer id, run id, progress, cancellation flag, result list and
+output directory travel together. Report, history, email and integration
+routes resolve that context and re-check the path against the caller's current
+RBAC before touching disk. The remaining process-global `audit_running` flag
+only serializes collection; it contains no customer data and grants no access.
+
+## Front-end assets
+
+`static/` is served by the app, not by a build step. Two things follow.
+
+**No third-party CDN in the application shell.** xterm, chart.js, marked and
+DOMPurify live in `static/vendor/` and are served from the app. A console holding every customer's credentials should not execute script
+from a host outside the tailnet, and the terminal and charts have to work
+during an outage. The separate, authenticated `/docs` Swagger viewer is the
+only exception: it loads an exact `swagger-ui-dist` release from jsDelivr under
+a path-scoped CSP and uses a fresh nonce for its bootstrap.
+
+**The cache key is a digest, not a version.** `index.html` is served with every
+asset URL rewritten to `?v=<sha256 prefix>` of the file, and a static file is
+immutable when its `v` matches. `sw.js` serves `/static/` cache-first, so its
+`CACHE_VERSION` is rewritten the same way, from a hash of every asset the page
+references. Do not add a hand-maintained list of assets beside either.
+
+**A new version waits to be accepted.** A changed asset installs a new service
+worker, which waits instead of taking over (`skipWaiting()` only on the
+"new version" toast). The tab that accepts reloads; any other open tab is
+offered the reload, because it may hold a terminal or RDP session.
+
+## Front-end structure
+
+The SPA is a set of classic scripts sharing one global scope, loaded in the
+order `index.html` lists them. Three rules keep that workable:
+
+- **No inline JavaScript.** Markup names a handler, `data-click-handler="x"`
+  (also `input`, `change`, `keydown`, `submit` and the drag events), and the
+  file that owns it registers it once with `registerUiHandlers({x: fn})`.
+  Arguments travel in `data-*` attributes, escaped with `esc()`. One
+  capture-phase dispatcher on `document` runs them. The CSP is
+  `script-src-attr 'none'`, so an injected `onclick` does not run, and
+  `scripts/check-inline-handlers.cjs` fails on any `on*=` attribute, a
+  `javascript:` URL, an unknown handler name or one nobody uses.
+- **Views hook in; nobody wraps `showView`.** A script that loads data when its
+  view opens registers `onViewShown(name, fn)`.
+- **One shared scope, checked.** `scripts/js-globals.cjs` gives ESLint each
+  file's view of the others' top-level names, so `no-undef` and
+  `no-redeclare` see the real scope, and fails on a name declared in two files.
+
+Changing the active customer goes through `switchActiveCustomer()`, which runs
+one switch at a time: two in flight could land in either order and leave a
+different customer active than the page on screen.
+
+`npm run check` runs `node --check`, the globals check, the inline-handler
+check, the HTML-escaping check (enforced per file; the list of files not yet
+enforced only shrinks), the dash check below, and ESLint.
+
+## User-facing text
+
+Every string a person reads goes through `t()` and lives in
+`static/ui_i18n.json` in both languages — and the key has to *be* there.
+`t('status_watch', 'Følg med')` renders the fallback when the key is missing,
+so the Norwegian UI looks perfect while the English one says "Følg med".
+Forty-five keys had accumulated that way, in both directions, with every
+detector passing: they measure whether a string is routed through `t()`, not
+whether routing it accomplished anything. A separate test now checks that
+every key a script names exists in both languages.
+
+Four detectors, and each exists because the ones before it were blind to
+something:
+
+| detector | what it reads | the gap it closed |
+|---|---|---|
+| `untranslated_text_nodes` | markup between `>` and `<` | — |
+| `norwegian_literals_in_js` | Norwegian literals in scripts | text built in JS, not markup |
+| `text_shown_to_a_person` | args to `showToast`/`confirm`/`alert` | strings with no Norwegian letter |
+| `literals_assigned_to_the_page` | literals assigned to `textContent` | a button label set in JS is in no markup and no call |
+| `literals_in_a_table_of_labels` | bare strings in a `*Labels` object | a value in an object literal is near nothing |
+
+The first three are user-facing *by construction* — you do not assign to
+`textContent` or call `showToast` for any other reason — which is what keeps
+them free of judgement calls. The label-table one leans on naming instead,
+which is weaker, so the exemption list beside it (`_TECHNICAL_VOCABULARY`) is
+by value rather than by pattern: "Access Point" and "Botnet" are how the
+vendors' own consoles spell them, and translating them would make the
+interface harder to match against, not easier.
+
+A broad "any word-like literal not passed to `t()`" detector was tried first
+and abandoned: 913 hits across the scripts, overwhelmingly SVG path data and
+CSS values. A budget on that number could only ever be noise, and a budget
+nobody reads is worse than no budget.
+
+Backend-generated text is not covered by any of the detectors, which read
+JavaScript only. Anything a route or a core module returns for display must
+carry a code the presentation translates — see the baselines section above. `tests/test_i18n_coverage.py` holds
+the detectors and a per-script budget; all seven scripts read zero on all
+three counts, and the budgets only ever go down.
+
+Norwegian text carries no em or en dashes: a separator between two parts is
+` · `, a range takes a hyphen, and a lone dash means "no value".
+`tests/test_norwegian_copy.py` guards the UI tables and server messages,
+`tests/test_report_norwegian_copy.py` the report engine, and
+`scripts/check-copy-dashes.cjs` the text scripts build. The glossary is
+guarded in the same place: Sikkerhetsscore (100 is best) and Karakter, never
+Risikoscore; Varsler are alerts, Varslinger notifications, Advarsler
+warnings; Utbedring, Fjerntilgang, Entra ID.
+
+The detectors are worth understanding before trusting them. Each has been
+wrong in a way that made the codebase look clean: one looked at three of the
+seven scripts, one required an æ, ø or å before calling a string Norwegian,
+and one skipped any string containing the quote character it was not
+delimited by — which is most of a file that builds markup. If a count reads
+zero, confirm the detector can see the file before believing it.
+
+
+## Testing
+
+`pytest`, `asyncio_mode = auto`. The suite covers parsers, encryption, RBAC,
+migrations, the connection pool and the whole web layer.
+
+Two conventions worth keeping:
+
+- **Verify a regression test by breaking the code.** Several tests here
+  initially passed against the unfixed code — a coverage check that walked the
+  wrong route structure, a pagination test seeded in the wrong order. A green
+  test proves nothing until you have watched it go red.
+- **Guard the guard.** Where a test enumerates something (routes, migrations),
+  assert the enumeration is non-trivial, so an upstream change cannot make it
+  pass vacuously.
+
+## Boundaries enforced by the review remediation
+
+`app/core/job_state.py` owns transport-neutral audit/setup run state, and
+audit scheduling lives in `app/services/audit_scheduler.py`.
+
+`app/services/backups.py` owns encrypted archive creation, and `uniweb_sync.py`
+owns collection/persistence. Both HTTP handlers and schedulers call these
+services. Recommendation localization lives with reports. Core and service
+modules cannot import `app.web`; `scripts/check_architecture.py` checks that
+boundary in CI. File-backed customer identity, migration transactions,
+capability checks and access-revocation notifications have shared implementations.
+
+The frontend remains vanilla JavaScript, without inline handlers (see
+**Front-end structure**). Browser regression tests exercise the actual HTML
+parser and the CSP (`tests/browser/csp.spec.cjs` opens every view and fails on
+a policy violation); source-string presence is not evidence of XSS safety.

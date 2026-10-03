@@ -1,0 +1,66 @@
+# ── Customer / audit data — must never be tracked ────────────────────────
+audit_data/
+audit_config.json
+audit_cert.pfx
+*.pfx
+*.p12
+*.pem
+*.key
+
+# ── Claude Code session data ──────────────────────────────────────────────
+# Contents rather than the directory: git will not re-include a path whose
+# parent is excluded, so ".claude/" would make the negation below dead.
+.claude/*
+memory/
+# Agent definitions are shared tooling, not session state. They carry the
+# operational rules for this repo — do not restart during an audit, the
+# service worker caches /static/, every string goes in ui_i18n.json in both
+# languages — and are worth having on every technician's machine.
+!.claude/agents/
+
+# ── One-off migration scripts and working files ───────────────────────────
+# fix_*/patch_*/rewrite_* one-offs that did in-place migrations during the
+# ORM-migration period. Their effects are already committed and they are not
+# covered by tests — archived in scratch/, out of git on purpose.
+scratch/
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+# Written by setuptools-scm at build time from the git tag. Tracking it would
+# reintroduce exactly the hand-maintained release literal it replaces.
+app/core/_version.py
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+*.log
+
+# ── Local config / secrets ────────────────────────────────────────────────
+.env
+.env.local
+settings.local.json
+local_settings.py
+
+# Browser checks
+node_modules/
+test-results/
+playwright-report/
+
+.local-secrets/
+secrets/

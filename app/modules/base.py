@@ -1,0 +1,141 @@
+"""Base classes for all MSP Toolkit modules and audit sections."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from pathlib import Path
+
+
+class SectionStatus(Enum):
+    PENDING = auto()
+    RUNNING = auto()
+    DONE = auto()
+    SKIPPED = auto()
+    FAILED = auto()
+
+
+@dataclass
+class SectionResult:
+    name: str
+    status: SectionStatus = SectionStatus.PENDING
+    files: list[str] = field(default_factory=list)
+    warns: list[str] = field(default_factory=list)
+    # Severity per entry in `warns`, same order and length. Kept alongside
+    # rather than folded into it because `warns` is consumed as plain strings
+    # in the scheduler, the SSE payload and three places in the UI; changing
+    # its element type would break all of them for a presentation detail.
+    # Nothing appends to either list except _warn(), which appends to both.
+    warn_levels: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    @property
+    def has_warnings(self) -> bool:
+        return bool(self.warns)
+
+    @property
+    def status_icon(self) -> str:
+        return {
+            SectionStatus.PENDING: "⏳",
+            SectionStatus.RUNNING: "⚡",
+            SectionStatus.DONE: "✓",
+            SectionStatus.SKIPPED: "→",
+            SectionStatus.FAILED: "✗",
+        }[self.status]
+
+
+_WARN_LEVELS = ("critical", "warn", "info")
+
+
+# Callback type: called by sections to report progress
+ProgressCallback = Callable[[str, SectionStatus, str | None], None]
+
+
+class BaseSection(ABC):
+    """Base class for a single audit section."""
+
+    name: str = "Unknown Section"
+    description: str = ""
+
+    def __init__(self, out_dir: Path, progress_cb: ProgressCallback | None = None):
+        self.out_dir = out_dir
+        self.progress_cb = progress_cb
+        self.result = SectionResult(name=self.name)
+
+    def _report(self, status: SectionStatus, detail: str | None = None) -> None:
+        self.result.status = status
+        if self.progress_cb:
+            self.progress_cb(self.name, status, detail)
+
+    def _save(self, filename: str, content: str) -> None:
+        from app.core.encryption import encrypted_write_text
+
+        path = self.out_dir / filename
+        encrypted_write_text(path, content)
+        self.result.files.append(filename)
+
+    # Snapshots are the backup half of the audit. The .txt files beside them
+    # are evidence — columns trimmed to a width a person reads — and a trimmed
+    # policy cannot be put back. These carry the objects exactly as Graph gave
+    # them, which is the only form a restore could ever use.
+    #
+    # SNAPSHOT_DIR keeps them apart from the evidence files so a reader
+    # scanning a run cannot mistake one for the other, and so the backup set
+    # is enumerable without knowing which sections happen to produce one.
+    SNAPSHOT_DIR = "policy_snapshots"
+
+    def _save_snapshot(self, name: str, items: list, *, source: str) -> None:
+        """Store raw objects as a restorable snapshot.
+
+        `source` is the endpoint they came from, recorded because a snapshot
+        that cannot say where it came from cannot be put back with any
+        confidence — and because when an endpoint moves, as several did, the
+        old snapshots should still say which one they used.
+        """
+        import json
+        from datetime import UTC, datetime
+
+        from app.core.encryption import encrypted_write_text
+
+        envelope = {
+            "snapshot": name,
+            "source": source,
+            "captured_at": datetime.now(UTC).isoformat(),
+            "count": len(items),
+            "items": items,
+        }
+        directory = self.out_dir / self.SNAPSHOT_DIR
+        directory.mkdir(parents=True, exist_ok=True)
+        encrypted_write_text(
+            directory / f"{name}.json", json.dumps(envelope, indent=1, default=str)
+        )
+        self.result.files.append(f"{self.SNAPSHOT_DIR}/{name}.json")
+
+    def _warn(self, msg: str, level: str = "warn") -> None:
+        """Record a finding. level is "critical", "warn" or "info".
+
+        Severity belongs to the collector that found the thing, not to a
+        pattern match over the message text downstream. Defaulting to "warn"
+        keeps the eighty-odd existing calls meaning exactly what they did.
+        """
+        self.result.warns.append(msg)
+        self.result.warn_levels.append(level if level in _WARN_LEVELS else "warn")
+
+    @abstractmethod
+    async def collect(self) -> SectionResult:
+        """Run the section and return its result."""
+        ...
+
+
+class BaseModule(ABC):
+    """Base class for top-level modules (M365 Audit, Fortigate, Unifi, ...)."""
+
+    name: str = "Unknown Module"
+    description: str = ""
+    icon: str = "◆"
+    available: bool = True
+
+    @abstractmethod
+    async def run(self, **kwargs) -> None: ...

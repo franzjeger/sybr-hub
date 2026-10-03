@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref so a new push to a PR doesn't
+# leave the previous run hanging (a stuck runner can otherwise sit in
+# 'in_progress' for hours, as happened with run 25760604034). Pushes to
+# main never cancel each other — `github.run_id` keeps each one unique.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    # A wedged test run should not hold a runner for the 6-hour default. This
+    # is comfortably above the ~1 minute the suite actually takes.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor from pyproject. 3.13/3.14 are here because Arch —
+        # and so CachyOS, which is a real deployment target — ships whatever is
+        # newest; the install script builds its venv from the system Python, so
+        # an untested version there means an untested production install.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      # Pin third-party actions to immutable commits. The version comment keeps
+      # Dependabot updates readable without trusting a mutable major tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # setuptools-scm resolves the version with `git describe`. The default
+          # depth-1 fetch carries no tags, which yields a 0.1.devN+g<sha>
+          # version instead of the release — silently, at build time.
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install system deps for WeasyPrint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install '.[dev,tui]' pytest-timeout
+          python -m pip check
+
+      # --timeout names the offending test and dumps its stack if one hangs;
+      # --session-timeout bounds the run as a whole. Neither covers a hang in
+      # interpreter *shutdown* after the last test passes — a leaked
+      # non-daemon thread (aiosqlite starts one per connection) does exactly
+      # that, and did on this branch. `timeout-minutes` above is the backstop
+      # for that case.
+      - name: Run tests
+        run: pytest -v --tb=short --timeout=120 --session-timeout=600
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # setuptools-scm resolves the version with `git describe`. The default
+          # depth-1 fetch carries no tags, which yields a 0.1.devN+g<sha>
+          # version instead of the release — silently, at build time.
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install ruff
+        run: python -m pip install ruff==0.16.6
+      # Blocking as of the tree-wide `ruff format` (see .git-blame-ignore-revs).
+      # The whole repo is formatted, so anything unformatted from here is new.
+      - name: Ruff format check
+        run: ruff format --check .
+      # Informational: the inherited debt is ~1100 findings and a lockstep
+      # reformat would bury every real change under whitespace for a month.
+      - name: Ruff lint (informational)
+        run: ruff check .
+        continue-on-error: true
+
+      # Blocking, and the reason the step above can stay informational. The
+      # budget records the total and the set of files that are already clean;
+      # neither may get worse. So the debt is paid down at whatever pace suits,
+      # while anything written from today is clean on arrival.
+      - name: Lint budget
+        run: python scripts/lint_budget.py
+
+  security:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # setuptools-scm resolves the version with `git describe`. The default
+          # depth-1 fetch carries no tags, which yields a 0.1.devN+g<sha>
+          # version instead of the release — silently, at build time.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pip-audit
+        run: python -m pip install pip-audit==2.10.1
+
+      # `--disable-pip` was silently defeating this job. pip-audit only accepts
+      # it with hashed requirements or --no-deps, and requirements.txt is
+      # neither — so every run exited on argument validation before scanning
+      # anything, and `continue-on-error` reported that as success. Letting pip
+      # resolve the tree also means transitive dependencies get audited, which
+      # is where most CVEs actually live.
+      - name: Scan dependencies for known CVEs
+        run: pip-audit -r requirements.lock --require-hashes --disable-pip --strict
+
+  browser-build:
+    name: browser, types and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install test and build dependencies
+        run: |
+          python -m pip install --require-hashes -r requirements.lock
+          python -m pip freeze > /tmp/sybr-runtime-constraints.txt
+          python -m pip install -r requirements-dev.txt -c /tmp/sybr-runtime-constraints.txt
+          python -m pip check
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: JavaScript and vendored assets
+        run: |
+          npm run check
+          npm run vendor
+          npm audit --audit-level=moderate
+          python scripts/audit_vendor.py
+      - name: Browser regressions
+        env:
+          SYBR_TEST_PYTHON: python
+        run: npm test
+      - name: Type check new domain contracts
+        run: |
+          mypy
+          python scripts/check_architecture.py
+      - name: Build and inspect wheel
+        run: |
+          python -m build --wheel
+          python scripts/check_wheel.py dist/*.whl
+      - name: Install wheel in a clean runtime environment
+        run: |
+          python -m venv /tmp/sybr-wheel
+          /tmp/sybr-wheel/bin/pip install --require-hashes -r requirements.lock
+          /tmp/sybr-wheel/bin/pip install --no-deps dist/*.whl
+          /tmp/sybr-wheel/bin/pip check
+          cd /tmp
+          /tmp/sybr-wheel/bin/python "$GITHUB_WORKSPACE/scripts/smoke_installed.py"
+      - name: Build deployment image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" --tag sybr-hub:ci .
+      - name: Exercise isolated installed service
+        run: |
+          printf '%s\n' 'isolated-ci-smoke-wrapping-secret-32-bytes-minimum' > "$RUNNER_TEMP/sybr-smoke.secret"
+          chmod 444 "$RUNNER_TEMP/sybr-smoke.secret"
+          trap 'rm -f "$RUNNER_TEMP/sybr-smoke.secret"' EXIT
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 256 --cpus 1 --memory 1g \
+            --tmpfs /tmp:mode=1777,size=512m \
+            --tmpfs /var/lib/sybr:uid=10001,gid=10001,mode=0700,size=512m \
+            --env SYBR_REQUIRE_MFA=1 --env SYBR_ALLOW_INSECURE_AUTH=1 --env SYBR_HUB_HOST=0.0.0.0 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/scripts/smoke_container.py,dst=/opt/smoke_container.py,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/sybr-smoke.secret,dst=/run/secrets/key_wrap_secret,readonly" \
+            --entrypoint python sybr-hub:ci /opt/smoke_container.py

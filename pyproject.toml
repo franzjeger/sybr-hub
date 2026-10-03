@@ -1,0 +1,155 @@
+[build-system]
+# setuptools>=77 is not a preference: `license = "MIT"` below is PEP 639's SPDX
+# string form, which older setuptools rejects outright with "project.license
+# must be valid exactly by one definition". Build isolation hides this by
+# always fetching the newest setuptools, so it only bites where the lock file
+# is the point — `--no-build-isolation`, a distro build chain, an offline host.
+requires = ["setuptools>=77", "setuptools-scm>=8", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sybr-hub"
+dynamic = ["version"]
+description = "Read-mostly aggregator for MSP technicians — M365 audit + Autotask + IT Glue + myITprocess + RMM in one place."
+license = "MIT"
+requires-python = ">=3.11"
+# Kept in sync with requirements.txt, which stays the canonical list for
+# `pip install -r`. Anything imported by app/ belongs here too, otherwise
+# `pip install .` produces a package that cannot start.
+dependencies = [
+    "anyio>=4.0,<5.0",
+    "fastapi>=0.111.0,<1.0",
+    "uvicorn[standard]>=0.30.0,<1.0",
+    "python-multipart>=0.0.7,<1.0",
+    "websockets>=12.0,<18.0",
+    "httpx>=0.27.0,<1.0",
+    "msal>=1.28.0,<2.0",
+    "azure-identity>=1.16.0,<2.0",
+    "azure-mgmt-compute>=30.3.0,<32.0",
+    "azure-mgmt-network>=25.3.0,<33.0",
+    "azure-mgmt-resource>=23.1.0,<24.0",
+    "azure-mgmt-storage>=21.1.0,<26.0",
+    "azure-mgmt-monitor>=6.0.1,<8.0",
+    "azure-mgmt-advisor>=9.0.0,<10.0",
+    "azure-mgmt-recoveryservices>=2.5.0,<5.0",
+    "azure-mgmt-recoveryservicesbackup>=8.0.0,<10.0",
+    "azure-mgmt-loganalytics>=13.0.0,<15.0",
+    "azure-mgmt-desktopvirtualization>=1.0.0,<2.0",
+    "azure-mgmt-resource-subscriptions>=1.0.0b1,<2.0",
+    "keyring>=24.3.0,<26.0",
+    "cryptography>=50.0.0,<51.0",
+    "jinja2>=3.1.4,<4.0",
+    "weasyprint>=70.0,<71.0",
+    "asyncssh>=2.14.0,<3.0",
+    "aiosqlite>=0.20.0,<1.0",
+    "sqlalchemy>=2.0.52,<3.0",
+    "sqlmodel>=0.0.42,<0.1.0",
+    "argon2-cffi>=25.1.0,<26.0",
+    "PyJWT[crypto]>=2.9.0,<3.0",
+    "dnspython>=2.6.0,<3.0",
+    "pychrome>=0.2.4,<1.0",
+    "anthropic>=0.40.0,<2.0",
+    "platformdirs>=4.2.0,<5.0",
+    "pydantic>=2.7.0,<3.0",
+]
+
+[project.optional-dependencies]
+tui = ["textual>=0.60.0,<9.0"]
+dev = [
+    "pytest>=9.1.1,<10.0",
+    "pytest-asyncio>=1.4.0,<2.0",
+    "ruff==0.16.6",
+    "pytest-timeout==2.4.0",
+]
+
+[project.scripts]
+sybr-hub = "main:run"
+sybr-hub-tui = "main:run_tui"
+
+[tool.setuptools]
+py-modules = ["main"]
+include-package-data = true
+
+# The git tag is the release version. Nothing in the tree restates it, so a
+# release is `git tag` and nothing else — no literal to forget. A build writes
+# the resolved value into app/core/_version.py, which is gitignored and absent
+# from a plain source checkout; app/core/version.py falls through to
+# `git describe` there, which is how the deployed host resolves it.
+[tool.setuptools_scm]
+version_file = "app/core/_version.py"
+
+[tool.setuptools.package-data]
+app = [
+    "baselines/*.json",
+    "helpers/*.ps1",
+    "policy_templates/*.json",
+    "reports/templates/*",
+    "web/static/*",
+    "web/static/branding/*",
+    "web/static/icons/*",
+    "web/static/vendor/*",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Collect only from tests/. Without this pytest walks the whole checkout, and
+# anything unreadable in it becomes a collection error rather than a test
+# failure — a stray symlink under Logo-Branding pointing outside the repo took
+# the installer's test gate down that way, on a tree where every test passed.
+testpaths = ["tests"]
+markers = [
+    # PDF rendering costs ~9s — the only test that catches WeasyPrint failing
+    # on a missing system library, which is a deployment failure rather than a
+    # code one. CI runs everything; `pytest -m "not slow"` skips it locally.
+    "slow: takes seconds rather than milliseconds",
+    "modules_real: see the stored module switches instead of every module on",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "app/web/static",
+    "app/reports/templates",
+]
+
+[tool.ruff.lint]
+# A pragmatic "on by default" set:
+#   E  pycodestyle errors    F  pyflakes
+#   I  isort                 UP pyupgrade
+#   B  bugbear               SIM simplify
+#   RUF Ruff-specific lints
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Allow longer lines in generated strings / SQL DDL where wrapping hurts
+# more than it helps.
+ignore = [
+    "E501",   # line-length handled by formatter, not linter
+    "B008",   # function-call in default arg — FastAPI Depends() is idiomatic
+    "SIM108", # ternary-vs-if preference; we keep readability on a case-by-case basis
+    "UP007",  # Optional[X] vs X | None — keep for codebase consistency
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can be verbose; don't hector about unused args / shadowing fixtures.
+"tests/**.py" = ["F401", "F811", "B011"]
+# Scripts are entry points, not library code.
+"scripts/**.py" = ["T201"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app/core/assessment.py", "app/core/audit_results.py", "app/core/async_fd.py"]
+strict = true
+follow_imports = "silent"

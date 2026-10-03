@@ -1,0 +1,177 @@
+"""Per-customer remediation tracking.
+
+Records which audit recommendations an operator has actioned, so a report
+can show progress since the previous run rather than repeating the same
+findings verbatim. Backed by the ``remediation_items`` table (migration 8).
+
+Both a sync and an async accessor exist: the report generator runs
+synchronously inside WeasyPrint's render path, while the web routes are
+async.
+"""
+
+from __future__ import annotations
+
+import logging
+import sqlite3
+from datetime import UTC, datetime
+
+from sqlalchemy import func
+from sqlalchemy.dialects.sqlite import insert
+from sqlmodel import select
+
+from app.core import database
+from app.core.orm import get_session
+from app.models.ticket import RemediationItem
+
+log = logging.getLogger(__name__)
+
+VALID_STATUSES = frozenset({"open", "in_progress", "done", "ignored"})
+
+
+def _row_to_entry(row) -> dict:
+    return {
+        "status": row["status"],
+        "notes": row["notes"] or "",
+        "updated_by": row["assigned_to"] or "",
+        "updated_date": row["updated_at"] or "",
+    }
+
+
+def load_remediation_sync(customer_id: str) -> dict[str, dict]:
+    """Return ``{recommendation_id: entry}`` for one customer.
+
+    Synchronous by design — called from the report generator, which is not
+    async. Read-only, so a short-lived sqlite3 connection is enough; failures
+    are non-fatal because a report without remediation data is still useful.
+    """
+    # Read database.DB_PATH at call time — it is reassigned by tests and by
+    # MSP_DATA_DIR, so a module-level import would freeze the wrong path.
+    db_path = database.DB_PATH
+    if not customer_id or not db_path.exists():
+        return {}
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=10)
+        conn.row_factory = sqlite3.Row
+        try:
+            cur = conn.execute(
+                "SELECT recommendation_id, status, notes, assigned_to, updated_at "
+                "FROM remediation_items WHERE customer_id = ?",
+                (customer_id,),
+            )
+            return {row["recommendation_id"]: _row_to_entry(row) for row in cur.fetchall()}
+        finally:
+            conn.close()
+    except sqlite3.Error as e:
+        log.warning("Could not load remediation data for %s: %s", customer_id, e)
+        return {}
+
+
+async def load_remediation(customer_id: str) -> dict[str, dict]:
+    """Async counterpart of :func:`load_remediation_sync`."""
+    async with get_session() as session:
+        stmt = select(RemediationItem).where(RemediationItem.customer_id == customer_id)
+        rows = (await session.execute(stmt)).scalars().all()
+
+    return {
+        row.recommendation_id: {
+            "status": row.status,
+            "notes": row.notes or "",
+            "updated_by": row.assigned_to or "",
+            "updated_date": row.updated_at or "",
+        }
+        for row in rows
+    }
+
+
+async def set_remediation(
+    customer_id: str,
+    recommendation_id: str,
+    status: str,
+    notes: str = "",
+    assigned_to: str | None = None,
+) -> dict:
+    """Create or update one remediation entry. Returns the stored entry."""
+    from app.core.exceptions import ValidationError
+
+    if status not in VALID_STATUSES:
+        raise ValidationError(
+            f"Ugyldig status '{status}' — må være en av: {', '.join(sorted(VALID_STATUSES))}"
+        )
+    if not customer_id or not recommendation_id:
+        raise ValidationError("customer_id og recommendation_id er påkrevd")
+
+    now = datetime.now(UTC).isoformat()
+    async with get_session() as session:
+        stmt = (
+            insert(RemediationItem)
+            .values(
+                customer_id=customer_id,
+                recommendation_id=recommendation_id,
+                status=status,
+                notes=notes,
+                assigned_to=assigned_to or "",
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=["customer_id", "recommendation_id"],
+                set_={
+                    "status": status,
+                    "notes": notes,
+                    "assigned_to": assigned_to or "",
+                    "updated_at": now,
+                },
+            )
+        )
+        await session.execute(stmt)
+        await session.commit()
+
+    return {
+        "status": status,
+        "notes": notes,
+        "updated_by": assigned_to or "",
+        "updated_date": now,
+    }
+
+
+async def clear_remediation(customer_id: str, recommendation_id: str) -> bool:
+    """Delete one entry. Returns True if a row was removed."""
+    async with get_session() as session:
+        stmt = select(RemediationItem).where(
+            RemediationItem.customer_id == customer_id,
+            RemediationItem.recommendation_id == recommendation_id,
+        )
+        item = (await session.execute(stmt)).scalar_one_or_none()
+        if item:
+            await session.delete(item)
+            await session.commit()
+            return True
+        return False
+
+
+async def get_remediation_counts(customer_id: str) -> dict:
+    """Return ``{total, counts, pct}`` for one customer's remediation items.
+
+    ``counts`` always carries every status in :data:`VALID_STATUSES`, so the
+    dashboard can render a stable set of tiles before any item exists. ``pct``
+    is the share of items marked done, rounded to one decimal.
+    """
+    counts = dict.fromkeys(sorted(VALID_STATUSES), 0)
+    total = 0
+    async with get_session() as session:
+        stmt = (
+            select(RemediationItem.status, func.count().label("cnt"))
+            .where(RemediationItem.customer_id == customer_id)
+            .group_by(RemediationItem.status)
+        )
+        rows = (await session.execute(stmt)).all()
+
+    for row in rows:
+        # A status outside VALID_STATUSES can only come from a hand-edited
+        # database; count it in the total but don't invent a bucket for it.
+        if row.status in counts:
+            counts[row.status] = row.cnt
+        total += row.cnt
+
+    pct = round(counts["done"] / total * 100, 1) if total else 0.0
+    return {"total": total, "counts": counts, "pct": pct}

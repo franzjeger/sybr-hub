@@ -1,0 +1,71 @@
+# ── Sybr HUB schedule standby (optional) ─────────────────────────────────────
+#
+# Not needed: sybr-hub.service runs scheduled jobs itself. This unit only
+# waits on the same schedule lock and takes over while the web service is
+# down, so jobs keep running across a web restart. It never runs jobs at the
+# same time as the web service.
+#
+# Install:
+#   sudo cp scripts/sybr-hub-scheduler.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sybr-hub-scheduler
+#
+# Edit the User/Group/WorkingDirectory placeholders below to match your
+# install before enabling.
+
+[Unit]
+Description=Sybr HUB schedule standby — takes over scheduled jobs while the web service is down
+Documentation=https://github.com/franzjeger/sybr-hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=sybrhub
+Group=sybrhub
+
+WorkingDirectory=/opt/sybr-hub
+ExecStart=/opt/sybr-hub/.venv/bin/python /opt/sybr-hub/scripts/run_scheduler.py
+
+Restart=on-failure
+RestartSec=5s
+
+# ── Configuration ───────────────────────────────────────────────────────────
+Environment=SYBR_HUB_LOG_LEVEL=INFO
+Environment=MSP_DATA_DIR=/var/lib/sybr-hub
+Environment=MSP_CONFIG_DIR=/etc/sybr-hub
+Environment=HOME=/var/lib/sybr-hub/home
+LoadCredential=key-wrap.secret:/etc/sybr-hub-secrets/key-wrap.secret
+Environment=SYBR_KEY_WRAP_SECRET_FILE=%d/key-wrap.secret
+
+# ── Hardening ───────────────────────────────────────────────────────────────
+NoNewPrivileges=yes
+UMask=0077
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+# No capabilities at all; see "Pentest scanning" below for the one exception.
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+ProtectProc=invisible
+# Not set on purpose: RestrictNamespaces and SystemCallFilter=@system-service
+# would break the bubblewrap sandbox the remote browser runs in, which needs
+# user namespaces and mount syscalls.
+MemoryDenyWriteExecute=no
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+# The scheduler requires write access to the same directories as the API.
+ReadWritePaths=/var/lib/sybr-hub /etc/sybr-hub
+
+[Install]
+WantedBy=multi-user.target

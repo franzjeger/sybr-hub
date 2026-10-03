@@ -1,0 +1,10 @@
+# Revisions listed here are skipped by `git blame` (and the GitHub blame view).
+# Put only pure, mechanical, whole-tree reformattings here — never a commit that
+# also changes behaviour — so blame keeps pointing at the commit that wrote the
+# logic rather than the one that reflowed it.
+#
+# Enable locally once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply ruff format across the repository
+ba876896780e49bac35963a9189ca05cbbea9076

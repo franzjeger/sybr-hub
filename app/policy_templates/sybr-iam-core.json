@@ -1,0 +1,223 @@
+{
+  "id": "sybr-iam-core",
+  "version": "2026.2",
+  "name": {
+    "no": "Sybr IAM — Kjerne (identitetsgulv)",
+    "en": "Sybr IAM — Core (identity floor)"
+  },
+  "description": {
+    "no": "Identitetsgulvet enhver tenant bør ha: MFA for administratorer, alle brukere, Azure-administrasjon og gjester, og blokkering av eldre autentisering. Alt i rapporteringsmodus først.",
+    "en": "The identity floor every tenant should have: MFA for administrators, all users, Azure management and guests, plus blocking legacy authentication. All report-only first."
+  },
+  "requires": {
+    "break_glass_group": {
+      "no": "Gruppe som unntas fra alle policyer — må finnes i tenanten og inneholde minst én konto som aldri låses ute",
+      "en": "Group excluded from every policy — must exist in the tenant and hold at least one account that can never be locked out"
+    }
+  },
+  "policies": [
+    {
+      "displayName": "Sybr — Require MFA for administrators",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "essential",
+      "why": {
+        "no": "En administratorkonto uten MFA er den korteste veien fra ett lekket passord til full kontroll over tenanten. Treffer de 14 privilegerte katalogrollene.",
+        "en": "An administrator account without MFA is the shortest path from one leaked password to full control of the tenant. Targets the 14 privileged directory roles."
+      },
+      "conditions": {
+        "users": {
+          "includeRoles": [
+            "62e90394-69f5-4237-9190-012177145e10",
+            "194ae4cb-b126-40b2-bd5b-6091b380977d",
+            "f28a1f50-f6e7-4571-818b-6a12f2af6b6c",
+            "29232cdf-9323-42fd-ade2-1d097af3e4de",
+            "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9",
+            "729827e3-9c14-49f7-bb1b-9608f156bbb8",
+            "b0f54661-2d74-4c50-afa3-1ec803f12efe",
+            "fe930be7-5e62-47db-91af-98c3a49a38b1",
+            "c4e39bd9-1100-46d3-8c65-fb160da0071f",
+            "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3",
+            "158c047a-c907-4556-b7ef-446551a6b5f7",
+            "966707d0-3269-4727-9be2-8c3a10f19b9d",
+            "7be44c8a-adaf-4e2a-84d6-ab2649e08a13",
+            "e8611ab8-c189-46e8-94e1-60213ab1f814"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "mfa"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA ved hver pålogging for de 14 privilegerte katalogrollene, uansett app eller klient. I rapporteringsmodus registreres hvilke admin-pålogginger som ville blitt utfordret, uten å utfordre dem.",
+        "en": "Requires MFA on every sign-in for the 14 privileged directory roles, on any app or client. In report-only it records which admin sign-ins would be challenged, without challenging them."
+      }
+    },
+    {
+      "displayName": "Sybr — Block legacy authentication",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "essential",
+      "why": {
+        "no": "Eldre protokoller kan ikke utfordres med MFA. Så lenge de er åpne er MFA-kravet en anbefaling, ikke en sperre.",
+        "en": "Legacy protocols cannot be challenged for MFA. While they are open, the MFA requirement is a suggestion rather than a barrier."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "exchangeActiveSync",
+          "other"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "block"
+        ]
+      },
+      "effect": {
+        "no": "Blokkerer pålogging fra eldre klienter (POP, IMAP, SMTP, eldre Office) som ikke kan utfordres med MFA. Berører bare disse protokollene; moderne klienter påvirkes ikke.",
+        "en": "Blocks sign-in from legacy clients (POP, IMAP, SMTP, older Office) that cannot be challenged for MFA. Affects only those protocols; modern clients are untouched."
+      }
+    },
+    {
+      "displayName": "Sybr — Require MFA for all users",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "essential",
+      "why": {
+        "no": "Dekningen resten av standarden måles mot. Rulles alltid ut i rapporteringsmodus, slik at man ser hvem den ville stoppet før den stopper dem.",
+        "en": "The coverage the rest of the standard is measured against. Always deployed report-only, so you see who it would have stopped before it stops them."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "mfa"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA ved pålogging for alle brukere, på tvers av alle apper. I rapporteringsmodus ser du hvem som ville blitt bedt om MFA før noen faktisk blir det.",
+        "en": "Requires MFA at sign-in for all users, across all apps. In report-only you see who would be prompted for MFA before anyone actually is."
+      }
+    },
+    {
+      "displayName": "Sybr — Require MFA for Azure management",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "recommended",
+      "why": {
+        "no": "Azure-portalen, ARM-API-et og Azure CLI/PowerShell styrer abonnement og infrastruktur. En sesjon her uten MFA er en åpen dør til alt som kjøres i Azure.",
+        "en": "The Azure portal, the ARM API and Azure CLI/PowerShell govern subscriptions and infrastructure. A session here without MFA is an open door to everything running in Azure."
+      },
+      "conditions": {
+        "users": {
+          "includeUsers": [
+            "All"
+          ],
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "797f4846-ba00-4fd7-ba43-dac1f8f63013"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "mfa"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA for Azure-portalen, ARM-API-et og Azure CLI/PowerShell. Berører bare administrasjonsflaten for Azure — ikke vanlige Office-apper.",
+        "en": "Requires MFA for the Azure portal, the ARM API and Azure CLI/PowerShell. Affects only the Azure management surface — not everyday Office apps."
+      }
+    },
+    {
+      "displayName": "Sybr — Require MFA for guests and external users",
+      "state": "enabledForReportingButNotEnforced",
+      "tier": "recommended",
+      "why": {
+        "no": "Gjestekontoer administreres i en annen organisasjon, og du styrer ikke passordene deres. MFA er den ene kontrollen du kan kreve på din side.",
+        "en": "Guest accounts are managed in another organisation, and you do not control their passwords. MFA is the one control you can require on your side."
+      },
+      "conditions": {
+        "users": {
+          "includeGuestsOrExternalUsers": {
+            "guestOrExternalUserTypes": "b2bCollaborationGuest,b2bCollaborationMember,internalGuest,b2bDirectConnectUser,otherExternalUser,serviceProvider",
+            "externalTenants": {
+              "@odata.type": "#microsoft.graph.conditionalAccessAllExternalTenants",
+              "membershipKind": "all"
+            }
+          },
+          "excludeGroups": [
+            "{{break_glass_group}}"
+          ]
+        },
+        "applications": {
+          "includeApplications": [
+            "All"
+          ]
+        },
+        "clientAppTypes": [
+          "all"
+        ]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": [
+          "mfa"
+        ]
+      },
+      "effect": {
+        "no": "Krever MFA for gjeste- og eksterne kontoer når de åpner deres ressurser. Interne brukere berøres ikke av denne.",
+        "en": "Requires MFA for guest and external accounts when they access your resources. Internal users are not affected by this one."
+      }
+    }
+  ]
+}
