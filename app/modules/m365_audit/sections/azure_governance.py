@@ -1,4 +1,4 @@
-"""Section 50–61 — Azure Governance: Advisor, Backup, Log Analytics, Resource
+"""Section 50-61 — Azure Governance: Advisor, Backup, Log Analytics, Resource
 Inventory, Orphaned Resources, and Cost Analysis.
 
 Azure SDK clients are synchronous; dispatched to a thread-pool executor.
@@ -8,6 +8,7 @@ Cost data is fetched via the Azure Cost Management REST API.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import defaultdict
 from pathlib import Path
 
@@ -30,6 +31,31 @@ def _run_sync(fn):
 def _rg(resource_id: str) -> str:
     parts = (resource_id or "").split("/")
     return parts[4] if len(parts) > 4 else "N/A"
+
+
+def _enum_text(value) -> str | None:
+    """An Azure SDK enum or string as its plain value."""
+    if value is None:
+        return None
+    return str(getattr(value, "value", value))
+
+
+def _protected_item(item) -> dict:
+    """One protected item, as the coverage check needs it."""
+    p = item.properties
+    last = getattr(p, "last_backup_time", None)
+    return {
+        "name": item.name,
+        "friendly_name": getattr(p, "friendly_name", None) or item.name,
+        "workload_type": _enum_text(getattr(p, "workload_type", None)),
+        "protection_state": _enum_text(getattr(p, "protection_state", None)),
+        "protection_status": _enum_text(getattr(p, "protection_status", None)),
+        "health_status": _enum_text(getattr(p, "health_status", None)),
+        "last_backup_time": last.isoformat() if hasattr(last, "isoformat") else last,
+        # IaaS VM items carry the VM's resource id under one name or the other.
+        "source_resource_id": getattr(p, "source_resource_id", None)
+        or getattr(p, "virtual_machine_id", None),
+    }
 
 
 class AzureGovernanceSection(BaseSection):
@@ -121,6 +147,14 @@ class AzureGovernanceSection(BaseSection):
     # ── Recovery Services Vaults / Backup ─────────────────────────────────────
 
     async def _collect_backup(self) -> None:
+        """Recovery Services vaults and every item each one protects.
+
+        52_azure_backup.txt is for a person. 52_azure_backup.json carries the
+        same items untrimmed, with the resource id of the VM each one protects,
+        which is what the backup-coverage cross-reference matches on. The text
+        listing used to stop at 15 items per vault and cut names at 40
+        characters, so a VM past either limit read as unprotected.
+        """
         try:
             client = self.auth.recovery_client_for(self._sub_id)
             vaults = await _run_sync(lambda: list(client.vaults.list_by_subscription_id()))
@@ -130,6 +164,7 @@ class AzureGovernanceSection(BaseSection):
 
         if not vaults:
             self._save(self._fname("52_azure_backup.txt"), "No Recovery Services vaults found.\n")
+            self._save(self._fname("52_azure_backup.json"), json.dumps({"vaults": []}))
             return
 
         lines = [
@@ -137,9 +172,17 @@ class AzureGovernanceSection(BaseSection):
             f"  AZURE BACKUP — RECOVERY SERVICES VAULTS  ({len(vaults)} vault(s))",
             "=" * 110,
         ]
+        record: list[dict] = []
         for vault in vaults:
             vault_rg = _rg(vault.id or "")
             sku_name = vault.sku.name if vault.sku else "N/A"
+            entry: dict = {
+                "name": vault.name,
+                "resource_group": vault_rg,
+                "location": vault.location,
+                "items": [],
+                "items_error": None,
+            }
             lines += [
                 f"\n  Vault    : {vault.name}",
                 f"    RG       : {vault_rg}",
@@ -156,22 +199,23 @@ class AzureGovernanceSection(BaseSection):
                     )
                 )
                 lines.append(f"    Protected Items: {len(items)}")
-                for item in items[:15]:
-                    p = item.properties
-                    fn = str(getattr(p, "friendly_name", item.name) or item.name)[:40]
-                    status = str(getattr(p, "protection_status", "N/A"))
-                    last_bk = str(getattr(p, "last_backup_time", "N/A"))[:19]
-                    health = str(getattr(p, "health_status", "N/A"))
+                for item in items:
+                    row = _protected_item(item)
+                    entry["items"].append(row)
                     lines.append(
-                        f"      - {fn:<40}  Status:{status:<15} LastBK:{last_bk}  Health:{health}"
+                        f"      - {row['friendly_name']}  Status:{row['protection_status']}"
+                        f"  State:{row['protection_state']}"
+                        f"  LastBK:{(row['last_backup_time'] or 'N/A')[:19]}"
+                        f"  Health:{row['health_status']}"
                     )
-                if len(items) > 15:
-                    lines.append(f"      ... and {len(items) - 15} more items")
             except Exception as ex:
-                lines.append(f"    Protected Items: Error — {ex}")
+                entry["items_error"] = str(ex)
+                lines.append(f"    Protected Items: Error: {ex}")
+            record.append(entry)
 
         lines += ["", "=" * 110, ""]
         self._save(self._fname("52_azure_backup.txt"), "\n".join(lines))
+        self._save(self._fname("52_azure_backup.json"), json.dumps({"vaults": record}, indent=1))
 
     # ── Log Analytics Workspaces ──────────────────────────────────────────────
 

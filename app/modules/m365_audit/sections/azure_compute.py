@@ -7,6 +7,7 @@ executor so as not to block the asyncio event loop.
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -109,6 +110,12 @@ class AzureComputeSection(BaseSection):
 
         lines += ["=" * 120, ""]
         self._save(self._fname("30_azure_vms.txt"), "\n".join(lines))
+        # The text trims names to 35 characters. The backup cross-reference
+        # matches on the full name and the resource id, so they are kept here.
+        self._save(
+            self._fname("30_azure_vms.json"),
+            json.dumps({"vms": [{"name": vm.name, "id": vm.id} for vm in vms]}, indent=1),
+        )
         return vms
 
     # ── VM CPU Metrics ────────────────────────────────────────────────────────

@@ -488,13 +488,25 @@ FULL_AUDIT: dict[str, str] = {
         "vm-dc-01       Standard_D2   westeurope  running\n"
         "vm-app-01      Standard_D4   westeurope  running\n"
     ),
+    # The format _collect_backup writes: a block per vault, then one "- " line
+    # per protected item. The fixture used to carry a table the collector never
+    # wrote, which is how a parser that skipped every "-" line passed.
     "52_azure_backup.txt": (
-        "AZURE BACKUP PROTECTED ITEMS\n"
-        "============================\n"
-        "Vault: rsv-prod\n"
-        "Name           Type          Status\n"
-        "vm-dc-01       AzureVM       Protected\n"
-        "vm-app-01      AzureVM       Protected\n"
+        "==============================================================\n"
+        "  AZURE BACKUP — RECOVERY SERVICES VAULTS  (1 vault(s))\n"
+        "==============================================================\n"
+        "\n"
+        "  Vault    : rsv-prod\n"
+        "    RG       : rg-backup\n"
+        "    Location : westeurope\n"
+        "    SKU      : Standard\n"
+        "    Protected Items: 2\n"
+        "      - vm-dc-01  Status:Healthy  State:Protected  LastBK:2026-10-02T22:00:00"
+        "  Health:Passed\n"
+        "      - vm-app-01  Status:Healthy  State:Protected  LastBK:2026-10-02T22:00:00"
+        "  Health:Passed\n"
+        "\n"
+        "==============================================================\n"
     ),
     "51_azure_advisor.txt": (
         "AZURE ADVISOR RECOMMENDATIONS\n=============================\n2 recommendations\n"
