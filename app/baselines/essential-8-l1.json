@@ -4,7 +4,7 @@
   "name": "Essential Eight — Maturity Level 1",
   "tags": ["acsc", "essential-eight", "hardening"],
   "description": {
-    "no": "ACSCs Essential Eight, modenhetsnivå 1 — de delene en Microsoft 365- og Azure-audit faktisk kan måle. Fire av de åtte strategiene (applikasjonskontroll, applikasjons- og OS-oppdatering i tide, Office-makroer og applikasjonsherding) er endepunktkontroller denne auditen ikke ser, og er utelatt heller enn gjettet på. Det som står igjen — MFA, begrensning av administratorrettigheter, styrte og etterlevende enheter, og sikkerhetskopi — dekkes her.",
+    "no": "ACSCs Essential Eight, modenhetsnivå 1, avgrenset til delene en Microsoft 365- og Azure-audit faktisk kan måle. Fire av de åtte strategiene (applikasjonskontroll, applikasjons- og OS-oppdatering i tide, Office-makroer og applikasjonsherding) er endepunktkontroller denne auditen ikke ser, og er utelatt heller enn gjettet på. Det som står igjen, dekkes her: MFA, begrensning av administratorrettigheter, styrte og etterlevende enheter, og sikkerhetskopi.",
     "en": "The ACSC Essential Eight, Maturity Level 1 — the parts a Microsoft 365 and Azure audit can actually measure. Four of the eight strategies (application control, timely application and OS patching, Office macro settings and application hardening) are endpoint controls this audit does not see, and are left out rather than guessed at. What remains — MFA, restricting administrative privileges, managed and compliant devices, and backups — is covered here."
   },
   "checks": [
@@ -15,7 +15,7 @@
         "en": "No user is left entirely without MFA coverage"
       },
       "why": {
-        "no": "Essential Eight ML1 krever MFA for brukere. En konto uten registrert metode og uten en policy som dekker den nås med passord alene — akkurat inngangen MFA skal stenge.",
+        "no": "Essential Eight ML1 krever MFA for brukere. En konto uten registrert metode og uten en policy som dekker den, nås med passord alene. Det er akkurat inngangen MFA skal stenge.",
         "en": "Essential Eight ML1 requires MFA for users. An account with no registered method and no policy covering it is reached with a password alone — the exact entry MFA is meant to close."
       },
       "path": "mfa.fully_unprotected",
@@ -110,7 +110,7 @@
         "en": "At least 90% of Intune devices are compliant"
       },
       "why": {
-        "no": "Etterlevelsespolicyer er der operativsystemversjon og oppdateringsnivå håndheves. En lav etterlevelsesgrad betyr at enheter kjører under kravet — proxyen en audit har for OS-oppdatering i tide.",
+        "no": "Etterlevelsespolicyer er der operativsystemversjon og oppdateringsnivå håndheves. En lav etterlevelsesgrad betyr at enheter kjører under kravet. Det er det nærmeste en audit kommer OS-oppdatering i tide.",
         "en": "Compliance policies are where OS version and patch level are enforced. A low compliance rate means devices are running below the requirement — the proxy an audit has for timely OS patching."
       },
       "path": "intune.compliance_pct",
@@ -126,7 +126,7 @@
         "en": "At least 95% of virtual machines are backed up"
       },
       "why": {
-        "no": "«Regelmessig sikkerhetskopi» måles her mot Azure-VM-dekning — det auditen ser. Merk at sikkerhetskopi av selve Microsoft 365-dataene ikke inngår i denne målingen; dette dekker serverlaget.",
+        "no": "«Regelmessig sikkerhetskopi» måles her mot Azure-VM-dekning, som er det auditen ser. Merk at sikkerhetskopi av selve Microsoft 365-dataene ikke inngår i denne målingen; dette dekker serverlaget.",
         "en": "'Regular backups' is measured here against Azure VM coverage — what the audit sees. Note that backup of the Microsoft 365 data itself is not part of this measurement; this covers the server tier."
       },
       "path": "backup_coverage.backup_pct",

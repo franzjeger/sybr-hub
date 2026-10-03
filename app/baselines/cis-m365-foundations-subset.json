@@ -4,14 +4,14 @@
   "name": "CIS Microsoft 365 Foundations (subset)",
   "tags": ["cis", "microsoft-365", "hardening"],
   "description": {
-    "no": "Et ærlig utsnitt av CIS Microsoft 365 Foundations Benchmark — bare kontrollene denne auditen leser som strukturerte målinger: MFA, Conditional Access, eldre autentisering, antall globale administratorer, Secure Score, ekstern deling og enhetsetterlevelse. Kontroller som bare finnes som fritekst i innsamlingen (samtykkeflyt, postboksrevisjon, samlet revisjonslogg, Teams eksterntilgang, DKIM/DMARC per domene) er utelatt her og dekkes i stedet av samsvarskartet i rapporten. Dette er ikke en fullstendig CIS-vurdering.",
+    "no": "Et ærlig utsnitt av CIS Microsoft 365 Foundations Benchmark. Det tar bare med kontrollene denne auditen leser som strukturerte målinger: MFA, Conditional Access, eldre autentisering, antall globale administratorer, Secure Score, ekstern deling og enhetsetterlevelse. Kontroller som bare finnes som fritekst i innsamlingen (samtykkeflyt, postboksrevisjon, samlet revisjonslogg, Teams eksterntilgang, DKIM/DMARC per domene) er utelatt her og dekkes i stedet av samsvarskartet i rapporten. Dette er ikke en fullstendig CIS-vurdering.",
     "en": "An honest subset of the CIS Microsoft 365 Foundations Benchmark — only the controls this audit reads as structured measurements: MFA, Conditional Access, legacy authentication, global-administrator count, Secure Score, external sharing and device compliance. Controls that exist only as free text in the collection (consent workflow, mailbox auditing, the unified audit log, Teams external access, per-domain DKIM/DMARC) are left out here and are covered instead by the report's compliance map. This is not a full CIS assessment."
   },
   "checks": [
     {
       "id": "cis-1-1-1-mfa-all-users",
       "title": {
-        "no": "CIS 1.1.1 — Ingen bruker står helt uten MFA",
+        "no": "CIS 1.1.1: Ingen bruker står helt uten MFA",
         "en": "CIS 1.1.1 — No user is left without MFA"
       },
       "why": {
@@ -31,7 +31,7 @@
         "en": "At least 95% of users have registered MFA"
       },
       "why": {
-        "no": "En policy som krever MFA hjelper lite for en bruker som aldri har registrert en metode — vedkommende møter en registreringsprompt i stedet for reell beskyttelse.",
+        "no": "En policy som krever MFA hjelper lite for en bruker som aldri har registrert en metode. Vedkommende møter en registreringsprompt i stedet for reell beskyttelse.",
         "en": "A policy requiring MFA helps little for a user who has never registered a method — they meet a registration prompt rather than real protection."
       },
       "path": "mfa.registered_pct",
@@ -43,7 +43,7 @@
     {
       "id": "cis-1-1-3-global-admins",
       "title": {
-        "no": "CIS 1.1.3 — Færre enn fem globale administratorer",
+        "no": "CIS 1.1.3: Færre enn fem globale administratorer",
         "en": "CIS 1.1.3 — Fewer than five global administrators"
       },
       "why": {
@@ -59,7 +59,7 @@
     {
       "id": "cis-1-1-4-ca-configured",
       "title": {
-        "no": "CIS 1.1.4 — Conditional Access er konfigurert",
+        "no": "CIS 1.1.4: Conditional Access er konfigurert",
         "en": "CIS 1.1.4 — Conditional Access is configured"
       },
       "why": {
@@ -75,7 +75,7 @@
     {
       "id": "cis-5-1-1-legacy-auth-entra",
       "title": {
-        "no": "CIS 5.1.1 — Eldre autentisering er blokkert",
+        "no": "CIS 5.1.1: Eldre autentisering er blokkert",
         "en": "CIS 5.1.1 — Legacy authentication is blocked"
       },
       "why": {
@@ -90,7 +90,7 @@
     {
       "id": "cis-7-2-3-legacy-auth-sharepoint",
       "title": {
-        "no": "CIS 7.2.3 — Eldre autentisering er avslått i SharePoint",
+        "no": "CIS 7.2.3: Eldre autentisering er avslått i SharePoint",
         "en": "CIS 7.2.3 — Legacy authentication is disabled in SharePoint"
       },
       "why": {
@@ -105,7 +105,7 @@
     {
       "id": "cis-1-4-secure-score",
       "title": {
-        "no": "CIS 1.4 — Microsoft Secure Score over 75 %",
+        "no": "CIS 1.4: Microsoft Secure Score over 75 %",
         "en": "CIS 1.4 — Microsoft Secure Score above 75%"
       },
       "why": {
@@ -121,7 +121,7 @@
     {
       "id": "cis-7-2-1-external-sharing",
       "title": {
-        "no": "CIS 7.2.1 — Ekstern deling i SharePoint er begrenset",
+        "no": "CIS 7.2.1: Ekstern deling i SharePoint er begrenset",
         "en": "CIS 7.2.1 — SharePoint external sharing is restricted"
       },
       "why": {
@@ -137,7 +137,7 @@
     {
       "id": "cis-6-1-device-compliance",
       "title": {
-        "no": "CIS 6 — Minst 90 % av enhetene er etterlevende",
+        "no": "CIS 6: Minst 90 % av enhetene er etterlevende",
         "en": "CIS 6 — At least 90% of devices are compliant"
       },
       "why": {
