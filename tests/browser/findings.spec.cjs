@@ -23,12 +23,26 @@ async function betaId(page) {
 // Rewrite the findings answer so an integration reads as set up and/or linked.
 async function routeIntegrations(page, integrations) {
   await page.route(url => /\/api\/hub\/[^/]+\/findings$/.test(new URL(url).pathname), async route => {
-    const response = await route.fetch();
+    let response;
+    try {
+      response = await route.fetch();
+    } catch (e) {
+      // The page re-reads the findings after a link or a decision, and on a
+      // slow runner that read can outlive its test. The rejection then
+      // surfaced in whichever test the worker ran next, failing one that
+      // never routed anything.
+      if (/Test ended|Target page, context or browser has been closed/.test(String(e))) return;
+      throw e;
+    }
     const body = await response.json();
     Object.assign(body.integrations, integrations);
     await route.fulfill({response, json: body});
   });
 }
+
+test.afterEach(async ({page}) => {
+  await page.unrouteAll({behavior: 'ignoreErrors'});
+});
 
 test('the customer page puts the findings first, worst first, for the customer it names', async ({page}) => {
   await login(page);
@@ -103,7 +117,6 @@ test('a configured but unlinked PSA offers one way to link, and the picker sugge
   expect(record.autotask.status).not.toBe('not_linked');
   // Undo through the same picker, so the shared fixture is unchanged.
   await page.request.post('/api/hub/' + encodeURIComponent(id) + '/link', {data: {autotask_account_id: null}});
-  await page.unrouteAll({behavior: 'ignoreErrors'});
 });
 
 test('the picker closes on Escape without saving', async ({page}) => {
