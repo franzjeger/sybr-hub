@@ -233,7 +233,7 @@ export async function uploadReportsToITGlue(btn, customerId) {
     var html = '';
 
     // Step 1: File picker
-    html += '<div class="fw-semibold text-ui mb-2">' + t('hdr_select_reports') + '</div>';
+    html += '<div class="subhead">' + t('hdr_select_reports') + '</div>';
     html += '<div class="flex gap-2 items-center mb-2">';
     html += '<label class="text-sm cursor-pointer"><input type="checkbox" id="itglue-upload-select-all" data-change-handler="itglueUploadSelectAll" checked> ' + t('btn_select_all') + '</label>';
     html += '</div>';
@@ -250,7 +250,7 @@ export async function uploadReportsToITGlue(btn, customerId) {
     html += '</div>';
 
     // Step 2: Org picker
-    html += '<div class="fw-semibold text-ui mb-2">' + t('hdr_select_org') + '</div>';
+    html += '<div class="subhead">' + t('hdr_select_org') + '</div>';
     html += '<input type="text" id="itglue-upload-org-search" class="field-input mb-2 py-2 px-3 text-sm" placeholder="' + t('lbl_search_org') + '" data-input-handler="filterITGlueUploadOrgs">';
     html += '<div class="max-h-sm overflow-y-auto border rounded">';
     for (let i = 0; i < orgs.length; i++) {
@@ -978,7 +978,7 @@ export function startBulkAudit() {
     '<div class="bar mb-4">' +
     '<div id="bulk-customer-bar" class="bar-fill"></div></div>' +
     '<div id="bulk-results-table" style="display:none;">' +
-    '<div class="fw-semibold text-ui mb-2">' + t('resultater') + '</div>' +
+    '<div class="subhead">' + t('resultater') + '</div>' +
     '<table class="data-table">' +
     '<thead><tr>' +
     '<th>' + t('kunde') + '</th>' +

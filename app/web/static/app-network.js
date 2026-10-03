@@ -395,7 +395,7 @@ export async function runNetworkQuickAudit() {
         html += '</div>';
 
         // Admin table
-        html += '<div class="fw-semibold text-ui mb-2">' + t('admin_kontoer') + '</div>';
+        html += '<div class="subhead">' + t('admin_kontoer') + '</div>';
         html += '<table class="section-table w-full mb-3"><thead><tr><th>' + t('navn') + '</th><th>' + t('profil') + '</th><th>' + t('trusted_host') + '</th><th>' + t('fa') + '</th></tr></thead><tbody>';
         for (var a of fg.admins) {
           var thColor = a.trusthost ? 'var(--green)' : 'var(--red)';
@@ -556,7 +556,7 @@ export async function runNetworkQuickAudit() {
           html += '</div>';
 
           // Device table
-          html += '<div class="fw-semibold text-ui mb-2">' + t('lbl_devices_count','Devices') + '</div>';
+          html += '<div class="subhead">' + t('lbl_devices_count','Devices') + '</div>';
           html += '<table class="section-table w-full mb-3"><thead><tr><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('lbl_model','Model') + '</th><th>' + t('firmware') + '</th><th>' + t('lbl_upgrade','Upgrade') + '</th><th>' + t('lbl_clients','Clients') + '</th><th>' + t('status') + '</th></tr></thead><tbody>';
           for (const dev of uf.devices) {
             var statusColor = dev.status === 'online' ? 'var(--green)' : 'var(--red)';
@@ -571,7 +571,7 @@ export async function runNetworkQuickAudit() {
 
           // WLAN table
           if (uf.wlans && uf.wlans.length > 0) {
-            html += '<div class="fw-semibold text-ui mb-2">' + t('lbl_wireless_networks','Wireless networks') + '</div>';
+            html += '<div class="subhead">' + t('lbl_wireless_networks','Wireless networks') + '</div>';
             html += '<table class="section-table w-full"><thead><tr><th>SSID</th><th>' + t('lbl_security','Security') + '</th><th>' + t('lbl_guest','Guest') + '</th><th>' + t('lbl_active','Active') + '</th></tr></thead><tbody>';
             for (const w of uf.wlans) {
               var secColor = w.security === 'open' ? 'var(--red)' : 'var(--green)';

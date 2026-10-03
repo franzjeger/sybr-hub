@@ -558,7 +558,7 @@ async function sshViewKey(keyId) {
 
   // Show deployments
   if (data.deployments && data.deployments.length) {
-    html += '<div class="mt-4"><div class="text-ui fw-semibold mb-2">' + t('lbl_deployed_to','Deployed to') + ' ('+data.deployments.length+' ' + t('lbl_hosts','hosts') + ')</div>';
+    html += '<div class="mt-4"><div class="subhead">' + t('lbl_deployed_to','Deployed to') + ' ('+data.deployments.length+' ' + t('lbl_hosts','hosts') + ')</div>';
     data.deployments.forEach(function(d) {
       html += '<div class="text-sm text-muted py-1 px-0">' + t('lbl_host','Host') + ': '+esc(d.host_id.slice(0,8))+'... · '+esc(d.deployed_at.slice(0,10))+'</div>';
     });
@@ -1576,7 +1576,7 @@ function liveShowDeviceDetail(idx) {
     // Interfaces
     if (ex.interfaces && ex.interfaces.length) {
       html += '<div class="card p-4 mt-3">';
-      html += '<div class="text-ui fw-semibold mb-2">Grensesnitt ('+ex.interfaces.length+')</div>';
+      html += '<div class="subhead">Grensesnitt ('+ex.interfaces.length+')</div>';
       html += '<table class="data-table"><thead><tr><th>' + t('navn_2') + '</th><th>IP</th><th>' + t('link') + '</th><th>' + t('hastighet') + '</th></tr></thead><tbody>';
       ex.interfaces.forEach(function(i) {
         if (!i.ip || i.ip === '0.0.0.0') return;
@@ -1588,7 +1588,7 @@ function liveShowDeviceDetail(idx) {
     // VPN tunnels
     if (ex.vpn_tunnels && ex.vpn_tunnels.length) {
       html += '<div class="card p-4 mt-3">';
-      html += '<div class="text-ui fw-semibold mb-2">VPN-tunneler ('+ex.vpn_tunnels.length+')</div>';
+      html += '<div class="subhead">VPN-tunneler ('+ex.vpn_tunnels.length+')</div>';
       ex.vpn_tunnels.forEach(function(v) {
         html += '<div class="flex items-center gap-2 py-1 px-0 text-sm border-b">';
         html += '<strong>'+esc(v.name)+'</strong>';
@@ -1601,7 +1601,7 @@ function liveShowDeviceDetail(idx) {
     // Policies
     if (ex.policies && ex.policies.length) {
       html += '<div class="card p-4 mt-3">';
-      html += '<div class="text-ui fw-semibold mb-2">' + t('lbl_firewall_rules','Firewall rules') + ' ('+ex.policies.length+')</div>';
+      html += '<div class="subhead">' + t('lbl_firewall_rules','Firewall rules') + ' ('+ex.policies.length+')</div>';
       html += '<table class="data-table data-table--compact"><thead><tr><th>#</th><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_source','Source') + '</th><th>' + t('lbl_destination','Destination') + '</th><th>' + t('lbl_service','Service') + '</th><th>' + t('lbl_log','Log') + '</th></tr></thead><tbody>';
       ex.policies.forEach(function(p) {
         html += '<tr>';
@@ -1621,14 +1621,14 @@ function liveShowDeviceDetail(idx) {
 
     // DHCP
     if (ex.dhcp && ex.dhcp.length) {
-      html += '<div class="card p-3"><div class="text-sm fw-semibold mb-2">DHCP ('+ex.dhcp.length+')</div>';
+      html += '<div class="card p-3"><div class="subhead">DHCP ('+ex.dhcp.length+')</div>';
       ex.dhcp.forEach(function(d2) { html += '<div class="text-xs text-muted py-0-5 px-0"><strong>'+esc(d2.interface)+'</strong>: '+esc(d2.range)+'</div>'; });
       html += '</div>';
     }
 
     // DNS
     if (ex.dns && ex.dns.primary) {
-      html += '<div class="card p-3"><div class="text-sm fw-semibold mb-2">DNS</div>';
+      html += '<div class="card p-3"><div class="subhead">DNS</div>';
       html += '<div class="text-xs text-muted">' + t('lbl_primary','Primary') + ': <strong>'+esc(ex.dns.primary)+'</strong></div>';
       if (ex.dns.secondary) html += '<div class="text-xs text-muted">' + t('lbl_secondary','Secondary') + ': '+esc(ex.dns.secondary)+'</div>';
       html += '</div>';
@@ -1636,7 +1636,7 @@ function liveShowDeviceDetail(idx) {
 
     // Admins
     if (ex.admins && ex.admins.length) {
-      html += '<div class="card p-3"><div class="text-sm fw-semibold mb-2">Admin-kontoer ('+ex.admins.length+')</div>';
+      html += '<div class="card p-3"><div class="subhead">Admin-kontoer ('+ex.admins.length+')</div>';
       ex.admins.forEach(function(a) {
         var warns = [];
         if (!a.two_factor) warns.push('<span class="text-warning">' + t('ingen_fa') + '</span>');
@@ -2201,7 +2201,7 @@ function _renderConfigSummary(s) {
 
   // VLANs
   if (s.vlans && s.vlans.length) {
-    html += '<div class="text-ui fw-semibold mb-2">VLANs</div>';
+    html += '<div class="subhead">VLANs</div>';
     html += '<table class="data-table mb-4">';
     html += '<thead><tr class="text-left"><th>ID</th><th>' + t('navn_3') + '</th><th>' + t('interface') + '</th><th>' + t('subnet') + '</th><th>' + t('gateway_2') + '</th><th>DHCP</th></tr></thead><tbody>';
     s.vlans.forEach(function(v) {
@@ -2219,7 +2219,7 @@ function _renderConfigSummary(s) {
 
   // VPN
   if (s.vpn) {
-    html += '<div class="text-ui fw-semibold mb-2">IPsec VPN · ' + esc(s.vpn.name || '') + '</div>';
+    html += '<div class="subhead">IPsec VPN · ' + esc(s.vpn.name || '') + '</div>';
     html += '<div class="inset grid grid-cols-2 gap-2 text-sm mb-4">';
     html += '<div><strong>' + t('type_3') + '</strong> ' + esc(s.vpn.type) + '</div>';
     html += '<div><strong>' + t('wan') + '</strong> ' + esc(s.vpn.wan_interface) + '</div>';
@@ -2238,7 +2238,7 @@ function _renderConfigSummary(s) {
 
   // Security
   if (s.security_profiles) {
-    html += '<div class="text-ui fw-semibold mb-2">' + t('sikkerhetsprofiler') + '</div>';
+    html += '<div class="subhead">' + t('sikkerhetsprofiler') + '</div>';
     html += '<div class="flex gap-2 flex-wrap mb-4">';
     var sp = s.security_profiles;
     for (var k in sp) {
@@ -2457,7 +2457,7 @@ function dashFgDetail(customerId) {
     // Threats
     if (threats && threats.summary) {
       var s = threats.summary;
-      h += '<div class="text-ui fw-semibold mb-2">'+t('hdr_threats','Threats')+' ('+t('lbl_last_7d','Last 7 days')+')</div>';
+      h += '<div class="subhead">'+t('hdr_threats','Threats')+' ('+t('lbl_last_7d','Last 7 days')+')</div>';
       h += '<div class="flex gap-2 mb-3 flex-wrap">';
       if (s.critical) h += '<span class="badge badge-danger">'+Number(s.critical)+' Critical</span>';
       if (s.high) h += '<span class="badge badge-warning">'+Number(s.high)+' High</span>';
@@ -2502,7 +2502,7 @@ function dashFgDetail(customerId) {
     // ── Live device data: interfaces, VPN, DHCP, DNS, admins ──
     if (dev) {
       h += '<div class="mt-4 border-t pt-3">';
-      h += '<div class="text-ui fw-semibold mb-2">' + t('live_data') + '</div>';
+      h += '<div class="subhead">' + t('live_data') + '</div>';
 
       // KPI row
       var liveKpis = [];
@@ -2518,7 +2518,7 @@ function dashFgDetail(customerId) {
 
       // Interfaces
       if (ex.interfaces && ex.interfaces.length) {
-        h += '<div class="text-sm fw-semibold mt-3 mb-2">Grensesnitt ('+ex.interfaces.length+')</div>';
+        h += '<div class="subhead mt-3">Grensesnitt ('+ex.interfaces.length+')</div>';
         h += '<table class="data-table data-table--compact"><thead><tr><th>' + t('navn_3') + '</th><th>' + t('type_3') + '</th><th>IP</th><th>' + t('link') + '</th><th>' + t('hastighet') + '</th></tr></thead><tbody>';
         ex.interfaces.forEach(function(iface) {
           if (!iface.ip || iface.ip === '0.0.0.0') return;
@@ -2530,7 +2530,7 @@ function dashFgDetail(customerId) {
 
       // VPN tunnels
       if (ex.vpn_tunnels && ex.vpn_tunnels.length) {
-        h += '<div class="text-sm fw-semibold mt-3 mb-2">VPN-tunneler ('+ex.vpn_tunnels.length+')</div>';
+        h += '<div class="subhead mt-3">VPN-tunneler ('+ex.vpn_tunnels.length+')</div>';
         h += '<table class="data-table data-table--compact"><thead><tr><th>' + t('navn_3') + '</th><th>' + t('remote_gw') + '</th><th>' + t('status_3') + '</th></tr></thead><tbody>';
         ex.vpn_tunnels.forEach(function(v) {
           var vpnColor = v.status === 'up' ? 'var(--green)' : 'var(--red)';
@@ -2541,7 +2541,7 @@ function dashFgDetail(customerId) {
 
       // SSL VPN active users
       if (ex.ssl_vpn_users && ex.ssl_vpn_users.length) {
-        h += '<div class="text-sm fw-semibold mt-3 mb-2">' + t('inf_ssl_vpn_users','SSL VPN-brukere') + ' ('+ex.ssl_vpn_users.length+' aktive)</div>';
+        h += '<div class="subhead mt-3">' + t('inf_ssl_vpn_users','SSL VPN-brukere') + ' ('+ex.ssl_vpn_users.length+' aktive)</div>';
         h += '<table class="data-table data-table--compact"><thead><tr><th>' + t('bruker') + '</th><th>' + t('remote_ip') + '</th><th>' + t('tunnel_ip') + '</th><th>' + t('varighet') + '</th></tr></thead><tbody>';
         ex.ssl_vpn_users.forEach(function(u) {
           var dur = u.duration > 3600 ? Math.floor(u.duration/3600)+'t '+Math.floor((u.duration%3600)/60)+'m' : Math.floor(u.duration/60)+'m';
@@ -2556,7 +2556,7 @@ function dashFgDetail(customerId) {
         var noProfile = ex.policies.filter(function(p){return p.action==='accept'&&(!p.profiles||!p.profiles.length)&&p.enabled!==false;});
         var segmentDeny = ex.policies.filter(function(p){return p.action==='deny'&&p.enabled!==false;});
         var acceptRules = ex.policies.filter(function(p){return p.action==='accept'&&p.enabled!==false;});
-        h += '<div class="text-sm fw-semibold mt-3 mb-2">Brannmurregler ('+ex.policies.length+')';
+        h += '<div class="subhead mt-3">Brannmurregler ('+ex.policies.length+')';
         if (segmentDeny.length) h += ' <span class="text-success fw-normal">— '+segmentDeny.length+' segmentering (deny)</span>';
         h += ' <span class="text-muted fw-normal">— '+acceptRules.length+' accept</span>';
         if (badPolicies.length) h += ' <span class="text-danger fw-normal">— '+badPolicies.length+' accept any/any/any</span>';
@@ -2591,7 +2591,7 @@ function dashFgDetail(customerId) {
 
       // Static routes
       if (ex.static_routes && ex.static_routes.length) {
-        h += '<div class="text-sm fw-semibold mt-3 mb-2">Statiske ruter ('+ex.static_routes.length+')</div>';
+        h += '<div class="subhead mt-3">Statiske ruter ('+ex.static_routes.length+')</div>';
         h += '<table class="data-table data-table--compact"><thead><tr><th>' + t('destinasjon') + '</th><th>' + t('gateway_2') + '</th><th>' + t('interface') + '</th><th>' + t('distanse') + '</th></tr></thead><tbody>';
         ex.static_routes.forEach(function(r) {
           h += '<tr><td class="font-mono text-2xs">'+esc(r.dst)+'</td><td class="font-mono text-2xs">'+esc(r.gateway)+'</td><td>'+esc(r.device)+'</td><td>'+esc(String(r.distance))+'</td></tr>';
@@ -2601,7 +2601,7 @@ function dashFgDetail(customerId) {
 
       // SD-WAN status
       if (ex.sdwan && ex.sdwan.members && ex.sdwan.members.length) {
-        h += '<div class="text-sm fw-semibold mt-3 mb-2">SD-WAN</div>';
+        h += '<div class="subhead mt-3">SD-WAN</div>';
         h += '<table class="data-table data-table--compact"><thead><tr><th>' + t('interface') + '</th><th>' + t('status_3') + '</th><th>' + t('latency') + '</th><th>' + t('jitter') + '</th><th>' + t('pakketap') + '</th></tr></thead><tbody>';
         ex.sdwan.members.forEach(function(m) {
           var sColor = m.status==='up'||m.status==='alive' ? 'var(--green)' : 'var(--red)';
@@ -3115,7 +3115,7 @@ function dashUnifiDetail(idx) {
 
   // ── Sub-sites table ──
   if (d.sub_sites && d.sub_sites.length) {
-    h += '<div class="text-ui fw-semibold mb-2">Sites ('+d.sub_sites.length+')</div>';
+    h += '<div class="subhead">Sites ('+d.sub_sites.length+')</div>';
     h += '<div class="overflow-x-auto">';
     h += '<table class="data-table table-wide">';
     h += '<thead><tr class="text-xs">';
@@ -3226,7 +3226,7 @@ async function _loadUnifiDevices(panelId, hostId) {
 
   var devs = data.devices;
 
-  var h = '<div class="text-ui fw-semibold mb-2">' + t('inf_devices','Enheter') + ' ('+devs.length+')</div>';
+  var h = '<div class="subhead">' + t('inf_devices','Enheter') + ' ('+devs.length+')</div>';
   h += '<div class="overflow-x-auto"><table class="data-table table-wide">';
   h += '<thead><tr class="text-xs">';
   h += '<th>' + t('enhet') + '</th>';
@@ -3351,7 +3351,7 @@ async function _loadUnifiIspMetrics(panelId, hostId, subSites) {
   var data = data24h || data7d;
   if (!data || !data.ok || !data.sites || !data.sites.length) { el.innerHTML = ''; return; }
 
-  var h = '<div class="text-ui fw-semibold mb-2">' + t('isp_ytelse') + '</div>';
+  var h = '<div class="subhead">' + t('isp_ytelse') + '</div>';
   h += '<div class="grid grid-auto-lg gap-3">';
 
   // Build lookup from 7d data for averages
@@ -3396,7 +3396,7 @@ async function _loadUnifiIspMetrics(panelId, hostId, subSites) {
     }
 
     h += '<div class="p-3 bg-input rounded">';
-    h += '<div class="text-sm fw-semibold mb-2">'+esc(s.isp || t('lbl_unknown_isp','Ukjent ISP'))+'</div>';
+    h += '<div class="subhead">'+esc(s.isp || t('lbl_unknown_isp','Ukjent ISP'))+'</div>';
     if (!s.has_readings) {
       h += '<div class="text-sm text-dim">' + t('msg_no_isp_readings','Ingen ISP-målinger for denne siten.') + '</div>';
       h += '</div>';
@@ -3436,14 +3436,14 @@ async function _loadUnifiWan(panelId, subSites) {
   results = results.filter(function(r) { return r && r.data && r.data.ok; });
   if (!results.length) { el.innerHTML = ''; return; }
 
-  var h = '<div class="text-ui fw-semibold mb-2">' + t('wan_gateway_sikkerhet') + '</div>';
+  var h = '<div class="subhead">' + t('wan_gateway_sikkerhet') + '</div>';
   h += '<div class="grid grid-auto-lg gap-3">';
 
   results.forEach(function(r) {
     var gw = r.data.gateway || {};
     var wans = r.data.wans || [];
     h += '<div class="p-3 bg-input rounded">';
-    h += '<div class="text-sm fw-semibold mb-2">'+esc(r.site)+'</div>';
+    h += '<div class="subhead">'+esc(r.site)+'</div>';
     // Gateway security
     if (gw.model) {
       h += '<div class="text-sm mb-2">';
@@ -3564,7 +3564,7 @@ function _renderPentestResults(data, el, target) {
 
   // Network info
   if (data.network && data.network.hosts) {
-    html += '<div class="card p-3 mb-3"><div class="text-sm fw-semibold mb-2">' + t('nettverksskanning') + '</div>';
+    html += '<div class="card p-3 mb-3"><div class="subhead">' + t('nettverksskanning') + '</div>';
     html += '<div class="text-xs text-muted">'+Number(data.network.host_count)+' ' + t('msg_hosts_found') + ', '+Number(data.network.total_open_ports)+' ' + t('msg_open_ports') + '</div>';
     data.network.hosts.forEach(function(h) {
       html += '<div class="mt-2 text-sm"><strong>'+esc(h.hostname||h.ip)+'</strong> ('+Number(h.port_count)+' porter)'+(h.os?' · '+esc(h.os):'')+'</div>';
@@ -3582,14 +3582,14 @@ function _renderPentestResults(data, el, target) {
   // Web info
   if (data.web && data.web.info) {
     var wi = data.web.info;
-    html += '<div class="card p-3 mb-3"><div class="text-sm fw-semibold mb-2">' + t('websjekk') + '</div>';
+    html += '<div class="card p-3 mb-3"><div class="subhead">' + t('websjekk') + '</div>';
     html += '<div class="text-xs text-muted">Status: '+Number(wi.status_code)+' | Server: '+esc(wi.server||'-')+' | URL: '+esc(wi.final_url||wi.url)+'</div>';
     html += '</div>';
   }
 
   // Findings table
   if (findings.length) {
-    html += '<div class="text-ui fw-semibold mb-2">Funn ('+findings.length+')</div>';
+    html += '<div class="subhead">Funn ('+findings.length+')</div>';
     html += '<div class="overflow-x-auto"><table class="data-table data-table--compact"><thead><tr><th class="text-center col-status-sm">' + t('alvor') + '</th><th>' + t('funn') + '</th><th>' + t('detalj') + '</th><th>' + t('remediation') + '</th><th class="col-actions"></th></tr></thead><tbody>';
     findings.forEach(function(f, i) {
       var sc = sevColors[f.severity] || 'var(--text-muted)';
@@ -3724,7 +3724,7 @@ export async function runDnsPentest() {
   // Email security
   if (data.email_security) {
     var es = data.email_security;
-    html += '<div class="card p-3 mb-3"><div class="text-sm fw-semibold mb-2">'+esc(t('pentest_dns_email_grade','E-postsikkerhet (karakter: {grade})').replace('{grade}', es.grade||'?'))+'</div>';
+    html += '<div class="card p-3 mb-3"><div class="subhead">'+esc(t('pentest_dns_email_grade','E-postsikkerhet (karakter: {grade})').replace('{grade}', es.grade||'?'))+'</div>';
     html += '<div class="grid grid-cols-4 gap-2 text-xs">';
     ['spf','dkim','dmarc','mx'].forEach(function(k) {
       var c = es[k]||{};
@@ -3736,7 +3736,7 @@ export async function runDnsPentest() {
 
   // Subdomains
   if (subs.length) {
-    html += '<div class="card p-3 mb-3"><div class="text-sm fw-semibold mb-2">'+esc(t('pentest_dns_subdomains','Oppdagede subdomener ({count})').replace('{count}', String(subs.length)))+'</div>';
+    html += '<div class="card p-3 mb-3"><div class="subhead">'+esc(t('pentest_dns_subdomains','Oppdagede subdomener ({count})').replace('{count}', String(subs.length)))+'</div>';
     html += '<div class="flex flex-wrap gap-1">';
     subs.forEach(function(s) { html += '<span class="bg-base py-0-5 px-2 rounded-sm text-2xs font-mono">'+esc(s.subdomain)+' → '+esc(s.ips[0]||'')+'</span>'; });
     html += '</div></div>';
@@ -3864,7 +3864,7 @@ export async function runTlsAudit() {
   var cert = data.certificate || {};
   var cipher = data.cipher || {};
   var topHtml = '<div class="card mb-3 p-4">'
-    + '<div class="text-ui fw-semibold mb-2">' + esc(t('pentest_tls_status_header','TLS status')) + ' · ' + esc(host) + ':' + port + '</div>'
+    + '<div class="subhead">' + esc(t('pentest_tls_status_header','TLS status')) + ' · ' + esc(host) + ':' + port + '</div>'
     + '<div class="mb-3">'
     + pill('TLS 1.0', !!p['TLSv1.0'], false)
     + pill('TLS 1.1', !!p['TLSv1.1'], false)
@@ -4284,7 +4284,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
 
   // Enheter-boks
   html += '<div class="card p-4">';
-  html += '<div class="text-ui fw-semibold mb-2">' + t('enheter') + '</div>';
+  html += '<div class="subhead">' + t('enheter') + '</div>';
   html += '<table class="w-full text-sm">';
   html += '<tr class="border-b"><td class="p-2 text-muted">' + t('wifi_ap_er') + '</td><td class="p-2 text-right">'+(Number(s.wifi_devices)||0)+'</td></tr>';
   html += '<tr class="border-b"><td class="p-2 text-muted">' + t('svitsjer_kabel') + '</td><td class="p-2 text-right">'+(Number(s.wired_devices)||0)+'</td></tr>';
@@ -4294,7 +4294,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
 
   // Klienter-boks
   html += '<div class="card p-4">';
-  html += '<div class="text-ui fw-semibold mb-2">' + t('lbl_clients','Clients') + '</div>';
+  html += '<div class="subhead">' + t('lbl_clients','Clients') + '</div>';
   html += '<table class="w-full text-sm">';
   html += '<tr class="border-b"><td class="p-2 text-muted">' + t('lbl_wireless','Wireless') + '</td><td class="p-2 text-right">'+(Number(s.wifi_clients)||0)+'</td></tr>';
   html += '<tr class="border-b"><td class="p-2 text-muted">' + t('lbl_wired','Wired') + '</td><td class="p-2 text-right">'+(Number(s.wired_clients)||0)+'</td></tr>';
@@ -4306,7 +4306,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
 
   // Status & helsetabell
   html += '<div class="card p-4">';
-  html += '<div class="text-ui fw-semibold mb-3">' + t('status_3') + '</div>';
+  html += '<div class="subhead mb-3">' + t('status_3') + '</div>';
   html += '<table class="w-full text-ui">';
   var rows = [];
 
@@ -4373,7 +4373,7 @@ function showSubSiteDetail(hostIdx, subIdx) {
     var devEl = document.getElementById('subsite-devices');
     if (devEl && s.device_count > 0) {
       var dhtml = '<div class="card p-4">';
-      dhtml += '<div class="text-ui fw-semibold mb-3">' + t('inf_devices','Enheter') + ' ('+Number(s.device_count)+')</div>';
+      dhtml += '<div class="subhead mb-3">' + t('inf_devices','Enheter') + ' ('+Number(s.device_count)+')</div>';
       dhtml += '<div class="grid grid-auto-sm gap-2">';
       var types = [
         {label:'WiFi AP', count:Number(s.wifi_devices)||0, icon:''},
@@ -4434,7 +4434,7 @@ async function _loadSubSiteLiveData(siteName) {
   }
 
   var cid = matched.customer_id || matched._id;
-  el.innerHTML = '<div class="card p-4 edge-accent"><div class="text-ui fw-semibold mb-2">'+t('hdr_live_data','Live data')+' · '+esc(matched.customer_name)+'</div><div class="loader"></div></div>';
+  el.innerHTML = '<div class="card p-4 edge-accent"><div class="subhead">'+t('hdr_live_data','Live data')+' · '+esc(matched.customer_name)+'</div><div class="loader"></div></div>';
 
   // Fetch clients and WiFi health in parallel
   var results = await Promise.all([
@@ -4445,12 +4445,12 @@ async function _loadSubSiteLiveData(siteName) {
   var wifiData = results[1];
 
   var h = '<div class="card p-4 edge-accent">';
-  h += '<div class="text-ui fw-semibold mb-3">'+t('hdr_live_data','Live data')+' · '+esc(matched.customer_name)+'</div>';
+  h += '<div class="subhead mb-3">'+t('hdr_live_data','Live data')+' · '+esc(matched.customer_name)+'</div>';
 
   // Clients
   if (clientData && clientData.clients && clientData.clients.length) {
     var clients = clientData.clients;
-    h += '<div class="text-sm fw-semibold mb-2">'+t('hdr_connected_clients','Connected clients')+' ('+clients.length+': '+(Number(clientData.wireless)||0)+' '+t('lbl_wireless_short','wireless')+', '+(Number(clientData.wired)||0)+' '+t('lbl_wired_short','wired')+')</div>';
+    h += '<div class="subhead">'+t('hdr_connected_clients','Connected clients')+' ('+clients.length+': '+(Number(clientData.wireless)||0)+' '+t('lbl_wireless_short','wireless')+', '+(Number(clientData.wired)||0)+' '+t('lbl_wired_short','wired')+')</div>';
     h += '<div class="max-h-md overflow-y-auto"><table class="data-table data-table--compact">';
     h += '<thead class="sticky-thead"><tr><th>'+t('col_hostname','Hostname')+'</th><th>IP</th><th class="text-center">'+t('col_type','Type')+'</th><th class="text-center">'+t('col_signal','Signal')+'</th><th>'+t('col_connected_to','Connected to')+'</th></tr></thead><tbody>';
     clients.slice(0, 50).forEach(function(c) {
@@ -4470,7 +4470,7 @@ async function _loadSubSiteLiveData(siteName) {
 
   // WiFi health
   if (wifiData && wifiData.aps && wifiData.aps.length) {
-    h += '<div class="text-sm fw-semibold mt-3 mb-2">'+t('hdr_wifi_health','WiFi Health')+'</div>';
+    h += '<div class="subhead mt-3">'+t('hdr_wifi_health','WiFi Health')+'</div>';
     if (wifiData.alerts && wifiData.alerts.length) {
       wifiData.alerts.forEach(function(a) {
         var ac = a.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
@@ -4545,7 +4545,7 @@ async function _loadSubSiteWan(site) {
   // WAN interfaces
   if (data.wans && data.wans.length) {
     html += '<div class="card p-4 mb-3">';
-    html += '<div class="text-ui fw-semibold mb-3">' + t('wan_grensesnitt') + '</div>';
+    html += '<div class="subhead mb-3">' + t('wan_grensesnitt') + '</div>';
     html += '<div class="grid grid-auto-md gap-3">';
     data.wans.forEach(function(w) {
       var uptimeColor = w.uptime_pct >= 99 ? 'var(--green)' : w.uptime_pct >= 95 ? 'var(--orange)' : 'var(--red)';
@@ -4565,7 +4565,7 @@ async function _loadSubSiteWan(site) {
   if (data.gateway && data.gateway.model) {
     var gw = data.gateway;
     html += '<div class="card p-4">';
-    html += '<div class="text-ui fw-semibold mb-3">' + t('gateway_sikkerhet') + '</div>';
+    html += '<div class="subhead mb-3">' + t('gateway_sikkerhet') + '</div>';
     html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted">';
     html += '<span>' + t('modell') + ' <strong class="text-default">'+esc(gw.model)+'</strong></span>';
     var idsColor = gw.ids_mode === 'ids' || gw.ids_mode === 'ips' ? 'var(--green)' : 'var(--orange)';

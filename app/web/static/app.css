@@ -41,7 +41,6 @@
     --blue-btn:  #1d6387;
     --blue-dark: #1d63871a;
     --green:     #3fb950;
-    --green-btn: #196127;
     --orange:    #d29922;
     --red:       #f85149;
     --red-btn:   #da3633;
@@ -151,7 +150,6 @@
     --blue-btn:  #1f6183;
     --blue-dark: #1d63871a;
     --green:     #1a7f37;
-    --green-btn: #196127;
     --orange:    #9a6700;
     --red:       #d1242f;
     --red-btn:   #cf222e;
@@ -696,9 +694,6 @@
   .cd-cols { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
   .cd-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .cd-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
-  .cd-card-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .cd-card-title .sub { font-size: 11px; color: var(--text-dim); font-weight: 400; }
-  .cd-card-title .link { margin-left: auto; font-size: 11px; color: var(--blue); cursor: pointer; }
   .cd-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .cd-stat { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; text-align: center; }
   .cd-stat .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -825,13 +820,16 @@
   :where([style*="display:grid"], .grid, .card-grid) > :where(.card + .card) { margin-top: 0; }
   .card-clickable { cursor: pointer; }
   .card-clickable:hover { border-color: var(--blue); box-shadow: var(--shadow-md), 0 0 0 1px rgba(77,159,181,0.15); transform: translateY(-2px); }
+  /* The one card title: the customer page's, Administrasjon's and the
+     tools' cards all name themselves this way. .subhead names a group
+     inside a card. */
   .card-title {
     font-size: var(--font-sm);
     font-weight: 600;
     color: var(--blue);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -842,11 +840,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 16px;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-md);
     border: 1px solid transparent;
-    font-size: 13px;
+    font-size: var(--font-ui);
     font-weight: 500;
     cursor: pointer;
     transition: all var(--duration-fast) var(--ease-out);
@@ -857,11 +855,14 @@
   .btn:not(:disabled):hover { filter: brightness(1.15); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
   .btn:not(:disabled):active { filter: brightness(0.92); transform: translateY(0); box-shadow: none; }
 
-  .btn-sm { padding: 5px 10px; font-size: var(--font-xs); border-radius: var(--radius-sm); }
+  /* Three button sizes and no inline padding or font size: .btn-sm for row
+     actions and toolbars, .btn for the actions of a form or a page, .btn-lg
+     for the one action of a screen (sign in, the first customer). */
+  .btn-sm { padding: var(--space-1) var(--space-3); font-size: var(--font-xs); border-radius: var(--radius-sm); }
   .btn-lg { padding: var(--space-3) var(--space-6); font-size: var(--font-base); border-radius: var(--radius-md); }
 
   .btn-primary { background: var(--blue-btn); color: #fff; border-color: rgba(29,99,135,0.33); }
-  .btn-success { background: var(--green-btn); color: #fff; border-color: #2ea04366; }
+  /* One primary colour: there is no green button. Green says a state is good. */
   .btn-danger  { background: var(--red-btn);   color: #fff; border-color: #f8514966; }
   .btn-warning { background: #9e6a03;           color: #fff; }
   .btn-default { background: var(--bg-card); color: var(--text); border-color: var(--border); }
@@ -1373,7 +1374,6 @@
   [data-theme="light"] .hdr-search .kbd-chip,
   [data-theme="light"] .cd-stat .l,
   [data-theme="light"] .cd-action-src,
-  [data-theme="light"] .cd-card-title .sub,
   [data-theme="light"] .cd-row .vendor,
   [data-theme="light"] .cd-row .mono { color: var(--text-muted); }
   [data-theme="light"] .nav-dropdown-menu-inner { background: var(--bg-card); border-color: var(--border); box-shadow: var(--shadow-lg); }
@@ -2163,7 +2163,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .cust-section-actions { display: flex; gap: var(--space-2); align-items: center; }
 .cust-card-text { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.6; margin: 0 0 var(--space-3); }
 .cust-card-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
-.cust-card-head .cust-card-title { margin: 0; flex: 1; }
+.cust-card-head .card-title { margin: 0; flex: 1; }
 .cust-card-status { font-size: var(--font-xs); color: var(--text-dim); }
 .cust-tags-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .cust-tag-editor { margin-top: var(--space-2); padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
@@ -2255,16 +2255,12 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .cust-details dd.is-warn { color: var(--orange); }
 .cust-details dd.is-unknown { color: var(--text-dim); font-weight: 400; }
 
-.cust-card-title {
-  font-size: var(--font-sm); font-weight: 600; color: var(--blue);
-  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-3);
-}
 .cust-standard { padding: var(--space-5); margin-bottom: var(--space-4); }
 .cust-standard-head {
   display: flex; align-items: baseline; justify-content: space-between;
   flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-2);
 }
-.cust-standard-head .cust-card-title { margin-bottom: 0; }
+.cust-standard-head .card-title { margin-bottom: 0; }
 .cust-standard-pct { display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--font-2xl); font-weight: 800; }
 .cust-standard-pct-label { font-size: var(--font-xs); font-weight: 400; color: var(--text-muted); }
 .cust-standard-note { margin: 0 0 var(--space-3); font-size: var(--font-sm); color: var(--text-muted); }
@@ -2826,7 +2822,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .admin-rail-item.active { color: var(--text); font-weight: 600; border-left-color: var(--blue); background: var(--bg-card); }
 .admin-main { min-width: 0; max-width: 1000px; }
 .admin-card { padding: var(--space-5); margin-bottom: var(--space-4); }
-.admin-card-title { font-size: var(--font-base); font-weight: 700; margin: 0 0 var(--space-3); }
+
 .admin-section-title { font-size: var(--font-md); font-weight: 700; margin: var(--space-6) 0 var(--space-3); }
 .admin-section-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0 var(--space-3); }
 .admin-section-head .admin-section-title { margin: 0; }
@@ -2868,13 +2864,12 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .avatar-label { flex: 1; }
 
 /* A sentence that says where something is set up, with the way there. */
-.empty-signpost { text-align: center; padding: var(--space-10) var(--space-4); color: var(--text-muted); font-size: var(--font-sm); }
+/* .empty-signpost and .loading-note are .empty-note (further down) by other names. */
 .empty-signpost p { margin: 0 0 var(--space-3); }
 .crumb-link { color: var(--text-muted); text-decoration: none; }
 .page-subtitle { font-size: var(--font-xs); color: var(--text-muted); }
 .page-title-inline { margin: 0; }
 .hosts-tools { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
-.loading-note { color: var(--text-muted); text-align: center; padding: var(--space-12) 0; font-size: var(--font-sm); }
 /* hidden means hidden, whatever display a class gives the element. */
 [hidden] { display: none !important; }
 
@@ -3031,7 +3026,7 @@ textarea.field-input { resize: vertical; }
 
 /* ── Empty and loading notes ── a quiet centred sentence where a list will
    be. .loading-note is the same thing while it loads. */
-.empty-note { color: var(--text-muted); text-align: center; padding: var(--space-12) var(--space-4); font-size: var(--font-sm); }
+.empty-note, .loading-note, .empty-signpost { color: var(--text-muted); text-align: center; padding: var(--space-12) var(--space-4); font-size: var(--font-sm); }
 .empty-note.is-compact { padding: var(--space-6) var(--space-4); }
 .empty-note .loader { display: block; margin: 0 auto var(--space-4); }
 

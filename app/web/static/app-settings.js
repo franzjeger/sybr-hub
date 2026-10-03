@@ -716,7 +716,7 @@ async function editUserCustomers(userId, displayName) {
   (access && access.customer_ids || []).forEach(function(id) { accessSet[id] = true; });
   var hasAny = Object.keys(accessSet).length > 0;
 
-  var html = '<div class="text-sm fw-semibold mb-2">Kundetilgang for ' + esc(displayName) + '</div>';
+  var html = '<div class="subhead">Kundetilgang for ' + esc(displayName) + '</div>';
   html += '<div class="mb-2 text-xs text-muted">' + (access && access.is_admin ? t('rbac_admin_access') : (hasAny ? Object.keys(accessSet).length + ' ' + t('rbac_customers_selected','kunder valgt') : t('rbac_no_customers'))) + '</div>';
   html += '<label class="block mb-2">' + t('rbac_access_mode')
     + ' <select class="rbac-mode"><option value="scoped"' + (access && access.access_mode === 'all' ? '' : ' selected') + '>' + t('rbac_scoped') + '</option>'
