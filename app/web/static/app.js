@@ -811,6 +811,9 @@ function setAuth() {
   localStorage.removeItem('msptk_refresh');
 }
 
+// Called once on load (app-chrome.js, after the strings) and again after a
+// sign-in. Not shared between callers: a check that began before the sign-in
+// would answer "signed out" for the one after it.
 async function checkAuth() {
   try {
     var res = await fetch('/api/auth/status');
