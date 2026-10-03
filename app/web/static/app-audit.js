@@ -9,6 +9,7 @@ registerUiHandlers({
   deleteAllCustomerRuns: function(el) { deleteAllCustomerRuns(el.dataset.dir, el.dataset.customer, Number(el.dataset.count)); },
   onCompareCheck: function(el) { onCompareCheck(el.dataset.path, el.checked); },
   loadHistoryRun: function(el) { loadHistoryRun(el.dataset.path); },
+  openCustomerSummary: function(el) { window.open('/api/reports/customer-summary/' + encodeURIComponent(el.dataset.customerId), '_blank'); },
 });
 
 // ── Audit scope selector ────────────────────────────────────────────────────────
@@ -872,11 +873,6 @@ async function deleteAllCustomerRuns(customerDirName, customerName, runCount) {
   }
 }
 
-function _fmtTs(ts) {
-  const m = ts.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
-  return m ? `${m[3]}.${m[2]}.${m[1]} kl. ${m[4]}:${m[5]}` : ts;
-}
-
 function renderComparison(data, box) {
   const labels = {
     risk_score: t('compare_risk_score'), risk_grade: t('compare_risk_grade'),
@@ -885,7 +881,7 @@ function renderComparison(data, box) {
     ca_policies_enabled: t('compare_ca_policies'), intune_compliance_pct: t('compare_intune_compliance'),
     admin_roles_ga_count: t('compare_global_admins'), total_warns: t('compare_total_warnings'),
   };
-  const ts1 = _fmtTs(data.run1.timestamp), ts2 = _fmtTs(data.run2.timestamp);
+  const ts1 = formatRunName(data.run1.timestamp), ts2 = formatRunName(data.run2.timestamp);
   let rows = '';
   for (const d of data.deltas) {
     const label = labels[d.key] || d.key;
@@ -977,13 +973,11 @@ function renderHistory(runs) {
           <tbody>`;
 
     for (const run of customerRuns) {
-      // Format timestamp: "2026-03-12_0945" -> "12.03.2026 kl. 09:45"
-      const ts = run.timestamp;
-      let displayDate = ts;
-      const m = ts.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
-      if (m) {
-        displayDate = `${m[3]}.${m[2]}.${m[1]} kl. ${m[4]}:${m[5]}`;
-      }
+      const displayDate = formatRunName(run.timestamp);
+      // The full report is rebuilt from the run's evidence files. A run that
+      // kept only its metrics still belongs in the history; it offers the
+      // summary report, which reads the metrics.
+      const hasEvidence = Number(run.file_count) > 0;
 
       const canCompare = run.has_metrics !== false;
       var runTip = canCompare && run.metrics ? t('lbl_grade')+': '+(run.metrics.risk_grade||'-')+' · Score: '+(run.metrics.risk_score||'-')+' · MFA: '+(metricPct(run.metrics.mfa_coverage_pct) !== null ? metricPct(run.metrics.mfa_coverage_pct)+'%' : '-') : '';
@@ -995,12 +989,13 @@ function renderHistory(runs) {
               style="accent-color:#1d6387;width:15px;height:15px;cursor:pointer;">
           </td>
           <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+esc(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
-          <td style="font-family:var(--mono);color:var(--text-muted);">${Number(run.file_count)} ${t('nav_files','filer')}</td>
-          <td style="text-align:right;">
-            <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;"
-              data-click-handler="loadHistoryRun" data-path="${esc(run.path)}">
-              ${t('btn_generate_report')}
-            </button>
+          <td class="hist-files">${hasEvidence ? Number(run.file_count) + ' ' + esc(t('nav_files', 'filer')) : esc(t('lbl_metrics_only', 'Bare nøkkeltall'))}</td>
+          <td class="hist-action">
+            ${hasEvidence
+              ? '<button class="btn btn-primary btn-sm" data-click-handler="loadHistoryRun" data-path="' + esc(run.path) + '">' + esc(t('btn_generate_report')) + '</button>'
+              : (run.customer_id
+                ? '<button class="btn btn-default btn-sm" data-click-handler="openCustomerSummary" data-customer-id="' + esc(run.customer_id) + '" title="' + esc(t('tip_summary_report', 'Kjøringen har ingen bevisfiler, så hele rapporten kan ikke bygges. Sammendraget leser nøkkeltallene.')) + '">' + esc(t('btn_summary_report', 'Sammendragsrapport')) + '</button>'
+                : '')}
           </td>
         </tr>`;
     }
@@ -1037,11 +1032,7 @@ async function loadHistoryRun(path) {
     document.getElementById('hist-report-title').textContent = t('hdr_report_for').replace('{customer}', d.customer);
 
     // Format timestamp
-    let displayDate = d.timestamp;
-    const m = d.timestamp.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
-    if (m) {
-      displayDate = `${m[3]}.${m[2]}.${m[1]} kl. ${m[4]}:${m[5]}`;
-    }
+    const displayDate = formatRunName(d.timestamp);
     document.getElementById('hist-report-subtitle').textContent = displayDate;
 
     box.innerHTML = t('msg_sections_data_loaded').replace('{sections}', '<strong>' + Number(d.sections) + '</strong>').replace('{files}', '<strong>' + Number(d.files) + '</strong>').replace('{date}', esc(displayDate));

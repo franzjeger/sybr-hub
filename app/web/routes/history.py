@@ -113,14 +113,30 @@ async def get_all_trends(user: User = _auth, limit: int = 50):
 
 @router.get("/history")
 async def list_history(user: User = _auth):
-    """List all previous audit runs grouped by customer."""
+    """List all previous audit runs grouped by customer.
+
+    A run is a folder holding evidence files, its metrics, or both: the same
+    test the dashboard and the customer page apply when they say a customer
+    was audited. This listing used to require evidence (.txt) files, so a run
+    the customer page reported ("Auditert 30. september") was missing here
+    and the page said to run an audit first. A run without evidence carries
+    ``file_count`` 0; the interface offers the summary report for it, since
+    the full report is rebuilt from the evidence.
+    """
     from app.core.config import get_audit_dir
+    from app.core.customer import CustomerManager, customer_dir_name
 
     audit_dir = get_audit_dir()
     history: list[dict] = []
 
     if not audit_dir.exists():
         return {"history": history}
+
+    # The run folders are named after the customer; the customer's id is what
+    # the summary report and the customer page take.
+    ids_by_dir: dict[str, str] = {}
+    for c in CustomerManager.list_customers():
+        ids_by_dir.setdefault(customer_dir_name(c.get("CustomerName", "")), c.get("_id", ""))
 
     # This listing is what hands out the paths /audit_data serves, so it has
     # to be scoped too — otherwise it stays a directory of every customer's
@@ -137,9 +153,9 @@ async def list_history(user: User = _auth):
             if not run_dir.is_dir():
                 continue
             txt_files = list(run_dir.glob("*.txt"))
-            if not txt_files:
-                continue
             has_metrics = (run_dir / "_audit_metrics.json").exists()
+            if not txt_files and not has_metrics:
+                continue
             metrics_summary = None
             if has_metrics:
                 try:
@@ -156,6 +172,7 @@ async def list_history(user: User = _auth):
             history.append(
                 {
                     "customer": customer_name,
+                    "customer_id": ids_by_dir.get(customer_dir.name, ""),
                     "timestamp": run_dir.name,
                     "path": str(run_dir),
                     "file_count": len(txt_files),
