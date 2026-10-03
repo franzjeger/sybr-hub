@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from app.reports.parsers.common import _count_data_lines, _extract_policy_names, _sidecar
+from app.reports.parsers.common import (
+    _count_data_lines,
+    _policy_names,
+    _record_count,
+    _sidecar,
+)
 
 
 def _parse_spf_dmarc(text: str) -> list[dict]:
@@ -124,21 +129,13 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     result["mailbox_user"] = counts.get("user", 0)
     result["mailbox_shared"] = counts.get("shared", 0)
 
-    # Transport rules — count non-empty, non-header lines
-    transport_text = file_contents.get("21_exchange_transport_rules.txt", "")
-    result["transport_rules"] = _count_data_lines(transport_text)
+    # Transport rules and connectors: the sidecar's count, or the text's records
+    result["transport_rules"] = _record_count(file_contents, "21_exchange_transport_rules.txt")
+    result["connectors"] = _record_count(file_contents, "22_exchange_connectors.txt")
 
-    # Connectors — count non-empty, non-header lines
-    connectors_text = file_contents.get("22_exchange_connectors.txt", "")
-    result["connectors"] = _count_data_lines(connectors_text)
-
-    # Anti-phish policies — extract policy names
-    antiphish_text = file_contents.get("23_exchange_antiphish.txt", "")
-    result["antiphish_policies"] = _extract_policy_names(antiphish_text)
-
-    # Anti-spam policies — extract policy names
-    antispam_text = file_contents.get("24_exchange_antispam.txt", "")
-    result["antispam_policies"] = _extract_policy_names(antispam_text)
+    # Anti-phish and anti-spam policies — one name per policy
+    result["antiphish_policies"] = _policy_names(file_contents, "23_exchange_antiphish.txt")
+    result["antispam_policies"] = _policy_names(file_contents, "24_exchange_antispam.txt")
 
     # Mailbox forwarding count
     fwd_text = file_contents.get("28_exchange_mailbox_forwarding.txt", "")

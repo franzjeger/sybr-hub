@@ -286,6 +286,7 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "State", "Priority", "Description"],
         )
         self._save("21_exchange_transport_rules.txt", content)
+        self._save_sidecar("21_exchange_transport_rules.txt", {"count": len(rules), "rules": rules})
 
     # ── Connectors ────────────────────────────────────────────────────────────
 
@@ -320,6 +321,9 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "ConnectorType", "ConnectorSource", "Enabled", "SmartHosts"],
         )
         self._save("22_exchange_connectors.txt", content)
+        self._save_sidecar(
+            "22_exchange_connectors.txt", {"count": len(connectors), "connectors": connectors}
+        )
 
     # ── Anti-Phish ────────────────────────────────────────────────────────────
 
@@ -345,6 +349,9 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "Enabled", "PhishThresholdLevel", "EnableMailboxIntelligence"],
         )
         self._save("23_exchange_antiphish.txt", content)
+        self._save_sidecar(
+            "23_exchange_antiphish.txt", {"count": len(policies), "policies": policies}
+        )
 
     # ── Anti-Spam ─────────────────────────────────────────────────────────────
 
@@ -363,6 +370,9 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "SpamAction", "BulkSpamAction", "PhishSpamAction"],
         )
         self._save("24_exchange_antispam.txt", content)
+        self._save_sidecar(
+            "24_exchange_antispam.txt", {"count": len(policies), "policies": policies}
+        )
 
     # ── DKIM ──────────────────────────────────────────────────────────────────
 
