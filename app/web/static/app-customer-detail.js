@@ -118,22 +118,22 @@ async function loadCustomerDetail(customerId) {
     <div id="customer-baseline-panel"></div>
     <div id="customer-policies-panel"></div>
 
-    <div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">
-      <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">${t('lbl_trend')}</div>
-      <div style="position:relative;height:250px;"><canvas id="chart-customer-trend"></canvas></div>
+    <div class="card cust-trend" id="cust-trend">
+      <div class="cust-card-title">${t('lbl_trend')}</div>
+      <div class="cust-trend-body" id="cust-trend-body"></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);">
       <div class="card" style="padding:var(--space-5);">
         <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-4);">${t('lbl_details')}</div>
-        <div style="display:grid;grid-template-columns:140px 1fr;gap:var(--space-2) var(--space-4);font-size:var(--font-sm);">
-          <span style="color:var(--text-muted);">${t('lbl_users')}</span><span style="font-weight:600;">${hasM ? (Number(m.total_users) || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">${t('lbl_without_mfa')}</span><span style="font-weight:600;color:${hasM && m.users_no_mfa > 0 ? 'var(--red)' : 'var(--text)'};">${hasM ? (Number(m.users_no_mfa) || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">${t('lbl_ca_policies')}</span><span style="font-weight:600;">${hasM ? (Number(m.ca_policies_enabled) || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">${t('intune')}</span><span style="font-weight:600;">${hasM && metricPct(m.intune_compliance_pct) !== null ? metricPct(m.intune_compliance_pct)+'%' : '-'}</span>
-          <span style="color:var(--text-muted);">${t('lbl_last_audit')}</span><span style="font-weight:600;">${cust.last_audit ? esc(cust.last_audit.substring(0,10)) : '-'}${_auditAgeSuffix(cust.last_audit)}</span>
-          <span style="color:var(--text-muted);">${t('lbl_warnings','Warnings')}</span><span style="font-weight:600;color:${hasM && m.total_warns > 0 ? 'var(--orange)' : 'var(--text)'};">${hasM ? (Number(m.total_warns) || 0) : '-'}</span>
-        </div>
+        <dl class="cust-details" id="cust-details">
+          ${_detailRow(t('lbl_users'), hasM, m.total_users)}
+          ${_detailRow(t('lbl_users_without_mfa', 'Brukere uten MFA'), hasM, m.users_no_mfa, 'is-bad')}
+          ${_detailRow(t('lbl_ca_policies'), hasM, m.ca_policies_enabled)}
+          <dt>${t('intune')}</dt><dd${hasM && metricPct(m.intune_compliance_pct) === null ? ' class="is-unknown"' : ''}>${!hasM ? '-' : metricPct(m.intune_compliance_pct) !== null ? metricPct(m.intune_compliance_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</dd>
+          <dt>${t('lbl_last_audit')}</dt><dd>${cust.last_audit ? esc(formatRunName(cust.last_audit)) : '-'}${_auditAgeSuffix(cust.last_audit)}</dd>
+          ${_detailRow(t('lbl_warnings_title', 'Advarsler'), hasM, m.total_warns, 'is-warn')}
+        </dl>
       </div>
       <div class="card" style="padding:var(--space-5);">
         <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-4);">${t('lbl_tags')}</div>
@@ -203,6 +203,17 @@ async function loadCustomerDetail(customerId) {
   infraDiv.id = 'customer-infra-panel';
   box.appendChild(infraDiv);
   _loadCustomerInfraCard(customerId);
+}
+
+// One row of the Detaljer card: a count from the latest run's metrics, the
+// word "ukjent" when that run did not measure it, a dash with no run at all.
+// `alarm` colours a measured figure above zero.
+function _detailRow(label, hasMetrics, value, alarm) {
+  var cls = '';
+  if (hasMetrics && !metricKnown(value)) cls = 'is-unknown';
+  else if (hasMetrics && alarm && Number(value) > 0) cls = alarm;
+  return '<dt>' + esc(label) + '</dt><dd' + (cls ? ' class="' + esc(cls) + '"' : '') + '>'
+    + (hasMetrics ? esc(metricCount(value)) : '-') + '</dd>';
 }
 
 // " (12d)" after a run folder name, or nothing. Folder names are
@@ -319,6 +330,39 @@ function _reason(prefix, code, params) {
   return out;
 }
 
+// The sentence beside a requirement. The server sends a reason code and the
+// values behind it, including the internal path the check reads
+// ("mfa.has_data"). A person reads which part of the collection was missing,
+// never the field name.
+var _BASELINE_SECTIONS = ['mfa', 'admin_roles', 'ca', 'secure_score', 'entra_devices', 'intune',
+  'exchange', 'backup_coverage', 'sharepoint', 'usage'];
+
+function _baselineValue(v) {
+  if (v === true) return t('lbl_yes', 'Ja');
+  if (v === false) return t('lbl_no', 'Nei');
+  if (v === null || v === undefined) return t('lbl_unknown_value', 'ukjent');
+  return String(v);
+}
+
+function baselineReason(c) {
+  var p = c.params || {};
+  var code = c.reason_code;
+  if (code === 'guard_unset') {
+    var section = String(p.guard || '').split('.')[0];
+    if (section === 'drift') return t('bl_guard_unset_drift', 'Ikke vurdert: det finnes ingen tidligere kjøring å sammenligne policyene med.');
+    var name = _BASELINE_SECTIONS.indexOf(section) >= 0
+      ? t('bl_section_' + section, '') : '';
+    return t('bl_guard_unset', 'Ikke vurdert: {section} ble ikke samlet inn i denne kjøringen.')
+      .replace('{section}', name || t('bl_section_unknown', 'grunnlaget for dette kravet'));
+  }
+  if (!code) return '';
+  var out = t('bl_' + code, '');
+  return out
+    .split('{actual}').join(_baselineValue(p.actual))
+    .split('{expected}').join(_baselineValue(p.expected))
+    .split('{op}').join(String(p.op || ''));
+}
+
 function _baselineStatusPill(status) {
   if (status === 'pass') return '<span style="color:var(--green);">&#10003;</span>';
   if (status === 'fail') return '<span style="color:var(--red);">&#10007;</span>';
@@ -395,40 +439,48 @@ async function _loadCustomerBaselineCard(customerId) {
   var pct = b.conformance_pct;
   var pctColor = pct === null || pct === undefined ? 'var(--text-dim)'
     : (pct >= 90 ? 'var(--green)' : (pct >= 70 ? 'var(--orange)' : 'var(--red)'));
-  var pctText = pct === null || pct === undefined ? '&#8212;' : (Number(pct) + ' %');
+  var nothing = b.assessed === 0;
 
-  var html = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);margin-bottom:var(--space-4);">';
-  html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">'
-        + esc(b.baseline.name) + ' ' + esc(b.baseline.version) + '</div>';
-  html += '<div style="display:flex;align-items:baseline;gap:var(--space-2);">'
-        + '<span style="font-size:var(--font-2xl);font-weight:800;color:' + pctColor + ';">' + pctText + '</span>'
-        + '<span style="font-size:var(--font-xs);color:var(--text-muted);">' + t('lbl_conformance','conformance') + '</span></div>';
+  var html = '<div class="card cust-standard" id="cust-standard">';
+  html += '<div class="cust-standard-head">';
+  html += '<div class="cust-card-title">' + esc(b.baseline.name) + ' ' + esc(b.baseline.version) + '</div>';
+  // No percentage when nothing was assessed: a dash beside "etterlevelse"
+  // still reads as a score.
+  if (!nothing && pct !== null && pct !== undefined) {
+    html += '<div class="cust-standard-pct"><span style="color:' + pctColor + ';">' + Number(pct) + ' %</span>'
+          + '<span class="cust-standard-pct-label">' + esc(t('lbl_conformance', 'etterlevelse')) + '</span></div>';
+  }
   html += '</div>';
 
-  // What the percentage is a percentage of. Showing it without this invites
-  // the reader to assume every requirement was measured.
-  if (b.assessed === 0) {
-    html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-3);">'
-          + t('msg_baseline_nothing_assessed','No requirement could be assessed on this run. That describes the collection, not the tenant.') + '</div>';
-  } else {
-    html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-3);">'
-          + t('msg_baseline_basis','{passed} of {assessed} assessed requirements met')
-              .replace('{passed}', Number(b.passed)).replace('{assessed}', Number(b.assessed))
-          + (b.not_measured ? ' &middot; ' + t('msg_baseline_skipped','{n} not assessed').replace('{n}', Number(b.not_measured)) : '')
-          + '</div>';
-  }
-
-  html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+  var rows = '<table class="cust-standard-table">';
   (b.checks || []).forEach(function(c) {
     var dim = c.status === 'not_measured';
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px 8px 6px 0;width:20px;">' + _baselineStatusPill(c.status) + '</td>';
-    html += '<td style="padding:6px 0;' + (dim ? 'color:var(--text-dim);' : '') + '">' + esc(c.title) + '</td>';
-    html += '<td style="padding:6px 0;text-align:right;color:var(--text-muted);">' + esc(_reason('bl_', c.reason_code, c.params)) + '</td>';
-    html += '</tr>';
+    rows += '<tr' + (dim ? ' class="is-dim"' : '') + '>';
+    rows += '<td class="cust-standard-mark">' + _baselineStatusPill(c.status) + '</td>';
+    rows += '<td>' + esc(c.title) + '</td>';
+    rows += '<td class="cust-standard-reason">' + esc(baselineReason(c)) + '</td>';
+    rows += '</tr>';
   });
-  html += '</table>';
+  rows += '</table>';
+
+  // What the percentage is a percentage of. Showing it without this invites
+  // the reader to assume every requirement was measured. When nothing could
+  // be assessed, one sentence says so and the requirements fold away: nine
+  // rows each saying "not assessed" tell the reader nothing the sentence
+  // does not.
+  if (nothing) {
+    html += '<p class="cust-standard-note">' + esc(t('msg_baseline_nothing_assessed', 'Ingen krav kunne vurderes, fordi kjøringen ikke samlet inn det kravene leser. Det sier noe om innsamlingen, ikke om tenanten.')) + '</p>';
+    html += '<details class="cust-standard-details"><summary>'
+          + esc(t('btn_show_requirements', 'Vis kravene ({n})').replace('{n}', Number((b.checks || []).length)))
+          + '</summary>' + rows + '</details>';
+  } else {
+    html += '<p class="cust-standard-note">'
+          + esc(t('msg_baseline_basis', '{passed} of {assessed} assessed requirements met')
+              .replace('{passed}', Number(b.passed)).replace('{assessed}', Number(b.assessed)))
+          + (b.not_measured ? ' &middot; ' + esc(t('msg_baseline_skipped', '{n} not assessed').replace('{n}', Number(b.not_measured))) : '')
+          + '</p>';
+    html += rows;
+  }
 
   // ── Drift ──
   html += '<div style="margin-top:var(--space-4);padding-top:var(--space-4);border-top:1px solid var(--border);">';
@@ -439,11 +491,11 @@ async function _loadCustomerBaselineCard(customerId) {
           + esc((drift && _reason('drift_', drift.reason_code, drift.reason_params)) || t('msg_drift_not_measured','Not compared.')) + '</div>';
   } else if (!drift.added_total && !drift.removed_total && !drift.changed_total) {
     html += '<div style="font-size:var(--font-xs);color:var(--text-muted);">'
-          + t('msg_drift_quiet','No policy changed since {run}.').replace('{run}', esc(drift.compared_with)) + '</div>';
+          + esc(t('msg_drift_quiet','No policy changed since {run}.').replace('{run}', formatRunName(drift.compared_with))) + '</div>';
   } else {
     html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-2);">'
           + t('msg_drift_summary','Compared with {run}: {added} added, {removed} removed, {changed} changed.')
-              .replace('{run}', esc(drift.compared_with)).replace('{added}', Number(drift.added_total))
+              .replace('{run}', esc(formatRunName(drift.compared_with))).replace('{added}', Number(drift.added_total))
               .replace('{removed}', Number(drift.removed_total)).replace('{changed}', Number(drift.changed_total))
           + '</div>';
     html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
@@ -1245,17 +1297,21 @@ function _renderGauges(riskScore, mfaPct, ssPct) {
 }
 
 async function _loadCustomerTrendChart(customerId) {
-  if (typeof Chart === 'undefined') return;
   if (_detailChartInstance) { _detailChartInstance.destroy(); _detailChartInstance = null; }
 
   try {
     var d = await apiFetch('/api/trends/' + encodeURIComponent(customerId));
     var entries = d.entries || [];
+    var body = document.getElementById('cust-trend-body');
+    if (!body) return;
+    // A trend needs two points. Below that the card is one line, not a
+    // chart-sized frame around a sentence.
     if (entries.length < 2) {
-      var canvas = document.getElementById('chart-customer-trend');
-      if (canvas) canvas.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:250px;color:var(--text-dim);font-size:var(--font-sm);">'+t('msg_not_enough_data','Ikke nok data for trend (min. 2 audits)')+'</div>';
+      body.innerHTML = '<p class="cust-trend-empty">' + esc(t('msg_not_enough_data', 'Trenden vises når kunden har minst to kjøringer.')) + '</p>';
       return;
     }
+    if (typeof Chart === 'undefined') return;
+    body.innerHTML = '<div class="cust-trend-chart"><canvas id="chart-customer-trend"></canvas></div>';
 
     var labels = entries.map(function(e){ return e.date ? e.date.substring(0,10) : ''; });
     var textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
