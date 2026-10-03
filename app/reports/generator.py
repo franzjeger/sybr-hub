@@ -242,7 +242,12 @@ def build_report_context(
         settings_json=_sidecar(file_contents, "15b_sharepoint_settings.txt"),
         sites_json=_sidecar(file_contents, "15_sharepoint_sites.txt"),
     )
-    oauth = _parse_oauth_grants(fc("17b_oauth_consent_grants.txt"), fc("17_app_registrations.txt"))
+    oauth = _parse_oauth_grants(
+        fc("17b_oauth_consent_grants.txt"),
+        fc("17_app_registrations.txt"),
+        grants_json=_sidecar(file_contents, "17b_oauth_consent_grants.txt"),
+        apps_json=_sidecar(file_contents, "17_app_registrations.txt"),
+    )
     # The reader blanks an error-payload file to "" before the parser sees it, so
     # the parser's own grants_read (derived from the text) can never see the
     # "Error:" stub and is always True in production. error_files survives that
