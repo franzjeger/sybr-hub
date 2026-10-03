@@ -60,7 +60,10 @@ NAVIGATION = {
 
 # ── Questions that happen to be POSTs ───────────────────────────────────────
 # A lookup with a body too large for a query string. Each reaches out and
-# reports back; none of them leaves anything behind.
+# reports back; none of them leaves anything behind, with one bounded
+# exception: the two TLS checks keep their reading. For an account without
+# can_write that reading only refreshes an endpoint already on the list
+# (app/services/tls_inventory.py, may_add); it never adds one.
 LOOKUPS = {
     "/api/dns/check",
     "/api/dns/check-bulk",

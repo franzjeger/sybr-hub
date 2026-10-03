@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -727,6 +727,38 @@ _MIGRATIONS: list = [
         25,
         "Each unreadable network file keeps its own recommendation id",
         _key_unreadable_network_files_on_their_file,
+    ),
+    (
+        26,
+        "TLS certificates as each endpoint was last seen",
+        # Varsler could only show a certificate the alert engine had managed to
+        # send somewhere: TLS checks were live scans that kept nothing. One row
+        # per host:port. customer_id is NULL for an endpoint tied to no
+        # customer, which only an unrestricted account sees. The certificate
+        # columns come from the last handshake that returned a certificate;
+        # error and checked_at from the last attempt, so an endpoint that
+        # stopped answering keeps the expiry it was last seen with.
+        """
+        CREATE TABLE IF NOT EXISTS tls_endpoints (
+            host          TEXT NOT NULL,
+            port          INTEGER NOT NULL,
+            customer_id   TEXT,
+            label         TEXT NOT NULL DEFAULT '',
+            source        TEXT NOT NULL DEFAULT '',
+            subject       TEXT NOT NULL DEFAULT '',
+            issuer        TEXT NOT NULL DEFAULT '',
+            not_after     TEXT,
+            chain_valid   INTEGER,
+            chain_problem TEXT NOT NULL DEFAULT '',
+            weak_tls      INTEGER NOT NULL DEFAULT 0,
+            error         TEXT NOT NULL DEFAULT '',
+            checked_at    TEXT NOT NULL,
+            cert_seen_at  TEXT,
+            PRIMARY KEY (host, port)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tls_endpoints_customer
+            ON tls_endpoints(customer_id);
+        """,
     ),
 ]
 
