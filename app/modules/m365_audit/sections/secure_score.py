@@ -67,8 +67,9 @@ class SecureScoreSection(BaseSection):
         profiles = await self._control_profiles()
         max_by_control = {n: p["max"] for n, p in profiles.items()}
 
-        ranked: list[tuple[float, float, str, str]] = []
-        records: list[tuple[float, dict]] = []
+        ranked: list[tuple[tuple[bool, float], float, float | None, str, str]] = []
+        records: list[tuple[tuple[bool, float], dict]] = []
+        by_impact = bool(max_by_control)
         for ctrl in ctrl_scores:
             name = (ctrl.get("controlName") or "").strip()
             if not name:
@@ -78,15 +79,22 @@ class SecureScoreSection(BaseSection):
                 continue  # done; there is no improvement to make
             ctrl_max = max_by_control.get(name)
             remaining = ctrl_max * (1 - ctrl_pct / 100) if ctrl_max is not None else None
-            # Without the profiles, fall back to "furthest from done". Sorting
-            # by -pct keeps that ordering while the ranked tuple stays uniform.
-            sort_key = remaining if remaining is not None else (100 - ctrl_pct) / 100
+            # Without the profiles, fall back to "furthest from done". With
+            # them, a control whose own profile is missing has no points to
+            # rank by: it goes after every control that has, furthest from
+            # done first, rather than in among them on a fraction of one.
+            sort_key = (
+                remaining is not None,
+                remaining if remaining is not None else (100 - ctrl_pct) / 100,
+            )
             # Show the human title ("Ensure MFA is enabled for all users"), not
             # the raw control id (scid_2509), which tells a reader nothing about
             # what would raise the score. Fall back to the id if the profile,
             # and so the title, could not be read.
             friendly = (profiles.get(name, {}).get("title") or "").strip() or name
-            ranked.append((sort_key, ctrl_pct, friendly[:70], ctrl.get("controlCategory") or ""))
+            ranked.append(
+                (sort_key, ctrl_pct, remaining, friendly[:70], ctrl.get("controlCategory") or "")
+            )
             records.append(
                 (
                     sort_key,
@@ -103,7 +111,6 @@ class SecureScoreSection(BaseSection):
 
         ranked.sort(key=lambda r: r[0], reverse=True)
         records.sort(key=lambda r: r[0], reverse=True)
-        by_impact = bool(max_by_control)
 
         lines = [
             "=" * 80,
@@ -121,8 +128,12 @@ class SecureScoreSection(BaseSection):
         if not ranked:
             lines.append("  (none — every scored control is fully implemented)")
 
-        for sort_key, ctrl_pct, ctrl_name, ctrl_cat in ranked[:20]:
-            left = f"{sort_key:.1f}" if by_impact else "-"
+        for _key, ctrl_pct, remaining, ctrl_name, ctrl_cat in ranked[:20]:
+            # Points, or "-" for a control not ranked by points. A control
+            # whose profile was missing printed its sort fraction, (100 -
+            # pct) / 100, under a heading that promised points; the text
+            # reader took it for points, and the sidecar said null.
+            left = f"{remaining:.1f}" if remaining is not None else "-"
             lines.append(f"  {ctrl_name:<70} {ctrl_pct:>6.1f}%  {left:>6}  {ctrl_cat}")
 
         lines += ["=" * 80, ""]

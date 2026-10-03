@@ -137,6 +137,45 @@ async def test_without_control_profiles_the_ranking_agrees_from_either_file(tmp_
     assert all("remaining" not in i for i in score["improvements"]), "no points to show"
 
 
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_control_without_its_profile_has_no_points_left(tmp_path, sidecars):
+    """The other profiles were read, so the table is ranked by points.
+
+    The one control whose profile is missing printed its sort fraction,
+    (100 - 20) / 100 = 0.8, in the "Left" column; the text reader took it for
+    0.8 points, while the sidecar said none. It prints "-", and it ranks after
+    every control with points to show, not in among them on a fraction.
+    """
+    # Half a point left: less than the fraction the missing profile sorted by.
+    small = {"controlName": "scid_tiny", "scoreInPercentage": 0.0, "controlCategory": "Apps"}
+    profiles = [
+        *(p for p in SHORT_PROFILES if p["id"] != "scid_dlp"),
+        {"id": "scid_tiny", "maxScore": 0.5, "title": "Small step"},
+    ]
+    score_with_small = {**SCORE, "controlScores": [*SCORE["controlScores"], small]}
+    files = await _collect(
+        tmp_path,
+        sidecars=sidecars,
+        **{
+            "security/secureScores": {"value": [score_with_small]},
+            "security/secureScoreControlProfiles": profiles,
+        },
+    )
+    row = next(line for line in files["09_secure_score.txt"].splitlines() if "scid_dlp" in line)
+    assert row.split()[-2:] == ["-", "Data"]
+
+    score = _parse_secure_score(
+        files["09_secure_score.txt"], _sidecar(files, "09_secure_score.txt")
+    )
+
+    assert [(i["name"], i.get("remaining")) for i in score["improvements"]] == [
+        (LONG_TITLE[:40].rstrip(), 15.0),
+        ("Ensure MFA is enabled for all users", 10.0),
+        ("Small step", 0.5),
+        ("scid_dlp", None),
+    ]
+
+
 async def test_the_sidecar_keeps_the_whole_title(tmp_path):
     files = await _collect(tmp_path, sidecars=True)
 
