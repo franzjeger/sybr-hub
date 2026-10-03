@@ -39,5 +39,5 @@ def test_notification_permission_is_not_asked_on_page_load():
     top_level = [ln for ln in chrome.splitlines() if ln.startswith("if (") and "Notification" in ln]
     assert not top_level
     audit = (STATIC / "app-audit.js").read_text(encoding="utf-8")
-    start = audit[audit.index("async function startAudit()") :][:400]
+    start = audit[audit.index("async function startAudit(") :][:600]
     assert "requestAuditNotifications()" in start

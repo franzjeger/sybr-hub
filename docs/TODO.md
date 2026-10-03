@@ -132,10 +132,6 @@ new baselines as their deploy APIs land:
   `audit/scope|presets`, `workshop/notes`(removed), `ssh/config/generate`, etc.
   If viewers must never hold `can_write`, this is moot; otherwise add
   `require_role(Role.technician)`. *Decide, then act.*
-- **`customer_status` console tool** reads the process-global active customer,
-  not the caller's scope (`app/services/claude_console.py`). Pre-existing
-  active-customer pattern; low risk with the shared pool. Revisit if per-user
-  scoping ever matters.
 - **`redact.py`** excludes `/` and `+` from the secret-shape regex on purpose
   (so it does not shred file paths in logs). A standard-base64 secret passed
   without a `known` value leaks its tail. Documented tradeoff — leave unless a

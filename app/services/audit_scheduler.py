@@ -277,6 +277,7 @@ class AuditScheduler:
                     org_domain=full_cust.get("PrimaryDomain", ""),
                     out_dir=out_dir,
                     results=results,
+                    customer_id=cust_id,
                 )
 
                 await self._check_and_alert(ctx, cust_name)
@@ -458,6 +459,7 @@ class AuditScheduler:
                     formats=["html"],
                     report_type="tech",
                     lang=settings.get("ui_language", "no"),
+                    customer_id=config.get("_id") or None,
                 ),
             )
             log.info("Scheduled report generated for %s", customer_name)

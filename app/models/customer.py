@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from typing import Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CustomerRef(BaseModel):
-    """A customer id on its own: switch to it, or archive it."""
+    """A customer id on its own: the one to archive."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -44,11 +44,10 @@ class CustomerNotes(BaseModel):
 
 
 class CustomerTags(BaseModel):
-    """The whole tag list for one customer; no id means the active customer."""
+    """The whole tag list for the customer named in the path."""
 
     model_config = ConfigDict(extra="forbid")
 
-    customer_id: str | None = None
     tags: list[str] = []
 
 
@@ -73,8 +72,8 @@ class CustomerLinks(BaseModel):
 
 
 class CredentialResetTarget(BaseModel):
-    """Whose M365 credentials to wipe or renew; no body means the active customer."""
+    """Whose M365 credentials to wipe or renew. Required: there is no default."""
 
     model_config = ConfigDict(extra="forbid")
 
-    customer_id: str | None = None
+    customer_id: str = Field(min_length=1)

@@ -58,10 +58,6 @@ async def _init_db(tmp_path):
 @pytest.fixture(autouse=True)
 def _patch_customer(monkeypatch):
     monkeypatch.setattr(
-        "app.core.customer.CustomerManager.get_active",
-        staticmethod(lambda: dict(CUSTOMER)),
-    )
-    monkeypatch.setattr(
         "app.core.customer.CustomerManager.get_customer",
         staticmethod(lambda cid: dict(CUSTOMER) if cid == "acme" else None),
     )
@@ -101,7 +97,8 @@ def _h(token: str) -> dict:
 
 
 async def _start(client, token: str) -> str:
-    r = client.post("/api/provisioning/start", headers=_h(token))
+    # The wizard's page sends the customer its customer bar names.
+    r = client.post("/api/provisioning/start", headers=_h(token), json={"customer_id": "acme"})
     assert r.status_code == 200, r.text
     return r.json()["session_id"]
 
@@ -117,6 +114,22 @@ async def test_a_technician_cannot_reach_provisioning(client):
 async def test_an_admin_can(client):
     token = await _admin("boss")
     assert client.post("/api/provisioning/start", headers=_h(token)).status_code == 200
+
+
+async def test_a_session_started_without_a_customer_is_bound_to_none(client):
+    """No customer named means none: not one remembered from elsewhere."""
+    from app.services.provisioning import get_session_raw
+
+    token = await _admin("boss")
+    r = client.post("/api/provisioning/start", headers=_h(token))
+    assert r.status_code == 200, r.text
+    assert get_session_raw(r.json()["session_id"])["customer_id"] == ""
+
+
+async def test_a_session_cannot_be_bound_to_an_unknown_customer(client):
+    token = await _admin("boss")
+    r = client.post("/api/provisioning/start", headers=_h(token), json={"customer_id": "ghost"})
+    assert r.status_code == 404, r.text
 
 
 # ── Two-operator isolation ───────────────────────────────────────────────────
@@ -346,20 +359,12 @@ async def test_stored_unifi_credentials_never_reach_an_arbitrary_host(_spy_unifi
     assert _spy_unifi_client == [], "a stored UniFi credential was sent to a host"
 
 
-async def test_unifi_deploy_resolves_the_session_customer_not_the_active_one(
-    monkeypatch, _spy_unifi_client
-):
+async def test_unifi_deploy_resolves_the_session_customer(monkeypatch, _spy_unifi_client):
     from app.core.credentials import store_secret
     from app.services.provisioning import _deploy_unifi
 
-    # A different customer is active, and it has no stored creds. If _deploy_unifi
-    # used the active customer it would report "no credentials"; using the bound
-    # session customer (acme) it finds acme's stored creds and hits the host
-    # guard instead — which is how we know it resolved the right customer.
-    monkeypatch.setattr(
-        "app.core.customer.CustomerManager.get_active",
-        staticmethod(lambda: {"_id": "beta", "CustomerName": "Beta AS"}),
-    )
+    # Using the bound session customer (acme) it finds acme's stored creds and
+    # hits the host guard, which is how we know it resolved that customer.
     store_secret("acme", "unifi_username", "admin")
     store_secret("acme", "unifi_password", "unifi-secret")
 

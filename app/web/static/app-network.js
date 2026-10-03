@@ -38,17 +38,20 @@ registerUiHandlers({
 });
 
 // ── Files ───────────────────────────────────────────────────────────────────────
-async function loadFiles() {
+// One customer's files, on its page's Detaljer.
+async function loadFiles(customerId) {
   const noCustomer = document.getElementById('files-no-customer');
   const content = document.getElementById('files-content');
+  if (!customerId) {
+    noCustomer.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
   try {
-    const d = await apiFetch('/api/files');
+    const d = await apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/files');
+    // Another customer's page opened meanwhile: these are not its files.
+    if (_custPage.id !== customerId) return;
     if (!d) { content.style.display = 'none'; return; }
-    if (!d.has_customer) {
-      noCustomer.style.display = 'block';
-      content.style.display = 'none';
-      return;
-    }
     noCustomer.style.display = 'none';
     content.style.display = 'block';
 
@@ -122,12 +125,31 @@ async function loadFiles() {
 }
 
 var _unifiDirectDevices = [];
+// The customer Nettverk's Enheter and Audit are working on: the one picked in
+// their customer bar, which is this tab's current customer. Every save on
+// these tabs goes to the customer the form was loaded for, never to whichever
+// customer another tab opened since.
+var _netCustomerId = null;
+
+registerToolCustomer('network', function() { loadNetworkDevices(); _clearNetworkAudit(); });
+
+function _clearNetworkAudit() {
+  var box = document.getElementById('net-audit-result');
+  if (box) box.innerHTML = '';
+  var list = document.getElementById('config-backups-list');
+  if (list) list.innerHTML = '';
+}
 
 async function loadNetworkDevices() {
   var box = document.getElementById('network-devices-content');
   if (!box) return;
+  renderToolCustomerPickers();
+  var cid = await toolCustomerId();
+  _netCustomerId = cid;
+  if (!cid) { box.innerHTML = toolNoCustomerHtml(); return; }
   try {
-    var d = await apiFetch('/api/network-devices');
+    var d = await apiFetch('/api/network-devices/' + encodeURIComponent(cid));
+    if (_netCustomerId !== cid) return;
     if (!d) { box.innerHTML = '<span style="color:var(--text-muted);">' + t('kunne_ikke_laste_nettverksenheter') + '</span>'; return; }
 
     var html = '';
@@ -324,12 +346,16 @@ async function testUniFiDevice(idx) {
 async function runNetworkQuickAudit() {
   var btn = document.getElementById('btn-run-network-audit');
   var box = document.getElementById('net-audit-result');
+  var cid = await toolCustomerId();
+  if (!cid) { box.innerHTML = toolNoCustomerHtml(); return; }
   btn.disabled = true;
   btn.textContent = t('status_running','Running...');
   box.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div>' + t('msg_loading_network_devices','Loading data from network devices...') + '</div>';
 
   try {
-    var d = await apiFetch('/api/network/quick-audit', {method: 'POST'});
+    var d = await apiFetch('/api/network/quick-audit/' + encodeURIComponent(cid), {method: 'POST'});
+    if (currentCustomerId() !== cid) return;
+    if (!d) { box.innerHTML = ''; return; }
     if (d.error) { box.innerHTML = '<div class="alert alert-error">' + esc(d.error) + '</div>'; return; }
 
     var html = '';
@@ -558,8 +584,9 @@ async function runNetworkQuickAudit() {
 }
 
 async function saveUniFiDirect() {
+  if (!_netCustomerId) return;
   try {
-    var d = await apiFetch('/api/unifi/save', {
+    var d = await apiFetch('/api/unifi/save/' + encodeURIComponent(_netCustomerId), {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       // Only the fields this form owns. The route leaves everything else
       // alone; it used to reset each unmentioned field to its default, so
@@ -656,7 +683,7 @@ async function unifiDeviceConfig(host) {
 
     if (d.ok && d.config) {
       // Auto-save backup
-      apiFetch('/api/network/save-config-backup', {
+      if (_netCustomerId) apiFetch('/api/network/save-config-backup/' + encodeURIComponent(_netCustomerId), {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({host: host, config: d.config})
       }).catch(function() {});
@@ -756,7 +783,8 @@ async function addScannedDevice(host, btnEl) {
   if (btnEl) { btnEl.textContent = t('btn_saving','Saving...'); btnEl.disabled = true; }
 
   try {
-    var d = await apiFetch('/api/unifi/save', {
+    if (!_netCustomerId) return;
+    var d = await apiFetch('/api/unifi/save/' + encodeURIComponent(_netCustomerId), {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({mode: 'direct', devices: _unifiDirectDevices})
     });
@@ -837,7 +865,7 @@ async function scanDeviceConfig(host, rowId) {
     });
     if (!d) { row.style.display = 'none'; cell.innerHTML = ''; return; }
     if (d.ok && d.config) {
-      apiFetch('/api/network/save-config-backup', {
+      if (_netCustomerId) apiFetch('/api/network/save-config-backup/' + encodeURIComponent(_netCustomerId), {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({host: host, config: d.config})
       }).catch(function() {});
@@ -874,7 +902,10 @@ async function loadConfigBackups() {
   var box = document.getElementById('config-backups-list');
   box.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">' + t('msg_loading','Loading...') + '</div>';
   try {
-    var d = await apiFetch('/api/network/config-backups');
+    var cid = await toolCustomerId();
+    if (!cid) { if (box) box.innerHTML = toolNoCustomerHtml(); return; }
+    var d = await apiFetch('/api/network/config-backups/' + encodeURIComponent(cid));
+    if (currentCustomerId() !== cid) return;
     if (!d.backups || d.backups.length === 0) {
       box.innerHTML = emptyStateHTML({
         variant: 'inline',
@@ -932,7 +963,8 @@ async function testFortiGate() {
 async function saveFortiGate() {
   var res = document.getElementById('fg-test-result');
   try {
-    var d = await apiFetch('/api/fortigate/save', {
+    if (!_netCustomerId) return;
+    var d = await apiFetch('/api/fortigate/save/' + encodeURIComponent(_netCustomerId), {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         host: document.getElementById('input-fg-host').value,
@@ -981,7 +1013,8 @@ async function testUniFi() {
 async function saveUniFi() {
   var res = document.getElementById('uf-test-result');
   try {
-    var d = await apiFetch('/api/unifi/save', {
+    if (!_netCustomerId) return;
+    var d = await apiFetch('/api/unifi/save/' + encodeURIComponent(_netCustomerId), {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         host: document.getElementById('input-uf-host').value,

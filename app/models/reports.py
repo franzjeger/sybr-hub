@@ -25,11 +25,20 @@ class EmailTestRequest(BaseModel):
 
 
 class EmailReportRequest(BaseModel):
-    """Where to send the selected audit's report; empty means the default."""
+    """Where to send a customer's selected audit report; empty ``to`` means the default."""
 
     model_config = ConfigDict(extra="forbid")
 
+    customer_id: str = Field(min_length=1)
     to: str = ""
+
+
+class ReportCsvRequest(BaseModel):
+    """Whose selected audit run to export."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: str = Field(min_length=1)
 
 
 class ReportGenerateRequest(BaseModel):
@@ -41,6 +50,9 @@ class ReportGenerateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # The customer whose selected run to render: the report is that page's,
+    # never "the active customer's".
+    customer_id: str = Field(min_length=1)
     format: Literal["html", "pdf"] = "html"
     report_type: Literal["tech", "customer"] = "tech"
     lang: Literal["no", "en"] = "no"

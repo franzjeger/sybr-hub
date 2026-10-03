@@ -48,7 +48,7 @@ def stored_recommendation(rec: dict) -> dict:
     }
 
 
-def save_audit_metrics(out_dir: Path, context: dict) -> None:
+def save_audit_metrics(out_dir: Path, context: dict, *, customer_id: str | None = None) -> None:
     """Save key audit metrics as JSON for future trend comparison."""
     mfa = context.get("mfa", {})
     network = context.get("network", {}) or {}
@@ -101,30 +101,30 @@ def save_audit_metrics(out_dir: Path, context: dict) -> None:
 
     # Also persist to DB for trend tracking
     try:
-        _save_metrics_to_db(out_dir, metrics)
+        _save_metrics_to_db(out_dir, metrics, customer_id)
     except Exception as e:
         import logging
 
         logging.getLogger(__name__).warning("Failed to save metrics to DB: %s", e)
 
 
-def _save_metrics_to_db(out_dir: Path, metrics: dict) -> None:
-    """Insert audit metrics into the database for historical trend queries."""
+def _save_metrics_to_db(out_dir: Path, metrics: dict, customer_id: str | None = None) -> None:
+    """Insert audit metrics into the database for historical trend queries.
+
+    The row's customer is the run's: the id the caller passed, else the one
+    customer whose folder this is. It was read from load_config(), which in a
+    web request meant the caller's active customer and anywhere else (the
+    audit job's executor thread, the scheduler) the setup staging file, so a
+    finished audit's trend row could land on whoever was set up last.
+    """
     import sqlite3
 
+    from app.core.customer import customer_id_for_run_dir
     from app.core.database import DB_PATH
 
     customer_name = out_dir.parent.name.replace("_", " ")
-    # Derive customer_id from customer context if available
-    customer_id = ""
-    try:
-        from app.core.credentials import load_config
-
-        cfg = load_config() or {}
-        customer_id = cfg.get("_id", cfg.get("TenantId", ""))
-    except Exception:
-        # Metrics are still written, just not attributed to a customer.
-        log.debug("Could not resolve active customer for metrics", exc_info=True)
+    if customer_id is None:
+        customer_id = customer_id_for_run_dir(out_dir)
     conn = sqlite3.connect(str(DB_PATH))
     try:
         conn.execute(

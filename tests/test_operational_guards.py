@@ -24,11 +24,13 @@ async def test_audit_start_log_failure_releases_start_lock(monkeypatch):
         role=Role.admin,
         can_write=True,
     )
-    monkeypatch.setattr("app.core.customer.CustomerManager.get_active_id", lambda: "c1")
     monkeypatch.setattr(
         audit,
         "_prepare_audit",
-        lambda request: (None, {"customer_name": "Example", "out_dir": None, "cfg": {}}),
+        lambda request, customer_id: (
+            None,
+            {"customer_name": "Example", "out_dir": None, "cfg": {}, "customer_id": customer_id},
+        ),
     )
 
     def broken_log(*args, **kwargs):
@@ -47,7 +49,7 @@ async def test_audit_start_log_failure_releases_start_lock(monkeypatch):
     )
     for _ in range(2):
         with pytest.raises(OSError, match="disk-full"):
-            await audit.audit_stream(request, user)
+            await audit.audit_stream(request, "c1", user)
         assert not state.audit_running
         assert not state.get_user_audit(user.id, "c1").running
 

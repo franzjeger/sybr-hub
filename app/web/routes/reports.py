@@ -23,6 +23,7 @@ from app.models.reports import (
     EmailTestRequest,
     ReportArchiveCleanup,
     ReportArchiveDelete,
+    ReportCsvRequest,
     ReportGenerateRequest,
 )
 from app.models.user import Role, User
@@ -43,14 +44,14 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 async def _selected_audit_run(
-    user: User, *, require_results: bool = False
+    user: User, customer_id: str, *, require_results: bool = False
 ) -> state.AuditRunContext:
-    """Resolve report state owned by this user and revalidate path access."""
-    from app.core.customer import CustomerManager
-    from app.core.rbac import check_audit_path_access
+    """The run this user selected for this customer, with access revalidated."""
+    from app.core.rbac import check_audit_path_access, check_customer_access
 
-    active_id = CustomerManager.get_active_id()
-    run = state.get_user_audit(user.id, active_id) if active_id else None
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_no_access")
+    run = state.get_user_audit(user.id, customer_id)
     if run is None or run.out_dir is None or not run.out_dir.exists():
         raise refusal(ValidationError, "err_no_audit_results")
     if require_results and not run.results:
@@ -104,7 +105,7 @@ async def email_send_report(
     if not to:
         raise ValidationError(ui_t("err_no_recipient", request))
 
-    audit_run = await _selected_audit_run(user)
+    audit_run = await _selected_audit_run(user, body.customer_id)
     out_dir = audit_run.out_dir
     assert out_dir is not None
 
@@ -535,17 +536,17 @@ async def customer_summary_report(
 
 
 @router.post("/report/csv")
-async def export_csv(user: User = Depends(get_current_user)):
-    """Export key audit metrics as CSV."""
-    audit_run = await _selected_audit_run(user, require_results=True)
+async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_user)):
+    """Export key audit metrics of a customer's selected run as CSV."""
+    audit_run = await _selected_audit_run(user, body.customer_id, require_results=True)
     out_dir = audit_run.out_dir
     assert out_dir is not None
 
-    from app.core.credentials import load_config
+    from app.core.customer import CustomerManager
     from app.modules.base import SectionResult, SectionStatus
     from app.reports.generator import build_report_context
 
-    cfg = load_config() or {}
+    cfg = CustomerManager.get_customer(body.customer_id) or {}
 
     results = [
         SectionResult(
@@ -568,6 +569,8 @@ async def export_csv(user: User = Depends(get_current_user)):
         org_domain=cfg.get("PrimaryDomain", ""),
         out_dir=out_dir,
         results=results,
+        customer_id=body.customer_id,
+        persist_metrics=False,
     )
 
     import csv
@@ -754,7 +757,7 @@ async def export_dashboard_excel(user: User = Depends(get_current_user)):
 
 @router.post("/report/generate")
 async def generate_report(body: ReportGenerateRequest, user: User = Depends(get_current_user)):
-    audit_run = await _selected_audit_run(user, require_results=True)
+    audit_run = await _selected_audit_run(user, body.customer_id, require_results=True)
     out_dir = audit_run.out_dir
     assert out_dir is not None
 
@@ -766,11 +769,11 @@ async def generate_report(body: ReportGenerateRequest, user: User = Depends(get_
     formats = ["html"] if fmt == "html" else ["html", "pdf"]
 
     from app.core.config import AUDIT_DIR
-    from app.core.credentials import load_config
+    from app.core.customer import CustomerManager
     from app.modules.base import SectionResult, SectionStatus
     from app.reports.generator import generate_reports
 
-    cfg = load_config() or {}
+    cfg = CustomerManager.get_customer(body.customer_id) or {}
     results = [
         SectionResult(
             name=r["name"],
@@ -804,6 +807,7 @@ async def generate_report(body: ReportGenerateRequest, user: User = Depends(get_
                 lang=lang,
                 frameworks=frameworks,
                 theme=theme,
+                customer_id=body.customer_id,
             ),
         )
         html_path = output.get("html")

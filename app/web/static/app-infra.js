@@ -164,6 +164,9 @@ function _customerNameById(customerId) {
     var c2 = _overviewData.customers.find(function(c){ return (c.customer_id || c._id) === customerId; });
     if (c2) return c2.customer_name || customerId;
   }
+  // The registry list the tools' customer bars read (app.js, toolCustomerId).
+  var c3 = (_allCustomers || []).find(function(c){ return c._id === customerId; });
+  if (c3) return c3.CustomerName || customerId;
   return customerId;
 }
 
@@ -1404,8 +1407,7 @@ var _liveWs = null;
 async function livePollNow() {
   var statusEl = document.getElementById('live-status') || document.getElementById('fg-live-status');
   if (statusEl) statusEl.textContent = t('msg_updating','Updating...');
-  var status = await apiFetch('/api/status');
-  var custId = status && status.active_id;
+  var custId = await toolCustomerId();
   if (!custId) { showToast(t('msg_select_customer_first','Select a customer first'),'error'); return; }
   var data = await apiFetch('/api/dashboard/poll/'+encodeURIComponent(custId), {method:'POST'});
   if (data) liveRenderDevices(data.devices || []);
@@ -1766,6 +1768,12 @@ async function aiLoadCustomers() {
       html += '<option value="' + esc(c.id) + '">' + esc(c.name) + (c.domain ? ' (' + esc(c.domain) + ')' : '') + '</option>';
     });
     sel.innerHTML = html;
+    // Start from this tab's current customer, as the console's context.
+    var current = currentCustomerId();
+    if (current && _aiCustomerList.some(function(c) { return c.id === current; })) {
+      sel.value = current;
+      document.getElementById('ai-customer').value = current;
+    }
   }
 }
 
@@ -1832,12 +1840,10 @@ async function aiSend() {
   msgsEl.appendChild(aiDiv);
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
-  // Get context
+  // The customer the conversation is about: the one chosen above, which
+  // starts as this tab's current customer. "all" is no single customer.
   var custId = document.getElementById('ai-customer').value;
-  if (!custId) {
-    var status = await apiFetch('/api/status');
-    custId = status && status.active_id;
-  }
+  if (custId === 'all') custId = '';
   var focus = document.getElementById('ai-focus').value;
   try {
     var resp = await fetch('/api/claude/message', {
@@ -1894,8 +1900,17 @@ function aiClearChat() {
 var _provisionSession = null;
 var _provisionSuggested = null;
 
+// The session is bound to the customer chosen in the bar above the wizard
+// (this tab's current customer), or to none: that customer's stored device
+// credentials are the only ones a deploy may use.
+registerToolCustomer('provisioning', function() { if (_provisionSession) provisionStart(); });
+
 async function provisionStart() {
-  var data = await apiFetch('/api/provisioning/start', {method:'POST'});
+  renderToolCustomerPickers();
+  var customerId = await toolCustomerId();
+  var data = await apiFetch('/api/provisioning/start', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
+  });
   if (!data) return;
   _provisionSession = data.session_id;
   _provisionSuggested = null;
@@ -2018,17 +2033,17 @@ async function provisionGenerate(useAi) {
 
 // ── Provisioning helpers ────────────────────────────────────────────────────
 
+// From the customer chosen in the bar above the wizard.
 async function provisionAutoFill() {
-  var data = await apiFetch('/api/network-devices');
+  var customerId = await toolCustomerId();
+  if (!customerId) return;
+  var data = await apiFetch('/api/network-devices/' + encodeURIComponent(customerId));
   if (data && data.fortigate && data.fortigate.host) {
     var targetEl = document.getElementById('prov-target');
     if (targetEl && !targetEl.value) targetEl.value = data.fortigate.host;
   }
-  var status = await apiFetch('/api/status');
-  if (status && status.customer && status.customer.name) {
-    var nameEl = document.getElementById('prov-name');
-    if (nameEl && !nameEl.value) nameEl.value = status.customer.name;
-  }
+  var nameEl = document.getElementById('prov-name');
+  if (nameEl && !nameEl.value) nameEl.value = _customerNameById(customerId);
 }
 
 async function provisionSuggestSubnets() {
@@ -2722,10 +2737,12 @@ async function fgBootstrap() {
   resultBox.style.display = 'none';
 
   try {
+    // Stored for the customer chosen on the card; with none, only shown.
+    var bootCustomer = await toolCustomerId();
     var d = await apiFetch('/api/fortigate/bootstrap', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({host: host, hostname: hostname || undefined})
+      body: JSON.stringify({host: host, hostname: hostname || undefined, customer_id: bootCustomer || undefined})
     });
 
     if (d && d.ok) {
@@ -2782,17 +2799,10 @@ function fgBootstrapAutoFill(host, token) {
   fgApiSave();
 }
 
+// The credentials stored for the customer chosen on the card.
 async function fgDownloadCredentials() {
-  var active = window.activeCustomerId || (window.appState && window.appState.activeCustomerId);
-  if (!active) {
-    try {
-      // /api/customers/active has never existed. The active customer's id
-      // comes from /api/status, which is what every other caller reads.
-      var st = await apiFetch('/api/status');
-      active = st && st.active_id;
-    } catch (e) {}
-  }
-  if (!active) { showToast(t('err_no_active_customer'), 'warning'); return; }
+  var active = await toolCustomerId();
+  if (!active) { showToast(t('msg_tool_choose_customer', 'Velg kunden verktøyet skal gjelde, i feltet Kunde over.'), 'warning'); return; }
 
   try {
     var d = await apiFetch('/api/fortigate/credentials/' + encodeURIComponent(active));
@@ -2863,21 +2873,34 @@ async function fgApiSave() {
 
   if (!host || !token) { showToast(t('err_host_token_required','Host and token are required'), 'error'); return; }
 
-  // Save to active customer if one exists, otherwise to global settings
-  var status = await apiFetch('/api/status');
-  if (status && status.active_id) {
-    var data = await apiFetch('/api/fortigate/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:host, port:parseInt(port), api_token:token, vdom:vdom})});
-    if (data && data.ok) {
-      showToast(t('msg_fortigate_config_saved','FortiGate config saved for active customer'), 'success');
-      document.getElementById('fg-api-save-msg').innerHTML = '<span style="color:var(--green);">' + t('lbl_saved','Saved') + '</span>';
-    }
-  } else {
-    showToast(t('err_select_customer_first','Select an active customer first to save FortiGate config'), 'error');
+  // Saved for the customer chosen on the card, the one the form was loaded for.
+  var customerId = _fgApiCustomerId;
+  if (!customerId) {
+    showToast(t('err_select_customer_first','Velg kunden FortiGaten skal lagres for, i feltet Kunde.'), 'error');
+    return;
+  }
+  var data = await apiFetch('/api/fortigate/save/' + encodeURIComponent(customerId), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:host, port:parseInt(port), api_token:token, vdom:vdom})});
+  if (data && data.ok) {
+    showToast(t('msg_fortigate_config_saved','FortiGate-konfig lagret for {customer}').replace('{customer}', _customerNameById(customerId)), 'success');
+    document.getElementById('fg-api-save-msg').innerHTML = '<span style="color:var(--green);">' + t('lbl_saved','Saved') + '</span>';
   }
 }
 
+// The customer the FortiGate card's form shows and saves to.
+var _fgApiCustomerId = null;
+registerToolCustomer('fgapi', function() { fgApiLoadSaved(); });
+
 async function fgApiLoadSaved() {
-  var data = await apiFetch('/api/network-devices');
+  renderToolCustomerPickers();
+  var customerId = await toolCustomerId();
+  _fgApiCustomerId = customerId;
+  ['fg-api-host', 'fg-api-token'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  var portEl = document.getElementById('fg-api-port'); if (portEl) portEl.value = 443;
+  var vdomEl = document.getElementById('fg-api-vdom'); if (vdomEl) vdomEl.value = 'root';
+  var tokenEl = document.getElementById('fg-api-token'); if (tokenEl) tokenEl.placeholder = t('fortigate_rest_api_token', 'FortiGate REST API token');
+  if (!customerId) return;
+  var data = await apiFetch('/api/network-devices/' + encodeURIComponent(customerId));
+  if (_fgApiCustomerId !== customerId) return;
   if (data && data.fortigate) {
     var fg = data.fortigate;
     document.getElementById('fg-api-host').value = fg.host || '';
@@ -3784,11 +3807,10 @@ async function runSmbEnum() {
 
 async function runSegTest() {
   var el = document.getElementById('pentest-results');
-  // Get active customer for auto-test
-  var status = await apiFetch('/api/status');
-  var custId = status && status.active_id;
+  // The customer chosen in the bar above the tests (this tab's current one).
+  var custId = await toolCustomerId();
   if (!custId) { showToast(t('velg_en_kunde_med_fortigate'), 'error'); return; }
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('tester_nettverkssegmentering_for_aktiv_kunde') + '</div>';
+  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:24px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + esc(t('tester_nettverkssegmentering_for_aktiv_kunde').replace('{customer}', _customerNameById(custId))) + '</div>';
   var data = await apiFetch('/api/pentest/segmentation-test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_id:custId})});
   if (!data || !data.ok) { el.innerHTML = '<div class="card" style="padding:16px;border-left:3px solid var(--red);">' + t('inf_error_colon','Feil') + ': ' + esc(data&&data.error?data.error:t('inf_unknown','Ukjent')) + '</div>'; return; }
   var s = data.summary||{};
@@ -4373,7 +4395,7 @@ async function _loadSubSiteLiveData(siteName) {
   if (!_overviewData || !_overviewData.customers) {
     try {
       var ov = await apiFetch('/api/dashboard/overview');
-      if (ov) _overviewData = {customers: ov.customers || [], active_id: ov.active_id};
+      if (ov) _overviewData = {customers: ov.customers || []};
     } catch(e) {}
   }
   if (!_overviewData || !_overviewData.customers) return;

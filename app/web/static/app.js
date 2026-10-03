@@ -165,8 +165,8 @@ registerUiHandlers({
   dismissToast: function(el) { dismissToast(el.parentNode); },
   retryToast: function(el) { retryToast(el.closest('.toast')); },
   openTagEditor: function(el) { openTagEditor(el.dataset.customerId, JSON.parse(el.dataset.tags)); },
-  checkPermissions: function() { checkPermissions(); },
-  renewCreds: function() { renewCreds(); },
+  checkPermissions: function(el) { checkPermissions(el.dataset.customerId); },
+  renewCreds: function(el) { renewCreds(el.dataset.customerId); },
   toggleScopePanel: function() { toggleScopePanel(); },
   applyPreset: function() { applyPreset(); },
   saveCustomPreset: function() { saveCustomPreset(); },
@@ -184,7 +184,8 @@ registerUiHandlers({
   openOverviewTab: function(el) { openOverviewTab(el.dataset.tab); },
   termChangeFontSize: function(el) { termChangeFontSize(Number(el.dataset.delta)); },
   resolveConfirm: function(el) { resolveConfirm(el.dataset.answer === 'true'); },
-  uploadToITGlue: function(el) { uploadToITGlue(el); },
+  // On the customer page's Detaljer: that page's customer.
+  uploadToITGlue: function(el) { uploadToITGlue(el, _custPage.id); },
   dashToggleAutoRefresh: function(el) { dashToggleAutoRefresh(el); },
   scrollToTop: function() { window.scrollTo({top: 0, behavior: 'smooth'}); },
   // Menus that close themselves before acting.
@@ -609,7 +610,7 @@ function openCommandPalette() {
   // before anything had loaded it, the palette had neither.
   if (!_overviewData) {
     apiFetch('/api/dashboard/overview').then(function(d) {
-      if (d && !_overviewData) _overviewData = {customers: d.customers || [], active_id: d.active_id};
+      if (d && !_overviewData) _overviewData = {customers: d.customers || []};
       if (_cmdPaletteOpen) _renderCmdResults(input.value);
     });
   }
@@ -1285,28 +1286,102 @@ function recoverSession() {
   return _sessionRecovery;
 }
 
-// Every change of the active customer goes through here, one at a time. Two
-// switches in flight could land in either order on the server, leaving a
-// different customer active than the page on screen, and notes saved there.
-var _switchQueue = Promise.resolve();
+// ── The current customer ────────────────────────────────────────────────────
+// The server keeps no "active customer": every call made for a customer names
+// it. What is left of the idea lives here, in the browser, per tab:
+//
+//   * the current customer is the one whose page this tab opened last. The
+//     customer page always uses its own id (_custPage.id); the tools that act
+//     on one customer at a time (Nettverk's devices and audit, the FortiGate
+//     form, provisioning, the Sybrt console, pentest's segmentation test)
+//     default to this one and say which customer it is.
+//   * it is kept in sessionStorage, which is per tab: a second tab on another
+//     customer changes nothing here. A tab opened fresh starts from the most
+//     recent customer in Nylige.
+//   * Nylige (the palette's recent customers) is the last five customers
+//     opened in any tab, in localStorage.
+//
+// A per-user selection on the server was shared by every tab of that user,
+// so opening customer B in one tab made the next note, audit or report in the
+// other tab land on B.
+var _tabCustomerId = null;
 
-function switchActiveCustomer(customerId) {
-  var next = _switchQueue.then(function() {
-    return apiFetch('/api/customers/switch', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({customer_id: customerId}),
-    });
-  }).then(function(d) {
-    // The views that act on "the active customer" read this cached id, and
-    // only the Kunder list used to refresh it: open Kunder, open another
-    // customer from Oversikt, and Policy-oversikt showed the first one.
-    if (d && d.ok && typeof _customersActiveId !== 'undefined') _customersActiveId = customerId;
-    return d;
-  });
-  _switchQueue = next.catch(function() {});
-  return next;
+function currentCustomerId() {
+  if (_tabCustomerId) return _tabCustomerId;
+  try {
+    _tabCustomerId = sessionStorage.getItem('sybr_tab_customer')
+      || JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]')[0] || null;
+  } catch (e) { _tabCustomerId = null; }
+  return _tabCustomerId;
 }
+
+function setCurrentCustomer(customerId) {
+  _tabCustomerId = customerId || null;
+  try {
+    if (customerId) sessionStorage.setItem('sybr_tab_customer', customerId);
+    else sessionStorage.removeItem('sybr_tab_customer');
+    if (!customerId) return;
+    var recent = JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]');
+    recent = recent.filter(function(id) { return id !== customerId; });
+    recent.unshift(customerId);
+    localStorage.setItem('sybr_recent_customers', JSON.stringify(recent.slice(0, 5)));
+  } catch (e) { /* private mode: the tab still remembers it until reload */ }
+}
+
+// ── Tools that act on one customer ──────────────────────────────────────────
+// Nettverk's Enheter and Audit and the FortiGate API form each work on one
+// customer at a time. They say which in a customer bar ([data-tool-customer]),
+// whose choice is this tab's current customer; picking another there changes
+// it for this tab only and reloads the tool. A tool sends that id with every
+// call; there is no customer the server would assume.
+var _toolReloaders = {};
+
+function registerToolCustomer(tool, reload) { _toolReloaders[tool] = reload; }
+
+async function _ensureCustomerList() {
+  if (!_allCustomers || !_allCustomers.length) {
+    var cs = await apiFetch('/api/customers');
+    if (cs) _allCustomers = cs.customers || [];
+  }
+  return _allCustomers || [];
+}
+
+// This tab's current customer, if this account can still see it.
+async function toolCustomerId() {
+  var list = await _ensureCustomerList();
+  var id = currentCustomerId();
+  return list.some(function(c) { return c._id === id; }) ? id : null;
+}
+
+async function renderToolCustomerPickers() {
+  var bars = document.querySelectorAll('[data-tool-customer]');
+  if (!bars.length) return;
+  var list = await _ensureCustomerList();
+  var current = await toolCustomerId();
+  bars.forEach(function(bar) {
+    var opts = '<option value="">' + esc(t('lbl_choose_customer', 'Velg kunde')) + '</option>'
+      + list.map(function(c) {
+        return '<option value="' + esc(c._id) + '"' + (c._id === current ? ' selected' : '') + '>' + esc(c.CustomerName || c._id) + '</option>';
+      }).join('');
+    bar.innerHTML = '<label class="tool-customer-label"><span>' + esc(t('lbl_tool_customer', 'Kunde')) + '</span>'
+      + '<select class="field-input tool-customer-select" data-change-handler="toolCustomerChanged" data-tool="' + esc(bar.dataset.toolCustomer) + '">'
+      + opts + '</select></label>';
+  });
+}
+
+function toolNoCustomerHtml() {
+  return '<div class="empty-signpost"><p>' + esc(t('msg_tool_choose_customer', 'Velg kunden verktøyet skal gjelde, i feltet Kunde over.')) + '</p></div>';
+}
+
+registerUiHandlers({
+  toolCustomerChanged: function(el) {
+    if (!el.value) return;   // the empty first option is a prompt, not a choice
+    setCurrentCustomer(el.value);
+    document.querySelectorAll('.tool-customer-select').forEach(function(s) { if (s !== el) s.value = el.value; });
+    var reload = _toolReloaders[el.dataset.tool];
+    if (reload) reload();
+  },
+});
 
 async function apiFetch(url, options, _retryCount, _authRetried) {
   if (_retryCount === undefined) _retryCount = 0;
@@ -1410,6 +1485,9 @@ window.onunhandledrejection = function(event) {
 // ── State ──────────────────────────────────────────────────────────────────────
 let currentView = 'home';
 let auditRunning = false;
+// The customer the running audit (this account's one at a time) is for. The
+// customer page shows the run only on that customer's Audit tab.
+let auditCustomerId = null;
 let auditOutDir = null;
 let sectionTotal = 0;
 let sectionDone = 0;
@@ -1570,8 +1648,8 @@ function showView(name) {
   // TLS-monitor is a tab of Nettverk.
   if (name === 'tls') { showNetworkTab('net-tls'); return; }
   // M365-status, Filer, Audit, Historikk, the policy pages and Vurderinger
-  // are tabs of the customer page now: the active customer's.
-  if (CUSTOMER_TAB_ALIASES[name]) { openActiveCustomerTab(CUSTOMER_TAB_ALIASES[name][0], CUSTOMER_TAB_ALIASES[name][1]); return; }
+  // are tabs of the customer page now: this tab's current customer's.
+  if (CUSTOMER_TAB_ALIASES[name]) { openCurrentCustomerTab(CUSTOMER_TAB_ALIASES[name][0], CUSTOMER_TAB_ALIASES[name][1]); return; }
   // Leaving Administrasjon with unsaved edits asks first.
   if (currentView === 'admin' && name !== 'admin' && !adminMayLeave()) return;
   _cleanupViewTimers();
@@ -1642,9 +1720,9 @@ async function applyRoute() {
       await openCustomerPage(decodeURIComponent(customer[1]), customer[2], customer[3]);
     } else if (view && CUSTOMER_TAB_ALIASES[view[1]]) {
       // #/audit, #/history and the rest were pages about the active customer;
-      // they are its page's tabs now.
+      // they are this tab's current customer's page's tabs now.
       var alias = CUSTOMER_TAB_ALIASES[view[1]];
-      await openActiveCustomerTab(alias[0], alias[1]);
+      await openCurrentCustomerTab(alias[0], alias[1]);
       history.replaceState(null, '', currentView === 'customer-detail' ? _custHash() : '#/' + currentView);
     } else if (admin || (view && view[1] === 'integrations')) {
       // #/integrations was a page of its own; it is a pane of Administrasjon now.
@@ -1676,18 +1754,23 @@ window.addEventListener('popstate', function() { if (_currentUser) applyRoute();
 // flag that outlives its run leaves a badge lit with nothing behind it.
 async function _reconcileAuditState() {
   try {
+    // This account's running audit, whichever customer it is for.
     var d = await apiFetch('/api/audit/progress');
     if (!d || d.running === undefined) return;   // older server: leave as-is
     if (d.running && !auditRunning) {
       // Started elsewhere — another tab, a schedule, another technician.
       auditRunning = true;
+      auditCustomerId = d.customer_id || null;
       var ind = document.getElementById('audit-running-indicator');
       if (ind) ind.style.display = 'flex';
-      _showAuditRunningChrome();
+      _showAuditRunOrIdle();
       startAuditProgressPolling();
-      _watchAuditUntilServerIdle(true);   // we never had a stream to lose
+      // We never had a stream to lose; with the customer known, the watcher
+      // can re-attach to the run's live stream.
+      _watchAuditUntilServerIdle(true, auditCustomerId ? '/api/audit/stream?customer_id=' + encodeURIComponent(auditCustomerId) : null);
     } else if (d.running) {
-      _showAuditRunningChrome();
+      auditCustomerId = d.customer_id || auditCustomerId;
+      _showAuditRunOrIdle();
     } else if (auditRunning) {
       _finishAuditWithoutStream();
     } else {
@@ -1715,9 +1798,21 @@ function _showAuditRunningChrome() {
   _auditChrome().forEach(function(el) { if (el) el.style.display = ''; });
 }
 
+// Whether the run in progress is this page's customer's.
+function _auditRunIsThisPages() {
+  return (auditRunning || _auditStarting) && (!auditCustomerId || auditCustomerId === _custPage.id);
+}
+
+// The run on its own customer's Audit tab; on any other customer's, the idle
+// state, while the floating bar says a run is going on elsewhere.
+function _showAuditRunOrIdle() {
+  if (_auditRunIsThisPages()) _showAuditRunningChrome();
+  else if (currentView === 'customer-detail' && _custPage.tab === 'audit') _renderAuditIdle();
+}
+
 function _renderAuditIdle() {
   var view = document.getElementById('view-audit');
-  if (!view || auditRunning || _auditStarting) return;
+  if (!view || _auditRunIsThisPages()) return;
 
   // Nothing is running, so the running chrome is a lie. Put it away.
   _auditChrome().forEach(function(el) { if (el) el.style.display = 'none'; });
@@ -1751,6 +1846,7 @@ function _renderAuditIdle() {
 
 function _clearStaleAuditBadge() {
   auditRunning = false;
+  auditCustomerId = null;
   stopAuditProgressPolling();
   _hideAuditProgressBar();
   var ind = document.getElementById('audit-running-indicator');
@@ -1769,6 +1865,11 @@ function switchNetSub(btn, tabId) {
   document.querySelectorAll('.net-sub-btn').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById(tabId).style.display = 'block';
   btn.classList.add('active');
+  if (tabId === 'net-audit') {
+    // The audit tab works on the same customer as Enheter.
+    renderToolCustomerPickers();
+    toolCustomerId().then(function(id) { _netCustomerId = id; });
+  }
 
   if (tabId === 'net-fortigates') dashLoadFortiGates();
   if (tabId === 'net-unifi') dashLoadUnifiAll();

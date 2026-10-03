@@ -11,11 +11,6 @@ async function baselineDeployLoad() {
   if (!el) return;
   el.innerHTML = '<div class="loader loader-lg"></div>';
 
-  if (!_customersActiveId) {
-    var cs = await apiFetch('/api/customers');
-    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; }
-  }
-
   var d = await apiFetch('/api/baseline-deploy/schema');
   if (!d) { el.innerHTML = '<div class="alert alert-error">' + t('bd_error_loading_schema','Kunne ikke laste skjemaet') + '</div>'; return; }
 
@@ -23,7 +18,8 @@ async function baselineDeployLoad() {
 }
 
 function _renderBaselineForm(schema) {
-  var cust = (_allCustomers || []).find(c => c._id === _customersActiveId)?.CustomerName || t('msg_no_customer_selected','Ingen kunde valgt');
+  // The customer whose page this tab is on.
+  var cust = (_custPage.cust && _custPage.cust.customer_name) || t('msg_no_customer_selected','Ingen kunde valgt');
   var html = '<div class="card bd-form">';
   html += '<div class="bd-customer">' + t('lbl_customer','Kunde') + ': <strong>' + esc(cust) + '</strong></div>';
 
@@ -77,10 +73,12 @@ async function baselineDeployPlan() {
       selected: selected
   };
 
-  var d = await apiFetch('/api/baseline-deploy/' + encodeURIComponent(_customersActiveId) + '/plan', {
+  var cid = _custPage.id;
+  var d = await apiFetch('/api/baseline-deploy/' + encodeURIComponent(cid) + '/plan', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
   });
 
+  if (_custPage.id !== cid) return;   // another customer's page opened meanwhile
   if (!d) { box.innerHTML = ''; return; }
 
   var html = '<div class="card bd-result-card">';
@@ -89,8 +87,9 @@ async function baselineDeployPlan() {
       html += '<div class="bd-change-row"><strong class="bd-change-create">+ ' + t('btn_create','Opprett') + '</strong> ' + esc(c.category + '.' + c.name) + '</div>';
   });
 
-  // Store request body for apply
+  // Store request body for apply, with the customer it was planned for
   window._bdLastReq = body;
+  window._bdLastCustomer = cid;
   html += '<button class="btn btn-primary bd-apply-btn" data-click-handler="baselineDeployApply">' + t('bd_apply_changes','Rull ut endringene') + '</button>';
   html += '</div>';
   box.innerHTML = html;
@@ -100,7 +99,9 @@ async function baselineDeployApply() {
   var box = document.getElementById('bd-plan');
   box.innerHTML = '<div class="loader loader-md"></div>';
 
-  var d = await apiFetch('/api/baseline-deploy/' + encodeURIComponent(_customersActiveId) + '/apply', {
+  // Only the customer the plan was made for, and only on its page.
+  if (!window._bdLastCustomer || window._bdLastCustomer !== _custPage.id) { box.innerHTML = ''; return; }
+  var d = await apiFetch('/api/baseline-deploy/' + encodeURIComponent(window._bdLastCustomer) + '/apply', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(window._bdLastReq)
   });
 

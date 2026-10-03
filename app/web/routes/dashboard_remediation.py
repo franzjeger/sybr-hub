@@ -14,8 +14,8 @@ from app.core.exceptions import (
 )
 from app.models.ticket import RemediationUpdate
 from app.models.user import Role, User
-from app.web.i18n import get_ui_lang, refusal, ui_t
-from app.web.middleware.auth import get_current_user, require_role
+from app.web.i18n import get_ui_lang, ui_t
+from app.web.middleware.auth import get_current_user, require_customer_access
 
 logger = logging.getLogger(__name__)
 
@@ -60,16 +60,16 @@ def _recommendation_titles(customer_id: str, lang: str) -> dict[str, str]:
     return {}
 
 
-@router.get("/remediation")
-async def get_remediation(request: Request):
-    from app.core.customer import CustomerManager
+@router.get("/remediation/{customer_id}")
+async def get_remediation(
+    request: Request,
+    customer_id: str,
+    _user: User = Depends(require_customer_access(Role.viewer)),
+):
     from app.services.remediation import load_remediation
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise refusal(ValidationError, "err_no_active_customer")
-    data = await load_remediation(active_id)
-    titles = _recommendation_titles(active_id, get_ui_lang(request))
+    data = await load_remediation(customer_id)
+    titles = _recommendation_titles(customer_id, get_ui_lang(request))
     # A row whose finding no longer appears keeps its id as the label. That is
     # unlovely, and it is honest: something was actioned that this run does not
     # raise, and hiding it would lose the note attached to it.
@@ -79,21 +79,19 @@ async def get_remediation(request: Request):
     total = len(items)
     done = sum(1 for v in items.values() if v.get("status") == "done")
     pct = round((done / total) * 100, 1) if total > 0 else 0.0
-    return {"customer_id": active_id, "items": items, "total": total, "done": done, "pct": pct}
+    return {"customer_id": customer_id, "items": items, "total": total, "done": done, "pct": pct}
 
 
-@router.post("/remediation")
+@router.post("/remediation/{customer_id}")
 async def update_remediation(
+    customer_id: str,
     body: RemediationUpdate,
     request: Request,
-    _user: User = Depends(require_role(Role.technician)),
+    _user: User = Depends(require_customer_access(Role.technician)),
 ):
     from app.core.customer import CustomerManager
     from app.services.remediation import set_remediation
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise ValidationError(ui_t("err_no_active_customer", request))
     # rec_id is the stable, language-independent identity. "title" is still
     # accepted for a client that has not reloaded since this changed, and for
     # rows written before recommendations had ids at all.
@@ -106,11 +104,11 @@ async def update_remediation(
         raise ValidationError(ui_t("err_invalid_status", request))
 
     updated_by = getattr(getattr(request.state, "user", None), "username", "")
-    item = await set_remediation(active_id, rec_id, new_status, notes, assigned_to=updated_by)
+    item = await set_remediation(customer_id, rec_id, new_status, notes, assigned_to=updated_by)
 
     from app.core.activity_log import log_activity
 
-    customer = CustomerManager.get_customer(active_id)
+    customer = CustomerManager.get_customer(customer_id)
     customer_name = customer.get("CustomerName", "") if customer else ""
     log_activity(
         "remediation_updated",
@@ -122,13 +120,11 @@ async def update_remediation(
     return {"ok": True, "item": item}
 
 
-@router.get("/remediation/summary")
-async def get_remediation_summary():
-    from app.core.customer import CustomerManager
+@router.get("/remediation/{customer_id}/summary")
+async def get_remediation_summary(
+    customer_id: str, _user: User = Depends(require_customer_access(Role.viewer))
+):
     from app.services.remediation import get_remediation_counts
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise refusal(ValidationError, "err_no_active_customer")
-    summary = await get_remediation_counts(active_id)
-    return {"customer_id": active_id, **summary}
+    summary = await get_remediation_counts(customer_id)
+    return {"customer_id": customer_id, **summary}

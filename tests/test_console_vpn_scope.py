@@ -343,20 +343,30 @@ async def test_unifi_sites_is_available_to_an_unrestricted_account(access, monke
     assert await cc._dispatch_tool("unifi_sites", {}, None, None) is cc._ESTATE_DENIED
 
 
-async def test_customer_status_checks_access_to_the_active_customer(access, monkeypatch):
+async def test_customer_status_answers_for_the_conversations_customer(access, monkeypatch):
+    """The customer the console was asked about, never one remembered for the user.
+
+    It read the caller's active customer, which another tab of the same
+    account could change in the middle of a conversation.
+    """
     from app.core.customer import CustomerManager
 
-    monkeypatch.setattr(CustomerManager, "get_active_id", staticmethod(lambda: "other"))
-    monkeypatch.setattr(
-        CustomerManager,
-        "get_customer",
-        staticmethod(lambda cid: {"CustomerName": "Other AS", "TenantId": "t-other"}),
-    )
+    records = {
+        "other": {"CustomerName": "Other AS", "TenantId": "t-other"},
+        "allowed": {"CustomerName": "Allowed AS", "TenantId": "t-allowed"},
+    }
+    monkeypatch.setattr(CustomerManager, "get_customer", staticmethod(records.get))
 
-    assert await cc._dispatch_tool("customer_status", {}, None, _user()) is cc._SCOPE_DENIED
-    assert await cc._dispatch_tool("customer_status", {}, None, None) is cc._SCOPE_DENIED
-    allowed = await cc._dispatch_tool("customer_status", {}, None, _admin())
+    # The conversation is about "other": a scoped user without it is refused.
+    assert await cc._dispatch_tool("customer_status", {}, "other", _user()) is cc._SCOPE_DENIED
+    assert await cc._dispatch_tool("customer_status", {}, "other", None) is cc._SCOPE_DENIED
+    allowed = await cc._dispatch_tool("customer_status", {}, "other", _admin())
     assert allowed["name"] == "Other AS" and allowed["tenant_id"] == "t-other"
+    # No customer in the conversation and none named: nobody's status.
+    assert await cc._dispatch_tool("customer_status", {}, None, _admin()) is cc._SCOPE_DENIED
+    # The model may name one, under the same check.
+    named = await cc._dispatch_tool("customer_status", {"customer_id": "allowed"}, None, _user())
+    assert named["name"] == "Allowed AS"
 
 
 @pytest.mark.parametrize("bad", [["host-allowed"], 5, None])

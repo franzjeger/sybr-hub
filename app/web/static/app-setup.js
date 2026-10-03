@@ -9,15 +9,27 @@ registerUiHandlers({
 });
 
 // ── Customer actions ───────────────────────────────────────────────────────────
-async function renewCreds() {
+// Renews one customer's credentials: the one whose page the button is on.
+async function renewCreds(customerId) {
+  if (!customerId) return;
   if (!await showConfirm(t('dlg_confirm_renew'))) return;
   // Renewal issues a fresh certificate + client secret — exactly what first-run
   // setup does. Clear the old local credentials, then run the same device-code
   // sign-in so the operator finishes this one action with working, renewed
   // credentials, instead of being dropped back on a status page with none and a
   // "run setup again" note. startSetup() drives /api/setup/stream to completion.
-  await apiFetch('/api/customer/renew', { method: 'POST' });
+  var d = await apiFetch('/api/customer/renew', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
+  });
+  if (!d || !d.ok) return;
   startSetup();
+}
+
+// Setup ends by registering the customer it set up; the answer says which, and
+// "Åpne kunden" opens that one (openSetupCustomer).
+async function _registerSetupCustomer() {
+  var reg = await apiFetch('/api/customers/register', {method: 'POST'});
+  if (reg && reg.customer_id) _setupCustomerId = reg.customer_id;
 }
 
 // ── Setup flow ─────────────────────────────────────────────────────────────────
@@ -177,8 +189,8 @@ async function submitPkceOob() {
         if (res && res.ok) {
             appendSetupLog({step: 'GRAPH', status: 'ok', msg: t('pkce_log_saved')});
             document.getElementById('pkce-login-card').classList.remove('visible');
-            document.getElementById('setup-result-area').innerHTML = '<div class="alert alert-success">'+esc(t('msg_setup_complete'))+'</div><button class="btn btn-primary" data-click-handler="openActiveCustomer">'+esc(t('btn_open_customer'))+'</button>';
-            apiFetch('/api/customers/register', {method:'POST'});
+            await _registerSetupCustomer();
+            document.getElementById('setup-result-area').innerHTML = '<div class="alert alert-success">'+esc(t('msg_setup_complete'))+'</div><button class="btn btn-primary" data-click-handler="openSetupCustomer">'+esc(t('btn_open_customer'))+'</button>';
         } else {
             appendSetupLog({step: 'GRAPH', status: 'error', msg: t('pkce_log_error')});
         }
@@ -234,9 +246,9 @@ async function _attemptSetupStream(url) {
             _setupRunning = false;
             hideDeviceCode();
             if (d.success) {
-              apiFetch('/api/customers/register', {method:'POST'});
+              await _registerSetupCustomer();
               document.getElementById('setup-result-area').innerHTML =
-                '<div class="alert alert-success">'+t('msg_setup_complete')+'</div><button class="btn btn-primary" data-click-handler="openActiveCustomer">'+t('btn_open_customer')+'</button>';
+                '<div class="alert alert-success">'+t('msg_setup_complete')+'</div><button class="btn btn-primary" data-click-handler="openSetupCustomer">'+t('btn_open_customer')+'</button>';
             } else {
               document.getElementById('setup-result-area').innerHTML =
                 '<div class="alert alert-error">'+t('msg_setup_failed')+'</div><button class="btn btn-default" data-click-handler="startSetup">'+t('btn_try_again')+'</button>';

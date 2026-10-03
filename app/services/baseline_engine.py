@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from app.core.credentials import get_secret, load_config
+from app.core.credentials import get_secret
 from app.core.customer import CustomerManager
 from app.models.baseline import M365SecurityBaseline
 from app.modules.m365_audit.graph_client import GraphClient
@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 class BaselineEngine:
     def __init__(self, customer_id: str):
         self.customer_id = customer_id
-        CustomerManager.set_active_id(customer_id)
-        cfg = load_config()
+        # The customer named by the route, read directly. This called
+        # CustomerManager.set_active_id, which never existed, so every plan and
+        # apply failed with an AttributeError before reaching the tenant; and
+        # had it existed it would have moved the caller's active customer.
+        cfg = CustomerManager.get_customer(customer_id)
         if not cfg:
             raise ValueError("No customer config")
         self.tenant_id = cfg.get("TenantId")

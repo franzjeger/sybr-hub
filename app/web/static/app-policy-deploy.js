@@ -37,15 +37,6 @@ async function policyDeployLoad() {
   if (!el) return;
   el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:32px auto;"></div>';
 
-  // The active customer lives in state the customers view fills, so opening
-  // this screen first would show "no customer selected" for a session that has
-  // one. Fetched directly rather than by calling loadCustomers(), which renders
-  // into DOM that only exists on that view.
-  if (!_customersActiveId) {
-    var cs = await apiFetch('/api/customers');
-    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; }
-  }
-
   var d = await apiFetch('/api/policy-deploy/templates?lang=' + _lang);
   if (!d || !d.templates) { el.innerHTML = '<div class="alert alert-error">' + t('status_error') + '</div>'; return; }
   _pdTemplates = d.templates;
@@ -463,30 +454,25 @@ async function policyDeployPlan() {
     values: { break_glass_group: document.getElementById('pd-breakglass').value.trim() },
     select: selected,
   };
-  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/plan?lang=' + _lang, {
+  var cid = _pdCustomerId();
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(cid) + '/plan?lang=' + _lang, {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
   });
+  if (_pdCustomerId() !== cid) return;   // another customer's page opened meanwhile
   if (!d) { box.innerHTML = ''; return; }
   d.select = selected;  // carried to apply so the approved plan is the one that runs
+  d.customerId = cid;   // and the customer it was read for
   _pdPlan = d;
   box.innerHTML = _pdRenderPlan(d);
 }
 
+// The customer whose page this tab is on.
 function _pdCustomerId() {
-  return _customersActiveId || '';
-}
-
-function _pdCustomer() {
-  var id = _pdCustomerId();
-  if (!id) return null;
-  return (_allCustomers || []).find(function(c) {
-    return (c._id || c.customer_id) === id;
-  }) || null;
+  return _custPage.id || '';
 }
 
 function _pdCustomerName() {
-  var c = _pdCustomer();
-  return (c && (c.CustomerName || c.customer_name)) || '';
+  return (_custPage.cust && _custPage.cust.customer_name) || '';
 }
 
 function _pdRenderPlan(plan) {
@@ -574,7 +560,10 @@ async function policyDeployApply() {
     // subset that was approved — a different set would not match the fingerprint.
     select: _pdPlan.select || [],
   };
-  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdCustomerId()) + '/apply', {
+  // Applied to the customer the plan was read for, and only on that
+  // customer's page.
+  if (!_pdPlan.customerId || _pdPlan.customerId !== _pdCustomerId()) return;
+  var d = await apiFetch('/api/policy-deploy/' + encodeURIComponent(_pdPlan.customerId) + '/apply', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
   });
   if (!d) return;

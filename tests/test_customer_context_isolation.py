@@ -1,8 +1,13 @@
-"""An authenticated user's active customer must never be process-global."""
+"""A web request names its customer; the server keeps no "active customer".
+
+It used to keep one per user. Every browser tab of that user shared it, so a
+customer opened in one tab decided where the next note, audit or report of
+another tab landed. Now each route that acts on a customer takes its id and
+checks access to that one; these tests pin that, and that nothing falls back
+to a remembered selection.
+"""
 
 from __future__ import annotations
-
-import asyncio
 
 import pytest
 from fastapi.testclient import TestClient
@@ -98,50 +103,65 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def test_two_users_keep_independent_active_customers(client):
+async def test_the_server_keeps_no_active_customer(client):
     alpha = _customer("Alpha", "alpha")
     beta = _customer("Beta", "beta")
-    _, alpha_token = await _auth("alpha-tech")
-    _, beta_token = await _auth("beta-tech")
+    _, token = await _auth("two-tabs")
+    headers = _headers(token)
 
-    response = client.post(
-        "/api/customers/switch",
-        headers=_headers(alpha_token),
-        json={"customer_id": alpha},
-    )
-    assert response.status_code == 200, response.text
+    # The endpoint that set one is gone, and the list no longer names one.
+    assert client.post(
+        "/api/customers/switch", headers=headers, json={"customer_id": alpha}
+    ).status_code in (404, 405)
+    listing = client.get("/api/customers", headers=headers).json()
+    assert "active_id" not in listing
+    assert all("is_active" not in c for c in listing["customers"])
 
-    # A second user starts with no selection. The old process-global active.txt
-    # value must never leak into their request as a convenient fallback.
-    second_before = client.get("/api/customers", headers=_headers(beta_token)).json()
-    assert second_before["active_id"] is None
-
-    response = client.post(
-        "/api/customers/switch",
-        headers=_headers(beta_token),
-        json={"customer_id": beta},
-    )
-    assert response.status_code == 200, response.text
-
-    alpha_list = client.get("/api/customers", headers=_headers(alpha_token)).json()
-    beta_list = client.get("/api/customers", headers=_headers(beta_token)).json()
-    assert alpha_list["active_id"] == alpha
-    assert beta_list["active_id"] == beta
-    assert [c["_id"] for c in alpha_list["customers"] if c["is_active"]] == [alpha]
-    assert [c["_id"] for c in beta_list["customers"] if c["is_active"]] == [beta]
-
-    alpha_status = client.get("/api/status", headers=_headers(alpha_token)).json()
-    beta_status = client.get("/api/status", headers=_headers(beta_token)).json()
+    # Each customer's status is asked for by name, and answers for that one.
+    alpha_status = client.get(f"/api/customer/{alpha}/status", headers=headers).json()
+    beta_status = client.get(f"/api/customer/{beta}/status", headers=headers).json()
     assert alpha_status["customer"]["name"] == "Alpha"
     assert beta_status["customer"]["name"] == "Beta"
 
-    # The middleware must reset its ContextVar after every request, and web
-    # selections must not recreate the legacy process-wide pointer.
-    assert CustomerManager.get_active_id() is None
-    assert not (CustomerManager.get_customer_dir("") / "active.txt").exists()
-    selections = list((CustomerManager.get_customer_dir("") / ".active").glob("*.txt"))
-    assert len(selections) == 2
-    assert all(len(path.stem) == 64 and path.stem.isalnum() for path in selections)
+    # Nothing was remembered for this user anywhere.
+    root = CustomerManager.get_customer_dir("")
+    assert not (root / "active.txt").exists()
+    assert not (root / ".active").exists()
+
+
+async def test_routes_that_used_the_active_customer_need_an_id(client):
+    """Called the old way, without a customer, each answers 404 or 422.
+
+    Never 200: that would mean a remembered customer had been filled in.
+    """
+    _customer("Alpha", "alpha")
+    _, token = await _auth("no-default")
+    headers = _headers(token)
+    for method, path, body in (
+        ("get", "/api/status", None),
+        ("get", "/api/files", None),
+        ("get", "/api/latest-report", None),
+        ("get", "/api/customer/notes", None),
+        ("post", "/api/customer/notes", {"notes": "x"}),
+        ("get", "/api/customer/tags", None),
+        ("post", "/api/customer/renew", None),
+        ("get", "/api/audit/scope", None),
+        ("post", "/api/audit/scope", {"enabled_sections": []}),
+        ("get", "/api/audit/sections", None),
+        ("post", "/api/audit/validate-permissions", None),
+        ("post", "/api/audit/stream", None),
+        ("get", "/api/dashboard", None),
+        ("post", "/api/history/load", {"path": "/tmp"}),
+        ("post", "/api/report/csv", None),
+        ("post", "/api/report/generate", {"format": "html"}),
+        ("get", "/api/remediation", None),
+        ("get", "/api/network-devices", None),
+        ("post", "/api/unifi/save", {}),
+        ("post", "/api/fortigate/save", {}),
+        ("get", "/api/itglue/available-reports", None),
+    ):
+        response = client.request(method, path, headers=headers, json=body)
+        assert response.status_code in (404, 405, 422), (path, response.status_code)
 
 
 async def test_audit_progress_and_cancellation_are_isolated_per_user(client):
@@ -151,14 +171,6 @@ async def test_audit_progress_and_cancellation_are_isolated_per_user(client):
     beta = _customer("Beta", "beta")
     alpha_user, alpha_token = await _auth("alpha-auditor")
     beta_user, beta_token = await _auth("beta-auditor")
-
-    for token, customer_id in ((alpha_token, alpha), (beta_token, beta)):
-        response = client.post(
-            "/api/customers/switch",
-            headers=_headers(token),
-            json={"customer_id": customer_id},
-        )
-        assert response.status_code == 200, response.text
 
     alpha_run = state.begin_user_audit(alpha_user, alpha)
     beta_run = state.begin_user_audit(beta_user, beta)
@@ -175,21 +187,20 @@ async def test_audit_progress_and_cancellation_are_isolated_per_user(client):
         "completed": 3,
     }
 
+    # Each sees their own run, and which customer it is for.
     alpha_progress = client.get("/api/audit/progress", headers=_headers(alpha_token)).json()
     beta_progress = client.get("/api/audit/progress", headers=_headers(beta_token)).json()
     assert alpha_progress["current_section"] == "Alpha users"
     assert beta_progress["current_section"] == "Beta devices"
     assert alpha_progress["run_id"] != beta_progress["run_id"]
+    assert alpha_progress["customer_id"] == alpha
+    assert beta_progress["customer_id"] == beta
 
-    # Changing the view must not strand the user's collector, and cancellation
-    # still follows ownership rather than whichever customer is now visible.
-    response = client.post(
-        "/api/customers/switch",
-        headers=_headers(alpha_token),
-        json={"customer_id": beta},
-    )
-    assert response.status_code == 200, response.text
+    # Asked for another customer, the answer is that customer's: none here.
+    other = client.get(f"/api/audit/progress/{beta}", headers=_headers(alpha_token)).json()
+    assert other["running"] is False
 
+    # Cancellation follows ownership, whatever customer the caller looks at.
     response = client.post("/api/audit/cancel", headers=_headers(alpha_token))
     assert response.status_code == 200, response.text
     assert alpha_run.cancel_requested is True
@@ -207,17 +218,15 @@ async def test_reattach_to_a_finished_run_replays_the_outcome_without_restarting
 
     alpha = _customer("Alpha", "alpha")
     user_id, token = await _auth("alpha-reattach")
-    resp = client.post(
-        "/api/customers/switch", headers=_headers(token), json={"customer_id": alpha}
-    )
-    assert resp.status_code == 200, resp.text
 
     state.audit_running = False
     run = state.begin_user_audit(user_id, alpha)
     run.running = False  # finished
     run.terminal = {"type": "done", "results": []}
 
-    body = client.get("/api/audit/stream?attach=1", headers=_headers(token)).text
+    body = client.get(
+        f"/api/audit/stream?customer_id={alpha}&attach=1", headers=_headers(token)
+    ).text
     assert '"reattached": true' in body
     assert '"type": "done"' in body
     assert state.audit_running is False, "re-attach must not start a new audit"
@@ -228,13 +237,11 @@ async def test_reattach_with_no_active_run_reports_ended_and_starts_nothing(clie
 
     alpha = _customer("Alpha", "alpha")
     _, token = await _auth("alpha-noreattach")
-    resp = client.post(
-        "/api/customers/switch", headers=_headers(token), json={"customer_id": alpha}
-    )
-    assert resp.status_code == 200, resp.text
 
     state.audit_running = False
-    body = client.get("/api/audit/stream?attach=1", headers=_headers(token)).text
+    body = client.get(
+        f"/api/audit/stream?customer_id={alpha}&attach=1", headers=_headers(token)
+    ).text
     assert '"type": "ended"' in body
     assert state.audit_running is False, "attach-only must never start an audit"
 
@@ -275,16 +282,9 @@ async def test_history_load_cannot_select_another_customers_run(client):
     from app.core.customer import customer_dir_name
 
     alpha = _customer("Alpha", "alpha")
-    _customer("Beta", "beta")
+    beta = _customer("Beta", "beta")
     user_id, token = await _auth("alpha-history", all_customers=False)
     await grant_access(user_id, alpha)
-
-    response = client.post(
-        "/api/customers/switch",
-        headers=_headers(token),
-        json={"customer_id": alpha},
-    )
-    assert response.status_code == 200, response.text
 
     alpha_run = get_audit_dir() / customer_dir_name("Alpha") / "2026-08-08_100000"
     beta_run = get_audit_dir() / customer_dir_name("Beta") / "2026-08-08_110000"
@@ -292,12 +292,21 @@ async def test_history_load_cannot_select_another_customers_run(client):
         run.mkdir(parents=True)
         (run / "01_tenant.txt").write_text("test", encoding="utf-8")
 
-    denied = client.post("/api/history/load", headers=_headers(token), json={"path": str(beta_run)})
-    assert denied.status_code == 403, denied.text
-    assert state.get_user_audit(user_id) is None
+    # Beta's run, asked for under Beta (no access) or smuggled in under Alpha.
+    for customer_id in (beta, alpha):
+        denied = client.post(
+            "/api/history/load",
+            headers=_headers(token),
+            json={"customer_id": customer_id, "path": str(beta_run)},
+        )
+        assert denied.status_code == 403, denied.text
+    assert state.get_user_audit(user_id, alpha) is None
+    assert state.get_user_audit(user_id, beta) is None
 
     allowed = client.post(
-        "/api/history/load", headers=_headers(token), json={"path": str(alpha_run)}
+        "/api/history/load",
+        headers=_headers(token),
+        json={"customer_id": alpha, "path": str(alpha_run)},
     )
     assert allowed.status_code == 200, allowed.text
     selected = state.get_user_audit(user_id, alpha)
@@ -305,40 +314,39 @@ async def test_history_load_cannot_select_another_customers_run(client):
     assert selected.out_dir == alpha_run
 
 
-async def test_switching_customer_invalidates_the_selected_report_context(client):
+async def test_a_run_selected_for_one_customer_is_never_another_customers_report(client):
+    """Two tabs, two customers: each keeps its own selected run.
+
+    The selection used to be one slot per user. Loading Beta's run in one tab
+    threw away the run Alpha's tab was about to build its report from, and an
+    export for "the active customer" took whichever was loaded last.
+    """
     from app.core import job_state as state
     from app.core.config import get_audit_dir
     from app.core.customer import customer_dir_name
 
     alpha = _customer("Alpha", "alpha")
     beta = _customer("Beta", "beta")
-    user_id, token = await _auth("report-switcher")
+    gamma = _customer("Gamma", "gamma")
+    user_id, token = await _auth("report-two-tabs")
     headers = _headers(token)
 
-    response = client.post("/api/customers/switch", headers=headers, json={"customer_id": alpha})
-    assert response.status_code == 200, response.text
+    runs = {}
+    for name, cid in (("Alpha", alpha), ("Beta", beta)):
+        run = get_audit_dir() / customer_dir_name(name) / "2026-08-08_120000"
+        run.mkdir(parents=True)
+        (run / "01_tenant.txt").write_text(name, encoding="utf-8")
+        runs[cid] = run
+        loaded = client.post(
+            "/api/history/load", headers=headers, json={"customer_id": cid, "path": str(run)}
+        )
+        assert loaded.status_code == 200, loaded.text
 
-    alpha_run = get_audit_dir() / customer_dir_name("Alpha") / "2026-08-08_120000"
-    alpha_run.mkdir(parents=True)
-    state.select_user_audit(
-        user_id,
-        alpha,
-        out_dir=alpha_run,
-        results=[
-            {
-                "name": "Tenant Info",
-                "status": "done",
-                "warns": [],
-                "files": [],
-                "error": None,
-            }
-        ],
-    )
+    assert state.get_user_audit(user_id, alpha).out_dir == runs[alpha]
+    assert state.get_user_audit(user_id, beta).out_dir == runs[beta]
 
-    response = client.post("/api/customers/switch", headers=headers, json={"customer_id": beta})
-    assert response.status_code == 200, response.text
-
-    export = client.post("/api/report/csv", headers=headers)
+    # A customer with no selected run gets no report, not another's.
+    export = client.post("/api/report/csv", headers=headers, json={"customer_id": gamma})
     assert export.status_code == 400, export.text
 
 
@@ -436,75 +444,34 @@ async def test_vpn_profiles_connections_and_mutations_are_customer_scoped(client
         vpn_manager._connections.clear()
 
 
-async def test_revoked_customer_selection_fails_closed(client):
+async def test_revoked_customer_access_fails_closed(client):
     alpha = _customer("Alpha", "alpha")
     user_id, token = await _auth("scoped-tech", all_customers=False)
     await grant_access(user_id, alpha)
 
-    response = client.post(
-        "/api/customers/switch",
-        headers=_headers(token),
-        json={"customer_id": alpha},
-    )
-    assert response.status_code == 200, response.text
-    assert client.get("/api/status", headers=_headers(token)).json()["has_config"] is True
+    assert client.get(f"/api/customer/{alpha}/status", headers=_headers(token)).status_code == 200
 
     await revoke_access(user_id, alpha)
 
     customers = client.get("/api/customers", headers=_headers(token)).json()
-    status = client.get("/api/status", headers=_headers(token)).json()
     assert customers["customers"] == []
-    assert customers["active_id"] is None
-    assert status["has_config"] is False
+    for path in (f"/api/customer/{alpha}/status", f"/api/customer/{alpha}/notes"):
+        assert client.get(path, headers=_headers(token)).status_code == 403, path
 
 
-async def test_explicit_customer_id_cannot_bypass_active_scope(client):
+async def test_a_customer_outside_the_callers_scope_is_refused_by_id(client):
     alpha = _customer("Alpha", "alpha")
     beta = _customer("Beta", "beta")
     user_id, token = await _auth("scoped-writer", all_customers=False)
     await grant_access(user_id, alpha)
 
     response = client.post(
-        "/api/customer/tags",
+        f"/api/customer/{beta}/tags",
         headers=_headers(token),
-        json={"customer_id": beta, "tags": ["should-not-land"]},
+        json={"tags": ["should-not-land"]},
     )
     assert response.status_code == 403, response.text
     assert CustomerManager.get_tags(beta) == []
-
-
-async def test_concurrent_tasks_do_not_share_customer_context():
-    from app.core.customer import (
-        bind_request_customer_scope,
-        reset_request_customer_scope,
-    )
-
-    alpha = _customer("Alpha", "alpha")
-    beta = _customer("Beta", "beta")
-    both_ready = asyncio.Event()
-    ready_count = 0
-    ready_lock = asyncio.Lock()
-
-    async def choose(user_id: str, customer_id: str) -> str | None:
-        nonlocal ready_count
-        token = bind_request_customer_scope(user_id, None)
-        try:
-            CustomerManager.set_active(customer_id)
-            async with ready_lock:
-                ready_count += 1
-                if ready_count == 2:
-                    both_ready.set()
-            await both_ready.wait()
-            await asyncio.sleep(0)
-            return CustomerManager.get_active_id()
-        finally:
-            reset_request_customer_scope(token)
-
-    selected = await asyncio.gather(
-        choose("user-alpha", alpha),
-        choose("user-beta", beta),
-    )
-    assert selected == [alpha, beta]
 
 
 def test_legacy_migration_is_explicit_without_becoming_a_web_fallback():
@@ -523,30 +490,26 @@ def test_legacy_migration_is_explicit_without_becoming_a_web_fallback():
     )
     token = bind_request_customer_scope("web-user", None)
     try:
+        # Inside a request, "the" config is nobody's, even with a staged one.
         assert load_config() is None
         migrated = CustomerManager.migrate_legacy()
         assert migrated == "Legacy_Customer"
-        assert CustomerManager.get_active_id() is None
+        assert load_config() is None
     finally:
         reset_request_customer_scope(token)
 
-    assert CustomerManager.get_active_id() == "Legacy_Customer"
+    # Migration registers the customer; it selects nothing for anybody.
+    assert CustomerManager.get_customer("Legacy_Customer")["TenantId"] == "legacy"
+    assert not (CustomerManager.get_customer_dir("") / "active.txt").exists()
 
 
-async def test_register_uses_setup_staging_not_active_customer(client):
+async def test_register_uses_setup_staging_not_another_customer(client):
     from app.core.credentials import save_cert, save_config
     from app.core.encryption import encrypted_read_bytes, encrypted_write_bytes
 
     alpha = _customer("Alpha", "alpha")
     _, token = await _auth("setup-tech")
     encrypted_write_bytes(CustomerManager.get_cert_path(alpha), b"alpha-cert")
-
-    response = client.post(
-        "/api/customers/switch",
-        headers=_headers(token),
-        json={"customer_id": alpha},
-    )
-    assert response.status_code == 200, response.text
 
     save_config(
         {
@@ -578,7 +541,7 @@ def _record_secret_deletes(monkeypatch) -> list[str]:
 
 
 @pytest.mark.parametrize("endpoint", _RESET_ENDPOINTS)
-async def test_credential_reset_acts_on_the_active_customer_not_the_staging_slot(
+async def test_credential_reset_acts_on_the_named_customer_not_the_staging_slot(
     client, monkeypatch, endpoint
 ):
     """The staging file names whichever tenant was set up last, not this one.
@@ -591,14 +554,10 @@ async def test_credential_reset_acts_on_the_active_customer_not_the_staging_slot
     alpha = _customer("Alpha", "alpha")
     beta = _customer("Beta", "beta")
     _, token = await _auth(f"reset-tech-{endpoint.rsplit('/', 1)[-1]}")
-    response = client.post(
-        "/api/customers/switch", headers=_headers(token), json={"customer_id": alpha}
-    )
-    assert response.status_code == 200, response.text
     credentials_module.save_config({"CustomerName": "Beta", "TenantId": "beta"})
     deleted_tenants = _record_secret_deletes(monkeypatch)
 
-    response = client.post(endpoint, headers=_headers(token))
+    response = client.post(endpoint, headers=_headers(token), json={"customer_id": alpha})
 
     assert response.status_code == 200, response.text
     assert response.json()["customer_id"] == alpha
@@ -648,9 +607,10 @@ async def test_credential_reset_without_a_customer_deletes_nothing(client, monke
     credentials_module.save_config({"CustomerName": "Beta", "TenantId": "beta"})
     deleted_tenants = _record_secret_deletes(monkeypatch)
 
-    response = client.post(endpoint, headers=_headers(token))
-
-    assert response.status_code == 400, response.text
+    # No customer named is a malformed request: there is no default to use.
+    for body in (None, {}, {"customer_id": ""}):
+        response = client.post(endpoint, headers=_headers(token), json=body)
+        assert response.status_code == 422, response.text
     assert deleted_tenants == []
     assert credentials_module.load_global_config()["TenantId"] == "beta"
 
@@ -693,11 +653,7 @@ async def test_status_says_a_gdap_customer_can_be_audited(client):
         {"CustomerName": "Delegated", "TenantId": "delegated", "AuthMode": "gdap"}
     )
     _, token = await _auth("gdap-status")
-    response = client.post(
-        "/api/customers/switch", headers=_headers(token), json={"customer_id": gdap}
-    )
-    assert response.status_code == 200, response.text
 
-    status = client.get("/api/status", headers=_headers(token)).json()
+    status = client.get(f"/api/customer/{gdap}/status", headers=_headers(token)).json()
     assert status["has_credentials"] is False, "no app secret is held for it"
     assert status["m365_ready"] is True

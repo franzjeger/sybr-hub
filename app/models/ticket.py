@@ -53,7 +53,7 @@ class RemediationItem(SQLModel, table=True):
 
 
 class RemediationUpdate(BaseModel):
-    """A status change on one recommendation for the active customer.
+    """A status change on one recommendation of the customer named in the path.
 
     ``rec_id`` is the stable identity. ``title`` is still accepted in its place
     for a client that has not reloaded since that changed, and for rows written

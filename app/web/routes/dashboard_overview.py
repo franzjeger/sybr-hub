@@ -10,9 +10,10 @@ import logging
 from fastapi import APIRouter, Depends, Query, Request
 
 from app.core.rbac import filter_customers, get_accessible_customer_ids
+from app.models.user import Role
 from app.reports.recommendations import relocalise_recommendations
 from app.web.i18n import get_ui_lang
-from app.web.middleware.auth import get_current_user
+from app.web.middleware.auth import get_current_user, require_customer_access
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +24,16 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.get("/dashboard")
-async def get_dashboard(request: Request):
-    """Return dashboard metrics from the latest audit run."""
+async def get_dashboard(
+    request: Request,
+    customer_id: str,
+    user=Depends(require_customer_access(Role.viewer)),
+):
+    """One customer's metrics from their latest audit run, and the run before it."""
     from app.core.config import get_audit_dir
-    from app.core.credentials import load_config
+    from app.core.customer import CustomerManager
 
-    cfg = load_config()
+    cfg = CustomerManager.get_customer(customer_id)
     if not cfg:
         return {"has_data": False}
 
@@ -58,6 +63,7 @@ async def get_dashboard(request: Request):
 
             return {
                 "has_data": True,
+                "customer_id": customer_id,
                 "customer": customer_name,
                 "run_date": run_dir.name,
                 "metrics": relocalise_recommendations(metrics, get_ui_lang(request)),
@@ -77,7 +83,6 @@ async def get_dashboard_overview(user=Depends(get_current_user)):
 
     allowed = await get_accessible_customer_ids(user)
     customers = filter_customers(CustomerManager.list_customers(), allowed)
-    active_id = CustomerManager.get_active_id()
     audit_dir = get_audit_dir()
 
     results = []
@@ -92,7 +97,6 @@ async def get_dashboard_overview(user=Depends(get_current_user)):
             "customer_name": name,
             "primary_domain": c.get("PrimaryDomain", ""),
             "also_account_id": c.get("AlsoAccountId", ""),
-            "is_active": cid == active_id,
             "has_metrics": False,
             "metrics": None,
             "last_audit": None,
@@ -148,7 +152,7 @@ async def get_dashboard_overview(user=Depends(get_current_user)):
         )
     )
 
-    return {"customers": results, "active_id": active_id}
+    return {"customers": results}
 
 
 # ── Trend Data ────────────────────────────────────────────────────────────────
@@ -213,7 +217,6 @@ async def search_customers(
 
     allowed = await get_accessible_customer_ids(user)
     customers = filter_customers(CustomerManager.list_customers(), allowed)
-    active_id = CustomerManager.get_active_id()
     audit_dir = get_audit_dir()
 
     results = []
@@ -236,7 +239,6 @@ async def search_customers(
             "customer_id": c.get("_id", ""),
             "customer_name": name,
             "primary_domain": domain,
-            "is_active": c.get("_id", "") == active_id,
             "has_metrics": False,
             "metrics": None,
             "last_audit": None,
@@ -286,4 +288,4 @@ async def search_customers(
         )
     )
 
-    return {"customers": results, "active_id": active_id, "total": len(results)}
+    return {"customers": results, "total": len(results)}

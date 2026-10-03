@@ -151,9 +151,13 @@ function confirmITGlueOrgPick() {
 }
 
 var _itglueUploadBtn = null;
+// The customer whose reports the open upload dialog sends.
+var _itglueUploadCustomerId = null;
 
-async function uploadReportsToITGlue(btn) {
+async function uploadReportsToITGlue(btn, customerId) {
+  if (!customerId) return;
   _itglueUploadBtn = btn;
+  _itglueUploadCustomerId = customerId;
   // Check IT Glue config
   try {
     var settings = await apiFetch('/api/settings');
@@ -176,10 +180,11 @@ async function uploadReportsToITGlue(btn) {
   try {
     // Fetch available reports and orgs in parallel
     var [reportsResp, orgsResp, filesResp] = await Promise.all([
-      apiFetch('/api/itglue/available-reports'),
+      apiFetch('/api/itglue/available-reports?customer_id=' + encodeURIComponent(customerId)),
       _itglueOrgCache ? Promise.resolve({organizations: _itglueOrgCache}) : apiFetch('/api/itglue/organizations', {method:'POST'}),
-      apiFetch('/api/files')
+      apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/files')
     ]);
+    if (_itglueUploadCustomerId !== customerId) return;
 
     var files = reportsResp.files || [];
     if (files.length === 0) {
@@ -290,7 +295,7 @@ async function executeITGlueUpload() {
     var d = await apiFetch('/api/itglue/upload/reports', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({org_id: orgId, files: selectedFiles})
+      body: JSON.stringify({customer_id: _itglueUploadCustomerId, org_id: orgId, files: selectedFiles})
     });
 
     if (d.error) { showToast(t('status_error') + ': ' + d.error, 'error'); return; }
@@ -304,7 +309,8 @@ async function executeITGlueUpload() {
   }
 }
 
-async function uploadToITGlue(btn) {
+async function uploadToITGlue(btn, customerId) {
+  if (!customerId) return;
   // Determine upload type from card context
   const card = btn.closest('.card');
   const title = card.querySelector('.card-title')?.textContent || '';
@@ -349,7 +355,7 @@ async function uploadToITGlue(btn) {
     const endpoint = uploadType === 'credentials' ? '/api/itglue/upload/credentials' : '/api/itglue/upload/audit';
     const r = await fetch(endpoint, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({org_id: orgId})
+      body: JSON.stringify({customer_id: customerId, org_id: orgId})
     });
     const d = await r.json();
     if (d.ok) {
@@ -430,7 +436,7 @@ var TAG_SUGGESTIONS=['Premium','Standard','Basic',t('tag_priority','Priority'),t
 var TAG_COLORS={'Premium':{bg:'#3fb95020',border:'#3fb95060',color:'#3fb950'},'Standard':{bg:'#4d9fb520',border:'#4d9fb560',color:'#4d9fb5'},'Basic':{bg:'#8b8b8b20',border:'#8b8b8b60',color:'#8b8b8b'},'Prioritert':{bg:'#f8514920',border:'#f8514960',color:'#f85149'},'Priority':{bg:'#f8514920',border:'#f8514960',color:'#f85149'},'Ny kunde':{bg:'#d2992220',border:'#d2992260',color:'#d29922'},'New customer':{bg:'#d2992220',border:'#d2992260',color:'#d29922'},'Proveperiode':{bg:'#a371f720',border:'#a371f760',color:'#a371f7'},'Trial':{bg:'#a371f720',border:'#a371f760',color:'#a371f7'}};
 function tagPillHtml(tag){var tc=TAG_COLORS[tag]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};return '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';margin-right:4px;margin-top:2px;white-space:nowrap;">'+esc(tag)+'</span>';}
 function tagPillsHtml(tags){if(!tags||tags.length===0)return '';return tags.map(tagPillHtml).join('');}
-async function saveCustomerTags(cid,tags){try{await apiFetch('/api/customer/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:cid,tags:tags})})}catch(e){console.error('save tags:',e)}}
+async function saveCustomerTags(cid,tags){try{await apiFetch('/api/customer/'+encodeURIComponent(cid)+'/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tags:tags})})}catch(e){console.error('save tags:',e)}}
 function showTagEditor(cid,curTags){var ex=curTags?curTags.slice():[];var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var ct=_tagEl('tag-editor-'+si);if(!ct)return;var sf=TAG_SUGGESTIONS.filter(function(s){return ex.indexOf(s)===-1});var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;">';ex.forEach(function(t,i){var tc=TAG_COLORS[t]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};h+='<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';">'+esc(t)+' <span style="cursor:pointer;font-size:14px;line-height:1;opacity:0.7;" data-click-handler="removeTagAndRefresh" data-customer-id="'+esc(cid)+'" data-index="'+i+'">&times;</span></span>'});h+='</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';h+='<input type="text" id="tag-input-'+si+'" placeholder="' + t('lbl_write_tag') + '" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);width:120px;" data-keydown-handler="tagEditorAddOnEnter" data-customer-id="'+esc(cid)+'">';h+='<button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" data-click-handler="addTagFromInput" data-customer-id="'+esc(cid)+'">+</button></div>';if(sf.length>0){h+='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">';sf.forEach(function(s){h+='<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;border:1px dashed var(--border);border-radius:12px;" data-click-handler="addSuggestedTag" data-customer-id="'+esc(cid)+'" data-tag="'+esc(s)+'">+ '+esc(s)+'</button>'});h+='</div>'}ct.innerHTML=h;ct.style.display='block'}
 // The Kunder list and the customer page's Detaljer both carry a tag editor for
 // a customer, with the same ids. The one on the page on screen is meant.
@@ -635,7 +641,6 @@ async function runITGlueImport() {
 
 // ── Customers management ────────────────────────────────────────────────────────
 var _allCustomers = [];
-var _customersActiveId = null;
 
 async function loadCustomers() {
   const box = document.getElementById('customers-content');
@@ -647,7 +652,6 @@ async function loadCustomers() {
     if (!d) { box.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_customers') + '</div>'; return; }
     if (expiryResult) _expiryData = expiryResult;
     _allCustomers = d.customers || [];
-    _customersActiveId = d.active_id;
     // Through the filter whatever the search box holds. This used to render
     // the whole list whenever the box was *not* empty, so a list that
     // finished loading after you typed showed every customer again.
@@ -732,7 +736,7 @@ async function bulkTagCustomers() {
         if (c) existing = c._tags || [];
       }
       if (existing.indexOf(tag) === -1) existing.push(tag);
-      await apiFetch('/api/customer/tags', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customer_id:cid, tags:existing})});
+      await apiFetch('/api/customer/' + encodeURIComponent(cid) + '/tags', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tags:existing})});
     } catch(e) { console.warn('Bulk tag update failed for', cid, e); }
   }
   clearBulkSelection();
@@ -773,10 +777,10 @@ function customersFilter() {
   if (countEl) {
     countEl.textContent = q ? filtered.length + ' / ' + _allCustomers.length + ' ' + t('nav_customers').toLowerCase() : _allCustomers.length + ' ' + t('nav_customers').toLowerCase();
   }
-  renderCustomers(filtered, _customersActiveId);
+  renderCustomers(filtered);
 }
 
-function renderCustomers(customers, activeId) {
+function renderCustomers(customers) {
   const box = document.getElementById('customers-content');
   // A search that matches nothing is not a fresh install: the getting-started
   // steps below would tell someone with fifty customers to add their first.

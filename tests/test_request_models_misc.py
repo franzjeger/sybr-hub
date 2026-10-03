@@ -52,45 +52,43 @@ async def test_a_malformed_ai_settings_body_stores_nothing(admin_client, body):
 # ── Dashboard: remediation and credential reset ──────────────────────────────
 
 
-def _activate(client) -> str:
+def _register(client) -> str:
     from app.core.customer import CustomerManager
 
-    cid = CustomerManager.save_customer({"CustomerName": "Customer A", "TenantId": "t-a"})
-    assert client.post("/api/customers/switch", json={"customer_id": cid}).status_code == 200
-    return cid
+    return CustomerManager.save_customer({"CustomerName": "Customer A", "TenantId": "t-a"})
 
 
 async def test_a_remediation_update_still_saves_and_takes_the_legacy_title(tech_client):
-    _activate(tech_client)
+    cid = _register(tech_client)
 
     for body in ({"rec_id": "rec-1", "status": "done"}, {"title": "Old title", "status": "open"}):
-        r = tech_client.post("/api/remediation", json=body)
+        r = tech_client.post(f"/api/remediation/{cid}", json=body)
         assert r.status_code == 200, r.text
 
 
 async def test_an_unknown_remediation_status_keeps_its_message(tech_client):
-    _activate(tech_client)
+    cid = _register(tech_client)
 
     body = assert_refused(
-        tech_client.post("/api/remediation", json={"rec_id": "rec-1", "status": "later"}), 400
+        tech_client.post(f"/api/remediation/{cid}", json={"rec_id": "rec-1", "status": "later"}),
+        400,
     )
     assert body["error"] != "err_invalid_status"
 
 
 @pytest.mark.parametrize("body", [{"rec_id": 5}, {"rec_id": "r", "notes": ["x"]}, {"recId": "r"}])
 async def test_a_malformed_remediation_update_is_a_422(tech_client, body):
-    _activate(tech_client)
-    assert_refused(tech_client.post("/api/remediation", json=body), 422)
+    cid = _register(tech_client)
+    assert_refused(tech_client.post(f"/api/remediation/{cid}", json=body), 422)
 
 
 @pytest.mark.parametrize("path", ["/api/customer/wipe", "/api/customer/renew"])
-async def test_a_credential_reset_with_no_body_still_means_the_active_customer(tech_client, path):
-    """The setup page posts with no body at all."""
-    _activate(tech_client)
+async def test_a_credential_reset_names_its_customer(tech_client, path):
+    """The customer page sends its own id; without one there is nothing to reset."""
+    cid = _register(tech_client)
 
-    r = tech_client.post(path)
-
-    assert r.status_code == 200, r.text
+    assert tech_client.post(path, json={"customer_id": cid}).status_code == 200
+    assert_refused(tech_client.post(path), 422)
 
 
 @pytest.mark.parametrize("path", ["/api/customer/wipe", "/api/customer/renew"])
@@ -100,7 +98,7 @@ async def test_a_malformed_credential_reset_deletes_nothing(tech_client, monkeyp
 
     deleted = []
     monkeypatch.setattr(credentials, "delete_all_secrets", lambda tenant: deleted.append(tenant))
-    _activate(tech_client)
+    _register(tech_client)
 
     assert_refused(tech_client.post(path, json=body), 422)
     assert deleted == []

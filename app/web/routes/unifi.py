@@ -301,12 +301,13 @@ async def network_scan_subnet(
     return {"subnet": subnet, "found": results, "count": len(results)}
 
 
-@router.post("/network/save-config-backup")
+@router.post("/network/save-config-backup/{customer_id}")
 async def network_save_config_backup(
+    customer_id: str,
     body: NetworkConfigBackup,
-    user: User = Depends(require_role(Role.technician)),
+    user: User = Depends(require_customer_access(Role.technician)),
 ):
-    """Save a device config dump to the customer's audit directory."""
+    """Save a device config dump to the named customer's audit directory."""
     from app.core.config import get_audit_dir
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_write_text
@@ -316,9 +317,9 @@ async def network_save_config_backup(
     if not host or not config_text:
         raise refusal(ValidationError, "err_unifi_host_config_required")
 
-    active = CustomerManager.get_active()
+    active = CustomerManager.get_customer(customer_id)
     if not active:
-        raise refusal(ValidationError, "err_no_active_customer")
+        raise refusal(NotFoundError, "err_customer_not_found")
 
     # Save to customer audit dir under network_configs/
     from datetime import datetime
@@ -337,15 +338,17 @@ async def network_save_config_backup(
     return {"ok": True, "path": str(filepath), "filename": filename}
 
 
-@router.get("/network/config-backups")
-async def network_list_config_backups(user: User = Depends(get_current_user)):
-    """List saved network config backups for the active customer."""
+@router.get("/network/config-backups/{customer_id}")
+async def network_list_config_backups(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """List the named customer's saved network config backups."""
     from app.core.config import get_audit_dir
     from app.core.customer import CustomerManager
 
-    active = CustomerManager.get_active()
+    active = CustomerManager.get_customer(customer_id)
     if not active:
-        return {"backups": []}
+        raise refusal(NotFoundError, "err_customer_not_found")
 
     safe_name = active.get("CustomerName", "unknown").replace(" ", "_")
     backup_dir = get_audit_dir() / safe_name / "network_configs"
@@ -368,12 +371,13 @@ async def network_list_config_backups(user: User = Depends(get_current_user)):
     return {"backups": backups}
 
 
-@router.post("/unifi/save")
+@router.post("/unifi/save/{customer_id}")
 async def unifi_save(
+    customer_id: str,
     body: UniFiSaveRequest,
-    user: User = Depends(require_role(Role.technician)),
+    user: User = Depends(require_customer_access(Role.technician)),
 ):
-    """Save UniFi config for the active customer.
+    """Save UniFi config for the customer named in the path.
 
     The stored controller login is sent to the controller host and, in direct
     mode, to every device that has no login of its own. Adding an address to
@@ -384,17 +388,10 @@ async def unifi_save(
     from app.core.activity_log import log_activity
     from app.core.credentials import delete_secret, get_secret, store_secret
     from app.core.customer import CustomerManager
-    from app.core.rbac import check_customer_access
 
-    active = CustomerManager.get_active()
-    if not active:
-        raise refusal(ValidationError, "err_no_active_customer")
-
-    cust_id = active["_id"]
-    # The active customer is process-global: whoever switched last decides what
-    # it means for everyone. Writing to it needs the same check as naming it.
-    if not await check_customer_access(user, cust_id):
-        raise refusal(ForbiddenError, "err_customer_access_denied")
+    # Named in the path, never "the active customer": a switch made in another
+    # tab used to decide whose controller this login was stored for.
+    cust_id = customer_id
     config = CustomerManager.get_customer(cust_id)
     if not config:
         raise refusal(NotFoundError, "err_customer_not_found")
@@ -443,7 +440,7 @@ async def unifi_save(
     CustomerManager.save_customer(save_data)
 
     new_host = (config.get("UniFiHost") or "").strip()
-    detail = f"Lagret UniFi-oppsett for {active.get('CustomerName', cust_id)}"
+    detail = f"Lagret UniFi-oppsett for {config.get('CustomerName', cust_id)}"
     if new_host != old_host:
         detail += f" — adresse endret fra {old_host or '(ingen)'} til {new_host or '(ingen)'}"
     if password:
@@ -474,19 +471,21 @@ def _stored_login_targets(config: dict) -> set[str]:
     return targets
 
 
-@router.post("/network/quick-audit")
-async def network_quick_audit(user: User = Depends(require_role(Role.technician))):
-    """Run a quick network audit — gathers key data from FortiGate and/or UniFi."""
+@router.post("/network/quick-audit/{customer_id}")
+async def network_quick_audit(
+    customer_id: str, user: User = Depends(require_customer_access(Role.technician))
+):
+    """Run a quick network audit of the named customer's FortiGate and/or UniFi."""
     import json as _json
 
     from app.core.customer import CustomerManager
     from app.services.network_audit import run_quick_network_audit
 
-    active = CustomerManager.get_active()
+    active = CustomerManager.get_customer(customer_id)
     if not active:
-        raise refusal(ValidationError, "err_no_active_customer")
+        raise refusal(NotFoundError, "err_customer_not_found")
 
-    cust_id = active.get("_id", "")
+    cust_id = customer_id
     results = await run_quick_network_audit(active, cust_id)
 
     if not results["fortigate"] and not results["unifi"]:
@@ -531,17 +530,19 @@ async def network_quick_audit(user: User = Depends(require_role(Role.technician)
     return JSONResponse(content=clean)
 
 
-@router.get("/network-devices")
-async def get_network_devices(user: User = Depends(get_current_user)):
-    """Return configured network devices for the active customer."""
+@router.get("/network-devices/{customer_id}")
+async def get_network_devices(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """Return the named customer's configured network devices."""
     from app.core.credentials import get_secret
     from app.core.customer import CustomerManager
 
-    active = CustomerManager.get_active()
+    active = CustomerManager.get_customer(customer_id)
     if not active:
-        return {"fortigate": None, "unifi": None}
+        raise refusal(NotFoundError, "err_customer_not_found")
 
-    cust_id = active.get("_id", "")
+    cust_id = customer_id
     fg = None
     if active.get("FortiGateHost"):
         fg = {

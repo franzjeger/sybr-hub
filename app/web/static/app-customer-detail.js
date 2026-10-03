@@ -25,17 +25,18 @@ registerUiHandlers({
   custToggleReportMenu: function(el) { _custToggleMenu('cust-report-menu', el); },
   custToggleDeployMenu: function(el) { _custToggleMenu('cust-deploy-menu', el); },
   custPolicySub: function(el) { showCustomerTab('policyer', el.dataset.sub); },
-  // After setup: the customer it created or renewed is the active one.
-  openActiveCustomer: function() { openActiveCustomerTab('funn'); },
+  // After setup: the customer it created or renewed.
+  openSetupCustomer: function() { openSetupCustomer(); },
 });
 
 // ── The customer page ─────────────────────────────────────────────────────────
 // The customer is the context. One page, its tabs switching in place and the
 // address carrying the tab: #/customer/<id> is Funn, #/customer/<id>/<tab> the
-// others, and Policyer's deploy flows add /ca or /intune. Audit, Policyer and
-// the rest still act on the server's active customer, so the page makes its
-// customer the active one before it shows anything (switchActiveCustomer is
-// queued, so the last customer asked for is the one left active).
+// others, and Policyer's deploy flows add /ca or /intune. Every call the page
+// and its tabs make names this page's customer (_custPage.id); the server has
+// no "active customer" to fall back on, so a second tab on another customer
+// cannot reach into this one. Every late answer is checked against the id it
+// was asked for before it is shown.
 var CUSTOMER_TABS = ['funn', 'audit', 'policyer', 'vurderinger', 'nettverk', 'tilgang', 'detaljer'];
 var _custPage = {id: null, cust: null, tab: 'funn', sub: '', loaded: {}};
 var _detailChartInstance = null;
@@ -66,15 +67,8 @@ async function openCustomerPage(customerId, tab, sub) {
     return;
   }
   var seq = ++_custPageSeq;
-  var d = await switchActiveCustomer(customerId);
-  if (seq !== _custPageSeq || !d || !d.ok) return;
-  // Nylige in the palette.
-  try {
-    var recent = JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]');
-    recent = recent.filter(function(id) { return id !== customerId; });
-    recent.unshift(customerId);
-    localStorage.setItem('sybr_recent_customers', JSON.stringify(recent.slice(0, 5)));
-  } catch (e) { /* private mode: no recents */ }
+  // This tab's current customer, and Nylige in the palette (app.js).
+  setCurrentCustomer(customerId);
   _scopeLoaded = false; _scopeSections = [];
   _custReportRun = null;
   _custPage = {id: customerId, cust: null, tab: tab, sub: sub || '', loaded: {}};
@@ -86,16 +80,20 @@ async function openCustomerPage(customerId, tab, sub) {
   showCustomerTab(_custPage.tab, _custPage.sub);
 }
 
-// The active customer's page on a tab: what showView('audit') and the other
-// old names mean now. With no customer active the list is where to choose one.
-async function openActiveCustomerTab(tab, sub) {
-  var id = (currentView === 'customer-detail' && _custPage.id) || _customersActiveId;
-  if (!id) {
-    var cs = await apiFetch('/api/customers');
-    if (cs) { _allCustomers = cs.customers || []; _customersActiveId = cs.active_id; id = cs.active_id; }
-  }
+// This tab's current customer's page on a tab: what showView('audit') and the
+// other old names mean now. With no customer yet the list is where to choose one.
+async function openCurrentCustomerTab(tab, sub) {
+  var id = (currentView === 'customer-detail' && _custPage.id) || currentCustomerId();
   if (!id) { showView('customers'); return; }
   await openCustomerPage(id, tab, sub);
+}
+
+// Setup registers the customer it set up and says which; that is the page
+// "Åpne kunden" opens.
+var _setupCustomerId = null;
+function openSetupCustomer() {
+  if (_setupCustomerId) openCustomerPage(_setupCustomerId, 'funn');
+  else showView('customers');
 }
 
 function _custShowPanels(tab, sub) {
@@ -151,9 +149,11 @@ function showCustomerTab(tab, sub) {
   if (auditRunning) pollAuditProgress();
 }
 
-// Whether the run's own progress is on screen.
+// Whether the run's own progress is on screen: the Audit tab of the customer
+// the run is for.
 function custAuditTabOpen() {
-  return currentView === 'customer-detail' && _custPage.tab === 'audit';
+  return currentView === 'customer-detail' && _custPage.tab === 'audit'
+    && (!auditCustomerId || auditCustomerId === _custPage.id);
 }
 
 // After a run finishes, what it changed: the findings, the figures, the runs.
@@ -213,11 +213,11 @@ async function loadCustomerDetail(customerId) {
   var box = document.getElementById('customer-detail-content');
   box.innerHTML = '<div class="loading-note"><div class="loader"></div> ' + esc(t('msg_loading','Loading...')) + '</div>';
 
-  // The list the page reads its customer from; always fresh, since the page
-  // is opened after the switch that may have changed its figures.
+  // The list the page reads its customer from; always fresh, since an audit
+  // or a decision on another page may have changed its figures.
   try {
     var ovData = await apiFetch('/api/dashboard/overview');
-    if (ovData) _overviewData = {customers: ovData.customers || [], active_id: ovData.active_id};
+    if (ovData) _overviewData = {customers: ovData.customers || []};
   } catch(e) { console.warn('Overview data load failed:', e); }
   if (_custPage.id !== customerId) return;
   var cust = null;
@@ -351,27 +351,19 @@ function _auditAgeSuffix(runName) {
   return ' <span style="color:var(--text-dim);font-weight:400;">(' + Number(days) + 'd)</span>';
 }
 
-// Switch the server's per-user active customer. Audit, setup and the tabs
-// read it, so a page that names a customer makes it the active one before
-// acting.
-async function activateCustomer(customerId) {
-  var d = await switchActiveCustomer(customerId);
-  return !!(d && d.ok);
-}
-
 function _wireCustomerHead(customerId, cust) {
   var run = document.getElementById('cust-run-audit');
   if (run) run.addEventListener('click', async function() {
     if (run.disabled) return;
     run.disabled = true;
     // startAudit opens the Audit tab, where the run shows.
-    if (await activateCustomer(customerId)) await startAudit();
+    await startAudit(customerId);
     run.disabled = !cust.has_m365;
   });
+  // Setup writes to its own staging slot and registers the customer it set
+  // up; it does not read which customer is open.
   var setup = document.getElementById('cust-setup-m365');
-  if (setup) setup.addEventListener('click', async function() {
-    if (await activateCustomer(customerId)) startSetup();
-  });
+  if (setup) setup.addEventListener('click', function() { startSetup(); });
 }
 
 // ── Audit ─────────────────────────────────────────────────────────────────────
@@ -381,7 +373,7 @@ var _custRuns = [];
 var _custReportRun = null;
 
 function _custLoadAudit() {
-  if (auditRunning || _auditStarting) _showAuditRunningChrome();
+  if (_auditRunIsThisPages()) _showAuditRunningChrome();
   else if (hasFeature('audit')) _reconcileAuditState();
   else _renderAuditIdle();
   // The chooser's summary ("all 26 sections") before anyone opens it.
@@ -410,10 +402,11 @@ function custSyncReportButton() {
 }
 
 // The full reports are built from a run the server has selected for this
-// user: the one just audited, or one picked in the runs list. With neither,
-// the latest run that kept its evidence files.
+// user and this customer: the one just audited, or one picked in the runs
+// list. With neither, the latest run that kept its evidence files.
 async function _custEnsureReportRun() {
   if (_custReportRun && _custReportRun.customerId === _custPage.id) return true;
+  var customerId = _custPage.id;
   var run = _custRuns.find(function(r) { return Number(r.file_count) > 0; });
   var area = document.getElementById('report-result');
   if (!run) {
@@ -421,10 +414,10 @@ async function _custEnsureReportRun() {
     return false;
   }
   var d = await apiFetch('/api/history/load', {
-    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: run.path}),
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId, path: run.path}),
   });
-  if (!d || d.error) return false;
-  _custReportRun = {customerId: _custPage.id, timestamp: run.timestamp};
+  if (!d || d.error || _custPage.id !== customerId) return false;
+  _custReportRun = {customerId: customerId, timestamp: run.timestamp};
   return true;
 }
 
@@ -434,14 +427,14 @@ async function custReport(kind, btn) {
     window.open('/api/reports/customer-summary/' + encodeURIComponent(_custPage.id), '_blank');
     return;
   }
-  if (kind === 'itglue') { uploadReportsToITGlue(btn); return; }
+  if (kind === 'itglue') { uploadReportsToITGlue(btn, _custPage.id); return; }
   if (!(await _custEnsureReportRun())) return;
-  if (kind === 'csv') { exportCSV(); return; }
+  if (kind === 'csv') { exportCSV(_custPage.id); return; }
   var spec = {
     'customer-pdf': ['pdf', 'customer'], 'customer-html': ['html', 'customer'],
     'tech-pdf': ['pdf', 'tech'], 'tech-html': ['html', 'tech'],
   }[kind];
-  if (spec) generateReport(spec[0], spec[1]);
+  if (spec) generateReport(spec[0], spec[1], _custPage.id);
 }
 
 // A run picked in the runs list is what Rapport builds from.
@@ -480,12 +473,12 @@ async function _custLoadDetails(customerId) {
   var extra = document.getElementById('cust-details-extra');
   body.innerHTML = '<div class="loading-note"><div class="loader"></div></div>';
   extra.innerHTML = '';
-  var st = await apiFetch('/api/status');
+  var st = await apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/status');
   if (_custPage.id !== customerId) return;
   var c = (st && st.customer) || {};
   var tags = c.tags || cust.tags || [];
   var safeId = String(customerId).replace(/[^a-zA-Z0-9_-]/g, '_');
-  var hasCredentials = !!(st && st.has_credentials !== false && st.has_config);
+  var hasCredentials = !!(st && st.has_credentials);
 
   // Microsoft 365 access: the tenant connection, and the two things done
   // with the app's credentials.
@@ -493,8 +486,8 @@ async function _custLoadDetails(customerId) {
     + '<div class="cust-card-title">' + esc(t('hdr_m365_access', 'Microsoft 365-tilgang')) + '</div>'
     + '<p class="cust-card-text">' + esc(cust.has_m365 ? t('msg_m365_connected', 'Tenanten er koblet til, og kunden kan auditeres.') : t('msg_m365_missing', 'M365-tilgang er ikke satt opp for denne kunden, så den kan ikke auditeres ennå.')) + '</p>'
     + (hasCredentials ? '<div class="btn-row">'
-      + '<button class="btn btn-default btn-sm" data-click-handler="checkPermissions">' + esc(t('btn_check_permissions')) + '</button>'
-      + '<button class="btn btn-default btn-sm" data-write data-click-handler="renewCreds">' + esc(t('btn_renew_credentials')) + '</button>'
+      + '<button class="btn btn-default btn-sm" data-click-handler="checkPermissions" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_check_permissions')) + '</button>'
+      + '<button class="btn btn-default btn-sm" data-write data-click-handler="renewCreds" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_renew_credentials')) + '</button>'
       + '</div>' : '')
     + '</div>';
 
@@ -514,11 +507,11 @@ async function _custLoadDetails(customerId) {
     + '<textarea id="detail-notes-textarea" class="field-input cust-notes" placeholder="' + esc(t('placeholder_notes', 'Skriv notater om denne kunden...')) + '"></textarea>'
     + '</div>';
   body.innerHTML = html;
-  document.getElementById('detail-notes-save').addEventListener('click', saveDetailNotes);
-  _loadCustomerNotes();
+  document.getElementById('detail-notes-save').addEventListener('click', function() { saveDetailNotes(customerId); });
+  _loadCustomerNotes(customerId);
 
   // Files: names and dates.
-  loadFiles();
+  loadFiles(customerId);
 
   // Credential expiry for this customer, not every customer.
   apiFetch('/api/expiry/check').then(function(d) {
@@ -1440,15 +1433,14 @@ async function _loadUnifiWifiHealthSection(customerId) {
   }
 }
 
-async function _loadCustomerNotes() {
+async function _loadCustomerNotes(customerId) {
   // Held from before the request: if another customer's page replaces this
-  // one meanwhile, the answer lands in a detached box, not in that page's,
-  // where saving would have written it into the wrong customer's notes.
+  // one meanwhile, the answer lands in a detached box, not in that page's.
   var ta = document.getElementById('detail-notes-textarea');
   var el = document.getElementById('detail-notes-status');
   try {
-    var d = await apiFetch('/api/customer/notes');
-    if (!ta || !ta.isConnected) return;
+    var d = await apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/notes');
+    if (!ta || !ta.isConnected || _custPage.id !== customerId) return;
     if (d) { ta.value = d.notes || ''; }
     if (d && d.last_saved) {
       if (el) el.textContent = t('msg_last_saved','Sist lagret') + ': ' + new Date(d.last_saved).toLocaleString('no-NO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -1461,8 +1453,7 @@ async function _loadCustomerActivity(customerName) {
   if (!el) return;
   try {
     var d = await apiFetch('/api/activity-log?limit=15&customer=' + encodeURIComponent(customerName));
-    // Opening the page switches the active customer, which logs a switch:
-    // noise here, as it is in the bell.
+    // Older versions logged every customer switch: noise here, as in the bell.
     var entries = (d.entries || []).filter(function(e) { return e.action !== 'customer_switched' && e.action !== 'settings_changed'; });
     var actionIcons = {
       audit_started:'\u25B6', audit_completed:'\u2713', report_generated:'',
@@ -1489,15 +1480,14 @@ async function _loadCustomerActivity(customerName) {
   } catch(e) { el.innerHTML = ''; }
 }
 
-// Its own name and element ids: the M365-status view renders a notes box too,
-// views are hidden rather than destroyed, and sharing ids made this page read
-// and save the hidden box's text over what was typed here.
-async function saveDetailNotes() {
+// Saved to the customer whose page the box is on, named in the address: the
+// notes are that customer's whichever customer another tab has open.
+async function saveDetailNotes(customerId) {
   var ta = document.getElementById('detail-notes-textarea');
-  if (!ta) return;
+  if (!ta || !customerId || _custPage.id !== customerId) return;
   var st = document.getElementById('detail-notes-status');
   try {
-    var d = await apiFetch('/api/customer/notes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notes:ta.value})});
+    var d = await apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/notes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notes:ta.value})});
     if (d && d.ok && st) { st.textContent = t('msg_saved','Lagret') + ' ✓'; st.style.color = 'var(--green)'; setTimeout(function(){ st.style.color = ''; },2000); }
   } catch(e) { if (st) { st.textContent = t('status_error'); st.style.color = 'var(--red)'; } }
 }

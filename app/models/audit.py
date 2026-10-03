@@ -1,6 +1,7 @@
 """Audit and Health models, and the request bodies of the audit routes."""
 
 from pydantic import BaseModel, ConfigDict
+from pydantic import Field as PydanticField
 from sqlmodel import Field, SQLModel
 
 
@@ -44,7 +45,7 @@ class HealthSnapshot(SQLModel, table=True):
 
 
 class AuditScope(BaseModel):
-    """Which audit sections run for the active customer.
+    """Which audit sections run for the customer named in the query.
 
     Stored as sent (``exclude_unset``): the page reads a stored list, even an
     empty one, as the operator's choice, and an absent one as "no choice yet".
@@ -74,10 +75,16 @@ class PkceManualCallback(BaseModel):
 
 
 class HistoryLoad(BaseModel):
-    """A previous audit run, by its directory, to load for report generation."""
+    """A previous audit run of one customer, by its directory, to build reports from.
+
+    The customer is named rather than worked out from the folder: two
+    customers can share a folder name, and the run is selected for the page
+    that asked, not for whichever customer the account looked at last.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
+    customer_id: str = PydanticField(min_length=1)
     path: str = ""
 
 

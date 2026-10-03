@@ -80,15 +80,17 @@ class AuditRunContext:
             q.put_nowait(event)
 
 
-# One latest selection per user bounds memory while keeping result data out of
-# every other user's request. A new audit or explicit history load replaces it.
-_user_audit_runs: dict[str, AuditRunContext] = {}
+# One latest selection per user *and customer*. Keyed by the user alone, two
+# browser tabs of one technician shared a slot: loading customer B's run in one
+# tab threw away the run customer A's tab was about to build its report from.
+# A new audit or an explicit history load replaces the slot for its customer.
+_user_audit_runs: dict[tuple[str, str], AuditRunContext] = {}
 
 
 def begin_user_audit(user_id: str, customer_id: str) -> AuditRunContext:
-    """Create and select a fresh running context for one authenticated user."""
+    """Create and select a fresh running context for one user and customer."""
     run = AuditRunContext(owner_user_id=user_id, customer_id=customer_id, running=True)
-    _user_audit_runs[user_id] = run
+    _user_audit_runs[(user_id, customer_id)] = run
     return run
 
 
@@ -106,16 +108,26 @@ def select_user_audit(
         results=results,
         out_dir=out_dir,
     )
-    _user_audit_runs[user_id] = run
+    _user_audit_runs[(user_id, customer_id)] = run
     return run
 
 
-def get_user_audit(user_id: str, customer_id: str | None = None) -> AuditRunContext | None:
-    """Return only this user's selected run, optionally for an exact customer."""
-    run = _user_audit_runs.get(user_id)
-    if run is None or (customer_id is not None and run.customer_id != customer_id):
-        return None
-    return run
+def get_user_audit(user_id: str, customer_id: str) -> AuditRunContext | None:
+    """Return this user's selected run for exactly this customer."""
+    return _user_audit_runs.get((user_id, customer_id))
+
+
+def get_running_user_audit(user_id: str) -> AuditRunContext | None:
+    """The audit this user has running, whichever customer it is for.
+
+    Collection is serialised server-wide (``audit_running``), so there is at
+    most one. Cancelling and the header's progress follow the run's owner, not
+    a customer the caller happens to be looking at.
+    """
+    for (owner, _customer), run in _user_audit_runs.items():
+        if owner == user_id and run.running:
+            return run
+    return None
 
 
 def clear_user_audits() -> None:

@@ -58,13 +58,9 @@ async def test_files_lists_names_and_runs_without_server_paths(tmp_path):
     headers = {"Authorization": f"Bearer {await create_access_token(user)}"}
 
     with TestClient(create_app()) as client:
-        switched = client.post(
-            "/api/customers/switch", headers=headers, json={"customer_id": customer_id}
-        )
-        assert switched.status_code == 200, switched.text
-        body = client.get("/api/files", headers=headers).json()
+        body = client.get(f"/api/customer/{customer_id}/files", headers=headers).json()
 
-    assert body["has_customer"] is True
+    assert body["customer_id"] == customer_id
     assert body["reports"] == [{"name": "report.html", "run": "2026-09-30_120000", "size": "0 KB"}]
     assert body["raw_data"]["runs"] == 1
     assert str(tmp_path) not in json.dumps(body), "a server path reached the Files view"

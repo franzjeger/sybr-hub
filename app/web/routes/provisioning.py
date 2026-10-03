@@ -13,6 +13,7 @@ from app.core.exceptions import (
     ToolkitError,
     ValidationError,
 )
+from app.models.network import ProvisioningStart
 from app.models.user import User
 from app.web.i18n import refusal
 from app.web.middleware.auth import require_feature, require_module
@@ -60,14 +61,26 @@ async def _authorize(session_id: str, user: User, *, tenant_write: bool = False)
 
 @router.post("/provisioning/start")
 async def start_wizard(
+    body: ProvisioningStart | None = None,
     user: User = _role_dep,
 ):
-    """Start a new provisioning wizard session."""
+    """Start a new provisioning wizard session, bound to the customer it names.
+
+    The customer whose stored FortiGate/UniFi credentials the deploy may use
+    is the one in the body, checked here. It was the caller's active
+    customer, which another tab could change; no customer binds none.
+    """
     from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
     from app.services.provisioning import start_session
 
-    active = CustomerManager.get_active() or {}
-    return start_session(user_id=str(user.id), customer_id=active.get("_id", ""))
+    customer_id = (body.customer_id if body else None) or ""
+    if customer_id:
+        if not await check_customer_access(user, customer_id):
+            raise refusal(ForbiddenError, "err_customer_no_access")
+        if CustomerManager.get_customer(customer_id) is None:
+            raise refusal(NotFoundError, "err_customer_not_found")
+    return start_session(user_id=str(user.id), customer_id=customer_id)
 
 
 @router.get("/provisioning/sessions")

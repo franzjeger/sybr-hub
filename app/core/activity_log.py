@@ -27,7 +27,6 @@ VALID_ACTIONS = {
     "audit_completed",
     "report_generated",
     "customer_added",
-    "customer_switched",
     "itglue_uploaded",
     "settings_changed",
     "email_sent",

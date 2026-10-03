@@ -57,7 +57,6 @@ def wired(monkeypatch, tmp_path):
 
         return boom
 
-    monkeypatch.setattr("app.core.customer.CustomerManager.set_active", _forbidden("set_active"))
     monkeypatch.setattr("app.core.credentials.save_config", _forbidden("save_config"))
     monkeypatch.setattr("shutil.copy2", _forbidden("shutil.copy2"))
     monkeypatch.setattr(
@@ -104,8 +103,11 @@ def wired(monkeypatch, tmp_path):
     state.audit_running = False
 
 
-async def test_a_cycle_never_moves_the_active_customer(wired):
-    """The fixture makes set_active, save_config and the cert copy raise."""
+async def test_a_cycle_never_touches_the_staging_config(wired):
+    """The fixture makes save_config, the cert copy and from_config raise.
+
+    (It also forbade set_active; there is no active customer any more.)
+    """
     _, built = wired
 
     await AuditScheduler()._run_all_customers_audit()

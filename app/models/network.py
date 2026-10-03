@@ -35,7 +35,7 @@ class FortiGateTestRequest(BaseModel):
 
 
 class FortiGateSaveRequest(BaseModel):
-    """The active customer's FortiGate connection.
+    """A customer's FortiGate connection, for the customer named in the path.
 
     Every field is "absent or null means leave alone" — the handler writes only
     what is present, because a field that used to be reset by omission left a
@@ -85,6 +85,9 @@ class FortiGateBootstrap(BaseModel):
     ssh_port: PortValue = None
     hostname: str = ""
     api_admin_name: str = "msp_api_admin"
+    # Whose firewall this is: the customer the minted credentials are stored
+    # under. None stores nothing and only returns them.
+    customer_id: str | None = None
 
 
 # ── UniFi ────────────────────────────────────────────────────────────────────
@@ -147,7 +150,7 @@ class NetworkConfigBackup(BaseModel):
 
 
 class UniFiSaveRequest(BaseModel):
-    """The active customer's UniFi connection, or its direct-device list.
+    """A customer's UniFi connection or direct-device list, for the customer in the path.
 
     "Absent or null means leave alone" for every field, for the same reason as
     the FortiGate save. ``devices`` is stored as given, so its entries stay
@@ -261,3 +264,15 @@ class PollInterval(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     interval: int = 60
+
+
+class ProvisioningStart(BaseModel):
+    """A new provisioning wizard session, bound to the customer it names.
+
+    The customer decides whose stored FortiGate/UniFi credentials the deploy
+    may use. None binds no customer, so no stored credentials are used.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: str | None = None

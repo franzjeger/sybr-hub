@@ -288,24 +288,27 @@ async def setup_stream(request: Request, user: User = Depends(get_current_user))
 
 
 @router.post("/audit/validate-permissions")
-async def validate_permissions(user: User = Depends(get_current_user)):
-    """Check that the service principal has the required Graph API permissions."""
+async def validate_permissions(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """Check that this customer's service principal has the Graph permissions an audit needs."""
     try:
-        from app.core.credentials import load_config
-        from app.modules.m365_audit.auth import AuthManager
+        from app.core.customer import CustomerManager
+        from app.modules.m365_audit.auth import get_auth_for_customer
         from app.modules.m365_audit.graph_client import GraphClient
 
-        cfg = load_config()
-        if cfg and cfg.get("AuthMode") == "gdap":
-            auth = AuthManager.from_gdap(cfg["TenantId"])
-        else:
-            auth = AuthManager.from_config()
+        cfg = CustomerManager.get_customer(customer_id)
+        if cfg is None:
+            raise refusal(NotFoundError, "err_customer_not_found")
+        auth = get_auth_for_customer(cfg, CustomerManager.get_cert_path(customer_id))
         async with auth, GraphClient(auth.credential) as graph:
-            if cfg and cfg.get("AuthMode") == "gdap":
+            if cfg.get("AuthMode") == "gdap":
                 result = await graph.validate_gdap_access()
             else:
                 result = await graph.validate_permissions()
             return result
+    except NotFoundError:
+        raise
     except Exception as e:
         logger.warning("Permission validation failed: %s", e)
         return JSONResponse(
@@ -318,15 +321,16 @@ async def validate_permissions(user: User = Depends(get_current_user)):
 
 
 @router.get("/audit/sections")
-async def list_audit_sections(user: User = Depends(get_current_user)):
-    """Return all available audit sections with default enabled status."""
-    from app.core.credentials import load_config
+async def list_audit_sections(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """Every audit section, with Azure's off unless this customer has a subscription."""
+    from app.core.customer import CustomerManager
     from app.modules.m365_audit.collector import AuditCollector
 
     sections = AuditCollector.get_all_sections()
 
-    # Check if Azure subscription is configured
-    cfg = load_config()
+    cfg = CustomerManager.get_customer(customer_id)
     has_azure = bool(cfg.get("SubscriptionId", "")) if cfg else False
 
     if not has_azure:
@@ -338,32 +342,32 @@ async def list_audit_sections(user: User = Depends(get_current_user)):
 
 
 @router.get("/audit/scope")
-async def get_audit_scope(user: User = Depends(get_current_user)):
-    """Get saved audit scope for the active customer."""
+async def get_audit_scope(
+    customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
+):
+    """The sections this customer's audits run, as last saved."""
     from app.core.customer import CustomerManager
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        return {"scope": None}
-    scope_path = CustomerManager.get_customer_dir(active_id) / "audit_scope.json"
+    scope_path = CustomerManager.get_customer_dir(customer_id) / "audit_scope.json"
     if scope_path.exists():
         from app.core.encryption import encrypted_read_json
 
-        return {"scope": encrypted_read_json(scope_path)}
-    return {"scope": None}
+        return {"customer_id": customer_id, "scope": encrypted_read_json(scope_path)}
+    return {"customer_id": customer_id, "scope": None}
 
 
 @router.post("/audit/scope")
 async def save_audit_scope(
-    body: AuditScope, request: Request, user: User = Depends(require_role(Role.technician))
+    customer_id: str,
+    body: AuditScope,
+    user: User = Depends(require_customer_access(Role.technician)),
 ):
-    """Save audit scope for the active customer."""
+    """Save the sections this customer's audits run."""
     from app.core.customer import CustomerManager
 
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise ValidationError(ui_t("err_no_active_customer", request))
-    scope_path = CustomerManager.get_customer_dir(active_id) / "audit_scope.json"
+    if CustomerManager.get_customer(customer_id) is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    scope_path = CustomerManager.get_customer_dir(customer_id) / "audit_scope.json"
     from app.core.encryption import encrypted_write_json
 
     encrypted_write_json(scope_path, body.model_dump(exclude_unset=True))
@@ -443,35 +447,42 @@ async def delete_audit_preset(name: str, user: User = Depends(require_role(Role.
 # ── API: Audit SSE stream ──────────────────────────────────────────────────────
 
 
-def _prepare_audit(request: Request) -> tuple[str | None, dict | None]:
-    """Preflight a *new* audit: verify credentials and build the output dir.
+def _prepare_audit(request: Request, customer_id: str) -> tuple[str | None, dict | None]:
+    """Preflight a *new* audit of one customer: verify credentials, build the output dir.
 
     Returns ``(error_message, spec)``. On error the spec is None and nothing has
     been committed — no run is marked running — so the caller can refuse without
-    stranding the global lock. The spec carries what the background job needs.
+    stranding the global lock. The spec carries what the background job needs,
+    the customer's own record included, so the job never asks "which customer"
+    again while it runs.
     """
-    from app.core.credentials import config_exists, get_secret, load_config
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
     from app.modules.m365_audit.collector import make_output_dir
 
-    if not config_exists():
+    cfg = CustomerManager.get_customer(customer_id)
+    if not cfg:
         return ui_t("err_no_customer_config", request), None
-    cfg = load_config() or {}
     tenant_id = cfg.get("TenantId", "")
-    client_id = cfg.get("ClientId", "")
-    if not tenant_id or not client_id:
+    if cfg.get("AuthMode") != "gdap":
+        if not tenant_id or not cfg.get("ClientId", ""):
+            return ui_t("err_missing_m365_setup", request), None
+        if not get_secret(tenant_id, "client_secret"):
+            return ui_t("err_missing_m365_secret", request), None
+    elif not tenant_id:
         return ui_t("err_missing_m365_setup", request), None
-    if not get_secret(tenant_id, "client_secret"):
-        return ui_t("err_missing_m365_secret", request), None
     customer_name = cfg.get("CustomerName", "Ukjent")
     return None, {
         "cfg": cfg,
+        "customer_id": customer_id,
+        "cert_path": CustomerManager.get_cert_path(customer_id),
         "customer_name": customer_name,
         "out_dir": make_output_dir(customer_name),
     }
 
 
 async def _post_audit_side_effects(
-    cfg: dict, results: list[dict], out_dir, customer_name: str
+    cfg: dict, results: list[dict], out_dir, customer_name: str, customer_id: str
 ) -> dict | None:
     """Completion work that must run whether or not a browser is watching: save
     the dashboard metrics, auto-send the report, fire the webhook.
@@ -507,6 +518,7 @@ async def _post_audit_side_effects(
                 out_dir=out_dir,
                 results=result_objs,
                 lang="no",
+                customer_id=customer_id,
             ),
         )
     except Exception as exc:
@@ -563,7 +575,7 @@ async def _run_audit_job(
     watching at the finish. This is the whole point of the server-owned job.
     """
     from app.core.activity_log import log_activity
-    from app.modules.m365_audit.auth import AuthManager
+    from app.modules.m365_audit.auth import get_auth_for_customer
     from app.modules.m365_audit.collector import AuditCollector
 
     cfg = spec["cfg"]
@@ -585,10 +597,11 @@ async def _run_audit_job(
         )
 
     try:
-        if cfg.get("AuthMode") == "gdap":
-            auth = AuthManager.from_gdap(cfg["TenantId"])
-        else:
-            auth = AuthManager.from_config()
+        # The customer the run was started for, read once at the start. This
+        # used to resolve "the active customer" here, inside the job, so a
+        # switch made in another tab between the click and this line audited
+        # the other tenant into this customer's folder.
+        auth = get_auth_for_customer(cfg, spec["cert_path"])
         collector = AuditCollector(
             auth=auth, out_dir=out_dir, progress_cb=progress_cb, sections_filter=sections_filter
         )
@@ -608,7 +621,7 @@ async def _run_audit_job(
 
         done_event: dict = {"type": "done", "results": audit_run.results}
         email_status = await _post_audit_side_effects(
-            cfg, audit_run.results, out_dir, customer_name
+            cfg, audit_run.results, out_dir, customer_name, spec["customer_id"]
         )
         if email_status is not None:
             done_event["email_status"] = email_status
@@ -627,7 +640,11 @@ async def _run_audit_job(
 
 @router.get("/audit/stream")
 @router.post("/audit/stream")
-async def audit_stream(request: Request, user: User = Depends(get_current_user)):
+async def audit_stream(
+    request: Request,
+    customer_id: str,
+    user: User = Depends(require_customer_access(Role.viewer)),
+):
     """Start an audit, or re-attach to this user's already-running one.
 
     The run is owned by the server (``_run_audit_job``), not by this stream. A
@@ -639,13 +656,10 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
     ``?attach=1`` asks to *only* re-attach: if the run is no longer active it
     replays the stored outcome (or says it ended) rather than starting a fresh
     audit, so a reconnect loop can never launch a duplicate collection.
+
+    ``customer_id`` is required: the run is this customer's, whatever any
+    other tab of the same account is looking at.
     """
-    from app.core.customer import CustomerManager
-
-    active_id = CustomerManager.get_active_id()
-    if not active_id:
-        raise ValidationError(ui_t("err_no_active_customer", request))
-
     sections_param = request.query_params.get("sections", "")
     sections_filter: set | None = None
     if sections_param:
@@ -661,7 +675,7 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
     attach_ended = False
     audit_run: state.AuditRunContext | None = None
     async with state.audit_lock:
-        existing = state.get_user_audit(user.id, active_id)
+        existing = state.get_user_audit(user.id, customer_id)
         if existing is not None and existing.running:
             audit_run = existing
             attach = True
@@ -673,10 +687,10 @@ async def audit_stream(request: Request, user: User = Depends(get_current_user))
         elif state.audit_running:
             raise ConflictError(ui_t("err_audit_running", request))
         else:
-            prep_error, spec = _prepare_audit(request)
+            prep_error, spec = _prepare_audit(request, customer_id)
             if prep_error is None and spec is not None:
                 state.audit_running = True
-                audit_run = state.begin_user_audit(user.id, active_id)
+                audit_run = state.begin_user_audit(user.id, customer_id)
                 audit_run.customer_name = spec["customer_name"]
                 audit_run.out_dir = spec["out_dir"]
 
@@ -757,24 +771,33 @@ def _with_running(run: state.AuditRunContext | None) -> dict:
     """
     if run is None:
         return {**_IDLE_PROGRESS, "running": False}
-    return {**run.progress, "running": run.running, "run_id": run.run_id}
+    return {
+        **run.progress,
+        "running": run.running,
+        "run_id": run.run_id,
+        "customer_id": run.customer_id,
+        "customer_name": run.customer_name,
+    }
 
 
 @router.get("/audit/progress/{customer_id}")
 async def get_audit_progress(
     customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
 ):
-    """Return current audit progress for the given customer (or 'active')."""
+    """Return this user's audit progress for the given customer."""
     return _with_running(state.get_user_audit(user.id, customer_id))
 
 
 @router.get("/audit/progress")
-async def get_audit_progress_active(user: User = Depends(get_current_user)):
-    """Return current audit progress for the active customer."""
-    from app.core.customer import CustomerManager
+async def get_own_audit_progress(user: User = Depends(get_current_user)):
+    """The caller's running audit, whichever customer it is for, with its customer.
 
-    active_id = CustomerManager.get_active_id()
-    return _with_running(state.get_user_audit(user.id, active_id) if active_id else None)
+    What the header's indicator and the floating bar show: one audit runs at a
+    time, and the caller may be looking at another customer while it does.
+    This answered for "the active customer", so a second tab on another
+    customer made the first tab's running audit look finished.
+    """
+    return _with_running(state.get_running_user_audit(user.id))
 
 
 # ── API: Audit cancel ─────────────────────────────────────────────────────────
@@ -786,8 +809,8 @@ async def cancel_audit(user: User = Depends(require_role(Role.technician))):
     # Cancellation follows ownership, not the currently selected customer. A
     # user may switch views while their stream is running; that must not strand
     # an un-cancellable collector, and it still can never target another user.
-    run = state.get_user_audit(user.id)
-    if run is None or not run.running:
+    run = state.get_running_user_audit(user.id)
+    if run is None:
         raise refusal(ConflictError, "err_no_audit_running")
     run.cancel_requested = True
     # The run is a server-owned task now, not a loop in the stream, so cancel it
@@ -955,6 +978,7 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                                     formats=["html"],
                                     report_type="tech",
                                     lang="no",
+                                    customer_id=cust_id,
                                 )
                             ),
                         )
@@ -962,7 +986,9 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                         ctx = await loop.run_in_executor(
                             None,
                             lambda _cn=cust_name, _od=org_domain, _odir=out_dir, _ro=results_objs: (
-                                build_report_context(_cn, _od, _odir, _ro, lang="no")
+                                build_report_context(
+                                    _cn, _od, _odir, _ro, lang="no", customer_id=cust_id
+                                )
                             ),
                         )
 

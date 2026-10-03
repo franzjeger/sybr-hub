@@ -300,6 +300,7 @@
       </div>
 
       <div id="net-devices" class="net-sub-content">
+        <div class="tool-customer-bar" data-tool-customer="network"></div>
         <div id="network-devices-content" style="font-size:13px;color:var(--text-muted);">
           <div style="text-align:center;padding:48px 0;">
             <div class="loader" style="width:24px;height:24px;margin:0 auto 16px;"></div>
@@ -342,6 +343,7 @@
       <!-- net-live merged into net-fortigates -->
 
       <div id="net-audit" class="net-sub-content" style="display:none;">
+        <div class="tool-customer-bar" data-tool-customer="network"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="font-size:16px;font-weight:600;" data-i18n="hdr_network_audit">Nettverks-audit</div>
           <button data-write class="btn btn-primary" data-click-handler="runNetworkQuickAudit" id="btn-run-network-audit" style="padding:6px 16px;" data-i18n="btn_run_quick_check">Kjør hurtigsjekk</button>
@@ -710,7 +712,8 @@
             </div>
             <div id="fg-api-config" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
               <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;" data-i18n="fg_intro">Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.</p>
-              <p style="font-size:11px;color:var(--orange);margin-bottom:12px;" data-i18n="fg_per_customer_note">Lagres per aktiv kunde. Bytt kunde først hvis du vil konfigurere en annen FortiGate.</p>
+              <p style="font-size:11px;color:var(--orange);margin-bottom:12px;" data-i18n="fg_per_customer_note">Lagres for kunden som er valgt i feltet Kunde.</p>
+              <div class="tool-customer-bar" data-tool-customer="fgapi"></div>
               <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;"><span data-i18n="fg_token_hint_before">Generer API-token på FortiGate:</span> <strong>System → Administrators → Create New → REST API Admin</strong></p>
               <!-- Factory bootstrap -->
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
@@ -740,7 +743,7 @@
               </div>
               <div style="display:flex;gap:8px;margin-top:12px;">
                 <button data-write class="btn btn-primary" style="padding:6px 16px;font-size:12px;" data-click-handler="fgApiSave" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" data-click-handler="fgDownloadCredentials" data-i18n-title="last_ned_admin_passord_og" title="Last ned admin-passord og API-token for aktiv kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
+                <button class="btn btn-default" style="padding:6px 16px;font-size:12px;" data-click-handler="fgDownloadCredentials" data-i18n-title="last_ned_admin_passord_og" title="Last ned admin-passord og API-token for valgt kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
                 <span id="fg-api-save-msg" style="font-size:11px;color:var(--text-muted);align-self:center;"></span>
               </div>
             </div>
@@ -1278,15 +1281,16 @@
           GET /auth/users &middot; POST /auth/users &middot; PUT /auth/users/{id} &middot; DELETE /auth/users/{id}<br><br>
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_customers">Kunder</span> (/api/customers/*)</strong><br>
-          GET /customers &middot; POST /customers/switch &middot; POST /customers/register &middot; POST /customers/delete<br>
-          GET /customer/notes &middot; POST /customer/notes &middot; GET /customer/tags &middot; POST /customer/tags<br>
+          GET /customers &middot; POST /customers/register &middot; POST /customers/delete<br>
+          GET /customer/{id}/notes &middot; POST /customer/{id}/notes &middot; GET /customer/{id}/tags &middot; POST /customer/{id}/tags<br>
+          GET /customer/{id}/status &middot; GET /customer/{id}/files<br>
           POST /customers/import-itglue &middot; POST /customer/wipe &middot; POST /customer/renew<br>
           GET /search/customers<br><br>
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_audit">Audit</span> (/api/audit/*)</strong><br>
-          GET /audit/stream (SSE) &middot; GET /audit/bulk &middot; POST /audit/cancel<br>
-          POST /audit/validate-permissions &middot; GET /audit/sections<br>
-          GET /audit/scope &middot; POST /audit/scope &middot; GET /audit/presets &middot; POST /audit/presets &middot; DELETE /audit/presets/{name}<br>
+          GET /audit/stream?customer_id= (SSE) &middot; GET /audit/bulk &middot; POST /audit/cancel<br>
+          POST /audit/validate-permissions?customer_id= &middot; GET /audit/sections?customer_id=<br>
+          GET /audit/scope?customer_id= &middot; POST /audit/scope?customer_id= &middot; GET /audit/presets &middot; POST /audit/presets &middot; DELETE /audit/presets/{name}<br>
           GET /audit/progress &middot; GET /audit/progress/{customer_id} &middot; GET /audit/compare<br>
           GET /setup/stream (SSE) &middot; GET /trends &middot; GET /trends/{id}<br>
           GET /history &middot; POST /history/load &middot; POST /history/delete &middot; POST /history/delete-customer<br><br>
@@ -1313,19 +1317,19 @@
           POST /browser/start &middot; POST /browser/navigate &middot; POST /browser/stop &middot; GET /browser/status<br><br>
 
           <strong style="color:var(--blue);">FortiGate (/api/fortigate/*)</strong><br>
-          POST /fortigate/test &middot; POST /fortigate/save &middot; GET /fortigate/all<br>
+          POST /fortigate/test &middot; POST /fortigate/save/{id} &middot; POST /fortigate/bootstrap &middot; GET /fortigate/all<br>
           GET /fortigate/dashboard/{id} &middot; GET /fortigate/compliance/{id}<br>
           POST /fortigate/backup/{id} &middot; GET /fortigate/backups/{id} &middot; GET /fortigate/backup/{id}/{fil}<br>
           GET /fortigate/diff/{id} &middot; POST /fortigate/deploy-key/{id} &middot; POST /fortigate/generate-token/{id}<br><br>
 
           <strong style="color:var(--blue);">UniFi (/api/unifi/*)</strong><br>
-          POST /unifi/test &middot; POST /unifi/save &middot; POST /unifi/test-device<br>
+          POST /unifi/test &middot; POST /unifi/save/{id} &middot; POST /unifi/test-device<br>
           GET /unifi/dashboard/{id} &middot; GET /unifi/firmware-check/{id} &middot; GET /unifi/controller-summary/{id}<br>
           POST /unifi/site-manager/auth &middot; GET /unifi/site-manager/sites<br>
           GET /unifi/sm/devices &middot; GET /unifi/sm/isp-metrics &middot; GET /unifi/sm/site/{id}/wan<br>
           POST /unifi/set-inform &middot; POST /unifi/reboot-device &middot; POST /unifi/device-config<br>
-          POST /network/scan &middot; POST /network/quick-audit &middot; GET /network-devices<br>
-          POST /network/save-config-backup &middot; GET /network/config-backups<br><br>
+          POST /network/scan &middot; POST /network/quick-audit/{id} &middot; GET /network-devices/{id}<br>
+          POST /network/save-config-backup/{id} &middot; GET /network/config-backups/{id}<br><br>
 
           <strong style="color:var(--blue);">Tailscale (/api/tailscale/*)</strong><br>
           GET /tailscale/status &middot; GET /tailscale/devices &middot; POST /tailscale/test<br>
@@ -1345,7 +1349,7 @@
           <strong style="color:var(--blue);">IT Glue (/api/itglue/*)</strong><br>
           POST /itglue/test &middot; POST /itglue/organizations &middot; GET /itglue/inspect<br>
           POST /customers/import-itglue &middot; POST /itglue/upload/audit<br>
-          GET /itglue/available-reports &middot; POST /itglue/upload/reports &middot; POST /itglue/upload/credentials<br><br>
+          GET /itglue/available-reports?customer_id= &middot; POST /itglue/upload/reports &middot; POST /itglue/upload/credentials<br><br>
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_tls">TLS-sertifikater</span> (/api/tls/*)</strong><br>
           GET /tls/auto-discover &middot; POST /tls/check &middot; POST /tls/scan<br>
@@ -1358,15 +1362,14 @@
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_reports">Rapporter</span> (/api/report/*)</strong><br>
           POST /report/generate &middot; POST /report/csv &middot; POST /export/excel<br>
-          POST /email/test &middot; POST /email/send-report &middot; GET /latest-report<br>
+          POST /email/test &middot; POST /email/send-report<br>
           POST /open-private<br><br>
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_dashboard">Dashboard</span> (/api/dashboard/*)</strong><br>
-          GET /status &middot; GET /dashboard &middot; GET /dashboard/overview<br>
+          GET /dashboard?customer_id= &middot; GET /dashboard/overview<br>
           GET /dashboard/alerts &middot; GET /dashboard/health<br>
           GET /dashboard/devices &middot; GET /dashboard/devices/{id} &middot; POST /dashboard/poll/{id} &middot; POST /dashboard/interval<br>
-          GET /remediation &middot; POST /remediation &middot; GET /remediation/summary &middot; GET /expiry/check<br>
-          GET /files<br><br>
+          GET /remediation/{id} &middot; POST /remediation/{id} &middot; GET /remediation/{id}/summary &middot; GET /expiry/check<br><br>
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_settings">Innstillinger</span> (/api/settings)</strong><br>
           GET /settings &middot; POST /settings &middot; GET /settings/language &middot; POST /settings/language<br>
@@ -1975,6 +1978,7 @@
             <button data-write class="btn btn-ghost" data-click-handler="runTakeoverCheck" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_takeover" data-i18n-title="pentest_btn_takeover_tip"></button>
             <button data-write class="btn btn-ghost" data-click-handler="runSegTest" style="padding:6px 12px;font-size:12px;" data-i18n="pentest_btn_seg" data-i18n-title="pentest_btn_seg_tip"></button>
           </div>
+          <div class="tool-customer-bar tool-customer-bar-inline" data-tool-customer="pentest"></div>
         </div>
 
         <div id="pentest-results" style="font-size:13px;color:var(--text-muted);text-align:center;padding:24px;" data-i18n="pentest_empty_state"></div>
@@ -2007,6 +2011,7 @@
   <!-- ════════════ PROVISIONING WIZARD VIEW ════════════ -->
   <div class="view" id="view-provision">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;" data-i18n="hdr_network_provisioning">Nettverksprovisjonering</h2>
+    <div class="tool-customer-bar" data-tool-customer="provisioning"></div>
     <div style="display:flex;gap:8px;margin-bottom:16px;">
       <button data-write class="btn btn-primary" data-click-handler="provisionStart" style="padding:6px 16px;font-size:13px;" data-i18n="btn_new_wizard">Ny oppsett-veiviser</button>
     </div>

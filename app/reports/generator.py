@@ -137,6 +137,7 @@ def build_report_context(
     lang: str = "no",
     frameworks: str = "all",
     persist_metrics: bool = True,
+    customer_id: str | None = None,
 ) -> dict:
     """Parse one audit run into everything a report or a reader needs.
 
@@ -153,7 +154,18 @@ def build_report_context(
     Pass False from any caller that is reading. The default stays True so an
     audit that has just finished keeps recording itself without having to
     remember to ask.
+
+    ``customer_id`` is whose run this is: their remediation statuses go into
+    the report and their id onto the trend row. A caller that knows it passes
+    it; without it the run's folder decides, and only when exactly one
+    customer has that folder name. It used to be "the active customer", so a
+    report of customer A carried customer B's remediation notes when B was
+    the one last opened.
     """
+    from app.core.customer import customer_id_for_run_dir
+
+    if customer_id is None:
+        customer_id = customer_id_for_run_dir(out_dir)
     from app.core.encryption import encrypted_read_text
 
     file_contents: dict[str, str] = {}
@@ -548,13 +560,10 @@ def build_report_context(
     # addressed since the last audit.
     remediation = {}
     try:
-        from app.core.customer import CustomerManager
-
-        active_id = CustomerManager.get_active_id()
-        if active_id:
+        if customer_id:
             from app.services.remediation import load_remediation_sync
 
-            remediation = load_remediation_sync(active_id)
+            remediation = load_remediation_sync(customer_id)
     except Exception:
         # Non-critical — the report renders without the remediation column.
         log.debug("Remediation data unavailable for this report", exc_info=True)
@@ -616,7 +625,7 @@ def build_report_context(
         context["policy_inventory"] = None
 
     if persist_metrics:
-        save_audit_metrics(out_dir, context)
+        save_audit_metrics(out_dir, context, customer_id=customer_id)
 
     return context
 
@@ -700,9 +709,16 @@ def generate_reports(
     lang: str = "no",  # "no" or "en"
     frameworks: str = "all",  # "cis" | "cis+nist" | "cis+iso" | "all"
     theme: str = "light",  # "light" or "dark"
+    customer_id: str | None = None,
 ) -> dict[str, Path]:
     context = build_report_context(
-        customer_name, org_domain, out_dir, results, lang=lang, frameworks=frameworks
+        customer_name,
+        org_domain,
+        out_dir,
+        results,
+        lang=lang,
+        frameworks=frameworks,
+        customer_id=customer_id,
     )
 
     # Add translation helper — use {{ t.key }} or {{ t('key', count=5) }} in templates

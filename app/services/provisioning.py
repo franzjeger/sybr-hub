@@ -218,7 +218,7 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "", customer_id: str
 
     Order (most → least specific):
       1. Wizard step 1 (customer) — explicit user input
-      2. Active customer config (FortiGateHost/Port/VDOM/VerifySSL/AdminUser/ApiUser)
+      2. The session's customer config (FortiGateHost/Port/VDOM/VerifySSL/AdminUser/ApiUser)
       3. Keyring secrets (fortigate_api_token, fortigate_admin_password, fortigate_admin_user)
       4. Hardcoded defaults (port 8443 post-bootstrap, vdom root, verify False, user admin)
 
@@ -227,20 +227,16 @@ def _resolve_fortigate_conn(steps: dict, target_host: str = "", customer_id: str
     customer_step = steps.get(1, {}) or {}
     security_step = steps.get(4, {}) or {}
 
-    # Active customer config + keyring lookups
+    # The session customer's config + keyring lookups
     active_cfg: dict = {}
     cust_id = ""
     try:
         from app.core.customer import CustomerManager
 
-        # The session's bound customer, not whichever is active now — the deploy
-        # must use the credentials of the customer the wizard was started for
-        # (SR-001 #1/#5), regardless of what the operator switched to since.
-        customer = (
-            CustomerManager.get_customer(customer_id)
-            if customer_id
-            else CustomerManager.get_active()
-        )
+        # The session's bound customer — the deploy must use the credentials of
+        # the customer the wizard was started for (SR-001 #1/#5). A session
+        # bound to none uses no stored credentials.
+        customer = CustomerManager.get_customer(customer_id) if customer_id else None
         if customer:
             cust_id = customer.get("_id", "")
             active_cfg = customer
@@ -991,16 +987,14 @@ async def _deploy_unifi(host: str, unifi_json: str, customer: dict, customer_id:
     A customer's *stored* per-customer credentials only ever go to that
     customer's configured UniFiHost — never to a caller-supplied provisioning
     target — the same boundary the FortiGate path enforces (SR-001 #5). The
-    customer is the session's bound one, not whichever is active now.
+    customer is the session's bound one; a session bound to none has none.
     """
     from app.core.config import load_app_settings
     from app.core.credentials import get_secret
     from app.core.customer import CustomerManager
     from app.modules.unifi_audit.client import UniFiControllerClient
 
-    cust = (
-        CustomerManager.get_customer(customer_id) if customer_id else CustomerManager.get_active()
-    )
+    cust = CustomerManager.get_customer(customer_id) if customer_id else None
     cust_id = cust.get("_id", "") if cust else ""
     settings = load_app_settings()
 
@@ -3021,8 +3015,8 @@ async def _deploy_via_rest(
     `conn` is the dict `_resolve_fortigate_conn()` produced, and it is
     required: port, VDOM, TLS verification and the customer to update all come
     from it. Without it this raises ValueError rather than resolving one here,
-    because resolving without the session's customer would fall back to the
-    active customer's keyring and skip the stored-credential host guard.
+    because resolving without the session's customer would lose the customer
+    whose keyring it may use and skip the stored-credential host guard.
 
     Runs `_REST_STEPS` in order and returns what each did. The FortiOS calls
     and payloads are the ones this function always sent, with two exceptions:

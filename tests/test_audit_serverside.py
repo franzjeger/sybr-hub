@@ -90,10 +90,10 @@ async def test_the_job_completes_and_saves_with_no_subscriber(monkeypatch):
             ]
 
     monkeypatch.setattr(collector_mod, "AuditCollector", _FakeCollector)
-    monkeypatch.setattr(auth_mod.AuthManager, "from_config", classmethod(lambda cls: object()))
+    monkeypatch.setattr(auth_mod, "get_auth_for_customer", lambda customer, cert: object())
     monkeypatch.setattr(activity_mod, "log_activity", lambda *a, **k: None)
 
-    async def _no_side_effects(cfg, results, out_dir, customer_name):
+    async def _no_side_effects(cfg, results, out_dir, customer_name, customer_id):
         return None
 
     monkeypatch.setattr(audit_route, "_post_audit_side_effects", _no_side_effects)
@@ -101,7 +101,13 @@ async def test_the_job_completes_and_saves_with_no_subscriber(monkeypatch):
     run = state.AuditRunContext(owner_user_id="u1", customer_id="c1", running=True)
     state.audit_running = True
     try:
-        spec = {"cfg": {}, "customer_name": "Acme", "out_dir": None}
+        spec = {
+            "cfg": {},
+            "customer_id": "c1",
+            "cert_path": None,
+            "customer_name": "Acme",
+            "out_dir": None,
+        }
         # No subscriber — exactly the disconnected-client case.
         await audit_route._run_audit_job(run, spec, None, "tester")
 
@@ -143,10 +149,10 @@ async def test_the_job_publishes_progress_and_done_to_an_attached_subscriber(mon
             ]
 
     monkeypatch.setattr(collector_mod, "AuditCollector", _FakeCollector)
-    monkeypatch.setattr(auth_mod.AuthManager, "from_config", classmethod(lambda cls: object()))
+    monkeypatch.setattr(auth_mod, "get_auth_for_customer", lambda customer, cert: object())
     monkeypatch.setattr(activity_mod, "log_activity", lambda *a, **k: None)
 
-    async def _no_side_effects(cfg, results, out_dir, customer_name):
+    async def _no_side_effects(cfg, results, out_dir, customer_name, customer_id):
         return None
 
     monkeypatch.setattr(audit_route, "_post_audit_side_effects", _no_side_effects)
@@ -156,7 +162,16 @@ async def test_the_job_publishes_progress_and_done_to_an_attached_subscriber(mon
     try:
         q = run.subscribe()
         await audit_route._run_audit_job(
-            run, {"cfg": {}, "customer_name": "Acme", "out_dir": None}, None, "t"
+            run,
+            {
+                "cfg": {},
+                "customer_id": "c1",
+                "cert_path": None,
+                "customer_name": "Acme",
+                "out_dir": None,
+            },
+            None,
+            "t",
         )
 
         events = []
@@ -185,14 +200,23 @@ async def test_a_collector_failure_publishes_error_and_releases_the_lock(monkeyp
             raise RuntimeError("graph exploded")
 
     monkeypatch.setattr(collector_mod, "AuditCollector", _BoomCollector)
-    monkeypatch.setattr(auth_mod.AuthManager, "from_config", classmethod(lambda cls: object()))
+    monkeypatch.setattr(auth_mod, "get_auth_for_customer", lambda customer, cert: object())
     monkeypatch.setattr(activity_mod, "log_activity", lambda *a, **k: None)
 
     run = state.AuditRunContext(owner_user_id="u1", customer_id="c1", running=True)
     state.audit_running = True
     try:
         await audit_route._run_audit_job(
-            run, {"cfg": {}, "customer_name": "Acme", "out_dir": None}, None, "t"
+            run,
+            {
+                "cfg": {},
+                "customer_id": "c1",
+                "cert_path": None,
+                "customer_name": "Acme",
+                "out_dir": None,
+            },
+            None,
+            "t",
         )
         assert run.terminal is not None and run.terminal["type"] == "error"
         assert run.running is False

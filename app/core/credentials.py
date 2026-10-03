@@ -183,16 +183,20 @@ def load_global_config() -> dict | None:
     return encrypted_read_json(_DEFAULT_CONFIG_PATH)
 
 
+# A web request has no implicit customer (see app/core/customer.py): a route
+# reads the customer it names with CustomerManager.get_customer and
+# get_cert_path. Inside a request these two resolve to a path that never
+# exists, so code that still reaches for "the" config gets nothing rather than
+# the setup staging slot, which holds whichever customer was set up last.
+_NO_CUSTOMER_IN_REQUEST = DATA_DIR / ".no-customer-in-web-request"
+
+
 def _request_config_path() -> Path:
-    """Resolve reads through the authenticated user's active customer."""
-    from app.core.customer import CustomerManager, has_request_customer_scope
+    """The staging/CLI config outside a web request; nothing inside one."""
+    from app.core.customer import has_request_customer_scope
 
     if has_request_customer_scope():
-        active_id = CustomerManager.get_active_id()
-        if active_id:
-            return CustomerManager.get_customer_dir(active_id) / "config.json"
-        # Never fall through to another process/user's legacy selection.
-        return DATA_DIR / ".no-active-customer"
+        return _NO_CUSTOMER_IN_REQUEST
     return _DEFAULT_CONFIG_PATH
 
 
@@ -214,13 +218,10 @@ _LEGACY_CERT_PATH = Path("audit_cert.pfx")
 
 
 def cert_path() -> Path:
-    from app.core.customer import CustomerManager, has_request_customer_scope
+    from app.core.customer import has_request_customer_scope
 
     if has_request_customer_scope():
-        active_id = CustomerManager.get_active_id()
-        if active_id:
-            return CustomerManager.get_cert_path(active_id)
-        return DATA_DIR / ".no-active-customer.pfx"
+        return _NO_CUSTOMER_IN_REQUEST.with_suffix(".pfx")
     return _DEFAULT_CERT_PATH
 
 

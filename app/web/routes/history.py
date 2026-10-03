@@ -186,8 +186,14 @@ async def list_history(user: User = _auth):
 
 @router.post("/history/load")
 async def load_history(body: HistoryLoad, request: Request, user: User = _auth):
-    """Load a previous audit run into memory for report generation."""
-    existing = state.get_user_audit(user.id)
+    """Select a previous run of one customer to build that customer's reports from."""
+    from app.core.customer import customers_for_dir_name
+    from app.core.rbac import check_customer_access
+
+    customer_id = body.customer_id
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_no_access")
+    existing = state.get_user_audit(user.id, customer_id)
     if existing is not None and existing.running:
         raise ConflictError(ui_t("err_audit_running", request))
 
@@ -206,6 +212,10 @@ async def load_history(body: HistoryLoad, request: Request, user: User = _auth):
     from app.core.rbac import check_audit_path_access
 
     if not await check_audit_path_access(user, str(run_path)):
+        raise refusal(ForbiddenError, "err_audit_run_access_denied")
+    # The folder must be this customer's: a run of another customer selected
+    # under this one's id would build this customer's report from it.
+    if customer_id not in {c.get("_id", "") for c in customers_for_dir_name(run_path.parent.name)}:
         raise refusal(ForbiddenError, "err_audit_run_access_denied")
 
     txt_files = sorted(run_path.glob("*.txt"))
@@ -280,20 +290,6 @@ async def load_history(body: HistoryLoad, request: Request, user: User = _auth):
             }
         )
 
-    from app.core.customer import CustomerManager, customers_for_dir_name
-
-    matches = customers_for_dir_name(run_path.parent.name)
-    active_id = CustomerManager.get_active_id()
-    active_match = next(
-        (c.get("_id", "") for c in matches if c.get("_id", "") == active_id),
-        "",
-    )
-    if active_match:
-        customer_id = active_match
-    elif len(matches) == 1:
-        customer_id = matches[0].get("_id", "")
-    else:
-        raise refusal(ValidationError, "err_history_folder_ambiguous")
     state.select_user_audit(
         user.id,
         customer_id,
@@ -306,6 +302,7 @@ async def load_history(body: HistoryLoad, request: Request, user: User = _auth):
 
     return {
         "ok": True,
+        "customer_id": customer_id,
         "customer": customer_name,
         "timestamp": run_path.name,
         "sections": len(results),

@@ -31,7 +31,6 @@ _UI_STRINGS = {
         "err_missing_title": "Mangler tittel",
         "err_file_too_large": "Filen er for stor (maks 5 MB)",
         "err_invalid_file_type": "Ugyldig filtype",
-        "err_no_active_customer": "Ingen aktiv kunde",
         "err_setup_running": "Oppsett kjører allerede",
         "err_bulk_running": "Masseaudit kjører allerede",
         "err_missing_sections": "Ingen seksjoner valgt",
@@ -94,7 +93,6 @@ _UI_STRINGS = {
         "err_missing_title": "Missing title",
         "err_file_too_large": "File too large (max 5 MB)",
         "err_invalid_file_type": "Invalid file type",
-        "err_no_active_customer": "No active customer",
         "err_setup_running": "Setup is already running",
         "err_bulk_running": "Bulk audit is already running",
         "err_missing_sections": "No sections selected",
@@ -420,10 +418,6 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Kode eller state mangler",
         "Missing code or state",
     ),
-    "err_history_folder_ambiguous": (
-        "Auditmappen kan ikke knyttes entydig til aktiv kunde",
-        "The audit folder cannot be tied unambiguously to the active customer",
-    ),
     "err_history_folder_missing": (
         "{label}: mappen finnes ikke",
         "{label}: the folder does not exist",
@@ -554,8 +548,8 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Send autotask_account_id, itglue_org_id and/or myitprocess_account_id to change a binding.",
     ),
     "err_itglue_org_not_linked": (
-        "IT Glue-organisasjonen er ikke koblet til den aktive kunden",
-        "The IT Glue organization is not linked to the active customer",
+        "IT Glue-organisasjonen er ikke koblet til denne kunden",
+        "The IT Glue organization is not linked to this customer",
     ),
     "err_itglue_org_id_required": (
         "org_id er påkrevd",
@@ -686,9 +680,9 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "host (IP-adresse) er påkrevd",
         "host (IP address) is required",
     ),
-    "err_fortigate_active_customer_forbidden": (
-        "Du har ikke tilgang til den aktive kunden",
-        "You do not have access to the active customer",
+    "err_fortigate_customer_forbidden": (
+        "Du har ikke tilgang til kunden FortiGaten skulle lagres på",
+        "You do not have access to the customer this FortiGate was to be saved for",
     ),
     "err_fortigate_no_credentials": (
         "Ingen lagrede credentials for denne FortiGaten",

@@ -34,7 +34,7 @@ test('a signed-out API call shows the login form, not a lost-connection alarm', 
   await expect.poll(() => page.evaluate(() => !!_i18n.en)).toBe(true);
   // Goes through session recovery against the real server: no access and no
   // refresh cookie, which is every first visit.
-  expect(await page.evaluate(() => apiFetch('/api/status'))).toBeNull();
+  expect(await page.evaluate(() => apiFetch('/api/customers'))).toBeNull();
   await expect(page.locator('#login-password')).toBeVisible();
   await expect(page.getByText('Lost connection to server')).toHaveCount(0);
 });

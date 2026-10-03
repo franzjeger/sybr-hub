@@ -129,16 +129,19 @@ async def test_you_can_still_change_your_own_password_without_write(client):
     assert r.status_code != 403
 
 
-async def test_you_can_still_switch_customer_without_write(client):
-    """It changes what you are looking at, not what is.
+async def test_you_can_still_pick_an_older_run_without_write(client):
+    """It changes which run a report is read from, not what is.
 
-    Gating it would leave a read-only account able to read exactly one tenant.
+    (Switching customer was the other navigation exemption; there is no
+    customer switch any more, every call names its customer.)
     """
     auth, _ = await _account()
 
-    r = client.post("/api/customers/switch", headers=auth, json={"customer_id": "nope"})
+    r = client.post(
+        "/api/history/load", headers=auth, json={"customer_id": "nope", "path": "/nowhere"}
+    )
 
-    assert r.status_code != 403
+    assert r.json().get("error_key") != "err_write_denied", r.text
 
 
 # ── The shape of the rule ────────────────────────────────────────────────────
