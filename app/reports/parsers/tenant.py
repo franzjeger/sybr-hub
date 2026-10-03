@@ -215,8 +215,23 @@ def _sku_friendly(part: str) -> str:
     return _SKU_FRIENDLY.get((part or "").strip(), (part or "").strip())
 
 
-def _parse_stale_accounts(text: str) -> list[dict]:
-    """Parse 03b_stale_accounts.txt into a list of stale user dicts."""
+def _parse_stale_accounts(text: str, sidecar: dict | None = None) -> list[dict]:
+    """Parse 03b_stale_accounts.txt into a list of stale user dicts.
+
+    From 03b_stale_accounts.json when the run has it: the table trims names to
+    35 characters and UPNs to 45, and a UPN cut short no longer matches the
+    shared mailbox it belongs to.
+    """
+    if sidecar is not None:
+        return [
+            {
+                "name": a.get("display_name") or "",
+                "upn": a.get("upn") or "",
+                "days_inactive": a.get("days_inactive"),
+                "licensed": bool(a.get("licensed")),
+            }
+            for a in sidecar.get("accounts") or []
+        ]
     accounts: list[dict] = []
     for line in text.splitlines():
         stripped = line.strip()
@@ -314,7 +329,8 @@ def _analyze_license_optimization(
 
     # 1. Parse stale accounts to find inactive licensed users
     stale_text = file_contents.get("03b_stale_accounts.txt", "")
-    stale_accounts = _parse_stale_accounts(stale_text)
+    stale_sidecar = _sidecar(file_contents, "03b_stale_accounts.txt")
+    stale_accounts = _parse_stale_accounts(stale_text, stale_sidecar)
     licensed_stale = [s for s in stale_accounts if s.get("licensed")]
 
     # A shared/room mailbox never signs in, so a licensed one showing up "stale"
@@ -469,7 +485,10 @@ def _analyze_license_optimization(
     #     missing AuditLog.Read.All consent), NOT a licensing problem
     #   - file present with "NOTE:" → audit ran but tenant lacks P1
     has_stale_data = bool(stale_text.strip()) and "NOTE:" not in stale_text
-    if not stale_text.strip():
+    if stale_sidecar is not None:
+        has_stale_data = bool(stale_sidecar.get("sign_in_data"))
+        no_data_reason = None if has_stale_data else "license_p1_missing"
+    elif not stale_text.strip():
         no_data_reason = "not_collected"
     elif "NOTE:" in stale_text:
         no_data_reason = "license_p1_missing"

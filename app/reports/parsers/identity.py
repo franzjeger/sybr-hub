@@ -10,7 +10,8 @@ from app.modules.base import SectionResult
 from app.reports.evidence import _evidence_unavailable
 
 
-def _parse_user_counts(text: str) -> dict:
+def _parse_user_counts(text: str, sidecar: dict | None = None) -> dict:
+    """The user counts, from 03_users_count.json when the run has it, else the text."""
     result = {
         "total": 0,
         "enabled": 0,
@@ -20,6 +21,11 @@ def _parse_user_counts(text: str) -> dict:
         "cloud": 0,
         "has_data": False,
     }
+    if sidecar is not None:
+        for field in ("total", "enabled", "disabled", "guests", "hybrid", "cloud"):
+            result[field] = int(sidecar.get(field) or 0)
+        result["has_data"] = result["total"] > 0 or result["enabled"] > 0
+        return result
     for line in text.splitlines():
         for key, field in [
             ("Total users", "total"),
@@ -150,11 +156,14 @@ def _parse_mfa(
     ca_analysis_text: str,
     results: list[SectionResult],
     json_text: str = "",
+    ca_analysis: dict | None = None,
 ) -> dict:
     """Parse MFA coverage from mfa_methods.txt and CA analysis.
 
     A user is 'MFA covered' if they have MFA methods registered
     OR are covered by a Conditional Access policy that enforces MFA.
+    ``ca_analysis`` is 04b_mfa_ca_analysis.json; without it the CA analysis
+    figures are read from the text.
     """
     total = 0
     mfa_registered = 0
@@ -210,7 +219,14 @@ def _parse_mfa(
     ca_analysis_covered = 0
     ca_analysis_excluded = 0
     ca_analysis_not_covered = 0
-    if ca_analysis_text:
+    if ca_analysis is not None:
+        # The same precedence as the text below: effectively covered, else covered.
+        ca_analysis_covered = int(ca_analysis.get("effectively_covered") or 0) or int(
+            ca_analysis.get("covered") or 0
+        )
+        ca_analysis_excluded = int(ca_analysis.get("excluded") or 0)
+        ca_analysis_not_covered = int(ca_analysis.get("not_covered") or 0)
+    elif ca_analysis_text:
         m = re.search(r"Effectively covered.*?:\s*(\d+)", ca_analysis_text)
         if m:
             ca_analysis_covered = int(m.group(1))
