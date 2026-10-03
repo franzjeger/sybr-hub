@@ -164,6 +164,13 @@ async def test_the_sidecar_carries_the_platform_split(tmp_path):
     assert (intune["windows"], intune["ios"], intune["android"], intune["macos"]) == (2, 1, 1, 1)
 
 
+async def test_a_text_only_run_counts_the_platforms_from_the_table(tmp_path):
+    """Runs from before the sidecar have the platform in the table's OS column."""
+    intune = (await _context(tmp_path, sidecars=False))["intune"]
+
+    assert (intune["windows"], intune["ios"], intune["android"], intune["macos"]) == (2, 1, 1, 1)
+
+
 async def test_the_unmanaged_gap_comes_from_the_entra_register(tmp_path):
     intune = (await _context(tmp_path, sidecars=True))["intune"]
 
