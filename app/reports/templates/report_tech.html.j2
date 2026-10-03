@@ -1111,10 +1111,17 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <td style="font-size:11px;">{{ dev.os }}</td>
     <td style="font-family:var(--mono);font-size:11px;">{{ dev.user }}</td>
     <td>
-      {% if 'compliant' in dev.compliance.lower() and 'non' not in dev.compliance.lower() %}
+      {# Only "noncompliant" is non-compliant: the headline counts no other
+         state, and unknown or in grace period read here as if it did. #}
+      {% set state = dev.compliance.lower().replace('-', '').replace(' ', '') %}
+      {% if state == 'compliant' %}
       <span class="tag ok">{{ t.compliant_label }}</span>
-      {% else %}
+      {% elif state == 'noncompliant' %}
       <span class="tag critical">{{ t.noncompliant_label }}</span>
+      {% elif state == 'ingraceperiod' %}
+      <span class="tag warning">{{ t.in_grace_period_label }}</span>
+      {% else %}
+      <span class="tag unknown">{{ t.compliance_unknown_label }}{% if state and state != 'unknown' %} ({{ dev.compliance }}){% endif %}</span>
       {% endif %}
     </td>
     <td style="font-size:11px;">{{ dev.enrolled }}</td>

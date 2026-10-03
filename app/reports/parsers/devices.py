@@ -91,6 +91,7 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
             for d in sidecar.get("devices") or []
         ]
         result["noncompliant_devices"] = _noncompliant(result["devices"])
+        result["other_state_devices"] = _other_state(result["devices"])
         result["has_data"] = True
         return result
 
@@ -224,6 +225,7 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
             if bucket:
                 result[bucket] += 1
     result["noncompliant_devices"] = _noncompliant(result["devices"])
+    result["other_state_devices"] = _other_state(result["devices"])
     # has_data means "audit produced a parseable report" — NOT "≥1 device
     # exists". A small M365-only tenant with no Intune-enrolled devices
     # legitimately reports 0; that's a measurement, not a gap.
@@ -232,7 +234,27 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
 
 
 def _noncompliant(devices: list[dict]) -> list[dict]:
-    return [d for d in devices if d.get("compliance", "").lower() not in ("compliant", "")]
+    """The devices Intune evaluated as non-compliant, as the headline counts them.
+
+    Every state but "compliant" used to be listed, unknown and in grace period
+    included, so the report's "show N non-compliant devices" disagreed with
+    the non-compliant count printed above it.
+    """
+    return [d for d in devices if _state(d) == "noncompliant"]
+
+
+def _other_state(devices: list[dict]) -> list[dict]:
+    """Devices that are neither compliant nor non-compliant.
+
+    Unknown, in grace period, conflict, error: the collector counts them as
+    "Unknown/other", and the report lists them apart, labelled as such.
+    """
+    return [d for d in devices if _state(d) not in ("compliant", "noncompliant")]
+
+
+def _state(device: dict) -> str:
+    """A device's complianceState, "Non-compliant" and "noncompliant" alike."""
+    return str(device.get("compliance") or "").lower().replace("-", "").replace(" ", "")
 
 
 _PLATFORMS = ("windows", "ios", "android", "macos")

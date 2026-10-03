@@ -12,6 +12,8 @@ text never carried) the sidecar must win.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.modules.m365_audit.sections.entra_devices import EntraDevicesSection
@@ -144,7 +146,49 @@ async def test_the_intune_counts_survive_the_round_trip(tmp_path, sidecars):
     ]
     assert [d["os"] for d in intune["devices"]] == ["Windows", "iOS", "Android", "macOS", "Windows"]
     assert {d["user"] for d in intune["devices"]} == {"company"}
-    assert len(intune["noncompliant_devices"]) == 4
+    # The list behind "show N non-compliant devices" is the headline's two,
+    # not every state but compliant: it read four here, beside a count of two.
+    assert [d["compliance"] for d in intune["noncompliant_devices"]] == [
+        "noncompliant",
+        "noncompliant",
+    ]
+    assert len(intune["noncompliant_devices"]) == intune["noncompliant"]
+    assert [d["compliance"] for d in intune["other_state_devices"]] == [
+        "inGracePeriod",
+        "unknown",
+    ]
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_both_reports_list_the_non_compliant_devices_the_headline_counts(tmp_path, sidecars):
+    from app.reports.generator import _jinja_env
+    from app.reports.i18n import T
+
+    ctx = await _context(tmp_path, sidecars=sidecars)
+    ctx.update(t=T("en"), lang="en", theme="light")
+    env = _jinja_env()
+
+    customer = env.get_template("report_customer.html.j2").render(**ctx)
+    assert "Show 2 non-compliant device(s)" in customer
+    assert "Show 2 device(s) without a settled state" in customer
+
+    tech = env.get_template("report_tech.html.j2").render(**ctx)
+
+    def tag(name: str) -> tuple[str, str]:
+        """The compliance tag on a device's row in the tech report's Intune table."""
+        row = re.search(
+            rf'<td style="font-weight:500;">{re.escape(name)}</td>.*?'
+            r'<span class="tag ([a-z]+)">([^<]*)</span>',
+            tech,
+            re.DOTALL,
+        )
+        assert row, name
+        return row.group(1), row.group(2)
+
+    assert tag("LAPTOP-01") == ("ok", "Compliant")
+    assert tag("ANDROID-01") == ("critical", "Non-compliant")
+    assert tag("MAC-01") == ("warning", "In grace period")
+    assert tag("LAPTOP-02") == ("unknown", "Unknown")
 
 
 async def test_the_sidecar_keeps_a_device_name_the_table_cuts(tmp_path):
