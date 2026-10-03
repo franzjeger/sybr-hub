@@ -40,6 +40,18 @@ def _fmt_val(val: Any, indent: int = 4) -> str:
     return str(val)
 
 
+def _records(val: Any) -> list[dict]:
+    """A list the helper nests inside another key, as a list of dicts.
+
+    ConvertTo-Json writes a pipeline that yielded one result as that object,
+    not a one-item list, and one that yielded nothing as null. Iterating the
+    single object walked its keys instead of its one record.
+    """
+    if isinstance(val, list):
+        return [v for v in val if isinstance(v, dict)]
+    return [val] if isinstance(val, dict) else []
+
+
 def _section_block(title: str, items: list[dict], key_fields: list[str] | None = None) -> str:
     """Format a list of dicts as a readable block."""
     lines = [
@@ -246,15 +258,11 @@ class ExchangeSection(BaseSection):
         raw = self.exo_data.get("connectors")
         if not isinstance(raw, dict) or not raw.keys() & {"inbound", "outbound"}:
             return self._get("connectors")
-        connectors: list[dict] = []
-        for direction in ("inbound", "outbound"):
-            side = raw.get(direction)
-            for c in side if isinstance(side, list) else [side]:
-                if isinstance(c, dict):
-                    connectors.append(
-                        {"Name": c.get("Name"), "Direction": direction.capitalize(), **c}
-                    )
-        return connectors
+        return [
+            {"Name": c.get("Name"), "Direction": direction.capitalize(), **c}
+            for direction in ("inbound", "outbound")
+            for c in _records(raw.get(direction))
+        ]
 
     def _save_connectors(self) -> None:
         connectors = self._connectors()
@@ -343,7 +351,10 @@ class ExchangeSection(BaseSection):
         if isinstance(raw, list):
             policies = raw
         elif isinstance(raw, dict):
-            for p in raw.get("safe_links") or []:
+            # _records: a tenant whose only policy is the Built-In Protection
+            # Policy gets it as one object, and iterating that object's keys
+            # lost the whole file.
+            for p in _records(raw.get("safe_links")):
                 policies.append(
                     {
                         "Name": p.get("Name"),
@@ -352,7 +363,7 @@ class ExchangeSection(BaseSection):
                         "Enabled": bool(p.get("IsEnabled")),
                     }
                 )
-            for p in raw.get("safe_attachments") or []:
+            for p in _records(raw.get("safe_attachments")):
                 action = str(p.get("Action") or "").strip().lower()
                 # Safe Attachments protects when Enable is true OR the action is
                 # a protective mode. The Built-In Protection Policy reports
