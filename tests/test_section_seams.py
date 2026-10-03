@@ -991,22 +991,32 @@ async def test_no_connectors_reads_back_as_none():
 
 
 @pytest.mark.asyncio
-async def test_inbox_rules_finding_is_counted_from_the_renamed_file():
-    """The collector signals this finding by renaming the file, not by its
-    contents, and the report read only the all-clear name."""
+async def test_inbox_rules_finding_is_counted_from_the_warn_file():
+    """The external rules are in the WARN file, and the report counts them there.
+
+    The report once read only the plain name, which was the all-clear. The
+    plain file now lists every forwarding rule, internal ones too, so it is
+    never the count.
+    """
     section = _exchange(
         {
             "inbox_rules_external": [
                 {
-                    "Name": "Send to Gmail",
+                    "Rule": "Send to Gmail",
                     "Mailbox": "anna@example.no",
-                    "ForwardTo": "anna@gmail.com",
+                    "Targets": ['"anna" [SMTP:anna@gmail.example]'],
                     "Enabled": True,
                 },
                 {
-                    "Name": "Copy out",
+                    "Rule": "Copy out",
                     "Mailbox": "bjorn@example.no",
-                    "ForwardTo": "bjorn@outlook.com",
+                    "Targets": ['"bjorn" [SMTP:bjorn@outlook.example]'],
+                    "Enabled": True,
+                },
+                {
+                    "Rule": "To a colleague",
+                    "Mailbox": "carl@example.no",
+                    "Targets": ['"dina" [SMTP:dina@example.no]'],
                     "Enabled": True,
                 },
             ]
@@ -1014,11 +1024,13 @@ async def test_inbox_rules_finding_is_counted_from_the_renamed_file():
     )
     section._save_inbox_rules()
 
-    written = list(section.out_dir.glob("29_*.txt"))
-    assert len(written) == 1
-    assert written[0].name.endswith("_WARN.txt"), "a finding renames the file"
+    written = sorted(p.name for p in section.out_dir.glob("29_*.txt"))
+    assert written == [
+        "29_exchange_inbox_rules_external_fwd.txt",
+        "29_exchange_inbox_rules_external_fwd_WARN.txt",
+    ]
 
-    fc = {written[0].name: _read(section.out_dir, written[0].name)}
+    fc = {name: _read(section.out_dir, name) for name in written}
     assert _parse_exchange_overview(fc)["inbox_rules_external"] == 2
 
 

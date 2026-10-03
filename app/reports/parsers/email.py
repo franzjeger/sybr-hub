@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from app.reports.parsers.common import _policy_names, _record_count, _sidecar
 
 
@@ -159,6 +161,35 @@ def _external_forwarding_items(file_contents: dict[str, str]) -> list[str] | Non
     return items
 
 
+_INBOX_RULES = "29_exchange_inbox_rules_external_fwd.txt"
+_INBOX_RULES_WARN = "29_exchange_inbox_rules_external_fwd_WARN.txt"
+_UNVERIFIED_RULE = re.compile(r"^\s*Scope:\s*Unverified\s*$", re.MULTILINE | re.IGNORECASE)
+
+
+def _inbox_rule_counts(file_contents: dict[str, str]) -> dict[str, int]:
+    """Forwarding inbox rules that leave the tenant, and those the run could not place.
+
+    {"external": n, "unverified": m}. The collector writes every forwarding
+    rule to the plain 29 file with where it goes, and only the external ones to
+    the WARN file, so the external count is the WARN file's. Runs from before
+    that wrote every forwarding rule to the WARN file, internal ones included;
+    their count is read as it was written, and they have no unverified rules.
+    """
+    plain = _sidecar(file_contents, _INBOX_RULES)
+    if plain is not None and "external_count" in plain:
+        return {
+            "external": int(plain.get("external_count") or 0),
+            "unverified": int(plain.get("unverified_count") or 0),
+        }
+    has_warn = bool(file_contents.get(_INBOX_RULES_WARN)) or (
+        _sidecar(file_contents, _INBOX_RULES_WARN) is not None
+    )
+    return {
+        "external": _record_count(file_contents, _INBOX_RULES_WARN) if has_warn else 0,
+        "unverified": len(_UNVERIFIED_RULE.findall(file_contents.get(_INBOX_RULES, ""))),
+    }
+
+
 def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     """Parse Exchange data files into a structured overview."""
     result = {
@@ -172,6 +203,7 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
         "forwarding_count": 0,
         "external_forwarding": False,
         "inbox_rules_external": 0,
+        "inbox_rules_unverified": 0,
         "has_data": False,
     }
 
@@ -209,13 +241,12 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     # forwarding correctly, because it reads the WARN file. The report
     # contradicted itself, and the reassuring half was the wrong half.
     #
-    # Same trap 4.4 itself fell into once; see the note on that check.
-    inbox_rules_file = (
-        "29_exchange_inbox_rules_external_fwd_WARN.txt"
-        if file_contents.get("29_exchange_inbox_rules_external_fwd_WARN.txt")
-        else "29_exchange_inbox_rules_external_fwd.txt"
-    )
-    result["inbox_rules_external"] = _record_count(file_contents, inbox_rules_file)
+    # Same trap 4.4 itself fell into once; see the note on that check. The
+    # plain file now lists every forwarding rule, internal ones too, so it is
+    # never the count (_inbox_rule_counts).
+    rule_counts = _inbox_rule_counts(file_contents)
+    result["inbox_rules_external"] = rule_counts["external"]
+    result["inbox_rules_unverified"] = rule_counts["unverified"]
 
     result["has_data"] = (
         result["mailbox_total"] > 0

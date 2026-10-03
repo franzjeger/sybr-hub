@@ -64,6 +64,40 @@ function Safe-Json($obj) {
     catch { return '[]' }
 }
 
+# ── Helper: what a recipient identity is ──────────────────────────────────────
+# A mailbox's ForwardingAddress, and an inbox rule's "Name" [EX:/o=...] target,
+# name a recipient in the directory, not an address. Whether forwarding to it
+# leaves the tenant depends on what it is: a mailbox or a group is internal, a
+# mail contact or mail user forwards to its ExternalEmailAddress. $null when
+# it cannot be looked up, which the report reads as "cannot tell", never as
+# internal and never as external. Never throws: a failed lookup must not cost
+# the inbox rules of the mailbox it was made for.
+$script:RecipientCache = @{}
+function Resolve-RecipientInfo([string]$identity) {
+    if (-not $identity) { return $null }
+    if ($script:RecipientCache.ContainsKey($identity)) { return $script:RecipientCache[$identity] }
+    $r = $null
+    try { $r = Get-Recipient -Identity $identity -ErrorAction Stop | Select-Object -First 1 } catch { $r = $null }
+    if (-not $r -and $identity.StartsWith('/o=')) {
+        # A legacy DN, which -Identity may not resolve: look it up by property.
+        $quoted = $identity.Replace("'", "''")
+        try {
+            $r = Get-Recipient -Filter "LegacyExchangeDN -eq '$quoted'" -ErrorAction Stop |
+                 Select-Object -First 1
+        } catch { $r = $null }
+    }
+    $info = $null
+    if ($r) {
+        $info = @{
+            RecipientTypeDetails = "$($r.RecipientTypeDetails)"
+            PrimarySmtpAddress   = "$($r.PrimarySmtpAddress)"
+            ExternalEmailAddress = "$($r.ExternalEmailAddress)"
+        }
+    }
+    $script:RecipientCache[$identity] = $info
+    return $info
+}
+
 # ── Mailboxes (all types: User, Shared, Room, Equipment) ─────────────────────
 try {
     $mbx = @()
@@ -208,7 +242,9 @@ try {
     }
 } catch { $result.forwarding_error = "$_" }
 
-# ── Inbox Rules (external forwarding) ────────────────────────────────────────
+# ── Inbox Rules (forwarding and redirecting) ──────────────────────────────────
+# Every rule that forwards or redirects, internal targets included: the Python
+# side decides which targets leave the tenant (exchange.py, _save_inbox_rules).
 try {
     $extRules = @()
     $userMbx = Get-Mailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited -ErrorAction SilentlyContinue
@@ -217,12 +253,21 @@ try {
             $rules = Get-InboxRule -Mailbox $mb.Identity -ErrorAction Stop |
                      Where-Object { $_.ForwardTo -or $_.ForwardAsAttachmentTo -or $_.RedirectTo }
             foreach ($rule in $rules) {
-                $targets = @($rule.ForwardTo) + @($rule.ForwardAsAttachmentTo) + @($rule.RedirectTo) | Where-Object { $_ }
+                $targets = @(@($rule.ForwardTo) + @($rule.ForwardAsAttachmentTo) + @($rule.RedirectTo) | Where-Object { $_ })
+                # "Name" [EX:/o=...] is a directory recipient: look up what it is.
+                $recipients = @()
+                foreach ($target in $targets) {
+                    if ("$target" -match '\[EX:(?<dn>[^\]]+)\]\s*$') {
+                        $info = Resolve-RecipientInfo $Matches['dn']
+                        if ($info) { $recipients += (@{ Target = "$target" } + $info) }
+                    }
+                }
                 $extRules += @{
-                    Mailbox = $mb.PrimarySmtpAddress
-                    Rule    = $rule.Name
-                    Enabled = $rule.Enabled
-                    Targets = $targets
+                    Mailbox          = $mb.PrimarySmtpAddress
+                    Rule             = $rule.Name
+                    Enabled          = $rule.Enabled
+                    Targets          = $targets
+                    TargetRecipients = $recipients
                 }
             }
         } catch { <# skip inaccessible mailbox #> }
