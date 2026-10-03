@@ -30,13 +30,11 @@ def test_the_view_exists_and_something_dispatches_to_it():
     assert "assessmentsLoad()" in dispatcher, "the view is markup nothing opens"
 
 
-def test_the_customer_page_entry_is_gated_on_the_view_it_opens():
-    """The view is reached from the customer it is about, not the top bar."""
-    page = (STATIC / "app-customer-detail.js").read_text(encoding="utf-8")
-    assert (
-        'canOpenView(\'assessments\') ? \'<button class="cust-tab" id="cust-tab-assessments"'
-        in page
-    )
+def test_the_customer_page_tab_is_gated_on_the_view_it_opens():
+    """The view is a tab of the customer it is about, not a top-bar page."""
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    entry = next(line for line in html.splitlines() if 'id="cust-tab-vurderinger"' in line)
+    assert 'data-view-gate="assessments"' in entry
 
 
 def test_a_feature_owns_the_view():

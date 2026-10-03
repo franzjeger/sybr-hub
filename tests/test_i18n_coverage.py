@@ -779,7 +779,6 @@ _KEYS_THAT_REPLACED_LITERALS = (
     "msg_none_expiring_soon",
     "lbl_others_over_90d",
     "src_m365_audit",
-    "nav_m365_status",
     # The Tailscale toasts, the TLS host check and the baseline deployment view.
     "ts_toast_route_approved",
     "ts_toast_route_disabled",

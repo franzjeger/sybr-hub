@@ -22,7 +22,7 @@ function toggleScopePanel() {
   const body = document.getElementById('scope-body');
   const icon = document.getElementById('scope-toggle-icon');
   if (!body) return;
-  body.style.display = _scopePanelOpen ? 'block' : 'none';
+  body.hidden = !_scopePanelOpen;
   if (icon) icon.innerHTML = _scopePanelOpen ? '&#9660;' : '&#9654;';
   if (_scopePanelOpen && !_scopeLoaded) loadScopeSections();
 }
@@ -159,13 +159,13 @@ function applyPreset() {
   const delBtn = document.getElementById('preset-delete-btn');
   if (!sel) return;
   const name = sel.value;
-  if (delBtn) delBtn.style.display = 'none';
+  if (delBtn) delBtn.hidden = true;
   if (!name) return;
 
   const preset = _presets.find(p => p.name === name);
   if (!preset) return;
 
-  if (delBtn && !preset.builtin) delBtn.style.display = '';
+  if (delBtn && !preset.builtin) delBtn.hidden = false;
 
   const enabledSet = new Set(preset.sections);
   _scopeSections.forEach(s => { s.enabled = enabledSet.has(s.name); });
@@ -189,7 +189,7 @@ async function saveCustomPreset() {
     await loadPresets();
     document.getElementById('preset-select').value = name.trim();
     const delBtn = document.getElementById('preset-delete-btn');
-    if (delBtn) delBtn.style.display = '';
+    if (delBtn) delBtn.hidden = false;
   } catch (e) { showToast(t('err_could_not_save_preset').replace('{msg}', e.message), 'error'); }
 }
 
@@ -203,7 +203,7 @@ async function deleteCustomPreset() {
     if (d.error) { showToast(d.error, 'error'); return; }
     await loadPresets();
     const delBtn = document.getElementById('preset-delete-btn');
-    if (delBtn) delBtn.style.display = 'none';
+    if (delBtn) delBtn.hidden = true;
   } catch (e) { showToast(t('err_could_not_delete_preset').replace('{msg}', e.message), 'error'); }
 }
 
@@ -217,6 +217,10 @@ function getSelectedSectionNames() {
 
 // ── Audit flow ─────────────────────────────────────────────────────────────────
 const sectionRows = {}; // name -> tr element
+// Between the click and the run's stream: the Audit tab opening meanwhile
+// must not ask the server, which does not know of the run yet, and paint it
+// idle over the run starting.
+var _auditStarting = false;
 const statusOrder = { pending: 0, running: 1, done: 2, skipped: 3, failed: 4 };
 
 async function startAudit() {
@@ -234,6 +238,7 @@ async function startAudit() {
     // Permission check failed — proceed anyway
   }
 
+  _auditStarting = true;
   // Reset state
   Object.keys(sectionRows).forEach(k => delete sectionRows[k]);
   sectionDone = 0;
@@ -242,17 +247,16 @@ async function startAudit() {
   document.getElementById('section-tbody').innerHTML = '';
   document.getElementById('audit-done-area').style.display = 'none';
   document.getElementById('report-result').innerHTML = '';
-  document.getElementById('audit-title').textContent = t('hdr_audit_title');
-  document.getElementById('audit-subtitle').textContent = '';
   setAuditStatus('<div class="loader"></div><span>' + t('msg_starting') + '</span>');
   updateProgress(0, sectionTotal);
   window._auditStartTime = Date.now();
   window._auditSectionCount = 0;
 
-  showView('audit');
+  // The run shows on its customer's Audit tab.
+  await openActiveCustomerTab('audit');
   _showAuditRunningChrome();
-  document.getElementById('audit-back-btn').disabled = true;
   auditRunning = true;
+  _auditStarting = false;
   var _ari = document.getElementById('audit-running-indicator'); if (_ari) _ari.style.display = 'flex';
   startAuditProgressPolling();
 
@@ -345,10 +349,8 @@ function _finishAuditWithoutStream() {
   _hideAuditProgressBar();
   var ind = document.getElementById('audit-running-indicator');
   if (ind) ind.style.display = 'none';
-  var back = document.getElementById('audit-back-btn');
-  if (back) back.disabled = false;
   setAuditStatus('<span style="color:var(--orange)">' + t('msg_audit_done_stream_lost') + '</span>');
-  if (typeof loadStatus === 'function') loadStatus();
+  custPageAuditFinished();
 }
 
 async function _attemptAuditStream(streamUrl) {
@@ -375,9 +377,6 @@ async function _attemptAuditStream(streamUrl) {
         try {
           var d = JSON.parse(lines[i].slice(6));
           if (d.type === 'started') {
-            var ts = new Date().toLocaleString('no-NO', {dateStyle:'short',timeStyle:'short'});
-            document.getElementById('audit-title').textContent = t('hdr_audit_title') + ' \u2014 ' + d.customer;
-            document.getElementById('audit-subtitle').textContent = ts;
             setAuditStatus('<div class="loader"></div><span>' + t('msg_audit_running') + '</span>');
           } else if (d.type === 'progress') {
             handleProgress(d);
@@ -396,7 +395,6 @@ async function _attemptAuditStream(streamUrl) {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();
             var _ari_d = document.getElementById('audit-running-indicator'); if (_ari_d) _ari_d.style.display = 'none';
-            document.getElementById('audit-back-btn').disabled = false;
             handleAuditDone(d.results || []);
             if (d.email_status) {
               var area = document.getElementById('report-result');
@@ -409,7 +407,6 @@ async function _attemptAuditStream(streamUrl) {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();
             var _ari_e = document.getElementById('audit-running-indicator'); if (_ari_e) _ari_e.style.display = 'none';
-            document.getElementById('audit-back-btn').disabled = false;
             setAuditStatus('<span style="color:var(--red)">✗ '+t('status_error')+': '+esc(d.msg)+'</span>');
             return 'done';
           } else if (d.type === 'cancelled') {
@@ -586,6 +583,10 @@ function handleAuditDone(results) {
   var totalFiles = results.reduce(function(s,r){ return s + (r.files ? r.files.length : 0); }, 0);
   setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + Number(totalFiles) + ' ' + t('nav_files','files') + ')</span></span>');
 
+  // What Rapport builds from: this run, which the server now holds.
+  _custReportRun = {customerId: _customersActiveId};
+  custSyncReportButton();
+  custPageAuditFinished();
   document.getElementById('sum-done').textContent = done;
   document.getElementById('sum-warn').textContent = warns;
   document.getElementById('sum-fail').textContent = failed;
@@ -658,7 +659,7 @@ async function pollAuditProgress() {
     // numerator between polls.
     if (typeof d.total_sections === 'number' && d.total_sections > 0) {
       sectionTotal = d.total_sections;
-      if (currentView === 'audit') updateProgress(d.completed, sectionTotal);
+      if (custAuditTabOpen()) updateProgress(d.completed, sectionTotal);
     }
     // Update floating progress bar (shown on non-audit views)
     _showAuditProgressBar(d);
@@ -668,8 +669,8 @@ async function pollAuditProgress() {
 function _showAuditProgressBar(d) {
   var bar = document.getElementById('audit-progress-float');
   if (!bar) return;
-  // Hide when already on the audit view (it has its own progress bar)
-  if (currentView === 'audit') { bar.style.display = 'none'; return; }
+  // Hide when the run's own progress is on screen.
+  if (custAuditTabOpen()) { bar.style.display = 'none'; return; }
   bar.style.display = 'block';
   var pct = d.progress || 0;
   bar.querySelector('.apf-fill').style.width = pct + '%';
@@ -682,16 +683,9 @@ function _hideAuditProgressBar() {
   if (bar) bar.style.display = 'none';
 }
 
-function auditBack() {
-  if (auditRunning) return;
-  showView('home');
-}
-
 // ── Report generation ──────────────────────────────────────────────────────────
 async function generateReport(fmt, reportType) {
-  const area = currentView === 'history-report'
-    ? document.getElementById('hist-report-result')
-    : document.getElementById('report-result');
+  const area = document.getElementById('report-result');
   const label = reportType === 'customer' ? t('lbl_customer_report') : t('lbl_tech_report');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_report').replace('{label}', label);
 
@@ -699,7 +693,7 @@ async function generateReport(fmt, reportType) {
     const d_report = await apiFetch('/api/report/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format: fmt, report_type: reportType, lang: (currentView === 'history-report' ? document.getElementById('hist-report-lang')?.value : document.getElementById('report-lang')?.value) || 'no', frameworks: (currentView === 'history-report' ? document.getElementById('hist-report-frameworks')?.value : document.getElementById('report-frameworks')?.value) || 'all', theme: (currentView === 'history-report' ? document.getElementById('hist-report-theme')?.value : document.getElementById('report-theme')?.value) || 'light' }),
+      body: JSON.stringify({ format: fmt, report_type: reportType, lang: document.getElementById('report-lang')?.value || 'no', frameworks: document.getElementById('report-frameworks')?.value || 'all', theme: document.getElementById('report-theme')?.value || 'light' }),
     });
     const d = d_report;
     if (!d) { area.innerHTML = '<div class="alert alert-error">' + t('err_could_not_generate_report') + '</div>'; return; }
@@ -742,9 +736,7 @@ function closeReportViewer() {
 }
 
 async function exportCSV() {
-  const area = currentView === 'history-report'
-    ? document.getElementById('hist-report-result')
-    : document.getElementById('report-result');
+  const area = document.getElementById('report-result');
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_csv');
   try {
     const r = await fetch('/api/report/csv', { method: 'POST' });
@@ -766,11 +758,17 @@ async function exportCSV() {
 }
 
 // ── History ─────────────────────────────────────────────────────────────────────
-async function loadHistory() {
+// The runs of the customer whose page is open: /api/history lists every
+// customer this account reaches.
+async function loadHistory(customerId) {
   const box = document.getElementById('history-content');
   const d = await apiFetch('/api/history');
+  if (customerId && customerId !== _custPage.id) return;
   if (d) {
-    renderHistory(d.history || []);
+    var runs = (d.history || []).filter(function(r) { return !customerId || r.customer_id === customerId; });
+    _custRuns = runs;
+    renderHistory(runs, !!customerId);
+    custSyncReportButton();
   } else {
     box.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_history') + '</div>';
   }
@@ -923,19 +921,15 @@ function renderComparison(data, box) {
     </div>`;
 }
 
-function renderHistory(runs) {
+function renderHistory(runs, scoped) {
   const box = document.getElementById('history-content');
   _compareSelected = [];
   document.getElementById('btn-compare').style.display = 'none';
   document.getElementById('compare-result').style.display = 'none';
 
   if (runs.length === 0) {
-    box.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-title">${t('msg_no_prev_runs')}</div>
-        <div class="empty-desc">${t('msg_run_audit_first')}</div>
-        <button class="btn btn-primary" data-click-handler="showView" data-view="home" style="margin-top:var(--space-2);">${t('btn_run_audit')}</button>
-      </div>`;
+    // Kjør audit is in the page's head; this says there is nothing yet.
+    box.innerHTML = '<div class="card cust-card-text">' + esc(t('msg_no_prev_runs')) + '</div>';
     return;
   }
 
@@ -952,8 +946,7 @@ function renderHistory(runs) {
     html += `<div class="card" style="margin-bottom:16px;">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
         <span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          ${esc(customer)} <span style="font-weight:400;font-size:12px;color:var(--text-muted);">${t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
+          ${scoped ? '' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(customer)} <span style="font-weight:400;font-size:12px;color:var(--text-muted);">${t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
         </span>
         <button class="btn btn-ghost" style="padding:3px 10px;font-size:11px;color:var(--red);"
           data-click-handler="deleteAllCustomerRuns" data-dir="${esc(customerDirName)}" data-customer="${esc(customer)}" data-count="${customerRuns.length}">
@@ -1006,37 +999,23 @@ function renderHistory(runs) {
   box.innerHTML = html;
 }
 
+// A run picked in the list: the server selects it for this user, and the
+// Rapport button builds from it.
 async function loadHistoryRun(path) {
-  const box = document.getElementById('hist-report-info');
-  const resultBox = document.getElementById('hist-report-result');
-  resultBox.innerHTML = '';
-
-  showView('history-report');
-  document.getElementById('hist-report-title').textContent = t('msg_loading');
-  document.getElementById('hist-report-subtitle').textContent = '';
-  box.innerHTML = '<div class="loader"></div> ' + t('msg_loading_audit_data');
-
+  const area = document.getElementById('report-result');
+  if (area) area.innerHTML = '<div class="loader"></div> ' + esc(t('msg_loading_audit_data'));
   try {
     const d = await apiFetch('/api/history/load', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),
     });
-
-
-    if (d.error) {
-      box.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`;
+    if (!d || d.error) {
+      if (area) area.innerHTML = d && d.error ? '<div class="alert alert-error">✗ ' + esc(d.error) + '</div>' : '';
       return;
     }
-
-    document.getElementById('hist-report-title').textContent = t('hdr_report_for').replace('{customer}', d.customer);
-
-    // Format timestamp
-    const displayDate = formatRunName(d.timestamp);
-    document.getElementById('hist-report-subtitle').textContent = displayDate;
-
-    box.innerHTML = t('msg_sections_data_loaded').replace('{sections}', '<strong>' + Number(d.sections) + '</strong>').replace('{files}', '<strong>' + Number(d.files) + '</strong>').replace('{date}', esc(displayDate));
+    custReportFromRun(d.timestamp);
   } catch (e) {
-    box.innerHTML = `<div class="alert alert-error">✗ ${t('err_network_error').replace('{msg}', esc(e.message))}</div>`;
+    if (area) area.innerHTML = '<div class="alert alert-error">✗ ' + esc(t('err_network_error').replace('{msg}', e.message)) + '</div>';
   }
 }

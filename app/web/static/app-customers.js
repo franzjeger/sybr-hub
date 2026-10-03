@@ -26,162 +26,9 @@ registerUiHandlers({
   overviewSelectCustomer: function(el) { overviewSelectCustomer(el.dataset.id); },
   customerCardToggleBulk: function(el, event) { event.stopPropagation(); toggleBulkCustomer(el.dataset.id, el); },
   customerCardToggleFavorite: function(el, event) { event.stopPropagation(); toggleFavorite(el.dataset.id); },
-  switchCustomer: function(el) { switchCustomer(el.dataset.id); },
   deleteCustomer: function(el) { deleteCustomer(el.dataset.id, el.dataset.name); },
   cancelBulkAudit: function() { cancelBulkAudit(); },
 });
-
-// ── Customer notes ─────────────────────────────────────────────────────────
-let _notesDebounceTimer = null;
-let _notesCollapsed = false;
-
-function toggleNotesCard() {
-  _notesCollapsed = !_notesCollapsed;
-  const body = document.getElementById('notes-body');
-  const icon = document.getElementById('notes-toggle-icon');
-  if (body) body.style.display = _notesCollapsed ? 'none' : '';
-  if (icon) icon.innerHTML = _notesCollapsed ? '&#9654;' : '&#9660;';
-}
-
-async function loadCustomerNotes() {
-  try {
-    const d = await apiFetch('/api/customer/notes');
-    const ta = document.getElementById('customer-notes-textarea');
-    if (!ta) return;
-    ta.value = d.notes || '';
-    showNotesTimestamp(d.last_saved);
-    ta.oninput = () => {
-      const status = document.getElementById('notes-save-status');
-      if (status) { status.textContent = t('btn_saving'); status.style.color = 'var(--orange)'; }
-      clearTimeout(_notesDebounceTimer);
-      _notesDebounceTimer = setTimeout(() => saveCustomerNotes(ta.value), 1000);
-    };
-  } catch(e) { console.warn('loadCustomerNotes failed:', e); }
-}
-
-async function saveCustomerNotes(text) {
-  try {
-    const d = await apiFetch('/api/customer/notes', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({notes: text})
-    });
-
-    const status = document.getElementById('notes-save-status');
-    if (d.ok) {
-      if (status) { status.textContent = t('msg_saved').replace('✓ ', ''); status.style.color = 'var(--green)'; }
-      showNotesTimestamp(d.last_saved);
-      setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-    } else {
-      if (status) { status.textContent = t('err_saving_notes'); status.style.color = 'var(--red)'; }
-    }
-  } catch(e) {
-    const status = document.getElementById('notes-save-status');
-    if (status) { status.textContent = t('err_saving_notes'); status.style.color = 'var(--red)'; }
-  }
-}
-
-function showNotesTimestamp(isoStr) {
-  const el = document.getElementById('notes-last-saved');
-  if (!el || !isoStr) { if (el) el.textContent = ''; return; }
-  try {
-    const dt = new Date(isoStr);
-    el.textContent = t('msg_last_saved').replace('{date}', dt.toLocaleDateString('nb-NO') + ' ' + dt.toLocaleTimeString('nb-NO', {hour:'2-digit',minute:'2-digit'}));
-  } catch(e) { el.textContent = ''; }
-}
-
-async function loadDashboard() {
-  const d = await apiFetch('/api/dashboard');
-  if (d && d.has_data) renderDashboard(d);
-}
-
-function renderDashboard(d) {
-  const m = d.metrics;
-  const p = d.previous;
-
-  // Format the run date
-  const runDate = formatRunName(d.run_date);
-
-  function trend(key, label, lowerIsBetter) {
-    if (!p || p[key] === undefined || m[key] === undefined) return '';
-    const delta = m[key] - p[key];
-    if (delta === 0) return '';
-    const improved = lowerIsBetter ? delta < 0 : delta > 0;
-    const arrow = improved ? '\u2191' : '\u2193';
-    const color = improved ? 'var(--green)' : 'var(--red)';
-    const sign = delta > 0 ? '+' : '';
-    return `<span style="font-size:11px;color:${color};margin-left:4px;">${arrow} ${sign}${typeof delta === 'number' && delta % 1 !== 0 ? delta.toFixed(1) : delta}</span>`;
-  }
-
-  function metricColor(val, thresholds) {
-    if (!metricKnown(val)) return 'var(--text-dim)';
-    if (val >= thresholds[0]) return 'var(--green)';
-    if (val >= thresholds[1]) return 'var(--orange)';
-    return 'var(--red)';
-  }
-
-  const gradeColors = {A: 'var(--green)', B: '#4d9fb5', C: 'var(--orange)', D: 'var(--red)'};
-
-  const dashHtml = `
-    <div class="card" style="margin-top:16px;">
-      <div class="card-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        ${t('hdr_dashboard_latest')}
-        <span style="margin-left:auto;font-size:11px;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">${esc(runDate)}</span>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-        <div class="tooltip" data-tip="A=Utmerket, B=Bra, C=Moderat, D=Svakt, F=Kritisk" style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:36px;font-weight:800;color:${gradeColors[m.risk_grade] || 'var(--text)'};">${esc(m.risk_grade)}</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_risk_grade')}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-muted);">${esc(String(m.risk_score))}/100 ${trend('risk_score', 'score', false)}</div>
-        </div>
-        <div class="tooltip" data-tip="${t('tip_mfa_share','Andel brukere med tofaktorautentisering aktivert')}" style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:28px;font-weight:700;color:${metricColor(m.mfa_coverage_pct, [95, 80])};">${metricPct(m.mfa_coverage_pct) !== null ? metricPct(m.mfa_coverage_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_mfa_coverage')}</div>
-          ${trend('mfa_coverage_pct', 'MFA', false)}
-        </div>
-        <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:28px;font-weight:700;color:${metricColor(m.secure_score_pct, [75, 50])};">${metricPct(m.secure_score_pct) !== null ? metricPct(m.secure_score_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('secure_score_2')}</div>
-          ${trend('secure_score_pct', 'SS', false)}
-        </div>
-        <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:28px;font-weight:700;color:var(--text);">${esc(metricCount(m.total_users))}</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_users')}</div>
-          ${trend('total_users', 'users', false)}
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-        <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;color:${!metricKnown(m.users_no_mfa) ? 'var(--text-dim)' : m.users_no_mfa > 0 ? 'var(--red)' : 'var(--green)'};">${esc(metricCount(m.users_no_mfa))}</span>
-          <span style="color:var(--text-dim);"> ${t('lbl_without_mfa')}</span>
-          ${trend('users_no_mfa', 'noMFA', true)}
-        </div>
-        <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;">${esc(metricCount(m.ca_policies_enabled))}</span>
-          <span style="color:var(--text-dim);"> ${t('lbl_ca_policies')}</span>
-        </div>
-        <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;">${esc(metricCount(m.intune_total_devices))}</span>
-          <span style="color:var(--text-dim);"> ${t('lbl_devices')}</span>
-        </div>
-        <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;">${esc(metricCount(m.total_warns))}</span>
-          <span style="color:var(--text-dim);"> ${t('lbl_warnings')}</span>
-          ${trend('total_warns', 'warns', true)}
-        </div>
-      </div>
-    </div>`;
-
-  // Insert dashboard after the customer card
-  const homeContent = document.getElementById('home-content');
-  const modulesCard = homeContent.querySelector('.card:last-child');
-  if (modulesCard) {
-    modulesCard.insertAdjacentHTML('beforebegin', dashHtml);
-  }
-}
 
 // ── Expiry banner ─────────────────────────────────────────────────────────────
 let _expiryData = null;
@@ -584,20 +431,28 @@ var TAG_COLORS={'Premium':{bg:'#3fb95020',border:'#3fb95060',color:'#3fb950'},'S
 function tagPillHtml(tag){var tc=TAG_COLORS[tag]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};return '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';margin-right:4px;margin-top:2px;white-space:nowrap;">'+esc(tag)+'</span>';}
 function tagPillsHtml(tags){if(!tags||tags.length===0)return '';return tags.map(tagPillHtml).join('');}
 async function saveCustomerTags(cid,tags){try{await apiFetch('/api/customer/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:cid,tags:tags})})}catch(e){console.error('save tags:',e)}}
-function showTagEditor(cid,curTags){var ex=curTags?curTags.slice():[];var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var ct=document.getElementById('tag-editor-'+si);if(!ct)return;var sf=TAG_SUGGESTIONS.filter(function(s){return ex.indexOf(s)===-1});var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;">';ex.forEach(function(t,i){var tc=TAG_COLORS[t]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};h+='<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';">'+esc(t)+' <span style="cursor:pointer;font-size:14px;line-height:1;opacity:0.7;" data-click-handler="removeTagAndRefresh" data-customer-id="'+esc(cid)+'" data-index="'+i+'">&times;</span></span>'});h+='</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';h+='<input type="text" id="tag-input-'+si+'" placeholder="' + t('lbl_write_tag') + '" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);width:120px;" data-keydown-handler="tagEditorAddOnEnter" data-customer-id="'+esc(cid)+'">';h+='<button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" data-click-handler="addTagFromInput" data-customer-id="'+esc(cid)+'">+</button></div>';if(sf.length>0){h+='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">';sf.forEach(function(s){h+='<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;border:1px dashed var(--border);border-radius:12px;" data-click-handler="addSuggestedTag" data-customer-id="'+esc(cid)+'" data-tag="'+esc(s)+'">+ '+esc(s)+'</button>'});h+='</div>'}ct.innerHTML=h;ct.style.display='block'}
+function showTagEditor(cid,curTags){var ex=curTags?curTags.slice():[];var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var ct=_tagEl('tag-editor-'+si);if(!ct)return;var sf=TAG_SUGGESTIONS.filter(function(s){return ex.indexOf(s)===-1});var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;">';ex.forEach(function(t,i){var tc=TAG_COLORS[t]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};h+='<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';">'+esc(t)+' <span style="cursor:pointer;font-size:14px;line-height:1;opacity:0.7;" data-click-handler="removeTagAndRefresh" data-customer-id="'+esc(cid)+'" data-index="'+i+'">&times;</span></span>'});h+='</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';h+='<input type="text" id="tag-input-'+si+'" placeholder="' + t('lbl_write_tag') + '" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);width:120px;" data-keydown-handler="tagEditorAddOnEnter" data-customer-id="'+esc(cid)+'">';h+='<button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" data-click-handler="addTagFromInput" data-customer-id="'+esc(cid)+'">+</button></div>';if(sf.length>0){h+='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">';sf.forEach(function(s){h+='<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;border:1px dashed var(--border);border-radius:12px;" data-click-handler="addSuggestedTag" data-customer-id="'+esc(cid)+'" data-tag="'+esc(s)+'">+ '+esc(s)+'</button>'});h+='</div>'}ct.innerHTML=h;ct.style.display='block'}
+// The Kunder list and the customer page's Detaljer both carry a tag editor for
+// a customer, with the same ids. The one on the page on screen is meant.
+function _tagEl(id) {
+  return document.querySelector('.view.active [id="' + id + '"]') || document.getElementById(id);
+}
 var _tagEditorData={};
 function openTagEditor(cid,tags){_tagEditorData[cid]=tags?tags.slice():[];showTagEditor(cid,_tagEditorData[cid])}
-function closeTagEditor(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var c=document.getElementById('tag-editor-'+si);if(c){c.innerHTML='';c.style.display='none'}delete _tagEditorData[cid]}
-function addTagFromInput(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var inp=document.getElementById('tag-input-'+si);if(!inp||!inp.value.trim())return;if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(inp.value.trim())===-1)_tagEditorData[cid].push(inp.value.trim());saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
+function closeTagEditor(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var c=_tagEl('tag-editor-'+si);if(c){c.innerHTML='';c.style.display='none'}delete _tagEditorData[cid]}
+function addTagFromInput(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var inp=_tagEl('tag-input-'+si);if(!inp||!inp.value.trim())return;if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(inp.value.trim())===-1)_tagEditorData[cid].push(inp.value.trim());saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function addSuggestedTag(cid,tag){if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(tag)===-1)_tagEditorData[cid].push(tag);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function removeTagAndRefresh(cid,index){if(!_tagEditorData[cid])return;_tagEditorData[cid].splice(index,1);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
-function refreshTagPills(cid,tags){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var el=document.getElementById('tag-pills-'+si);if(el)el.innerHTML=tagPillsHtml(tags)}
+function refreshTagPills(cid,tags){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var el=_tagEl('tag-pills-'+si);if(el)el.innerHTML=tagPillsHtml(tags)}
 
 // ── Manual Customer ─────────────────────────────────────────────────────────────
 
-function openManualCustomer() {
+function openNewCustomer() {
   var modal = document.getElementById('manual-customer-modal');
   modal.style.display = 'flex';
+  document.getElementById('new-cust-choices').hidden = false;
+  document.getElementById('new-cust-form').hidden = true;
+  document.getElementById('btn-manual-cust-save').hidden = true;
   document.getElementById('manual-cust-name').value = '';
   document.getElementById('manual-cust-domain').value = '';
   document.getElementById('manual-cust-email').value = '';
@@ -605,6 +460,17 @@ function openManualCustomer() {
   document.getElementById('manual-cust-orgnum').value = '';
   document.getElementById('manual-cust-notes').value = '';
   document.getElementById('manual-cust-error').style.display = 'none';
+}
+
+function newCustomerWithM365() {
+  document.getElementById('manual-customer-modal').style.display = 'none';
+  startSetup();
+}
+
+function newCustomerManual() {
+  document.getElementById('new-cust-choices').hidden = true;
+  document.getElementById('new-cust-form').hidden = false;
+  document.getElementById('btn-manual-cust-save').hidden = false;
   document.getElementById('manual-cust-name').focus();
 }
 
@@ -638,6 +504,9 @@ async function submitManualCustomer() {
     document.getElementById('manual-customer-modal').style.display = 'none';
     showToast(t('msg_customer_added'), 'success');
     loadCustomers();
+    // Straight to the new customer's page when the server names it.
+    var newId = d.customer_id || d.id || (d.customer && (d.customer._id || d.customer.customer_id));
+    if (newId) openCustomerPage(newId, 'funn');
   } else if (d && d.error) {
     errEl.textContent = d.error;
     errEl.style.display = 'block';
@@ -951,10 +820,7 @@ function renderCustomers(customers, activeId) {
 
   let html = '';
   for (const c of customers) {
-    const isActive = c._id === activeId;
     const isFav = favs.indexOf(c._id) >= 0;
-    const activeClass = isActive ? 'border-color:var(--blue);' : '';
-    const activeBadge = isActive ? '<span style="background:var(--blue);color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">' + t('status_active','Aktiv') + '</span>' : '';
     const isGdap = c.AuthMode === 'gdap';
     const gdapBadge = isGdap ? '<span style="background:linear-gradient(135deg,#0078d4,#00bcf2);color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">GDAP</span>' : '';
     const expiryBadge = isGdap ? '' : getExpiryBadgeForCustomer(c._id);
@@ -976,7 +842,7 @@ function renderCustomers(customers, activeId) {
     var statusDot = configured ? (hasMetrics ? '<span style="width:8px;height:8px;border-radius:50%;background:' + gradeColor + ';display:inline-block;"></span>' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" title="' + t('tip_no_audit_run','No audit run') + '"></span>') : '<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;" title="' + t('tip_not_configured','Not configured') + '"></span>';
 
     html += `
-      <div class="card card-clickable cust-card" style="${activeClass}" data-click-handler="overviewSelectCustomer" data-id="${esc(c._id)}">
+      <div class="card card-clickable cust-card" data-click-handler="overviewSelectCustomer" data-id="${esc(c._id)}">
         <div class="cust-card-row">
           <input type="checkbox" class="customer-bulk-cb" data-click-handler="customerCardToggleBulk" data-id="${esc(c._id)}" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--blue);">
           <span class="hover-scale" data-click-handler="customerCardToggleFavorite" data-id="${esc(c._id)}" style="cursor:pointer;font-size:18px;flex-shrink:0;transition:transform var(--duration-fast);">${isFav ? '\u2605' : '\u2606'}</span>
@@ -985,7 +851,7 @@ function renderCustomers(customers, activeId) {
             <div class="cust-card-name">
               ${statusDot}
               <span class="cust-card-name-text">${esc(c.CustomerName || t('lbl_unknown','Unknown'))}</span>
-              ${activeBadge} ${gdapBadge} ${expiryBadge} ${notesBadge}
+              ${gdapBadge} ${expiryBadge} ${notesBadge}
             </div>
             <div class="cust-card-domain">${esc(c.PrimaryDomain || '')}</div>
             <div class="cust-card-metrics">
@@ -996,12 +862,6 @@ function renderCustomers(customers, activeId) {
             </div>
           </div>
           <div class="cust-card-actions" data-click-handler="stopPropagation">
-            ${isActive
-              ? (configured
-                ? `<button class="btn btn-success btn-sm" data-click-handler="startAudit">${t('audit_2')}</button>`
-                : `<button class="btn btn-primary btn-sm" data-click-handler="startSetup">${t('btn_setup','Sett opp')}</button>`)
-              : `<button class="btn btn-primary btn-sm" data-click-handler="switchCustomer" data-id="${esc(c._id)}">${t('btn_activate')}</button>`
-            }
             <button class="btn btn-ghost btn-sm" style="color:var(--text-dim);" data-click-handler="deleteCustomer" data-id="${esc(c._id)}" data-name="${esc(c.CustomerName)}" title="${t('btn_archive','Archive')}">${t('btn_archive','Archive')}</button>
           </div>
         </div>
@@ -1009,18 +869,6 @@ function renderCustomers(customers, activeId) {
       </div>`;
   }
   box.innerHTML = html;
-}
-
-async function switchCustomer(customerId) {
-  try {
-    const d = await switchActiveCustomer(customerId);
-    if (d && d.ok) {
-      _scopeLoaded = false; _scopeSections = [];
-      loadCustomers();
-      loadStatus();
-      showToast(t('toast_customer_switched', 'Kunde byttet'), 'success', 2000);
-    }
-  } catch(e) { showToast(t('err_customer_switching_failed').replace('{msg}', e.message), 'error'); }
 }
 
 async function deleteCustomer(customerId, name) {
@@ -1312,26 +1160,8 @@ function finishBulkAudit() {
   if (_ari_f) _ari_f.style.display = 'none';
 }
 
-// Only the last customer clicked opens. An earlier click still in flight
-// would otherwise render its page over the one asked for.
-var _selectSeq = 0;
-
-async function overviewSelectCustomer(customerId) {
-  var seq = ++_selectSeq;
-  try {
-    const d = await switchActiveCustomer(customerId);
-    if (seq !== _selectSeq) return;
-
-    if (d && d.ok) {
-      // Track recent customers
-      var recent = JSON.parse(localStorage.getItem('sybr_recent_customers') || '[]');
-      recent = recent.filter(function(id){return id !== customerId});
-      recent.unshift(customerId);
-      localStorage.setItem('sybr_recent_customers', JSON.stringify(recent.slice(0,5)));
-      // The header names the active customer; keep it in step with the page.
-      loadStatus();
-      showView('customer-detail');
-      loadCustomerDetail(customerId);
-    }
-  } catch(e) { showToast(t('status_error') + ': ' + e.message, 'error'); }
+// Opens a customer's page, on Funn. Kept by this name: the Kunder list, the
+// Oversikt rows and the palette all open customers through it.
+function overviewSelectCustomer(customerId) {
+  return openCustomerPage(customerId, 'funn');
 }

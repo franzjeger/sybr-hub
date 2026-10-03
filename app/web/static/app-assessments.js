@@ -38,27 +38,8 @@ async function assessmentsLoad() {
   _asmtBind();
 }
 
-function _asmtCustomerOptions() {
-  var active = _customersActiveId || '';
-  return (_allCustomers || []).map(function (c) {
-    var id = c._id || c.customer_id || '';
-    var name = c.CustomerName || c.customer_name || id;
-    var sel = id === active ? ' selected' : '';
-    return '<option value="' + esc(id) + '"' + sel + '>' + esc(name) + '</option>';
-  }).join('');
-}
-
 function _asmtLibraryHTML() {
-  var hasCustomers = (_allCustomers || []).length > 0;
-  var h = '<div class="asmt-bar">';
-  h += '<span class="asmt-bar-label">' + esc(t('lbl_customer', 'Customer')) + '</span>';
-  if (hasCustomers) {
-    h += '<select class="asmt-select" id="asmt-customer">' + _asmtCustomerOptions() + '</select>';
-  } else {
-    h += '<span class="asmt-bar-label">' + esc(t('msg_no_customer_selected', 'No customer selected')) + '</span>';
-  }
-  h += '</div>';
-  h += '<div class="asmt-grid">';
+  var h = '<div class="asmt-grid">';
   (_asmtBaselines || []).forEach(function (b) { h += _asmtCardHTML(b); });
   h += '</div>';
   h += '<div class="asmt-result" id="asmt-result"></div>';
@@ -101,8 +82,8 @@ function _asmtBind() {
 async function _asmtRun(baselineId) {
   var box = document.getElementById('asmt-result');
   if (!box || !baselineId) return;
-  var select = document.getElementById('asmt-customer');
-  var customerId = select ? select.value : (_customersActiveId || '');
+  // The customer whose page this is.
+  var customerId = _custPage.id || _customersActiveId || '';
   if (!customerId) { showToast(t('msg_no_customer_selected', 'No customer selected'), 'error'); return; }
 
   box.innerHTML = '<div class="loader asmt-loader"></div>';

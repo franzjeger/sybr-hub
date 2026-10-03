@@ -146,3 +146,97 @@ test('every Administrasjon pane opens from the rail and from its address', async
   await page.keyboard.press('Control+,');
   await expect(page.locator('#view-admin')).toHaveClass(/\bactive\b/);
 });
+
+// ── The customer page ────────────────────────────────────────────────────────
+// These open customers, which makes each the account's active customer, so
+// they sign in as browser-switcher: other specs read browser-admin's.
+
+const TABS = ['funn', 'audit', 'policyer', 'vurderinger', 'nettverk', 'tilgang', 'detaljer'];
+
+async function openedTab(page, tab) {
+  await expect(page.locator('#cust-panel-' + tab)).toBeVisible();
+  await expect(page.locator('#cust-tab-' + tab)).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#cust-tab-' + tab)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#view-customer-detail .cust-panel:visible')).toHaveCount(1);
+  await expect(page.locator('#cust-tabs .cust-tab.active')).toHaveCount(1);
+}
+
+test('the customer page tabs switch in place, and the address carries the tab', async ({page}) => {
+  await login(page, 'browser-switcher');
+  await page.evaluate(() => { location.hash = '#/customer/Browser_Beta'; });
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+  await openedTab(page, 'funn');
+  // Mark the page: a tab that reloaded it would build a new head.
+  await page.locator('#cust-page-head .cust-head').evaluate(el => { el.dataset.marker = 'kept'; });
+  for (const tab of TABS) {
+    await page.locator('#cust-tab-' + tab).click();
+    await openedTab(page, tab);
+    expect(await page.evaluate(() => location.hash)).toBe('#/customer/Browser_Beta' + (tab === 'funn' ? '' : '/' + tab));
+  }
+  await expect(page.locator('#cust-page-head .cust-head')).toHaveAttribute('data-marker', 'kept');
+  // Back and forward walk the tabs, still in place.
+  await page.goBack();
+  await openedTab(page, 'tilgang');
+  await page.goBack();
+  await openedTab(page, 'nettverk');
+  await page.goForward();
+  await openedTab(page, 'tilgang');
+  await expect(page.locator('#cust-page-head .cust-head')).toHaveAttribute('data-marker', 'kept');
+  // The arrow keys move along the tab list.
+  await page.locator('#cust-tab-tilgang').focus();
+  await page.keyboard.press('ArrowRight');
+  await openedTab(page, 'detaljer');
+  // A reload lands on the tab in the address.
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => typeof _currentUser !== 'undefined' && !!_currentUser)).toBe(true);
+  await openedTab(page, 'detaljer');
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+});
+
+test('each old address lands on the tab it became, for the active customer', async ({page}) => {
+  await login(page, 'browser-switcher');
+  await page.evaluate(() => { location.hash = '#/customer/Browser_Beta'; });
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+  const routes = {
+    home: 'funn', files: 'detaljer', audit: 'audit', history: 'audit', 'policy-overview': 'policyer',
+    // A technician has no tenant grant: the deploy flows are not offered,
+    // and their addresses land on Policy-oversikt.
+    'policy-deploy': 'policyer', 'baseline-deploy': 'policyer', assessments: 'vurderinger',
+  };
+  for (const [old, tab] of Object.entries(routes)) {
+    await page.evaluate(() => showView('overview'));
+    await page.evaluate(h => { location.hash = h; }, '#/' + old);
+    await openedTab(page, tab);
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/customer/Browser_Beta' + (tab === 'funn' ? '' : '/' + tab));
+    if (tab === 'policyer') await expect(page.locator('#view-policy-overview')).toBeVisible();
+  }
+  // With no customer active, an old address goes to Kunder to choose one.
+  await page.route('**/api/customers', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.active_id = null;
+    await route.fulfill({response, json: body});
+  });
+  await page.evaluate(() => { _customersActiveId = null; showView('overview'); });
+  await page.evaluate(() => { location.hash = '#/audit'; });
+  await expect(page.locator('#view-customers')).toHaveClass(/\bactive\b/);
+  await page.unrouteAll({behavior: 'ignoreErrors'});
+});
+
+test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({page}) => {
+  await login(page);
+  await page.locator('#nav-customers').click();
+  await expect(page.locator('#view-customers')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#view-customers').getByRole('button', {name: /Legg til manuelt/})).toHaveCount(0);
+  await page.locator('#view-customers [data-click-handler="openNewCustomer"]').click();
+  const modal = page.locator('#manual-customer-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('.new-cust-choice')).toHaveCount(2);
+  await expect(page.locator('#new-cust-form')).toBeHidden();
+  await modal.getByRole('button', {name: /Uten Microsoft 365/}).click();
+  await expect(page.locator('#new-cust-form')).toBeVisible();
+  await expect(page.locator('#manual-cust-name')).toBeFocused();
+  await expect(page.locator('#btn-manual-cust-save')).toBeVisible();
+  await modal.getByRole('button', {name: 'Avbryt'}).click();
+  await expect(modal).toBeHidden();
+});

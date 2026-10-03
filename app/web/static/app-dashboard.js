@@ -46,7 +46,7 @@ registerUiHandlers({
   dashToggleRowActions: function(el, event) { event.stopPropagation(); toggleRowActions(el); },
   dashRowDetails: function(el, event) { event.stopPropagation(); overviewSelectCustomer(el.dataset.customerId); },
   dashRowAudit: function(el, event) { event.stopPropagation(); quickSwitchAndAudit(el.dataset.customerId); },
-  dashRowHistory: function(el, event) { event.stopPropagation(); quickSwitchAndView(el.dataset.customerId, 'history'); },
+  dashRowHistory: function(el, event) { event.stopPropagation(); quickSwitchAndView(el.dataset.customerId, 'audit'); },
   dashRowReport: function(el, event) { event.stopPropagation(); window.open('/api/reports/customer-summary/' + encodeURIComponent(el.dataset.customerId), '_blank'); },
   dashRowArchive: function(el, event) { event.stopPropagation(); deleteCustomer(el.dataset.customerId, el.dataset.customerName); },
 });
@@ -980,14 +980,12 @@ document.addEventListener('click', function(e) {
 
 async function quickSwitchAndAudit(customerId) {
   document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.style.display = 'none'; });
-  await switchActiveCustomer(customerId);
-  showView('home');
-  setTimeout(startAudit, 300);
+  await openCustomerPage(customerId, 'audit');
+  startAudit();
 }
-async function quickSwitchAndView(customerId, view) {
+async function quickSwitchAndView(customerId, tab) {
   document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.style.display = 'none'; });
-  await switchActiveCustomer(customerId);
-  showView(view);
+  await openCustomerPage(customerId, tab);
 }
 
 function stopDashAutoRefresh() {
@@ -1602,7 +1600,6 @@ function renderOverview(customers, activeId) {
       const lastAudit = esc(fmtDate(c.last_audit));
       const mfaColor = !hasM || m.mfa_coverage_pct === undefined ? 'var(--text-muted)' : m.mfa_coverage_pct >= 95 ? 'var(--green)' : m.mfa_coverage_pct >= 80 ? 'var(--orange)' : 'var(--red)';
       const ssColor = !hasM || m.secure_score_pct === undefined ? 'var(--text-muted)' : m.secure_score_pct >= 75 ? 'var(--green)' : m.secure_score_pct >= 50 ? 'var(--orange)' : 'var(--red)';
-      const activeBadge = c.is_active ? ' <span style="background:var(--blue);color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;vertical-align:middle;">' + t('status_active') + '</span>' : '';
 
       // Health score from enriched data
       const _hd = _overviewHealthMap[c.customer_id] || {};
@@ -1637,7 +1634,7 @@ function renderOverview(customers, activeId) {
               <div class="cust-cell">
                 <span class="grade-tile" style="color:${_gvd};background:color-mix(in srgb, ${_gv} 12%, transparent);border-color:color-mix(in srgb, ${_gv} 40%, transparent);" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${t('tip_click_filter_grade','Click to filter by grade')}">${esc(grade)}</span>
                 <span style="min-width:0;">
-                  <span class="cname">${esc(c.customer_name)}${activeBadge}</span>
+                  <span class="cname">${esc(c.customer_name)}</span>
                   <span class="cdom">${esc(c.primary_domain || '')}${_domBadges}</span>
                   ${_warnNote}
                 </span>

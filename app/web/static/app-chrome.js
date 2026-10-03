@@ -177,107 +177,11 @@ function applyTheme(theme) {
   }
 }
 
-// Handlers for the activity log controls (see registerUiHandlers in app.js).
-registerUiHandlers({
-  loadMoreActivity: function() { loadActivityLog(true); },
-});
-
-// ── Activity log ─────────────────────────────────────────────────────────────
-var _activityLogOffset = 0;
-var _activityLogExpanded = true;
-
-var _activityIcons = {
-  audit_started:     '\u25B6',
-  audit_completed:   '\u2713',
-  report_generated:  '\uD83D\uDCC4',
-  customer_added:    '\u2795',
-  customer_switched: '\uD83D\uDD04',
-  itglue_uploaded:   '\u2601',
-  settings_changed:  '\u2699',
-  email_sent:        '\u2709',
-};
-
+// ── Activity log labels ─────────────────────────────────────────────────────
 function _activityLabel(key) {
   return t('activity_' + key, key.replace(/_/g, ' '));
 }
 
-function toggleActivityLog() {
-  var body = document.getElementById('activity-log-body');
-  var toggle = document.getElementById('activity-log-toggle');
-  if (!body) return;
-  _activityLogExpanded = !_activityLogExpanded;
-  body.style.display = _activityLogExpanded ? '' : 'none';
-  toggle.innerHTML = _activityLogExpanded ? '&#9660;' : '&#9654;';
-}
-
-async function loadActivityLog(append) {
-  var list = document.getElementById('activity-log-list');
-  var more = document.getElementById('activity-log-more');
-  if (!list) return;
-
-  if (!append) {
-    _activityLogOffset = 0;
-    list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">' + t('msg_loading') + '</div>';
-  }
-
-  try {
-    var d = await apiFetch('/api/activity-log?limit=10&offset=' + _activityLogOffset);
-    var entries = d.entries || [];
-
-    if (!append) list.innerHTML = '';
-
-    if (entries.length === 0 && _activityLogOffset === 0) {
-      list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">' + t('msg_no_activity_yet') + '</div>';
-      more.innerHTML = '';
-      return;
-    }
-
-    for (var i = 0; i < entries.length; i++) {
-      var e = entries[i];
-      var icon = _activityIcons[e.action] || '\u2022';
-      var label = _activityLabel(e.action);
-      var ts = formatActivityTime(e.timestamp);
-      var custHtml = e.customer ? '<span style="color:var(--blue);margin-left:6px;">' + esc(e.customer) + '</span>' : '';
-      var detailHtml = e.detail ? '<span style="color:var(--text-dim);margin-left:6px;font-size:11px;">' + esc(e.detail) + '</span>' : '';
-
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;';
-      row.innerHTML =
-        '<span style="width:20px;text-align:center;flex-shrink:0;">' + icon + '</span>' +
-        '<span style="font-weight:500;">' + esc(label) + '</span>' + custHtml + detailHtml +
-        '<span style="margin-left:auto;color:var(--text-dim);font-size:11px;white-space:nowrap;">' + esc(ts) + '</span>';
-      list.appendChild(row);
-    }
-
-    _activityLogOffset += entries.length;
-
-    if (entries.length >= 10) {
-      more.innerHTML = '<button class="btn btn-ghost" style="font-size:12px;padding:4px 12px;" data-click-handler="loadMoreActivity">' + t('btn_show_more') + '</button>';
-    } else {
-      more.innerHTML = '';
-    }
-  } catch (ex) {
-    if (!append) list.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px 0;">' + t('err_could_not_load_activity') + '</div>';
-  }
-}
-
-function formatActivityTime(isoStr) {
-  try {
-    var d = new Date(isoStr);
-    var now = new Date();
-    var diffMs = now - d;
-    var diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return t('msg_just_now');
-    if (diffMin < 60) return t('msg_min_ago').replace('{count}', diffMin);
-    var diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return t('msg_hours_ago').replace('{count}', diffH);
-    var diffD = Math.floor(diffH / 24);
-    if (diffD < 7) return t('msg_days_ago').replace('{count}', diffD);
-    return d.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
-  } catch(ex) {
-    return isoStr;
-  }
-}
 
 // ── Mobile bottom nav + «Mer» sheet (frame 4a) ──────────────────────────────
 function openMoreSheet() {
@@ -297,8 +201,7 @@ function _syncBottomNav(name) {
   // Map every view onto one of the five bottom-tab groups.
   var map = {
     overview: 'dashboard',
-    customers: 'customers', home: 'customers', audit: 'customers', history: 'customers',
-    files: 'customers', setup: 'customers', 'customer-detail': 'customers',
+    customers: 'customers', setup: 'customers', 'customer-detail': 'customers',
     network: 'network', vpn: 'network', tailscale: 'network', provision: 'network',
     hosts: 'more', terminal: 'more', rdp: 'more', ssh: 'more', browser: 'more',
     pentest: 'more', billing: 'more', ai: 'more', admin: 'more', docs: 'more', logs: 'more',

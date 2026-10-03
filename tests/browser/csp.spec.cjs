@@ -94,9 +94,8 @@ test('every main view opens through the navigation without a policy violation', 
   // Through the control that opens it where the markup has one (the top
   // bar, Verktøy, a page's own links); the rest are reached from a customer
   // or a dialog, and are opened the way those do.
-  const views = ['overview', 'customers', 'home', 'audit', 'history', 'files', 'network',
-    'docs', 'logs', 'hosts', 'ssh', 'vpn', 'tailscale', 'pentest', 'billing', 'policy-overview',
-    'policy-deploy', 'baseline-deploy', 'assessments', 'provision', 'ai', 'browser', 'setup', 'admin'];
+  const views = ['overview', 'customers', 'network', 'docs', 'logs', 'hosts', 'ssh', 'vpn', 'tailscale',
+    'pentest', 'billing', 'provision', 'ai', 'browser', 'setup', 'admin'];
   for (const view of views) {
     const control = page.locator(`[data-click-handler="showView"][data-view="${view}"]`);
     if (await control.count()) await activate(control);
@@ -106,6 +105,14 @@ test('every main view opens through the navigation without a policy violation', 
     // Let the view's loaders render what they build. Some views poll, so the
     // network never goes idle; the spinners going away is the signal.
     await expect(page.locator('#view-' + view + ' .loader:visible')).toHaveCount(0, {timeout: 10000});
+  }
+  // The customer page's tabs, each opened from its tab bar.
+  await page.evaluate(() => { location.hash = '#/customer/Browser_Beta'; });
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+  for (const tab of ['funn', 'audit', 'policyer', 'vurderinger', 'nettverk', 'tilgang', 'detaljer']) {
+    await page.locator('#cust-tab-' + tab).click();
+    await expect(page.locator('#cust-panel-' + tab)).toBeVisible();
+    await expect(page.locator('#cust-panel-' + tab + ' .loader:visible')).toHaveCount(0, {timeout: 10000});
   }
   await monitor.assertClean();
 });
@@ -232,10 +239,10 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#view-customer-detail')).toHaveClass(/\bactive\b/);
   });
 
-  test('history: a run without evidence files offers the summary report', async () => {
-    // The fixture's run holds metrics and no evidence files: it is listed,
-    // and its button opens the summary report rather than the full one.
-    await openView(page, 'history');
+  test('runs: a run without evidence files offers the summary report', async () => {
+    // The fixture's run holds metrics and no evidence files: it is listed on
+    // the Audit tab, and its button opens the summary report.
+    await page.evaluate(() => { location.hash = '#/customer/Browser_Beta/audit'; });
     const summary = page.locator('#view-history [data-click-handler="openCustomerSummary"]');
     await expect(summary).toHaveCount(1);
     const [popup] = await Promise.all([page.waitForEvent('popup'), summary.click()]);
@@ -298,8 +305,8 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#tls-single-result')).not.toBeEmpty();
   });
 
-  test('home: the audit scope panel opens and a section toggles', async () => {
-    await openView(page, 'home');
+  test('Audit tab: the section chooser opens and a section toggles', async () => {
+    await page.evaluate(() => { location.hash = '#/customer/Browser_Beta/audit'; });
     const toggle = page.locator('#scope-panel [data-click-handler="toggleScopePanel"]');
     await expect(toggle).toBeVisible();
     await toggle.click();
