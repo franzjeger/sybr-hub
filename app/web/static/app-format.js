@@ -85,7 +85,7 @@ var _TONES = {
   'var(--red)': 'danger', 'var(--red-deep)': 'danger', 'var(--red-btn)': 'danger', 'var(--color-danger)': 'danger',
   '#f85149': 'danger', '#8b0000': 'danger', '#d0021b': 'danger',
   'var(--orange)': 'warning', 'var(--orange-deep)': 'warning', 'var(--color-warning)': 'warning',
-  '#d29922': 'warning', '#e67e22': 'warning', '#f5a623': 'warning', '#eab308': 'warning',
+  '#d29922': 'warning', '#e67e22': 'warning', '#f5a623': 'warning', '#eab308': 'warning', '#c9a800': 'warning',
   'var(--blue)': 'accent', 'var(--blue-deep)': 'accent', '#4d9fb5': 'accent',
   'var(--info)': 'info', 'var(--color-info)': 'info',
   'var(--purple)': 'purple', '#7c5cfc': 'purple',
@@ -95,6 +95,12 @@ export function toneName(color) { return _TONES[String(color || '').trim()] || '
 export function toneClass(color) {
   var name = toneName(color);
   return name ? 'text-' + name : '';
+}
+// The tone as a custom property (--tone) for a component that draws an edge
+// or a fill in it: .kpi-card's top edge.
+export function toneVar(color) {
+  if (String(color || '').trim() === 'var(--border)') return 'tone-border';
+  return 'tone-' + (toneName(color) || 'dim');
 }
 export function badgeClass(color) {
   var name = toneName(color);

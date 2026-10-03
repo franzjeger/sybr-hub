@@ -7,7 +7,7 @@ import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {registerToolCustomer} from './app-hooks.js';
 import {_custPage, currentCustomerId} from './app-state.js';
-import {formatRunName} from './app-format.js';
+import {formatRunName, toneClass, toneName} from './app-format.js';
 import {emptyStateHTML, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {renderToolCustomerPickers, toolCustomerId, toolNoCustomerHtml} from './app.js';
@@ -69,13 +69,13 @@ export async function loadFiles(customerId) {
     const c = d.credentials || {};
     var _elCreds = document.getElementById('files-creds');
     if (_elCreds) _elCreds.innerHTML = `
-      <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;">
-        <span style="color:var(--text-muted);">${t('lbl_customer')}</span><span><strong>${esc(c.customer_name)}</strong></span>
-        <span style="color:var(--text-muted);">${t('lbl_tenant_id')}</span><span style="font-family:var(--mono);font-size:12px;">${esc(c.tenant_id)}</span>
-        <span style="color:var(--text-muted);">${t('lbl_client_id')}</span><span style="font-family:var(--mono);font-size:12px;">${esc(c.client_id)}</span>
-        <span style="color:var(--text-muted);">${t('lbl_domain')}</span><span>${esc(c.domain)}</span>
-        <span style="color:var(--text-muted);">${t('lbl_setup_date')}</span><span>${esc(c.setup_date)}</span>
-        <span style="color:var(--text-muted);">${t('lbl_secret_expiry')}</span><span>${esc(c.secret_expiry)}</span>
+      <div class="grid kv-grid gap-y-1 gap-x-3">
+        <span class="text-muted">${t('lbl_customer')}</span><span><strong>${esc(c.customer_name)}</strong></span>
+        <span class="text-muted">${t('lbl_tenant_id')}</span><span class="font-mono text-sm">${esc(c.tenant_id)}</span>
+        <span class="text-muted">${t('lbl_client_id')}</span><span class="font-mono text-sm">${esc(c.client_id)}</span>
+        <span class="text-muted">${t('lbl_domain')}</span><span>${esc(c.domain)}</span>
+        <span class="text-muted">${t('lbl_setup_date')}</span><span>${esc(c.setup_date)}</span>
+        <span class="text-muted">${t('lbl_secret_expiry')}</span><span>${esc(c.secret_expiry)}</span>
       </div>`;
 
     // Certificate
@@ -84,13 +84,13 @@ export async function loadFiles(customerId) {
       ? t('files_cert_available').replace('{date}', esc(cert.expiry))
       : t('files_cert_missing');
     const encStatus = cert.encrypted
-      ? `<span style="color:var(--green);">${t('status_encrypted')}</span>`
-      : `<span style="color:var(--text-muted);">${t('status_password_protected')}</span>`;
+      ? `<span class="text-success">${t('status_encrypted')}</span>`
+      : `<span class="text-muted">${t('status_password_protected')}</span>`;
     var _elCert = document.getElementById('files-cert');
     if (_elCert) _elCert.innerHTML = `
-      <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;">
-        <span style="color:var(--text-muted);">${t('lbl_status')}</span><span>${certStatus}</span>
-        <span style="color:var(--text-muted);">${t('lbl_protection')}</span><span>${encStatus}</span>
+      <div class="grid kv-grid gap-y-1 gap-x-3">
+        <span class="text-muted">${t('lbl_status')}</span><span>${certStatus}</span>
+        <span class="text-muted">${t('lbl_protection')}</span><span>${encStatus}</span>
       </div>`;
 
     // Reports
@@ -98,9 +98,9 @@ export async function loadFiles(customerId) {
     var _elReports = document.getElementById('files-reports');
     if (_elReports) {
       if (reports.length === 0) {
-        _elReports.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_no_reports_yet') + '</span>';
+        _elReports.innerHTML = '<span class="text-muted">' + t('msg_no_reports_yet') + '</span>';
       } else {
-        let html = '<div style="max-height:200px;overflow-y:auto;">';
+        let html = '<div class="max-h-sm overflow-y-auto">';
         for (const r of reports) {
           html += `<div class="files-report-row">
             <span class="files-report-name">${esc(r.name)}</span>
@@ -117,13 +117,13 @@ export async function loadFiles(customerId) {
     var _elRaw = document.getElementById('files-rawdata');
     if (_elRaw) {
       if (raw.runs === 0) {
-        _elRaw.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_no_audit_runs_yet') + '</span>';
+        _elRaw.innerHTML = '<span class="text-muted">' + t('msg_no_audit_runs_yet') + '</span>';
       } else {
         _elRaw.innerHTML = `
-          <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;">
-            <span style="color:var(--text-muted);">${t('lbl_runs')}</span><span>${Number(raw.runs)}</span>
-            <span style="color:var(--text-muted);">${t('lbl_latest_run')}</span><span>${esc(formatRunName(raw.latest))}</span>
-            <span style="color:var(--text-muted);">${t('lbl_total_size')}</span><span>${esc(raw.total_size)}</span>
+          <div class="grid kv-grid gap-y-1 gap-x-3">
+            <span class="text-muted">${t('lbl_runs')}</span><span>${Number(raw.runs)}</span>
+            <span class="text-muted">${t('lbl_latest_run')}</span><span>${esc(formatRunName(raw.latest))}</span>
+            <span class="text-muted">${t('lbl_total_size')}</span><span>${esc(raw.total_size)}</span>
           </div>`;
       }
     }
@@ -164,105 +164,105 @@ export async function loadNetworkDevices() {
   try {
     var d = await apiFetch('/api/network-devices/' + encodeURIComponent(cid));
     if (_netCustomerId !== cid) return;
-    if (!d) { box.innerHTML = '<span style="color:var(--text-muted);">' + t('kunne_ikke_laste_nettverksenheter') + '</span>'; return; }
+    if (!d) { box.innerHTML = '<span class="text-muted">' + t('kunne_ikke_laste_nettverksenheter') + '</span>'; return; }
 
     var html = '';
 
     // ── FortiGate ──
-    html += '<div class="card" style="margin-bottom:16px;">';
+    html += '<div class="card mb-4">';
     html += '<div class="card-title">FortiGate</div>';
     if (d.fortigate) {
-      html += '<div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;margin-bottom:8px;font-size:13px;">';
-      html += '<span style="color:var(--text-muted);">' + t('host') + '</span><span style="font-family:var(--mono);font-size:12px;">' + esc(d.fortigate.host) + ':' + esc(d.fortigate.port) + '</span>';
-      html += '<span style="color:var(--text-muted);">VDOM</span><span>' + esc(d.fortigate.vdom) + '</span>';
-      html += '<span style="color:var(--text-muted);">' + t('api_token') + '</span><span>' + (d.fortigate.has_token ? '<span style="color:var(--green);">' + t('konfigurert') + '</span>' : '<span style="color:var(--red);">' + t('mangler') + '</span>') + '</span>';
+      html += '<div class="grid kv-grid gap-y-1 gap-x-3 mb-2 text-ui">';
+      html += '<span class="text-muted">' + t('host') + '</span><span class="font-mono text-sm">' + esc(d.fortigate.host) + ':' + esc(d.fortigate.port) + '</span>';
+      html += '<span class="text-muted">VDOM</span><span>' + esc(d.fortigate.vdom) + '</span>';
+      html += '<span class="text-muted">' + t('api_token') + '</span><span>' + (d.fortigate.has_token ? '<span class="text-success">' + t('konfigurert') + '</span>' : '<span class="text-danger">' + t('mangler') + '</span>') + '</span>';
       html += '</div>';
-      html += '<button class="btn btn-default" data-click-handler="toggleNetworkConfig" data-config="fg-config" style="font-size:12px;padding:4px 12px;">' + t('endre') + '</button>';
+      html += '<button class="btn btn-default btn-sm" data-click-handler="toggleNetworkConfig" data-config="fg-config">' + t('endre') + '</button>';
     } else {
-      html += '<div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">' + t('ikke_konfigurert_2') + '</div>';
-      html += '<button class="btn btn-primary" data-click-handler="toggleNetworkConfig" data-config="fg-config" style="font-size:12px;padding:5px 14px;">' + t('konfigurer_fortigate') + '</button>';
+      html += '<div class="text-ui text-dim mb-2">' + t('ikke_konfigurert_2') + '</div>';
+      html += '<button class="btn btn-primary btn-sm" data-click-handler="toggleNetworkConfig" data-config="fg-config">' + t('konfigurer_fortigate') + '</button>';
     }
-    html += '<div id="fg-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">';
+    html += '<div id="fg-config" class="inset mt-3" style="display:none;">';
     html += '<label class="field-label">' + t('host_ip_eller_fqdn') + '</label>';
     html += '<input class="field-input" id="input-fg-host" type="text" placeholder="192.168.1.1" value="' + esc((d.fortigate && d.fortigate.host) || '') + '">';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
+    html += '<div class="grid grid-cols-2 gap-2 mt-2">';
     html += '<div><label class="field-label">' + t('port') + '</label><input class="field-input" id="input-fg-port" type="number" value="' + esc((d.fortigate && d.fortigate.port) || 443) + '"></div>';
     html += '<div><label class="field-label">VDOM</label><input class="field-input" id="input-fg-vdom" type="text" value="' + esc((d.fortigate && d.fortigate.vdom) || 'root') + '"></div>';
     html += '</div>';
-    html += '<label class="field-label" style="margin-top:8px;">' + t('api_token') + '</label>';
+    html += '<label class="field-label mt-2">' + t('api_token') + '</label>';
     html += '<input class="field-input" id="input-fg-token" type="password" placeholder="Lim inn FortiGate REST API-token">';
-    html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-fg-verify-ssl" ' + (d.fortigate && d.fortigate.verify_ssl ? 'checked' : '') + '> ' + t('verifiser_ssl_sertifikat') + '</label>';
-    html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">';
-    html += '<button class="btn btn-default" data-click-handler="testFortiGate" style="font-size:12px;padding:4px 12px;">' + t('test_tilkobling') + '</button>';
-    html += '<button class="btn btn-primary" data-click-handler="saveFortiGate" style="font-size:12px;padding:4px 12px;">' + t('lagre_2') + '</button>';
-    html += '<span id="fg-test-result" style="font-size:11px;color:var(--text-muted);"></span>';
+    html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-fg-verify-ssl" ' + (d.fortigate && d.fortigate.verify_ssl ? 'checked' : '') + '> ' + t('verifiser_ssl_sertifikat') + '</label>';
+    html += '<div class="flex gap-2 mt-3 items-center">';
+    html += '<button class="btn btn-default btn-sm" data-click-handler="testFortiGate">' + t('test_tilkobling') + '</button>';
+    html += '<button class="btn btn-primary btn-sm" data-click-handler="saveFortiGate">' + t('lagre_2') + '</button>';
+    html += '<span id="fg-test-result" class="text-xs text-muted"></span>';
     html += '</div></div>';
     html += '</div>';
 
     // ── UniFi ──
-    html += '<div class="card" style="margin-bottom:16px;">';
+    html += '<div class="card mb-4">';
     html += '<div class="card-title">UniFi</div>';
 
     var ufMode = (d.unifi && d.unifi.mode) || 'controller';
     _unifiDirectDevices = (d.unifi && d.unifi.direct_devices) || [];
 
     // Mode selector
-    html += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
-    html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="unifi-mode" value="controller" ' + (ufMode === 'controller' ? 'checked' : '') + ' data-change-handler="toggleUniFiMode"> ' + t('controller_2') + '</label>';
-    html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="unifi-mode" value="direct" ' + (ufMode === 'direct' ? 'checked' : '') + ' data-change-handler="toggleUniFiMode"> ' + t('direkte_enheter') + '</label>';
+    html += '<div class="flex gap-3 mb-4">';
+    html += '<label class="flex items-center gap-2 text-ui cursor-pointer"><input type="radio" name="unifi-mode" value="controller" ' + (ufMode === 'controller' ? 'checked' : '') + ' data-change-handler="toggleUniFiMode"> ' + t('controller_2') + '</label>';
+    html += '<label class="flex items-center gap-2 text-ui cursor-pointer"><input type="radio" name="unifi-mode" value="direct" ' + (ufMode === 'direct' ? 'checked' : '') + ' data-change-handler="toggleUniFiMode"> ' + t('direkte_enheter') + '</label>';
     html += '</div>';
 
     // Controller mode
-    html += '<div id="unifi-controller-section" style="' + (ufMode === 'controller' ? '' : 'display:none;') + '">';
+    html += '<div id="unifi-controller-section"' + (ufMode === 'controller' ? '' : ' hidden') + '>';
     if (d.unifi && d.unifi.host && ufMode === 'controller') {
-      html += '<div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;margin-bottom:8px;font-size:13px;">';
-      html += '<span style="color:var(--text-muted);">' + t('controller') + '</span><span style="font-family:var(--mono);font-size:12px;">' + esc(d.unifi.host) + '</span>';
-      html += '<span style="color:var(--text-muted);">' + t('type') + '</span><span>' + (d.unifi.is_unifi_os ? 'UniFi OS (UDM/CK)' : 'Classic') + '</span>';
-      html += '<span style="color:var(--text-muted);">' + t('site') + '</span><span>' + esc(d.unifi.site) + '</span>';
-      html += '<span style="color:var(--text-muted);">' + t('credentials') + '</span><span>' + (d.unifi.has_credentials ? '<span style="color:var(--green);">OK</span>' : '<span style="color:var(--red);">' + t('mangler') + '</span>') + '</span>';
+      html += '<div class="grid kv-grid gap-y-1 gap-x-3 mb-2 text-ui">';
+      html += '<span class="text-muted">' + t('controller') + '</span><span class="font-mono text-sm">' + esc(d.unifi.host) + '</span>';
+      html += '<span class="text-muted">' + t('type') + '</span><span>' + (d.unifi.is_unifi_os ? 'UniFi OS (UDM/CK)' : 'Classic') + '</span>';
+      html += '<span class="text-muted">' + t('site') + '</span><span>' + esc(d.unifi.site) + '</span>';
+      html += '<span class="text-muted">' + t('credentials') + '</span><span>' + (d.unifi.has_credentials ? '<span class="text-success">OK</span>' : '<span class="text-danger">' + t('mangler') + '</span>') + '</span>';
       html += '</div>';
-      html += '<button class="btn btn-default" data-click-handler="toggleNetworkConfig" data-config="uf-ctrl-config" style="font-size:12px;padding:4px 12px;">' + t('endre') + '</button>';
+      html += '<button class="btn btn-default btn-sm" data-click-handler="toggleNetworkConfig" data-config="uf-ctrl-config">' + t('endre') + '</button>';
     } else {
-      html += '<div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">' + t('ikke_konfigurert_2') + '</div>';
-      html += '<button class="btn btn-primary" data-click-handler="toggleNetworkConfig" data-config="uf-ctrl-config" style="font-size:12px;padding:5px 14px;">' + t('konfigurer_controller') + '</button>';
+      html += '<div class="text-ui text-dim mb-2">' + t('ikke_konfigurert_2') + '</div>';
+      html += '<button class="btn btn-primary btn-sm" data-click-handler="toggleNetworkConfig" data-config="uf-ctrl-config">' + t('konfigurer_controller') + '</button>';
     }
-    html += '<div id="uf-ctrl-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">';
+    html += '<div id="uf-ctrl-config" class="inset mt-3" style="display:none;">';
     html += '<label class="field-label">' + t('controller_url') + '</label>';
     html += '<input class="field-input" id="input-uf-host" type="text" placeholder="https://192.168.1.1:8443" value="' + esc((d.unifi && d.unifi.host) || '') + '">';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
+    html += '<div class="grid grid-cols-2 gap-2 mt-2">';
     html += '<div><label class="field-label">' + t('brukernavn') + '</label><input class="field-input" id="input-uf-user" type="text" placeholder="admin"></div>';
     html += '<div><label class="field-label">' + t('passord') + '</label><input class="field-input" id="input-uf-pass" type="password" placeholder="' + t('passord') + '"></div>';
     html += '</div>';
-    html += '<label class="field-label" style="margin-top:8px;">' + t('site') + '</label>';
+    html += '<label class="field-label mt-2">' + t('site') + '</label>';
     html += '<input class="field-input" id="input-uf-site" type="text" value="' + esc((d.unifi && d.unifi.site) || 'default') + '" placeholder="default">';
-    html += '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="input-uf-os" ' + (d.unifi && d.unifi.is_unifi_os ? 'checked' : '') + '> ' + t('unifi_os_udm_cloud_key_gen2') + '</label>';
-    html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">';
-    html += '<button class="btn btn-default" data-click-handler="testUniFi" style="font-size:12px;padding:4px 12px;">' + t('test_tilkobling') + '</button>';
-    html += '<button class="btn btn-primary" data-click-handler="saveUniFi" style="font-size:12px;padding:4px 12px;">' + t('lagre_2') + '</button>';
-    html += '<span id="uf-test-result" style="font-size:11px;color:var(--text-muted);"></span>';
+    html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-uf-os" ' + (d.unifi && d.unifi.is_unifi_os ? 'checked' : '') + '> ' + t('unifi_os_udm_cloud_key_gen2') + '</label>';
+    html += '<div class="flex gap-2 mt-3 items-center">';
+    html += '<button class="btn btn-default btn-sm" data-click-handler="testUniFi">' + t('test_tilkobling') + '</button>';
+    html += '<button class="btn btn-primary btn-sm" data-click-handler="saveUniFi">' + t('lagre_2') + '</button>';
+    html += '<span id="uf-test-result" class="text-xs text-muted"></span>';
     html += '</div></div>';
     html += '</div>';
 
     // Direct devices mode
-    html += '<div id="unifi-direct-section" style="' + (ufMode === 'direct' ? '' : 'display:none;') + '">';
-    html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">' + t('msg_unifi_direct_desc','Connect directly to individual UniFi devices via IP — no controller required.') + '</div>';
+    html += '<div id="unifi-direct-section"' + (ufMode === 'direct' ? '' : ' hidden') + '>';
+    html += '<div class="text-sm text-muted mb-3">' + t('msg_unifi_direct_desc','Connect directly to individual UniFi devices via IP — no controller required.') + '</div>';
     html += '<div id="unifi-device-list"></div>';
 
     // Add device form (inline, not prompts)
-    html += '<div style="margin-top:12px;padding:12px;border:1px dashed var(--border);border-radius:6px;">';
-    html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;">' + t('btn_add_device','Add device') + '</div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    html += '<div class="mt-3 p-3 border border-dashed rounded">';
+    html += '<div class="fw-semibold text-sm mb-2">' + t('btn_add_device','Add device') + '</div>';
+    html += '<div class="grid grid-cols-2 gap-2">';
     html += '<div><label class="field-label">' + t('ip_adresse') + '</label><input class="field-input" id="input-uf-dev-host" type="text" placeholder="192.168.1.10"></div>';
-    html += '<div><label class="field-label">' + t('type') + '</label><select class="field-input" id="input-uf-dev-type" style="padding:8px 12px;"><option value="ap">' + t('access_point') + '</option><option value="gateway">' + t('gateway_firewall') + '</option><option value="switch">' + t('switch') + '</option></select></div>';
+    html += '<div><label class="field-label">' + t('type') + '</label><select class="field-input py-2 px-3" id="input-uf-dev-type"><option value="ap">' + t('access_point') + '</option><option value="gateway">' + t('gateway_firewall') + '</option><option value="switch">' + t('switch') + '</option></select></div>';
     html += '</div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
+    html += '<div class="grid grid-cols-2 gap-2 mt-2">';
     html += '<div><label class="field-label">' + t('brukernavn') + '</label><input class="field-input" id="input-uf-dev-user" type="text" value="ubnt" placeholder="ubnt"></div>';
     html += '<div><label class="field-label">' + t('passord') + '</label><input class="field-input" id="input-uf-dev-pass" type="password" value="ubnt" placeholder="ubnt"></div>';
     html += '</div>';
-    html += '<button class="btn btn-primary" data-click-handler="addUniFiDeviceFromForm" style="font-size:12px;padding:5px 14px;margin-top:8px;">+ ' + t('btn_add','Add') + '</button>';
+    html += '<button class="btn btn-primary btn-sm mt-2" data-click-handler="addUniFiDeviceFromForm">+ ' + t('btn_add','Add') + '</button>';
     html += '</div>';
 
-    html += '<div style="margin-top:12px;"><button class="btn btn-primary" data-click-handler="saveUniFiDirect" style="font-size:12px;padding:5px 14px;">' + t('lagre_alle_enheter') + '</button></div>';
+    html += '<div class="mt-3"><button class="btn btn-primary btn-sm" data-click-handler="saveUniFiDirect">' + t('lagre_alle_enheter') + '</button></div>';
     html += '</div>';
 
     html += '</div>';
@@ -270,14 +270,14 @@ export async function loadNetworkDevices() {
     box.innerHTML = html;
     renderUniFiDeviceList();
   } catch (e) {
-    box.innerHTML = '<span style="color:var(--text-muted);">' + t('status_error','Error') + ': ' + esc(e.message) + '</span>';
+    box.innerHTML = '<span class="text-muted">' + t('status_error','Error') + ': ' + esc(e.message) + '</span>';
   }
 }
 
 function toggleUniFiMode() {
   var mode = document.querySelector('input[name="unifi-mode"]:checked').value;
-  document.getElementById('unifi-controller-section').style.display = mode === 'controller' ? '' : 'none';
-  document.getElementById('unifi-direct-section').style.display = mode === 'direct' ? '' : 'none';
+  document.getElementById('unifi-controller-section').hidden = mode !== 'controller';
+  document.getElementById('unifi-direct-section').hidden = mode !== 'direct';
 }
 
 function renderUniFiDeviceList() {
@@ -292,17 +292,17 @@ function renderUniFiDeviceList() {
     });
     return;
   }
-  var html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+  var html = '<div class="flex flex-col gap-2">';
   for (var i = 0; i < _unifiDirectDevices.length; i++) {
     var dev = _unifiDirectDevices[i];
     var typeLabel = {ap:'Access Point', gateway:'Gateway/FW', switch:'Switch'}[dev.type || 'ap'] || dev.type;
-    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:12px;">';
-    html += '<span style="font-family:var(--mono);min-width:130px;">' + esc(dev.host || '') + '</span>';
-    html += '<span style="color:var(--text-muted);min-width:100px;">' + esc(typeLabel) + '</span>';
-    html += '<span style="color:var(--text-muted);">' + esc(dev.username || 'ubnt') + '</span>';
-    html += '<span id="dev-status-' + i + '" style="margin-left:auto;font-size:11px;color:var(--text-dim);">' + esc(dev.status || '') + '</span>';
-    html += '<button class="btn btn-ghost" data-click-handler="testUniFiDevice" data-index="' + i + '" style="font-size:11px;padding:2px 8px;">' + t('test') + '</button>';
-    html += '<button class="btn btn-ghost" data-click-handler="removeUniFiDevice" data-index="' + i + '" style="font-size:11px;padding:2px 8px;color:var(--red);">' + t('btn_remove','Remove') + '</button>';
+    html += '<div class="inset flex items-center gap-2 text-sm">';
+    html += '<span class="font-mono col-host">' + esc(dev.host || '') + '</span>';
+    html += '<span class="text-muted col-type">' + esc(typeLabel) + '</span>';
+    html += '<span class="text-muted">' + esc(dev.username || 'ubnt') + '</span>';
+    html += '<span id="dev-status-' + i + '" class="ml-auto text-xs text-dim">' + esc(dev.status || '') + '</span>';
+    html += '<button class="btn btn-ghost btn-sm" data-click-handler="testUniFiDevice" data-index="' + i + '">' + t('test') + '</button>';
+    html += '<button class="btn btn-ghost btn-sm text-danger" data-click-handler="removeUniFiDevice" data-index="' + i + '">' + t('btn_remove','Remove') + '</button>';
     html += '</div>';
   }
   html += '</div>';
@@ -335,7 +335,7 @@ function removeUniFiDevice(idx) {
 async function testUniFiDevice(idx) {
   var dev = _unifiDirectDevices[idx];
   var el = document.getElementById('dev-status-' + idx);
-  if (el) el.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_testing','Testing...') + '</span>';
+  if (el) el.innerHTML = '<span class="text-muted">' + t('msg_testing','Testing...') + '</span>';
   try {
     var d = await apiFetch('/api/unifi/test-device', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -347,13 +347,13 @@ async function testUniFiDevice(idx) {
       var methods = [];
       if (d.http) methods.push('HTTP');
       if (d.ssh) methods.push('SSH');
-      if (el) el.innerHTML = '<span style="color:var(--green);">OK (' + methods.join('+') + ')' + (info ? ' · ' + esc(info) : '') + '</span>';
+      if (el) el.innerHTML = '<span class="text-success">OK (' + methods.join('+') + ')' + (info ? ' · ' + esc(info) : '') + '</span>';
       dev.status = 'OK';
     } else {
-      if (el) el.innerHTML = '<span style="color:var(--red);">' + esc(d.error || t('status_error','Error')) + '</span>';
+      if (el) el.innerHTML = '<span class="text-danger">' + esc(d.error || t('status_error','Error')) + '</span>';
     }
   } catch (e) {
-    if (el) el.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    if (el) el.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -364,7 +364,7 @@ export async function runNetworkQuickAudit() {
   if (!cid) { box.innerHTML = toolNoCustomerHtml(); return; }
   btn.disabled = true;
   btn.textContent = t('status_running','Running...');
-  box.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div>' + t('msg_loading_network_devices','Loading data from network devices...') + '</div>';
+  box.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div>' + t('msg_loading_network_devices','Loading data from network devices...') + '</div>';
 
   try {
     var d = await apiFetch('/api/network/quick-audit/' + encodeURIComponent(cid), {method: 'POST'});
@@ -381,41 +381,41 @@ export async function runNetworkQuickAudit() {
     if (d.fortigate) {
       var fg = d.fortigate;
       if (fg.error) {
-        html += '<div class="card" style="margin-bottom:16px;"><div class="card-title">FortiGate</div><div class="alert alert-error">' + esc(fg.error) + '</div></div>';
+        html += '<div class="card mb-4"><div class="card-title">FortiGate</div><div class="alert alert-error">' + esc(fg.error) + '</div></div>';
       } else {
-        html += '<div class="card" style="margin-bottom:16px;">';
+        html += '<div class="card mb-4">';
         html += '<div class="card-title">FortiGate · ' + esc(fg.hostname) + '</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:16px;">';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.firmware) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('firmware') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.policy_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.admin_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.vpn_tunnels) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(fg.interface_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('interfaces') + '</div></div>';
-        html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + esc(fg.ha_mode || '—') + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ha_mode','HA mode') + '</div></div>';
+        html += '<div class="grid grid-auto-sm gap-3 mb-4">';
+        html += '<div class="kpi"><div class="text-xl fw-bold">' + esc(fg.firmware) + '</div><div class="text-xs text-muted">' + t('firmware') + '</div></div>';
+        html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.policy_count) + '</div><div class="text-xs text-muted">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
+        html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.admin_count) + '</div><div class="text-xs text-muted">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
+        html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.vpn_tunnels) + '</div><div class="text-xs text-muted">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
+        html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.interface_count) + '</div><div class="text-xs text-muted">' + t('interfaces') + '</div></div>';
+        html += '<div class="kpi"><div class="text-xl fw-bold">' + esc(fg.ha_mode || '—') + '</div><div class="text-xs text-muted">' + t('lbl_ha_mode','HA mode') + '</div></div>';
         html += '</div>';
 
         // Admin table
-        html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">' + t('admin_kontoer') + '</div>';
-        html += '<table class="section-table" style="width:100%;margin-bottom:12px;"><thead><tr><th>' + t('navn') + '</th><th>' + t('profil') + '</th><th>' + t('trusted_host') + '</th><th>' + t('fa') + '</th></tr></thead><tbody>';
+        html += '<div class="fw-semibold text-ui mb-2">' + t('admin_kontoer') + '</div>';
+        html += '<table class="section-table w-full mb-3"><thead><tr><th>' + t('navn') + '</th><th>' + t('profil') + '</th><th>' + t('trusted_host') + '</th><th>' + t('fa') + '</th></tr></thead><tbody>';
         for (var a of fg.admins) {
           var thColor = a.trusthost ? 'var(--green)' : 'var(--red)';
           var tfaColor = a.two_factor ? 'var(--green)' : 'var(--red)';
           html += '<tr><td>' + esc(a.name) + '</td><td>' + esc(a.profile) + '</td>';
-          html += '<td style="color:' + thColor + ';">' + (a.trusthost ? 'Ja' : t('lbl_no','No')) + '</td>';
-          html += '<td style="color:' + tfaColor + ';">' + (a.two_factor ? 'Ja' : t('lbl_no','No')) + '</td></tr>';
+          html += '<td class="' + toneClass(thColor) + '">' + (a.trusthost ? 'Ja' : t('lbl_no','No')) + '</td>';
+          html += '<td class="' + toneClass(tfaColor) + '">' + (a.two_factor ? 'Ja' : t('lbl_no','No')) + '</td></tr>';
         }
         html += '</tbody></table>';
 
         // Policy warnings
         if (fg.policy_warnings.length > 0) {
-          html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;color:var(--red);">Advarsler (' + fg.policy_warnings.length + ')</div>';
-          html += '<ul style="margin-left:16px;font-size:12px;color:var(--text-muted);">';
+          html += '<div class="fw-semibold text-ui mb-2 text-danger">Advarsler (' + fg.policy_warnings.length + ')</div>';
+          html += '<ul class="ml-4 text-sm text-muted">';
           for (var w of fg.policy_warnings) html += '<li>' + esc(w) + '</li>';
           html += '</ul>';
         } else {
-          html += '<div style="font-size:12px;color:var(--green);">' + t('ingen_policy_advarsler_funnet') + '</div>';
+          html += '<div class="text-sm text-success">' + t('ingen_policy_advarsler_funnet') + '</div>';
         }
-        html += '<div style="font-size:11px;color:var(--text-dim);margin-top:8px;">S/N: ' + esc(fg.serial) + ' | ' + t('lbl_model','Model') + ': ' + esc(fg.model) + ' | ' + t('lbl_uptime','Uptime') + ': ' + esc(fg.uptime) + '</div>';
+        html += '<div class="text-xs text-dim mt-2">S/N: ' + esc(fg.serial) + ' | ' + t('lbl_model','Model') + ': ' + esc(fg.model) + ' | ' + t('lbl_uptime','Uptime') + ': ' + esc(fg.uptime) + '</div>';
         html += '</div>';
       }
     }
@@ -424,24 +424,24 @@ export async function runNetworkQuickAudit() {
     if (d.unifi) {
       var uf = d.unifi;
       if (uf.error) {
-        html += '<div class="card" style="margin-bottom:16px;"><div class="card-title">UniFi</div><div class="alert alert-error">' + esc(uf.error) + '</div></div>';
+        html += '<div class="card mb-4"><div class="card-title">UniFi</div><div class="alert alert-error">' + esc(uf.error) + '</div></div>';
       } else {
-        html += '<div class="card" style="margin-bottom:16px;">';
+        html += '<div class="card mb-4">';
         html += '<div class="card-title">UniFi</div>';
 
         if (uf.mode === 'direct') {
           // Direct device mode — summary row
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:16px;">';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + Number(uf.device_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_devices_count','Devices') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:' + (uf.reachable === uf.device_count ? 'var(--green)' : 'var(--orange)') + ';">' + Number(uf.reachable) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_reachable','Reachable') + '</div></div>';
+          html += '<div class="grid grid-auto-sm gap-3 mb-4">';
+          html += '<div class="kpi"><div class="text-xl fw-bold">' + Number(uf.device_count) + '</div><div class="text-xs text-muted">' + t('lbl_devices_count','Devices') + '</div></div>';
+          html += '<div class="kpi"><div class="text-xl fw-bold ' + (uf.reachable === uf.device_count ? 'text-success' : 'text-warning') + '">' + Number(uf.reachable) + '</div><div class="text-xs text-muted">' + t('lbl_reachable','Reachable') + '</div></div>';
           if (uf.default_creds_count > 0) {
-            html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--red);">' + Number(uf.default_creds_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_default_password','Default password') + '</div></div>';
+            html += '<div class="kpi"><div class="text-xl fw-bold text-danger">' + Number(uf.default_creds_count) + '</div><div class="text-xs text-muted">' + t('lbl_default_password','Default password') + '</div></div>';
           }
           if (uf.outdated_firmware_count > 0) {
-            html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--orange);">' + Number(uf.outdated_firmware_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_outdated_firmware','Outdated firmware') + '</div></div>';
+            html += '<div class="kpi"><div class="text-xl fw-bold text-warning">' + Number(uf.outdated_firmware_count) + '</div><div class="text-xs text-muted">' + t('lbl_outdated_firmware','Outdated firmware') + '</div></div>';
           }
           if (uf.eol_count > 0) {
-            html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:var(--red);">' + Number(uf.eol_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('end_of_life') + '</div></div>';
+            html += '<div class="kpi"><div class="text-xl fw-bold text-danger">' + Number(uf.eol_count) + '</div><div class="text-xs text-muted">' + t('end_of_life') + '</div></div>';
           }
           html += '</div>';
 
@@ -449,29 +449,29 @@ export async function runNetworkQuickAudit() {
           for (var idx = 0; idx < uf.devices.length; idx++) {
             var dev = uf.devices[idx];
             var borderColor = !dev.ok ? 'var(--red)' : (dev.default_credentials || dev.is_default_config ? 'var(--orange)' : 'var(--border)');
-            html += '<div style="border:1px solid ' + borderColor + ';border-radius:8px;padding:14px;margin-bottom:12px;" id="unifi-dev-card-' + idx + '">';
+            html += '<div class="inset bg-none mb-3 ' + (borderColor === 'var(--border)' ? '' : 'border-' + toneName(borderColor)) + '" id="unifi-dev-card-' + idx + '">';
 
             // Header row
-            html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+            html += '<div class="flex items-center justify-between mb-3">';
             html += '<div>';
-            html += '<span style="font-weight:600;font-size:14px;">' + esc(dev.hostname || dev.label || dev.host) + '</span>';
-            if (dev.model) html += '<span style="color:var(--text-muted);font-size:12px;margin-left:8px;">' + esc(dev.model) + '</span>';
+            html += '<span class="fw-semibold text-base">' + esc(dev.hostname || dev.label || dev.host) + '</span>';
+            if (dev.model) html += '<span class="text-muted text-sm ml-2">' + esc(dev.model) + '</span>';
             html += '</div>';
-            html += '<div style="display:flex;gap:6px;align-items:center;">';
+            html += '<div class="flex gap-2 items-center">';
             var typeLabels = {ap: 'Access Point', gateway: 'Gateway', switch: 'Switch'};
-            html += '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg);border:1px solid var(--border);">' + esc(typeLabels[dev.device_type] || dev.device_type) + '</span>';
+            html += '<span class="text-xs py-0-5 px-2 rounded-full bg-base border">' + esc(typeLabels[dev.device_type] || dev.device_type) + '</span>';
             if (dev.ok) {
-              html += '<span style="font-size:11px;color:var(--green);">' + t('online') + '</span>';
+              html += '<span class="text-xs text-success">' + t('online') + '</span>';
             } else {
-              html += '<span style="font-size:11px;color:var(--red);">' + t('offline') + '</span>';
+              html += '<span class="text-xs text-danger">' + t('offline') + '</span>';
             }
             html += '</div></div>';
 
             if (!dev.ok && dev.error) {
-              html += '<div class="alert alert-error" style="margin:0;">' + esc(dev.error) + '</div>';
+              html += '<div class="alert alert-error m-0">' + esc(dev.error) + '</div>';
             } else {
               // Info grid — identity
-              html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;font-size:12px;">';
+              html += '<div class="grid grid-auto-sm gap-2 text-sm">';
               var monoFields = new Set(['Firmware', 'MAC', 'IP', 'Serienummer']);
               var fields = [
                 [t('lbl_model','Model'), dev.model],
@@ -497,9 +497,9 @@ export async function runNetworkQuickAudit() {
 
               for (var f of fields) {
                 if (f[1]) {
-                  html += '<div style="background:var(--bg);border-radius:4px;padding:6px 8px;">';
-                  html += '<div style="color:var(--text-muted);font-size:10px;margin-bottom:2px;">' + esc(f[0]) + '</div>';
-                  html += '<div style="font-family:' + (monoFields.has(f[0]) ? 'var(--mono)' : 'inherit') + ';font-size:11px;word-break:break-all;">' + esc(f[1]) + '</div>';
+                  html += '<div class="bg-base rounded-sm p-2">';
+                  html += '<div class="text-muted text-2xs mb-0-5">' + esc(f[0]) + '</div>';
+                  html += '<div class="text-xs break-all' + (monoFields.has(f[0]) ? ' font-mono' : '') + '">' + esc(f[1]) + '</div>';
                   html += '</div>';
                 }
               }
@@ -520,65 +520,65 @@ export async function runNetworkQuickAudit() {
               }
 
               if (findings.length > 0) {
-                html += '<div style="margin-top:10px;">';
+                html += '<div class="mt-3">';
                 for (var fn of findings) {
                   var fc = fn.sev === 'critical' ? 'var(--red)' : fn.sev === 'warning' ? 'var(--orange)' : fn.sev === 'ok' ? 'var(--green)' : 'var(--text-muted)';
                   var icon = fn.sev === 'critical' ? '!' : fn.sev === 'warning' ? '!' : fn.sev === 'ok' ? '\u2713' : 'i';
-                  html += '<div style="display:flex;gap:6px;align-items:flex-start;padding:5px 8px;border-radius:4px;background:var(--bg);margin-bottom:4px;font-size:12px;">';
-                  html += '<span style="color:' + fc + ';flex-shrink:0;">' + icon + '</span>';
-                  html += '<span style="color:' + (fn.sev === 'info' ? 'var(--text-muted)' : fc) + ';">' + esc(fn.text) + '</span>';
+                  html += '<div class="flex gap-2 items-start py-1 px-2 rounded-sm bg-base mb-1 text-sm">';
+                  html += '<span class="' + toneClass(fc) + ' shrink-0">' + icon + '</span>';
+                  html += '<span class="' + toneClass(fn.sev === 'info' ? 'var(--text-muted)' : fc) + '">' + esc(fn.text) + '</span>';
                   html += '</div>';
                 }
                 html += '</div>';
               }
 
               // Action buttons
-              html += '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">';
+              html += '<div class="flex gap-2 mt-3 flex-wrap">';
               // Set-inform
-              html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;" data-click-handler="unifiDeviceSetInform" data-host="' + esc(dev.host) + '">' + t('set_inform') + '</button>';
+              html += '<button class="btn btn-default btn-sm" data-click-handler="unifiDeviceSetInform" data-host="' + esc(dev.host) + '">' + t('set_inform') + '</button>';
               // View config
-              html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;" data-click-handler="unifiDeviceConfig" data-host="' + esc(dev.host) + '">' + t('btn_view_config','View config') + '</button>';
+              html += '<button class="btn btn-default btn-sm" data-click-handler="unifiDeviceConfig" data-host="' + esc(dev.host) + '">' + t('btn_view_config','View config') + '</button>';
               // Reboot
-              html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;color:var(--orange);" data-click-handler="unifiDeviceReboot" data-host="' + esc(dev.host) + '">' + t('btn_restart','Restart') + '</button>';
+              html += '<button class="btn btn-default btn-sm text-warning" data-click-handler="unifiDeviceReboot" data-host="' + esc(dev.host) + '">' + t('btn_restart','Restart') + '</button>';
               html += '</div>';
-              html += '<div id="unifi-action-' + idx + '" style="margin-top:8px;"></div>';
+              html += '<div id="unifi-action-' + idx + '" class="mt-2"></div>';
             }
             html += '</div>';
           }
         } else {
           // Controller mode
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:16px;">';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.device_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_devices_count','Devices') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.wlan_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_ssids','SSIDs') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.network_count) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_networks','Networks') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;">' + numOrDash(uf.firewall_rules) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
-          html += '<div style="padding:12px;background:var(--bg);border-radius:6px;text-align:center;"><div style="font-size:20px;font-weight:700;color:' + (uf.active_alarms == null ? 'var(--text-muted)' : (uf.active_alarms > 0 ? 'var(--red)' : 'var(--green)')) + ';">' + numOrDash(uf.active_alarms) + '</div><div style="font-size:11px;color:var(--text-muted);">' + t('lbl_active_alarms','Active alarms') + '</div></div>';
+          html += '<div class="grid grid-auto-sm gap-3 mb-4">';
+          html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(uf.device_count) + '</div><div class="text-xs text-muted">' + t('lbl_devices_count','Devices') + '</div></div>';
+          html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(uf.wlan_count) + '</div><div class="text-xs text-muted">' + t('lbl_ssids','SSIDs') + '</div></div>';
+          html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(uf.network_count) + '</div><div class="text-xs text-muted">' + t('lbl_networks','Networks') + '</div></div>';
+          html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(uf.firewall_rules) + '</div><div class="text-xs text-muted">' + t('lbl_firewall_rules','Firewall rules') + '</div></div>';
+          html += '<div class="kpi"><div class="text-xl fw-bold ' + (uf.active_alarms == null ? 'text-muted' : (uf.active_alarms > 0 ? 'text-danger' : 'text-success')) + '">' + numOrDash(uf.active_alarms) + '</div><div class="text-xs text-muted">' + t('lbl_active_alarms','Active alarms') + '</div></div>';
           html += '</div>';
 
           // Device table
-          html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">' + t('lbl_devices_count','Devices') + '</div>';
-          html += '<table class="section-table" style="width:100%;margin-bottom:12px;"><thead><tr><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('lbl_model','Model') + '</th><th>' + t('firmware') + '</th><th>' + t('lbl_upgrade','Upgrade') + '</th><th>' + t('lbl_clients','Clients') + '</th><th>' + t('status') + '</th></tr></thead><tbody>';
+          html += '<div class="fw-semibold text-ui mb-2">' + t('lbl_devices_count','Devices') + '</div>';
+          html += '<table class="section-table w-full mb-3"><thead><tr><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_type','Type') + '</th><th>' + t('lbl_model','Model') + '</th><th>' + t('firmware') + '</th><th>' + t('lbl_upgrade','Upgrade') + '</th><th>' + t('lbl_clients','Clients') + '</th><th>' + t('status') + '</th></tr></thead><tbody>';
           for (const dev of uf.devices) {
             var statusColor = dev.status === 'online' ? 'var(--green)' : 'var(--red)';
-            var upgradeHtml = dev.upgrade ? '<span style="color:var(--orange);">' + esc(dev.upgrade) + '</span>' : '<span style="color:var(--green);">OK</span>';
+            var upgradeHtml = dev.upgrade ? '<span class="text-warning">' + esc(dev.upgrade) + '</span>' : '<span class="text-success">OK</span>';
             html += '<tr><td>' + esc(dev.name) + '</td><td>' + esc(dev.type) + '</td><td>' + esc(dev.model) + '</td>';
-            html += '<td style="font-family:var(--mono);font-size:11px;">' + esc(dev.firmware) + '</td>';
+            html += '<td class="font-mono text-xs">' + esc(dev.firmware) + '</td>';
             html += '<td>' + upgradeHtml + '</td>';
             html += '<td>' + Number(dev.clients) + '</td>';
-            html += '<td style="color:' + statusColor + ';">' + esc(dev.status) + '</td></tr>';
+            html += '<td class="' + toneClass(statusColor) + '">' + esc(dev.status) + '</td></tr>';
           }
           html += '</tbody></table>';
 
           // WLAN table
           if (uf.wlans && uf.wlans.length > 0) {
-            html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">' + t('lbl_wireless_networks','Wireless networks') + '</div>';
-            html += '<table class="section-table" style="width:100%;"><thead><tr><th>SSID</th><th>' + t('lbl_security','Security') + '</th><th>' + t('lbl_guest','Guest') + '</th><th>' + t('lbl_active','Active') + '</th></tr></thead><tbody>';
+            html += '<div class="fw-semibold text-ui mb-2">' + t('lbl_wireless_networks','Wireless networks') + '</div>';
+            html += '<table class="section-table w-full"><thead><tr><th>SSID</th><th>' + t('lbl_security','Security') + '</th><th>' + t('lbl_guest','Guest') + '</th><th>' + t('lbl_active','Active') + '</th></tr></thead><tbody>';
             for (const w of uf.wlans) {
               var secColor = w.security === 'open' ? 'var(--red)' : 'var(--green)';
               html += '<tr><td>' + esc(w.name) + '</td>';
-              html += '<td style="color:' + secColor + ';">' + esc(w.security) + '</td>';
+              html += '<td class="' + toneClass(secColor) + '">' + esc(w.security) + '</td>';
               html += '<td>' + (w.guest ? t('lbl_yes','Yes') : t('lbl_no','No')) + '</td>';
-              html += '<td>' + (w.enabled ? t('lbl_yes','Yes') : '<span style="color:var(--text-dim);">' + t('lbl_no','No') + '</span>') + '</td></tr>';
+              html += '<td>' + (w.enabled ? t('lbl_yes','Yes') : '<span class="text-dim">' + t('lbl_no','No') + '</span>') + '</td></tr>';
             }
             html += '</tbody></table>';
           }
@@ -681,7 +681,7 @@ async function unifiDeviceConfig(host) {
     }
   }
   if (!targetEl) { targetEl = document.getElementById('unifi-action-0'); }
-  if (targetEl) targetEl.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:12px;">' + t('msg_loading_config','Loading configuration...') + '</div>';
+  if (targetEl) targetEl.innerHTML = '<div class="p-2 text-muted text-sm">' + t('msg_loading_config','Loading configuration...') + '</div>';
 
   try {
     var d = await apiFetch('/api/unifi/device-config', {
@@ -702,21 +702,21 @@ async function unifiDeviceConfig(host) {
         body: JSON.stringify({host: host, config: d.config})
       }).catch(function() {});
       if (targetEl) {
-        targetEl.innerHTML = '<div style="margin-top:4px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-weight:600;font-size:12px;">' + t('lbl_running_config','Running configuration') + '</div><span style="font-size:10px;color:var(--green);">' + t('msg_backup_saved','Backup saved') + '</span></div>'
-          + '<pre style="max-height:300px;overflow:auto;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:11px;white-space:pre-wrap;word-break:break-all;">'
+        targetEl.innerHTML = '<div class="mt-1"><div class="flex items-center justify-between"><div class="fw-semibold text-sm">' + t('lbl_running_config','Running configuration') + '</div><span class="text-2xs text-success">' + t('msg_backup_saved','Backup saved') + '</span></div>'
+          + '<pre class="inset max-h-md overflow-auto text-xs pre-wrap break-all">'
           + esc(d.config) + '</pre>'
-          + '<button class="btn btn-default" style="font-size:11px;padding:3px 8px;margin-top:6px;" data-click-handler="unifiDeviceConfigClose">' + t('btn_close','Close') + '</button></div>';
+          + '<button class="btn btn-default btn-sm mt-2" data-click-handler="unifiDeviceConfigClose">' + t('btn_close','Close') + '</button></div>';
       } else {
         showToast(d.config.substring(0, 2000), 'info', 10000);
       }
     } else {
       const msg = t('status_error') + ': ' + (d.error || t('msg_no_config'));
-      if (targetEl) targetEl.innerHTML = '<div class="alert alert-error" style="font-size:12px;">' + esc(msg) + '</div>';
+      if (targetEl) targetEl.innerHTML = '<div class="alert alert-error text-sm">' + esc(msg) + '</div>';
       else showToast(msg, 'error');
     }
   } catch (e) {
     const msg = t('status_error') + ': ' + e.message;
-    if (targetEl) targetEl.innerHTML = '<div class="alert alert-error" style="font-size:12px;">' + esc(msg) + '</div>';
+    if (targetEl) targetEl.innerHTML = '<div class="alert alert-error text-sm">' + esc(msg) + '</div>';
     else showToast(msg, 'error');
   }
 }
@@ -730,7 +730,7 @@ export async function runSubnetScan() {
   if (!subnet) { showToast(t('msg_enter_subnet'), 'warning'); return; }
   btn.disabled = true;
   btn.textContent = t('msg_scanning','Scanning...');
-  box.innerHTML = '<div style="text-align:center;padding:16px;"><div class="loader" style="width:20px;height:20px;margin:0 auto 8px;"></div>' + t('msg_scanning','Scanning...').replace('...','') + ' ' + esc(subnet) + '...</div>';
+  box.innerHTML = '<div class="text-center p-4"><div class="loader loader-md mx-auto mt-0 mb-2"></div>' + t('msg_scanning','Scanning...').replace('...','') + ' ' + esc(subnet) + '...</div>';
 
   try {
     var d = await apiFetch('/api/network/scan', {
@@ -744,33 +744,33 @@ export async function runSubnetScan() {
     // A scan that returned nothing at all is not the same as a scan that found
     // no devices; treat a missing list as an empty one rather than throwing.
     if (!d.found || d.found.length === 0) {
-      box.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:13px;">' + t('msg_no_devices_found','No devices found in') + ' ' + esc(subnet) + '</div>';
+      box.innerHTML = '<div class="p-3 text-muted text-ui">' + t('msg_no_devices_found','No devices found in') + ' ' + esc(subnet) + '</div>';
       return;
     }
 
-    var html = '<div style="font-size:13px;margin-bottom:8px;"><strong>' + d.found.length + '</strong> ' + t('msg_devices_found_in','devices found in') + ' ' + esc(subnet) + '</div>';
-    html += '<table class="section-table" style="width:100%;"><thead><tr><th>IP</th><th>SSH</th><th>HTTPS</th><th>UniFi</th><th>' + t('info') + '</th><th>' + t('btn_actions','Actions') + '</th></tr></thead><tbody>';
+    var html = '<div class="text-ui mb-2"><strong>' + d.found.length + '</strong> ' + t('msg_devices_found_in','devices found in') + ' ' + esc(subnet) + '</div>';
+    html += '<table class="section-table w-full"><thead><tr><th>IP</th><th>SSH</th><th>HTTPS</th><th>UniFi</th><th>' + t('info') + '</th><th>' + t('btn_actions','Actions') + '</th></tr></thead><tbody>';
     for (var dev of d.found) {
-      var isUf = dev.is_unifi ? '<span style="color:var(--green);">' + t('lbl_yes','Yes') + '</span>' : '<span style="color:var(--text-muted);">' + t('lbl_no','No') + '</span>';
+      var isUf = dev.is_unifi ? '<span class="text-success">' + t('lbl_yes','Yes') + '</span>' : '<span class="text-muted">' + t('lbl_no','No') + '</span>';
       var hostSafe = esc(dev.host);
       var hostId = String(dev.host).replace(/[^a-zA-Z0-9_-]/g, '_');
       html += '<tr>';
-      html += '<td style="font-family:var(--mono);font-size:12px;">' + hostSafe + '</td>';
-      html += '<td>' + (dev.ssh ? '<span style="color:var(--green);">&#10003;</span>' : '—') + '</td>';
-      html += '<td>' + (dev.https ? '<span style="color:var(--green);">&#10003;</span>' : '—') + '</td>';
+      html += '<td class="font-mono text-sm">' + hostSafe + '</td>';
+      html += '<td>' + (dev.ssh ? '<span class="text-success">&#10003;</span>' : '—') + '</td>';
+      html += '<td>' + (dev.https ? '<span class="text-success">&#10003;</span>' : '—') + '</td>';
       html += '<td>' + isUf + '</td>';
-      html += '<td style="font-size:11px;color:var(--text-muted);">' + esc(dev.device_hint || dev.ssh_banner || '') + '</td>';
-      html += '<td style="white-space:nowrap;">';
+      html += '<td class="text-xs text-muted">' + esc(dev.device_hint || dev.ssh_banner || '') + '</td>';
+      html += '<td class="nowrap">';
       var alreadyAdded = _unifiDirectDevices.some(function(d2) { return d2.host === dev.host; });
       if (alreadyAdded) {
-        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;color:var(--green);" disabled>' + t('status_added','Added') + '</button> ';
+        html += '<button class="btn btn-default btn-sm text-success" disabled>' + t('status_added','Added') + '</button> ';
       } else {
-        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" id="scan-add-' + hostId + '" data-click-handler="addScannedDevice" data-host="' + hostSafe + '">' + t('btn_add','Add') + '</button> ';
+        html += '<button class="btn btn-default btn-sm" id="scan-add-' + hostId + '" data-click-handler="addScannedDevice" data-host="' + hostSafe + '">' + t('btn_add','Add') + '</button> ';
       }
       if (dev.ssh) {
-        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" data-click-handler="scanDeviceSetInform" data-host="' + hostSafe + '">' + t('set_inform') + '</button> ';
-        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" data-click-handler="scanDeviceConfig" data-host="' + hostSafe + '" data-row-id="scan-cfg-' + hostId + '">' + t('btn_view_config','Vis konfig') + '</button> ';
-        html += '<button class="btn btn-default" style="font-size:10px;padding:2px 8px;" data-click-handler="scanDeviceReboot" data-host="' + hostSafe + '">' + t('btn_restart','Restart') + '</button>';
+        html += '<button class="btn btn-default btn-sm" data-click-handler="scanDeviceSetInform" data-host="' + hostSafe + '">' + t('set_inform') + '</button> ';
+        html += '<button class="btn btn-default btn-sm" data-click-handler="scanDeviceConfig" data-host="' + hostSafe + '" data-row-id="scan-cfg-' + hostId + '">' + t('btn_view_config','Vis konfig') + '</button> ';
+        html += '<button class="btn btn-default btn-sm" data-click-handler="scanDeviceReboot" data-host="' + hostSafe + '">' + t('btn_restart','Restart') + '</button>';
       }
       html += '</td>';
       html += '</tr>';
@@ -828,15 +828,15 @@ async function scanDeviceSetInform(host) {
   // Use the confirm modal infrastructure to show preset + custom URL picker
   document.getElementById('confirm-modal-title').textContent = t('hdr_set_inform','Set-Inform') + ' \u2014 ' + host;
   var bodyEl = document.getElementById('confirm-modal-body');
-  var pickHtml = '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">';
+  var pickHtml = '<div class="flex flex-col gap-2 mb-3">';
   for (var p of presets) {
-    pickHtml += '<button class="btn btn-primary" style="font-size:12px;padding:8px 14px;" data-click-handler="doScanSetInform" data-host="' + esc(host) + '" data-url="' + esc(p.url) + '">' + esc(p.label) + ' <span style="font-size:10px;opacity:0.7;margin-left:4px;">' + esc(p.url) + '</span></button>';
+    pickHtml += '<button class="btn btn-primary btn-sm" data-click-handler="doScanSetInform" data-host="' + esc(host) + '" data-url="' + esc(p.url) + '">' + esc(p.label) + ' <span class="text-2xs opacity-70 ml-1">' + esc(p.url) + '</span></button>';
   }
   pickHtml += '</div>';
-  pickHtml += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">' + t('eller_angi_manuelt') + '</div>';
-  pickHtml += '<div style="display:flex;gap:6px;align-items:center;">';
-  pickHtml += '<input class="field-input" id="scan-inform-custom-url" type="text" placeholder="http://controller:8080/inform" style="flex:1;margin:0;">';
-  pickHtml += '<button class="btn btn-default" style="font-size:12px;padding:6px 12px;white-space:nowrap;" data-click-handler="doScanSetInformCustomUrl" data-host="' + esc(host) + '">' + t('btn_send','Send') + '</button>';
+  pickHtml += '<div class="text-sm text-muted mb-1">' + t('eller_angi_manuelt') + '</div>';
+  pickHtml += '<div class="flex gap-2 items-center">';
+  pickHtml += '<input class="field-input flex-1 m-0" id="scan-inform-custom-url" type="text" placeholder="http://controller:8080/inform">';
+  pickHtml += '<button class="btn btn-default btn-sm nowrap" data-click-handler="doScanSetInformCustomUrl" data-host="' + esc(host) + '">' + t('btn_send','Send') + '</button>';
   pickHtml += '</div>';
   bodyEl.innerHTML = pickHtml;
   var modal = document.getElementById('confirm-modal');
@@ -870,7 +870,7 @@ async function scanDeviceConfig(host, rowId) {
   if (!row) return;
   var cell = row.querySelector('td');
   row.style.display = '';
-  cell.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:12px;">' + t('msg_loading_config','Loading configuration...') + '</div>';
+  cell.innerHTML = '<div class="p-2 text-muted text-sm">' + t('msg_loading_config','Loading configuration...') + '</div>';
   var creds = _scanDeviceCreds(host);
   try {
     var d = await apiFetch('/api/unifi/device-config', {
@@ -883,16 +883,16 @@ async function scanDeviceConfig(host, rowId) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({host: host, config: d.config})
       }).catch(function() {});
-      cell.innerHTML = '<div style="padding:6px;"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
-        + '<span style="font-weight:600;font-size:12px;">' + t('lbl_running_config','Running configuration') + ' · ' + esc(host) + '</span>'
-        + '<span style="font-size:10px;color:var(--green);">' + t('msg_backup_saved','Backup saved') + '</span></div>'
-        + '<pre style="max-height:300px;overflow:auto;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:11px;white-space:pre-wrap;word-break:break-all;">' + esc(d.config) + '</pre>'
-        + '<button class="btn btn-default" style="font-size:11px;padding:3px 8px;margin-top:6px;" data-click-handler="scanDeviceConfigClose" data-row-id="' + esc(rowId) + '">' + t('btn_close','Close') + '</button></div>';
+      cell.innerHTML = '<div class="p-2"><div class="flex items-center justify-between mb-1">'
+        + '<span class="fw-semibold text-sm">' + t('lbl_running_config','Running configuration') + ' · ' + esc(host) + '</span>'
+        + '<span class="text-2xs text-success">' + t('msg_backup_saved','Backup saved') + '</span></div>'
+        + '<pre class="inset max-h-md overflow-auto text-xs pre-wrap break-all">' + esc(d.config) + '</pre>'
+        + '<button class="btn btn-default btn-sm mt-2" data-click-handler="scanDeviceConfigClose" data-row-id="' + esc(rowId) + '">' + t('btn_close','Close') + '</button></div>';
     } else {
-      cell.innerHTML = '<div class="alert alert-error" style="font-size:12px;">' + esc(d.error || t('msg_no_config','No config')) + '</div>';
+      cell.innerHTML = '<div class="alert alert-error text-sm">' + esc(d.error || t('msg_no_config','No config')) + '</div>';
     }
   } catch (e) {
-    cell.innerHTML = '<div class="alert alert-error" style="font-size:12px;">' + esc(e.message) + '</div>';
+    cell.innerHTML = '<div class="alert alert-error text-sm">' + esc(e.message) + '</div>';
   }
 }
 
@@ -914,7 +914,7 @@ async function scanDeviceReboot(host) {
 
 export async function loadConfigBackups() {
   var box = document.getElementById('config-backups-list');
-  box.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">' + t('msg_loading','Loading...') + '</div>';
+  box.innerHTML = '<div class="text-muted text-sm">' + t('msg_loading','Loading...') + '</div>';
   try {
     var cid = await toolCustomerId();
     if (!cid) { if (box) box.innerHTML = toolNoCustomerHtml(); return; }
@@ -929,12 +929,12 @@ export async function loadConfigBackups() {
       });
       return;
     }
-    var html = '<table class="section-table" style="width:100%;"><thead><tr><th>' + t('lbl_timestamp','Timestamp') + '</th><th>' + t('lbl_device','Device') + '</th><th>' + t('lbl_size','Size') + '</th></tr></thead><tbody>';
+    var html = '<table class="section-table w-full"><thead><tr><th>' + t('lbl_timestamp','Timestamp') + '</th><th>' + t('lbl_device','Device') + '</th><th>' + t('lbl_size','Size') + '</th></tr></thead><tbody>';
     for (var b of d.backups) {
       html += '<tr>';
-      html += '<td style="font-size:12px;">' + esc(b.timestamp) + '</td>';
-      html += '<td style="font-family:var(--mono);font-size:12px;">' + esc(b.host) + '</td>';
-      html += '<td style="font-size:12px;">' + Math.round(b.size / 1024) + ' KB</td>';
+      html += '<td class="text-sm">' + esc(b.timestamp) + '</td>';
+      html += '<td class="font-mono text-sm">' + esc(b.host) + '</td>';
+      html += '<td class="text-sm">' + Math.round(b.size / 1024) + ' KB</td>';
       html += '</tr>';
     }
     html += '</tbody></table>';
@@ -965,12 +965,12 @@ async function testFortiGate() {
       })
     });
     if (d && d.ok) {
-      res.innerHTML = '<span style="color:var(--green);">OK · ' + esc(d.hostname) + ' (FW: ' + esc(d.firmware) + ', S/N: ' + esc(d.serial) + ')</span>';
+      res.innerHTML = '<span class="text-success">OK · ' + esc(d.hostname) + ' (FW: ' + esc(d.firmware) + ', S/N: ' + esc(d.serial) + ')</span>';
     } else {
-      res.innerHTML = '<span style="color:var(--red);">' + t('status_error','Error') + ': ' + esc(d && d.error ? d.error : t('err_connection_failed','Connection failed')) + '</span>';
+      res.innerHTML = '<span class="text-danger">' + t('status_error','Error') + ': ' + esc(d && d.error ? d.error : t('err_connection_failed','Connection failed')) + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    res.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -989,13 +989,13 @@ async function saveFortiGate() {
       })
     });
     if (d && d.ok) {
-      res.innerHTML = '<span style="color:var(--green);">' + t('msg_saved','Saved') + '</span>';
+      res.innerHTML = '<span class="text-success">' + t('msg_saved','Saved') + '</span>';
       loadNetworkDevices();
     } else {
-      res.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('err_save_failed','Save failed')) + '</span>';
+      res.innerHTML = '<span class="text-danger">' + esc(d && d.error ? d.error : t('err_save_failed','Save failed')) + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    res.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -1015,12 +1015,12 @@ async function testUniFi() {
     });
 
     if (d.ok) {
-      res.innerHTML = '<span style="color:var(--green);">OK · ' + Number(d.sites) + ' site(s) (' + esc(d.controller_type) + '): ' + esc((d.site_names||[]).join(', ')) + '</span>';
+      res.innerHTML = '<span class="text-success">OK · ' + Number(d.sites) + ' site(s) (' + esc(d.controller_type) + '): ' + esc((d.site_names||[]).join(', ')) + '</span>';
     } else {
-      res.innerHTML = '<span style="color:var(--red);">' + t('lbl_error','Feil') + ': ' + esc(d.error) + '</span>';
+      res.innerHTML = '<span class="text-danger">' + t('lbl_error','Feil') + ': ' + esc(d.error) + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    res.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -1039,13 +1039,13 @@ async function saveUniFi() {
       })
     });
     if (d.ok) {
-      res.innerHTML = '<span style="color:var(--green);">' + t('lagret') + '</span>';
+      res.innerHTML = '<span class="text-success">' + t('lagret') + '</span>';
       loadNetworkDevices();
     } else {
-      res.innerHTML = '<span style="color:var(--red);">' + esc(d.error) + '</span>';
+      res.innerHTML = '<span class="text-danger">' + esc(d.error) + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    res.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -1060,11 +1060,11 @@ export async function testITGlue() {
       body: JSON.stringify({api_key: key, region: region})
     });
     if (d && d.ok) {
-      result.innerHTML = `<span style="color:var(--green);">✓ Tilkoblet (${Number(d.organizations)} organisasjoner)</span>`;
+      result.innerHTML = `<span class="text-success">✓ Tilkoblet (${Number(d.organizations)} organisasjoner)</span>`;
     } else {
-      result.innerHTML = `<span style="color:var(--red);">✗ ${d ? esc(d.error) : t('status_error','Error')}</span>`;
+      result.innerHTML = `<span class="text-danger">✗ ${d ? esc(d.error) : t('status_error','Error')}</span>`;
     }
   } catch(e) {
-    result.innerHTML = `<span style="color:var(--red);">✗ ${esc(e.message)}</span>`;
+    result.innerHTML = `<span class="text-danger">✗ ${esc(e.message)}</span>`;
   }
 }

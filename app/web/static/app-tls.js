@@ -6,6 +6,7 @@ import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {canWrite} from './app-state.js';
+import {toneClass, toneVar} from './app-format.js';
 import {showConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {_notifDays} from './app-dashboard.js';
@@ -26,28 +27,28 @@ export function tlsLoadView() {
   var html = '<div class="card tls-known" id="tls-known"><div class="loading-note">' + esc(t('msg_tls_loading', 'Laster...')) + '</div></div>';
 
   // ── Quick-check card ──
-  html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-  html += '<div style="font-size:14px;font-weight:600;margin-bottom:12px;">' + t('tls_scan_single','Check single endpoint') + '</div>';
-  html += '<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">';
-  html += '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('tls_host','Host') + '</label>';
-  html += '<input id="tls-host" type="text" placeholder="sybr.no" style="width:260px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>';
-  html += '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">' + t('tls_port','Port') + '</label>';
-  html += '<input id="tls-port" type="number" value="443" style="width:80px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></div>';
-  html += '<button class="btn btn-primary" data-click-handler="tlsCheckSingle" style="padding:8px 20px;font-size:13px;">' + t('tls_check','Check') + '</button>';
+  html += '<div class="card p-4 mb-4">';
+  html += '<div class="text-base fw-semibold mb-3">' + t('tls_scan_single','Check single endpoint') + '</div>';
+  html += '<div class="flex gap-2 items-end flex-wrap">';
+  html += '<div><label class="field-label">' + t('tls_host','Host') + '</label>';
+  html += '<input id="tls-host" type="text" placeholder="sybr.no" class="field-input input-medium"></div>';
+  html += '<div><label class="field-label">' + t('tls_port','Port') + '</label>';
+  html += '<input id="tls-port" type="number" value="443" class="field-input input-narrow"></div>';
+  html += '<button class="btn btn-primary" data-click-handler="tlsCheckSingle">' + t('tls_check','Check') + '</button>';
   html += '</div>';
-  html += '<div id="tls-single-result" style="margin-top:12px;"></div>';
+  html += '<div id="tls-single-result" class="mt-3"></div>';
   html += '</div>';
 
   // ── Auto-discover + batch scan card ──
-  html += '<div class="card" style="padding:16px;margin-bottom:16px;">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">';
-  html += '<div style="font-size:14px;font-weight:600;">' + t('tls_scan_batch','Scan all customer endpoints') + '</div>';
-  html += '<div style="display:flex;gap:8px;">';
-  html += '<button class="btn" data-click-handler="tlsAutoDiscover" id="tls-discover-btn" style="padding:6px 16px;font-size:12px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;">' + t('tls_auto_discover','Auto-oppdag') + '</button>';
-  html += '<button class="btn btn-primary" data-click-handler="tlsScanAll" id="tls-scan-btn" style="padding:6px 16px;font-size:12px;">' + t('tls_check','Check') + '</button>';
+  html += '<div class="card p-4 mb-4">';
+  html += '<div class="flex items-center justify-between mb-3">';
+  html += '<div class="text-base fw-semibold">' + t('tls_scan_batch','Scan all customer endpoints') + '</div>';
+  html += '<div class="flex gap-2">';
+  html += '<button class="btn btn-sm bg-input border text-default rounded cursor-pointer" data-click-handler="tlsAutoDiscover" id="tls-discover-btn">' + t('tls_auto_discover','Auto-oppdag') + '</button>';
+  html += '<button class="btn btn-primary btn-sm" data-click-handler="tlsScanAll" id="tls-scan-btn">' + t('tls_check','Check') + '</button>';
   html += '</div></div>';
-  html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">' + t('tls_discovery_hint','Samler endepunkter fra SSH-verter, FortiGate og UniFi-konfigurasjoner.') + '</div>';
-  html += '<div id="tls-discovered" style="margin-bottom:8px;"></div>';
+  html += '<div class="text-sm text-muted mb-2">' + t('tls_discovery_hint','Samler endepunkter fra SSH-verter, FortiGate og UniFi-konfigurasjoner.') + '</div>';
+  html += '<div id="tls-discovered" class="mb-2"></div>';
   html += '<div id="tls-batch-result"></div>';
   html += '</div>';
 
@@ -159,45 +160,45 @@ async function tlsCheckSingle() {
   document.getElementById('tls-host').value = host;
   var port = parseInt(document.getElementById('tls-port').value) || 443;
   var el = document.getElementById('tls-single-result');
-  if (!host) { el.innerHTML = '<span style="color:var(--red);">' + t('tls_error','Feil') + ': ' + t('tls_host_required','Vert er påkrevd') + '</span>'; return; }
+  if (!host) { el.innerHTML = '<span class="text-danger">' + t('tls_error','Feil') + ': ' + t('tls_host_required','Vert er påkrevd') + '</span>'; return; }
 
-  el.innerHTML = '<div class="loader" style="width:16px;height:16px;display:inline-block;vertical-align:middle;"></div> <span style="color:var(--text-muted);font-size:12px;">' + t('tls_scanning','Scanning...') + '</span>';
+  el.innerHTML = '<div class="loader align-middle"></div> <span class="text-muted text-sm">' + t('tls_scanning','Scanning...') + '</span>';
 
   var data = await apiFetch('/api/tls/check', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:host, port:port})});
-  if (!data) { el.innerHTML = '<span style="color:var(--red);">' + t('tls_connect_failed','Feil ved tilkobling') + '</span>'; return; }
+  if (!data) { el.innerHTML = '<span class="text-danger">' + t('tls_connect_failed','Feil ved tilkobling') + '</span>'; return; }
   el.innerHTML = _tlsRenderSingleResult(data);
   tlsLoadKnown();
 }
 
 function _tlsRenderSingleResult(r) {
   if (r.error) {
-    return '<div class="card" style="padding:12px;border-left:3px solid var(--red);">'
-      + '<strong style="color:var(--red);">' + t('tls_error','Error') + '</strong>: ' + esc(r.error) + '</div>';
+    return '<div class="card p-3 edge-danger">'
+      + '<strong class="text-danger">' + t('tls_error','Error') + '</strong>: ' + esc(r.error) + '</div>';
   }
 
   var chainBad = r.chain_valid === false;
   var statusColor = r.expired ? 'var(--red)' : r.expiring_soon || chainBad || r.weak_protocol || r.weak_cipher ? 'var(--orange)' : 'var(--green)';
   var statusLabel = r.expired ? t('tls_expired','Expired') : r.expiring_soon ? t('tls_expiring_soon','Expiring soon') : chainBad ? tlsStateLabel('invalid_chain') : r.weak_protocol || r.weak_cipher ? t('tls_weak','Weak') : t('tls_valid','Valid');
 
-  var html = '<div class="card" style="padding:14px;border-left:3px solid '+statusColor+';">';
-  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
-  html += '<span style="width:10px;height:10px;border-radius:50%;background:'+statusColor+';display:inline-block;"></span>';
-  html += '<strong style="font-size:14px;">' + esc(r.host) + ':' + Number(r.port) + '</strong>';
-  html += '<span style="font-size:12px;color:'+statusColor+';font-weight:600;">' + statusLabel + '</span>';
+  var html = '<div class="card p-4 edge-tone ' + toneVar(statusColor) + '">';
+  html += '<div class="flex items-center gap-2 mb-3">';
+  html += '<span class="dot dot-lg ' + toneClass(statusColor) + '"></span>';
+  html += '<strong class="text-base">' + esc(r.host) + ':' + Number(r.port) + '</strong>';
+  html += '<span class="text-sm ' + toneClass(statusColor) + ' fw-semibold">' + statusLabel + '</span>';
   html += '</div>';
   if (chainBad) html += '<p class="tls-warn tls-chain-note">' + esc(tlsChainLabel(r.chain_problem)) + '</p>';
 
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--text-muted);">';
-  html += '<span>' + t('tls_subject','Certificate') + ': <strong style="color:var(--text);">' + esc(r.subject && r.subject.commonName || '-') + '</strong></span>';
+  html += '<div class="grid grid-cols-2 gap-2 text-sm text-muted">';
+  html += '<span>' + t('tls_subject','Certificate') + ': <strong class="text-default">' + esc(r.subject && r.subject.commonName || '-') + '</strong></span>';
   html += '<span>' + t('tls_issuer','Issuer') + ': ' + esc(r.issuer && r.issuer.organizationName || r.issuer && r.issuer.commonName || '-') + '</span>';
-  html += '<span>' + t('tls_expires','Expires') + ': <strong style="color:' + (r.expired ? 'var(--red)' : r.expiring_soon ? 'var(--orange)' : 'var(--text)') + ';">' + (r.not_after ? esc(r.not_after.slice(0,10)) : '-') + '</strong></span>';
-  html += '<span>' + t('tls_days_left','Days left') + ': <strong style="color:' + (r.days_remaining < 0 ? 'var(--red)' : r.days_remaining < 30 ? 'var(--orange)' : 'var(--green)') + ';">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></span>';
-  html += '<span>' + t('tls_protocol','Protocol') + ': <span style="color:' + (r.weak_protocol ? 'var(--red)' : 'var(--green)') + ';font-weight:600;">' + esc(r.protocol_version || '-') + '</span></span>';
-  html += '<span>' + t('tls_cipher','Cipher') + ': <span style="color:' + (r.weak_cipher ? 'var(--red)' : 'var(--text)') + ';">' + esc(r.cipher || '-') + '</span>' + (r.key_bits ? ' (' + Number(r.key_bits) + ' bit)' : '') + '</span>';
+  html += '<span>' + t('tls_expires','Expires') + ': <strong class="' + (r.expired ? 'text-danger' : r.expiring_soon ? 'text-warning' : 'text-default') + '">' + (r.not_after ? esc(r.not_after.slice(0,10)) : '-') + '</strong></span>';
+  html += '<span>' + t('tls_days_left','Days left') + ': <strong class="' + (r.days_remaining < 0 ? 'text-danger' : r.days_remaining < 30 ? 'text-warning' : 'text-success') + '">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></span>';
+  html += '<span>' + t('tls_protocol','Protocol') + ': <span class="fw-semibold ' + (r.weak_protocol ? 'text-danger' : 'text-success') + '">' + esc(r.protocol_version || '-') + '</span></span>';
+  html += '<span>' + t('tls_cipher','Cipher') + ': <span class="' + (r.weak_cipher ? 'text-danger' : 'text-default') + '">' + esc(r.cipher || '-') + '</span>' + (r.key_bits ? ' (' + Number(r.key_bits) + ' bit)' : '') + '</span>';
   if (r.san && r.san.length) {
-    html += '<span style="grid-column:span 2;">SAN: ' + r.san.map(function(s){return esc(s);}).join(', ') + '</span>';
+    html += '<span class="col-span-2">SAN: ' + r.san.map(function(s){return esc(s);}).join(', ') + '</span>';
   }
-  html += '<span>S/N: <span style="font-family:var(--mono);font-size:11px;">' + esc(r.serial_number || '-') + '</span></span>';
+  html += '<span>S/N: <span class="font-mono text-xs">' + esc(r.serial_number || '-') + '</span></span>';
   html += '</div></div>';
   return html;
 }
@@ -210,14 +211,14 @@ async function tlsAutoDiscover() {
   var el = document.getElementById('tls-discovered');
   btn.disabled = true;
   btn.textContent = t('msg_discovering','Discovering …');
-  el.innerHTML = '<div class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></div> <span style="color:var(--text-muted);font-size:12px;">' + t('tls_scanning_hosts','Skanner konfigurerte verter ...') + '</span>';
+  el.innerHTML = '<div class="loader align-middle"></div> <span class="text-muted text-sm">' + t('tls_scanning_hosts','Skanner konfigurerte verter ...') + '</span>';
 
   var data = await apiFetch('/api/tls/auto-discover');
   btn.disabled = false;
   btn.textContent = t('btn_auto_discover','Auto-discover');
 
   if (!data || !data.endpoints || !data.endpoints.length) {
-    el.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">' + t('tls_none_on_hosts','Ingen TLS-endepunkter funnet blant de konfigurerte vertene.') + '</span>';
+    el.innerHTML = '<span class="text-sm text-muted">' + t('tls_none_on_hosts','Ingen TLS-endepunkter funnet blant de konfigurerte vertene.') + '</span>';
     _tlsDiscoveredEndpoints = null;
     return;
   }
@@ -232,8 +233,8 @@ async function tlsAutoDiscover() {
     bySource[src].push(ep);
   });
 
-  var html = '<div style="font-size:12px;margin-bottom:4px;">';
-  html += '<span style="color:var(--green);font-weight:600;">' + Number(data.count) + '</span> endpoints discovered: ';
+  var html = '<div class="text-sm mb-1">';
+  html += '<span class="text-success fw-semibold">' + Number(data.count) + '</span> endpoints discovered: ';
   var parts = [];
   var sourceLabels = {ssh:'SSH hosts', fortigate:'FortiGate', unifi:'UniFi'};
   for (var src in bySource) {
@@ -243,11 +244,11 @@ async function tlsAutoDiscover() {
   html += '</div>';
 
   // Compact list of hosts
-  html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
+  html += '<div class="flex flex-wrap gap-1 mt-1">';
   data.endpoints.forEach(function(ep) {
     var srcColor = ep.source === 'fortigate' ? 'var(--orange)' : ep.source === 'unifi' ? 'var(--blue)' : 'var(--green)';
-    html += '<span style="display:inline-block;padding:2px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;font-size:11px;font-family:var(--mono);">';
-    html += '<span style="color:'+srcColor+';margin-right:4px;">&#9679;</span>';
+    html += '<span class="inline-block py-0-5 px-2 bg-input border rounded-full text-xs font-mono">';
+    html += '<span class="' + toneClass(srcColor) + ' mr-1">&#9679;</span>';
     html += esc(ep.host) + ':' + Number(ep.port);
     html += '</span>';
   });
@@ -262,7 +263,7 @@ async function tlsScanAll() {
   btn.disabled = true;
   btn.textContent = t('tls_scanning','Scanning...');
 
-  el.innerHTML = '<div class="loader" style="width:20px;height:20px;margin:16px auto;"></div><div style="text-align:center;color:var(--text-muted);font-size:12px;">' + t('tls_scanning','Scanning...') + '</div>';
+  el.innerHTML = '<div class="loader loader-md mx-auto my-4"></div><div class="text-center text-muted text-sm">' + t('tls_scanning','Scanning...') + '</div>';
 
   // Use auto-discovered endpoints if available, otherwise fetch from server
   var endpoints;
@@ -275,7 +276,7 @@ async function tlsScanAll() {
   }
 
   if (!endpoints.length) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;">' + t('tls_no_endpoints','No endpoints found.') + '</div>';
+    el.innerHTML = '<div class="empty-note is-compact">' + t('tls_no_endpoints','No endpoints found.') + '</div>';
     btn.disabled = false;
     btn.textContent = t('tls_check','Check');
     return;
@@ -286,13 +287,13 @@ async function tlsScanAll() {
   btn.textContent = t('tls_check','Check');
 
   if (!data || !data.results) {
-    el.innerHTML = '<div style="color:var(--red);text-align:center;padding:16px;">' + t('tls_error','Error') + '</div>';
+    el.innerHTML = '<div class="text-danger text-center p-4">' + t('tls_error','Error') + '</div>';
     return;
   }
   tlsLoadKnown();
 
   // ── KPI summary row ──
-  var html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">';
+  var html = '<div class="grid grid-cols-5 gap-3 mb-4">';
   var kpis = [
     {label:'Totalt', value:Number(data.total), color:'var(--blue)'},
     {label:t('tls_valid','Valid'), value:Number(data.valid), color:'var(--green)'},
@@ -301,24 +302,24 @@ async function tlsScanAll() {
     {label:t('tls_weak','Weak') + ' TLS', value:Number(data.weak_tls), color:data.weak_tls>0?'var(--orange)':'var(--text-dim)'},
   ];
   kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
-    html += '<div style="font-size:22px;font-weight:700;line-height:24px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);line-height:16px;">'+k.label+'</div>';
+    html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
+    html += '<div class="kpi-value ' + toneClass(k.color) + '">'+k.value+'</div>';
+    html += '<div class="kpi-label">'+k.label+'</div>';
     html += '</div>';
   });
   html += '</div>';
 
   // ── Results table ──
-  html += '<div style="overflow-x:auto;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="border-bottom:2px solid var(--border);background:var(--bg);">';
-  html += '<th style="text-align:left;padding:8px;">' + t('tls_status','Status') + '</th>';
-  html += '<th style="text-align:left;padding:8px;">' + t('tls_host','Host') + '</th>';
-  html += '<th style="text-align:left;padding:8px;">' + t('tls_subject','Certificate') + '</th>';
-  html += '<th style="text-align:left;padding:8px;">' + t('tls_issuer','Issuer') + '</th>';
-  html += '<th style="text-align:center;padding:8px;">' + t('tls_days_left','Days left') + '</th>';
-  html += '<th style="text-align:left;padding:8px;">' + t('tls_protocol','Protocol') + '</th>';
-  html += '<th style="text-align:left;padding:8px;">' + t('tls_cipher','Cipher') + '</th>';
+  html += '<div class="overflow-x-auto">';
+  html += '<table class="data-table">';
+  html += '<thead><tr class="bg-base">';
+  html += '<th class="p-2">' + t('tls_status','Status') + '</th>';
+  html += '<th class="p-2">' + t('tls_host','Host') + '</th>';
+  html += '<th class="p-2">' + t('tls_subject','Certificate') + '</th>';
+  html += '<th class="p-2">' + t('tls_issuer','Issuer') + '</th>';
+  html += '<th class="text-center p-2">' + t('tls_days_left','Days left') + '</th>';
+  html += '<th class="p-2">' + t('tls_protocol','Protocol') + '</th>';
+  html += '<th class="p-2">' + t('tls_cipher','Cipher') + '</th>';
   html += '</tr></thead><tbody>';
 
   // Sort: errors first, then expired, then expiring_soon, then broken chains,
@@ -351,31 +352,31 @@ async function tlsScanAll() {
       statusColor = 'var(--green)'; statusText = t('tls_valid','Valid'); statusIcon = '&#10003;';
     }
 
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:8px;white-space:nowrap;"><span style="color:'+statusColor+';font-weight:600;">'+statusIcon+' '+statusText+'</span></td>';
-    html += '<td style="padding:8px;font-family:var(--mono);font-size:11px;">' + esc(r.host) + ':' + Number(r.port) + (r.label ? '<br><span style="font-family:inherit;font-size:10px;color:var(--text-dim);">' + esc(r.label) + '</span>' : '') + '</td>';
+    html += '<tr>';
+    html += '<td class="p-2 nowrap"><span class="' + toneClass(statusColor) + ' fw-semibold">'+statusIcon+' '+statusText+'</span></td>';
+    html += '<td class="p-2 font-mono text-xs">' + esc(r.host) + ':' + Number(r.port) + (r.label ? '<br><span class="text-2xs text-dim">' + esc(r.label) + '</span>' : '') + '</td>';
 
     if (r.error) {
-      html += '<td colspan="5" style="padding:8px;color:var(--red);font-size:11px;">' + esc(r.error) + '</td>';
+      html += '<td colspan="5" class="p-2 text-danger text-xs">' + esc(r.error) + '</td>';
     } else {
-      html += '<td style="padding:8px;">' + esc(r.subject && r.subject.commonName || '-')
+      html += '<td class="p-2">' + esc(r.subject && r.subject.commonName || '-')
         + (r.chain_valid === false ? '<span class="tls-sub tls-warn">' + esc(tlsChainLabel(r.chain_problem)) + '</span>' : '') + '</td>';
-      html += '<td style="padding:8px;color:var(--text-muted);">' + esc(r.issuer && (r.issuer.organizationName || r.issuer.commonName) || '-') + '</td>';
+      html += '<td class="p-2 text-muted">' + esc(r.issuer && (r.issuer.organizationName || r.issuer.commonName) || '-') + '</td>';
 
       var daysColor = r.days_remaining < 0 ? 'var(--red)' : r.days_remaining < 30 ? 'var(--orange)' : 'var(--green)';
-      html += '<td style="padding:8px;text-align:center;"><strong style="color:'+daysColor+';">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></td>';
+      html += '<td class="p-2 text-center"><strong class="' + toneClass(daysColor) + '">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></td>';
 
       var protoColor = r.weak_protocol ? 'var(--red)' : 'var(--green)';
-      html += '<td style="padding:8px;"><span style="color:'+protoColor+';font-weight:600;">' + esc(r.protocol_version || '-') + '</span></td>';
+      html += '<td class="p-2"><span class="' + toneClass(protoColor) + ' fw-semibold">' + esc(r.protocol_version || '-') + '</span></td>';
 
       var cipherColor = r.weak_cipher ? 'var(--red)' : 'var(--text-muted)';
-      html += '<td style="padding:8px;font-size:11px;color:'+cipherColor+';">' + esc(r.cipher || '-') + (r.key_bits ? ' <span style="color:var(--text-dim);">(' + Number(r.key_bits) + 'b)</span>' : '') + '</td>';
+      html += '<td class="p-2 text-xs ' + toneClass(cipherColor) + '">' + esc(r.cipher || '-') + (r.key_bits ? ' <span class="text-dim">(' + Number(r.key_bits) + 'b)</span>' : '') + '</td>';
     }
     html += '</tr>';
   });
 
   html += '</tbody></table></div>';
-  html += '<div style="margin-top:8px;font-size:11px;color:var(--text-dim);">' + t('tls_scan_complete','Scan complete') + ' · ' + (data.scanned_at ? esc(data.scanned_at.slice(0,19).replace('T',' ')) : '') + ' UTC</div>';
+  html += '<div class="mt-2 text-xs text-dim">' + t('tls_scan_complete','Scan complete') + ' · ' + (data.scanned_at ? esc(data.scanned_at.slice(0,19).replace('T',' ')) : '') + ' UTC</div>';
 
   el.innerHTML = html;
 }

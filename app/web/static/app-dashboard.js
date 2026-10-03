@@ -8,7 +8,7 @@ import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {onViewShown} from './app-hooks.js';
 import {_overviewData, canOpenView, hasModule, setOverviewData} from './app-state.js';
-import {formatRunName, metricPct, timeAgo} from './app-format.js';
+import {badgeClass, formatRunName, metricPct, timeAgo, toneClass, toneVar} from './app-format.js';
 import {adminSignpostButton, openReportWindow, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {currentView, showNetworkTab, showView} from './app.js';
@@ -524,12 +524,12 @@ function _notifCoverageCard() {
 
 function _buildChainSection(chainData) {
   var html = '';
-  html += '<div style="margin:20px 0;">';
-  html += '<div style="font-size:15px;font-weight:700;margin-bottom:10px;">'+icon('mail',16)+' '+t('hdr_domain_email_chain','Domain-Email-License')+'</div>';
+  html += '<div class="my-5">';
+  html += '<div class="text-md fw-bold mb-3">'+icon('mail',16)+' '+t('hdr_domain_email_chain','Domain-Email-License')+'</div>';
 
   if (!chainData || !chainData.items || chainData.items.length === 0) {
-    html += '<div class="card" style="padding:16px;text-align:center;color:var(--green);font-size:12px;">';
-    html += '<div style="font-size:24px;margin-bottom:4px;">&#10003;</div>';
+    html += '<div class="card p-4 text-center text-success text-sm">';
+    html += '<div class="text-xl mb-1">&#10003;</div>';
     html += t('msg_no_chain_alerts','No domain-email mismatches found.')+'</div>';
     html += '</div>';
     return html;
@@ -538,43 +538,42 @@ function _buildChainSection(chainData) {
   var s = chainData.summary || {};
 
   // KPI badges
-  html += '<div style="display:flex;gap:12px;margin-bottom:10px;font-size:12px;">';
-  if (s.double_paying > 0) html += '<span style="background:var(--orange);color:#fff;padding:3px 10px;border-radius:10px;font-weight:600;">'+Number(s.double_paying)+' '+t('lbl_double_paying','Double Paying')+'</span>';
-  if (s.missing_m365 > 0) html += '<span style="background:var(--red);color:#fff;padding:3px 10px;border-radius:10px;font-weight:600;">'+Number(s.missing_m365)+' '+t('lbl_missing_m365','Missing M365')+'</span>';
-  if (s.unused_m365 > 0) html += '<span style="background:var(--blue);color:#fff;padding:3px 10px;border-radius:10px;font-weight:600;">'+Number(s.unused_m365)+' '+t('lbl_unused_m365','Unused M365')+'</span>';
+  html += '<div class="flex gap-3 mb-3 text-sm">';
+  if (s.double_paying > 0) html += '<span class="badge badge-warning">'+Number(s.double_paying)+' '+t('lbl_double_paying','Double Paying')+'</span>';
+  if (s.missing_m365 > 0) html += '<span class="badge badge-danger">'+Number(s.missing_m365)+' '+t('lbl_missing_m365','Missing M365')+'</span>';
+  if (s.unused_m365 > 0) html += '<span class="badge badge-info">'+Number(s.unused_m365)+' '+t('lbl_unused_m365','Unused M365')+'</span>';
   html += '</div>';
 
   // Table
-  html += '<div class="card" style="padding:0;overflow:hidden;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:2px solid var(--border);">';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_customer','Customer')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_domain','Domain')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_mx_exchange','MX Exchange')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_has_m365','M365')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_uniweb_email','Uniweb Email')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_alert','Alert')+'</th>';
+  html += '<div class="card p-0 overflow-hidden">';
+  html += '<table class="data-table">';
+  html += '<thead><tr>';
+  html += '<th class="p-2">'+t('col_customer','Customer')+'</th>';
+  html += '<th class="p-2">'+t('col_domain','Domain')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_mx_exchange','MX Exchange')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_has_m365','M365')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_uniweb_email','Uniweb Email')+'</th>';
+  html += '<th class="p-2">'+t('col_alert','Alert')+'</th>';
   html += '</tr></thead><tbody>';
 
-  var chkY = '<span style="color:var(--green);font-weight:700;font-size:14px;">&#10003;</span>';
-  var chkN = '<span style="color:var(--red);font-weight:700;font-size:14px;">&#10007;</span>';
+  var chkY = '<span class="text-success fw-bold text-base">&#10003;</span>';
+  var chkN = '<span class="text-danger fw-bold text-base">&#10007;</span>';
 
   chainData.items.forEach(function(item, i) {
-    var rowBg = i % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
     var alertHtml = '';
     item.alerts.forEach(function(a) {
       var sevColors = {critical:'var(--red)', warning:'var(--orange)', info:'var(--blue)'};
       var sevLabels = {critical:t('lbl_severity_critical','Critical'), warning:t('lbl_severity_warning','Warning'), info:t('lbl_severity_info','Info')};
-      alertHtml += '<div style="margin-bottom:2px;"><span style="font-size:10px;font-weight:600;color:#fff;background:'+(sevColors[a.severity]||'var(--text-dim)')+';padding:1px 6px;border-radius:8px;">'+esc(sevLabels[a.severity]||a.severity)+'</span> <span style="font-size:11px;">'+esc(a.message)+'</span></div>';
+      alertHtml += '<div class="mb-0-5"><span class="'+badgeClass(sevColors[a.severity])+'">'+esc(sevLabels[a.severity]||a.severity)+'</span> <span class="text-xs">'+esc(a.message)+'</span></div>';
     });
 
-    html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px 8px;font-weight:500;">'+esc(item.customer_name)+'</td>';
-    html += '<td style="padding:6px 8px;">'+esc(item.domain)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+(item.mx_exchange ? chkY : chkN)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+(item.has_m365 ? chkY : chkN)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">'+(item.has_uniweb_email ? chkY : chkN)+'</td>';
-    html += '<td style="padding:6px 8px;">'+alertHtml+'</td>';
+    html += '<tr>';
+    html += '<td class="fw-medium">'+esc(item.customer_name)+'</td>';
+    html += '<td>'+esc(item.domain)+'</td>';
+    html += '<td class="text-center">'+(item.mx_exchange ? chkY : chkN)+'</td>';
+    html += '<td class="text-center">'+(item.has_m365 ? chkY : chkN)+'</td>';
+    html += '<td class="text-center">'+(item.has_uniweb_email ? chkY : chkN)+'</td>';
+    html += '<td>'+alertHtml+'</td>';
     html += '</tr>';
   });
 
@@ -600,20 +599,20 @@ async function dashLoadCosts() {
   el.innerHTML = '<div class="loader loader-md"></div>';
 
   var data = await apiFetch('/api/dashboard/costs');
-  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_costs_load_failed','Kunne ikke laste kostnadsdata') + '</div>'; return; }
+  if (!data) { el.innerHTML = '<div class="text-danger text-center p-12">' + t('dash_costs_load_failed','Kunne ikke laste kostnadsdata') + '</div>'; return; }
 
   var customers = data.customers || [];
   var totals = data.totals || {};
 
   if (customers.length === 0) {
-    el.innerHTML = '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);"><div style="font-size:14px;font-weight:600;margin-bottom:4px;">' + t('dash_no_cost_data','Ingen kostnadsdata') + '</div><div style="font-size:12px;">' + t('dash_no_cost_hint','Synkroniser ALSO-fornyelser eller Uniweb-kontoer for å se kostnader her.') + '</div></div>';
+    el.innerHTML = '<div class="card empty-note is-compact"><div class="text-base fw-semibold mb-1">' + t('dash_no_cost_data','Ingen kostnadsdata') + '</div><div class="text-sm">' + t('dash_no_cost_hint','Synkroniser ALSO-fornyelser eller Uniweb-kontoer for å se kostnader her.') + '</div></div>';
     return;
   }
 
   var html = '';
 
   // ── KPI row ──
-  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">';
+  html += '<div class="grid grid-cols-4 gap-3 mb-4">';
   var kpis = [
     {label:'Total MRR',           value:_fmtNOK(totals.total_monthly),  color:'var(--blue)'},
     {label:'ALSO MRR',            value:_fmtNOK(totals.also_mrr),       color:'#7c5cfc'},
@@ -621,51 +620,50 @@ async function dashLoadCosts() {
     {label:t('dash_customer_count','Antall kunder'), value:Number(totals.customer_count),           color:'var(--text)'},
   ];
   kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
-    html += '<div style="font-size:20px;font-weight:700;line-height:24px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);line-height:16px;">'+k.label+'</div>';
+    html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
+    html += '<div class="kpi-value ' + toneClass(k.color) + '">'+k.value+'</div>';
+    html += '<div class="kpi-label">'+k.label+'</div>';
     html += '</div>';
   });
   html += '</div>';
 
   // ── Customer cost table ──
-  html += '<div class="card" style="padding:0;overflow:hidden;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:2px solid var(--border);">';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_customer','Kunde')+'</th>';
-  html += '<th style="text-align:right;padding:8px;">'+t('col_also_mrr','ALSO MRR')+'</th>';
-  html += '<th style="text-align:right;padding:8px;">'+t('col_uniweb_cost','Uniweb')+'</th>';
-  html += '<th style="text-align:right;padding:8px;">'+t('col_total_cost','Total')+'</th>';
-  html += '<th style="text-align:center;padding:8px;width:180px;">'+t('col_distribution','Fordeling')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_subs','Abb.')+'</th>';
+  html += '<div class="card p-0 overflow-hidden">';
+  html += '<table class="data-table">';
+  html += '<thead><tr>';
+  html += '<th class="p-2">'+t('col_customer','Kunde')+'</th>';
+  html += '<th class="text-right p-2">'+t('col_also_mrr','ALSO MRR')+'</th>';
+  html += '<th class="text-right p-2">'+t('col_uniweb_cost','Uniweb')+'</th>';
+  html += '<th class="text-right p-2">'+t('col_total_cost','Total')+'</th>';
+  html += '<th class="text-center p-2 col-bar">'+t('col_distribution','Fordeling')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_subs','Abb.')+'</th>';
   html += '</tr></thead><tbody>';
 
   var maxTotal = customers.length ? customers[0].total_monthly : 1;
 
   customers.forEach(function(c, i) {
-    var rowBg = i % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
     var alsoPct = c.total_monthly > 0 ? (c.also_mrr / c.total_monthly * 100) : 0;
     var uniwebPct = c.total_monthly > 0 ? (c.uniweb_monthly / c.total_monthly * 100) : 0;
     var barWidth = maxTotal > 0 ? Math.max((c.total_monthly / maxTotal * 100), 2) : 0;
 
-    html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px 8px;font-weight:500;">'+esc(c.customer_name)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:right;color:#7c5cfc;font-weight:600;">'+_fmtNOK(c.also_mrr)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:right;color:#e67e22;font-weight:600;">'+_fmtNOK(c.uniweb_monthly)+'</td>';
-    html += '<td style="padding:6px 8px;text-align:right;font-weight:700;">'+_fmtNOK(c.total_monthly)+'</td>';
+    html += '<tr>';
+    html += '<td class="fw-medium">'+esc(c.customer_name)+'</td>';
+    html += '<td class="text-right text-purple fw-semibold">'+_fmtNOK(c.also_mrr)+'</td>';
+    html += '<td class="text-right text-warning fw-semibold">'+_fmtNOK(c.uniweb_monthly)+'</td>';
+    html += '<td class="text-right fw-bold">'+_fmtNOK(c.total_monthly)+'</td>';
 
     // Stacked bar
-    html += '<td style="padding:6px 8px;">';
-    html += '<div style="display:flex;height:14px;border-radius:3px;overflow:hidden;background:var(--bg-tertiary);width:'+barWidth+'%;">';
-    if (alsoPct > 0)   html += '<div style="width:'+alsoPct+'%;background:#7c5cfc;" title="ALSO '+Math.round(alsoPct)+'%"></div>';
-    if (uniwebPct > 0) html += '<div style="width:'+uniwebPct+'%;background:#e67e22;" title="Uniweb '+Math.round(uniwebPct)+'%"></div>';
+    html += '<td>';
+    html += '<div class="stack-bar" data-bar="'+barWidth+'">';
+    if (alsoPct > 0)   html += '<div class="stack-seg bg-purple" data-bar="'+alsoPct+'" title="ALSO '+Math.round(alsoPct)+'%"></div>';
+    if (uniwebPct > 0) html += '<div class="stack-seg bg-warning" data-bar="'+uniwebPct+'" title="Uniweb '+Math.round(uniwebPct)+'%"></div>';
     html += '</div></td>';
 
     // Subscription counts
-    html += '<td style="padding:6px 8px;text-align:center;font-size:11px;color:var(--text-muted);">';
-    if (c.also_subscriptions) html += '<span style="color:#7c5cfc;" title="ALSO">'+Number(c.also_subscriptions)+'</span>';
+    html += '<td class="text-center text-xs text-muted">';
+    if (c.also_subscriptions) html += '<span class="text-purple" title="ALSO">'+Number(c.also_subscriptions)+'</span>';
     if (c.also_subscriptions && c.uniweb_subscriptions) html += ' / ';
-    if (c.uniweb_subscriptions) html += '<span style="color:#e67e22;" title="Uniweb">'+Number(c.uniweb_subscriptions)+'</span>';
+    if (c.uniweb_subscriptions) html += '<span class="text-warning" title="Uniweb">'+Number(c.uniweb_subscriptions)+'</span>';
     if (!c.also_subscriptions && !c.uniweb_subscriptions) html += '-';
     html += '</td>';
 
@@ -673,21 +671,21 @@ async function dashLoadCosts() {
   });
 
   // ── Total row ──
-  html += '<tr style="background:var(--bg-tertiary);border-top:2px solid var(--border);font-weight:700;">';
-  html += '<td style="padding:8px;">' + t('dash_total','Totalt') + ' ('+Number(totals.customer_count)+' ' + t('dash_customers_lc','kunder') + ')</td>';
-  html += '<td style="padding:8px;text-align:right;color:#7c5cfc;">'+_fmtNOK(totals.also_mrr)+'</td>';
-  html += '<td style="padding:8px;text-align:right;color:#e67e22;">'+_fmtNOK(totals.uniweb_monthly)+'</td>';
-  html += '<td style="padding:8px;text-align:right;">'+_fmtNOK(totals.total_monthly)+'</td>';
-  html += '<td style="padding:8px;"></td>';
-  html += '<td style="padding:8px;"></td>';
+  html += '<tr class="fw-bold">';
+  html += '<td class="p-2">' + t('dash_total','Totalt') + ' ('+Number(totals.customer_count)+' ' + t('dash_customers_lc','kunder') + ')</td>';
+  html += '<td class="p-2 text-right text-purple">'+_fmtNOK(totals.also_mrr)+'</td>';
+  html += '<td class="p-2 text-right text-warning">'+_fmtNOK(totals.uniweb_monthly)+'</td>';
+  html += '<td class="p-2 text-right">'+_fmtNOK(totals.total_monthly)+'</td>';
+  html += '<td class="p-2"></td>';
+  html += '<td class="p-2"></td>';
   html += '</tr>';
 
   html += '</tbody></table></div>';
 
   // ── Legend ──
-  html += '<div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-muted);">';
-  html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#7c5cfc;margin-right:4px;vertical-align:middle;"></span>ALSO Cloud</span>';
-  html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e67e22;margin-right:4px;vertical-align:middle;"></span>' + t('dash_uniweb_hosting','Uniweb Hosting') + '</span>';
+  html += '<div class="flex gap-4 mt-2 text-xs text-muted">';
+  html += '<span><span class="swatch bg-purple"></span>ALSO Cloud</span>';
+  html += '<span><span class="swatch bg-warning"></span>' + t('dash_uniweb_hosting','Uniweb Hosting') + '</span>';
   html += '</div>';
 
   el.innerHTML = html;
@@ -705,7 +703,7 @@ function _fmtNOK(val) {
 async function dashLoadDomains() {
   var el = document.getElementById('dash-domains-content');
   el.innerHTML = '<div class="loader loader-md"></div>' +
-    '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px;">' + t('dash_checking_tls','Sjekker TLS-sertifikater for alle domener ...') + '</div>';
+    '<div class="text-center text-muted text-sm mt-2">' + t('dash_checking_tls','Sjekker TLS-sertifikater for alle domener ...') + '</div>';
 
   // The domain, mail and licence chain (paying twice for mail, a domain
   // with M365 mail but no licence) lived on the Helse tab. It is about
@@ -717,7 +715,7 @@ async function dashLoadDomains() {
   var data = both[0];
   var chainHtml = _buildChainSection(both[1]);
   if (!data) {
-    el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_domains_load_failed','Kunne ikke laste domenedata') + '</div>';
+    el.innerHTML = '<div class="text-danger text-center p-12">' + t('dash_domains_load_failed','Kunne ikke laste domenedata') + '</div>';
     return;
   }
 
@@ -726,7 +724,7 @@ async function dashLoadDomains() {
   var html = '';
 
   // KPI cards
-  html += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;">';
+  html += '<div class="grid grid-cols-6 gap-3 mb-4">';
   var kpis = [
     {label:t('dash_domains_total', 'Domener totalt'), value:Number(s.total)||0, color:'var(--blue)'},
     {label:t('dash_domains_healthy', 'Friske'), value:Number(s.healthy)||0, color:'var(--green)'},
@@ -736,48 +734,47 @@ async function dashLoadDomains() {
     {label:t('dash_missing_dmarc','Mangler DMARC'), value:Number(s.missing_dmarc)||0, color:s.missing_dmarc>0?'var(--orange)':'var(--text-dim)'}
   ];
   kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid ' + k.color + ';height:90px;box-sizing:border-box;">';
-    html += '<div style="font-size:22px;font-weight:700;line-height:24px;color:' + k.color + ';">' + k.value + '</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);line-height:16px;">' + k.label + '</div>';
+    html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
+    html += '<div class="kpi-value ' + toneClass(k.color) + '">' + k.value + '</div>';
+    html += '<div class="kpi-label">' + k.label + '</div>';
     html += '</div>';
   });
   html += '</div>';
 
   if (s.ssl_expiring_30d > 0) {
-    html += '<div class="card" style="padding:10px 16px;margin-bottom:16px;border-left:3px solid var(--orange);background:rgba(255,165,0,0.05);font-size:12px;color:var(--orange);font-weight:600;">';
+    html += '<div class="callout callout-warning mb-4 text-warning fw-semibold">';
     html += Number(s.ssl_expiring_30d) + ' ' + t('dash_ssl_expiring_30d','SSL-sertifikat utløper innen 30 dager');
     html += '</div>';
   }
 
   if (domains.length === 0) {
-    html += '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);">';
-    html += '<div style="font-size:14px;">' + t('dash_no_domains','Ingen domener funnet') + '</div>';
-    html += '<div style="font-size:12px;margin-top:4px;">' + t('dash_no_domains_hint','Synkroniser Uniweb-data for å se domener her.') + '</div>';
+    html += '<div class="card empty-note is-compact">';
+    html += '<div class="text-base">' + t('dash_no_domains','Ingen domener funnet') + '</div>';
+    html += '<div class="text-sm mt-1">' + t('dash_no_domains_hint','Synkroniser Uniweb-data for å se domener her.') + '</div>';
     html += '</div>';
     el.innerHTML = html + chainHtml;
     return;
   }
 
   // Domain table
-  html += '<div class="card" style="padding:0;overflow:hidden;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:2px solid var(--border);">';
-  html += '<th style="text-align:center;padding:8px;width:30px;">'+t('col_health','Helse')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_domain','Domene')+'</th>';
-  html += '<th style="text-align:left;padding:8px;">'+t('col_customer','Kunde')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_ssl','SSL')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_spf','SPF')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_dkim','DKIM')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_dmarc','DMARC')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_dns','DNS')+'</th>';
-  html += '<th style="text-align:center;padding:8px;">'+t('col_expires','Utløper')+'</th>';
+  html += '<div class="card p-0 overflow-hidden">';
+  html += '<table class="data-table">';
+  html += '<thead><tr>';
+  html += '<th class="text-center p-2 col-check">'+t('col_health','Helse')+'</th>';
+  html += '<th class="p-2">'+t('col_domain','Domene')+'</th>';
+  html += '<th class="p-2">'+t('col_customer','Kunde')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_ssl','SSL')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_spf','SPF')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_dkim','DKIM')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_dmarc','DMARC')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_dns','DNS')+'</th>';
+  html += '<th class="text-center p-2">'+t('col_expires','Utløper')+'</th>';
   html += '</tr></thead><tbody>';
 
   domains.forEach(function(d, i) {
     var healthColors = {good:'var(--green)', warning:'var(--orange)', critical:'var(--red)', unknown:'var(--text-dim)'};
     var healthLabels = {good:'OK', warning:'!', critical:'X', unknown:'?'};
     var hColor = healthColors[d.health] || 'var(--text-dim)';
-    var rowBg = i % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)';
 
     // SSL cell
     var sslHtml = '';
@@ -787,14 +784,14 @@ async function dashLoadDomains() {
       else if (d.ssl.days_remaining < 30) sslColor = 'var(--orange)';
       var sslLabel = d.ssl.days_remaining < 0 ? t('lbl_expired_short', 'Utløpt') : Number(d.ssl.days_remaining) + 'd';
       var gradeStr = d.ssl.grade ? ' ' + esc(d.ssl.grade) : '';
-      sslHtml = '<span style="color:' + sslColor + ';font-weight:600;" title="' + esc(d.ssl.issuer || '') + ' · ' + t('dash_valid_until','gyldig til') + ' ' + esc(d.ssl.valid_until || '') + '">' + sslLabel + gradeStr + '</span>';
+      sslHtml = '<span class="' + toneClass(sslColor) + ' fw-semibold" title="' + esc(d.ssl.issuer || '') + ' · ' + t('dash_valid_until','gyldig til') + ' ' + esc(d.ssl.valid_until || '') + '">' + sslLabel + gradeStr + '</span>';
     } else {
-      sslHtml = '<span style="color:var(--text-dim);">—</span>';
+      sslHtml = '<span class="text-dim">—</span>';
     }
 
     // Check/X helper
-    var chkY = '<span style="color:var(--green);font-weight:700;font-size:14px;">&#10003;</span>';
-    var chkN = '<span style="color:var(--red);font-weight:700;font-size:14px;">&#10007;</span>';
+    var chkY = '<span class="text-success fw-bold text-base">&#10003;</span>';
+    var chkN = '<span class="text-danger fw-bold text-base">&#10007;</span>';
 
     // Expiry cell
     var expiryHtml = '';
@@ -802,21 +799,21 @@ async function dashLoadDomains() {
       var expColor = 'var(--text)';
       if (d.days_until_expiry < 0) expColor = 'var(--red)';
       else if (d.days_until_expiry < 90) expColor = 'var(--orange)';
-      expiryHtml = '<span style="color:' + expColor + ';" title="' + esc(d.expiry) + '">' + (d.days_until_expiry < 0 ? esc(t('lbl_expired_short', 'Utløpt')) : Number(d.days_until_expiry) + 'd') + '</span>';
+      expiryHtml = '<span class="' + toneClass(expColor) + '" title="' + esc(d.expiry) + '">' + (d.days_until_expiry < 0 ? esc(t('lbl_expired_short', 'Utløpt')) : Number(d.days_until_expiry) + 'd') + '</span>';
     } else {
-      expiryHtml = '<span style="color:var(--text-dim);">—</span>';
+      expiryHtml = '<span class="text-dim">—</span>';
     }
 
-    html += '<tr style="background:' + rowBg + ';border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px 8px;text-align:center;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:50%;background:' + hColor + ';color:#fff;font-weight:700;font-size:11px;">' + healthLabels[d.health] + '</span></td>';
-    html += '<td style="padding:6px 8px;font-weight:500;">' + esc(d.domain) + '</td>';
-    html += '<td style="padding:6px 8px;">' + esc(d.customer_name) + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">' + sslHtml + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">' + (d.has_spf ? chkY : chkN) + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">' + (d.has_dkim ? chkY : chkN) + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;">' + (d.has_dmarc ? chkY : chkN) + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;color:var(--text-muted);">' + esc(String(d.dns_records)) + '</td>';
-    html += '<td style="padding:6px 8px;text-align:center;font-size:11px;">' + expiryHtml + '</td>';
+    html += '<tr>';
+    html += '<td class="text-center"><span class="health-mark ' + toneVar(hColor) + '">' + healthLabels[d.health] + '</span></td>';
+    html += '<td class="fw-medium">' + esc(d.domain) + '</td>';
+    html += '<td>' + esc(d.customer_name) + '</td>';
+    html += '<td class="text-center">' + sslHtml + '</td>';
+    html += '<td class="text-center">' + (d.has_spf ? chkY : chkN) + '</td>';
+    html += '<td class="text-center">' + (d.has_dkim ? chkY : chkN) + '</td>';
+    html += '<td class="text-center">' + (d.has_dmarc ? chkY : chkN) + '</td>';
+    html += '<td class="text-center text-muted">' + esc(String(d.dns_records)) + '</td>';
+    html += '<td class="text-center text-xs">' + expiryHtml + '</td>';
     html += '</tr>';
   });
 
@@ -950,56 +947,56 @@ export async function dashLoadArchive() {
   el.innerHTML = '<div class="loader loader-md"></div>';
 
   var data = await apiFetch('/api/reports/archive');
-  if (!data) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">' + t('dash_load_failed','Kunne ikke laste') + '</div>'; return; }
+  if (!data) { el.innerHTML = '<div class="text-danger text-center p-12">' + t('dash_load_failed','Kunne ikke laste') + '</div>'; return; }
 
   var html = '';
 
   // KPI
-  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">';
+  html += '<div class="grid grid-cols-3 gap-3 mb-4">';
   var kpis = [
     {label:t('lbl_total_reports','Rapporter'), value:Number(data.total_reports), color:'var(--blue)'},
     {label:t('lbl_customers','Kunder'), value:data.customers.length, color:'var(--text)'},
     {label:t('lbl_total_size','Størrelse'), value:Number(data.total_size_mb) + ' MB', color:'var(--text-muted)'},
   ];
   kpis.forEach(function(k) {
-    html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
-    html += '<div style="font-size:22px;font-weight:700;line-height:24px;color:'+k.color+';">'+k.value+'</div>';
-    html += '<div style="font-size:11px;color:var(--text-muted);line-height:16px;">'+k.label+'</div>';
+    html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
+    html += '<div class="kpi-value ' + toneClass(k.color) + '">'+k.value+'</div>';
+    html += '<div class="kpi-label">'+k.label+'</div>';
     html += '</div>';
   });
   html += '</div>';
 
   // Cleanup button
-  html += '<div style="display:flex;gap:8px;margin-bottom:16px;">';
-  html += '<button class="btn btn-ghost" data-write data-click-handler="dashArchiveCleanup" data-months="3" style="font-size:12px;">'+t('btn_cleanup_3m','Delete older than 3 months')+'</button>';
-  html += '<button class="btn btn-ghost" data-write data-click-handler="dashArchiveCleanup" data-months="6" style="font-size:12px;">'+t('btn_cleanup_6m','Delete older than 6 months')+'</button>';
-  html += '<button class="btn btn-ghost" data-write data-click-handler="dashArchiveCleanup" data-months="12" style="font-size:12px;">'+t('btn_cleanup_12m','Delete older than 12 months')+'</button>';
+  html += '<div class="flex gap-2 mb-4">';
+  html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="dashArchiveCleanup" data-months="3">'+t('btn_cleanup_3m','Delete older than 3 months')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="dashArchiveCleanup" data-months="6">'+t('btn_cleanup_6m','Delete older than 6 months')+'</button>';
+  html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="dashArchiveCleanup" data-months="12">'+t('btn_cleanup_12m','Delete older than 12 months')+'</button>';
   html += '</div>';
 
   if (data.customers.length === 0) {
-    html += '<div class="card" style="padding:32px;text-align:center;color:var(--text-muted);">'+t('msg_no_reports','No reports found.')+'</div>';
+    html += '<div class="card empty-note is-compact">'+t('msg_no_reports','No reports found.')+'</div>';
     el.innerHTML = html;
     return;
   }
 
   // Customer list with collapsible runs
   data.customers.forEach(function(c, idx) {
-    html += '<div class="card" style="padding:0;margin-bottom:8px;">';
-    html += '<div data-click-handler="dashArchiveToggleRuns" style="padding:12px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">';
-    html += '<div><span style="font-weight:600;">'+esc(c.customer_name)+'</span> <span style="font-size:12px;color:var(--text-muted);">('+Number(c.run_count)+' '+t('lbl_reports','reports')+', '+Number(c.total_size_mb)+' MB)</span></div>';
-    html += '<span class="chevron" style="font-size:10px;color:var(--text-dim);transition:transform 0.2s;">&#9660;</span>';
+    html += '<div class="card p-0 mb-2">';
+    html += '<div data-click-handler="dashArchiveToggleRuns" class="py-3 px-4 cursor-pointer flex justify-between items-center">';
+    html += '<div><span class="fw-semibold">'+esc(c.customer_name)+'</span> <span class="text-sm text-muted">('+Number(c.run_count)+' '+t('lbl_reports','reports')+', '+Number(c.total_size_mb)+' MB)</span></div>';
+    html += '<span class="chevron text-2xs text-dim transition-transform">&#9660;</span>';
     html += '</div>';
-    html += '<div style="display:none;border-top:1px solid var(--border);">';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-    html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px 16px;">'+t('lbl_date','Date')+'</th><th style="text-align:center;padding:6px;">'+t('lbl_files','Files')+'</th><th style="text-align:center;padding:6px;">'+t('lbl_size','Size')+'</th><th style="text-align:center;padding:6px;">PDF</th><th style="text-align:center;padding:6px;">HTML</th><th style="text-align:right;padding:6px 16px;"></th></tr></thead><tbody>';
+    html += '<div class="border-t" style="display:none;">';
+    html += '<table class="data-table">';
+    html += '<thead><tr><th>'+t('lbl_date','Date')+'</th><th class="text-center">'+t('lbl_files','Files')+'</th><th class="text-center">'+t('lbl_size','Size')+'</th><th class="text-center">PDF</th><th class="text-center">HTML</th><th class="text-right"></th></tr></thead><tbody>';
     c.runs.forEach(function(r) {
-      html += '<tr style="border-bottom:1px solid var(--border);">';
-      html += '<td style="padding:6px 16px;">'+esc(r.date || r.name)+'</td>';
-      html += '<td style="padding:6px;text-align:center;">'+Number(r.file_count)+'</td>';
-      html += '<td style="padding:6px;text-align:center;">'+Number(r.size_mb)+' MB</td>';
-      html += '<td style="padding:6px;text-align:center;">'+(r.has_pdf ? '<span style="color:var(--green);">&#10003;</span>' : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-      html += '<td style="padding:6px;text-align:center;">'+(r.has_html ? '<span style="color:var(--green);">&#10003;</span>' : '<span style="color:var(--text-dim);">-</span>')+'</td>';
-      html += '<td style="padding:6px 16px;text-align:right;"><button class="btn btn-ghost" data-write data-click-handler="dashArchiveDelete" data-path="'+esc(r.path)+'" style="font-size:11px;color:var(--red);padding:2px 8px;">'+t('btn_delete','Delete')+'</button></td>';
+      html += '<tr>';
+      html += '<td>'+esc(r.date || r.name)+'</td>';
+      html += '<td class="text-center">'+Number(r.file_count)+'</td>';
+      html += '<td class="text-center">'+Number(r.size_mb)+' MB</td>';
+      html += '<td class="text-center">'+(r.has_pdf ? '<span class="text-success">&#10003;</span>' : '<span class="text-dim">-</span>')+'</td>';
+      html += '<td class="text-center">'+(r.has_html ? '<span class="text-success">&#10003;</span>' : '<span class="text-dim">-</span>')+'</td>';
+      html += '<td class="text-right"><button class="btn btn-ghost btn-sm text-danger" data-write data-click-handler="dashArchiveDelete" data-path="'+esc(r.path)+'">'+t('btn_delete','Delete')+'</button></td>';
       html += '</tr>';
     });
     html += '</tbody></table></div></div>';
