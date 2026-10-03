@@ -6,7 +6,7 @@ import re
 
 from app.reports.evidence import _evidence_unavailable
 from app.reports.i18n import T
-from app.reports.parsers.common import _first_prose_line
+from app.reports.parsers.common import _first_prose_line, _sidecar
 
 
 def _parse_secure_score(text: str) -> dict:
@@ -269,6 +269,31 @@ def _parse_shared_mailbox_upns(text: str) -> set[str]:
     return shared
 
 
+# The width of the stale-accounts table's UPN column (03b_stale_accounts.txt).
+_STALE_UPN_WIDTH = 45
+
+
+def _shared_mailbox_upns(file_contents: dict[str, str]) -> set[str]:
+    """UPNs of shared and room mailboxes: the mailbox sidecar's, or the table's.
+
+    The table cuts the UPN at 45 characters; the sidecar has it whole, and the
+    primary SMTP address beside it. The stale-accounts list this is matched
+    against may itself still be a table cut at the same width, so each long
+    address is also given in its cut form.
+    """
+    data = _sidecar(file_contents, "20_exchange_mailboxes.txt")
+    if data is None:
+        return _parse_shared_mailbox_upns(file_contents.get("20_exchange_mailboxes.txt", ""))
+    shared: set[str] = set()
+    for m in data.get("mailboxes") or []:
+        if not isinstance(m, dict) or m.get("type") not in ("SharedMailbox", "RoomMailbox"):
+            continue
+        for address in (m.get("upn"), m.get("primary_smtp_address")):
+            if isinstance(address, str) and address:
+                shared |= {address.lower(), address.lower()[:_STALE_UPN_WIDTH]}
+    return shared
+
+
 def _analyze_license_optimization(
     licenses: list[dict],
     file_contents: dict[str, str],
@@ -297,7 +322,7 @@ def _analyze_license_optimization(
     # advice and inflates the estimate. Split them: a real inactive user keeps
     # the "remove licence" finding; a licensed shared/room mailbox gets its own,
     # correctly framed one (a shared mailbox needs no licence under 50 GB).
-    shared_upns = _parse_shared_mailbox_upns(file_contents.get("20_exchange_mailboxes.txt", ""))
+    shared_upns = _shared_mailbox_upns(file_contents)
     licensed_stale_users = [
         s for s in licensed_stale if (s.get("upn") or "").lower() not in shared_upns
     ]

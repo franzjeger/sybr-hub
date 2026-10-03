@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.reports.parsers.common import _count_data_lines, _extract_policy_names
+from app.reports.parsers.common import _count_data_lines, _extract_policy_names, _sidecar
 
 
 def _parse_spf_dmarc(text: str) -> list[dict]:
@@ -73,6 +73,36 @@ def _is_audit_relevant_domain(domain: str) -> bool:
     return not any(d.endswith(suffix) for suffix in _IGNORED_DOMAIN_SUFFIXES)
 
 
+def _mailbox_counts(file_contents: dict[str, str]) -> dict[str, int]:
+    """Total, user and shared mailboxes: the count file's sidecar, or its text."""
+    data = _sidecar(file_contents, "20_exchange_mailboxes_count.txt")
+    if data is not None:
+        return {
+            key: data[key]
+            for key in ("total", "user", "shared")
+            if isinstance(data.get(key), int) and not isinstance(data.get(key), bool)
+        }
+    counts: dict[str, int] = {}
+    # Mailbox counts — flexible key matching (same pattern as Intune parser)
+    count_text = file_contents.get("20_exchange_mailboxes_count.txt", "")
+    for line in count_text.splitlines():
+        if ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key = key.strip().lower().replace("-", "").replace(" ", "")
+        try:
+            v = int(val.strip())
+        except ValueError:
+            continue
+        if "total" in key:
+            counts["total"] = v
+        elif key in ("user", "usermailbox", "usermailboxes"):
+            counts["user"] = v
+        elif key in ("shared", "sharedmailbox", "sharedmailboxes"):
+            counts["shared"] = v
+    return counts
+
+
 def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
     """Parse Exchange data files into a structured overview."""
     result = {
@@ -89,23 +119,10 @@ def _parse_exchange_overview(file_contents: dict[str, str]) -> dict:
         "has_data": False,
     }
 
-    # Mailbox counts — flexible key matching (same pattern as Intune parser)
-    count_text = file_contents.get("20_exchange_mailboxes_count.txt", "")
-    for line in count_text.splitlines():
-        if ":" not in line:
-            continue
-        key, val = line.split(":", 1)
-        key = key.strip().lower().replace("-", "").replace(" ", "")
-        try:
-            v = int(val.strip())
-        except ValueError:
-            continue
-        if "total" in key:
-            result["mailbox_total"] = v
-        elif key in ("user", "usermailbox", "usermailboxes"):
-            result["mailbox_user"] = v
-        elif key in ("shared", "sharedmailbox", "sharedmailboxes"):
-            result["mailbox_shared"] = v
+    counts = _mailbox_counts(file_contents)
+    result["mailbox_total"] = counts.get("total", 0)
+    result["mailbox_user"] = counts.get("user", 0)
+    result["mailbox_shared"] = counts.get("shared", 0)
 
     # Transport rules — count non-empty, non-header lines
     transport_text = file_contents.get("21_exchange_transport_rules.txt", "")
