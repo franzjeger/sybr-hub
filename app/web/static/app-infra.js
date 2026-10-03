@@ -210,7 +210,7 @@ async function hostsLoad() {
   }
 
   // ── Host cards: strict 3-row grid ──
-  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">';
+  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px;">';
   hosts.forEach(function(h) {
     var statusColor = h.is_reachable === true ? 'var(--green)' : h.is_reachable === false ? 'var(--red)' : 'var(--text-dim)';
 
@@ -219,7 +219,7 @@ async function hostsLoad() {
     // ROW 1 — Header (24px): label + group badge + status dot
     html += '<div style="display:flex;align-items:center;height:24px;overflow:hidden;">';
     html += '<strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">'+esc(h.label||'-')+'</strong>';
-    html += '<span style="font-size:10px;color:var(--text-dim);padding:1px 6px;background:var(--bg);border-radius:4px;flex-shrink:0;margin-left:6px;">'+esc(h.group_name||'-')+'</span>';
+    html += '<span style="font-size:10px;color:var(--text-dim);padding:1px 6px;background:var(--bg);border-radius:4px;flex-shrink:1;min-width:0;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:6px;">'+esc(h.group_name||'-')+'</span>';
     html += '<span style="width:8px;height:8px;border-radius:50%;background:'+statusColor+';flex-shrink:0;margin-left:8px;"></span>';
     html += '</div>';
 

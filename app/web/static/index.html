@@ -1731,7 +1731,7 @@
       <h2 style="font-size:18px;font-weight:700;margin:0;" data-i18n="hdr_hosts">Verter</h2>
       <button class="btn btn-primary" data-click-handler="hostsAdd" style="padding:6px 16px;font-size:13px;" data-i18n="btn_add_host">Legg til vert</button>
       <button class="btn btn-ghost" data-click-handler="hostsHealthAll" style="padding:6px 16px;font-size:13px;" data-i18n="btn_check_all">Sjekk alle</button>
-      <select id="hosts-filter-type" data-change-handler="hostsLoad" style="margin-left:auto;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+      <select id="hosts-filter-type" data-change-handler="hostsLoad" style="margin-left:auto;max-width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <option value="" data-i18n="opt_all_types">Alle typer</option>
         <option value="windows">Windows</option>
         <option value="linux">Linux</option>
@@ -1741,7 +1741,7 @@
         <option value="openwrt">OpenWrt</option>
         <option value="custom" data-i18n="opt_other">Annet</option>
       </select>
-      <select id="hosts-filter-group" data-change-handler="hostsLoad" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+      <select id="hosts-filter-group" data-change-handler="hostsLoad" style="max-width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <option value="" data-i18n="opt_all_groups">Alle grupper</option>
       </select>
     </div>
