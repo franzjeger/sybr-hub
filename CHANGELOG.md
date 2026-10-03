@@ -6,6 +6,29 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Ny navigasjon: kunden er sentrum
+
+- Toppmenyen er Oversikt, Kunder og Verktøy. Under Verktøy ligger Nettverk,
+  VPN, Fjerntilgang, Tailscale, Pentest, Provisjonering, Lisenser og hosting
+  og Sybrt, avhengig av hvilke moduler som er slått på.
+- Administrasjon er en egen side med meny til venstre, i stedet for
+  innstillingsvinduet: Integrasjoner, Varsler og planlagte oppgaver,
+  Brukere, Moduler, Branding, Lagring og backup og System. Du finner den i
+  avatarmenyen. Ctrl+, åpner den.
+- Linjen med aktiv kunde øverst er borte. Kundesiden er stedet du jobber med
+  en kunde, og du bytter kunde i søket (Ctrl+K), der de siste kundene står
+  først.
+- Kundesiden har faner som bytter på siden og står i adressen: Funn, Audit,
+  Policyer, Vurderinger, Nettverk, Tilgang og Detaljer. Audit samler
+  kjøringen, historikken og ett rapportvalg. Policyer samler oversikten og
+  utrullingen. Gamle adresser som M365-status, Filer og Historikk sender deg
+  til riktig fane.
+- «Ny kunde» er ett skjema fra Kunder, med eller uten Microsoft 365.
+- Oversikt starter med kundene som trenger oppfølging i dag, sortert etter
+  det verste åpne funnet. Fanen Varsler samler varslene, og bjella åpner
+  den.
+- På telefon er bunnlinjen Oversikt, Kunder, Søk, Varsler og Mer.
+
 ### Videresending, DKIM og Intune vurderes riktig
 
 - En innboksregel som videresender til en kollega, ga en kritisk advarsel om
