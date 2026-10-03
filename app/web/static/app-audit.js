@@ -946,7 +946,7 @@ function renderHistory(runs, scoped) {
     html += `<div class="card" style="margin-bottom:16px;">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
         <span>
-          ${scoped ? '' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(customer)} <span style="font-weight:400;font-size:12px;color:var(--text-muted);">${t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
+          ${scoped ? '' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(customer)} <span style="font-weight:400;font-size:12px;color:var(--text-muted);">${customerRuns.length === 1 ? t('hist_runs_count_one', '(1 kjøring)') : t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
         </span>
         <button class="btn btn-ghost" style="padding:3px 10px;font-size:11px;color:var(--red);"
           data-click-handler="deleteAllCustomerRuns" data-dir="${esc(customerDirName)}" data-customer="${esc(customer)}" data-count="${customerRuns.length}">

@@ -1185,9 +1185,13 @@ function renderOverview(customers, activeId) {
     return _overviewSortAsc ? cmp : -cmp;
   });
 
-  const total = customers.length;
-  const withMetrics = customers.filter(c => c.has_metrics);
-  const needsAttention = customers.filter(_needsAttention).length;
+  // The strip counts every customer, not the ones the search or a quick
+  // filter left on screen: typing a name changed "N kunder trenger
+  // oppfølging", which is a fact about the portfolio, not about the list.
+  const all = (_overviewData && _overviewData.customers) || customers;
+  const total = all.length;
+  const withMetrics = all.filter(c => c.has_metrics);
+  const needsAttention = all.filter(_needsAttention).length;
   const neverAudited = total - withMetrics.length;
   const staleCount = withMetrics.filter(_auditIsStale).length;
 

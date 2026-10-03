@@ -462,10 +462,9 @@ function _custLoadNetwork(customerId) {
   _loadCustomerNetworkInventory(customerId).then(function() {
     var panel = document.getElementById('customer-network-panel');
     if (!panel || panel.style.display !== 'none' || _custPage.id !== customerId) return;
-    // No device of this customer is known to the network integrations.
-    body.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_customer_network', 'Ingen FortiGate eller UniFi er knyttet til denne kunden.')) + '</p>'
-      + (canOpenView('network') ? '<button class="btn btn-default btn-sm" data-click-handler="showView" data-view="network">' + esc(t('btn_open_network_tool', 'Alle kunders nettverk')) + '</button>' : '')
-      + '</div>';
+    // No device of this customer is known to the network integrations. The
+    // panel head already links to every customer's network.
+    body.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_customer_network', 'Ingen FortiGate eller UniFi er knyttet til denne kunden.')) + '</p></div>';
   });
 }
 
@@ -1441,14 +1440,6 @@ async function _loadUnifiWifiHealthSection(customerId) {
   }
 }
 
-async function openLatestReport() {
-  try {
-    var d = await apiFetch('/api/latest-report');
-    if (d && d.has_report) { openReportViewer(d.url); }
-    else { showToast(t('msg_no_report','No report found. Run an audit first.'), 'warning'); }
-  } catch(e) { showToast(t('status_error'), 'error'); }
-}
-
 async function _loadCustomerNotes() {
   // Held from before the request: if another customer's page replaces this
   // one meanwhile, the answer lands in a detached box, not in that page's,
@@ -1628,17 +1619,6 @@ async function _loadCustomerTrendChart(customerId) {
 
 var _currentAlsoAccountId = '';
 
-function loadCustomerLicensesFromActive() {
-  // Find the current customer's also_account_id from cached overview
-  if (!_overviewData || !_overviewData.customers) return;
-  var active = _overviewData.customers.find(function(c){ return c.is_active; });
-  if (active && active.also_account_id) {
-    loadCustomerLicenses(active.also_account_id);
-  } else {
-    showToast(t('also_no_account_linked','This customer is not linked to ALSO Cloud'), 'warning');
-  }
-}
-
 async function loadCustomerLicenses(accountId) {
   _currentAlsoAccountId = accountId;
   // On the customer page's Detaljer tab, under Lisenser.
@@ -1773,199 +1753,7 @@ async function loadCustomerLicenses(accountId) {
   }
 }
 
-// ── Unified Customer Dashboard ──────────────────────────────────────────────
-
-async function loadUnifiedDashboard() {
-  var custId = _customersActiveId;
-  if (!custId) { showToast(t('err_no_active_customer'), 'warning'); return; }
-
-  // Use the home view container
-  showView('home');
-  var el = document.getElementById('home-content') || document.querySelector('.view[id="view-home"] > div') || document.getElementById('view-home');
-  if (!el) return;
-  el.innerHTML = '<div class="loader" style="width:24px;height:24px;margin:48px auto;"></div>';
-
-  var d = await apiFetch('/api/customer/' + encodeURIComponent(custId) + '/unified');
-  if (!d || d.error) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:48px;">'+esc(d&&d.error||'Failed')+'</div>'; return; }
-
-  var html = '';
-
-  var a = d.audit || {};
-  var _grade = a.risk_grade || '-';
-  var _gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[_grade] || 'var(--text-muted)';
-  // Label colour for the tinted hero tile — see --*-deep in app.css.
-  var _gvd = {A:'var(--green-deep)',B:'var(--blue-deep)',C:'var(--orange-deep)',D:'var(--red-deep)',F:'var(--red-deep)'}[_grade] || 'var(--text-muted)';
-
-  // ── Hero ──
-  var _meta = [];
-  if (d.domain) _meta.push('<span style="font-family:var(--mono);">'+esc(d.domain)+'</span>');
-  if (d.also_account_id) _meta.push('ALSO ID ' + esc(String(d.also_account_id)));
-  if (d.source) _meta.push(esc(d.source));
-  html += '<div class="cd-hero">'
-    + '<span class="cd-hero-tile" style="color:'+_gvd+';background:color-mix(in srgb, '+_gv+' 12%, transparent);border-color:color-mix(in srgb, '+_gv+' 40%, transparent);">'+esc(_grade)+'</span>'
-    + '<span class="cd-hero-id"><span class="cd-hero-name">'+esc(d.customer_name)+' <span class="cd-active-pill">' + t('aktiv_kunde') + '</span></span>'
-    + '<span class="cd-hero-meta">'+_meta.join(' · ')+'</span></span>'
-    + '<div style="flex:1;"></div>'
-    + '<button class="context-ghost" data-click-handler="openLatestReport">' + t('btn_open_report','Åpne rapport') + '</button>'
-    + '<button class="context-ghost" data-click-handler="showView" data-view="history">' + t('nav_history','Historikk') + '</button>'
-    + '<button class="btn btn-sm" style="padding:7px 16px;font-size:12px;background:var(--blue-btn);color:#fff;border:none;border-radius:var(--radius-md);font-weight:600;cursor:pointer;" data-click-handler="showView" data-view="audit">' + t('btn_run_audit','Kjør audit') + '</button>'
-    + '</div>';
-
-  // ── Integration chips ──
-  // Where a chip or an action button leads. Callers name an entry, so the
-  // attribute markup stays in this table and never travels with data.
-  var _cdClicks = {
-    home: 'data-click-handler="showView" data-view="home"',
-    audit: 'data-click-handler="showView" data-view="audit"',
-    hosts: 'data-click-handler="showView" data-view="hosts"',
-    licenses: 'data-click-handler="loadCustomerLicensesFromActive"',
-  };
-  function _cdChip(name, color, status, opts) {
-    opts = opts || {};
-    return '<div class="cd-chip"' + (opts.id ? ' id="'+esc(opts.id)+'"' : '') + ' style="border-top-color:'+esc(color)+';' + (opts.click ? 'cursor:pointer;' : '') + '"' + (opts.click ? ' '+_cdClicks[opts.click] : '') + '>'
-      + '<div class="cd-chip-name">'+esc(name)+'</div>'
-      + '<div class="cd-chip-status" style="color:'+esc(color)+';">'+esc(status)+'</div></div>';
-  }
-  var _m365c = 'var(--text-dim)', _m365l = t('st_not_configured');
-  if (d.m365 && d.m365.TenantId) { _m365c = 'var(--green)'; _m365l = t('st_configured'); }
-  if (d.m365 && d.m365.secret_status === 'expired') { _m365c = 'var(--red)'; _m365l = t('st_secret_expired'); }
-  else if (d.m365 && d.m365.secret_status === 'warning') { _m365c = 'var(--orange)'; _m365l = t('st_secret_days_left').replace('{days}', d.m365.secret_days_left); }
-  var _fgc = d.fortigate ? 'var(--green)' : 'var(--text-dim)';
-  var _fgl = d.fortigate ? (d.fortigate.FortiGateHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
-  var _ufc = d.unifi ? 'var(--green)' : 'var(--text-dim)';
-  var _ufl = d.unifi ? (d.unifi.UniFiHost || t('st_configured_2','Konfigurert')) : t('st_not_configured_2','Ikke konfigurert');
-  // A block the server could not read is null, exactly like a block with
-  // nothing in it — the difference is in d.unavailable. Rendering both as
-  // "Ikke koblet" is what let a database hiccup show a customer as clean.
-  var _gone = d.unavailable || {};
-  function _failed(block) { return Object.prototype.hasOwnProperty.call(_gone, block); }
-
-  var _aoc = d.also ? 'var(--green)' : 'var(--text-dim)';
-  var _aol = d.also ? (d.also.total_subscriptions + ' subs' + (d.also.mrr > 0 ? ' · ' + d.also.mrr.toFixed(0) + ' ' + (d.also.currency||'kr') : '')) : t('st_not_linked','Ikke koblet');
-  if (d.also && (d.also.expired > 0 || d.also.expiring_90d > 0)) { _aoc = d.also.expired > 0 ? 'var(--red)' : 'var(--orange)'; }
-  if (_failed('also')) { _aoc = 'var(--orange)'; _aol = t('st_read_failed'); }
-  var _sshN = d.ssh_hosts ? d.ssh_hosts.length : 0;
-  var _sshc = _sshN > 0 ? 'var(--green)' : 'var(--text-dim)';
-  var _sshl = _sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none');
-  if (_failed('ssh_hosts')) { _sshc = 'var(--orange)'; _sshl = t('st_read_failed'); }
-  html += '<div class="cd-chips">'
-    + _cdChip('M365', _m365c, _m365l, {click:'home'})
-    + _cdChip('FortiGate', _fgc, _fgl)
-    + _cdChip('UniFi', _ufc, _ufl)
-    + _cdChip('ALSO', _aoc, _aol, {click:'licenses'})
-    + _cdChip(t('lbl_ssh_hosts'), _sshc, _sshl, {click:'hosts'})
-    + _cdChip('Hosting', 'var(--text-dim)', t('st_loading','Laster…'), {id:'unified-uniweb-status'})
-    + '</div>';
-
-  // ── What this page could not read ──
-  // Placed above "Krever handling" on purpose. That band is built from the
-  // audit figures, so when the audit read fails it renders empty — a customer
-  // with no findings and a customer whose findings could not be loaded looked
-  // identical, and the reassuring one was the wrong answer.
-  var _blockNames = {audit: t('blk_audit'), ssh_hosts: t('blk_ssh_hosts'), also: t('blk_also')};
-  var _goneKeys = Object.keys(_gone);
-  if (_goneKeys.length) {
-    html += '<div class="cd-action-band" style="border-left:3px solid var(--orange);">'
-      + '<div class="cd-action-title">' + esc(t('hdr_incomplete_data')) + '</div>';
-    _goneKeys.forEach(function(k) {
-      var label = _blockNames[k] || k;
-      html += '<div class="cd-action-row"><span class="cd-dot" style="background:var(--orange);"></span>'
-        + '<span class="cd-action-text">'
-        + esc(t('msg_block_unavailable').replace('{block}', label))
-        + '</span></div>';
-    });
-    html += '</div>';
-  }
-
-  // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
-  var _find = [];
-  if ((a.users_no_mfa || 0) > 0) _find.push({sev:'crit', text: t('find_users_no_mfa').replace('{count}', a.users_no_mfa), src:t('src_m365_audit'), label:t('lbl_see_audit'), click:'audit'});
-  if (d.m365 && d.m365.secret_days_left != null && d.m365.secret_days_left <= 60) _find.push({sev: d.m365.secret_days_left <= 14 ? 'crit' : 'warn', text: t('find_secret_expiring').replace('{days}', d.m365.secret_days_left), src:'M365', label:'M365-status', click:'home'});
-  if (d.also && d.also.expired > 0) _find.push({sev:'crit', text: t('find_subs_expired').replace('{count}', d.also.expired), src:'ALSO', label:t('lbl_see_subscriptions'), click:'licenses'});
-  if (d.also && d.also.expiring_90d > 0) _find.push({sev:'warn', text: t('find_subs_expiring').replace('{count}', d.also.expiring_90d), src:'ALSO', label:t('lbl_see_subscriptions'), click:'licenses'});
-  if (_find.length) {
-    html += '<div class="cd-action-band"><div class="cd-action-title">' + esc(t('hdr_needs_action')) + '</div>';
-    _find.forEach(function(f) {
-      var _dc = f.sev === 'crit' ? 'var(--red)' : 'var(--orange)';
-      html += '<div class="cd-action-row"><span class="cd-dot" style="background:'+_dc+';"></span>'
-        + '<span class="cd-action-text">'+esc(f.text)+'</span>'
-        + '<span class="cd-action-src">'+esc(f.src)+'</span>'
-        + '<button class="cd-action-btn" '+_cdClicks[f.click]+'>'+esc(f.label)+'</button></div>';
-    });
-    html += '</div>';
-  }
-
-  // ── Two columns: audit summary + M365 creds | subscriptions + hosts ──
-  html += '<div class="cd-cols"><div class="cd-col">';
-
-  if (d.audit) {
-    var _ssc = (a.secure_score_pct||0) >= 70 ? 'var(--green)' : (a.secure_score_pct||0) >= 40 ? 'var(--orange)' : 'var(--red)';
-    var _mfc = (a.mfa_coverage_pct||0) >= 90 ? 'var(--green)' : (a.mfa_coverage_pct||0) >= 70 ? 'var(--orange)' : 'var(--red)';
-    var _nmc = (a.users_no_mfa||0) > 0 ? 'var(--red)' : 'var(--green)';
-    html += '<div class="cd-card"><div class="cd-card-title">' + t('siste_m365_audit') + ' <span class="sub">'+esc(formatRunName(a.audit_date||''))+'</span><span class="link" data-click-handler="openLatestReport">' + t('full_rapport') + '</span></div>'
-      + '<div class="cd-stat-grid">'
-      + '<div class="cd-stat"><div class="n" style="color:'+_gv+';">'+esc(_grade)+'</div><div class="l">' + t('grade') + '</div></div>'
-      + '<div class="cd-stat"><div class="n">'+Math.round(a.risk_score||0)+'</div><div class="l">' + t('risikoscore') + '</div></div>'
-      + '<div class="cd-stat"><div class="n" style="color:'+_ssc+';">'+Math.round(a.secure_score_pct||0)+'%</div><div class="l">' + t('secure_score_3') + '</div></div>'
-      + '<div class="cd-stat"><div class="n" style="color:'+_mfc+';">'+Math.round(a.mfa_coverage_pct||0)+'%</div><div class="l">MFA</div></div>'
-      + '<div class="cd-stat"><div class="n">'+(Number(a.total_users)||0)+'</div><div class="l">' + t('brukere') + '</div></div>'
-      + '<div class="cd-stat"><div class="n" style="color:'+_nmc+';">'+(Number(a.users_no_mfa)||0)+'</div><div class="l">' + t('uten_mfa') + '</div></div>'
-      + '</div></div>';
-  }
-
-  if (d.m365 && d.m365.TenantId) {
-    var _cred = '<span>' + t('tenant') + ' <b class="mono">'+esc(d.m365.TenantId||'-')+'</b></span>'
-      + '<span>' + t('domene_2') + ' <b class="mono">'+esc(d.domain||'-')+'</b></span>';
-    if (d.m365.secret_days_left != null) {
-      var _sc = (d.m365.secret_status==='expired'||d.m365.secret_status==='critical') ? 'var(--red)' : d.m365.secret_status==='warning' ? 'var(--orange)' : 'var(--green)';
-      _cred += '<span>' + t('secret_utloeper') + ' <b style="color:'+_sc+';">'+Number(d.m365.secret_days_left)+' d</b></span>';
-    }
-    if (d.m365.cert_days_left != null) {
-      var _cc2 = (d.m365.cert_status==='expired'||d.m365.cert_status==='critical') ? 'var(--red)' : d.m365.cert_status==='warning' ? 'var(--orange)' : 'var(--green)';
-      _cred += '<span>' + t('sertifikat_utloeper') + ' <b style="color:'+_cc2+';">'+Number(d.m365.cert_days_left)+' d</b></span>';
-    }
-    html += '<div class="cd-card"><div class="cd-card-title">' + t('m_legitimasjon') + '</div><div class="cd-creds">'+_cred+'</div></div>';
-  }
-
-  html += '</div><div class="cd-col">';
-
-  if (d.also && d.also.renewals && d.also.renewals.length) {
-    var _rens = d.also.renewals;
-    var _crit = _rens.filter(function(r){ return r.days_left != null && r.days_left <= 90; }).sort(function(x,y){ return (x.days_left||0) - (y.days_left||0); });
-    var _restN = _rens.filter(function(r){ return r.days_left == null || r.days_left > 90; }).length;
-    html += '<div class="cd-card"><div class="cd-card-title">' + t('abonnementer_2') + ' <span class="sub">'+_rens.length+' totalt'+(d.also.mrr > 0 ? ' · MRR '+d.also.mrr.toFixed(0)+' '+esc(d.also.currency||'kr') : '')+'</span></div>';
-    if (_crit.length) {
-      _crit.forEach(function(r, i) {
-        var _dc = r.days_left < 0 ? 'var(--red)' : r.days_left <= 30 ? 'var(--red)' : 'var(--orange)';
-        var _dl = r.days_left < 0 ? t('st_expired') : Number(r.days_left) + ' d';
-        html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="grow">'+esc(r.service_display)+'</span><span class="vendor">'+esc(r.vendor||'')+'</span><span class="days" style="color:'+_dc+';">'+_dl+'</span></div>';
-      });
-    } else {
-      html += '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">' + esc(t('msg_none_expiring_soon')) + '</div>';
-    }
-    if (_restN) html += '<div style="font-size:11px;color:var(--text-muted);padding-top:8px;border-top:1px solid var(--row-divider);margin-top:2px;">'+esc(t('lbl_others_over_90d').replace('{count}', _restN))+'</div>';
-    html += '</div>';
-  }
-
-  if (d.ssh_hosts && d.ssh_hosts.length) {
-    html += '<div class="cd-card"><div class="cd-card-title">' + t('hosts') + ' <span class="sub">'+d.ssh_hosts.length+'</span></div>';
-    d.ssh_hosts.forEach(function(h, i) {
-      var _hc = h.is_reachable ? 'var(--green)' : 'var(--text-dim)';
-      html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="cd-dot" style="background:'+_hc+';"></span><span class="grow">'+esc(h.label||h.hostname)+'</span><span class="mono">'+esc(h.hostname)+':'+esc(String(h.port))+'</span><button class="cd-row-btn" data-click-handler="showView" data-view="hosts">' + t('aapne') + '</button></div>';
-    });
-    html += '</div>';
-  }
-
-  html += '</div></div>';
-
-  // Placeholder for async Uniweb detail card
-  html += '<div id="unified-uniweb-card"></div>';
-
-  el.innerHTML = html;
-
-  // Fetch Uniweb data async
-  _unifiedLoadUniwebCard(custId);
-}
+// ── Hosting card (billing module) ───────────────────────────────────────────
 
 async function _unifiedLoadUniwebCard(custId) {
   var statusEl = document.getElementById('unified-uniweb-status');
