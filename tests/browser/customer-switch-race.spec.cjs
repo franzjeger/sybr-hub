@@ -41,3 +41,15 @@ test('the last customer clicked is the one that opens and stays active', async (
   const overview = await (await page.request.get('/api/dashboard/overview')).json();
   expect(overview.active_id).toBe(idOf(beta));
 });
+
+test('a customer switch made before the account has loaded is sent, not refused', async ({page}) => {
+  await login(page);
+  const customers = await (await page.request.get('/api/customers')).json();
+  const list = customers.customers || customers;
+  const beta = list.find(c => (c.CustomerName || c.customer_name) === 'Browser Beta');
+  const id = beta._id || beta.customer_id;
+  // The state start-up is in before /auth/me answers: no account, no paths
+  // known to be open without the write capability.
+  await page.evaluate(b => { _currentUser = null; _writeExempt = []; overviewSelectCustomer(b); }, id);
+  await expect(page.locator('#customer-detail-content')).toContainText('Browser Beta');
+});
