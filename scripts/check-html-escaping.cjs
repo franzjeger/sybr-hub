@@ -31,6 +31,7 @@ const ENFORCED = new Set([
   'app-chrome.js',
   'app-settings.js',
   'app-setup.js',
+  'app-tls.js',
 ]);
 
 const HTML_PROPS = new Set(['innerHTML', 'outerHTML', 'srcdoc']);

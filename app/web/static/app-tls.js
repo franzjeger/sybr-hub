@@ -70,17 +70,17 @@ function _tlsRenderSingleResult(r) {
   var html = '<div class="card" style="padding:14px;border-left:3px solid '+statusColor+';">';
   html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
   html += '<span style="width:10px;height:10px;border-radius:50%;background:'+statusColor+';display:inline-block;"></span>';
-  html += '<strong style="font-size:14px;">' + esc(r.host) + ':' + r.port + '</strong>';
+  html += '<strong style="font-size:14px;">' + esc(r.host) + ':' + Number(r.port) + '</strong>';
   html += '<span style="font-size:12px;color:'+statusColor+';font-weight:600;">' + statusLabel + '</span>';
   html += '</div>';
 
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--text-muted);">';
   html += '<span>' + t('tls_subject','Certificate') + ': <strong style="color:var(--text);">' + esc(r.subject && r.subject.commonName || '-') + '</strong></span>';
   html += '<span>' + t('tls_issuer','Issuer') + ': ' + esc(r.issuer && r.issuer.organizationName || r.issuer && r.issuer.commonName || '-') + '</span>';
-  html += '<span>' + t('tls_expires','Expires') + ': <strong style="color:' + (r.expired ? 'var(--red)' : r.expiring_soon ? 'var(--orange)' : 'var(--text)') + ';">' + (r.not_after ? r.not_after.slice(0,10) : '-') + '</strong></span>';
-  html += '<span>' + t('tls_days_left','Days left') + ': <strong style="color:' + (r.days_remaining < 0 ? 'var(--red)' : r.days_remaining < 30 ? 'var(--orange)' : 'var(--green)') + ';">' + (r.days_remaining != null ? r.days_remaining : '-') + '</strong></span>';
+  html += '<span>' + t('tls_expires','Expires') + ': <strong style="color:' + (r.expired ? 'var(--red)' : r.expiring_soon ? 'var(--orange)' : 'var(--text)') + ';">' + (r.not_after ? esc(r.not_after.slice(0,10)) : '-') + '</strong></span>';
+  html += '<span>' + t('tls_days_left','Days left') + ': <strong style="color:' + (r.days_remaining < 0 ? 'var(--red)' : r.days_remaining < 30 ? 'var(--orange)' : 'var(--green)') + ';">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></span>';
   html += '<span>' + t('tls_protocol','Protocol') + ': <span style="color:' + (r.weak_protocol ? 'var(--red)' : 'var(--green)') + ';font-weight:600;">' + esc(r.protocol_version || '-') + '</span></span>';
-  html += '<span>' + t('tls_cipher','Cipher') + ': <span style="color:' + (r.weak_cipher ? 'var(--red)' : 'var(--text)') + ';">' + esc(r.cipher || '-') + '</span>' + (r.key_bits ? ' (' + r.key_bits + ' bit)' : '') + '</span>';
+  html += '<span>' + t('tls_cipher','Cipher') + ': <span style="color:' + (r.weak_cipher ? 'var(--red)' : 'var(--text)') + ';">' + esc(r.cipher || '-') + '</span>' + (r.key_bits ? ' (' + Number(r.key_bits) + ' bit)' : '') + '</span>';
   if (r.san && r.san.length) {
     html += '<span style="grid-column:span 2;">SAN: ' + r.san.map(function(s){return esc(s);}).join(', ') + '</span>';
   }
@@ -120,11 +120,11 @@ async function tlsAutoDiscover() {
   });
 
   var html = '<div style="font-size:12px;margin-bottom:4px;">';
-  html += '<span style="color:var(--green);font-weight:600;">' + data.count + '</span> endpoints discovered: ';
+  html += '<span style="color:var(--green);font-weight:600;">' + Number(data.count) + '</span> endpoints discovered: ';
   var parts = [];
   var sourceLabels = {ssh:'SSH hosts', fortigate:'FortiGate', unifi:'UniFi'};
   for (var src in bySource) {
-    parts.push(bySource[src].length + ' ' + (sourceLabels[src] || src));
+    parts.push(bySource[src].length + ' ' + esc(sourceLabels[src] || src));
   }
   html += parts.join(', ');
   html += '</div>';
@@ -135,7 +135,7 @@ async function tlsAutoDiscover() {
     var srcColor = ep.source === 'fortigate' ? 'var(--orange)' : ep.source === 'unifi' ? 'var(--blue)' : 'var(--green)';
     html += '<span style="display:inline-block;padding:2px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;font-size:11px;font-family:var(--mono);">';
     html += '<span style="color:'+srcColor+';margin-right:4px;">&#9679;</span>';
-    html += esc(ep.host) + ':' + ep.port;
+    html += esc(ep.host) + ':' + Number(ep.port);
     html += '</span>';
   });
   html += '</div>';
@@ -180,11 +180,11 @@ async function tlsScanAll() {
   // ── KPI summary row ──
   var html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">';
   var kpis = [
-    {label:'Totalt', value:data.total, color:'var(--blue)'},
-    {label:t('tls_valid','Valid'), value:data.valid, color:'var(--green)'},
-    {label:t('tls_expired','Expired'), value:data.expired, color:data.expired>0?'var(--red)':'var(--text-dim)'},
-    {label:t('tls_expiring_soon','Expiring soon'), value:data.expiring_soon, color:data.expiring_soon>0?'var(--orange)':'var(--text-dim)'},
-    {label:t('tls_weak','Weak') + ' TLS', value:data.weak_tls, color:data.weak_tls>0?'var(--orange)':'var(--text-dim)'},
+    {label:'Totalt', value:Number(data.total), color:'var(--blue)'},
+    {label:t('tls_valid','Valid'), value:Number(data.valid), color:'var(--green)'},
+    {label:t('tls_expired','Expired'), value:Number(data.expired), color:data.expired>0?'var(--red)':'var(--text-dim)'},
+    {label:t('tls_expiring_soon','Expiring soon'), value:Number(data.expiring_soon), color:data.expiring_soon>0?'var(--orange)':'var(--text-dim)'},
+    {label:t('tls_weak','Weak') + ' TLS', value:Number(data.weak_tls), color:data.weak_tls>0?'var(--orange)':'var(--text-dim)'},
   ];
   kpis.forEach(function(k) {
     html += '<div class="card" style="padding:16px 8px;text-align:center;border-top:2px solid '+k.color+';height:90px;box-sizing:border-box;">';
@@ -235,7 +235,7 @@ async function tlsScanAll() {
 
     html += '<tr style="border-bottom:1px solid var(--border);">';
     html += '<td style="padding:8px;white-space:nowrap;"><span style="color:'+statusColor+';font-weight:600;">'+statusIcon+' '+statusText+'</span></td>';
-    html += '<td style="padding:8px;font-family:var(--mono);font-size:11px;">' + esc(r.host) + ':' + r.port + (r.label ? '<br><span style="font-family:inherit;font-size:10px;color:var(--text-dim);">' + esc(r.label) + '</span>' : '') + '</td>';
+    html += '<td style="padding:8px;font-family:var(--mono);font-size:11px;">' + esc(r.host) + ':' + Number(r.port) + (r.label ? '<br><span style="font-family:inherit;font-size:10px;color:var(--text-dim);">' + esc(r.label) + '</span>' : '') + '</td>';
 
     if (r.error) {
       html += '<td colspan="5" style="padding:8px;color:var(--red);font-size:11px;">' + esc(r.error) + '</td>';
@@ -244,19 +244,19 @@ async function tlsScanAll() {
       html += '<td style="padding:8px;color:var(--text-muted);">' + esc(r.issuer && (r.issuer.organizationName || r.issuer.commonName) || '-') + '</td>';
 
       var daysColor = r.days_remaining < 0 ? 'var(--red)' : r.days_remaining < 30 ? 'var(--orange)' : 'var(--green)';
-      html += '<td style="padding:8px;text-align:center;"><strong style="color:'+daysColor+';">' + (r.days_remaining != null ? r.days_remaining : '-') + '</strong></td>';
+      html += '<td style="padding:8px;text-align:center;"><strong style="color:'+daysColor+';">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></td>';
 
       var protoColor = r.weak_protocol ? 'var(--red)' : 'var(--green)';
       html += '<td style="padding:8px;"><span style="color:'+protoColor+';font-weight:600;">' + esc(r.protocol_version || '-') + '</span></td>';
 
       var cipherColor = r.weak_cipher ? 'var(--red)' : 'var(--text-muted)';
-      html += '<td style="padding:8px;font-size:11px;color:'+cipherColor+';">' + esc(r.cipher || '-') + (r.key_bits ? ' <span style="color:var(--text-dim);">(' + r.key_bits + 'b)</span>' : '') + '</td>';
+      html += '<td style="padding:8px;font-size:11px;color:'+cipherColor+';">' + esc(r.cipher || '-') + (r.key_bits ? ' <span style="color:var(--text-dim);">(' + Number(r.key_bits) + 'b)</span>' : '') + '</td>';
     }
     html += '</tr>';
   });
 
   html += '</tbody></table></div>';
-  html += '<div style="margin-top:8px;font-size:11px;color:var(--text-dim);">' + t('tls_scan_complete','Scan complete') + ' · ' + (data.scanned_at ? data.scanned_at.slice(0,19).replace('T',' ') : '') + ' UTC</div>';
+  html += '<div style="margin-top:8px;font-size:11px;color:var(--text-dim);">' + t('tls_scan_complete','Scan complete') + ' · ' + (data.scanned_at ? esc(data.scanned_at.slice(0,19).replace('T',' ')) : '') + ' UTC</div>';
 
   el.innerHTML = html;
 }
