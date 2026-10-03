@@ -77,10 +77,23 @@ def main():
                         assert logo.status_code == 200, (url, logo.status_code)
                         assert logo.headers["content-type"] == "image/png", url
                         assert logo.content.startswith(b"\x89PNG\r\n\x1a\n"), url
-                    script = await client.get("/static/app.js")
-                    assert (
-                        script.status_code == 200 and "function registerUiHandlers" in script.text
+                    # The interface is ES modules: the shell loads main.js with
+                    # the graph's ?v=, and main.js reaches the rest through
+                    # versioned imports. Follow one to the handler registry, so
+                    # a wheel missing a module (or serving it unversioned)
+                    # fails here rather than as a blank page.
+                    entry = re.search(r'src="(/static/main\.js\?v=[^"]+)"', shell.text)
+                    assert entry, "The shell must load main.js with its version"
+                    main_js = await client.get(entry.group(1))
+                    assert main_js.status_code == 200, main_js.status_code
+                    assert main_js.headers["content-type"].startswith("text/javascript")
+                    handlers = re.search(
+                        r"""['"]\./(app-handlers\.js\?v=[^'"]+)['"]""", main_js.text
                     )
+                    assert handlers, "main.js must import the handler registry, versioned"
+                    registry = await client.get("/static/" + handlers.group(1))
+                    assert registry.status_code == 200, registry.status_code
+                    assert "export function registerUiHandlers" in registry.text
             finally:
                 await close_pool()
 
