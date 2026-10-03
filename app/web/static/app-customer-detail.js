@@ -547,7 +547,10 @@ async function _loadCustomerInfraCard(customerId) {
     if (!hasAnything) {
       el.innerHTML = '<div class="card" style="padding:var(--space-5);margin-top:var(--space-4);">'
         + '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-3);">' + t('hdr_infrastructure','Infrastructure') + '</div>'
-        + '<div style="color:var(--text-dim);font-size:var(--font-sm);">' + t('msg_no_infra_linked','No infrastructure linked to this customer. Link SSH hosts or VPN profiles from the Infrastructure section.') + '</div>'
+        + '<div class="cust-infra-empty"><span>' + esc(t('msg_no_infra_linked', 'Ingen infrastruktur knyttet til denne kunden. En SSH-vert eller VPN-profil knyttes til kunden der den legges inn.')) + '</span>'
+        + (canOpenView('hosts') ? '<button class="btn btn-default btn-sm" data-click-handler="showView" data-view="hosts">' + esc(t('btn_open_hosts', 'Åpne Verter')) + '</button>' : '')
+        + (canOpenView('vpn') ? '<button class="btn btn-default btn-sm" data-click-handler="showView" data-view="vpn">' + esc(t('btn_open_vpn', 'Åpne VPN')) + '</button>' : '')
+        + '</div>'
         + '</div>';
       return;
     }
