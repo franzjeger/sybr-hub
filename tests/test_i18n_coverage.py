@@ -768,7 +768,6 @@ _KEYS_THAT_REPLACED_LITERALS = (
     "st_secret_days_left",
     "st_expired",
     "st_none",
-    "time_now",
     "find_users_no_mfa",
     "find_secret_expiring",
     "find_subs_expired",

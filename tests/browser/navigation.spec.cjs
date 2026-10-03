@@ -223,6 +223,52 @@ test('each old address lands on the tab it became, for the active customer', asy
   await page.unrouteAll({behavior: 'ignoreErrors'});
 });
 
+test('the bell opens Varsler on Oversikt, with the events it used to list', async ({page}) => {
+  // The fixture has sent no alerts and logged nothing worth showing, so this
+  // page is told about one of each: what the alert engine sent (twice, as it
+  // repeats an alert every check) and one event.
+  const now = new Date().toISOString();
+  await page.route('**/api/alerts/history*', route => route.fulfill({json: {entries: [
+    {type: 'ssl_expiry', severity: 'critical', customer: 'Browser Beta', item: 'www.example.com', detail: 'Utløper om 3 dager', sent_at: now},
+    {type: 'ssl_expiry', severity: 'critical', customer: 'Browser Beta', item: 'www.example.com', detail: 'Utløper om 4 dager', sent_at: now},
+  ], total: 2}}));
+  await page.route('**/api/activity-log*', route => route.fulfill({json: {entries: [
+    {timestamp: now, action: 'audit_completed', detail: '', customer: 'Browser Beta', user: 'browser-admin'},
+    {timestamp: now, action: 'customer_switched', detail: '', customer: 'Browser Beta', user: 'browser-admin'},
+  ]}}));
+  await login(page);
+  await page.evaluate(() => showView('customers'));
+  await page.locator('#notif-bell').click();
+  await expect(page.locator('#view-overview')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#view-overview .dash-tab-btn[data-tab="dash-alerts"]')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#dash-alerts')).toBeVisible();
+  await expect(page.locator('#notif-badge')).toBeHidden();
+  const sent = page.locator('#dash-alerts .notif-group-label', {hasText: 'Sendt av automatiske varsler'});
+  await expect(sent).toHaveText(/\(1\)/);
+  // Switching customer is not news; finishing an audit is.
+  await expect(page.locator('#dash-alerts .notif-group-label', {hasText: 'Siste hendelser'})).toHaveText(/\(1\)/);
+  // The rule switches are settings, in Administrasjon, not here.
+  await expect(page.locator('#dash-alerts input[type="checkbox"]')).toHaveCount(0);
+  await page.getByRole('button', {name: 'Endre kanaler'}).click();
+  await expect(page.locator('#admin-pane-alerts')).toBeVisible();
+});
+
+test('Oversikt leads with who needs attention, without tiles, charts or an integration strip', async ({page}) => {
+  await login(page);
+  await page.evaluate(() => showView('overview'));
+  const rows = page.locator('.customer-overview-table tbody tr');
+  await expect(rows.first()).toBeVisible();
+  await expect(page.locator('#view-overview canvas, #view-overview .kpi-row')).toHaveCount(0);
+  // Nothing in the fixture is failing, so no banner either.
+  await expect(page.locator('#integration-health-widget')).toBeHidden();
+  // Worst first: the order follows the open findings, and a customer never
+  // audited sits above one with only low ones.
+  const weights = await page.evaluate(() => Array.from(document.querySelectorAll('.customer-overview-table tbody tr'))
+    .map(tr => _findingWeight(_overviewData.customers.find(c => c.customer_id === tr.dataset.customerId))));
+  expect(weights).toEqual([...weights].sort((a, b) => b - a));
+  await expect(page.locator('.customer-overview-table th', {hasText: 'Åpne funn'})).toContainText('▼');
+});
+
 test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({page}) => {
   await login(page);
   await page.locator('#nav-customers').click();

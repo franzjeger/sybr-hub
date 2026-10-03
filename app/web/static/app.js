@@ -219,7 +219,6 @@ registerUiHandlers({
   billingExportCurrentTab: function() { billingExportCurrentTab(); },
   toggleCommandPalette: function() { toggleCommandPalette(); },
   toggleNotifications: function() { toggleNotifications(); },
-  markAllNotificationsRead: function() { markAllNotificationsRead(); },
   promptPwaInstall: function() { promptPwaInstall(); },
   toggleTheme: function() { toggleTheme(); },
   doLogout: function() { doLogout(); },

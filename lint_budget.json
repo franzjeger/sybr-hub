@@ -351,6 +351,7 @@
     "tests/test_notification_centre.py",
     "tests/test_onedrive_scan_scope.py",
     "tests/test_operational_guards.py",
+    "tests/test_overview_open_findings.py",
     "tests/test_packaging.py",
     "tests/test_password_policy.py",
     "tests/test_password_protection.py",

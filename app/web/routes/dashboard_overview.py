@@ -134,6 +134,20 @@ async def get_dashboard_overview(user=Depends(get_current_user)):
 
         results.append(entry)
 
+    # Oversikt leads with who needs attention, worst open finding first: the
+    # newest run's findings less those someone has closed, per severity.
+    from app.services.remediation import open_finding_counts
+
+    open_counts = await open_finding_counts(
+        {
+            e["customer_id"]: (e["metrics"] or {}).get("recommendations") or []
+            for e in results
+            if e["has_metrics"]
+        }
+    )
+    for e in results:
+        e["open_findings"] = open_counts.get(e["customer_id"])
+
     results.sort(
         key=lambda x: (
             0 if x["has_metrics"] else 1,

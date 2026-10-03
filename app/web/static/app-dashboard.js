@@ -11,7 +11,6 @@ registerUiHandlers({
   notifOpenRules: function() { notifOpenRules(); },
   notifAct: function(el) { notifAct(el.dataset.id); },
   notifActReadOnly: function(el) { notifAct(el.dataset.id, true); },
-  notifToggleRule: function(el) { notifToggleRule(el.dataset.key, el.checked); },
   // Report archive
   dashArchiveCleanup: function(el) { dashArchiveCleanup(Number(el.dataset.months)); },
   dashArchiveDelete: function(el) { dashArchiveDelete(el.dataset.path); },
@@ -23,25 +22,20 @@ registerUiHandlers({
   filterOverview: function() { filterOverview(); },
   dashSetQuickFilter: function(el) { _quickFilter = el.dataset.quickFilter; filterOverview(); },
   dashClearSearchFilter: function() { document.getElementById('overview-search').value = ''; filterOverview(); },
-  dashClearTypeFilter: function() { document.getElementById('overview-filter').value = 'all'; filterOverview(); },
   dashClearGradeFilter: function() { _gradeFilter = ''; filterOverview(); },
   dashClearAllFilters: function() {
     document.getElementById('overview-search').value = '';
-    document.getElementById('overview-filter').value = 'all';
     _gradeFilter = '';
     _quickFilter = 'all';
     filterOverview();
   },
   startBulkAudit: function() { startBulkAudit(); },
-  toggleOverviewColpick: function(el, event) { toggleOverviewColpick(event); },
-  toggleOverviewColumn: function(el) { toggleOverviewColumn(el.dataset.col, el.checked); },
   sortOverview: function(el) { sortOverview(el.dataset.sort); },
   dashPagePrev: function() { window._dashPage = Math.max(1, window._dashPage - 1); filterOverview(); },
   dashPageNext: function(el) { window._dashPage = Math.min(Number(el.dataset.totalPages), window._dashPage + 1); filterOverview(); },
   // Customer overview rows. The controls inside a row stop the click so the
   // row's own handler does not open the customer as well.
   dashOverviewSelectCustomer: function(el) { overviewSelectCustomer(el.dataset.customerId); },
-  dashRowQuickAudit: function(el, event) { event.preventDefault(); quickSwitchAndAudit(el.dataset.customerId); },
   dashFilterByGrade: function(el, event) { event.stopPropagation(); filterByGrade(el.dataset.grade); },
   dashToggleRowActions: function(el, event) { event.stopPropagation(); toggleRowActions(el); },
   dashRowDetails: function(el, event) { event.stopPropagation(); overviewSelectCustomer(el.dataset.customerId); },
@@ -132,17 +126,21 @@ async function dashLoadAlerts() {
   // than emptying the screen.
   var res = await Promise.all([
     apiFetch('/api/dashboard/alerts'),
-    apiFetch('/api/uniweb/alerts').catch(function() { return null; }),
-    apiFetch('/api/alerts/config').catch(function() { return null; })
+    hasModule('billing') ? apiFetch('/api/uniweb/alerts').catch(function() { return null; }) : null,
+    apiFetch('/api/alerts/config').catch(function() { return null; }),
+    // What the automatic alerts sent (certificates, domains, firmware...)
+    // and what happened (the bell's events).
+    apiFetch('/api/alerts/history?limit=200').catch(function() { return null; }),
+    apiFetch('/api/activity-log?limit=20').catch(function() { return null; }),
   ]);
-  var data = res[0], uniweb = res[1], cfg = res[2];
+  var data = res[0], uniweb = res[1], cfg = res[2], history = res[3], activity = res[4];
 
   if (!data) {
     el.innerHTML = '<div class="alert alert-error">' + t('msg_alerts_failed', 'Kunne ikke hente varsler.') + '</div>';
     return;
   }
 
-  window._notifItems = _notifCollect(data, uniweb);
+  window._notifItems = _notifCollect(data, uniweb, history, activity);
   window._notifConfig = cfg;
   _notifRender();
 }
@@ -150,8 +148,10 @@ async function dashLoadAlerts() {
 // Flatten the three shapes into one. Each item carries the id its read state
 // is keyed on, which has to be stable across reloads — so it is built from
 // what identifies the alert, never from its position in the list.
-function _notifCollect(data, uniweb) {
+function _notifCollect(data, uniweb, history, activity) {
   var out = [];
+  var idByName = {};
+  ((_overviewData && _overviewData.customers) || []).forEach(function(c) { idByName[c.customer_name] = c.customer_id; });
 
   (data.credential_expiry || []).forEach(function(i) {
     out.push({
@@ -197,6 +197,46 @@ function _notifCollect(data, uniweb) {
     });
   }
 
+  // What the automatic alerts sent in the last 30 days: the newest of each
+  // (the engine repeats an alert every check while it holds).
+  var ruleLabels = {
+    ssl_expiry: t('rule_ssl_expiry', 'TLS-sertifikater'), domain_expiry: t('rule_domain_expiry', 'Domener'),
+    fortigate_threats: t('rule_fortigate_threats', 'Brannmur-hendelser'), firmware_outdated: t('rule_firmware', 'Utdatert firmware'),
+    also_license_expiry: t('rule_also', 'Lisensfornyelser'), mfa_coverage: t('rule_mfa', 'MFA-dekning'),
+    pentest_critical: t('rule_pentest', 'Kritiske pentest-funn'),
+  };
+  var since = new Date(Date.now() - 30 * 86400000).toISOString();
+  var seenAlert = {};
+  ((history && history.entries) || []).forEach(function(h) {
+    if (!h.sent_at || h.sent_at < since) return;
+    var key = (h.type || '') + ':' + (h.customer || '') + ':' + (h.item || '');
+    if (seenAlert[key]) return;
+    seenAlert[key] = true;
+    out.push({
+      id: 'alert:' + key, kind: 'alert',
+      sev: h.severity === 'critical' ? 'critical' : 'warning',
+      title: (ruleLabels[h.type] || h.type || '') + (h.item ? ': ' + h.item : ''),
+      customer: h.customer || '', customerId: idByName[h.customer] || '',
+      source: t('src_alert_engine', 'Automatiske varsler'),
+      days: null, when: String(h.sent_at).slice(0, 10), detail: h.detail || '',
+      action: t('btn_open_customer', 'Åpne kunde'), act: 'customer'
+    });
+  });
+
+  // The bell's events: what has happened, newest first.
+  var hide = {settings_changed: true, customer_switched: true, alert_config_changed: true};
+  ((activity && activity.entries) || []).forEach(function(e) {
+    if (hide[e.action]) return;
+    out.push({
+      id: 'event:' + (e.timestamp || '') + ':' + (e.action || ''), kind: 'event',
+      sev: 'info', title: _activityLabel(e.action || ''),
+      customer: e.customer || '', customerId: idByName[e.customer] || '',
+      source: t('src_events', 'Hendelser'),
+      days: null, when: e.timestamp ? timeAgo(e.timestamp) : '', detail: e.detail || '',
+      action: t('btn_open_customer', 'Åpne kunde'), act: 'customer'
+    });
+  });
+
   // Soonest first inside every group, expired at the top.
   out.sort(function(a, b) {
     var x = (a.days === null || a.days === undefined) ? 9e9 : a.days;
@@ -240,8 +280,6 @@ function _notifRender() {
   html += _notifSelect('customer', t('col_customer', 'Kunde'), Object.keys(customers));
   html += '<div style="flex:1;"></div>';
   html += '<button class="btn btn-default" style="font-size:12px;padding:5px 12px;color:var(--blue);border-color:transparent;" data-click-handler="notifMarkAllRead">' + t('btn_mark_all_read', 'Marker alle som lest') + '</button>';
-  html += '<button class="btn btn-default" style="font-size:12px;padding:5px 12px;" data-click-handler="notifOpenRules">'
-       + t('btn_alert_rules', 'Varslingsregler') + '</button>';
   html += '</div>';
 
   html += '<div class="notif-grid"><div>';
@@ -254,10 +292,13 @@ function _notifRender() {
   } else {
     // Urgency bands, not calendar days: these alerts describe what is about
     // to happen, so the useful grouping is how soon.
+    var dated = function(n) { return n.days !== null && n.days !== undefined; };
     var bands = [
-      { title: t('grp_now', 'Krever handling nå'), test: function(n) { return n.days !== null && n.days !== undefined && n.days <= 7; } },
-      { title: t('grp_month', 'Innen 30 dager'),   test: function(n) { return n.days !== null && n.days !== undefined && n.days > 7; } },
-      { title: t('grp_other', 'Uten frist'),       test: function(n) { return n.days === null || n.days === undefined; } }
+      { title: t('grp_now', 'Krever handling nå'), test: function(n) { return dated(n) && n.days <= 7; } },
+      { title: t('grp_month', 'Innen 30 dager'),   test: function(n) { return dated(n) && n.days > 7; } },
+      { title: t('grp_alerted', 'Sendt av automatiske varsler'), test: function(n) { return n.kind === 'alert'; } },
+      { title: t('grp_other', 'Uten frist'),       test: function(n) { return !dated(n) && !n.kind; } },
+      { title: t('grp_events', 'Siste hendelser'), test: function(n) { return n.kind === 'event'; } }
     ];
     bands.forEach(function(b) {
       var rows = shown.filter(b.test);
@@ -301,10 +342,14 @@ function _notifRow(n) {
   if (n.customer) html += '<span class="cust">' + esc(n.customer) + '</span>';
   html += '<span class="src">' + esc(n.source) + '</span>';
   if (n.when) html += '<span>' + esc(n.when) + '</span>';
+  if (n.detail) html += '<span class="notif-detail">' + esc(n.detail) + '</span>';
   html += '</div></div>';
   html += '<div class="notif-actions">';
-  html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;"'
-       + ' data-click-handler="notifAct" data-id="' + esc(n.id) + '">' + esc(n.action) + '</button>';
+  // An event or alert about no customer we know has nothing to open.
+  if (n.act !== 'customer' || n.customerId) {
+    html += '<button class="btn btn-default" style="font-size:11px;padding:4px 10px;"'
+         + ' data-click-handler="notifAct" data-id="' + esc(n.id) + '">' + esc(n.action) + '</button>';
+  }
   if (unread) {
     html += '<button class="btn btn-default" style="font-size:11px;padding:4px 8px;"'
          + ' title="' + t('tip_mark_read', 'Marker som lest') + '"'
@@ -333,85 +378,30 @@ function notifAct(id, readOnly) {
   _notifRender();
 }
 
-// The rule toggles are the real ones from /api/alerts/config, not decoration.
-// Writing them is admin-only server-side, so a technician sees the true state
-// disabled rather than a switch that silently fails.
+// Where the alerts go, and the way to the rules: the switches themselves are
+// under Administrasjon › Varsler.
 function _notifSidebar() {
   var cfg = window._notifConfig;
-  var isAdmin = (window._currentUser && window._currentUser.role === 'admin');
-  var labels = {
-    ssl_expiry: t('rule_ssl_expiry', 'TLS-sertifikater'),
-    domain_expiry: t('rule_domain_expiry', 'Domener'),
-    fortigate_threats: t('rule_fortigate_threats', 'Brannmur-hendelser'),
-    firmware_outdated: t('rule_firmware', 'Utdatert firmware'),
-    also_license_expiry: t('rule_also', 'Lisensfornyelser'),
-    mfa_coverage: t('rule_mfa', 'MFA-dekning'),
-    pentest_critical: t('rule_pentest', 'Kritiske pentest-funn')
-  };
-
-  var html = '<div class="notif-side"><div class="notif-card"><h4>' + t('hdr_alert_rules', 'Varslingsregler') + '</h4>';
-  if (!cfg) {
-    html += '<div style="font-size:12px;color:var(--text-muted);">'
-         + t('msg_rules_unavailable', 'Kunne ikke hente reglene.') + '</div>';
-  } else {
-    var rules = cfg.rules || {};
-    Object.keys(labels).forEach(function(k) {
-      var on = rules[k] && rules[k].enabled;
-      html += '<label class="rule-row"><span>' + esc(labels[k]) + '</span>'
-           + '<span class="switch"><input type="checkbox"' + (on ? ' checked' : '')
-           + (isAdmin ? '' : ' disabled')
-           + ' data-change-handler="notifToggleRule" data-key="' + esc(k) + '"'
-           + ' aria-label="' + esc(labels[k]) + '">'
-           + '<span class="track"></span><span class="knob"></span></span></label>';
-    });
-    if (!cfg.enabled) {
-      html += '<div style="font-size:11px;color:var(--orange-deep);margin-top:10px;">'
-           + t('msg_alerts_disabled', 'Automatiske varsler er slått av, så ingen av reglene sender noe. Slå dem på under Administrasjon › Varsler.')
-           + '</div>';
-    }
-    if (!isAdmin) {
-      html += '<div style="font-size:11px;color:var(--text-dim);margin-top:10px;">'
-           + t('msg_rules_admin_only', 'Bare administratorer kan endre reglene.') + '</div>';
-    }
-  }
-  html += '</div>';
-
-  html += '<div class="notif-card"><h4>' + t('hdr_delivery', 'Levering') + '</h4>';
+  var html = '<div class="notif-side"><div class="notif-card"><h4>' + esc(t('hdr_delivery', 'Levering')) + '</h4>';
   if (cfg) {
     var chans = [];
     if (cfg.notify_teams) chans.push('Teams');
-    if (cfg.notify_email && cfg.email_recipient) chans.push(esc(cfg.email_recipient));
-    html += '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;">'
-         + (chans.length
+    if (cfg.notify_email && cfg.email_recipient) chans.push(cfg.email_recipient);
+    html += '<p class="notif-side-text">'
+         + esc(chans.length
              ? t('msg_delivery_to', 'Varsler sendes til') + ' ' + chans.join(', ') + '.'
              : t('msg_delivery_none', 'Ingen kanal er satt opp, så varslene vises bare her.'))
-         + '</div>';
+         + '</p>';
+    if (!cfg.enabled) {
+      html += '<p class="notif-side-text is-warn">' + esc(t('msg_alerts_disabled', 'Automatiske varsler er slått av, så ingen av reglene sender noe. Slå dem på under Administrasjon › Varsler.')) + '</p>';
+    }
+  } else {
+    html += '<p class="notif-side-text">' + esc(t('msg_rules_unavailable', 'Kunne ikke hente reglene.')) + '</p>';
   }
-  html += '<div style="margin-top:10px;"><button class="btn btn-default" style="font-size:11px;padding:4px 10px;"'
-       + ' data-click-handler="notifOpenRules">' + t('btn_change_channels', 'Endre kanaler') + '</button></div></div>';
-
-  html += '<div class="notif-card"><h4>' + t('hdr_read_state', 'Lest-status') + '</h4>'
-       + '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;">'
-       + t('msg_read_local', 'Hva du har lest lagres i denne nettleseren. En kollega som åpner den samme listen ser sin egen status.')
-       + '</div></div>';
-
-  return html + '</div>';
-}
-
-async function notifToggleRule(key, on) {
-  var cfg = window._notifConfig;
-  if (!cfg) return;
-  var rules = JSON.parse(JSON.stringify(cfg.rules || {}));
-  rules[key] = Object.assign({}, rules[key] || {}, { enabled: on });
-  var saved = await apiFetch('/api/alerts/config', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ rules: rules })
-  });
-  // apiFetch has already said why on a failure; put the switch back rather
-  // than leaving it showing a state the server did not accept.
-  if (!saved) { _notifRender(); return; }
-  cfg.rules = rules;
-  showToast(t('msg_rule_saved', 'Regel lagret'), 'success', 2000);
+  html += canOpenView('admin')
+    ? '<button class="btn btn-default btn-sm" data-click-handler="notifOpenRules">' + esc(t('btn_change_channels', 'Endre kanaler')) + '</button>'
+    : '<p class="notif-side-text">' + esc(t('msg_rules_admin_only', 'Bare administratorer kan endre reglene.')) + '</p>';
+  return html + '</div></div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -738,8 +728,8 @@ function dashToggleAutoRefresh(btn) {
     return;
   }
   _dashRefreshInterval = setInterval(function() {
-    var active = document.querySelector('.dash-tab-btn.active');
-    if (active) active.click();
+    var active = document.querySelector('#view-overview .dash-tab-btn.active');
+    if (active && currentView === 'overview') active.click();
   }, _dashRefreshSeconds * 1000);
   if (btn) { btn.textContent = t('btn_auto_refresh_on','Auto-refresh: 2m'); btn.style.opacity = '1'; }
 }
@@ -777,6 +767,13 @@ function _dashExportTableCSV(containerId, filename) {
 }
 
 function dashExportAlerts() { _dashExportTableCSV('dash-alerts-content', 'alerts'); }
+
+// Oversikt on one of its tabs.
+function openOverviewTab(tabId) {
+  if (currentView !== 'overview') showView('overview');
+  var btn = document.querySelector('#view-overview .dash-tab-btn[data-tab="' + tabId + '"]');
+  if (btn) switchDashTab(btn, tabId);
+}
 
 // ── Lisenser og hosting (Verktøy, billing module) ───────────────────────────
 // Fornyelser, Kostnader and Domener were dashboard tabs; they are distributor
@@ -939,11 +936,11 @@ async function dashArchiveCleanup(months) {
 
 // ── Multi-customer dashboard overview ────────────────────────────────────────
 let _overviewData = null;
-let _overviewSortKey = 'risk_score';
-let _overviewSortAsc = true;
+// Worst open finding first: who needs attention leads.
+let _overviewSortKey = 'open_findings';
+let _overviewSortAsc = false;
 
 // ── Dashboard Charts ─────────────────────────────────────────────────────────
-var _dashChartInstances = {};
 var _dashAutoRefresh = null;
 var _dashAutoRefreshSec = 60;
 var _dashAutoRefreshRemaining = 0;
@@ -1011,204 +1008,36 @@ function _celebrateConfetti() {
   }
 }
 
-function _animateCountUp(el, target, suffix, duration) {
-  if (!el || isNaN(target)) return;
-
-  // The element already shows the true value; this only animates towards it.
-  //
-  // It used to be the other way round: the markup carried a literal 0 and the
-  // truth lived in data-count, so the number a reader saw depended on an
-  // animation finishing. It often did not. start was pinned to 0, so a
-  // re-render — this view refreshes itself — dropped the figure back to zero
-  // and raced the previous loop, and requestAnimationFrame is throttled in a
-  // background tab, so switching away could leave a tile reading 0 over a
-  // table listing one customer.
-  //
-  // Starting from what is on screen makes a re-render a no-op instead of a
-  // reset, and the generation counter means the newest call is the only one
-  // still writing.
-  var start = parseFloat(String(el.textContent).replace(/[^0-9.-]/g, ''));
-  if (isNaN(start)) start = 0;
-  if (start === target) return;
-
-  var generation = (el._countGeneration || 0) + 1;
-  el._countGeneration = generation;
-
-  var startTime = null;
-  duration = duration || 800;
-  function step(ts) {
-    if (el._countGeneration !== generation) return;   // superseded
-    if (!startTime) startTime = ts;
-    var progress = Math.min((ts - startTime) / duration, 1);
-    var eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-    var current = Math.round(start + (target - start) * eased);
-    el.textContent = current + (suffix || '');
-    if (progress < 1) requestAnimationFrame(step);
-    else el.textContent = target + (suffix || '');   // land exactly on it
-  }
-  requestAnimationFrame(step);
-}
-
-function _renderDashboardCharts(withMetrics) {
-  if (typeof Chart === 'undefined') return;
-  // Destroy previous instances
-  Object.values(_dashChartInstances).forEach(c => c.destroy());
-  _dashChartInstances = {};
-
-  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
-  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
-
-  // Risk score bar chart — sorted by risk
-  const barCanvas = document.getElementById('chart-risk-bar');
-  if (barCanvas && withMetrics.length > 0) {
-    const sorted = [...withMetrics].sort((a, b) => (a.metrics.risk_score||0) - (b.metrics.risk_score||0));
-    const labels = sorted.map(c => c.customer_name.length > 15 ? c.customer_name.substring(0,14)+'…' : c.customer_name);
-    const scores = sorted.map(c => c.metrics.risk_score || 0);
-    const colors = scores.map(s => s >= 80 ? '#3fb950' : s >= 60 ? '#4d9fb5' : s >= 40 ? '#d29922' : '#f85149');
-    _dashChartInstances.bar = new Chart(barCanvas, {
-      type: 'bar',
-      data: { labels, datasets: [{ data: scores, backgroundColor: colors, borderRadius: 4, borderSkipped: false }] },
-      options: {
-        indexAxis: 'y',
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x + '/100' } } },
-        scales: {
-          x: { max: 100, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
-          y: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
-        }
-      }
-    });
-  }
-
-  // Grade distribution renders as a CSS stacked bar in renderOverview() now,
-  // so there is no donut chart to draw here.
-}
-
-// Cached extra dashboard data (health scores + costs) for overview enrichment
-var _overviewHealthMap = {};
-var _overviewCostMap = {};
-
-// ── Integration health strip (top of Dashboard) ─────────────────────────
-// Shows configured / not-configured / recent-failure state for the main
-// integrations in one horizontal strip. Fed by /api/settings (config
-// presence) + /api/scheduler/tasks (last run + error). Click → /integrations.
-
+// ── Integrations: one banner when a configured one is failing ───────────
+// Oversikt answers "who needs me today". A strip of every integration's
+// state answered "how is the installation", which is Administrasjon's
+// question; what belongs here is the one thing that does need someone: an
+// integration that is set up and has started failing.
 async function loadIntegrationHealthStrip() {
   var widget = document.getElementById('integration-health-widget');
   if (!widget) return;
-  var [settings, schedRes] = await Promise.all([
-    apiFetch('/api/settings').catch(function() { return null; }),
-    apiFetch('/api/scheduler/tasks').catch(function() { return null; }),
-  ]);
-  if (!settings) { widget.style.display = 'none'; return; }
-
-  var tasks = {};
-  if (schedRes && schedRes.tasks) {
-    schedRes.tasks.forEach(function(t) { tasks[t.id || t.task_id || ''] = t; });
-  }
-
-  // Item spec: id (matches scheduler task id where applicable), label,
-  // configured flag, optional extra label shown on hover/under the name.
-  var items = [
-    { key: 'gdap',         label: 'M365 (GDAP)', configured: !!settings.gdap_configured,
-      detail: settings.gdap_customer_count ? (settings.gdap_customer_count + ' ' + t('lbl_customers_lc','kunder')) : '' },
-    // The core loop first: where findings come from, then where they go.
-    { key: 'autotask',     label: 'Autotask',    configured: !!(settings.autotask_integration_code_set && settings.autotask_secret_set && settings.autotask_username) },
-    { key: 'myitprocess',  label: 'myITprocess', configured: !!settings.myitprocess_api_key_set },
-    { key: 'itglue',       label: 'IT Glue',     configured: !!settings.itglue_api_key_set },
-    { key: 'smtp',         label: t('integ_email', 'E-post'), configured: !!(settings.smtp_server && settings.smtp_password_set) },
-    { key: 'fortigate',    label: 'FortiGate',   configured: !!settings.fortigate_configured,
-      taskId: 'fortigate_backup' },
-    { key: 'unifi',        label: 'UniFi',       configured: !!settings.unifi_site_manager_api_key_set },
-    { key: 'also',         label: 'ALSO Cloud',  configured: !!settings.also_password_set,
-      taskId: 'also_price_refresh', module: 'billing' },
-    { key: 'uniweb',       label: 'Uniweb',      configured: !!settings.uniweb_password_set,
-      taskId: 'uniweb_sync', module: 'billing' },
-    { key: 'tailscale',    label: 'Tailscale',   configured: !!settings.tailscale_api_key_set, module: 'tailscale' },
-  ].filter(function(item) { return !item.module || hasModule(item.module); });
-
-  function relTime(iso) {
-    if (!iso) return '';
-    try {
-      var diff = (Date.now() - new Date(iso).getTime()) / 1000;
-      if (diff < 60) return t('time_now');
-      if (diff < 3600) return Math.round(diff / 60) + 'm';
-      if (diff < 86400) return Math.round(diff / 3600) + 't';
-      return Math.round(diff / 86400) + 'd';
-    } catch(_) { return ''; }
-  }
-
-  var cards = items.map(function(item) {
-    var task = item.taskId ? tasks[item.taskId] : null;
-    var state = 'neutral';  // grey
-    if (item.configured) {
-      state = 'ok';
-      if (task && task.consecutive_failures > 0) state = 'warn';
-    }
-    var color = {
-      ok:      'var(--color-success)',
-      warn:    'var(--color-warning)',
-      neutral: 'var(--text-dim)',
-    }[state];
-    var detail = item.detail;
-    if (!detail && task && task.last_run) {
-      detail = t('lbl_last_run', 'Sist') + ' ' + relTime(task.last_run) + ' siden';
-    }
-    if (!item.configured) detail = t('lbl_not_configured', 'Ikke konfigurert');
-    return '' +
-      '<div class="integ-health-card" data-integ-key="' + esc(item.key) + '" style="min-width:0;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:border-color var(--duration-fast);" title="' + esc(item.label) + '">' +
-        '<div style="display:flex;align-items:center;gap:6px;">' +
-          '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0;"></span>' +
-          '<span style="font-size:12px;font-weight:600;color:var(--text);">' + esc(item.label) + '</span>' +
-        '</div>' +
-        (detail ? '<div style="font-size:10px;color:var(--text-dim);">' + esc(detail) + '</div>' : '') +
-      '</div>';
+  var schedRes = await apiFetch('/api/scheduler/tasks').catch(function() { return null; });
+  var failing = ((schedRes && schedRes.tasks) || []).filter(function(task) {
+    return task.enabled !== false && Number(task.consecutive_failures) > 0;
   });
-
-  widget.innerHTML = '' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2);">' +
-      '<div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">' + esc(t('hdr_integration_health', 'Integrasjonsstatus')) + '</div>' +
-      (canOpenView('admin') ? '<a href="#" data-click-handler="openAdmin" data-pane="integrations" style="font-size:var(--font-xs);color:var(--blue);text-decoration:none;">' + esc(t('lbl_manage', 'Administrer')) + ' &rarr;</a>' : '') +
-    '</div>' +
-    // A grid, so a short last row keeps the cards' size instead of stretching them.
-    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:var(--space-3);">' + cards.join('') + '</div>';
-
-  widget.style.display = 'block';
+  if (!failing.length) { widget.hidden = true; widget.innerHTML = ''; return; }
+  var names = failing.map(function(task) { return _taskSchedLabel(task); });
+  widget.innerHTML = '<div class="integ-failing-banner">'
+    + '<span>' + esc(t('msg_integrations_failing', 'Planlagte oppgaver feiler: {tasks}.').replace('{tasks}', names.join(', '))) + '</span>'
+    + adminSignpostButton('alerts', 'btn_open_scheduled_tasks')
+    + '</div>';
+  widget.hidden = false;
 }
-
-// Delegated click → Administrasjon › Integrasjoner
-document.addEventListener('click', function(e) {
-  var card = e.target.closest('#integration-health-widget .integ-health-card');
-  if (!card || !canOpenView('admin')) return;
-  openAdmin('integrations');
-});
 
 async function loadOverview() {
   const box = document.getElementById('overview-content');
-  // Integration health strip — fire-and-forget, independent of the
-  // customer grid load. Errors in /api/settings shouldn't delay or break
-  // dashboard rendering.
-  loadIntegrationHealthStrip().catch(function(e) { console.debug('integ strip failed:', e); });
-  // Fetch overview, health-scores, and costs in parallel
-  const [d, healthData, costData, trendData] = await Promise.all([
-    apiFetch('/api/dashboard/overview'),
-    apiFetch('/api/dashboard/health-scores').catch(function() { return null; }),
-    apiFetch('/api/dashboard/costs').catch(function() { return null; }),
-    apiFetch('/api/dashboard/trends').catch(function() { return null; }),
-  ]);
-  window._overviewTrends = (trendData && trendData.trends) ? trendData.trends : {};
+  // Independent of the customer list: a failing settings call must not
+  // delay or break it.
+  loadIntegrationHealthStrip().catch(function(e) { console.debug('integration banner failed:', e); });
+  const d = await apiFetch('/api/dashboard/overview');
   if (d) {
-    // Build lookup maps for health and cost data
-    _overviewHealthMap = {};
-    if (healthData && healthData.scores) {
-      healthData.scores.forEach(function(h) { _overviewHealthMap[h.customer_id] = h; });
-    }
-    _overviewCostMap = {};
-    if (costData && costData.customers) {
-      costData.customers.forEach(function(c) { _overviewCostMap[c.customer_id] = c; });
-    }
     _overviewData = {customers: d.customers || [], active_id: d.active_id};
-    renderOverview(_overviewData.customers, _overviewData.active_id);
+    filterOverview();
     // Update footer stats
     var fs = document.getElementById('footer-stats');
     if (fs) {
@@ -1224,12 +1053,12 @@ async function loadOverview() {
 }
 
 // ── Who needs attention ─────────────────────────────────────────────────
-// One definition, shared by the KPI tile, the attention strip above it and
-// the "Vis kun disse" filter, so the three cannot drift apart. A customer
-// needs attention when its last audit found a poor result, when it has never
-// been audited, or when that audit is older than _STALE_DAYS. Counting only
-// poor results showed a green 0 on an install where nobody had been audited:
-// a customer nobody has looked at is not a customer without problems.
+// One definition, shared by the attention strip and the "Vis kun disse"
+// filter, so the two cannot drift apart. A customer needs attention when it
+// has an open critical or high finding, when its last audit found a poor
+// result, when it has never been audited, or when that audit is older than
+// _STALE_DAYS: a customer nobody has looked at is not a customer without
+// problems.
 var _STALE_DAYS = 30;
 
 // Run directories are named "YYYY-MM-DD_HHMM" (older) or
@@ -1256,8 +1085,26 @@ function _poorResult(m) {
     || (typeof m.mfa_coverage_pct === 'number' && m.mfa_coverage_pct < 80);
 }
 
+function _openFindings(c) {
+  return c.open_findings || {critical: 0, high: 0, medium: 0, low: 0};
+}
+
+function _hasUrgentFindings(c) {
+  var f = _openFindings(c);
+  return f.critical > 0 || f.high > 0;
+}
+
 function _needsAttention(c) {
-  return !c.has_metrics || _poorResult(c.metrics) || _auditIsStale(c);
+  return !c.has_metrics || _hasUrgentFindings(c) || _poorResult(c.metrics) || _auditIsStale(c);
+}
+
+// The order of the list: worst open finding first. A customer never audited
+// ranks just below one with a high finding: nobody knows what it holds, which
+// is more urgent than a list of medium ones.
+function _findingWeight(c) {
+  if (!c.has_metrics) return 9999;
+  var f = _openFindings(c);
+  return f.critical * 1e6 + f.high * 1e4 + f.medium * 1e2 + f.low;
 }
 
 var _gradeFilter = '';
@@ -1272,41 +1119,11 @@ function filterByGrade(grade) {
 function filterOverview() {
   if (!_overviewData) return;
   const search = (document.getElementById('overview-search')?.value || '').toLowerCase();
-  const filter = document.getElementById('overview-filter')?.value || 'all';
   var qf = window._quickFilter || 'all';
   let filtered = _overviewData.customers.filter(c => {
     if (search && !c.customer_name.toLowerCase().includes(search) && !(c.primary_domain||'').toLowerCase().includes(search)) return false;
-    if (filter === 'has_m365' && !c.has_m365) return false;
-    if (filter === 'has_fortigate' && !c.has_fortigate) return false;
-    if (filter === 'needs_setup' && (c.has_m365 || c.has_fortigate || c.has_unifi)) return false;
-    if (filter === 'mfa80' && (!c.has_metrics || c.metrics.mfa_coverage_pct === undefined || c.metrics.mfa_coverage_pct >= 80)) return false;
-    if (filter === 'riskdf' && (!c.has_metrics || (c.metrics.risk_grade !== 'D' && c.metrics.risk_grade !== 'F'))) return false;
-    if (filter === 'noaudit' && c.has_metrics) return false;
-    // Same meaning as the "Utdatert >30d" tile. Never-audited customers have
-    // their own option (noaudit) instead of hiding inside this one.
-    if (filter === 'stale' && !_auditIsStale(c)) return false;
     if (_gradeFilter && (!c.has_metrics || c.metrics.risk_grade !== _gradeFilter)) return false;
     if (qf === 'attention' && !_needsAttention(c)) return false;
-    // Quick filter: "Problemer" = health grade D/F
-    if (qf === 'problems') {
-      var hd = _overviewHealthMap[c.customer_id];
-      if (!hd || (hd.grade !== 'D' && hd.grade !== 'F')) return false;
-    }
-    // Quick filter: "Utloper snart" = has expiring items (health breakdown has license/domain issues)
-    if (qf === 'expiring') {
-      var he = _overviewHealthMap[c.customer_id];
-      if (!he) return false;
-      var br = he.breakdown || {};
-      var hasExpiring = (br.license_compliance && br.license_compliance.score < br.license_compliance.max)
-        || (br.domain_health && br.domain_health.score < br.domain_health.max);
-      if (!hasExpiring) return false;
-    }
-    // Time filter
-    var timeFilter = (document.getElementById('overview-time-filter') || {}).value || 'all';
-    if (timeFilter !== 'all' && c.last_audit) {
-      var daysAgo = _auditAgeDays(c);
-      if (daysAgo !== null && daysAgo > parseInt(timeFilter)) return false;
-    }
     return true;
   });
   renderOverview(filtered, _overviewData.active_id);
@@ -1315,23 +1132,19 @@ function filterOverview() {
   var afEl = document.getElementById('overview-active-filters');
   if (afEl) {
     var badges = [];
-    if (search) badges.push('<span style="background:var(--blue-dark);color:var(--blue);padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);cursor:pointer;" data-click-handler="dashClearSearchFilter">&#10005; &quot;' + esc(search) + '&quot;</span>');
-    if (filter !== 'all') {
-      var fLabels = {has_m365:'M365', has_fortigate:'FortiGate', needs_setup:t('filter_needs_setup','Needs setup'), mfa80:'MFA < 80%', riskdf:t('filter_grade_df','Grade D/F'), noaudit:t('filter_no_audit'), stale:t('filter_stale_audit','Stale audit')};
-      badges.push('<span style="background:var(--blue-dark);color:var(--blue);padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);cursor:pointer;" data-click-handler="dashClearTypeFilter">&#10005; ' + esc(fLabels[filter]||filter) + '</span>');
-    }
-    if (_gradeFilter) badges.push('<span style="background:var(--blue-dark);color:var(--blue);padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);border:1px solid rgba(77,159,181,0.3);cursor:pointer;" data-click-handler="dashClearGradeFilter">&#10005; ' + t('lbl_grade') + ': ' + esc(_gradeFilter) + '</span>');
-    // Set by "Vis kun disse" on the attention strip. Without a badge the table
+    if (search) badges.push('<button type="button" class="filter-badge" data-click-handler="dashClearSearchFilter">&#10005; &quot;' + esc(search) + '&quot;</button>');
+    if (_gradeFilter) badges.push('<button type="button" class="filter-badge" data-click-handler="dashClearGradeFilter">&#10005; ' + esc(t('lbl_grade') + ': ' + _gradeFilter) + '</button>');
+    // Set by "Vis kun disse" on the attention strip. Without a badge the list
     // stayed narrowed with nothing on screen saying so.
     if (qf === 'attention') badges.push('<button type="button" class="filter-badge" id="overview-attention-badge">&#10005; ' + esc(t('lbl_needs_attention')) + '</button>');
     if (badges.length > 0) {
-      badges.push('<span style="font-size:var(--font-xs);color:var(--text-dim);cursor:pointer;text-decoration:underline;" data-click-handler="dashClearAllFilters">' + t('btn_clear_all','Clear all') + '</span>');
-      afEl.style.display = 'flex';
+      badges.push('<button type="button" class="filter-clear" data-click-handler="dashClearAllFilters">' + esc(t('btn_clear_all','Clear all')) + '</button>');
+      afEl.hidden = false;
       afEl.innerHTML = badges.join('');
       var attnBadge = document.getElementById('overview-attention-badge');
       if (attnBadge) attnBadge.addEventListener('click', function() { _quickFilter = 'all'; filterOverview(); });
     } else {
-      afEl.style.display = 'none';
+      afEl.hidden = true;
       afEl.innerHTML = '';
     }
   }
@@ -1339,381 +1152,184 @@ function filterOverview() {
 
 function sortOverview(key) {
   if (_overviewSortKey === key) _overviewSortAsc = !_overviewSortAsc;
-  else { _overviewSortKey = key; _overviewSortAsc = key === 'customer_name'; }
+  // Names A to Z; findings and MFA worst first.
+  else { _overviewSortKey = key; _overviewSortAsc = key === 'customer_name' || key === 'mfa_coverage_pct'; }
   filterOverview();
+}
+
+// The open findings of a customer as one chip per severity that has any.
+function _openFindingChips(c) {
+  if (!c.has_metrics) return '<span class="sev-count sev-unknown">' + esc(t('lbl_never_audited', 'Aldri auditert')) + '</span>';
+  var f = _openFindings(c);
+  var labels = {critical: t('sev_critical', 'Kritisk'), high: t('sev_high', 'Høy'), medium: t('sev_medium', 'Middels'), low: t('sev_low', 'Lav')};
+  var chips = ['critical', 'high', 'medium', 'low'].filter(function(s) { return f[s] > 0; }).map(function(s) {
+    return '<span class="sev-count sev-' + s + '">' + esc(labels[s]) + ' ' + Number(f[s]) + '</span>';
+  });
+  return chips.length ? chips.join('') : '<span class="sev-count sev-none">' + esc(t('lbl_no_open_findings', 'Ingen åpne')) + '</span>';
 }
 
 function renderOverview(customers, activeId) {
   const box = document.getElementById('overview-content');
 
-  // Sort
+  // Sort: worst open finding first unless the person chose otherwise.
   const sk = _overviewSortKey;
   customers.sort((a, b) => {
-    let va = sk === 'customer_name' ? a.customer_name : (a.has_metrics ? (a.metrics[sk] ?? -1) : -1);
-    let vb = sk === 'customer_name' ? b.customer_name : (b.has_metrics ? (b.metrics[sk] ?? -1) : -1);
-    if (typeof va === 'string' || typeof vb === 'string') { va = String(va ?? '').toLowerCase(); vb = String(vb ?? '').toLowerCase(); }
+    let va, vb;
+    if (sk === 'customer_name') { va = a.customer_name.toLowerCase(); vb = b.customer_name.toLowerCase(); }
+    else if (sk === 'open_findings') { va = _findingWeight(a); vb = _findingWeight(b); }
+    else {
+      va = a.has_metrics && typeof a.metrics[sk] === 'number' ? a.metrics[sk] : 1e9;
+      vb = b.has_metrics && typeof b.metrics[sk] === 'number' ? b.metrics[sk] : 1e9;
+    }
     const cmp = va < vb ? -1 : va > vb ? 1 : 0;
     return _overviewSortAsc ? cmp : -cmp;
   });
 
-  // Collect all tags from unfiltered data for the dropdown
-  var allTags = [];
-  (_overviewData ? _overviewData.customers : customers).forEach(function(c){(c.tags||[]).forEach(function(t){if(allTags.indexOf(t)===-1)allTags.push(t)})});
-  var selectedTag = (document.getElementById('overview-tag-filter')||{}).value || '';
-  if (selectedTag) customers = customers.filter(function(c){return (c.tags||[]).indexOf(selectedTag) !== -1});
-
   const total = customers.length;
   const withMetrics = customers.filter(c => c.has_metrics);
-  const avgRisk = withMetrics.length > 0
-    ? (withMetrics.reduce((s, c) => s + (c.metrics.risk_score || 0), 0) / withMetrics.length).toFixed(0)
-    : '-';
-  // Who needs attention, and why: see _needsAttention. The breakdown feeds
-  // the attention strip; the parts overlap (an old audit can also be a poor
-  // one), so the tile shows the union rather than their sum.
   const needsAttention = customers.filter(_needsAttention).length;
-  const attnPoor = withMetrics.filter(c => _poorResult(c.metrics)).length;
   const neverAudited = total - withMetrics.length;
-  // Only customers that have an audit can have an old one; the never-audited
-  // are counted on their own rather than hidden inside "older than 30 days".
   const staleCount = withMetrics.filter(_auditIsStale).length;
-  const withMfa = withMetrics.filter(c => typeof c.metrics.mfa_coverage_pct === 'number');
-  const avgMfa = withMfa.length > 0
-    ? (withMfa.reduce((s, c) => s + c.metrics.mfa_coverage_pct, 0) / withMfa.length).toFixed(0)
-    : '-';
 
-  // ── KPI trend chips ────────────────────────────────────────────────────
-  // Deltas are measured over the customers that have BOTH a current and a
-  // previous audit, so a customer audited for the first time this period
-  // shows up as neither an improvement nor a regression. Customer count,
-  // stale-audit count and the attention tile have no previous snapshot to
-  // compare against (a missing or old audit has no "before"), so those tiles
-  // carry no chip rather than one that measures something else.
-  const paired = withMetrics.filter(c => c.prev_metrics);
-  const _avgDelta = key => {
-    if (!paired.length) return null;
-    const cur = paired.reduce((s, c) => s + (c.metrics[key] || 0), 0) / paired.length;
-    const prv = paired.reduce((s, c) => s + (c.prev_metrics[key] || 0), 0) / paired.length;
-    return cur - prv;
-  };
-  const riskDelta = _avgDelta('risk_score');
-  const mfaDelta = _avgDelta('mfa_coverage_pct');
-
-  // Green means "checked, and fine". A zero over customers without data is
-  // not that, and neither is a dash where no average could be taken.
-  const KPI_NEUTRAL = 'var(--text-dim)';
-  const attnColor = needsAttention > 0 ? (attnPoor > 0 ? 'var(--red)' : 'var(--orange)')
-    : (total > 0 ? 'var(--green)' : KPI_NEUTRAL);
-  const staleColor = staleCount > 0 ? 'var(--orange)'
-    : (total > 0 && neverAudited === 0 ? 'var(--green)' : KPI_NEUTRAL);
-  const riskColor = avgRisk === '-' ? KPI_NEUTRAL
-    : avgRisk < 50 ? 'var(--red)' : avgRisk < 70 ? 'var(--orange)' : 'var(--green)';
-  const mfaColor = avgMfa === '-' ? KPI_NEUTRAL
-    : avgMfa < 80 ? 'var(--red)' : avgMfa < 95 ? 'var(--orange)' : 'var(--green)';
-
-  // Renders nothing for a null or sub-unit delta, so "no change" stays quiet.
-  function trendChip(delta, higherIsBetter, suffix) {
-    if (delta === null || delta === undefined) return '';
-    const d = Math.round(delta);
-    if (d === 0) return '';
-    // Written as an equality rather than a ternary: the i18n prose detector
-    // reads `? d > 0 : d < 0` as a baked-in string.
-    const good = higherIsBetter === (d > 0);
-    const txt = (d > 0 ? '+' : '−') + Math.abs(d) + (suffix || '');
-    return '<span class="kpi-trend" style="color:' + (good ? 'var(--green)' : 'var(--red)') + ';" title="'
-      + esc(t('tip_since_previous_audit', 'Endring siden forrige audit')) + '">' + esc(txt) + '</span>';
-  }
-
-  function fmtDate(d) {
-    return d ? formatRunName(d, true) : '-';
-  }
-
-  var tagFilterHtml = '<select id="overview-tag-filter" data-change-handler="filterOverview" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);margin-left:12px;"><option value="">' + t('alle_tags') + '</option>';
-  allTags.forEach(function(t){tagFilterHtml += '<option value="'+esc(t)+'"'+(selectedTag===t?' selected':'')+'>'+esc(t)+'</option>'});
-  tagFilterHtml += '</select>';
-
-  // Render search/filter bar only once — check if it exists
-  var searchBar = document.getElementById('overview-search-bar');
-  if (!searchBar) {
+  // The toolbar is built once, so the search field keeps its focus and value.
+  if (!document.getElementById('overview-search-bar')) {
     box.innerHTML = `
     <div id="overview-summary"></div>
     <div id="overview-search-bar">
       <div class="dash-toolbar">
-        <input id="overview-search" type="text" class="field-input" placeholder="${t('lbl_search_customer')}" style="width:220px;padding:7px 10px;font-size:13px;" data-input-handler="filterOverview">
-        <select id="overview-filter" class="field-input" style="width:auto;padding:7px 10px;font-size:13px;" data-change-handler="filterOverview">
-          <option value="all">${t('filter_all')}</option>
-          <option value="has_m365">${t('filter_has_m365','Has M365')}</option>
-          <option value="has_fortigate">${t('filter_has_fortigate','Has FortiGate')}</option>
-          <option value="needs_setup">${t('filter_needs_setup','Needs setup')}</option>
-          <option value="mfa80">${t('filter_mfa_80')}</option>
-          <option value="riskdf">${t('filter_risk_df')}</option>
-          <option value="noaudit">${t('filter_no_audit')}</option>
-          <option value="stale">${t('filter_stale_audit','Stale audit')}</option>
-        </select>
-        <select id="overview-time-filter" class="field-input" style="width:auto;padding:7px 10px;font-size:13px;" data-change-handler="filterOverview">
-          <option value="all">${t('filter_all_time','All time')}</option>
-          <option value="7">${t('filter_last_7d','Last 7 days')}</option>
-          <option value="30">${t('filter_last_30d','Last 30 days')}</option>
-          <option value="90">${t('filter_last_90d','Last 90 days')}</option>
-        </select>
-        ${tagFilterHtml}
-        <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
-        <button class="qpill" id="qp-all" data-click-handler="dashSetQuickFilter" data-quick-filter="all">${t('filter_quick_all','Alle')}</button>
-        <button class="qpill" id="qp-problems" data-click-handler="dashSetQuickFilter" data-quick-filter="problems">${t('filter_quick_problems','Problemer')}</button>
-        <button class="qpill" id="qp-expiring" data-click-handler="dashSetQuickFilter" data-quick-filter="expiring">${t('filter_quick_expiring','Utløper snart')}</button>
-        <div style="flex:1;"></div>
-        <button class="btn btn-primary btn-sm" id="bulk-audit-btn" data-click-handler="startBulkAudit" style="font-size:12px;">${t('btn_run_all_customers')}</button>
-        <div class="colpick" id="overview-colpick">
-          <button class="dash-tab-tool" data-click-handler="toggleOverviewColpick">${t('lbl_columns','Kolonner')} &#9662;</button>
-          <div class="colpick-menu" id="overview-colpick-menu">
-            <label><input type="checkbox" data-col="health" data-change-handler="toggleOverviewColumn"> ${t('lbl_health','Helse')}</label>
-            <label><input type="checkbox" data-col="users" data-change-handler="toggleOverviewColumn"> ${t('lbl_users','Brukere')}</label>
-            <label><input type="checkbox" data-col="trend" data-change-handler="toggleOverviewColumn"> ${t('lbl_trend','Trend')}</label>
-            <label><input type="checkbox" data-col="tags" data-change-handler="toggleOverviewColumn"> ${t('lbl_tags','Tags')}</label>
-          </div>
-        </div>
+        <input id="overview-search" type="text" class="field-input overview-search" placeholder="${esc(t('lbl_search_customer'))}" aria-label="${esc(t('lbl_search_customer'))}" data-input-handler="filterOverview">
+        <div class="dash-toolbar-spacer"></div>
+        <button class="btn btn-default btn-sm" data-write id="bulk-audit-btn" data-click-handler="startBulkAudit">${esc(t('btn_run_all_customers'))}</button>
       </div>
-      <div id="bulk-audit-panel" style="display:none;"></div>
+      <div id="bulk-audit-panel" hidden></div>
     </div>
-    <div id="overview-active-filters" style="display:none;margin-bottom:var(--space-3);display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;"></div>
+    <div id="overview-active-filters" class="overview-filters" hidden></div>
     <div id="overview-table-content"></div>`;
   }
 
   var tableBox = document.getElementById('overview-table-content') || box;
 
-  // Summary block (attention strip + KPI cards) goes into a persistent
-  // container ABOVE the toolbar, so the mock's order holds — attention → KPI →
-  // toolbar → table → charts — while the search input keeps focus/value.
+  // Who needs me today, and why: the parts overlap (an old audit can also
+  // hold a critical finding), so the title counts customers, not reasons.
   var summaryHtml = '';
   if (needsAttention > 0) {
-    var _attnGradeD = withMetrics.filter(function(c){ return c.metrics.risk_grade === 'D' || c.metrics.risk_grade === 'F'; }).length;
-    var _attnLowMfa = withMetrics.filter(function(c){ return typeof c.metrics.mfa_coverage_pct === 'number' && c.metrics.mfa_coverage_pct < 80; }).length;
-    var _attnParts = [];
-    if (_attnGradeD) _attnParts.push(_attnGradeD + ' ' + t('attn_grade_d'));
-    if (_attnLowMfa) _attnParts.push(_attnLowMfa + ' ' + t('attn_low_mfa'));
-    if (neverAudited) _attnParts.push(neverAudited + ' ' + t('attn_no_audit'));
-    if (staleCount) _attnParts.push(staleCount + ' ' + t('attn_stale'));
-    summaryHtml += `
-      <div class="attn-strip${attnPoor ? '' : ' attn-strip--gaps'}">
-        <span class="attn-title">${needsAttention} ${t('lbl_needs_followup', 'kunder trenger oppfølging')}</span>
-        <span class="attn-detail">${esc(_attnParts.join(' · '))}</span>
-        <div style="flex:1;"></div>
-        <button class="attn-action" data-click-handler="dashSetQuickFilter" data-quick-filter="attention">${t('btn_show_only_these', 'Vis kun disse')}</button>
+    var crit = withMetrics.filter(function(c) { return _openFindings(c).critical > 0; }).length;
+    var high = withMetrics.filter(function(c) { var f = _openFindings(c); return !f.critical && f.high > 0; }).length;
+    var lowMfa = withMetrics.filter(function(c) { return typeof c.metrics.mfa_coverage_pct === 'number' && c.metrics.mfa_coverage_pct < 80; }).length;
+    var parts = [];
+    if (crit) parts.push(crit + ' ' + t('attn_critical', 'med kritiske funn'));
+    if (high) parts.push(high + ' ' + t('attn_high', 'med høye funn'));
+    if (lowMfa) parts.push(lowMfa + ' ' + t('attn_low_mfa'));
+    if (neverAudited) parts.push(neverAudited + ' ' + t('attn_no_audit'));
+    if (staleCount) parts.push(staleCount + ' ' + t('attn_stale'));
+    summaryHtml = `
+      <div class="attn-strip${crit || high ? '' : ' attn-strip--gaps'}">
+        <span class="attn-title" data-count="${Number(needsAttention)}">${Number(needsAttention)} ${esc(t('lbl_needs_followup', 'kunder trenger oppfølging'))}</span>
+        <span class="attn-detail">${esc(parts.join(' · '))}</span>
+        <div class="dash-toolbar-spacer"></div>
+        <button class="attn-action" data-click-handler="dashSetQuickFilter" data-quick-filter="attention">${esc(t('btn_show_only_these', 'Vis kun disse'))}</button>
       </div>`;
+  } else if (total > 0) {
+    summaryHtml = '<div class="attn-strip attn-strip--clear"><span class="attn-title" data-count="0">' + esc(t('msg_nobody_needs_you', 'Ingen kunder har åpne kritiske eller høye funn, og alle er auditert den siste måneden.')) + '</span></div>';
   }
-  summaryHtml += `
-    <div class="kpi-row">
-      <div class="kpi-card"><div class="kpi-label">${t('lbl_total_customers')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${total}" style="color:var(--text);">${total}</span></div></div>
-      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_risk_score')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgRisk !== '-' ? avgRisk : ''}" style="color:${riskColor};">${avgRisk === '-' ? '-' : avgRisk}</span>${trendChip(riskDelta, true)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">${t('lbl_avg_mfa','MFA-dekning')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${avgMfa !== '-' ? avgMfa : ''}" data-suffix="%" style="color:${mfaColor};">${avgMfa === '-' ? '-' : avgMfa + '%'}</span>${trendChip(mfaDelta, true, ' pp')}</div></div>
-      <div class="kpi-card" id="kpi-needs-attention"><div class="kpi-label">${t('lbl_needs_attention')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${needsAttention}" style="color:${attnColor};">${needsAttention}</span></div></div>
-      <div class="kpi-card" id="kpi-stale"><div class="kpi-label">${t('lbl_stale_30d','Utdatert >30d')}</div><div class="kpi-value-row"><span class="kpi-value kpi-num" data-count="${staleCount}" style="color:${staleColor};">${staleCount}</span></div></div>
-    </div>`;
-  var _sumBox = document.getElementById('overview-summary');
-  if (_sumBox) _sumBox.innerHTML = summaryHtml;
+  var sumBox = document.getElementById('overview-summary');
+  if (sumBox) sumBox.innerHTML = summaryHtml;
 
   let html = '';
-
-  // Build the grade-distribution stacked bar (charts sit below the table now).
-  setTimeout(function() {
-    var grades = {A:0, B:0, C:0, D:0, F:0};
-    withMetrics.forEach(function(c) { var g = c.metrics.risk_grade; if (grades[g] !== undefined) grades[g]++; });
-    var gc = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'#8b0000'};
-    var stack = document.getElementById('grade-stack');
-    if (stack) {
-      stack.innerHTML = Object.keys(gc).map(function(k){ return grades[k] > 0 ? '<span style="flex:'+grades[k]+';background:'+gc[k]+';"></span>' : ''; }).join('') || '<span style="flex:1;background:var(--border);"></span>';
-    }
-    var legend = document.getElementById('grade-legend');
-    if (legend) {
-      legend.innerHTML = Object.keys(gc).filter(function(k){return grades[k]>0;}).map(function(k){ return '<span><b style="color:'+gc[k]+';">'+esc(k)+'</b> '+grades[k]+'</span>'; }).join('');
-    }
-  }, 60);
-
-  // Render charts after DOM update
-  setTimeout(() => {
-    _renderDashboardCharts(withMetrics);
-    // Animate KPI numbers
-    document.querySelectorAll('.kpi-num').forEach(function(el) {
-      var val = parseFloat(el.getAttribute('data-count'));
-      var suffix = el.getAttribute('data-suffix') || '';
-      if (!isNaN(val)) _animateCountUp(el, val, suffix, 900);
-    });
-  }, 50);
-
   if (customers.length === 0) {
     html += `
-      <div class="card" style="text-align:center;padding:var(--space-16) var(--space-6);">
-        <div style="font-size:var(--font-lg);font-weight:600;color:var(--text);margin-bottom:var(--space-2);">${t('msg_no_customers_registered')}</div>
-        <div style="font-size:var(--font-sm);color:var(--text-dim);margin-bottom:var(--space-6);max-width:360px;margin-left:auto;margin-right:auto;">${t('msg_go_to_customers')}</div>
-        <button class="btn btn-primary btn-lg" data-click-handler="showView" data-view="customers">${t('btn_add_first_customer')}</button>
+      <div class="card empty-signpost">
+        <p>${esc(_overviewData && _overviewData.customers.length ? t('msg_no_results', 'Ingen treff') : t('msg_no_customers_registered'))}</p>
+        ${_overviewData && _overviewData.customers.length ? '' : '<button class="btn btn-primary" data-click-handler="showView" data-view="customers">' + esc(t('btn_add_first_customer')) + '</button>'}
       </div>`;
-  } else {
-    html += `
-    <div class="card overview-table-wrap" style="padding:0;overflow:auto;max-height:70vh;background:var(--bg-panel);">
+    tableBox.innerHTML = html;
+    return;
+  }
+
+  var arrow = function(key) { return _overviewSortKey === key ? (_overviewSortAsc ? ' ▲' : ' ▼') : ''; };
+  html += `
+    <div class="card overview-table-wrap">
       <table class="slim-table customer-overview-table">
         <thead>
           <tr>
-            <th class="sortable" data-click-handler="sortOverview" data-sort="customer_name">${t('lbl_customer')} ${_overviewSortKey==='customer_name'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th>${t('lbl_status','Status')}</th>
-            <th class="num sortable" data-click-handler="sortOverview" data-sort="risk_score">${t('lbl_risk')} ${_overviewSortKey==='risk_score'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th class="num sortable" data-click-handler="sortOverview" data-sort="mfa_coverage_pct">MFA ${_overviewSortKey==='mfa_coverage_pct'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th class="num sortable" data-click-handler="sortOverview" data-sort="secure_score_pct">${t('lbl_secure_score','Secure score')} ${_overviewSortKey==='secure_score_pct'?(_overviewSortAsc?'\u25B2':'\u25BC'):''}</th>
-            <th class="num">MRR</th>
-            <th>${t('lbl_last_audit')}</th>
-            <th class="col-opt col-hidden" data-optcol="health" title="${t('tip_health_grade','Health grade (A-F) across all integrations')}">${t('lbl_health','Helse')}</th>
-            <th class="num col-opt col-hidden sortable" data-optcol="users" data-click-handler="sortOverview" data-sort="total_users">${t('lbl_users','Brukere')}</th>
-            <th class="col-opt col-hidden" data-optcol="trend">${t('lbl_trend','Trend')}</th>
-            <th class="col-opt col-hidden" data-optcol="tags">${t('lbl_tags','Tags')}</th>
-            <th style="width:40px;"></th>
+            <th class="sortable" data-click-handler="sortOverview" data-sort="customer_name">${esc(t('lbl_customer'))}${arrow('customer_name')}</th>
+            <th class="sortable" data-click-handler="sortOverview" data-sort="open_findings">${esc(t('hdr_open_findings', 'Åpne funn'))}${arrow('open_findings')}</th>
+            <th class="num sortable" data-click-handler="sortOverview" data-sort="mfa_coverage_pct">MFA${arrow('mfa_coverage_pct')}</th>
+            <th>${esc(t('lbl_last_audit'))}</th>
+            <th class="overview-menu-col"></th>
           </tr>
         </thead>
         <tbody>`;
 
-    function deltaHtml(cur, prev, key, higherIsBetter) {
-      if (prev === undefined || prev === null || cur === undefined || cur === null) return '';
-      var cv = typeof cur === 'object' ? cur[key] : cur;
-      var pv = typeof prev === 'object' ? prev[key] : prev;
-      if (cv === undefined || pv === undefined || cv === pv) return '';
-      var diff = cv - pv;
-      var isGood = higherIsBetter ? diff > 0 : diff < 0;
-      var arrow = diff > 0 ? '&#9650;' : '&#9660;';
-      var color = isGood ? 'var(--green)' : 'var(--red)';
-      return '<span style="font-size:9px;color:'+color+';margin-left:3px;" title="'+( diff > 0 ? '+' : '')+diff.toFixed(0)+'">' + arrow + '</span>';
-    }
+  // Pagination
+  var _pageSize = 25;
+  var _totalPages = Math.ceil(customers.length / _pageSize);
+  if (!window._dashPage || window._dashPage > _totalPages) window._dashPage = 1;
+  var _startIdx = (window._dashPage - 1) * _pageSize;
+  var _pagedCustomers = customers.slice(_startIdx, _startIdx + _pageSize);
 
-    // Pagination
-    var _pageSize = 25;
-    var _totalPages = Math.ceil(customers.length / _pageSize);
-    if (!window._dashPage || window._dashPage > _totalPages) window._dashPage = 1;
-    var _startIdx = (window._dashPage - 1) * _pageSize;
-    var _pagedCustomers = customers.slice(_startIdx, _startIdx + _pageSize);
+  for (const c of _pagedCustomers) {
+    const m = c.metrics || {};
+    const hasM = c.has_metrics;
+    const grade = hasM ? (m.risk_grade || '-') : '-';
+    const mfa = hasM && metricPct(m.mfa_coverage_pct) !== null ? metricPct(m.mfa_coverage_pct) + '%' : '-';
+    const mfaClass = !hasM || typeof m.mfa_coverage_pct !== 'number' ? 'is-unknown' : m.mfa_coverage_pct >= 95 ? 'is-good' : m.mfa_coverage_pct >= 80 ? 'is-warn' : 'is-bad';
+    const lastAudit = c.last_audit ? formatRunName(c.last_audit, true) : '-';
+    const age = _auditAgeDays(c);
+    const ageNote = !c.last_audit ? ''
+      : _auditIsStale(c) ? '<span class="overview-age is-stale">' + esc(Math.floor(age) + 'd ' + t('lbl_since_audit', 'siden audit')) + '</span>' : '';
+    const gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[grade] || 'var(--text-muted)';
+    const gvd = {A:'var(--green-deep)',B:'var(--blue-deep)',C:'var(--orange-deep)',D:'var(--red-deep)',F:'var(--red-deep)'}[grade] || 'var(--text-muted)';
 
-    for (const c of _pagedCustomers) {
-      const m = c.metrics || {};
-      const pm = c.prev_metrics || {};
-      const hasM = c.has_metrics;
-      const hasPrev = !!c.prev_metrics;
-      const grade = hasM ? (m.risk_grade || '-') : '-';
-      const score = hasM ? (m.risk_score !== undefined ? m.risk_score : '-') : '-';
-      const mfa = hasM && metricPct(m.mfa_coverage_pct) !== null ? metricPct(m.mfa_coverage_pct) + '%' : '-';
-      const ss = hasM && metricPct(m.secure_score_pct) !== null ? metricPct(m.secure_score_pct) + '%' : '-';
-      const users = hasM && m.total_users !== undefined ? m.total_users : '-';
-      const lastAudit = esc(fmtDate(c.last_audit));
-      const mfaColor = !hasM || m.mfa_coverage_pct === undefined ? 'var(--text-muted)' : m.mfa_coverage_pct >= 95 ? 'var(--green)' : m.mfa_coverage_pct >= 80 ? 'var(--orange)' : 'var(--red)';
-      const ssColor = !hasM || m.secure_score_pct === undefined ? 'var(--text-muted)' : m.secure_score_pct >= 75 ? 'var(--green)' : m.secure_score_pct >= 50 ? 'var(--orange)' : 'var(--red)';
-
-      // Health score from enriched data
-      const _hd = _overviewHealthMap[c.customer_id] || {};
-      const healthGrade = _hd.grade || '-';
-      const healthScore = _hd.total_score !== undefined ? _hd.total_score : '-';
-      const healthColor = {A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[healthGrade] || 'var(--text-muted)';
-
-      // MRR from cost data
-      const _cd = _overviewCostMap[c.customer_id] || {};
-      const mrrVal = Number(_cd.total_monthly) || 0;
-      const mrrStr = mrrVal > 0 ? mrrVal.toLocaleString('nb-NO', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' kr' : '-';
-
-      // Grade → semantic colour var + derived status pill (frame 1b). The
-      // -deep variant is the label colour: it sits on a 12% tint of its own
-      // hue, which light theme has to compensate for to stay above WCAG AA.
-      const _gv = {A:'var(--green)',B:'var(--blue)',C:'var(--orange)',D:'var(--red)',F:'var(--red)'}[grade] || 'var(--text-muted)';
-      const _gvd = {A:'var(--green-deep)',B:'var(--blue-deep)',C:'var(--orange-deep)',D:'var(--red-deep)',F:'var(--red-deep)'}[grade] || 'var(--text-muted)';
-      let _stLabel, _stColor, _stDeep;
-      if (grade === 'D' || grade === 'F') { _stLabel = t('status_needs_followup','Trenger oppfølging'); _stColor = 'var(--red)'; _stDeep = 'var(--red-deep)'; }
-      else if (hasM && m.total_warns > 0) { _stLabel = t('status_watch','Følg med'); _stColor = 'var(--orange)'; _stDeep = 'var(--orange-deep)'; }
-      else if (hasM) { _stLabel = 'OK'; _stColor = 'var(--green)'; _stDeep = 'var(--green-deep)'; }
-      else { _stLabel = '—'; _stColor = 'var(--text-dim)'; _stDeep = 'var(--text-muted)'; }
-      const _stBg = hasM ? `color-mix(in srgb, ${_stColor} 12%, transparent)` : 'transparent';
-      const _domBadges = `${c.has_m365 ? ' <span style="background:var(--blue);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="M365 configured">M365</span>' : ''}${c.has_fortigate ? ' <span style="background:#e8590c;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="FortiGate configured">FG</span>' : ''}${c.has_unifi ? ' <span style="background:#06b6d4;color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="UniFi configured">UF</span>' : ''}${!c.has_m365 && !c.has_fortigate && !c.has_unifi ? ' <span style="background:var(--text-dim);color:#fff;padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;font-family:sans-serif;" title="'+t('filter_needs_setup','Needs setup')+'">?</span>' : ''}`;
-      const _warnNote = `${hasM && m.total_warns > 0 ? '<div style="font-size:10px;color:var(--orange);margin-top:2px;">' + Number(m.total_warns) + ' ' + t('lbl_warnings','warnings') + '</div>' : ''}${(() => { if (!c.last_audit) return '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+t('lbl_never_audited','Never audited')+'</div>'; if (_auditIsStale(c)) return '<div style="font-size:10px;color:var(--orange);margin-top:1px;">'+Math.floor(_auditAgeDays(c))+'d '+t('lbl_since_audit','since audit')+'</div>'; return ''; })()}`;
-
-      html += `
+    html += `
           <tr data-click-handler="dashOverviewSelectCustomer" data-customer-id="${esc(c.customer_id)}"
-              data-dblclick-handler="dashRowQuickAudit"
-              title="${t('tip_click_detail_dblclick_audit','Click: details · Double-click: run audit')}">
+              title="${esc(t('tip_click_to_open_customer', 'Åpne kunden'))}">
             <td>
               <div class="cust-cell">
-                <span class="grade-tile" style="color:${_gvd};background:color-mix(in srgb, ${_gv} 12%, transparent);border-color:color-mix(in srgb, ${_gv} 40%, transparent);" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${t('tip_click_filter_grade','Click to filter by grade')}">${esc(grade)}</span>
-                <span style="min-width:0;">
+                <span class="grade-tile" style="color:${gvd};background:color-mix(in srgb, ${gv} 12%, transparent);border-color:color-mix(in srgb, ${gv} 40%, transparent);" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${esc(t('tip_click_filter_grade','Click to filter by grade'))}">${esc(grade)}</span>
+                <span class="cust-cell-text">
                   <span class="cname">${esc(c.customer_name)}</span>
-                  <span class="cdom">${esc(c.primary_domain || '')}${_domBadges}</span>
-                  ${_warnNote}
+                  <span class="cdom">${esc(c.primary_domain || '')}</span>
                 </span>
               </div>
             </td>
-            <td><span class="status-pill" style="color:${_stDeep};background:${_stBg};">${_stLabel}</span></td>
-            <td class="num">${esc(String(score))}${hasPrev ? deltaHtml(m, pm, 'risk_score', true) : ''}</td>
-            <td class="num" style="color:${mfaColor};">${mfa}${hasPrev ? deltaHtml(m, pm, 'mfa_coverage_pct', true) : ''}</td>
-            <td class="num" style="color:${ssColor};">${ss}${hasPrev ? deltaHtml(m, pm, 'secure_score_pct', true) : ''}</td>
-            <td class="num" style="color:${mrrVal > 0 ? 'var(--text-muted)' : 'var(--text-dim)'};font-weight:${mrrVal > 0 ? '600' : '400'};">${mrrStr}</td>
-            <td style="color:var(--text-muted);font-size:12px;white-space:nowrap;">${lastAudit}</td>
-            <td class="col-opt col-hidden" data-optcol="health" style="text-align:center;">
-              <span style="display:inline-block;width:26px;height:26px;line-height:26px;border-radius:50%;font-weight:700;font-size:12px;color:#fff;background:${healthColor};" title="${t('lbl_health','Helse')}: ${esc(healthGrade)} (${esc(String(healthScore))}/100)">${esc(healthGrade)}</span>
-            </td>
-            <td class="num col-opt col-hidden" data-optcol="users">${esc(String(users))}</td>
-            <td class="col-opt col-hidden" data-optcol="trend" style="text-align:center;"><span id="spark-${esc(c.customer_id || c._id || '')}" style="display:inline-block;width:72px;height:24px;"></span></td>
-            <td class="col-opt col-hidden" data-optcol="tags">${tagPillsHtml(c.tags || [])}</td>
-            <td style="text-align:center;">
-              <div style="position:relative;display:inline-block;" class="row-actions-wrap">
-                <button class="hover-subtle" data-click-handler="dashToggleRowActions" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-dim);padding:2px 6px;border-radius:var(--radius-sm);transition:background var(--duration-fast);">&#8943;</button>
-                <div class="row-actions-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-1) 0;min-width:180px;box-shadow:var(--shadow-lg);z-index:50;animation:dropdown-in var(--duration-fast) var(--ease-out);">
-                  <button class="hover-menu-item" data-click-handler="dashRowDetails" data-customer-id="${esc(c.customer_id)}" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;">${t('lbl_details')}</button>
-                  <button class="hover-menu-item" data-click-handler="dashRowAudit" data-customer-id="${esc(c.customer_id)}" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;">${t('btn_run_audit')}</button>
-                  <button class="hover-menu-item" data-click-handler="dashRowHistory" data-customer-id="${esc(c.customer_id)}" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;">${t('nav_history')}</button>
-                  <button class="hover-menu-item" data-click-handler="dashRowReport" data-customer-id="${esc(c.customer_id)}" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;">${t('btn_generate_report')}</button>
-                  <div style="border-top:1px solid var(--border);margin:var(--space-1) 0;"></div>
-                  <button class="hover-menu-item-danger" data-click-handler="dashRowArchive" data-customer-id="${esc(c.customer_id)}" data-customer-name="${esc(c.customer_name)}" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:8px 14px;background:none;border:none;color:var(--red);font-size:13px;text-align:left;cursor:pointer;transition:background 0.1s;">${t('btn_archive','Archive')}</button>
+            <td><span class="sev-counts">${_openFindingChips(c)}</span></td>
+            <td class="num overview-mfa ${mfaClass}">${esc(mfa)}</td>
+            <td class="overview-last">${esc(lastAudit)}${ageNote}</td>
+            <td class="overview-menu-col">
+              <div class="row-actions-wrap">
+                <button class="row-actions-btn" data-click-handler="dashToggleRowActions" aria-label="${esc(t('lbl_more_actions', 'Flere handlinger'))}">&#8943;</button>
+                <div class="row-actions-menu" style="display:none;">
+                  <button class="hover-menu-item" data-click-handler="dashRowDetails" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_open_customer', 'Åpne kunde'))}</button>
+                  <button class="hover-menu-item" data-write data-click-handler="dashRowAudit" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_run_audit'))}</button>
+                  <button class="hover-menu-item" data-click-handler="dashRowHistory" data-customer-id="${esc(c.customer_id)}">${esc(t('hdr_runs', 'Kjøringer'))}</button>
+                  <button class="hover-menu-item" data-click-handler="dashRowReport" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_summary_report', 'Sammendragsrapport'))}</button>
+                  <div class="row-actions-sep"></div>
+                  <button class="hover-menu-item-danger" data-write data-click-handler="dashRowArchive" data-customer-id="${esc(c.customer_id)}" data-customer-name="${esc(c.customer_name)}">${esc(t('btn_archive','Archive'))}</button>
                 </div>
               </div>
             </td>
           </tr>`;
-    }
-
-    html += `
+  }
+  html += `
         </tbody>
       </table>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:20px;">
-      <div class="card" style="background:var(--bg-panel);padding:16px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">${t('lbl_risk_distribution')}</div>
-        ${withMetrics.length
-          ? '<div style="position:relative;height:120px;"><canvas id="chart-risk-bar"></canvas></div>'
-          : '<div class="chart-empty">' + esc(t('msg_chart_no_audits')) + '</div>'}
-      </div>
-      <div class="card" style="background:var(--bg-panel);padding:16px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">${t('lbl_grade_distribution')}</div>
-        ${withMetrics.length
-          ? '<div class="grade-stack" id="grade-stack"></div><div class="grade-legend" id="grade-legend"></div>'
-          : '<div class="chart-empty">' + esc(t('msg_chart_no_audits')) + '</div>'}
-      </div>
     </div>`;
-  }
 
-  // Pagination controls
   if (_totalPages > 1) {
-    html += '<div style="display:flex;align-items:center;justify-content:center;gap:var(--space-3);padding:var(--space-4) 0;font-size:var(--font-sm);">'
-      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPagePrev" ' + (window._dashPage <= 1 ? 'disabled' : '') + '>&laquo; ' + t('btn_prev','Prev') + '</button>'
-      + '<span style="color:var(--text-muted);">' + Number(window._dashPage) + ' / ' + _totalPages + '</span>'
-      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPageNext" data-total-pages="' + Number(_totalPages) + '" ' + (window._dashPage >= _totalPages ? 'disabled' : '') + '>' + t('btn_next','Next') + ' &raquo;</button>'
+    html += '<div class="overview-pager">'
+      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPagePrev" ' + (window._dashPage <= 1 ? 'disabled' : '') + '>&laquo; ' + esc(t('btn_prev','Prev')) + '</button>'
+      + '<span>' + Number(window._dashPage) + ' / ' + Number(_totalPages) + '</span>'
+      + '<button class="btn btn-ghost btn-sm" data-click-handler="dashPageNext" data-total-pages="' + Number(_totalPages) + '" ' + (window._dashPage >= _totalPages ? 'disabled' : '') + '>' + esc(t('btn_next','Next')) + ' &raquo;</button>'
       + '</div>';
   }
 
   tableBox.innerHTML = html;
-
-  // Apply saved column-visibility prefs, refresh the quick-filter pills,
-  // and stamp "Oppdatert HH:MM" in the tab bar.
-  applyOverviewColumnPrefs();
-  _updateOverviewQuickPills();
+  // Stamp "Oppdatert HH:MM" in the tab bar.
   var _updT = document.getElementById('dash-updated-time');
   if (_updT) {
     _updT.textContent = new Date().toLocaleTimeString('no-NO', {hour:'2-digit', minute:'2-digit'});
     var _updW = document.getElementById('dash-updated-wrap');
     if (_updW) _updW.style.display = '';
   }
-
-  // Make the overview table sortable
-  var overviewTable = tableBox.querySelector('table');
-  if (overviewTable) makeSortable(overviewTable);
-
-  // Load sparkline trend data
-  _loadSparklines();
 }
