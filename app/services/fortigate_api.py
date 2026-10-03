@@ -950,6 +950,8 @@ async def poll_all_fortigates(customer_ids: set[str] | None = None) -> list[dict
                 fw_ver = ""
                 if isinstance(firmware, dict):
                     fw_ver = firmware.get("current", {}).get("version", "")
+                if not fw_ver and isinstance(status, dict):
+                    fw_ver = str(status.get("version", "") or "")
 
                 serial = ""
                 uptime_str = ""
@@ -1018,6 +1020,7 @@ async def poll_all_fortigates(customer_ids: set[str] | None = None) -> list[dict
                     "mem_pct": mem,
                     "vpn_tunnels": vpn_count,
                     "policy_count": policy_count,
+                    "firmware_available": _firmware_available(firmware),
                     "status": "online",
                 }
         except Exception as e:
@@ -1044,6 +1047,12 @@ async def poll_all_fortigates(customer_ids: set[str] | None = None) -> list[dict
     all_results = await asyncio.gather(*[_poll_with_timeout(c) for c in fg_customers])
     results = [r for r in all_results if r is not None]
     results.sort(key=lambda x: (0 if x["status"] == "error" else 1, x["customer_name"].lower()))
+
+    # Every poll leaves each firewall's firmware behind, unreachable ones
+    # included, so Varsler reads state rather than what an alert managed to send.
+    from app.services import firmware_inventory
+
+    await firmware_inventory.record_quietly(firmware_inventory.record_fortigate_poll, results)
     return results
 
 
@@ -1065,6 +1074,7 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         vpn_phase1 = await fg.get_cmdb("vpn.ipsec/phase1-interface")
         ha = await fg.get_cmdb("system/ha")
         license_status = await fg.get_monitor("license/status")
+        firmware = await fg.get_monitor("system/firmware")
 
     # The status read establishes reachability. If it refused, this is a
     # firewall the quick audit could not read — not one with 0 admins and 0
@@ -1126,7 +1136,10 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         "ok": True,
         "unavailable": False,
         "hostname": status.get("hostname", ""),
-        "firmware": status.get("version", ""),
+        # FortiOS puts version beside "results" in system/status, and
+        # get_monitor hands back only "results"; system/firmware carries it
+        # inside, which is where the fleet poller has always read it.
+        "firmware": status.get("version", "") or _firmware_current(firmware),
         "serial": status.get("serial", ""),
         "uptime": status.get("uptime", ""),
         "model": status.get("model-name", status.get("model", "")),
@@ -1138,7 +1151,28 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         "interface_count": iface_count,
         "vpn_tunnels": vpn_count,
         "license": license_status if isinstance(license_status, dict) else {},
+        "firmware_available": _firmware_available(firmware),
     }
+
+
+def _firmware_current(firmware) -> str:
+    if isinstance(firmware, dict) and isinstance(firmware.get("current"), dict):
+        return str(firmware["current"].get("version", "") or "")
+    return ""
+
+
+def _firmware_available(firmware) -> list | None:
+    """The releases FortiGuard offers this firewall, or None when unread.
+
+    None and [] are different answers: one is a read that failed, the other a
+    firewall told there is nothing to move to. The firmware state
+    (app/modules/fortigate_audit/firmware_lifecycle.py) treats both as "not
+    confirmed current", but only one of them is a measurement.
+    """
+    if isinstance(firmware, Exception) or read_failed(firmware) or not isinstance(firmware, dict):
+        return None
+    available = firmware.get("available")
+    return list(available) if isinstance(available, list) else None
 
 
 # ── 9. Threat summary ──────────────────────────────────────────────────────

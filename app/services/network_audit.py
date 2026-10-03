@@ -30,6 +30,7 @@ async def run_quick_network_audit(customer_config: dict, customer_id: str) -> di
             results["fortigate"] = await quick_audit_fortigate(customer_config, fg_token)
         except Exception as e:
             results["fortigate"] = {"error": str(e)}
+        await _record_fortigate(customer_id, str(fg_host), results["fortigate"])
 
     # ── UniFi ──
     uf_host = customer_config.get("UniFiHost")
@@ -136,6 +137,27 @@ async def _audit_unifi_direct(customer_id: str, direct_devices: list[dict]) -> d
             elif fw_check.get("up_to_date") is False:
                 outdated_count += 1
 
+    from app.services import firmware_inventory
+
+    await firmware_inventory.record_quietly(
+        firmware_inventory.record,
+        customer_id,
+        "unifi",
+        [
+            firmware_inventory.unifi_reading(
+                key=d["host"],
+                name=d.get("hostname") or d.get("label") or d["host"],
+                model=d.get("model", ""),
+                version=d.get("firmware", ""),
+            )
+            if d.get("ok")
+            else firmware_inventory.unread(
+                key=d["host"], name=d.get("label", ""), error=d.get("error", "unreachable")
+            )
+            for d in device_results
+        ],
+    )
+
     return {
         "mode": "direct",
         "device_count": len(device_results),
@@ -184,6 +206,7 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
             # UniFi audit for a controller nobody could read, which is the
             # false-negative this pass exists to remove.
             if read_failed(devices):
+                await _record_unifi_failure(customer_id, uf_host, read_error(devices))
                 return {
                     "mode": "controller",
                     "unavailable": True,
@@ -193,6 +216,12 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
                     "outdated_firmware_count": None,
                     "eol_count": None,
                 }
+
+            from app.services import firmware_inventory
+
+            await firmware_inventory.record_quietly(
+                firmware_inventory.record_unifi_devices, customer_id, list(devices)
+            )
 
             device_summary = [
                 {
@@ -268,4 +297,52 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
                 # is correct — it WILL surface in direct-mode audits.
             }
     except Exception as e:
+        await _record_unifi_failure(customer_id, uf_host, str(e))
         return {"error": str(e)}
+
+
+async def _record_unifi_failure(
+    customer_id: str, controller: str | None, error: str | None
+) -> None:
+    from app.services import firmware_inventory
+
+    await firmware_inventory.record_quietly(
+        firmware_inventory.record_read_failure,
+        customer_id,
+        "unifi",
+        error or "read failed",
+        key="controller",
+        name=controller or "",
+    )
+
+
+async def _record_fortigate(customer_id: str, host: str, audit: dict | None) -> None:
+    """Keep the firewall's firmware from the quick audit, read or not."""
+    from app.services import firmware_inventory
+
+    audit = audit or {}
+    key = host.strip().lower()
+    if audit.get("ok") is not True:
+        await firmware_inventory.record_quietly(
+            firmware_inventory.record_read_failure,
+            customer_id,
+            "fortigate",
+            str(audit.get("error") or "unreachable"),
+            key=key,
+            name=host,
+        )
+        return
+    await firmware_inventory.record_quietly(
+        firmware_inventory.record,
+        customer_id,
+        "fortigate",
+        [
+            firmware_inventory.fortigate_reading(
+                key=key,
+                name=str(audit.get("hostname") or host),
+                model=str(audit.get("model") or ""),
+                version=str(audit.get("firmware") or ""),
+                available=audit.get("firmware_available"),
+            )
+        ],
+    )

@@ -1247,9 +1247,29 @@ async def get_site_wan_details(site_id: str) -> dict[str, Any]:
 async def firmware_check_all(customer_id: str) -> dict[str, Any]:
     """Check every device on the controller against the firmware database.
 
-    Returns a per-device firmware report and an aggregate summary.
+    Returns a per-device firmware report and an aggregate summary. Every
+    outcome, a refused login and a refused read included, is also stored as the
+    customer's firmware state (app/services/firmware_inventory.py).
     """
-    client = await _controller_for_customer(customer_id)
+    from app.core.exceptions import NotFoundError, ValidationError
+    from app.services import firmware_inventory
+
+    controller = (CustomerManager.get_customer(customer_id) or {}).get("UniFiHost", "")
+    try:
+        client = await _controller_for_customer(customer_id)
+    except (NotFoundError, ValidationError):
+        # Not configured: there is no device to have failed to read.
+        raise
+    except Exception as exc:
+        await firmware_inventory.record_quietly(
+            firmware_inventory.record_read_failure,
+            customer_id,
+            "unifi",
+            str(exc),
+            key="controller",
+            name=controller,
+        )
+        raise
     site = _default_site(customer_id)
 
     try:
@@ -1261,6 +1281,14 @@ async def firmware_check_all(customer_id: str) -> dict[str, Any]:
     # read used to report every device current — a firmware audit passing a
     # network it never saw.
     if read_failed(devices):
+        await firmware_inventory.record_quietly(
+            firmware_inventory.record_read_failure,
+            customer_id,
+            "unifi",
+            read_error(devices) or "read failed",
+            key="controller",
+            name=controller,
+        )
         return {
             "unavailable": True,
             "error": read_error(devices),
@@ -1288,6 +1316,9 @@ async def firmware_check_all(customer_id: str) -> dict[str, Any]:
         severity = fw.get("severity", "unknown")
         counts[severity] = counts.get(severity, 0) + 1
 
+    await firmware_inventory.record_quietly(
+        firmware_inventory.record_unifi_devices, customer_id, list(devices)
+    )
     return {
         "devices": results,
         "total": len(results),

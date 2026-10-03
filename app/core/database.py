@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -758,6 +758,34 @@ _MIGRATIONS: list = [
         );
         CREATE INDEX IF NOT EXISTS idx_tls_endpoints_customer
             ON tls_endpoints(customer_id);
+        """,
+    ),
+    (
+        27,
+        "Firmware as each customer device was last read",
+        # Pollers and audits judged firmware and threw the answer away. One row
+        # per device; status is never 'current' for a device whose last read
+        # failed, and read_at is the last read that reached it.
+        """
+        CREATE TABLE IF NOT EXISTS device_firmware (
+            customer_id  TEXT NOT NULL,
+            vendor       TEXT NOT NULL,
+            device_key   TEXT NOT NULL,
+            device_name  TEXT NOT NULL DEFAULT '',
+            model        TEXT NOT NULL DEFAULT '',
+            version      TEXT NOT NULL DEFAULT '',
+            latest       TEXT NOT NULL DEFAULT '',
+            status       TEXT NOT NULL
+                CHECK (status IN ('current', 'outdated', 'eol', 'unknown')),
+            reason       TEXT NOT NULL DEFAULT '',
+            source       TEXT NOT NULL DEFAULT '',
+            read_error   TEXT NOT NULL DEFAULT '',
+            checked_at   TEXT NOT NULL,
+            read_at      TEXT,
+            PRIMARY KEY (customer_id, vendor, device_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_device_firmware_status
+            ON device_firmware(status);
         """,
     ),
 ]
