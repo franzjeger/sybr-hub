@@ -545,8 +545,10 @@ class AuditScheduler:
             fc = ctx.get("file_contents", {})
             cred_warn = fc.get("17c_app_credential_expiry_WARN.txt", "")
             from app.core.audit_results import credential_expiry_counts
+            from app.reports.parsers.collaboration import _app_credential_counts
 
-            counts = credential_expiry_counts(cred_warn)
+            # The 17c sidecar's counts first, where the run has them.
+            counts = _app_credential_counts(fc) or credential_expiry_counts(cred_warn)
             if counts and counts[0] > 0:
                 alerts.append("🔑 App-credentials har utløpt — integrasjoner kan være brutt")
 

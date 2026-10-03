@@ -204,6 +204,20 @@ def _teams_guest_settings(file_contents: dict[str, str]) -> tuple[str, str]:
     return _labelled_value(text, "Allow Invites From"), _labelled_value(text, "Guest User Role")
 
 
+def _app_credential_counts(file_contents: dict[str, str]) -> tuple[int, int] | None:
+    """(expired, expiring within 30 days) app credentials, or None to read the text.
+
+    From the 17c_app_credential_expiry.json sidecar. It is written whenever
+    there are app registrations to check, so its zeros are a reading, where the
+    WARN file's absence was only one if the registrations had been read. None
+    for a run from before it; the caller then reads the WARN file's summary.
+    """
+    data = _sidecar(file_contents, "17c_app_credential_expiry.txt")
+    if data is None or "expired" not in data or "critical" not in data:
+        return None
+    return int(data["expired"]), int(data["critical"])
+
+
 def _parse_oauth_grants(
     text: str,
     app_reg_text: str = "",

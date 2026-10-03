@@ -133,11 +133,11 @@ class AppsOAuthSection(BaseSection):
 
         rows: list[dict] = []
         for app in self.apps:
-            app_name = (app.get("displayName") or "(unnamed)")[:40]
+            app_name = app.get("displayName") or "(unnamed)"
 
             for cred in app.get("passwordCredentials") or []:
                 end = _parse_utc(cred.get("endDateTime"))
-                cred_name = (cred.get("displayName") or "")[:30]
+                cred_name = cred.get("displayName") or ""
                 if end is None:
                     days_left = None
                     status = "No Expiry"
@@ -164,7 +164,7 @@ class AppsOAuthSection(BaseSection):
 
             for cred in app.get("keyCredentials") or []:
                 end = _parse_utc(cred.get("endDateTime"))
-                cred_name = (cred.get("displayName") or "")[:30]
+                cred_name = cred.get("displayName") or ""
                 if end is None:
                     days_left = None
                     status = "No Expiry"
@@ -218,7 +218,7 @@ class AppsOAuthSection(BaseSection):
                 expiry_str = r["expiry"].strftime("%Y-%m-%d %H:%M") if r["expiry"] else "N/A"
                 days_str = str(r["days_left"]) if r["days_left"] is not None else "N/A"
                 lines.append(
-                    f"  {r['app']:<40} {r['type']:<12} {r['cred_name']:<30} "
+                    f"  {r['app'][:40]:<40} {r['type']:<12} {r['cred_name'][:30]:<30} "
                     f"{expiry_str:<22} {days_str:>9}  {r['status']}"
                 )
         else:
@@ -226,6 +226,31 @@ class AppsOAuthSection(BaseSection):
 
         lines += ["", "=" * 140, ""]
         self._save("17c_app_credential_expiry.txt", "\n".join(lines))
+        # The counts the WARN file's summary line carries, for a run with
+        # nothing to warn about too, and every credential with its names whole.
+        self._save_sidecar(
+            "17c_app_credential_expiry.txt",
+            {
+                "total": len(rows),
+                "expired": len(expired),
+                "critical": len(critical),
+                "warning": len(warning),
+                "ok": len(rows) - len(expired) - len(critical) - len(warning),
+                "critical_days": _CRITICAL_DAYS,
+                "warning_days": _WARNING_DAYS,
+                "credentials": [
+                    {
+                        "app": r["app"],
+                        "type": r["type"],
+                        "name": r["cred_name"],
+                        "expiry": r["expiry"].isoformat() if r["expiry"] else None,
+                        "days_left": r["days_left"],
+                        "status": r["status"],
+                    }
+                    for r in rows
+                ],
+            },
+        )
 
         # Warnings
         if expired:
@@ -250,7 +275,7 @@ class AppsOAuthSection(BaseSection):
                 expiry_str = r["expiry"].strftime("%Y-%m-%d %H:%M") if r["expiry"] else "N/A"
                 days_str = str(r["days_left"]) if r["days_left"] is not None else "N/A"
                 warn_lines.append(
-                    f"  {r['app']:<40} {r['type']:<12} {r['cred_name']:<30} "
+                    f"  {r['app'][:40]:<40} {r['type']:<12} {r['cred_name'][:30]:<30} "
                     f"{expiry_str:<22} {days_str:>9}  {r['status']}"
                 )
             warn_lines += ["", "=" * 140, ""]

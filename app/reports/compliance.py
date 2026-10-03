@@ -37,6 +37,7 @@ from app.reports.parsers import (
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.collaboration import _onedrive_scan
 from app.reports.parsers.collaboration import (
+    _app_credential_counts,
     _onedrive_scan,
     _teams_cross_tenant,
     _teams_guest_settings,
@@ -535,17 +536,20 @@ _CREDENTIAL_SUMMARY = re.compile(r"(\d+)\s+expired\s*,\s*(\d+)\s+expiring", re.I
 
 
 def _app_credentials(audit: _Audit) -> _Verdict:
-    # The WARN file exists only when there is something to warn about, so its
+    # The 17c sidecar's counts first, where the run has them. Without it, the
+    # WARN file exists only when there is something to warn about, so its
     # absence is a clean result only if the app-registrations section ran.
+    counts = _app_credential_counts(audit.fc)
     warn = audit.fc.get("17c_app_credential_expiry_WARN.txt", "")
-    if not warn.strip() and not _section_ran(audit.fc, "17_app_registrations.txt"):
-        return "info", _CANNOT_VERIFY + "app-registreringer utilgjengelig"
-    if not warn.strip():
+    if counts is None and not warn.strip():
+        if not _section_ran(audit.fc, "17_app_registrations.txt"):
+            return "info", _CANNOT_VERIFY + "app-registreringer utilgjengelig"
         return "pass", "Ingen utløpte app-credentials"
-    # The collector's summary line, not "expired" anywhere: the banner says it too.
-    m = _CREDENTIAL_SUMMARY.search(warn)
-    expired = int(m.group(1)) if m else 0
-    expiring = int(m.group(2)) if m else 0
+    if counts is None:
+        # The collector's summary line, not "expired" anywhere: the banner says it too.
+        m = _CREDENTIAL_SUMMARY.search(warn)
+        counts = (int(m.group(1)) if m else 0, int(m.group(2)) if m else 0)
+    expired, expiring = counts
     if expired > 0:
         return "fail", f"{expired} utløpte app-credentials oppdaget"
     if expiring > 0:

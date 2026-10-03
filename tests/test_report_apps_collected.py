@@ -1,9 +1,10 @@
-"""App registrations and consent grants, from the files the Apps collector writes.
+"""App registrations, credentials and consent grants, from the Apps collector's files.
 
 CIS 2.1 and the OAuth recommendation read the tenant-wide consent grants in
 17b_oauth_consent_grants.txt and the registration count in
-17_app_registrations.txt. The collector writes each as a text for a person
-and a JSON sidecar for the report, which reads the sidecar first
+17_app_registrations.txt; CIS 2.1.2, the credential recommendation and the
+scheduler's alert read the expiry counts. The collector writes each as a text
+for a person and a JSON sidecar for the report, which reads the sidecar first
 and the text for runs recorded before it. Both are read here as a run leaves
 them, through a real GraphClient answering from tests/collector_rig.py, and
 through the report context itself.
@@ -11,6 +12,7 @@ through the report context itself.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -200,3 +202,101 @@ async def test_refused_grants_write_no_sidecar(tmp_path):
     assert oauth["grants_read"] is False, "the refusal is not 'no high-privilege apps'"
     assert oauth["total_grants"] == 0
     assert oauth["app_registrations"] == 3
+
+
+# ── Credential expiry ────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_expired_credentials_are_found_either_way(tmp_path, sidecars):
+    files = await _apps(tmp_path)
+    assert "17c_app_credential_expiry.json" in files
+
+    ctx = report(tmp_path, sidecars=sidecars)
+
+    assert _verdict(ctx, "2.1.2") == ("fail", "1 utløpte app-credentials oppdaget")
+    finding = _finding(ctx, "finding-cred-expiry")
+    assert finding["priority"] == "high"
+    assert str(finding["title"]).startswith("App registrations: 2 credential(s)")
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_healthy_credentials_pass_either_way(tmp_path, sidecars):
+    healthy = [
+        {**app, "passwordCredentials": [], "keyCredentials": []} if app["id"] == "a1" else app
+        for app in APPS
+    ]
+    files = await _apps(tmp_path, applications=healthy)
+    assert "17c_app_credential_expiry_WARN.txt" not in files, "nothing to warn about"
+
+    ctx = report(tmp_path, sidecars=sidecars)
+    assert _verdict(ctx, "2.1.2") == ("pass", "Ingen utløpte app-credentials")
+    assert _finding(ctx, "finding-cred-expiry") is None
+
+
+async def test_the_expiry_counts_do_not_hang_on_the_warning_text(tmp_path):
+    await _apps(tmp_path)
+    encrypted_write_text(tmp_path / "17c_app_credential_expiry_WARN.txt", "(layout changed)\n")
+
+    ctx = report(tmp_path)
+    assert _verdict(ctx, "2.1.2")[0] == "fail"
+    assert _finding(ctx, "finding-cred-expiry") is not None
+
+    ctx = report(tmp_path, sidecars=False)
+    assert _verdict(ctx, "2.1.2")[0] == "pass", "no summary line left to read"
+    assert _finding(ctx, "finding-cred-expiry") is None
+
+
+async def test_the_sidecar_keeps_credential_names_whole(tmp_path):
+    files = await _apps(tmp_path)
+    data = json.loads(files["17c_app_credential_expiry.json"])
+
+    assert (data["total"], data["expired"], data["critical"], data["ok"]) == (3, 1, 1, 1)
+    assert LONG_APP not in files["17c_app_credential_expiry.txt"], "trimmed to 40"
+    by_name = {c["name"]: c for c in data["credentials"]}
+    assert by_name[LONG_CERT]["status"] == "CRITICAL"
+    assert by_name["Hoved"]["app"] == LONG_APP
+
+
+async def test_refused_registrations_leave_credentials_unverified(tmp_path):
+    files = await _apps(tmp_path, applications=refused())
+    assert "17_app_registrations.json" not in files
+    assert "17c_app_credential_expiry.json" not in files
+
+    assert _verdict(report(tmp_path), "2.1.2")[0] == "info", "cannot verify, as before"
+
+
+@pytest.mark.parametrize("warning", ["as written", "relaid out"])
+async def test_the_scheduler_alerts_on_expired_credentials_from_the_sidecar(
+    tmp_path, monkeypatch, warning
+):
+    from app.services import audit_scheduler
+
+    await _apps(tmp_path)
+    if warning == "relaid out":
+        path = tmp_path / "17c_app_credential_expiry_WARN.txt"
+        encrypted_write_text(path, "(layout changed)\n")
+    alert_on = {
+        "risk_score_drop": False,
+        "secure_score_drop": False,
+        "new_risky_users": False,
+        "expired_credentials": True,
+        "new_nsg_warnings": False,
+        "mfa_below_threshold": False,
+    }
+    monkeypatch.setattr(
+        audit_scheduler,
+        "get_scheduler_config",
+        lambda: {"webhook_url": "https://hooks.example/alerts", "alert_on": alert_on},
+    )
+    sent: list[str] = []
+    scheduler = audit_scheduler.AuditScheduler()
+
+    async def capture(message: str) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr(scheduler, "_send_webhook", capture)
+
+    await scheduler._check_and_alert(report(tmp_path), "Acme AS")
+
+    assert len(sent) == 1 and "App-credentials har utløpt" in sent[0]
