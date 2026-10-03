@@ -43,6 +43,42 @@ def _summarise_conditions(cond: dict) -> str:
     return u_str, a_str
 
 
+def _policy_record(policy: dict, group_names: dict[str, str]) -> dict:
+    """One CA policy as 08_conditional_access.json carries it: nothing summarised.
+
+    The table cuts the name to 45 characters, shows three group names of 20
+    and the users as a count. Client apps are always present, so a policy
+    with none is told from a run that never collected them.
+    """
+    cond = policy.get("conditions") or {}
+    users = cond.get("users") or {}
+    grants = policy.get("grantControls") or {}
+    strength = grants.get("authenticationStrength") or {}
+    return {
+        "id": policy.get("id"),
+        "name": policy.get("displayName") or "",
+        "state": policy.get("state", "unknown"),
+        "template_id": policy.get("templateId"),
+        "created": policy.get("createdDateTime"),
+        "include_users": list(users.get("includeUsers") or []),
+        "include_roles": list(users.get("includeRoles") or []),
+        "include_guests_or_external": bool(users.get("includeGuestsOrExternalUsers")),
+        "include_groups": [
+            {"id": g, "name": group_names.get(g, g)} for g in users.get("includeGroups") or []
+        ],
+        "exclude_users": list(users.get("excludeUsers") or []),
+        "exclude_groups": [
+            {"id": g, "name": group_names.get(g, g)} for g in users.get("excludeGroups") or []
+        ],
+        "include_applications": list(
+            (cond.get("applications") or {}).get("includeApplications") or []
+        ),
+        "client_app_types": list(cond.get("clientAppTypes") or []),
+        "grant_controls": list(grants.get("builtInControls") or []),
+        "authentication_strength": strength.get("displayName") or strength.get("id"),
+    }
+
+
 class ConditionalAccessSection(BaseSection):
     name = "Conditional Access"
 
@@ -199,6 +235,16 @@ class ConditionalAccessSection(BaseSection):
             lines.append("  (none detected)")
         lines += ["=" * 120, ""]
         self._save("08_conditional_access.txt", "\n".join(lines))
+        states = [p.get("state") for p in policies]
+        self._save_sidecar(
+            "08_conditional_access.txt",
+            {
+                "enabled": states.count("enabled"),
+                "disabled": states.count("disabled"),
+                "report_only": states.count("enabledForReportingButNotEnforced"),
+                "policies": [_policy_record(p, group_names) for p in policies],
+            },
+        )
 
     # ── Named Locations ───────────────────────────────────────────────────────
 
