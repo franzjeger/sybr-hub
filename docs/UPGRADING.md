@@ -1,6 +1,6 @@
 # Varsler from stored state (unreleased)
 
-- **Database migrations 25 and 26** add `tls_endpoints` and
+- **Database migrations 26 and 27** add `tls_endpoints` and
   `device_firmware`. Both start empty and fill as TLS checks and firmware
   reads run; Varsler lists certificates and firmware from them whether or not
   an alert channel is set up.

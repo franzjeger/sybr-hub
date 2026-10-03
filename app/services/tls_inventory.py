@@ -32,8 +32,11 @@ EXPIRY_HORIZON_DAYS = 30
 CRITICAL_DAYS = 7
 
 # A self-signed certificate on a firewall's management page is usually a
-# choice, not an accident: listed, but as information rather than a warning.
-_INFO_CHAIN_PROBLEMS = {"self_signed"}
+# choice, not an accident. Listed as information, every FortiGate would put a
+# line in Varsler the night the re-check first ran, burying what does need
+# someone. Varsler leaves it out; the TLS tab still shows it, and its expiry is
+# listed like any other certificate's.
+_QUIET_CHAIN_PROBLEMS = {"self_signed"}
 
 _COLUMNS = (
     "host",
@@ -289,21 +292,23 @@ async def forget(host: str, port: int, allowed: set[str] | None) -> bool:
 
 async def attention(allowed: set[str] | None, names: dict[str, str] | None = None) -> list[dict]:
     """What Varsler lists: certificates expired or expiring within 30 days,
-    and chains that do not validate. Unreachable endpoints are not listed:
-    "we could not connect" is not a certificate problem, and the TLS tab shows
-    them."""
+    and chains that do not validate for a reason other than being
+    self-signed. Unreachable endpoints are not listed: "we could not connect"
+    is not a certificate problem, and the TLS tab shows them."""
     items = []
     for e in await list_endpoints(allowed, names=names):
         status = e["status"]
         expiring = status in ("expired", "expiring")
-        if not expiring and e.get("chain_valid") is not False:
+        if not expiring and (
+            e.get("chain_valid") is not False or e["chain_problem"] in _QUIET_CHAIN_PROBLEMS
+        ):
             continue
         if expiring:
             days = e["days_remaining"]
             category = "critical" if days < CRITICAL_DAYS else "warning"
             kind = "expired" if status == "expired" else "expiring"
         else:
-            category = "info" if e["chain_problem"] in _INFO_CHAIN_PROBLEMS else "warning"
+            category = "warning"
             kind = "chain"
         items.append(
             {

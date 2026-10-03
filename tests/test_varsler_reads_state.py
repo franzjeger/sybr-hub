@@ -97,14 +97,15 @@ async def test_varsler_lists_stored_certificates_and_firmware_with_no_channel(
     assert set(certs) == {
         "shop.acme.example",
         "www.acme.example",
-        "fw.acme.example",
         "api.acme.example",
     }, "a healthy certificate and an unreachable endpoint are not Varsler items"
     assert certs["shop.acme.example"]["category"] == "critical"
     assert certs["shop.acme.example"]["kind"] == "expiring"
     assert certs["shop.acme.example"]["customer_name"] == "Acme AS"
     assert certs["www.acme.example"]["category"] == "warning"
-    assert certs["fw.acme.example"]["category"] == "info", "self-signed is usually deliberate"
+    # A self-signed management certificate is usually deliberate: left out of
+    # Varsler (the TLS tab still lists it), unless it expires.
+    assert "fw.acme.example" not in certs
     assert certs["api.acme.example"]["category"] == "warning"
     assert certs["api.acme.example"]["chain_problem"] == "incomplete_chain"
 
