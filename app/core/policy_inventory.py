@@ -176,7 +176,7 @@ def _describe_ca(policy: dict) -> dict[str, str]:
     scope_no = "eldre autentisering for " if legacy_only else ""
     scope_en = "legacy authentication for " if legacy_only else ""
     return {
-        "no": f"{_cap(controls['no'])} — {scope_no}{targets['no']}",
+        "no": f"{_cap(controls['no'])}: {scope_no}{targets['no']}",
         "en": f"{_cap(controls['en'])} — {scope_en}{targets['en']}",
     }
 
@@ -215,7 +215,7 @@ def _named_location_items(env: dict) -> list[dict]:
                 **_named(loc.get("displayName")),
                 "state": "trusted" if trusted else "on",
                 "summary": {
-                    "no": ("Betrodd lokasjon — " if trusted else "Lokasjon — ") + detail_no,
+                    "no": ("Betrodd lokasjon: " if trusted else "Lokasjon: ") + detail_no,
                     "en": ("Trusted location — " if trusted else "Location — ") + detail_en,
                 },
             }

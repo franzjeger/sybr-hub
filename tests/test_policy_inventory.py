@@ -120,6 +120,20 @@ def test_conditional_access_state_is_mapped_and_described(run_dir):
     assert "admin roles" in admins["en"]
 
 
+def test_the_norwegian_summaries_have_no_dashes(run_dir):
+    # They reach the customer page and the Norwegian technical report, which
+    # write no em or en dash ("Krever MFA: alle brukere", not "... — ...").
+    inv = build_inventory(run_dir)
+    dashed = [
+        item["summary"]["no"]
+        for workload in inv["workloads"].values()
+        for item in workload["items"]
+        if isinstance(item.get("summary"), dict)
+        and ("\N{EM DASH}" in item["summary"]["no"] or "\N{EN DASH}" in item["summary"]["no"])
+    ]
+    assert not dashed, dashed
+
+
 def test_the_modern_intune_surfaces_become_card_workloads(tmp_path):
     """Settings Catalog, admin templates, app protection and endpoint security
     are lifted onto the card the same way compliance and config already are —
