@@ -359,7 +359,7 @@ export async function checkPermissions(customerId) {
 
   title.textContent = t('hdr_permissions_check');
   desc.textContent = t('permissions_checking_desc');
-  body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:24px 0;justify-content:center;"><div class="loader"></div><span style="color:var(--text-muted);">' + t('msg_checking_permissions') + '</span></div>';
+  body.innerHTML = '<div class="flex items-center gap-2 py-6 px-0 justify-center"><div class="loader"></div><span class="text-muted">' + t('msg_checking_permissions') + '</span></div>';
   modal.classList.add('open');
 
   try {
@@ -382,28 +382,28 @@ function renderPermissionsResult(d) {
 
   // Summary line
   if (d.ok && missing.length === 0) {
-    desc.innerHTML = '<span style="color:var(--green);font-weight:600;">' + t('msg_all_permissions_ok') + '</span>' +
+    desc.innerHTML = '<span class="text-success fw-semibold">' + t('msg_all_permissions_ok') + '</span>' +
       (connectivity ? ' · ' + t('msg_connection_verified') : '');
   } else if (d.ok) {
-    desc.innerHTML = '<span style="color:var(--orange);font-weight:600;">' + t('msg_non_critical_missing').replace('{count}', missing.length) + '</span>';
+    desc.innerHTML = '<span class="text-warning fw-semibold">' + t('msg_non_critical_missing').replace('{count}', missing.length) + '</span>';
   } else {
     const critMissing = missing.filter(p => !warnings.some(w => w.startsWith(p)));
-    desc.innerHTML = '<span style="color:var(--red);font-weight:600;">' + t('msg_permissions_missing').replace('{count}', missing.length) + '</span>' +
+    desc.innerHTML = '<span class="text-danger fw-semibold">' + t('msg_permissions_missing').replace('{count}', missing.length) + '</span>' +
       (critMissing.length ? ' ' + t('msg_critical_count').replace('{count}', critMissing.length) : '');
   }
 
   let html = '';
 
   // Connectivity badge
-  html += `<div style="margin-bottom:12px;padding:8px 12px;border-radius:6px;background:${connectivity ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)'};border:1px solid ${connectivity ? 'rgba(63,185,80,0.3)' : 'rgba(248,81,73,0.3)'};font-size:13px;">` +
-    `${connectivity ? '<span style="color:var(--green);">&#10003;</span> ' + t('msg_graph_connection_ok') : '<span style="color:var(--red);">&#10007;</span> ' + t('msg_graph_connection_failed')}` +
+  html += `<div class="status-box ${connectivity ? 'is-ok' : 'is-bad'} mb-3">` +
+    `${connectivity ? '<span class="text-success">&#10003;</span> ' + t('msg_graph_connection_ok') : '<span class="text-danger">&#10007;</span> ' + t('msg_graph_connection_failed')}` +
     '</div>';
 
   // Warnings
   if (warnings.length > 0) {
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div class="mb-3">';
     for (const w of warnings) {
-      html += `<div style="font-size:12px;color:var(--orange);padding:3px 0;">${esc(w)}</div>`;
+      html += `<div class="text-sm text-warning py-1 px-0">${esc(w)}</div>`;
     }
     html += '</div>';
   }
@@ -412,28 +412,28 @@ function renderPermissionsResult(d) {
   const allPerms = [...granted.map(p => ({name: p, ok: true})), ...missing.map(p => ({name: p, ok: false}))];
   allPerms.sort((a, b) => a.name.localeCompare(b.name));
 
-  html += '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg);"><th style="text-align:left;padding:6px 10px;font-weight:600;">' + t('lbl_permission') + '</th><th style="width:60px;text-align:center;padding:6px 10px;font-weight:600;">' + t('lbl_status') + '</th></tr></thead><tbody>';
+  html += '<div class="border rounded overflow-hidden">';
+  html += '<table class="data-table">';
+  html += '<thead><tr class="bg-base"><th>' + t('lbl_permission') + '</th><th class="col-status-sm text-center">' + t('lbl_status') + '</th></tr></thead><tbody>';
 
   for (const p of allPerms) {
     const isWarnOnly = warnings.some(w => w.startsWith(p.name));
-    let icon, color;
+    let icon, tone;
     if (p.ok) {
-      icon = '&#10003;'; color = 'var(--green)';
+      icon = '&#10003;'; tone = 'text-success';
     } else if (isWarnOnly) {
-      icon = ''; color = 'var(--orange)';
+      icon = ''; tone = 'text-warning';
     } else {
-      icon = '&#10007;'; color = 'var(--red)';
+      icon = '&#10007;'; tone = 'text-danger';
     }
-    html += `<tr style="border-top:1px solid var(--border);">`;
-    html += `<td style="padding:5px 10px;font-family:var(--mono);font-size:11px;">${esc(p.name)}</td>`;
-    html += `<td style="text-align:center;padding:5px 10px;color:${color};font-weight:700;">${icon}</td>`;
+    html += `<tr>`;
+    html += `<td class="font-mono text-xs">${esc(p.name)}</td>`;
+    html += `<td class="text-center fw-bold ${tone}">${icon}</td>`;
     html += '</tr>';
   }
   html += '</tbody></table></div>';
 
-  html += '<div style="margin-top:10px;font-size:12px;color:var(--text-muted);">' + t('msg_permissions_granted').replace('{granted}', granted.length).replace('{total}', granted.length + missing.length) + '</div>';
+  html += '<div class="mt-3 text-sm text-muted">' + t('msg_permissions_granted').replace('{granted}', granted.length).replace('{total}', granted.length + missing.length) + '</div>';
 
   body.innerHTML = html;
 }
@@ -544,12 +544,12 @@ export async function showMfaSettings() {
 }
 
 export async function showChangePasswordModal() {
-  var html = '<div style="font-size:var(--font-sm);font-weight:600;margin-bottom:var(--space-4);">' + t('btn_change_password','Change password') + '</div>'
-    + '<input id="pw-current" type="password" class="field-input" placeholder="' + t('placeholder_current_password','Current password') + '" style="margin-bottom:var(--space-3);">'
-    + '<input id="pw-new" type="password" class="field-input" placeholder="' + t('placeholder_new_password','New password (min 8)') + '" style="margin-bottom:var(--space-3);">'
-    + '<input id="pw-confirm" type="password" class="field-input" placeholder="' + t('placeholder_confirm_password','Confirm new password') + '" style="margin-bottom:var(--space-3);">'
-    + '<div id="pw-change-msg" style="font-size:var(--font-xs);margin-bottom:var(--space-3);"></div>'
-    + '<div style="display:flex;gap:var(--space-2);justify-content:flex-end;">'
+  var html = '<div class="text-sm fw-semibold mb-4">' + t('btn_change_password','Change password') + '</div>'
+    + '<input id="pw-current" type="password" class="field-input mb-3" placeholder="' + t('placeholder_current_password','Current password') + '">'
+    + '<input id="pw-new" type="password" class="field-input mb-3" placeholder="' + t('placeholder_new_password','New password (min 8)') + '">'
+    + '<input id="pw-confirm" type="password" class="field-input mb-3" placeholder="' + t('placeholder_confirm_password','Confirm new password') + '">'
+    + '<div id="pw-change-msg" class="text-xs mb-3"></div>'
+    + '<div class="flex gap-2 justify-end">'
     + '<button class="btn btn-ghost" data-click-handler="hideElement" data-target="confirm-modal">' + t('btn_cancel') + '</button>'
     + '<button class="btn btn-primary" data-click-handler="doChangePassword">' + t('btn_save') + '</button>'
     + '</div>';
@@ -565,15 +565,15 @@ async function doChangePassword() {
   var nw = document.getElementById('pw-new').value;
   var cf = document.getElementById('pw-confirm').value;
   var msg = document.getElementById('pw-change-msg');
-  if (!passwordMeetsRule(nw)) { msg.innerHTML = '<span style="color:var(--red);">' + esc(t('err_password_rule')) + '</span>'; return; }
-  if (nw !== cf) { msg.innerHTML = '<span style="color:var(--red);">' + t('err_passwords_mismatch','Passwords do not match') + '</span>'; return; }
+  if (!passwordMeetsRule(nw)) { msg.innerHTML = '<span class="text-danger">' + esc(t('err_password_rule')) + '</span>'; return; }
+  if (nw !== cf) { msg.innerHTML = '<span class="text-danger">' + t('err_passwords_mismatch','Passwords do not match') + '</span>'; return; }
   var d = await apiFetch('/api/auth/change-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({current_password:cur, new_password:nw})});
   if (d && d.ok) {
     document.getElementById('confirm-modal').style.display = 'none';
     document.querySelector('#confirm-modal .modal-actions').style.display = '';
     showToast(t('msg_password_changed','Password changed'), 'success', 3000);
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + (d && d.error ? esc(d.error) : t('status_error')) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + (d && d.error ? esc(d.error) : t('status_error')) + '</span>';
   }
 }
 
@@ -588,12 +588,12 @@ async function loadUsers() {
     if (!d || !d.users) { el.innerHTML = '<div class="text-muted text-sm">' + t('status_error') + '</div>'; return; }
     el.innerHTML = d.users.map(function(u) {
       var lastLogin = u.last_login ? timeAgo(u.last_login) : t('msg_never','never');
-      return '<div data-user-id="'+esc(u.id)+'" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);border-bottom:1px solid var(--border);">'
-        + '<div style="flex:1;">'
-        + '<div style="font-weight:600;">' + esc(u.display_name) + ' <span style="font-size:var(--font-xs);color:var(--text-dim);font-family:var(--mono);">@' + esc(u.username) + '</span></div>'
-        + '<div style="font-size:var(--font-xs);color:var(--text-dim);">' + t('lbl_last_prefix','Last:') + ' ' + esc(lastLogin) + '</div>'
+      return '<div data-user-id="'+esc(u.id)+'" class="flex items-center gap-3 p-3 border-b">'
+        + '<div class="flex-1">'
+        + '<div class="fw-semibold">' + esc(u.display_name) + ' <span class="text-xs text-dim font-mono">@' + esc(u.username) + '</span></div>'
+        + '<div class="text-xs text-dim">' + t('lbl_last_prefix','Last:') + ' ' + esc(lastLogin) + '</div>'
         + '</div>'
-        + '<select style="padding:2px 6px;font-size:var(--font-xs);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);" data-change-handler="changeUserRole" data-user-id="' + esc(u.id) + '">'
+        + '<select class="py-0-5 px-2 text-xs border rounded-sm bg-base text-default" data-change-handler="changeUserRole" data-user-id="' + esc(u.id) + '">'
         + '<option value="viewer"' + (u.role==='viewer'?' selected':'') + '>' + t('viewer_2') + '</option>'
         + '<option value="technician"' + (u.role==='technician'?' selected':'') + '>' + t('technician_2') + '</option>'
         + '<option value="admin"' + (u.role==='admin'?' selected':'') + '>' + t('admin_2') + '</option>'
@@ -604,7 +604,7 @@ async function loadUsers() {
         // refuses both, so the button would only earn an error.
         + (u.is_system
           ? '<span class="user-system-badge" title="' + esc(t('tip_system_account', 'Sybr HUB bruker kontoen til planlagte jobber og tunneler. Den kan ikke logge inn eller slettes.')) + '">' + esc(t('lbl_system_account', 'Systemkonto')) + '</span>'
-          : (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" data-click-handler="deleteUser" data-user-id="' + esc(u.id) + '" data-username="' + esc(u.username) + '">' + t('btn_delete') + '</button>' : ''))
+          : (u.username !== (_currentUser && _currentUser.username) ? '<button class="btn btn-ghost btn-sm text-danger" data-click-handler="deleteUser" data-user-id="' + esc(u.id) + '" data-username="' + esc(u.username) + '">' + t('btn_delete') + '</button>' : ''))
         + '</div>';
     }).join('');
   } catch(e) { el.innerHTML = ''; }
@@ -616,7 +616,7 @@ export async function createUser() {
   var p = document.getElementById('new-user-password').value;
   var r = document.getElementById('new-user-role').value;
   var msg = document.getElementById('add-user-msg');
-  if (!u || !passwordMeetsRule(p)) { msg.innerHTML = '<span style="color:var(--red);">' + esc(t(u ? 'err_password_rule' : 'err_fill_all_fields')) + '</span>'; return; }
+  if (!u || !passwordMeetsRule(p)) { msg.innerHTML = '<span class="text-danger">' + esc(t(u ? 'err_password_rule' : 'err_fill_all_fields')) + '</span>'; return; }
   var d = await apiFetch('/api/auth/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u, display_name:n||u, password:p, role:r})});
   if (d && d.ok) {
     document.getElementById('add-user-form').style.display = 'none';
@@ -626,7 +626,7 @@ export async function createUser() {
     loadUsers();
     showToast(t('msg_user_created','User created'), 'success', 2000);
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + (d && d.error ? esc(d.error) : t('status_error')) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + (d && d.error ? esc(d.error) : t('status_error')) + '</span>';
   }
 }
 
@@ -636,10 +636,10 @@ export async function createUser() {
 // changing configuration in a customer's tenant.
 function _capabilityToggles(u) {
   var write = !!u.can_write, tenant = !!u.tenant_write;
-  return '<label style="display:flex;align-items:center;gap:4px;font-size:var(--font-xs);color:var(--text-muted);cursor:pointer;white-space:nowrap;" title="' + t('tip_cap_write','May change anything in Sybr HUB. Off by default for every account.') + '">'
+  return '<label class="flex items-center gap-1 text-xs text-muted cursor-pointer nowrap" title="' + t('tip_cap_write','May change anything in Sybr HUB. Off by default for every account.') + '">'
     + '<input type="checkbox"' + (write ? ' checked' : '') + ' data-change-handler="setUserCapability" data-user-id="' + esc(u.id) + '" data-capability="can_write"> ' + t('lbl_cap_write','Write')
     + '</label>'
-    + '<label style="display:flex;align-items:center;gap:4px;font-size:var(--font-xs);color:' + (write ? 'var(--text-muted)' : 'var(--text-dim)') + ';cursor:' + (write ? 'pointer' : 'not-allowed') + ';white-space:nowrap;" title="' + t('tip_cap_tenant','May write into a customer Microsoft tenant. Requires Write.') + '">'
+    + '<label class="flex items-center gap-1 text-xs nowrap ' + (write ? 'text-muted cursor-pointer' : 'text-dim cursor-not-allowed') + '" title="' + t('tip_cap_tenant','May write into a customer Microsoft tenant. Requires Write.') + '">'
     + '<input type="checkbox"' + (tenant ? ' checked' : '') + (write ? '' : ' disabled') + ' data-change-handler="setUserCapability" data-user-id="' + esc(u.id) + '" data-capability="tenant_write"> ' + t('lbl_cap_tenant','Tenant')
     + '</label>';
 }
@@ -704,7 +704,7 @@ async function editUserCustomers(userId, displayName) {
   p.id = 'rbac-panel-' + userId;
   p.className = 'rbac-panel';
   p.style.cssText = 'padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin:8px 0;';
-  p.innerHTML = '<div class="loader" style="width:16px;height:16px;margin:8px auto;"></div>';
+  p.innerHTML = '<div class="loader mx-auto my-2"></div>';
   targetRow.after(p);
 
   // Load customers and current access
@@ -716,22 +716,22 @@ async function editUserCustomers(userId, displayName) {
   (access && access.customer_ids || []).forEach(function(id) { accessSet[id] = true; });
   var hasAny = Object.keys(accessSet).length > 0;
 
-  var html = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">Kundetilgang for ' + esc(displayName) + '</div>';
-  html += '<div style="margin-bottom:8px;font-size:11px;color:var(--text-muted);">' + (access && access.is_admin ? t('rbac_admin_access') : (hasAny ? Object.keys(accessSet).length + ' ' + t('rbac_customers_selected','kunder valgt') : t('rbac_no_customers'))) + '</div>';
-  html += '<label style="display:block;margin-bottom:8px;">' + t('rbac_access_mode')
+  var html = '<div class="text-sm fw-semibold mb-2">Kundetilgang for ' + esc(displayName) + '</div>';
+  html += '<div class="mb-2 text-xs text-muted">' + (access && access.is_admin ? t('rbac_admin_access') : (hasAny ? Object.keys(accessSet).length + ' ' + t('rbac_customers_selected','kunder valgt') : t('rbac_no_customers'))) + '</div>';
+  html += '<label class="block mb-2">' + t('rbac_access_mode')
     + ' <select class="rbac-mode"><option value="scoped"' + (access && access.access_mode === 'all' ? '' : ' selected') + '>' + t('rbac_scoped') + '</option>'
     + '<option value="all"' + (access && access.access_mode === 'all' ? ' selected' : '') + '>' + t('rbac_all_customers') + '</option></select></label>';
-  html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px;">';
+  html += '<div class="max-h-sm overflow-y-auto border rounded p-1">';
   customers.customers.forEach(function(c) {
     var cid = c._id || '';
     var checked = accessSet[cid] ? ' checked' : '';
-    html += '<label style="display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:11px;cursor:pointer;"><input type="checkbox" class="rbac-cb" data-cid="'+esc(cid)+'"'+checked+'> '+esc(c.CustomerName||cid)+'</label>';
+    html += '<label class="flex items-center gap-2 py-1 px-2 text-xs cursor-pointer"><input type="checkbox" class="rbac-cb" data-cid="'+esc(cid)+'"'+checked+'> '+esc(c.CustomerName||cid)+'</label>';
   });
   html += '</div>';
-  html += '<div style="display:flex;gap:8px;margin-top:8px;">';
+  html += '<div class="flex gap-2 mt-2">';
   html += '<button class="btn btn-primary btn-sm" data-click-handler="saveUserCustomers" data-user-id="' + esc(userId) + '">' + t('lagre_2') + '</button>';
   html += '<button class="btn btn-ghost btn-sm" data-click-handler="removeElement" data-target="rbac-panel-' + esc(userId) + '">' + t('avbryt') + '</button>';
-  html += '<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;color:var(--text-dim);" data-click-handler="clearUserCustomers" data-user-id="' + esc(userId) + '">' + t('rbac_remove_access') + '</button>';
+  html += '<button class="btn btn-ghost btn-sm ml-auto text-dim" data-click-handler="clearUserCustomers" data-user-id="' + esc(userId) + '">' + t('rbac_remove_access') + '</button>';
   html += '</div>';
   p.innerHTML = html;
   var mode = p.querySelector('.rbac-mode');

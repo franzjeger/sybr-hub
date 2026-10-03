@@ -3,6 +3,7 @@ import {_lang, t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {onViewShown} from './app-hooks.js';
 import {hasModule} from './app-state.js';
+import {toneClass} from './app-format.js';
 import {adminSignpostButton, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {renderToolCustomerPickers} from './app.js';
@@ -133,13 +134,13 @@ function _docsRenderTree(root) {
 async function docsRepoOpen(path) {
   var content = document.getElementById('docs-repo-content');
   if (!content) return;
-  content.innerHTML = '<div style="color:var(--text-muted);">' + t('laster') + '</div>';
+  content.innerHTML = '<div class="text-muted">' + t('laster') + '</div>';
   try {
     var data = await apiFetch('/api/docs/file?path=' + encodeURIComponent(path));
     if (!data || !data.content) throw new Error('empty doc');
     if (typeof window.marked === 'undefined' || typeof window.DOMPurify === 'undefined') {
       // CDN not loaded — fall back to <pre> for at least a usable view
-      content.innerHTML = '<pre style="white-space:pre-wrap;font-family:var(--mono);font-size:12px;">' + esc(data.content) + '</pre>';
+      content.innerHTML = '<pre class="pre-wrap font-mono text-sm">' + esc(data.content) + '</pre>';
       return;
     }
     var rendered = window.marked.parse(data.content, { gfm: true, breaks: false });
@@ -149,14 +150,14 @@ async function docsRepoOpen(path) {
       el.classList.toggle('is-active', el.getAttribute('data-docs-path') === path);
     });
   } catch (e) {
-    content.innerHTML = '<div style="color:var(--color-danger);">' + t('integ_doc_open_failed','Kunne ikke åpne dokumentet') + ': ' + esc(String(e)) + '</div>';
+    content.innerHTML = '<div class="text-danger">' + t('integ_doc_open_failed','Kunne ikke åpne dokumentet') + ': ' + esc(String(e)) + '</div>';
   }
 }
 
 // ── ALSO Cloud Marketplace ───────────────────────────────────────────────────
 export async function alsoTestConnection() {
   var msg = document.getElementById('also-config-msg');
-  msg.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_testing','Testing...') + '</span>';
+  msg.innerHTML = '<span class="text-muted">' + t('msg_testing','Testing...') + '</span>';
   try {
     var d = await apiFetch('/api/also/test', {
       onError: function(message) { msg.textContent = message; msg.style.color = 'var(--red)'; },
@@ -170,15 +171,15 @@ export async function alsoTestConnection() {
     });
     if (!d) return;
     if (d.ok) {
-      msg.innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_connection_verified','Connection verified') + '</span>';
+      msg.innerHTML = '<span class="text-success">&#10003; ' + t('msg_connection_verified','Connection verified') + '</span>';
       document.getElementById('also-integ-dot').style.background = 'var(--green)';
       document.getElementById('also-integ-label').textContent = t('status_configured','Configured');
       document.getElementById('also-integ-label').style.color = 'var(--green)';
     } else {
-      msg.innerHTML = '<span style="color:var(--red);">&#10007; ' + esc(d && d.error ? d.error : t('status_error')) + '</span>';
+      msg.innerHTML = '<span class="text-danger">&#10007; ' + esc(d && d.error ? d.error : t('status_error')) + '</span>';
     }
   } catch(e) {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -196,54 +197,54 @@ export async function alsoSaveConfig() {
     body: JSON.stringify(body),
   });
   if (d && !d.error) {
-    msg.innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_saved','Saved') + '</span>';
+    msg.innerHTML = '<span class="text-success">&#10003; ' + t('msg_saved','Saved') + '</span>';
     _integPaint('also', body.also_password ? 'ok' : 'off');
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('status_error')) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(d && d.error ? d.error : t('status_error')) + '</span>';
   }
 }
 
 export async function alsoSyncCustomers() {
   var msg = document.getElementById('also-config-msg');
-  msg.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_loading','Loading...') + '</span>';
+  msg.innerHTML = '<span class="text-muted">' + t('msg_loading','Loading...') + '</span>';
   try {
     var d = await apiFetch('/api/also/sync-preview');
-    if (!d || d.error) { msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('status_error')) + '</span>'; return; }
+    if (!d || d.error) { msg.innerHTML = '<span class="text-danger">' + esc(d && d.error ? d.error : t('status_error')) + '</span>'; return; }
 
     var newC = d.customers.filter(function(c){return c.status === 'new'});
     var matched = d.customers.filter(function(c){return c.status === 'matched'});
 
-    var html = '<div style="margin-top:var(--space-3);font-size:var(--font-sm);">'
-      + '<div style="margin-bottom:var(--space-2);"><strong>' + t('also') + '</strong> ' + Number(d.also_total) + ' | <span style="color:var(--green);">Matched: ' + Number(d.matched) + '</span> | <span style="color:var(--blue);">New: ' + Number(d.new) + '</span></div>';
+    var html = '<div class="mt-3 text-sm">'
+      + '<div class="mb-2"><strong>' + t('also') + '</strong> ' + Number(d.also_total) + ' | <span class="text-success">Matched: ' + Number(d.matched) + '</span> | <span class="text-accent">New: ' + Number(d.new) + '</span></div>';
 
     if (newC.length > 0) {
-      html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-3);">';
+      html += '<div class="max-h-sm overflow-y-auto border rounded mb-3">';
       newC.forEach(function(c) {
-        html += '<label style="display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border);font-size:var(--font-xs);cursor:pointer;">'
+        html += '<label class="flex items-center gap-2 py-2 px-3 border-b text-xs cursor-pointer">'
           + '<input type="checkbox" checked class="also-import-cb" data-name="' + esc(c.also_name) + '" data-domain="' + esc(c.also_domain||'') + '" data-id="' + esc(c.also_id||'') + '">'
-          + '<span style="flex:1;">' + esc(c.also_name) + '</span>'
-          + '<span style="color:var(--text-dim);font-family:var(--mono);font-size:10px;">' + esc(c.also_domain||'') + '</span>'
+          + '<span class="flex-1">' + esc(c.also_name) + '</span>'
+          + '<span class="text-dim font-mono text-2xs">' + esc(c.also_domain||'') + '</span>'
           + '</label>';
       });
       html += '</div>';
       html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="alsoDoImport">' + t('btn_import','Import') + ' ' + newC.length + ' ' + t('nav_customers').toLowerCase() + '</button>';
     } else {
-      html += '<div style="color:var(--green);">' + t('all_also_customers_already_matched') + '</div>';
+      html += '<div class="text-success">' + t('all_also_customers_already_matched') + '</div>';
     }
 
     if (matched.length > 0) {
       // Check how many are NOT yet linked (missing AlsoAccountId)
       var unlinked = matched.filter(function(c){return c.also_id && c.match && c.match.toolkit_id;});
       if (unlinked.length > 0) {
-        html += '<div style="margin-top:var(--space-3);padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;align-items:center;gap:var(--space-3);">';
-        html += '<span style="font-size:var(--font-sm);flex:1;">' + unlinked.length + ' matched customers can be linked to ALSO for license viewing</span>';
+        html += '<div class="inset mt-3 flex items-center gap-3">';
+        html += '<span class="text-sm flex-1">' + unlinked.length + ' matched customers can be linked to ALSO for license viewing</span>';
         html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="alsoLinkMatched" id="also-link-btn">' + t('link_all') + '</button>';
         html += '</div>';
       }
-      html += '<details style="margin-top:var(--space-3);font-size:var(--font-xs);"><summary style="cursor:pointer;color:var(--text-muted);">Matched (' + matched.length + ')</summary><div style="max-height:150px;overflow-y:auto;margin-top:var(--space-2);">';
+      html += '<details class="mt-3 text-xs"><summary class="cursor-pointer text-muted">Matched (' + matched.length + ')</summary><div class="max-h-sm overflow-y-auto mt-2">';
       matched.forEach(function(c) {
         var icon = c.match.match_type === 'exact_name' ? '&#10003;' : c.match.match_type === 'domain' ? '\u25CF' : '&#8776;';
-        html += '<div style="padding:2px 0;display:flex;gap:var(--space-2);"><span>' + icon + '</span><span style="flex:1;">' + esc(c.also_name) + '</span><span style="color:var(--text-dim);">&rarr; ' + esc(c.match.toolkit_name) + '</span></div>';
+        html += '<div class="py-0-5 px-0 flex gap-2"><span>' + icon + '</span><span class="flex-1">' + esc(c.also_name) + '</span><span class="text-dim">&rarr; ' + esc(c.match.toolkit_name) + '</span></div>';
       });
       html += '</div></details>';
       // Store matched data for the link action
@@ -252,7 +253,7 @@ export async function alsoSyncCustomers() {
     html += '</div>';
     msg.innerHTML = html;
   } catch(e) {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -267,7 +268,7 @@ async function alsoDoImport() {
   var d = await apiFetch('/api/also/sync-customers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({customers:toImport})});
   if (d && d.ok) {
     showToast(t('msg_imported','Imported') + ' ' + d.imported + ' ' + t('nav_customers').toLowerCase(), 'success', 3000);
-    document.getElementById('also-config-msg').innerHTML = '<span style="color:var(--green);">&#10003; ' + t('msg_imported','Importert') + ': ' + Number(d.imported) + '</span>';
+    document.getElementById('also-config-msg').innerHTML = '<span class="text-success">&#10003; ' + t('msg_imported','Importert') + ': ' + Number(d.imported) + '</span>';
   } else { showToast(d && d.error ? d.error : t('status_error'), 'error'); }
 }
 
@@ -302,7 +303,7 @@ export async function uniwebSaveConfig() {
   var email = document.getElementById('input-uniweb-email').value.trim();
   var password = document.getElementById('input-uniweb-password').value.trim();
   if (!email || !password) {
-    msg.innerHTML = '<span style="color:var(--red);">' + t('e_post_og_passord_er') + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + t('e_post_og_passord_er') + '</span>';
     return;
   }
   var d = await apiFetch('/api/uniweb/settings', {
@@ -311,10 +312,10 @@ export async function uniwebSaveConfig() {
     body: JSON.stringify({email: email, password: password}),
   });
   if (d && d.ok) {
-    msg.innerHTML = '<span style="color:var(--green);">' + t('lagret_2') + '</span>';
+    msg.innerHTML = '<span class="text-success">' + t('lagret_2') + '</span>';
     _integPaint('uniweb', 'ok');
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('integ_error','Feil')) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(d && d.error ? d.error : t('integ_error','Feil')) + '</span>';
   }
 }
 
@@ -334,7 +335,7 @@ function _uniwebFormatDuration(ms) {
 export async function uniwebSync() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
-  msg.innerHTML = '<span style="color:var(--text-muted);">' + t('starter_synkronisering') + '</span>';
+  msg.innerHTML = '<span class="text-muted">' + t('starter_synkronisering') + '</span>';
   if (btn) { btn.disabled = true; btn.textContent = t('msg_syncing','Synchronising …'); }
   _uniwebSyncStart = Date.now();
 
@@ -342,7 +343,7 @@ export async function uniwebSync() {
   if (d && d.ok) {
     uniwebPollStatus();
   } else {
-    msg.innerHTML = '<span style="color:var(--red);">' + esc(d && d.error ? d.error : t('integ_error','Feil')) + '</span>';
+    msg.innerHTML = '<span class="text-danger">' + esc(d && d.error ? d.error : t('integ_error','Feil')) + '</span>';
     if (btn) { btn.disabled = false; btn.textContent = t('integ_sync','Synkroniser'); }
     _uniwebSyncStart = null;
   }
@@ -376,32 +377,32 @@ export async function uniwebPollStatus() {
     var accountLabel = d.current_account ? esc(d.current_account) : '...';
 
     var html = '<div class="uniweb-sync-panel uniweb-sync-active">';
-    html += '<div class="uniweb-sync-row" style="margin-bottom:4px;">';
-    html += '<span style="font-weight:600;color:var(--blue);">' + t('synkroniserer_uniweb') + '</span>';
+    html += '<div class="uniweb-sync-row mb-1">';
+    html += '<span class="fw-semibold text-accent">' + t('synkroniserer_uniweb') + '</span>';
     html += '<span class="uniweb-sync-value">' + t('uniweb_accounts_progress').replace('{done}', synced).replace('{total}', total || '?') + '</span>';
     html += '</div>';
 
     // Progress bar
-    html += '<div class="uniweb-progress-track"><div class="uniweb-progress-fill" style="width:' + Math.max(pct, 2) + '%;"></div></div>';
+    html += '<div class="uniweb-progress-track"><div class="uniweb-progress-fill" data-bar="' + Math.max(pct, 2) + '"></div></div>';
 
     // Current account
-    html += '<div class="uniweb-sync-row" style="margin-top:4px;">';
-    html += '<span class="uniweb-sync-label">' + t('behandler') + ' <span style="color:var(--text-primary);">' + accountLabel + '</span></span>';
+    html += '<div class="uniweb-sync-row mt-1">';
+    html += '<span class="uniweb-sync-label">' + t('behandler') + ' <span class="text-default">' + accountLabel + '</span></span>';
     html += '<span class="uniweb-sync-value">' + pct + '%</span>';
     html += '</div>';
 
     // Timing row
-    html += '<div class="uniweb-sync-row" style="margin-top:4px;">';
+    html += '<div class="uniweb-sync-row mt-1">';
     html += '<span class="uniweb-sync-label">' + t('uniweb_elapsed').replace('{time}', elapsedStr) + '</span>';
     html += '<span class="uniweb-sync-label">' + t('uniweb_remaining').replace('{time}', etaStr) + '</span>';
     html += '</div>';
 
     // Domains found so far
     if (d.domains_found > 0) {
-      html += '<div class="uniweb-sync-row" style="margin-top:4px;">';
+      html += '<div class="uniweb-sync-row mt-1">';
       html += '<span class="uniweb-sync-label">' + t('uniweb_domains_found').replace('{count}', Number(d.domains_found)) + '</span>';
       if (d.errors_count > 0) {
-        html += '<span class="uniweb-sync-label" style="color:var(--orange);">' + t('integ_error','Feil') + ': ' + Number(d.errors_count) + '</span>';
+        html += '<span class="uniweb-sync-label text-warning">' + t('integ_error','Feil') + ': ' + Number(d.errors_count) + '</span>';
       }
       html += '</div>';
     }
@@ -416,15 +417,15 @@ export async function uniwebPollStatus() {
     _uniwebSyncStart = null;
 
     if (d.last_error) {
-      msg.innerHTML = '<div class="uniweb-sync-panel" style="border-color:var(--red);">'
-        + '<span style="color:var(--red);font-weight:600;">' + t('synkronisering_feilet') + '</span>'
-        + '<div style="margin-top:4px;color:var(--red);font-size:11px;">' + esc(d.last_error) + '</div>'
+      msg.innerHTML = '<div class="uniweb-sync-panel border-danger">'
+        + '<span class="text-danger fw-semibold">' + t('synkronisering_feilet') + '</span>'
+        + '<div class="mt-1 text-danger text-xs">' + esc(d.last_error) + '</div>'
         + '</div>';
     } else {
-      let html = '<div class="uniweb-sync-panel" style="border-color:var(--green);">';
-      html += '<span style="color:var(--green);font-weight:600;">' + t('synkronisering_fullfort') + '</span>';
+      let html = '<div class="uniweb-sync-panel border-success">';
+      html += '<span class="text-success fw-semibold">' + t('synkronisering_fullfort') + '</span>';
       if (totalElapsed) {
-        html += '<span class="uniweb-sync-label" style="margin-left:8px;">(' + totalElapsed + ')</span>';
+        html += '<span class="uniweb-sync-label ml-2">(' + totalElapsed + ')</span>';
       }
 
       // Summary cards
@@ -432,7 +433,7 @@ export async function uniwebPollStatus() {
       html += '<div class="uniweb-summary-card"><div class="val">' + (Number(d.total_accounts) || 0) + '</div><div class="lbl">' + t('kontoer') + '</div></div>';
       html += '<div class="uniweb-summary-card"><div class="val">' + (Number(d.domains_found) || 0) + '</div><div class="lbl">' + t('domener_2') + '</div></div>';
       if (d.errors_count > 0) {
-        html += '<div class="uniweb-summary-card" style="border:1px solid var(--orange);"><div class="val" style="color:var(--orange);">' + Number(d.errors_count) + '</div><div class="lbl">' + t('feil') + '</div></div>';
+        html += '<div class="uniweb-summary-card border border-warning"><div class="val text-warning">' + Number(d.errors_count) + '</div><div class="lbl">' + t('feil') + '</div></div>';
       }
       html += '</div>';
       html += '</div>';
@@ -461,36 +462,36 @@ export async function uniwebLoadAccounts() {
   var unmatchedCount = d.accounts.filter(function(a) { return !a.customer_name; }).length;
   var unmatchedBadge = '';
   if (unmatchedCount > 0) {
-    unmatchedBadge = ' <span style="display:inline-block;background:var(--orange);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;">' + unmatchedCount + ' ' + t('integ_of','av') + ' ' + Number(d.total) + ' ' + t('integ_customers_unlinked','kunder ikke koblet') + '</span>';
+    unmatchedBadge = ' <span class="badge badge-warning ml-2">' + unmatchedCount + ' ' + t('integ_of','av') + ' ' + Number(d.total) + ' ' + t('integ_customers_unlinked','kunder ikke koblet') + '</span>';
   }
 
-  var html = '<div style="font-size:12px;font-weight:600;margin-bottom:8px;">' + t('kontoer') + ' (' + Number(d.total) + ')' + unmatchedBadge + '</div>';
+  var html = '<div class="text-sm fw-semibold mb-2">' + t('kontoer') + ' (' + Number(d.total) + ')' + unmatchedBadge + '</div>';
   html += '<div class="uniweb-accounts-scroll" role="region" aria-label="' + esc(t('uniweb_accounts_label')) + '" tabindex="0">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
-  html += '<th style="text-align:left;padding:6px 8px;">' + t('konto_4') + '</th>';
-  html += '<th style="text-align:left;padding:6px 8px;">' + t('msp_kunde') + '</th>';
-  html += '<th style="text-align:center;padding:6px 8px;">' + t('domener_2') + '</th>';
-  html += '<th style="text-align:center;padding:6px 8px;">' + t('abo') + '</th>';
-  html += '<th style="text-align:right;padding:6px 8px;">' + t('kr_mnd_2') + '</th>';
-  html += '<th style="text-align:center;padding:6px 8px;">' + t('fornyelse_2') + '</th>';
+  html += '<table class="data-table data-table--compact">';
+  html += '<thead><tr>';
+  html += '<th>' + t('konto_4') + '</th>';
+  html += '<th>' + t('msp_kunde') + '</th>';
+  html += '<th class="text-center">' + t('domener_2') + '</th>';
+  html += '<th class="text-center">' + t('abo') + '</th>';
+  html += '<th class="text-right">' + t('kr_mnd_2') + '</th>';
+  html += '<th class="text-center">' + t('fornyelse_2') + '</th>';
   html += '</tr></thead><tbody>';
 
   d.accounts.forEach(function(a) {
     var customerCol = '';
     if (a.customer_name) {
-      customerCol = '<span style="color:var(--green);">' + esc(a.customer_name) + '</span>';
+      customerCol = '<span class="text-success">' + esc(a.customer_name) + '</span>';
     } else {
-      customerCol = '<button class="btn btn-ghost" data-write data-click-handler="uniwebShowMatch" data-id="' + esc(a.id) + '" style="padding:2px 8px;font-size:10px;color:var(--orange);">' + t('ikke_koblet') + '</button>';
+      customerCol = '<button class="btn btn-ghost btn-sm text-warning" data-write data-click-handler="uniwebShowMatch" data-id="' + esc(a.id) + '">' + t('ikke_koblet') + '</button>';
     }
 
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:6px 8px;"><a href="#" data-click-handler="uniwebShowDetail" data-id="' + esc(a.id) + '" style="color:var(--blue);text-decoration:none;">' + esc(a.name) + '</a></td>';
-    html += '<td style="padding:6px 8px;">' + customerCol + '</td>';
-    html += '<td style="text-align:center;padding:6px 8px;">' + Number(a.domain_count) + '</td>';
-    html += '<td style="text-align:center;padding:6px 8px;">' + Number(a.subscription_count) + '</td>';
-    html += '<td style="text-align:right;padding:6px 8px;font-family:var(--mono);">' + (a.monthly_total > 0 ? a.monthly_total.toFixed(0) : '-') + '</td>';
-    html += '<td style="text-align:center;padding:6px 8px;">' + esc(a.earliest_renewal || '-') + '</td>';
+    html += '<tr>';
+    html += '<td><a href="#" data-click-handler="uniwebShowDetail" data-id="' + esc(a.id) + '" class="text-accent no-underline">' + esc(a.name) + '</a></td>';
+    html += '<td>' + customerCol + '</td>';
+    html += '<td class="text-center">' + Number(a.domain_count) + '</td>';
+    html += '<td class="text-center">' + Number(a.subscription_count) + '</td>';
+    html += '<td class="text-right font-mono">' + (a.monthly_total > 0 ? a.monthly_total.toFixed(0) : '-') + '</td>';
+    html += '<td class="text-center">' + esc(a.earliest_renewal || '-') + '</td>';
     html += '</tr>';
   });
 
@@ -498,8 +499,8 @@ export async function uniwebLoadAccounts() {
 
   // Add "Importer kunder" button if there are unmatched accounts
   if (unmatchedCount > 0) {
-    html += '<div style="margin-top:10px;">';
-    html += '<button class="btn btn-primary" data-write data-click-handler="uniwebShowImport" style="padding:6px 14px;font-size:12px;">' + t('integ_import_from_uniweb','Importer kunder fra Uniweb') + ' (' + unmatchedCount + ')</button>';
+    html += '<div class="mt-3">';
+    html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="uniwebShowImport">' + t('integ_import_from_uniweb','Importer kunder fra Uniweb') + ' (' + unmatchedCount + ')</button>';
     html += '</div>';
   }
 
@@ -511,16 +512,16 @@ async function uniwebShowMatch(accountId) {
   if (!d) return;
 
   var customers = d.available_customers || [];
-  var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="uniweb-match-modal" data-click-handler="removeOnBackdrop">';
-  html += '<div class="card" style="width:400px;max-height:500px;padding:20px;" data-click-handler="stopPropagation">';
-  html += '<div style="font-weight:600;font-size:14px;margin-bottom:12px;">' + t('koble_uniweb_konto_til_msp') + '</div>';
-  html += '<select id="uniweb-match-select" class="field-input" style="margin-bottom:12px;">';
+  var html = '<div class="overlay" id="uniweb-match-modal" data-click-handler="removeOnBackdrop">';
+  html += '<div class="card overlay-panel is-sm" data-click-handler="stopPropagation">';
+  html += '<div class="fw-semibold text-base mb-3">' + t('koble_uniweb_konto_til_msp') + '</div>';
+  html += '<select id="uniweb-match-select" class="field-input mb-3">';
   html += '<option value="">' + t('velg_kunde') + '</option>';
   customers.forEach(function(c) {
     html += '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
   });
   html += '</select>';
-  html += '<div style="display:flex;gap:8px;">';
+  html += '<div class="flex gap-2">';
   html += '<button class="btn btn-primary" data-write data-click-handler="uniwebDoMatch" data-id="' + esc(accountId) + '">' + t('koble') + '</button>';
   html += '<button class="btn btn-ghost" data-click-handler="removeElement" data-target="uniweb-match-modal">' + t('avbryt_2') + '</button>';
   html += '</div></div></div>';
@@ -551,73 +552,73 @@ async function uniwebShowDetail(accountId) {
   var d = await apiFetch('/api/uniweb/account/' + encodeURIComponent(accountId));
   if (!d) return;
 
-  var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;" id="uniweb-detail-modal" data-click-handler="removeOnBackdrop">';
-  html += '<div class="card" style="width:700px;max-height:80vh;padding:20px;overflow-y:auto;" data-click-handler="stopPropagation">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-  html += '<div style="font-weight:600;font-size:16px;">' + esc(d.name) + '</div>';
-  html += '<button class="btn btn-ghost" data-click-handler="removeElement" data-target="uniweb-detail-modal" style="padding:4px 8px;">X</button>';
+  var html = '<div class="overlay" id="uniweb-detail-modal" data-click-handler="removeOnBackdrop">';
+  html += '<div class="card overlay-panel" data-click-handler="stopPropagation">';
+  html += '<div class="flex justify-between items-center mb-4">';
+  html += '<div class="fw-semibold text-md">' + esc(d.name) + '</div>';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="removeElement" data-target="uniweb-detail-modal">X</button>';
   html += '</div>';
 
   if (d.customer_name) {
-    html += '<div style="margin-bottom:12px;font-size:12px;color:var(--green);">' + t('integ_linked_to','Koblet til') + ': ' + esc(d.customer_name) + '</div>';
+    html += '<div class="mb-3 text-sm text-success">' + t('integ_linked_to','Koblet til') + ': ' + esc(d.customer_name) + '</div>';
   }
 
   // Domains
   if (d.domains && d.domains.length > 0) {
-    html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">' + t('domener') + ' (' + d.domains.length + ')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('domene_3') + '</th><th style="text-align:center;padding:4px 6px;">' + t('utloper') + '</th><th style="text-align:center;padding:4px 6px;">' + t('status_2') + '</th></tr></thead><tbody>';
+    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('domener') + ' (' + d.domains.length + ')</div>';
+    html += '<table class="data-table data-table--compact mb-3">';
+    html += '<thead><tr><th>' + t('domene_3') + '</th><th class="text-center">' + t('utloper') + '</th><th class="text-center">' + t('status_2') + '</th></tr></thead><tbody>';
     d.domains.forEach(function(dom) {
-      html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(dom.domain) + '</td><td style="text-align:center;padding:4px 6px;">' + esc(dom.expiry || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(dom.status || '-') + '</td></tr>';
+      html += '<tr><td>' + esc(dom.domain) + '</td><td class="text-center">' + esc(dom.expiry || '-') + '</td><td class="text-center">' + esc(dom.status || '-') + '</td></tr>';
     });
     html += '</tbody></table>';
   }
 
   // Subscriptions
   if (d.subscriptions && d.subscriptions.length > 0) {
-    html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">' + t('abonnementer') + ' (' + d.subscriptions.length + ')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('tjeneste_2') + '</th><th style="text-align:left;padding:4px 6px;">' + t('bruker_domene_2') + '</th><th style="text-align:right;padding:4px 6px;">' + t('pris_mnd_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('fornyelse_2') + '</th></tr></thead><tbody>';
+    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('abonnementer') + ' (' + d.subscriptions.length + ')</div>';
+    html += '<table class="data-table data-table--compact mb-3">';
+    html += '<thead><tr><th>' + t('tjeneste_2') + '</th><th>' + t('bruker_domene_2') + '</th><th class="text-right">' + t('pris_mnd_2') + '</th><th class="text-center">' + t('fornyelse_2') + '</th></tr></thead><tbody>';
     d.subscriptions.forEach(function(sub) {
-      html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(sub.service_type || sub.Service || '-') + '</td><td style="padding:4px 6px;">' + esc(sub.username_domain || sub.Username || '-') + '</td><td style="text-align:right;padding:4px 6px;font-family:var(--mono);">' + esc(sub.price_monthly || sub['Price per month'] || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(sub.renewal_date || sub['Renewed until'] || '-') + '</td></tr>';
+      html += '<tr><td>' + esc(sub.service_type || sub.Service || '-') + '</td><td>' + esc(sub.username_domain || sub.Username || '-') + '</td><td class="text-right font-mono">' + esc(sub.price_monthly || sub['Price per month'] || '-') + '</td><td class="text-center">' + esc(sub.renewal_date || sub['Renewed until'] || '-') + '</td></tr>';
     });
     html += '</tbody></table>';
   }
 
   // SSL
   if (d.ssl && d.ssl.length > 0) {
-    html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">' + t('uniweb_ssl_certificates') + ' (' + d.ssl.length + ')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('domene_3') + '</th><th style="text-align:left;padding:4px 6px;">' + t('type_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('utloper') + '</th></tr></thead><tbody>';
+    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('uniweb_ssl_certificates') + ' (' + d.ssl.length + ')</div>';
+    html += '<table class="data-table data-table--compact mb-3">';
+    html += '<thead><tr><th>' + t('domene_3') + '</th><th>' + t('type_2') + '</th><th class="text-center">' + t('utloper') + '</th></tr></thead><tbody>';
     d.ssl.forEach(function(cert) {
-      html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(cert.domain) + '</td><td style="padding:4px 6px;">' + esc(cert.type || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(cert.expiry || '-') + '</td></tr>';
+      html += '<tr><td>' + esc(cert.domain) + '</td><td>' + esc(cert.type || '-') + '</td><td class="text-center">' + esc(cert.expiry || '-') + '</td></tr>';
     });
     html += '</tbody></table>';
   }
 
   // Email
   if (d.email && d.email.length > 0) {
-    html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">' + t('uniweb_email_accounts') + ' (' + d.email.length + ')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('adresse_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('kvote_2') + '</th><th style="text-align:center;padding:4px 6px;">' + t('brukt') + '</th></tr></thead><tbody>';
+    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('uniweb_email_accounts') + ' (' + d.email.length + ')</div>';
+    html += '<table class="data-table data-table--compact mb-3">';
+    html += '<thead><tr><th>' + t('adresse_2') + '</th><th class="text-center">' + t('kvote_2') + '</th><th class="text-center">' + t('brukt') + '</th></tr></thead><tbody>';
     d.email.forEach(function(em) {
-      html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(em.address || em[''] || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(em.quota || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(em.used || '-') + '</td></tr>';
+      html += '<tr><td>' + esc(em.address || em[''] || '-') + '</td><td class="text-center">' + esc(em.quota || '-') + '</td><td class="text-center">' + esc(em.used || '-') + '</td></tr>';
     });
     html += '</tbody></table>';
   }
 
   // Hosting
   if (d.hosting && d.hosting.length > 0) {
-    html += '<div style="font-weight:600;font-size:13px;margin:12px 0 6px;">Webhosting (' + d.hosting.length + ')</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">';
-    html += '<thead><tr style="background:var(--bg-tertiary);"><th style="text-align:left;padding:4px 6px;">' + t('domene_3') + '</th><th style="text-align:left;padding:4px 6px;">' + t('pakke') + '</th><th style="text-align:center;padding:4px 6px;">' + t('status_2') + '</th></tr></thead><tbody>';
+    html += '<div class="fw-semibold text-ui mt-3 mb-2">Webhosting (' + d.hosting.length + ')</div>';
+    html += '<table class="data-table data-table--compact mb-3">';
+    html += '<thead><tr><th>' + t('domene_3') + '</th><th>' + t('pakke') + '</th><th class="text-center">' + t('status_2') + '</th></tr></thead><tbody>';
     d.hosting.forEach(function(h) {
-      html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 6px;">' + esc(h.domain || '-') + '</td><td style="padding:4px 6px;">' + esc(h.plan || '-') + '</td><td style="text-align:center;padding:4px 6px;">' + esc(h.status || '-') + '</td></tr>';
+      html += '<tr><td>' + esc(h.domain || '-') + '</td><td>' + esc(h.plan || '-') + '</td><td class="text-center">' + esc(h.status || '-') + '</td></tr>';
     });
     html += '</tbody></table>';
   }
 
-  html += '<div style="font-size:10px;color:var(--text-dim);margin-top:12px;">Sist synkronisert: ' + (d.last_sync ? new Date(d.last_sync).toLocaleString('nb-NO') : '-') + '</div>';
+  html += '<div class="text-2xs text-dim mt-3">Sist synkronisert: ' + (d.last_sync ? new Date(d.last_sync).toLocaleString('nb-NO') : '-') + '</div>';
   html += '</div></div>';
 
   document.body.insertAdjacentHTML('beforeend', html);
@@ -642,57 +643,57 @@ async function uniwebShowImport() {
   // Check if any accounts have parent info (sub-customers)
   var hasParents = unmatched.some(function(u) { return !!u.parent_name; });
 
-  var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;" id="uniweb-import-modal" data-click-handler="uniwebCloseImportOnBackdrop">';
-  html += '<div class="card" style="width:650px;max-width:100%;max-height:80vh;padding:20px;display:flex;flex-direction:column;" data-click-handler="stopPropagation">';
+  var html = '<div class="overlay" id="uniweb-import-modal" data-click-handler="uniwebCloseImportOnBackdrop">';
+  html += '<div class="card overlay-panel flex flex-col" data-click-handler="stopPropagation">';
 
   // Header with title and selection counter
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-  html += '<div style="font-weight:600;font-size:16px;">' + t('importer_kunder_fra_uniweb') + '</div>';
-  html += '<button class="btn btn-ghost" data-click-handler="uniwebCloseImport" style="padding:4px 8px;font-size:14px;">X</button>';
+  html += '<div class="flex justify-between items-center mb-1">';
+  html += '<div class="fw-semibold text-md">' + t('importer_kunder_fra_uniweb') + '</div>';
+  html += '<button class="btn btn-ghost btn-sm" data-click-handler="uniwebCloseImport">X</button>';
   html += '</div>';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  html += '<div style="font-size:12px;color:var(--text-muted);">' + unmatched.length + ' ' + t('integ_unmatched_hint','Uniweb-kontoer som ikke er koblet til en MSP-kunde. Valgte kontoer opprettes som nye kunder.') + '</div>';
+  html += '<div class="flex justify-between items-center mb-3">';
+  html += '<div class="text-sm text-muted">' + unmatched.length + ' ' + t('integ_unmatched_hint','Uniweb-kontoer som ikke er koblet til en MSP-kunde. Valgte kontoer opprettes som nye kunder.') + '</div>';
   html += '</div>';
-  html += '<div id="uniweb-import-counter" style="font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:10px;">0 ' + t('integ_of','av') + ' ' + unmatched.length + ' ' + t('integ_selected','valgt') + '</div>';
+  html += '<div id="uniweb-import-counter" class="text-sm fw-medium text-muted mb-3">0 ' + t('integ_of','av') + ' ' + unmatched.length + ' ' + t('integ_selected','valgt') + '</div>';
 
   // Search + select all
-  html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">';
-  html += '<input type="text" id="uniweb-import-search" class="field-input" placeholder="' + t('integ_search','Søk ...') + '" style="flex:1;min-width:150px;padding:6px 12px;font-size:12px;" data-input-handler="uniwebFilterImport">';
-  html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="uniweb-import-select-all" data-change-handler="uniwebToggleAllImport"> ' + t('velg_alle') + '</label>';
+  html += '<div class="flex gap-2 items-center mb-3 flex-wrap">';
+  html += '<input type="text" id="uniweb-import-search" class="field-input field-input-sm flex-field" placeholder="' + t('integ_search','Søk ...') + '" data-input-handler="uniwebFilterImport">';
+  html += '<label class="text-sm flex items-center gap-1 cursor-pointer nowrap"><input type="checkbox" id="uniweb-import-select-all" data-change-handler="uniwebToggleAllImport"> ' + t('velg_alle') + '</label>';
   html += '</div>';
 
   // Table
-  html += '<div style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:6px;max-height:400px;min-height:0;">';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;">';
-  html += '<th style="width:32px;padding:6px;background:var(--bg-tertiary);"></th>';
-  html += '<th style="text-align:left;padding:6px 8px;background:var(--bg-tertiary);">' + t('kontonavn') + '</th>';
+  html += '<div class="flex-1 overflow-y-auto border rounded max-h-lg min-h-0">';
+  html += '<table class="data-table data-table--compact sticky-thead"><thead><tr>';
+  html += '<th class="col-check"></th>';
+  html += '<th>' + t('kontonavn') + '</th>';
   if (hasParents) {
-    html += '<th style="text-align:left;padding:6px 8px;background:var(--bg-tertiary);">' + t('overordnet_konto') + '</th>';
+    html += '<th>' + t('overordnet_konto') + '</th>';
   }
-  html += '<th style="text-align:left;padding:6px 8px;font-family:var(--mono);background:var(--bg-tertiary);">' + t('uniweb_id') + '</th>';
+  html += '<th class="font-mono">' + t('uniweb_id') + '</th>';
   html += '</tr></thead><tbody>';
 
   unmatched.sort(function(a, b) { return a.uniweb_name.localeCompare(b.uniweb_name); });
 
   for (var i = 0; i < unmatched.length; i++) {
     var u = unmatched[i];
-    html += '<tr class="uniweb-import-row" data-name="' + esc(u.uniweb_name.toLowerCase()) + '" style="border-bottom:1px solid var(--border);">';
-    html += '<td style="text-align:center;padding:6px;"><input type="checkbox" class="uniweb-import-cb" data-id="' + esc(u.uniweb_id) + '" data-account-name="' + esc(u.uniweb_name) + '" data-change-handler="uniwebUpdateImportBtn" style="width:15px;height:15px;cursor:pointer;"></td>';
-    html += '<td style="padding:6px 8px;font-weight:500;">' + esc(u.uniweb_name) + '</td>';
+    html += '<tr class="uniweb-import-row" data-name="' + esc(u.uniweb_name.toLowerCase()) + '">';
+    html += '<td class="text-center"><input type="checkbox" class="uniweb-import-cb checkbox" data-id="' + esc(u.uniweb_id) + '" data-account-name="' + esc(u.uniweb_name) + '" data-change-handler="uniwebUpdateImportBtn"></td>';
+    html += '<td class="fw-medium">' + esc(u.uniweb_name) + '</td>';
     if (hasParents) {
-      html += '<td style="padding:6px 8px;color:var(--text-muted);font-size:10px;">' + (u.parent_name ? esc(u.parent_name) : '-') + '</td>';
+      html += '<td class="text-muted text-2xs">' + (u.parent_name ? esc(u.parent_name) : '-') + '</td>';
     }
-    html += '<td style="padding:6px 8px;font-family:var(--mono);color:var(--text-muted);">' + esc(u.uniweb_id) + '</td>';
+    html += '<td class="font-mono text-muted">' + esc(u.uniweb_id) + '</td>';
     html += '</tr>';
   }
 
   html += '</tbody></table></div>';
 
   // Error display area (hidden initially)
-  html += '<div id="uniweb-import-errors" style="display:none;margin-top:10px;max-height:120px;overflow-y:auto;border:1px solid var(--red);border-radius:6px;padding:10px;background:rgba(255,0,0,0.05);font-size:11px;"></div>';
+  html += '<div id="uniweb-import-errors" class="status-box is-bad text-xs max-h-sm overflow-y-auto mt-3" style="display:none;"></div>';
 
   // Buttons
-  html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;">';
+  html += '<div class="flex gap-2 justify-end mt-4 flex-wrap">';
   html += '<button class="btn btn-ghost" data-click-handler="uniwebCloseImport">' + t('avbryt_2') + '</button>';
   html += '<button class="btn btn-primary" id="uniweb-import-btn" disabled data-write data-click-handler="uniwebDoImport">' + t('importer_valgte') + '</button>';
   html += '</div>';
@@ -791,12 +792,12 @@ async function uniwebDoImport() {
     // Show per-account errors if any
     if (d.errors && d.errors.length > 0) {
       if (errBox) {
-        var errHtml = '<div style="font-weight:600;margin-bottom:6px;color:var(--red);">' + d.errors.length + ' ' + t('integ_accounts_failed','konto(er) kunne ikke importeres') + ':</div>';
+        var errHtml = '<div class="fw-semibold mb-2 text-danger">' + d.errors.length + ' ' + t('integ_accounts_failed','konto(er) kunne ikke importeres') + ':</div>';
         d.errors.forEach(function(err) {
           if (typeof err === 'object') {
-            errHtml += '<div style="padding:2px 0;">&bull; <strong>' + esc(err.name) + '</strong>: ' + esc(err.reason) + '</div>';
+            errHtml += '<div class="py-0-5 px-0">&bull; <strong>' + esc(err.name) + '</strong>: ' + esc(err.reason) + '</div>';
           } else {
-            errHtml += '<div style="padding:2px 0;">&bull; ' + esc(err) + '</div>';
+            errHtml += '<div class="py-0-5 px-0">&bull; ' + esc(err) + '</div>';
           }
         });
         errBox.innerHTML = errHtml;
@@ -837,10 +838,10 @@ export async function taskSchedRefresh() {
   if (!container) return;
   try {
     var d = await apiFetch('/api/scheduler/tasks');
-    if (!d || !d.tasks) { container.innerHTML = '<div style="padding:16px;color:var(--red);">' + t('status_error','Error') + '</div>'; return; }
+    if (!d || !d.tasks) { container.innerHTML = '<div class="p-4 text-danger">' + t('status_error','Error') + '</div>'; return; }
     taskSchedRender(d.tasks);
   } catch(e) {
-    container.innerHTML = '<div style="padding:16px;color:var(--red);">' + esc(e.message) + '</div>';
+    container.innerHTML = '<div class="p-4 text-danger">' + esc(e.message) + '</div>';
   }
 }
 
@@ -871,15 +872,15 @@ function taskSchedRender(tasks) {
   if (!container) return;
   var lang = _lang;
 
-  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
-  html += '<th style="text-align:left;padding:10px 12px;">' + t('col_task','Oppgave') + '</th>';
-  html += '<th style="text-align:left;padding:10px 12px;">' + t('col_schedule','Tidsplan') + '</th>';
-  html += '<th style="text-align:center;padding:10px 12px;">' + t('col_last_run','Siste kjoring') + '</th>';
-  html += '<th style="text-align:center;padding:10px 12px;">' + t('col_next_run','Neste kjoring') + '</th>';
-  html += '<th style="text-align:center;padding:10px 12px;">' + t('col_status','Status') + '</th>';
-  html += '<th style="text-align:center;padding:10px 12px;">' + t('col_enabled','Aktiv') + '</th>';
-  html += '<th style="text-align:center;padding:10px 12px;"></th>';
+  var html = '<table class="data-table data-table--roomy">';
+  html += '<thead><tr>';
+  html += '<th>' + t('col_task','Oppgave') + '</th>';
+  html += '<th>' + t('col_schedule','Tidsplan') + '</th>';
+  html += '<th class="text-center">' + t('col_last_run','Siste kjoring') + '</th>';
+  html += '<th class="text-center">' + t('col_next_run','Neste kjoring') + '</th>';
+  html += '<th class="text-center">' + t('col_status','Status') + '</th>';
+  html += '<th class="text-center">' + t('col_enabled','Aktiv') + '</th>';
+  html += '<th class="text-center"></th>';
   html += '</tr></thead><tbody>';
 
   tasks.forEach(function(task) {
@@ -894,11 +895,11 @@ function taskSchedRender(tasks) {
     // Status indicator
     var statusHtml;
     if (task.last_error) {
-      statusHtml = '<span style="color:var(--red);font-size:11px;" title="' + esc(task.last_error) + '">' + t('feil') + '</span>';
+      statusHtml = '<span class="text-danger text-xs" title="' + esc(task.last_error) + '">' + t('feil') + '</span>';
     } else if (task.last_result) {
-      statusHtml = '<span style="color:var(--green);font-size:11px;" title="' + esc(task.last_result) + '">OK</span>';
+      statusHtml = '<span class="text-success text-xs" title="' + esc(task.last_result) + '">OK</span>';
     } else {
-      statusHtml = '<span style="color:var(--text-dim);font-size:11px;">-</span>';
+      statusHtml = '<span class="text-dim text-xs">-</span>';
     }
 
     // Schedule display
@@ -907,21 +908,20 @@ function taskSchedRender(tasks) {
     // Toggle
     var toggleChecked = task.enabled ? 'checked' : '';
 
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:10px 12px;font-weight:500;">' + esc(label) + '</td>';
-    html += '<td style="padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--text-muted);">' + schedHtml + '</td>';
-    html += '<td style="text-align:center;padding:10px 12px;font-size:11px;">' + lastRun + '</td>';
-    html += '<td style="text-align:center;padding:10px 12px;font-size:11px;">' + nextRun + '</td>';
-    html += '<td style="text-align:center;padding:10px 12px;">' + statusHtml + '</td>';
-    html += '<td style="text-align:center;padding:10px 12px;">';
-    html += '<label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;">';
-    html += '<input type="checkbox" ' + toggleChecked + ' data-change-handler="taskSchedToggle" data-id="' + esc(task.id) + '" style="opacity:0;width:0;height:0;">';
-    html += '<span style="position:absolute;top:0;left:0;right:0;bottom:0;background:' + (task.enabled ? 'var(--green)' : 'var(--border)') + ';border-radius:10px;transition:background .2s;"></span>';
-    html += '<span style="position:absolute;top:2px;left:' + (task.enabled ? '18px' : '2px') + ';width:16px;height:16px;background:#fff;border-radius:50%;transition:left .2s;"></span>';
+    html += '<tr>';
+    html += '<td class="fw-medium">' + esc(label) + '</td>';
+    html += '<td class="font-mono text-xs text-muted">' + schedHtml + '</td>';
+    html += '<td class="text-center text-xs">' + lastRun + '</td>';
+    html += '<td class="text-center text-xs">' + nextRun + '</td>';
+    html += '<td class="text-center">' + statusHtml + '</td>';
+    html += '<td class="text-center">';
+    html += '<label class="switch inline-block">';
+    html += '<input type="checkbox" ' + toggleChecked + ' data-change-handler="taskSchedToggle" data-id="' + esc(task.id) + '">';
+    html += '<span class="track"></span><span class="knob"></span>';
     html += '</label>';
     html += '</td>';
-    html += '<td style="text-align:center;padding:10px 12px;">';
-    html += '<button class="btn btn-ghost" data-write data-click-handler="taskSchedRunNow" data-id="' + esc(task.id) + '" style="padding:4px 10px;font-size:11px;white-space:nowrap;">' + t('btn_run_now','Kjor na') + '</button>';
+    html += '<td class="text-center">';
+    html += '<button class="btn btn-ghost btn-sm nowrap" data-write data-click-handler="taskSchedRunNow" data-id="' + esc(task.id) + '">' + t('btn_run_now','Kjor na') + '</button>';
     html += '</td>';
     html += '</tr>';
   });
@@ -1072,37 +1072,37 @@ async function _alertDoSave() {
 
 export async function alertRunCheckNow() {
   var resultEl = document.getElementById('alert-check-result');
-  if (resultEl) resultEl.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_checking','Sjekker...') + '</span>';
+  if (resultEl) resultEl.innerHTML = '<span class="text-muted">' + t('msg_checking','Sjekker...') + '</span>';
 
   try {
     var d = await apiFetch('/api/alerts/check-now', {method: 'POST'});
-    if (!d) { if (resultEl) resultEl.innerHTML = '<span style="color:var(--red);">' + t('status_error','Feil') + '</span>'; return; }
+    if (!d) { if (resultEl) resultEl.innerHTML = '<span class="text-danger">' + t('status_error','Feil') + '</span>'; return; }
 
-    var html = '<div style="padding:10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-md);">';
-    html += '<div style="font-weight:600;margin-bottom:6px;">' + t('lbl_check_result','Sjekkresultat') + '</div>';
-    html += '<div style="display:flex;gap:16px;font-size:12px;">';
+    var html = '<div class="p-3 bg-panel border rounded">';
+    html += '<div class="fw-semibold mb-2">' + t('lbl_check_result','Sjekkresultat') + '</div>';
+    html += '<div class="flex gap-4 text-sm">';
     html += '<span>' + t('lbl_found','Funnet') + ': <strong>' + Number(d.total_found) + '</strong></span>';
-    html += '<span>' + t('lbl_new_alerts','Nye') + ': <strong style="color:' + (d.new_alerts > 0 ? 'var(--red)' : 'var(--green)') + ';">' + Number(d.new_alerts) + '</strong></span>';
+    html += '<span>' + t('lbl_new_alerts','Nye') + ': <strong class="' + (d.new_alerts > 0 ? 'text-danger' : 'text-success') + '">' + Number(d.new_alerts) + '</strong></span>';
     html += '<span>' + t('lbl_deduplicated','Deduplisert') + ': ' + Number(d.deduplicated) + '</span>';
     html += '<span>' + t('lbl_channels_notified','Kanaler varslet') + ': ' + Number(d.channels_notified) + '</span>';
     html += '</div>';
 
     if (d.alerts && d.alerts.length > 0) {
-      html += '<div style="margin-top:8px;max-height:200px;overflow-y:auto;">';
-      html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+      html += '<div class="mt-2 max-h-sm overflow-y-auto">';
+      html += '<table class="data-table data-table--compact">';
       d.alerts.forEach(function(a) {
         var color = a.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
         var sevLabel = a.severity === 'critical' ? t('lbl_critical','Kritisk') : t('lbl_warning_sev','Advarsel');
-        html += '<tr style="border-bottom:1px solid var(--border);">';
-        html += '<td style="padding:4px 6px;color:' + color + ';font-weight:600;">' + sevLabel + '</td>';
-        html += '<td style="padding:4px 6px;">' + esc(a.customer) + '</td>';
-        html += '<td style="padding:4px 6px;">' + esc(a.item) + '</td>';
-        html += '<td style="padding:4px 6px;color:var(--text-muted);">' + esc(a.detail) + '</td>';
+        html += '<tr>';
+        html += '<td class="' + toneClass(color) + ' fw-semibold">' + sevLabel + '</td>';
+        html += '<td>' + esc(a.customer) + '</td>';
+        html += '<td>' + esc(a.item) + '</td>';
+        html += '<td class="text-muted">' + esc(a.detail) + '</td>';
         html += '</tr>';
       });
       html += '</table></div>';
     } else {
-      html += '<div style="margin-top:6px;color:var(--green);">&#10003; ' + t('msg_no_alerts','Ingen varsler funnet') + '</div>';
+      html += '<div class="mt-2 text-success">&#10003; ' + t('msg_no_alerts','Ingen varsler funnet') + '</div>';
     }
 
     html += '</div>';
@@ -1110,7 +1110,7 @@ export async function alertRunCheckNow() {
 
     alertLoadHistory();
   } catch(e) {
-    if (resultEl) resultEl.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    if (resultEl) resultEl.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
   }
 }
 
@@ -1120,29 +1120,29 @@ async function alertLoadHistory() {
 
   var d = await apiFetch('/api/alerts/history?limit=50');
   if (!d || !d.entries || d.entries.length === 0) {
-    container.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px;">' + t('msg_no_alert_history','Ingen varselhistorikk enna') + '</div>';
+    container.innerHTML = '<div class="text-sm text-muted p-2">' + t('msg_no_alert_history','Ingen varselhistorikk enna') + '</div>';
     return;
   }
 
-  var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-  html += '<thead><tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">';
-  html += '<th style="text-align:left;padding:6px;">' + t('col_time','Tidspunkt') + '</th>';
-  html += '<th style="text-align:left;padding:6px;">' + t('col_severity','Alvorlighet') + '</th>';
-  html += '<th style="text-align:left;padding:6px;">' + t('col_customer','Kunde') + '</th>';
-  html += '<th style="text-align:left;padding:6px;">' + t('col_item','Element') + '</th>';
-  html += '<th style="text-align:left;padding:6px;">' + t('col_detail_lbl','Detaljer') + '</th>';
+  var html = '<table class="data-table data-table--compact">';
+  html += '<thead><tr>';
+  html += '<th>' + t('col_time','Tidspunkt') + '</th>';
+  html += '<th>' + t('col_severity','Alvorlighet') + '</th>';
+  html += '<th>' + t('col_customer','Kunde') + '</th>';
+  html += '<th>' + t('col_item','Element') + '</th>';
+  html += '<th>' + t('col_detail_lbl','Detaljer') + '</th>';
   html += '</tr></thead><tbody>';
 
   d.entries.forEach(function(h) {
     var color = h.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
     var sevLabel = h.severity === 'critical' ? t('lbl_critical','Kritisk') : t('lbl_warning_sev','Advarsel');
     var timeStr = h.sent_at ? new Date(h.sent_at).toLocaleString('nb-NO') : '';
-    html += '<tr style="border-bottom:1px solid var(--border);">';
-    html += '<td style="padding:4px 6px;font-family:var(--mono);font-size:10px;">' + esc(timeStr) + '</td>';
-    html += '<td style="padding:4px 6px;color:' + color + ';font-weight:600;">' + sevLabel + '</td>';
-    html += '<td style="padding:4px 6px;">' + esc(h.customer || '') + '</td>';
-    html += '<td style="padding:4px 6px;">' + esc(h.item || '') + '</td>';
-    html += '<td style="padding:4px 6px;color:var(--text-muted);">' + esc(h.detail || '') + '</td>';
+    html += '<tr>';
+    html += '<td class="font-mono text-2xs">' + esc(timeStr) + '</td>';
+    html += '<td class="' + toneClass(color) + ' fw-semibold">' + sevLabel + '</td>';
+    html += '<td>' + esc(h.customer || '') + '</td>';
+    html += '<td>' + esc(h.item || '') + '</td>';
+    html += '<td class="text-muted">' + esc(h.detail || '') + '</td>';
     html += '</tr>';
   });
   html += '</tbody></table>';
@@ -1180,16 +1180,16 @@ export async function itglueSyncAllDocumentation() {
   btn.disabled = true;
   btn.textContent = t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...');
   status.style.display = 'block';
-  status.innerHTML = '<span style="color:var(--text-muted);">' + t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...') + '</span>';
+  status.innerHTML = '<span class="text-muted">' + t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...') + '</span>';
 
   try {
     var d = await apiFetch('/api/itglue/sync-all', {method: 'POST'});
     if (!d) {
-      status.innerHTML = '<span style="color:var(--red);">' + t('status_error', 'Error') + '</span>';
+      status.innerHTML = '<span class="text-danger">' + t('status_error', 'Error') + '</span>';
       return;
     }
     if (d.error) {
-      status.innerHTML = '<span style="color:var(--red);">' + esc(d.error) + '</span>';
+      status.innerHTML = '<span class="text-danger">' + esc(d.error) + '</span>';
       return;
     }
 
@@ -1197,24 +1197,24 @@ export async function itglueSyncAllDocumentation() {
       .replace('{synced}', d.synced || 0)
       .replace('{errors}', d.errors || 0);
 
-    var html = '<div style="padding:8px 0;">';
-    html += '<span style="color:var(--green);font-weight:600;">&#10003; ' + t('msg_itglue_sync_done', 'Synkronisering fullfort') + '</span>';
-    html += '<div style="margin-top:4px;color:var(--text-muted);">' + esc(resultMsg) + '</div>';
+    var html = '<div class="py-2 px-0">';
+    html += '<span class="text-success fw-semibold">&#10003; ' + t('msg_itglue_sync_done', 'Synkronisering fullfort') + '</span>';
+    html += '<div class="mt-1 text-muted">' + esc(resultMsg) + '</div>';
 
     // Show per-customer details
     if (d.results && d.results.length > 0) {
-      html += '<details style="margin-top:8px;font-size:11px;"><summary style="cursor:pointer;color:var(--text-muted);">' + t('lbl_details', 'Detaljer') + ' (' + d.results.length + ')</summary>';
-      html += '<div style="max-height:200px;overflow-y:auto;margin-top:4px;">';
+      html += '<details class="mt-2 text-xs"><summary class="cursor-pointer text-muted">' + t('lbl_details', 'Detaljer') + ' (' + d.results.length + ')</summary>';
+      html += '<div class="max-h-sm overflow-y-auto mt-1">';
       d.results.forEach(function(r) {
         var icon = r.synced && r.synced.length > 0 ? '&#10003;' : '&#10007;';
         var color = r.synced && r.synced.length > 0 ? 'var(--green)' : 'var(--red)';
         var types = (r.synced || []).map(function(s) { return s.type; }).join(', ');
         var errCount = (r.errors || []).length;
-        html += '<div style="padding:3px 0;display:flex;gap:6px;">';
-        html += '<span style="color:' + color + ';">' + icon + '</span>';
-        html += '<span style="flex:1;">' + esc(r.customer_name || r.customer_id) + '</span>';
-        if (types) html += '<span style="color:var(--text-dim);">' + esc(types) + '</span>';
-        if (errCount > 0) html += '<span style="color:var(--orange);">' + errCount + ' ' + t('status_error', 'feil') + '</span>';
+        html += '<div class="py-1 px-0 flex gap-2">';
+        html += '<span class="' + toneClass(color) + '">' + icon + '</span>';
+        html += '<span class="flex-1">' + esc(r.customer_name || r.customer_id) + '</span>';
+        if (types) html += '<span class="text-dim">' + esc(types) + '</span>';
+        if (errCount > 0) html += '<span class="text-warning">' + errCount + ' ' + t('status_error', 'feil') + '</span>';
         html += '</div>';
       });
       html += '</div></details>';
@@ -1223,7 +1223,7 @@ export async function itglueSyncAllDocumentation() {
     status.innerHTML = html;
     showToast(resultMsg, d.errors > 0 ? 'warning' : 'success', 4000);
   } catch (e) {
-    status.innerHTML = '<span style="color:var(--red);">' + esc(e.message) + '</span>';
+    status.innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
     showToast(e.message, 'error');
   } finally {
     btn.disabled = false;
@@ -1425,7 +1425,7 @@ async function _loadIntegrationCards() {
     // Update summary. The dot is green only when something is set up; a green
     // dot beside "0 of 9" read as all clear.
     var sumEl = document.getElementById('integ-summary');
-    if (sumEl) sumEl.innerHTML = '<span style="color:' + (_integActive ? 'var(--green)' : 'var(--text-dim)') + ';">&#9679;</span> '
+    if (sumEl) sumEl.innerHTML = '<span class="' + (_integActive ? 'text-success' : 'text-dim') + '">&#9679;</span> '
       + esc(t('integ_summary').replace('{active}', String(_integActive)).replace('{total}', String(_integCount)));
     document.getElementById('input-smtp-server').value = d.smtp_server || '';
     document.getElementById('input-smtp-port').value = d.smtp_port || 587;
@@ -1580,9 +1580,9 @@ export async function gdapSaveConfig() {
   });
   if (d && d.ok) {
     if (d.validated) {
-      msg.innerHTML = '<span style="color:var(--green);">' + t('msg_saved') + ' · ' + Number(d.customer_count) + ' ' + t('gdap_customers_found', 'kunder funnet') + '</span>';
+      msg.innerHTML = '<span class="text-success">' + t('msg_saved') + ' · ' + Number(d.customer_count) + ' ' + t('gdap_customers_found', 'kunder funnet') + '</span>';
     } else {
-      msg.innerHTML = '<span style="color:var(--orange);">' + t('msg_saved') + ' · ' + esc(d.warning || '') + '</span>';
+      msg.innerHTML = '<span class="text-warning">' + t('msg_saved') + ' · ' + esc(d.warning || '') + '</span>';
     }
     if (d.validated) {
       setStatus('gdap-integ-dot', 'gdap-integ-label', true);
@@ -1611,28 +1611,28 @@ export async function gdapDiscoverCustomers() {
   var panel = document.getElementById('gdap-discover-panel');
   var list = document.getElementById('gdap-discover-list');
   panel.style.display = 'block';
-  list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">' + t('msg_loading', 'Laster...') + '</div>';
+  list.innerHTML = '<div class="text-muted text-sm">' + t('msg_loading', 'Laster...') + '</div>';
   var d = await apiFetch('/api/gdap/customers');
   if (!d || !d.customers) {
-    list.innerHTML = '<div style="color:var(--red);font-size:12px;">' + t('msg_error') + '</div>';
+    list.innerHTML = '<div class="text-danger text-sm">' + t('msg_error') + '</div>';
     return;
   }
   if (d.customers.length === 0) {
-    list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">' + t('gdap_no_customers', 'Ingen kunder funnet i Partner Center') + '</div>';
+    list.innerHTML = '<div class="text-muted text-sm">' + t('gdap_no_customers', 'Ingen kunder funnet i Partner Center') + '</div>';
     return;
   }
   var html = '';
   d.customers.forEach(function(c) {
     var imported = c.already_imported;
-    var gdapBadge = c.gdap_status === 'active' ? '<span style="background:var(--green);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px;">GDAP</span>' : '';
-    var importedBadge = imported ? '<span style="background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px;">' + (c.local_auth_mode === 'gdap' ? 'GDAP' : 'Legacy') + '</span>' : '';
-    html += '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;">';
-    html += '<input type="checkbox" class="gdap-import-cb" value="' + esc(c.tenant_id) + '" ' + (imported ? 'checked disabled' : '') + ' style="flex-shrink:0;">';
-    html += '<div style="flex:1;min-width:0;">';
-    html += '<div style="font-weight:600;">' + esc(c.company_name) + gdapBadge + importedBadge + '</div>';
-    html += '<div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);">' + esc(c.domain || c.tenant_id) + '</div>';
+    var gdapBadge = c.gdap_status === 'active' ? '<span class="badge badge-success ml-2">GDAP</span>' : '';
+    var importedBadge = imported ? '<span class="badge badge-info ml-2">' + (c.local_auth_mode === 'gdap' ? 'GDAP' : 'Legacy') + '</span>' : '';
+    html += '<label class="flex items-center gap-2 py-2 px-1 border-b cursor-pointer text-ui">';
+    html += '<input type="checkbox" class="gdap-import-cb shrink-0" value="' + esc(c.tenant_id) + '" ' + (imported ? 'checked disabled' : '') + '>';
+    html += '<div class="flex-1 min-w-0">';
+    html += '<div class="fw-semibold">' + esc(c.company_name) + gdapBadge + importedBadge + '</div>';
+    html += '<div class="text-xs text-dim font-mono">' + esc(c.domain || c.tenant_id) + '</div>';
     if (c.gdap_roles && c.gdap_roles.length) {
-      html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">' + t('gdap_roles', 'Roller') + ': ' + esc(c.gdap_roles.join(', ')) + '</div>';
+      html += '<div class="text-2xs text-muted mt-0-5">' + t('gdap_roles', 'Roller') + ': ' + esc(c.gdap_roles.join(', ')) + '</div>';
     }
     html += '</div></label>';
   });
@@ -1656,7 +1656,7 @@ export async function gdapImportSelected() {
   if (d && d.imported) {
     var created = d.imported.filter(function(i) { return i.action === 'created'; }).length;
     var converted = d.imported.filter(function(i) { return i.action === 'converted'; }).length;
-    msg.innerHTML = '<span style="color:var(--green);">' + created + ' ' + t('gdap_created', 'opprettet') + ', ' + converted + ' ' + t('gdap_converted', 'konvertert til GDAP') + '</span>';
+    msg.innerHTML = '<span class="text-success">' + created + ' ' + t('gdap_created', 'opprettet') + ', ' + converted + ' ' + t('gdap_converted', 'konvertert til GDAP') + '</span>';
     // Refresh the customer list. This called refreshCustomerList, which no
     // script defines, behind a typeof guard, so the imported customers only
     // appeared after the user reloaded the page.
