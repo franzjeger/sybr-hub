@@ -86,6 +86,38 @@ async def dashboard_alerts(user=Depends(get_current_user)):
     credential_items.sort(key=lambda x: x["days_remaining"])
 
     # ── ALSO renewal expiry ──
+    # ALSO is the billing module's. Switched off, its sync stops and what is
+    # stored only ages, so it is not listed as though it were current.
+    from app.core import modules
+
+    renewal_items = await _renewal_items(allowed, now) if modules.is_enabled("billing") else []
+
+    # ── Certificates and firmware, from what the checks last saw ──
+    # Read from stored state, not from the alert engine's history: the engine
+    # records an alert only once a Teams or e-mail channel accepted it, so with
+    # no channel set up a certificate expiring tomorrow showed nowhere.
+    certificate_items, firmware_items, coverage = await _stored_state_items(allowed)
+
+    all_items = credential_items + renewal_items + certificate_items + firmware_items
+    critical = sum(1 for i in all_items if i["category"] == "critical")
+    warning = sum(1 for i in all_items if i["category"] == "warning")
+    info = sum(1 for i in all_items if i["category"] == "info")
+
+    return {
+        "credential_expiry": credential_items,
+        "renewals": renewal_items,
+        "certificates": certificate_items,
+        "firmware": firmware_items,
+        # How much was checked at all, so an empty list is not mistaken for an
+        # all-clear when nothing has been looked at.
+        "coverage": coverage,
+        "total_alerts": len(all_items),
+        "categories": {"critical": critical, "warning": warning, "info": info},
+    }
+
+
+async def _renewal_items(allowed: set[str] | None, now: datetime) -> list[dict]:
+    """ALSO renewals ending within 30 days, for the customers in *allowed*."""
     renewal_items: list[dict] = []
     try:
         from sqlmodel import select
@@ -143,18 +175,36 @@ async def dashboard_alerts(user=Depends(get_current_user)):
         renewal_items.sort(key=lambda x: x["days_remaining"])
     except Exception as exc:
         logger.warning("Failed to read also_renewals for alerts: %s", exc)
+    return renewal_items
 
-    all_items = credential_items + renewal_items
-    critical = sum(1 for i in all_items if i["category"] == "critical")
-    warning = sum(1 for i in all_items if i["category"] == "warning")
-    info = sum(1 for i in all_items if i["category"] == "info")
 
-    return {
-        "credential_expiry": credential_items,
-        "renewals": renewal_items,
-        "total_alerts": len(all_items),
-        "categories": {"critical": critical, "warning": warning, "info": info},
-    }
+async def _stored_state_items(allowed: set[str] | None) -> tuple[list[dict], list[dict], dict]:
+    """Certificate and firmware items for Varsler, and what was covered.
+
+    One failing store does not empty the other, nor the rest of Varsler; its
+    coverage says ``unavailable`` so the page can tell "nothing found" from
+    "could not be read".
+    """
+    from app.core.customer import CustomerManager
+    from app.services import firmware_inventory, tls_inventory
+
+    names = {c.get("_id", ""): c.get("CustomerName", "") for c in CustomerManager.list_customers()}
+    coverage: dict = {}
+    certificates: list[dict] = []
+    firmware: list[dict] = []
+    try:
+        certificates = await tls_inventory.attention(allowed, names)
+        coverage["tls"] = await tls_inventory.coverage(allowed, names)
+    except Exception as exc:
+        logger.warning("Stored TLS state unreadable for alerts: %s", exc)
+        coverage["tls"] = {"unavailable": True}
+    try:
+        firmware = await firmware_inventory.attention(allowed, names)
+        coverage["firmware"] = await firmware_inventory.coverage(allowed, names)
+    except Exception as exc:
+        logger.warning("Stored firmware state unreadable for alerts: %s", exc)
+        coverage["firmware"] = {"unavailable": True}
+    return certificates, firmware, coverage
 
 
 # ── Per-customer health score ────────────────────────────────────────────────

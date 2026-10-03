@@ -49,6 +49,8 @@ app/
     fortigate_api.py        FortiGate REST + CLI-over-SSH
     unifi_api.py            UniFi controller and Site Manager
     dns_checker.py          SPF / DKIM / DMARC / MTA-STS over live DNS
+    tls_inventory.py        each TLS endpoint's certificate as last seen; Varsler reads it
+    firmware_inventory.py   each device's firmware as last read; never "current" unread
     remediation.py          per-customer remediation tracking
     latest_metrics.py       the newest audit_metrics row per customer, one query
     provisioning.py         device provisioning as named steps with honest results
@@ -282,7 +284,7 @@ reasoning each:
 |---|---|
 | `SESSION` | login, logout, refresh, first-run setup, and changing your own password — none can depend on a capability the account may not have |
 | `NAVIGATION` | switching customer changes what you are looking at, not what is; gating it leaves a read-only account able to read one tenant |
-| `LOOKUPS` | a question with a body too big for a query string — DNS, TLS, connection tests |
+| `LOOKUPS` | a question with a body too big for a query string — DNS, TLS, connection tests; a TLS check keeps its reading, but without `can_write` only refreshes an endpoint already listed |
 | `DOCUMENTS` | producing a report to read; archive *deletion* is not here |
 
 Matching is exact, never by prefix: a prefix rule silently covers whatever is

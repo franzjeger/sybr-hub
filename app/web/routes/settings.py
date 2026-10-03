@@ -632,9 +632,14 @@ async def get_activity_log_endpoint(
 
 @router.get("/alerts/config")
 async def get_alerts_config(user: User = _auth):
+    from app.core.config import load_app_settings
     from app.services.alert_engine import get_alert_config
 
-    return get_alert_config()
+    # notify_teams is on by default, but the engine sends to Teams only when a
+    # webhook is stored (scheduler.webhook_url). Varsler said "sent to Teams"
+    # on the switch alone. Whether one is set, never the URL itself.
+    webhook = (load_app_settings().get("scheduler") or {}).get("webhook_url", "")
+    return {**get_alert_config(), "teams_webhook_set": bool(webhook)}
 
 
 @router.post("/alerts/config")

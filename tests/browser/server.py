@@ -99,6 +99,43 @@ def run():
                     ],
                 },
             )
+            # What the checks last saw, stored the way a TLS check and a
+            # firmware read store it: a certificate five days from expiry and
+            # an end-of-life access point. No alert channel is set up, so
+            # Varsler can only show them by reading this state.
+            from datetime import UTC, datetime, timedelta
+
+            from app.services import firmware_inventory, tls_inventory
+
+            await tls_inventory.record_results(
+                [
+                    {
+                        "host": "shop.beta.example",
+                        "port": 443,
+                        "customer_id": "Browser_Beta",
+                        "label": "Browser Beta nettbutikk",
+                        "source": "manual",
+                        "subject": {"commonName": "shop.beta.example"},
+                        "issuer": {"organizationName": "Example CA"},
+                        "not_after": (datetime.now(UTC) + timedelta(days=5)).isoformat(),
+                        "chain_valid": True,
+                    }
+                ],
+                allowed=None,
+                may_add=True,
+            )
+            await firmware_inventory.record(
+                "Browser_Beta",
+                "unifi",
+                [
+                    firmware_inventory.unifi_reading(
+                        key="02:00:00:00:00:01",
+                        name="Browser AP lager",
+                        model="UAP-LR",
+                        version="4.3.28",
+                    )
+                ],
+            )
             update_app_settings(
                 lambda s: s.update(
                     {

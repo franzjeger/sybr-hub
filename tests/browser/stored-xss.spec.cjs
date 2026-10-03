@@ -273,6 +273,45 @@ test('TLS certificates and discovered endpoints are rendered as text', async ({p
   await expectInert(page, '#tls-content');
 });
 
+test('stored certificate and firmware state stays text in Varsler and the TLS list', async ({page}) => {
+  await login(page);
+  // Subject, issuer and labels come from a remote server or a device; the
+  // customer name and device name from whoever typed them.
+  await serve(page, '/api/dashboard/alerts', {
+    credential_expiry: [], renewals: [], total_alerts: 2, categories: {},
+    certificates: [{
+      host: XSS, port: 443, label: XSS, customer_id: XSS, customer_name: XSS, subject: XSS, issuer: XSS,
+      not_after: XSS, days_remaining: 3, chain_problem: XSS, kind: 'expiring', category: XSS, checked_at: XSS, stale: true,
+    }],
+    firmware: [{
+      customer_id: XSS, customer_name: XSS, vendor: XSS, device_key: XSS, device_name: XSS, model: XSS,
+      version: XSS, latest: XSS, status: 'eol', category: XSS, checked_at: XSS, read_error: XSS,
+    }],
+    coverage: {tls: {endpoints: XSS, unreachable: XSS, last_checked: XSS}, firmware: {devices: XSS, unknown: XSS, last_read: XSS}},
+  });
+  // Other specs leave events and hosting alerts behind in the shared fixture;
+  // only the two served items are under test here.
+  await serve(page, '/api/activity-log', {entries: []});
+  await serve(page, '/api/alerts/history', {entries: [], total: 0});
+  await serve(page, '/api/uniweb/alerts', {total: 0, items: []});
+  await page.evaluate(() => openOverviewTab('dash-alerts'));
+  await expect(page.locator('#dash-alerts .notif-row')).toHaveCount(2);
+  await expect(page.locator('#dash-alerts .notif-row .cust').first()).toHaveText(XSS);
+  await expectInert(page, '#dash-alerts');
+
+  await serve(page, '/api/tls/certificates', {count: 1, endpoints: [{
+    host: XSS, port: 443, label: XSS, customer_name: XSS, subject: XSS, issuer: XSS, not_after: XSS,
+    days_remaining: 3, status: XSS, chain_valid: false, chain_problem: XSS, checked_at: XSS, error: XSS, stale: false,
+  }]});
+  await page.evaluate(() => showView('tls'));
+  const row = page.locator('#tls-known .tls-table tbody tr');
+  await expect(row).toHaveCount(1);
+  await expect(row.locator('td').nth(2)).toHaveText(XSS);
+  // The remove button carries the host exactly as stored.
+  expect(await row.locator('[data-click-handler="tlsForget"]').getAttribute('data-host')).toBe(XSS);
+  await expectInert(page, '#tls-content');
+});
+
 test('the customer licence panel renders ALSO subscriptions as text', async ({page}) => {
   await login(page);
   // The row id and the click handler's argument both carry the subscription id.

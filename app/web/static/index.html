@@ -1348,7 +1348,9 @@
           GET /itglue/available-reports &middot; POST /itglue/upload/reports &middot; POST /itglue/upload/credentials<br><br>
 
           <strong style="color:var(--blue);"><span data-i18n="api_group_tls">TLS-sertifikater</span> (/api/tls/*)</strong><br>
-          GET /tls/auto-discover &middot; POST /tls/check &middot; POST /tls/scan<br><br>
+          GET /tls/auto-discover &middot; POST /tls/check &middot; POST /tls/scan<br>
+          GET /tls/certificates &middot; GET /tls/certificates/{customer_id} &middot; DELETE /tls/certificates<br>
+          GET /firmware/devices &middot; GET /firmware/devices/{customer_id}<br><br>
 
           <strong style="color:var(--blue);">Claude AI (/api/claude/*)</strong><br>
           GET /claude/status &middot; GET /claude/cli-status &middot; POST /claude/message<br>
