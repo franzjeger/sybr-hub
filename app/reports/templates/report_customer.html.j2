@@ -1500,36 +1500,36 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <div class="metrics">
   <div class="metric-card">
     <div class="num brand">{{ fg.model or fg.hostname or '—' }}</div>
-    <div class="lbl">Modell</div>
+    <div class="lbl">{{ t.net_model }}</div>
   </div>
   <div class="metric-card">
     <div class="num brand">{{ fg.firmware or '—' }}</div>
-    <div class="lbl">Firmware</div>
+    <div class="lbl">{{ t.net_firmware }}</div>
   </div>
   {# A sub-read that refused carries None (not 0). Show "—": a count that could
      not be read is unknown, and "None" is neither honest nor a number. #}
   <div class="metric-card">
     <div class="num brand">{{ fg.policy_count if fg.policy_count is not none else '—' }}</div>
-    <div class="lbl">Brannmurregler</div>
+    <div class="lbl">{{ t.net_firewall_rules }}</div>
   </div>
   <div class="metric-card">
     <div class="num brand">{{ fg.admin_count if fg.admin_count is not none else '—' }}</div>
-    <div class="lbl">Admins</div>
+    <div class="lbl">{{ t.net_admins }}</div>
   </div>
   <div class="metric-card">
     <div class="num brand">{{ fg.vpn_tunnels if fg.vpn_tunnels is not none else '—' }}</div>
-    <div class="lbl">VPN-tunneler</div>
+    <div class="lbl">{{ t.net_vpn_tunnels }}</div>
   </div>
   <div class="metric-card">
     <div class="num brand">{{ fg.ha_mode if fg.ha_mode else '—' }}</div>
-    <div class="lbl">HA-modus</div>
+    <div class="lbl">{{ t.net_ha_mode }}</div>
   </div>
 </div>
 
 {% if fg.admins %}
-<h4 style="margin-top:16px;">Administratorer</h4>
+<h4 style="margin-top:16px;">{{ t.net_administrators }}</h4>
 <table class="data-table" style="width:100%; font-size:12px;">
-  <thead><tr><th>Navn</th><th>Profil</th><th>2FA</th><th>IP-begrensning</th></tr></thead>
+  <thead><tr><th>{{ t.net_name }}</th><th>{{ t.net_profile }}</th><th>2FA</th><th>{{ t.net_trusted_hosts }}</th></tr></thead>
   <tbody>
     {% for a in fg.admins %}
     <tr>
@@ -1544,7 +1544,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% endif %}
 
 {% if fg.policy_warnings %}
-<h4 style="margin-top:16px;">Brannmur-advarsler</h4>
+<h4 style="margin-top:16px;">{{ t.net_firewall_warnings }}</h4>
 <ul style="font-size:12px;">
   {% for w in fg.policy_warnings %}
   <li style="color: var(--red, red);">{{ w }}</li>
@@ -1559,7 +1559,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <div class="metrics">
   <div class="metric-card">
     <div class="num brand">{{ uf.device_count if uf.device_count is not none else '—' }}</div>
-    <div class="lbl">Enheter</div>
+    <div class="lbl">{{ t.devices }}</div>
   </div>
   {% if uf.mode == 'controller' %}
   {# A secondary read that individually refused carries None (not 0). Render it
@@ -1567,36 +1567,36 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
      otherwise raise and abort the whole report. #}
   <div class="metric-card">
     <div class="num brand">{{ uf.wlan_count if uf.wlan_count is not none else '—' }}</div>
-    <div class="lbl">SSID-er</div>
+    <div class="lbl">{{ t.net_ssids }}</div>
   </div>
   <div class="metric-card">
     <div class="num brand">{{ uf.network_count if uf.network_count is not none else '—' }}</div>
-    <div class="lbl">Nettverk</div>
+    <div class="lbl">{{ t.net_networks }}</div>
   </div>
   <div class="metric-card">
     <div class="num brand">{{ uf.firewall_rules if uf.firewall_rules is not none else '—' }}</div>
-    <div class="lbl">Brannmurregler</div>
+    <div class="lbl">{{ t.net_firewall_rules }}</div>
   </div>
   <div class="metric-card">
     <div class="num {{ 'red' if (uf.active_alarms is not none and uf.active_alarms > 0) else ('' if uf.active_alarms is none else 'green') }}">{{ uf.active_alarms if uf.active_alarms is not none else '—' }}</div>
-    <div class="lbl">Aktive alarmer</div>
+    <div class="lbl">{{ t.net_active_alarms }}</div>
   </div>
   {% endif %}
   {% if uf.mode == 'direct' %}
   <div class="metric-card">
     <div class="num {{ 'green' if uf.reachable == uf.device_count else 'orange' }}">{{ uf.reachable | default(0) }}</div>
-    <div class="lbl">Tilgjengelige</div>
+    <div class="lbl">{{ t.net_reachable }}</div>
   </div>
   {% if uf.default_creds_count | default(0) > 0 %}
   <div class="metric-card">
     <div class="num red">{{ uf.default_creds_count }}</div>
-    <div class="lbl">Standard-passord</div>
+    <div class="lbl">{{ t.net_default_passwords }}</div>
   </div>
   {% endif %}
   {% if uf.outdated_firmware_count | default(0) > 0 %}
   <div class="metric-card">
     <div class="num orange">{{ uf.outdated_firmware_count }}</div>
-    <div class="lbl">Utdatert firmware</div>
+    <div class="lbl">{{ t.net_outdated_firmware }}</div>
   </div>
   {% endif %}
   {% if uf.eol_count | default(0) > 0 %}
@@ -1609,15 +1609,15 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </div>
 
 {% if uf.devices %}
-<h4 style="margin-top:16px;">Enhetsoversikt</h4>
+<h4 style="margin-top:16px;">{{ t.net_device_overview }}</h4>
 <table class="data-table" style="width:100%; font-size:12px;">
   <thead>
     <tr>
-      <th>Enhet</th>
-      <th>Modell</th>
-      <th>Firmware</th>
-      {% if uf.mode == 'controller' %}<th>Klienter</th><th>Status</th>
-      {% else %}<th>MAC</th><th>Status</th>{% endif %}
+      <th>{{ t.net_device }}</th>
+      <th>{{ t.net_model }}</th>
+      <th>{{ t.net_firmware }}</th>
+      {% if uf.mode == 'controller' %}<th>{{ t.net_clients }}</th><th>{{ t.status }}</th>
+      {% else %}<th>MAC</th><th>{{ t.status }}</th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -1640,9 +1640,9 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% endif %}
 
 {% if uf.mode == 'controller' and uf.wlans %}
-<h4 style="margin-top:16px;">Trådløse nettverk</h4>
+<h4 style="margin-top:16px;">{{ t.net_wireless_networks }}</h4>
 <table class="data-table" style="width:100%; font-size:12px;">
-  <thead><tr><th>SSID</th><th>Sikkerhet</th><th>Gjest</th><th>Aktiv</th></tr></thead>
+  <thead><tr><th>SSID</th><th>{{ t.security_label }}</th><th>{{ t.net_guest }}</th><th>{{ t.active_label }}</th></tr></thead>
   <tbody>
     {# Three states, not two. Colouring "anything that isn't 'open'" green
        painted an unreadable security field as a secured network. #}
@@ -1651,8 +1651,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <tr>
       <td>{{ w.name }}</td>
       <td style="color: {% if sec|lower == 'open' or 'WEP' in sec %}var(--red, red){% elif 'Unknown' in sec %}var(--orange, #b45309){% else %}green{% endif %};">{{ sec }}</td>
-      <td>{{ 'Ja' if w.guest else 'Nei' }}</td>
-      <td>{{ 'Ja' if w.enabled else 'Nei' }}</td>
+      <td>{{ t.yes if w.guest else t.no_word }}</td>
+      <td>{{ t.yes if w.enabled else t.no_word }}</td>
     </tr>
     {% endfor %}
   </tbody>

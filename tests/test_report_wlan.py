@@ -155,11 +155,14 @@ def _render_wlan_row(wlan: dict) -> str:
 
     from jinja2 import Environment
 
+    from app.reports.i18n import T
+
     tpl_path = Path("app/reports/templates/report_customer.html.j2")
     src = tpl_path.read_text(encoding="utf-8")
     m = re.search(r"(\{% for w in uf\.wlans %\}.*?\{% endfor %\})", src, re.S)
     assert m, "WLAN loop not found — update this test alongside the template"
-    return Environment(autoescape=True).from_string(m.group(1)).render(uf={"wlans": [wlan]})
+    env = Environment(autoescape=True)
+    return env.from_string(m.group(1)).render(uf={"wlans": [wlan]}, t=T("no"))
 
 
 def test_open_wlan_renders_red():

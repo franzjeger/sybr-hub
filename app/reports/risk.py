@@ -112,6 +112,7 @@ def _compute_risk(
       - SharePoint / OAuth:    variable (bonus deductions)
       - Network security:     15 pts  (FortiGate + UniFi findings)
     """
+    t = T(lang)
     score = 100
     data_quality_issues: list[str] = []  # Track missing/unverifiable data
     blocking_data_gaps: list[str] = []  # Gaps that invalidate the whole grade
@@ -131,24 +132,26 @@ def _compute_risk(
         _unknown = mfa.get("unknown", 0)
         if _unknown:
             data_quality_issues.append(
-                f"MFA-dekning målt på {mfa.get('measured', 0)} av "
-                f"{mfa.get('total', 0)} brukere ({_unknown} oppslag feilet)"
+                t(
+                    "risk_dq_mfa_partial_base",
+                    measured=mfa.get("measured", 0),
+                    total=mfa.get("total", 0),
+                    unknown=_unknown,
+                )
             )
     else:
         # MFA is the largest single weight (35/100). Without it, any computed
         # grade is fiction — flag as blocking so the grade renders as INVALID
         # rather than fabricating a B/70 from partial inputs.
-        data_quality_issues.append("MFA-dekning utilgjengelig")
-        blocking_data_gaps.append(
-            "MFA-dekning utilgjengelig: auditen mangler brukerdata (sjekk Graph-tillatelser)"
-        )
+        data_quality_issues.append(t.risk_dq_mfa_unavailable)
+        blocking_data_gaps.append(t.risk_gap_mfa)
 
     # ── Secure Score (up to 20 pts) ──────────────────────────────────
     if secure_score.get("has_data"):
         ss_pct = secure_score.get("pct", 0)
         score -= round(20 * (1 - ss_pct / 100))
     else:
-        data_quality_issues.append("Microsoft Secure Score utilgjengelig")
+        data_quality_issues.append(t.risk_dq_secure_score)
 
     # ── Email security (up to 10 pts) ────────────────────────────────
     # A failed DoH lookup comes back as "ERROR (...)", never MISSING/WEAK, so an
@@ -185,7 +188,7 @@ def _compute_risk(
                 email_penalty = max(email_penalty, 3)
     score -= email_penalty
     if spf_dmarc and email_measured == 0:
-        data_quality_issues.append("E-postsikkerhet ikke vurdert: DNS-oppslag feilet")
+        data_quality_issues.append(t.risk_dq_email_dns)
 
     # ── Admin roles (up to 5 pts) ────────────────────────────────────
     # Only score when we actually have role data — has_data=False means the
@@ -198,7 +201,7 @@ def _compute_risk(
         elif ga > 2:
             score -= 3
     elif admin_roles is not None:
-        data_quality_issues.append("Admin-roller utilgjengelig")
+        data_quality_issues.append(t.risk_dq_admin_roles)
 
     # ── Intune compliance (up to 5 pts) ──────────────────────────────
     if intune and intune.get("has_data") and intune.get("total", 0) > 0:
@@ -208,7 +211,7 @@ def _compute_risk(
         elif cpct < 80:
             score -= 3
     elif intune is not None and not intune.get("has_data"):
-        data_quality_issues.append("Intune-data utilgjengelig")
+        data_quality_issues.append(t.risk_dq_intune)
 
     # ── SharePoint sharing ───────────────────────────────────────────
     if sharepoint and sharepoint.get("has_data"):
@@ -222,9 +225,9 @@ def _compute_risk(
         # succeed. When those fields were never established, that is unmeasured,
         # not a clean pass — flag it (accuracy sweep).
         if sharing in (None, "unknown") or not sharepoint.get("legacy_auth_known"):
-            data_quality_issues.append("SharePoint-konfigurasjon utilgjengelig")
+            data_quality_issues.append(t.risk_dq_sharepoint)
     elif sharepoint is not None and not sharepoint.get("has_data"):
-        data_quality_issues.append("SharePoint-konfigurasjon utilgjengelig")
+        data_quality_issues.append(t.risk_dq_sharepoint)
 
     # ── OAuth high-privilege apps ────────────────────────────────────
     if oauth and oauth.get("has_data"):
@@ -233,9 +236,9 @@ def _compute_risk(
         # has_data can be True from app registrations alone; if the consent-grants
         # read itself failed, the high-privilege count is incomplete, not clean.
         if not oauth.get("grants_read", True):
-            data_quality_issues.append("OAuth-grants utilgjengelig")
+            data_quality_issues.append(t.risk_dq_oauth)
     elif oauth is not None and not oauth.get("has_data"):
-        data_quality_issues.append("OAuth-grants utilgjengelig")
+        data_quality_issues.append(t.risk_dq_oauth)
 
     # ── Critical findings ────────────────────────────────────────────
 
@@ -267,9 +270,7 @@ def _compute_risk(
         # through unavailable_sections; this branch covers the case that one
         # cannot see — the section reported DONE and one fetch inside it did not.
         if risky_users and risky_users.strip():
-            data_quality_issues.append(
-                "Risikobrukere ikke vurdert (krever Entra ID P2 og AuditLog-tilgang)"
-            )
+            data_quality_issues.append(t.risk_dq_risky_users)
     elif _risky_n is not None:
         if _risky_n > 0:
             score -= 5
@@ -286,9 +287,7 @@ def _compute_risk(
     defender_sidecar = _sidecar(file_contents or {}, "19b_defender_active_alerts.txt")
     if defender_sidecar is None and _evidence_unavailable(defender):
         if defender and defender.strip():
-            data_quality_issues.append(
-                "Defender-varsler utilgjengelig: aktive varsler er ikke vurdert"
-            )
+            data_quality_issues.append(t.risk_dq_defender)
     else:
         alert_count = (
             int(defender_sidecar.get("count") or 0)
@@ -325,15 +324,10 @@ def _compute_risk(
     # calls a routine outcome — scored as though Exchange were clean, with
     # nothing beside the score to say otherwise.
     for _section in unavailable_sections or []:
-        data_quality_issues.append(
-            f"{_section} ble ikke fullført, så funnene derfra mangler i scoren"
-        )
+        data_quality_issues.append(t("risk_dq_section_incomplete", section=_section))
 
     for _unreadable in (network or {}).get("unreadable", []):
-        data_quality_issues.append(
-            f"Nettverksaudit utilgjengelig: {_unreadable} kunne ikke leses "
-            f"(scoren mangler inntil 15 poeng straff)"
-        )
+        data_quality_issues.append(t("risk_dq_network_unreadable", file=_unreadable))
 
     # A FortiGate that answered its status probe but refused the admin or policy
     # sub-read reports those counts as None. The admin/policy findings key on the
@@ -342,17 +336,11 @@ def _compute_risk(
     _fg = (network or {}).get("fortigate")
     if isinstance(_fg, dict) and "error" not in _fg:
         if _fg.get("admin_count") is None:
-            data_quality_issues.append(
-                "FortiGate-administratorer kunne ikke leses, så 2FA/trust-host-funn mangler"
-            )
+            data_quality_issues.append(t.risk_dq_fg_admins)
         if _fg.get("policy_count") is None:
-            data_quality_issues.append(
-                "FortiGate-brannmurregler kunne ikke leses, så allow-all/logging-funn mangler"
-            )
+            data_quality_issues.append(t.risk_dq_fg_policies)
 
     score = max(0, min(100, score))
-
-    t = T(lang)
 
     # If essential inputs are missing, refuse to grade. Returning a number here
     # would be misleading — the score function literally cannot evaluate the

@@ -1612,6 +1612,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Policyene som faktisk er konfigurert i tenanten, slik siste audit fanget dem. Hver linje sier i klartekst hva policyen gjør.",
         "en": "The policies actually configured in the tenant, as the last audit captured them. Each line says in plain language what the policy does.",
     },
+    "policy_unnamed": {"no": "(uten navn)", "en": "(unnamed)"},
     "policy_state_on": {"no": "På", "en": "On"},
     "policy_state_report": {"no": "Rapportmodus", "en": "Report-only"},
     "policy_state_off": {"no": "Av", "en": "Off"},
@@ -2155,6 +2156,67 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "risk_level_invalid": {
         "no": "Ufullstendige data",
         "en": "Insufficient data",
+    },
+    # ── What the score could not read (risk._compute_risk) ──
+    "risk_gap_mfa": {
+        "no": "MFA-dekning utilgjengelig: auditen mangler brukerdata (sjekk Graph-tillatelser)",
+        "en": "MFA coverage unavailable: the audit has no user data (check the Graph permissions)",
+    },
+    "risk_dq_mfa_unavailable": {
+        "no": "MFA-dekning utilgjengelig",
+        "en": "MFA coverage unavailable",
+    },
+    "risk_dq_mfa_partial_base": {
+        "no": "MFA-dekning målt på {measured} av {total} brukere ({unknown} oppslag feilet)",
+        "en": "MFA coverage measured on {measured} of {total} users ({unknown} lookups failed)",
+    },
+    "risk_dq_secure_score": {
+        "no": "Microsoft Secure Score utilgjengelig",
+        "en": "Microsoft Secure Score unavailable",
+    },
+    "risk_dq_email_dns": {
+        "no": "E-postsikkerhet ikke vurdert: DNS-oppslag feilet",
+        "en": "Email security not assessed: the DNS lookups failed",
+    },
+    "risk_dq_admin_roles": {
+        "no": "Admin-roller utilgjengelig",
+        "en": "Admin roles unavailable",
+    },
+    "risk_dq_intune": {
+        "no": "Intune-data utilgjengelig",
+        "en": "Intune data unavailable",
+    },
+    "risk_dq_sharepoint": {
+        "no": "SharePoint-konfigurasjon utilgjengelig",
+        "en": "SharePoint configuration unavailable",
+    },
+    "risk_dq_oauth": {
+        "no": "OAuth-grants utilgjengelig",
+        "en": "OAuth grants unavailable",
+    },
+    "risk_dq_risky_users": {
+        "no": "Risikobrukere ikke vurdert (krever Entra ID P2 og AuditLog-tilgang)",
+        "en": "Risky users not assessed (requires Entra ID P2 and AuditLog access)",
+    },
+    "risk_dq_defender": {
+        "no": "Defender-varsler utilgjengelig: aktive varsler er ikke vurdert",
+        "en": "Defender alerts unavailable: active alerts were not assessed",
+    },
+    "risk_dq_section_incomplete": {
+        "no": "{section} ble ikke fullført, så funnene derfra mangler i scoren",
+        "en": "{section} did not complete, so its findings are missing from the score",
+    },
+    "risk_dq_network_unreadable": {
+        "no": "Nettverksaudit utilgjengelig: {file} kunne ikke leses (scoren mangler inntil 15 poeng straff)",
+        "en": "Network audit unavailable: {file} could not be read (the score is missing up to 15 penalty points)",
+    },
+    "risk_dq_fg_admins": {
+        "no": "FortiGate-administratorer kunne ikke leses, så 2FA/trust-host-funn mangler",
+        "en": "FortiGate administrators could not be read, so the 2FA and trusted-host findings are missing",
+    },
+    "risk_dq_fg_policies": {
+        "no": "FortiGate-brannmurregler kunne ikke leses, så allow-all/logging-funn mangler",
+        "en": "FortiGate firewall rules could not be read, so the allow-all and logging findings are missing",
     },
     "posture_grade_invalid": {
         "no": "Auditen mangler kritiske data (typisk brukerliste eller MFA-status). Et tall-grade her ville vært villedende. Verifiser Graph-tillatelser i app-registreringen og kjør auditen på nytt før resultatet brukes mot kunden.",
@@ -3334,6 +3396,95 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "section_unifi": {
         "no": "UniFi nettverk",
         "en": "UniFi Network",
+    },
+    # Labels in the customer report's network section
+    "net_model": {
+        "no": "Modell",
+        "en": "Model",
+    },
+    "net_firmware": {
+        "no": "Firmware",
+        "en": "Firmware",
+    },
+    "net_firewall_rules": {
+        "no": "Brannmurregler",
+        "en": "Firewall rules",
+    },
+    "net_admins": {
+        "no": "Admins",
+        "en": "Admins",
+    },
+    "net_vpn_tunnels": {
+        "no": "VPN-tunneler",
+        "en": "VPN tunnels",
+    },
+    "net_ha_mode": {
+        "no": "HA-modus",
+        "en": "HA mode",
+    },
+    "net_administrators": {
+        "no": "Administratorer",
+        "en": "Administrators",
+    },
+    "net_name": {
+        "no": "Navn",
+        "en": "Name",
+    },
+    "net_profile": {
+        "no": "Profil",
+        "en": "Profile",
+    },
+    "net_trusted_hosts": {
+        "no": "IP-begrensning",
+        "en": "IP restriction",
+    },
+    "net_firewall_warnings": {
+        "no": "Brannmur-advarsler",
+        "en": "Firewall warnings",
+    },
+    "net_ssids": {
+        "no": "SSID-er",
+        "en": "SSIDs",
+    },
+    "net_networks": {
+        "no": "Nettverk",
+        "en": "Networks",
+    },
+    "net_active_alarms": {
+        "no": "Aktive alarmer",
+        "en": "Active alarms",
+    },
+    "net_reachable": {
+        "no": "Tilgjengelige",
+        "en": "Reachable",
+    },
+    "net_default_passwords": {
+        "no": "Standard-passord",
+        "en": "Default passwords",
+    },
+    "net_outdated_firmware": {
+        "no": "Utdatert firmware",
+        "en": "Outdated firmware",
+    },
+    "net_device_overview": {
+        "no": "Enhetsoversikt",
+        "en": "Device overview",
+    },
+    "net_device": {
+        "no": "Enhet",
+        "en": "Device",
+    },
+    "net_clients": {
+        "no": "Klienter",
+        "en": "Clients",
+    },
+    "net_wireless_networks": {
+        "no": "Trådløse nettverk",
+        "en": "Wireless networks",
+    },
+    "net_guest": {
+        "no": "Gjest",
+        "en": "Guest",
     },
     # FortiGate findings
     "rec_fg_admin_no_2fa_title": {

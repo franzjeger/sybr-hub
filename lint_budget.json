@@ -307,6 +307,7 @@
     "tests/test_device_reads_are_not_clean.py",
     "tests/test_docs_routes.py",
     "tests/test_encryption.py",
+    "tests/test_english_reports.py",
     "tests/test_entra_devices_section.py",
     "tests/test_feature_gates_on_routers.py",
     "tests/test_features.py",
