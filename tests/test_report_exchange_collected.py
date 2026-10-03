@@ -111,6 +111,22 @@ async def test_mailbox_counts_survive_the_round_trip(tmp_path, sidecars):
     assert _shared_mailbox_upns(files) == {"post@acme.example", "rom1@acme.example"}
 
 
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_an_equipment_mailbox_is_not_a_user_mailbox(tmp_path, sidecars):
+    """The helper collects equipment mailboxes too; "user" was everything not shared or room."""
+    exo = {
+        "mailboxes": [
+            *MAILBOXES,
+            _mailbox("Prosjektor", "projektor@acme.example", "EquipmentMailbox"),
+        ]
+    }
+    files, _ = await _collect(tmp_path, exo, sidecars=sidecars)
+
+    overview = _parse_exchange_overview(files)
+    assert overview["mailbox_total"] == 5
+    assert overview["mailbox_user"] == 2
+
+
 async def test_the_mailbox_counts_come_from_the_sidecar(tmp_path):
     files, _ = await _collect(tmp_path, {"mailboxes": MAILBOXES})
     files["20_exchange_mailboxes_count.txt"] = ""  # only the sidecar can answer now

@@ -246,7 +246,15 @@ class ExchangeSection(BaseSection):
             for m in mailboxes
             if (m.get("RecipientTypeDetails") or m.get("RecipientType", "")) == "RoomMailbox"
         )
-        user_mb = total - shared - room
+        # The helper collects equipment mailboxes as well, and "user" used to be
+        # whatever was neither shared nor a room, so every projector and pool
+        # car was a user mailbox on the report.
+        equipment = sum(
+            1
+            for m in mailboxes
+            if (m.get("RecipientTypeDetails") or m.get("RecipientType", "")) == "EquipmentMailbox"
+        )
+        user_mb = total - shared - room - equipment
 
         lines = [
             "=" * 100,
@@ -286,13 +294,20 @@ class ExchangeSection(BaseSection):
             f"  User      : {user_mb}",
             f"  Shared    : {shared}",
             f"  Room      : {room}",
+            f"  Equipment : {equipment}",
             "=" * 40,
             "",
         ]
         self._save("20_exchange_mailboxes_count.txt", "\n".join(count_lines))
         self._save_sidecar(
             "20_exchange_mailboxes_count.txt",
-            {"total": total, "user": user_mb, "shared": shared, "room": room},
+            {
+                "total": total,
+                "user": user_mb,
+                "shared": shared,
+                "room": room,
+                "equipment": equipment,
+            },
         )
 
     # ── Transport Rules ───────────────────────────────────────────────────────
