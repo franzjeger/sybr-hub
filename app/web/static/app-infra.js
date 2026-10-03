@@ -2940,10 +2940,8 @@ export async function fgApiLoadSaved() {
 export function switchDashTab(btn, tabId) {
   // Only Oversikt's own tabs: the network and billing pages use the same
   // button class for their tabs, and lost their highlight to this.
-  document.querySelectorAll('#view-overview .dash-tab-content').forEach(function(el) { el.style.display = 'none'; });
-  document.querySelectorAll('#view-overview .dash-tab-btn').forEach(function(b) { b.classList.remove('active'); });
-  var tab = document.getElementById(tabId);
-  if (tab) tab.style.display = 'block';
+  document.querySelectorAll('#view-overview .dash-tab-content').forEach(function(el) { el.hidden = el.id !== tabId; });
+  document.querySelectorAll('#view-overview .tab').forEach(function(b) { b.classList.remove('active'); });
   btn.classList.add('active');
   _syncBottomNav('overview');
 

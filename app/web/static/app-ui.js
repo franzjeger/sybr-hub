@@ -87,7 +87,7 @@ window.onunhandledrejection = function(event) {
 var _confirmResolver = null;
 // ── Empty-state helper ──────────────────────────────────────────────────────
 // Generates consistent markup for "no X yet" states. Use in place of ad-hoc
-//   '<div style="...">No data</div>'
+//   ad-hoc inline-styled "No data" divs
 // strings.
 //   emptyStateHTML({
 //     icon: '📭', title: 'Ingen enheter', desc: 'Legg til din første…',
@@ -204,8 +204,8 @@ export function showLoginView(mode) {
   el.style.display = 'flex';
   document.querySelector('header').style.display = 'none';
   var _bnLogin = document.getElementById('bottom-nav'); if (_bnLogin) _bnLogin.style.display = 'none';
-  document.getElementById('auth-setup-form').style.display = mode === 'setup' ? 'block' : 'none';
-  document.getElementById('auth-login-form').style.display = mode === 'login' ? 'block' : 'none';
+  document.getElementById('auth-setup-form').hidden = mode !== 'setup';
+  document.getElementById('auth-login-form').hidden = mode !== 'login';
   // Show version in login
   fetch('/api/version').then(function(r){return r.json()}).then(function(d){
     var lv = document.getElementById('login-version'); if (lv) lv.textContent = 'v' + (d.version||'');
@@ -302,25 +302,25 @@ export function skeletonHTML(type) {
   var s = '<div class="skeleton ';
   var row = s + 'skeleton-row"></div>';
   var text = s + 'skeleton-text"></div>';
-  var textW = '<div class="skeleton skeleton-text" style="width:50%"></div>';
+  var textW = '<div class="skeleton skeleton-text is-half"></div>';
   var title = s + 'skeleton-title"></div>';
   if (type === 'home') {
     return '<div class="skeleton-card">' + title +
-      '<div class="skeleton skeleton-title" style="width:60%;height:24px;margin-bottom:6px;"></div>' +
-      '<div class="skeleton skeleton-text" style="width:35%;margin-bottom:16px;"></div>' +
-      '<div style="display:flex;gap:24px;flex-wrap:wrap;">' +
+      '<div class="skeleton skeleton-heading"></div>' +
+      '<div class="skeleton skeleton-text is-short mb-4"></div>' +
+      '<div class="flex flex-wrap gap-6">' +
         '<div class="skeleton skeleton-metric"></div>' +
         '<div class="skeleton skeleton-metric"></div>' +
         '<div class="skeleton skeleton-metric"></div>' +
       '</div>' +
-      '<div style="display:flex;gap:10px;margin-top:20px;">' +
-        '<div class="skeleton" style="width:120px;height:36px;border-radius:6px;"></div>' +
-        '<div class="skeleton" style="width:140px;height:36px;border-radius:6px;"></div>' +
+      '<div class="flex gap-3 mt-5">' +
+        '<div class="skeleton skeleton-btn"></div>' +
+        '<div class="skeleton skeleton-btn"></div>' +
       '</div></div>' +
-      '<div class="skeleton-card" style="margin-top:16px;">' + title + text + text + textW + '</div>';
+      '<div class="skeleton-card mt-4">' + title + text + text + textW + '</div>';
   }
   if (type === 'dashboard') {
-    var cards = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">' +
+    var cards = '<div class="flex flex-wrap gap-4 mb-5">' +
       '<div class="skeleton skeleton-metric"></div><div class="skeleton skeleton-metric"></div><div class="skeleton skeleton-metric"></div></div>';
     var rows = '';
     for (var i = 0; i < 5; i++) rows += row;
@@ -329,12 +329,12 @@ export function skeletonHTML(type) {
   if (type === 'customers') {
     var html = '';
     for (var j = 0; j < 3; j++) {
-      html += '<div class="skeleton-card"><div style="display:flex;align-items:center;gap:12px;"><div style="flex:1;">' +
-        '<div class="skeleton skeleton-title" style="width:40%;"></div>' +
-        '<div class="skeleton skeleton-text" style="width:30%;"></div>' +
-        '<div style="display:flex;gap:24px;margin-top:8px;"><div class="skeleton" style="width:80px;height:14px;border-radius:4px;"></div>' +
-        '<div class="skeleton" style="width:100px;height:14px;border-radius:4px;"></div></div></div>' +
-        '<div class="skeleton" style="width:90px;height:36px;border-radius:6px;"></div></div></div>';
+      html += '<div class="skeleton-card"><div class="flex items-center gap-3"><div class="flex-1">' +
+        '<div class="skeleton skeleton-title is-short"></div>' +
+        '<div class="skeleton skeleton-text is-short"></div>' +
+        '<div class="flex gap-6 mt-2"><div class="skeleton skeleton-chip"></div>' +
+        '<div class="skeleton skeleton-chip"></div></div></div>' +
+        '<div class="skeleton skeleton-btn"></div></div></div>';
     }
     return html;
   }
@@ -342,8 +342,8 @@ export function skeletonHTML(type) {
     var html2 = '';
     for (var k = 0; k < 4; k++) {
       html2 += '<div class="skeleton-card">' + title +
-        '<div class="skeleton skeleton-text" style="width:70%;"></div>' +
-        '<div class="skeleton skeleton-text" style="width:55%;"></div>' + textW + '</div>';
+        '<div class="skeleton skeleton-text is-long"></div>' +
+        '<div class="skeleton skeleton-text is-half"></div>' + textW + '</div>';
     }
     return html2;
   }

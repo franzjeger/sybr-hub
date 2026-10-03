@@ -100,12 +100,12 @@ test('every view, customer tab and Administrasjon pane opens without an error', 
   }
   await activate(page.locator('[data-click-handler="showView"][data-view="billing"]'));
   for (const tab of ['dash-renewals', 'dash-costs', 'dash-domains']) {
-    await page.locator(`#view-billing .dash-tab-btn[data-tab="${tab}"]`).click();
+    await page.locator(`#view-billing .tab[data-tab="${tab}"]`).click();
     await settled(page, '#view-billing');
   }
   await activate(page.locator('[data-click-handler="showView"][data-view="overview"]'));
   for (const tab of ['dash-customers', 'dash-alerts']) {
-    await page.locator(`#view-overview .dash-tab-btn[data-tab="${tab}"]`).click();
+    await page.locator(`#view-overview .tab[data-tab="${tab}"]`).click();
     await settled(page, '#view-overview');
   }
   // Views reached from another page: RDP from a host, a new customer from Kunder.

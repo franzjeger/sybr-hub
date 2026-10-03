@@ -801,7 +801,7 @@ export async function pollAuditProgress() {
     // Update the global indicator in the header
     var ind = document.getElementById('audit-running-indicator');
     if (ind && ind.style.display !== 'none') {
-      ind.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> '
+      ind.innerHTML = '<span class="dot"></span> '
         + 'Audit ' + Number(d.progress) + '% · ' + esc(d.current_section);
     }
     // The audit view's own bar used to derive its total from the sections that

@@ -232,7 +232,7 @@ test('ALSO and Uniweb renewal data is rendered as text, numbers included', async
 
   // Fornyelser is a tab of Verktøy › Lisenser og hosting, its first.
   await inApp(page, app => app.showView('billing'));
-  await page.locator('#view-billing .dash-tab-btn[data-tab="dash-renewals"]').click();
+  await page.locator('#view-billing .tab[data-tab="dash-renewals"]').click();
   const row = page.locator('#dash-renewals-content table').first().locator('tbody tr').first();
   await expect(row.locator('td').nth(1)).toHaveText(XSS);
   // The contract end date is cut to ten characters, then escaped.

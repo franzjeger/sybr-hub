@@ -150,8 +150,8 @@ test('the Audit tab names the last run by date, and the page offers "Kjør audit
 test('the dashboard has no second scoreboard: the Helse tab is gone', async ({page}) => {
   await login(page);
   await inApp(page, app => app.showView('overview'));
-  await expect(page.locator('.dash-tab-btn[data-tab="dash-customers"]')).toBeVisible();
-  await expect(page.locator('.dash-tab-btn[data-tab="dash-health"]')).toHaveCount(0);
+  await expect(page.locator('.tab[data-tab="dash-customers"]')).toBeVisible();
+  await expect(page.locator('.tab[data-tab="dash-health"]')).toHaveCount(0);
 });
 
 test('Lisenser og hosting (Domener among them) is part of the billing module', async ({page}) => {
@@ -164,9 +164,9 @@ test('Lisenser og hosting (Domener among them) is part of the billing module', a
   });
   await login(page);
   await inApp(page, app => app.showView('overview'));
-  await expect(page.locator('.dash-tab-btn[data-tab="dash-customers"]')).toBeVisible();
+  await expect(page.locator('.tab[data-tab="dash-customers"]')).toBeVisible();
   // Not on Oversikt at all any more, and gone from Verktøy with the module.
-  await expect(page.locator('#view-overview .dash-tab-btn[data-tab="dash-domains"]')).toHaveCount(0);
+  await expect(page.locator('#view-overview .tab[data-tab="dash-domains"]')).toHaveCount(0);
   await expect(page.locator('#nav-tools-menu [data-view="billing"]')).toHaveClass(/gated-hidden/);
   await expect(page.locator('#nav-tools-menu [data-view="network"]')).not.toHaveClass(/gated-hidden/);
 });
@@ -276,7 +276,7 @@ test('the system account cannot be deleted from Brukere', async ({page}) => {
 
 test('buttons and the top nav use the page font', async ({page}) => {
   await login(page);
-  for (const selector of ['.nav-btn', '.hdr-search', '.dash-tab-btn']) {
+  for (const selector of ['.nav-btn', '.hdr-search', '.tab']) {
     const font = await page.locator(selector).first().evaluate(el => getComputedStyle(el).fontFamily);
     expect(font).toContain('Cairo');
   }

@@ -130,7 +130,7 @@ function openSetupCustomer() {
 }
 
 function _custShowPanels(tab, sub) {
-  document.querySelectorAll('#cust-tabs .cust-tab').forEach(function(b) {
+  document.querySelectorAll('#cust-tabs .tab').forEach(function(b) {
     var on = b.dataset.tab === tab;
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -229,7 +229,7 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _cust
 document.addEventListener('keydown', function(e) {
   if (!e.target.closest || !e.target.closest('#cust-tabs')) return;
   if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-  var tabs = Array.prototype.filter.call(document.querySelectorAll('#cust-tabs .cust-tab'), function(b) {
+  var tabs = Array.prototype.filter.call(document.querySelectorAll('#cust-tabs .tab'), function(b) {
     return !b.classList.contains('gated-hidden') && getComputedStyle(b).display !== 'none';
   });
   var i = tabs.indexOf(document.activeElement);
@@ -272,9 +272,9 @@ async function loadCustomerDetail(customerId) {
   var bcNav = document.getElementById('breadcrumb');
   if (bcNav && bcItems) {
     bcNav.style.display = 'block';
-    bcItems.innerHTML = '<a href="#" data-click-handler="showView" data-view="customers" style="color:var(--text-muted);text-decoration:none;">' + t('nav_customers') + '</a>' +
-      ' <span style="margin:0 var(--space-2);color:var(--text-dim);opacity:0.5;">/</span> ' +
-      '<span style="color:var(--text);font-weight:500;">' + esc(cust.customer_name) + '</span>';
+    bcItems.innerHTML = '<a href="#" class="hover-link crumb-link" data-click-handler="showView" data-view="customers">' + t('nav_customers') + '</a>' +
+      ' <span class="crumb-sep">/</span> ' +
+      '<span class="crumb-current">' + esc(cust.customer_name) + '</span>';
   }
 
   var grade = hasM ? (m.risk_grade || '-') : '-';

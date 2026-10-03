@@ -24,8 +24,10 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # Administrasjon page, built on classes; to 4185 when the top bar became
 # Oversikt, Kunder and Verktøy and Nettverk's tabs took the shared tab style;
 # to 4168 when the active-customer bar went; to 3976 when M365-status went
-# and the customer page got tabs built on classes.
-INLINE_STYLE_ATTRIBUTE_BUDGET = 3840
+# and the customer page got tabs built on classes; to 3694 when the shell
+# (palette, sign-in, report viewer, footer) moved to classes on the token
+# scale and every view took the one tab bar (.tabs / .tab).
+INLINE_STYLE_ATTRIBUTE_BUDGET = 3694
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)
@@ -98,6 +100,27 @@ def test_inline_style_attribute_debt_cannot_grow():
     assert count <= INLINE_STYLE_ATTRIBUTE_BUDGET, (
         f"inline style debt grew: {count} > {INLINE_STYLE_ATTRIBUTE_BUDGET}"
     )
+
+
+def test_no_tag_carries_two_class_attributes():
+    """Moving an inline style to classes merges them into the class the tag
+    already has. A second class attribute would be dropped by the browser,
+    and the element would silently lose either its component or its layout."""
+    offenders = []
+    for path in [*STATIC.glob("*.html"), *SCRIPTS]:
+        source = path.read_text(encoding="utf-8")
+        for m in re.finditer(r"<[a-zA-Z][^<>]*>", source):
+            if len(re.findall(r"""(?:^|[\s"'])class\s*=""", m.group(0))) > 1:
+                line = source[: m.start()].count("\n") + 1
+                offenders.append(f"{path.name}:{line}: {m.group(0)[:120]}")
+    assert not offenders, "tags with two class attributes:\n" + "\n".join(offenders)
+
+
+def test_the_two_class_pattern_still_finds_them():
+    tag = re.compile(r"""(?:^|[\s"'])class\s*=""")
+    assert len(tag.findall('<div class="a" style="" class="b">')) == 2
+    assert len(tag.findall("""'<span class="a"' + (x ? ' class="b"' : '') + '>'""")) == 2
+    assert len(tag.findall('<div class="a" data-subclass="b">')) == 1
 
 
 def test_index_html_has_no_inline_event_handlers():
