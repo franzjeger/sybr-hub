@@ -18,6 +18,7 @@ import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
+from app.modules.m365_audit.sections.apps_oauth import EXPIRY_SOON_DAYS
 from app.reports.evidence import (
     _CANNOT_VERIFY,
     _EVIDENCE_MAP,
@@ -623,7 +624,12 @@ def _app_credentials(audit: _Audit) -> _Verdict:
     if expired > 0:
         return "fail", f"{expired} utløpte app-credentials oppdaget"
     if expiring > 0:
-        return "warn", f"{expiring} app-credentials utløper snart (≤30 dager)"
+        # The collector's own rule, fewer than EXPIRY_SOON_DAYS whole days
+        # left, not the "at most 30" this used to print over its count.
+        return (
+            "warn",
+            f"{expiring} app-credentials utløper snart (innen {EXPIRY_SOON_DAYS} dager)",
+        )
     return "pass", "Ingen utløpte app-credentials"
 
 

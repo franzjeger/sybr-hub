@@ -12,7 +12,27 @@ from app.modules.m365_audit.graph_client import GraphClient
 
 logger = logging.getLogger(__name__)
 
-_EXPIRY_WARN_DAYS = 30
+# "Expiring soon" is one rule wherever the collector applies it: fewer than
+# this many whole days left. The app-registration flags (17) used "at most"
+# while the expiry report (17c), which is what the report counts, used "fewer
+# than", so a credential with 30 days left was EXPIRING-SOON in one file and
+# not in the other. The report's wording takes the number from here too.
+EXPIRY_SOON_DAYS = 30
+# The wider notice band of the expiry report.
+_EXPIRY_NOTICE_DAYS = 90
+
+
+def _expiry_status(days_left: int | None) -> str:
+    """The 17c status for a credential with this many whole days left (None: no end)."""
+    if days_left is None:
+        return "No Expiry"
+    if days_left < 0:
+        return "EXPIRED"
+    if days_left < EXPIRY_SOON_DAYS:
+        return "CRITICAL"
+    if days_left < _EXPIRY_NOTICE_DAYS:
+        return "Warning"
+    return "OK"
 
 
 def _parse_utc(dt_str: str | None) -> datetime | None:
@@ -32,9 +52,10 @@ def _cred_status(creds: list[dict], now: datetime) -> list[str]:
             flags.append("NO-EXPIRY")
             continue
         delta = (end - now).days
-        if delta < 0:
+        status = _expiry_status(delta)
+        if status == "EXPIRED":
             flags.append(f"EXPIRED({end.date()})")
-        elif delta <= _EXPIRY_WARN_DAYS:
+        elif status == "CRITICAL":
             flags.append(f"EXPIRING-SOON({end.date()},d={delta})")
     return flags
 
@@ -128,66 +149,29 @@ class AppsOAuthSection(BaseSection):
             return
 
         now = datetime.now(UTC)
-        _CRITICAL_DAYS = 30
-        _WARNING_DAYS = 90
+        _CRITICAL_DAYS = EXPIRY_SOON_DAYS
+        _WARNING_DAYS = _EXPIRY_NOTICE_DAYS
 
         rows: list[dict] = []
         for app in self.apps:
             app_name = app.get("displayName") or "(unnamed)"
-
-            for cred in app.get("passwordCredentials") or []:
-                end = _parse_utc(cred.get("endDateTime"))
-                cred_name = cred.get("displayName") or ""
-                if end is None:
-                    days_left = None
-                    status = "No Expiry"
-                else:
-                    days_left = (end - now).days
-                    if days_left < 0:
-                        status = "EXPIRED"
-                    elif days_left < _CRITICAL_DAYS:
-                        status = "CRITICAL"
-                    elif days_left < _WARNING_DAYS:
-                        status = "Warning"
-                    else:
-                        status = "OK"
-                rows.append(
-                    {
-                        "app": app_name,
-                        "type": "Secret",
-                        "cred_name": cred_name,
-                        "expiry": end,
-                        "days_left": days_left,
-                        "status": status,
-                    }
-                )
-
-            for cred in app.get("keyCredentials") or []:
-                end = _parse_utc(cred.get("endDateTime"))
-                cred_name = cred.get("displayName") or ""
-                if end is None:
-                    days_left = None
-                    status = "No Expiry"
-                else:
-                    days_left = (end - now).days
-                    if days_left < 0:
-                        status = "EXPIRED"
-                    elif days_left < _CRITICAL_DAYS:
-                        status = "CRITICAL"
-                    elif days_left < _WARNING_DAYS:
-                        status = "Warning"
-                    else:
-                        status = "OK"
-                rows.append(
-                    {
-                        "app": app_name,
-                        "type": "Certificate",
-                        "cred_name": cred_name,
-                        "expiry": end,
-                        "days_left": days_left,
-                        "status": status,
-                    }
-                )
+            for kind, creds in (
+                ("Secret", app.get("passwordCredentials")),
+                ("Certificate", app.get("keyCredentials")),
+            ):
+                for cred in creds or []:
+                    end = _parse_utc(cred.get("endDateTime"))
+                    days_left = None if end is None else (end - now).days
+                    rows.append(
+                        {
+                            "app": app_name,
+                            "type": kind,
+                            "cred_name": cred.get("displayName") or "",
+                            "expiry": end,
+                            "days_left": days_left,
+                            "status": _expiry_status(days_left),
+                        }
+                    )
 
         expired = [r for r in rows if r["status"] == "EXPIRED"]
         critical = [r for r in rows if r["status"] == "CRITICAL"]

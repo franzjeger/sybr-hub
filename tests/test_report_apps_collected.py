@@ -247,6 +247,64 @@ async def test_the_expiry_counts_do_not_hang_on_the_warning_text(tmp_path):
     assert _finding(ctx, "finding-cred-expiry") is None
 
 
+def _app_expiring_in(days: int, hours: int) -> dict:
+    """One app with one secret ending that far from now."""
+    end = datetime.now(UTC) + timedelta(days=days, hours=hours)
+    return {
+        "id": "a9",
+        "appId": "00000000-0000-0000-0000-0000000000a9",
+        "displayName": "Kunde A Grense",
+        "signInAudience": "AzureADMyOrg",
+        "createdDateTime": "2025-01-01T08:00:00Z",
+        "passwordCredentials": [
+            {"displayName": "Nøkkel", "endDateTime": end.strftime("%Y-%m-%dT%H:%M:%SZ")}
+        ],
+        "keyCredentials": [],
+    }
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+@pytest.mark.parametrize(
+    ("days", "hours", "soon"),
+    [(29, 23, True), (30, 1, False)],
+    ids=["29 whole days left", "30 whole days left"],
+)
+async def test_expiring_soon_is_one_rule_in_both_files_and_the_report(
+    tmp_path, sidecars, days, hours, soon
+):
+    """The app-registration flags said "at most 30 days", the expiry report "fewer than 30".
+
+    A credential with 30 whole days left was EXPIRING-SOON in 17 and not
+    critical in 17c, which is the one the report counts, while CIS 2.1.2
+    printed "≤30 dager" over that count.
+    """
+    from app.modules.m365_audit.sections.apps_oauth import EXPIRY_SOON_DAYS
+
+    files = await _apps(tmp_path, applications=[_app_expiring_in(days, hours)])
+    flagged = "EXPIRING-SOON" in files["17_app_registrations.txt"]
+    critical = json.loads(files["17c_app_credential_expiry.json"])["critical"] == 1
+
+    assert flagged is critical is soon
+    ctx = report(tmp_path, sidecars=sidecars)
+    if soon:
+        assert _verdict(ctx, "2.1.2") == (
+            "warn",
+            f"1 app-credentials utløper snart (innen {EXPIRY_SOON_DAYS} dager)",
+        )
+    else:
+        assert _verdict(ctx, "2.1.2") == ("pass", "Ingen utløpte app-credentials")
+
+
+def test_the_recommendation_names_the_collectors_threshold():
+    """The recommendation's text carries the number as words; it must be the rule's."""
+    from app.modules.m365_audit.sections.apps_oauth import EXPIRY_SOON_DAYS
+    from app.reports.i18n import T
+
+    for lang in ("no", "en"):
+        detail = str(T(lang)("rec_cred_expiry_detail", expired=0, critical=1))
+        assert f" {EXPIRY_SOON_DAYS} " in detail, (lang, detail)
+
+
 async def test_the_sidecar_keeps_credential_names_whole(tmp_path):
     files = await _apps(tmp_path)
     data = json.loads(files["17c_app_credential_expiry.json"])
