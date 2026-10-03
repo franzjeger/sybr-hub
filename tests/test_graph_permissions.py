@@ -45,7 +45,9 @@ def test_the_fallback_has_not_drifted_from_the_source():
     src = PS1.read_text(encoding="utf-8")
     block = re.search(r"\$fallbackPerms = @\((.*?)\n\)", src, re.S)
     assert block, "no fallback array found"
-    ps_perms = set(re.findall(r"'([A-Za-z][A-Za-z.]*\.[A-Za-z.]+)'", block.group(1)))
+    # A hyphen too: "BackupRestore-Control.Read.All" is one permission, and a
+    # pattern without it found nothing of it and reported it missing.
+    ps_perms = set(re.findall(r"'([A-Za-z][A-Za-z.-]*\.[A-Za-z.]+)'", block.group(1)))
     assert ps_perms == set(REQUIRED_GRAPH_PERMISSIONS), (
         f"only in PowerShell: {sorted(ps_perms - set(REQUIRED_GRAPH_PERMISSIONS))}; "
         f"only in config: {sorted(set(REQUIRED_GRAPH_PERMISSIONS) - ps_perms)}"
@@ -86,6 +88,8 @@ def test_every_declared_permission_has_something_that_uses_it():
         "AccessReview.Read.All": "accessReviews",
         "SecurityAlert.Read.All": "alerts_v2",
         "SecurityIncident.Read.All": "security/incidents",
+        "BackupRestore-Control.Read.All": '"solutions/backupRestore"',
+        "BackupRestore-Configuration.Read.All": "backupRestore/protectionPolicies",
     }
     unused = [
         perm for perm in REQUIRED_GRAPH_PERMISSIONS if perm in probes and probes[perm] not in src
@@ -124,9 +128,11 @@ def test_a_permission_a_section_says_it_needs_is_actually_declared():
     # set — and naming it here keeps this test from demanding it.
     optional = {"ComplianceManager.Read.All"}
 
+    # Hyphens allowed in the name: "needs BackupRestore-Control.Read.All" was
+    # not recognised as a note at all, so the check could not see it.
     note = re.compile(
-        r"(?:requires|needs)\s+([A-Za-z]+\.Read\.[A-Za-z]+)"
-        r"(?:\s+or\s+([A-Za-z]+\.Read\.[A-Za-z]+))?"
+        r"(?:requires|needs)\s+([A-Za-z-]+\.Read\.[A-Za-z]+)"
+        r"(?:\s+or\s+([A-Za-z-]+\.Read\.[A-Za-z]+))?"
     )
     undeclared: list[str] = []
     for primary, alt in note.findall(src):

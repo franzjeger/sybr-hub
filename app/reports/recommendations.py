@@ -34,6 +34,7 @@ from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items
 from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.m365_backup import _parse_m365_backup
 from app.reports.parsers.network import NETWORK_AUDIT_FILES
 from app.reports.risk import _is_open_wlan
 
@@ -1039,6 +1040,25 @@ def _backup(audit: _Audit) -> Iterator[dict]:
         }
 
 
+def _m365_backup(audit: _Audit) -> Iterator[dict]:
+    # Raised only for a workload both sources were read for and neither showed
+    # anything: Microsoft 365 Backup does not protect it and no known vendor
+    # app has access. A source that was refused leaves the workload unknown,
+    # which the backup section says without making it a finding.
+    t = audit.t
+    reading = _parse_m365_backup(audit.fc, lang=t.lang)
+    gaps = [w for w in reading["workloads"] if w["key"] in reading["gaps"]]
+    if gaps:
+        yield {
+            "priority": "high",
+            "evidence": audit.ev("34_m365_backup.json", "34_m365_backup.txt"),
+            "title": t("rec_m365_backup_title", count=len(gaps)),
+            "detail": t.rec_m365_backup_detail,
+            "effort": t.rec_effort_medium,
+            "sub_items": [f"{w['label']}: {w['native_text']}" for w in gaps],
+        }
+
+
 # ── Network (FortiGate and UniFi) ─────────────────────────────────────────────
 
 # Until 2026-10 both files raised this key with nothing in the id to tell them
@@ -1286,6 +1306,7 @@ _RULES: tuple[_Rule, ...] = (
     _stale_accounts,
     _credential_expiry,
     _backup,
+    _m365_backup,
     _brute_force,
     _stale_credentials,
     _network_unreadable,

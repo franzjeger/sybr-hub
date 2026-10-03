@@ -1,6 +1,6 @@
 {
   "id": "nis2-hardening",
-  "version": "2026.1",
+  "version": "2026.2",
   "name": "NIS2 hardening (Article 21)",
   "tags": ["nis2", "eu", "hardening"],
   "description": {
@@ -110,13 +110,29 @@
         "en": "Art. 21.2.c — At least 95% of virtual machines are backed up"
       },
       "why": {
-        "no": "Sikkerhetskopi og driftskontinuitet er et eksplisitt tiltak i 21(2)(c). Målingen her dekker Azure-VM-laget; sikkerhetskopi av Microsoft 365-data ligger utenfor det auditen ser.",
-        "en": "Backup and business continuity are an explicit measure in 21(2)(c). The measurement here covers the Azure VM tier; backup of Microsoft 365 data is outside what the audit sees."
+        "no": "Sikkerhetskopi og driftskontinuitet er et eksplisitt tiltak i 21(2)(c). Målingen her dekker Azure-VM-laget. Sikkerhetskopi av Microsoft 365-dataene måles i en egen sjekk.",
+        "en": "Backup and business continuity are an explicit measure in 21(2)(c). The measurement here covers the Azure VM tier; backup of the Microsoft 365 data is measured in a check of its own."
       },
       "path": "backup_coverage.backup_pct",
       "op": "gte",
       "value": 95,
       "measured_when": "backup_coverage.coverage_known",
+      "severity": "high"
+    },
+    {
+      "id": "nis2-m365-backup",
+      "title": {
+        "no": "Art. 21.2.c: Spor av backup finnes for Microsoft 365-dataene",
+        "en": "Art. 21.2.c — Evidence of backup exists for the Microsoft 365 data"
+      },
+      "why": {
+        "no": "Sikkerhetskopi i 21(2)(c) gjelder også e-post, OneDrive og SharePoint, som Microsoft ikke tar backup av for kunden. Sjekken består når hver arbeidslast er beskyttet av Microsoft 365 Backup eller nås av en kjent backupapp. En app med tilgang viser at produktet er installert, ikke at backupen kjører. Arbeidslaster auditen ikke fikk lese, regnes ikke med.",
+        "en": "Backup in 21(2)(c) covers email, OneDrive and SharePoint too, which Microsoft does not back up for the customer. The check passes when each workload is protected by Microsoft 365 Backup or reached by a known backup app. An app with access shows the product is installed, not that its backups run. Workloads the audit could not read are not counted."
+      },
+      "path": "m365_backup.workloads_without_backup",
+      "op": "eq",
+      "value": 0,
+      "measured_when": "m365_backup.assessed",
       "severity": "high"
     },
     {

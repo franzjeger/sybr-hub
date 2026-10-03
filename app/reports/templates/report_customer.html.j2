@@ -233,6 +233,12 @@ h2:hover a.section-anchor::after { color: #ccc; }
 /* Neither compliant nor a finding — the setting was not read. */
 .status-pill.unknown  { background: #e5e7eb; color: #4b5563; }
 
+/* Backup of the Microsoft 365 data */
+.backup-workload { font-weight: 600; }
+.backup-detail { font-size: 12px; }
+.backup-apps { margin-top: 12px; font-size: 12px; }
+.backup-note { margin-top: 8px; color: var(--muted); }
+
 /* Alert inline */
 .alert-inline {
   background: var(--orange-bg); border: 1px solid var(--orange-bd); border-radius: 8px;
@@ -396,6 +402,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <li><a href="#exchange">{{ t.email_exchange }}</a></li>
     <li><a href="#apper">{{ t.apps_integrations }}</a></li>
     {% if purview and purview.has_data %}<li><a href="#databeskyttelse">{{ t.data_protection }}</a></li>{% endif %}
+    {% if m365_backup and m365_backup.has_data %}<li><a href="#m365backup">{{ t.m365_backup_title }}</a></li>{% endif %}
     <li><a href="#azure">{{ t.azure_infrastructure }}</a></li>
     {% if network and network.has_data %}<li><a href="#nettverk">{{ t.section_network }}</a></li>{% endif %}
     {% if baseline %}<li><a href="#standard">{{ t.baseline_label }}</a></li>{% endif %}
@@ -1366,6 +1373,46 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% for pol in purview.retention_policies %}
     <div class="env-row"><span>{{ pol.name }}</span><span></span></div>
     {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- ── Backup of the Microsoft 365 data ── -->
+{# One row per workload: what Microsoft 365 Backup says, what the vendor apps
+   say, and the verdict from both. "Could not be read" is its own state and
+   never "no backup": a refused read is not a reading. #}
+{% if m365_backup and m365_backup.has_data %}
+<div class="section-label" style="margin-top:56px;" id="m365backup">{{ t.m365_backup_label }}</div>
+<h2><a href="#m365backup" class="section-anchor">{{ t.m365_backup_title }}</a></h2>
+<p class="section-intro">{{ t.m365_backup_intro }}</p>
+
+<div class="env-card">
+  <table class="email-table">
+    <tr><th>{{ t.m365_backup_col_workload }}</th><th>{{ t.m365_backup_col_status }}</th><th>{{ t.m365_backup_col_native }}</th><th>{{ t.m365_backup_col_third_party }}</th></tr>
+    {% for w in m365_backup.workloads %}
+    <tr>
+      <td class="backup-workload">{{ w.label }}</td>
+      <td><span class="status-pill {{ w.level }}">{{ w.verdict_label }}</span></td>
+      <td class="backup-detail">{{ w.native_text }}</td>
+      <td class="backup-detail">{{ w.third_text }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if m365_backup.unread_notes %}
+  <div class="backup-note">
+    {% for note in m365_backup.unread_notes %}<div>{{ note }}</div>{% endfor %}
+  </div>
+  {% endif %}
+  {% set found_apps = m365_backup.apps | selectattr('enabled') | selectattr('workloads') | list %}
+  {% if found_apps %}
+  <div class="backup-apps">
+    {% for a in found_apps %}
+    <div>{{ t('m365_backup_app_access', app=a.name, access=a.access) }}</div>
+    {% endfor %}
+    <div class="backup-note">{{ t.m365_backup_proof_note }}</div>
   </div>
   {% endif %}
 </div>

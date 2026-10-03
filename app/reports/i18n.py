@@ -1026,6 +1026,343 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "VMs uten backup:",
         "en": "VMs without backup:",
     },
+    # ── Backup of the Microsoft 365 data (34_m365_backup) ──
+    "m365_backup_label": {
+        "no": "Backup",
+        "en": "Backup",
+    },
+    "m365_backup_title": {
+        "no": "Backup av Microsoft 365-data",
+        "en": "Backup of Microsoft 365 data",
+    },
+    "m365_backup_intro": {
+        "no": "Microsoft 365 tar ikke backup av dataene for kunden. Slettede elementer kan bare hentes tilbake i en begrenset periode, og løsepengevirus eller en feil synkronisering kan overskrive dem. Auditen ser etter to ting: Microsoft 365 Backup, som er Microsofts egen tjeneste, og apper fra kjente backupleverandører med tilgang til dataene.",
+        "en": "Microsoft 365 does not back up the customer's data. Deleted items can be recovered only for a limited period, and ransomware or a faulty sync can overwrite them. The audit looks for two things: Microsoft 365 Backup, Microsoft's own service, and apps from known backup vendors with access to the data.",
+    },
+    "m365_backup_proof_note": {
+        "no": "En backupapp med tilgang viser at produktet er installert og får lese dataene. Om backupen faktisk kjører og kan gjenopprettes, må sjekkes i produktet selv.",
+        "en": "A backup app with access shows that the product is installed and allowed to read the data. Whether its backups actually run and can be restored has to be checked in the product itself.",
+    },
+    "m365_backup_and": {
+        "no": "og",
+        "en": "and",
+    },
+    "m365_backup_wl_exchange": {
+        "no": "E-post (Exchange)",
+        "en": "Email (Exchange)",
+    },
+    "m365_backup_wl_onedrive": {
+        "no": "OneDrive",
+        "en": "OneDrive",
+    },
+    "m365_backup_wl_sharepoint": {
+        "no": "SharePoint",
+        "en": "SharePoint",
+    },
+    "m365_backup_wl_teams": {
+        "no": "Teams",
+        "en": "Teams",
+    },
+    "m365_backup_access_exchange": {
+        "no": "e-post",
+        "en": "email",
+    },
+    "m365_backup_access_onedrive": {
+        "no": "OneDrive",
+        "en": "OneDrive",
+    },
+    "m365_backup_access_sharepoint": {
+        "no": "SharePoint",
+        "en": "SharePoint",
+    },
+    "m365_backup_access_teams": {
+        "no": "Teams-chat",
+        "en": "Teams chats",
+    },
+    "m365_backup_col_workload": {
+        "no": "Arbeidslast",
+        "en": "Workload",
+    },
+    "m365_backup_col_status": {
+        "no": "Status",
+        "en": "Status",
+    },
+    "m365_backup_col_native": {
+        "no": "Microsoft 365 Backup",
+        "en": "Microsoft 365 Backup",
+    },
+    "m365_backup_col_third_party": {
+        "no": "Backupapper",
+        "en": "Backup apps",
+    },
+    "m365_backup_verdict_native": {
+        "no": "Microsoft 365 Backup",
+        "en": "Microsoft 365 Backup",
+    },
+    "m365_backup_verdict_third_party": {
+        "no": "Backupapp funnet",
+        "en": "Backup app found",
+    },
+    "m365_backup_verdict_none": {
+        "no": "Ingen backup funnet",
+        "en": "No backup found",
+    },
+    "m365_backup_verdict_unknown": {
+        "no": "Kunne ikke leses",
+        "en": "Could not be read",
+    },
+    "m365_backup_verdict_files_only": {
+        "no": "Filer via SharePoint",
+        "en": "Files via SharePoint",
+    },
+    "m365_backup_native_covered": {
+        "no": "{count} beskyttet",
+        "en": "{count} protected",
+    },
+    "m365_backup_native_covered_of": {
+        "no": "{count} av {total} beskyttet",
+        "en": "{count} of {total} protected",
+    },
+    "m365_backup_native_full_service": {
+        "no": "hele tjenesten beskyttes",
+        "en": "the whole service is protected",
+    },
+    "m365_backup_native_in_progress": {
+        "no": "{count} under oppsett",
+        "en": "{count} being set up",
+    },
+    "m365_backup_native_failed": {
+        "no": "{count} feilet",
+        "en": "{count} failed",
+    },
+    "m365_backup_native_units_unknown": {
+        "no": "policyen er aktiv, men antallet beskyttede kunne ikke leses",
+        "en": "the policy is active, but the number protected could not be read",
+    },
+    "m365_backup_native_disabled": {
+        "no": "Microsoft 365 Backup er ikke aktivert",
+        "en": "Microsoft 365 Backup is not enabled",
+    },
+    "m365_backup_native_locked": {
+        "no": "Microsoft 365 Backup er låst ({status}) og tar ikke ny backup",
+        "en": "Microsoft 365 Backup is locked ({status}) and takes no new backups",
+    },
+    "m365_backup_native_no_policy": {
+        "no": "Ingen policy i Microsoft 365 Backup",
+        "en": "No Microsoft 365 Backup policy",
+    },
+    "m365_backup_native_inactive": {
+        "no": "Policyen i Microsoft 365 Backup er inaktiv",
+        "en": "The Microsoft 365 Backup policy is inactive",
+    },
+    "m365_backup_native_no_units": {
+        "no": "Policyen i Microsoft 365 Backup beskytter ingenting ennå",
+        "en": "The Microsoft 365 Backup policy protects nothing yet",
+    },
+    "m365_backup_native_teams": {
+        "no": "Microsoft 365 Backup dekker ikke chat og kanalmeldinger i Teams. Filene i Teams ligger i SharePoint.",
+        "en": "Microsoft 365 Backup does not cover Teams chats and channel messages. Files in Teams live in SharePoint.",
+    },
+    "m365_backup_unread_permission": {
+        "no": "Microsoft 365 Backup kunne ikke leses fordi Graph avviste lesingen. Oftest mangler appen tillatelsen {permission}, eller den er ikke godkjent av en administrator.",
+        "en": "Microsoft 365 Backup could not be read because Graph refused the read. Most often the app lacks the {permission} permission, or it has not been admin-consented.",
+    },
+    "m365_backup_unread_licence": {
+        "no": "Microsoft 365 Backup kunne ikke leses fordi tenanten mangler lisensen tjenesten krever.",
+        "en": "Microsoft 365 Backup could not be read because the tenant lacks the licence the service requires.",
+    },
+    "m365_backup_unread_not_found": {
+        "no": "Microsoft 365 Backup kunne ikke leses fordi Graph svarte 404 (ikke funnet), så status er ukjent.",
+        "en": "Microsoft 365 Backup could not be read because Graph answered 404 (not found), so its status is unknown.",
+    },
+    "m365_backup_unread_error": {
+        "no": "Microsoft 365 Backup kunne ikke leses på grunn av en feil, så status er ukjent.",
+        "en": "Microsoft 365 Backup could not be read because of an error, so its status is unknown.",
+    },
+    "m365_backup_unread_short_permission": {
+        "no": "Ikke lest: Graph avviste lesingen",
+        "en": "Not read: Graph refused the read",
+    },
+    "m365_backup_unread_short_licence": {
+        "no": "Ikke lest: tenanten mangler lisensen",
+        "en": "Not read: the tenant lacks the licence",
+    },
+    "m365_backup_unread_short_not_found": {
+        "no": "Ikke lest: Graph svarte 404",
+        "en": "Not read: Graph answered 404",
+    },
+    "m365_backup_unread_short_error": {
+        "no": "Ikke lest: lesingen feilet",
+        "en": "Not read: the read failed",
+    },
+    "m365_backup_app_unread_short": {
+        "no": "Ikke lest: tjenestekontoene kunne ikke leses",
+        "en": "Not read: the service principals could not be read",
+    },
+    "m365_backup_app_found": {
+        "no": "Fant backupappen {apps} med tilgang",
+        "en": "Found the backup app {apps} with access",
+    },
+    "m365_backup_app_access": {
+        "no": "Fant backupappen {app} med tilgang til {access}",
+        "en": "Found the backup app {app} with access to {access}",
+    },
+    "m365_backup_app_none": {
+        "no": "Ingen kjent backupapp har tilgang",
+        "en": "No known backup app has access",
+    },
+    "m365_backup_app_none_teams": {
+        "no": "Ingen kjent backupapp har tilgang til chat",
+        "en": "No known backup app has access to chats",
+    },
+    "m365_backup_app_unread": {
+        "no": "Tjenestekontoene i tenanten kunne ikke leses, så det er ukjent om en backupapp har tilgang.",
+        "en": "The tenant's service principals could not be read, so it is unknown whether a backup app has access.",
+    },
+    "m365_backup_app_permissions_unread": {
+        "no": "Fant {app}, men tilgangene kunne ikke leses",
+        "en": "Found {app}, but its permissions could not be read",
+    },
+    "m365_backup_app_disabled": {
+        "no": "deaktivert",
+        "en": "disabled",
+    },
+    "m365_backup_grant_hint": {
+        "no": "For å lese Microsoft 365 Backup trenger audit-appen Graph-tillatelsene BackupRestore-Control.Read.All og BackupRestore-Configuration.Read.All med administratorgodkjenning. «Sjekk tillatelser» på kundekortet viser hva som mangler.",
+        "en": "To read Microsoft 365 Backup the audit app needs the Graph permissions BackupRestore-Control.Read.All and BackupRestore-Configuration.Read.All with admin consent. 'Check Permissions' on the customer card shows what is missing.",
+    },
+    "m365_backup_service_heading": {
+        "no": "Microsoft 365 Backup (Microsofts egen tjeneste)",
+        "en": "Microsoft 365 Backup (Microsoft's own service)",
+    },
+    "m365_backup_service_status": {
+        "no": "Tjenestestatus",
+        "en": "Service status",
+    },
+    "m365_backup_consumer": {
+        "no": "Styres av",
+        "en": "Controlled by",
+    },
+    "m365_backup_disable_reason": {
+        "no": "Årsak til deaktivering",
+        "en": "Reason disabled",
+    },
+    "m365_backup_policies_heading": {
+        "no": "Beskyttelsespolicyer",
+        "en": "Protection policies",
+    },
+    "m365_backup_no_policies": {
+        "no": "Ingen beskyttelsespolicyer i Microsoft 365 Backup.",
+        "en": "No protection policies in Microsoft 365 Backup.",
+    },
+    "m365_backup_col_policy": {
+        "no": "Policy",
+        "en": "Policy",
+    },
+    "m365_backup_col_mode": {
+        "no": "Modus",
+        "en": "Mode",
+    },
+    "m365_backup_col_protected": {
+        "no": "Beskyttet",
+        "en": "Protected",
+    },
+    "m365_backup_col_in_progress": {
+        "no": "Under oppsett",
+        "en": "Being set up",
+    },
+    "m365_backup_col_failed": {
+        "no": "Feilet",
+        "en": "Failed",
+    },
+    "m365_backup_col_total": {
+        "no": "Totalt i policyen",
+        "en": "Total in policy",
+    },
+    "m365_backup_col_counted": {
+        "no": "Auditen telte",
+        "en": "Audit counted",
+    },
+    "m365_backup_apps_heading": {
+        "no": "Backupapper fra tredjepart",
+        "en": "Third-party backup apps",
+    },
+    "m365_backup_apps_scanned": {
+        "no": "Lette blant {count} tjenestekontoer etter kjente backupprodukter.",
+        "en": "Searched {count} service principals for known backup products.",
+    },
+    "m365_backup_no_apps": {
+        "no": "Ingen kjent backupapp funnet.",
+        "en": "No known backup app found.",
+    },
+    "m365_backup_col_product": {
+        "no": "Produkt",
+        "en": "Product",
+    },
+    "m365_backup_col_app": {
+        "no": "App i tenanten",
+        "en": "App in the tenant",
+    },
+    "m365_backup_col_match": {
+        "no": "Gjenkjent på",
+        "en": "Recognised by",
+    },
+    "m365_backup_col_access": {
+        "no": "Tilgang til",
+        "en": "Access to",
+    },
+    "m365_backup_col_permissions": {
+        "no": "Tillatelser",
+        "en": "Permissions",
+    },
+    "m365_backup_match_name": {
+        "no": "navn",
+        "en": "name",
+    },
+    "m365_backup_match_app_id": {
+        "no": "app-ID",
+        "en": "app ID",
+    },
+    "m365_backup_match_generic": {
+        "no": "«backup» i navnet",
+        "en": "'backup' in the name",
+    },
+    "m365_backup_unread_heading": {
+        "no": "Det som ikke kunne leses",
+        "en": "What could not be read",
+    },
+    "m365_backup_graph_said": {
+        "no": "Graph svarte",
+        "en": "Graph said",
+    },
+    "rec_m365_backup_title": {
+        "no": "Microsoft 365: ingen backup funnet for {count} arbeidslast(er)",
+        "en": "Microsoft 365: no backup found for {count} workload(s)",
+    },
+    "rec_m365_backup_detail": {
+        "no": "Auditen fant ingen tegn til backup av disse dataene: Microsoft 365 Backup beskytter dem ikke, og ingen kjent backupapp har tilgang. Microsoft 365 tar ikke backup for kunden, og slettede eller krypterte data kan bare hentes tilbake i en begrenset periode. Sjekk først om kunden bruker en backuptjeneste auditen ikke kjenner igjen. Hvis ikke, sett opp Microsoft 365 Backup i Microsoft 365 admin center (Innstillinger > Microsoft 365 Backup, betales via et Azure-abonnement) med en policy for hver arbeidslast, eller ta i bruk en backuptjeneste fra tredjepart.",
+        "en": "The audit found no sign of backup for this data: Microsoft 365 Backup does not protect it, and no known backup app has access. Microsoft 365 does not back up the customer's data, and deleted or encrypted data can be recovered only for a limited period. First check whether the customer uses a backup service the audit does not recognise. If not, set up Microsoft 365 Backup in the Microsoft 365 admin center (Settings > Microsoft 365 Backup, billed through an Azure subscription) with a policy for each workload, or adopt a third-party backup service.",
+    },
+    "cis_m365_backup_pass": {
+        "no": "Microsoft 365 Backup beskytter e-post, OneDrive og SharePoint",
+        "en": "Microsoft 365 Backup protects email, OneDrive and SharePoint",
+    },
+    "cis_m365_backup_fail": {
+        "no": "Ingen tegn til backup for {workloads}",
+        "en": "No sign of backup for {workloads}",
+    },
+    "cis_m365_backup_third_party": {
+        "no": "Backupapp med tilgang funnet ({apps}), men om backupen kjører kan ikke leses fra tenanten",
+        "en": "A backup app with access was found ({apps}), but whether its backups run cannot be read from the tenant",
+    },
+    "cis_m365_backup_unknown": {
+        "no": "Kan ikke verifiseres. {reason}",
+        "en": "Cannot be verified. {reason}",
+    },
+    "cis_m365_backup_not_run": {
+        "no": "Kan ikke verifiseres fordi backupseksjonen ikke ble kjørt",
+        "en": "Cannot be verified because the backup section did not run",
+    },
     "n_resources": {
         "no": "{count} ressurser",
         "en": "{count} resources",
