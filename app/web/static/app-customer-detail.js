@@ -98,7 +98,7 @@ async function loadCustomerDetail(customerId) {
 
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);margin-bottom:var(--space-6);">
       <div class="card" style="text-align:center;padding:var(--space-5);">
-        <div style="width:64px;height:64px;line-height:64px;border-radius:var(--radius-xl);font-weight:800;font-size:var(--font-2xl);color:#fff;background:${gradeColor(grade)};margin:0 auto var(--space-3);box-shadow:0 4px 12px ${gradeColor(grade)}40;">${grade}</div>
+        <div style="width:64px;height:64px;line-height:64px;border-radius:var(--radius-xl);font-weight:800;font-size:var(--font-2xl);color:#fff;background:${gradeColor(grade)};margin:0 auto var(--space-3);box-shadow:0 4px 12px ${gradeColor(grade)}40;">${esc(grade)}</div>
         <div style="font-size:var(--font-xs);color:var(--text-muted);text-transform:uppercase;">${t('lbl_grade')}</div>
       </div>
       <div class="card" style="text-align:center;padding:var(--space-5);">
@@ -127,12 +127,12 @@ async function loadCustomerDetail(customerId) {
       <div class="card" style="padding:var(--space-5);">
         <div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:var(--space-4);">${t('lbl_details')}</div>
         <div style="display:grid;grid-template-columns:140px 1fr;gap:var(--space-2) var(--space-4);font-size:var(--font-sm);">
-          <span style="color:var(--text-muted);">${t('lbl_users')}</span><span style="font-weight:600;">${hasM ? (m.total_users || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">${t('lbl_without_mfa')}</span><span style="font-weight:600;color:${hasM && m.users_no_mfa > 0 ? 'var(--red)' : 'var(--text)'};">${hasM ? (m.users_no_mfa || 0) : '-'}</span>
-          <span style="color:var(--text-muted);">${t('lbl_ca_policies')}</span><span style="font-weight:600;">${hasM ? (m.ca_policies_enabled || 0) : '-'}</span>
+          <span style="color:var(--text-muted);">${t('lbl_users')}</span><span style="font-weight:600;">${hasM ? (Number(m.total_users) || 0) : '-'}</span>
+          <span style="color:var(--text-muted);">${t('lbl_without_mfa')}</span><span style="font-weight:600;color:${hasM && m.users_no_mfa > 0 ? 'var(--red)' : 'var(--text)'};">${hasM ? (Number(m.users_no_mfa) || 0) : '-'}</span>
+          <span style="color:var(--text-muted);">${t('lbl_ca_policies')}</span><span style="font-weight:600;">${hasM ? (Number(m.ca_policies_enabled) || 0) : '-'}</span>
           <span style="color:var(--text-muted);">${t('intune')}</span><span style="font-weight:600;">${hasM && metricPct(m.intune_compliance_pct) !== null ? metricPct(m.intune_compliance_pct)+'%' : '-'}</span>
-          <span style="color:var(--text-muted);">${t('lbl_last_audit')}</span><span style="font-weight:600;">${cust.last_audit ? cust.last_audit.substring(0,10) : '-'}${_auditAgeSuffix(cust.last_audit)}</span>
-          <span style="color:var(--text-muted);">${t('lbl_warnings','Warnings')}</span><span style="font-weight:600;color:${hasM && m.total_warns > 0 ? 'var(--orange)' : 'var(--text)'};">${hasM ? (m.total_warns || 0) : '-'}</span>
+          <span style="color:var(--text-muted);">${t('lbl_last_audit')}</span><span style="font-weight:600;">${cust.last_audit ? esc(cust.last_audit.substring(0,10)) : '-'}${_auditAgeSuffix(cust.last_audit)}</span>
+          <span style="color:var(--text-muted);">${t('lbl_warnings','Warnings')}</span><span style="font-weight:600;color:${hasM && m.total_warns > 0 ? 'var(--orange)' : 'var(--text)'};">${hasM ? (Number(m.total_warns) || 0) : '-'}</span>
         </div>
       </div>
       <div class="card" style="padding:var(--space-5);">
@@ -340,8 +340,10 @@ async function _loadCustomerPoliciesCard(customerId) {
                 'report-only': ['var(--orange)', t('lbl_policy_report','Report-only')],
                 'off': ['var(--text-dim)', t('lbl_policy_off','Off')],
                 'trusted': ['var(--blue)', t('lbl_policy_trusted','Trusted')] };
-    var m = map[s] || ['var(--text-muted)', s];
-    return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;color:#fff;background:' + m[0] + ';">' + esc(m[1]) + '</span>';
+    var m = map[s];
+    var colour = m ? m[0] : 'var(--text-muted)';
+    var label = m ? m[1] : s;
+    return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;color:#fff;background:' + colour + ';">' + esc(label) + '</span>';
   }
   function loc(v) { return (v && (v[_lang] || v.no || v.en)) || ''; }
 
@@ -357,7 +359,7 @@ async function _loadCustomerPoliciesCard(customerId) {
     var wl = inv.workloads[k];
     html += '<div style="margin-bottom:var(--space-3);">';
     html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">'
-          + esc(loc(wl.label)) + ' <span style="color:var(--text-dim);font-weight:400;">(' + wl.count + ')</span></div>';
+          + esc(loc(wl.label)) + ' <span style="color:var(--text-dim);font-weight:400;">(' + Number(wl.count) + ')</span></div>';
     html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
     (wl.items || []).forEach(function(it) {
       html += '<tr style="border-bottom:1px solid var(--border);">';
@@ -393,7 +395,7 @@ async function _loadCustomerBaselineCard(customerId) {
   var pct = b.conformance_pct;
   var pctColor = pct === null || pct === undefined ? 'var(--text-dim)'
     : (pct >= 90 ? 'var(--green)' : (pct >= 70 ? 'var(--orange)' : 'var(--red)'));
-  var pctText = pct === null || pct === undefined ? '&#8212;' : (pct + ' %');
+  var pctText = pct === null || pct === undefined ? '&#8212;' : (Number(pct) + ' %');
 
   var html = '<div class="card" style="padding:var(--space-5);margin-bottom:var(--space-4);">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);margin-bottom:var(--space-4);">';
@@ -412,8 +414,8 @@ async function _loadCustomerBaselineCard(customerId) {
   } else {
     html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-3);">'
           + t('msg_baseline_basis','{passed} of {assessed} assessed requirements met')
-              .replace('{passed}', b.passed).replace('{assessed}', b.assessed)
-          + (b.not_measured ? ' &middot; ' + t('msg_baseline_skipped','{n} not assessed').replace('{n}', b.not_measured) : '')
+              .replace('{passed}', Number(b.passed)).replace('{assessed}', Number(b.assessed))
+          + (b.not_measured ? ' &middot; ' + t('msg_baseline_skipped','{n} not assessed').replace('{n}', Number(b.not_measured)) : '')
           + '</div>';
   }
 
@@ -441,21 +443,28 @@ async function _loadCustomerBaselineCard(customerId) {
   } else {
     html += '<div style="font-size:var(--font-xs);color:var(--text-muted);margin-bottom:var(--space-2);">'
           + t('msg_drift_summary','Compared with {run}: {added} added, {removed} removed, {changed} changed.')
-              .replace('{run}', esc(drift.compared_with)).replace('{added}', drift.added_total)
-              .replace('{removed}', drift.removed_total).replace('{changed}', drift.changed_total)
+              .replace('{run}', esc(drift.compared_with)).replace('{added}', Number(drift.added_total))
+              .replace('{removed}', Number(drift.removed_total)).replace('{changed}', Number(drift.changed_total))
           + '</div>';
     html += '<table style="width:100%;font-size:var(--font-xs);border-collapse:collapse;">';
+    // Label and colour per kind, kept apart from the policies themselves.
+    var kinds = {
+      removed: [t('lbl_removed','Removed'), 'var(--red)'],
+      changed: [t('lbl_changed','Changed'), 'var(--orange)'],
+      added: [t('lbl_added','Added'), 'var(--green)'],
+    };
     (drift.snapshots || []).forEach(function(s) {
       if (!s.comparable) return;
       var rows = [];
-      (s.removed || []).forEach(function(p){ rows.push([t('lbl_removed','Removed'), 'var(--red)', p, '']); });
-      (s.changed || []).forEach(function(p){ rows.push([t('lbl_changed','Changed'), 'var(--orange)', p, (p.fields||[]).join(', ')]); });
-      (s.added   || []).forEach(function(p){ rows.push([t('lbl_added','Added'), 'var(--green)', p, '']); });
+      (s.removed || []).forEach(function(p){ rows.push(['removed', p, '']); });
+      (s.changed || []).forEach(function(p){ rows.push(['changed', p, (p.fields||[]).join(', ')]); });
+      (s.added   || []).forEach(function(p){ rows.push(['added', p, '']); });
       rows.forEach(function(r) {
+        var kind = kinds[r[0]];
         html += '<tr style="border-bottom:1px solid var(--border);">'
-              + '<td style="padding:5px 8px 5px 0;color:' + r[1] + ';white-space:nowrap;">' + r[0] + '</td>'
-              + '<td style="padding:5px 0;">' + esc(r[2].name || t('lbl_unnamed','(unnamed)')) + '</td>'
-              + '<td style="padding:5px 0;text-align:right;color:var(--text-dim);">' + esc(r[3]) + '</td>'
+              + '<td style="padding:5px 8px 5px 0;color:' + kind[1] + ';white-space:nowrap;">' + kind[0] + '</td>'
+              + '<td style="padding:5px 0;">' + esc(r[1].name || t('lbl_unnamed','(unnamed)')) + '</td>'
+              + '<td style="padding:5px 0;text-align:right;color:var(--text-dim);">' + esc(r[2]) + '</td>'
               + '</tr>';
       });
     });
@@ -510,7 +519,7 @@ async function _loadCustomerInfraCard(customerId) {
         var statusColor = h.is_reachable === true ? 'var(--green)' : h.is_reachable === false ? 'var(--red)' : 'var(--text-dim)';
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(h.label) + '</td>';
-        html += '<td style="padding:4px 8px;font-family:var(--mono);font-size:11px;">' + esc(h.hostname) + ':' + h.port + '</td>';
+        html += '<td style="padding:4px 8px;font-family:var(--mono);font-size:11px;">' + esc(h.hostname) + ':' + Number(h.port) + '</td>';
         html += '<td style="padding:4px 8px;">' + esc(h.username) + '</td>';
         html += '<td style="padding:4px 8px;">' + esc(h.device_type) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(h.group_name || '-') + '</td>';
@@ -545,7 +554,7 @@ async function _loadCustomerInfraCard(customerId) {
         html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">FortiGate</div>';
         html += '<div style="font-size:var(--font-xs);display:grid;grid-template-columns:70px 1fr;gap:2px var(--space-2);">';
         html += '<span style="color:var(--text-muted);">' + t('host') + '</span><span style="font-family:var(--mono);">' + esc(fg.host) + '</span>';
-        html += '<span style="color:var(--text-muted);">' + t('port') + '</span><span>' + fg.port + '</span>';
+        html += '<span style="color:var(--text-muted);">' + t('port') + '</span><span>' + Number(fg.port) + '</span>';
         html += '<span style="color:var(--text-muted);">VDOM</span><span>' + esc(fg.vdom) + '</span>';
         html += '</div></div>';
       }
@@ -588,11 +597,11 @@ async function _loadCustomerNetworkInventory(customerId) {
     var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">';
     html += '<div style="font-size:var(--font-sm);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">' + t('hdr_network_inventory','Network') + '</div>';
     html += '<div style="display:flex;gap:var(--space-4);font-size:var(--font-xs);color:var(--text-muted);">';
-    if (tot.aps) html += '<span>' + tot.aps + ' ' + t('lbl_aps','APs') + '</span>';
-    if (tot.switches) html += '<span>' + tot.switches + ' ' + t('lbl_switches','Switches') + '</span>';
-    if (tot.gateways) html += '<span>' + tot.gateways + ' ' + t('lbl_gateways','Gateways') + '</span>';
-    if (tot.firewalls) html += '<span>' + tot.firewalls + ' ' + t('lbl_firewalls','Firewalls') + '</span>';
-    if (tot.total_clients) html += '<span>' + tot.total_clients + ' ' + t('lbl_total_clients','Clients') + '</span>';
+    if (tot.aps) html += '<span>' + Number(tot.aps) + ' ' + t('lbl_aps','APs') + '</span>';
+    if (tot.switches) html += '<span>' + Number(tot.switches) + ' ' + t('lbl_switches','Switches') + '</span>';
+    if (tot.gateways) html += '<span>' + Number(tot.gateways) + ' ' + t('lbl_gateways','Gateways') + '</span>';
+    if (tot.firewalls) html += '<span>' + Number(tot.firewalls) + ' ' + t('lbl_firewalls','Firewalls') + '</span>';
+    if (tot.total_clients) html += '<span>' + Number(tot.total_clients) + ' ' + t('lbl_total_clients','Clients') + '</span>';
     html += '</div></div>';
 
     // Alerts
@@ -627,7 +636,7 @@ async function _loadCustomerNetworkInventory(customerId) {
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(ap.name) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(ap.model) + '</td>';
         html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(ap.firmware) + (ap.fw_status === 'warning' || ap.fw_status === 'critical' ? '' : '') + '</td>';
-        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (ap.clients || 0) + '</td>';
+        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (Number(ap.clients) || 0) + '</td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:4px;"></span>' + esc(ap.status) + '</td>';
         html += '<td style="padding:4px 8px;min-width:80px;"><div style="background:var(--bg-alt);border-radius:4px;height:6px;overflow:hidden;"><div style="width:' + clientPct + '%;height:100%;background:' + barColor + ';border-radius:4px;"></div></div></td>';
         html += '</tr>';
@@ -657,7 +666,7 @@ async function _loadCustomerNetworkInventory(customerId) {
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(sw.name) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(sw.model) + '</td>';
         html += '<td style="padding:4px 8px;color:' + fwColor + ';">' + esc(sw.firmware) + (sw.fw_status === 'warning' || sw.fw_status === 'critical' ? '' : '') + '</td>';
-        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + sw.ports_used + '/' + sw.ports_total + '</td>';
+        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + Number(sw.ports_used) + '/' + Number(sw.ports_total) + '</td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:4px;"></span>' + esc(sw.status) + '</td>';
         html += '<td style="padding:4px 8px;min-width:80px;"><div style="background:var(--bg-alt);border-radius:4px;height:6px;overflow:hidden;"><div style="width:' + portPct + '%;height:100%;background:' + barColor + ';border-radius:4px;"></div></div></td>';
         html += '</tr>';
@@ -708,8 +717,8 @@ async function _loadCustomerNetworkInventory(customerId) {
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(fw.model) + '</td>';
         html += '<td style="padding:4px 8px;">' + esc(fw.firmware) + '</td>';
         html += '<td style="padding:4px 8px;">' + esc(fw.ha || 'standalone') + '</td>';
-        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (fw.vpn_tunnels || 0) + '</td>';
-        html += '<td style="padding:4px 8px;text-align:right;">' + (fw.active_sessions || 0).toLocaleString() + '</td>';
+        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (Number(fw.vpn_tunnels) || 0) + '</td>';
+        html += '<td style="padding:4px 8px;text-align:right;">' + (Number(fw.active_sessions) || 0).toLocaleString() + '</td>';
         html += '</tr>';
       }
       html += '</tbody></table>';
@@ -764,15 +773,15 @@ async function _loadFgThreatSummary(customerId) {
     }
 
     var s = d.summary;
-    var html = '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">' + t('hdr_threat_summary','Threat Summary') + ' <span style="font-weight:400;text-transform:none;">(' + d.period_days + ' ' + t('lbl_days','days') + ')</span></div>';
+    var html = '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:var(--space-2);">' + t('hdr_threat_summary','Threat Summary') + ' <span style="font-weight:400;text-transform:none;">(' + Number(d.period_days) + ' ' + t('lbl_days','days') + ')</span></div>';
 
     // Summary badges
     html += '<div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-3);flex-wrap:wrap;">';
-    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(239,68,68,0.15);color:var(--red);font-size:var(--font-xs);font-weight:600;">' + t('sev_critical','Critical') + ': ' + (s.critical || 0) + '</div>';
-    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(249,115,22,0.15);color:var(--orange);font-size:var(--font-xs);font-weight:600;">' + t('sev_high','High') + ': ' + (s.high || 0) + '</div>';
-    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(234,179,8,0.15);color:#eab308;font-size:var(--font-xs);font-weight:600;">' + t('sev_medium','Medium') + ': ' + (s.medium || 0) + '</div>';
-    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(128,128,128,0.12);color:var(--text-muted);font-size:var(--font-xs);font-weight:600;">' + t('sev_low','Low') + ': ' + (s.low || 0) + '</div>';
-    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:var(--bg-alt);color:var(--text);font-size:var(--font-xs);font-weight:600;">' + t('lbl_total','Total') + ': ' + (s.total || 0) + '</div>';
+    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(239,68,68,0.15);color:var(--red);font-size:var(--font-xs);font-weight:600;">' + t('sev_critical','Critical') + ': ' + (Number(s.critical) || 0) + '</div>';
+    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(249,115,22,0.15);color:var(--orange);font-size:var(--font-xs);font-weight:600;">' + t('sev_high','High') + ': ' + (Number(s.high) || 0) + '</div>';
+    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(234,179,8,0.15);color:#eab308;font-size:var(--font-xs);font-weight:600;">' + t('sev_medium','Medium') + ': ' + (Number(s.medium) || 0) + '</div>';
+    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:rgba(128,128,128,0.12);color:var(--text-muted);font-size:var(--font-xs);font-weight:600;">' + t('sev_low','Low') + ': ' + (Number(s.low) || 0) + '</div>';
+    html += '<div style="padding:6px 12px;border-radius:var(--radius-md);background:var(--bg-alt);color:var(--text);font-size:var(--font-xs);font-weight:600;">' + t('lbl_total','Total') + ': ' + (Number(s.total) || 0) + '</div>';
     html += '</div>';
 
     // By type
@@ -780,7 +789,7 @@ async function _loadFgThreatSummary(customerId) {
       html += '<div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-3);font-size:var(--font-xs);color:var(--text-muted);">';
       var typeLabels = {ips:'IPS', virus:'Antivirus', botnet:'Botnet', webfilter:'Web Filter'};
       for (var tkey in d.by_type) {
-        html += '<span>' + (typeLabels[tkey] || tkey) + ': <strong style="color:var(--text);">' + d.by_type[tkey] + '</strong></span>';
+        html += '<span>' + (typeLabels[tkey] || esc(tkey)) + ': <strong style="color:var(--text);">' + Number(d.by_type[tkey]) + '</strong></span>';
       }
       html += '</div>';
     }
@@ -851,16 +860,16 @@ async function _loadFgFirewallAudit(customerId) {
     var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);">';
     html += '<div style="font-size:var(--font-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;">' + t('hdr_firewall_audit','Firewall Rule Audit') + '</div>';
     html += '<div style="display:flex;align-items:baseline;gap:4px;">';
-    html += '<span style="font-size:24px;font-weight:700;color:' + scoreColor + ';">' + d.score + '</span>';
+    html += '<span style="font-size:24px;font-weight:700;color:' + scoreColor + ';">' + Number(d.score) + '</span>';
     html += '<span style="font-size:var(--font-xs);color:var(--text-muted);">/ 100</span>';
     html += '</div></div>';
 
     // Stats row
     html += '<div style="display:flex;gap:var(--space-4);margin-bottom:var(--space-3);font-size:var(--font-xs);color:var(--text-muted);">';
-    html += '<span>' + t('lbl_total_rules','Total rules') + ': <strong style="color:var(--text);">' + d.total_rules + '</strong></span>';
-    html += '<span>' + t('lbl_enabled','Enabled') + ': <strong style="color:var(--text);">' + d.enabled + '</strong></span>';
-    html += '<span>' + t('lbl_disabled_rules','Disabled') + ': <strong style="color:var(--text);">' + d.disabled + '</strong></span>';
-    html += '<span>' + t('lbl_unused_rules','Unused') + ': <strong style="color:var(--text);">' + d.unused_rules + '</strong></span>';
+    html += '<span>' + t('lbl_total_rules','Total rules') + ': <strong style="color:var(--text);">' + Number(d.total_rules) + '</strong></span>';
+    html += '<span>' + t('lbl_enabled','Enabled') + ': <strong style="color:var(--text);">' + Number(d.enabled) + '</strong></span>';
+    html += '<span>' + t('lbl_disabled_rules','Disabled') + ': <strong style="color:var(--text);">' + Number(d.disabled) + '</strong></span>';
+    html += '<span>' + t('lbl_unused_rules','Unused') + ': <strong style="color:var(--text);">' + Number(d.unused_rules) + '</strong></span>';
     html += '</div>';
 
     // Issues table
@@ -881,8 +890,8 @@ async function _loadFgFirewallAudit(customerId) {
       for (var i = 0; i < issues.length; i++) {
         var iss = issues[i];
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
-        html += '<td style="padding:4px 8px;font-weight:500;">#' + iss.policy_id + ' ' + esc(iss.name) + '</td>';
-        html += '<td style="padding:4px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:var(--radius-full);font-size:11px;font-weight:600;color:' + (issuePillColors[iss.issue] || 'var(--text)') + ';background:' + (issuePillBg[iss.issue] || 'var(--bg-alt)') + ';">' + (issueLabels[iss.issue] || iss.issue) + '</span></td>';
+        html += '<td style="padding:4px 8px;font-weight:500;">#' + Number(iss.policy_id) + ' ' + esc(iss.name) + '</td>';
+        html += '<td style="padding:4px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:var(--radius-full);font-size:11px;font-weight:600;color:' + (issuePillColors[iss.issue] || 'var(--text)') + ';background:' + (issuePillBg[iss.issue] || 'var(--bg-alt)') + ';">' + (issueLabels[iss.issue] || esc(iss.issue)) + '</span></td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:var(--radius-full);font-size:11px;font-weight:600;color:' + (sevPillColors[iss.severity] || 'var(--text)') + ';background:' + (sevPillBg[iss.severity] || 'var(--bg-alt)') + ';">' + esc(iss.severity) + '</span></td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(iss.detail) + '</td>';
         html += '</tr>';
@@ -914,7 +923,7 @@ function _signalBars(dbm) {
     var bg = b <= bars ? color : 'var(--border)';
     h += '<span style="display:inline-block;width:3px;height:' + ht + 'px;background:' + bg + ';border-radius:1px;margin-right:1px;vertical-align:bottom;"></span>';
   }
-  h += '<span style="font-size:10px;color:var(--text-muted);margin-left:3px;">' + dbm + '</span>';
+  h += '<span style="font-size:10px;color:var(--text-muted);margin-left:3px;">' + Number(dbm) + '</span>';
   return h;
 }
 
@@ -1034,7 +1043,7 @@ async function _loadUnifiWifiHealthSection(customerId) {
 
       for (let i = 0; i < aps.length; i++) {
         var ap = aps[i];
-        var satPct = ap.satisfaction != null ? ap.satisfaction : null;
+        var satPct = ap.satisfaction != null ? Number(ap.satisfaction) : null;
         var satColor = satPct === null ? 'var(--text-dim)' : satPct >= 80 ? 'var(--green)' : satPct >= 70 ? 'var(--orange)' : 'var(--red)';
         var satBar = '';
         if (satPct !== null) {
@@ -1049,7 +1058,7 @@ async function _loadUnifiWifiHealthSection(customerId) {
 
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(ap.name) + '</td>';
-        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (ap.clients || 0) + '</td>';
+        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (Number(ap.clients) || 0) + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(ap.channels || '') + '</td>';
         html += '<td style="padding:4px 8px;">' + satBar + '</td>';
         html += '<td style="padding:4px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:4px;"></span>' + esc(ap.status) + '</td>';
@@ -1078,7 +1087,7 @@ async function _loadUnifiWifiHealthSection(customerId) {
         html += '<tr style="border-bottom:1px solid var(--border-dim);">';
         html += '<td style="padding:4px 8px;font-weight:500;">' + esc(s.name) + guestBadge + '</td>';
         html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(s.security) + '</td>';
-        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (s.clients || 0) + '</td>';
+        html += '<td style="padding:4px 8px;text-align:right;font-weight:600;">' + (Number(s.clients) || 0) + '</td>';
         html += '<td style="padding:4px 8px;color:' + enabledColor + ';">' + esc(enabledLabel) + '</td>';
         html += '</tr>';
       }
@@ -1163,7 +1172,7 @@ async function _loadCustomerActivity(customerName) {
         html += '<div style="display:flex;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border);font-size:var(--font-xs);">'
           + '<span style="flex-shrink:0;">' + icon + '</span>'
           + '<span style="flex:1;color:var(--text);">' + esc(e.action.replace(/_/g,' ')) + (e.detail ? ' · <span style="color:var(--text-muted);">' + esc(e.detail) + '</span>' : '') + '</span>'
-          + '<span style="color:var(--text-dim);white-space:nowrap;">' + ts + (e.user ? ' · ' + esc(e.user) : '') + '</span>'
+          + '<span style="color:var(--text-dim);white-space:nowrap;">' + esc(ts) + (e.user ? ' · ' + esc(e.user) : '') + '</span>'
           + '</div>';
       });
     }
@@ -1332,7 +1341,7 @@ async function loadCustomerLicenses(accountId) {
     var totalSeats = 0;
     var activeCount = 0;
     subs.forEach(function(s) {
-      var qty = s.Quantity || s.quantity || s.SeatCount || 0;
+      var qty = Number(s.Quantity || s.quantity || s.SeatCount) || 0;
       totalSeats += qty;
       var st = (s.AccountState || s.Status || s.status || '').toLowerCase();
       if (st === 'active' || st === 'completed') activeCount++;
@@ -1368,7 +1377,7 @@ async function loadCustomerLicenses(accountId) {
     subs.forEach(function(s, i) {
       var name = s.ServiceDisplayName || s.ProductName || s.Name || s.SubscriptionName || s.OfferName || '-';
       var vendor = s.VendorDisplayName || s.Vendor || '';
-      var started = s.BillingStartDate ? s.BillingStartDate.slice(0,10) : '-';
+      var started = s.BillingStartDate ? esc(s.BillingStartDate.slice(0,10)) : '-';
       var renews = s.ContractEndDate ? s.ContractEndDate.slice(0,10) : '-';
       var status = s.AccountState || s.Status || s.status || 'Active';
       var statusLower = status.toLowerCase();
@@ -1409,16 +1418,16 @@ async function loadCustomerLicenses(accountId) {
       }
 
       // Days until renewal
-      var renewHtml = renews;
+      var renewHtml = esc(renews);
       if (renews !== '-') {
         var daysLeft = Math.round((new Date(renews) - new Date()) / 86400000);
         var renewColor = daysLeft < 0 ? 'var(--red)' : daysLeft < 30 ? 'var(--orange)' : 'var(--text-muted)';
-        renewHtml = renews + ' <span style="font-size:10px;color:'+renewColor+';">(' + (daysLeft < 0 ? 'expired' : daysLeft + 'd') + ')</span>';
+        renewHtml = esc(renews) + ' <span style="font-size:10px;color:'+renewColor+';">(' + (daysLeft < 0 ? 'expired' : daysLeft + 'd') + ')</span>';
       }
 
       var termColor = termLabel === 'Monthly' ? 'var(--blue)' : termLabel === 'Annual' ? 'var(--purple)' : 'var(--text-muted)';
 
-      var qty = s.Quantity || s.quantity || s.SeatCount || 0;
+      var qty = Number(s.Quantity || s.quantity || s.SeatCount) || 0;
 
       html += '<tr style="background:' + rowBg + ';border-bottom:1px solid var(--border);cursor:pointer;" data-click-handler="alsoToggleSubDetail" data-sub-id="'+esc(subId)+'">'
         + '<td style="padding:var(--space-3) var(--space-4);font-weight:500;">' + esc(name) + '</td>'
@@ -1430,7 +1439,7 @@ async function loadCustomerLicenses(accountId) {
         + '<td style="padding:var(--space-3) var(--space-4);text-align:center;"><span style="display:inline-block;padding:2px 10px;border-radius:var(--radius-full);font-size:var(--font-xs);font-weight:600;color:#fff;background:' + statusColor + ';">' + esc(status) + '</span></td>'
         + '</tr>';
       // Detail row (hidden by default, loaded on click)
-      html += '<tr id="also-sub-'+subId+'" style="display:none;"><td colspan="7" style="padding:0;"></td></tr>';
+      html += '<tr id="also-sub-'+esc(subId)+'" style="display:none;"><td colspan="7" style="padding:0;"></td></tr>';
     });
 
     html += '</tbody></table></div>';
@@ -1480,11 +1489,19 @@ async function loadUnifiedDashboard() {
     + '</div>';
 
   // ── Integration chips ──
+  // Where a chip or an action button leads. Callers name an entry, so the
+  // attribute markup stays in this table and never travels with data.
+  var _cdClicks = {
+    home: 'data-click-handler="showView" data-view="home"',
+    audit: 'data-click-handler="showView" data-view="audit"',
+    hosts: 'data-click-handler="showView" data-view="hosts"',
+    licenses: 'data-click-handler="loadCustomerLicensesFromActive"',
+  };
   function _cdChip(name, color, status, opts) {
     opts = opts || {};
-    return '<div class="cd-chip"' + (opts.id ? ' id="'+opts.id+'"' : '') + ' style="border-top-color:'+color+';' + (opts.clickAttrs ? 'cursor:pointer;' : '') + '"' + (opts.clickAttrs ? ' '+opts.clickAttrs : '') + '>'
+    return '<div class="cd-chip"' + (opts.id ? ' id="'+esc(opts.id)+'"' : '') + ' style="border-top-color:'+esc(color)+';' + (opts.click ? 'cursor:pointer;' : '') + '"' + (opts.click ? ' '+_cdClicks[opts.click] : '') + '>'
       + '<div class="cd-chip-name">'+esc(name)+'</div>'
-      + '<div class="cd-chip-status" style="color:'+color+';">'+esc(status)+'</div></div>';
+      + '<div class="cd-chip-status" style="color:'+esc(color)+';">'+esc(status)+'</div></div>';
   }
   var _m365c = 'var(--text-dim)', _m365l = t('st_not_configured');
   if (d.m365 && d.m365.TenantId) { _m365c = 'var(--green)'; _m365l = t('st_configured'); }
@@ -1509,11 +1526,11 @@ async function loadUnifiedDashboard() {
   var _sshl = _sshN ? _sshN + ' ' + t('lbl_hosts_short') : t('st_none');
   if (_failed('ssh_hosts')) { _sshc = 'var(--orange)'; _sshl = t('st_read_failed'); }
   html += '<div class="cd-chips">'
-    + _cdChip('M365', _m365c, _m365l, {clickAttrs:'data-click-handler="showView" data-view="home"'})
+    + _cdChip('M365', _m365c, _m365l, {click:'home'})
     + _cdChip('FortiGate', _fgc, _fgl)
     + _cdChip('UniFi', _ufc, _ufl)
-    + _cdChip('ALSO', _aoc, _aol, {clickAttrs:'data-click-handler="loadCustomerLicensesFromActive"'})
-    + _cdChip(t('lbl_ssh_hosts'), _sshc, _sshl, {clickAttrs:'data-click-handler="showView" data-view="hosts"'})
+    + _cdChip('ALSO', _aoc, _aol, {click:'licenses'})
+    + _cdChip(t('lbl_ssh_hosts'), _sshc, _sshl, {click:'hosts'})
     + _cdChip('Hosting', 'var(--text-dim)', t('st_loading','Laster…'), {id:'unified-uniweb-status'})
     + '</div>';
 
@@ -1539,10 +1556,10 @@ async function loadUnifiedDashboard() {
 
   // ── «Krever handling» — cross-source findings, actioned where the decision is made ──
   var _find = [];
-  if ((a.users_no_mfa || 0) > 0) _find.push({sev:'crit', text: t('find_users_no_mfa').replace('{count}', a.users_no_mfa), src:t('src_m365_audit'), label:t('lbl_see_audit'), clickAttrs:'data-click-handler="showView" data-view="audit"'});
-  if (d.m365 && d.m365.secret_days_left != null && d.m365.secret_days_left <= 60) _find.push({sev: d.m365.secret_days_left <= 14 ? 'crit' : 'warn', text: t('find_secret_expiring').replace('{days}', d.m365.secret_days_left), src:'M365', label:'M365-status', clickAttrs:'data-click-handler="showView" data-view="home"'});
-  if (d.also && d.also.expired > 0) _find.push({sev:'crit', text: t('find_subs_expired').replace('{count}', d.also.expired), src:'ALSO', label:t('lbl_see_subscriptions'), clickAttrs:'data-click-handler="loadCustomerLicensesFromActive"'});
-  if (d.also && d.also.expiring_90d > 0) _find.push({sev:'warn', text: t('find_subs_expiring').replace('{count}', d.also.expiring_90d), src:'ALSO', label:t('lbl_see_subscriptions'), clickAttrs:'data-click-handler="loadCustomerLicensesFromActive"'});
+  if ((a.users_no_mfa || 0) > 0) _find.push({sev:'crit', text: t('find_users_no_mfa').replace('{count}', a.users_no_mfa), src:t('src_m365_audit'), label:t('lbl_see_audit'), click:'audit'});
+  if (d.m365 && d.m365.secret_days_left != null && d.m365.secret_days_left <= 60) _find.push({sev: d.m365.secret_days_left <= 14 ? 'crit' : 'warn', text: t('find_secret_expiring').replace('{days}', d.m365.secret_days_left), src:'M365', label:'M365-status', click:'home'});
+  if (d.also && d.also.expired > 0) _find.push({sev:'crit', text: t('find_subs_expired').replace('{count}', d.also.expired), src:'ALSO', label:t('lbl_see_subscriptions'), click:'licenses'});
+  if (d.also && d.also.expiring_90d > 0) _find.push({sev:'warn', text: t('find_subs_expiring').replace('{count}', d.also.expiring_90d), src:'ALSO', label:t('lbl_see_subscriptions'), click:'licenses'});
   if (_find.length) {
     html += '<div class="cd-action-band"><div class="cd-action-title">' + esc(t('hdr_needs_action')) + '</div>';
     _find.forEach(function(f) {
@@ -1550,7 +1567,7 @@ async function loadUnifiedDashboard() {
       html += '<div class="cd-action-row"><span class="cd-dot" style="background:'+_dc+';"></span>'
         + '<span class="cd-action-text">'+esc(f.text)+'</span>'
         + '<span class="cd-action-src">'+esc(f.src)+'</span>'
-        + '<button class="cd-action-btn" '+f.clickAttrs+'>'+esc(f.label)+'</button></div>';
+        + '<button class="cd-action-btn" '+_cdClicks[f.click]+'>'+esc(f.label)+'</button></div>';
     });
     html += '</div>';
   }
@@ -1568,8 +1585,8 @@ async function loadUnifiedDashboard() {
       + '<div class="cd-stat"><div class="n">'+Math.round(a.risk_score||0)+'</div><div class="l">' + t('risikoscore') + '</div></div>'
       + '<div class="cd-stat"><div class="n" style="color:'+_ssc+';">'+Math.round(a.secure_score_pct||0)+'%</div><div class="l">' + t('secure_score_3') + '</div></div>'
       + '<div class="cd-stat"><div class="n" style="color:'+_mfc+';">'+Math.round(a.mfa_coverage_pct||0)+'%</div><div class="l">MFA</div></div>'
-      + '<div class="cd-stat"><div class="n">'+(a.total_users||0)+'</div><div class="l">' + t('brukere') + '</div></div>'
-      + '<div class="cd-stat"><div class="n" style="color:'+_nmc+';">'+(a.users_no_mfa||0)+'</div><div class="l">' + t('uten_mfa') + '</div></div>'
+      + '<div class="cd-stat"><div class="n">'+(Number(a.total_users)||0)+'</div><div class="l">' + t('brukere') + '</div></div>'
+      + '<div class="cd-stat"><div class="n" style="color:'+_nmc+';">'+(Number(a.users_no_mfa)||0)+'</div><div class="l">' + t('uten_mfa') + '</div></div>'
       + '</div></div>';
   }
 
@@ -1578,11 +1595,11 @@ async function loadUnifiedDashboard() {
       + '<span>' + t('domene_2') + ' <b class="mono">'+esc(d.domain||'-')+'</b></span>';
     if (d.m365.secret_days_left != null) {
       var _sc = (d.m365.secret_status==='expired'||d.m365.secret_status==='critical') ? 'var(--red)' : d.m365.secret_status==='warning' ? 'var(--orange)' : 'var(--green)';
-      _cred += '<span>' + t('secret_utloeper') + ' <b style="color:'+_sc+';">'+d.m365.secret_days_left+' d</b></span>';
+      _cred += '<span>' + t('secret_utloeper') + ' <b style="color:'+_sc+';">'+Number(d.m365.secret_days_left)+' d</b></span>';
     }
     if (d.m365.cert_days_left != null) {
       var _cc2 = (d.m365.cert_status==='expired'||d.m365.cert_status==='critical') ? 'var(--red)' : d.m365.cert_status==='warning' ? 'var(--orange)' : 'var(--green)';
-      _cred += '<span>' + t('sertifikat_utloeper') + ' <b style="color:'+_cc2+';">'+d.m365.cert_days_left+' d</b></span>';
+      _cred += '<span>' + t('sertifikat_utloeper') + ' <b style="color:'+_cc2+';">'+Number(d.m365.cert_days_left)+' d</b></span>';
     }
     html += '<div class="cd-card"><div class="cd-card-title">' + t('m_legitimasjon') + '</div><div class="cd-creds">'+_cred+'</div></div>';
   }
@@ -1593,11 +1610,11 @@ async function loadUnifiedDashboard() {
     var _rens = d.also.renewals;
     var _crit = _rens.filter(function(r){ return r.days_left != null && r.days_left <= 90; }).sort(function(x,y){ return (x.days_left||0) - (y.days_left||0); });
     var _restN = _rens.filter(function(r){ return r.days_left == null || r.days_left > 90; }).length;
-    html += '<div class="cd-card"><div class="cd-card-title">' + t('abonnementer_2') + ' <span class="sub">'+_rens.length+' totalt'+(d.also.mrr > 0 ? ' · MRR '+d.also.mrr.toFixed(0)+' '+(d.also.currency||'kr') : '')+'</span></div>';
+    html += '<div class="cd-card"><div class="cd-card-title">' + t('abonnementer_2') + ' <span class="sub">'+_rens.length+' totalt'+(d.also.mrr > 0 ? ' · MRR '+d.also.mrr.toFixed(0)+' '+esc(d.also.currency||'kr') : '')+'</span></div>';
     if (_crit.length) {
       _crit.forEach(function(r, i) {
         var _dc = r.days_left < 0 ? 'var(--red)' : r.days_left <= 30 ? 'var(--red)' : 'var(--orange)';
-        var _dl = r.days_left < 0 ? t('st_expired') : r.days_left + ' d';
+        var _dl = r.days_left < 0 ? t('st_expired') : Number(r.days_left) + ' d';
         html += '<div class="cd-row'+(i === 0 ? ' first' : '')+'"><span class="grow">'+esc(r.service_display)+'</span><span class="vendor">'+esc(r.vendor||'')+'</span><span class="days" style="color:'+_dc+';">'+_dl+'</span></div>';
       });
     } else {
@@ -1670,8 +1687,8 @@ async function _unifiedLoadUniwebCard(custId) {
     // Section divider helper
     function _uwSection(icon, title) {
       return '<div style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);">'
-        + '<span style="font-size:14px;opacity:0.7;">' + icon + '</span>'
-        + '<span>' + title + '</span></div>';
+        + '<span style="font-size:14px;opacity:0.7;">' + esc(icon) + '</span>'
+        + '<span>' + esc(title) + '</span></div>';
     }
 
     var h = '';
@@ -1686,7 +1703,7 @@ async function _unifiedLoadUniwebCard(custId) {
     h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">';
     h += '<div style="font-size:11px;color:var(--text-muted);">' + esc(uw.account_name) + (uw.account_id ? ' \u00b7 ID: ' + esc(uw.account_id) : '') + '</div>';
     if (uw.last_sync) {
-      h += '<div style="font-size:10px;color:var(--text-dim);" title="' + esc(new Date(uw.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO')) + '">' + t('lbl_last_updated','Sist oppdatert') + ': ' + _uwRelativeTime(uw.last_sync) + '</div>';
+      h += '<div style="font-size:10px;color:var(--text-dim);" title="' + esc(new Date(uw.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO')) + '">' + t('lbl_last_updated','Sist oppdatert') + ': ' + esc(_uwRelativeTime(uw.last_sync)) + '</div>';
     }
     h += '</div></div>';
 
@@ -1965,7 +1982,7 @@ async function uwToggleDns(row, domain) {
         dnsHtml += '<td style="padding:2px 6px;">' + esc(r.hostname) + '</td>';
         dnsHtml += '<td style="text-align:center;padding:2px 6px;"><span style="color:' + typeColor + ';font-weight:600;background:' + typeBg + ';padding:1px 6px;border-radius:3px;font-size:9px;">' + esc(r.type) + '</span></td>';
         dnsHtml += '<td style="padding:2px 6px;font-family:var(--mono);font-size:9px;word-break:break-all;">' + esc(r.value) + '</td>';
-        dnsHtml += '<td style="text-align:right;padding:2px 6px;color:var(--text-dim);">' + r.ttl + '</td></tr>';
+        dnsHtml += '<td style="text-align:right;padding:2px 6px;color:var(--text-dim);">' + Number(r.ttl) + '</td></tr>';
       });
       dnsHtml += '</tbody></table>';
     } else {
