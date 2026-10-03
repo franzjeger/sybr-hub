@@ -56,3 +56,58 @@ async def test_every_inbound_and_outbound_connector_counts(tmp_path):
     text = files["22_exchange_connectors.txt"]
     assert "Name: Fra skanner" in text and "Direction: Inbound" in text
     assert "Name: Til arkiv" in text and "Direction: Outbound" in text
+
+
+# ── Mailbox forwarding ────────────────────────────────────────────────────────
+
+# 51 characters, in a verified domain. Cut to the 45-character column it ends
+# "@subsidiary.acme.e", which no tenant has verified.
+LONG_INTERNAL = "smtp:kari.nordmann.regnskap@subsidiary.acme.example"
+assert len(LONG_INTERNAL) > 45
+
+
+def _forward(name: str, target: str, *, keep_copy: bool = False) -> dict:
+    """One mailbox as the helper's forwarding block writes it."""
+    local = name.split()[0].lower()
+    return {
+        "DisplayName": name,
+        "PrimarySmtpAddress": f"{local}@acme.example",
+        "ForwardingAddress": None,
+        "ForwardingSmtp": target,
+        "DeliverAndForward": keep_copy,
+    }
+
+
+async def test_a_long_address_in_a_verified_domain_is_not_external(tmp_path):
+    exo = {
+        "forwarding": [
+            _forward("Kari Nordmann", LONG_INTERNAL, keep_copy=True),
+            _forward("Ola Nordmann", "smtp:ola@mail.example"),
+        ]
+    }
+    files, section = await _collect(
+        tmp_path, exo, domains=("acme.example", "subsidiary.acme.example")
+    )
+
+    warn = files["28b_exchange_external_forwarding_WARN.txt"]
+    assert "Ola Nordmann" in warn
+    assert "Kari Nordmann" not in warn, "forwarding inside the tenant is not external"
+    assert any("1 mailbox(es) forwarding to external" in w for w in section.result.warns)
+
+
+async def test_the_external_column_says_whether_the_target_is_external(tmp_path):
+    """It showed DeliverToMailboxAndForward under the heading External."""
+    exo = {
+        "forwarding": [
+            _forward("Kari Nordmann", "smtp:kari@acme.example", keep_copy=True),
+            _forward("Ola Nordmann", "smtp:ola@mail.example", keep_copy=False),
+        ]
+    }
+    files, _ = await _collect(tmp_path, exo)
+
+    rows = {
+        line.split()[0]: line.split()[-1]
+        for line in files["28_exchange_mailbox_forwarding.txt"].splitlines()
+        if "Nordmann" in line
+    }
+    assert rows == {"Kari": "No", "Ola": "Yes"}
