@@ -70,7 +70,7 @@ def test_static_shells_have_no_inline_script_or_style_elements():
 
 def test_no_inline_event_handlers_in_markup_or_scripts():
     """The CSP runs none of them: a control with onclick="..." does nothing.
-    Name a registered handler instead (data-click-handler, see app.js)."""
+    Name a registered handler instead (data-click-handler, see app-handlers.js)."""
     offenders = []
     for path in [*STATIC.glob("*.html"), *SCRIPTS]:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -110,7 +110,7 @@ def test_ui_handlers_are_an_explicit_registered_map():
     """Markup names a handler; only names registered as function literals in a
     registerUiHandlers({...}) map can be called. Nothing evaluates an attribute
     or looks a name up on window."""
-    javascript = (STATIC / "app.js").read_text(encoding="utf-8")
+    javascript = (STATIC / "app-handlers.js").read_text(encoding="utf-8")
     dispatcher = javascript[javascript.index("function _dispatchUiEvent") :]
     dispatcher = dispatcher[: dispatcher.index("\n}\n")]
     assert "_uiHandlers[name]" in dispatcher

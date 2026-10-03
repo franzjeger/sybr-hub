@@ -2,8 +2,7 @@
 // The application CSP has no script-src-attr 'unsafe-inline', so an inline
 // event handler (onclick="…") in index.html or in markup a script builds is
 // blocked by the browser: the control silently does nothing. Controls name a
-// registered handler in a data attribute instead (see "Event handlers without
-// inline JavaScript" in app/web/static/app.js). This check fails on:
+// registered handler in a data attribute instead (see app/web/static/app-handlers.js). This check fails on:
 //
 //   - an on*= attribute in a static HTML file or in a string a script builds
 //     markup from, setAttribute('on…'), or a javascript: URL;
@@ -41,11 +40,11 @@ function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
 }
 
-// The event types the dispatcher in app.js listens to.
+// The event types the dispatcher in app-handlers.js listens to.
 function dispatchedEvents() {
-  const text = fs.readFileSync(path.join(STATIC_DIR, 'app.js'), 'utf8');
+  const text = fs.readFileSync(path.join(STATIC_DIR, 'app-handlers.js'), 'utf8');
   const match = /var UI_HANDLER_EVENTS = Object\.freeze\(\[([^\]]*)\]\)/.exec(text);
-  if (!match) throw new Error('UI_HANDLER_EVENTS is missing from app.js');
+  if (!match) throw new Error('UI_HANDLER_EVENTS is missing from app-handlers.js');
   return new Set([...match[1].matchAll(/'([a-z]+)'/g)].map(m => m[1]));
 }
 
@@ -154,7 +153,7 @@ function main() {
 
   for (const problem of problems) console.error(problem);
   if (problems.length) {
-    console.error(`${problems.length} inline-handler problem(s). The CSP blocks inline handlers; see app/web/static/app.js.`);
+    console.error(`${problems.length} inline-handler problem(s). The CSP blocks inline handlers; see app/web/static/app-handlers.js.`);
     process.exit(1);
   }
   console.log(`No inline event handlers; ${registered.size} registered UI handlers, all used`);

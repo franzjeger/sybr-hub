@@ -1,0 +1,74 @@
+// ═══════════════════════════════════════════════════════════════════
+// FORMATTING: figures, run names, dates and sizes as a person reads them
+// ═══════════════════════════════════════════════════════════════════
+
+// A metric that was never measured is null, not undefined — SQLite NULL comes
+// through JSON as null, and `null !== undefined` is true. Every guard here
+// used that test, so an unmeasured figure reached .toFixed and threw "Cannot
+// read properties of null". That became reachable the moment sections started
+// reporting "not measured" instead of a zero, which is the whole point of
+// them: intune_compliance_pct is null on any tenant without Intune.
+function metricPct(value, digits) {
+  if (value === null || value === undefined || value === '' || isNaN(value)) return null;
+  return Number(value).toFixed(digits === undefined ? 0 : digits);
+}
+
+// The same rule for counts. A run that did not count users without MFA has
+// no such key in its metrics, and `Number(undefined) || 0` turned that into a
+// reassuring zero printed right under a finding about an admin without MFA.
+// Unmeasured reads "ukjent" on every card that shows the figure.
+function metricKnown(value) {
+  return !(value === null || value === undefined || value === '' || isNaN(value));
+}
+function metricCount(value) {
+  return metricKnown(value) ? String(Number(value)) : t('lbl_unknown_value', 'ukjent');
+}
+
+// Run folders are named "YYYY-MM-DD_HHMMSS" (older ones "YYYY-MM-DD_HHMM",
+// some with a suffix after). That name is for the file system; a person reads
+// the date and time. Returns the input unchanged when it is not a run name.
+// `short` gives the date alone in a compact form, for tables and lists.
+function formatRunName(name, short) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})(?:[_T ](\d{2}):?(\d{2}))?/.exec(String(name || ''));
+  if (!m) return String(name || '');
+  var locale = _lang === 'en' ? 'en-GB' : 'nb-NO';
+  var date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (isNaN(date.getTime())) return String(name);
+  if (short) return date.toLocaleDateString(locale, {day: 'numeric', month: 'short', year: 'numeric'});
+  var day = date.toLocaleDateString(locale, {day: 'numeric', month: 'long', year: 'numeric'});
+  if (!m[4]) return day;
+  return t('fmt_run_date_time', '{date} kl. {time}').replace('{date}', day).replace('{time}', m[4] + ':' + m[5]);
+}
+
+// "Auditert i dag" / "Auditert for 3 d siden" from a run name, for the
+// context bar. One function, because two places wrote that element.
+function auditAgeLabel(name) {
+  var date = new Date(String(name || '').substring(0, 10));
+  var days = Math.floor((Date.now() - date.getTime()) / 86400000);
+  if (isNaN(days) || days < 0) return t('lbl_audited_on', 'Auditert {date}').replace('{date}', formatRunName(name, true));
+  return days === 0 ? t('ctx_audited_today', 'Auditert i dag') : t('ctx_audited_days_ago', 'Auditert for {n} d siden').replace('{n}', days);
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  try {
+    var d = new Date(dateStr);
+    var now = Date.now();
+    var diff = Math.floor((now - d.getTime()) / 1000);
+    if (diff < 60) return t('time_just_now','just now');
+    if (diff < 3600) return Math.floor(diff/60) + ' ' + t('time_min_ago','min ago');
+    if (diff < 86400) return Math.floor(diff/3600) + ' ' + t('time_hours_ago','hours ago');
+    if (diff < 604800) return Math.floor(diff/86400) + ' ' + t('time_days_ago','days ago');
+    return d.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'nb-NO', {day:'2-digit',month:'short'});
+  } catch(e) { return dateStr; }
+}
+
+// app-customer-detail.js used to declare a second _formatBytes; this is the
+// one kept.
+function _formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  var units = ['B','KB','MB','GB','TB'];
+  var i = Math.floor(Math.log(bytes) / Math.log(1024));
+  if (i >= units.length) i = units.length - 1;
+  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}

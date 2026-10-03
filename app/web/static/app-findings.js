@@ -167,9 +167,9 @@ function _findingsNotices(d) {
     var s = integ[sys] || {};
     if (s.configured && !s.linked) {
       out += '<div class="findings-notice">'
-        + '<span>' + esc(t('msg_link_to_push_' + sys, sys === 'autotask'
-          ? 'Koble kunden til Autotask for å lage saker av funnene.'
-          : 'Koble kunden til myITprocess for å legge funn til planleggingen.')) + '</span>'
+        + '<span>' + esc(sys === 'autotask'
+          ? t('msg_link_to_push_autotask', 'Koble kunden til Autotask for å lage saker av funnene.')
+          : t('msg_link_to_push_myitprocess', 'Koble kunden til myITprocess for å legge funn til planleggingen.')) + '</span>'
         + '<button class="btn btn-default btn-sm" data-action="link" data-system="' + esc(sys) + '">'
         + esc(t('btn_link_system', 'Koble til {system}').replace('{system}', _LINK_SYSTEMS[sys].label)) + '</button>'
         + '</div>';

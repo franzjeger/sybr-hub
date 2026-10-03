@@ -19,6 +19,6 @@ def test_frontend_does_not_put_access_token_in_websocket_url():
 
 
 def test_old_persisted_tokens_are_removed_during_upgrade():
-    app_js = (STATIC / "app.js").read_text()
+    app_js = (STATIC / "app-api.js").read_text()
     assert "localStorage.removeItem('msptk_token')" in app_js
     assert "localStorage.removeItem('msptk_refresh')" in app_js
