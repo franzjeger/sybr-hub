@@ -17,6 +17,22 @@
 
 ---
 
+# English reports and network finding ids (unreleased)
+
+- **An English report is English throughout.** The CIS details, the
+  "cannot be verified" lines, the score's missing-data notes, the standard's
+  requirements and the network section were Norwegian in English reports.
+  Reports regenerated from older runs read differently in English; the
+  Norwegian text is unchanged.
+- **Each unreadable network file has its own recommendation id.** Database
+  migration 25 moves remediation status, tickets and reserved ticket
+  operations recorded under the shared id to the file's own id on start-up,
+  using the runs and ticket titles to tell which file it was. A status
+  nothing ties to a file stays under the old id and the finding reads as
+  open; set it again. Nothing is deleted.
+
+---
+
 # Forwarding, DKIM and Advisor ids (unreleased)
 
 - **Run a new audit before trusting the forwarding findings.** Inbox rules and
