@@ -34,14 +34,13 @@ from app.reports.parsers import (
     _is_audit_relevant_domain,
     _parse_banner_count,
 )
-from app.reports.parsers.common import _sidecar
-from app.reports.parsers.collaboration import _onedrive_scan
 from app.reports.parsers.collaboration import (
     _app_credential_counts,
     _onedrive_scan,
     _teams_cross_tenant,
     _teams_guest_settings,
 )
+from app.reports.parsers.common import _sidecar
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
