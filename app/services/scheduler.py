@@ -350,8 +350,14 @@ async def _do_alert_check() -> str:
     try:
         from app.services.alert_engine import run_alert_check
 
-        result = await run_alert_check()
-        alerts_found = result.get("alerts_sent", 0) if isinstance(result, dict) else 0
+        result = await run_alert_check(scheduled=True)
+        # The engine reports new alerts and the channels that took them; it
+        # never had an "alerts_sent" key, so this line always logged 0.
+        alerts_found = (
+            result.get("new_alerts", 0)
+            if isinstance(result, dict) and result.get("channels_notified")
+            else 0
+        )
     except ImportError:
         alerts_found = 0
     except Exception as e:
