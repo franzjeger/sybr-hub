@@ -1,13 +1,18 @@
-"""Serve the repo's docs/ markdown files to the in-app Docs viewer.
+"""Serve the documents a person using the app reads to the in-app Docs view.
 
-The frontend Docs tab fetches:
-  GET /api/docs/list           -> tree of available *.md files
-  GET /api/docs/file?path=...  -> raw markdown for a specific file
+The frontend Docs view fetches:
+  GET /api/docs/list           -> the documents on offer
+  GET /api/docs/file?path=...  -> raw markdown for one of them
 
-Path traversal is prevented by:
-  * resolving the requested path relative to the docs/ root
-  * rejecting anything that escapes the docs/ root
-  * rejecting anything that isn't a .md file
+On offer: the user guide when the build has one, and the changelog. The
+view used to list every file under docs/, so a technician opening
+"Dokumentasjon" met ARCHITECTURE, TODO and CRITICAL REVIEW CHECKLIST: the
+repository's working notes, written for whoever changes the code. Those stay
+in the repository, where that reader already is.
+
+A request names a document from the list; anything else is not found.
+Before that lookup the path is still refused when it is empty, escapes the
+docs/ root or is not a .md file, so a malformed request keeps its message.
 
 Auth: any authenticated user. Docs aren't sensitive but they describe
 the system to a degree we don't want to expose unauthenticated.
@@ -32,6 +37,13 @@ router = APIRouter()
 # Repo layout: app/web/routes/docs.py -> app/web/routes -> app/web -> app -> repo
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _DOCS_ROOT = _REPO_ROOT / "docs"
+
+# The documents the view offers, by the name the interface asks for, with
+# the key it translates the title from. Listed in this order when present.
+_USER_DOCUMENTS: dict[str, tuple[str, Path]] = {
+    "USER_GUIDE.md": ("guide", _DOCS_ROOT / "USER_GUIDE.md"),
+    "CHANGELOG.md": ("changelog", _REPO_ROOT / "CHANGELOG.md"),
+}
 
 # Image assets served via /docs/asset. Executable or ambiguous types are
 # intentionally excluded — this endpoint is for diagrams and illustrations
@@ -76,54 +88,28 @@ def _safe_asset_path(rel: str) -> Path:
     return candidate
 
 
-def _node(path: Path) -> dict:
-    """Recursive directory tree node. Files only — empty dirs collapsed out."""
-    if path.is_file():
-        return {
-            "type": "file",
-            "name": path.name,
-            "path": str(path.relative_to(_DOCS_ROOT)),
-        }
-    children: list[dict] = []
-    md_files = sorted(p for p in path.iterdir() if p.is_file() and p.suffix == ".md")
-    sub_dirs = sorted(p for p in path.iterdir() if p.is_dir() and not p.name.startswith("."))
-    # README first, then other md files, then sub-directories.
-    md_files.sort(key=lambda p: (p.name.lower() != "readme.md", p.name.lower()))
-    for f in md_files:
-        children.append(_node(f))
-    for d in sub_dirs:
-        sub = _node(d)
-        if sub.get("children"):
-            children.append(sub)
-    return {
-        "type": "dir",
-        "name": path.name,
-        "path": str(path.relative_to(_DOCS_ROOT)) if path != _DOCS_ROOT else "",
-        "children": children,
-    }
-
-
 @router.get("/docs/list")
 async def docs_list(user: User = Depends(get_current_user)):
-    """Return the tree of *.md files under docs/.
+    """Return the documents on offer, as a one-level tree.
 
-    ``docs/`` lives at the repository root and is not package data, so a wheel
-    or container install does not carry it. An empty tree rendered as an empty
-    Docs tab, which is indistinguishable from "this build ships no
-    documentation" — so the absence is reported rather than drawn.
+    The documents live in the repository, not in package data, so a wheel
+    install may carry none. An empty list rendered as an empty Docs view,
+    which reads as "there are no documents" — so the absence is reported
+    rather than drawn.
     """
-    empty = {"type": "dir", "name": "docs", "path": "", "children": []}
-    if not _DOCS_ROOT.exists():
+    children = [
+        {"type": "file", "name": name, "path": name, "key": key}
+        for name, (key, path) in _USER_DOCUMENTS.items()
+        if path.is_file()
+    ]
+    root = {"type": "dir", "name": "docs", "path": "", "children": children}
+    if not children:
         # 200, not 503: the SPA's generic handler turns any 5xx into a retry
         # toast and two more requests, which is the wrong answer for a state
         # that will never change without a redeploy. The flag is what the Docs
-        # tab reads to say so in one line.
-        return {"root": empty, "available": False, "reason": "not_packaged"}
-    try:
-        return {"root": _node(_DOCS_ROOT), "available": True}
-    except Exception as e:
-        logger.warning("Failed to build docs tree: %s", e)
-        return {"root": empty, "available": False, "reason": "unreadable"}
+        # view reads to say so in one line.
+        return {"root": root, "available": False, "reason": "not_packaged"}
+    return {"root": root, "available": True}
 
 
 @router.get("/docs/file")
@@ -131,12 +117,14 @@ async def docs_file(
     path: str = Query(..., description="Path relative to docs/ root"),
     user: User = Depends(get_current_user),
 ):
-    """Return the raw markdown of one doc file."""
-    p = _safe_path(path)
-    if not p.exists() or not p.is_file():
+    """Return the raw markdown of one document the list offers."""
+    _safe_path(path)
+    entry = _USER_DOCUMENTS.get(path)
+    p = entry[1] if entry else None
+    if p is None or not p.is_file():
         raise refusal(NotFoundError, "err_docs_not_found", path=path)
     return {
-        "path": str(p.relative_to(_DOCS_ROOT)),
+        "path": path,
         "name": p.name,
         "content": p.read_text(encoding="utf-8"),
         "size": p.stat().st_size,

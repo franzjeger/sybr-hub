@@ -63,11 +63,22 @@ def _files(node) -> list[str]:
     return out
 
 
-def test_the_list_offers_the_repo_docs(client, auth_headers):
+def test_the_list_offers_what_a_user_reads_and_not_the_repo_notes(client, auth_headers):
+    """The view is for people using the app: the changelog (and a user guide
+    when one exists), not ARCHITECTURE, TODO or the review checklist."""
     r = client.get("/api/docs/list", headers=auth_headers)
     assert r.status_code == 200, r.text
     names = _files(r.json()["root"])
-    assert "ARCHITECTURE.md" in names, names
+    assert "CHANGELOG.md" in names, names
+    for internal in ("ARCHITECTURE.md", "TODO.md", "CRITICAL_REVIEW_CHECKLIST.md"):
+        assert internal not in names, names
+
+
+def test_a_developer_document_cannot_be_opened_by_name(client, auth_headers):
+    r = client.get("/api/docs/file", params={"path": "TODO.md"}, headers=auth_headers)
+    assert r.status_code == 404, r.text
+    r = client.get("/api/docs/file", params={"path": "../README.md"}, headers=auth_headers)
+    assert r.status_code == 400, r.text
 
 
 def test_every_listed_document_can_actually_be_opened(client, auth_headers):

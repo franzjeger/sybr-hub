@@ -309,14 +309,17 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#scope-body')).toBeHidden();
   });
 
-  test('docs: the repository tab loads and opens a document', async () => {
+  test('docs: the tabs switch and the changelog opens, not the repository notes', async () => {
     await openView(page, 'docs');
+    await page.locator('[data-click-handler="switchDocsTab"][data-tab="docs-api"]').click();
+    await expect(page.locator('#docs-api')).toBeVisible();
     await page.locator('[data-click-handler="switchDocsTab"][data-tab="docs-repo"]').click();
-    const file = page.locator('#docs-repo [data-click-handler="docsRepoOpen"]').first();
-    await expect(file).toBeVisible();
-    await file.click();
-    // The open document's entry is highlighted once it has loaded.
-    await expect(file).toHaveCSS('background-color', 'rgba(77, 159, 181, 0.18)');
-    await expect(page.locator('#docs-repo-content')).not.toContainText(/Kunne ikke/);
+    const content = page.locator('#docs-repo-content');
+    // The one document on offer opens by itself; with nothing to choose
+    // between there is no list.
+    await expect(content.locator('h1').first()).toHaveText('Endringslogg');
+    await expect(page.locator('#docs-repo-tree')).toBeHidden();
+    await expect(content).not.toContainText(/Kunne ikke/);
+    await expect(page.locator('#view-docs')).not.toContainText(/ARCHITECTURE|CRITICAL REVIEW/);
   });
 });

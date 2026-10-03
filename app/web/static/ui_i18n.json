@@ -630,8 +630,6 @@
     "settings_logo_hint": "PNG, JPG eller SVG. Vises i rapporter og brev. Maks 5 MB.",
     "settings_show_log_tab": "Vis Feilsøking-fane i navigasjonsmenyen",
     "settings_log_tab_hint": "Gir tilgang til applikasjonslogg for feilsøking. Kan skjules igjen her.",
-    "settings_show_docs_tab": "Vis Dokumentasjon-fane i navigasjonsmenyen",
-    "settings_docs_tab_hint": "Teknisk dokumentasjon: arkitektur, tillatelser, audit-seksjoner, autentisering.",
     "settings_send_auto_email": "Send rapport automatisk etter audit",
     "settings_scheduler_enabled": "Aktiver automatisk audit",
     "settings_scheduler_audit_all": "Kjør audit for alle kunder",
@@ -1743,7 +1741,6 @@
     "msg_click_load_renewals": "Klikk for å laste fornyelsesdata",
     "msg_not_configured": "Ikke konfigurert",
     "msg_loading_ellipsis": "Laster …",
-    "msg_select_file_in_tree": "← Velg en fil i treet til venstre.",
     "hdr_rest_endpoints": "REST API-endepunkter",
     "api_group_auth": "Auth",
     "api_group_customers": "Kunder",
@@ -1838,7 +1835,6 @@
     "uniweb_passord": "Uniweb-passord",
     "client_secret": "Client secret",
     "varsler_firma_no": "varsler@firma.no",
-    "browse_the_documentation_shipped_with": "Browse the documentation shipped with this version",
     "rest_api_endpoints_reference": "REST API endpoints reference",
     "openapi_swagger_ui": "OpenAPI / Swagger UI",
     "msp_toolkit_integrasjoner_og_dataflyt": "Sybr HUB: integrasjoner og dataflyt",
@@ -3023,7 +3019,9 @@
     "lbl_std_unmeasured": "ikke målt",
     "lbl_std_unknown": "Ukjent, ikke samlet inn",
     "ctx_audited_today": "Auditert i dag",
-    "ctx_audited_days_ago": "Auditert for {n} d siden"
+    "ctx_audited_days_ago": "Auditert for {n} d siden",
+    "docs_title_changelog": "Endringslogg",
+    "docs_title_guide": "Brukerveiledning"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -3656,8 +3654,6 @@
     "settings_logo_hint": "PNG, JPG or SVG. Displayed in reports and correspondence. Max 5 MB.",
     "settings_show_log_tab": "Show Troubleshooting tab in navigation menu",
     "settings_log_tab_hint": "Provides access to application logs for troubleshooting. Can be hidden again here.",
-    "settings_show_docs_tab": "Show Documentation tab in navigation menu",
-    "settings_docs_tab_hint": "Technical documentation: architecture, permissions, audit sections, authentication.",
     "settings_send_auto_email": "Send report automatically after audit",
     "settings_scheduler_enabled": "Enable automatic audit",
     "settings_scheduler_audit_all": "Run audit for all customers",
@@ -4769,7 +4765,6 @@
     "msg_click_load_renewals": "Click to load renewal data",
     "msg_not_configured": "Not configured",
     "msg_loading_ellipsis": "Loading …",
-    "msg_select_file_in_tree": "← Select a file in the tree on the left.",
     "hdr_rest_endpoints": "REST API endpoints",
     "api_group_auth": "Auth",
     "api_group_customers": "Customers",
@@ -4864,7 +4859,6 @@
     "uniweb_passord": "Uniweb password",
     "client_secret": "Client secret",
     "varsler_firma_no": "alerts@company.com",
-    "browse_the_documentation_shipped_with": "Browse the documentation shipped with this version",
     "rest_api_endpoints_reference": "REST API endpoints reference",
     "openapi_swagger_ui": "OpenAPI / Swagger UI",
     "msp_toolkit_integrasjoner_og_dataflyt": "Sybr HUB — integrations and data flow",
@@ -6049,6 +6043,8 @@
     "lbl_std_unmeasured": "not measured",
     "lbl_std_unknown": "Unknown, not captured",
     "ctx_audited_today": "Audited today",
-    "ctx_audited_days_ago": "Audited {n} d ago"
+    "ctx_audited_days_ago": "Audited {n} d ago",
+    "docs_title_changelog": "Changelog",
+    "docs_title_guide": "User guide"
   }
 }

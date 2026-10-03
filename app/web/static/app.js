@@ -201,7 +201,6 @@ registerUiHandlers({
   hostsLoad: function() { hostsLoad(); },
   toggleLogTabVisibility: function() { toggleLogTabVisibility(); },
   toggleLogAutoRefresh: function() { toggleLogAutoRefresh(); },
-  toggleDocsTabVisibility: function() { toggleDocsTabVisibility(); },
   termModeChanged: function() { termModeChanged(); },
   setLanguage: function(el) { setLanguage(el.value); },
   liveSetInterval: function(el) { liveSetInterval(el.value); },
@@ -1001,7 +1000,7 @@ function hasModule(key) {
 // too, and wiped out whatever the element's own state had decided. The audit
 // badge carries a view gate and hides itself when no audit is running, so
 // every page load un-hid it and announced a run that was not happening —
-// nav-logs, nav-docs and the connection chip are all state-driven the same way.
+// nav-logs and the connection chip are state-driven the same way.
 // Hiding via a class leaves that state untouched, and !important still beats
 // an inline display on the elements a user genuinely may not see.
 function _setGated(el, allowed) {
