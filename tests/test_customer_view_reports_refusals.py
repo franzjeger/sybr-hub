@@ -240,54 +240,8 @@ async def test_real_data_still_comes_through(client):
     assert data["audit"]["users_no_mfa"] == 4
 
 
-# ── The front end has to read it ─────────────────────────────────────────────
-
-
-def test_the_frontend_renders_the_unavailable_block():
-    """A field nothing displays is a field that does not exist.
-
-    Static, because the alternative is a browser. It checks the three things
-    that make the server-side flag reach a person: the field is read, the
-    chips fall back to a failure label, and the band is emitted.
-    """
-    import pathlib
-
-    js = pathlib.Path("app/web/static/app-customer-detail.js").read_text()
-
-    assert "d.unavailable" in js, "the flag is never read"
-    assert "st_read_failed" in js, "chips do not show a failure state"
-    assert "hdr_incomplete_data" in js, "no banner naming what could not be read"
-
-
-def test_the_banner_is_rendered_before_the_findings_band():
-    """Order matters: the findings band is the thing that looks reassuring.
-
-    If "Krever handling" renders above the warning, a reader sees an empty
-    action list first and has already drawn a conclusion.
-    """
-    import pathlib
-
-    js = pathlib.Path("app/web/static/app-customer-detail.js").read_text()
-    banner = js.index("hdr_incomplete_data")
-    findings = js.index("hdr_needs_action")
-    assert banner < findings
-
-
-@pytest.mark.parametrize(
-    "key",
-    [
-        "st_read_failed",
-        "hdr_incomplete_data",
-        "msg_block_unavailable",
-        "blk_audit",
-        "blk_ssh_hosts",
-        "blk_also",
-    ],
-)
-def test_the_new_keys_exist_in_both_languages(key):
-    import json
-    import pathlib
-
-    d = json.loads(pathlib.Path("app/web/static/ui_i18n.json").read_text())
-    assert key in d["no"], f"{key} missing from Norwegian"
-    assert key in d["en"], f"{key} missing from English"
+# ── Who reads it ─────────────────────────────────────────────────────────────
+# The M365-status page that drew these blocks as status chips and an
+# "incomplete data" banner was folded into the customer page's tabs, which
+# read the metrics, hosts and licences through their own endpoints. The
+# endpoint stays an API, so the server half above is what is pinned here.

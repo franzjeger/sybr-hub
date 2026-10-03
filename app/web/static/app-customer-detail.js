@@ -1756,32 +1756,11 @@ async function loadCustomerLicenses(accountId) {
 // ── Hosting card (billing module) ───────────────────────────────────────────
 
 async function _unifiedLoadUniwebCard(custId) {
-  var statusEl = document.getElementById('unified-uniweb-status');
-  var cardEl = document.getElementById('unified-uniweb-card') || document.getElementById('customer-uniweb-panel');
+  var cardEl = document.getElementById('customer-uniweb-panel');
 
   try {
     var uw = await apiFetch('/api/uniweb/customer/' + encodeURIComponent(custId));
-    if (!uw || !uw.matched) {
-      if (statusEl) {
-        statusEl.style.borderTopColor = 'var(--text-dim)';
-        statusEl.querySelector('div:last-child').textContent = t('st_not_linked','Ikke koblet');
-        statusEl.querySelector('div:last-child').style.color = 'var(--text-dim)';
-      }
-      return;
-    }
-
-    // Update status card
-    var uwColor = 'var(--green)';
-    var uwLabel = (uw.domains ? uw.domains.length : 0) + ' ' + t('domener');
-    if (uw.monthly_total > 0) uwLabel += ' \u00b7 ' + uw.monthly_total.toFixed(0) + ' ' + t('kr_mnd');
-    if (statusEl) {
-      statusEl.style.borderTopColor = uwColor;
-      statusEl.querySelector('div:last-child').textContent = uwLabel;
-      statusEl.querySelector('div:last-child').style.color = uwColor;
-    }
-
-    // Build detail card
-    if (!cardEl) return;
+    if (!uw || !uw.matched || !cardEl) return;
 
     // Helper: check if a date string is within N days from now
     function _uwDaysUntil(dateStr) {
@@ -1975,10 +1954,10 @@ async function _unifiedLoadUniwebCard(custId) {
     _loadCustomerAr(custId);
     _loadCustomerEmailDns(custId);
   } catch (e) {
-    if (statusEl) {
-      statusEl.querySelector('div:last-child').textContent = t('lbl_error','Feil');
-      statusEl.querySelector('div:last-child').style.color = 'var(--red)';
-    }
+    // The chip that showed this failure went with the M365-status page; say
+    // it where the card would have been.
+    console.warn('Hosting card load failed:', e);
+    if (cardEl) cardEl.innerHTML = '<div class="alert alert-error">' + esc(t('hosting_uniweb')) + ': ' + esc(t('lbl_error', 'Feil')) + '</div>';
   }
 }
 
