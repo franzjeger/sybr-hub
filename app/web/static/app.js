@@ -165,7 +165,6 @@ registerUiHandlers({
   toggleIntegConfig: function(el) { toggleIntegConfig(el.dataset.config); },
   switchSettingsTab: function(el) { switchSettingsTab(el, el.dataset.tab); },
   switchNetSub: function(el) { switchNetSub(el, el.dataset.tab); },
-  switchIntegTab: function(el) { switchIntegTab(el, el.dataset.tab); },
   switchDashTab: function(el) { switchDashTab(el, el.dataset.tab); },
   switchDocsTab: function(el) {
     switchDocsTab(el, el.dataset.tab);

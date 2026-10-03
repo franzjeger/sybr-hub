@@ -98,8 +98,6 @@ function notifOpenRules() {
   // varsler" on the Integrations page. This used to open a 'settings' view,
   // which does not exist: every view was hidden and the screen went blank.
   showView('integrations');
-  var tab = document.querySelector('.integ-tab-btn[data-tab="integ-active"]');
-  if (tab && typeof switchIntegTab === 'function') switchIntegTab(tab, 'integ-active');
   // The card sits inside a wrapper that also holds its heading; land on that.
   // Not smooth: the cards above repaint as their status loads, which cut a
   // smooth scroll short halfway down the page.

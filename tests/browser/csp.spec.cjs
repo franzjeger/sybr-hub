@@ -245,16 +245,12 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#net-devices')).toBeVisible();
   });
 
-  test('integrations: a card opens its settings and the tabs switch', async () => {
+  test('integrations: a card opens its settings', async () => {
     await openView(page, 'integrations');
     await page.locator('[data-click-handler="toggleIntegConfig"][data-config="webhook-config"]').click();
     await expect(page.locator('#webhook-config')).toBeVisible();
     await page.locator('[data-click-handler="toggleIntegConfig"][data-config="webhook-config"]').click();
     await expect(page.locator('#webhook-config')).toBeHidden();
-    await page.locator('[data-click-handler="switchIntegTab"][data-tab="integ-wiki"]').click();
-    await expect(page.locator('#integ-wiki')).toBeVisible();
-    await page.locator('[data-click-handler="switchIntegTab"][data-tab="integ-active"]').click();
-    await expect(page.locator('#integ-active')).toBeVisible();
   });
 
   test('hosts: the add form reacts to the device type and cancels', async () => {
