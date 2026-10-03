@@ -415,6 +415,10 @@ async function notifToggleRule(key, on) {
   showToast(t('msg_rule_saved', 'Regel lagret'), 'success', 2000);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// DOMAIN, MAIL AND LICENCE CHAIN (shown on the Domener tab)
+// ═══════════════════════════════════════════════════════════════════
+
 // ── Domain-Email Chain section builder ──
 
 function _buildChainSection(chainData) {
