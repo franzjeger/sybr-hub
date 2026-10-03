@@ -285,3 +285,97 @@ async def test_a_real_gap_still_raises_the_recommendation(tmp_path, monkeypatch)
 def test_a_stale_coverage_dict_without_the_flag_is_treated_as_unknown():
     """Defensive: a dict from an older code path must not resurrect the claim."""
     assert _backup_rec({"vms_total": 2, "vms_not_backed_up": ["vm-dc-01"]}) is None
+
+
+# ── More than one subscription ────────────────────────────────────────────────
+
+SUB_A = "00000000-0000-0000-0000-0000000000a1"
+SUB_B = "00000000-0000-0000-0000-0000000000b2"
+
+
+def _vm_in(sub: str, name: str) -> SimpleNamespace:
+    vm = _vm(name)
+    vm.id = vm.id.replace(SUB, sub)
+    return vm
+
+
+def _item_in(sub: str, name: str) -> SimpleNamespace:
+    item = _item(name)
+    item.properties.source_resource_id = item.properties.source_resource_id.replace(SUB, sub)
+    return item
+
+
+async def _collect_two(tmp_path, monkeypatch, a: dict, b: dict, *, sidecars=True) -> dict:
+    """Two subscriptions, each {"vms", "vaults", "items"}; a vaults value may raise."""
+
+    def kinds(spec: dict) -> dict:
+        def protected_items(vault_name, resource_group):
+            found = spec["items"].get(vault_name, [])
+            if isinstance(found, Exception):
+                raise found
+            return found
+
+        return {
+            "compute": {"virtual_machines.list_all": spec["vms"]},
+            "recovery": {"vaults.list_by_subscription_id": spec["vaults"]},
+            "backup": {"backup_protected_items.list": protected_items},
+        }
+
+    auth = FakeAzureAuth(subscriptions={SUB_A: kinds(a), SUB_B: kinds(b)}).install(monkeypatch)
+    for sub, name in ((SUB_A, "Prod-A"), (SUB_B, "Prod-B")):
+        await AzureComputeSection(
+            tmp_path, auth, sub_id=sub, sub_name=name, multi=True
+        )._collect_vms()
+        await AzureGovernanceSection(
+            tmp_path, auth, sub_id=sub, sub_name=name, multi=True
+        )._collect_backup()
+    return read_output(tmp_path, sidecars=sidecars)
+
+
+async def test_a_subscription_whose_vaults_were_not_read_is_not_hidden_by_another(
+    tmp_path, monkeypatch
+):
+    """Sub B's vault listing is refused, so it writes only a text error and no
+    sidecar. Sub A's sidecar used to make the parser ignore B, and B's VMs were
+    named as having no backup from vaults nobody had read."""
+    files = await _collect_two(
+        tmp_path,
+        monkeypatch,
+        {
+            "vms": [_vm_in(SUB_A, "vm-a")],
+            "vaults": [_vault("rsv-a")],
+            "items": {"rsv-a": [_item_in(SUB_A, "vm-a")]},
+        },
+        {
+            "vms": [_vm_in(SUB_B, "vm-b")],
+            "vaults": PermissionError("AuthorizationFailed"),
+            "items": {},
+        },
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["vms_total"] == 2
+    assert result["coverage_known"] is False
+    assert result["vms_not_backed_up"] == []
+
+
+async def test_a_protected_vm_does_not_cover_a_namesake_in_another_subscription(
+    tmp_path, monkeypatch
+):
+    files = await _collect_two(
+        tmp_path,
+        monkeypatch,
+        {
+            "vms": [_vm_in(SUB_A, "vm-dc-01")],
+            "vaults": [_vault("rsv-a")],
+            "items": {"rsv-a": [_item_in(SUB_A, "vm-dc-01")]},
+        },
+        {"vms": [_vm_in(SUB_B, "vm-dc-01")], "vaults": [_vault("rsv-b")], "items": {"rsv-b": []}},
+    )
+
+    result = _parse_backup_coverage(files)
+
+    assert result["coverage_known"] is True
+    assert result["vms_backed_up"] == 1
+    assert result["vms_not_backed_up"] == ["vm-dc-01"]
