@@ -825,6 +825,7 @@ class MFASection(BaseSection):
                 )
 
             self._save("04_mfa_methods.txt", "\n".join(lines))
+            # 04_mfa_methods.json: the records _mfa_user_records reads first.
             self._save_sidecar("04_mfa_methods.txt", {"users": records})
 
             # ── Save CA analysis report ─────────────────────────────────────
