@@ -6,6 +6,16 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Grensesnittet er bygget om innvendig
+
+- Grensesnittet lastes som moduler med eksplisitte avhengigheter, i stedet for
+  over tjue skript som delte hundrevis av globale variabler. For deg ser alt
+  ut og virker som før. En oppgradering kan ikke lenger gi en blanding av ny og
+  gammel kode i nettleseren: alle filene får nye adresser samtidig.
+- I søket (Ctrl+K) åpner Enter det første treffet når du har skrevet noe.
+  Før måtte du velge med piltast først. Hurtigtaster som Ctrl+1 virker rett
+  etter at du har valgt.
+
 ### Hver fane jobber på sin egen kunde
 
 - To faner med hver sin kunde skrev i hverandre: notater, kjøringer, filer,
