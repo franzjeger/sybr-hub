@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from app.modules.m365_audit.sections.exchange import ExchangeSection
 from app.reports.parsers import _parse_exchange_overview
+from app.reports.parsers.tenant import _parse_shared_mailbox_upns
 from tests.collector_rig import FakeGraph, run_sections
 
 LABELS_PATH = "beta/security/dataSecurityAndGovernance/sensitivityLabels"
@@ -23,6 +24,43 @@ async def _collect(
         section = ExchangeSection(tmp_path, exo, list(domains), graph=fake.client)
         files = await run_sections(section, sidecars=sidecars)
     return files, section
+
+
+# ── Mailboxes ─────────────────────────────────────────────────────────────────
+
+
+def _mailbox(name: str, address: str, kind: str = "UserMailbox", **extra) -> dict:
+    """One mailbox as the helper's mailbox block writes it."""
+    return {
+        "DisplayName": name,
+        "PrimarySmtpAddress": address,
+        "RecipientType": kind,
+        "ArchiveStatus": "None",
+        "ForwardingAddress": None,
+        "ForwardingSmtp": None,
+        "DeliverAndForward": False,
+        "TotalItemSize": "1.2 GB (1,288,490,189 bytes)",
+        **extra,
+    }
+
+
+async def test_a_shared_mailbox_is_found_when_the_helper_sends_no_upn(tmp_path):
+    """Helpers from before UserPrincipalName was added send only the SMTP address.
+
+    The UPN column was then blank on every run, so licence optimisation never
+    recognised a shared mailbox and offered its licence as an inactive user's.
+    """
+    exo = {
+        "mailboxes": [
+            _mailbox("Kari Nordmann", "kari@acme.example"),
+            _mailbox("Postmottak", "post@acme.example", "SharedMailbox"),
+            _mailbox("Møterom 1", "rom1@acme.example", "RoomMailbox"),
+        ]
+    }
+    files, _ = await _collect(tmp_path, exo)
+
+    shared = _parse_shared_mailbox_upns(files["20_exchange_mailboxes.txt"])
+    assert shared == {"post@acme.example", "rom1@acme.example"}
 
 
 # ── Connectors ────────────────────────────────────────────────────────────────

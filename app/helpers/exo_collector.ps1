@@ -81,6 +81,7 @@ try {
         $stats = Get-MailboxStatistics $_.Identity -ErrorAction SilentlyContinue
         @{
             DisplayName        = $_.DisplayName
+            UserPrincipalName  = $_.UserPrincipalName
             PrimarySmtpAddress = $_.PrimarySmtpAddress
             RecipientType      = $_.RecipientTypeDetails
             ArchiveStatus      = $_.ArchiveStatus
