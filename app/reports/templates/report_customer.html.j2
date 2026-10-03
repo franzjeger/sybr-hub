@@ -894,6 +894,28 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       </table>
     </div>
     {% endif %}
+    {# Unknown, in grace period, conflict or error: not counted as non-compliant
+       above, so not listed with them, but not hidden either. #}
+    {% if intune.other_state_devices %}
+    <div class="mfa-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="arrow">&#x25B6;</span> {{ t('show_n_other_state', count=intune.other_state_devices|length) }}
+    </div>
+    <div class="mfa-drilldown">
+      <table>
+        <thead><tr><th>{{ t.device_name }}</th><th>{{ t.os }}</th><th>{{ t.user }}</th><th>{{ t.compliance_state }}</th></tr></thead>
+        <tbody>
+        {% for d in intune.other_state_devices[:30] %}
+          <tr>
+            <td><strong>{{ d.name }}</strong></td>
+            <td style="font-size:12px;">{{ d.os }}</td>
+            <td style="font-size:12px;color:var(--muted);">{{ d.user }}</td>
+            <td><span class="tag">{{ d.compliance or t.compliance_unknown_label }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
     {% if finding_to_recs.get('finding-intune') %}{% for ri in finding_to_recs['finding-intune'] %}<a href="#rec-{{ ri }}" class="finding-rec-link">→ {{ t('see_recommendation', num=ri) }}</a> {% endfor %}{% endif %}
   </div>
   <div class="finding-badge"><span class="badge {% if intune.compliance_pct < 50 %}critical{% else %}warning{% endif %}">{% if intune.compliance_pct < 50 %}{{ t.critical }}{% else %}{{ t.action_needed }}{% endif %}</span></div>

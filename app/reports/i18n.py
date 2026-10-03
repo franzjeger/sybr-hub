@@ -217,6 +217,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Vis {count} ikke-samsvarende enhet(er)",
         "en": "Show {count} non-compliant device(s)",
     },
+    "show_n_other_state": {
+        "no": "Vis {count} enhet(er) uten avklart status (ukjent, i nådeperiode eller feil)",
+        "en": "Show {count} device(s) without a settled state (unknown, in grace period or error)",
+    },
+    "in_grace_period_label": {
+        "no": "I nådeperiode",
+        "en": "In grace period",
+    },
+    "compliance_unknown_label": {
+        "no": "Ukjent",
+        "en": "Unknown",
+    },
     "show_n_apps": {
         "no": "Vis {count} app(er)",
         "en": "Show {count} app(s)",
