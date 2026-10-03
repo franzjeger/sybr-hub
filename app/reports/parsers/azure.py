@@ -366,7 +366,19 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
                 )
 
     # ── Storage accounts ───────────────────────────────────────────────────
-    for _fname, content, sub_name in _find_azure_files(file_contents, "35_azure_storage"):
+    for fname, content, sub_name in _find_azure_files(file_contents, "35_azure_storage"):
+        storage = _sidecar(file_contents, fname)
+        if storage is not None:
+            result["storage_accounts"] += [
+                {
+                    "name": account.get("name") or "",
+                    "sku": account.get("sku") or "N/A",
+                    "kind": account.get("kind") or "N/A",
+                    "subscription": sub_name,
+                }
+                for account in storage.get("accounts") or []
+            ]
+            continue
         for line in content.splitlines():
             stripped = line.strip()
             if (

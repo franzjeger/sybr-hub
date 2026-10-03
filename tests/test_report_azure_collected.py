@@ -19,6 +19,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.modules.m365_audit.sections.azure_compute import AzureComputeSection
+from app.modules.m365_audit.sections.azure_storage import AzureStorageSection
 from app.reports.parsers import _parse_azure_overview
 from tests.collector_rig import FakeAzureAuth, read_output
 
@@ -170,3 +171,103 @@ async def test_a_sidecar_from_v1_2_0_reads_the_table_from_the_text(tmp_path):
         _parse_azure_overview(files)["vms"]
         == _parse_azure_overview(_read(tmp_path, sidecars=False))["vms"]
     )
+
+
+# ── Storage accounts (35_azure_storage) ───────────────────────────────────────
+
+
+def _account(name, *, kind="StorageV2", sku="Standard_LRS", tls="TLS1_2", https=True, public=False):
+    return SimpleNamespace(
+        name=name,
+        sku=SimpleNamespace(name=sku),
+        kind=kind,
+        minimum_tls_version=tls,
+        enable_https_traffic_only=https,
+        allow_blob_public_access=public,
+    )
+
+
+async def _collect_storage(tmp_path, per_sub: dict, *, multi: bool) -> None:
+    auth = FakeAzureAuth(
+        subscriptions={
+            sub: {"storage": {"storage_accounts.list": accounts}}
+            for sub, accounts in per_sub.items()
+        }
+    )
+    for sub, name in SUBS:
+        if sub in per_sub:
+            await AzureStorageSection(
+                tmp_path, auth, sub_id=sub, sub_name=name, multi=multi
+            )._collect_storage_accounts()
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_storage_accounts_survive_the_round_trip(tmp_path, sidecars):
+    await _collect_storage(
+        tmp_path,
+        {
+            SUB_A: [
+                _account("stacmeprod01"),
+                _account(
+                    "stacmelogs",
+                    sku="Standard_GRS",
+                    kind="BlobStorage",
+                    tls="TLS1_0",
+                    https=False,
+                    public=True,
+                ),
+            ]
+        },
+        multi=False,
+    )
+
+    accounts = _parse_azure_overview(_read(tmp_path, sidecars=sidecars))["storage_accounts"]
+
+    assert accounts == [
+        {"name": "stacmeprod01", "sku": "Standard_LRS", "kind": "StorageV2", "subscription": ""},
+        {"name": "stacmelogs", "sku": "Standard_GRS", "kind": "BlobStorage", "subscription": ""},
+    ]
+
+
+async def test_a_kind_wider_than_its_column_is_kept_whole(tmp_path):
+    """The text cuts the kind at 15 characters and "BlockBlobStorage" has 16."""
+    await _collect_storage(
+        tmp_path,
+        {SUB_A: [_account("stacmepremium", sku="Premium_LRS", kind="BlockBlobStorage")]},
+        multi=False,
+    )
+
+    with_json = _parse_azure_overview(_read(tmp_path, sidecars=True))["storage_accounts"]
+    text_only = _parse_azure_overview(_read(tmp_path, sidecars=False))["storage_accounts"]
+
+    assert with_json[0]["kind"] == "BlockBlobStorage"
+    assert text_only[0]["kind"] == "BlockBlobStorag TLS1_2", "the text alone cannot carry it"
+
+
+async def test_a_subscription_whose_storage_was_not_listed_is_not_hidden(tmp_path):
+    await _collect_storage(
+        tmp_path,
+        {SUB_A: [_account("stacmea")], SUB_B: PermissionError("AuthorizationFailed")},
+        multi=True,
+    )
+    files = _read(tmp_path, sidecars=True)
+
+    assert "35_azure_storage_Prod-B.json" not in files
+    accounts = _parse_azure_overview(files)["storage_accounts"]
+    assert [(a["name"], a["subscription"]) for a in accounts] == [("stacmea", "Prod-A")]
+
+
+async def test_each_subscription_reads_its_own_storage_files(tmp_path):
+    await _collect_storage(
+        tmp_path,
+        {SUB_A: [_account("stacmea")], SUB_B: [_account("stacmeb", kind="BlockBlobStorage")]},
+        multi=True,
+    )
+    files = _drop(_read(tmp_path, sidecars=True), "35_azure_storage_Prod-A")
+
+    accounts = _parse_azure_overview(files)["storage_accounts"]
+
+    assert [(a["name"], a["kind"], a["subscription"]) for a in accounts] == [
+        ("stacmea", "StorageV2", "Prod-A"),
+        ("stacmeb", "BlockBlobStorage", "Prod-B"),
+    ]
