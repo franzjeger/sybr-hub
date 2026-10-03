@@ -27,6 +27,7 @@ from app.reports.evidence import _evidence_unavailable
 from app.reports.i18n import T
 from app.reports.parsers import _is_audit_relevant_domain, _mfa_user_records
 from app.reports.parsers.common import _find_azure_files, _sidecar
+from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -491,9 +492,11 @@ _CREDENTIAL_SUMMARY = re.compile(r"(\d+)\s+expired\s*,\s*(\d+)\s+expiring", re.I
 def _credential_expiry(audit: _Audit) -> Iterator[dict]:
     t = audit.t
     text = audit.fc.get("17c_app_credential_expiry_WARN.txt", "")
-    if not (text and text.strip()):
+    # The 17c sidecar's counts first, where the run has them.
+    counts = _app_credential_counts(audit.fc)
+    if counts is None and not (text and text.strip()):
         return
-    expired_count, critical_count = _credential_counts(text)
+    expired_count, critical_count = counts or _credential_counts(text)
     total = expired_count + critical_count
     if total > 0:
         yield {
