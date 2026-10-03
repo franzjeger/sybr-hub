@@ -4,7 +4,7 @@
 // itself checked where it is built. A value that already is escaped HTML can
 // be marked with a leading /* safe-html */ comment; keep those rare.
 //
-//   node scripts/check-html-escaping.cjs          enforce ENFORCED, count the rest
+//   node scripts/check-html-escaping.cjs          enforce every file not in NOT_YET_ENFORCED
 //   node scripts/check-html-escaping.cjs --all    list every finding in every file
 //   node scripts/check-html-escaping.cjs FILE...  list findings for the given files
 const fs = require('node:fs');
@@ -13,28 +13,10 @@ const acorn = require('acorn');
 
 const STATIC_DIR = path.join(__dirname, '..', 'app', 'web', 'static');
 
-// Files that must stay clean. Add a file here once it passes.
-const ENFORCED = new Set([
-  'app-findings.js',
-  'app-customers.js',
-  'app-dashboard.js',
-  'app-infra.js',
-  'app-network.js',
-  'app-tailscale.js',
-  'app-also.js',
-  'app-assessments.js',
-  'app-audit.js',
-  'app-baseline-deploy.js',
-  'app-policy-deploy.js',
-  'app-policy-overview.js',
-  'app.js',
-  'app-chrome.js',
-  'app-settings.js',
-  'app-setup.js',
-  'app-tls.js',
-  'app-integrations.js',
-  'app-customer-detail.js',
-]);
+// Every script is enforced, a new one included. A file may be listed here only
+// while it is being brought up to the rule; keep the list empty.
+const NOT_YET_ENFORCED = new Set([]);
+const isEnforced = file => !NOT_YET_ENFORCED.has(file);
 
 const HTML_PROPS = new Set(['innerHTML', 'outerHTML', 'srcdoc']);
 const HTML_METHODS = {insertAdjacentHTML: 1, createContextualFragment: 0, write: 0, writeln: 0};
@@ -649,13 +631,13 @@ function main() {
   const byFile = new Map();
   for (const f of findings) byFile.set(f.file, (byFile.get(f.file) || 0) + 1);
 
-  const shown = findings.filter(f => listAll ? true : only.length ? only.includes(f.file) : ENFORCED.has(f.file));
+  const shown = findings.filter(f => listAll ? true : only.length ? only.includes(f.file) : isEnforced(f.file));
   for (const f of shown) console.log(`app/web/static/${f.file}:${f.line}:${f.column}: ${f.message}`);
   if (only.length || listAll) {
     console.log(`${shown.length} finding(s)`);
     process.exit(shown.length ? 1 : 0);
   }
-  const pending = files.filter(f => !ENFORCED.has(f) && byFile.get(f));
+  const pending = files.filter(f => !isEnforced(f) && byFile.get(f));
   if (pending.length) {
     console.log('HTML escaping not yet enforced: ' + pending.map(f => f + ' (' + byFile.get(f) + ')').join(', '));
   }
@@ -663,7 +645,7 @@ function main() {
     console.error(`${shown.length} unescaped HTML interpolation(s). Wrap text in esc() and numbers in Number().`);
     process.exit(1);
   }
-  console.log('HTML escaping check passed for ' + [...ENFORCED].sort().join(', '));
+  console.log('HTML escaping check passed for all ' + files.filter(isEnforced).length + ' scripts');
 }
 
 module.exports = {analyze, main};
