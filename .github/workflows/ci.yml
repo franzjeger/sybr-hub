@@ -89,7 +89,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install ruff
-        run: python -m pip install ruff==0.16.6
+        run: python -m pip install ruff==0.16.9
       # Blocking as of the tree-wide `ruff format` (see .git-blame-ignore-revs).
       # The whole repo is formatted, so anything unformatted from here is new.
       - name: Ruff format check

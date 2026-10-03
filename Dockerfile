@@ -3,7 +3,7 @@ FROM python:3.14-slim-bookworm@sha256:9ab8d9c8514b44f90cf0029dd42fdd7e9e211e639c
 WORKDIR /src
 COPY requirements.lock .
 RUN python -m venv /opt/venv && /opt/venv/bin/pip install --require-hashes -r requirements.lock
-RUN python -m pip install build==1.6.0 setuptools==84.0.0 setuptools-scm==9.2.2 wheel==0.48.0
+RUN python -m pip install build==1.6.1 setuptools==84.0.0 setuptools-scm==9.2.2 wheel==0.48.0
 COPY . .
 ARG RELEASE_VERSION=0.0.0.dev0
 RUN SETUPTOOLS_SCM_PRETEND_VERSION=${RELEASE_VERSION} python -m build --wheel --no-isolation --outdir /wheels \
