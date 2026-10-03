@@ -157,88 +157,6 @@ async function docsRepoOpen(path) {
   }
 }
 
-// ── Wiki / Integration Guide: render every card from markdown ───────────────
-// Every card in the `integ-wiki` tab is a shell that loads its content from
-// `docs/api/<slug>/WIKI[.<lang>].md` on first Wiki-tab activation. Single
-// source of truth per integration, one pattern for all cards, language-
-// aware: probe `.<lang>.md` first, fall back to the canonical `.md`.
-//
-// GDAP uses the pre-existing `INTEGRATION.md` under `partner-center/` so the
-// Wiki tab and the Docs tab share one file for that integration.
-//
-// The language-variant probe uses raw fetch() rather than apiFetch() so a
-// 404 (no translation yet) is a quiet fall-through, not a user-visible
-// error toast. apiFetch is still used for the canonical fetch so genuine
-// failures (network, 5xx) surface normally.
-var WIKI_CARDS = [
-  { slug: 'itglue',          base: 'api/itglue/WIKI' },
-  { slug: 'vpn',             base: 'api/vpn/WIKI' },
-  { slug: 'guacamole',       base: 'api/guacamole/WIKI' },
-  { slug: 'unifi',           base: 'api/unifi/WIKI' },
-  { slug: 'fortigate',       base: 'api/fortigate/WIKI' },
-  { slug: 'tailscale',       base: 'api/tailscale/WIKI' },
-  { slug: 'also-cloud',      base: 'api/also-cloud/WIKI' },
-  { slug: 'uniweb',          base: 'api/uniweb/WIKI' },
-  { slug: 'tls-monitor',     base: 'api/tls-monitor/WIKI' },
-  { slug: 'microsoft-graph', base: 'api/microsoft-graph/WIKI' },
-  { slug: 'gdap',            base: 'api/partner-center/INTEGRATION' },
-  { slug: 'claude',          base: 'api/claude/WIKI' },
-  { slug: 'autotask-datto',  base: 'api/autotask-datto/WIKI' },
-  { slug: 'connectwise',     base: 'api/connectwise/WIKI' },
-  { slug: 'halo-psa',        base: 'api/halo-psa/WIKI' },
-  { slug: 'teams-webhook',   base: 'api/teams-webhook/WIKI' },
-  { slug: 'smtp',            base: 'api/smtp/WIKI' },
-  { slug: 'power-bi',        base: 'api/power-bi/WIKI' },
-  { slug: 'rest-api',        base: 'api/rest-api/WIKI' },
-];
-
-var _wikiLoadedLang = null;
-
-async function _wikiProbeDoc(path) {
-  try {
-    var r = await fetch('/api/docs/file?path=' + encodeURIComponent(path));
-    if (!r.ok) return null;
-    var data = await r.json();
-    return (data && data.content) ? data : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-function _wikiRenderInto(body, content) {
-  if (typeof window.marked === 'undefined' || typeof window.DOMPurify === 'undefined') {
-    body.innerHTML = '<pre style="white-space:pre-wrap;font-family:var(--mono);font-size:12px;">' + esc(content) + '</pre>';
-    return;
-  }
-  var rendered = window.marked.parse(content, { gfm: true, breaks: false });
-  body.innerHTML = /* safe-html: DOMPurify output */ window.DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
-}
-
-async function _wikiLoadOneCard(card, lang) {
-  var body = document.getElementById('wiki-' + card.slug + '-body');
-  if (!body) return;
-  var data = await _wikiProbeDoc(card.base + '.' + lang + '.md');
-  if (!data) data = await _wikiProbeDoc(card.base + '.md');
-  if (!data) {
-    body.innerHTML = '<div style="color:var(--color-danger);">' +
-      esc(t('err_could_not_load_doc','Kunne ikke laste dokumentasjon')) +
-      ': <code style="font-size:11px;">' + esc(card.base) + '</code></div>';
-    return;
-  }
-  _wikiRenderInto(body, data.content);
-}
-
-async function wikiLoadAllCards() {
-  var lang = (typeof _lang !== 'undefined' && _lang) ? _lang : 'no';
-  if (_wikiLoadedLang === lang) return;
-  await Promise.all(WIKI_CARDS.map(function(c) { return _wikiLoadOneCard(c, lang); }));
-  _wikiLoadedLang = lang;
-}
-
-// Backwards-compatible alias — older call sites (switchIntegTab) may still
-// invoke wikiLoadGdap by name until their next reload.
-async function wikiLoadGdap() { return wikiLoadAllCards(); }
-
 // ── ALSO Cloud Marketplace ───────────────────────────────────────────────────
 async function alsoTestConnection() {
   var msg = document.getElementById('also-config-msg');
@@ -1314,19 +1232,6 @@ async function itglueSyncAllDocumentation() {
 // ═══════════════════════════════════════════════════════════════════
 
 // ── Integrations ──────────────────────────────────────────────────────────────
-
-function switchIntegTab(btn, tabId) {
-  document.querySelectorAll('.integ-tab-content').forEach(t => t.style.display = 'none');
-  document.querySelectorAll('.integ-tab-btn').forEach(b => {
-    b.classList.remove('active');
-    b.style.borderBottom = 'none';
-  });
-  document.getElementById(tabId).style.display = 'block';
-  btn.classList.add('active');
-  btn.style.borderBottom = '2px solid var(--blue)';
-
-  if (tabId === 'integ-wiki' && typeof wikiLoadAllCards === 'function') wikiLoadAllCards();
-}
 
 function toggleIntegConfig(id) {
   const el = document.getElementById(id);
