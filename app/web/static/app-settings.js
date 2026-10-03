@@ -179,9 +179,9 @@ async function openSettings() {
       if (sEl && si) {
         sEl.innerHTML = 'Python: ' + esc(si.python_version) + '<br>'
           + 'Platform: ' + esc(si.platform) + '<br>'
-          + 'DB: ' + si.db_size_mb + ' MB<br>'
-          + t('nav_files','Files') + ': ' + si.audit_files + ' (' + si.audit_size_mb + ' MB)<br>'
-          + 'PID: ' + si.pid;
+          + 'DB: ' + Number(si.db_size_mb) + ' MB<br>'
+          + t('nav_files','Files') + ': ' + Number(si.audit_files) + ' (' + Number(si.audit_size_mb) + ' MB)<br>'
+          + 'PID: ' + Number(si.pid);
       }
     } catch(e) {}
   } catch (e) {
@@ -494,7 +494,7 @@ async function loadUsers() {
       return '<div data-user-id="'+esc(u.id)+'" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);border-bottom:1px solid var(--border);">'
         + '<div style="flex:1;">'
         + '<div style="font-weight:600;">' + esc(u.display_name) + ' <span style="font-size:var(--font-xs);color:var(--text-dim);font-family:var(--mono);">@' + esc(u.username) + '</span></div>'
-        + '<div style="font-size:var(--font-xs);color:var(--text-dim);">' + t('lbl_last_prefix','Last:') + ' ' + lastLogin + '</div>'
+        + '<div style="font-size:var(--font-xs);color:var(--text-dim);">' + t('lbl_last_prefix','Last:') + ' ' + esc(lastLogin) + '</div>'
         + '</div>'
         + '<select style="padding:2px 6px;font-size:var(--font-xs);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);" data-change-handler="changeUserRole" data-user-id="' + esc(u.id) + '">'
         + '<option value="viewer"' + (u.role==='viewer'?' selected':'') + '>' + t('viewer_2') + '</option>'

@@ -27,6 +27,10 @@ const ENFORCED = new Set([
   'app-baseline-deploy.js',
   'app-policy-deploy.js',
   'app-policy-overview.js',
+  'app.js',
+  'app-chrome.js',
+  'app-settings.js',
+  'app-setup.js',
 ]);
 
 const HTML_PROPS = new Set(['innerHTML', 'outerHTML', 'srcdoc']);
