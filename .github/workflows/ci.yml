@@ -23,9 +23,10 @@ jobs:
   test:
     name: pytest
     runs-on: ubuntu-latest
-    # A wedged test run should not hold a runner for the 6-hour default. This
-    # is comfortably above the ~1 minute the suite actually takes.
-    timeout-minutes: 15
+    # A wedged test run should not hold a runner for the 6-hour default. The
+    # suite takes 9-11 minutes on a hosted runner (October 2026, ~5,000 tests,
+    # 3.14 fastest); this leaves room without letting a hang run for hours.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -69,7 +70,7 @@ jobs:
       # that, and did on this branch. `timeout-minutes` above is the backstop
       # for that case.
       - name: Run tests
-        run: pytest -v --tb=short --timeout=120 --session-timeout=600
+        run: pytest -v --tb=short --timeout=120 --session-timeout=1500
 
   lint:
     name: ruff

@@ -11,6 +11,10 @@ async function login(page) {
   await page.locator('#login-password').fill('Browser-test123!');
   await page.locator('#login-password').press('Enter');
   await expect(page.locator('#login-password')).not.toBeVisible();
+  // Let start-up land first. It applies the route from the address bar (here
+  // the dashboard), which on a slow runner came after the test had opened its
+  // form: a real navigation, not the race this file is about.
+  await expect(page.locator('body')).toHaveAttribute('data-view', 'overview');
 }
 
 async function holdBack(page, pattern) {
