@@ -6,8 +6,11 @@ import re
 
 from app.reports.evidence import _labelled_int, _labelled_value
 from app.reports.i18n import T
-from app.reports.parsers.common import _count_data_lines, _extract_policy_names, _sidecar
-from app.reports.parsers.common import _count_data_lines, _policy_names, _sidecar
+from app.reports.parsers.common import (
+    _count_data_lines,
+    _policy_names,
+    _sidecar,
+)
 
 
 def _site_table_rows(sites_text: str) -> int | None:
