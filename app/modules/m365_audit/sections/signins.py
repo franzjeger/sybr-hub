@@ -164,8 +164,15 @@ class SignInsSection(BaseSection):
             self._save("05_signin_activity.txt", "\n".join(lines))
 
             # ── Failure file ──────────────────────────────────────────────────
+            # Only users with a failure. The activity table above reads
+            # failure_counts[upn] for every user, and a defaultdict answers that
+            # by adding the user at zero, so every user who only ever signed in
+            # successfully was listed here with "0" failures, and reached the
+            # report's "top failure users".
             failed_upns = sorted(
-                failure_counts.keys(), key=lambda u: failure_counts[u], reverse=True
+                (u for u in failure_counts if failure_counts[u] > 0),
+                key=lambda u: failure_counts[u],
+                reverse=True,
             )
             fail_lines = [
                 "=" * 70,
