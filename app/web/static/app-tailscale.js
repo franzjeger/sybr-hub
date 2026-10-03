@@ -80,9 +80,17 @@ function tsLoadView() {
 async function tsLoadDevices() {
   var el = document.getElementById('ts-content');
   var data = await apiFetch('/api/tailscale/devices');
-  if (!data || data.error) {
-    el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:48px;">'
-      + (data && data.error ? esc(data.error) : t('ts_not_configured','Tailscale not configured. Go to Settings → Integrations.'))
+  if (!data) {
+    // apiFetch has said what went wrong; leave the page calm, not blank.
+    el.innerHTML = '<div class="empty-state"><div class="empty-desc">' + esc(t('status_error', 'Feil')) + '</div></div>';
+    return;
+  }
+  if (data.configured === false) {
+    // The key is set on the Tailscale card under Integrasjoner, its own view.
+    el.innerHTML = '<div class="empty-state" id="ts-not-configured">'
+      + '<div class="empty-title">' + esc(t('ts_not_configured_title', 'Tailscale er ikke satt opp')) + '</div>'
+      + '<div class="empty-desc">' + esc(t('ts_not_configured', 'Legg inn en API-nøkkel på Tailscale-kortet under Integrasjoner.')) + '</div>'
+      + '<button class="btn btn-primary" data-click-handler="showView" data-view="integrations">' + esc(t('btn_open_integrations', 'Åpne Integrasjoner')) + '</button>'
       + '</div>';
     return;
   }

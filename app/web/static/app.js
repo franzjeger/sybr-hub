@@ -643,24 +643,28 @@ function _renderCmdResults(query) {
 
   // Pages / Navigation
   var pages = [
-    {label:t('nav_dashboard','Dashboard'), action:function(){showView('overview')},  section:t('nav_dashboard'), icon:'grid'},
-    {label:t('nav_customers','Customers'), action:function(){showView('customers')}, section:t('nav_customers'), icon:'users'},
-    {label:t('nav_m365_status'),     action:function(){showView('home')},      section:t('nav_customers'), icon:'cloud'},
-    {label:t('nav_history','History'), action:function(){showView('history')},    section:t('nav_customers'), icon:'calendar'},
-    {label:t('bc_hosts_ssh','Hosts'), action:function(){showView('hosts')},      section:t('nav_remote_access','Fjerntilgang'),    icon:'monitor'},
-    {label:t('bc_network','FortiGate / UniFi'), action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:'globe'},
-    {label:'VPN',             action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:'lock'},
-    {label:'TLS Monitor',     action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:'shield'},
-    {label:t('nav_browser2','Browser'), action:function(){showView('browser')}, section:t('nav_tools','Verktøy'),    icon:'globe'},
-    {label:'Tailscale',       action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:'link'},
-    {label:t('bc_provisioning','Provisjonering'), action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:'gear'},
-    {label:'Sybrt',           action:function(){showView('ai')},         section:'',                 icon:'sparkle'},
-    {label:t('nav_integrations','Integrations'), action:function(){showView('integrations')},section:'',                icon:'plug'},
-    {label:t('bc_log','Log'), action:function(){showView('logs')},        section:'',                icon:'document'},
+    {label:t('nav_dashboard','Dashboard'), view:'overview', action:function(){showView('overview')},  section:t('nav_dashboard'), icon:'grid'},
+    {label:t('nav_customers','Customers'), view:'customers', action:function(){showView('customers')}, section:t('nav_customers'), icon:'users'},
+    {label:t('nav_m365_status'),     view:'home', action:function(){showView('home')},      section:t('nav_customers'), icon:'cloud'},
+    {label:t('nav_history','History'), view:'history', action:function(){showView('history')},    section:t('nav_customers'), icon:'calendar'},
+    {label:t('bc_hosts_ssh','Hosts'), view:'hosts', action:function(){showView('hosts')},      section:t('nav_remote_access','Fjerntilgang'),    icon:'monitor'},
+    {label:t('bc_network','FortiGate / UniFi'), view:'network', action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:'globe'},
+    {label:'VPN',             view:'vpn', action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:'lock'},
+    {label:'TLS Monitor',     view:'tls', action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:'shield'},
+    {label:t('nav_browser2','Browser'), view:'browser', action:function(){showView('browser')}, section:t('nav_tools','Verktøy'),    icon:'globe'},
+    {label:'Tailscale',       view:'tailscale', action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:'link'},
+    {label:t('bc_provisioning','Provisjonering'), view:'provision', action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:'gear'},
+    {label:'Sybrt',           view:'ai', action:function(){showView('ai')},         section:'',                 icon:'sparkle'},
+    {label:t('nav_integrations','Integrations'), view:'integrations', action:function(){showView('integrations')},section:'',                icon:'plug'},
+    {label:t('bc_log','Log'), view:'logs', action:function(){showView('logs')},        section:'',                icon:'document'},
     {label:t('hdr_settings','Settings'), action:function(){openSettings()}, section:'',                icon:'gear'},
-    {label:t('tab_users','Users'),     action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:'users'},
+    {label:t('tab_users','Users'), admin:true, action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:'users'},
     {label:t('hdr_branding','Branding'), action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[1],'stab-branding')},100)}, section:t('hdr_settings'), icon:'palette'},
   ];
+  // A page the account cannot open is not offered: the palette listed every
+  // view, and picking one this account may not see opened a blank page.
+  var isAdmin = !!(_currentUser && _currentUser.role === 'admin');
+  pages = pages.filter(function(p) { return (!p.view || canOpenView(p.view)) && (!p.admin || isAdmin); });
   pages.forEach(function(p) {
     if (!q || p.label.toLowerCase().includes(q) || (p.section||'').toLowerCase().includes(q))
       results.push({label:p.label, hint:p.section, icon:p.icon, action:p.action, type:'page'});
@@ -672,6 +676,7 @@ function _renderCmdResults(query) {
     {label:t('hdr_settings','Settings'),      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:'gear'},
     {label:t('btn_export_excel','Export Excel'), action:function(){exportDashboardExcel()},                    hint:'',             icon:'chart'},
   ];
+  if (!canWrite()) actions = actions.filter(function(a) { return a.label !== t('btn_run_audit'); });
   if (q) {
     actions.forEach(function(a) {
       if (a.label.toLowerCase().includes(q)) results.push({label:a.label, hint:a.hint, icon:a.icon, action:a.action, type:'action'});
