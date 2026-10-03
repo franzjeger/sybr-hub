@@ -1186,7 +1186,8 @@ async function loadOverview() {
       var tc = _overviewData.customers.length;
       var wm = _overviewData.customers.filter(function(c){return c.has_metrics}).length;
       var tw = _overviewData.customers.reduce(function(s,c){return s + (c.has_metrics && c.metrics.total_warns ? c.metrics.total_warns : 0)}, 0);
-      fs.textContent = tc + ' ' + t('nav_customers').toLowerCase() + ' · ' + wm + ' audits · ' + tw + ' warns';
+      fs.textContent = t('footer_stats', '{customers} kunder · {audited} auditert · {warns} advarsler')
+        .replace('{customers}', tc).replace('{audited}', wm).replace('{warns}', tw);
     }
   } else {
     box.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_dashboard') + '</div>';

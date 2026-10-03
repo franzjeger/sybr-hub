@@ -1227,7 +1227,7 @@ async function _loadCustomerActivity(customerName) {
         var ts = e.timestamp ? timeAgo(e.timestamp) : '';
         html += '<div style="display:flex;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border);font-size:var(--font-xs);">'
           + '<span style="flex-shrink:0;">' + icon + '</span>'
-          + '<span style="flex:1;color:var(--text);">' + esc(e.action.replace(/_/g,' ')) + (e.detail ? ' · <span style="color:var(--text-muted);">' + esc(e.detail) + '</span>' : '') + '</span>'
+          + '<span style="flex:1;color:var(--text);">' + esc(_activityLabel(e.action)) + (e.detail ? ' · <span style="color:var(--text-muted);">' + esc(e.detail) + '</span>' : '') + '</span>'
           + '<span style="color:var(--text-dim);white-space:nowrap;">' + esc(ts) + (e.user ? ' · ' + esc(e.user) : '') + '</span>'
           + '</div>';
       });

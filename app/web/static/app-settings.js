@@ -5,6 +5,8 @@
 // Handlers for the user list, the password dialog and the customer-access
 // panel (see registerUiHandlers in app.js).
 registerUiHandlers({
+  chooseLogoFile: function() { chooseLogoFile(); },
+  logoFileChosen: function() { logoFileChosen(); },
   doChangePassword: function() { doChangePassword(); },
   changeUserRole: function(el) { changeUserRole(el.dataset.userId, el.value); },
   editUserCustomers: function(el) { editUserCustomers(el.dataset.userId, el.dataset.displayName); },
@@ -66,6 +68,20 @@ function refreshLogoPreview() {
   testImg.src = '/api/settings/logo?t=' + ts;
 }
 
+// The visible "Velg fil" opens the hidden input; the chosen name shows beside it.
+function chooseLogoFile() {
+  var input = document.getElementById('input-logo-file');
+  if (input) input.click();
+}
+function logoFileChosen() {
+  var input = document.getElementById('input-logo-file');
+  var name = document.getElementById('logo-file-name');
+  if (!name) return;
+  var f = input && input.files && input.files[0];
+  name.removeAttribute('data-i18n');
+  name.textContent = f ? f.name : t('msg_no_file_chosen', 'Ingen fil valgt');
+}
+
 async function uploadLogo() {
   const input = document.getElementById('input-logo-file');
   const msg = document.getElementById('logo-upload-msg');
@@ -79,6 +95,7 @@ async function uploadLogo() {
       msg.textContent = t('msg_logo_uploaded'); msg.style.color = 'var(--green)';
       refreshLogoPreview();
       input.value = '';
+      logoFileChosen();
     } else {
       msg.textContent = d.error || t('status_error'); msg.style.color = 'var(--red)';
     }

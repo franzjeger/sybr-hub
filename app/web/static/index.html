@@ -2143,7 +2143,9 @@
       <span id="logo-no-preview" style="font-size:11px;color:var(--text-muted);" data-i18n="err_no_logo_uploaded">Ingen logo lastet opp</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <input type="file" id="input-logo-file" accept=".png,.jpg,.jpeg,.svg" style="font-size:12px;">
+      <input type="file" id="input-logo-file" class="visually-hidden-file" accept=".png,.jpg,.jpeg,.svg" data-change-handler="logoFileChosen">
+      <button type="button" class="btn btn-default btn-sm" data-click-handler="chooseLogoFile" data-i18n="btn_choose_file">Velg fil</button>
+      <span id="logo-file-name" class="logo-file-name" data-i18n="msg_no_file_chosen">Ingen fil valgt</span>
       <button data-write class="btn btn-default" style="padding:4px 10px;font-size:11px;" data-click-handler="uploadLogo" data-i18n="btn_upload">Last opp</button>
       <span id="logo-upload-msg" style="font-size:11px;color:var(--text-muted);"></span>
     </div>
