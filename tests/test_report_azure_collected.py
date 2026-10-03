@@ -520,3 +520,100 @@ async def test_each_subscription_reads_its_own_advisor_files(tmp_path):
 
     assert azure["advisor_recs"] == 5
     assert [a["subscription"] for a in azure["advisor_details"]] == ["Prod-A"] * 2 + ["Prod-B"] * 3
+
+
+# ── Resource inventory (60_azure_resource_inventory_summary) ──────────────────
+
+
+def _resource(sub: str, rg: str, rtype: str, name: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        name=name, type=rtype, id=_id(sub, rg, rtype, name), location="norwayeast"
+    )
+
+
+def _resources(sub: str) -> list:
+    return [
+        _resource(sub, "rg-prod", "Microsoft.Compute/virtualMachines", "vm-01"),
+        _resource(sub, "rg-prod", "Microsoft.Compute/disks", "vm-01-os"),
+        _resource(sub, "rg-prod", "Microsoft.Network/networkInterfaces", "vm-01-nic"),
+        _resource(sub, "rg-shared", "Microsoft.Compute/disks", "data-01"),
+        _resource(sub, "rg-shared", "Microsoft.Storage/storageAccounts", "stacme01"),
+    ]
+
+
+async def _collect_inventory(tmp_path, per_sub: dict, *, multi: bool) -> None:
+    auth = FakeAzureAuth(
+        subscriptions={
+            sub: {"resource": {"resources.list": resources}} for sub, resources in per_sub.items()
+        }
+    )
+    for sub, name in SUBS:
+        if sub in per_sub:
+            await AzureGovernanceSection(
+                tmp_path, auth, sub_id=sub, sub_name=name, multi=multi
+            )._collect_resource_inventory()
+
+
+def _inventory(azure: dict) -> tuple:
+    return (
+        azure["total_resources"],
+        azure["resource_types_list"],
+        azure["resource_groups"],
+        azure["per_sub"],
+    )
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_the_resource_inventory_survives_the_round_trip(tmp_path, sidecars):
+    await _collect_inventory(tmp_path, {SUB_A: _resources(SUB_A)}, multi=False)
+
+    total, types, groups, per_sub = _inventory(
+        _parse_azure_overview(_read(tmp_path, sidecars=sidecars))
+    )
+
+    assert total == 5
+    assert types[0] == {"type": "Microsoft.Compute/disks", "count": 2}
+    assert len(types) == 4
+    assert groups == [{"name": "rg-prod", "count": 3}, {"name": "rg-shared", "count": 2}]
+    assert per_sub[0]["name"] == "Default"
+    assert per_sub[0]["resources"] == 5
+    assert per_sub[0]["types"][0] == ("Microsoft.Compute/disks", 2)
+
+
+async def test_the_resource_inventory_is_read_from_the_sidecar(tmp_path):
+    """With the text emptied, every figure still comes from the sidecar."""
+    await _collect_inventory(tmp_path, {SUB_A: _resources(SUB_A)}, multi=False)
+    files = _read(tmp_path, sidecars=True)
+    expected = _inventory(_parse_azure_overview(files))
+    files["60_azure_resource_inventory_summary.txt"] = ""
+
+    assert _inventory(_parse_azure_overview(files)) == expected
+    assert expected[0] == 5
+
+
+async def test_a_subscription_whose_resources_were_not_listed_is_not_hidden(tmp_path):
+    await _collect_inventory(
+        tmp_path,
+        {SUB_A: _resources(SUB_A), SUB_B: PermissionError("AuthorizationFailed")},
+        multi=True,
+    )
+    files = _read(tmp_path, sidecars=True)
+
+    assert "60_azure_resource_inventory_summary_Prod-B.json" not in files
+    total, _types, groups, per_sub = _inventory(_parse_azure_overview(files))
+    assert total == 5
+    assert [s["name"] for s in per_sub] == ["Prod-A"]
+    assert groups[0] == {"name": "rg-prod (Prod-A)", "count": 3}
+
+
+async def test_each_subscription_reads_its_own_inventory_files(tmp_path):
+    await _collect_inventory(
+        tmp_path, {SUB_A: _resources(SUB_A), SUB_B: _resources(SUB_B)[:2]}, multi=True
+    )
+    files = _drop(_read(tmp_path, sidecars=True), "60_azure_resource_inventory_summary_Prod-A")
+
+    total, types, _groups, per_sub = _inventory(_parse_azure_overview(files))
+
+    assert total == 7
+    assert [(s["name"], s["resources"]) for s in per_sub] == [("Prod-A", 5), ("Prod-B", 2)]
+    assert {"type": "Microsoft.Compute/virtualMachines", "count": 2} in types

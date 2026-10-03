@@ -278,7 +278,7 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
                 result["subscriptions"].append({"name": name, "id": sub_id, "state": state})
 
     # ── Resource inventory (aggregate across all subs) ─────────────────────
-    for _fname, content, sub_name in _find_azure_files(
+    for fname, content, sub_name in _find_azure_files(
         file_contents, "60_azure_resource_inventory_summary"
     ):
         sub_resources = 0
@@ -286,6 +286,21 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
         sub_rgs: list[dict] = []
         in_types = False
         in_rgs = False
+
+        inventory = _sidecar(file_contents, fname)
+        if inventory is not None:
+            sub_resources = int(inventory.get("total") or 0)
+            for row in inventory.get("by_type") or []:
+                name, count = row.get("type") or "", int(row.get("count") or 0)
+                sub_types[name] = sub_types.get(name, 0) + count
+                result["resource_types"][name] = result["resource_types"].get(name, 0) + count
+            for row in inventory.get("by_resource_group") or []:
+                name, count = row.get("name") or "", int(row.get("count") or 0)
+                sub_rgs.append({"name": name, "count": count})
+                result["resource_groups"].append(
+                    {"name": f"{name} ({sub_name})" if sub_name else name, "count": count}
+                )
+            content = ""  # every figure came from the sidecar: no text to read
 
         for line in content.splitlines():
             if "By Type:" in line:
