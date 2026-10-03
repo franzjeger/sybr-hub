@@ -1116,6 +1116,31 @@ function metricPct(value, digits) {
   return Number(value).toFixed(digits === undefined ? 0 : digits);
 }
 
+// The same rule for counts. A run that did not count users without MFA has
+// no such key in its metrics, and `Number(undefined) || 0` turned that into a
+// reassuring zero printed right under a finding about an admin without MFA.
+// Unmeasured reads "ukjent" on every card that shows the figure.
+function metricKnown(value) {
+  return !(value === null || value === undefined || value === '' || isNaN(value));
+}
+function metricCount(value) {
+  return metricKnown(value) ? String(Number(value)) : t('lbl_unknown_value', 'ukjent');
+}
+
+// Run folders are named "YYYY-MM-DD_HHMMSS" (older ones "YYYY-MM-DD_HHMM",
+// some with a suffix after). That name is for the file system; a person reads
+// the date and time. Returns the input unchanged when it is not a run name.
+function formatRunName(name) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})(?:[_T ](\d{2}):?(\d{2}))?/.exec(String(name || ''));
+  if (!m) return String(name || '');
+  var locale = _lang === 'en' ? 'en-GB' : 'nb-NO';
+  var date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (isNaN(date.getTime())) return String(name);
+  var day = date.toLocaleDateString(locale, {day: 'numeric', month: 'long', year: 'numeric'});
+  if (!m[4]) return day;
+  return t('fmt_run_date_time', '{date} kl. {time}').replace('{date}', day).replace('{time}', m[4] + ':' + m[5]);
+}
+
 // Paths the server keeps open without the write capability. Sent by /auth/me
 // rather than restated here — a second copy of the rule is the one that goes
 // stale, and it would go stale in the direction of offering something the

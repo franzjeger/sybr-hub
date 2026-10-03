@@ -9,8 +9,9 @@
  * Class-based markup on purpose: the CSP budget keeps inline styles from
  * growing, so styling lives in app.css (.asmt-*) and interactions bind with
  * addEventListener rather than inline handlers. Every visible string goes
- * through t(); the reason codes are translated by _reason() from app.js, the
- * same helper the customer-card baseline panel uses.
+ * through t(); a requirement's reason is worded by baselineReason() in
+ * app-customer-detail.js, the same helper the customer-card panel uses, so
+ * neither screen shows the internal path a check reads.
  */
 
 var _asmtBaselines = null;
@@ -186,7 +187,7 @@ function _asmtResultHTML(res) {
     h += '<td><span class="asmt-check-title">' + esc(c.title) + '</span>' + _asmtSevPill(c.severity);
     if (c.why) { h += '<div class="asmt-check-why">' + esc(c.why) + '</div>'; }
     h += '</td>';
-    h += '<td class="asmt-check-reason">' + esc(_reason('bl_', c.reason_code, c.params)) + '</td>';
+    h += '<td class="asmt-check-reason">' + esc(baselineReason(c)) + '</td>';
     h += '</tr>';
   });
   h += '</table>';

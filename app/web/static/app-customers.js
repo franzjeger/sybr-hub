@@ -116,6 +116,7 @@ function renderDashboard(d) {
   }
 
   function metricColor(val, thresholds) {
+    if (!metricKnown(val)) return 'var(--text-dim)';
     if (val >= thresholds[0]) return 'var(--green)';
     if (val >= thresholds[1]) return 'var(--orange)';
     return 'var(--red)';
@@ -138,17 +139,17 @@ function renderDashboard(d) {
           <div style="font-size:13px;font-weight:600;color:var(--text-muted);">${esc(String(m.risk_score))}/100 ${trend('risk_score', 'score', false)}</div>
         </div>
         <div class="tooltip" data-tip="${t('tip_mfa_share','Andel brukere med tofaktorautentisering aktivert')}" style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:28px;font-weight:700;color:${metricColor(m.mfa_coverage_pct, [95, 80])};">${m.mfa_coverage_pct?.toFixed(0) || 0}%</div>
+          <div style="font-size:28px;font-weight:700;color:${metricColor(m.mfa_coverage_pct, [95, 80])};">${metricPct(m.mfa_coverage_pct) !== null ? metricPct(m.mfa_coverage_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</div>
           <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_mfa_coverage')}</div>
           ${trend('mfa_coverage_pct', 'MFA', false)}
         </div>
         <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:28px;font-weight:700;color:${metricColor(m.secure_score_pct, [75, 50])};">${m.secure_score_pct?.toFixed(0) || 0}%</div>
+          <div style="font-size:28px;font-weight:700;color:${metricColor(m.secure_score_pct, [75, 50])};">${metricPct(m.secure_score_pct) !== null ? metricPct(m.secure_score_pct) + '%' : esc(t('lbl_unknown_value', 'ukjent'))}</div>
           <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('secure_score_2')}</div>
           ${trend('secure_score_pct', 'SS', false)}
         </div>
         <div style="text-align:center;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-          <div style="font-size:28px;font-weight:700;color:var(--text);">${Number(m.total_users) || 0}</div>
+          <div style="font-size:28px;font-weight:700;color:var(--text);">${esc(metricCount(m.total_users))}</div>
           <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">${t('lbl_users')}</div>
           ${trend('total_users', 'users', false)}
         </div>
@@ -156,20 +157,20 @@ function renderDashboard(d) {
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
         <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;color:${m.users_no_mfa > 0 ? 'var(--red)' : 'var(--green)'};">${Number(m.users_no_mfa) || 0}</span>
+          <span style="font-weight:700;color:${!metricKnown(m.users_no_mfa) ? 'var(--text-dim)' : m.users_no_mfa > 0 ? 'var(--red)' : 'var(--green)'};">${esc(metricCount(m.users_no_mfa))}</span>
           <span style="color:var(--text-dim);"> ${t('lbl_without_mfa')}</span>
           ${trend('users_no_mfa', 'noMFA', true)}
         </div>
         <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;">${Number(m.ca_policies_enabled) || 0}</span>
+          <span style="font-weight:700;">${esc(metricCount(m.ca_policies_enabled))}</span>
           <span style="color:var(--text-dim);"> ${t('lbl_ca_policies')}</span>
         </div>
         <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;">${Number(m.intune_total_devices) || 0}</span>
+          <span style="font-weight:700;">${esc(metricCount(m.intune_total_devices))}</span>
           <span style="color:var(--text-dim);"> ${t('lbl_devices')}</span>
         </div>
         <div style="text-align:center;padding:8px;font-size:12px;">
-          <span style="font-weight:700;">${Number(m.total_warns) || 0}</span>
+          <span style="font-weight:700;">${esc(metricCount(m.total_warns))}</span>
           <span style="color:var(--text-dim);"> ${t('lbl_warnings')}</span>
           ${trend('total_warns', 'warns', true)}
         </div>
