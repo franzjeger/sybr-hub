@@ -28,8 +28,10 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # (palette, sign-in, report viewer, footer) moved to classes on the token
 # scale and every view took the one tab bar (.tabs / .tab); to 3655 with Oversikt
 # and Varsler; to 2894 with the customer page and Kunder; to 2261 with
-# Administrasjon; to 84 with the Verktøy pages.
-INLINE_STYLE_ATTRIBUTE_BUDGET = 84
+# Administrasjon; to 84 with the Verktøy pages; to 46 with the dialogs. What is
+# left is style="display:none" on elements a script shows by setting
+# style.display and reads back; keep new ones out (use hidden).
+INLINE_STYLE_ATTRIBUTE_BUDGET = 46
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)
@@ -102,6 +104,21 @@ def test_inline_style_attribute_debt_cannot_grow():
     assert count <= INLINE_STYLE_ATTRIBUTE_BUDGET, (
         f"inline style debt grew: {count} > {INLINE_STYLE_ATTRIBUTE_BUDGET}"
     )
+
+
+def test_the_only_inline_style_left_is_display_none():
+    """Everything else is a class on the design tokens in app.css. A colour,
+    a size or a spacing written inline is a value off the scale that the next
+    person copies; a value a script must vary is set through el.style or
+    data-bar (app-ui.js), not built into a style attribute."""
+    offenders = []
+    for path in SOURCES:
+        source = path.read_text(encoding="utf-8")
+        for m in re.finditer(r"""\bstyle\s*=\s*(\\?["'])(.*?)\1""", source, re.S):
+            if m.group(2).replace(" ", "").rstrip(";") != "display:none":
+                line = source[: m.start()].count("\n") + 1
+                offenders.append(f"{path.name}:{line}: {m.group(0)[:100]}")
+    assert not offenders, "inline styles other than display:none:\n" + "\n".join(offenders)
 
 
 def test_no_tag_carries_two_class_attributes():
