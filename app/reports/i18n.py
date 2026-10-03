@@ -2479,8 +2479,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Operations",
     },
     "rec_advisor_title": {
-        "no": "Azure Advisor ({category}): {count} anbefaling(er)",
-        "en": "Azure Advisor \u2014 {category}: {count} recommendation(s)",
+        "no": "Azure Advisor ({category_label}): {count} anbefaling(er)",
+        "en": "Azure Advisor \u2014 {category_label}: {count} recommendation(s)",
     },
     "rec_advisor_detail": {
         "no": "{high_count} med høy prioritet.",

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -152,6 +152,55 @@ async def _add_ssh_key_customer_column(conn: aiosqlite.Connection) -> None:
     if "customer_id" in columns:
         return
     await conn.execute("ALTER TABLE ssh_keys ADD COLUMN customer_id TEXT")
+
+
+async def _key_advisor_recommendations_on_their_category(conn: aiosqlite.Connection) -> None:
+    """Move what was recorded under an Advisor recommendation's old ids to its new one.
+
+    The id was built from the category's translated label, so one finding was
+    "rec_advisor_title:Sikkerhet" in Norwegian and "rec_advisor_title:Security"
+    in English, and state recorded in one language was missing in the other.
+    It is now built from Azure's category ("Security", "HighAvailability").
+
+    Nothing is deleted. Where a customer has rows under both an old and the new
+    id, the remediation row updated last takes the new id and the other keeps
+    an old one; a ticket or reserved operation already under the new id stays,
+    and the other keeps its old id. Running it again changes nothing.
+    """
+    from app.reports.recommendations import advisor_id_renames
+
+    for old, new in advisor_id_renames().items():
+        async with conn.execute(
+            "SELECT id, customer_id, updated_at FROM remediation_items WHERE recommendation_id = ?",
+            (old,),
+        ) as cur:
+            moving = await cur.fetchall()
+        for row in moving:
+            async with conn.execute(
+                "SELECT id, updated_at FROM remediation_items "
+                "WHERE customer_id = ? AND recommendation_id = ?",
+                (row[1], new),
+            ) as cur:
+                held = await cur.fetchone()
+            if held is None:
+                await conn.execute(
+                    "UPDATE remediation_items SET recommendation_id = ? WHERE id = ?",
+                    (new, row[0]),
+                )
+            elif (row[2] or "") > (held[1] or ""):
+                # Swap: a placeholder first, since (customer, id) is unique.
+                for target, row_id in (("__migrating__", held[0]), (new, row[0]), (old, held[0])):
+                    await conn.execute(
+                        "UPDATE remediation_items SET recommendation_id = ? WHERE id = ?",
+                        (target, row_id),
+                    )
+        for table in ("finding_tickets", "finding_operations"):
+            await conn.execute(
+                f"UPDATE {table} SET rec_id = ? WHERE rec_id = ? AND NOT EXISTS ("
+                f"SELECT 1 FROM {table} AS held WHERE held.customer_id = {table}.customer_id "
+                f"AND held.system = {table}.system AND held.rec_id = ?)",
+                (new, old, new),
+            )
 
 
 _MIGRATIONS: list = [
@@ -544,6 +593,11 @@ _MIGRATIONS: list = [
         23,
         "SSH keys belong to a customer, or are MSP-wide when unset",
         _add_ssh_key_customer_column,
+    ),
+    (
+        24,
+        "Advisor recommendations keep one id in every language",
+        _key_advisor_recommendations_on_their_category,
     ),
 ]
 

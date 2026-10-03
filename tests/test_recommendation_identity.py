@@ -664,3 +664,186 @@ def test_an_id_with_no_matching_finding_is_shown_rather_than_hidden(monkeypatch,
     )
 
     assert _recommendation_titles("Acme", "no") == {}
+
+
+# ── Azure Advisor: the category, not its translation ─────────────────────────
+
+_ADVICE = [
+    {"category": "Security", "impact": "High", "count": 1, "description": "Lukk port 3389"},
+    {
+        "category": "HighAvailability",
+        "impact": "High",
+        "count": 2,
+        "description": "Sett opp backup",
+    },
+]
+
+
+def _advisor_recs(lang: str) -> dict[str, dict]:
+    recs = _build_recommendations(
+        mfa={},
+        spf_dmarc=[],
+        secure_score={},
+        ext_fwd="",
+        risky_users="",
+        licenses=[],
+        azure={"advisor_summary": _ADVICE},
+        file_contents={},
+        lang=lang,
+    )
+    return {r["rec_id"]: r for r in recs if r.get("title_key") == "rec_advisor_title"}
+
+
+def test_an_advisor_recommendation_has_one_id_in_both_languages():
+    """The id was built from the translated category, "Sikkerhet" or "Security".
+
+    Remediation state recorded in one language was then lost in the other, the
+    very thing the language-independent id exists to prevent.
+    """
+    no, en = _advisor_recs("no"), _advisor_recs("en")
+
+    assert (
+        set(no)
+        == set(en)
+        == {
+            "rec_advisor_title:Security",
+            "rec_advisor_title:HighAvailability",
+        }
+    )
+    assert no["rec_advisor_title:Security"]["title"].startswith("Azure Advisor (Sikkerhet)")
+    assert en["rec_advisor_title:Security"]["title"].startswith("Azure Advisor — Security")
+
+
+def test_a_stored_advisor_recommendation_is_relabelled_for_the_reader():
+    """The label was stored in the run's language and re-rendered as it was."""
+    from app.reports.recommendations import relocalise_recommendations
+
+    stored = {"recommendations": list(_advisor_recs("no").values())}
+    out = relocalise_recommendations(json.loads(json.dumps(stored)), "en")["recommendations"]
+
+    titles = {r["rec_id"]: r["title"] for r in out}
+    assert titles["rec_advisor_title:HighAvailability"].startswith(
+        "Azure Advisor — High Availability: 1"
+    )
+
+
+def test_a_run_from_before_reads_with_the_new_id():
+    """A run recorded before carries the translated label as its id and "category".
+
+    Its recommendation is read under the id the remediation state was moved to,
+    so the dashboard does not show the state as lost until the next audit.
+    """
+    from app.reports.recommendations import relocalise_recommendations
+
+    stored = {
+        "recommendations": [
+            {
+                "rec_id": "rec_advisor_title:Høy tilgjengelighet",
+                "title": "Azure Advisor (Høy tilgjengelighet): 2 anbefaling(er)",
+                "title_key": "rec_advisor_title",
+                "title_params": {"category": "Høy tilgjengelighet", "count": 2},
+            },
+            {
+                "rec_id": "rec_advisor_title:Unknown",
+                "title": "Azure Advisor (Unknown): 3 anbefaling(er)",
+                "title_key": "rec_advisor_title",
+                "title_params": {"category": "Unknown", "count": 3},
+            },
+        ]
+    }
+
+    known, unknown = relocalise_recommendations(stored, "en")["recommendations"]
+
+    assert known["rec_id"] == "rec_advisor_title:HighAvailability"
+    assert known["title"] == "Azure Advisor — High Availability: 2 recommendation(s)"
+    assert unknown["rec_id"] == "rec_advisor_title:Unknown", "not a label: left as it was"
+    assert unknown["title"] == "Azure Advisor — Unknown: 3 recommendation(s)"
+
+
+def test_the_frozen_labels_are_the_ones_the_report_used():
+    """The migration maps the labels as they were; they must be every label there was."""
+    from app.reports.i18n import T
+    from app.reports.recommendations import _ADVISOR_LABELS, ADVISOR_CATEGORY_BY_LABEL
+
+    current = {
+        str(getattr(T(lang), key)): category
+        for category, key in _ADVISOR_LABELS.items()
+        for lang in ("no", "en")
+    }
+    assert current == ADVISOR_CATEGORY_BY_LABEL
+
+
+async def test_the_migration_moves_state_from_both_old_ids(tmp_path, monkeypatch):
+    from app.core import database
+    from app.core.database import get_db, run_migrations
+
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "advisor.db")
+    await database.close_pool()
+    await run_migrations()
+
+    remediation = [
+        # (customer, id, status, updated_at)
+        ("kunde-a", "rec_advisor_title:Sikkerhet", "done", "2026-09-01T10:00:00"),
+        ("kunde-b", "rec_advisor_title:High Availability", "in_progress", "2026-09-02T10:00:00"),
+        # Recorded in both languages: the later decision wins the new id.
+        ("kunde-c", "rec_advisor_title:Kostnadsoptimalisering", "done", "2026-09-03T10:00:00"),
+        ("kunde-c", "rec_advisor_title:Cost Optimisation", "open", "2026-08-03T10:00:00"),
+        # The English id was already the new one; the later Norwegian row wins it.
+        ("kunde-d", "rec_advisor_title:Sikkerhet", "ignored", "2026-09-04T10:00:00"),
+        ("kunde-d", "rec_advisor_title:Security", "open", "2026-08-04T10:00:00"),
+        ("kunde-e", "rec_dmarc_title:kunde-e.example", "done", "2026-09-05T10:00:00"),
+    ]
+    async with get_db() as conn:
+        for customer, rec_id, status, updated in remediation:
+            await conn.execute(
+                "INSERT INTO remediation_items "
+                "(customer_id, recommendation_id, status, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (customer, rec_id, status, updated, updated),
+            )
+        # A ticket raised in each language for the same finding and system.
+        for n, rec_id in enumerate(("rec_advisor_title:Drift", "rec_advisor_title:Operations")):
+            await conn.execute(
+                "INSERT INTO finding_tickets "
+                "(customer_id, rec_id, system, external_id, created_at) "
+                "VALUES ('kunde-a', ?, 'autotask', ?, '2026-09-01T10:00:00')",
+                (rec_id, f"T{n}"),
+            )
+            await conn.execute(
+                "INSERT INTO finding_operations "
+                "(operation_id, customer_id, rec_id, system, status, created_at, created_by) "
+                "VALUES (?, 'kunde-a', ?, 'autotask', 'succeeded', '2026-09-01T10:00:00', 'tech')",
+                (f"op-{n}", rec_id),
+            )
+        await conn.execute("UPDATE schema_version SET version = 23")
+        await conn.commit()
+
+    await run_migrations()
+    await run_migrations()  # a second run changes nothing
+
+    async with get_db() as conn:
+        async with conn.execute(
+            "SELECT customer_id, recommendation_id, status FROM remediation_items"
+        ) as cur:
+            rows = {(r[0], r[1]): r[2] for r in await cur.fetchall()}
+        tickets = {}
+        for table in ("finding_tickets", "finding_operations"):
+            async with conn.execute(f"SELECT rec_id FROM {table} ORDER BY rec_id") as cur:
+                tickets[table] = [r[0] for r in await cur.fetchall()]
+    await database.close_pool()
+
+    assert rows == {
+        ("kunde-a", "rec_advisor_title:Security"): "done",
+        ("kunde-b", "rec_advisor_title:HighAvailability"): "in_progress",
+        ("kunde-c", "rec_advisor_title:Cost"): "done",
+        ("kunde-c", "rec_advisor_title:Cost Optimisation"): "open",
+        ("kunde-d", "rec_advisor_title:Security"): "ignored",
+        ("kunde-d", "rec_advisor_title:Sikkerhet"): "open",
+        ("kunde-e", "rec_dmarc_title:kunde-e.example"): "done",
+    }
+    # One ticket per finding and system: the first moves, the second keeps its id.
+    for table in ("finding_tickets", "finding_operations"):
+        assert tickets[table] == [
+            "rec_advisor_title:OperationalExcellence",
+            "rec_advisor_title:Operations",
+        ], table
