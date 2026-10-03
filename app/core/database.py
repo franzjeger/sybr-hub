@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 25
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -154,6 +154,37 @@ async def _add_ssh_key_customer_column(conn: aiosqlite.Connection) -> None:
     await conn.execute("ALTER TABLE ssh_keys ADD COLUMN customer_id TEXT")
 
 
+async def _move_remediation_row(
+    conn: aiosqlite.Connection,
+    row_id: int,
+    customer_id: str,
+    updated_at: str | None,
+    old: str,
+    new: str,
+) -> None:
+    """Give one remediation row the recommendation id *new*, deleting nothing.
+
+    Where the customer already has a row under *new*, the one updated last
+    takes it and the other keeps *old*.
+    """
+    async with conn.execute(
+        "SELECT id, updated_at FROM remediation_items "
+        "WHERE customer_id = ? AND recommendation_id = ?",
+        (customer_id, new),
+    ) as cur:
+        held = await cur.fetchone()
+    if held is None:
+        await conn.execute(
+            "UPDATE remediation_items SET recommendation_id = ? WHERE id = ?", (new, row_id)
+        )
+    elif (updated_at or "") > (held[1] or ""):
+        # Swap: a placeholder first, since (customer, id) is unique.
+        for target, rid in (("__migrating__", held[0]), (new, row_id), (old, held[0])):
+            await conn.execute(
+                "UPDATE remediation_items SET recommendation_id = ? WHERE id = ?", (target, rid)
+            )
+
+
 async def _key_advisor_recommendations_on_their_category(conn: aiosqlite.Connection) -> None:
     """Move what was recorded under an Advisor recommendation's old ids to its new one.
 
@@ -176,30 +207,123 @@ async def _key_advisor_recommendations_on_their_category(conn: aiosqlite.Connect
         ) as cur:
             moving = await cur.fetchall()
         for row in moving:
-            async with conn.execute(
-                "SELECT id, updated_at FROM remediation_items "
-                "WHERE customer_id = ? AND recommendation_id = ?",
-                (row[1], new),
-            ) as cur:
-                held = await cur.fetchone()
-            if held is None:
-                await conn.execute(
-                    "UPDATE remediation_items SET recommendation_id = ? WHERE id = ?",
-                    (new, row[0]),
-                )
-            elif (row[2] or "") > (held[1] or ""):
-                # Swap: a placeholder first, since (customer, id) is unique.
-                for target, row_id in (("__migrating__", held[0]), (new, row[0]), (old, held[0])):
-                    await conn.execute(
-                        "UPDATE remediation_items SET recommendation_id = ? WHERE id = ?",
-                        (target, row_id),
-                    )
+            await _move_remediation_row(conn, row[0], row[1], row[2], old, new)
         for table in ("finding_tickets", "finding_operations"):
             await conn.execute(
                 f"UPDATE {table} SET rec_id = ? WHERE rec_id = ? AND NOT EXISTS ("
                 f"SELECT 1 FROM {table} AS held WHERE held.customer_id = {table}.customer_id "
                 f"AND held.system = {table}.system AND held.rec_id = ?)",
                 (new, old, new),
+            )
+
+
+async def _key_unreadable_network_files_on_their_file(conn: aiosqlite.Connection) -> None:
+    """Move what was recorded under the shared id of an unreadable network file to its own.
+
+    Both saved network audits, FortiGate's and UniFi's, raised
+    "rec_network_audit_unreadable_title" when they would not parse, with
+    nothing in the id to tell them apart: the first unreadable file in a run
+    had the bare id, the second the bare id and "#2". Remediation state,
+    tickets and reserved ticket operations followed the position, not the
+    file. The id now names the file.
+
+    "#2" can only have been the UniFi file, the second of the two the parser
+    reads. The bare id was whichever file came first in its run, and three
+    things can say which: a ticket's own title, which names the file; for a
+    reserved operation, the ticket raised for the same finding; and the latest
+    run audit_metrics recorded for the customer that raised the bare id. A row
+    none of them names keeps the old id: guessing would put a decision made
+    about one device on the other, where it hides a finding nobody decided on.
+
+    Nothing is deleted. Where two rows land on one new id, the remediation row
+    updated last takes it and the other keeps its old id; a ticket or reserved
+    operation already under the new id stays, and the other keeps its old id.
+    Running it again changes nothing.
+    """
+    import json
+
+    from app.reports.parsers.network import NETWORK_AUDIT_FILES
+    from app.reports.recommendations import (
+        NETWORK_UNREADABLE_KEY,
+        network_unreadable_id,
+        network_unreadable_old_ids,
+    )
+
+    files = [name for name, _ in NETWORK_AUDIT_FILES]
+
+    def named_in(title: str | None) -> str | None:
+        named = [f for f in files if f in (title or "")]
+        return named[0] if len(named) == 1 else None
+
+    async def last_raised_for(customer_id: str, old: str) -> str | None:
+        async with conn.execute(
+            "SELECT metrics_json FROM audit_metrics WHERE customer_id = ? "
+            "AND instr(metrics_json, ?) > 0 ORDER BY audit_date DESC, id DESC",
+            (customer_id, NETWORK_UNREADABLE_KEY),
+        ) as cur:
+            runs = await cur.fetchall()
+        for (blob,) in runs:
+            try:
+                recs = json.loads(blob or "{}").get("recommendations") or []
+            except (ValueError, AttributeError):
+                continue
+            for rec in recs:
+                if isinstance(rec, dict) and rec.get("rec_id") == old:
+                    file = (rec.get("title_params") or {}).get("file")
+                    if file in files:
+                        return file
+        return None
+
+    old_ids = network_unreadable_old_ids()
+    for old, fixed in old_ids.items():
+        async with conn.execute(
+            "SELECT id, customer_id, updated_at FROM remediation_items WHERE recommendation_id = ?",
+            (old,),
+        ) as cur:
+            moving = await cur.fetchall()
+        for row_id, customer_id, updated_at in moving:
+            file = fixed or await last_raised_for(customer_id, old)
+            if file:
+                await _move_remediation_row(
+                    conn, row_id, customer_id, updated_at, old, network_unreadable_id(file)
+                )
+
+    # A ticket names the file in its title; its reserved operation follows it.
+    placeholders = ", ".join("?" for _ in old_ids)
+    async with conn.execute(
+        f"SELECT id, customer_id, system, rec_id, title FROM finding_tickets "
+        f"WHERE rec_id IN ({placeholders}) ORDER BY id",
+        tuple(old_ids),
+    ) as cur:
+        tickets = await cur.fetchall()
+    ticket_file = {
+        (customer_id, system, old): named_in(title)
+        for _id, customer_id, system, old, title in tickets
+    }
+    async with conn.execute(
+        f"SELECT operation_id, customer_id, system, rec_id FROM finding_operations "
+        f"WHERE rec_id IN ({placeholders}) ORDER BY created_at, operation_id",
+        tuple(old_ids),
+    ) as cur:
+        operations = await cur.fetchall()
+    for table, key, rows in (
+        ("finding_tickets", "id", [(r[0], r[1], r[2], r[3]) for r in tickets]),
+        ("finding_operations", "operation_id", operations),
+    ):
+        for row_key, customer_id, system, old in rows:
+            file = (
+                old_ids[old]
+                or ticket_file.get((customer_id, system, old))
+                or await last_raised_for(customer_id, old)
+            )
+            if not file:
+                continue
+            new = network_unreadable_id(file)
+            await conn.execute(
+                f"UPDATE {table} SET rec_id = ? WHERE {key} = ? AND NOT EXISTS ("
+                f"SELECT 1 FROM {table} AS held WHERE held.customer_id = ? "
+                f"AND held.system = ? AND held.rec_id = ?)",
+                (new, row_key, customer_id, system, new),
             )
 
 
@@ -598,6 +722,11 @@ _MIGRATIONS: list = [
         24,
         "Advisor recommendations keep one id in every language",
         _key_advisor_recommendations_on_their_category,
+    ),
+    (
+        25,
+        "Each unreadable network file keeps its own recommendation id",
+        _key_unreadable_network_files_on_their_file,
     ),
 ]
 

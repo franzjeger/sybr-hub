@@ -949,3 +949,162 @@ def test_new_runs_store_values_not_words():
         "category_label": "HighAvailability",
         "count": 1,
     }
+
+
+# ── One id per unreadable network file ──────────────────────────────────────
+
+
+def _network_recs(unreadable: list[str]) -> dict[str, str]:
+    recs = _build_recommendations(
+        mfa={},
+        spf_dmarc=[],
+        secure_score={},
+        ext_fwd="",
+        risky_users="",
+        licenses=[],
+        network={"has_data": False, "unreadable": unreadable},
+        file_contents={},
+    )
+    return {
+        r["title_params"]["file"]: r["rec_id"]
+        for r in recs
+        if r.get("title_key") == "rec_network_audit_unreadable_title"
+    }
+
+
+def test_each_unreadable_network_file_has_its_own_id():
+    """Both files shared one id, "#2" for whichever came second.
+
+    The UniFi file's finding was the bare id when it was the only one and
+    "#2" beside the FortiGate file, so remediation state recorded against it
+    moved to the FortiGate finding the next time both failed.
+    """
+    both = _network_recs(["60_fortigate_audit.txt", "61_unifi_audit.txt"])
+    alone = _network_recs(["61_unifi_audit.txt"])
+
+    assert both == {
+        "60_fortigate_audit.txt": "rec_network_audit_unreadable_title:60_fortigate_audit.txt",
+        "61_unifi_audit.txt": "rec_network_audit_unreadable_title:61_unifi_audit.txt",
+    }
+    assert alone["61_unifi_audit.txt"] == both["61_unifi_audit.txt"]
+
+
+def test_a_run_from_before_reads_the_network_files_with_their_own_ids():
+    from app.reports.recommendations import relocalise_recommendations
+
+    def stored(rec_id: str, file: str) -> dict:
+        return {
+            "rec_id": rec_id,
+            "title": f"Nettverksaudit kunne ikke leses ({file})",
+            "title_key": "rec_network_audit_unreadable_title",
+            "title_params": {"file": file},
+        }
+
+    run = {
+        "recommendations": [
+            stored("rec_network_audit_unreadable_title", "61_unifi_audit.txt"),
+            stored("rec_network_audit_unreadable_title#2", "60_fortigate_audit.txt"),
+        ]
+    }
+
+    ids = [r["rec_id"] for r in relocalise_recommendations(run, "en")["recommendations"]]
+
+    assert ids == [
+        "rec_network_audit_unreadable_title:61_unifi_audit.txt",
+        "rec_network_audit_unreadable_title:60_fortigate_audit.txt",
+    ]
+
+
+async def test_the_migration_moves_network_file_state_to_the_files_id(tmp_path, monkeypatch):
+    """Where nothing says which file the bare id was, the decision stays where it was."""
+    from app.core import database
+    from app.core.database import get_db, run_migrations
+
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "network.db")
+    await database.close_pool()
+    await run_migrations()
+
+    bare = "rec_network_audit_unreadable_title"
+    second = f"{bare}#2"
+    fortigate = f"{bare}:60_fortigate_audit.txt"
+    unifi = f"{bare}:61_unifi_audit.txt"
+
+    def raised(*recs: tuple[str, str]) -> str:
+        return json.dumps(
+            {"recommendations": [{"rec_id": i, "title_params": {"file": f}} for i, f in recs]}
+        )
+
+    async with get_db() as conn:
+        # What each customer's runs said the bare id was: the latest run that
+        # raised it decides, not merely the latest run.
+        for customer, date, metrics in (
+            ("kunde-a", "2026-08-01T09:00:00Z", raised((bare, "61_unifi_audit.txt"))),
+            ("kunde-a", "2026-09-01T09:00:00Z", raised((bare, "60_fortigate_audit.txt"))),
+            ("kunde-a", "2026-09-15T09:00:00Z", raised(("rec_dmarc_title:x.example", ""))),
+            ("kunde-b", "2026-09-01T09:00:00Z", raised((bare, "61_unifi_audit.txt"))),
+            ("kunde-d", "2026-09-01T09:00:00Z", raised((bare, "61_unifi_audit.txt"))),
+        ):
+            await conn.execute(
+                "INSERT INTO audit_metrics (customer_id, customer_name, audit_date, "
+                "metrics_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                (customer, customer, date, metrics, date),
+            )
+        for customer, rec_id, status, updated in (
+            ("kunde-a", bare, "done", "2026-09-02T10:00:00"),
+            # "#2" was only ever the second of the two: UniFi.
+            ("kunde-a", second, "ignored", "2026-09-02T10:00:00"),
+            ("kunde-b", bare, "in_progress", "2026-09-02T10:00:00"),
+            # No run says which file it was.
+            ("kunde-c", bare, "done", "2026-09-02T10:00:00"),
+            # Both old ids land on the UniFi file: the later decision takes it.
+            ("kunde-d", bare, "done", "2026-09-03T10:00:00"),
+            ("kunde-d", second, "open", "2026-09-01T10:00:00"),
+        ):
+            await conn.execute(
+                "INSERT INTO remediation_items "
+                "(customer_id, recommendation_id, status, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (customer, rec_id, status, updated, updated),
+            )
+        # A ticket names its file in its title, and its reserved operation follows it.
+        await conn.execute(
+            "INSERT INTO finding_tickets (customer_id, rec_id, system, external_id, title, "
+            "created_at) VALUES ('kunde-c', ?, 'autotask', 'T1', "
+            "'Network audit could not be read (61_unifi_audit.txt)', '2026-09-01T10:00:00')",
+            (bare,),
+        )
+        await conn.execute(
+            "INSERT INTO finding_operations "
+            "(operation_id, customer_id, rec_id, system, status, created_at, created_by) "
+            "VALUES ('op-1', 'kunde-c', ?, 'autotask', 'succeeded', '2026-09-01T10:00:00', 'tech')",
+            (bare,),
+        )
+        await conn.execute("UPDATE schema_version SET version = 24")
+        await conn.commit()
+
+    await run_migrations()
+    async with get_db() as conn:  # a second run changes nothing
+        await database._key_unreadable_network_files_on_their_file(conn)
+        await conn.commit()
+
+    async with get_db() as conn:
+        async with conn.execute(
+            "SELECT customer_id, recommendation_id, status FROM remediation_items"
+        ) as cur:
+            rows = {(r[0], r[1]): r[2] for r in await cur.fetchall()}
+        tickets = {}
+        for table in ("finding_tickets", "finding_operations"):
+            async with conn.execute(f"SELECT customer_id, rec_id FROM {table}") as cur:
+                tickets[table] = [tuple(r) for r in await cur.fetchall()]
+    await database.close_pool()
+
+    assert rows == {
+        ("kunde-a", fortigate): "done",
+        ("kunde-a", unifi): "ignored",
+        ("kunde-b", unifi): "in_progress",
+        ("kunde-c", bare): "done",
+        ("kunde-d", unifi): "done",
+        ("kunde-d", second): "open",
+    }
+    for table in ("finding_tickets", "finding_operations"):
+        assert tickets[table] == [("kunde-c", unifi)], table

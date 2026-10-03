@@ -34,6 +34,7 @@ from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items
 from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.network import NETWORK_AUDIT_FILES
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ def relocalise_recommendations(metrics: dict, lang: str) -> dict:
     for rec in recs:
         if not isinstance(rec, dict):
             continue
-        out = _advisor_in_current_shape(rec)
+        out = _in_current_shape(rec)
         for field in ("title", "detail"):
             key = out.get(f"{field}_key")
             if key:
@@ -993,6 +994,16 @@ def _advisor_in_current_shape(rec: dict) -> dict:
     return out
 
 
+def _in_current_shape(rec: dict) -> dict:
+    """A stored recommendation with the id and params this version gives it."""
+    out = _advisor_in_current_shape(rec)
+    if out.get("title_key") == NETWORK_UNREADABLE_KEY:
+        file = (out.get("title_params") or {}).get("file")
+        if file:
+            out["rec_id"] = _rec_id(NETWORK_UNREADABLE_KEY, {"file": file})
+    return out
+
+
 def _advisor_line(item: dict) -> str:
     """ "[High] description (x3, Prod)": count and subscription share one bracket."""
     notes = [f"x{item['count']}"] if item["count"] > 1 else []
@@ -1030,6 +1041,30 @@ def _backup(audit: _Audit) -> Iterator[dict]:
 
 # ── Network (FortiGate and UniFi) ─────────────────────────────────────────────
 
+# Until 2026-10 both files raised this key with nothing in the id to tell them
+# apart: the first unreadable file in a run had the bare key, the second the
+# bare key and "#2", so remediation state followed the position, not the file.
+# "file" is now part of the id. Database migration 25 moves what was recorded
+# under the old ids, and relocalise_recommendations reads runs from before
+# with the new one.
+NETWORK_UNREADABLE_KEY = "rec_network_audit_unreadable_title"
+
+
+def network_unreadable_id(file: str) -> str:
+    """The id of the recommendation that says *file* could not be read."""
+    return _rec_id(NETWORK_UNREADABLE_KEY, {"file": file})
+
+
+def network_unreadable_old_ids() -> dict[str, str | None]:
+    """{old id: the file it can only have meant, or None when the run decides}.
+
+    "#2" was only ever given to the second of two unreadable files, and the
+    files are read in NETWORK_AUDIT_FILES order. The bare id was whichever
+    file came first in that run.
+    """
+    second = NETWORK_AUDIT_FILES[1][0]
+    return {NETWORK_UNREADABLE_KEY: None, f"{NETWORK_UNREADABLE_KEY}#2": second}
+
 
 def _network_unreadable(audit: _Audit) -> Iterator[dict]:
     # A file that would not parse leaves the network findings silent, and
@@ -1040,7 +1075,7 @@ def _network_unreadable(audit: _Audit) -> Iterator[dict]:
     for unreadable in (audit.network or {}).get("unreadable", []):
         yield {
             "priority": "high",
-            "title": t("rec_network_audit_unreadable_title", file=unreadable),
+            "title": t(NETWORK_UNREADABLE_KEY, file=unreadable),
             "detail": t.rec_network_audit_unreadable_detail,
             "effort": t.rec_effort_immediate,
             # The file that would not parse is both the provenance and the
@@ -1272,7 +1307,14 @@ _RULES: tuple[_Rule, ...] = (
 # much of it there is. "kunde-a.example" identifies a finding; "3 mailboxes" is how
 # big it is this week. Only the former may enter the id, or marking an item done
 # would come undone the moment the count moved.
-_REC_IDENTITY_PARAMS = ("domain", "part", "category", "sku", "name")
+_REC_IDENTITY_PARAMS = ("domain", "part", "category", "sku", "name", "file")
+
+
+def _rec_id(base: str, params: dict) -> str:
+    """The id for a recommendation from *base* about the subject in *params*."""
+    return ":".join(
+        [base] + [str(params[k]) for k in _REC_IDENTITY_PARAMS if params.get(k) not in (None, "")]
+    )
 
 
 def _label_recommendations(recs: list[dict]) -> list[dict]:
@@ -1294,11 +1336,7 @@ def _label_recommendations(recs: list[dict]) -> list[dict]:
                 rec[f"{field}_params"] = dict(value.params)
 
         base = rec.get("title_key") or rec.get("finding_id") or "rec"
-        params = rec.get("title_params") or {}
-        rec_id = ":".join(
-            [base]
-            + [str(params[k]) for k in _REC_IDENTITY_PARAMS if params.get(k) not in (None, "")]
-        )
+        rec_id = _rec_id(base, rec.get("title_params") or {})
         # Two recommendations from one key with nothing to tell them apart is a
         # bug in the builder, but a silently shared id would merge their
         # remediation state, so they are separated and the collision logged.

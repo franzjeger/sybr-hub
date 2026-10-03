@@ -6,6 +6,10 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# The saved quick-audit files, in the order they are read: an unreadable file
+# is reported in this order, and recommendations.py names each by its file.
+NETWORK_AUDIT_FILES = (("60_fortigate_audit.txt", "fortigate"), ("61_unifi_audit.txt", "unifi"))
+
 
 def _parse_network_audit(file_contents: dict) -> dict:
     """Parse network audit data from saved quick-audit JSON files.
@@ -26,7 +30,7 @@ def _parse_network_audit(file_contents: dict) -> dict:
         # non-empty means the report is missing findings it should have had.
         "unreadable": [],
     }
-    for name, key in (("60_fortigate_audit.txt", "fortigate"), ("61_unifi_audit.txt", "unifi")):
+    for name, key in NETWORK_AUDIT_FILES:
         raw = file_contents.get(name, "")
         if not raw.strip():
             continue
