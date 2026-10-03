@@ -218,7 +218,11 @@ def test_every_recommendation_in_the_source_declares_a_source_file():
     # Azure recommendations read per-subscription files picked at run time;
     # naming one would be a guess. They are listed rather than pattern-matched
     # so adding a third does not silently inherit the exemption.
-    exempt_titles = ('t("rec_advisor_title"', 't("rec_orphaned_title"', 't("rec_backup_title"')
+    exempt_titles = (
+        '"rec_advisor_title", category=cat',
+        't("rec_orphaned_title"',
+        't("rec_backup_title"',
+    )
 
     missing = []
     blocks = 0

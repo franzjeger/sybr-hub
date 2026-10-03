@@ -847,3 +847,105 @@ async def test_the_migration_moves_state_from_both_old_ids(tmp_path, monkeypatch
             "rec_advisor_title:OperationalExcellence",
             "rec_advisor_title:Operations",
         ], table
+
+
+# ── Params are values, words come at display time ───────────────────────────
+
+
+def _stored(recs: list[dict]) -> dict:
+    """A run's metrics as the file keeps them, through JSON."""
+    from app.reports.metrics import stored_recommendation
+
+    return json.loads(json.dumps({"recommendations": [stored_recommendation(r) for r in recs]}))
+
+
+def test_a_stored_recommendation_reads_as_if_built_in_the_readers_language():
+    """Every stored input, written in one language and read in the other.
+
+    A param holding words ("Ukjent antall", " (2 bruker(e))", the Advisor
+    category's label) kept the language the audit ran in, so the rebuilt
+    title was half one language and half the other.
+    """
+    from app.reports.recommendations import relocalise_recommendations
+    from tests import recommendations_characterisation as rc
+
+    mixed = {}
+    for name, context, _ in rc.stored_contexts(rc.load()):
+        try:
+            built = {
+                lang: _build_recommendations(**rc.clone(context), lang=lang)
+                for lang in ("no", "en")
+            }
+        except Exception:
+            continue  # the snapshot pins which inputs raise
+        for written, read in (("no", "en"), ("en", "no")):
+            rebuilt = relocalise_recommendations(_stored(built[written]), read)["recommendations"]
+            for want, got in zip(built[read], rebuilt, strict=True):
+                for field in ("title", "detail"):
+                    if str(want[field]) != got[field]:
+                        mixed.setdefault(got[field], f"{name}, {written} to {read}: {want[field]}")
+    assert not mixed, "\n".join(f"{got!r} != {why}" for got, why in sorted(mixed.items()))
+
+
+def test_a_run_from_before_reads_its_frozen_words_in_the_readers_language():
+    """Runs recorded before stored the words; they are read back as values."""
+    from app.reports.recommendations import relocalise_recommendations
+
+    stored = {
+        "recommendations": [
+            {
+                "rec_id": "rec_ext_fwd_title",
+                "title": "Ekstern e-postvideresending oppdaget (Ukjent antall postkasse(r))",
+                "title_key": "rec_ext_fwd_title",
+                "title_params": {"count": "Ukjent antall"},
+            },
+            {
+                "rec_id": "rec_risky_users_title",
+                "title": "Risikobrukere oppdaget i Identity Protection (2 bruker(e))",
+                "title_key": "rec_risky_users_title",
+                "title_params": {"suffix": " (2 bruker(e))"},
+            },
+            {
+                "rec_id": "rec_advisor_title:Security",
+                "title": "Azure Advisor (Sikkerhet): 2 anbefaling(er)",
+                "title_key": "rec_advisor_title",
+                "title_params": {"category": "Security", "category_label": "Sikkerhet", "count": 2},
+            },
+        ]
+    }
+
+    fwd, risky, advisor = relocalise_recommendations(stored, "en")["recommendations"]
+
+    assert fwd["title"] == "External email forwarding detected (Unknown count mailbox(es))"
+    assert fwd["title_params"] == {"count": None}
+    assert risky["title"] == "Risky users detected in Identity Protection (2 user(s))"
+    assert risky["title_params"] == {"count": 2}
+    assert advisor["title"] == "Azure Advisor — Security: 2 recommendation(s)"
+    assert advisor["title_params"] == {
+        "category": "Security",
+        "category_label": "Security",
+        "count": 2,
+    }
+
+
+def test_new_runs_store_values_not_words():
+    recs = _build_recommendations(
+        mfa={},
+        spf_dmarc=[],
+        secure_score={},
+        ext_fwd="EXTERNAL FORWARDING\n(rows unreadable)\n",
+        risky_users="",
+        licenses=[],
+        azure={"advisor_summary": _ADVICE},
+        file_contents={},
+        lang="no",
+    )
+    params = {r["rec_id"]: r["title_params"] for r in recs}
+
+    assert params["rec_ext_fwd_title"] == {"count": None}
+    # The label is stored as Azure names it, and worded when it is shown.
+    assert params["rec_advisor_title:HighAvailability"] == {
+        "category": "HighAvailability",
+        "category_label": "HighAvailability",
+        "count": 1,
+    }
