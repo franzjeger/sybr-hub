@@ -88,6 +88,19 @@ test('there is no active-customer bar; the palette lists recent customers and op
   expect(await page.evaluate(() => location.hash)).toBe('#/customer/' + encodeURIComponent(alpha.customer_id));
 });
 
+test('in the palette, Enter opens the first match, and shortcuts work right after', async ({page}) => {
+  await login(page, 'browser-switcher');
+  await page.locator('.hdr-search').click();
+  await page.locator('#cmd-input').fill('Browser Beta');
+  await expect(page.locator('#cmd-results .cmd-item').first()).toContainText('Browser Beta');
+  await page.locator('#cmd-input').press('Enter');
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+  await expect(page.locator('#cmd-palette')).toBeHidden();
+  // Focus is no longer in the hidden input, so Ctrl+1 goes to Oversikt.
+  await page.keyboard.press('Control+1');
+  await expect(page.locator('body')).toHaveAttribute('data-view', 'overview');
+});
+
 test('TLS is a tab of Nettverk, and the old address lands on it', async ({page}) => {
   await login(page);
   await page.evaluate(() => { location.hash = '#/tls'; });
