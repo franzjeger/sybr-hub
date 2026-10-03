@@ -267,13 +267,13 @@ async function tsShowDetail(idx) {
 
   // ── Subnet Routes ──
   html += '<div class="mb-4">';
-  html += '<div class="text-ui fw-semibold mb-2">' + t('ts_subnet_routes','Subnett-ruter') + '</div>';
+  html += '<div class="subhead">' + t('ts_subnet_routes','Subnett-ruter') + '</div>';
   html += '<div id="ts-routes-'+Number(idx)+'"><div class="loader"></div> ' + t('ts_loading_routes','Laster ruter ...') + '</div>';
   html += '</div>';
 
   // ── Tags editor ──
   html += '<div>';
-  html += '<div class="text-ui fw-semibold mb-2">' + t('ts_tags_heading','Tagger') + '</div>';
+  html += '<div class="subhead">' + t('ts_tags_heading','Tagger') + '</div>';
   var currentTags = (d.tags || []).map(function(tg){return tg.replace('tag:','');}).join(', ');
   html += '<div class="flex gap-2 items-center">';
   html += '<input id="ts-tags-'+Number(idx)+'" type="text" value="'+esc(currentTags)+'" placeholder="' + t('ts_ph_tags','tag1, tag2 (uten tag:-prefiks)') + '" class="field-input flex-1 w-auto">';
@@ -404,7 +404,7 @@ async function tsShowKeys() {
   if (!keys.length) { panel.innerHTML = '<div class="card p-4 text-sm text-muted">' + t('ts_no_auth_keys','Ingen auth-nøkler funnet.') + '</div>'; return; }
 
   var html = '<div class="card p-4">';
-  html += '<div class="text-ui fw-semibold mb-3">' + t('ts_auth_keys','Auth Keys') + ' ('+keys.length+')</div>';
+  html += '<div class="subhead mb-3">' + t('ts_auth_keys','Auth Keys') + ' ('+keys.length+')</div>';
   html += '<table class="data-table">';
   html += '<thead><tr><th>ID</th><th>' + t('ts_col_description','Beskrivelse') + '</th><th class="text-center">' + t('ts_col_days_left','Dager igjen') + '</th><th class="text-center">' + t('ts_col_revoked','Tilbakekalt') + '</th><th></th></tr></thead><tbody>';
   keys.forEach(function(k) {
@@ -425,7 +425,7 @@ function tsShowCreateKey() {
   var panel = document.getElementById('ts-key-panel');
   panel.style.display = 'block';
   var html = '<div class="card p-4">';
-  html += '<div class="text-ui fw-semibold mb-3">' + t('ts_create_key','Create auth key') + '</div>';
+  html += '<div class="subhead mb-3">' + t('ts_create_key','Create auth key') + '</div>';
   html += '<div class="grid grid-cols-2 gap-3">';
   html += '<div><label class="field-label">' + t('ts_lbl_key_desc','Beskrivelse') + '</label>';
   html += '<input id="ts-key-desc" type="text" placeholder="' + t('ts_ph_key_desc','f.eks. onboarding-acme') + '" class="field-input"></div>';

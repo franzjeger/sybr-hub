@@ -465,7 +465,7 @@ export async function uniwebLoadAccounts() {
     unmatchedBadge = ' <span class="badge badge-warning ml-2">' + unmatchedCount + ' ' + t('integ_of','av') + ' ' + Number(d.total) + ' ' + t('integ_customers_unlinked','kunder ikke koblet') + '</span>';
   }
 
-  var html = '<div class="text-sm fw-semibold mb-2">' + t('kontoer') + ' (' + Number(d.total) + ')' + unmatchedBadge + '</div>';
+  var html = '<div class="subhead">' + t('kontoer') + ' (' + Number(d.total) + ')' + unmatchedBadge + '</div>';
   html += '<div class="uniweb-accounts-scroll" role="region" aria-label="' + esc(t('uniweb_accounts_label')) + '" tabindex="0">';
   html += '<table class="data-table data-table--compact">';
   html += '<thead><tr>';
@@ -565,7 +565,7 @@ async function uniwebShowDetail(accountId) {
 
   // Domains
   if (d.domains && d.domains.length > 0) {
-    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('domener') + ' (' + d.domains.length + ')</div>';
+    html += '<div class="subhead mt-3">' + t('domener') + ' (' + d.domains.length + ')</div>';
     html += '<table class="data-table data-table--compact mb-3">';
     html += '<thead><tr><th>' + t('domene_3') + '</th><th class="text-center">' + t('utloper') + '</th><th class="text-center">' + t('status_2') + '</th></tr></thead><tbody>';
     d.domains.forEach(function(dom) {
@@ -576,7 +576,7 @@ async function uniwebShowDetail(accountId) {
 
   // Subscriptions
   if (d.subscriptions && d.subscriptions.length > 0) {
-    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('abonnementer') + ' (' + d.subscriptions.length + ')</div>';
+    html += '<div class="subhead mt-3">' + t('abonnementer') + ' (' + d.subscriptions.length + ')</div>';
     html += '<table class="data-table data-table--compact mb-3">';
     html += '<thead><tr><th>' + t('tjeneste_2') + '</th><th>' + t('bruker_domene_2') + '</th><th class="text-right">' + t('pris_mnd_2') + '</th><th class="text-center">' + t('fornyelse_2') + '</th></tr></thead><tbody>';
     d.subscriptions.forEach(function(sub) {
@@ -587,7 +587,7 @@ async function uniwebShowDetail(accountId) {
 
   // SSL
   if (d.ssl && d.ssl.length > 0) {
-    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('uniweb_ssl_certificates') + ' (' + d.ssl.length + ')</div>';
+    html += '<div class="subhead mt-3">' + t('uniweb_ssl_certificates') + ' (' + d.ssl.length + ')</div>';
     html += '<table class="data-table data-table--compact mb-3">';
     html += '<thead><tr><th>' + t('domene_3') + '</th><th>' + t('type_2') + '</th><th class="text-center">' + t('utloper') + '</th></tr></thead><tbody>';
     d.ssl.forEach(function(cert) {
@@ -598,7 +598,7 @@ async function uniwebShowDetail(accountId) {
 
   // Email
   if (d.email && d.email.length > 0) {
-    html += '<div class="fw-semibold text-ui mt-3 mb-2">' + t('uniweb_email_accounts') + ' (' + d.email.length + ')</div>';
+    html += '<div class="subhead mt-3">' + t('uniweb_email_accounts') + ' (' + d.email.length + ')</div>';
     html += '<table class="data-table data-table--compact mb-3">';
     html += '<thead><tr><th>' + t('adresse_2') + '</th><th class="text-center">' + t('kvote_2') + '</th><th class="text-center">' + t('brukt') + '</th></tr></thead><tbody>';
     d.email.forEach(function(em) {
@@ -609,7 +609,7 @@ async function uniwebShowDetail(accountId) {
 
   // Hosting
   if (d.hosting && d.hosting.length > 0) {
-    html += '<div class="fw-semibold text-ui mt-3 mb-2">Webhosting (' + d.hosting.length + ')</div>';
+    html += '<div class="subhead mt-3">Webhosting (' + d.hosting.length + ')</div>';
     html += '<table class="data-table data-table--compact mb-3">';
     html += '<thead><tr><th>' + t('domene_3') + '</th><th>' + t('pakke') + '</th><th class="text-center">' + t('status_2') + '</th></tr></thead><tbody>';
     d.hosting.forEach(function(h) {
@@ -915,7 +915,7 @@ function taskSchedRender(tasks) {
     html += '<td class="text-center text-xs">' + nextRun + '</td>';
     html += '<td class="text-center">' + statusHtml + '</td>';
     html += '<td class="text-center">';
-    html += '<label class="switch inline-block">';
+    html += '<label class="switch inline-block align-middle">';
     html += '<input type="checkbox" ' + toggleChecked + ' data-change-handler="taskSchedToggle" data-id="' + esc(task.id) + '">';
     html += '<span class="track"></span><span class="knob"></span>';
     html += '</label>';

@@ -334,12 +334,12 @@ async function loadCustomerDetail(customerId) {
     <div id="customer-baseline-panel"></div>
 
     <div class="card cust-trend" id="cust-trend">
-      <div class="cust-card-title">${t('lbl_trend')}</div>
+      <div class="card-title">${t('lbl_trend')}</div>
       <div class="cust-trend-body" id="cust-trend-body"></div>
     </div>
 
     <div class="card cust-figures">
-      <div class="cust-card-title">${esc(t('lbl_key_figures', 'Nøkkeltall'))}</div>
+      <div class="card-title">${esc(t('lbl_key_figures', 'Nøkkeltall'))}</div>
       <dl class="cust-details" id="cust-details">
         ${_detailRow(t('lbl_users'), hasM, m.total_users)}
         ${_detailRow(t('lbl_users_without_mfa', 'Brukere uten MFA'), hasM, m.users_no_mfa, 'is-bad')}
@@ -520,7 +520,7 @@ async function _custLoadDetails(customerId) {
   // Microsoft 365 access: the tenant connection, and the two things done
   // with the app's credentials.
   var html = '<div class="card cust-access-card">'
-    + '<div class="cust-card-title">' + esc(t('hdr_m365_access', 'Microsoft 365-tilgang')) + '</div>'
+    + '<div class="card-title">' + esc(t('hdr_m365_access', 'Microsoft 365-tilgang')) + '</div>'
     + '<p class="cust-card-text">' + esc(cust.has_m365 ? t('msg_m365_connected', 'Tenanten er koblet til, og kunden kan auditeres.') : t('msg_m365_missing', 'M365-tilgang er ikke satt opp for denne kunden, så den kan ikke auditeres ennå.')) + '</p>'
     + (hasCredentials ? '<div class="btn-row">'
       + '<button class="btn btn-default btn-sm" data-click-handler="checkPermissions" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_check_permissions')) + '</button>'
@@ -530,7 +530,7 @@ async function _custLoadDetails(customerId) {
 
   // Tags, editable here.
   html += '<div class="card">'
-    + '<div class="cust-card-title">' + esc(t('lbl_tags')) + '</div>'
+    + '<div class="card-title">' + esc(t('lbl_tags')) + '</div>'
     + '<div class="cust-tags-row"><span id="tag-pills-' + esc(safeId) + '">' + tagPillsHtml(tags) + '</span>'
     + '<button class="btn btn-ghost btn-sm" data-write data-click-handler="openTagEditor" data-customer-id="' + esc(customerId) + '" data-tags="' + esc(JSON.stringify(tags)) + '">' + esc(t('btn_edit_tags', 'Endre tags')) + '</button></div>'
     + '<div id="tag-editor-' + esc(safeId) + '" class="cust-tag-editor" hidden></div>'
@@ -538,7 +538,7 @@ async function _custLoadDetails(customerId) {
 
   // Notes.
   html += '<div class="card" id="customer-notes-panel">'
-    + '<div class="cust-card-head"><div class="cust-card-title">' + esc(t('hdr_notes', 'Notater')) + '</div>'
+    + '<div class="cust-card-head"><div class="card-title">' + esc(t('hdr_notes', 'Notater')) + '</div>'
     + '<span id="detail-notes-status" class="cust-card-status"></span>'
     + '<button class="btn btn-ghost btn-sm" data-write id="detail-notes-save">' + esc(t('btn_save', 'Lagre')) + '</button></div>'
     + '<textarea id="detail-notes-textarea" class="field-input cust-notes" placeholder="' + esc(t('placeholder_notes', 'Skriv notater om denne kunden...')) + '"></textarea>'
@@ -561,7 +561,7 @@ async function _custLoadDetails(customerId) {
   if (hasModule('billing')) {
     extraHtml += '<div id="customer-uniweb-panel"></div>';
     if (cust.also_account_id) {
-      extraHtml += '<div class="card"><div class="cust-card-head"><div class="cust-card-title">' + esc(t('nav_licenses', 'Lisenser')) + '</div>'
+      extraHtml += '<div class="card"><div class="cust-card-head"><div class="card-title">' + esc(t('nav_licenses', 'Lisenser')) + '</div>'
         + '<button class="btn btn-ghost btn-sm" id="cust-load-licenses">' + esc(t('btn_show_licenses', 'Vis lisenser')) + '</button></div>'
         + '<div id="cust-licenses-panel"></div></div>';
     }
@@ -757,7 +757,7 @@ async function _loadCustomerBaselineCard(customerId) {
 
   var html = '<div class="card cust-standard" id="cust-standard">';
   html += '<div class="cust-standard-head">';
-  html += '<div class="cust-card-title">' + esc(b.baseline.name) + ' ' + esc(b.baseline.version) + '</div>';
+  html += '<div class="card-title">' + esc(b.baseline.name) + ' ' + esc(b.baseline.version) + '</div>';
   // No percentage when nothing was assessed: a dash beside "etterlevelse"
   // still reads as a score.
   if (!nothing && pct !== null && pct !== undefined) {
@@ -2207,10 +2207,10 @@ async function alsoToggleSubDetail(rowEl, subId) {
 async function _loadCustomerTailscale(customerId) {
   var el = document.getElementById('customer-tailscale-panel');
   if (!el) return;
-  el.innerHTML = '<div class="cust-card-title">Tailscale</div><div class="loading-note"><div class="loader"></div></div>';
+  el.innerHTML = '<div class="card-title">Tailscale</div><div class="loading-note"><div class="loader"></div></div>';
   var d = await apiFetch('/api/tailscale/customer/' + encodeURIComponent(customerId) + '/nodes').catch(function() { return null; });
   if (!el.isConnected || _custPage.id !== customerId) return;
-  var head = '<div class="cust-card-head"><div class="cust-card-title">Tailscale</div>'
+  var head = '<div class="cust-card-head"><div class="card-title">Tailscale</div>'
     + '<button class="btn btn-ghost btn-sm" data-view-gate="tailscale" data-click-handler="showView" data-view="tailscale">' + esc(t('btn_all_tailscale_nodes', 'Alle noder')) + '</button>'
     + '</div>';
   if (!d) {
