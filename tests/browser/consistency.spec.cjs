@@ -273,7 +273,7 @@ test('the system account cannot be deleted from Brukere', async ({page}) => {
 
 test('buttons and the top nav use the page font', async ({page}) => {
   await login(page);
-  for (const selector of ['.nav-btn', '#context-run-audit', '.dash-tab-btn']) {
+  for (const selector of ['.nav-btn', '.hdr-search', '.dash-tab-btn']) {
     const font = await page.locator(selector).first().evaluate(el => getComputedStyle(el).fontFamily);
     expect(font).toContain('Cairo');
   }

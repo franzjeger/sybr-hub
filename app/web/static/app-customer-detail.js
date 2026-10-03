@@ -1171,30 +1171,6 @@ async function openLatestReport() {
   } catch(e) { showToast(t('status_error'), 'error'); }
 }
 
-function copyCustomerSummary() {
-  // Build text summary from visible KPIs
-  var name = document.getElementById('active-customer-name')?.textContent || '';
-  var domain = document.getElementById('active-customer-domain')?.textContent || '';
-  var grade = document.getElementById('active-customer-grade')?.textContent || '';
-  var lines = [
-    name + (domain ? ' (' + domain + ')' : ''),
-    '---',
-  ];
-  // Get KPIs from customer detail gauges if visible
-  document.querySelectorAll('#customer-detail-content .card').forEach(function(card) {
-    var label = card.querySelector('[style*="uppercase"]');
-    var value = card.querySelector('[style*="font-weight:800"], [style*="font-weight: 800"]');
-    if (label && value) lines.push(label.textContent.trim() + ': ' + value.textContent.trim());
-  });
-  if (grade) lines.splice(1, 0, t('lbl_grade') + ': ' + grade);
-  var text = lines.join('\n');
-  navigator.clipboard.writeText(text).then(function() {
-    showToast(t('msg_copied','Kopiert til utklippstavle'), 'success', 2000);
-  }).catch(function() {
-    showToast(t('err_copy_failed','Kunne ikke kopiere'), 'error');
-  });
-}
-
 async function _loadCustomerNotes() {
   // Held from before the request: if another customer's page replaces this
   // one meanwhile, the answer lands in a detached box, not in that page's,

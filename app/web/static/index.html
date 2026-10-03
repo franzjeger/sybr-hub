@@ -216,28 +216,6 @@
     </div>
   </header>
 
-  <!-- Context bar: active customer identity + primary actions (frame 3a) -->
-  <div id="active-customer-bar" class="context-bar" style="display:none;">
-    <div id="active-customer-trigger" data-click-handler="toggleActiveCustomerSwitcher" style="display:flex;align-items:center;gap:8px;cursor:pointer;" data-i18n-title="bytt_kunde" title="Bytt kunde">
-      <span id="active-customer-name" class="cust-name"></span>
-      <span id="active-customer-domain" class="cust-domain"></span>
-      <span id="active-customer-grade"></span>
-      <span style="color:var(--text-dim);font-size:10px;">&#9662;</span>
-    </div>
-    <span id="active-customer-last-audit" class="context-audit"></span>
-    <div style="flex:1;"></div>
-    <button class="context-ghost" data-click-handler="openLatestReport" data-i18n="btn_open_report">Rapport</button>
-    <button data-view-gate="history" class="context-ghost" data-click-handler="showView" data-view="history" data-i18n="nav_history">Historikk</button>
-    <button id="active-bar-licenses-btn" class="context-ghost" data-click-handler="loadCustomerLicensesFromActive" style="display:none;" data-i18n="nav_licenses">Licenses</button>
-    <button id="context-run-audit" data-view-gate="audit" class="btn btn-sm btn-primary" data-write data-click-handler="startAudit" data-i18n="btn_run_audit">Kj&#248;r audit</button>
-
-    <!-- Quick-switcher dropdown — switch active customer from any view -->
-    <div id="active-customer-switcher" style="display:none;position:absolute;top:46px;left:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);z-index:50;min-width:340px;max-height:420px;flex-direction:column;padding:8px;">
-      <input id="customer-switcher-search" type="text" placeholder="Søk kunde..." data-i18n-placeholder="ph_search_customer" style="width:100%;padding:6px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:12px;box-sizing:border-box;">
-      <div id="customer-switcher-list" style="overflow-y:auto;max-height:340px;"></div>
-    </div>
-  </div>
-
   <!-- ── Main ── -->
   <main>
     <!-- Breadcrumb -->

@@ -22,8 +22,9 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # Kunder list and Docs view moved to classes.
 # Lowered to 4215 when the settings modal and Integrasjoner became the
 # Administrasjon page, built on classes; to 4185 when the top bar became
-# Oversikt, Kunder and Verktøy and Nettverk's tabs took the shared tab style.
-INLINE_STYLE_ATTRIBUTE_BUDGET = 4185
+# Oversikt, Kunder and Verktøy and Nettverk's tabs took the shared tab style;
+# to 4168 when the active-customer bar went.
+INLINE_STYLE_ATTRIBUTE_BUDGET = 4168
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)

@@ -62,6 +62,31 @@ test('the top bar holds Oversikt, Kunder and Verktøy, and nothing else', async 
   await expect(menu).toBeHidden();
 });
 
+test('there is no active-customer bar; the palette lists recent customers and opens their page', async ({page}) => {
+  // Its own account: opening a customer makes it the active one, and other
+  // specs read browser-admin's.
+  await login(page, 'browser-switcher');
+  await expect(page.locator('#active-customer-bar')).toHaveCount(0);
+  await expect(page.locator('.context-bar')).toHaveCount(0);
+  const overview = await (await page.request.get('/api/dashboard/overview')).json();
+  const beta = overview.customers.find(c => c.customer_name === 'Browser Beta');
+  const alpha = overview.customers.find(c => c.customer_name === 'Browser Alpha');
+  await page.evaluate(ids => localStorage.setItem('sybr_recent_customers', JSON.stringify(ids)), [beta.customer_id, alpha.customer_id]);
+  await page.locator('.hdr-search').click();
+  const results = page.locator('#cmd-results');
+  await expect(results).toContainText('Nylige');
+  const recent = results.locator('.cmd-item').first();
+  await expect(recent).toContainText('Browser Beta');
+  await recent.click();
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Beta');
+  // A search finds a customer and opens its page, not a status screen.
+  await page.locator('.hdr-search').click();
+  await page.locator('#cmd-input').fill('Browser Alpha');
+  await page.locator('#cmd-results .cmd-item', {hasText: 'Browser Alpha'}).first().click();
+  await expect(page.locator('#view-customer-detail .cust-title')).toHaveText('Browser Alpha');
+  expect(await page.evaluate(() => location.hash)).toBe('#/customer/' + encodeURIComponent(alpha.customer_id));
+});
+
 test('TLS is a tab of Nettverk, and the old address lands on it', async ({page}) => {
   await login(page);
   await page.evaluate(() => { location.hash = '#/tls'; });
