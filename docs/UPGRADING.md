@@ -1,3 +1,22 @@
+# Navigation (unreleased)
+
+- **Settings moved to Administrasjon,** a page in the avatar menu
+  (`#/admin/<pane>`), admins only. Integrasjoner is a pane there and no
+  longer a page in the top bar, so a technician no longer opens integration
+  settings (saving them was already admin-only). A technician's avatar menu
+  opens Konto: language, MFA and password.
+- **M365-status, Filer, Historikk and the policy views are tabs of the
+  customer page.** Bookmarks to the old addresses redirect to the matching
+  tab of the active customer, or to Kunder when none is active.
+- **The active-customer bar is gone.** Switch customer from Kunder, Oversikt
+  or the search (Ctrl+K), which lists recent customers first.
+- **The dashboard's Helse, Fornyelser, Kostnader and Domener tabs are gone
+  from Oversikt.** Fornyelser, Kostnader and Domener are under Verktøy ›
+  Lisenser og hosting when the billing module is on. Report-archive cleanup
+  is under Administrasjon › Lagring og backup.
+
+---
+
 # Forwarding, DKIM and Advisor ids (unreleased)
 
 - **Run a new audit before trusting the forwarding findings.** Inbox rules and
