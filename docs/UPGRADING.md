@@ -1,3 +1,15 @@
+# Azure VM backup coverage (unreleased)
+
+- **Earlier reports may have listed backed-up VMs as unprotected.** Until
+  this fix, every Azure VM in scope appeared under "VMs without backup", with
+  a high-priority recommendation, whether or not a vault protected it. Run a
+  new audit for customers with Azure VMs before relying on the backup section,
+  and correct any report that went out with that finding.
+- The audit now also writes `30_azure_vms.json` and `52_azure_backup.json`.
+  Reports from older runs still read the text files.
+
+---
+
 # October 2026 quality and copy (v1.2.0)
 
 - **Saving a settings card only changes what that card sends.** Saving one

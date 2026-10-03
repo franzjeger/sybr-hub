@@ -152,10 +152,21 @@ demand surfaces.
 Small but explicit items from the May 2026 workshop notes that don't
 fit elsewhere:
 
-- [ ] Verify what the M365 audit currently checks for *backup*
+- [x] Verify what the M365 audit currently checks for *backup*
       (Workshop note: "Frank, sjekk hva audit sjekker etter når det
-      gjelder backup")
-- [ ] Fix the Azure Advisor VM backup report (flagged as wrong)
+      gjelder backup"). Answered October 2026: only Azure VM backup, from
+      the Recovery Services vaults in the Azure subscriptions in scope.
+      Nothing checks backup of the Microsoft 365 data itself (mailboxes,
+      OneDrive, SharePoint, Teams); Exchange retention policies are
+      collected, but retention is not backup.
+- [x] Fix the Azure VM backup report (flagged as wrong). It was: the parser
+      skipped every protected-item line, so every VM was reported as having
+      no backup. Fixed October 2026, with tests that run the real collector.
+- [ ] Check backup of the Microsoft 365 data: Microsoft 365 Backup through
+      Graph (`/solutions/backupRestore`), and third-party backup recognised
+      from its app consent grants (Veeam, AvePoint, Keepit and the like).
+      Without it the report says nothing about the data customers most often
+      ask about.
 - [x] The customer page is the hub of the work: findings first, worst
       first, with ticket and plan actions and the PSA/IT Glue links on the
       page itself (October 2026). The top navigation is still per feature.

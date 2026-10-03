@@ -6,7 +6,16 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
-Ingenting ennå.
+### Backup av Azure-VM-er rapporteres riktig
+
+- Rapporten listet alle virtuelle maskiner som «uten backup», også de som
+  hadde det. Parseren hoppet over hver linje med et beskyttet element. Den
+  leser dem nå, og matcher på VM-ens ressurs-ID der auditen har den.
+- Hvelv med flere enn 15 beskyttede elementer og VM-navn lengre enn 40 tegn
+  gir ikke lenger falske funn.
+- En VM der backupen er stoppet eller satt på pause, regnes ikke som sikret.
+- Kan ikke alle elementene i et hvelv leses, nevner rapporten ingen VM som
+  ubeskyttet. Den sier at dekningen ikke kunne fastslås.
 
 ## v1.2.0 (2026-10-03)
 
