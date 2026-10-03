@@ -67,7 +67,7 @@ async function loadNotifications() {
             (e.customer ? ' · <span style="color:var(--blue);">'+esc(e.customer)+'</span>' : '')+
           '</div>'+
           (e.detail ? '<div style="font-size:var(--font-xs);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(e.detail)+'</div>' : '')+
-          '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:2px;">'+timeStr+(e.user ? ' · '+esc(e.user) : '')+'</div>'+
+          '<div style="font-size:var(--font-xs);color:var(--text-dim);margin-top:2px;">'+esc(timeStr)+(e.user ? ' · '+esc(e.user) : '')+'</div>'+
         '</div></div>';
     }).join('');
   } catch(e) { /* non-critical */ }
@@ -145,8 +145,8 @@ document.addEventListener('click', function(e) {
 });
 
 function toggleTheme() {
-  const html = document.documentElement;
-  const current = html.getAttribute('data-theme') || 'dark';
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme') || 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
   applyTheme(next);
   localStorage.setItem('sybr-theme', next);
@@ -344,7 +344,9 @@ document.addEventListener('click', function(e) {
 // ── Changelog modal ──────────────────────────────────────────────────────────
 function parseChangelogMd(md) {
   var html = '', inList = false, inCode = false, lines = md.split('\n');
-  function fmt(s) { return s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>'); }
+  // Escaped first, as the server's renderer does, so the fallback cannot
+  // turn the changelog into markup either.
+  function fmt(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>'); }
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
     if (line.match(/^```/)) { if (inList) { html += '</ul>'; inList = false; } if (inCode) { html += '</pre>'; inCode = false; } else { html += '<pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:12px;overflow-x:auto;">'; inCode = true; } continue; }
@@ -380,8 +382,8 @@ function openChangelogModal() {
       return;
     }
     // Use server-rendered HTML if available, fall back to JS parser
-    _changelogFull = data.html || parseChangelogMd(data.content || '');
-    _changelogLatest = data.latest_html || _changelogFull;
+    _changelogFull = (/* safe-html: the server escapes the changelog before it renders it (_md_to_html) */ data.html) || parseChangelogMd(data.content || '');
+    _changelogLatest = (/* safe-html: rendered by the same escaping renderer as data.html */ data.latest_html) || _changelogFull;
     _changelogCache = true;
     _renderChangelogTab();
   }).catch(function() { document.getElementById('changelog-content').innerHTML = '<p style="color:var(--text-dim);">' + t('err_could_not_load_changelog') + '</p>'; });
@@ -1001,12 +1003,12 @@ async function loadLogs() {
   var counts = {DEBUG:0, INFO:0, WARNING:0, ERROR:0, CRITICAL:0};
   var html = logs.map(function(e) {
     counts[e.level] = (counts[e.level] || 0) + 1;
-    var t = e.ts.replace('T', ' ').replace(/\.\d+([Z+][^\s]*)$/, '').replace(/([Z+][^\s]*)$/, '');
+    var ts = e.ts.replace('T', ' ').replace(/\.\d+([Z+][^\s]*)$/, '').replace(/([Z+][^\s]*)$/, '');
     var color = levelColor(e.level);
-    var lvlBadge = '<span style="color:' + color + ';font-weight:700;min-width:60px;display:inline-block;">[' + e.level + ']</span>';
+    var lvlBadge = '<span style="color:' + color + ';font-weight:700;min-width:60px;display:inline-block;">[' + esc(e.level) + ']</span>';
     var loggerSpan = '<span style="color:var(--text-dim);font-size:11px;">' + esc(e.logger) + '</span>';
     return '<div style="padding:2px 0;border-bottom:1px solid var(--border);word-break:break-all;">' +
-      '<span style="color:var(--text-dim);margin-right:8px;">' + t + '</span>' +
+      '<span style="color:var(--text-dim);margin-right:8px;">' + esc(ts) + '</span>' +
       lvlBadge + ' ' + loggerSpan + '<br>' +
       '<span style="padding-left:8px;color:' + color + ';">' + esc(e.msg) + '</span>' +
       '</div>';

@@ -490,7 +490,7 @@ function emptyStateHTML(opts) {
   opts = opts || {};
   var cls = opts.variant === 'inline' ? 'empty-state-inline' : 'empty-state';
   var parts = ['<div class="' + cls + '">'];
-  if (opts.icon) parts.push('<div class="empty-icon">' + opts.icon + '</div>');
+  if (opts.icon) parts.push('<div class="empty-icon">' + esc(opts.icon) + '</div>');
   if (opts.title) parts.push('<div class="empty-title">' + esc(opts.title) + '</div>');
   if (opts.desc) parts.push('<div class="empty-desc">' + esc(opts.desc) + '</div>');
   parts.push('</div>');
@@ -634,7 +634,7 @@ function _renderCmdResults(query) {
           results.push({
             label: rc.customer_name,
             hint: rc.primary_domain || '',
-            icon: icon('clock', 16),
+            icon: 'clock',
             action: function(){ overviewSelectCustomer(rid); },
             type: 'recent'
           });
@@ -645,23 +645,23 @@ function _renderCmdResults(query) {
 
   // Pages / Navigation
   var pages = [
-    {label:t('nav_dashboard','Dashboard'), action:function(){showView('overview')},  section:t('nav_dashboard'), icon:icon('grid',16)},
-    {label:t('nav_customers','Customers'), action:function(){showView('customers')}, section:t('nav_customers'), icon:icon('users',16)},
-    {label:t('nav_m365_status'),     action:function(){showView('home')},      section:t('nav_customers'), icon:icon('cloud',16)},
-    {label:t('nav_history','History'), action:function(){showView('history')},    section:t('nav_customers'), icon:icon('calendar',16)},
-    {label:t('bc_hosts_ssh','Hosts'), action:function(){showView('hosts')},      section:t('nav_remote_access','Fjerntilgang'),    icon:icon('monitor',16)},
-    {label:t('bc_network','FortiGate / UniFi'), action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:icon('globe',16)},
-    {label:'VPN',             action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:icon('lock',16)},
-    {label:'TLS Monitor',     action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:icon('shield',16)},
-    {label:t('nav_browser2','Browser'), action:function(){showView('browser')}, section:t('nav_tools','Verktøy'),    icon:icon('globe',16)},
-    {label:'Tailscale',       action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:icon('link',16)},
-    {label:t('bc_provisioning','Provisjonering'), action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:icon('gear',16)},
-    {label:'Sybrt',           action:function(){showView('ai')},         section:'',                 icon:icon('sparkle',16)},
-    {label:t('nav_integrations','Integrations'), action:function(){showView('integrations')},section:'',                icon:icon('plug',16)},
-    {label:t('bc_log','Log'), action:function(){showView('logs')},        section:'',                icon:icon('document',16)},
-    {label:t('hdr_settings','Settings'), action:function(){openSettings()}, section:'',                icon:icon('gear',16)},
-    {label:t('tab_users','Users'),     action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:icon('users',16)},
-    {label:t('hdr_branding','Branding'), action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[1],'stab-branding')},100)}, section:t('hdr_settings'), icon:icon('palette',16)},
+    {label:t('nav_dashboard','Dashboard'), action:function(){showView('overview')},  section:t('nav_dashboard'), icon:'grid'},
+    {label:t('nav_customers','Customers'), action:function(){showView('customers')}, section:t('nav_customers'), icon:'users'},
+    {label:t('nav_m365_status'),     action:function(){showView('home')},      section:t('nav_customers'), icon:'cloud'},
+    {label:t('nav_history','History'), action:function(){showView('history')},    section:t('nav_customers'), icon:'calendar'},
+    {label:t('bc_hosts_ssh','Hosts'), action:function(){showView('hosts')},      section:t('nav_remote_access','Fjerntilgang'),    icon:'monitor'},
+    {label:t('bc_network','FortiGate / UniFi'), action:function(){showView('network')},    section:t('nav_network','Nettverk'),    icon:'globe'},
+    {label:'VPN',             action:function(){showView('vpn')},        section:t('nav_network','Nettverk'),    icon:'lock'},
+    {label:'TLS Monitor',     action:function(){showView('tls')},        section:t('nav_network','Nettverk'),    icon:'shield'},
+    {label:t('nav_browser2','Browser'), action:function(){showView('browser')}, section:t('nav_tools','Verktøy'),    icon:'globe'},
+    {label:'Tailscale',       action:function(){showView('tailscale')},  section:t('nav_tools','Verktøy'),    icon:'link'},
+    {label:t('bc_provisioning','Provisjonering'), action:function(){showView('provision')},  section:t('nav_tools','Verktøy'),    icon:'gear'},
+    {label:'Sybrt',           action:function(){showView('ai')},         section:'',                 icon:'sparkle'},
+    {label:t('nav_integrations','Integrations'), action:function(){showView('integrations')},section:'',                icon:'plug'},
+    {label:t('bc_log','Log'), action:function(){showView('logs')},        section:'',                icon:'document'},
+    {label:t('hdr_settings','Settings'), action:function(){openSettings()}, section:'',                icon:'gear'},
+    {label:t('tab_users','Users'),     action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[4],'stab-users')},100)}, section:t('hdr_settings'), icon:'users'},
+    {label:t('hdr_branding','Branding'), action:function(){openSettings();setTimeout(function(){switchSettingsTab(document.querySelectorAll('.settings-tab-btn')[1],'stab-branding')},100)}, section:t('hdr_settings'), icon:'palette'},
   ];
   pages.forEach(function(p) {
     if (!q || p.label.toLowerCase().includes(q) || (p.section||'').toLowerCase().includes(q))
@@ -670,9 +670,9 @@ function _renderCmdResults(query) {
 
   // Actions
   var actions = [
-    {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:icon('play',16)},
-    {label:t('hdr_settings','Settings'),      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:icon('gear',16)},
-    {label:t('btn_export_excel','Export Excel'), action:function(){exportDashboardExcel()},                    hint:'',             icon:icon('chart',16)},
+    {label:t('btn_run_audit'),       action:function(){showView('home');setTimeout(startAudit,200)}, hint:'Ctrl+Shift+A', icon:'play'},
+    {label:t('hdr_settings','Settings'),      action:function(){openSettings()},                              hint:'Ctrl+,',       icon:'gear'},
+    {label:t('btn_export_excel','Export Excel'), action:function(){exportDashboardExcel()},                    hint:'',             icon:'chart'},
   ];
   if (q) {
     actions.forEach(function(a) {
@@ -687,7 +687,7 @@ function _renderCmdResults(query) {
         results.push({
           label: c.customer_name,
           hint: c.primary_domain || '',
-          icon: icon('building', 16),
+          icon: 'building',
           action: function(){ switchActiveCustomer(c._id).then(function(){showView('home');loadStatus();}); },
           type: 'customer'
         });
@@ -702,7 +702,7 @@ function _renderCmdResults(query) {
         results.push({
           label: w.length > 80 ? w.substring(0,77)+'...' : w,
           hint: t('lbl_finding','Funn'),
-          icon: icon('warning', 16),
+          icon: 'warning',
           action: function(){ showView('home'); },
           type: 'finding'
         });
@@ -723,7 +723,7 @@ function _renderCmdResults(query) {
         lastType = r.type;
       }
       html += '<div class="cmd-item" tabindex="-1" data-click-handler="runCommandPaletteItem" data-index="' + i + '" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-5);cursor:pointer;transition:background 0.1s;border-radius:0;">'
-        + '<span style="width:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">' + r.icon + '</span>'
+        + '<span style="width:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">' + icon(r.icon, 16) + '</span>'
         + '<span style="flex:1;font-size:var(--font-base);color:var(--text);">' + esc(r.label) + '</span>'
         + (r.hint ? '<span style="font-size:var(--font-xs);color:var(--text-dim);">' + esc(r.hint) + '</span>' : '')
         + '</div>';
@@ -1742,7 +1742,7 @@ async function _loadHealthGrid() {
       return '<div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--bg);border-radius:var(--radius-md);border:1px solid var(--border);cursor:default;transition:border-color var(--duration-fast);" class="hover-border-accent"' + (tipText ? ' title="' + esc(tipText) + '"' : '') + '>'
         + dot
         + '<div style="flex:1;"><div style="font-size:var(--font-xs);color:var(--text-muted);">' + esc(label) + '</div></div>'
-        + '<div style="font-size:var(--font-md);font-weight:700;color:' + color + ';">' + (isNaN(v) ? '-' : v + (suffix||'')) + '</div></div>';
+        + '<div style="font-size:var(--font-md);font-weight:700;color:' + color + ';">' + (isNaN(v) ? '-' : v + esc(suffix||'')) + '</div></div>';
     }
 
     grid.style.display = 'grid';
