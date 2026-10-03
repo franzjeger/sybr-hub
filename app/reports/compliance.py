@@ -30,7 +30,6 @@ from app.reports.evidence import (
 from app.reports.i18n import T
 from app.reports.parsers import (
     _count_data_lines,
-    _count_defender_policy_state,
     _is_audit_relevant_domain,
     _parse_banner_count,
 )
@@ -42,6 +41,7 @@ from app.reports.parsers.collaboration import (
 )
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.common import _record_count
+from app.reports.parsers.email import _defender_policies
 
 # Names shown next to the ids, so the cross-reference columns are readable.
 _NIST_NAMES = {
@@ -736,12 +736,13 @@ def _external_forwarding(audit: _Audit) -> _Verdict:
     return "info", _CANNOT_VERIFY + "videresendingsdata utilgjengelig"
 
 
-def _defender_policy(audit: _Audit, enabled: int, names: tuple[str, str], label: str) -> _Verdict:
+def _defender_policy(audit: _Audit, kind: str, label: str) -> _Verdict:
     """Safe Links / Safe Attachments: on, present but off, unlicensed, absent, unknown."""
-    text = audit.fc.get("27_exchange_defender_policies.txt", "")
+    state = _defender_policies(audit.fc)[kind]
+    enabled = state["enabled"]
     if enabled > 0:
         return "pass", f"{enabled} aktiv(e) {label}-policy(er)"
-    if names[0] in text.lower() or names[1] in text.lower():
+    if state["present"]:
         return "fail", f"{label}-policy(er) finnes men er deaktivert"
     if _lacks(audit.capabilities, "defender_office"):
         # Not in the tenant's SKUs: the absence is the licence, not the setup.
@@ -756,15 +757,11 @@ def _defender_policy(audit: _Audit, enabled: int, names: tuple[str, str], label:
 
 
 def _safe_links(audit: _Audit) -> _Verdict:
-    links, _ = _count_defender_policy_state(audit.fc.get("27_exchange_defender_policies.txt", ""))
-    return _defender_policy(audit, links, ("safelinks", "safe links"), "Safe Links")
+    return _defender_policy(audit, "safe_links", "Safe Links")
 
 
 def _safe_attachments(audit: _Audit) -> _Verdict:
-    _, attachments = _count_defender_policy_state(
-        audit.fc.get("27_exchange_defender_policies.txt", "")
-    )
-    return _defender_policy(audit, attachments, ("safeattach", "safe attach"), "Safe Attachments")
+    return _defender_policy(audit, "safe_attachments", "Safe Attachments")
 
 
 # Per-domain checks. A failed DNS lookup comes back as "ERROR (...)", never as

@@ -52,6 +52,17 @@ def _records(val: Any) -> list[dict]:
     return [val] if isinstance(val, dict) else []
 
 
+def _policy_state(policies: list[dict], kind: str) -> dict[str, int]:
+    """How many Defender policies of one PolicyType there are, and how many are on.
+
+    "Enabled" is judged on the value as the text writes it, the way the
+    report's text reader judges it, so the sidecar and the text cannot differ.
+    """
+    found = [p for p in policies if kind in str(p.get("PolicyType") or "").lower().replace(" ", "")]
+    on = [p for p in found if _fmt_val(p.get("Enabled")).strip().lower() in ("true", "yes", "1")]
+    return {"total": len(found), "enabled": len(on)}
+
+
 def _section_block(title: str, items: list[dict], key_fields: list[str] | None = None) -> str:
     """Format a list of dicts as a readable block."""
     lines = [
@@ -451,6 +462,15 @@ class ExchangeSection(BaseSection):
             key_fields=["Name", "PolicyType", "Enabled"],
         )
         self._save("27_exchange_defender_policies.txt", content)
+        self._save_sidecar(
+            "27_exchange_defender_policies.txt",
+            {
+                "count": len(policies),
+                "policies": policies,
+                "safe_links": _policy_state(policies, "safelinks"),
+                "safe_attachments": _policy_state(policies, "safeattach"),
+            },
+        )
 
     # ── Quarantine Policies ───────────────────────────────────────────────────
 

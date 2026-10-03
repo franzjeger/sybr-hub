@@ -40,6 +40,17 @@ async def _collect(
     return files, section
 
 
+def _controls(files: dict, **context) -> dict[str, dict]:
+    """The CIS rows the run's files produce, by id."""
+    rows = _build_compliance_map({"file_contents": files, **context})
+    return {r["cis_id"]: r for r in rows}
+
+
+def _text_only(files: dict) -> dict:
+    """The same run as one recorded before the collectors wrote sidecars."""
+    return {k: v for k, v in files.items() if not k.endswith(".json")}
+
+
 # ── Mailboxes ─────────────────────────────────────────────────────────────────
 
 
@@ -114,7 +125,7 @@ async def test_a_long_shared_mailbox_address_is_kept_whole(tmp_path):
     files, _ = await _collect(tmp_path, exo)
     assert long_upn in _shared_mailbox_upns(files)
 
-    text_only = {k: v for k, v in files.items() if not k.endswith(".json")}
+    text_only = _text_only(files)
     assert long_upn not in _shared_mailbox_upns(text_only)
 
 
@@ -292,7 +303,7 @@ async def test_a_value_that_reads_like_a_count_does_not_change_the_count(tmp_pat
     assert _controls(files)["4.2"]["detail"].startswith("2 anti-phishing")
     assert _controls(files)["4.3"]["detail"].startswith("1 anti-spam")
 
-    text_only = {k: v for k, v in files.items() if not k.endswith(".json")}
+    text_only = _text_only(files)
     overview = _parse_exchange_overview(text_only)
     assert overview["transport_rules"] != 2 and overview["connectors"] != 1, "the text cannot say"
     assert not _controls(text_only)["4.2"]["detail"].startswith("2 ")
@@ -364,11 +375,6 @@ async def test_the_external_column_says_whether_the_target_is_external(tmp_path)
 # ── Defender for Office 365: Safe Links / Safe Attachments ────────────────────
 
 
-def _controls(files: dict, **context) -> dict[str, dict]:
-    rows = _build_compliance_map({"file_contents": files, **context})
-    return {r["cis_id"]: r for r in rows}
-
-
 async def test_a_tenant_with_only_the_built_in_policy_keeps_its_defender_file(tmp_path):
     """ConvertTo-Json writes a single result as an object, not a one-item list.
 
@@ -388,6 +394,57 @@ async def test_a_tenant_with_only_the_built_in_policy_keeps_its_defender_file(tm
     controls = _controls(files)
     assert controls["4.5"]["status"] == "pass"
     assert controls["4.6"]["status"] == "pass"
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+@pytest.mark.parametrize(
+    ("safe_links", "expected"),
+    [
+        (
+            [
+                {"Name": "Built-In Protection Policy", "IsEnabled": True},
+                {"Name": "Ledelse", "IsEnabled": False},
+            ],
+            ("pass", "1 aktiv(e) Safe Links"),
+        ),
+        ([{"Name": "Ledelse", "IsEnabled": False}], ("fail", "Safe Links-policy(er) finnes")),
+    ],
+    ids=["one on, one off", "present but off"],
+)
+async def test_safe_links_state_survives_the_round_trip(tmp_path, sidecars, safe_links, expected):
+    exo = {
+        "defender_policies": {
+            "safe_links": safe_links,
+            "safe_attachments": [{"Name": "Built-In Protection Policy", "Action": "Block"}],
+        }
+    }
+    files, _ = await _collect(tmp_path, exo, sidecars=sidecars)
+    assert ("27_exchange_defender_policies.json" in files) is sidecars
+
+    controls = _controls(files)
+    assert controls["4.5"]["status"] == expected[0]
+    assert controls["4.5"]["detail"].startswith(expected[1])
+    assert controls["4.6"]["status"] == "pass"
+
+
+async def test_a_policy_of_the_other_type_named_safe_links_is_not_a_safe_links_policy(tmp_path):
+    """The text reader calls Safe Links present when "safe links" appears anywhere.
+
+    A Safe Attachments policy named "Safe Links og vedlegg" then made a tenant
+    with no Safe Links policy fail for having one switched off, where the
+    sidecar says there is none.
+    """
+    exo = {
+        "defender_policies": {
+            "safe_links": None,
+            "safe_attachments": {"Name": "Safe Links og vedlegg", "Action": "Block"},
+        }
+    }
+    files, _ = await _collect(tmp_path, exo)
+
+    row = _controls(files)["4.5"]
+    assert (row["status"], row["detail"]) == ("warn", "Ingen Safe Links-policyer funnet")
+    assert _controls(_text_only(files))["4.5"]["status"] == "fail", "the text cannot tell"
 
 
 # ── A read the helper reports as failed ───────────────────────────────────────
