@@ -100,9 +100,7 @@ function renderDashboard(d) {
   const p = d.previous;
 
   // Format the run date
-  let runDate = d.run_date;
-  const dm = runDate.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})$/);
-  if (dm) runDate = `${dm[3]}.${dm[2]}.${dm[1]} kl. ${dm[4]}:${dm[5]}`;
+  const runDate = formatRunName(d.run_date);
 
   function trend(key, label, lowerIsBetter) {
     if (!p || p[key] === undefined || m[key] === undefined) return '';
@@ -129,7 +127,7 @@ function renderDashboard(d) {
       <div class="card-title">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         ${t('hdr_dashboard_latest')}
-        <span style="margin-left:auto;font-size:11px;color:var(--text-dim);font-weight:400;">${esc(runDate)}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">${esc(runDate)}</span>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
@@ -993,7 +991,7 @@ function renderCustomers(customers, activeId) {
             <div style="display:flex;gap:var(--space-4);margin-top:var(--space-2);font-size:var(--font-xs);color:var(--text-muted);">
               ${riskScore !== '' ? '<span>' + t('lbl_score_prefix','Score:') + ' <strong style="color:var(--text);">' + esc(String(riskScore)) + '</strong></span>' : ''}
               ${mfaPct ? '<span>' + t('lbl_mfa_prefix','MFA:') + ' <strong style="color:var(--text);">' + mfaPct + '</strong></span>' : ''}
-              ${_om && _om.last_audit ? '<span>' + t('lbl_last_prefix','Last:') + ' <strong style="color:var(--text);">' + esc(_om.last_audit.substring(0,10)) + '</strong></span>' : ''}
+              ${_om && _om.last_audit ? '<span>' + t('lbl_last_prefix','Last:') + ' <strong style="color:var(--text);">' + esc(formatRunName(_om.last_audit, true)) + '</strong></span>' : ''}
               <span id="tag-pills-${safeId}" style="display:inline;">${tagPillsHtml(cTags)}</span>
             </div>
           </div>

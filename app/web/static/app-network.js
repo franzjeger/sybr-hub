@@ -110,7 +110,7 @@ async function loadFiles() {
         _elRaw.innerHTML = `
           <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;">
             <span style="color:var(--text-muted);">${t('lbl_runs')}</span><span>${Number(raw.runs)}</span>
-            <span style="color:var(--text-muted);">${t('lbl_latest_run')}</span><span>${esc(raw.latest)}</span>
+            <span style="color:var(--text-muted);">${t('lbl_latest_run')}</span><span>${esc(formatRunName(raw.latest))}</span>
             <span style="color:var(--text-muted);">${t('lbl_total_size')}</span><span>${esc(raw.total_size)}</span>
             <span style="color:var(--text-muted);">${t('lbl_location')}</span><span style="font-family:var(--mono);font-size:11px;word-break:break-all;">${esc(raw.path)}</span>
           </div>`;

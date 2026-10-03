@@ -3068,7 +3068,9 @@
     "tip_summary_report": "Kjøringen har ingen bevisfiler, så hele rapporten kan ikke bygges. Sammendraget leser nøkkeltallene.",
     "msg_po_std_unknown": "Kundens policyer er ikke samlet inn ennå, så det er ukjent hvilke av standardens policyer som finnes. En audit samler dem inn.",
     "lbl_std_unmeasured": "ikke målt",
-    "lbl_std_unknown": "Ukjent, ikke samlet inn"
+    "lbl_std_unknown": "Ukjent, ikke samlet inn",
+    "ctx_audited_today": "Auditert i dag",
+    "ctx_audited_days_ago": "Auditert for {n} d siden"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -6139,6 +6141,8 @@
     "tip_summary_report": "The run has no evidence files, so the full report cannot be built. The summary reads the metrics.",
     "msg_po_std_unknown": "The customer's policies have not been captured yet, so it is unknown which of the standard's policies exist. An audit captures them.",
     "lbl_std_unmeasured": "not measured",
-    "lbl_std_unknown": "Unknown, not captured"
+    "lbl_std_unknown": "Unknown, not captured",
+    "ctx_audited_today": "Audited today",
+    "ctx_audited_days_ago": "Audited {n} d ago"
   }
 }
