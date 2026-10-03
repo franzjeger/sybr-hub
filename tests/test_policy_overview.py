@@ -231,6 +231,33 @@ def test_standard_gap_is_name_matched_and_honest_about_absence(tmp_path, monkeyp
         assert isinstance(std["policies"], list)
 
 
+def test_without_a_snapshot_presence_is_unknown_not_absent(tmp_path, monkeypatch):
+    """No captured policies is "not collected", not "the tenant has none".
+
+    The screen marked all fourteen standard policies red "not present" on a
+    customer whose policies had never been captured. A snapshot holding no
+    policies, on the other hand, is a measurement: every policy is absent.
+    """
+    from app.core import customer as customer_module
+    from app.core.policy_overview import build_overview
+
+    monkeypatch.setattr("app.core.config.get_audit_dir", lambda: tmp_path / "audits")
+    monkeypatch.setattr(customer_module, "_CUSTOMERS_DIR", tmp_path / "customers")
+    (tmp_path / "audits" / "Acme" / "r1").mkdir(parents=True)  # a run, no snapshot
+
+    unknown = build_overview("Acme", lang="en")
+    assert unknown["standards"]
+    for std in unknown["standards"]:
+        assert std["measured"] is False
+        assert all(p["present"] is None for p in std["policies"]), std["id"]
+
+    _write_snapshot(tmp_path / "audits", "Acme", "r2", [])
+    empty = build_overview("Acme", lang="en")
+    for std in empty["standards"]:
+        assert std["measured"] is True
+        assert all(p["present"] is False for p in std["policies"]), std["id"]
+
+
 def test_standard_entry_marks_presence_and_why(tmp_path, monkeypatch):
     """A named policy the tenant has must show as present, with its why."""
     from app.core import customer as customer_module

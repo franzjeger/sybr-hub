@@ -51,7 +51,7 @@ async function policyOverviewLoad() {
       + esc(cust ? cust : cid)
       + ' &middot; ' + t('lbl_captured', 'Captured')
       + ': ' + esc((po.captured_at || '').slice(0, 10))
-      + (po.run ? ' &middot; ' + esc(po.run) : '');
+      + (po.run ? ' &middot; ' + esc(formatRunName(po.run)) : '');
     html += '</div>';
     html += _poWorkloadBlocks(po.workloads || {});
   }
@@ -61,6 +61,15 @@ async function policyOverviewLoad() {
   el.innerHTML = html;
 }
 
+function _poStateLabel(code) {
+  return {
+    'on':          t('lbl_policy_on', 'On'),
+    'report-only': t('lbl_policy_report', 'Report-only'),
+    'off':         t('lbl_policy_off', 'Off'),
+    'trusted':     t('lbl_policy_trusted', 'Trusted'),
+  }[code] || String(code || '?');
+}
+
 function _poStatePill(code) {
   var cls = {
     'on':          'po-badge-on',
@@ -68,13 +77,7 @@ function _poStatePill(code) {
     'off':         'po-badge-off',
     'trusted':     'po-badge-trusted',
   }[code] || 'po-badge-unknown';
-  var label = {
-    'on':          t('lbl_policy_on', 'On'),
-    'report-only': t('lbl_policy_report', 'Report-only'),
-    'off':         t('lbl_policy_off', 'Off'),
-    'trusted':     t('lbl_policy_trusted', 'Trusted'),
-  }[code] || esc(code || '?');
-  return '<span class="po-badge ' + cls + '">' + label + '</span>';
+  return '<span class="po-badge ' + cls + '">' + esc(_poStateLabel(code)) + '</span>';
 }
 
 function _poLoc(v) {
@@ -135,7 +138,8 @@ function _poReason(prefix, code, params) {
   var out = t(prefix + code, '');
   if (!out) return '';
   Object.keys(params || {}).forEach(function(k) {
-    out = out.split('{' + k + '}').join(String(params[k] || ''));
+    var v = k === 'run' ? formatRunName(params[k]) : params[k];
+    out = out.split('{' + k + '}').join(String(v || ''));
   });
   return out;
 }
@@ -153,7 +157,7 @@ function _poDriftBlock(d) {
   }
 
   html += '<div class="po-meta">'
-    + t('lbl_drift_against', 'Against run') + ': ' + esc(d.compared_with || '—')
+    + t('lbl_drift_against', 'Against run') + ': ' + esc(d.compared_with ? formatRunName(d.compared_with) : '-')
     + ' &middot; '
     + '<span class="po-dr-count-add">' + (Number(d.added_total) || 0) + ' ' + t('lbl_added', 'added') + '</span>'
     + ' / '
@@ -211,37 +215,62 @@ function _poDriftList(type, items, withFields) {
   return html;
 }
 
+// Presence is only known when the run captured the tenant's policies. The
+// server says so per standard (`measured`) and per policy (`present` null).
+// Unknown is shown as unknown, in a neutral colour: fourteen red "Ikke til
+// stede" on a customer nobody had captured read as fourteen failures.
 function _poStandardBlock(standards) {
   if (!standards.length) return '';
-  var html = '<div class="card">';
+  var html = '<div class="card" id="po-standards">';
   html += '<div class="po-sec">' + t('hdr_std_gap', 'Avstand til Sybr-standarden') + '</div>';
 
+  if (standards.some(function(std) { return std.measured === false; })) {
+    html += '<div class="po-dim po-xs po-std-note">'
+      + esc(t('msg_po_std_unknown', 'Kundens policyer er ikke samlet inn ennå, så det er ukjent hvilke av standardens policyer som finnes. En audit samler dem inn.'))
+      + '</div>';
+  }
+
   standards.forEach(function(std) {
+    var measured = std.measured !== false;
     var total = (std.policies || []).length;
-    var missing = (std.policies || []).filter(function(p) { return !p.present; }).length;
-    var present = total - missing;
+    var present = (std.policies || []).filter(function(p) { return p.present === true; }).length;
     var pct = total > 0 ? Math.round((present / total) * 100) : 0;
     var pcls = pct === 100 ? ' success' : '';
 
     html += '<div class="po-block">';
     html += '<div class="po-std-head">'
       + '<span>' + esc(std.name || std.id) + ' <span class="po-std-meta">v' + esc(std.version || '') + '</span></span>'
-      + '<span class="po-std-meta" style="font-weight:600;">' + present + '/' + total + ' ' + t('lbl_implemented', 'implemented') + ' (' + pct + '%)</span>'
+      + '<span class="po-std-meta" style="font-weight:600;">'
+      + (measured
+        ? present + '/' + total + ' ' + t('lbl_implemented', 'implemented') + ' (' + pct + '%)'
+        : esc(t('lbl_std_unmeasured', 'ikke målt')))
+      + '</span>'
       + '</div>';
-    html += '<div class="po-progress-wrap" style="margin-bottom:16px;"><div class="po-progress-fill' + pcls + '" style="width:' + pct + '%;"></div></div>';
-    
+    if (measured) {
+      html += '<div class="po-progress-wrap" style="margin-bottom:16px;"><div class="po-progress-fill' + pcls + '" style="width:' + pct + '%;"></div></div>';
+    }
+
     html += '<table class="po-tbl">';
     (std.policies || []).forEach(function(p) {
+      var mark, status, statusCls = '';
+      if (p.present === true) {
+        mark = _poStatePill(p.state || 'on');
+        status = esc(_poStateLabel(p.state || 'on'));
+      } else if (p.present === false) {
+        mark = '<span class="po-absent">&#10007;</span>';
+        status = esc(t('lbl_std_missing', 'Ikke til stede'));
+        statusCls = ' po-std-statuscell-missing';
+      } else {
+        mark = '<span class="po-unknown">?</span>';
+        status = esc(t('lbl_std_unknown', 'Ukjent, ikke samlet inn'));
+        statusCls = ' po-std-statuscell-unknown';
+      }
       html += '<tr class="po-row">';
-      html += '<td class="po-std-statecell">'
-        + (p.present ? _poStatePill(p.state || 'on') : '<span class="po-absent">&#10007;</span>')
-        + '</td>';
+      html += '<td class="po-std-statecell">' + mark + '</td>';
       html += '<td class="po-std-name">' + esc(p.name);
       if (p.why) html += '<div class="po-std-why">' + esc(p.why) + '</div>';
       html += '</td>';
-      html += '<td class="po-std-statuscell' + (p.present ? '' : ' po-std-statuscell-missing') + '">'
-        + (p.present ? esc(p.state || 'on') : t('lbl_std_missing', 'Ikke til stede'))
-        + '</td></tr>';
+      html += '<td class="po-std-statuscell' + statusCls + '">' + status + '</td></tr>';
     });
     html += '</table></div>';
   });
