@@ -49,10 +49,18 @@ def _parse_secure_score(text: str) -> dict:
                         remaining = float(tail[0])
                     except ValueError:
                         remaining = None
+                # The category ends the row. It was never read, and the Secure
+                # Score recommendation prints each action as "name (category)",
+                # so every one of them read "name ()". On a row with the "Left"
+                # column (a number, or "-" when not ranked by points) it comes
+                # after that column; on an older row it is all of the tail.
+                has_left = bool(tail) and (remaining is not None or tail[0] == "-")
+                category = " ".join(tail[1:] if has_left else tail)
                 if name:
                     entry = {"name": name, "pct": score_pct}
                     if remaining is not None:
                         entry["remaining"] = remaining
+                    entry["category"] = category
                     improvements.append(entry)
         if len(improvements) >= 10:
             break
