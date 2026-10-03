@@ -683,3 +683,21 @@ async def test_credential_reset_requires_a_technician(client, monkeypatch):
 
     assert response.status_code == 403, response.text
     assert deleted_tenants == []
+
+
+async def test_status_says_a_gdap_customer_can_be_audited(client):
+    """M365-status said "no M365 access configured" for a GDAP customer the
+    customer page offered to audit: it counted only an app secret. The status
+    now carries m365_ready, the customer page's rule, beside has_credentials."""
+    gdap = CustomerManager.save_customer(
+        {"CustomerName": "Delegated", "TenantId": "delegated", "AuthMode": "gdap"}
+    )
+    _, token = await _auth("gdap-status")
+    response = client.post(
+        "/api/customers/switch", headers=_headers(token), json={"customer_id": gdap}
+    )
+    assert response.status_code == 200, response.text
+
+    status = client.get("/api/status", headers=_headers(token)).json()
+    assert status["has_credentials"] is False, "no app secret is held for it"
+    assert status["m365_ready"] is True
