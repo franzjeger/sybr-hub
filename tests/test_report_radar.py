@@ -150,6 +150,21 @@ def test_email_axis_is_the_weighted_pass_rate_of_its_controls():
     assert cats[_labels()["email"]] == 50  # (1.0 + 0.5 + 0.0) / 3 * 100
 
 
+def test_a_warned_email_control_lowers_the_axis():
+    """A "warn" was excluded from the axis as if it could not be verified.
+
+    External forwarding (4.4) and a domain whose mail goes unsigned (5.2.3)
+    are warns, and compliance_pct counts them against the tenant; the radar
+    left them out, so a tenant with SPF and DMARC in order and no DKIM drew a
+    full email axis. Half credit, as the report's summary groups warn with
+    partial.
+    """
+    ctx = _full_context()
+    ctx["compliance"] = _email_controls("pass", "pass", "warn")
+    cats = _build_risk_radar(ctx)
+    assert cats[_labels()["email"]] == 83  # (1.0 + 1.0 + 0.5) / 3 * 100
+
+
 def test_dmarc_quarantine_does_not_score_a_perfect_email_axis():
     """The C3 regression. p=quarantine tokenises as "WARN (p=quarantine)", which
     the old SPF/DMARC ladder matched under neither MISSING nor WEAK, so the axis
