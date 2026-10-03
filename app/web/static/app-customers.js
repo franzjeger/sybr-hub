@@ -7,7 +7,7 @@ import {t} from './app-i18n.js';
 import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {_allCustomers, _overviewData, setAllCustomers} from './app-state.js';
-import {formatRunName, metricPct} from './app-format.js';
+import {formatRunName, metricPct, toneClass} from './app-format.js';
 import {setButtonLabel, showConfirm, showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {showView} from './app.js';
@@ -94,7 +94,7 @@ async function openITGlueOrgPicker(callback, autoMatchName) {
   modal.style.display = 'flex';
   btn.disabled = true;
   btn.textContent = t('btn_select');
-  content.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div>' + t('msg_fetching_orgs') + '</div>';
+  content.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div>' + t('msg_fetching_orgs') + '</div>';
 
   try {
     if (!_itglueOrgCache) {
@@ -103,7 +103,7 @@ async function openITGlueOrgPicker(callback, autoMatchName) {
       _itglueOrgCache = d.organizations || [];
     }
     if (_itglueOrgCache.length === 0) {
-      content.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">' + t('msg_no_orgs_found') + '</div>';
+      content.innerHTML = '<div class="empty-note is-compact">' + t('msg_no_orgs_found') + '</div>';
       return;
     }
 
@@ -125,14 +125,14 @@ async function openITGlueOrgPicker(callback, autoMatchName) {
       }
     }
 
-    var html = '<input type="text" id="itglue-org-picker-search" class="field-input" placeholder="' + t('lbl_search') + '" style="margin-bottom:10px;padding:6px 12px;font-size:12px;" data-input-handler="filterITGlueOrgPicker">';
-    html += '<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">';
+    var html = '<input type="text" id="itglue-org-picker-search" class="field-input mb-3 py-2 px-3 text-sm" placeholder="' + t('lbl_search') + '" data-input-handler="filterITGlueOrgPicker">';
+    html += '<div class="max-h-md overflow-y-auto border rounded">';
     for (let i = 0; i < orgs.length; i++) {
       var matched = (i === bestIdx);
-      html += '<label class="itglue-org-picker-row" data-name="' + esc(orgs[i].name.toLowerCase()) + '" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);' + (matched ? 'background:rgba(77,159,181,0.1);' : '') + '">';
-      html += '<input type="radio" name="itglue-org-pick" value="' + esc(orgs[i].id) + '" data-orgname="' + esc(orgs[i].name) + '" ' + (matched ? 'checked' : '') + ' data-change-handler="itglueOrgPickEnable" style="width:16px;height:16px;">';
-      html += '<span style="font-size:13px;">' + esc(orgs[i].name) + '</span>';
-      if (matched) html += '<span style="margin-left:auto;font-size:10px;color:var(--green);font-weight:600;">' + t('msg_recommended_match') + '</span>';
+      html += '<label class="itglue-org-picker-row picker-row' + (matched ? ' is-match' : '') + '" data-name="' + esc(orgs[i].name.toLowerCase()) + '">';
+      html += '<input type="radio" class="checkbox" name="itglue-org-pick" value="' + esc(orgs[i].id) + '" data-orgname="' + esc(orgs[i].name) + '" ' + (matched ? 'checked' : '') + ' data-change-handler="itglueOrgPickEnable">';
+      html += '<span class="text-ui">' + esc(orgs[i].name) + '</span>';
+      if (matched) html += '<span class="ml-auto text-2xs text-success fw-semibold">' + t('msg_recommended_match') + '</span>';
       html += '</label>';
     }
     html += '</div>';
@@ -189,7 +189,7 @@ export async function uploadReportsToITGlue(btn, customerId) {
   var content = document.getElementById('itglue-upload-content');
   modal.style.display = 'flex';
   document.getElementById('btn-itglue-upload-go').disabled = true;
-  content.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div>' + t('msg_fetching_reports_orgs') + '</div>';
+  content.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div>' + t('msg_fetching_reports_orgs') + '</div>';
 
   try {
     // Fetch available reports and orgs in parallel
@@ -233,32 +233,32 @@ export async function uploadReportsToITGlue(btn, customerId) {
     var html = '';
 
     // Step 1: File picker
-    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">' + t('hdr_select_reports') + '</div>';
-    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">';
-    html += '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="itglue-upload-select-all" data-change-handler="itglueUploadSelectAll" checked> ' + t('btn_select_all') + '</label>';
+    html += '<div class="fw-semibold text-ui mb-2">' + t('hdr_select_reports') + '</div>';
+    html += '<div class="flex gap-2 items-center mb-2">';
+    html += '<label class="text-sm cursor-pointer"><input type="checkbox" id="itglue-upload-select-all" data-change-handler="itglueUploadSelectAll" checked> ' + t('btn_select_all') + '</label>';
     html += '</div>';
-    html += '<div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:16px;">';
+    html += '<div class="max-h-sm overflow-y-auto border rounded mb-4">';
     for (let i = 0; i < files.length; i++) {
       var f = files[i];
       var ficon = f.name.endsWith('.pdf') ? icon('document',14) : icon('globe',14);
-      html += '<label style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px;">';
-      html += '<input type="checkbox" class="itglue-file-cb" value="' + esc(f.name) + '" checked data-change-handler="updateITGlueUploadBtn" style="width:15px;height:15px;">';
-      html += ficon + ' <span style="flex:1;">' + esc(f.name) + '</span>';
-      html += '<span style="color:var(--text-muted);">' + esc(f.size) + '</span>';
+      html += '<label class="flex items-center gap-2 py-2 px-3 cursor-pointer border-b text-sm">';
+      html += '<input type="checkbox" class="itglue-file-cb checkbox" value="' + esc(f.name) + '" checked data-change-handler="updateITGlueUploadBtn">';
+      html += ficon + ' <span class="flex-1">' + esc(f.name) + '</span>';
+      html += '<span class="text-muted">' + esc(f.size) + '</span>';
       html += '</label>';
     }
     html += '</div>';
 
     // Step 2: Org picker
-    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">' + t('hdr_select_org') + '</div>';
-    html += '<input type="text" id="itglue-upload-org-search" class="field-input" placeholder="' + t('lbl_search_org') + '" style="margin-bottom:6px;padding:6px 12px;font-size:12px;" data-input-handler="filterITGlueUploadOrgs">';
-    html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">';
+    html += '<div class="fw-semibold text-ui mb-2">' + t('hdr_select_org') + '</div>';
+    html += '<input type="text" id="itglue-upload-org-search" class="field-input mb-2 py-2 px-3 text-sm" placeholder="' + t('lbl_search_org') + '" data-input-handler="filterITGlueUploadOrgs">';
+    html += '<div class="max-h-sm overflow-y-auto border rounded">';
     for (let i = 0; i < orgs.length; i++) {
       var matched = (i === bestOrgIdx);
-      html += '<label class="itglue-upload-org-row" data-name="' + esc(orgs[i].name.toLowerCase()) + '" style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-bottom:1px solid var(--border);' + (matched ? 'background:rgba(77,159,181,0.1);' : '') + '">';
-      html += '<input type="radio" name="itglue-upload-org" value="' + esc(orgs[i].id) + '" data-orgname="' + esc(orgs[i].name) + '" ' + (matched ? 'checked' : '') + ' data-change-handler="updateITGlueUploadBtn" style="width:15px;height:15px;">';
-      html += '<span style="font-size:12px;">' + esc(orgs[i].name) + '</span>';
-      if (matched) html += '<span style="margin-left:auto;font-size:10px;color:var(--green);font-weight:600;">' + t('msg_recommended') + '</span>';
+      html += '<label class="itglue-upload-org-row picker-row' + (matched ? ' is-match' : '') + '" data-name="' + esc(orgs[i].name.toLowerCase()) + '">';
+      html += '<input type="radio" class="checkbox" name="itglue-upload-org" value="' + esc(orgs[i].id) + '" data-orgname="' + esc(orgs[i].name) + '" ' + (matched ? 'checked' : '') + ' data-change-handler="updateITGlueUploadBtn">';
+      html += '<span class="text-sm">' + esc(orgs[i].name) + '</span>';
+      if (matched) html += '<span class="ml-auto text-2xs text-success fw-semibold">' + t('msg_recommended') + '</span>';
       html += '</label>';
     }
     html += '</div>';
@@ -393,11 +393,11 @@ function pickITGlueOrg(orgs) {
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop open';
     backdrop.innerHTML = `
-      <div class="modal" style="max-height:80vh;overflow-y:auto;">
+      <div class="modal">
         <div class="modal-title" data-i18n="hdr_itglue_org_picker">${t('hdr_itglue_org_picker')}</div>
         <div class="modal-desc">${t('msg_select_org_upload','Select which organization to upload data to.')}</div>
-        <input class="field-input" id="itglue-org-search" type="text" placeholder="${t('placeholder_search','Search...')}" style="margin-bottom:12px;">
-        <div id="itglue-org-list" style="max-height:300px;overflow-y:auto;"></div>
+        <input class="field-input mb-3" id="itglue-org-search" type="text" placeholder="${t('placeholder_search','Search...')}">
+        <div id="itglue-org-list" class="max-h-md overflow-y-auto"></div>
         <div class="modal-actions">
           <button class="btn btn-default" id="itglue-org-cancel">${t('btn_cancel','Cancel')}</button>
         </div>
@@ -410,7 +410,7 @@ function pickITGlueOrg(orgs) {
     function render(filter) {
       const filtered = filter ? orgs.filter(o => o.name.toLowerCase().includes(filter.toLowerCase())) : orgs;
       list.innerHTML = filtered.map(o =>
-        `<div style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;" class="itglue-org-item" data-id="${esc(o.id)}">${esc(o.name)}</div>`
+        `<div class="itglue-org-item py-2 px-3 border-b cursor-pointer text-ui" data-id="${esc(o.id)}">${esc(o.name)}</div>`
       ).join('');
     }
     render('');
@@ -435,23 +435,25 @@ export async function migrateEncryption() {
   try {
     const d = await apiFetch('/api/encrypt/migrate', {method:'POST'});
     if (d.ok) {
-      result.innerHTML = '<span style="color:var(--green);">' + t('msg_files_encrypted').replace('{count}', Number(d.files_encrypted)) + '</span>';
+      result.innerHTML = '<span class="text-success">' + t('msg_files_encrypted').replace('{count}', Number(d.files_encrypted)) + '</span>';
     } else {
-      result.innerHTML = `<span style="color:var(--red);">✗ ${t('status_error')}: ${esc(d.error)}</span>`;
+      result.innerHTML = `<span class="text-danger">✗ ${t('status_error')}: ${esc(d.error)}</span>`;
     }
   } catch(e) {
-    result.innerHTML = `<span style="color:var(--red);">✗ ${esc(e.message)}</span>`;
+    result.innerHTML = `<span class="text-danger">✗ ${esc(e.message)}</span>`;
   }
   btn.disabled = false;
 }
 
 // ── Tag utilities ──
 var TAG_SUGGESTIONS=['Premium','Standard','Basic',t('tag_priority','Priority'),t('tag_new_customer','New customer'),t('tag_trial','Trial')];
-var TAG_COLORS={'Premium':{bg:'#3fb95020',border:'#3fb95060',color:'#3fb950'},'Standard':{bg:'#4d9fb520',border:'#4d9fb560',color:'#4d9fb5'},'Basic':{bg:'#8b8b8b20',border:'#8b8b8b60',color:'#8b8b8b'},'Prioritert':{bg:'#f8514920',border:'#f8514960',color:'#f85149'},'Priority':{bg:'#f8514920',border:'#f8514960',color:'#f85149'},'Ny kunde':{bg:'#d2992220',border:'#d2992260',color:'#d29922'},'New customer':{bg:'#d2992220',border:'#d2992260',color:'#d29922'},'Proveperiode':{bg:'#a371f720',border:'#a371f760',color:'#a371f7'},'Trial':{bg:'#a371f720',border:'#a371f760',color:'#a371f7'}};
-function tagPillHtml(tag){var tc=TAG_COLORS[tag]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};return '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';margin-right:4px;margin-top:2px;white-space:nowrap;">'+esc(tag)+'</span>';}
+// A known tag keeps its colour; any other tag is info blue.
+var TAG_TONES={'Premium':'badge-success','Standard':'badge-info','Basic':'','Prioritert':'badge-danger','Priority':'badge-danger','Ny kunde':'badge-warning','New customer':'badge-warning','Proveperiode':'badge-purple','Trial':'badge-purple'};
+function _tagTone(tag){return Object.prototype.hasOwnProperty.call(TAG_TONES,tag)?TAG_TONES[tag]:'badge-info';}
+function tagPillHtml(tag){return '<span class="badge badge-bordered tag-pill '+_tagTone(tag)+'">'+esc(tag)+'</span>';}
 export function tagPillsHtml(tags){if(!tags||tags.length===0)return '';return tags.map(tagPillHtml).join('');}
 async function saveCustomerTags(cid,tags){try{await apiFetch('/api/customer/'+encodeURIComponent(cid)+'/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tags:tags})})}catch(e){console.error('save tags:',e)}}
-function showTagEditor(cid,curTags){var ex=curTags?curTags.slice():[];var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var ct=_tagEl('tag-editor-'+si);if(!ct)return;var sf=TAG_SUGGESTIONS.filter(function(s){return ex.indexOf(s)===-1});var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;">';ex.forEach(function(t,i){var tc=TAG_COLORS[t]||{bg:'#58a6ff20',border:'#58a6ff50',color:'#58a6ff'};h+='<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:'+tc.bg+';border:1px solid '+tc.border+';color:'+tc.color+';">'+esc(t)+' <span style="cursor:pointer;font-size:14px;line-height:1;opacity:0.7;" data-click-handler="removeTagAndRefresh" data-customer-id="'+esc(cid)+'" data-index="'+i+'">&times;</span></span>'});h+='</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';h+='<input type="text" id="tag-input-'+si+'" placeholder="' + t('lbl_write_tag') + '" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);width:120px;" data-keydown-handler="tagEditorAddOnEnter" data-customer-id="'+esc(cid)+'">';h+='<button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" data-click-handler="addTagFromInput" data-customer-id="'+esc(cid)+'">+</button></div>';if(sf.length>0){h+='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">';sf.forEach(function(s){h+='<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;border:1px dashed var(--border);border-radius:12px;" data-click-handler="addSuggestedTag" data-customer-id="'+esc(cid)+'" data-tag="'+esc(s)+'">+ '+esc(s)+'</button>'});h+='</div>'}ct.innerHTML=h;ct.style.display='block'}
+function showTagEditor(cid,curTags){var ex=curTags?curTags.slice():[];var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var ct=_tagEl('tag-editor-'+si);if(!ct)return;var sf=TAG_SUGGESTIONS.filter(function(s){return ex.indexOf(s)===-1});var h='<div class="flex flex-wrap gap-1 items-center mb-2">';ex.forEach(function(t,i){h+='<span class="badge badge-bordered '+_tagTone(t)+'">'+esc(t)+' <span class="cursor-pointer text-base lh-none opacity-70" data-click-handler="removeTagAndRefresh" data-customer-id="'+esc(cid)+'" data-index="'+i+'">&times;</span></span>'});h+='</div><div class="flex gap-2 items-center flex-wrap">';h+='<input type="text" id="tag-input-'+si+'" class="field-input field-input-sm tag-input" placeholder="' + t('lbl_write_tag') + '" data-keydown-handler="tagEditorAddOnEnter" data-customer-id="'+esc(cid)+'">';h+='<button class="btn btn-primary btn-sm" data-click-handler="addTagFromInput" data-customer-id="'+esc(cid)+'">+</button></div>';if(sf.length>0){h+='<div class="mt-2 flex flex-wrap gap-1">';sf.forEach(function(s){h+='<button class="btn btn-ghost btn-sm border border-dashed rounded-full" data-click-handler="addSuggestedTag" data-customer-id="'+esc(cid)+'" data-tag="'+esc(s)+'">+ '+esc(s)+'</button>'});h+='</div>'}ct.innerHTML=h;ct.hidden=false}
 // The Kunder list and the customer page's Detaljer both carry a tag editor for
 // a customer, with the same ids. The one on the page on screen is meant.
 function _tagEl(id) {
@@ -459,7 +461,7 @@ function _tagEl(id) {
 }
 var _tagEditorData={};
 export function openTagEditor(cid,tags){_tagEditorData[cid]=tags?tags.slice():[];showTagEditor(cid,_tagEditorData[cid])}
-function closeTagEditor(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var c=_tagEl('tag-editor-'+si);if(c){c.innerHTML='';c.style.display='none'}delete _tagEditorData[cid]}
+function closeTagEditor(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var c=_tagEl('tag-editor-'+si);if(c){c.innerHTML='';c.hidden=true}delete _tagEditorData[cid]}
 function addTagFromInput(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var inp=_tagEl('tag-input-'+si);if(!inp||!inp.value.trim())return;if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(inp.value.trim())===-1)_tagEditorData[cid].push(inp.value.trim());saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function addSuggestedTag(cid,tag){if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(tag)===-1)_tagEditorData[cid].push(tag);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function removeTagAndRefresh(cid,index){if(!_tagEditorData[cid])return;_tagEditorData[cid].splice(index,1);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
@@ -542,7 +544,7 @@ export async function openITGlueImport() {
   var btn = document.getElementById('btn-itglue-import');
   modal.style.display = 'flex';
   btn.disabled = true;
-  content.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div><span data-i18n="msg_fetching_orgs_itglue">' + t('henter_organisasjoner_fra_it_glue') + '</span></div>';
+  content.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div><span data-i18n="msg_fetching_orgs_itglue">' + t('henter_organisasjoner_fra_it_glue') + '</span></div>';
   _itglueImportOrgs = [];
 
   try {
@@ -553,7 +555,7 @@ export async function openITGlueImport() {
     }
     var orgs = d.organizations || [];
     if (orgs.length === 0) {
-      content.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">' + t('msg_no_orgs_found_itglue') + '</div>';
+      content.innerHTML = '<div class="empty-note is-compact">' + t('msg_no_orgs_found_itglue') + '</div>';
       return;
     }
 
@@ -564,12 +566,12 @@ export async function openITGlueImport() {
       custData.customers.forEach(function(c) { existingNames.add((c.CustomerName || '').toLowerCase()); });
     }
 
-    var html = '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">';
-    html += '<input type="text" id="itglue-import-search" class="field-input" placeholder="' + t('lbl_search') + '" style="flex:1;padding:6px 12px;font-size:12px;" data-input-handler="filterITGlueImport">';
-    html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="itglue-import-select-all" data-change-handler="toggleAllITGlueImport"> ' + t('btn_select_all') + '</label>';
+    var html = '<div class="mb-3 flex gap-2 items-center">';
+    html += '<input type="text" id="itglue-import-search" class="field-input flex-1 py-2 px-3 text-sm" placeholder="' + t('lbl_search') + '" data-input-handler="filterITGlueImport">';
+    html += '<label class="text-sm flex items-center gap-1 cursor-pointer nowrap"><input type="checkbox" id="itglue-import-select-all" data-change-handler="toggleAllITGlueImport"> ' + t('btn_select_all') + '</label>';
     html += '</div>';
-    html += '<div style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">';
-    html += '<table class="section-table" style="width:100%;"><thead><tr><th style="width:32px;"></th><th style="text-align:left;">' + t('lbl_organization') + '</th><th style="text-align:left;">' + t('lbl_id') + '</th><th></th></tr></thead><tbody>';
+    html += '<div class="max-h-lg overflow-y-auto border rounded">';
+    html += '<table class="section-table w-full"><thead><tr><th class="col-check"></th><th class="text-left">' + t('lbl_organization') + '</th><th class="text-left">' + t('lbl_id') + '</th><th></th></tr></thead><tbody>';
 
     orgs.sort(function(a, b) { return a.name.localeCompare(b.name); });
     _itglueImportOrgs = orgs;
@@ -577,11 +579,11 @@ export async function openITGlueImport() {
     for (var i = 0; i < orgs.length; i++) {
       var o = orgs[i];
       var exists = existingNames.has(o.name.toLowerCase());
-      html += '<tr class="itglue-import-row" data-name="' + esc(o.name.toLowerCase()) + '"' + (exists ? ' style="opacity:0.4;"' : '') + '>';
-      html += '<td style="text-align:center;"><input type="checkbox" class="itglue-import-cb" data-idx="' + i + '" ' + (exists ? 'disabled title="' + esc(t('msg_already_imported')) + '"' : '') + ' data-change-handler="updateITGlueImportBtn" style="width:15px;height:15px;cursor:pointer;"></td>';
-      html += '<td style="font-weight:500;">' + esc(o.name) + '</td>';
-      html += '<td style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">' + esc(o.id) + '</td>';
-      html += '<td style="font-size:11px;color:var(--text-muted);">' + (exists ? '<span style="color:var(--green);">' + t('msg_already_exists') + '</span>' : '') + '</td>';
+      html += '<tr class="itglue-import-row' + (exists ? ' opacity-50' : '') + '" data-name="' + esc(o.name.toLowerCase()) + '">';
+      html += '<td class="text-center"><input type="checkbox" class="itglue-import-cb checkbox" data-idx="' + i + '" ' + (exists ? 'disabled title="' + esc(t('msg_already_imported')) + '"' : '') + ' data-change-handler="updateITGlueImportBtn"></td>';
+      html += '<td class="fw-medium">' + esc(o.name) + '</td>';
+      html += '<td class="font-mono text-xs text-muted">' + esc(o.id) + '</td>';
+      html += '<td class="text-xs text-muted">' + (exists ? '<span class="text-success">' + t('msg_already_exists') + '</span>' : '') + '</td>';
       html += '</tr>';
     }
     html += '</tbody></table></div>';
@@ -803,22 +805,22 @@ function renderCustomers(customers) {
   if (customers.length === 0) {
     box.innerHTML = `
       <div class="empty-state">
-        <div class="empty-title" style="margin-bottom:var(--space-6);">${t('onboarding_title','Kom i gang med Sybr HUB')}</div>
-        <div style="display:flex;gap:var(--space-6);justify-content:center;flex-wrap:wrap;margin-bottom:var(--space-6);">
-          <div style="text-align:center;max-width:180px;">
-            <div style="width:48px;height:48px;line-height:48px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:var(--font-lg);margin:0 auto var(--space-3);">1</div>
-            <div style="font-size:var(--font-sm);font-weight:600;">${t('onboarding_step1_title','Legg til kunde')}</div>
-            <div style="font-size:var(--font-xs);color:var(--text-muted);margin-top:var(--space-1);">${t('onboarding_step1_desc','Klikk \"+ Ny kunde\" og følg veiviseren')}</div>
+        <div class="empty-title mb-6">${t('onboarding_title','Kom i gang med Sybr HUB')}</div>
+        <div class="flex gap-6 justify-center flex-wrap mb-6">
+          <div class="text-center max-w-sm">
+            <div class="step-num">1</div>
+            <div class="text-sm fw-semibold">${t('onboarding_step1_title','Legg til kunde')}</div>
+            <div class="text-xs text-muted mt-1">${t('onboarding_step1_desc','Klikk \"+ Ny kunde\" og følg veiviseren')}</div>
           </div>
-          <div style="text-align:center;max-width:180px;">
-            <div style="width:48px;height:48px;line-height:48px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:var(--font-lg);margin:0 auto var(--space-3);">2</div>
-            <div style="font-size:var(--font-sm);font-weight:600;">${t('onboarding_step2_title','Sett opp M365')}</div>
-            <div style="font-size:var(--font-xs);color:var(--text-muted);margin-top:var(--space-1);">${t('onboarding_step2_desc')}</div>
+          <div class="text-center max-w-sm">
+            <div class="step-num">2</div>
+            <div class="text-sm fw-semibold">${t('onboarding_step2_title','Sett opp M365')}</div>
+            <div class="text-xs text-muted mt-1">${t('onboarding_step2_desc')}</div>
           </div>
-          <div style="text-align:center;max-width:180px;">
-            <div style="width:48px;height:48px;line-height:48px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:var(--font-lg);margin:0 auto var(--space-3);">3</div>
-            <div style="font-size:var(--font-sm);font-weight:600;">${t('onboarding_step3_title','Kjør audit')}</div>
-            <div style="font-size:var(--font-xs);color:var(--text-muted);margin-top:var(--space-1);">${t('onboarding_step3_desc')}</div>
+          <div class="text-center max-w-sm">
+            <div class="step-num">3</div>
+            <div class="text-sm fw-semibold">${t('onboarding_step3_title','Kjør audit')}</div>
+            <div class="text-xs text-muted mt-1">${t('onboarding_step3_desc')}</div>
           </div>
         </div>
         <button data-write class="btn btn-primary btn-lg" data-click-handler="startSetup">${t('btn_new_customer','+ Ny kunde')}</button>
@@ -838,9 +840,9 @@ function renderCustomers(customers) {
   for (const c of customers) {
     const isFav = favs.indexOf(c._id) >= 0;
     const isGdap = c.AuthMode === 'gdap';
-    const gdapBadge = isGdap ? '<span style="background:linear-gradient(135deg,#0078d4,#00bcf2);color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">GDAP</span>' : '';
+    const gdapBadge = isGdap ? '<span class="badge badge-info">GDAP</span>' : '';
     const expiryBadge = isGdap ? '' : getExpiryBadgeForCustomer(c._id);
-    const notesBadge = c._has_notes ? '<span style="background:var(--blue-dark);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:11px;border:1px solid rgba(77,159,181,0.3);">' + t('lbl_notes','Notat') + '</span>' : '';
+    const notesBadge = c._has_notes ? '<span class="badge badge-info badge-bordered">' + t('lbl_notes','Notat') + '</span>' : '';
     const cTags = c._tags || [];
     const safeId = c._id.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -855,14 +857,14 @@ function renderCustomers(customers) {
     var mfaPct = hasMetrics && metricPct(_om.metrics.mfa_coverage_pct) !== null ? metricPct(_om.metrics.mfa_coverage_pct) + '%' : '';
     var riskScore = hasMetrics && _om.metrics.risk_score !== undefined ? _om.metrics.risk_score : '';
     var configured = isGdap ? !!c.TenantId : !!(c.TenantId && c.ClientId);
-    var statusDot = configured ? (hasMetrics ? '<span style="width:8px;height:8px;border-radius:50%;background:' + gradeColor + ';display:inline-block;"></span>' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;" title="' + t('tip_no_audit_run','No audit run') + '"></span>') : '<span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block;" title="' + t('tip_not_configured','Not configured') + '"></span>';
+    var statusDot = configured ? (hasMetrics ? '<span class="dot ' + toneClass(gradeColor) + '"></span>' : '<span class="dot text-dim" title="' + t('tip_no_audit_run','No audit run') + '"></span>') : '<span class="dot text-warning" title="' + t('tip_not_configured','Not configured') + '"></span>';
 
     html += `
       <div class="card card-clickable cust-card" data-click-handler="overviewSelectCustomer" data-id="${esc(c._id)}">
         <div class="cust-card-row">
-          <input type="checkbox" class="customer-bulk-cb" data-click-handler="customerCardToggleBulk" data-id="${esc(c._id)}" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--blue);">
-          <span class="hover-scale" data-click-handler="customerCardToggleFavorite" data-id="${esc(c._id)}" style="cursor:pointer;font-size:18px;flex-shrink:0;transition:transform var(--duration-fast);">${isFav ? '\u2605' : '\u2606'}</span>
-          ${grade ? '<div style="width:42px;height:42px;line-height:42px;border-radius:var(--radius-lg);font-weight:800;font-size:var(--font-lg);color:#fff;background:'+gradeColor+';text-align:center;flex-shrink:0;">'+esc(grade)+'</div>' : '<div style="width:42px;height:42px;line-height:42px;border-radius:var(--radius-lg);font-size:var(--font-lg);color:var(--text-dim);background:var(--bg);text-align:center;flex-shrink:0;border:1px dashed var(--border);">?</div>'}
+          <input type="checkbox" class="customer-bulk-cb checkbox shrink-0" data-click-handler="customerCardToggleBulk" data-id="${esc(c._id)}">
+          <span class="hover-scale cursor-pointer text-lg shrink-0 transition-transform" data-click-handler="customerCardToggleFavorite" data-id="${esc(c._id)}">${isFav ? '\u2605' : '\u2606'}</span>
+          ${grade ? '<div class="grade-tile grade-tile-lg grade-' + esc(grade.replace('-', 'none')) + '">'+esc(grade)+'</div>' : '<div class="grade-tile grade-tile-lg is-empty">?</div>'}
           <div class="cust-card-main">
             <div class="cust-card-name">
               ${statusDot}
@@ -871,17 +873,17 @@ function renderCustomers(customers) {
             </div>
             <div class="cust-card-domain">${esc(c.PrimaryDomain || '')}</div>
             <div class="cust-card-metrics">
-              ${riskScore !== '' ? '<span>' + t('lbl_score_prefix','Score:') + ' <strong style="color:var(--text);">' + esc(String(riskScore)) + '</strong></span>' : ''}
-              ${mfaPct ? '<span>' + t('lbl_mfa_prefix','MFA:') + ' <strong style="color:var(--text);">' + mfaPct + '</strong></span>' : ''}
-              ${_om && _om.last_audit ? '<span>' + t('lbl_last_prefix','Last:') + ' <strong style="color:var(--text);">' + esc(formatRunName(_om.last_audit, true)) + '</strong></span>' : ''}
+              ${riskScore !== '' ? '<span>' + t('lbl_score_prefix','Score:') + ' <strong class="text-default">' + esc(String(riskScore)) + '</strong></span>' : ''}
+              ${mfaPct ? '<span>' + t('lbl_mfa_prefix','MFA:') + ' <strong class="text-default">' + mfaPct + '</strong></span>' : ''}
+              ${_om && _om.last_audit ? '<span>' + t('lbl_last_prefix','Last:') + ' <strong class="text-default">' + esc(formatRunName(_om.last_audit, true)) + '</strong></span>' : ''}
               <span id="tag-pills-${safeId}" class="cust-card-tags">${tagPillsHtml(cTags)}</span>
             </div>
           </div>
           <div class="cust-card-actions" data-click-handler="stopPropagation">
-            <button class="btn btn-ghost btn-sm" style="color:var(--text-dim);" data-click-handler="deleteCustomer" data-id="${esc(c._id)}" data-name="${esc(c.CustomerName)}" title="${t('btn_archive','Archive')}">${t('btn_archive','Archive')}</button>
+            <button class="btn btn-ghost btn-sm text-dim" data-click-handler="deleteCustomer" data-id="${esc(c._id)}" data-name="${esc(c.CustomerName)}" title="${t('btn_archive','Archive')}">${t('btn_archive','Archive')}</button>
           </div>
         </div>
-        <div id="tag-editor-${safeId}" style="display:none;margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;"></div>
+        <div id="tag-editor-${safeId}" class="cust-tag-editor" hidden></div>
       </div>`;
   }
   box.innerHTML = html;
@@ -965,31 +967,31 @@ export function startBulkAudit() {
   if (btn) { btn.disabled = true; btn.textContent = t('status_running'); }
   var panel = document.getElementById('bulk-audit-panel');
   panel.style.display = 'block';
-  panel.innerHTML = '<div class="card" style="padding:20px;margin-bottom:24px;" id="bulk-progress-card">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
-    '<div style="font-weight:700;font-size:15px;">' + t('bulk_audit') + '</div>' +
-    '<button class="btn btn-ghost" id="bulk-cancel-btn" data-click-handler="cancelBulkAudit" style="font-size:12px;padding:4px 10px;">' + t('avbryt') + '</button></div>' +
-    '<div id="bulk-overall-status" style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">' + t('starter') + '</div>' +
-    '<div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px;">' +
-    '<div id="bulk-overall-bar" style="height:100%;width:0%;background:var(--blue);transition:width 0.3s;border-radius:6px;"></div></div>' +
-    '<div id="bulk-customer-status" style="font-size:13px;color:var(--text-muted);margin-bottom:8px;"></div>' +
-    '<div style="background:var(--bg);border-radius:6px;height:6px;overflow:hidden;margin-bottom:16px;">' +
-    '<div id="bulk-customer-bar" style="height:100%;width:0%;background:#4d9fb5;transition:width 0.3s;border-radius:6px;"></div></div>' +
+  panel.innerHTML = '<div class="card p-5 mb-6" id="bulk-progress-card">' +
+    '<div class="flex items-center justify-between mb-4">' +
+    '<div class="fw-bold text-md">' + t('bulk_audit') + '</div>' +
+    '<button class="btn btn-ghost btn-sm" id="bulk-cancel-btn" data-click-handler="cancelBulkAudit">' + t('avbryt') + '</button></div>' +
+    '<div id="bulk-overall-status" class="text-ui text-muted mb-3">' + t('starter') + '</div>' +
+    '<div class="bar bar-lg mb-2">' +
+    '<div id="bulk-overall-bar" class="bar-fill"></div></div>' +
+    '<div id="bulk-customer-status" class="text-ui text-muted mb-2"></div>' +
+    '<div class="bar mb-4">' +
+    '<div id="bulk-customer-bar" class="bar-fill"></div></div>' +
     '<div id="bulk-results-table" style="display:none;">' +
-    '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">' + t('resultater') + '</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
-    '<thead><tr style="border-bottom:1px solid var(--border);">' +
-    '<th style="text-align:left;padding:6px 8px;color:var(--text-muted);">' + t('kunde') + '</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('grad') + '</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('score') + '</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('seksjoner_2') + '</th>' +
-    '<th style="text-align:center;padding:6px 8px;color:var(--text-muted);">' + t('status') + '</th>' +
+    '<div class="fw-semibold text-ui mb-2">' + t('resultater') + '</div>' +
+    '<table class="data-table">' +
+    '<thead><tr>' +
+    '<th>' + t('kunde') + '</th>' +
+    '<th class="text-center">' + t('grad') + '</th>' +
+    '<th class="text-center">' + t('score') + '</th>' +
+    '<th class="text-center">' + t('seksjoner_2') + '</th>' +
+    '<th class="text-center">' + t('status') + '</th>' +
     '</tr></thead><tbody id="bulk-results-tbody"></tbody></table></div></div>';
   var _ari_b = document.getElementById('audit-running-indicator');
   if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span class="dot"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.style.display = 'flex'; }
   var totalCustomers = 0, completedCustomers = 0, customerSectionsDone = 0, customerSectionsTotal = 0;
   fetch('/api/audit/bulk', {method:'POST'}).then(async function(resp) {
-    if (!resp.ok) { document.getElementById('bulk-overall-status').innerHTML = '<span style="color:var(--red)">HTTP '+Number(resp.status)+'</span>'; return; }
+    if (!resp.ok) { document.getElementById('bulk-overall-status').innerHTML = '<span class="text-danger">HTTP '+Number(resp.status)+'</span>'; return; }
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
     var buf = '';
@@ -1016,23 +1018,22 @@ export function startBulkAudit() {
       if (d.status === 'running') customerSectionsTotal = Math.max(customerSectionsTotal, customerSectionsDone + 5);
       var custPct = customerSectionsTotal > 0 ? Math.min(95, Math.round((customerSectionsDone / customerSectionsTotal) * 100)) : 0;
       var _bcb2 = document.getElementById('bulk-customer-bar'); if (_bcb2) _bcb2.style.width = custPct + '%';
-      document.getElementById('bulk-customer-status').innerHTML = t('audit_running_customer').replace('{customer}', '<b>' + esc(d.customer) + '</b>').replace('{index}', Number(d.index) + 1).replace('{total}', Number(d.total)) + ' &mdash; ' + esc(d.name) + ' <span style="color:var(--text-dim);">' + esc(d.detail) + '</span>';
+      document.getElementById('bulk-customer-status').innerHTML = t('audit_running_customer').replace('{customer}', '<b>' + esc(d.customer) + '</b>').replace('{index}', Number(d.index) + 1).replace('{total}', Number(d.total)) + ' &mdash; ' + esc(d.name) + ' <span class="text-dim">' + esc(d.detail) + '</span>';
     } else if (d.type === 'customer_done') {
       completedCustomers++;
       var overallPct = Math.round((completedCustomers / totalCustomers) * 100);
       document.getElementById('bulk-overall-bar').style.width = overallPct + '%';
       document.getElementById('bulk-overall-status').textContent = t('audit_customers_done').replace('{done}', completedCustomers).replace('{total}', totalCustomers);
       var _bcb3 = document.getElementById('bulk-customer-bar'); if (_bcb3) _bcb3.style.width = '100%';
-      var gradeColors = {A:'#3fb950', B:'#4d9fb5', C:'#d29922', D:'#f85149', F:'#8b0000'};
       var tbody = document.getElementById('bulk-results-tbody');
       document.getElementById('bulk-results-table').style.display = 'block';
       var tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid var(--border)';
-      tr.innerHTML = '<td style="padding:6px 8px;font-weight:600;">' + esc(d.customer) + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;border-radius:4px;font-weight:800;font-size:13px;color:#fff;background:' + (gradeColors[d.grade] || 'var(--text-muted)') + ';">' + esc(d.grade || '-') + '</span></td>' +
-        '<td style="text-align:center;padding:6px 8px;">' + esc(d.risk_score || '-') + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;">' + Number(d.sections_done) + '/' + Number(d.sections_total) + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;color:var(--green);font-weight:600;">OK</td>';
+      tr.innerHTML = '<td class="fw-semibold">' + esc(d.customer) + '</td>' +
+        '<td class="text-center"><span class="grade-tile grade-' + esc(String(d.grade || 'none')) + '">' + esc(d.grade || '-') + '</span></td>' +
+        '<td class="text-center">' + esc(d.risk_score || '-') + '</td>' +
+        '<td class="text-center">' + Number(d.sections_done) + '/' + Number(d.sections_total) + '</td>' +
+        '<td class="text-center text-success fw-semibold">OK</td>';
       tbody.appendChild(tr);
     } else if (d.type === 'customer_error' || d.type === 'customer_skip') {
       completedCustomers++;
@@ -1042,22 +1043,22 @@ export function startBulkAudit() {
       document.getElementById('bulk-results-table').style.display = 'block';
       var tr2 = document.createElement('tr');
       tr2.style.borderBottom = '1px solid var(--border)';
-      tr2.innerHTML = '<td style="padding:6px 8px;font-weight:600;">' + esc(d.customer) + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;">-</td><td style="text-align:center;padding:6px 8px;">-</td>' +
-        '<td style="text-align:center;padding:6px 8px;">-</td>' +
-        '<td style="text-align:center;padding:6px 8px;color:var(--red);font-weight:600;" title="' + esc(d.error || d.reason || '') + '">' + (d.type === 'customer_skip' ? t('status_skipped') : t('status_error')) + '</td>';
+      tr2.innerHTML = '<td class="fw-semibold">' + esc(d.customer) + '</td>' +
+        '<td class="text-center">-</td><td class="text-center">-</td>' +
+        '<td class="text-center">-</td>' +
+        '<td class="text-center text-danger fw-semibold" title="' + esc(d.error || d.reason || '') + '">' + (d.type === 'customer_skip' ? t('status_skipped') : t('status_error')) + '</td>';
       tbody2.appendChild(tr2);
     } else if (d.type === 'bulk_done') {
       document.getElementById('bulk-overall-bar').style.width = '100%';
       document.getElementById('bulk-overall-bar').style.background = 'var(--green)';
-      document.getElementById('bulk-overall-status').innerHTML = '<span style="color:var(--green);font-weight:700;">' + t('audit_finished').replace('{count}', completedCustomers) + '</span>';
+      document.getElementById('bulk-overall-status').innerHTML = '<span class="text-success fw-bold">' + t('audit_finished').replace('{count}', completedCustomers) + '</span>';
       document.getElementById('bulk-customer-status').textContent = '';
       document.getElementById('bulk-cancel-btn').style.display = 'none';
       finishBulkAudit();
     } else if (d.type === 'error') {
-      var errHtml = '<span style="color:var(--red);font-weight:700;">' + t('status_error') + ': ' + esc(d.msg) + '</span>';
+      var errHtml = '<span class="text-danger fw-bold">' + t('status_error') + ': ' + esc(d.msg) + '</span>';
       if (d.traceback) {
-        errHtml += '<pre style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--red);overflow-x:auto;white-space:pre-wrap;text-align:left;">' + esc(d.traceback) + '</pre>';
+        errHtml += '<pre class="inset mt-3 text-xs text-danger overflow-x-auto pre-wrap text-left">' + esc(d.traceback) + '</pre>';
       }
       document.getElementById('bulk-overall-status').innerHTML = errHtml;
       var cancelBtn = document.getElementById('bulk-cancel-btn');
@@ -1072,13 +1073,13 @@ export function startBulkAudit() {
   }
 }).catch(function(e) {
     var statusEl = document.getElementById('bulk-overall-status');
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--red);">' + t('err_lost_connection') + '</span>';
+    if (statusEl) statusEl.innerHTML = '<span class="text-danger">' + t('err_lost_connection') + '</span>';
     finishBulkAudit();
   });
 }
 function cancelBulkAudit() {
   if (_bulkAuditEventSource) { _bulkAuditEventSource.close(); _bulkAuditEventSource = null; }
-  document.getElementById('bulk-overall-status').innerHTML = '<span style="color:var(--orange);">' + t('status_cancelled') + '</span>';
+  document.getElementById('bulk-overall-status').innerHTML = '<span class="text-warning">' + t('status_cancelled') + '</span>';
   document.getElementById('bulk-customer-status').textContent = '';
   finishBulkAudit();
 }

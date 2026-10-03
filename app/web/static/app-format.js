@@ -74,3 +74,31 @@ export function _formatBytes(bytes) {
   if (i >= units.length) i = units.length - 1;
   return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
 }
+
+// ── Tones ───────────────────────────────────────────────────────────────────
+// Many scripts still decide a colour by its token ('var(--green)') or by the
+// hex value of one. The markup takes the class that paints it, never a style
+// attribute: toneClass gives the text colour (a .dot takes it too, it is
+// drawn in currentColor), badgeClass the tinted badge for the same meaning.
+var _TONES = {
+  'var(--green)': 'success', 'var(--green-deep)': 'success', 'var(--color-success)': 'success', '#3fb950': 'success',
+  'var(--red)': 'danger', 'var(--red-deep)': 'danger', 'var(--red-btn)': 'danger', 'var(--color-danger)': 'danger',
+  '#f85149': 'danger', '#8b0000': 'danger', '#d0021b': 'danger',
+  'var(--orange)': 'warning', 'var(--orange-deep)': 'warning', 'var(--color-warning)': 'warning',
+  '#d29922': 'warning', '#e67e22': 'warning', '#f5a623': 'warning', '#eab308': 'warning',
+  'var(--blue)': 'accent', 'var(--blue-deep)': 'accent', '#4d9fb5': 'accent',
+  'var(--info)': 'info', 'var(--color-info)': 'info',
+  'var(--purple)': 'purple', '#7c5cfc': 'purple',
+  'var(--text)': 'default', 'var(--text-muted)': 'muted', 'var(--text-dim)': 'dim', '#888': 'dim'
+};
+export function toneName(color) { return _TONES[String(color || '').trim()] || ''; }
+export function toneClass(color) {
+  var name = toneName(color);
+  return name ? 'text-' + name : '';
+}
+export function badgeClass(color) {
+  var name = toneName(color);
+  var badge = {success: 'badge-success', danger: 'badge-danger', warning: 'badge-warning',
+    accent: 'badge-info', info: 'badge-info', purple: 'badge-purple'}[name];
+  return 'badge' + (badge ? ' ' + badge : '');
+}

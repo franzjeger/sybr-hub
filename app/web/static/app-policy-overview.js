@@ -7,7 +7,7 @@
 //   • how far the tenant is from the Sybr standards, by name.
 // Read-only: every value is composed on the server from the existing
 // inventory + drift + templates. Nothing here is sent to a tenant.
-// Styles are in app.css: the CSP budget counts inline style=, so new
+// Styles are in app.css: the CSP budget counts inline style attributes, so new
 // screens are expected to build on classes (the assessment library does).
 // ═══════════════════════════════════════════════════════════════════
 
@@ -181,17 +181,17 @@ function _poDriftBlock(d) {
       if ((s.added && s.added.length) || (s.removed && s.removed.length) || (s.changed && s.changed.length)) {
         html += '<div class="po-sep">';
         html += '<div class="po-sep-title">' + labelEsc + '</div>';
-        html += '<div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">';
+        html += '<div class="flex flex-col gap-1 mt-2">';
         html += _poDriftList('add', s.added || []);
         html += _poDriftList('rem', s.removed || []);
         html += _poDriftList('chg', s.changed || [], true);
         html += '</div></div>';
       } else {
-        html += '<div class="po-sep-muted"><span class="po-sep-title" style="display:inline-flex; align-items:center; margin:0 8px 0 0; color:var(--text);">' + labelEsc + '</span> · ' + t('lbl_unchanged', 'unchanged') + '</div>';
+        html += '<div class="po-sep-muted"><span class="po-sep-title inline-flex items-center mt-0 mb-0 mr-2 text-default">' + labelEsc + '</span> · ' + t('lbl_unchanged', 'unchanged') + '</div>';
       }
     } else {
       html += '<div class="po-sep-muted">'
-        + '<span class="po-sep-title" style="display:inline-flex; align-items:center; margin:0 8px 0 0; color:var(--text);">' + labelEsc + '</span> · '
+        + '<span class="po-sep-title inline-flex items-center mt-0 mb-0 mr-2 text-default">' + labelEsc + '</span> · '
         + esc(_poReason('drift_', s.reason_code, s.reason_params)
                || t('msg_po_snap_unmeasured', 'not comparable against the previous run'))
         + '</div>';
@@ -246,14 +246,14 @@ function _poStandardBlock(standards) {
     html += '<div class="po-block">';
     html += '<div class="po-std-head">'
       + '<span>' + esc(std.name || std.id) + ' <span class="po-std-meta">v' + esc(std.version || '') + '</span></span>'
-      + '<span class="po-std-meta" style="font-weight:600;">'
+      + '<span class="po-std-meta fw-semibold">'
       + (measured
         ? present + '/' + total + ' ' + t('lbl_implemented', 'implemented') + ' (' + pct + '%)'
         : esc(t('lbl_std_unmeasured', 'ikke målt')))
       + '</span>'
       + '</div>';
     if (measured) {
-      html += '<div class="po-progress-wrap" style="margin-bottom:16px;"><div class="po-progress-fill' + pcls + '" style="width:' + pct + '%;"></div></div>';
+      html += '<div class="po-progress-wrap mb-4"><div class="po-progress-fill' + pcls + '" data-bar="' + pct + '"></div></div>';
     }
 
     html += '<table class="po-tbl">';

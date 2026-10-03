@@ -6,7 +6,7 @@ import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {_custPage, currentCustomerId} from './app-state.js';
-import {formatRunName, metricPct} from './app-format.js';
+import {formatRunName, metricPct, toneClass} from './app-format.js';
 import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {currentView, showView} from './app.js';
@@ -75,7 +75,7 @@ export async function loadScopeSections() {
     loadPresets();
   } catch (e) {
     const box = document.getElementById('scope-sections');
-    if (box) box.innerHTML = '<div style="font-size:12px;color:var(--red);">' + t('err_could_not_load_sections') + '</div>';
+    if (box) box.innerHTML = '<div class="text-sm text-danger">' + t('err_could_not_load_sections') + '</div>';
   }
 }
 
@@ -91,14 +91,14 @@ function renderScopeSections() {
   for (const [cat, sections] of Object.entries(categories)) {
     const catId = cat.replace(/[^a-zA-Z0-9]/g, '_');
     const allChecked = sections.every(s => s.enabled);
-    html += '<div style="min-width:220px;flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);">';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2);">';
-    html += '<span style="font-weight:600;font-size:var(--font-xs);color:var(--blue);text-transform:uppercase;letter-spacing:.5px;">' + esc(cat) + ' <span style="color:var(--text-dim);font-weight:400;">(' + sections.length + ')</span></span>';
-    html += '<label style="font-size:10px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="checkbox" ' + (allChecked?'checked':'') + ' data-change-handler="toggleScopeGroup" data-group="' + esc(catId) + '"> ' + t('btn_select_all','Alle') + '</label>';
+    html += '<div class="inset scope-group">';
+    html += '<div class="flex items-center justify-between mb-2">';
+    html += '<span class="card-title mb-0">' + esc(cat) + ' <span class="text-dim fw-normal">(' + sections.length + ')</span></span>';
+    html += '<label class="text-2xs text-dim cursor-pointer flex items-center gap-1"><input type="checkbox" ' + (allChecked?'checked':'') + ' data-change-handler="toggleScopeGroup" data-group="' + esc(catId) + '"> ' + t('btn_select_all','Alle') + '</label>';
     html += '</div>';
     for (const s of sections) {
       const id = 'scope-cb-' + s.name.replace(/[^a-zA-Z0-9]/g, '_');
-      html += '<label style="display:flex;align-items:center;gap:6px;font-size:var(--font-xs);padding:2px 0;cursor:pointer;" data-scope-group="' + catId + '">';
+      html += '<label class="flex items-center gap-2 text-xs py-0-5 px-0 cursor-pointer" data-scope-group="' + catId + '">';
       html += '<input type="checkbox" id="' + id + '" data-section="' + esc(s.name) + '" ' + (s.enabled ? 'checked' : '') + ' data-change-handler="onScopeChange">';
       html += esc(s.name) + '</label>';
     }
@@ -498,7 +498,7 @@ function _finishAuditWithoutStream() {
   _hideAuditProgressBar();
   var ind = document.getElementById('audit-running-indicator');
   if (ind) ind.style.display = 'none';
-  setAuditStatus('<span style="color:var(--orange)">' + t('msg_audit_done_stream_lost') + '</span>');
+  setAuditStatus('<span class="text-warning">' + t('msg_audit_done_stream_lost') + '</span>');
   custPageAuditFinished();
 }
 
@@ -510,7 +510,7 @@ async function _attemptAuditStream(streamUrl) {
       // and there is no way to attach to the existing run's stream, so fall
       // through to watching its progress.
       if (resp.status === 409) return false;
-      setAuditStatus('<span style="color:var(--red)">✗ HTTP '+Number(resp.status)+'</span>');
+      setAuditStatus('<span class="text-danger">✗ HTTP '+Number(resp.status)+'</span>');
       return 'done';
     }
     var reader = resp.body.getReader();
@@ -549,19 +549,19 @@ async function _attemptAuditStream(streamUrl) {
               var area = document.getElementById('report-result');
               var color = d.email_status.ok ? 'var(--green)' : 'var(--orange)';
               var icon = d.email_status.ok ? '✓' : '';
-              area.innerHTML += '<div class="alert" style="color:'+color+';margin-top:8px;font-size:13px;">'+icon+' '+esc(d.email_status.msg)+'</div>';
+              area.innerHTML += '<div class="alert ' + toneClass(color) + ' mt-2 text-ui">'+icon+' '+esc(d.email_status.msg)+'</div>';
             }
             return 'done';
           } else if (d.type === 'error') {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();
             var _ari_e = document.getElementById('audit-running-indicator'); if (_ari_e) _ari_e.style.display = 'none';
-            setAuditStatus('<span style="color:var(--red)">✗ '+t('status_error')+': '+esc(d.msg)+'</span>');
+            setAuditStatus('<span class="text-danger">✗ '+t('status_error')+': '+esc(d.msg)+'</span>');
             return 'done';
           } else if (d.type === 'cancelled') {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();
-            setAuditStatus('<span style="color:var(--orange)">'+esc(d.msg)+'</span>');
+            setAuditStatus('<span class="text-warning">'+esc(d.msg)+'</span>');
             return 'done';
           }
         } catch(_) {}
@@ -598,7 +598,7 @@ function handleProgress(d) {
     // including the twelve with an empty detail cell and nothing behind it.
     tr.innerHTML = `
       <td><span class="status-icon ${cls[status] || ''}">${icons[status] || '•'}</span></td>
-      <td style="font-weight:500;">${esc(name)}</td>
+      <td class="fw-medium">${esc(name)}</td>
       <td><span class="status-text ${cls[status] || ''}">${esc(statusLabel(status, labels))}</span></td>
       <td class="detail-cell">${detail && status === 'failed' ? `<div class="err-text">${esc(detail)}</div>` : ''}</td>`;
     tbody.appendChild(tr);
@@ -647,10 +647,10 @@ function renderAuditFindings(results) {
 
   if (!failures.length && !findings.length && !skipped.length) {
     box.style.display = 'block';
-    box.innerHTML = '<div class="card" style="border-left:3px solid var(--green);">'
-      + '<div style="font-weight:600;color:var(--green);">&#10003; '
+    box.innerHTML = '<div class="card edge-success">'
+      + '<div class="fw-semibold text-success">&#10003; '
       + esc(t('audit_no_findings', 'Ingen varsler')) + '</div>'
-      + '<div style="color:var(--text-dim);font-size:12px;margin-top:4px;">'
+      + '<div class="text-dim text-sm mt-1">'
       + esc(t('audit_no_findings_detail', 'Alle seksjoner fullførte uten å flagge noe.'))
       + '</div></div>';
     return;
@@ -659,27 +659,24 @@ function renderAuditFindings(results) {
   var colours = {red: 'var(--red)', orange: 'var(--orange)', dim: 'var(--text-dim)'};
   function list(items, colour, heading) {
     if (!items.length) return '';
-    return '<div style="margin-bottom:12px;">'
-      + '<div style="font-weight:600;color:' + colours[colour] + ';margin-bottom:6px;font-size:13px;">'
+    return '<div class="mb-3">'
+      + '<div class="fw-semibold ' + toneClass(colours[colour]) + ' mb-2 text-ui">'
       + esc(heading) + ' (' + items.length + ')</div>'
       + items.map(function (f) {
           // Wraps rather than squeezing: a fixed basis pinched the section
           // name to a few characters once the pane got narrow, and the app is
           // otherwise built for that — the tables scroll, the layout breaks at
           // 1100, 767 and 479.
-          return '<div style="display:flex;flex-wrap:wrap;gap:2px 8px;padding:4px 0;'
-            + 'border-bottom:1px solid var(--border);font-size:12px;">'
-            + '<span style="color:var(--text-dim);flex:0 0 150px;min-width:120px;">'
-            + esc(f.section) + '</span>'
-            + '<span style="flex:1 1 220px;">' + esc(f.text) + '</span></div>';
+          return '<div class="audit-finding">'
+            + '<span class="audit-finding-section">' + esc(f.section) + '</span>'
+            + '<span class="audit-finding-text">' + esc(f.text) + '</span></div>';
         }).join('')
       + '</div>';
   }
 
   box.style.display = 'block';
   var anyCritical = findings.some(function (f) { return f.level === 'critical'; });
-  box.innerHTML = '<div class="card" style="border-left:3px solid '
-    + (failures.length || anyCritical ? 'var(--red)' : 'var(--orange)') + ';">'
+  box.innerHTML = '<div class="card ' + (failures.length || anyCritical ? 'edge-danger' : 'edge-warning') + '">'
     + list(failures, 'red', t('status_failed', 'Feilet'))
     + list(findings.filter(function (f) { return f.level === 'critical'; }),
            'red', t('status_critical_findings', 'Kritiske funn'))
@@ -730,7 +727,7 @@ function handleAuditDone(results) {
   var elapsed = _auditStartTime ? Math.round((Date.now() - _auditStartTime) / 1000) : 0;
   var elapsedStr = elapsed >= 60 ? Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's' : elapsed + 's';
   var totalFiles = results.reduce(function(s,r){ return s + (r.files ? r.files.length : 0); }, 0);
-  setAuditStatus('<span style="color:var(--green)">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span style="color:var(--text-dim);font-weight:400;">(' + elapsedStr + ' · ' + Number(totalFiles) + ' ' + t('nav_files','files') + ')</span></span>');
+  setAuditStatus('<span class="text-success">' + t('msg_audit_complete').replace('{count}', results.length) + ' <span class="text-dim fw-normal">(' + elapsedStr + ' · ' + Number(totalFiles) + ' ' + t('nav_files','files') + ')</span></span>');
 
   // What Rapport builds from: this run, which the server now holds for its
   // customer.
@@ -856,16 +853,16 @@ export async function generateReport(fmt, reportType, customerId) {
       return;
     }
     if (fmt === 'html' && d.html_url) {
-      area.innerHTML = '<div class="alert alert-success" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);">'
+      area.innerHTML = '<div class="alert alert-success flex items-center justify-between flex-wrap gap-2">'
         + '<span>' + esc(label) + '</span>'
-        + '<div style="display:flex;gap:var(--space-2);">'
+        + '<div class="flex gap-2">'
         + '<button class="btn btn-primary btn-sm" data-click-handler="openReportViewer" data-url="' + esc(d.html_url) + '">' + t('vis_i_app') + '</button>'
         + '<a href="' + esc(d.html_url) + '" target="_blank" class="btn btn-ghost btn-sm">' + t('ny_fane') + '</a>'
         + '</div></div>';
     } else if (fmt === 'pdf' && d.pdf_url) {
       // The link text is its own key. It used to be cut out of a sentence at
       // its dash, so rewording the sentence would have shown "undefined".
-      var _dlLink = '<a href="' + esc(d.pdf_url) + '" download style="color:var(--green);">' + esc(t('btn_download', 'Last ned')) + '</a>';
+      var _dlLink = '<a href="' + esc(d.pdf_url) + '" download class="text-success">' + esc(t('btn_download', 'Last ned')) + '</a>';
       area.innerHTML = '<div class="alert alert-success">✓ ' + esc(label) + ' (PDF) · ' + _dlLink + '</div>';
       window.open(d.pdf_url, '_blank');
     } else {
@@ -964,7 +961,7 @@ export async function runComparison() {
   const box = document.getElementById('compare-result');
   box.style.display = 'block';
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  box.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loader" style="width:24px;height:24px;margin:0 auto 12px;"></div>' + t('msg_comparing') + '</div>';
+  box.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div>' + t('msg_comparing') + '</div>';
   try {
     const d = await apiFetch('/api/audit/compare?run1=' + encodeURIComponent(_compareSelected[0]) + '&run2=' + encodeURIComponent(_compareSelected[1]));
     if (d.error) { box.innerHTML = `<div class="alert alert-error">${esc(d.error)}</div>`; return; }
@@ -1041,35 +1038,34 @@ function renderComparison(data, box) {
     const label = labels[d.key] || d.key;
     const v1 = d.run1 != null ? d.run1 : '\u2014';
     const v2 = d.run2 != null ? d.run2 : '\u2014';
-    let arrow = '', color = 'var(--text-muted)', bg = 'transparent';
-    if (d.direction === 'improved') { arrow = ' \u2191'; color = '#22c55e'; bg = 'rgba(34,197,94,0.08)'; }
-    else if (d.direction === 'worsened') { arrow = ' \u2193'; color = '#ef4444'; bg = 'rgba(239,68,68,0.08)'; }
-    else if (d.direction === 'unchanged') { arrow = ' \u2192'; color = 'var(--text-muted)'; }
-    else { arrow = ' ~'; color = '#4d9fb5'; }
+    let arrow = '', tone = 'text-muted', row = '';
+    if (d.direction === 'improved') { arrow = ' \u2191'; tone = 'text-success'; row = 'row-success'; }
+    else if (d.direction === 'worsened') { arrow = ' \u2193'; tone = 'text-danger'; row = 'row-danger'; }
+    else if (d.direction === 'unchanged') { arrow = ' \u2192'; tone = 'text-muted'; }
+    else { arrow = ' ~'; tone = 'text-accent'; }
     const deltaStr = d.delta != null ? (d.delta > 0 ? '+' + d.delta : '' + d.delta) : '';
     const barWidth = d.delta != null ? Math.min(100, Math.abs(d.delta) * 2) : 0;
-    const barColor = d.direction === 'improved' ? '#22c55e' : d.direction === 'worsened' ? '#ef4444' : '#4d9fb5';
-    const barHtml = barWidth > 0 ? `<div style="display:inline-block;width:${barWidth}px;height:6px;border-radius:3px;background:${barColor};margin-left:6px;vertical-align:middle;"></div>` : '';
-    rows += `<tr class="hover-tint" style="background:${bg};transition:background var(--duration-fast);">
-      <td style="font-weight:500;">${esc(label)}</td>
-      <td style="text-align:center;font-family:var(--mono);">${esc(String(v1))}</td>
-      <td style="text-align:center;font-family:var(--mono);">${esc(String(v2))}</td>
-      <td style="text-align:center;font-weight:600;color:${color};font-family:var(--mono);">${deltaStr ? esc(deltaStr) : ''}${arrow}${barHtml}</td>
+    const barHtml = barWidth > 0 ? `<span class="delta-bar" data-bar="${barWidth}"></span>` : '';
+    rows += `<tr class="hover-tint ${row}">
+      <td class="fw-medium">${esc(label)}</td>
+      <td class="text-center font-mono">${esc(String(v1))}</td>
+      <td class="text-center font-mono">${esc(String(v2))}</td>
+      <td class="text-center fw-semibold font-mono ${tone}">${deltaStr ? esc(deltaStr) : ''}${arrow}${barHtml}</td>
     </tr>`;
   }
   box.innerHTML = `
-    <div class="card" style="margin-top:20px;border-left:3px solid #1d6387;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div class="card-title" style="margin:0;">${t('hdr_comparison')}</div>
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" data-click-handler="hideElement" data-target="compare-result">${t('btn_close')}</button>
+    <div class="card mt-5 edge-accent">
+      <div class="flex items-center justify-between mb-4">
+        <div class="card-title m-0">${t('hdr_comparison')}</div>
+        <button class="btn btn-ghost btn-sm" data-click-handler="hideElement" data-target="compare-result">${t('btn_close')}</button>
       </div>
       <div class="table-wrap">
-        <table class="section-table" style="width:100%;">
+        <table class="section-table w-full">
           <thead><tr>
-            <th style="text-align:left;">${t('lbl_metric')}</th>
-            <th style="text-align:center;color:#1d6387;">${esc(ts1)}</th>
-            <th style="text-align:center;color:#4d9fb5;">${esc(ts2)}</th>
-            <th style="text-align:center;">${t('lbl_change')}</th>
+            <th class="text-left">${t('lbl_metric')}</th>
+            <th class="text-center text-muted">${esc(ts1)}</th>
+            <th class="text-center text-accent">${esc(ts2)}</th>
+            <th class="text-center">${t('lbl_change')}</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -1099,12 +1095,12 @@ function renderHistory(runs, scoped) {
   let html = '';
   for (const [customer, customerRuns] of Object.entries(grouped)) {
     const customerDirName = customerRuns[0] && customerRuns[0].path ? customerRuns[0].path.split('/').slice(-2, -1)[0] : '';
-    html += `<div class="card" style="margin-bottom:16px;">
-      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+    html += `<div class="card mb-4">
+      <div class="card-title flex items-center justify-between">
         <span>
-          ${scoped ? '' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(customer)} <span style="font-weight:400;font-size:12px;color:var(--text-muted);">${customerRuns.length === 1 ? t('hist_runs_count_one', '(1 kjøring)') : t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
+          ${scoped ? '' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(customer)} <span class="fw-normal text-sm text-muted">${customerRuns.length === 1 ? t('hist_runs_count_one', '(1 kjøring)') : t('hist_runs_count').replace('{count}', customerRuns.length)}</span>
         </span>
-        <button class="btn btn-ghost" style="padding:3px 10px;font-size:11px;color:var(--red);"
+        <button class="btn btn-ghost btn-sm text-danger"
           data-click-handler="deleteAllCustomerRuns" data-dir="${esc(customerDirName)}" data-customer="${esc(customer)}" data-count="${customerRuns.length}">
           ${t('btn_delete_all')}
         </button>
@@ -1113,7 +1109,7 @@ function renderHistory(runs, scoped) {
         <table class="section-table">
           <thead>
             <tr>
-              <th style="width:32px;text-align:center;" title="${t('tip_compare_delete')}">⇄</th>
+              <th class="col-check text-center" title="${t('tip_compare_delete')}">⇄</th>
               <th>${t('lbl_date_time')}</th>
               <th>${t('lbl_files')}</th>
               <th></th>
@@ -1131,13 +1127,12 @@ function renderHistory(runs, scoped) {
       const canCompare = run.has_metrics !== false;
       var runTip = canCompare && run.metrics ? t('lbl_grade')+': '+(run.metrics.risk_grade||'-')+' · Score: '+(run.metrics.risk_score||'-')+' · MFA: '+(metricPct(run.metrics.mfa_coverage_pct) !== null ? metricPct(run.metrics.mfa_coverage_pct)+'%' : '-') : '';
       html += `
-        <tr${canCompare ? '' : ' style="opacity:0.6;"'}${runTip ? ' title="'+esc(runTip)+'"' : ''} class="hover-tint" style="cursor:pointer;transition:background var(--duration-fast);${canCompare ? '' : 'opacity:0.6;'}">
-          <td style="text-align:center;">
-            <input type="checkbox" class="compare-cb" data-path="${esc(run.path)}" data-has-metrics="${canCompare}"
-              data-change-handler="onCompareCheck"
-              style="accent-color:#1d6387;width:15px;height:15px;cursor:pointer;">
+        <tr${runTip ? ' title="'+esc(runTip)+'"' : ''} class="hover-tint cursor-pointer${canCompare ? '' : ' opacity-60'}">
+          <td class="text-center">
+            <input type="checkbox" class="compare-cb checkbox" data-path="${esc(run.path)}" data-has-metrics="${canCompare}"
+              data-change-handler="onCompareCheck">
           </td>
-          <td style="font-weight:500;">${esc(displayDate)}${canCompare ? '' : ' <span style="color:var(--red);font-size:11px;">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-weight:800;font-size:10px;color:#fff;background:'+({A:'#3fb950',B:'#4d9fb5',C:'#d29922',D:'#f85149',F:'#8b0000'}[run.metrics.risk_grade]||'var(--text-dim)')+';text-align:center;vertical-align:middle;margin-left:6px;">'+esc(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
+          <td class="fw-medium">${esc(displayDate)}${canCompare ? '' : ' <span class="text-danger text-xs">' + t('ufullstendig') + '</span>'}${canCompare && run.metrics ? ' <span class="grade-tile grade-tile-sm ml-2 grade-' + esc(String(run.metrics.risk_grade || 'none')) + '">'+esc(run.metrics.risk_grade||'?')+'</span>' : ''}</td>
           <td class="hist-files">${hasEvidence ? Number(run.file_count) + ' ' + esc(t('nav_files', 'filer')) : esc(t('lbl_metrics_only', 'Bare nøkkeltall'))}</td>
           <td class="hist-action">
             ${hasEvidence

@@ -27,8 +27,8 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # and the customer page got tabs built on classes; to 3694 when the shell
 # (palette, sign-in, report viewer, footer) moved to classes on the token
 # scale and every view took the one tab bar (.tabs / .tab); to 3655 with Oversikt
-# and Varsler.
-INLINE_STYLE_ATTRIBUTE_BUDGET = 3655
+# and Varsler; to 2894 with the customer page and Kunder.
+INLINE_STYLE_ATTRIBUTE_BUDGET = 2894
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)

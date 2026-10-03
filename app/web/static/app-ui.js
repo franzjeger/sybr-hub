@@ -297,6 +297,27 @@ function _sortTableByCol(tableEl, colIdx, asc) {
   otherRows.forEach(function(r) { tbody.appendChild(r); });
 }
 
+// ── Bars ────────────────────────────────────────────────────────────────────
+// A bar's length is the one value a class cannot carry. Markup writes it as
+// data-bar="72"; every element that arrives in the page gets --bar-value
+// (72%, clamped to 0-100) and --bar-n (72) from it, set through el.style, so
+// no script builds a style attribute for it. .bar-fill draws its width from
+// --bar-value.
+function _setBar(el) {
+  var n = parseFloat(el.getAttribute('data-bar'));
+  if (!isFinite(n)) n = 0;
+  el.style.setProperty('--bar-n', String(n));
+  el.style.setProperty('--bar-value', Math.max(0, Math.min(100, n)) + '%');
+}
+function applyBars(root) {
+  if (!root || root.nodeType !== 1) return;
+  if (root.hasAttribute('data-bar')) _setBar(root);
+  if (root.firstElementChild) root.querySelectorAll('[data-bar]').forEach(_setBar);
+}
+new MutationObserver(function(records) {
+  records.forEach(function(r) { r.addedNodes.forEach(applyBars); });
+}).observe(document.documentElement, {childList: true, subtree: true});
+
 // ── Skeleton loading ───────────────────────────────────────────────────────────
 export function skeletonHTML(type) {
   var s = '<div class="skeleton ';
