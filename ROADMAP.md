@@ -219,7 +219,7 @@ its own review rather than being smuggled into an unrelated one.
   Advisor category, "Ukjent antall", "bruker(e)") are frozen into stored
   params, so a relocalised rec keeps them in the original language.
 - **The parsers read text the collectors wrote.** The collectors write 83
-  text files with fixed-width columns and `app/reports/parsers.py` reads them
+  text files with fixed-width columns and `app/reports/parsers/` reads them
   back. Structured output per collector would remove a class of bugs; it is a
   large change and wants its own plan.
 - **English reports carry Norwegian details.** Most CIS row details in
