@@ -4166,7 +4166,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "dash_csv_users_no_mfa": {"no": "Brukere uten MFA", "en": "Users without MFA"},
     "dash_csv_ca_enabled": {"no": "Aktive CA-policyer", "en": "Enabled CA policies"},
     "dash_csv_intune_pct": {"no": "Intune-samsvar %", "en": "Intune compliance %"},
-    "dash_csv_last_audit": {"no": "Siste audit", "en": "Last audit"},
+    "dash_csv_last_audit": {"no": "Siste audit (UTC)", "en": "Last audit (UTC)"},
     "dash_csv_tags": {"no": "Tags", "en": "Tags"},
     # ── The report e-mail (core.email_sender.build_report_body_html) ──
     "email_subject": {
