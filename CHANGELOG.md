@@ -6,6 +6,20 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Varsler, eksport og masseaudit
+
+- Varsel-e-posten og Teams- og Slack-meldingene satte navn fra kundens tenant,
+  som navn på CA-policyer, rett inn i HTML og markdown. Nå escapes alt. I
+  Slack kunne et navn som `<!channel>` varsle hele kanalen.
+- Automatiske varsler skrives på språket som er satt for appen, og Varsler
+  viser detaljene på språket du leser på.
+- CSV- og Excel-eksporten lagret en ukryptert kopi i audit-mappen, og
+  Excel-eksporten sendte med serverstien. Ingen av delene skjer lenger.
+- Excel-eksporten følger språket ditt, og kolonnen «siste audit» viser riktig
+  dag og klokkeslett. Før ble dagen lest som timen.
+- Masseaudit tar med kunder med delegert tilgang (GDAP).
+- Flere norske tekster som lånte engelske ord, er skrevet på norsk.
+
 ### Nettverksoppsett på kundesiden, og planleggeren auditerer riktig kunde
 
 - FortiGate og UniFi settes opp på kundens Nettverk-fane: legg til, test,
