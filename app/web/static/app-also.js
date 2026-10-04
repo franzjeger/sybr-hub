@@ -397,7 +397,7 @@ async function _loadUniwebMoney() {
 // The partner-wide card = header (with the whole-partner refresh) + shared body.
 function _renderUniwebAr(data) {
   var head = '<div class="uwar-head"><div class="uwar-title">' + t('uniweb_ar_title', 'Uniweb – utestående fakturaer') + '</div>'
-    + '<button class="btn btn-ghost uwar-refresh" data-click-handler="_loadUniwebMoney">' + t('also_refresh', 'Oppdater') + '</button></div>';
+    + '<button class="btn btn-ghost btn-sm" data-click-handler="_loadUniwebMoney">' + t('also_refresh', 'Oppdater') + '</button></div>';
   return head + _uwArBody(data);
 }
 
