@@ -535,9 +535,87 @@ async def customer_summary_report(
 # ── API: CSV / Excel export ──────────────────────────────────────────────────
 
 
+def _csv_rows(ctx: dict, customer_name: str, lang: str) -> list[list]:
+    """The CSV export's rows, every fixed word in *lang*.
+
+    It was Norwegian whatever the report language, and it wrote a section the
+    audit could not read as a measured zero: "MFA; Dekning %; 0" for a tenant
+    whose user list was refused. A value that was not measured is now an empty
+    cell with "not measured" beside it.
+    """
+    from app.reports.i18n import TRANSLATIONS, T
+
+    t = T(lang)
+
+    def measured(section: dict | None) -> bool:
+        return bool(section and section.get("has_data"))
+
+    def metric(category: str, label: str, section: dict | None, key: str, status=""):
+        if not measured(section):
+            return [category, label, "", t.csv_not_measured]
+        return [category, label, section[key], status]
+
+    risk, users, mfa = ctx["risk"], ctx.get("users"), ctx.get("mfa")
+    rows: list[list] = [[t.csv_category, t.csv_metric, t.csv_value, t.csv_status]]
+    rows += [
+        [t.csv_cat_customer, t.csv_name, customer_name, ""],
+        [t.csv_cat_customer, t.csv_domain, ctx.get("org_domain", ""), ""],
+        [t.csv_cat_customer, t.csv_report_date, ctx.get("report_date", ""), ""],
+        [t.csv_cat_security, t.csv_risk_grade, risk["grade"], risk["level"]],
+        [t.csv_cat_security, t.csv_risk_score]
+        + (["", t.csv_not_measured] if risk["score"] is None else [risk["score"], t.csv_of_100]),
+        metric(t.csv_cat_users, t.csv_total, users, "total"),
+        metric(t.csv_cat_users, t.csv_enabled, users, "enabled"),
+        metric(t.csv_cat_users, t.csv_guests, users, "guests"),
+        metric(t.csv_cat_mfa, t.csv_coverage_pct, mfa, "pct"),
+        metric(
+            t.csv_cat_mfa,
+            t.csv_without_mfa,
+            mfa,
+            "no_mfa",
+            t.csv_critical if measured(mfa) and mfa["no_mfa"] > 0 else t.csv_ok,
+        ),
+        metric(t.csv_cat_secure_score, t.csv_score_pct, ctx.get("secure_score"), "pct"),
+        metric(t.csv_cat_ca, t.csv_enabled_policies, ctx.get("ca"), "enabled"),
+    ]
+
+    intune = ctx.get("intune") or {}
+    if intune.get("total", 0) > 0:
+        rows += [
+            metric(t.csv_cat_intune, t.csv_devices_total, intune, "total"),
+            metric(t.csv_cat_intune, t.csv_compliant_pct, intune, "compliance_pct"),
+            metric(t.csv_cat_intune, t.csv_noncompliant, intune, "noncompliant"),
+        ]
+
+    admin = ctx.get("admin_roles")
+    if admin:
+        rows += [
+            metric(t.csv_cat_admin, t.csv_global_admins, admin, "global_admin_count"),
+            metric(t.csv_cat_admin, t.csv_role_assignments, admin, "total_assignments"),
+        ]
+
+    for lic in ctx.get("licenses", []):
+        status = t.csv_licence_warning if lic["warn"] else t.csv_ok
+        usage = f"{lic['used']}/{lic['total']} ({lic['pct']:.0f}%)"
+        rows.append([t.csv_cat_licence, lic["part"], usage, status])
+
+    for i, rec in enumerate(ctx.get("recommendations", []), 1):
+        key = f"csv_priority_{rec['priority']}"
+        priority = t(key) if key in TRANSLATIONS else rec["priority"]
+        rows.append([t.csv_cat_recommendation, f"#{i} {rec['title']}", priority, rec["effort"]])
+
+    # The collectors' own warnings, as they wrote them: data, not the export's words.
+    rows += [[t.csv_cat_warning, w, "", ""] for w in ctx.get("all_warns", [])]
+    return rows
+
+
 @router.post("/report/csv")
 async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_user)):
-    """Export key audit metrics of a customer's selected run as CSV."""
+    """Export key audit metrics of a customer's selected run as CSV.
+
+    In the language the request asks for, as /report/generate is: the report
+    screen sends the same language choice to both.
+    """
     audit_run = await _selected_audit_run(user, body.customer_id, require_results=True)
     out_dir = audit_run.out_dir
     assert out_dir is not None
@@ -545,7 +623,9 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
     from app.core.customer import CustomerManager
     from app.modules.base import SectionResult, SectionStatus
     from app.reports.generator import build_report_context
+    from app.reports.i18n import T
 
+    lang = body.lang
     cfg = CustomerManager.get_customer(body.customer_id) or {}
 
     results = [
@@ -559,7 +639,7 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
         for r in audit_run.results
     ]
 
-    customer_name = cfg.get("CustomerName", "Ukjent")
+    customer_name = cfg.get("CustomerName") or T(lang).csv_unknown_customer
     dir_customer = out_dir.parent.name.replace("_", " ")
     if dir_customer and dir_customer != customer_name:
         customer_name = dir_customer
@@ -569,6 +649,7 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
         org_domain=cfg.get("PrimaryDomain", ""),
         out_dir=out_dir,
         results=results,
+        lang=lang,
         customer_id=body.customer_id,
         persist_metrics=False,
     )
@@ -578,50 +659,7 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")
-
-    # Header
-    writer.writerow(["Kategori", "Metrikk", "Verdi", "Status"])
-
-    # Key metrics
-    writer.writerow(["Kunde", "Navn", customer_name, ""])
-    writer.writerow(["Kunde", "Domene", ctx.get("org_domain", ""), ""])
-    writer.writerow(["Kunde", "Rapportdato", ctx.get("report_date", ""), ""])
-    writer.writerow(["Sikkerhet", "Risikograd", ctx["risk"]["grade"], ctx["risk"]["level"]])
-    writer.writerow(["Sikkerhet", "Risikoscore", ctx["risk"]["score"], "av 100"])
-    writer.writerow(["Brukere", "Totalt", ctx["users"]["total"], ""])
-    writer.writerow(["Brukere", "Aktive", ctx["users"]["enabled"], ""])
-    writer.writerow(["Brukere", "Gjester", ctx["users"]["guests"], ""])
-    writer.writerow(["MFA", "Dekning %", ctx["mfa"]["pct"], ""])
-    writer.writerow(
-        ["MFA", "Uten MFA", ctx["mfa"]["no_mfa"], "Kritisk" if ctx["mfa"]["no_mfa"] > 0 else "OK"]
-    )
-    writer.writerow(["Secure Score", "Score %", ctx["secure_score"]["pct"], ""])
-    writer.writerow(["Conditional Access", "Aktive policyer", ctx["ca"]["enabled"], ""])
-
-    if ctx.get("intune", {}).get("total", 0) > 0:
-        writer.writerow(["Intune", "Enheter totalt", ctx["intune"]["total"], ""])
-        writer.writerow(["Intune", "Samsvar %", ctx["intune"]["compliance_pct"], ""])
-        writer.writerow(["Intune", "Ikke-samsvar", ctx["intune"]["noncompliant"], ""])
-
-    if ctx.get("admin_roles"):
-        writer.writerow(["Admin", "Global Admins", ctx["admin_roles"]["global_admin_count"], ""])
-        writer.writerow(["Admin", "Rolletildelinger", ctx["admin_roles"]["total_assignments"], ""])
-
-    # Licenses
-    for lic in ctx.get("licenses", []):
-        status = "Advarsel" if lic["warn"] else "OK"
-        writer.writerow(
-            ["Lisens", lic["part"], f"{lic['used']}/{lic['total']} ({lic['pct']:.0f}%)", status]
-        )
-
-    # Recommendations
-    for i, rec in enumerate(ctx.get("recommendations", []), 1):
-        writer.writerow(["Anbefaling", f"#{i} {rec['title']}", rec["priority"], rec["effort"]])
-
-    # All warnings
-    for w in ctx.get("all_warns", []):
-        writer.writerow(["Varsel", w, "", ""])
-
+    writer.writerows(_csv_rows(ctx, customer_name, lang))
     csv_content = output.getvalue()
 
     # Save CSV to audit folder

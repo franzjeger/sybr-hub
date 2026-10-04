@@ -34,11 +34,13 @@ class EmailReportRequest(BaseModel):
 
 
 class ReportCsvRequest(BaseModel):
-    """Whose selected audit run to export."""
+    """Whose selected audit run to export, and in which language."""
 
     model_config = ConfigDict(extra="forbid")
 
     customer_id: str = Field(min_length=1)
+    # The report screen's language choice, as ReportGenerateRequest takes it.
+    lang: Literal["no", "en"] = "no"
 
 
 class ReportGenerateRequest(BaseModel):
