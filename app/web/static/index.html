@@ -230,7 +230,7 @@
             <button data-click-handler="generateQBR" data-i18n="qbr_rapport">QBR-rapport</button>
           </div></div>
         </div>
-        <button id="dash-autorefresh-btn" class="tab-tool" data-click-handler="dashToggleAutoRefresh" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
+        <button id="dash-autorefresh-btn" class="tab-tool" aria-pressed="false" data-click-handler="dashToggleAutoRefresh" data-i18n-title="tip_auto_refresh" title="Auto-oppdatering">&#8635;</button>
       </div>
       <div id="dash-customers" class="dash-tab-content">
         <!-- A banner only when a scheduled task is failing, from
@@ -264,22 +264,6 @@
         <div class="device-code-step" data-i18n="pkce_desc">Siden Sybr HUB ligger på en ekstern server, bruker vi manuell (Out-of-band) pålogging.</div>
       </div>
 
-      <!-- Device-code login card (server-owned setup job, /api/setup/stream) -->
-      <div class="device-code-card" id="device-code-card">
-        <div class="device-code-title" data-i18n="hdr_device_code_login">Pålogging kreves (enhetskode)</div>
-        <div class="device-code-step" data-i18n="msg_device_code_instructions">Åpne lenken under og skriv inn koden for å logge på.</div>
-        <div id="dc-code" class="device-code-value" data-click-handler="copyCode"></div>
-        <div id="dc-copy-hint" class="code-hint" data-i18n="msg_click_to_copy">Klikk på koden for å kopiere til utklippstavlen</div>
-        <div class="device-code-step">
-          <a id="dc-url" href="#" target="_blank" rel="noopener noreferrer"></a>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-default" data-click-handler="copyDeviceUrl" data-i18n="btn_copy">Kopier</button>
-          <button class="btn btn-default" data-click-handler="openPrivateBrowser" data-i18n="btn_open_in_browser">Åpne i nettleser</button>
-        </div>
-        <div id="dc-browser-info" class="text-dim"></div>
-      </div>
-
       <div class="card">
         <div class="card-title" data-i18n="hdr_progress">Fremgang</div>
         <div class="setup-log" id="setup-log"></div>
@@ -301,11 +285,6 @@
 
       <div id="net-fortigates" class="net-sub-content">
         <div class="flex items-center gap-3 mb-4">
-          <select id="fg-live-interval" data-change-handler="liveSetInterval" class="field-input field-input-sm w-auto">
-            <option value="30" data-i18n="s">30s</option>
-            <option value="60" selected data-i18n="s_2">60s</option>
-            <option value="300" data-i18n="min">5 min</option>
-          </select>
           <button data-write class="btn btn-ghost btn-sm" data-click-handler="fgPollAll" data-i18n="btn_refresh_now">Oppdater nå</button>
           <div id="fg-live-status" class="ml-auto text-sm text-muted"></div>
         </div>
@@ -2087,19 +2066,6 @@
     <div class="flex gap-2 justify-end mt-4">
       <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-upload-modal" data-i18n="btn_cancel">Avbryt</button>
       <button data-write class="btn btn-primary" id="btn-itglue-upload-go" data-click-handler="executeITGlueUpload" disabled data-i18n="btn_upload">Last opp</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── IT Glue Org Picker modal ── -->
-<div class="modal-backdrop" id="itglue-org-picker-modal" data-click-handler="hideOnBackdrop">
-  <div class="modal">
-    <div class="modal-title" data-i18n="hdr_itglue_org_picker">Velg IT Glue-organisasjon</div>
-    <div class="modal-desc" data-i18n="itglue_org_picker_desc">Velg organisasjonen rapportene skal lastes opp til.</div>
-    <div id="itglue-org-picker-content" class="my-4"></div>
-    <div class="flex gap-2 justify-end mt-4">
-      <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-org-picker-modal" data-i18n="btn_cancel">Avbryt</button>
-      <button class="btn btn-primary" id="btn-itglue-org-pick" data-click-handler="confirmITGlueOrgPick" disabled data-i18n="btn_select">Velg</button>
     </div>
   </div>
 </div>

@@ -26,8 +26,8 @@ require('./check-html-escaping.cjs').main();
 // No em or en dashes in the text the scripts build (Norwegian copy rule).
 require('./check-copy-dashes.cjs').main();
 
-// ESLint last, because its API is asynchronous. Errors fail the check;
-// warnings (unused locals) are printed and do not.
+// ESLint last, because its API is asynchronous. Errors and warnings both fail
+// the check: a warning that passes is one nobody fixes.
 (async () => {
   const { ESLint } = require('eslint');
   const eslint = new ESLint();
@@ -36,11 +36,11 @@ require('./check-copy-dashes.cjs').main();
   if (output) console.log(output);
   const errors = results.reduce((n, r) => n + r.errorCount + r.fatalErrorCount, 0);
   const warnings = results.reduce((n, r) => n + r.warningCount, 0);
-  if (errors) {
-    console.error(`ESLint: ${errors} error(s) in app/web/static`);
+  if (errors || warnings) {
+    console.error(`ESLint: ${errors} error(s), ${warnings} warning(s) in app/web/static`);
     process.exit(1);
   }
-  console.log(`ESLint passed for ${results.length} files in app/web/static (${warnings} warning(s))`);
+  console.log(`ESLint passed for ${results.length} files in app/web/static`);
 })().catch(error => {
   console.error(error);
   process.exit(1);

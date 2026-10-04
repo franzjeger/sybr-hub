@@ -29,7 +29,7 @@ import {
 import {hideLoginView, showLoginView, showToast, skeletonHTML} from './app-ui.js';
 import {apiFetch, setAuth} from './app-api.js';
 import {dashLoadFortiGates, dashLoadUnifiAll} from './app-infra.js';
-import {loadOverview, stopDashAutoRefresh, stopDashRefreshInterval} from './app-dashboard.js';
+import {loadOverview, stopDashRefreshInterval} from './app-dashboard.js';
 import {stopAlsoScans} from './app-also.js';
 import {tlsLoadView} from './app-tls.js';
 import {_renderSetupIdle, renewCreds} from './app-setup.js';
@@ -680,15 +680,9 @@ function _updateBreadcrumb(name) {
 }
 
 // ── View timer cleanup ────────────────────────────────────────────────────────
-// Central registry of view-specific intervals to clear on view switch.
-// Global timers (VPN badge, session timeout) are excluded.
-var _viewTimers = [];
-function _registerViewTimer(id) { if (id) _viewTimers.push(id); return id; }
+// The timers a view owns stop when another view opens. Global timers (VPN
+// badge, session timeout) are not among them.
 function _cleanupViewTimers() {
-  _viewTimers.forEach(function(id) { clearInterval(id); });
-  _viewTimers = [];
-  // And the named timers the views own.
-  stopDashAutoRefresh();
   stopAuditProgressPolling();
   stopLogAutoRefresh();
   stopDashRefreshInterval();

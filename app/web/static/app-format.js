@@ -42,15 +42,6 @@ export function formatRunName(name, short) {
   return t('fmt_run_date_time', '{date} kl. {time}').replace('{date}', day).replace('{time}', m[4] + ':' + m[5]);
 }
 
-// "Auditert i dag" / "Auditert for 3 d siden" from a run name, for the
-// context bar. One function, because two places wrote that element.
-function auditAgeLabel(name) {
-  var date = new Date(String(name || '').substring(0, 10));
-  var days = Math.floor((Date.now() - date.getTime()) / 86400000);
-  if (isNaN(days) || days < 0) return t('lbl_audited_on', 'Auditert {date}').replace('{date}', formatRunName(name, true));
-  return days === 0 ? t('ctx_audited_today', 'Auditert i dag') : t('ctx_audited_days_ago', 'Auditert for {n} d siden').replace('{n}', days);
-}
-
 export function timeAgo(dateStr) {
   if (!dateStr) return '';
   try {

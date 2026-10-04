@@ -89,8 +89,6 @@ registerUiHandlers({
   vpnClearFile: function() { vpnClearFile(); },
   vpnDoImport: function() { vpnDoImport(); },
   // Live devices and FortiGate
-  liveShowDeviceDetail: function(el) { liveShowDeviceDetail(Number(el.dataset.index)); },
-  livePollNow: function() { livePollNow(); },
   fgBackupConfig: function(el) { fgBackupConfig(el.dataset.customerId); },
   fgShowBackups: function(el) { fgShowBackups(el.dataset.customerId); },
   fgComplianceCheck: function(el) { fgComplianceCheck(el.dataset.customerId); },
@@ -1011,11 +1009,7 @@ async function vpnConnect(id) {
   vpnLoadProfiles();
 }
 
-var _azureVpnProfileId = null;
-
 async function vpnConnectAzure(profileId) {
-  _azureVpnProfileId = profileId;
-
   // Try silent refresh first — no login needed if refresh token is cached
   showToast(t('msg_trying_auto_login','Trying automatic login...'),'info',5000);
   var silent = await apiFetch('/api/vpn/azure/try-silent', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:profileId})});
@@ -1028,7 +1022,6 @@ async function vpnConnectAzure(profileId) {
     });
     if (connectResult && connectResult.ok) { showToast(t('msg_azure_vpn_connected','Azure VPN connected!'),'success'); }
     else { showToast(connectResult?.error||t('err_vpn_connection_failed','VPN connection failed'),'error'); }
-    _azureVpnProfileId = null;
     vpnLoadProfiles();
     return;
   }
@@ -1416,22 +1409,6 @@ async function vpnDoImport() {
   if (data && data.ok) { showToast(t('msg_profile_imported','Profile imported:') + ' '+data.profile.protocol,'success'); vpnLoadProfiles(); }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// LIVE DASHBOARD
-// ═══════════════════════════════════════════════════════════════════
-
-var _liveWs = null;
-
-export async function livePollNow() {
-  var statusEl = document.getElementById('live-status') || document.getElementById('fg-live-status');
-  if (statusEl) statusEl.textContent = t('msg_updating','Updating...');
-  var custId = await toolCustomerId();
-  if (!custId) { showToast(t('msg_select_customer_first','Select a customer first'),'error'); return; }
-  var data = await apiFetch('/api/dashboard/poll/'+encodeURIComponent(custId), {method:'POST'});
-  if (data) liveRenderDevices(data.devices || []);
-  if (statusEl) statusEl.textContent = t('msg_last_updated','Last updated') + ': ' + new Date().toLocaleTimeString();
-}
-
 async function fgBackupAll() {
   showToast(t('msg_backing_up_all','Kjører backup på alle FortiGates...'), 'info', 3000);
   var data = await apiFetch('/api/fortigate/backup-all', {method:'POST'});
@@ -1465,202 +1442,6 @@ export async function fgPollAll() {
     }
   }
   if (statusEl) statusEl.textContent = t('msg_last_updated','Sist oppdatert') + ': ' + new Date().toLocaleTimeString();
-}
-
-export function liveSetInterval(seconds) {
-  if (_liveWs && _liveWs.readyState === WebSocket.OPEN) {
-    _liveWs.send(JSON.stringify({type:'set_interval',interval:parseInt(seconds)}));
-  }
-}
-
-var _liveDevices = [];
-
-export function liveRenderDevices(devices) {
-  _liveDevices = devices;
-  var el = document.getElementById('dash-fg-content');
-  if (!devices.length) { el.innerHTML = '<div class="text-muted text-center p-12 col-span-full">' + t('ingen_enheter_funnet') + '</div>'; return; }
-  var html = '';
-  devices.forEach(function(d, idx) {
-    var color = d.status === 'online' ? 'var(--green)' : d.status === 'error' ? 'var(--red)' : 'var(--text-dim)';
-    var vendorIcon = d.vendor === 'fortigate' ? '' : '';
-    html += '<div class="hover-bg bg-card border rounded-lg p-4 edge-tone ' + toneVar(color) + ' cursor-pointer" data-click-handler="liveShowDeviceDetail" data-index="'+idx+'">';
-    html += '<div class="flex justify-between items-center mb-2">';
-    html += '<strong>'+vendorIcon+' '+esc(d.name)+'</strong>';
-    html += '<span class="dot ' + toneClass(color) + '"></span>';
-    html += '</div>';
-    html += '<div class="text-sm text-muted grid grid-cols-2 gap-1">';
-    html += '<span>' + t('modell') + ' <strong class="text-default">'+esc(d.model||'-')+'</strong></span>';
-    html += '<span>Firmware: '+esc(d.firmware||'-')+'</span>';
-    if (d.wan_ip) html += '<span>' + t('wan') + ' <strong class="text-default">'+esc(d.wan_ip)+'</strong></span>';
-    if (d.uptime) html += '<span>Uptime: '+esc(d.uptime)+'</span>';
-    if (d.cpu_pct !== undefined && d.cpu_pct !== null) {
-      var cpuColor = d.cpu_pct > 80 ? 'var(--red)' : d.cpu_pct > 50 ? 'var(--orange)' : 'var(--green)';
-      html += '<span>' + t('cpu') + ' <span class="' + toneClass(cpuColor) + ' fw-semibold">'+Number(d.cpu_pct)+'%</span></span>';
-    }
-    if (d.mem_pct !== undefined && d.mem_pct !== null) {
-      var memColor = d.mem_pct > 80 ? 'var(--red)' : d.mem_pct > 50 ? 'var(--orange)' : 'var(--green)';
-      html += '<span>' + t('minne') + ' <span class="' + toneClass(memColor) + ' fw-semibold">'+Number(d.mem_pct)+'%</span></span>';
-    }
-    if (d.sessions !== undefined && d.sessions !== null) html += '<span>Sesjoner: '+Number(d.sessions).toLocaleString()+'</span>';
-    if (d.vpn_tunnels !== undefined && d.vpn_tunnels !== null) html += '<span>VPN: '+Number(d.vpn_tunnels)+' ' + t('inf_tunnels','tunnel(er)') + '</span>';
-    if (d.ha_mode && d.ha_mode !== 'Standalone') html += '<span>HA: '+esc(d.ha_mode)+'</span>';
-    if (d.clients !== undefined && d.clients !== null) html += '<span>Klienter: '+Number(d.clients)+'</span>';
-    html += '</div>';
-    if (d.error) html += '<div class="text-danger text-xs mt-2">'+esc(d.error)+'</div>';
-    if (d.last_poll) html += '<div class="text-2xs text-dim mt-2">' + t('msg_last_polled','Last polled') + ': '+new Date(d.last_poll).toLocaleTimeString()+'</div>';
-    html += '</div>';
-  });
-  el.innerHTML = html;
-}
-
-function liveShowDeviceDetail(idx) {
-  var d = _liveDevices[idx];
-  if (!d) return;
-  var el = document.getElementById('dash-fg-content');
-  var color = d.status === 'online' ? 'var(--green)' : 'var(--red)';
-  var vendorIcon = d.vendor === 'fortigate' ? '' : '';
-
-  var html = '<div class="col-span-full max-w-md">';
-  html += '<div class="flex items-center gap-3 mb-4">';
-  html += '<button class="btn btn-ghost btn-sm" data-click-handler="livePollNow">' + t('tilbake') + '</button>';
-  html += '<h3 class="text-md fw-bold m-0">'+vendorIcon+' '+esc(d.name)+'</h3>';
-  html += '<span class="dot dot-lg ' + toneClass(color) + '"></span>';
-  html += '</div>';
-
-  // KPI cards
-  var cards = [];
-  if (d.cpu_pct !== undefined && d.cpu_pct !== null) cards.push({label:'CPU', value:Number(d.cpu_pct)+'%', color: d.cpu_pct>80?'var(--red)':d.cpu_pct>50?'var(--orange)':'var(--green)'});
-  if (d.mem_pct !== undefined && d.mem_pct !== null) cards.push({label:'Minne', value:Number(d.mem_pct)+'%', color: d.mem_pct>80?'var(--red)':d.mem_pct>50?'var(--orange)':'var(--green)'});
-  if (d.sessions !== undefined && d.sessions !== null) cards.push({label:'Sesjoner', value:Number(d.sessions).toLocaleString(), color:'var(--blue)'});
-  if (d.vpn_tunnels !== undefined && d.vpn_tunnels !== null) cards.push({label:'VPN-tunneler', value:Number(d.vpn_tunnels), color:'var(--purple)'});
-  if (d.clients !== undefined && d.clients !== null) cards.push({label:'Klienter', value:Number(d.clients), color:'var(--green)'});
-
-  if (cards.length) {
-    html += '<div class="kpi-row mb-4">';
-    cards.forEach(function(c) {
-      html += '<div class="card kpi-card top-tone ' + toneVar(c.color) + '">';
-      html += '<div class="text-xl fw-bold">'+c.value+'</div>';
-      html += '<div class="text-xs text-muted">'+c.label+'</div>';
-      html += '</div>';
-    });
-    html += '</div>';
-  }
-
-  // Detail table
-  html += '<div class="card p-4">';
-  html += '<table class="w-full text-ui">';
-  var rows = [
-    ['Status', '<span class="' + toneClass(color) + ' fw-semibold">'+(d.status==='online'?'ONLINE':'OFFLINE')+'</span>'],
-    ['Modell', esc(d.model || '-')],
-    ['Firmware', esc(d.firmware || '-')],
-    ['Serienummer', esc(d.serial || '-')],
-    ['WAN IP', esc(d.wan_ip || '-')],
-    ['Uptime', esc(d.uptime || '-')],
-  ];
-  if (d.ha_mode) rows.push(['HA-modus', esc(d.ha_mode)]);
-  if (d.extra) {
-    if (d.extra.policy_count) rows.push(['Brannmurregler', Number(d.extra.policy_count)]);
-    if (d.extra.host) rows.push(['API-host', esc(d.extra.host + ':' + (d.extra.port||443))]);
-  }
-  if (d.last_poll) rows.push([t('msg_last_polled','Last polled'), new Date(d.last_poll).toLocaleString('no-NO')]);
-
-  rows.forEach(function(r) {
-    html += '<tr class="border-b"><td class="kv-key">'+r[0]+'</td><td class="p-2">'+r[1]+'</td></tr>';
-  });
-  html += '</table></div>';
-
-  // Extra data sections for FortiGate
-  if (d.vendor === 'fortigate' && d.extra) {
-    var ex = d.extra;
-
-    // Interfaces
-    if (ex.interfaces && ex.interfaces.length) {
-      html += '<div class="card p-4 mt-3">';
-      html += '<div class="subhead">Grensesnitt ('+ex.interfaces.length+')</div>';
-      html += '<table class="data-table"><thead><tr><th>' + t('navn_2') + '</th><th>IP</th><th>' + t('link') + '</th><th>' + t('hastighet') + '</th></tr></thead><tbody>';
-      ex.interfaces.forEach(function(i) {
-        if (!i.ip || i.ip === '0.0.0.0') return;
-        html += '<tr><td class="fw-semibold">'+esc(i.name)+'</td><td class="font-mono text-xs">'+esc(i.ip)+'</td><td>'+(i.link?'<span class="text-success">' + t('up') + '</span>':'<span class="text-danger">' + t('down') + '</span>')+'</td><td>'+(i.speed?esc(i.speed)+'M':'')+'</td></tr>';
-      });
-      html += '</tbody></table></div>';
-    }
-
-    // VPN tunnels
-    if (ex.vpn_tunnels && ex.vpn_tunnels.length) {
-      html += '<div class="card p-4 mt-3">';
-      html += '<div class="subhead">VPN-tunneler ('+ex.vpn_tunnels.length+')</div>';
-      ex.vpn_tunnels.forEach(function(v) {
-        html += '<div class="flex items-center gap-2 py-1 px-0 text-sm border-b">';
-        html += '<strong>'+esc(v.name)+'</strong>';
-        html += '<span class="text-muted">→ '+esc(v.remote_gw)+'</span>';
-        html += '</div>';
-      });
-      html += '</div>';
-    }
-
-    // Policies
-    if (ex.policies && ex.policies.length) {
-      html += '<div class="card p-4 mt-3">';
-      html += '<div class="subhead">' + t('lbl_firewall_rules','Firewall rules') + ' ('+ex.policies.length+')</div>';
-      html += '<table class="data-table data-table--compact"><thead><tr><th>#</th><th>' + t('lbl_name','Name') + '</th><th>' + t('lbl_source','Source') + '</th><th>' + t('lbl_destination','Destination') + '</th><th>' + t('lbl_service','Service') + '</th><th>' + t('lbl_log','Log') + '</th></tr></thead><tbody>';
-      ex.policies.forEach(function(p) {
-        html += '<tr>';
-        html += '<td>'+esc(String(p.id))+'</td>';
-        html += '<td class="fw-semibold">'+esc(p.name)+'</td>';
-        html += '<td class="text-2xs">'+esc(p.src)+'</td>';
-        html += '<td class="text-2xs">'+esc(p.dst)+'</td>';
-        html += '<td class="text-2xs">'+esc(p.svc)+'</td>';
-        html += '<td class="text-2xs">'+(p.log==='all'||p.log==='utm'?'<span class="text-success">'+esc(p.log)+'</span>':'<span class="text-danger">'+esc(p.log)+'</span>')+'</td>';
-        html += '</tr>';
-      });
-      html += '</tbody></table></div>';
-    }
-
-    // DHCP + DNS + Admins row
-    html += '<div class="grid grid-cols-3 gap-3 mt-3">';
-
-    // DHCP
-    if (ex.dhcp && ex.dhcp.length) {
-      html += '<div class="card p-3"><div class="subhead">DHCP ('+ex.dhcp.length+')</div>';
-      ex.dhcp.forEach(function(d2) { html += '<div class="text-xs text-muted py-0-5 px-0"><strong>'+esc(d2.interface)+'</strong>: '+esc(d2.range)+'</div>'; });
-      html += '</div>';
-    }
-
-    // DNS
-    if (ex.dns && ex.dns.primary) {
-      html += '<div class="card p-3"><div class="subhead">DNS</div>';
-      html += '<div class="text-xs text-muted">' + t('lbl_primary','Primary') + ': <strong>'+esc(ex.dns.primary)+'</strong></div>';
-      if (ex.dns.secondary) html += '<div class="text-xs text-muted">' + t('lbl_secondary','Secondary') + ': '+esc(ex.dns.secondary)+'</div>';
-      html += '</div>';
-    }
-
-    // Admins
-    if (ex.admins && ex.admins.length) {
-      html += '<div class="card p-3"><div class="subhead">Admin-kontoer ('+ex.admins.length+')</div>';
-      ex.admins.forEach(function(a) {
-        var warns = [];
-        if (!a.two_factor) warns.push('<span class="text-warning">' + t('ingen_fa') + '</span>');
-        if (!a.trusthost) warns.push('<span class="text-warning">' + t('ingen_trusthost') + '</span>');
-        html += '<div class="text-xs py-0-5 px-0"><strong>'+esc(a.name)+'</strong> ('+esc(a.profile)+') '+(warns.length?warns.join(', '):'<span class="text-success">OK</span>')+'</div>';
-      });
-      html += '</div>';
-    }
-
-    html += '</div>';
-  }
-
-  // Action buttons
-  if (d.vendor === 'fortigate') {
-    html += '<div class="flex gap-2 mt-3">';
-    html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="fgBackupConfig" data-customer-id="'+esc(d.customer_id)+'">' + t('backup_config') + '</button>';
-    html += '<button class="btn btn-ghost btn-sm" data-click-handler="fgShowBackups" data-customer-id="'+esc(d.customer_id)+'">'+t('btn_backup_history','Backup-historikk')+'</button>';
-    html += '<button class="btn btn-ghost btn-sm" data-click-handler="fgComplianceCheck" data-customer-id="'+esc(d.customer_id)+'">' + t('cis_sjekk') + '</button>';
-    html += '</div>';
-    html += '<div id="fg-backup-list-'+esc(d.customer_id)+'" class="mt-2"></div>';
-  }
-
-  html += '</div>';
-  el.innerHTML = html;
 }
 
 async function fgBackupConfig(customerId) {
@@ -1708,16 +1489,10 @@ async function fgDownloadBackup(customerId, filename) {
   URL.revokeObjectURL(a.href);
 }
 
+// CIS-sjekk, from a firewall's detail panel in Verktøy › Nettverk. Its button
+// lived on the old live dashboard's device page, which nothing opened.
 async function fgComplianceCheck(customerId) {
-  // Find or create a results area in the detail view
-  var existing = document.getElementById('fg-compliance-results');
-  if (!existing) {
-    var container = document.querySelector('#dash-fg-content > div');
-    if (container) {
-      container.insertAdjacentHTML('beforeend', '<div id="fg-compliance-results" class="mt-3"></div>');
-    }
-  }
-  var el = document.getElementById('fg-compliance-results');
+  var el = document.getElementById('fg-compliance-' + customerId);
   if (el) el.innerHTML = '<div class="card p-4"><div class="loader"></div> ' + t('msg_running_cis_check','Running CIS compliance check...') + '</div>';
 
   var data = await apiFetch('/api/fortigate/compliance/' + encodeURIComponent(customerId));
@@ -2457,9 +2232,11 @@ function dashFgDetail(customerId) {
     h += '<div class="flex gap-2 items-center">';
     h += '<button class="btn btn-primary btn-sm" data-write data-click-handler="fgBackupConfig" data-customer-id="'+esc(customerId)+'">' + t('backup_config') + '</button>';
     h += '<button class="btn btn-ghost btn-sm" data-click-handler="fgShowBackups" data-customer-id="'+esc(customerId)+'">'+t('btn_backup_history','Backup-historikk')+'</button>';
+    h += '<button class="btn btn-ghost btn-sm" data-click-handler="fgComplianceCheck" data-customer-id="'+esc(customerId)+'">' + t('cis_sjekk') + '</button>';
     h += '<button class="btn btn-ghost btn-sm" data-click-handler="removeElement" data-target="fg-detail-'+esc(customerId)+'">'+t('btn_close','Close')+'</button>';
     h += '</div></div>';
     h += '<div id="fg-backup-list-'+esc(customerId)+'" class="mb-2"></div>';
+    h += '<div id="fg-compliance-'+esc(customerId)+'" class="mb-2"></div>';
 
     // Threats
     if (threats && threats.summary) {
@@ -4771,6 +4548,11 @@ function _termEnsureXterm() {
   window.addEventListener('resize', function() { if (_xtermFit) _xtermFit.fit(); });
 }
 
+// The terminal takes the keyboard when its view opens, if one was opened.
+export function termFocus() {
+  if (_xterm) _xterm.focus();
+}
+
 export function termModeChanged() {
   var mode = document.getElementById('term-mode').value;
   var sshOpts = document.getElementById('term-ssh-opts');
@@ -5266,7 +5048,6 @@ document.addEventListener('fullscreenchange', function() {
 // REMOTE RDP — Apache Guacamole (direct JS client)
 // ═══════════════════════════════════════════════════════════════════
 
-var _rdpRunning = false;
 var _rdpPendingHostId = '';
 
 export function rdpInit() {
@@ -5318,7 +5099,6 @@ export function rdpInit() {
 async function rdpCheckStatus() {
   var data = await apiFetch('/api/rdp/status');
   if (data && data.running && data.guac_token && data.guac_connection_id) {
-    _rdpRunning = true;
     _rdpShowDirect(data.guac_token, data.guac_connection_id);
     rdpUpdateButtons(true);
   }
@@ -5402,7 +5182,6 @@ async function rdpStart() {
     return;
   }
 
-  _rdpRunning = true;
   rdpUpdateButtons(true);
 
   if (data.guac_token && data.guac_connection_id) {
@@ -5428,7 +5207,6 @@ async function rdpStop() {
     headers: {'Content-Type': 'application/json'}
   });
 
-  _rdpRunning = false;
   rdpUpdateButtons(false);
 
   if (guacContainer) { guacContainer.style.display = 'none'; guacContainer.innerHTML = ''; }

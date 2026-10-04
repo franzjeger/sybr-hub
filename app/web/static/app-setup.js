@@ -5,7 +5,7 @@
 import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
-import {showConfirm, showToast} from './app-ui.js';
+import {showConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {applyWriteCapability, showView} from './app.js';
 
@@ -21,10 +21,10 @@ export async function renewCreds(customerId) {
   if (!customerId) return;
   if (!await showConfirm(t('dlg_confirm_renew'))) return;
   // Renewal issues a fresh certificate + client secret — exactly what first-run
-  // setup does. Clear the old local credentials, then run the same device-code
-  // sign-in so the operator finishes this one action with working, renewed
-  // credentials, instead of being dropped back on a status page with none and a
-  // "run setup again" note. startSetup() drives /api/setup/stream to completion.
+  // setup does. Clear the old local credentials, then run the same sign-in
+  // (startSetup, the PKCE flow) so the operator finishes this one action with
+  // working, renewed credentials, instead of being dropped back on a status
+  // page with none and a "run setup again" note.
   var d = await apiFetch('/api/customer/renew', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
   });
@@ -60,8 +60,6 @@ export function _renderSetupIdle() {
   if (!view) return;
   var card = _setupProgressCard();
   if (card) card.style.display = 'none';
-  var dc = document.getElementById('device-code-card');
-  if (dc) dc.classList.remove('visible');
   var result = document.getElementById('setup-result-area');
   if (result) result.innerHTML = '';
 
@@ -208,70 +206,6 @@ async function submitPkceOob() {
 }
 
 
-// Read the setup SSE stream, re-attaching on a dropped connection. Setup is
-// server-owned now — it keeps running and saves credentials even if this tab
-// closes — so recovery is re-attaching with ?attach=1, which only ever attaches
-// and never starts a second setup. The re-attach replays the device code so the
-// operator can still finish signing in.
-async function _runSetupStream(url) {
-  while (_setupRunning) {
-    var outcome = await _attemptSetupStream(url);
-    if (outcome === 'done' || !_setupRunning) return;
-    appendSetupLog({step:'NET', status:'warn', msg: t('msg_setup_reconnecting')});
-    await new Promise(function(r){ setTimeout(r, 2000); });
-    url = '/api/setup/stream?attach=1';
-  }
-}
-
-async function _attemptSetupStream(url) {
-  try {
-    var resp = await fetch(url, {method: url.indexOf('attach=1') === -1 ? 'POST' : 'GET'});
-    if (!resp.ok) {
-      appendSetupLog({step:'NET', status:'error', msg:'HTTP '+resp.status});
-      _setupRunning = false;
-      return 'done';
-    }
-    var reader = resp.body.getReader();
-    var decoder = new TextDecoder();
-    var buf = '';
-    while (true) {
-      var chunk = await reader.read();
-      if (chunk.done) break;
-      buf += decoder.decode(chunk.value, {stream:true});
-      var lines = buf.split('\n'); buf = lines.pop();
-      for (var i = 0; i < lines.length; i++) {
-        if (!lines[i].startsWith('data: ')) continue;
-        try {
-          var d = JSON.parse(lines[i].slice(6));
-          if (d.type === 'log') appendSetupLog(d);
-          else if (d.type === 'device_code') showDeviceCode(d);
-          else if (d.type === 'error') appendSetupLog({step:'ERROR', status:'error', msg:d.msg});
-          else if (d.type === 'ended') {
-            // Re-attach found no active setup (finished or never started). Stop.
-            _setupRunning = false;
-            return 'done';
-          } else if (d.type === 'done') {
-            _setupRunning = false;
-            hideDeviceCode();
-            if (d.success) {
-              await _registerSetupCustomer();
-              document.getElementById('setup-result-area').innerHTML =
-                '<div class="alert alert-success">'+t('msg_setup_complete')+'</div><button class="btn btn-primary" data-click-handler="openSetupCustomer">'+t('btn_open_customer')+'</button>';
-            } else {
-              document.getElementById('setup-result-area').innerHTML =
-                '<div class="alert alert-error">'+t('msg_setup_failed')+'</div><button class="btn btn-default" data-click-handler="startSetup">'+t('btn_try_again')+'</button>';
-            }
-            return 'done';
-          }
-        } catch(_) {}
-      }
-    }
-    return false;  // stream closed without 'done' — re-attach
-  } catch (e) {
-    return false;  // network error — re-attach
-  }
-}
-
 function appendSetupLog(d) {
   const log = document.getElementById('setup-log');
   const icon = d.status === 'ok' ? '✓' : d.status === 'warn' ? '' : '✗';
@@ -282,71 +216,4 @@ function appendSetupLog(d) {
   line.innerHTML = `<span class="log-icon">${icon}</span><span class="log-step">${esc(step)}</span><span class="log-msg">${esc(d.msg)}</span>`;
   log.appendChild(line);
   log.scrollTop = log.scrollHeight;
-}
-
-let _deviceCodeUrl = '';
-
-function showDeviceCode(d) {
-  const card = document.getElementById('device-code-card');
-  document.getElementById('dc-code').textContent = d.code;
-  const urlEl = document.getElementById('dc-url');
-  urlEl.textContent = d.url;
-  urlEl.href = d.url;
-  _deviceCodeUrl = d.url;
-  card.classList.add('visible');
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  // Auto-copy code and open private browser
-  navigator.clipboard.writeText(d.code).then(() => {
-    document.getElementById('dc-copy-hint').textContent = t('msg_code_copied_auto');
-  }).catch(() => {});
-  openPrivateBrowser();
-}
-
-// Open the sign-in URL in the operator's own browser.
-//
-// This used to POST to /api/open-private, which ran subprocess.Popen on the
-// *server*. The server is headless and the technician is on a different
-// machine entirely, so the button spawned a browser process nobody could
-// see, then reported "Firefox (privat)" — the browser the server happened
-// to have, not the one the reader was sitting in front of.
-//
-// A page cannot open a private window: browsers refuse that deliberately,
-// and no flag or API changes it. So this opens a normal tab and the UI says
-// plainly that a private session is the reader's own step. Being honest
-// about it beats a button that claims something it never did.
-export function openPrivateBrowser() {
-  if (!_deviceCodeUrl) return;
-  var info = document.getElementById('dc-browser-info');
-  var win = window.open(_deviceCodeUrl, '_blank', 'noopener,noreferrer');
-  if (info) {
-    info.textContent = win
-      ? t('setup_opened_in_tab', 'Åpnet i ny fane')
-      : t('setup_popup_blocked', 'Nettleseren blokkerte fanen — bruk lenken under');
-  }
-}
-
-function hideDeviceCode() {
-  document.getElementById('device-code-card').classList.remove('visible');
-}
-
-export function copyCode() {
-  const code = document.getElementById('dc-code').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    document.getElementById('dc-copy-hint').textContent = t('msg_copied');
-    setTimeout(() => {
-      document.getElementById('dc-copy-hint').textContent = t('msg_click_to_copy');
-    }, 2000);
-  });
-}
-
-// Copy the device sign-in URL. A page cannot open the reader's default browser
-// in a private tab (see openPrivateBrowser), so when the popup is blocked — or
-// the operator wants a different browser entirely — copy-paste is the reliable
-// path. The URL is short and fixed (login.microsoft.com/device), but typing it
-// by hand from another machine is exactly the friction this removes.
-export function copyDeviceUrl() {
-  if (!_deviceCodeUrl) return;
-  navigator.clipboard.writeText(_deviceCodeUrl).then(() => {
-    showToast(t('msg_copied_short', 'Kopiert!'), 'success', 1500);
-  }).catch(() => {});
 }

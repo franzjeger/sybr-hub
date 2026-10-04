@@ -8,14 +8,10 @@ import {adminSignpostButton, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {renderToolCustomerPickers} from './app.js';
 import {
-  aiLoadCustomers, browserInit, hostsLoad, livePollNow, loadPentestCapabilities, rdpInit,
-  sshShowKeys, vpnLoadProfiles,
+  aiLoadCustomers, browserInit, hostsLoad, loadPentestCapabilities, rdpInit,
+  sshShowKeys, termFocus, vpnLoadProfiles,
 } from './app-infra.js';
 import {tsLoadView} from './app-tailscale.js';
-import {policyDeployLoad} from './app-policy-deploy.js';
-import {baselineDeployLoad} from './app-baseline-deploy.js';
-import {policyOverviewLoad} from './app-policy-overview.js';
-import {assessmentsLoad} from './app-assessments.js';
 import {loadCustomers} from './app-customers.js';
 
 // Handlers for the markup this file builds: the docs tree, the ALSO and
@@ -42,17 +38,10 @@ registerUiHandlers({
 onViewShown('hosts', function() { hostsLoad(); });
 onViewShown('ssh', function() { sshShowKeys(); });
 onViewShown('vpn', function() { vpnLoadProfiles(); });
-onViewShown('live', function() { livePollNow(); });
-onViewShown('terminal', function() {
-  var ts = document.getElementById('term-screen');
-  if (ts) ts.focus();
-});
+// Back on the terminal, typing goes to it.
+onViewShown('terminal', function() { termFocus(); });
 onViewShown('pentest', function() { loadPentestCapabilities(); renderToolCustomerPickers(); });
 onViewShown('provision', function() { renderToolCustomerPickers(); });
-onViewShown('policy-overview', function() { policyOverviewLoad(); });
-onViewShown('policy-deploy', function() { policyDeployLoad(); });
-onViewShown('baseline-deploy', function() { baselineDeployLoad(); });
-onViewShown('assessments', function() { assessmentsLoad(); });
 onViewShown('tailscale', function() { tsLoadView(); });
 onViewShown('browser', function() { browserInit(); });
 onViewShown('rdp', function() { rdpInit(); });

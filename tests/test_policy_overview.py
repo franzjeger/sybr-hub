@@ -397,7 +397,8 @@ def test_the_script_is_served():
 
 def test_the_view_exists_and_something_dispatches_to_it():
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    dispatcher = (STATIC / "app-integrations.js").read_text(encoding="utf-8")
+    # The customer page opens its tabs (showCustomerTab); the view is one.
+    dispatcher = (STATIC / "app-customer-detail.js").read_text(encoding="utf-8")
     assert 'id="view-policy-overview"' in html
     assert "policyOverviewLoad()" in dispatcher, "the view is markup nothing opens"
 

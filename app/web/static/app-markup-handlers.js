@@ -18,7 +18,7 @@ import {
 import {
   aiClearChat, aiSelectCustomerFromDropdown, aiSend, claudeCheckCli, claudeModeChanged,
   claudeSaveSettings, claudeTestConnection, dashUnifiRefresh, fgApiSave, fgApiTest, fgBootstrap,
-  fgDownloadCredentials, fgPollAll, hostsAdd, hostsHealthAll, hostsLoad, liveSetInterval,
+  fgDownloadCredentials, fgPollAll, hostsAdd, hostsHealthAll, hostsLoad,
   provisionStart, runCmsScan, runCredentialTest, runDnsPentest, runPentest, runSegTest,
   runSmbEnum, runTakeoverCheck, runTlsAudit, sshShowExec, sshShowKeys, switchDashTab,
   termChangeFontSize, termConnect, termDisconnect, termModeChanged, unifiSmAuth,
@@ -37,7 +37,7 @@ import {
   saveWebhookSettings, taskSchedRefresh, testAutotask, testMyITProcess, toggleIntegConfig,
   uniwebSaveConfig, uniwebSync,
 } from './app-integrations.js';
-import {copyCode, copyDeviceUrl, openPrivateBrowser, startSetup} from './app-setup.js';
+import {startSetup} from './app-setup.js';
 import {closeReportViewer, deleteSelectedRuns, runComparison} from './app-audit.js';
 import {
   adminShowPane, backupEncryptionKey, closeAccountModal, closePermissionsModal, copyEncryptionKey,
@@ -47,7 +47,7 @@ import {
 } from './app-settings.js';
 import {loadConfigBackups, runNetworkQuickAudit, runSubnetScan, testITGlue} from './app-network.js';
 import {
-  bulkDeleteCustomers, bulkTagCustomers, clearBulkSelection, confirmITGlueOrgPick,
+  bulkDeleteCustomers, bulkTagCustomers, clearBulkSelection,
   copyOverviewToClipboard, customersFilter, executeITGlueUpload, exportCustomersJSON,
   exportDashboardExcel, migrateEncryption, newCustomerManual, newCustomerWithM365,
   openITGlueImport, openNewCustomer, runITGlueImport, submitManualCustomer, uploadToITGlue,
@@ -68,7 +68,7 @@ registerUiHandlers({
   resolveConfirm: function(el) { resolveConfirm(el.dataset.answer === 'true'); },
   // On the customer page's Detaljer: that page's customer.
   uploadToITGlue: function(el) { uploadToITGlue(el, _custPage.id); },
-  dashToggleAutoRefresh: function(el) { dashToggleAutoRefresh(el); },
+  dashToggleAutoRefresh: function() { dashToggleAutoRefresh(); },
   scrollToTop: function() { window.scrollTo({top: 0, behavior: 'smooth'}); },
   // Menus that close themselves before acting.
   toggleAvatarMenu: function(el, event) { toggleAvatarMenu(event); },
@@ -100,7 +100,6 @@ registerUiHandlers({
   toggleLogAutoRefresh: function() { toggleLogAutoRefresh(); },
   termModeChanged: function() { termModeChanged(); },
   setLanguage: function(el) { setLanguage(el.value); },
-  liveSetInterval: function(el) { liveSetInterval(el.value); },
   claudeModeChanged: function() { claudeModeChanged(); },
   aiSelectCustomerFromDropdown: function(el) { aiSelectCustomerFromDropdown(el); },
   customersFilter: function() { customersFilter(); },
@@ -111,7 +110,6 @@ registerUiHandlers({
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); aiSend(); }
   },
   // Plain calls.
-  copyDeviceUrl: function() { copyDeviceUrl(); },
   closeReportViewer: function() { closeReportViewer(); },
   doSetup: function() { doSetup(); },
   doLogin: function() { doLogin(); },
@@ -144,8 +142,6 @@ registerUiHandlers({
   claudeTestConnection: function() { claudeTestConnection(); },
   clearBulkSelection: function() { clearBulkSelection(); },
   clearLogs: function() { clearLogs(); },
-  confirmITGlueOrgPick: function() { confirmITGlueOrgPick(); },
-  copyCode: function() { copyCode(); },
   copyEncryptionKey: function() { copyEncryptionKey(); },
   copyLogs: function() { copyLogs(); },
   createBackup: function() { createBackup(); },
@@ -174,7 +170,6 @@ registerUiHandlers({
   newCustomerWithM365: function() { newCustomerWithM365(); },
   newCustomerManual: function() { newCustomerManual(); },
   openMoreSheet: function() { openMoreSheet(); },
-  openPrivateBrowser: function() { openPrivateBrowser(); },
   provisionStart: function() { provisionStart(); },
   resetAuditDir: function() { resetAuditDir(); },
   resetBrandColor: function() { resetBrandColor(); },
