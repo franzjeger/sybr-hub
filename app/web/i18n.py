@@ -712,6 +712,10 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Denne FortiGaten har et lagret admin-passord. Bare en administrator kan endre adressen.",
         "This FortiGate has a saved admin password. Only an administrator can change its address.",
     ),
+    "err_fortigate_remove_admin_only": (
+        "Denne FortiGaten har et lagret admin-passord. Bare en administrator kan fjerne den.",
+        "This FortiGate has a saved admin password. Only an administrator can remove it.",
+    ),
     "err_fortigate_invalid_ssh_port": (
         "Ugyldig ssh_port: '{port}'",
         "Invalid ssh_port: '{port}'",

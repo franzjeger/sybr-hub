@@ -46,6 +46,11 @@ async def fortigate_test(
     as a category rather than the client's exception text, since telling
     "refused" from "timed out" from "TLS error" maps out what listens on any
     host:port the caller names. The detail goes to the server log.
+
+    With no token and a ``customer_id``, the token stored for that customer's
+    FortiGate is used, but only against the address and port it was stored
+    for: the customer page's edit form tests a saved device without the
+    browser holding its token, and no other address can be named to collect it.
     """
     from app.core.validation import validate_host, validate_identifier
     from app.modules.fortigate_audit.client import FortiGateClient
@@ -55,11 +60,15 @@ async def fortigate_test(
     vdom = (body.vdom or "").strip() or "root"
     verify_ssl = body.verify_ssl
 
-    if not host or not token:
+    if not host:
         raise refusal(ValidationError, "err_fortigate_host_token_required")
     validate_host(host, "host")
     validate_identifier(vdom, "vdom")
     port = _parse_port(body.port, default=443)
+    if not token and body.customer_id:
+        token = await _stored_token_for(body.customer_id, host, port, user)
+    if not token:
+        raise refusal(ValidationError, "err_fortigate_host_token_required")
 
     try:
         async with FortiGateClient(host, token, port=port, vdom=vdom, verify_ssl=verify_ssl) as fg:
@@ -70,6 +79,23 @@ async def fortigate_test(
         return result
     logger.warning("FortiGate test for %s:%d failed: %s", host, port, result.get("error"))
     return _device_test_failure(result.get("error"), request)
+
+
+async def _stored_token_for(customer_id: str, host: str, port: int, user: User) -> str:
+    """The customer's stored API token, if it was stored for this address, else ""."""
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
+    from app.core.rbac import check_customer_access
+
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_access_denied")
+    config = CustomerManager.get_customer(customer_id)
+    if not config:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    stored_host = (config.get("FortiGateHost") or "").strip()
+    if stored_host.casefold() != host.casefold() or _configured_port(config) != port:
+        return ""
+    return get_secret(customer_id, "fortigate_api_token") or ""
 
 
 # A device that answers with one of these is reachable and refused the login.
@@ -200,6 +226,54 @@ async def fortigate_save(
     log_activity("fortigate_save", detail=detail, customer=cust_id, user=user.username)
 
     return {"ok": True, "token_cleared": token_cleared}
+
+
+@router.delete("/fortigate/{customer_id}")
+async def fortigate_remove(
+    customer_id: str,
+    user: User = Depends(require_customer_access(Role.technician)),
+):
+    """Forget the named customer's FortiGate: its address, settings and secrets.
+
+    Clearing the address through /fortigate/save left the API token (and any
+    bootstrap admin password) stored for a customer with no firewall
+    recorded, the state provisioning has to refuse. This removes all of it.
+    The firewall itself is not contacted or changed.
+
+    A bootstrap admin password is the hub's only copy of that firewall's
+    admin login (GET /fortigate/credentials hands it to an admin), so while
+    one is stored only an admin may remove the device, the same rule as
+    repointing it.
+    """
+    from app.core.activity_log import log_activity
+    from app.core.credentials import delete_secret, get_secret
+    from app.core.customer import CustomerManager
+
+    config = CustomerManager.get_customer(customer_id)
+    if not config:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    had_admin_password = bool(get_secret(customer_id, "fortigate_admin_password"))
+    if had_admin_password and user.role < Role.admin:
+        raise refusal(ForbiddenError, "err_fortigate_remove_admin_only")
+
+    old_host = (config.get("FortiGateHost") or "").strip()
+    save_data = {
+        k: v for k, v in config.items() if not k.startswith("_") and not k.startswith("FortiGate")
+    }
+    CustomerManager.save_customer(save_data)
+    for name in _FORTIGATE_SECRETS:
+        if get_secret(customer_id, name):
+            delete_secret(customer_id, name)
+
+    detail = f"Fjernet FortiGate {old_host or '(uten adresse)'} fra {config.get('CustomerName', customer_id)}"
+    if had_admin_password:
+        detail += "; lagret admin-passord slettet"
+    log_activity("fortigate_remove", detail=detail, customer=customer_id, user=user.username)
+    return {"ok": True}
+
+
+# Every secret the hub keeps for a customer's FortiGate (save, bootstrap).
+_FORTIGATE_SECRETS = ("fortigate_api_token", "fortigate_admin_password", "fortigate_admin_user")
 
 
 def _configured_port(config: dict) -> int:

@@ -69,6 +69,11 @@ async def unifi_test(
     a category rather than the exception text, since telling "refused" from
     "timed out" from "TLS error" maps out what listens on any host:port the
     caller names. The detail goes to the server log.
+
+    With no password and a ``customer_id``, the login stored for that
+    customer's controller is used, but only against the address it was
+    stored for, so the customer page's edit form can test a saved controller
+    without the browser holding the password.
     """
     from app.modules.unifi_audit.client import UniFiControllerClient
 
@@ -77,9 +82,13 @@ async def unifi_test(
     password = (body.password or "").strip()
     is_unifi_os = body.is_unifi_os
 
-    if not raw_host or not username or not password:
+    if not raw_host:
         raise refusal(ValidationError, "err_unifi_credentials_required")
     base_url = _controller_base_url(raw_host)
+    if not password and body.customer_id:
+        username, password = await _stored_controller_login(body.customer_id, base_url, user)
+    if not username or not password:
+        raise refusal(ValidationError, "err_unifi_credentials_required")
 
     try:
         async with UniFiControllerClient(
@@ -97,6 +106,29 @@ async def unifi_test(
         else "err_device_test_unreachable"
     )
     return {"ok": False, "error": ui_t(key, request), "error_key": key}
+
+
+async def _stored_controller_login(customer_id: str, base_url: str, user: User) -> tuple[str, str]:
+    """The customer's stored controller login if it was stored for this address."""
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
+
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_access_denied")
+    config = CustomerManager.get_customer(customer_id)
+    if not config:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    stored = (config.get("UniFiHost") or "").strip()
+    try:
+        same = bool(stored) and _controller_base_url(stored).casefold() == base_url.casefold()
+    except ValidationError:
+        same = False
+    if not same:
+        return "", ""
+    return (
+        get_secret(customer_id, "unifi_username") or "",
+        get_secret(customer_id, "unifi_password") or "",
+    )
 
 
 # A controller that answers with one of these is reachable and refused the
@@ -144,14 +176,8 @@ async def unifi_test_device(
     """Test direct connectivity to a standalone UniFi device."""
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
-    host = body.host.strip()
-    username = body.username.strip()
-    password = body.password.strip()
+    host, username, password = await _device_login(body, user)
     device_type = body.device_type
-
-    if not host:
-        raise refusal(ValidationError, "err_host_ip_required")
-    validate_host(host, "host")
 
     async with UniFiDirectDevice(host, username, password, device_type=device_type) as dev:
         result = await dev.test_connection()
@@ -219,13 +245,7 @@ async def unifi_set_inform(
     from app.core.activity_log import log_activity
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
-    host = body.host.strip()
-    username = body.username.strip()
-    password = body.password.strip()
-
-    if not host:
-        raise refusal(ValidationError, "err_host_ip_required")
-    validate_host(host, "host")
+    host, username, password = await _device_login(body, user)
     controller_url = _validated_inform_url(body.controller_url)
 
     log_activity(
@@ -245,13 +265,7 @@ async def unifi_reboot_device(
     from app.core.activity_log import log_activity
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
-    host = body.host.strip()
-    username = body.username.strip()
-    password = body.password.strip()
-
-    if not host:
-        raise refusal(ValidationError, "err_host_ip_required")
-    validate_host(host, "host")
+    host, username, password = await _device_login(body, user)
 
     # Taking a customer's access point down is disruptive and, until now,
     # anonymous — this router recorded nothing at all.
@@ -268,13 +282,7 @@ async def unifi_device_config(
     from app.core.activity_log import log_activity
     from app.modules.unifi_audit.client import UniFiDirectDevice
 
-    host = body.host.strip()
-    username = body.username.strip()
-    password = body.password.strip()
-
-    if not host:
-        raise refusal(ValidationError, "err_host_ip_required")
-    validate_host(host, "host")
+    host, username, password = await _device_login(body, user)
 
     log_activity(
         "unifi_device_config", detail=f"Hentet konfigurasjon fra {host}", user=user.username
@@ -415,7 +423,7 @@ async def unifi_save(
         config["UniFiSite"] = body.site.strip() or "default"
 
     # Save direct devices list (always update when mode is direct)
-    devices = body.devices or []
+    devices = _keep_stored_device_passwords(body.devices or [], config)
     for dev in devices:
         dev_host = str(dev.get("host") or "").strip()
         if dev_host:
@@ -450,6 +458,81 @@ async def unifi_save(
     log_activity("unifi_save", detail=detail, customer=cust_id, user=user.username)
 
     return {"ok": True, "credentials_cleared": login_cleared}
+
+
+def _keep_stored_device_passwords(devices: list[dict], config: dict) -> list[dict]:
+    """The device list as sent, each device that came without a password
+    keeping the one stored for its address.
+
+    /network-devices no longer sends device passwords to the browser, so the
+    list the customer page saves back holds a password only for a device
+    whose password was typed in this time. ``has_password`` is what the
+    listing says in its place and is not stored.
+    """
+    stored = {
+        str(d.get("host") or "").strip().casefold(): d["password"]
+        for d in config.get("UniFiDirectDevices") or []
+        if isinstance(d, dict) and d.get("password")
+    }
+    kept = []
+    for dev in devices:
+        dev = {k: v for k, v in dev.items() if k != "has_password"}
+        if not str(dev.get("password") or "").strip():
+            dev.pop("password", None)
+            previous = stored.get(str(dev.get("host") or "").strip().casefold())
+            if previous:
+                dev["password"] = previous
+        kept.append(dev)
+    return kept
+
+
+def _stored_device(config: dict, host: str) -> dict | None:
+    """The customer's direct device at this address, if it has one."""
+    want = host.strip().casefold()
+    for dev in config.get("UniFiDirectDevices") or []:
+        if isinstance(dev, dict) and str(dev.get("host") or "").strip().casefold() == want:
+            return dev
+    return None
+
+
+async def _device_login(body: UniFiDeviceLogin, user: User) -> tuple[str, str, str]:
+    """The address, user name and password a device action connects with.
+
+    The login in the request, unless the request names the device's customer
+    and leaves the password out. Then a device of that customer's direct list
+    uses its stored login, falling back to the customer's stored UniFi login
+    and then the factory one, exactly as the poller and the network audit do.
+    That is how the customer page reaches a saved device: /network-devices no
+    longer sends device passwords to the browser. An address that is not on
+    the customer's list gets only what the request carried, so naming a
+    customer cannot send its stored login to an address of the caller's.
+    """
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
+
+    host = body.host.strip()
+    if not host:
+        raise refusal(ValidationError, "err_host_ip_required")
+    validate_host(host, "host")
+    username, password = body.username.strip(), body.password.strip()
+    customer_id = (body.customer_id or "").strip()
+    if not customer_id or "password" in body.model_fields_set:
+        return host, username, password
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_access_denied")
+    config = CustomerManager.get_customer(customer_id)
+    if not config:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    dev = _stored_device(config, host)
+    if dev is None:
+        return host, username, password
+    username = (
+        str(dev.get("username") or "").strip()
+        or get_secret(customer_id, "unifi_username")
+        or "ubnt"
+    )
+    password = str(dev.get("password") or "") or get_secret(customer_id, "unifi_password") or "ubnt"
+    return host, username, password
 
 
 def _stored_login_targets(config: dict) -> set[str]:
@@ -534,7 +617,13 @@ async def network_quick_audit(
 async def get_network_devices(
     customer_id: str, user: User = Depends(require_customer_access(Role.viewer))
 ):
-    """Return the named customer's configured network devices."""
+    """Return the named customer's configured network devices.
+
+    No secret leaves the server. The direct devices' SSH passwords were sent
+    whole, to any viewer of the customer, because the device buttons sent
+    them back to log in; those buttons now name the customer and the server
+    looks the login up (_device_login). Each device says ``has_password``.
+    """
     from app.core.credentials import get_secret
     from app.core.customer import CustomerManager
 
@@ -551,6 +640,8 @@ async def get_network_devices(
             "vdom": active.get("FortiGateVDOM", "root"),
             "verify_ssl": active.get("FortiGateVerifySSL", True),
             "has_token": bool(get_secret(cust_id, "fortigate_api_token")),
+            # Removing the device then needs an admin (DELETE /fortigate/{id}).
+            "has_admin_password": bool(get_secret(cust_id, "fortigate_admin_password")),
         }
 
     uf = None
@@ -562,10 +653,58 @@ async def get_network_devices(
             "is_unifi_os": active.get("UniFiIsUniFiOS", False),
             "site": active.get("UniFiSite", "default"),
             "has_credentials": bool(get_secret(cust_id, "unifi_username")),
-            "direct_devices": active.get("UniFiDirectDevices", []),
+            "direct_devices": [
+                {k: v for k, v in dev.items() if k != "password"}
+                | {"has_password": bool(dev.get("password"))}
+                for dev in active.get("UniFiDirectDevices") or []
+                if isinstance(dev, dict)
+            ],
         }
 
     return {"fortigate": fg, "unifi": uf}
+
+
+@router.delete("/unifi/{customer_id}")
+async def unifi_remove(
+    customer_id: str,
+    user: User = Depends(require_customer_access(Role.technician)),
+):
+    """Unlink UniFi from the named customer: controller, site, direct devices, login.
+
+    /unifi/save cannot do this: it leaves fields it is not sent alone, and an
+    empty device list in controller mode is not written at all. The Site
+    Manager console match (UniFiHostId, set through /unifi/site-matches) is a
+    separate link and stays. No device or controller is contacted.
+    """
+    from app.core.activity_log import log_activity
+    from app.core.credentials import delete_secret, get_secret
+    from app.core.customer import CustomerManager
+
+    config = CustomerManager.get_customer(customer_id)
+    if not config:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    old_host = (config.get("UniFiHost") or "").strip()
+    devices = len(config.get("UniFiDirectDevices") or [])
+    save_data = {
+        k: v for k, v in config.items() if not k.startswith("_") and k not in _UNIFI_LINK_FIELDS
+    }
+    CustomerManager.save_customer(save_data)
+    for name in ("unifi_username", "unifi_password"):
+        if get_secret(customer_id, name):
+            delete_secret(customer_id, name)
+
+    what = old_host or f"{devices} direkte enheter"
+    log_activity(
+        "unifi_remove",
+        detail=f"Fjernet UniFi ({what}) fra {config.get('CustomerName', customer_id)}",
+        customer=customer_id,
+        user=user.username,
+    )
+    return {"ok": True}
+
+
+# The customer fields /unifi/save writes, which DELETE /unifi/{id} clears.
+_UNIFI_LINK_FIELDS = ("UniFiHost", "UniFiSite", "UniFiIsUniFiOS", "UniFiMode", "UniFiDirectDevices")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

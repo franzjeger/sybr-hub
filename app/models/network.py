@@ -32,6 +32,9 @@ class FortiGateTestRequest(BaseModel):
     api_token: str | None = None
     vdom: str | None = None
     verify_ssl: bool = True
+    # With no token: test with the one stored for this customer's FortiGate,
+    # if host and port are the ones it was stored for.
+    customer_id: str | None = Field(default=None, max_length=255)
 
 
 class FortiGateSaveRequest(BaseModel):
@@ -102,6 +105,9 @@ class UniFiTestRequest(BaseModel):
     username: str | None = None
     password: str | None = None
     is_unifi_os: bool = False
+    # With no password: test with the login stored for this customer's
+    # controller, if the address is the one it was stored for.
+    customer_id: str | None = Field(default=None, max_length=255)
 
 
 class UniFiDeviceLogin(BaseModel):
@@ -115,6 +121,10 @@ class UniFiDeviceLogin(BaseModel):
     host: str = ""
     username: str = "ubnt"
     password: str = "ubnt"
+    # The customer whose direct device this is. With no password in the
+    # request, a device on that customer's list connects with its stored
+    # login (routes/unifi.py, _device_login).
+    customer_id: str | None = Field(default=None, max_length=255)
 
 
 class UniFiDeviceTest(UniFiDeviceLogin):
