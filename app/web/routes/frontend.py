@@ -143,8 +143,8 @@ def _file_digest(path: Path) -> str | None:
 # an import in another. A browser resolves import './app-ui.js' against the
 # importing module's URL without its query, so the ?v= on main.js would not
 # reach the modules it imports, and after a deploy the browser (or the service
-# worker, which serves /static/ cache-first) would hand the new main.js the
-# modules it already held.
+# worker, which serves a versioned /static/ URL cache-first) would hand the new
+# main.js the modules it already held.
 #
 # So the server versions the imports too. Every module in the graph is served
 # with each relative import specifier rewritten to './x.js?v=<D>', and the
@@ -337,8 +337,8 @@ def _static_digest() -> str:
 async def service_worker() -> Response:
     """Serve the worker with CACHE_VERSION pinned to the served assets.
 
-    Everything under /static/ is cached cache-first, and the worker only evicts
-    when CACHE_VERSION changes. Left as a literal in the file it went stale —
+    The worker served everything under /static/ cache-first and only evicted
+    when CACHE_VERSION changed. Left as a literal in the file it went stale —
     it still read v10.6.0 at app version 10.10.12 — so it was changed to derive
     from the app version instead.
 
@@ -348,6 +348,12 @@ async def service_worker() -> Response:
     confirmed by asking a live page whether a function it should have had was
     there, and finding the old one. So the version is no longer the whole
     signal: the digest of what is actually being served is.
+
+    It now keeps only versioned responses this server marks immutable, which
+    cannot go stale under their URL. The digest still decides three things: a
+    changed asset makes a new worker the browser offers as a new version, its
+    activation drops what earlier deploys left in the cache, and its install
+    stores the offline page as it is now.
     """
     from app.core.version import get_version
 
@@ -360,9 +366,16 @@ async def service_worker() -> Response:
     return Response(
         source,
         media_type="application/javascript",
-        # The worker script itself must never come from cache, or a browser
-        # holding the old one never learns the version changed.
-        headers={"Cache-Control": "no-cache"},
+        headers={
+            # The worker script itself must never come from cache, or a
+            # browser holding the old one never learns the version changed.
+            "Cache-Control": "no-cache",
+            # It lives under /static/ but has to control the interface at /.
+            # A worker's scope may not reach above its own directory unless
+            # its response allows it; registered with the default scope
+            # (/static/) it controlled no page at all.
+            "Service-Worker-Allowed": "/",
+        },
     )
 
 

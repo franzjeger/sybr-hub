@@ -503,7 +503,10 @@ function _showPwaInstallHelp() {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/static/sw.js').then(function(reg) {
+  // Scope '/', which the worker's route allows (Service-Worker-Allowed: /).
+  // With the default scope, its own directory /static/, it controlled no
+  // page: no offline page and no cache, only the update toast below.
+  navigator.serviceWorker.register('/static/sw.js', {scope: '/'}).then(function(reg) {
     // If a waiting SW is ready (new version installed on a previous visit),
     // offer the user a toast to activate it.
     if (reg.waiting) _notifySwUpdateAvailable(reg.waiting);
@@ -517,11 +520,20 @@ if ('serviceWorker' in navigator) {
       });
     });
   }).catch(function(){});
+  // The registration the old scope left behind controls nothing and would
+  // only go on being updated.
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) { if (reg.scope === location.origin + '/static/') reg.unregister(); });
+  }).catch(function(){});
   // The new worker takes over only when someone accepts the update. The tab
   // that accepted reloads; any other open tab may hold a terminal or RDP
   // session, so it is offered the reload instead of having it done to it.
+  // A page no worker controlled is not offered anything: the first worker
+  // takes it (clients.claim()) on install, and that is not a new version.
   var _swReloadGuard = false;
+  var _swHadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (!_swHadController) { _swHadController = true; return; }
     if (_swReloadGuard) return;
     _swReloadGuard = true;
     if (_swUpdateAccepted) { location.reload(); return; }
