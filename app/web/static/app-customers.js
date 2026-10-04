@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import {esc} from './app-esc.js';
-import {t} from './app-i18n.js';
+import {_lang, t} from './app-i18n.js';
 import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {_allCustomers, _overviewData, setAllCustomers} from './app-state.js';
@@ -910,7 +910,8 @@ export async function deleteCustomer(customerId, name) {
 // ── Dashboard Excel Export & Clipboard Copy ─────────────────────────────────
 export async function exportDashboardExcel() {
   try {
-    const r = await fetch('/api/export/excel', {method: 'POST'});
+    // In the reader's language: the overview has no report-language choice.
+    const r = await fetch('/api/export/excel', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({lang: _lang === 'en' ? 'en' : 'no'})});
     if (!r.ok) { showToast(t('err_export_failed'), 'error'); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);

@@ -43,6 +43,18 @@ class ReportCsvRequest(BaseModel):
     lang: Literal["no", "en"] = "no"
 
 
+class DashboardExportRequest(BaseModel):
+    """The language of the dashboard export's headers, as ReportCsvRequest takes it.
+
+    The body is optional: a POST without one exports in Norwegian, as the
+    endpoint did before it took a language.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    lang: Literal["no", "en"] = "no"
+
+
 class ReportGenerateRequest(BaseModel):
     """Which report to render from the selected audit run.
 
