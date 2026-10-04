@@ -1,3 +1,19 @@
+# Offline page and service worker (unreleased)
+
+- **The service worker now controls the interface.** It was registered at
+  `/static/` and controlled no page; it now registers with scope `/`, and
+  `/static/sw.js` answers with `Service-Worker-Allowed: /`. A reverse proxy
+  must pass that response through from the app unchanged (the app also writes
+  the cache version into it). Browsers drop the old `/static/` registration on
+  their next visit.
+- **When a page load gets no answer at all, the browser shows the offline
+  page** instead of its own error page, and returns to the app when the hub
+  answers. An error page from a reverse proxy (502 while the hub restarts) is
+  an answer and is shown as before. Nothing from `/api/` is ever cached, and
+  page loads always go to the server.
+
+---
+
 # Every call names its customer (unreleased)
 
 - **The server keeps no "active customer".** Each browser tab works on its

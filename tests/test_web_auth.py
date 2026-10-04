@@ -681,8 +681,8 @@ def test_client_reads_the_status_fields_the_server_sends(client):
 def test_service_worker_cache_version_tracks_the_build(client):
     """A stale CACHE_VERSION means shipped front-end fixes never land.
 
-    Everything under /static/ is served to the worker cache-first, and it only
-    evicts when this string changes. It was a literal that nobody bumped — it
+    Everything under /static/ was served by the worker cache-first, and it only
+    evicted when this string changed. It was a literal that nobody bumped — it
     read v10.6.0 while the app reported 10.10.12 — so a browser that had loaded
     the app once kept running the old bundle no matter what was deployed.
     """
@@ -697,6 +697,21 @@ def test_service_worker_cache_version_tracks_the_build(client):
     # And the worker script itself must not be cacheable, or the browser never
     # sees the new version in the first place.
     assert "no-cache" in client.get("/static/sw.js").headers.get("cache-control", "")
+
+
+def test_service_worker_may_control_the_whole_interface(client):
+    """The worker lives under /static/ and is registered with scope '/'.
+
+    A worker's scope cannot reach above its own directory unless its response
+    allows it. Without this header the registration fell back to /static/,
+    no page of the interface was ever controlled, and the offline page and the
+    cache never applied. A browser checks for a new worker without a token, so
+    the script stays public.
+    """
+    resp = client.get("/static/sw.js")
+    assert resp.status_code == 200
+    assert resp.headers.get("service-worker-allowed") == "/"
+    assert resp.headers["content-type"].startswith("application/javascript")
 
 
 def test_health_reports_the_database(client):

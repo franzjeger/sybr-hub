@@ -41,3 +41,23 @@ def test_notification_permission_is_not_asked_on_page_load():
     audit = (STATIC / "app-audit.js").read_text(encoding="utf-8")
     start = audit[audit.index("async function startAudit(") :][:600]
     assert "requestAuditNotifications()" in start
+
+
+def test_the_worker_keeps_every_file_the_offline_page_loads():
+    """Offline, the worker answers a page load with offline.html from its cache.
+
+    The page's stylesheet and script are fetched under their bare URLs, so the
+    worker has them only if it stored them at install. A file added to the
+    offline page and not to PRECACHE would be missing exactly when it is
+    needed.
+    """
+    sw = (STATIC / "sw.js").read_text(encoding="utf-8")
+    offline_page = re.search(r"const OFFLINE_PAGE = '([^']+)'", sw).group(1)
+    precache = re.search(r"const PRECACHE = \[([^\]]*)\]", sw).group(1)
+    stored = set(re.findall(r"'(/static/[^']+)'", precache))
+    if "OFFLINE_PAGE" in precache:
+        stored.add(offline_page)
+    page = (STATIC / "offline.html").read_text(encoding="utf-8")
+    loads = set(re.findall(r'(?:href|src)="(/static/[^"]+)"', page))
+    assert offline_page == "/static/offline.html"
+    assert stored == loads | {offline_page}
