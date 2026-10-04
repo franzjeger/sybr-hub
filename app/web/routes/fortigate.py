@@ -238,7 +238,8 @@ async def fortigate_remove(
     Clearing the address through /fortigate/save left the API token (and any
     bootstrap admin password) stored for a customer with no firewall
     recorded, the state provisioning has to refuse. This removes all of it.
-    The firewall itself is not contacted or changed.
+    The firewall itself is not contacted or changed, and its stored firmware
+    reading goes with it.
 
     A bootstrap admin password is the hub's only copy of that firewall's
     admin login (GET /fortigate/credentials hands it to an admin), so while
@@ -264,6 +265,10 @@ async def fortigate_remove(
     for name in _FORTIGATE_SECRETS:
         if get_secret(customer_id, name):
             delete_secret(customer_id, name)
+    # Its last firmware reading would otherwise stay in Varsler for good.
+    from app.services import firmware_inventory
+
+    await firmware_inventory.record_quietly(firmware_inventory.forget, customer_id, "fortigate")
 
     detail = f"Fjernet FortiGate {old_host or '(uten adresse)'} fra {config.get('CustomerName', customer_id)}"
     if had_admin_password:

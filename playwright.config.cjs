@@ -12,10 +12,13 @@ module.exports = defineConfig({
   // Specs share one fixture server. modules.spec switches the AI module off
   // for a moment, and any spec that read the Verktøy menu at that moment saw
   // no Sybrt and failed. Specs that change server-wide settings run after the
-  // rest, in a project of their own.
+  // rest, in a project of their own. network-setup gives Browser Beta a
+  // FortiGate for a moment, which a fleet poll from another spec reads (and
+  // records its firmware, which Varsler counts); scheduler-customer sets the
+  // automatic audit's customer.
   projects: [
-    {name: 'shared', testIgnore: /modules\.spec\.cjs$/},
-    {name: 'server-settings', testMatch: /modules\.spec\.cjs$/, dependencies: ['shared']},
+    {name: 'shared', testIgnore: /(modules|network-setup|scheduler-customer)\.spec\.cjs$/},
+    {name: 'server-settings', testMatch: /(modules|network-setup|scheduler-customer)\.spec\.cjs$/, dependencies: ['shared']},
   ],
   webServer: {
     command: (process.env.SYBR_TEST_PYTHON || '.venv/bin/python') + ' tests/browser/server.py',

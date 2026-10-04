@@ -674,7 +674,8 @@ async def unifi_remove(
     /unifi/save cannot do this: it leaves fields it is not sent alone, and an
     empty device list in controller mode is not written at all. The Site
     Manager console match (UniFiHostId, set through /unifi/site-matches) is a
-    separate link and stays. No device or controller is contacted.
+    separate link and stays. No device or controller is contacted; their
+    stored firmware readings go.
     """
     from app.core.activity_log import log_activity
     from app.core.credentials import delete_secret, get_secret
@@ -692,6 +693,10 @@ async def unifi_remove(
     for name in ("unifi_username", "unifi_password"):
         if get_secret(customer_id, name):
             delete_secret(customer_id, name)
+    # The devices' last firmware readings would otherwise stay in Varsler.
+    from app.services import firmware_inventory
+
+    await firmware_inventory.record_quietly(firmware_inventory.forget, customer_id, "unifi")
 
     what = old_host or f"{devices} direkte enheter"
     log_activity(
