@@ -3893,6 +3893,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Enheter med standardkonfigurasjon er ikke sikret. Konfigurer og adopter dem til en kontroller.",
         "en": "Devices with factory default configuration are not secured. Configure and adopt them to a controller.",
     },
+    # ── Beside the score: what it could not measure (risk.data_quality_issues) ──
+    "risk_not_in_score_label": {
+        "no": "Ikke målt, og derfor ikke med i scoren:",
+        "en": "Not measured, so not in the score:",
+    },
 }
 
 
