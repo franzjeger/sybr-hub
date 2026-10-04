@@ -1,3 +1,16 @@
+# UniFi firmware table refreshed (unreleased)
+
+- **UniFi firmware verdicts change on the next read.** The table is
+  refreshed from Ubiquiti's own firmware feed and release notes (2026-10-04)
+  and now knows the model codes a controller reports (U7PG2, US24P250,
+  UDMPRO), which used to read "model unknown". Expect devices to move from
+  unknown to current, and gateways still on UniFi OS 4.x, switches before
+  7.5.15 and access points behind their line's newest release to show as
+  outdated. The daily `firmware_check` (05:30) or a network audit updates
+  the stored list.
+
+---
+
 # Offline page and service worker (unreleased)
 
 - **The service worker now controls the interface.** It was registered at

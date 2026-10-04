@@ -488,6 +488,7 @@
     "tests/test_unifi_api_diagnostics.py",
     "tests/test_unifi_controller_coverage.py",
     "tests/test_unifi_devices.py",
+    "tests/test_unifi_firmware_table.py",
     "tests/test_unifi_host_matcher.py",
     "tests/test_unifi_isp_metrics.py",
     "tests/test_unifi_site_overview.py",

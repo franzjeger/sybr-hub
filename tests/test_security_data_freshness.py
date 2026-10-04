@@ -26,8 +26,8 @@ from app.modules.pentest import vuln_checker as vc
 from app.modules.pentest.finding import CONFIRMED, UNVERIFIED
 from app.modules.unifi_audit import firmware_db as fdb
 
-_FRESH = date(2026, 4, 1)  # 2 days after LAST_UPDATED 2026-03-30
-_STALE = date(2026, 12, 1)  # > FRESHNESS_DAYS after
+_FRESH = date(2026, 10, 6)  # 2 days after LAST_UPDATED 2026-10-04
+_STALE = date(2027, 6, 1)  # > FRESHNESS_DAYS after
 
 
 # ── Firmware DB: fail closed on staleness, keep valid lower bounds ────────────
@@ -50,12 +50,12 @@ def test_a_negative_age_fails_closed(monkeypatch):
     assert fdb.db_age_days(date(2020, 1, 1)) < 0
     assert fdb.is_stale(date(2020, 1, 1)) is True
     # A "current-version" device from that anomalous state is unknown, not ok.
-    r = fdb.check_firmware("U6-Pro", "6.6.77", today=date(2020, 1, 1))
+    r = fdb.check_firmware("U6-Pro", "6.8.2", today=date(2020, 1, 1))
     assert r["severity"] == "unknown" and r["up_to_date"] is None
 
 
 def test_up_to_date_from_a_fresh_table_is_ok():
-    r = fdb.check_firmware("U6-Pro", "6.6.77", today=_FRESH)
+    r = fdb.check_firmware("U6-Pro", "6.8.2", today=_FRESH)
     assert r["severity"] == "ok"
     assert r["up_to_date"] is True
     assert r["stale"] is False
@@ -63,7 +63,7 @@ def test_up_to_date_from_a_fresh_table_is_ok():
 
 
 def test_up_to_date_from_a_stale_table_is_unknown_not_ok():
-    r = fdb.check_firmware("U6-Pro", "6.6.77", today=_STALE)
+    r = fdb.check_firmware("U6-Pro", "6.8.2", today=_STALE)
     assert r["severity"] == "unknown"
     assert r["up_to_date"] is None
     assert r["stale"] is True
@@ -78,12 +78,12 @@ def test_behind_is_reported_even_from_a_stale_table():
 
 
 def test_major_version_behind_is_critical():
-    r = fdb.check_firmware("UDM", "3.0.0", today=_FRESH)  # latest 4.0.21
+    r = fdb.check_firmware("UDM", "4.3.6", today=_FRESH)  # latest 5.1.33
     assert r["severity"] == "critical" and r["up_to_date"] is False
 
 
 def test_eol_is_reported_regardless_of_staleness():
-    r = fdb.check_firmware("UAP", "6.6.77", today=_STALE)  # eol=True
+    r = fdb.check_firmware("UAP", "4.3.28", today=_STALE)  # Legacy, so EOL
     assert r["eol"] is True and r["severity"] == "critical" and r["up_to_date"] is False
 
 
