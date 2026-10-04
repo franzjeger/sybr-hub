@@ -110,6 +110,13 @@ roles on the subscription.
 **Read:** policy and admin audit, dashboard stats, CIS compliance checks,
 threat summary. **Write:** config backups, pushed to IT Glue.
 
+**Set up on the customer's page**, Nettverk tab: add, edit, test and remove
+(`POST /api/fortigate/save/{id}`, `DELETE /api/fortigate/{id}`). Removing
+deletes the address and every FortiGate secret of that customer; while a
+bootstrap admin password is stored, only an admin may remove it. The stored
+token is never sent to the browser: testing a saved device sends
+`customer_id` and the server uses the token for the address it was stored for.
+
 **Config keys:** `FortiGateHost`, `FortiGatePort` (default 443),
 `FortiGateVDOM` (default `root`), `FortiGateVerifySSL`, `FortiGateApiUser`,
 `FortiGateAdminUser`, `FortiGateBootstrappedAt`.
@@ -151,7 +158,16 @@ Two modes, set by `UniFiMode`:
   `UniFiDirectDevices`.
 
 **Config keys:** `UniFiHost`, `UniFiIsUniFiOS`, `UniFiSite` (default
-`default`), `UniFiMode`, `UniFiDirectDevices`.
+`default`), `UniFiMode`, `UniFiDirectDevices` (each `{host, device_type,
+username, password?, label?}`).
+
+**Linked on the customer's page**, Nettverk tab (`POST /api/unifi/save/{id}`,
+`DELETE /api/unifi/{id}`). `GET /api/network-devices/{id}` lists direct
+devices with `has_password` and never their passwords. The device actions
+(`/api/unifi/test-device`, `set-inform`, `reboot-device`, `device-config`)
+take `customer_id` in place of a password: a device on that customer's list
+then connects with its stored login, falling back to the customer's UniFi
+login, and any other address only with what the request carried.
 
 **Secrets:** `unifi_username`, `unifi_password`. Cloud Site Manager uses
 `ui_cloud_token`, or a global API key in app settings under

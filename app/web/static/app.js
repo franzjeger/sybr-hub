@@ -41,7 +41,6 @@ import {
   _adminPane, adminMayLeave, applyBranding, checkPermissions, openAccountModal, openAdmin,
   showMfaSettings,
 } from './app-settings.js';
-import {loadNetworkDevices, setNetCustomerId} from './app-network.js';
 import {
   _bulkAuditEventSource, exportDashboardExcel, loadCustomers, openTagEditor,
   overviewSelectCustomer,
@@ -573,8 +572,9 @@ export async function doLogout() {
 }
 
 // ── Tools that act on one customer ──────────────────────────────────────────
-// Nettverk's Enheter and Audit and the FortiGate API form each work on one
-// customer at a time. They say which in a customer bar ([data-tool-customer]),
+// The FortiGate API form, provisioning and pentest's segmentation test each
+// work on one customer at a time. (A customer's own FortiGate and UniFi are
+// set up on its page, which needs no such field.) They say which in a customer bar ([data-tool-customer]),
 // whose choice is this tab's current customer; picking another there changes
 // it for this tab only and reloads the tool. A tool sends that id with every
 // call; there is no customer the server would assume.
@@ -733,7 +733,9 @@ export function showView(name) {
     document.getElementById('customers-content').innerHTML = skeletonHTML('customers');
     loadCustomers();
   } else if (name === 'network') {
-    loadNetworkDevices();
+    // Whichever tab is showing: FortiGate unless TLS-monitor was asked for.
+    var netTab = document.querySelector('.net-sub-btn.active');
+    if (netTab) switchNetSub(netTab, netTab.dataset.tab);
   } else if (name === 'logs') {
     loadLogs();
   } else if (name === 'setup') {
@@ -800,23 +802,25 @@ async function applyRoute() {
 
 window.addEventListener('popstate', function() { if (_currentUser) applyRoute(); });
 
-// Opens Nettverk on one of its tabs: TLS-monitor is reached this way.
+// Opens Nettverk on one of its tabs: TLS-monitor is reached this way. The tab
+// is chosen before the view opens, so opening it loads that tab and not the
+// FortiGate one (which polls every customer's firewall).
 export function showNetworkTab(tabId) {
-  if (currentView !== 'network') showView('network');
   var btn = document.querySelector('.net-sub-btn[data-tab="' + tabId + '"]');
-  if (btn) switchNetSub(btn, tabId);
+  if (!btn) return;
+  if (currentView === 'network') { switchNetSub(btn, tabId); return; }
+  _markNetSub(btn, tabId);
+  showView('network');
 }
 
-export function switchNetSub(btn, tabId) {
+function _markNetSub(btn, tabId) {
   document.querySelectorAll('.net-sub-content').forEach(function(c) { c.hidden = c.id !== tabId; });
   document.querySelectorAll('.net-sub-btn').forEach(function(b) { b.classList.remove('active'); });
   btn.classList.add('active');
-  if (tabId === 'net-audit') {
-    // The audit tab works on the same customer as Enheter.
-    renderToolCustomerPickers();
-    toolCustomerId().then(function(id) { setNetCustomerId(id); });
-  }
+}
 
+export function switchNetSub(btn, tabId) {
+  _markNetSub(btn, tabId);
   if (tabId === 'net-fortigates') dashLoadFortiGates();
   if (tabId === 'net-unifi') dashLoadUnifiAll();
   if (tabId === 'net-tls') tlsLoadView();

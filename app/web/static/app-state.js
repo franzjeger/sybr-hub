@@ -79,8 +79,8 @@ export function canOpenView(name) {
 //
 //   * the current customer is the one whose page this tab opened last. The
 //     customer page always uses its own id (_custPage.id); the tools that act
-//     on one customer at a time (Nettverk's devices and audit, the FortiGate
-//     form, provisioning, the Sybrt console, pentest's segmentation test)
+//     on one customer at a time (the FortiGate API form, provisioning, the
+//     Sybrt console, pentest's segmentation test)
 //     default to this one and say which customer it is.
 //   * it is kept in sessionStorage, which is per tab: a second tab on another
 //     customer changes nothing here. A tab opened fresh starts from the most
