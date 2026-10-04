@@ -157,8 +157,11 @@ test.describe('signed in as an administrator', () => {
     // including those other specs add, has never been audited.
     await inApp(page, app => app.showView('overview'));
     await page.locator('#view-overview .tab', {hasText: 'Oppfølging'}).click();
-    const overview = await (await page.request.get('/api/dashboard/overview')).json();
-    const never = overview.customers.filter(c => !c.last_audit).length;
+    // Count from the list the page rendered, not a second request: specs
+    // running alongside add customers, and a later request then counted ones
+    // the page had not loaded yet, so the strip looked short by one.
+    await expect.poll(() => inApp(page, app => !!(app._overviewData && app._overviewData.customers))).toBe(true);
+    const never = await inApp(page, app => app._overviewData.customers.filter(c => !c.last_audit).length);
     expect(never).toBeGreaterThan(0);
     const attention = page.locator('.attn-strip .attn-title');
     await expect.poll(async () => Number(await attention.getAttribute('data-count'))).toBeGreaterThanOrEqual(never);
