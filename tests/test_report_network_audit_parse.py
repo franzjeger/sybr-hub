@@ -1,7 +1,7 @@
 """A network audit file that will not parse is not an absent network audit.
 
 Both used to produce ``has_data: False``, and the report reads that to decide
-whether ``_compute_network_risk`` runs at all. So a malformed
+whether ``_network_penalty`` runs at all. So a malformed
 ``60_fortigate_audit.txt`` dropped every firewall finding *and* its risk
 penalty, and the customer scored better for it — an unreadable file made a
 tenant look safer than it was.
