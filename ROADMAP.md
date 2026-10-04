@@ -243,18 +243,20 @@ its own review rather than being smuggled into an unrelated one.
 - **Verify the SSH provisioning path on a real FortiGate.** It sends whole
   `config` blocks and reads the answer for errors, which is how FortiOS keeps
   context, but it has only run against a fake device.
-- **Inline styles.** About 3,800 `style=` attributes remain in the SPA (down
-  from 4,532), held by a budget that only goes down. Planned as its own wave,
-  together with moving the frontend to ES modules without globals.
-- **One active customer per user, on the server.** Many endpoints still work
-  on the user's active customer rather than a customer id in the request, so
-  two tabs of one user share it, and a customer page's network data follows
-  the server's choice, not the page's. Passing the id explicitly removes the
-  class.
-- **Verify against live systems.** Autotask and myITprocess were written
-  against their published references; the Exchange helper's recipient lookup
-  for forwarding (`exo_collector.ps1`) has been parsed and mock-tested but not
-  run against a tenant.
+- [x] **Inline styles.** The SPA is built on design tokens and classes
+  (`app/web/static/app.css`); 43 `style="display:none"` attributes remain,
+  held by a budget that only goes down, and the frontend is ES modules without
+  globals (October 2026).
+- [x] **One active customer per user, on the server.** Every per-customer
+  call names its customer; the server keeps no active customer (October
+  2026).
+- **Verify against live systems.** Autotask and myITprocess, the Exchange
+  helper's recipient lookup, Microsoft 365 Backup and the UniFi model codes
+  were built against published references and fakes. See docs/TODO.md,
+  section A.
+
+The actionable backlog, with where each item lives and when it is done, is
+[docs/TODO.md](docs/TODO.md).
 
 ## Versioning
 
