@@ -833,11 +833,17 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       <table>
         <thead><tr><th style="width:50%;">{{ t.user }}</th><th style="width:25%;">{{ t.risk_level }}</th><th style="width:25%;">{{ t.status }}</th></tr></thead>
         <tbody>
+        {# Entra ID Protection's values ("high", "atRisk") in the report's
+           language; a value without a key is shown as Graph wrote it. #}
         {% for u in risky_entries %}
+          {% set level_key = 'risk_value_' ~ (u.level | lower | replace(' ', '')) %}
+          {% set state_key = 'risk_state_' ~ (u.state | lower | replace(' ', '')) %}
+          {% set level_text = t(level_key) %}
+          {% set state_text = t(state_key) %}
           <tr>
             <td style="font-size:12px;">{{ u.upn }}</td>
-            <td><span class="tag {% if u.level == 'high' %}tag-no{% else %}tag-yes{% endif %}">{{ u.level }}</span></td>
-            <td style="font-size:12px;">{{ u.state }}</td>
+            <td><span class="tag {% if u.level == 'high' %}tag-no{% else %}tag-yes{% endif %}">{{ u.level if level_text == level_key else level_text }}</span></td>
+            <td style="font-size:12px;">{{ u.state if state_text == state_key else state_text }}</td>
           </tr>
         {% endfor %}
         </tbody>
@@ -1469,7 +1475,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 <div class="env-card">
   <h4>{{ t.virtual_machines }}</h4>
   <table class="email-table">
-    <tr><th>{{ t.vm_label }}</th><th>Subscription</th><th>{{ t.location }}</th><th>{{ t.os_label }}</th><th>{{ t.size_label }}</th></tr>
+    <tr><th>{{ t.vm_label }}</th><th>{{ t.subscription }}</th><th>{{ t.location }}</th><th>{{ t.os_label }}</th><th>{{ t.size_label }}</th></tr>
     {% for vm in azure.vms %}
     <tr>
       <td style="font-weight:600;">{{ vm.name }}</td>
@@ -1661,7 +1667,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   {% if uf.eol_count | default(0) > 0 %}
   <div class="metric-card">
     <div class="num red">{{ uf.eol_count }}</div>
-    <div class="lbl">End-of-life</div>
+    <div class="lbl">{{ t.net_eol }}</div>
   </div>
   {% endif %}
   {% endif %}
@@ -1690,7 +1696,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       <td style="color: {{ 'green' if d.status == 'online' else 'var(--red, red)' }};">{{ d.status | default('—') }}</td>
       {% else %}
       <td style="font-family: monospace; font-size:11px;">{{ d.mac or '—' }}</td>
-      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{{ 'Online' if d.ok else (d.error or 'Offline') }}</td>
+      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{{ t.net_online if d.ok else (d.error or t.net_offline) }}</td>
       {% endif %}
     </tr>
     {% endfor %}
@@ -1704,12 +1710,17 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   <thead><tr><th>SSID</th><th>{{ t.security_label }}</th><th>{{ t.net_guest }}</th><th>{{ t.active_label }}</th></tr></thead>
   <tbody>
     {# Three states, not two. Colouring "anything that isn't 'open'" green
-       painted an unreadable security field as a secured network. #}
+       painted an unreadable security field as a secured network.
+       The collector's labels (unifi_api.wlan_security_label) are English
+       words; the ones that are words and not names are shown in the
+       report's language. WPA2, WPA3 and an older file's raw value stay. #}
     {% for w in uf.wlans %}
-    {% set sec = (w.security_label or w.security or 'Unknown') | string %}
+    {% set sec = (w.security_label or w.security or '') | string %}
+    {% set sec_unknown = not sec or sec.startswith('Unknown') %}
+    {% set sec_insecure = sec|lower == 'open' or 'WEP' in sec|upper %}
     <tr>
       <td>{{ w.name }}</td>
-      <td style="color: {% if sec|lower == 'open' or 'WEP' in sec %}var(--red, red){% elif 'Unknown' in sec %}var(--orange, #b45309){% else %}green{% endif %};">{{ sec }}</td>
+      <td style="color: {% if sec_insecure %}var(--red, red){% elif sec_unknown %}var(--orange, #b45309){% else %}green{% endif %};">{% if not sec or sec == 'Unknown' %}{{ t.wlan_security_unknown }}{% elif sec.startswith('Unknown (') %}{{ t('wlan_security_unknown_value', value=sec[9:-1]) }}{% elif sec|lower == 'open' %}{{ t.wlan_security_open }}{% elif sec == 'WEP (insecure)' %}{{ t.wlan_security_wep }}{% else %}{{ sec }}{% endif %}</td>
       <td>{{ t.yes if w.guest else t.no_word }}</td>
       <td>{{ t.yes if w.enabled else t.no_word }}</td>
     </tr>

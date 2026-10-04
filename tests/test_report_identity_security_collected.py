@@ -211,7 +211,7 @@ async def test_every_verdict_agrees_from_either_file(tmp_path, sidecars):
     assert verdicts["9.2"] == ("warn", "2 aktive Defender-varsler krever oppfølging")
     assert verdicts["9.3"] == (
         "fail",
-        "2 brukere med høy/medium risiko er oppdaget og må undersøkes",
+        "2 brukere med høy eller middels risiko er oppdaget og må undersøkes",
     )
     # Five for the risky users, three plus one per open alert.
     assert _risk(files)["score"] == 100 - 5 - (3 + 2)
@@ -312,7 +312,7 @@ async def test_a_long_upn_keeps_its_risk_level_and_state(tmp_path, sidecars):
 
     assert _verdicts(files)["9.3"] == (
         "fail",
-        "2 brukere med høy/medium risiko er oppdaget og må undersøkes",
+        "2 brukere med høy eller middels risiko er oppdaget og må undersøkes",
     )
     rec = _risky_rec(files)
     assert rec is not None

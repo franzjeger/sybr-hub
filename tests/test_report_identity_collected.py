@@ -341,12 +341,12 @@ async def test_the_sidecars_reach_the_report_where_the_text_falls_short(tmp_path
     assert ctx["risky_user_rows"] == [{"upn": LONG_UPN, "level": "high", "state": "atRisk"}]
     assert ctx["compliance"] and next(c for c in ctx["compliance"] if c["cis_id"] == "9.3")[
         "detail"
-    ].startswith("1 brukere med høy/medium risiko")
+    ].startswith("1 brukere med høy eller middels risiko")
 
     # The customer report's risky-user table shows the whole UPN and its level.
     html = _render(ctx, "report_customer.html.j2")
     assert f'<td style="font-size:12px;">{LONG_UPN}</td>' in html
-    assert '<span class="tag tag-no">high</span>' in html
+    assert '<span class="tag tag-no">høy</span>' in html  # Graph's "high", in Norwegian
 
 
 def _render(ctx: dict, template: str) -> str:
