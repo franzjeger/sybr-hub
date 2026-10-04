@@ -78,7 +78,7 @@ async def terminal_websocket(websocket: WebSocket, user: User = Depends(get_curr
         await websocket.send_json(
             {
                 "type": "output",
-                "data": f"\r\n*** Tilgang nektet — {msg_no} ***\r\n",
+                "data": f"\r\n*** Tilgang nektet: {msg_no} ***\r\n",
             }
         )
         logger.info(
@@ -236,7 +236,7 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
             await websocket.send_json(
                 {
                     "type": "output",
-                    "data": "\r\n*** Tilgang nektet — du har ikke tilgang til denne hosten ***\r\n",
+                    "data": "\r\n*** Tilgang nektet: du har ikke tilgang til denne hosten ***\r\n",
                 }
             )
             await websocket.close(code=4003, reason="No access to this host")
@@ -260,8 +260,8 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
             if not password:
                 await _fail(
                     websocket,
-                    "Passordet for denne hosten kunne ikke hentes "
-                    "— sjekk at det er lagret på nytt.",
+                    "Passordet for denne hosten kunne ikke hentes. "
+                    "Sjekk at det er lagret, og lagre det på nytt.",
                 )
                 return
         elif h.auth_method == AuthMethod.key and h.auth_key_id:
@@ -289,7 +289,7 @@ async def _handle_ssh_terminal(websocket: WebSocket, actor: User):
             )
             await _fail(
                 websocket,
-                "Tilgang nektet — du kan bare åpne terminal mot hoster som er "
+                "Tilgang nektet: du kan bare åpne terminal mot hoster som er "
                 "registrert på en kunde du har tilgang til.",
                 code=4003,
             )
