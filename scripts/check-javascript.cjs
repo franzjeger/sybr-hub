@@ -25,6 +25,8 @@ require('./check-inline-handlers.cjs').main();
 require('./check-html-escaping.cjs').main();
 // No em or en dashes in the text the scripts build (Norwegian copy rule).
 require('./check-copy-dashes.cjs').main();
+// No rule in app.css for a class nothing uses.
+require('./check-css-usage.cjs').main();
 
 // ESLint last, because its API is asynchronous. Errors and warnings both fail
 // the check: a warning that passes is one nobody fixes.
