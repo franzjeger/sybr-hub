@@ -49,6 +49,8 @@ test('Varsler lists a stored expiring certificate and an end-of-life device with
   // What the items rest on.
   await expect(alerts.locator('.notif-side')).toContainText('TLS-endepunkter sjekket: 1');
   await expect(alerts.locator('.notif-side')).toContainText('Enheter med lest firmware: 1');
+  // The firmware tables are fresh, so nothing says otherwise.
+  await expect(alerts.locator('.notif-side')).not.toContainText('Firmwaretabellen');
 
   // Each opens where it is handled: the certificate on Nettverk › TLS, with
   // the stored list showing it.
@@ -64,6 +66,25 @@ test('Varsler lists a stored expiring certificate and an end-of-life device with
   await alerts.locator('.notif-row', {hasText: 'Browser AP lager'}).getByRole('button', {name: 'Åpne Nettverk'}).click();
   await expect(page.locator('#view-customer-detail')).toHaveClass(/\bactive\b/);
   await expect(page.locator('#cust-tabs .tab[data-tab="nettverk"]')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('Varsler names a firmware table past its window beside the unconfirmed count', async ({page}) => {
+  // The fixture's tables are fresh. When to list a table is pinned with a
+  // frozen clock in tests/test_varsler_reads_state.py; here the server's own
+  // answer is given a stale UniFi table to see the page say so.
+  await page.route('**/api/dashboard/alerts', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.coverage.firmware.unknown = 3;
+    body.coverage.firmware.stale_tables = [{vendor: 'unifi', as_of: '2026-03-30'}];
+    await route.fulfill({response, json: body});
+  });
+  await login(page);
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
+  const side = page.locator('#dash-alerts .notif-side');
+  await expect(side).toContainText('Firmware ikke bekreftet: 3.');
+  await expect(side.locator('.notif-side-text.is-warn', {hasText: 'Firmwaretabellen for UniFi er utdatert'}))
+    .toHaveText('Firmwaretabellen for UniFi er utdatert, siste oppdatering 2026-03-30. Enheter på nyeste kjente versjon kan derfor ikke bekreftes.');
 });
 
 test.describe('on a 375 px phone', () => {

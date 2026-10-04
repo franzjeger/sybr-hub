@@ -513,6 +513,14 @@ function _notifCoverageCard() {
   else line = t('msg_cov_fw', 'Enheter med lest firmware: {n}, sist {date}.').replace('{n}', Number(fw.devices)).replace('{date}', day(fw.last_read))
     + (fw.unknown ? ' ' + t('msg_cov_fw_unknown', 'Firmware ikke bekreftet: {n}.').replace('{n}', Number(fw.unknown)) : '');
   html += '<p class="notif-side-text' + (fw.unknown ? ' is-warn' : '') + '">' + esc(line) + '</p>';
+  // A table past its window turns every "current" into "not confirmed"; say so,
+  // or the unconfirmed count above has no explanation.
+  (fw.stale_tables || []).forEach(function(s) {
+    line = t('msg_cov_fw_table_stale', 'Firmwaretabellen for {vendor} er utdatert, siste oppdatering {date}. Enheter på nyeste kjente versjon kan derfor ikke bekreftes.')
+      .replace('{vendor}', s.vendor === 'fortigate' ? 'FortiOS' : 'UniFi')
+      .replace('{date}', function() { return day(s.as_of); });
+    html += '<p class="notif-side-text is-warn">' + esc(line) + '</p>';
+  });
   return html + '</div>';
 }
 
