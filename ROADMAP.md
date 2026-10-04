@@ -232,12 +232,14 @@ its own review rather than being smuggled into an unrelated one.
   (`BaseSection._save_sidecar`), and the parsers read it first, with the text
   as the fallback for older runs (October 2026). Sections nothing reads are
   still text only.
-- [x] **English reports carry Norwegian details.** Every CIS row detail is a
-  key in `app/reports/i18n.py` (the pattern is described at the top of
+- [x] **Reports carry the other language.** Every CIS row's title and detail
+  is a key in `app/reports/i18n.py` (the pattern is described at the top of
   `compliance.py`), and so are the score's data gaps, the house standard's
-  wording and the network section's labels. `tests/test_english_reports.py`
-  renders both reports in English and fails on Norwegian outside the
-  tenant's own data.
+  wording, the network section's labels, the CSV export and the report
+  e-mail. `tests/test_english_reports.py` and `tests/test_norwegian_reports.py`
+  render both reports in each language and fail on the other language
+  outside the tenant's own data; the second also scans the Norwegian side of
+  the whole table.
 - **Verify the SSH provisioning path on a real FortiGate.** It sends whole
   `config` blocks and reads the answer for errors, which is how FortiOS keeps
   context, but it has only run against a fake device.
