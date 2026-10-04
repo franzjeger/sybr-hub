@@ -1,3 +1,24 @@
+# Frontend cleanup (unreleased)
+
+- **Set the UniFi inform host** in Administrasjon › Integrasjoner › UniFi
+  (`unifi_inform_host` in `POST /api/settings`, admin only). Set-Inform on a
+  customer's Nettverk tab starts from `http://<host>:8080/inform`, and
+  provisioning points DHCP option 43 at it when the wizard leaves the
+  controller blank. Both used a host written into the code; with no host
+  set, Set-Inform asks for the address and provisioning leaves option 43
+  out.
+- **A new FortiGate's factory setup and its login download** moved from the
+  FortiGate card in Administrasjon › Integrasjoner to the customer's page,
+  Nettverk tab ("Sett opp ny FortiGate", and "Last ned
+  påloggingsinformasjon" on the FortiGate row for an admin). The card has
+  no form and no Kunde field any more. No route changed.
+- **New route `GET /api/fortigate/fleet`**: every FortiGate the caller may
+  see, as last read (stored address and firmware reading), without
+  contacting a firewall. Verktøy › Nettverk opens on it; `GET
+  /api/fortigate/all` still polls them all live, on "Oppdater nå".
+
+---
+
 # Alerts and exports (unreleased)
 
 - **Exports no longer leave a plaintext copy on disk.** `/api/report/csv`
