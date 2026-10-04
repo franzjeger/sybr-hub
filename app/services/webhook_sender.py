@@ -69,6 +69,30 @@ def _slack_escape(text: object) -> str:
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _labels(lang: str):
+    """The card's own words in *lang* (app/reports/i18n.py, ``alert_*``)."""
+    from app.reports.i18n import T
+
+    return T(lang if lang in ("no", "en") else "no")
+
+
+def _severity_groups(alerts: list[dict], t) -> list[tuple[list[dict], str, str]]:
+    """The alerts by severity, most severe first: (group, label, severity)."""
+    return [
+        ([a for a in alerts if a.get("severity") == "critical"], t.alert_sev_critical, "critical"),
+        ([a for a in alerts if a.get("severity") == "warning"], t.alert_sev_warning, "warning"),
+        (
+            [a for a in alerts if a.get("severity") not in ("critical", "warning")],
+            t.alert_sev_info,
+            "info",
+        ),
+    ]
+
+
+def _sent_at(t) -> str:
+    return str(t("alert_sent_at", when=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")))
+
+
 def _build_adaptive_card(
     title: str,
     alerts: list[dict],
@@ -76,11 +100,13 @@ def _build_adaptive_card(
     subtitle: str = "",
     facts: list[tuple[str, str]] | None = None,
     dashboard_url: str = "",
+    lang: str = "no",
 ) -> dict:
     """Build a rich Adaptive Card for Teams / Power Automate.
 
     Alert dict shape: {type, severity, customer, item, detail, recommendation?}
     """
+    t = _labels(lang)
     body: list[dict] = []
 
     # Header container
@@ -125,23 +151,15 @@ def _build_adaptive_card(
             }
         )
 
-    # Group alerts by severity
-    critical = [a for a in alerts if a.get("severity") == "critical"]
-    warnings = [a for a in alerts if a.get("severity") == "warning"]
-    info = [a for a in alerts if a.get("severity") not in ("critical", "warning")]
-
-    for group, label, color in [
-        (critical, "Kritisk", "Attention"),
-        (warnings, "Advarsel", "Warning"),
-        (info, "Info", "Accent"),
-    ]:
+    for group, label, severity in _severity_groups(alerts, t):
         if not group:
             continue
+        color = _severity_color(severity)
 
         items: list[dict] = [
             {
                 "type": "TextBlock",
-                "text": f"{_severity_emoji(group[0]['severity'])} **{label} ({len(group)})**",
+                "text": f"{_severity_emoji(severity)} **{label} ({len(group)})**",
                 "wrap": True,
                 "weight": "Bolder",
                 "size": "Small",
@@ -183,7 +201,7 @@ def _build_adaptive_card(
             items.append(
                 {
                     "type": "TextBlock",
-                    "text": f"_...og {len(group) - 15} flere_",
+                    "text": f"_{t('alert_and_more', count=len(group) - 15)}_",
                     "wrap": True,
                     "isSubtle": True,
                     "size": "Small",
@@ -203,7 +221,7 @@ def _build_adaptive_card(
     body.append(
         {
             "type": "TextBlock",
-            "text": f"Sendt {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
+            "text": _sent_at(t),
             "wrap": True,
             "size": "Small",
             "isSubtle": True,
@@ -223,7 +241,7 @@ def _build_adaptive_card(
         card["actions"] = [
             {
                 "type": "Action.OpenUrl",
-                "title": "Åpne dashboard",
+                "title": str(t.alert_open_dashboard),
                 "url": dashboard_url,
             }
         ]
@@ -233,6 +251,12 @@ def _build_adaptive_card(
 
 # ── Slack blocks builder ────────────────────────────────────────────────────
 
+_SLACK_EMOJI = {
+    "critical": ":red_circle:",
+    "warning": ":large_yellow_circle:",
+    "info": ":large_blue_circle:",
+}
+
 
 def _build_slack_payload(
     title: str,
@@ -241,8 +265,10 @@ def _build_slack_payload(
     subtitle: str = "",
     facts: list[tuple[str, str]] | None = None,
     dashboard_url: str = "",
+    lang: str = "no",
 ) -> dict:
     """Build Slack blocks instead of flat text."""
+    t = _labels(lang)
     blocks: list[dict] = [
         {"type": "header", "text": {"type": "plain_text", "text": title[:150]}},
     ]
@@ -262,20 +288,11 @@ def _build_slack_payload(
 
     blocks.append({"type": "divider"})
 
-    # Grouped alerts
-    critical = [a for a in alerts if a.get("severity") == "critical"]
-    warnings = [a for a in alerts if a.get("severity") == "warning"]
-    info = [a for a in alerts if a.get("severity") not in ("critical", "warning")]
-
-    for group, emoji, label in [
-        (critical, ":red_circle:", "Kritisk"),
-        (warnings, ":large_yellow_circle:", "Advarsel"),
-        (info, ":large_blue_circle:", "Info"),
-    ]:
+    for group, label, severity in _severity_groups(alerts, t):
         if not group:
             continue
 
-        lines = [f"{emoji} *{label} ({len(group)})*"]
+        lines = [f"{_SLACK_EMOJI[severity]} *{label} ({len(group)})*"]
         for a in group[:15]:
             customer = _slack_escape(a.get("customer", ""))
             item = _slack_escape(a.get("item", ""))
@@ -287,7 +304,7 @@ def _build_slack_payload(
             lines.append(line)
 
         if len(group) > 15:
-            lines.append(f"_...og {len(group) - 15} flere_")
+            lines.append(f"_{t('alert_and_more', count=len(group) - 15)}_")
 
         blocks.append(
             {
@@ -297,14 +314,11 @@ def _build_slack_payload(
         )
 
     # Timestamp + dashboard link
-    ctx_elements: list[dict] = [
-        {
-            "type": "mrkdwn",
-            "text": f"Sendt {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
-        }
-    ]
+    ctx_elements: list[dict] = [{"type": "mrkdwn", "text": _sent_at(t)}]
     if dashboard_url:
-        ctx_elements.append({"type": "mrkdwn", "text": f"<{dashboard_url}|Åpne dashboard>"})
+        ctx_elements.append(
+            {"type": "mrkdwn", "text": f"<{dashboard_url}|{_slack_escape(t.alert_open_dashboard)}>"}
+        )
     blocks.append({"type": "context", "elements": ctx_elements})
 
     return {"blocks": blocks}
@@ -318,8 +332,10 @@ def _build_plain_text(
     alerts: list[dict],
     *,
     facts: list[tuple[str, str]] | None = None,
+    lang: str = "no",
 ) -> str:
     """Build plain text for generic webhooks."""
+    t = _labels(lang)
     lines = [title, ""]
     if facts:
         for k, v in facts:
@@ -335,7 +351,7 @@ def _build_plain_text(
         lines.append(line)
 
     if len(alerts) > 30:
-        lines.append(f"...og {len(alerts) - 30} flere")
+        lines.append(str(t("alert_and_more", count=len(alerts) - 30)))
     return "\n".join(lines)
 
 
@@ -350,6 +366,7 @@ async def send_webhook(
     subtitle: str = "",
     facts: list[tuple[str, str]] | None = None,
     dashboard_url: str = "",
+    lang: str = "no",
 ) -> bool:
     """Send a rich notification to Teams, Slack, or generic webhook.
 
@@ -361,6 +378,8 @@ async def send_webhook(
         subtitle: Optional second line under the title.
         facts: Optional KPI list of (label, value) tuples for the FactSet / fields.
         dashboard_url: Optional link to the dashboard (rendered as action button).
+        lang: The language of the card's own words (severity headings, "sent",
+            the button). They were Norwegian whatever the hub was set to.
 
     Returns True if the webhook responded 2xx, False otherwise.
     """
@@ -371,11 +390,11 @@ async def send_webhook(
 
     if wh_type == "slack":
         payload = _build_slack_payload(
-            title, alerts, subtitle=subtitle, facts=facts, dashboard_url=dashboard_url
+            title, alerts, subtitle=subtitle, facts=facts, dashboard_url=dashboard_url, lang=lang
         )
     elif wh_type in ("teams", "power_automate"):
         card = _build_adaptive_card(
-            title, alerts, subtitle=subtitle, facts=facts, dashboard_url=dashboard_url
+            title, alerts, subtitle=subtitle, facts=facts, dashboard_url=dashboard_url, lang=lang
         )
         if wh_type == "power_automate":
             payload = card
@@ -390,7 +409,7 @@ async def send_webhook(
                 ],
             }
     else:
-        text = _build_plain_text(title, alerts, facts=facts)
+        text = _build_plain_text(title, alerts, facts=facts, lang=lang)
         payload = {"text": text}
 
     try:

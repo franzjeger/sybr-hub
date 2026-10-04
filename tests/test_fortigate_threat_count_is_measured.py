@@ -88,7 +88,7 @@ async def test_a_spike_raises_an_alert(firewalls):
     firewalls["fg1.acme.no"] = 120
     alerts = await ae._check_fortigate_threats(50)
     assert [a["customer"] for a in alerts] == ["Acme AS"]
-    assert "120 trusler" in alerts[0]["detail"]
+    assert "120 trusler" in ae.render_detail(alerts[0], "no")
 
 
 async def test_the_threshold_is_respected(firewalls):

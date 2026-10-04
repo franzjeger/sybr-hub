@@ -70,6 +70,75 @@ def _is_duplicate(alert: dict, history: list[dict]) -> bool:
     return any(h.get("fingerprint") == fp and h.get("sent_at", "") > cutoff for h in history)
 
 
+# ── What an alert says, in a language ───────────────────────────────────────
+
+# Every key a check builds its detail from. app/reports/i18n.py renders them
+# for the e-mail and the chat card, ui_i18n.json for the Varsler page, and a
+# test holds the two tables to this list.
+DETAIL_KEYS = (
+    "alert_detail_ssl_expired",
+    "alert_detail_ssl_expiring",
+    "alert_detail_domain_expired",
+    "alert_detail_domain_expiring",
+    "alert_detail_licence_expired",
+    "alert_detail_licence_expiring",
+    "alert_detail_threats",
+    "alert_detail_firmware_outdated",
+    "alert_detail_mfa_coverage",
+    "alert_detail_policy_removed",
+    "alert_detail_policy_changed",
+)
+
+
+def _hub_language(settings: dict | None = None) -> str:
+    """The language the hub writes in: its interface language setting."""
+    lang = (settings if settings is not None else load_app_settings()).get("ui_language", "no")
+    return lang if lang in ("no", "en") else "no"
+
+
+def _detailed(alert: dict, key: str, **params: Any) -> dict:
+    """*alert* with its detail as a key and the values behind it.
+
+    The checks wrote a finished Norwegian sentence, so the e-mail, the chat
+    card and the Varsler page were Norwegian whatever the hub's language, and
+    an entry in the history stayed in the language it was written in. The
+    sentence is now built where it is read: render_detail() for the e-mail
+    and the card, the browser for the Varsler page.
+    """
+    alert["detail_key"] = key
+    alert["detail_params"] = params
+    return alert
+
+
+def render_detail(alert: dict, lang: str) -> str:
+    """An alert's detail in *lang*.
+
+    An alert without a key (a pentest finding's own text, or a history entry
+    written before alerts had keys) has only its ``detail``, shown as it is.
+    """
+    key = alert.get("detail_key")
+    if not key:
+        return str(alert.get("detail") or "")
+    from app.reports.i18n import T
+
+    return str(T(lang)(key, **(alert.get("detail_params") or {})))
+
+
+def _detail_fields(alert: dict) -> dict:
+    """The key and values an alert's detail was built from, if it has them."""
+    if not alert.get("detail_key"):
+        return {}
+    return {"detail_key": alert["detail_key"], "detail_params": alert.get("detail_params") or {}}
+
+
+def _severity_label(t, severity: str) -> str:
+    return str(
+        {"critical": t.alert_sev_critical, "warning": t.alert_sev_warning}.get(
+            severity, t.alert_sev_info
+        )
+    )
+
+
 # ── Default alert configuration ──────────────────────────────────────────────
 
 DEFAULT_ALERT_CONFIG: dict[str, Any] = {
@@ -167,20 +236,21 @@ async def _check_ssl_expiry(days_threshold: int) -> list[dict]:
                     continue
                 if remaining <= days_threshold:
                     severity = "critical" if remaining < 7 else "warning"
-                    if remaining < 0:
-                        detail = f"SSL-sertifikat UTLØPT for {abs(remaining)} dager siden ({expiry_str[:10]})"
-                        severity = "critical"
-                    else:
-                        detail = f"SSL-sertifikat utløper om {remaining} dager ({expiry_str[:10]})"
                     alerts.append(
-                        {
-                            "type": "ssl_expiry",
-                            "severity": severity,
-                            "customer": acct_name,
-                            "item": cert.get("domain", ""),
-                            "detail": detail,
-                            "days_remaining": remaining,
-                        }
+                        _detailed(
+                            {
+                                "type": "ssl_expiry",
+                                "severity": severity,
+                                "customer": acct_name,
+                                "item": cert.get("domain", ""),
+                                "days_remaining": remaining,
+                            },
+                            "alert_detail_ssl_expired"
+                            if remaining < 0
+                            else "alert_detail_ssl_expiring",
+                            days=abs(remaining),
+                            date=expiry_str[:10],
+                        )
                     )
     except Exception as exc:
         logger.warning("Alert check ssl_expiry failed: %s", exc)
@@ -216,22 +286,21 @@ async def _check_domain_expiry(days_threshold: int) -> list[dict]:
                     continue
                 if remaining <= days_threshold:
                     severity = "critical" if remaining < 7 else "warning"
-                    if remaining < 0:
-                        detail = (
-                            f"Domene UTLØPT for {abs(remaining)} dager siden ({expiry_str[:10]})"
-                        )
-                        severity = "critical"
-                    else:
-                        detail = f"Domene utløper om {remaining} dager ({expiry_str[:10]})"
                     alerts.append(
-                        {
-                            "type": "domain_expiry",
-                            "severity": severity,
-                            "customer": acct_name,
-                            "item": dom.get("domain", ""),
-                            "detail": detail,
-                            "days_remaining": remaining,
-                        }
+                        _detailed(
+                            {
+                                "type": "domain_expiry",
+                                "severity": severity,
+                                "customer": acct_name,
+                                "item": dom.get("domain", ""),
+                                "days_remaining": remaining,
+                            },
+                            "alert_detail_domain_expired"
+                            if remaining < 0
+                            else "alert_detail_domain_expiring",
+                            days=abs(remaining),
+                            date=expiry_str[:10],
+                        )
                     )
     except Exception as exc:
         logger.warning("Alert check domain_expiry failed: %s", exc)
@@ -287,14 +356,18 @@ async def _check_fortigate_threats(threshold: int) -> list[dict]:
         total = (summary or {}).get("summary", {}).get("total", 0)
         if not total or total <= threshold:
             return None
-        return {
-            "type": "fortigate_threats",
-            "severity": "critical" if total > threshold * 2 else "warning",
-            "customer": name,
-            "item": cust.get("FortiGateHost", "FortiGate"),
-            "detail": f"{total} trusler siste 24t (terskel: {threshold})",
-            "days_remaining": 0,
-        }
+        return _detailed(
+            {
+                "type": "fortigate_threats",
+                "severity": "critical" if total > threshold * 2 else "warning",
+                "customer": name,
+                "item": cust.get("FortiGateHost", "FortiGate"),
+                "days_remaining": 0,
+            },
+            "alert_detail_threats",
+            total=total,
+            threshold=threshold,
+        )
 
     for found in await asyncio.gather(*(_one(c, t) for c, t in targets)):
         if found:
@@ -322,14 +395,17 @@ async def _check_firmware_outdated() -> list[dict]:
                 if major < 7 or (major == 7 and minor < 4):
                     cust_name = fg.get("customer_name", fg.get("customer_id", "?"))
                     alerts.append(
-                        {
-                            "type": "firmware_outdated",
-                            "severity": "warning",
-                            "customer": cust_name,
-                            "item": fg.get("hostname", "FortiGate"),
-                            "detail": f"Firmware {firmware} er utdatert (anbefalt >= 7.4)",
-                            "days_remaining": 0,
-                        }
+                        _detailed(
+                            {
+                                "type": "firmware_outdated",
+                                "severity": "warning",
+                                "customer": cust_name,
+                                "item": fg.get("hostname", "FortiGate"),
+                                "days_remaining": 0,
+                            },
+                            "alert_detail_firmware_outdated",
+                            firmware=firmware,
+                        )
                     )
             except (ValueError, IndexError):
                 pass
@@ -371,20 +447,21 @@ async def _check_also_license_expiry(days_threshold: int) -> list[dict]:
                 continue
             if remaining <= days_threshold:
                 severity = "critical" if remaining < 7 else "warning"
-                if remaining < 0:
-                    detail = f"Lisens UTLØPT for {abs(remaining)} dager siden ({end_str[:10]})"
-                    severity = "critical"
-                else:
-                    detail = f"Lisens utløper om {remaining} dager ({end_str[:10]})"
                 alerts.append(
-                    {
-                        "type": "also_license_expiry",
-                        "severity": severity,
-                        "customer": row["customer_name"],
-                        "item": row["service_display"],
-                        "detail": detail,
-                        "days_remaining": remaining,
-                    }
+                    _detailed(
+                        {
+                            "type": "also_license_expiry",
+                            "severity": severity,
+                            "customer": row["customer_name"],
+                            "item": row["service_display"],
+                            "days_remaining": remaining,
+                        },
+                        "alert_detail_licence_expired"
+                        if remaining < 0
+                        else "alert_detail_licence_expiring",
+                        days=abs(remaining),
+                        date=end_str[:10],
+                    )
                 )
     except Exception as exc:
         logger.warning("Alert check also_license_expiry failed: %s", exc)
@@ -446,39 +523,48 @@ async def _check_policy_drift(alert_on_changed: bool = False) -> list[dict]:
                 continue
 
             customer = names.get(customer_dir.name, customer_dir.name)
+            # The run compared against, as the day it ran: "2026-09-30", not
+            # the folder's name.
+            since = str(drift.get("compared_with") or "")[:10]
             for snapshot in drift.get("snapshots", []):
                 if not snapshot.get("comparable"):
                     continue
                 for policy in snapshot.get("removed", []):
+                    name = policy.get("name") or policy.get("id", "")
                     alerts.append(
-                        {
-                            "type": "policy_drift",
-                            "severity": "critical",
-                            "customer": customer,
-                            "item": policy.get("name") or policy.get("id", ""),
-                            "detail": (
-                                f"Sikkerhetspolicyen «{policy.get('name') or policy.get('id')}» "
-                                f"er fjernet siden {drift.get('compared_with')}."
-                            ),
-                            "days_remaining": 0,
-                        }
+                        _detailed(
+                            {
+                                "type": "policy_drift",
+                                "severity": "critical",
+                                "customer": customer,
+                                "item": name,
+                                "days_remaining": 0,
+                            },
+                            "alert_detail_policy_removed",
+                            policy=name,
+                            since=since,
+                        )
                     )
                 if not alert_on_changed:
                     continue
                 for policy in snapshot.get("changed", []):
+                    name = policy.get("name") or policy.get("id", "")
                     alerts.append(
-                        {
-                            "type": "policy_drift",
-                            "severity": "warning",
-                            "customer": customer,
-                            "item": policy.get("name") or policy.get("id", ""),
-                            "detail": (
-                                f"«{policy.get('name') or policy.get('id')}» er endret siden "
-                                f"{drift.get('compared_with')}: "
-                                f"{', '.join(policy.get('fields', []))}."
-                            ),
-                            "days_remaining": 0,
-                        }
+                        _detailed(
+                            {
+                                "type": "policy_drift",
+                                "severity": "warning",
+                                "customer": customer,
+                                "item": name,
+                                "days_remaining": 0,
+                            },
+                            "alert_detail_policy_changed",
+                            policy=name,
+                            since=since,
+                            # Graph's own field names ("state",
+                            # "conditions"): data, not words to translate.
+                            fields=", ".join(policy.get("fields", [])),
+                        )
                     )
     except Exception as exc:
         # Only the setup — the customer list and the audit directory. A single
@@ -514,14 +600,21 @@ async def _check_mfa_coverage(threshold: float) -> list[dict]:
             mfa_pct = row.mfa_coverage_pct
             if mfa_pct is not None and mfa_pct < threshold:
                 alerts.append(
-                    {
-                        "type": "mfa_coverage",
-                        "severity": "critical" if mfa_pct < 50 else "warning",
-                        "customer": customer_map.get(row.customer_id, row.customer_id),
-                        "item": "MFA-dekning",
-                        "detail": f"MFA-dekning {mfa_pct:.0f}% (under terskel {threshold:.0f}%)",
-                        "days_remaining": 0,
-                    }
+                    _detailed(
+                        {
+                            "type": "mfa_coverage",
+                            "severity": "critical" if mfa_pct < 50 else "warning",
+                            "customer": customer_map.get(row.customer_id, row.customer_id),
+                            # The item names the thing measured, and is part
+                            # of the alert's identity (_alert_fingerprint):
+                            # "MFA" in every language, not "MFA-dekning".
+                            "item": "MFA",
+                            "days_remaining": 0,
+                        },
+                        "alert_detail_mfa_coverage",
+                        pct=f"{mfa_pct:.0f}",
+                        threshold=f"{threshold:.0f}",
+                    )
                 )
     except Exception as exc:
         logger.warning("Alert check mfa_coverage failed: %s", exc)
@@ -568,24 +661,17 @@ async def _check_pentest_critical() -> list[dict]:
 
 # ── Recommendation text enrichment ──────────────────────────────────────────
 
-_RECOMMENDATIONS: dict[str, str] = {
-    "policy_drift": (
-        "Bekreft at fjerningen var tilsiktet. Var den ikke det, kan policyen "
-        "settes tilbake fra siste gjenopprettingspunkt under Policy-utrulling."
-    ),
-    "ssl_expiry": "Forny sertifikatet med certbot/Let's Encrypt, eller kontakt CA-en din. Sett opp automatisk fornyelse.",
-    "domain_expiry": "Forny domenet hos registraren. Aktiver auto-renew for å unngå at domenet utløper.",
-    "fortigate_threats": "Gjennomgå IPS/AV-loggene på FortiGate. Vurder å blokkere kilde-IP og oppdater signaturer.",
-    "firmware_outdated": "Oppgrader FortiGate firmware til >= 7.4. Planlegg oppgraderingsvindu og ta backup først.",
-    "also_license_expiry": "Kontakt ALSO eller kunden for å fornye lisensen. Sjekk om tjenesten fortsatt er i bruk.",
-    "mfa_coverage": "Aktiver MFA for brukere uten. Start med globale admins, deretter alle interaktive kontoer.",
-    "pentest_critical": "Se remediation i pentest-rapporten. Fiks kritiske funn først, deretter høye.",
-}
 
+def _recommend(alert: dict, lang: str) -> str:
+    """A short recommendation for the alert's type, in *lang* ("" for none).
 
-def _recommend(alert: dict) -> str:
-    """Return a short recommendation based on alert type."""
-    return _RECOMMENDATIONS.get(alert.get("type", ""), "")
+    The text is ``alert_rec_<type>`` in app/reports/i18n.py; it was a
+    Norwegian table here.
+    """
+    from app.reports.i18n import TRANSLATIONS, T
+
+    key = f"alert_rec_{alert.get('type', '')}"
+    return str(T(lang)(key)) if key in TRANSLATIONS else ""
 
 
 # ── Notification senders ─────────────────────────────────────────────────────
@@ -677,7 +763,9 @@ async def send_teams_alert(webhook_url: str, alerts: list[dict]) -> None:
         logger.error("Alert webhook error: %s", exc)
 
 
-async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]) -> bool:
+async def send_email_alert(
+    smtp_config: dict, recipient: str, alerts: list[dict], *, lang: str | None = None
+) -> bool:
     """Send alert summary via SMTP email. True if it went out.
 
     Returned None before, and the caller counted a channel as notified on the
@@ -688,6 +776,9 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
     Conditional Access policy's name, a certificate's domain, a scanner's
     finding. They went into the HTML as they were, so a policy named
     ``<img src=x onerror=...>`` became markup in the recipient's mail client.
+
+    In *lang*, else the hub's language (``ui_language`` in *smtp_config*,
+    which is the app settings). It was Norwegian whatever the hub was set to.
     """
     if not recipient or not alerts:
         return False
@@ -696,18 +787,21 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
     from html import escape
 
     from app.core.email_sender import send_report_email
+    from app.reports.i18n import T
 
-    critical = [a for a in alerts if a["severity"] == "critical"]
-    warnings = [a for a in alerts if a["severity"] == "warning"]
+    lang = lang or _hub_language(smtp_config)
+    t = T(lang)
+    critical = sum(1 for a in alerts if a.get("severity") == "critical")
+    warnings = sum(1 for a in alerts if a.get("severity") == "warning")
 
     # Build HTML body
     rows_html = ""
     for a in alerts:
-        color = "#f85149" if a["severity"] == "critical" else "#d29922"
-        sev_label = "Kritisk" if a["severity"] == "critical" else "Advarsel"
+        color = "#f85149" if a.get("severity") == "critical" else "#d29922"
+        sev_label = escape(_severity_label(t, a.get("severity", "")))
         customer = escape(str(a.get("customer") or ""))
         item = escape(str(a.get("item") or ""))
-        detail = escape(str(a.get("detail") or ""))
+        detail = escape(render_detail(a, lang))
         rows_html += f"""<tr>
             <td style="padding:8px;border-bottom:1px solid #d0d7de;">
                 <span style="color:{color};font-weight:600;">{sev_label}</span>
@@ -717,24 +811,27 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
             <td style="padding:8px;border-bottom:1px solid #d0d7de;">{detail}</td>
         </tr>"""
 
+    summary = t("alert_summary", count=len(alerts), critical=critical, warnings=warnings)
+    th = 'style="text-align:left;padding:8px;border-bottom:2px solid #d0d7de;"'
     body_html = f"""\
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:700px;margin:0 auto;color:#1a3148;">
-  <h2 style="margin-bottom:4px;">Sybr HUB: automatiske varsler</h2>
-  <p style="color:#57606a;margin-top:0;">{len(alerts)} nye varsler: {len(critical)} kritiske og {len(warnings)} advarsler</p>
+<div lang="{lang}" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:700px;margin:0 auto;color:#1a3148;">
+  <h2 style="margin-bottom:4px;">{escape(t.alert_email_heading)}</h2>
+  <p style="color:#57606a;margin-top:0;">{escape(summary)}</p>
   <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px;">
     <thead>
       <tr style="background:#f5f7fa;">
-        <th style="text-align:left;padding:8px;border-bottom:2px solid #d0d7de;">Alvorlighet</th>
-        <th style="text-align:left;padding:8px;border-bottom:2px solid #d0d7de;">Kunde</th>
-        <th style="text-align:left;padding:8px;border-bottom:2px solid #d0d7de;">Element</th>
-        <th style="text-align:left;padding:8px;border-bottom:2px solid #d0d7de;">Detaljer</th>
+        <th {th}>{escape(t.alert_col_severity)}</th>
+        <th {th}>{escape(t.alert_col_customer)}</th>
+        <th {th}>{escape(t.alert_col_item)}</th>
+        <th {th}>{escape(t.alert_col_detail)}</th>
       </tr>
     </thead>
     <tbody>{rows_html}</tbody>
   </table>
   <hr style="border:none;border-top:1px solid #d0d7de;margin:20px 0;">
-  <p style="color:#8b949e;font-size:11px;">Sendt automatisk fra Sybr HUB</p>
+  <p style="color:#8b949e;font-size:11px;">{escape(t.alert_email_footer)}</p>
 </div>"""
+    subject = str(t("alert_title", count=len(alerts)))
 
     try:
         loop = asyncio.get_event_loop()
@@ -742,7 +839,7 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
             None,
             lambda: send_report_email(
                 to=recipient,
-                subject=f"Sybr HUB: {len(alerts)} nye varsler",
+                subject=subject,
                 body_html=body_html,
                 smtp_config=smtp_config,
             ),
@@ -838,10 +935,20 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
     history = _load_alert_history()
     new_alerts = [a for a in all_alerts if not _is_duplicate(a, history)]
 
+    # Each alert's sentence in the hub's language, for the API answer, the
+    # history and the chat card. The Varsler page rebuilds it from the key in
+    # the reader's language.
+    from app.reports.i18n import T
+
+    lang = _hub_language(settings)
+    t = T(lang)
+    for a in all_alerts:
+        a["detail"] = render_detail(a, lang)
+
     # Enrich alerts with recommendation text
     for a in new_alerts:
         if "recommendation" not in a:
-            a["recommendation"] = _recommend(a)
+            a["recommendation"] = _recommend(a, lang)
 
     sent_count = 0
     now_iso = datetime.now(UTC).isoformat()
@@ -851,9 +958,9 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
         critical_count = sum(1 for a in new_alerts if a["severity"] == "critical")
         warning_count = sum(1 for a in new_alerts if a["severity"] == "warning")
         facts = [
-            ("Nye varsler", str(len(new_alerts))),
-            ("Kritiske", str(critical_count)),
-            ("Advarsler", str(warning_count)),
+            (str(t.alert_fact_new), str(len(new_alerts))),
+            (str(t.alert_fact_critical), str(critical_count)),
+            (str(t.alert_fact_warnings), str(warning_count)),
         ]
 
         dashboard_url = settings.get("dashboard_url", "")
@@ -866,11 +973,12 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
 
                 ok = await send_webhook(
                     webhook_url,
-                    title=f"🚨 Sybr HUB: {len(new_alerts)} nye varsler",
+                    title=f"🚨 {t('alert_title', count=len(new_alerts))}",
                     alerts=new_alerts,
-                    subtitle=f"{critical_count} kritiske, {warning_count} advarsler",
+                    # The facts carry the counts the subtitle repeated.
                     facts=facts,
                     dashboard_url=dashboard_url,
+                    lang=lang,
                 )
                 if ok:
                     sent_count += 1
@@ -880,7 +988,7 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
             recipient = config.get("email_recipient", "") or settings.get(
                 "email_default_recipient", ""
             )
-            if recipient and await send_email_alert(settings, recipient, new_alerts):
+            if recipient and await send_email_alert(settings, recipient, new_alerts, lang=lang):
                 sent_count += 1
 
         # Record in history — but only what actually went out.
@@ -902,6 +1010,7 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
                         "customer": a["customer"],
                         "item": a["item"],
                         "detail": a["detail"],
+                        **_detail_fields(a),
                         "sent_at": now_iso,
                     }
                 )
@@ -954,6 +1063,7 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
                 "customer": a["customer"],
                 "item": a["item"],
                 "detail": a["detail"],
+                **_detail_fields(a),
             }
             for a in all_alerts
         ],

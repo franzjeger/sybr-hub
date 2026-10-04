@@ -15,7 +15,7 @@ import {currentView, showNetworkTab, showView} from './app.js';
 import {switchDashTab} from './app-infra.js';
 import {dashLoadRenewals} from './app-also.js';
 import {tlsChainLabel} from './app-tls.js';
-import {_taskSchedLabel} from './app-integrations.js';
+import {_taskSchedLabel, alertDetail} from './app-integrations.js';
 import {startAudit} from './app-audit.js';
 import {openAdmin} from './app-settings.js';
 import {deleteCustomer, overviewSelectCustomer, startBulkAudit} from './app-customers.js';
@@ -292,7 +292,7 @@ function _notifCollect(data, uniweb, history, activity) {
       title: (ruleLabels[h.type] || h.type || '') + (h.item ? ': ' + h.item : ''),
       customer: h.customer || '', customerId: idByName[h.customer] || '',
       source: t('src_alert_engine', 'Automatiske varsler'),
-      days: null, when: String(h.sent_at).slice(0, 10), detail: h.detail || '',
+      days: null, when: String(h.sent_at).slice(0, 10), detail: alertDetail(h),
       action: t('btn_open_customer', 'Åpne kunde'), act: 'customer'
     });
   });

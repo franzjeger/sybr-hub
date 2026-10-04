@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.alert_engine import _check_policy_drift
+from app.services.alert_engine import _check_policy_drift, render_detail
 
 
 @pytest.fixture()
@@ -60,7 +60,7 @@ async def test_a_removed_policy_is_critical(tenant, monkeypatch):
     assert len(alerts) == 1
     assert alerts[0]["severity"] == "critical"
     assert alerts[0]["customer"] == "Acme AS"
-    assert "Require MFA for admins" in alerts[0]["detail"]
+    assert "Require MFA for admins" in render_detail(alerts[0], "no")
 
 
 async def test_changes_are_silent_unless_asked_for(tenant, monkeypatch):
@@ -130,12 +130,12 @@ async def test_a_failure_reading_one_tenant_does_not_lose_the_run(tenant, monkey
 
 def test_the_rule_is_on_by_default_and_carries_a_recommendation():
     """A finding nobody is told about was the whole problem."""
-    from app.services.alert_engine import _RECOMMENDATIONS, DEFAULT_ALERT_CONFIG
+    from app.services.alert_engine import DEFAULT_ALERT_CONFIG, _recommend
 
     rule = DEFAULT_ALERT_CONFIG["rules"]["policy_drift"]
     assert rule["enabled"] is True
     assert rule["alert_on_changed"] is False
-    assert "gjenopprettingspunkt" in _RECOMMENDATIONS["policy_drift"]
+    assert "gjenopprettingspunkt" in _recommend({"type": "policy_drift"}, "no")
 
 
 def test_the_check_actually_runs():
