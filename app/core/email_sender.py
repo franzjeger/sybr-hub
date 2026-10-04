@@ -44,18 +44,15 @@ def send_report_email(
     password = smtp_config.get("smtp_password", "").strip()
     from_addr = smtp_config.get("smtp_from", "").strip() or user
 
-    from app.core.exceptions import ValidationError
+    from app.core.messages import invalid
 
     if not server or not user or not password:
-        raise ValidationError("SMTP-innstillinger mangler (server, bruker eller passord)")
-
-    if not to or not to.strip():
-        raise ValidationError("Ingen mottaker-epostadresse angitt")
+        raise invalid("err_smtp_settings_missing")
 
     # Support comma-separated recipients
-    recipients = [addr.strip() for addr in to.split(",") if addr.strip()]
+    recipients = [addr.strip() for addr in (to or "").split(",") if addr.strip()]
     if not recipients:
-        raise ValidationError("Ingen mottaker-epostadresse angitt")
+        raise invalid("err_smtp_no_recipient")
 
     msg = MIMEMultipart("mixed")
     msg["From"] = from_addr
@@ -98,19 +95,69 @@ def send_report_email(
     log.info("Email sent successfully to %s", recipients)
 
 
+def report_language(pdf_path: Path | None) -> str:
+    """The language of the report an e-mail carries, else the hub's language.
+
+    A PDF is rendered from the HTML report beside it, and that file says its
+    language in ``<html lang>``. Without an attachment, or for a PDF whose
+    HTML is gone, the hub's own language decides: it is the language the
+    scheduler writes its reports in.
+    """
+    import re
+
+    if pdf_path is not None:
+        try:
+            from app.core.encryption import encrypted_read_text
+
+            head = encrypted_read_text(pdf_path.with_suffix(".html"))[:2000]
+            m = re.search(r'<html\b[^>]*\blang="(no|en)"', head)
+            if m:
+                return m.group(1)
+        except Exception as e:  # a missing or unreadable file: fall back
+            log.debug("Could not read the language of %s: %s", pdf_path, e)
+    from app.core.config import load_app_settings
+
+    lang = load_app_settings().get("ui_language", "no")
+    return lang if lang in ("no", "en") else "no"
+
+
+def report_email_subject(customer_name: str, run_date: str, lang: str = "no") -> str:
+    from app.reports.i18n import T
+
+    return str(T(lang)("email_subject", customer=customer_name, date=run_date))
+
+
 def build_report_body_html(
     customer_name: str,
     run_date: str,
     metrics: dict | None = None,
+    *,
+    lang: str = "no",
+    attached: bool = True,
 ) -> str:
-    """Build a brief HTML email body summarizing the audit."""
-    risk_grade = (metrics or {}).get("risk_grade", "?")
-    risk_score = (metrics or {}).get("risk_score", "?")
-    mfa_pct = (metrics or {}).get("mfa_coverage_pct", "?")
-    secure_score = (metrics or {}).get("secure_score_pct", "?")
-    total_users = (metrics or {}).get("total_users", "?")
-    total_warns = (metrics or {}).get("total_warns", "?")
+    """A short HTML summary of the audit, in the report's language.
 
+    It was Norwegian whatever the report's language. It printed "None" for a
+    score the audit could not compute and "None%" for coverage it could not
+    measure, and it said a PDF was attached when none was: the scheduler
+    renders HTML only, so an automatic e-mail usually carried no PDF at all.
+    """
+    from html import escape
+
+    from app.reports.i18n import T
+
+    t = T(lang)
+    m = metrics or {}
+
+    def shown(key: str, suffix: str = "") -> str:
+        value = m.get(key)
+        if value is None or value == "":
+            return escape(t.email_not_measured)
+        if isinstance(value, float):
+            value = f"{value:.0f}"
+        return escape(f"{value}{suffix}")
+
+    risk_grade = str(m.get("risk_grade") or "?")
     grade_color = {
         "A": "#3fb950",
         "B": "#3fb950",
@@ -119,32 +166,39 @@ def build_report_body_html(
         "E": "#f85149",
         "F": "#f85149",
     }.get(risk_grade, "#8b949e")
+    no_grade = (
+        f'<p style="color: #57606a; font-size: 13px;">{escape(t.email_no_grade)}</p>'
+        if risk_grade == "?"
+        else ""
+    )
+    attachment = t.email_pdf_attached if attached else t.email_no_pdf
 
     return f"""\
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; color: #1a3148;">
-  <h2 style="margin-bottom: 4px;">Auditrapport: {customer_name}</h2>
-  <p style="color: #57606a; margin-top: 0;">Audit fullført {run_date}</p>
+  <h2 style="margin-bottom: 4px;">{escape(t("email_heading", customer=customer_name))}</h2>
+  <p style="color: #57606a; margin-top: 0;">{escape(t("email_completed", date=run_date))}</p>
 
   <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
     <tr>
       <td style="padding: 12px; background: {grade_color}; color: white; text-align: center; border-radius: 8px 0 0 8px; font-size: 28px; font-weight: bold; width: 80px;">
-        {risk_grade}
+        {escape(risk_grade)}
       </td>
       <td style="padding: 12px; background: #f5f7fa; border-radius: 0 8px 8px 0;">
-        <strong>Karakter:</strong> {risk_grade} (sikkerhetsscore: {risk_score})<br>
-        <strong>MFA-dekning:</strong> {mfa_pct}%<br>
-        <strong>Secure Score:</strong> {secure_score}%<br>
-        <strong>Brukere:</strong> {total_users} &nbsp;|&nbsp; <strong>Advarsler:</strong> {total_warns}
+        <strong>{escape(t.email_lbl_grade)}:</strong> {escape(risk_grade)}<br>
+        <strong>{escape(t.email_lbl_score)}:</strong> {shown("risk_score")}<br>
+        <strong>{escape(t.email_lbl_mfa)}:</strong> {shown("mfa_coverage_pct", "%")}<br>
+        <strong>{escape(t.email_lbl_secure_score)}:</strong> {shown("secure_score_pct", "%")}<br>
+        <strong>{escape(t.email_lbl_users)}:</strong> {shown("total_users")} &nbsp;|&nbsp; <strong>{escape(t.email_lbl_warnings)}:</strong> {shown("total_warns")}
       </td>
     </tr>
   </table>
-
+  {no_grade}
   <p style="color: #57606a; font-size: 13px;">
-    PDF-rapporten med alle detaljer er vedlagt denne e-posten.
+    {escape(attachment)}
   </p>
 
   <hr style="border: none; border-top: 1px solid #d0d7de; margin: 20px 0;">
-  <p style="color: #8b949e; font-size: 11px;">Sendt automatisk fra SYBR MSP Toolkit</p>
+  <p style="color: #8b949e; font-size: 11px;">{escape(t.email_footer)}</p>
 </div>
 """
 
@@ -192,8 +246,11 @@ def auto_send_after_audit(out_dir: Path) -> str | None:
     customer_name = out_dir.parent.name.replace("_", " ")
     run_date = out_dir.name
 
-    body = build_report_body_html(customer_name, run_date, metrics)
-    subject = f"Auditrapport: {customer_name} ({run_date})"
+    lang = report_language(pdf_path)
+    body = build_report_body_html(
+        customer_name, run_date, metrics, lang=lang, attached=pdf_path is not None
+    )
+    subject = report_email_subject(customer_name, run_date, lang)
 
     try:
         send_report_email(

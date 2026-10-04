@@ -4159,6 +4159,42 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "csv_priority_medium": {"no": "Middels", "en": "Medium"},
     "csv_priority_low": {"no": "Lav", "en": "Low"},
     "csv_unknown_customer": {"no": "Ukjent kunde", "en": "Unknown customer"},
+    # ── The report e-mail (core.email_sender.build_report_body_html) ──
+    "email_subject": {
+        "no": "Auditrapport: {customer} ({date})",
+        "en": "Audit report: {customer} ({date})",
+    },
+    "email_heading": {
+        "no": "Auditrapport: {customer}",
+        "en": "Audit report: {customer}",
+    },
+    "email_completed": {
+        "no": "Auditen ble fullført {date}",
+        "en": "Audit completed {date}",
+    },
+    "email_lbl_grade": {"no": "Karakter", "en": "Grade"},
+    "email_lbl_score": {"no": "Sikkerhetsscore", "en": "Security score"},
+    "email_lbl_mfa": {"no": "MFA-dekning", "en": "MFA coverage"},
+    "email_lbl_secure_score": {"no": "Secure Score", "en": "Secure Score"},
+    "email_lbl_users": {"no": "Brukere", "en": "Users"},
+    "email_lbl_warnings": {"no": "Advarsler", "en": "Warnings"},
+    "email_not_measured": {"no": "ikke målt", "en": "not measured"},
+    "email_no_grade": {
+        "no": "Auditen mangler data scoren trenger, så den har ingen karakter. Se rapporten for hva som mangler.",
+        "en": "The audit is missing data the score needs, so it has no grade. The report says what is missing.",
+    },
+    "email_pdf_attached": {
+        "no": "PDF-rapporten med alle detaljer er vedlagt.",
+        "en": "The PDF report with every detail is attached.",
+    },
+    "email_no_pdf": {
+        "no": "Ingen PDF-rapport er laget for denne kjøringen, så ingen er vedlagt. Lag rapporten i Sybr HUB for alle detaljer.",
+        "en": "No PDF report has been made for this run, so none is attached. Make the report in Sybr HUB for every detail.",
+    },
+    "email_footer": {
+        "no": "Sendt fra Sybr HUB",
+        "en": "Sent from Sybr HUB",
+    },
 }
 
 
