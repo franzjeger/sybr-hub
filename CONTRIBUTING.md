@@ -48,13 +48,43 @@ unchanged. When you mean to change a verdict or its wording, recompute it with
 changed in it, ideally after comparing old and new context by context.
 
 `npm run check` is more than a syntax check. It fails on:
-- a top-level name declared in two scripts;
+- an import that does not resolve to a real export, a dynamic import, a
+  module outside its layer, or a load-time read inside an import cycle
+  (`scripts/js-modules.cjs`; the layering is written at the top of
+  `app/web/static/main.js`);
 - any inline event handler or `javascript:` URL, and any handler name that is
   not registered or never used (controls use `data-click-handler` and
   `registerUiHandlers`; see docs/ARCHITECTURE.md, Front-end structure);
-- unescaped data in an `innerHTML` string in the files it enforces;
+- unescaped data in an `innerHTML` string, followed across imports;
 - an em or en dash in text the scripts build;
-- any ESLint error.
+- a CSS class in `app.css` nothing uses (`scripts/check-css-usage.cjs`);
+- any ESLint error or warning (unused variables included).
+
+The Python suite also holds the interface to its design system: no new
+`style=` attribute (`tests/test_frontend_csp_budget.py`; the 43 left are all
+`display:none`), colours only from tokens and no padding on `.btn`
+(`tests/test_css_colours_are_tokens.py`), and every `ui_i18n.json` key
+referenced somewhere (`tests/test_i18n_keys_are_used.py`).
+
+Browser specs share one fixture server (`tests/browser/server.py`). Reach a
+module's function through `inApp(page, app => ...)` from
+`tests/browser/app.cjs`, never through `window`. A spec that changes per-user
+state signs in as its own fixture user; a spec that changes server-wide
+settings goes in the `server-settings` project in `playwright.config.cjs`,
+which runs after the rest. Count from what the page rendered, not from a
+second request: other specs add customers while yours runs. Run the full
+suite three times in a row before calling a frontend change done.
+
+Database migrations are numbered in `app/core/database.py`. Two branches
+that each add one will collide; renumber the later one when you integrate it
+and update any note that names the number.
+
+Dependabot here widens the version range in `pyproject.toml` and
+`requirements.txt` but does not touch `requirements.lock`, so its green CI
+tests the old versions. Move the lock with
+`pip-compile --generate-hashes --no-emit-index-url --upgrade-package <name>`
+(set `CUSTOM_COMPILE_COMMAND` to keep the header) and let CI test what an
+install gets.
 
 A new route that reads a body takes a Pydantic model from `app/models/` with
 `extra="forbid"`. A refusal a person reads carries a `message_key` with both
@@ -104,7 +134,7 @@ is a bug we've had at least eight times.
 
 - Conventional commit style: `fix(area):`, `feat(area):`, `chore:`, `docs:`, `test:`.
 - One logical change per commit. We rebase-merge.
-- Reference the ROADMAP section your work lands in.
+- Reference the ROADMAP section or docs/TODO.md item your work lands in.
 - Include the current full-suite output in the PR description.
 
 Before protecting `main`, configure GitHub to require the stable CI checks
