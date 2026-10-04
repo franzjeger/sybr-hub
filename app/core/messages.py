@@ -144,6 +144,14 @@ MESSAGES: dict[str, tuple[str, str]] = {
         "Oppsett er allerede fullført",
         "Setup is already complete",
     ),
+    "err_smtp_settings_missing": (
+        "SMTP-innstillingene mangler server, bruker eller passord",
+        "The SMTP settings are missing the server, user or password",
+    ),
+    "err_smtp_no_recipient": (
+        "Ingen mottakeradresse er angitt",
+        "No recipient address is set",
+    ),
 }
 
 

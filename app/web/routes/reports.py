@@ -74,18 +74,28 @@ async def email_test(
         to = body.smtp_user.strip()
     if not to:
         raise ValidationError(ui_t("err_no_recipient", request))
+    # In the reader's language; it was Norwegian, with a dash in the subject.
+    subject = ui_t("email_test_subject", request)
+    body_html = (
+        f"<h2>{_html.escape(ui_t('email_test_heading', request))}</h2>"
+        f"<p>{_html.escape(ui_t('email_test_body', request))}</p>"
+        "<p style='color:#8b949e;font-size:12px;'>"
+        f"{_html.escape(ui_t('email_test_footer', request))}</p>"
+    )
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
             lambda: send_report_email(
                 to=to,
-                subject="SYBR MSP Toolkit — Testepost",
-                body_html="<h2>Testepost</h2><p>E-postinnstillingene fungerer korrekt.</p><p style='color:#8b949e;font-size:12px;'>Sendt fra SYBR MSP Toolkit</p>",
+                subject=subject,
+                body_html=body_html,
                 smtp_config=smtp_config,
             ),
         )
         return {"ok": True}
+    except ValidationError:
+        raise  # a keyed refusal (settings missing), answered in the reader's language
     except Exception as e:
         raise ValidationError(str(e)) from e
 
@@ -96,7 +106,12 @@ async def email_send_report(
 ):
     """Manually send the latest report to a specified email address."""
     from app.core.config import load_app_settings
-    from app.core.email_sender import build_report_body_html, send_report_email
+    from app.core.email_sender import (
+        build_report_body_html,
+        report_email_subject,
+        report_language,
+        send_report_email,
+    )
 
     to = body.to.strip()
     settings = load_app_settings()
@@ -129,8 +144,12 @@ async def email_send_report(
 
     customer_name = out_dir.parent.name.replace("_", " ")
     run_date = out_dir.name
-    body_html = build_report_body_html(customer_name, run_date, metrics)
-    subject = f"Auditrapport — {customer_name} ({run_date})"
+    # In the attached report's language: the e-mail describes that report.
+    lang = report_language(pdf_path)
+    body_html = build_report_body_html(
+        customer_name, run_date, metrics, lang=lang, attached=pdf_path is not None
+    )
+    subject = report_email_subject(customer_name, run_date, lang)
 
     try:
         loop = asyncio.get_event_loop()
