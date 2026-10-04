@@ -26,7 +26,7 @@ does not stop being one because the controller was down this morning.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.core.database import get_db
 from app.core.rbac import customer_in_scope
@@ -318,6 +318,28 @@ async def attention(allowed: set[str] | None, names: dict[str, str] | None = Non
     ]
 
 
+def _today() -> date:
+    return date.today()
+
+
+def stale_tables(vendors: set[str]) -> list[dict]:
+    """The firmware tables past their freshness window, for *vendors* only.
+
+    A stale table turns every "current" verdict into "unknown" (SR-007), so a
+    list full of unconfirmed devices needs this beside it to be understood.
+    """
+    from app.modules.fortigate_audit import firmware_lifecycle
+    from app.modules.unifi_audit import firmware_db
+
+    tables = {"fortigate": firmware_lifecycle, "unifi": firmware_db}
+    today = _today()
+    return [
+        {"vendor": vendor, "as_of": tables[vendor].LAST_UPDATED}
+        for vendor in VENDORS
+        if vendor in vendors and tables[vendor].is_stale(today)
+    ]
+
+
 async def coverage(allowed: set[str] | None, names: dict[str, str] | None = None) -> dict:
     devices = await list_devices(allowed, names=names)
     read = [d["read_at"] for d in devices if d.get("read_at")]
@@ -325,6 +347,7 @@ async def coverage(allowed: set[str] | None, names: dict[str, str] | None = None
         "devices": len(devices),
         "unknown": sum(1 for d in devices if d["status"] == "unknown"),
         "last_read": max(read) if read else None,
+        "stale_tables": stale_tables({d["vendor"] for d in devices}),
     }
 
 

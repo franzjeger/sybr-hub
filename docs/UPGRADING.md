@@ -8,6 +8,10 @@
   7.5.15 and access points behind their line's newest release to show as
   outdated. The daily `firmware_check` (05:30) or a network audit updates
   the stored list.
+- `GET /api/dashboard/alerts` adds `coverage.firmware.stale_tables`: the
+  firmware tables (`unifi`, `fortigate`) past their 180-day window, with the
+  day each was last updated, for the vendors the caller has devices from.
+  Varsler shows it under "Hva er sjekket".
 
 ---
 

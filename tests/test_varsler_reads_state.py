@@ -9,8 +9,10 @@ that. /dashboard/alerts now reads the stored TLS and firmware state directly.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
+from app.modules.fortigate_audit import firmware_lifecycle
+from app.modules.unifi_audit import firmware_db
 from app.services import alert_engine, firmware_inventory, tls_inventory
 from tests.scope_fixtures import (  # autouse fixtures apply to this module
     ACME,
@@ -21,6 +23,11 @@ from tests.scope_fixtures import (  # autouse fixtures apply to this module
     client,
     login,
 )
+
+# A frozen clock two days after the firmware tables were checked, and one well
+# past their freshness window.
+_FRESH = date(2026, 10, 6)
+_STALE = date(2027, 6, 1)
 
 
 def _cert(host: str, days: float, customer_id: str | None, **extra) -> dict:
@@ -83,6 +90,7 @@ async def test_varsler_lists_stored_certificates_and_firmware_with_no_channel(
     client, monkeypatch, tmp_path
 ):
     monkeypatch.setattr(alert_engine, "_ALERT_HISTORY_PATH", tmp_path / "alert_history.json")
+    monkeypatch.setattr(firmware_inventory, "_today", lambda: _FRESH)
     await _seed()
     config = alert_engine.get_alert_config()
     assert config["enabled"] is False and not config["email_recipient"]
@@ -121,9 +129,34 @@ async def test_varsler_lists_stored_certificates_and_firmware_with_no_channel(
         "devices": 4,
         "unknown": 1,
         "last_read": body["coverage"]["firmware"]["last_read"],
+        "stale_tables": [],
     }
     assert body["total_alerts"] == len(body["certificates"]) + len(body["firmware"])
     assert_no_foreign(r.text)
+
+
+async def test_a_firmware_table_past_its_window_is_named_beside_the_unconfirmed_count(
+    client, monkeypatch
+):
+    """A stale table turns every "current" into "unknown". Without saying so,
+    Varsler showed a count of unconfirmed devices and no reason for it."""
+    await _seed()
+    monkeypatch.setattr(firmware_inventory, "_today", lambda: _STALE)
+    acme = await login("tech-acme", customers=(ACME,))
+    cov = client.get("/api/dashboard/alerts", headers=acme).json()["coverage"]["firmware"]
+    # Acme has UniFi devices only: the FortiOS table is not Acme's concern.
+    assert cov["stale_tables"] == [{"vendor": "unifi", "as_of": firmware_db.LAST_UPDATED}]
+
+    boss = await login("boss", all_customers=True)
+    cov = client.get("/api/dashboard/alerts", headers=boss).json()["coverage"]["firmware"]
+    assert cov["stale_tables"] == [
+        {"vendor": "fortigate", "as_of": firmware_lifecycle.LAST_UPDATED},
+        {"vendor": "unifi", "as_of": firmware_db.LAST_UPDATED},
+    ]
+
+    monkeypatch.setattr(firmware_inventory, "_today", lambda: _FRESH)
+    cov = client.get("/api/dashboard/alerts", headers=boss).json()["coverage"]["firmware"]
+    assert cov["stale_tables"] == []
 
 
 async def test_an_unrestricted_account_sees_every_customers_state(client):
