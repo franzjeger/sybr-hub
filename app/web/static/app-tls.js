@@ -31,7 +31,7 @@ export function tlsLoadView() {
   html += '<div class="text-base fw-semibold mb-3">' + t('tls_scan_single','Check single endpoint') + '</div>';
   html += '<div class="flex gap-2 items-end flex-wrap">';
   html += '<div><label class="field-label">' + t('tls_host','Host') + '</label>';
-  html += '<input id="tls-host" type="text" placeholder="sybr.no" class="field-input input-medium"></div>';
+  html += '<input id="tls-host" type="text" placeholder="example.com" class="field-input input-medium"></div>';
   html += '<div><label class="field-label">' + t('tls_port','Port') + '</label>';
   html += '<input id="tls-port" type="number" value="443" class="field-input input-narrow"></div>';
   html += '<button class="btn btn-primary" data-click-handler="tlsCheckSingle">' + t('tls_check','Check') + '</button>';

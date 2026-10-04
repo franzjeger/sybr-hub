@@ -2061,13 +2061,22 @@ def _is_mgmt_vlan(vlan: dict) -> bool:
     return "mgmt" in name or "management" in name
 
 
+def _inform_host_setting() -> str:
+    from app.core.config import load_app_settings
+
+    return str(load_app_settings().get("unifi_inform_host") or "").strip()
+
+
 def _unifi_option43(host: str) -> str:
     """DHCP option 43 pointing UniFi devices at the controller, or "" if unresolvable.
 
     Sub-option 1, length 4, the IPv4 address: 203.0.113.10 -> 0104cb00710a.
+    No host is no option: gethostbyname("") answers 0.0.0.0.
     """
     import socket
 
+    if not host:
+        return ""
     try:
         ip = socket.gethostbyname(host)
         octets = [int(o) for o in ip.split(".")]
@@ -2225,7 +2234,10 @@ def _build_rest_plan(steps: dict, conn: dict) -> _RestPlan:
         ntp=ntp,
         mgmt_phys_base=mgmt_phys_base,
         mgmt_phys_gw=f"{mgmt_phys_base}.1",
-        unifi_controller_host=services.get("unifi_controller_host") or "unifi.sybr.no",
+        # The wizard's own value, else the inform host set in Administrasjon >
+        # Integrasjoner > UniFi. It was one MSP's own controller, written into
+        # the code, for every installation; with neither, option 43 is left out.
+        unifi_controller_host=services.get("unifi_controller_host") or _inform_host_setting(),
         vpn_name=vpn_name,
         vpn_user="sybr_admin",
         vpn_group=f"{cust_prefix}_VPN-ADMINS",

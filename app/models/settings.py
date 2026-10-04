@@ -211,6 +211,9 @@ class SettingsUpdate(BaseModel):
     unifi_controller_host: str = ""
     unifi_controller_username: str = ""
     unifi_controller_password: str = ""
+    # Where UniFi devices report in: Set-Inform's default and provisioning's
+    # DHCP option 43. A host name or address; empty clears it.
+    unifi_inform_host: str = ""
     also_username: str = ""
     also_password: str = ""
     also_country: str = ""

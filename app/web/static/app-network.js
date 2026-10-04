@@ -53,20 +53,17 @@ registerUiHandlers({
   },
   testUniFiDevice: function(el) { testUniFiDevice(Number(el.dataset.index)); },
   removeUniFiDevice: function(el) { removeUniFiDevice(Number(el.dataset.index)); },
-  unifiDeviceSetInform: function(el) { unifiDeviceSetInform(el.dataset.host); },
+  unifiDeviceSetInform: function(el) { _openInformForm(_deviceCardSlot(el.dataset.host), el.dataset.host); },
+  netSendInform: function(el, event) { event.preventDefault(); _sendInform(el); },
+  netCloseInform: function(el) { _closeInformForm(el.closest('form')); },
   unifiDeviceConfig: function(el) { unifiDeviceConfig(el.dataset.host); },
   unifiDeviceReboot: function(el) { unifiDeviceReboot(el.dataset.host); },
   // Close on the running config a device card shows: empties the card's action area.
   unifiDeviceConfigClose: function(el) { el.parentElement.parentElement.innerHTML = ''; },
   addScannedDevice: function(el) { addScannedDevice(el.dataset.host, el); },
-  scanDeviceSetInform: function(el) { scanDeviceSetInform(el.dataset.host); },
+  scanDeviceSetInform: function(el) { _openInformForm(_scanRowSlot(el.dataset.rowId), el.dataset.host); },
   scanDeviceConfig: function(el) { scanDeviceConfig(el.dataset.host, el.dataset.rowId); },
   scanDeviceReboot: function(el) { scanDeviceReboot(el.dataset.host); },
-  doScanSetInform: function(el) { doScanSetInform(el.dataset.host, el.dataset.url); },
-  // The custom inform URL is read when the button is clicked.
-  doScanSetInformCustomUrl: function(el) {
-    doScanSetInform(el.dataset.host, document.getElementById('scan-inform-custom-url').value.trim());
-  },
   // Close on the running config shown under a scan result: hides and empties its row.
   scanDeviceConfigClose: function(el) {
     var r = document.getElementById(el.dataset.rowId);
@@ -1023,25 +1020,83 @@ function _deviceLogin(host) {
   return {host: host, customer_id: _netCustomerId};
 }
 
-async function unifiDeviceSetInform(host) {
-  var url = prompt(t('net_inform_prompt'));
-  if (!url) return;
-  try {
-    var d = await apiFetch('/api/unifi/set-inform', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(Object.assign(_deviceLogin(host), {controller_url: url}))
-    });
-    // apiFetch returns null on any HTTP error and has already told the user
-    // why. Reading .ok off it throws a TypeError, which the catch below then
-    // reports as a second, meaningless toast on top of the real one.
-    if (!d) return;
+// ── Set-Inform: an inline form under the device ──
+// Where a UniFi device reports in. It was a browser prompt() on the quick
+// check's cards and, on the scan results, a confirm dialog offering one MSP's
+// own controller as the only preset. The address starts from the inform host
+// set in Administrasjon › Integrasjoner › UniFi, if one is.
+// Read each time the form opens, so a host just saved there is the one offered.
+async function _informDefault() {
+  var settings = await apiFetch('/api/settings').catch(function() { return null; });
+  var host = (settings && settings.unifi_inform_host) || '';
+  return host ? 'http://' + host + ':8080/inform' : '';
+}
 
-    if (d.ok) {
-      showToast(t('msg_inform_sent').replace('{host}', host) + ' · ' + (d.output || 'OK'), 'success', 8000);
-    } else {
-      showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
-    }
-  } catch (e) { showToast(t('status_error') + ': ' + e.message, 'error'); }
+// The action area of the quick check's card for this device.
+function _deviceCardSlot(host) {
+  var slot = null;
+  document.querySelectorAll('[data-unifi-card]').forEach(function(card) {
+    if (!slot && card.dataset.unifiCard === host) slot = card.querySelector('[data-unifi-action]');
+  });
+  return slot;
+}
+
+// The row under a scan result.
+function _scanRowSlot(rowId) {
+  var row = document.getElementById(rowId);
+  if (!row) return null;
+  row.hidden = false;
+  return row.querySelector('td');
+}
+
+var _informSeq = 0;
+async function _openInformForm(slot, host) {
+  if (!slot) return;
+  var url = await _informDefault();
+  var id = 'inform-url-' + (++_informSeq);
+  slot.innerHTML = '<form class="inset cust-net-inform" data-submit-handler="netSendInform" data-host="' + esc(host) + '">'
+    + '<h4 class="cust-net-form-title">' + esc(t('set_inform')) + ' · ' + esc(host) + '</h4>'
+    + '<label class="field-label" for="' + id + '">' + esc(t('net_inform_url')) + '</label>'
+    + '<input class="field-input" id="' + id + '" type="text" autocomplete="off" value="' + esc(url) + '" placeholder="http://unifi.example.com:8080/inform" aria-describedby="' + id + '-hint">'
+    + '<p class="field-hint" id="' + id + '-hint">' + esc(t(url ? 'net_inform_default_hint' : 'net_inform_no_default')) + '</p>'
+    + '<div class="cust-net-form-actions">'
+    + '<button type="submit" class="btn btn-primary btn-sm" data-write>' + esc(t('btn_send')) + '</button>'
+    + '<button type="button" class="btn btn-ghost btn-sm" data-click-handler="netCloseInform">' + esc(t('btn_cancel')) + '</button>'
+    + '<span class="cust-net-result text-xs" role="status"></span>'
+    + '</div></form>';
+  var input = document.getElementById(id);
+  input.focus();
+  input.select();
+}
+
+function _closeInformForm(form) {
+  if (!form) return;
+  var slot = form.parentElement;
+  slot.innerHTML = '';
+  // A scan result's row closes with it.
+  var row = slot.closest('tr[id^="scan-cfg-"]');
+  if (row) row.hidden = true;
+}
+
+async function _sendInform(form) {
+  var host = form.dataset.host;
+  var url = form.querySelector('input').value.trim();
+  if (!url) { _netResult(form, 'text-danger', t('msg_enter_url')); return; }
+  var button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  _netResult(form, 'text-muted', t('msg_sending'));
+  var d = await apiFetch('/api/unifi/set-inform', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(Object.assign(_deviceLogin(host), {controller_url: url})),
+  }).catch(function() { return null; });
+  button.disabled = false;
+  // apiFetch has said why it got nothing.
+  if (!d) { _netResult(form, '', ''); return; }
+  if (d.ok) {
+    _netResult(form, 'text-success', t('msg_inform_sent').replace('{host}', host) + (d.output ? ' · ' + d.output : ''));
+  } else {
+    _netResult(form, 'text-danger', t('status_error') + ': ' + (d.error || t('err_unknown')));
+  }
 }
 
 async function unifiDeviceReboot(host) {
@@ -1161,7 +1216,7 @@ export async function runSubnetScan() {
         html += '<button class="btn btn-default btn-sm" data-write id="scan-add-' + esc(hostId) + '" data-click-handler="addScannedDevice" data-host="' + hostSafe + '">' + esc(t('btn_add', 'Add')) + '</button> ';
       }
       if (dev.ssh) {
-        html += '<button class="btn btn-default btn-sm" data-write data-click-handler="scanDeviceSetInform" data-host="' + hostSafe + '">' + esc(t('set_inform')) + '</button> ';
+        html += '<button class="btn btn-default btn-sm" data-write data-click-handler="scanDeviceSetInform" data-host="' + hostSafe + '" data-row-id="scan-cfg-' + esc(hostId) + '">' + esc(t('set_inform')) + '</button> ';
         html += '<button class="btn btn-default btn-sm" data-write data-click-handler="scanDeviceConfig" data-host="' + hostSafe + '" data-row-id="scan-cfg-' + esc(hostId) + '">' + esc(t('btn_view_config', 'Vis konfig')) + '</button> ';
         html += '<button class="btn btn-default btn-sm" data-write data-click-handler="scanDeviceReboot" data-host="' + hostSafe + '">' + esc(t('btn_restart', 'Restart')) + '</button>';
       }
@@ -1209,49 +1264,6 @@ async function addScannedDevice(host, btnEl) {
   } catch (e) {
     if (btnEl) { btnEl.textContent = t('status_error', 'Error'); btnEl.classList.add('text-danger'); btnEl.disabled = false; }
   }
-}
-
-async function scanDeviceSetInform(host) {
-  var presets = [
-    { label: 'unifi.sybr.no', url: 'http://unifi.sybr.no:8080/inform' }
-  ];
-  // Use the confirm modal infrastructure to show preset + custom URL picker
-  document.getElementById('confirm-modal-title').textContent = t('hdr_set_inform', 'Set-Inform') + ' · ' + host;
-  var bodyEl = document.getElementById('confirm-modal-body');
-  var pickHtml = '<div class="flex flex-col gap-2 mb-3">';
-  for (var p of presets) {
-    pickHtml += '<button class="btn btn-primary btn-sm" data-click-handler="doScanSetInform" data-host="' + esc(host) + '" data-url="' + esc(p.url) + '">' + esc(p.label) + ' <span class="text-2xs opacity-70 ml-1">' + esc(p.url) + '</span></button>';
-  }
-  pickHtml += '</div>';
-  pickHtml += '<div class="text-sm text-muted mb-1">' + esc(t('eller_angi_manuelt')) + '</div>';
-  pickHtml += '<div class="flex gap-2 items-center">';
-  pickHtml += '<input class="field-input flex-1 m-0" id="scan-inform-custom-url" type="text" placeholder="http://controller:8080/inform">';
-  pickHtml += '<button class="btn btn-default btn-sm nowrap" data-click-handler="doScanSetInformCustomUrl" data-host="' + esc(host) + '">' + esc(t('btn_send', 'Send')) + '</button>';
-  pickHtml += '</div>';
-  bodyEl.innerHTML = pickHtml;
-  var modal = document.getElementById('confirm-modal');
-  modal.style.display = 'flex';
-  // Hide default OK/Cancel — our inline buttons handle it; clicking backdrop closes
-  modal.querySelector('.modal-actions').style.display = 'none';
-}
-
-async function doScanSetInform(host, url) {
-  if (!url) { showToast(t('msg_enter_url', 'Enter a URL'), 'warning'); return; }
-  var modal = document.getElementById('confirm-modal');
-  modal.style.display = 'none';
-  modal.querySelector('.modal-actions').style.display = '';
-  try {
-    var d = await apiFetch('/api/unifi/set-inform', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(Object.assign(_deviceLogin(host), {controller_url: url}))
-    });
-    if (!d) return;
-    if (d.ok) {
-      showToast(t('msg_inform_sent').replace('{host}', host) + ' · ' + (d.output || 'OK'), 'success', 8000);
-    } else {
-      showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error');
-    }
-  } catch (e) { showToast(t('status_error') + ': ' + e.message, 'error'); }
 }
 
 async function scanDeviceConfig(host, rowId) {
