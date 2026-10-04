@@ -239,6 +239,23 @@ async def record_read_failure(
         await record(customer_id, vendor, [unread(key=key, name=name, error=error)])
 
 
+async def forget(customer_id: str, vendor: str) -> None:
+    """Drop every reading of *vendor*'s devices at *customer_id*.
+
+    For a device the customer no longer has (its FortiGate removed, its UniFi
+    unlinked): nobody will read it again, so its last reading, or the failed
+    read standing in for it, would stay in Varsler for good.
+    """
+    if vendor not in VENDORS:
+        raise ValueError(f"unknown vendor {vendor!r}")
+    async with get_db() as db:
+        await db.execute(
+            "DELETE FROM device_firmware WHERE customer_id = ? AND vendor = ?",
+            (customer_id, vendor),
+        )
+        await db.commit()
+
+
 async def record_quietly(coro_fn, *args, **kwargs) -> None:
     """Run a recorder where the caller's own answer must not depend on it.
 

@@ -331,6 +331,38 @@ async def test_a_bootstrap_admin_password_makes_removal_an_admins_call(client, s
     assert not [k for (cid, k) in secrets if cid == "acme" and k.startswith("fortigate")]
 
 
+async def test_removal_takes_the_devices_firmware_readings_with_it(client, stored):
+    """Nobody reads a removed device again, so its last reading, or the
+    failed read standing in for it, would stay in Varsler for good."""
+    from app.core.database import get_db
+    from app.services import firmware_inventory
+
+    await firmware_inventory.record_read_failure(
+        "acme", "fortigate", "unreachable", key="192.0.2.1", name="192.0.2.1"
+    )
+    await firmware_inventory.record_read_failure(
+        "acme", "unifi", "unreachable", key="controller", name="controller"
+    )
+    await firmware_inventory.record_read_failure(
+        "other", "fortigate", "unreachable", key="198.51.100.1", name="fw"
+    )
+
+    async def readings():
+        async with (
+            get_db() as db,
+            db.execute(
+                "SELECT customer_id, vendor FROM device_firmware ORDER BY customer_id, vendor"
+            ) as cur,
+        ):
+            return [tuple(r) for r in await cur.fetchall()]
+
+    headers = await _headers("firmware-remover")
+    assert client.delete("/api/fortigate/acme", headers=headers).status_code == 200
+    assert await readings() == [("acme", "unifi"), ("other", "fortigate")]
+    assert client.delete("/api/unifi/acme", headers=headers).status_code == 200
+    assert await readings() == [("other", "fortigate")]
+
+
 async def test_a_viewer_cannot_remove_a_fortigate(client, stored):
     records, _ = stored
     r = client.delete("/api/fortigate/acme", headers=await _headers("v", Role.viewer))
