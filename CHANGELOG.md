@@ -6,7 +6,7 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
-### Nettverksoppsett på kundesiden, og planleggeren audit-erer riktig kunde
+### Nettverksoppsett på kundesiden, og planleggeren auditerer riktig kunde
 
 - FortiGate og UniFi settes opp på kundens Nettverk-fane: legg til, test,
   endre og fjern, med status per enhet. Hurtigsjekk, nettverksskanner og
@@ -17,13 +17,13 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
   serveren.
 - Når en enhet fjernes, slettes også nøkler, passord og lagrede
   firmwareavlesninger.
-- Automatisk audit av én kunde audit-erte den kunden som sist ble satt opp. Nå
+- Automatisk audit av én kunde auditerte den kunden som sist ble satt opp. Nå
   velger du kunden, og uten valgt kunde kjører ingen audit.
 - Kunder med delegert tilgang (GDAP) ble aldri med i den planlagte kjøringen
   for alle kunder. Nå blir de det.
 - Den ukentlige rapport-e-posten ble aldri sendt, fordi den lette etter
   kjøringer på feil sted. Nå sendes én e-post per kunde for siste kjøring.
-- Enheter lagt inn direkte ble alltid audit-ert som tilgangspunkter, uansett
+- Enheter lagt inn direkte ble alltid auditert som tilgangspunkter, uansett
   type. Typen følger nå med.
 
 ### Rapportene sier hva de ikke målte, på riktig språk
