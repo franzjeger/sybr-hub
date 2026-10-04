@@ -25,8 +25,6 @@ ALLOWED_SELECTORS = {
     re.compile(r"^\.integ-logo--[a-z]+$"): "a vendor's brand colour",
     # A report is a white page in either theme.
     re.compile(r"^\.report-viewer-frame$"): "a report is a white page",
-    # Dark whatever the theme, until the terminal reads its colours from the tokens.
-    re.compile(r"^\.term-container$"): "the terminal's own palette",
 }
 
 

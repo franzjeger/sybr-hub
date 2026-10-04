@@ -80,6 +80,23 @@
     --on-accent: #fff;
     /* The tooltip bubble: dark in both themes, under --on-accent. */
     --tooltip-bg: #1a1a2e;
+    /* The web terminal's palette (app-infra.js reads these into xterm when it
+       opens a terminal and when the theme changes). Plain colours only: the
+       script reads them as written, so a var() or color-mix() here would
+       reach xterm unresolved. The eight ANSI colours, and their bright
+       variants where xterm's own would not read on this background. */
+    --term-bg:        #0d1117;
+    --term-fg:        #e6edf3;
+    --term-cursor:    #4d9fb5;
+    --term-selection: #264f78;
+    --term-black:     #484f58;
+    --term-red:       #f85149;
+    --term-green:     #3fb950;
+    --term-yellow:    #d29922;
+    --term-blue:      #58a6ff;
+    --term-magenta:   #bc8cff;
+    --term-cyan:      #4d9fb5;
+    --term-white:     #e6edf3;
     --mono:      'Cascadia Code', 'Fira Code', 'Consolas', monospace;
     --sans:      'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --logo-src:  url('/branding/SYBR_3.png');
@@ -165,6 +182,29 @@
     --orange-btn: #9a6700;
     --green-btn:  #1a7f37;
     --amber:     #6e6a00;
+    /* The terminal on a white page: dark text, and ANSI colours dark enough
+       to read on it, bright variants included (xterm's own bright white and
+       yellow vanish on white). */
+    --term-bg:        #ffffff;
+    --term-fg:        #1f2328;
+    --term-cursor:    #1d6387;
+    --term-selection: #b6d7ff;
+    --term-black:     #24292f;
+    --term-red:       #cf222e;
+    --term-green:     #116329;
+    --term-yellow:    #7d4e00;
+    --term-blue:      #0969da;
+    --term-magenta:   #8250df;
+    --term-cyan:      #1b7c83;
+    --term-white:     #6e7781;
+    --term-bright-black:   #57606a;
+    --term-bright-red:     #a40e26;
+    --term-bright-green:   #1a7f37;
+    --term-bright-yellow:  #633c01;
+    --term-bright-blue:    #218bff;
+    --term-bright-magenta: #a475f9;
+    --term-bright-cyan:    #3192aa;
+    --term-bright-white:   #8c959f;
     --purple:    #8250df;
     --info:      #0969da;
     --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
@@ -3055,7 +3095,7 @@ textarea.field-input { resize: vertical; }
 .session-canvas { width: 100%; height: calc(100vh - 160px); overflow: hidden; }
 .session-canvas.is-tall { height: calc(100vh - 180px); }
 /* The terminal paints its own dark background in both themes. */
-.term-container { background: #0d1117; height: calc(100vh - 160px); padding: var(--space-1); }
+.term-container { background: var(--term-bg); height: calc(100vh - 160px); padding: var(--space-1); }
 .icon-btn-sm {
   display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; cursor: pointer;
   background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted);
