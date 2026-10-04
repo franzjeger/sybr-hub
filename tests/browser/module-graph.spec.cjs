@@ -93,7 +93,7 @@ test('every view, customer tab and Administrasjon pane opens without an error', 
   await settled(page, '#view-docs');
   // Their tabs.
   await activate(page.locator('[data-click-handler="showView"][data-view="network"]'));
-  for (const tab of ['net-devices', 'net-fortigates', 'net-unifi', 'net-audit', 'net-tls']) {
+  for (const tab of ['net-fortigates', 'net-unifi', 'net-tls']) {
     await page.locator(`.net-sub-btn[data-tab="${tab}"]`).click();
     await expect(page.locator('#' + tab)).toBeVisible();
     await settled(page, '#' + tab);

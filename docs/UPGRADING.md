@@ -1,3 +1,25 @@
+# A customer's FortiGate and UniFi are set up on its page (unreleased)
+
+- **Verktøy › Nettverk lost its Enheter and Audit tabs** and its "Kunde"
+  field. A customer's FortiGate and UniFi link are added, edited, tested and
+  removed on the customer's page, Nettverk tab, together with the quick
+  check, the subnet scanner and the config backups. Verktøy › Nettverk is
+  the every-customer view: FortiGate, UniFi, TLS.
+- **New routes:** `DELETE /api/fortigate/{id}` (the address, settings and
+  every FortiGate secret; admin-only while a bootstrap admin password is
+  stored) and `DELETE /api/unifi/{id}` (controller, site, direct devices and
+  the stored login; the Site Manager console match stays).
+- **`GET /api/network-devices/{id}` no longer returns UniFi direct devices'
+  passwords**, only `has_password`. A script that read them and sent them back
+  to `/api/unifi/{test-device,set-inform,reboot-device,device-config}` sends
+  `customer_id` instead and the server uses the stored login.
+  `/api/unifi/save/{id}` keeps a device's stored password when the device is
+  sent without one. `/api/fortigate/test` and `/api/unifi/test` take
+  `customer_id` too, to test with the stored token or login for the address
+  it was stored for.
+
+---
+
 # Automatic audit of one customer names the customer (unreleased)
 
 - **The one-customer mode audited the setup staging slot**, the customer set

@@ -28,7 +28,7 @@ import {
   _showAuditRunningChrome, auditCustomerId, auditRunning, exportCSV, generateReport, loadHistory,
   loadScopeSections, pollAuditProgress, resetAuditScope, startAudit, updateScopeSummary,
 } from './app-audit.js';
-import {loadFiles} from './app-network.js';
+import {custNetworkLoad, loadFiles} from './app-network.js';
 import {renderExpiryBanner, tagPillsHtml, uploadReportsToITGlue} from './app-customers.js';
 import {_auditDateLabel, mountCustomerFindings, openLinkPicker} from './app-findings.js';
 import {_activityLabel, _syncBottomNav} from './app-chrome.js';
@@ -485,14 +485,15 @@ export function custReportFromRun(timestamp) {
 
 // ── Nettverk, Tilgang, Detaljer ───────────────────────────────────────────────
 function _custLoadNetwork(customerId) {
+  // Its FortiGate and UniFi, set up here, the quick check and the backups.
+  custNetworkLoad(customerId);
   var body = document.getElementById('cust-network-body');
   body.innerHTML = '<div class="card" id="customer-network-panel"><div class="loading-note">' + esc(t('msg_loading_network', 'Laster nettverk...')) + '</div></div>';
   _loadCustomerNetworkInventory(customerId).then(function() {
     var panel = document.getElementById('customer-network-panel');
     if (!panel || panel.style.display !== 'none' || _custPage.id !== customerId) return;
-    // No device of this customer is known to the network integrations. The
-    // panel head already links to every customer's network.
-    body.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_customer_network', 'Ingen FortiGate eller UniFi er knyttet til denne kunden.')) + '</p></div>';
+    // Nothing read from its devices yet. The list above says what is set up.
+    body.innerHTML = '';
   });
 }
 

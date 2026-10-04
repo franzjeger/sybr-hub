@@ -291,25 +291,15 @@
     <!-- ════════════ NETWORK VIEW ════════════ -->
     <div class="view" id="view-network">
       <h1 class="page-title" data-i18n="nav_network">Nettverk</h1>
+      <!-- Every customer's gear at once. One customer's FortiGate and UniFi
+           are set up on that customer's page, on its Nettverk tab. -->
       <div class="tabs" role="tablist">
-        <button class="tab net-sub-btn active" data-sub="net-devices" data-click-handler="switchNetSub" data-tab="net-devices" data-i18n="net_tab_devices">Enheter</button>
-        <button class="tab net-sub-btn" data-sub="net-fortigates" data-click-handler="switchNetSub" data-tab="net-fortigates" data-i18n="net_tab_fortigate">FortiGate</button>
+        <button class="tab net-sub-btn active" data-sub="net-fortigates" data-click-handler="switchNetSub" data-tab="net-fortigates" data-i18n="net_tab_fortigate">FortiGate</button>
         <button class="tab net-sub-btn" data-sub="net-unifi" data-click-handler="switchNetSub" data-tab="net-unifi" data-i18n="net_tab_unifi">UniFi</button>
-        <button class="tab net-sub-btn" data-sub="net-audit" data-click-handler="switchNetSub" data-tab="net-audit" data-i18n="net_tab_audit">Audit</button>
         <button class="tab net-sub-btn" data-sub="net-tls" data-click-handler="switchNetSub" data-tab="net-tls">TLS</button>
       </div>
 
-      <div id="net-devices" class="net-sub-content">
-        <div class="tool-customer-bar" data-tool-customer="network"></div>
-        <div id="network-devices-content" class="text-ui text-muted">
-          <div class="empty-note">
-            <div class="loader loader-lg mx-auto mt-0 mb-4"></div>
-            <span data-i18n="msg_loading_network_devices">Laster nettverksenheter...</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="net-fortigates" class="net-sub-content" hidden>
+      <div id="net-fortigates" class="net-sub-content">
         <div class="flex items-center gap-3 mb-4">
           <select id="fg-live-interval" data-change-handler="liveSetInterval" class="field-input field-input-sm w-auto">
             <option value="30" data-i18n="s">30s</option>
@@ -337,42 +327,6 @@
             <div class="loader loader-md mx-auto mt-0 mb-3"></div>
             <span data-i18n="msg_loading_unifi_sites">Henter UniFi-enheter fra alle kunder...</span>
           </div>
-        </div>
-      </div>
-
-      <!-- net-live merged into net-fortigates -->
-
-      <div id="net-audit" class="net-sub-content" hidden>
-        <div class="tool-customer-bar" data-tool-customer="network"></div>
-        <div class="flex items-center justify-between mb-4">
-          <div class="text-md fw-semibold" data-i18n="hdr_network_audit">Nettverks-audit</div>
-          <button data-write class="btn btn-primary" data-click-handler="runNetworkQuickAudit" id="btn-run-network-audit" data-i18n="btn_run_quick_check">Kjør hurtigsjekk</button>
-        </div>
-        <div class="text-ui text-muted mb-4" data-i18n="msg_quick_check_desc">
-          Hurtigsjekk henter system-info, admin-kontoer, brannmurregler og firmware fra konfigurerte enheter.
-        </div>
-        <div id="net-audit-result"></div>
-
-        <!-- Subnet scanner -->
-        <div class="card mt-6">
-          <div class="card-title" data-i18n="hdr_network_scanner">Nettverks-skanner</div>
-          <div class="text-ui text-muted mb-3" data-i18n="msg_scan_subnet_desc">Skann et subnet for å oppdage UniFi-enheter automatisk.</div>
-          <div class="flex gap-2 items-end">
-            <div class="flex-1">
-              <label class="field-label" data-i18n="lbl_subnet_cidr">Subnet (CIDR)</label>
-              <input class="field-input mb-0" id="input-scan-subnet" type="text" placeholder="192.168.1.0/24">
-            </div>
-            <button data-write class="btn btn-primary nowrap" data-click-handler="runSubnetScan" id="btn-subnet-scan" data-i18n="btn_scan">Skann</button>
-          </div>
-          <div id="subnet-scan-result" class="mt-3"></div>
-        </div>
-
-        <!-- Config backups -->
-        <div class="card mt-4">
-          <div class="card-title" data-i18n="hdr_config_backups">Konfigurasjon-backups</div>
-          <div class="text-ui text-muted mb-3" data-i18n="msg_config_backups_desc">Lagrede konfigurasjonsfiler fra nettverksenheter.</div>
-          <button class="btn btn-default btn-sm mb-2" data-click-handler="loadConfigBackups" data-i18n="btn_refresh_list">Oppdater liste</button>
-          <div id="config-backups-list"></div>
         </div>
       </div>
 
@@ -1319,13 +1273,13 @@
           POST /browser/start &middot; POST /browser/navigate &middot; POST /browser/stop &middot; GET /browser/status<br><br>
 
           <strong class="text-accent">FortiGate (/api/fortigate/*)</strong><br>
-          POST /fortigate/test &middot; POST /fortigate/save/{id} &middot; POST /fortigate/bootstrap &middot; GET /fortigate/all<br>
+          POST /fortigate/test &middot; POST /fortigate/save/{id} &middot; DELETE /fortigate/{id} &middot; POST /fortigate/bootstrap &middot; GET /fortigate/all<br>
           GET /fortigate/dashboard/{id} &middot; GET /fortigate/compliance/{id}<br>
           POST /fortigate/backup/{id} &middot; GET /fortigate/backups/{id} &middot; GET /fortigate/backup/{id}/{fil}<br>
           GET /fortigate/diff/{id} &middot; POST /fortigate/deploy-key/{id} &middot; POST /fortigate/generate-token/{id}<br><br>
 
           <strong class="text-accent">UniFi (/api/unifi/*)</strong><br>
-          POST /unifi/test &middot; POST /unifi/save/{id} &middot; POST /unifi/test-device<br>
+          POST /unifi/test &middot; POST /unifi/save/{id} &middot; DELETE /unifi/{id} &middot; POST /unifi/test-device<br>
           GET /unifi/dashboard/{id} &middot; GET /unifi/firmware-check/{id} &middot; GET /unifi/controller-summary/{id}<br>
           POST /unifi/site-manager/auth &middot; GET /unifi/site-manager/sites<br>
           GET /unifi/sm/devices &middot; GET /unifi/sm/isp-metrics &middot; GET /unifi/sm/site/{id}/wan<br>
@@ -1654,7 +1608,44 @@
         <h2 class="cust-panel-title" data-i18n="nav_network">Nettverk</h2>
         <button class="btn btn-ghost btn-sm" data-view-gate="network" data-click-handler="showView" data-view="network" data-i18n="btn_open_network_tool">Alle kunders nettverk</button>
       </div>
+      <!-- The FortiGate and the UniFi link, with their state; added, changed
+           and removed here (app-network.js). -->
+      <div id="cust-net-setup"></div>
+      <!-- What the network integrations last read from them. -->
       <div id="cust-network-body"></div>
+
+      <section class="card cust-net-card" id="cust-net-check" data-feature="network" aria-labelledby="cust-net-check-title" hidden>
+        <div class="cust-card-head">
+          <h3 class="card-title" id="cust-net-check-title" data-i18n="net_quick_check_title">Hurtigsjekk</h3>
+          <button data-write class="btn btn-primary btn-sm" data-click-handler="runNetworkQuickAudit" id="btn-run-network-audit" data-i18n="btn_run_quick_check">Kjør hurtigsjekk</button>
+        </div>
+        <p class="cust-card-text" data-i18n="msg_quick_check_desc">Hurtigsjekk henter system-info, admin-kontoer, brannmurregler og firmware fra konfigurerte enheter.</p>
+        <div id="net-audit-result"></div>
+      </section>
+
+      <section class="card cust-net-card" data-feature="network" aria-labelledby="cust-net-scan-title">
+        <div class="cust-card-head">
+          <h3 class="card-title" id="cust-net-scan-title" data-i18n="hdr_network_scanner">Nettverks-skanner</h3>
+        </div>
+        <p class="cust-card-text" data-i18n="net_scan_desc">Skann et subnet etter UniFi-enheter. Legg til lagrer enheten som en direkte enhet hos denne kunden.</p>
+        <div class="cust-net-scan-row">
+          <div class="cust-net-scan-field">
+            <label class="field-label" for="input-scan-subnet" data-i18n="lbl_subnet_cidr">Subnet (CIDR)</label>
+            <input class="field-input mb-0" id="input-scan-subnet" type="text" placeholder="192.0.2.0/24">
+          </div>
+          <button data-write class="btn btn-primary nowrap" data-click-handler="runSubnetScan" id="btn-subnet-scan" data-i18n="btn_scan">Skann</button>
+        </div>
+        <div id="subnet-scan-result" class="mt-3"></div>
+      </section>
+
+      <section class="card cust-net-card" id="cust-net-backups" aria-labelledby="cust-net-backups-title" hidden>
+        <div class="cust-card-head">
+          <h3 class="card-title" id="cust-net-backups-title" data-i18n="hdr_config_backups">Konfigurasjon-backups</h3>
+          <button class="btn btn-ghost btn-sm" data-click-handler="loadConfigBackups" data-i18n="btn_refresh_list">Oppdater liste</button>
+        </div>
+        <p class="cust-card-text" data-i18n="msg_config_backups_desc">Lagrede konfigurasjonsfiler fra nettverksenheter.</p>
+        <div id="config-backups-list"></div>
+      </section>
     </section>
 
     <!-- Tilgang: how to reach this customer's systems. -->

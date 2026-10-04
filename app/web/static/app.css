@@ -2173,12 +2173,45 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 #cust-panel-detaljer .card { margin: 0 0 var(--space-4); }
 .cust-report-result:empty { display: none; }
 .cust-report-result { margin-bottom: var(--space-3); }
-/* The customer a tool (Nettverk's Enheter and Audit, the FortiGate form) works on. */
+/* The customer a tool (the FortiGate API form, provisioning, pentest) works on. */
 .tool-customer-bar { margin-bottom: var(--space-4); }
 .tool-customer-label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--font-sm); color: var(--text-muted); max-width: 440px; }
 .tool-customer-label span { white-space: nowrap; }
 .tool-customer-select { flex: 1 1 200px; min-width: 0; max-width: 360px; margin: 0; }
 .tool-customer-bar-inline { margin: var(--space-3) 0 0; }
+
+/* Nettverk: the customer's FortiGate and UniFi, the form that sets one up,
+   and the quick check, scanner and backups under them. */
+.cust-net-card { margin-bottom: var(--space-4); }
+.cust-net-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.cust-net-table .cust-net-act { text-align: right; white-space: nowrap; }
+.cust-net-act .btn + .btn { margin-left: var(--space-1); }
+.cust-net-addr { font-family: var(--mono); font-size: var(--font-xs); overflow-wrap: anywhere; }
+.cust-net-sub { color: var(--text-dim); font-size: var(--font-xs); }
+.cust-net-form { margin-top: var(--space-4); }
+.cust-net-form-title { font-size: var(--font-sm); font-weight: 700; margin: 0 0 var(--space-3); }
+.cust-net-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.cust-net-result { min-width: 0; overflow-wrap: anywhere; }
+.cust-net-mode { border: 0; padding: 0; margin: 0 0 var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.cust-net-mode legend { padding: 0; float: left; width: 100%; }
+.cust-net-add-device { margin-top: var(--space-3); padding: var(--space-3); border: 1px dashed var(--border); border-radius: var(--radius-md); }
+.cust-net-scan-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); }
+.cust-net-scan-field { flex: 1 1 220px; min-width: 0; }
+@media (max-width: 767px) {
+  /* A row per device as a small card: name and state, then where, then the buttons. */
+  .cust-net-table thead { display: none; }
+  .cust-net-table tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2);
+    grid-template-areas: "name status" "where where" "act act";
+    padding: var(--space-2) 0; border-bottom: 1px solid var(--row-divider);
+  }
+  .cust-net-table tr:last-child { border-bottom: 0; }
+  .cust-net-table td { border-bottom: 0; padding: 0; }
+  .cust-net-table .cust-net-name { grid-area: name; font-weight: 600; }
+  .cust-net-table .cust-net-status { grid-area: status; }
+  .cust-net-table .cust-net-where { grid-area: where; }
+  .cust-net-table .cust-net-act { grid-area: act; text-align: left; white-space: normal; }
+}
 
 /* Tilgang: the customer's Tailscale nodes. */
 .cust-ts { margin-top: var(--space-4); }

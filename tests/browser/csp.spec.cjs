@@ -256,10 +256,10 @@ test.describe('migrated controls, view by view', () => {
 
   test('network: the sub-tabs switch', async () => {
     await openView(page, 'network');
-    await page.locator('.net-sub-btn[data-tab="net-audit"]').click();
-    await expect(page.locator('#net-audit')).toBeVisible();
-    await page.locator('.net-sub-btn[data-tab="net-devices"]').click();
-    await expect(page.locator('#net-devices')).toBeVisible();
+    await page.locator('.net-sub-btn[data-tab="net-unifi"]').click();
+    await expect(page.locator('#net-unifi')).toBeVisible();
+    await page.locator('.net-sub-btn[data-tab="net-fortigates"]').click();
+    await expect(page.locator('#net-fortigates')).toBeVisible();
   });
 
   test('integrations: a card opens its settings', async () => {

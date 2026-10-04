@@ -30,8 +30,9 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # and Varsler; to 2894 with the customer page and Kunder; to 2261 with
 # Administrasjon; to 84 with the Verktøy pages; to 46 with the dialogs. What is
 # left is style="display:none" on elements a script shows by setting
-# style.display and reads back; keep new ones out (use hidden).
-INLINE_STYLE_ATTRIBUTE_BUDGET = 46
+# style.display and reads back; keep new ones out (use hidden). To 43 when
+# the network setup forms moved onto the customer page, built on hidden.
+INLINE_STYLE_ATTRIBUTE_BUDGET = 43
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)

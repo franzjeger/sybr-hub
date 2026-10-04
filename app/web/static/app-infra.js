@@ -2332,15 +2332,22 @@ function provisionCopySummary() {
 // FORTIGATE DASHBOARD (ALL CUSTOMERS)
 // ═══════════════════════════════════════════════════════════════════
 
+// To the customer list, where a customer's page sets up its FortiGate and UniFi.
+function _customersSignpostButton() {
+  return '<button class="btn btn-default btn-sm" data-click-handler="showView" data-view="customers">' + esc(t('nav_customers')) + '</button>';
+}
+
 export async function dashLoadFortiGates() {
   var el = document.getElementById('dash-fg-content');
   el.innerHTML = '<div class="loader loader-md"></div><div class="text-center text-muted text-sm">' + t('msg_loading_fortigates','Loading all FortiGate firewalls...') + '</div>';
 
   var data = await apiFetch('/api/fortigate/all');
-  if (!data || !data.fortigates) { el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_fortigates','Ingen FortiGater konfigurert. Legg dem til per kunde under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>'; return; }
+  // apiFetch has said why it got nothing.
+  if (!data || !data.fortigates) { el.innerHTML = '<div class="empty-note">' + esc(t('net_fleet_fortigate_failed')) + '</div>'; return; }
 
   var fgs = data.fortigates;
-  if (!fgs.length) { el.innerHTML = '<div class="empty-note">' + t('msg_no_fortigates_short','No FortiGates configured.') + '</div>'; return; }
+  // A customer's FortiGate is set up on its page, under Nettverk.
+  if (!fgs.length) { el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_fortigates')) + '</p>' + _customersSignpostButton() + '</div>'; return; }
 
   var online = fgs.filter(function(f){return f.status==='online';}).length;
   var errors = fgs.filter(function(f){return f.status==='error';}).length;
@@ -2966,7 +2973,7 @@ export async function dashLoadUnifiAll() {
   var summary = data.summary || {};
 
   if (!devices.length && !summary.configured_customers) {
-    el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('inf_no_unifi','Ingen UniFi-enheter konfigurert. Legg dem til per kunde under Administrasjon › Integrasjoner.')) + '</p>' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>';
+    el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('inf_no_unifi')) + '</p>' + _customersSignpostButton() + ' ' + adminSignpostButton('integrations', 'btn_open_integrations') + '</div>';
     return;
   }
 
