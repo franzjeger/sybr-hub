@@ -135,18 +135,18 @@ def test_the_server_and_the_screen_say_the_same(key):
         browser = UI[lang][key]
         server = _UI_STRINGS[lang].get(key, browser)
         assert server == browser, f"{key} ({lang})"
-        assert "—" not in browser and "–" not in browser
+        assert "\N{EM DASH}" not in browser and "\N{EN DASH}" not in browser
     assert set(re.findall(r"\{(\w+)\}", UI["no"][key])) == set(
         re.findall(r"\{(\w+)\}", UI["en"][key])
     )
 
 
 def test_an_english_reader_gets_english():
-    class _Request:
-        query_params = {"lang": "en"}
-        headers: dict = {}
+    from types import SimpleNamespace
 
-    assert ui_t("err_auto_send_no_smtp", _Request()) == (
+    request = SimpleNamespace(query_params={"lang": "en"}, headers={})
+
+    assert ui_t("err_auto_send_no_smtp", request) == (
         "Automatic sending is on, but no SMTP server is set"
     )
 
