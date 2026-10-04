@@ -202,10 +202,13 @@ async def test_the_flag_is_released_when_the_audit_fails(wired, monkeypatch):
     assert state.audit_running is False
 
 
-async def test_every_customer_mode_still_audits_every_configured_customer(wired):
+async def test_every_customer_mode_audits_every_configured_customer_delegated_ones_too(wired):
+    """A GDAP customer has a tenant and no app id. The cycle's filter asked
+    for an app id, so the docstring's "GDAP customers now work" never held:
+    they were skipped as unconfigured. The one without a tenant still is."""
     settings, built, _, _ = wired
     settings.update(audit_all_customers=True, customer_id="beta")
 
     await AuditScheduler()._run_scheduled_audit()
 
-    assert [cid for cid, _ in built] == ["acme", "beta"]
+    assert [cid for cid, _ in built] == ["acme", "beta", "gdap"]

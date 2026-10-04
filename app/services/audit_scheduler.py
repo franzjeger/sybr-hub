@@ -260,10 +260,12 @@ class AuditScheduler:
         switching was doing nothing except creating the hazard.
 
         Two things fall out of using the customer record directly. Customers
-        without TenantId and ClientId are skipped rather than attempted, as
-        bulk already does. And GDAP customers now work: ``from_config`` had no
-        GDAP branch, so every scheduled audit of a GDAP tenant failed, while
-        the same customer audited manually was fine.
+        without a Microsoft 365 setup are skipped rather than attempted. And
+        GDAP customers work: ``from_config`` had no GDAP branch, so every
+        scheduled audit of a GDAP tenant failed, while the same customer
+        audited manually was fine. (The filter that followed still asked for
+        a ClientId, which a GDAP customer does not have, so they were skipped
+        instead; ``_is_configured_for_audit`` asks what the audit route asks.)
         """
         from app.core.customer import CustomerManager
         from app.modules.m365_audit.auth import get_auth_for_customer
@@ -273,7 +275,7 @@ class AuditScheduler:
             log.warning("Scheduled audit: no customers registered, skipping")
             return
 
-        customers = [c for c in all_customers if c.get("TenantId") and c.get("ClientId")]
+        customers = [c for c in all_customers if _is_configured_for_audit(c)]
         unconfigured = len(all_customers) - len(customers)
         if unconfigured:
             log.info("Scheduled audit: skipping %d unconfigured customer(s)", unconfigured)
