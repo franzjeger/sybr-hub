@@ -1,3 +1,12 @@
+# Font served by the hub (unreleased)
+
+- **The interface no longer loads anything from Google.** Cairo is served
+  from `/static/vendor/`, and the CSP's `style-src` and `font-src` no longer
+  name `fonts.googleapis.com` or `fonts.gstatic.com`. A reverse proxy that
+  added those hosts to its own CSP can drop them.
+
+---
+
 # Frontend cleanup (unreleased)
 
 - **Set the UniFi inform host** in Administrasjon › Integrasjoner › UniFi
