@@ -152,6 +152,20 @@ MESSAGES: dict[str, tuple[str, str]] = {
         "Ingen mottakeradresse er angitt",
         "No recipient address is set",
     ),
+    # Why sending the report after an audit failed (core.email_sender
+    # .auto_send_after_audit). The audit screen words them from the key.
+    "err_auto_send_no_recipient": (
+        "Automatisk utsending er slått på, men ingen standardmottaker er satt",
+        "Automatic sending is on, but no default recipient is set",
+    ),
+    "err_auto_send_no_smtp": (
+        "Automatisk utsending er slått på, men ingen SMTP-server er satt",
+        "Automatic sending is on, but no SMTP server is set",
+    ),
+    "err_auto_send_failed": (
+        "Rapporten ble ikke sendt på e-post: {error}",
+        "The report was not sent by e-mail: {error}",
+    ),
 }
 
 

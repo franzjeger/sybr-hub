@@ -502,6 +502,18 @@ function _finishAuditWithoutStream() {
   custPageAuditFinished();
 }
 
+// What auto-send came to, in the reader's language. The completion event is
+// built where no reader is known, so it carries the key and the values; msg
+// is the server's Norwegian text for an event from before it did.
+function _emailStatusText(s) {
+  var out = s.msg_key ? t(s.msg_key, s.msg || '') : (s.msg || '');
+  var params = s.msg_params || {};
+  Object.keys(params).forEach(function(k) {
+    out = out.split('{' + k + '}').join(String(params[k]));
+  });
+  return out;
+}
+
 async function _attemptAuditStream(streamUrl) {
   try {
     const resp = await fetch(streamUrl, {method: streamUrl.indexOf('attach=1') === -1 ? 'POST' : 'GET'});
@@ -549,7 +561,7 @@ async function _attemptAuditStream(streamUrl) {
               var area = document.getElementById('report-result');
               var color = d.email_status.ok ? 'var(--green)' : 'var(--orange)';
               var icon = d.email_status.ok ? '✓' : '';
-              area.innerHTML += '<div class="alert ' + toneClass(color) + ' mt-2 text-ui">'+icon+' '+esc(d.email_status.msg)+'</div>';
+              area.innerHTML += '<div class="alert ' + toneClass(color) + ' mt-2 text-ui">'+icon+' '+esc(_emailStatusText(d.email_status))+'</div>';
             }
             return 'done';
           } else if (d.type === 'error') {
