@@ -158,10 +158,13 @@ def run():
         # All browser workers share one loopback IP and load the full asset
         # bundle per test. Rate-limit behavior has its own isolated unit tests;
         # the production limit must not turn this suite into a one-minute wait.
+        # 10000 a minute was within reach: some 170 specs, each loading the
+        # interface's modules and its calls, finished the shared project in
+        # about half a minute, and the specs after it met a 429 on the page.
         import app.web.middleware.rate_limit as rate_limit
 
-        rate_limit.GENERAL_LIMIT = 10000
-        rate_limit.SENSITIVE_LIMIT = 10000
+        rate_limit.GENERAL_LIMIT = 10**7
+        rate_limit.SENSITIVE_LIMIT = 10**7
         import uvicorn
 
         uvicorn.run("app.web.server:app", host="127.0.0.1", port=18099, log_level="warning")
