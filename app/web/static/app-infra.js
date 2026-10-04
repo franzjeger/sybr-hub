@@ -9,7 +9,7 @@ import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {registerToolCustomer} from './app-hooks.js';
 import {_allCustomers, _overviewData, currentCustomerId, setOverviewData} from './app-state.js';
-import {_formatBytes, badgeClass, toneClass, toneVar} from './app-format.js';
+import {_formatBytes, badgeClass, timeAgo, toneClass, toneVar} from './app-format.js';
 import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {renderToolCustomerPickers, showView, toolCustomerId} from './app.js';
@@ -93,7 +93,6 @@ registerUiHandlers({
   fgShowBackups: function(el) { fgShowBackups(el.dataset.customerId); },
   fgComplianceCheck: function(el) { fgComplianceCheck(el.dataset.customerId); },
   fgDownloadBackup: function(el) { fgDownloadBackup(el.dataset.customerId, el.dataset.filename); },
-  dashLoadFortiGates: function() { dashLoadFortiGates(); },
   fgBackupAll: function() { fgBackupAll(); },
   dashFgDetail: function(el) { dashFgDetail(el.dataset.customerId); },
   // Provisioning
@@ -1414,29 +1413,17 @@ async function fgBackupAll() {
   }
 }
 
+// "Oppdater nå": every firewall read live, once (/api/fortigate/all, which
+// also leaves each reading in the firmware inventory the stored list reads).
+// It used to read the list, then poll each customer again, then read the
+// list a third time.
 export async function fgPollAll() {
   var statusEl = document.getElementById('fg-live-status');
-  if (statusEl) statusEl.textContent = t('msg_updating','Updating...');
-  // Poll all customers that have FortiGate and merge live data into the FortiGate view
+  if (statusEl) statusEl.textContent = t('msg_updating');
   var data = await apiFetch('/api/fortigate/all');
-  if (data && data.fortigates) {
-    // Trigger live poll for each FortiGate customer
-    var pollPromises = [];
-    var seenCids = {};
-    for (var i = 0; i < data.fortigates.length; i++) {
-      var cid = data.fortigates[i].customer_id;
-      if (cid && !seenCids[cid]) {
-        seenCids[cid] = true;
-        pollPromises.push(apiFetch('/api/dashboard/poll/'+encodeURIComponent(cid), {method:'POST'}).catch(function(){return null;}));
-      }
-    }
-    await Promise.all(pollPromises);
-    // Reload the FortiGate view with fresh data — but only if no detail panel is open
-    if (!document.querySelector('.fg-detail-panel')) {
-      dashLoadFortiGates();
-    }
-  }
-  if (statusEl) statusEl.textContent = t('msg_last_updated','Sist oppdatert') + ': ' + new Date().toLocaleTimeString();
+  // A detail panel open meanwhile is left as it is.
+  if (data && data.fortigates && !document.querySelector('.fg-detail-panel')) _fgRenderFleet(data.fortigates, true);
+  if (statusEl) statusEl.textContent = data ? t('msg_last_updated') + ': ' + new Date().toLocaleTimeString() : '';
 }
 
 async function fgBackupConfig(customerId) {
@@ -2107,85 +2094,126 @@ function _customersSignpostButton() {
   return '<button class="btn btn-default btn-sm" data-click-handler="showView" data-view="customers">' + esc(t('nav_customers')) + '</button>';
 }
 
+// Verktøy › Nettverk › FortiGate opens on what the hub last read: the
+// customers' stored FortiGates and the readings the firmware inventory keeps
+// (/api/fortigate/fleet, which contacts no firewall). It used to poll every
+// customer's FortiGate live before drawing anything, so it opened as slowly
+// as the slowest firewall. "Oppdater nå" reads them all live (fgPollAll); a
+// card's detail panel reads its own.
 export async function dashLoadFortiGates() {
   var el = document.getElementById('dash-fg-content');
-  el.innerHTML = '<div class="loader loader-md"></div><div class="text-center text-muted text-sm">' + t('msg_loading_fortigates','Loading all FortiGate firewalls...') + '</div>';
-
-  var data = await apiFetch('/api/fortigate/all');
+  el.innerHTML = '<div class="loader loader-md"></div><div class="text-center text-muted text-sm">' + esc(t('msg_loading_fortigates')) + '</div>';
+  var status = document.getElementById('fg-live-status');
+  if (status) status.textContent = '';
+  var data = await apiFetch('/api/fortigate/fleet');
   // apiFetch has said why it got nothing.
   if (!data || !data.fortigates) { el.innerHTML = '<div class="empty-note">' + esc(t('net_fleet_fortigate_failed')) + '</div>'; return; }
+  _fgRenderFleet(data.fortigates, false);
+}
 
-  var fgs = data.fortigates;
+var _FG_FIRMWARE = {current: ['fg_fw_current', 'badge-success'], outdated: ['fg_fw_outdated', 'badge-warning'],
+  eol: ['fg_fw_eol', 'badge-danger'], unknown: ['fg_fw_unknown', '']};
+
+function _fgAverage(fgs, key) {
+  var seen = fgs.filter(function(f) { return f[key] !== null && f[key] !== undefined; });
+  return seen.length ? Math.round(seen.reduce(function(s, f) { return s + Number(f[key]); }, 0) / seen.length) : null;
+}
+
+// The KPI row and the cards, from the stored list or from a live read.
+function _fgRenderFleet(fgs, live) {
+  var el = document.getElementById('dash-fg-content');
   // A customer's FortiGate is set up on its page, under Nettverk.
   if (!fgs.length) { el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_fortigates')) + '</p>' + _customersSignpostButton() + '</div>'; return; }
 
-  var online = fgs.filter(function(f){return f.status==='online';}).length;
-  var errors = fgs.filter(function(f){return f.status==='error';}).length;
-
-  // Summary KPI cards
-  var totalVpn = fgs.reduce(function(s,f){return s+(f.vpn_tunnels||0);},0);
-  var totalPolicies = fgs.reduce(function(s,f){return s+(f.policy_count||0);},0);
-  var avgCpu = 0, cpuCount = 0;
-  fgs.forEach(function(f){if(f.cpu_pct!==null&&f.cpu_pct!==undefined){avgCpu+=Number(f.cpu_pct);cpuCount++;}});
-  avgCpu = cpuCount ? Math.round(avgCpu/cpuCount) : 0;
-  var avgMem = 0, memCount = 0;
-  fgs.forEach(function(f){if(f.mem_pct!==null&&f.mem_pct!==undefined){avgMem+=Number(f.mem_pct);memCount++;}});
-  avgMem = memCount ? Math.round(avgMem/memCount) : 0;
-
-  // ── KPI row: fixed-height cards, no justify-content ──
-  var html = '<div class="card-grid card-grid--kpi grid grid-cols-5 gap-3 mb-4">';
-  var kpis = [
-    {label:'Brannmurer', value:fgs.length, sub:online+' online'+(errors?' / '+errors+' ' + t('inf_errors_lc','feil'):''), color:'var(--blue)'},
-    {label:'Snitt CPU', value:avgCpu+'%', sub:'-', color: avgCpu>60?'var(--orange)':'var(--green)'},
-    {label:'Snitt minne', value:avgMem+'%', sub:'-', color: avgMem>70?'var(--orange)':'var(--green)'},
-    {label:'VPN-tunneler', value:Number(totalVpn), sub:'totalt', color:'var(--purple)'},
-    {label:'Brannmurregler', value:Number(totalPolicies), sub:'totalt', color:'var(--text-muted)'},
-  ];
+  var kpis;
+  if (live) {
+    var online = fgs.filter(function(f) { return f.status === 'online'; }).length;
+    var errors = fgs.filter(function(f) { return f.status === 'error'; }).length;
+    var cpu = _fgAverage(fgs, 'cpu_pct'), mem = _fgAverage(fgs, 'mem_pct');
+    kpis = [
+      {label: t('lbl_firewalls'), value: fgs.length, sub: t('fg_online_count').replace('{n}', online) + (errors ? ' / ' + errors + ' ' + t('inf_errors_lc') : ''), color: 'var(--blue)'},
+      {label: t('fg_kpi_avg_cpu'), value: cpu === null ? '-' : cpu + '%', sub: '', color: cpu > 60 ? 'var(--orange)' : 'var(--green)'},
+      {label: t('fg_kpi_avg_mem'), value: mem === null ? '-' : mem + '%', sub: '', color: mem > 70 ? 'var(--orange)' : 'var(--green)'},
+      {label: t('lbl_vpn_tunnels'), value: fgs.reduce(function(s, f) { return s + (Number(f.vpn_tunnels) || 0); }, 0), sub: t('lbl_total'), color: 'var(--purple)'},
+      {label: t('lbl_firewall_rules'), value: fgs.reduce(function(s, f) { return s + (Number(f.policy_count) || 0); }, 0), sub: t('lbl_total'), color: 'var(--text-muted)'},
+    ];
+  } else {
+    var attention = fgs.filter(function(f) { return f.firmware_status === 'outdated' || f.firmware_status === 'eol'; }).length;
+    var unread = fgs.filter(function(f) { return !f.read_at || f.read_error; }).length;
+    var reads = fgs.map(function(f) { return f.read_at; }).filter(Boolean).sort();
+    var last = reads.length ? reads[reads.length - 1] : null;
+    kpis = [
+      {label: t('lbl_firewalls'), value: fgs.length, sub: '', color: 'var(--blue)'},
+      {label: t('fg_kpi_firmware_attention'), value: attention, sub: '', color: attention ? 'var(--orange)' : 'var(--green)'},
+      {label: t('fg_kpi_unread'), value: unread, sub: '', color: unread ? 'var(--orange)' : 'var(--green)'},
+      {label: t('fg_kpi_last_read'), value: last ? timeAgo(last) : '-', sub: '', color: 'var(--text-muted)'},
+    ];
+  }
+  var html = '<div class="card-grid card-grid--kpi grid grid-cols-' + kpis.length + ' gap-3 mb-4">';
   kpis.forEach(function(k) {
     html += '<div class="card kpi-card ' + toneVar(k.color) + '">';
-    html += '<div class="kpi-value">'+k.value+'</div>';
-    html += '<div class="kpi-label">'+k.label+'</div>';
-    html += '<div class="kpi-sub">'+k.sub+'</div>';
+    html += '<div class="kpi-value">' + esc(String(k.value)) + '</div>';
+    html += '<div class="kpi-label">' + esc(k.label) + '</div>';
+    if (k.sub) html += '<div class="kpi-sub">' + esc(k.sub) + '</div>';
     html += '</div>';
   });
   html += '</div>';
 
-  html += '<div class="flex items-center gap-3 mb-3">';
-  html += '<button class="btn btn-ghost btn-sm" data-click-handler="dashLoadFortiGates">' + t('oppdater') + '</button>';
-  html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="fgBackupAll">' + t('backup_alle') + '</button>';
+  html += '<div class="fg-fleet-bar">';
+  if (!live) html += '<p class="fg-fleet-note">' + esc(t('fg_fleet_stored_note')) + '</p>';
+  html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="fgBackupAll">' + esc(t('backup_alle')) + '</button>';
   html += '</div>';
 
-  // ── Device cards: strict 3-row grid ──
   html += '<div class="grid grid-auto-lg gap-3">';
-  fgs.forEach(function(f) {
-    var color = f.status === 'online' ? 'var(--green)' : f.status === 'error' ? 'var(--red)' : 'var(--orange)';
-    html += '<div class="card device-card cursor-pointer edge-tone ' + toneVar(color) + '" data-click-handler="dashFgDetail" data-customer-id="'+esc(f.customer_id)+'">';
-
-    // ROW 1 — Header (24px): hostname + status dot
-    html += '<div class="device-card-head">';
-    html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">'+esc(f.hostname||f.host||'-')+'</strong>';
-    html += '<span class="dot ' + toneClass(color) + ' ml-2"></span>';
-    html += '</div>';
-
-    // ROW 2 — Subtitle (20px): customer name
-    html += '<div class="device-card-sub">'+esc(f.customer_name||'-')+'</div>';
-
-    // ROW 3 — Data (1fr): 2-col stats grid, ALWAYS 8 fields
-    html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
-    html += '<span>Model: <strong class="text-default">'+esc(f.model||'-')+'</strong></span>';
-    html += '<span>FW: '+esc(f.firmware||'-')+'</span>';
-    html += '<span>S/N: <span class="font-mono text-xs">'+esc(f.serial||'-')+'</span></span>';
-    html += '<span>Uptime: '+esc(f.uptime||'-')+'</span>';
-    html += '<span>CPU: '+(f.cpu_pct!=null ? Number(f.cpu_pct)+'%' : '-')+'</span>';
-    html += '<span>Mem: '+(f.mem_pct!=null ? Number(f.mem_pct)+'%' : '-')+'</span>';
-    html += '<span>VPN: '+(f.vpn_tunnels!=null ? Number(f.vpn_tunnels) : '-')+'</span>';
-    html += '<span>Rules: '+(f.policy_count!=null ? Number(f.policy_count) : '-')+'</span>';
-    html += '</div>';
-
-    html += '</div>';
-  });
+  fgs.forEach(function(f) { html += live ? _fgLiveCard(f) : _fgStoredCard(f); });
   html += '</div>';
   el.innerHTML = html;
+}
+
+function _fgCardHead(f, color, title) {
+  return '<div class="card device-card cursor-pointer edge-tone ' + toneVar(color) + '" data-click-handler="dashFgDetail" data-customer-id="' + esc(f.customer_id) + '">'
+    + '<div class="device-card-head">'
+    + '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">' + esc(f.hostname || f.host || '-') + '</strong>'
+    + '<span class="dot ' + toneClass(color) + ' ml-2" title="' + esc(title) + '"></span>'
+    + '</div>'
+    + '<div class="device-card-sub">' + esc(f.customer_name || '-') + '</div>';
+}
+
+// As last read: its model and firmware, the firmware's verdict, and when.
+function _fgStoredCard(f) {
+  var color = f.read_error ? 'var(--red)' : f.read_at ? 'var(--green)' : 'var(--text-dim)';
+  var when = f.read_at ? t('fg_read_at').replace('{time}', timeAgo(f.read_at)) : t('fg_never_read');
+  var html = _fgCardHead(f, color, f.read_error || when);
+  var fw = _FG_FIRMWARE[f.firmware_status];
+  html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+  html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
+  html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
+  html += '<span class="cust-net-addr">' + esc(f.host || '-') + '</span>';
+  html += '<span>' + (fw ? '<span class="badge ' + fw[1] + '">' + esc(t(fw[0])) + '</span>' : '') + '</span>';
+  html += '</div>';
+  html += '<div class="fg-card-foot' + (f.read_error ? ' text-danger' : '') + '">' + esc(f.read_error ? when + ': ' + f.read_error : when)
+    + (f.has_token ? '' : ' · ' + esc(t('fg_no_token'))) + '</div>';
+  html += '</div>';
+  return html;
+}
+
+// As read just now.
+function _fgLiveCard(f) {
+  var color = f.status === 'online' ? 'var(--green)' : f.status === 'error' ? 'var(--red)' : 'var(--orange)';
+  var html = _fgCardHead(f, color, f.error || f.status || '');
+  html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+  html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
+  html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
+  html += '<span>S/N: <span class="font-mono text-xs">' + esc(f.serial || '-') + '</span></span>';
+  html += '<span>' + esc(t('lbl_uptime')) + ': ' + esc(f.uptime || '-') + '</span>';
+  html += '<span>CPU: ' + (f.cpu_pct != null ? Number(f.cpu_pct) + '%' : '-') + '</span>';
+  html += '<span>' + esc(t('fg_mem')) + ': ' + (f.mem_pct != null ? Number(f.mem_pct) + '%' : '-') + '</span>';
+  html += '<span>VPN: ' + (f.vpn_tunnels != null ? Number(f.vpn_tunnels) : '-') + '</span>';
+  html += '<span>' + esc(t('fg_rules')) + ': ' + (f.policy_count != null ? Number(f.policy_count) : '-') + '</span>';
+  html += '</div>';
+  if (f.error) html += '<div class="fg-card-foot text-danger">' + esc(f.error) + '</div>';
+  html += '</div>';
+  return html;
 }
 
 function dashFgDetail(customerId) {

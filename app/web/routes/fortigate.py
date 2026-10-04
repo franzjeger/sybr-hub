@@ -26,6 +26,7 @@ from app.web.i18n import refusal, ui_t
 from app.web.middleware.auth import (
     get_current_user,
     require_customer_access,
+    require_feature,
     require_role,
 )
 
@@ -642,6 +643,59 @@ async def fortigate_firewall_audit(
     except Exception as e:
         logger.exception("Firewall audit failed for %s", customer_id)
         raise IntegrationError(str(e)) from e
+
+
+@router.get("/fortigate/fleet")
+async def fortigate_fleet(user: User = Depends(require_feature("network"))):
+    """Every FortiGate the caller may see, as the hub last read it.
+
+    Contacts no firewall. Verktøy > Nettverk opened on /fortigate/all, which
+    polls every customer's FortiGate live (ten seconds each at worst, all of
+    them before the page drew anything). This is what it shows on open: each
+    customer's stored FortiGate address, and the reading the fleet poll, the
+    daily firmware job or a detail panel last left in the firmware inventory
+    (app/services/firmware_inventory.py). /fortigate/all stays the live read,
+    on demand. Gated like the firmware lists it reads (app/web/routes/firmware.py).
+    """
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
+    from app.core.rbac import customer_in_scope, get_accessible_customer_ids
+    from app.services import firmware_inventory
+
+    allowed = await get_accessible_customer_ids(user)
+    names: dict[str, str] = {}
+    configured: list[tuple[str, str]] = []
+    for c in CustomerManager.list_customers():
+        cid = c.get("_id", "")
+        names[cid] = c.get("CustomerName", "")
+        host = str(c.get("FortiGateHost") or "").strip()
+        if cid and host and customer_in_scope(cid, allowed):
+            configured.append((cid, host))
+    # The poll records each firewall under its address, lower-cased.
+    readings = {
+        (d["customer_id"], d["device_key"]): d
+        for d in await firmware_inventory.list_devices(allowed, names=names)
+        if d["vendor"] == "fortigate"
+    }
+    fleet = []
+    for cid, host in configured:
+        reading = readings.get((cid, host.lower()), {})
+        fleet.append(
+            {
+                "customer_id": cid,
+                "customer_name": names.get(cid, ""),
+                "host": host,
+                "has_token": bool(get_secret(cid, "fortigate_api_token")),
+                "hostname": reading.get("device_name") or "",
+                "model": reading.get("model") or "",
+                "firmware": reading.get("version") or "",
+                "firmware_status": reading.get("status") or "",
+                "read_at": reading.get("read_at") or reading.get("checked_at") or None,
+                "read_error": reading.get("read_error") or "",
+            }
+        )
+    fleet.sort(key=lambda f: (f["customer_name"].lower(), f["host"]))
+    return {"fortigates": fleet, "count": len(fleet)}
 
 
 @router.get("/fortigate/all")

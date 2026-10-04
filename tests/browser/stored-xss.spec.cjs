@@ -107,13 +107,22 @@ test('command output and errors from SSH devices are rendered as text', async ({
 test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text', async ({page}) => {
   await login(page);
 
-  // FortiGate fleet cards.
-  await page.route('**/api/fortigate/all', route => route.fulfill({json: {fortigates: [{
-    customer_id: BREAKOUT, hostname: XSS, customer_name: XSS, model: XSS, firmware: XSS, serial: XSS,
-    uptime: XSS, status: 'online', cpu_pct: 1, mem_pct: 2, vpn_tunnels: 0, policy_count: 4,
+  // FortiGate fleet cards, as last read (stored, from the firmware inventory).
+  await page.route('**/api/fortigate/fleet', route => route.fulfill({json: {fortigates: [{
+    customer_id: BREAKOUT, host: XSS, hostname: XSS, customer_name: XSS, model: XSS, firmware: XSS,
+    firmware_status: 'eol', read_at: null, read_error: XSS, has_token: true,
   }]}}));
   await inApp(page, app => app.dashLoadFortiGates());
   await expect(page.locator('#dash-fg-content .card strong').last()).toHaveText(XSS);
+  await expect(page.locator('#dash-fg-content .fg-card-foot')).toContainText(XSS);
+  await expectInert(page, '#dash-fg-content');
+  // And as read live.
+  await page.route('**/api/fortigate/all', route => route.fulfill({json: {fortigates: [{
+    customer_id: BREAKOUT, hostname: XSS, customer_name: XSS, model: XSS, firmware: XSS, serial: XSS,
+    uptime: XSS, status: 'error', error: XSS, cpu_pct: 1, mem_pct: 2, vpn_tunnels: 0, policy_count: 4,
+  }]}}));
+  await inApp(page, app => app.fgPollAll());
+  await expect(page.locator('#dash-fg-content .card .font-mono').last()).toHaveText(XSS);
   await expectInert(page, '#dash-fg-content');
 
   // A firewall's detail panel: threats, the rule audit and what the device
