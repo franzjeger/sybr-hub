@@ -6,6 +6,18 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Terminalen og service workeren
+
+- Terminalen fikk aldri tema, skrift eller skriftstørrelse: sikkerhetsreglene
+  for stiler stoppet stilene den lager. Nå tegnes den med monospace og sine
+  egne farger, uten at reglene er svekket. A- og A+ endrer størrelsen i den
+  åpne terminalen, og størrelsen huskes i nettleseren.
+- Service workeren var registrert for feil sti og styrte aldri appen. Nå gjør
+  den det: uten nett vises siden for frakoblet modus, og filer med
+  versjonsnøkkel lastes fra hurtigbufferen. API-svar, innlogging og selve
+  appsiden lagres aldri.
+- Første besøk viser ikke lenger «Ny versjon tilgjengelig».
+
 ### Ett designsystem
 
 - Grensesnittet er bygget på felles designtokens og klasser i stedet for
