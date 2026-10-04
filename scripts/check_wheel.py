@@ -14,6 +14,7 @@ def check(path: Path) -> None:
             "app/web/static/app.js",
             "app/web/static/ui_i18n.json",
             "app/web/static/vendor/purify.min.js",
+            "app/web/static/vendor/cairo-latin.woff2",
             "app/web/static/branding/300 x 86.png",
             "app/web/static/branding/SYBR_3.png",
             "app/web/static/branding/sybr_logo_dark_matched.png",

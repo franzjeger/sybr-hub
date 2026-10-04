@@ -1,4 +1,19 @@
 {
+  "cairo-OFL.txt": {
+    "sha256": "a4554e1799d42e1405924b61eb0e0722ae1623b1f1f07f995348f96c496362a9",
+    "package": "Cairo licence (SIL OFL 1.1)",
+    "version": "v31"
+  },
+  "cairo-latin-ext.woff2": {
+    "sha256": "da6ada83c3a87c2f0211325dc0a123702e1d4a940958b3e943ac4f37b31d5371",
+    "package": "Cairo (Google Fonts, latin-ext)",
+    "version": "v31"
+  },
+  "cairo-latin.woff2": {
+    "sha256": "82c13cbd1352d76e97c3d335caa912ae68fecdc3949a43cf8d149eb892384c1b",
+    "package": "Cairo (Google Fonts, latin)",
+    "version": "v31"
+  },
   "chart.umd.min.js": {
     "sha256": "206b6e8bb00fc7bba2c7ee80ca41db3e9e05ba7be0aa35abeba9cfd5357f5d0e",
     "package": "chart.js",
