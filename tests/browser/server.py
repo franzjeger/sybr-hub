@@ -51,6 +51,10 @@ def run():
                 # Two tabs of one user on two customers (two-tabs.spec): its
                 # own account, so its audit runs and selections are its own.
                 ("browser-tabs", Role.technician),
+                # The terminal spec asks for the local shell, which the server
+                # refuses a technician inside the terminal, so no shell starts.
+                # Its own account: security.spec enrols browser-tech in MFA.
+                ("browser-term", Role.technician),
             ]:
                 user = await create_user(
                     username, "Browser-test123!", username, role=role, all_customers=True

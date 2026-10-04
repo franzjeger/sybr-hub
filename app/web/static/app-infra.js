@@ -4674,13 +4674,64 @@ var _termWs = null;
 var _xterm = null;
 var _xtermFit = null;
 
+// xterm's DOM renderer keeps the theme, the font and the cell size in two
+// <style> elements it creates and then rewrites. The policy allows no inline
+// <style> (style-src-elem 'self'), so the browser dropped both: the terminal
+// drew in the page's font and colours, and a new font size changed nothing.
+//
+// xterm creates its elements through the document in its documentOverride
+// option. The one it gets here is the page's document, except that asking it
+// for a <style> returns an inert <template> whose text, when xterm sets it,
+// goes into a constructed stylesheet. That is the CSSOM, which the policy
+// does not govern, so the policy stays as it is. The rules are xterm's own,
+// scoped to its .xterm-dom-renderer-owner-N class, and its dispose() removes
+// them with the element.
+function _xtermStyleHolder() {
+  var sheet = new CSSStyleSheet();
+  document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+  var holder = document.createElement('template');
+  var rules = '';
+  Object.defineProperty(holder, 'textContent', {
+    get: function() { return rules; },
+    set: function(text) { rules = String(text); sheet.replaceSync(rules); },
+  });
+  holder.remove = function() {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter(function(s) { return s !== sheet; });
+    Element.prototype.remove.call(holder);
+  };
+  return holder;
+}
+
+function _xtermDocument() {
+  function createElement(tag, options) {
+    return String(tag).toLowerCase() === 'style' ? _xtermStyleHolder() : document.createElement(tag, options);
+  }
+  return new Proxy(document, {
+    get: function(target, key) {
+      if (key === 'createElement') return createElement;
+      var value = Reflect.get(target, key);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+// Per browser: A- and A+ change it, and the next terminal opens at it.
+var _TERM_FONT_KEY = 'sybr_term_fontsize';
+var _TERM_FONT_MIN = 10, _TERM_FONT_MAX = 24;
+var _termFontSize = (function() {
+  var stored = NaN;
+  try { stored = Number(localStorage.getItem(_TERM_FONT_KEY)); } catch (e) { /* storage blocked */ }
+  return stored >= _TERM_FONT_MIN && stored <= _TERM_FONT_MAX ? stored : 14;
+})();
+
 function _termEnsureXterm() {
   if (_xterm) return;
   var container = document.getElementById('term-container');
   container.innerHTML = '';
   _xterm = new Terminal({
+    documentOverride: _xtermDocument(),
     cursorBlink: true,
-    fontSize: 14,
+    fontSize: _termFontSize,
     fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
     theme: {
       background: '#0d1117',
@@ -4730,10 +4781,13 @@ async function termLoadHosts() {
   });
 }
 
-var _termFontSize = parseInt(localStorage.getItem('sybr_term_fontsize') || '14');
 export function termChangeFontSize(delta) {
-  _termFontSize = Math.max(10, Math.min(24, _termFontSize + delta));
-  localStorage.setItem('sybr_term_fontsize', _termFontSize);
+  _termFontSize = Math.max(_TERM_FONT_MIN, Math.min(_TERM_FONT_MAX, _termFontSize + delta));
+  try { localStorage.setItem(_TERM_FONT_KEY, String(_termFontSize)); } catch (e) { /* private mode */ }
+  if (!_xterm) return;
+  _xterm.options.fontSize = _termFontSize;
+  // New cell size, so new columns and rows; onResize tells the shell.
+  _xtermFit.fit();
 }
 
 export function termConnect() {
