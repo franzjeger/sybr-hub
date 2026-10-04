@@ -44,6 +44,31 @@ def _severity_emoji(severity: str) -> str:
     return {"critical": "🔴", "warning": "🟡", "info": "🔵"}.get(severity, "⚪")
 
 
+def _literal(text: str, *, spacing: str = "Small", **run: object) -> dict:
+    """A card paragraph shown exactly as written.
+
+    A TextBlock renders markdown, and an alert's item and detail are the
+    tenant's: a policy name, a domain, a scanner's finding. A policy named
+    ``[Logg inn](https://phish.example)`` became a link in the channel. A
+    TextRun inside a RichTextBlock is never parsed as markdown.
+    """
+    return {
+        "type": "RichTextBlock",
+        "spacing": spacing,
+        "inlines": [{"type": "TextRun", "text": text, "size": "Small", **run}],
+    }
+
+
+def _slack_escape(text: object) -> str:
+    """Text Slack shows as written, not as a mention or a link.
+
+    Slack reads ``<!channel>``, ``<@U123>`` and ``<https://x|y>`` in mrkdwn,
+    so a tenant's policy named ``<!channel>`` paged the whole channel. Slack
+    asks for exactly these three characters to be escaped.
+    """
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _build_adaptive_card(
     title: str,
     alerts: list[dict],
@@ -124,31 +149,19 @@ def _build_adaptive_card(
         ]
 
         for a in group[:15]:
-            # Two-column: customer | item + detail
+            # Two-column: customer | item + detail. Literal text, not markdown:
+            # the item and detail are the tenant's (see _literal).
             cols: list[dict] = [
                 {
                     "type": "Column",
                     "width": "auto",
-                    "items": [
-                        {
-                            "type": "TextBlock",
-                            "text": f"**{a.get('customer', '')}**",
-                            "wrap": True,
-                            "size": "Small",
-                        }
-                    ],
+                    "items": [_literal(str(a.get("customer", "")), weight="Bolder")],
                 },
                 {
                     "type": "Column",
                     "width": "stretch",
                     "items": [
-                        {
-                            "type": "TextBlock",
-                            "text": f"{a.get('item', '')}: {a.get('detail', '')}",
-                            "wrap": True,
-                            "size": "Small",
-                            "isSubtle": True,
-                        }
+                        _literal(f"{a.get('item', '')}: {a.get('detail', '')}", isSubtle=True)
                     ],
                 },
             ]
@@ -160,19 +173,11 @@ def _build_adaptive_card(
                 }
             )
 
-            # Recommendation line (if present)
+            # Recommendation line (if present). A pentest finding's remediation
+            # is the scanner's text, so it is literal too.
             rec = a.get("recommendation") or a.get("remediation")
             if rec:
-                items.append(
-                    {
-                        "type": "TextBlock",
-                        "text": f"💡 {rec}",
-                        "wrap": True,
-                        "size": "Small",
-                        "isSubtle": True,
-                        "spacing": "None",
-                    }
-                )
+                items.append(_literal(f"💡 {rec}", isSubtle=True, spacing="None"))
 
         if len(group) > 15:
             items.append(
@@ -272,10 +277,13 @@ def _build_slack_payload(
 
         lines = [f"{emoji} *{label} ({len(group)})*"]
         for a in group[:15]:
-            line = f"• *{a.get('customer', '')}* — {a.get('item', '')}: {a.get('detail', '')}"
+            customer = _slack_escape(a.get("customer", ""))
+            item = _slack_escape(a.get("item", ""))
+            detail = _slack_escape(a.get("detail", ""))
+            line = f"• *{customer}* — {item}: {detail}"
             rec = a.get("recommendation") or a.get("remediation")
             if rec:
-                line += f"\n   _💡 {rec}_"
+                line += f"\n   _💡 {_slack_escape(rec)}_"
             lines.append(line)
 
         if len(group) > 15:

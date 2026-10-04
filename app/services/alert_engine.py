@@ -683,11 +683,17 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
     Returned None before, and the caller counted a channel as notified on the
     strength of having called this — including when SMTP raised and the error
     was swallowed two lines below.
+
+    Every value is escaped. The item and detail come from the tenant: a
+    Conditional Access policy's name, a certificate's domain, a scanner's
+    finding. They went into the HTML as they were, so a policy named
+    ``<img src=x onerror=...>`` became markup in the recipient's mail client.
     """
     if not recipient or not alerts:
         return False
 
     import asyncio
+    from html import escape
 
     from app.core.email_sender import send_report_email
 
@@ -699,13 +705,16 @@ async def send_email_alert(smtp_config: dict, recipient: str, alerts: list[dict]
     for a in alerts:
         color = "#f85149" if a["severity"] == "critical" else "#d29922"
         sev_label = "Kritisk" if a["severity"] == "critical" else "Advarsel"
+        customer = escape(str(a.get("customer") or ""))
+        item = escape(str(a.get("item") or ""))
+        detail = escape(str(a.get("detail") or ""))
         rows_html += f"""<tr>
             <td style="padding:8px;border-bottom:1px solid #d0d7de;">
                 <span style="color:{color};font-weight:600;">{sev_label}</span>
             </td>
-            <td style="padding:8px;border-bottom:1px solid #d0d7de;">{a["customer"]}</td>
-            <td style="padding:8px;border-bottom:1px solid #d0d7de;">{a["item"]}</td>
-            <td style="padding:8px;border-bottom:1px solid #d0d7de;">{a["detail"]}</td>
+            <td style="padding:8px;border-bottom:1px solid #d0d7de;">{customer}</td>
+            <td style="padding:8px;border-bottom:1px solid #d0d7de;">{item}</td>
+            <td style="padding:8px;border-bottom:1px solid #d0d7de;">{detail}</td>
         </tr>"""
 
     body_html = f"""\
