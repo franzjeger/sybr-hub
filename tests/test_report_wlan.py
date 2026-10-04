@@ -154,7 +154,7 @@ def test_wlan_without_a_name_does_not_raise():
 # ── Template rendering: three states, three colours ───────────────────────────
 
 
-def _render_wlan_row(wlan: dict) -> str:
+def _render_wlan_row(wlan: dict, lang: str = "en") -> str:
     """Render just the WLAN table row markup from the report template.
 
     Extracting the loop keeps this from depending on a full report context
@@ -172,7 +172,7 @@ def _render_wlan_row(wlan: dict) -> str:
     m = re.search(r"(\{% for w in uf\.wlans %\}.*?\{% endfor %\})", src, re.S)
     assert m, "WLAN loop not found — update this test alongside the template"
     env = Environment(autoescape=True)
-    return env.from_string(m.group(1)).render(uf={"wlans": [wlan]}, t=T("no"))
+    return env.from_string(m.group(1)).render(uf={"wlans": [wlan]}, t=T(lang))
 
 
 def test_open_wlan_renders_red():
@@ -213,3 +213,32 @@ def test_a_file_with_neither_field_renders_unknown_not_blank():
     row = _render_wlan_row({"name": "Corp"})
     assert ">Unknown<" in row
     assert "var(--orange" in row
+
+
+# ── The collector's English labels, in a Norwegian report ─────────────────────
+
+
+@pytest.mark.parametrize(
+    ("wlan", "shown", "colour"),
+    [
+        ({"security": None, "security_label": "Unknown"}, ">Ukjent<", "var(--orange"),
+        ({}, ">Ukjent<", "var(--orange"),
+        ({"security": "x9", "security_label": "Unknown (x9)"}, ">Ukjent (x9)<", "var(--orange"),
+        ({"security": "open", "security_label": "Open"}, ">Åpen<", "var(--red"),
+        ({"security": "open"}, ">Åpen<", "var(--red"),
+        ({"security": "wep", "security_label": "WEP (insecure)"}, ">WEP (usikker)<", "var(--red"),
+        ({"security": "wpa3", "security_label": "WPA3"}, ">WPA3<", "green"),
+    ],
+    ids=["unknown", "neither field", "unrecognised", "open", "open, older file", "wep", "wpa3"],
+)
+def test_a_norwegian_report_names_the_security_in_norwegian(wlan, shown, colour):
+    row = _render_wlan_row({"name": "Corp", **wlan}, lang="no")
+    assert shown in row
+    assert colour in row
+
+
+def test_an_older_file_with_raw_wep_is_red_not_green():
+    """The colour rule matched "WEP" case-sensitively, and an older file says "wep"."""
+    row = _render_wlan_row({"name": "Legacy", "security": "wep"})
+    assert "var(--red" in row
+    assert "green" not in row

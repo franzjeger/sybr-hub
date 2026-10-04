@@ -455,17 +455,28 @@ def _users_at_risk(t: T, text: str, users: list[dict] | None = None) -> list[str
     the customer to investigate something already handled (accuracy sweep).
     ``users`` are the rows from 18_risky_users.json; the text is read without it.
     """
-    if users is not None:
-        return [
-            t("rec_risky_user_line", upn=u["upn"], level=u["level"], state=u["state"])
-            for u in users
-            if u["state"].lower().replace(" ", "") not in _HANDLED_RISK_STATES
-        ]
+    rows = users if users is not None else _risky_users_from_text(text)
     return [
-        t("rec_risky_user_line", upn=u["upn"], level=u["level"], state=u["state"])
-        for u in _risky_users_from_text(text)
+        t(
+            "rec_risky_user_line",
+            upn=u["upn"],
+            level=_graph_word(t, "risk_value_", u["level"]),
+            state=_graph_word(t, "risk_state_", u["state"]),
+        )
+        for u in rows
         if u["state"].lower().replace(" ", "") not in _HANDLED_RISK_STATES
     ]
+
+
+def _graph_word(t: T, prefix: str, value: str) -> str:
+    """An Entra ID Protection enum value ("high", "atRisk") in the report's language.
+
+    They reached a Norwegian report as Graph spells them. A value this table
+    does not know is shown as written: it is still the tenant's reading.
+    """
+    key = prefix + str(value).lower().replace(" ", "")
+    text = t(key)
+    return value if text == key else str(text)
 
 
 def _global_admins(audit: _Audit) -> Iterator[dict]:

@@ -604,7 +604,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "DMARC record is missing \u2014 there is no protection against email spoofing.",
     },
     "dmarc_weak": {
-        "no": 'DMARC-policyen er satt til "none".',
+        "no": "DMARC-policyen er satt til «p=none».",
         "en": 'DMARC policy is set to "none".',
     },
     # ── Conditional Access findings ──
@@ -881,7 +881,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Forwarding",
     },
     "mailbox_forwarding": {
-        "no": "Mailbox-videresending",
+        "no": "Videresending fra postbokser",
         "en": "Mailbox forwarding",
     },
     "external_forwarding": {
@@ -970,11 +970,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Azure Resources",
     },
     "azure_intro": {
-        "no": "Oversikt over Azure-subscriptions og ressurser.",
+        "no": "Oversikt over Azure-abonnementer og ressurser.",
         "en": "Overview of Azure subscriptions and resources.",
     },
     "subscriptions": {
-        "no": "Subscriptions",
+        "no": "Abonnementer",
         "en": "Subscriptions",
     },
     "total_resources": {
@@ -1886,7 +1886,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Emergency Access / Break-Glass",
     },
     "emergency_access_analysis": {
-        "no": "Emergency Access-analyse",
+        "no": "Analyse av nødtilgang",
         "en": "Emergency Access Analysis",
     },
     "pim_assignments_heading": {
@@ -2269,7 +2269,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Orphaned",
     },
     "resources_per_sub": {
-        "no": "Ressurser per subscription",
+        "no": "Ressurser per abonnement",
         "en": "Resources Per Subscription",
     },
     "resource_type_header": {
@@ -2317,7 +2317,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "No Azure data available",
     },
     "no_azure_desc": {
-        "no": "Enten har kunden ingen Azure-subscriptions, eller service principal mangler Reader-rolle.",
+        "no": "Enten har kunden ingen Azure-abonnementer, eller appens service principal mangler rollen Reader.",
         "en": "Either the customer has no Azure subscriptions, or the service principal is missing the Reader role.",
     },
     "critical_findings": {
@@ -2677,7 +2677,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "{pct:.0f}% compliance \u2014 {noncompliant} non-compliant",
     },
     "cis_entra_devices_unmanaged": {
-        "no": "{total} enheter er registrert i Entra ID, men ingen er enrollet i Intune, så ingen compliance-policy gjelder for dem",
+        "no": "{total} enheter er registrert i Entra ID, men ingen er innrullert i Intune, så ingen samsvarspolicy gjelder for dem",
         "en": "{total} devices registered in Entra ID, none enrolled in Intune \u2014 no compliance policy applies to them",
     },
     "cis_no_intune": {
@@ -2879,15 +2879,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "app registrations unavailable",
     },
     "cis_app_creds_none_expired": {
-        "no": "Ingen utløpte app-credentials",
+        "no": "Ingen apphemmeligheter eller -sertifikater er utløpt",
         "en": "No expired app credentials",
     },
     "cis_app_creds_expired": {
-        "no": "{count} utløpte app-credentials oppdaget",
+        "no": "{count} apphemmeligheter eller -sertifikater er utløpt",
         "en": "{count} expired app credentials detected",
     },
     "cis_app_creds_expiring": {
-        "no": "{count} app-credentials utløper snart (innen {days} dager)",
+        "no": "{count} apphemmeligheter eller -sertifikater utløper snart (innen {days} dager)",
         "en": "{count} app credentials expire soon (within {days} days)",
     },
     # 3.1.1, 3.2.1, 7.2.2 Purview
@@ -2979,11 +2979,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     # 4.1 mailbox audit
     "cis_mailbox_audit_on": {
-        "no": "Mailbox audit er aktivert (AuditDisabled=False)",
+        "no": "Postbokslogging er aktivert (AuditDisabled=False)",
         "en": "Mailbox auditing is enabled (AuditDisabled=False)",
     },
     "cis_mailbox_audit_off": {
-        "no": "Mailbox audit er deaktivert (AuditDisabled=True)",
+        "no": "Postbokslogging er deaktivert (AuditDisabled=True)",
         "en": "Mailbox auditing is disabled (AuditDisabled=True)",
     },
     "cis_mailbox_audit_unclear": {
@@ -3128,20 +3128,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Intune data unavailable",
     },
     "cis_gap_intune_policies": {
-        "no": "Intune-compliance-policyer utilgjengelig",
+        "no": "Intune-samsvarspolicyer utilgjengelig",
         "en": "Intune compliance policies unavailable",
     },
     "cis_devices_no_policies": {
-        "no": "Enheter er enrolled, men ingen Intune-compliance-policyer er konfigurert",
+        "no": "Enheter er innrullert, men ingen Intune-samsvarspolicyer er konfigurert",
         "en": "Devices are enrolled, but no Intune compliance policies are configured",
     },
     "cis_policies_no_devices": {
-        "no": "{count} compliance-policy(er) konfigurert (ingen enheter enrolled)",
+        "no": "{count} samsvarspolicy(er) konfigurert (ingen enheter innrullert)",
         "en": "{count} compliance policy(ies) configured (no devices enrolled)",
     },
     # 8.1.1, 8.1.2 Teams
     "cis_gap_teams_external": {
-        "no": "Teams external access-data utilgjengelig",
+        "no": "data om ekstern tilgang i Teams utilgjengelig",
         "en": "Teams external access data unavailable",
     },
     "cis_gap_teams_policy_default": {
@@ -3218,11 +3218,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Defender alert data unavailable",
     },
     "cis_gap_risky_users": {
-        "no": "risky-users-data utilgjengelig (krever Entra ID P2)",
+        "no": "data om risikobrukere utilgjengelig (krever Entra ID P2)",
         "en": "risky users data unavailable (requires Entra ID P2)",
     },
     "cis_risky_high": {
-        "no": "{count} brukere med høy/medium risiko er oppdaget og må undersøkes",
+        "no": "{count} brukere med høy eller middels risiko er oppdaget og må undersøkes",
         "en": "{count} users at high or medium risk were detected and must be investigated",
     },
     "cis_risky_low": {
@@ -3263,7 +3263,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Low",
     },
     "rec_effort_medium": {
-        "no": "Medium",
+        "no": "Middels",
         "en": "Medium",
     },
     "rec_effort_immediate": {
@@ -3443,7 +3443,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "App registrations: {count} credential(s) expired or expiring soon",
     },
     "rec_cred_expiry_detail": {
-        "no": "{expired} utg\u00e5tte og {critical} som utg\u00e5r innen 30 dager. Utg\u00e5tte credentials vil bryte integrasjoner. Forny umiddelbart i Entra ID > App registrations.",
+        "no": "{expired} utgåtte og {critical} som utgår innen 30 dager. Utgått legitimasjon vil bryte integrasjoner. Forny umiddelbart i Entra ID > Appregistreringer.",
         "en": "{expired} expired and {critical} expiring within 30 days. Expired credentials will break integrations. Renew immediately in Entra ID > App registrations.",
     },
     "rec_backup_title": {
@@ -3480,7 +3480,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     # ── Executive summary bullets (generator._build_executive_summary) ──
     "exec_env_size": {
-        "no": "Milj\u00f8et har {total} brukere ({enabled} aktive, {guests} gjester) og {azure_resources} Azure-ressurser fordelt p\u00e5 {subscriptions} subscription(s).",
+        "no": "Milj\u00f8et har {total} brukere ({enabled} aktive, {guests} gjester) og {azure_resources} Azure-ressurser fordelt p\u00e5 {subscriptions} abonnement(er).",
         "en": "The environment has {total} users ({enabled} active, {guests} guests) and {azure_resources} Azure resources across {subscriptions} subscription(s).",
     },
     "exec_env_size_unavailable": {
@@ -3710,7 +3710,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "High",
     },
     "lo_priority_medium": {
-        "no": "Medium",
+        "no": "Middels",
         "en": "Medium",
     },
     "lo_priority_low": {
@@ -3892,6 +3892,224 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "rec_uf_factory_default_detail": {
         "no": "Enheter med standardkonfigurasjon er ikke sikret. Konfigurer og adopter dem til en kontroller.",
         "en": "Devices with factory default configuration are not secured. Configure and adopt them to a controller.",
+    },
+    # ── CIS control titles (compliance._CONTROLS) ──
+    # The product's own wording in the benchmark's style, so it is translated
+    # like any other sentence; the CIS id beside it is the reference.
+    "cis_title_mfa_all_users": {
+        "no": "Sørg for at MFA er aktivert for alle brukere",
+        "en": "Ensure MFA is enabled for all users",
+    },
+    "cis_title_phishing_resistant_mfa": {
+        "no": "Sørg for at phishing-resistente MFA-metoder er aktivert",
+        "en": "Ensure phishing-resistant MFA methods are enabled",
+    },
+    "cis_title_global_admins": {
+        "no": "Sørg for færre enn 5 globale administratorer",
+        "en": "Ensure fewer than 5 Global Admins",
+    },
+    "cis_title_ca_policies": {
+        "no": "Sørg for at Conditional Access-policyer er konfigurert",
+        "en": "Ensure Conditional Access policies are configured",
+    },
+    "cis_title_pim": {
+        "no": "Sørg for at PIM brukes til aktivering av privilegerte roller",
+        "en": "Ensure PIM is used for privileged role activation",
+    },
+    "cis_title_emergency_access": {
+        "no": "Sørg for at nødtilgangskontoer er satt opp",
+        "en": "Ensure emergency access accounts are configured",
+    },
+    "cis_title_banned_passwords": {
+        "no": "Sørg for at egendefinerte forbudte passord er konfigurert",
+        "en": "Ensure custom banned passwords are configured",
+    },
+    "cis_title_secure_score": {
+        "no": "Sørg for at Microsoft Secure Score er over 75%",
+        "en": "Ensure Microsoft Secure Score is above 75%",
+    },
+    "cis_title_third_party_apps": {
+        "no": "Sørg for at tredjepartsapper er gjennomgått",
+        "en": "Ensure third-party apps are reviewed",
+    },
+    "cis_title_app_credentials": {
+        "no": "Sørg for at legitimasjonen til apper ikke er utløpt",
+        "en": "Ensure app credentials are not expired",
+    },
+    "cis_title_dlp": {
+        "no": "Sørg for at DLP-policyer er konfigurert",
+        "en": "Ensure DLP policies are configured",
+    },
+    "cis_title_sensitivity_labels": {
+        "no": "Sørg for at følsomhetsetiketter er publisert",
+        "en": "Ensure sensitivity labels are published",
+    },
+    "cis_title_mailbox_audit": {
+        "no": "Sørg for at postbokslogging er aktivert",
+        "en": "Ensure mailbox audit logging is enabled",
+    },
+    "cis_title_anti_phishing": {
+        "no": "Sørg for at anti-phishing-policyer er konfigurert",
+        "en": "Ensure anti-phishing policies are configured",
+    },
+    "cis_title_anti_spam": {
+        "no": "Sørg for at anti-spam-policyer er konfigurert",
+        "en": "Ensure anti-spam policies are configured",
+    },
+    "cis_title_external_forwarding": {
+        "no": "Sørg for at videresending av e-post til eksterne domener er begrenset",
+        "en": "Ensure mail forwarding to external domains is restricted",
+    },
+    "cis_title_safe_links": {
+        "no": "Sørg for at Safe Links er aktivert",
+        "en": "Ensure Safe Links is enabled",
+    },
+    "cis_title_safe_attachments": {
+        "no": "Sørg for at Safe Attachments er aktivert",
+        "en": "Ensure Safe Attachments is enabled",
+    },
+    "cis_title_legacy_auth": {
+        "no": "Sørg for at eldre autentisering er blokkert",
+        "en": "Ensure legacy authentication is blocked",
+    },
+    "cis_title_signin_protection": {
+        "no": "Sørg for at grunnleggende påloggingsbeskyttelse er på plass",
+        "en": "Ensure baseline sign-in protection is in place",
+    },
+    "cis_title_access_reviews": {
+        "no": "Sørg for at tilgangsgjennomganger er satt opp",
+        "en": "Ensure access reviews are configured",
+    },
+    "cis_title_cross_tenant": {
+        "no": "Sørg for at innstillingene for tilgang på tvers av tenanter er gjennomgått",
+        "en": "Ensure cross-tenant access settings are reviewed",
+    },
+    "cis_title_anonymous_links": {
+        "no": "Sørg for at anonyme delingskoblinger ikke er i bruk",
+        "en": "Ensure anonymous sharing links are not in use",
+    },
+    "cis_title_sharepoint_legacy_auth": {
+        "no": "Sørg for at eldre autentiseringsprotokoller er deaktivert i SharePoint",
+        "en": "Ensure legacy authentication protocols are disabled in SharePoint",
+    },
+    "cis_title_spf": {
+        "no": "Sørg for at SPF er konfigurert",
+        "en": "Ensure SPF is configured",
+    },
+    "cis_title_dmarc": {
+        "no": "Sørg for at DMARC er konfigurert",
+        "en": "Ensure DMARC is configured",
+    },
+    "cis_title_dkim": {
+        "no": "Sørg for at DKIM er aktivert",
+        "en": "Ensure DKIM is enabled",
+    },
+    "cis_title_device_compliance": {
+        "no": "Sørg for at samsvarspolicyer for enheter er konfigurert",
+        "en": "Ensure device compliance policies are configured",
+    },
+    "cis_title_sharepoint_sharing": {
+        "no": "Sørg for at ekstern deling i SharePoint er styrt",
+        "en": "Ensure SharePoint external sharing is managed",
+    },
+    "cis_title_retention": {
+        "no": "Sørg for at oppbevaringspolicyer er konfigurert",
+        "en": "Ensure data retention policies are configured",
+    },
+    "cis_title_m365_backup": {
+        "no": "Sørg for at Microsoft 365-data sikkerhetskopieres",
+        "en": "Ensure Microsoft 365 data is backed up",
+    },
+    "cis_title_teams_external": {
+        "no": "Sørg for at ekstern tilgang i Teams er styrt",
+        "en": "Ensure external access in Teams is managed",
+    },
+    "cis_title_teams_guests": {
+        "no": "Sørg for at gjestetilgang i Teams er begrenset",
+        "en": "Ensure Teams guest access is restricted",
+    },
+    "cis_title_unified_audit_log": {
+        "no": "Sørg for at enhetlig revisjonslogging er aktivert",
+        "en": "Ensure unified audit logging is enabled",
+    },
+    "cis_title_security_alerts": {
+        "no": "Sørg for at sikkerhetsvarsler overvåkes",
+        "en": "Ensure security alerts are monitored",
+    },
+    "cis_title_risky_users": {
+        "no": "Sørg for at oppdagede risikobrukere undersøkes",
+        "en": "Ensure risky user detections are investigated",
+    },
+    # ── Entra ID Protection's own values, in a risky user's line ──
+    # Graph returns riskLevel and riskState as enum names ("high", "atRisk").
+    # A value without a key here is shown as Graph wrote it.
+    "risk_value_low": {"no": "lav", "en": "low"},
+    "risk_value_medium": {"no": "middels", "en": "medium"},
+    "risk_value_high": {"no": "høy", "en": "high"},
+    "risk_value_hidden": {"no": "skjult", "en": "hidden"},
+    "risk_value_none": {"no": "ingen", "en": "none"},
+    "risk_state_atrisk": {"no": "i faresonen", "en": "at risk"},
+    "risk_state_confirmedcompromised": {
+        "no": "bekreftet kompromittert",
+        "en": "confirmed compromised",
+    },
+    "risk_state_remediated": {"no": "utbedret", "en": "remediated"},
+    "risk_state_dismissed": {"no": "avvist", "en": "dismissed"},
+    "risk_state_confirmedsafe": {"no": "bekreftet trygg", "en": "confirmed safe"},
+    # ── Template words that were written into the templates in English ──
+    "pim_eligible_assignments": {
+        "no": "Berettigede PIM-rolletildelinger",
+        "en": "PIM Eligible Assignments",
+    },
+    "intune_compliance_policies": {
+        "no": "Intune-samsvarspolicyer",
+        "en": "Intune Compliance Policies",
+    },
+    "entra_app_registrations": {
+        "no": "Appregistreringer i Entra ID",
+        "en": "Entra ID App Registrations",
+    },
+    "defender_alerts_header": {
+        "no": "Defender-varsler",
+        "en": "Defender Alerts",
+    },
+    "subscription": {
+        "no": "Abonnement",
+        "en": "Subscription",
+    },
+    "type": {
+        "no": "Type",
+        "en": "Type",
+    },
+    "net_eol": {
+        "no": "Utgått (EOL)",
+        "en": "End-of-life",
+    },
+    "net_online": {
+        "no": "Tilkoblet",
+        "en": "Online",
+    },
+    "net_offline": {
+        "no": "Frakoblet",
+        "en": "Offline",
+    },
+    # A WLAN's security as the UniFi collector labels it
+    # (unifi_api.wlan_security_label). WPA2 and WPA3 are names and stay.
+    "wlan_security_open": {
+        "no": "Åpen",
+        "en": "Open",
+    },
+    "wlan_security_wep": {
+        "no": "WEP (usikker)",
+        "en": "WEP (insecure)",
+    },
+    "wlan_security_unknown": {
+        "no": "Ukjent",
+        "en": "Unknown",
+    },
+    "wlan_security_unknown_value": {
+        "no": "Ukjent ({value})",
+        "en": "Unknown ({value})",
     },
     # ── Beside the score: what it could not measure (risk.data_quality_issues) ──
     "risk_not_in_score_label": {

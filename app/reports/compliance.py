@@ -1,6 +1,6 @@
 """CIS M365 Benchmark / NIST CSF / ISO 27001 compliance mapping.
 
-Each control is one entry in ``_CONTROLS``: its CIS id, the benchmark's title,
+Each control is one entry in ``_CONTROLS``: its CIS id, its title's key,
 the report category, its NIST CSF 2.0 and ISO 27001:2022 cross-references and
 a check that reads the audit and returns ``(status, detail)``, or None for no
 row. ``_build_compliance_map`` walks the table in order, so table order is row
@@ -161,7 +161,10 @@ class _Audit:
 @dataclass(frozen=True)
 class _Control:
     cis_id: str
-    # The benchmark's wording, shown untranslated in both languages.
+    # An i18n key (``cis_title_*``), resolved in the report's language. It was
+    # English text "shown untranslated in both languages" as the benchmark's
+    # wording, but it is this product's wording in the benchmark's style, and
+    # a Norwegian report carried thirty-six English sentences for it.
     title: str
     # An i18n key, resolved in the report's language.
     category: str
@@ -200,16 +203,18 @@ def _build_compliance_map(context: dict, lang: str = "no", frameworks: str = "al
 
 
 def _verdicts(audit: _Audit) -> Iterator[tuple[_Control, str, _Verdict]]:
+    # A plain str, as the title always was: the row carries the words, not the key.
     for entry in _CONTROLS:
         if isinstance(entry, _Control):
-            yield entry, entry.title, entry.check(audit)
+            yield entry, str(audit.t(entry.title)), entry.check(audit)
             continue
         for record in audit.spf_dmarc:
             domain = record.get("domain", "")
             if not _is_audit_relevant_domain(domain):
                 continue
             for control in entry.controls:
-                title = f"{control.title} ({domain})" if domain else control.title
+                title = str(audit.t(control.title))
+                title = f"{title} ({domain})" if domain else title
                 yield control, title, control.check(audit, record, domain)
 
 
@@ -1130,7 +1135,7 @@ _LOGGING = "cis_cat_logging"
 _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     _Control(
         "1.1.1",
-        "Ensure MFA is enabled for all users",
+        "cis_title_mfa_all_users",
         _IDENTITY,
         nist="PR.AA-01",
         iso="A.8.5",
@@ -1138,7 +1143,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.2",
-        "Ensure phishing-resistant MFA methods are enabled",
+        "cis_title_phishing_resistant_mfa",
         _IDENTITY,
         nist="PR.AA-03",
         iso="A.8.5",
@@ -1146,7 +1151,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.3",
-        "Ensure fewer than 5 Global Admins",
+        "cis_title_global_admins",
         _IDENTITY,
         nist="PR.AA-05",
         iso="A.5.15",
@@ -1154,7 +1159,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.4",
-        "Ensure Conditional Access policies are configured",
+        "cis_title_ca_policies",
         _IDENTITY,
         nist="PR.AA-01",
         iso="A.8.3",
@@ -1162,7 +1167,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.5",
-        "Ensure PIM is used for privileged role activation",
+        "cis_title_pim",
         _IDENTITY,
         nist="PR.AA-05",
         iso="A.5.18",
@@ -1170,7 +1175,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.6",
-        "Ensure emergency access accounts are configured",
+        "cis_title_emergency_access",
         _IDENTITY,
         nist="PR.AA-01",
         iso="A.5.16",
@@ -1178,7 +1183,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.2.1",
-        "Ensure custom banned passwords are configured",
+        "cis_title_banned_passwords",
         _IDENTITY,
         nist="PR.AA-03",
         iso="A.8.5",
@@ -1186,7 +1191,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.4",
-        "Ensure Microsoft Secure Score is above 75%",
+        "cis_title_secure_score",
         _GENERAL,
         nist="ID.RA-01",
         iso="A.8.8",
@@ -1194,7 +1199,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "2.1",
-        "Ensure third-party apps are reviewed",
+        "cis_title_third_party_apps",
         _APPLICATIONS,
         nist="PR.AA-05",
         iso="A.8.3",
@@ -1202,7 +1207,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "2.1.2",
-        "Ensure app credentials are not expired",
+        "cis_title_app_credentials",
         _APPLICATIONS,
         nist="PR.AA-01",
         iso="A.5.16",
@@ -1210,7 +1215,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "3.1.1",
-        "Ensure DLP policies are configured",
+        "cis_title_dlp",
         _DATA,
         nist="PR.DS-10",
         iso="A.8.12",
@@ -1218,7 +1223,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "3.2.1",
-        "Ensure sensitivity labels are published",
+        "cis_title_sensitivity_labels",
         _DATA,
         nist="PR.DS-02",
         iso="A.5.14",
@@ -1226,7 +1231,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "4.1",
-        "Ensure mailbox audit logging is enabled",
+        "cis_title_mailbox_audit",
         _EMAIL,
         nist="PR.PS-04",
         iso="A.8.16",
@@ -1234,7 +1239,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "4.2",
-        "Ensure anti-phishing policies are configured",
+        "cis_title_anti_phishing",
         _EMAIL,
         nist="PR.DS-02",
         iso="A.8.24",
@@ -1242,7 +1247,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "4.3",
-        "Ensure anti-spam policies are configured",
+        "cis_title_anti_spam",
         _EMAIL,
         nist="PR.PS-05",
         iso="A.8.7",
@@ -1250,7 +1255,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "4.4",
-        "Ensure mail forwarding to external domains is restricted",
+        "cis_title_external_forwarding",
         _EMAIL,
         nist="PR.DS-02",
         iso="A.5.14",
@@ -1258,7 +1263,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "4.5",
-        "Ensure Safe Links is enabled",
+        "cis_title_safe_links",
         _EMAIL,
         nist="DE.CM-09",
         iso="A.8.7",
@@ -1266,7 +1271,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "4.6",
-        "Ensure Safe Attachments is enabled",
+        "cis_title_safe_attachments",
         _EMAIL,
         nist="DE.CM-09",
         iso="A.8.7",
@@ -1274,7 +1279,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "5.1.1",
-        "Ensure legacy authentication is blocked",
+        "cis_title_legacy_auth",
         _IDENTITY,
         nist="PR.AA-03",
         iso="A.8.5",
@@ -1282,7 +1287,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.7",
-        "Ensure baseline sign-in protection is in place",
+        "cis_title_signin_protection",
         _IDENTITY,
         nist="PR.AA-03",
         iso="A.8.5",
@@ -1290,7 +1295,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.8",
-        "Ensure access reviews are configured",
+        "cis_title_access_reviews",
         _IDENTITY,
         nist="PR.AA-05",
         iso="A.5.18",
@@ -1298,7 +1303,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "1.1.9",
-        "Ensure cross-tenant access settings are reviewed",
+        "cis_title_cross_tenant",
         _IDENTITY,
         nist="PR.AA-05",
         iso="A.5.14",
@@ -1306,7 +1311,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "7.2.4",
-        "Ensure anonymous sharing links are not in use",
+        "cis_title_anonymous_links",
         _DATA,
         nist="PR.AA-05",
         iso="A.5.14",
@@ -1314,7 +1319,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "7.2.3",
-        "Ensure legacy authentication protocols are disabled in SharePoint",
+        "cis_title_sharepoint_legacy_auth",
         _DATA,
         nist="PR.AA-03",
         iso="A.8.5",
@@ -1324,7 +1329,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
         (
             _Control(
                 "5.2.1",
-                "Ensure SPF is configured",
+                "cis_title_spf",
                 _EMAIL,
                 nist="PR.DS-02",
                 iso="A.5.14",
@@ -1332,7 +1337,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
             ),
             _Control(
                 "5.2.2",
-                "Ensure DMARC is configured",
+                "cis_title_dmarc",
                 _EMAIL,
                 nist="PR.DS-02",
                 iso="A.5.14",
@@ -1340,7 +1345,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
             ),
             _Control(
                 "5.2.3",
-                "Ensure DKIM is enabled",
+                "cis_title_dkim",
                 _EMAIL,
                 nist="PR.DS-02",
                 iso="A.8.24",
@@ -1350,7 +1355,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "6.1.1",
-        "Ensure device compliance policies are configured",
+        "cis_title_device_compliance",
         _DEVICES,
         nist="PR.AA-05",
         iso="A.8.1",
@@ -1358,7 +1363,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "7.2.1",
-        "Ensure SharePoint external sharing is managed",
+        "cis_title_sharepoint_sharing",
         _DATA,
         nist="PR.AA-05",
         iso="A.5.14",
@@ -1366,7 +1371,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "7.2.2",
-        "Ensure data retention policies are configured",
+        "cis_title_retention",
         _DATA,
         nist="PR.DS-01",
         iso="A.8.12",
@@ -1378,7 +1383,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     # verdict is formed in parsers/m365_backup.py from 34_m365_backup.
     _Control(
         "CIS v8 11.2",
-        "Ensure Microsoft 365 data is backed up",
+        "cis_title_m365_backup",
         _DATA,
         nist="PR.DS-11",
         iso="A.8.13",
@@ -1386,7 +1391,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "8.1.1",
-        "Ensure external access in Teams is managed",
+        "cis_title_teams_external",
         _TEAMS,
         nist="PR.AA-05",
         iso="A.5.14",
@@ -1394,7 +1399,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "8.1.2",
-        "Ensure Teams guest access is restricted",
+        "cis_title_teams_guests",
         _TEAMS,
         nist="PR.AA-05",
         iso="A.5.14",
@@ -1402,7 +1407,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "9.1",
-        "Ensure unified audit logging is enabled",
+        "cis_title_unified_audit_log",
         _LOGGING,
         nist="PR.PS-04",
         iso="A.8.15",
@@ -1410,7 +1415,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "9.2",
-        "Ensure security alerts are monitored",
+        "cis_title_security_alerts",
         _LOGGING,
         nist="DE.AE-03",
         iso="A.8.16",
@@ -1418,7 +1423,7 @@ _CONTROLS: tuple[_Control | _PerDomain, ...] = (
     ),
     _Control(
         "9.3",
-        "Ensure risky user detections are investigated",
+        "cis_title_risky_users",
         _LOGGING,
         nist="RS.AN-03",
         iso="A.5.28",

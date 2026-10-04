@@ -280,7 +280,9 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="cover">
   <div class="cover-tag">{{ t.report_title_tech }} &middot; {{ t.confidential }}</div>
   {% if logo_light %}<img src="{{ logo_light }}" alt="SYBR" style="height:48px;margin-bottom:24px;opacity:0.8;">{% endif %}
-  <h1>M365 + Azure<br>Full Security Audit</h1>
+  {# The heading said "Full Security Audit" in English in every language, and
+     the line under it said the same again in the report's language. #}
+  <h1>M365 + Azure</h1>
   <div class="cover-sub">{{ t.cover_tech_subtitle }}</div>
   <div class="cover-meta">
     <div class="cover-meta-item"><label>{{ t.customer }}</label><span>{{ customer_name }}</span></div>
@@ -772,7 +774,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% if pim_assignments and pim_assignments.strip() %}
 <h3>{{ t.pim_assignments_heading }}</h3>
 <div class="data-section">
-  <div class="data-header"><span>PIM Eligible Assignments</span><span class="fn">07b_pim_eligible_assignments.txt</span></div>
+  <div class="data-header"><span>{{ t.pim_eligible_assignments }}</span><span class="fn">07b_pim_eligible_assignments.txt</span></div>
   <div class="data-body">{{ pim_assignments }}</div>
 </div>
 {% endif %}
@@ -849,7 +851,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% for s in license_optimization.optimization_suggestions %}
   <tr>
     <td><strong>{{ s.title }}</strong><br><span style="font-size:0.9em;color:#666;">{{ s.detail }}</span></td>
-    <td><span class="badge {% if s.priority == 'high' %}danger{% elif s.priority == 'medium' %}warning{% else %}info{% endif %}">{{ s.priority | upper }}</span></td>
+    <td><span class="badge {% if s.priority == 'high' %}danger{% elif s.priority == 'medium' %}warning{% else %}info{% endif %}">{% if s.priority == 'high' %}{{ t.lo_priority_high }}{% elif s.priority == 'medium' %}{{ t.lo_priority_medium }}{% else %}{{ t.lo_priority_low }}{% endif %}</span></td>
     <td>{% if s.savings > 0 %}{{ "{:,}".format(s.savings).replace(",", " ") }} {{ t.lo_per_month }}{% else %}&mdash;{% endif %}</td>
   </tr>
   {% endfor %}
@@ -1152,7 +1154,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 <h3>{{ t.compliance_policies_heading }}</h3>
 <div class="data-section">
-  <div class="data-header"><span>Intune Compliance Policies</span><span class="fn">11_intune_compliance_policies.txt</span></div>
+  <div class="data-header"><span>{{ t.intune_compliance_policies }}</span><span class="fn">11_intune_compliance_policies.txt</span></div>
   <div class="data-body">{{ compliance_policies }}</div>
 </div>
 {% endif %}
@@ -1268,7 +1270,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% if app_registrations and app_registrations.strip() %}
 <h3>{{ t.app_registrations_heading }}</h3>
 <div class="data-section">
-  <div class="data-header"><span>Entra ID App Registrations</span><span class="fn">17_app_registrations.txt</span></div>
+  <div class="data-header"><span>{{ t.entra_app_registrations }}</span><span class="fn">17_app_registrations.txt</span></div>
   <div class="data-body">{{ app_registrations }}</div>
 </div>
 {% endif %}
@@ -1549,7 +1551,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% if defender_alerts and 'No active' not in defender_alerts and defender_alerts.strip() and not _no_alerts %}
 <div class="alert critical"><strong>{{ t.active_defender_alerts }}</strong></div>
 <div class="data-section">
-  <div class="data-header"><span>Defender Alerts</span><span class="fn">19b_defender_active_alerts.txt</span></div>
+  <div class="data-header"><span>{{ t.defender_alerts_header }}</span><span class="fn">19b_defender_active_alerts.txt</span></div>
   <div class="data-body">{{ defender_alerts }}</div>
 </div>
 {% endif %}
