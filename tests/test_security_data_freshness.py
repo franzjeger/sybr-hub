@@ -20,6 +20,8 @@ import datetime
 import ipaddress
 from datetime import date
 
+import pytest
+
 from app.modules.pentest import cms_scanner as cms
 from app.modules.pentest import tls_auditor as tls
 from app.modules.pentest import vuln_checker as vc
@@ -67,7 +69,7 @@ def test_up_to_date_from_a_stale_table_is_unknown_not_ok():
     assert r["severity"] == "unknown"
     assert r["up_to_date"] is None
     assert r["stale"] is True
-    assert "utdatert" in r["reason"].lower()
+    assert r["reason"] == "table_stale"
 
 
 def test_behind_is_reported_even_from_a_stale_table():
@@ -91,12 +93,36 @@ def test_unknown_model_is_unknown_with_a_reason():
     r = fdb.check_firmware("NoSuchModel-9000", "1.0.0", today=_FRESH)
     assert r["severity"] == "unknown"
     assert r["latest"] is None
-    assert "tabellen" in r["reason"].lower()
+    assert r["reason"] == "model_unknown"
 
 
 def test_unparseable_firmware_version_is_unknown():
     r = fdb.check_firmware("U6-Pro", "not-a-version", today=_FRESH)
-    assert r["severity"] == "unknown" and r["reason"]
+    assert r["severity"] == "unknown" and r["reason"] == "version_unparsed"
+
+
+@pytest.mark.parametrize(
+    ("model", "version", "day"),
+    [
+        ("NoSuchModel-9000", "1.0.0", _FRESH),
+        ("U6-Pro", "not-a-version", _FRESH),
+        ("U6-Pro", "6.8.2", _STALE),
+    ],
+)
+def test_a_reason_is_the_code_the_firmware_inventory_uses(monkeypatch, model, version, day):
+    """The reason was a Norwegian sentence ("Modellen finnes ikke i
+    firmware-tabellen."), which reached English readers through
+    /api/unifi/firmware-check and the network audit's stored results. The
+    firmware inventory and the FortiOS life cycle already said the same
+    things as codes; this one now says them with the same codes."""
+    from app.services import firmware_inventory
+
+    monkeypatch.setattr(fdb, "_today", lambda: day)
+    reason = fdb.check_firmware(model, version)["reason"]
+
+    assert reason in fdb.REASONS
+    reading = firmware_inventory.unifi_reading(key="k", name="n", model=model, version=version)
+    assert reading["reason"] == reason
 
 
 # ── vuln_checker: internal vs internet, banner leads, provenance ─────────────

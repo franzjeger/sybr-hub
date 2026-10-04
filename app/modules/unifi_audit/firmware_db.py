@@ -53,6 +53,9 @@ FRESHNESS_DAYS = 180
 
 SOURCE = "unifi-firmware-db (manuell tabell)"
 
+# Why check_firmware could not give a verdict (its "reason").
+REASONS = ("model_unknown", "version_unparsed", "table_stale")
+
 _FEED = (
     "https://fw-update.ui.com/api/firmware-latest?filter=eq~~channel~~release&filter=eq~~platform~~"
 )
@@ -496,8 +499,16 @@ def check_firmware(model: str, current_firmware: str, today: date | None = None)
             "source": SOURCE,
             "as_of": LAST_UPDATED,
             "stale": True/False,                # table past its freshness window
-            "reason": "<why unknown>",          # present when severity == "unknown"
+            "reason": one of REASONS,           # present when severity == "unknown"
         }
+
+    The reason is a code, not a sentence: ``model_unknown``,
+    ``version_unparsed`` or ``table_stale`` (the table's date is ``as_of``).
+    It was a Norwegian sentence, which reached English readers through
+    /api/unifi/firmware-check and the network audit's stored results. The
+    codes are the ones firmware_inventory and the FortiOS life cycle
+    (fortigate_audit.firmware_lifecycle) already use, so whoever shows one
+    words it in the reader's language.
 
     Fail-closed on staleness: from a stale table it will report "behind"/"EOL"
     (valid lower bounds) but never "up to date" — an up-to-date verdict becomes
@@ -519,7 +530,7 @@ def check_firmware(model: str, current_firmware: str, today: date | None = None)
 
     db_entry = FIRMWARE_DB.get(normalized)
     if not db_entry:
-        result["reason"] = "Modellen finnes ikke i firmware-tabellen."
+        result["reason"] = "model_unknown"
         return result
 
     result["model"] = db_entry["name"]
@@ -538,7 +549,7 @@ def check_firmware(model: str, current_firmware: str, today: date | None = None)
     lat_ver = _extract_version(db_entry["latest"])
 
     if not cur_ver or not lat_ver:
-        result["reason"] = "Klarte ikke å tolke firmware-versjonen."
+        result["reason"] = "version_unparsed"
         return result
 
     if cur_ver >= lat_ver:
@@ -548,10 +559,7 @@ def check_firmware(model: str, current_firmware: str, today: date | None = None)
             # current. Fail closed to unknown rather than claim "ok" (SR-007).
             result["up_to_date"] = None
             result["severity"] = "unknown"
-            result["reason"] = (
-                f"Firmware-tabellen er utdatert (sist oppdatert {LAST_UPDATED}); "
-                "kan ikke bekrefte at dette er nyeste versjon."
-            )
+            result["reason"] = "table_stale"
         else:
             result["up_to_date"] = True
             result["severity"] = "ok"
