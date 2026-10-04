@@ -835,6 +835,20 @@ async def cancel_audit(user: User = Depends(require_role(Role.technician))):
 # ── API: Bulk audit SSE stream ────────────────────────────────────────────────
 
 
+def _bulk_targets(customers: list[dict]) -> list[dict]:
+    """The customers a bulk audit runs: those set up for an audit.
+
+    It is the rule the customer page shows (credentials.m365_ready): app
+    credentials with a stored secret, or delegated (GDAP) access. The filter
+    asked for a TenantId and a ClientId, which a GDAP customer does not have,
+    so every delegated customer was counted as unconfigured and skipped, while
+    an app customer whose secret was gone was attempted and failed.
+    """
+    from app.core.credentials import m365_ready
+
+    return [c for c in customers if m365_ready(c)]
+
+
 @router.post("/audit/bulk")
 async def bulk_audit_stream(request: Request, user: User = Depends(require_role(Role.admin))):
     """Run audit for configured customers in parallel, streaming progress via SSE.
@@ -870,8 +884,7 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                 yield f"data: {json.dumps({'type': 'error', 'msg': ui_t('err_no_customers')})}\n\n"
                 return
 
-            # Filter to only configured customers (have TenantId + ClientId)
-            customers = [c for c in all_customers if c.get("TenantId") and c.get("ClientId")]
+            customers = _bulk_targets(all_customers)
             skipped_count = len(all_customers) - len(customers)
 
             if not customers:
