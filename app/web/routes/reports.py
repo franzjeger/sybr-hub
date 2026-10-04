@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import html as _html
 import logging
+import re
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, Request
@@ -758,15 +759,13 @@ async def export_dashboard_excel(
                         logger.warning("Failed to read metrics for %s: %s", run_dir, e)
                     break
 
-        # Format last audit date for readability
+        # The run's day and time from its folder name ("2026-01-01_090000_..."
+        # is 2026-01-01 09:00 UTC). This took the day for the hour, so that
+        # run read "01:09 2026.01.01".
         fmt_date = last_audit
-        if last_audit and len(last_audit) >= 13:
-            try:
-                fmt_date = (
-                    f"{last_audit[8:10]}:{last_audit[11:13]} {last_audit[0:10].replace('-', '.')}"
-                )
-            except (IndexError, ValueError) as e:
-                logger.debug("Failed to format audit date %s: %s", last_audit, e)
+        m = re.match(r"(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})", last_audit)
+        if m:
+            fmt_date = f"{m.group(1)} {m.group(2)}:{m.group(3)}"
 
         tags = CustomerManager.get_tags(cid)
         tag_str = ", ".join(tags) if tags else ""

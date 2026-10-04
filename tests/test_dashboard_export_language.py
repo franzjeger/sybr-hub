@@ -78,6 +78,16 @@ async def test_an_unknown_language_is_refused(client, metrics):
     assert response.status_code == 422
 
 
+async def test_the_last_audit_is_the_runs_day_and_time(client, metrics):
+    """The run 2026-01-01_090000 read "01:09 2026.01.01": the day as the hour."""
+    headers = await login("excel-date", customers=(ACME,))
+
+    rows = _export(client, headers, json={"lang": "en"})
+
+    column = rows[0].index("Last audit (UTC)")
+    assert rows[1][column] == "2026-01-01 09:00"
+
+
 def test_the_excel_button_sends_the_readers_language():
     source = Path("app/web/static/app-customers.js").read_text(encoding="utf-8")
     call = source[source.index("fetch('/api/export/excel'") :].split("\n", 1)[0]
