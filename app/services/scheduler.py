@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime, time, timedelta
+from pathlib import Path
 from typing import Any
 
 from app.core import modules
@@ -375,58 +376,100 @@ async def _do_alert_check() -> str:
     return f"ok — {alerts_found} alerts sent"
 
 
-async def _do_scheduled_reports() -> str:
-    """Generate and email reports for all customers with recent audit data."""
-    from pathlib import Path
+def _latest_finished_run(customer: dict) -> Path | None:
+    """The customer's newest audit run that finished (it holds its metrics).
 
+    Runs live at ``<audit dir>/<customer_dir_name>/<run>``, as everywhere else
+    in the app. The folder also holds ``network_configs``, which is no run,
+    and a run cut short has no ``_audit_metrics.json``.
+    """
+    from app.core.config import get_audit_dir
+    from app.core.customer import customer_dir_name
+
+    root = get_audit_dir() / customer_dir_name(customer.get("CustomerName", ""))
+    if not root.is_dir():
+        return None
+    for run in sorted((d for d in root.iterdir() if d.is_dir()), reverse=True):
+        if (run / "_audit_metrics.json").exists():
+            return run
+    return None
+
+
+def _run_pdf(run: Path) -> Path | None:
+    """The run's PDF report to attach: the customer report, else any."""
+    pdfs = sorted((f for f in run.iterdir() if f.suffix == ".pdf"), reverse=True)
+    for pdf in pdfs:
+        if "tech" not in pdf.name.lower():
+            return pdf
+    return pdfs[0] if pdfs else None
+
+
+async def _do_scheduled_reports() -> str:
+    """E-mail each customer's latest audit report to the default recipient.
+
+    It never sent one. It looked for runs as ``<audit_dir setting>/<name>_*``:
+    the setting read raw (a relative "audit_data" when unset) instead of
+    through get_audit_dir(), while runs live at
+    ``<audit dir>/<customer_dir_name>/<run>``, so the glob matched nothing and
+    every week ended "0 reports sent". Its subject was Norwegian with a dash
+    whatever the report's language.
+
+    Each customer is now taken by id from its record. Its newest finished run
+    is the one reported; the run's PDF is attached when it has one (the
+    scheduled audit renders HTML only, so often it has none, and the e-mail
+    says so). Subject and body are the report e-mail's, in the language of
+    the attached report, else the hub's. A customer without a finished run is
+    skipped.
+    """
     from app.core.config import load_app_settings
     from app.core.customer import CustomerManager
+    from app.core.email_sender import (
+        build_report_body_html,
+        report_email_subject,
+        report_language,
+        send_report_email,
+    )
+    from app.core.encryption import encrypted_read_json
 
     settings = load_app_settings()
     recipient = settings.get("email_default_recipient", "")
     smtp_server = settings.get("smtp_server", "")
     if not recipient or not smtp_server:
-        return "skipped — email not configured"
+        return "skipped: email not configured"
 
-    customers = CustomerManager.list_customers()
     sent = 0
     errors = 0
+    without_run = 0
 
-    for cust in customers:
-        cid = cust.get("_id", "")
-        name = cust.get("CustomerName", "Unknown")
-        cust_dir = CustomerManager.get_customer_dir(cid)
-        if not cust_dir.exists():
+    for listed in CustomerManager.list_customers():
+        cid = listed.get("_id", "")
+        customer = CustomerManager.get_customer(cid) if cid else None
+        if not customer:
             continue
-
-        # Find latest audit output directory
-        audit_base = Path(settings.get("audit_dir", "audit_data"))
-        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
-        customer_audit_dirs = sorted(audit_base.glob(f"{safe_name}_*"), reverse=True)
-        if not customer_audit_dirs:
+        name = customer.get("CustomerName", cid)
+        run = _latest_finished_run(customer)
+        if run is None:
+            without_run += 1
+            log.info("Scheduled report: %s has no finished audit run, skipped", name)
             continue
-
-        latest_dir = customer_audit_dirs[0]
-        # Find PDF in the latest audit dir
-        pdfs = list(latest_dir.glob("*.pdf")) + list(latest_dir.glob("*.pdf.enc"))
-        if not pdfs:
-            continue
-
         try:
-            from app.core.email_sender import send_report_email
-
-            subject = f"Sikkerhetsrapport — {name}"
-            body = f"""<html><body style="font-family:sans-serif;">
-            <h2>Ukentlig sikkerhetsrapport</h2>
-            <p>Vedlagt finner du den siste sikkerhetsrapporten for <strong>{name}</strong>.</p>
-            <p style="color:#666;font-size:12px;">Denne rapporten ble generert automatisk av SYBR MSP Toolkit.</p>
-            </body></html>"""
-
-            send_report_email(
+            metrics = encrypted_read_json(run / "_audit_metrics.json")
+        except Exception as e:
+            log.warning("Scheduled report: metrics of %s unreadable: %s", run, e)
+            metrics = None
+        pdf = _run_pdf(run)
+        lang = report_language(pdf)
+        try:
+            # smtplib blocks; the scheduler's loop runs every other task too.
+            await asyncio.to_thread(
+                send_report_email,
                 to=recipient,
-                subject=subject,
-                body_html=body,
-                attachment_path=pdfs[0],
+                subject=report_email_subject(name, run.name, lang),
+                body_html=build_report_body_html(
+                    name, run.name, metrics, lang=lang, attached=pdf is not None
+                ),
+                attachment_path=pdf,
+                smtp_config=settings,
             )
             sent += 1
         except Exception as e:
@@ -474,7 +517,7 @@ async def _do_scheduled_reports() -> str:
         except Exception as e:
             log.warning("Report webhook notification failed: %s", e)
 
-    return f"{sent} reports sent, {errors} errors"
+    return f"{sent} reports sent, {without_run} customers without a finished run, {errors} errors"
 
 
 async def _do_health_snapshot() -> str:
