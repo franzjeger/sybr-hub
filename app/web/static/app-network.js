@@ -26,6 +26,12 @@ import {apiFetch} from './app-api.js';
 // forms, the quick check's device cards and the subnet scan results.
 registerUiHandlers({
   netAddFortiGate: function() { _netOpenFortiGateForm(false); },
+  netBootstrapFortiGate: function() { _netOpenBootstrapForm(); },
+  netRunBootstrap: function(el, event) { event.preventDefault(); _netRunBootstrap(el); },
+  netCopyToken: function(el) {
+    navigator.clipboard.writeText(el.dataset.token).then(function() { showToast(t('inf_token_copied'), 'success'); });
+  },
+  netDownloadFortiGateLogin: function() { _netDownloadFortiGateLogin(); },
   netEditFortiGate: function() { _netOpenFortiGateForm(true); },
   netRemoveFortiGate: function() { _netRemoveFortiGate(); },
   netLinkUniFi: function() { _netOpenUniFiForm(false); },
@@ -223,7 +229,10 @@ function _netRenderList(d) {
   html += '<div class="cust-card-head"><h3 class="card-title" id="cust-net-title">' + esc(t('net_setup_title')) + '</h3>';
   if (setUp && (!fg || !uf)) {
     html += '<div class="cust-net-actions">';
-    if (!fg) html += '<button type="button" class="btn btn-default btn-sm" data-write data-click-handler="netAddFortiGate">' + esc(t('net_add_fortigate')) + '</button>';
+    if (!fg) {
+      html += '<button type="button" class="btn btn-default btn-sm" data-write data-click-handler="netAddFortiGate">' + esc(t('net_add_fortigate')) + '</button>';
+      html += '<button type="button" class="btn btn-default btn-sm" data-write data-click-handler="netBootstrapFortiGate">' + esc(t('net_bootstrap_fortigate')) + '</button>';
+    }
     if (!uf) html += '<button type="button" class="btn btn-default btn-sm" data-write data-click-handler="netLinkUniFi">' + esc(t('net_link_unifi')) + '</button>';
     html += '</div>';
   }
@@ -258,6 +267,11 @@ function _netFortiGateRow(fg, setUp) {
     + ' <span class="cust-net-sub">VDOM ' + esc(fg.vdom) + '</span></td>';
   html += '<td class="cust-net-status">' + (fg.has_token ? _netBadge(true, t('net_status_ready')) : _netBadge(false, t('net_status_token_missing'))) + '</td>';
   html += '<td class="cust-net-act">';
+  // The firewall's admin password and API token as the hub stores them, for
+  // an admin (the server hands them to no one else, and logs each time).
+  if (_currentUser && _currentUser.role === 'admin' && (fg.has_admin_password || fg.has_token)) {
+    html += '<button type="button" class="btn btn-ghost btn-sm" data-click-handler="netDownloadFortiGateLogin">' + esc(t('btn_download_credentials')) + '</button>';
+  }
   if (setUp) {
     html += '<button type="button" class="btn btn-ghost btn-sm" data-write data-click-handler="netEditFortiGate">' + esc(t('endre')) + '</button>';
     // The hub's only copy of the firewall's admin login: an admin's call.
@@ -319,7 +333,8 @@ function _netOpenFortiGateForm(editing) {
   html += '<div><label class="field-label" for="input-fg-vdom">VDOM</label><input class="field-input" id="input-fg-vdom" type="text" value="' + esc(fg ? fg.vdom : 'root') + '"></div>';
   html += '</div>';
   html += '<label class="field-label mt-2" for="input-fg-token">' + esc(t('api_token')) + '</label>';
-  html += '<input class="field-input" id="input-fg-token" type="password" autocomplete="new-password" placeholder="' + esc(t(fg && fg.has_token ? 'placeholder_token_saved' : 'net_token_placeholder')) + '">';
+  html += '<input class="field-input" id="input-fg-token" type="password" autocomplete="new-password" aria-describedby="input-fg-token-hint" placeholder="' + esc(t(fg && fg.has_token ? 'placeholder_token_saved' : 'net_token_placeholder')) + '">';
+  html += '<p class="field-hint" id="input-fg-token-hint">' + esc(t('fg_token_hint_before')) + ' System → Administrators → Create New → REST API Admin</p>';
   html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-fg-verify-ssl"' + (fg && fg.verify_ssl ? ' checked' : '') + '> ' + esc(t('verifiser_ssl_sertifikat')) + '</label>';
   html += _netFormActions('fortigate');
   html += '</form>';
@@ -396,6 +411,134 @@ async function _netRemoveFortiGate() {
 
 function _netCustomerName() {
   return (_custPage.cust && _custPage.cust.customer_name) || _netCustomerId || '';
+}
+
+// ── A new FortiGate, from its factory settings ──
+// The hub signs in over SSH with the factory login, sets a strong admin
+// password, hardens it and makes a REST API admin, then stores all of it for
+// this customer with the address (admin port 8443). It used to be done in
+// Administrasjon › Integrasjoner, for whichever customer a Kunde field named.
+function _netOpenBootstrapForm() {
+  var box = document.getElementById('cust-net-form');
+  if (!box || !_netCustomerId) return;
+  var html = '<form class="inset cust-net-form" data-submit-handler="netRunBootstrap" data-customer-id="' + esc(_netCustomerId) + '">';
+  html += '<h4 class="cust-net-form-title">' + esc(t('net_bootstrap_fortigate')) + '</h4>';
+  // What it asks for; once it has set the firewall up, only the answer stays.
+  html += '<div class="cust-net-boot-ask">';
+  html += '<p class="cust-card-text">' + esc(t('fg_bootstrap_note')) + '</p>';
+  html += '<label class="field-label" for="input-fg-boot-host">' + esc(t('lbl_fortigate_ip')) + '</label>';
+  html += '<input class="field-input" id="input-fg-boot-host" type="text" autocomplete="off" placeholder="192.0.2.99">';
+  html += '<label class="field-label mt-2" for="input-fg-boot-name">' + esc(t('lbl_hostname_optional')) + '</label>';
+  html += '<input class="field-input" id="input-fg-boot-name" type="text" autocomplete="off" placeholder="' + esc(t('ph_fw_customer_name')) + '">';
+  html += '<div class="cust-net-form-actions">'
+    + '<button type="submit" class="btn btn-primary btn-sm" data-write>' + esc(t('btn_setup_fortigate')) + '</button>'
+    + '<button type="button" class="btn btn-ghost btn-sm" data-click-handler="netCloseForm">' + esc(t('btn_cancel')) + '</button>'
+    + '<span class="cust-net-result text-xs" role="status"></span>'
+    + '</div></div>';
+  html += '<div class="cust-net-boot-answer" hidden></div>';
+  html += '</form>';
+  box.innerHTML = html;
+  document.getElementById('input-fg-boot-host').focus();
+}
+
+// What the bootstrap made, to copy now: the same table whether it finished
+// or stopped after setting the password.
+function _netBootstrapTable(d) {
+  var rows = [[t('host_2'), '<span class="cust-net-addr">' + esc(d.host) + '</span>']];
+  if (d.admin_password) rows.push([t('admin_passord'), '<code class="cust-net-secret">' + esc(d.admin_password) + '</code>']);
+  if (d.api_admin) rows.push([t('api_bruker'), '<span class="cust-net-addr">' + esc(d.api_admin) + '</span>']);
+  if (d.api_token) rows.push([t('api_token_2'), '<code class="cust-net-secret">' + esc(d.api_token) + '</code>']);
+  return '<table class="data-table data-table--compact">' + rows.map(function(r) {
+    return '<tr><th scope="row">' + esc(r[0]) + '</th><td>' + r[1] + '</td></tr>';
+  }).join('') + '</table>';
+}
+
+async function _netRunBootstrap(form) {
+  var customerId = form.dataset.customerId;
+  var host = document.getElementById('input-fg-boot-host').value.trim();
+  var hostname = document.getElementById('input-fg-boot-name').value.trim();
+  if (!host) { _netResult(form, 'text-danger', t('angi_fortigate_ip_adresse')); return; }
+  var submit = form.querySelector('button[type="submit"]');
+  var answer = form.querySelector('.cust-net-boot-answer');
+  submit.disabled = true;
+  answer.hidden = true;
+  _netResult(form, 'text-muted', t('inf_connecting_factory') + ' ' + host + ' ' + t('inf_with_factory_defaults'));
+  var d = await apiFetch('/api/fortigate/bootstrap', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({host: host, hostname: hostname || undefined, customer_id: customerId}),
+  });
+  submit.disabled = false;
+  if (!d) { _netResult(form, '', ''); return; }
+  var html;
+  if (d.ok) {
+    _netResult(form, '', '');
+    form.querySelector('.cust-net-boot-ask').hidden = true;
+    html = '<div class="cust-net-boot-head text-success">' + esc(t('fortigate_konfigurert')) + '</div>' + _netBootstrapTable(d);
+    html += '<div class="cust-net-form-actions">'
+      + (d.api_token ? '<button type="button" class="btn btn-default btn-sm" data-click-handler="netCopyToken" data-token="' + esc(d.api_token) + '">' + esc(t('kopier_token')) + '</button>' : '')
+      + '<button type="button" class="btn btn-ghost btn-sm" data-click-handler="netCloseForm">' + esc(t('btn_close')) + '</button>'
+      + '</div>';
+    html += '<p class="field-hint">' + esc(d.persisted ? t('net_bootstrap_saved') : t('msg_creds_not_persisted') + (d.persist_error ? ' (' + d.persist_error + ')' : '') + '. ' + t('msg_save_password_now')) + '</p>';
+    showToast(t('fortigate_bootstrap_fullfoert'), 'success', 6000);
+  } else {
+    var steps = d.steps && d.steps.length ? ' (' + d.steps.join(' → ') + ')' : '';
+    _netResult(form, 'text-danger', (d.error || t('err_unknown')) + steps);
+    // It stopped after setting the password: the only copy is this answer.
+    var passwordSet = d.admin_password && d.steps && d.steps.some(function(s) { return s.indexOf('password_set') === 0 || s.indexOf('reconnect') === 0; });
+    if (!passwordSet) return;
+    html = '<div class="cust-net-boot-head text-warning">' + esc(t('delvis_fullfoert_passord_ble_satt')) + '</div>' + _netBootstrapTable(d)
+      + '<p class="field-hint text-warning">' + esc(t('lagre_passordet_opprett_api_noekkel_manu')) + '</p>';
+    if (d.raw_output) {
+      html += '<details class="cust-net-boot-debug"><summary>' + esc(t('debug_output')) + '</summary><pre class="inset">' + esc(d.raw_output) + '</pre></details>';
+    }
+  }
+  answer.innerHTML = html;
+  answer.hidden = false;
+  // Stored with the address: the list shows the FortiGate. The answer stays,
+  // under the list, until the operator closes it.
+  if (d.ok && d.persisted && _netOnScreen(customerId)) {
+    var keep = form;
+    await _netLoadDevices(customerId);
+    var slot = document.getElementById('cust-net-form');
+    if (slot && _netOnScreen(customerId)) slot.appendChild(keep);
+  }
+}
+
+// The login the hub stores for this customer's FortiGate, as a text file.
+async function _netDownloadFortiGateLogin() {
+  var customerId = _netCustomerId;
+  if (!customerId) return;
+  var d = await apiFetch('/api/fortigate/credentials/' + encodeURIComponent(customerId));
+  if (!d || !d.ok) return;
+  var lines = [
+    // The headers carry their own '# ' (the old download wrote '# # Kunde:').
+    '# FortiGate credentials',
+    t('inf_hdr_customer').padEnd(16) + (d.customer_name || ''),
+    t('inf_hdr_generated').padEnd(16) + (d.bootstrapped_at || t('inf_unknown_paren')),
+    t('inf_hdr_downloaded').padEnd(16) + new Date().toISOString(),
+    '#',
+    t('inf_secret_warning'),
+    '',
+    'Host:           ' + (d.host || ''),
+    'Port (HTTPS):   ' + (d.port || 8443),
+    'Admin URL:      https://' + (d.host || '') + ':' + (d.port || 8443),
+    '',
+    'Admin user:     ' + (d.admin_user || 'admin'),
+    'Admin password: ' + (d.admin_password || t('inf_not_stored')),
+    '',
+    'API user:       ' + (d.api_user || 'msp_api_admin'),
+    'API token:      ' + (d.api_token || t('inf_not_stored')),
+    '',
+  ];
+  var url = URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/plain;charset=utf-8'}));
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'fortigate-credentials-' + (d.customer_name || 'fortigate').replace(/[^A-Za-z0-9_-]/g, '_') + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast(t('credentials_lastet_ned'), 'success');
 }
 
 // ── UniFi form: a controller and its site, or devices reached directly ──

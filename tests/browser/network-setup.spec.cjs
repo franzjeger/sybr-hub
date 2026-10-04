@@ -9,7 +9,7 @@
 // listens on: a fleet poll another spec makes while it exists fails at once
 // instead of waiting out a timeout against an address that never answers.
 const { test, expect } = require('@playwright/test');
-const { expectSignedIn } = require('./app.cjs');
+const { expectSignedIn, inApp } = require('./app.cjs');
 
 async function login(page) {
   await page.addInitScript(() => {
@@ -183,4 +183,91 @@ test('on a 375 px screen the tab, its UniFi form and the quick check fit without
   await expect(result.locator('[data-unifi-card="192.0.2.31"] pre')).toHaveText('system.cfg: users.1.name=admin');
   expect(configs).toEqual([{host: '192.0.2.31', customer_id: 'Browser_Beta'}]);
   expect(await overflow()).toBe(0);
+});
+
+// A new FortiGate from its factory settings, and the login the hub keeps for
+// it, used to be set up in Administrasjon › Integrasjoner for whichever
+// customer a Kunde field named. They are on the customer's Nettverk tab now;
+// the firewall itself is answered by the spec.
+test('a new FortiGate is set up from its factory settings on the Nettverk tab, and an admin downloads its login', async ({page}) => {
+  let bootstrapped = false;
+  await page.route('**/api/network-devices/Browser_Beta', route => route.fulfill({json: {
+    fortigate: bootstrapped ? {host: '192.0.2.99', port: 8443, vdom: 'root', verify_ssl: true, has_token: true, has_admin_password: true} : null,
+    unifi: null,
+  }}));
+  const sent = [];
+  await page.route('**/api/fortigate/bootstrap', route => {
+    sent.push(route.request().postDataJSON());
+    bootstrapped = true;
+    return route.fulfill({json: {ok: true, persisted: true, host: '192.0.2.99', admin_password: 'Spec-Admin-Pw-1', api_admin: 'msp_api_admin', api_token: 'spec-api-token'}});
+  });
+  await page.route('**/api/fortigate/credentials/Browser_Beta', route => route.fulfill({json: {
+    ok: true, customer_name: 'Browser Beta', host: '192.0.2.99', port: 8443, admin_user: 'admin',
+    admin_password: 'Spec-Admin-Pw-1', api_user: 'msp_api_admin', api_token: 'spec-api-token', bootstrapped_at: '2026-10-04T08:00:00+00:00',
+  }}));
+  await login(page);
+  await openNetworkTab(page);
+  const setup = page.locator('#cust-net-setup');
+
+  await setup.getByRole('button', {name: 'Sett opp ny FortiGate'}).click();
+  const form = setup.locator('form.cust-net-form');
+  await expect(form.locator('.cust-net-form-title')).toHaveText('Sett opp ny FortiGate');
+  await form.getByLabel('FortiGate IP').fill('192.0.2.99');
+  await form.getByLabel('Hostname (valgfritt)').fill('FW-BETA');
+  await form.getByRole('button', {name: 'Sett opp FortiGate'}).click();
+
+  // For the customer whose page it is; no field asked which.
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]).toEqual({host: '192.0.2.99', hostname: 'FW-BETA', customer_id: 'Browser_Beta'});
+  // The list shows the FortiGate it stored, and what it made stays to copy.
+  await expect(setup.locator('tr[data-net-row="fortigate"]')).toContainText('192.0.2.99:8443');
+  const answer = setup.locator('.cust-net-boot-answer');
+  await expect(answer).toContainText('Spec-Admin-Pw-1');
+  await expect(answer).toContainText('spec-api-token');
+  await expect(answer).toContainText('En administrator kan laste ned påloggingsinformasjonen igjen');
+  await expect(answer.getByRole('button', {name: 'Kopier token'})).toBeVisible();
+
+  // An admin downloads the stored login from the row.
+  const download = page.waitForEvent('download');
+  await setup.locator('tr[data-net-row="fortigate"]').getByRole('button', {name: 'Last ned påloggingsinformasjon'}).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('fortigate-credentials-Browser_Beta.txt');
+  const text = require('node:fs').readFileSync(await file.path(), 'utf8');
+  expect(text).toContain('# Kunde:        Browser Beta');
+  expect(text).not.toContain('# # ');
+  expect(text).toContain('API token:      spec-api-token');
+});
+
+test('a factory setup that stopped after the password shows the password to keep', async ({page}) => {
+  await page.route('**/api/network-devices/Browser_Beta', route => route.fulfill({json: {fortigate: null, unifi: null}}));
+  await page.route('**/api/fortigate/bootstrap', route => route.fulfill({json: {
+    ok: false, error: 'API-nøkkelen kunne ikke opprettes', steps: ['connect', 'password_set'],
+    host: '192.0.2.99', admin_password: 'Spec-Kept-Pw-2', raw_output: 'execute api-user generate-key: denied',
+  }}));
+  await login(page);
+  await openNetworkTab(page);
+  const setup = page.locator('#cust-net-setup');
+  await setup.getByRole('button', {name: 'Sett opp ny FortiGate'}).click();
+  const form = setup.locator('form.cust-net-form');
+  await form.getByLabel('FortiGate IP').fill('192.0.2.99');
+  await form.getByLabel('FortiGate IP').press('Enter');
+  await expect(form.locator('.cust-net-result')).toContainText('API-nøkkelen kunne ikke opprettes (connect → password_set)');
+  const answer = form.locator('.cust-net-boot-answer');
+  await expect(answer).toContainText('Delvis fullført');
+  await expect(answer).toContainText('Spec-Kept-Pw-2');
+  await expect(answer.locator('details pre')).toHaveText('execute api-user generate-key: denied');
+});
+
+test('Integrasjoner says where a customer\'s FortiGate is set up, and no setup asks which customer', async ({page}) => {
+  await login(page);
+  await inApp(page, app => app.openAdmin('integrations'));
+  const card = page.locator('#admin-pane-integrations .integ-card', {has: page.locator('#fg-integ-status')});
+  await expect(card).toContainText('Hver kundes FortiGate settes opp på kundens side, under Nettverk');
+  await expect(card.locator('input, select, form')).toHaveCount(0);
+  await card.getByRole('button', {name: 'Alle kunders nettverk'}).click();
+  await expect(page.locator('#view-network')).toHaveClass(/\bactive\b/);
+  // The only Kunde fields left: pentest's segmentation test and provisioning,
+  // tools that are not on a customer's page.
+  const tools = await page.locator('[data-tool-customer]').evaluateAll(els => els.map(el => el.dataset.toolCustomer).sort());
+  expect(tools).toEqual(['pentest', 'provisioning']);
 });

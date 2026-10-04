@@ -12,7 +12,7 @@ import {timeAgo} from './app-format.js';
 import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {checkAuth, currentView, passwordMeetsRule, showView, syncRoute} from './app.js';
-import {claudeLoadSaved, fgApiLoadSaved, unifiSmLoadSaved} from './app-infra.js';
+import {claudeLoadSaved, unifiSmLoadSaved} from './app-infra.js';
 import {dashLoadArchive} from './app-dashboard.js';
 import {alertLoadConfig, loadIntegrationStatus, taskSchedRefresh} from './app-integrations.js';
 
@@ -159,7 +159,6 @@ export function adminShowPane(pane) {
   if (_adminPane === 'integrations') {
     loadIntegrationStatus();
     unifiSmLoadSaved();
-    fgApiLoadSaved();
     claudeLoadSaved();
   } else if (_adminPane === 'alerts') {
     alertLoadConfig();

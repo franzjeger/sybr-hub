@@ -17,8 +17,7 @@ import {
 } from './app.js';
 import {
   aiClearChat, aiSelectCustomerFromDropdown, aiSend, claudeCheckCli, claudeModeChanged,
-  claudeSaveSettings, claudeTestConnection, dashUnifiRefresh, fgApiSave, fgApiTest, fgBootstrap,
-  fgDownloadCredentials, fgPollAll, hostsAdd, hostsHealthAll, hostsLoad,
+  claudeSaveSettings, claudeTestConnection, dashUnifiRefresh, fgPollAll, hostsAdd, hostsHealthAll, hostsLoad,
   provisionStart, runCmsScan, runCredentialTest, runDnsPentest, runPentest, runSegTest,
   runSmbEnum, runTakeoverCheck, runTlsAudit, sshShowExec, sshShowKeys, switchDashTab,
   termChangeFontSize, termConnect, termDisconnect, termModeChanged, unifiSmAuth,
@@ -150,10 +149,6 @@ registerUiHandlers({
   deleteSelectedRuns: function() { deleteSelectedRuns(); },
   executeITGlueUpload: function() { executeITGlueUpload(); },
   exportCustomersJSON: function() { exportCustomersJSON(); },
-  fgApiSave: function() { fgApiSave(); },
-  fgApiTest: function() { fgApiTest(); },
-  fgBootstrap: function() { fgBootstrap(); },
-  fgDownloadCredentials: function() { fgDownloadCredentials(); },
   fgPollAll: function() { fgPollAll(); },
   gdapDiscoverCustomers: function() { gdapDiscoverCustomers(); },
   gdapImportSelected: function() { gdapImportSelected(); },
