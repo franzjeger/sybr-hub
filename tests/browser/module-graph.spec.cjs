@@ -20,6 +20,10 @@ function watch(page) {
     // failure is caught below, by its response.
     const where = message.location().url || '';
     if (/^Failed to load resource/.test(message.text()) && new URL(where, 'http://x').pathname.startsWith('/api/')) return;
+    // A resource from another origin (the Cairo web font from Google Fonts)
+    // failing is not the module graph's doing: this spec failed whenever the
+    // runner's DNS missed fonts.gstatic.com.
+    if (/^Failed to load resource/.test(message.text()) && where && new URL(where).origin !== new URL(page.url()).origin) return;
     problems.push('console: ' + message.text() + (where ? ' (' + where + ')' : ''));
   });
   page.on('pageerror', error => problems.push('uncaught: ' + error.message));
