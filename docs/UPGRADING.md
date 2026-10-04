@@ -1,3 +1,20 @@
+# Report outputs in the report's language (unreleased)
+
+- **`POST /api/report/csv` takes an optional `lang`** (`"no"` or `"en"`,
+  default `"no"`), as `/api/report/generate` does. A value the audit did not
+  measure is now an empty cell with "ikke målt" / "not measured" beside it,
+  not `0`, and the recommendation rows give the priority as a word (Kritisk,
+  Høy, Middels, Lav) rather than `critical`/`high`. A script that reads the
+  export by column header or priority code needs updating.
+- **The report e-mail's subject is "Auditrapport: kunde (kjøring)"** for a
+  manual send too (it was "Auditrapport — …"), and "Audit report: …" when the
+  attached report is in English. A mail rule that matches the old subject
+  needs updating.
+- **Norwegian reports title the CIS controls in Norwegian.** The CIS id is
+  unchanged.
+
+---
+
 # UniFi firmware table refreshed (unreleased)
 
 - **UniFi firmware verdicts change on the next read.** The table is
