@@ -73,7 +73,7 @@ async def test_the_scheduled_sweep_sends_nothing_while_alerts_are_off(sent, monk
 async def test_the_scheduled_sweep_sends_while_alerts_are_on(sent, monkeypatch):
     _config(monkeypatch, enabled=True)
     await ae.run_alert_check(scheduled=True)
-    assert sent == ["🚨 Sybr HUB: 1 nye varsler"]
+    assert sent == ["🚨 Sybr HUB: nye varsler (1)"]
 
 
 async def test_check_now_runs_even_while_alerts_are_off(sent, monkeypatch):

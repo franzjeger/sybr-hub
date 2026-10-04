@@ -4195,6 +4195,118 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Sendt fra Sybr HUB",
         "en": "Sent from Sybr HUB",
     },
+    # ── Automatic alerts (services.alert_engine, services.webhook_sender) ──
+    # In the hub's language. The counts stand alone so no sentence has to
+    # agree with a number ("1 nye varsler").
+    "alert_title": {
+        "no": "Sybr HUB: nye varsler ({count})",
+        "en": "Sybr HUB: new alerts ({count})",
+    },
+    "alert_email_heading": {
+        "no": "Sybr HUB: automatiske varsler",
+        "en": "Sybr HUB: automatic alerts",
+    },
+    "alert_summary": {
+        "no": "Nye varsler: {count}. Kritiske: {critical}. Advarsler: {warnings}.",
+        "en": "New alerts: {count}. Critical: {critical}. Warnings: {warnings}.",
+    },
+    "alert_col_severity": {"no": "Alvorlighet", "en": "Severity"},
+    "alert_col_customer": {"no": "Kunde", "en": "Customer"},
+    "alert_col_item": {"no": "Element", "en": "Item"},
+    "alert_col_detail": {"no": "Detaljer", "en": "Details"},
+    "alert_sev_critical": {"no": "Kritisk", "en": "Critical"},
+    "alert_sev_warning": {"no": "Advarsel", "en": "Warning"},
+    "alert_sev_info": {"no": "Info", "en": "Info"},
+    "alert_fact_new": {"no": "Nye varsler", "en": "New alerts"},
+    "alert_fact_critical": {"no": "Kritiske", "en": "Critical"},
+    "alert_fact_warnings": {"no": "Advarsler", "en": "Warnings"},
+    "alert_and_more": {"no": "... og {count} til", "en": "... and {count} more"},
+    "alert_sent_at": {"no": "Sendt {when}", "en": "Sent {when}"},
+    "alert_open_dashboard": {"no": "Åpne Sybr HUB", "en": "Open Sybr HUB"},
+    "alert_email_footer": {
+        "no": "Sendt automatisk fra Sybr HUB",
+        "en": "Sent automatically from Sybr HUB",
+    },
+    # What an alert says about what it found. One vocabulary with
+    # ui_i18n.json: the alert carries the key and the values, and the e-mail,
+    # the chat card and the Varsler page each build the sentence.
+    "alert_detail_ssl_expired": {
+        "no": "SSL-sertifikatet utløp for {days} dager siden ({date})",
+        "en": "The SSL certificate expired {days} days ago ({date})",
+    },
+    "alert_detail_ssl_expiring": {
+        "no": "SSL-sertifikatet utløper om {days} dager ({date})",
+        "en": "The SSL certificate expires in {days} days ({date})",
+    },
+    "alert_detail_domain_expired": {
+        "no": "Domenet utløp for {days} dager siden ({date})",
+        "en": "The domain expired {days} days ago ({date})",
+    },
+    "alert_detail_domain_expiring": {
+        "no": "Domenet utløper om {days} dager ({date})",
+        "en": "The domain expires in {days} days ({date})",
+    },
+    "alert_detail_licence_expired": {
+        "no": "Lisensen utløp for {days} dager siden ({date})",
+        "en": "The licence expired {days} days ago ({date})",
+    },
+    "alert_detail_licence_expiring": {
+        "no": "Lisensen utløper om {days} dager ({date})",
+        "en": "The licence expires in {days} days ({date})",
+    },
+    "alert_detail_threats": {
+        "no": "{total} trusler siste døgn (terskel: {threshold})",
+        "en": "{total} threats in the last 24 hours (threshold: {threshold})",
+    },
+    "alert_detail_firmware_outdated": {
+        "no": "FortiOS {firmware} er utdatert. Anbefalt er 7.4 eller nyere.",
+        "en": "FortiOS {firmware} is out of date. 7.4 or newer is recommended.",
+    },
+    "alert_detail_mfa_coverage": {
+        "no": "MFA-dekning {pct} % (terskelen er {threshold} %)",
+        "en": "MFA coverage {pct}% (the threshold is {threshold}%)",
+    },
+    "alert_detail_policy_removed": {
+        "no": "Sikkerhetspolicyen «{policy}» er fjernet siden {since}.",
+        "en": "The security policy “{policy}” has been removed since {since}.",
+    },
+    "alert_detail_policy_changed": {
+        "no": "«{policy}» er endret siden {since}: {fields}.",
+        "en": "“{policy}” has changed since {since}: {fields}.",
+    },
+    # What to do about it, in the chat card under each alert.
+    "alert_rec_policy_drift": {
+        "no": "Bekreft at fjerningen var tilsiktet. Var den ikke det, kan policyen settes tilbake fra siste gjenopprettingspunkt under Policy-utrulling.",
+        "en": "Confirm that the removal was intended. If it was not, the policy can be restored from the latest restore point under Policy deployment.",
+    },
+    "alert_rec_ssl_expiry": {
+        "no": "Forny sertifikatet med certbot eller Let's Encrypt, eller kontakt utstederen. Sett opp automatisk fornyelse.",
+        "en": "Renew the certificate with certbot or Let's Encrypt, or contact the issuer. Set up automatic renewal.",
+    },
+    "alert_rec_domain_expiry": {
+        "no": "Forny domenet hos registraren, og slå på automatisk fornyelse så det ikke utløper.",
+        "en": "Renew the domain with the registrar, and turn on automatic renewal so it does not expire.",
+    },
+    "alert_rec_fortigate_threats": {
+        "no": "Gå gjennom IPS- og antiviruslogger på FortiGate. Vurder å blokkere kildeadressen, og oppdater signaturene.",
+        "en": "Review the IPS and antivirus logs on the FortiGate. Consider blocking the source address, and update the signatures.",
+    },
+    "alert_rec_firmware_outdated": {
+        "no": "Oppgrader til FortiOS 7.4 eller nyere. Planlegg et vedlikeholdsvindu og ta sikkerhetskopi først.",
+        "en": "Upgrade to FortiOS 7.4 or newer. Plan a maintenance window and take a backup first.",
+    },
+    "alert_rec_also_license_expiry": {
+        "no": "Kontakt ALSO eller kunden for å fornye lisensen, og sjekk om tjenesten fortsatt er i bruk.",
+        "en": "Contact ALSO or the customer to renew the licence, and check whether the service is still in use.",
+    },
+    "alert_rec_mfa_coverage": {
+        "no": "Slå på MFA for brukerne som mangler det. Start med globale administratorer, deretter alle interaktive kontoer.",
+        "en": "Turn on MFA for the users without it. Start with global administrators, then every interactive account.",
+    },
+    "alert_rec_pentest_critical": {
+        "no": "Se utbedringstiltakene i pentestrapporten. Rett de kritiske funnene først, deretter de høye.",
+        "en": "See the remediation in the pentest report. Fix the critical findings first, then the high ones.",
+    },
 }
 
 

@@ -1070,6 +1070,19 @@ async function _alertDoSave() {
   }
 }
 
+// An alert's detail in the reader's language. The server sends the key and
+// the values the sentence is built from; an entry written before alerts had
+// keys (or a pentest finding's own text) has only its sentence.
+export function alertDetail(a) {
+  var out = a && a.detail_key ? t(a.detail_key, '') : '';
+  if (!out) return (a && a.detail) || '';
+  var params = a.detail_params || {};
+  Object.keys(params).forEach(function(k) {
+    out = out.split('{' + k + '}').join(String(params[k]));
+  });
+  return out;
+}
+
 export async function alertRunCheckNow() {
   var resultEl = document.getElementById('alert-check-result');
   if (resultEl) resultEl.innerHTML = '<span class="text-muted">' + t('msg_checking','Sjekker...') + '</span>';
@@ -1097,7 +1110,7 @@ export async function alertRunCheckNow() {
         html += '<td class="' + toneClass(color) + ' fw-semibold">' + sevLabel + '</td>';
         html += '<td>' + esc(a.customer) + '</td>';
         html += '<td>' + esc(a.item) + '</td>';
-        html += '<td class="text-muted">' + esc(a.detail) + '</td>';
+        html += '<td class="text-muted">' + esc(alertDetail(a)) + '</td>';
         html += '</tr>';
       });
       html += '</table></div>';
@@ -1142,7 +1155,7 @@ async function alertLoadHistory() {
     html += '<td class="' + toneClass(color) + ' fw-semibold">' + sevLabel + '</td>';
     html += '<td>' + esc(h.customer || '') + '</td>';
     html += '<td>' + esc(h.item || '') + '</td>';
-    html += '<td class="text-muted">' + esc(h.detail || '') + '</td>';
+    html += '<td class="text-muted">' + esc(alertDetail(h)) + '</td>';
     html += '</tr>';
   });
   html += '</tbody></table>';
