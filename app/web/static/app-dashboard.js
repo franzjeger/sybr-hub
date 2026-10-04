@@ -9,7 +9,7 @@ import {registerUiHandlers} from './app-handlers.js';
 import {onViewShown} from './app-hooks.js';
 import {_overviewData, canOpenView, hasModule, setOverviewData} from './app-state.js';
 import {badgeClass, formatRunName, metricPct, timeAgo, toneClass, toneVar} from './app-format.js';
-import {adminSignpostButton, openReportWindow, showToast} from './app-ui.js';
+import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {currentView, showNetworkTab, showView} from './app.js';
 import {switchDashTab} from './app-infra.js';
@@ -973,8 +973,8 @@ export async function dashLoadArchive() {
   });
   html += '</div>';
 
-  // Cleanup button
-  html += '<div class="flex gap-2 mb-4">';
+  // Cleanup buttons. They wrap: in one row they ran off a 375 px screen.
+  html += '<div class="flex flex-wrap gap-2 mb-4">';
   html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="dashArchiveCleanup" data-months="3">'+t('btn_cleanup_3m','Delete older than 3 months')+'</button>';
   html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="dashArchiveCleanup" data-months="6">'+t('btn_cleanup_6m','Delete older than 6 months')+'</button>';
   html += '<button class="btn btn-ghost btn-sm" data-write data-click-handler="dashArchiveCleanup" data-months="12">'+t('btn_cleanup_12m','Delete older than 12 months')+'</button>';
@@ -1038,7 +1038,8 @@ export async function generateQBR() {
 }
 
 async function dashArchiveCleanup(months) {
-  if (!confirm(t('confirm_cleanup_reports','Delete all reports older than') + ' ' + months + ' ' + t('lbl_months','months') + '?')) return;
+  // Asked in the page's own dialog; it was the browser's confirm().
+  if (!await showConfirm(t('dlg_cleanup_reports').replace('{months}', months), t('dlg_cleanup_reports_body'))) return;
   var d = await apiFetch('/api/reports/archive/cleanup', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({months:months})});
   if (d && d.ok) {
     showToast(d.deleted + ' ' + t('msg_reports_deleted','reports deleted') + ' (' + d.freed_mb + ' MB)', 'success', 3000);

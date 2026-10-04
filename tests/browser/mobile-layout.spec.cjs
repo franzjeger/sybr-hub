@@ -51,3 +51,30 @@ test('Mer opens as a sheet that fits the screen, down to Logg ut', async ({page}
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
 });
+
+// Administrasjon › Lagring og backup: the three "Slett eldre enn" buttons
+// sat in one row that did not wrap, too narrow for their labels.
+test('the report archive\'s delete buttons fit a 375 px screen, and ask in the page', async ({page}) => {
+  page.on('dialog', dialog => { throw new Error('a browser dialog opened: ' + dialog.message()); });
+  await login(page);
+  await page.evaluate(() => { location.hash = '#/admin/storage'; });
+  const buttons = page.locator('#dash-archive-content [data-click-handler="dashArchiveCleanup"]');
+  await expect(buttons).toHaveCount(3);
+  // Each button holds its own label: squeezed into one row they shrank to a
+  // third of the width each, and their text ran out over the next button.
+  const boxes = await buttons.evaluateAll(els => els.map(el => ({right: el.getBoundingClientRect().right, text: el.scrollWidth, box: el.clientWidth})));
+  for (const b of boxes) {
+    expect(b.right).toBeLessThanOrEqual(375);
+    expect(b.text).toBeLessThanOrEqual(b.box);
+  }
+  expect(await overflow(page)).toBe(0);
+
+  // Deleting reports is asked in the page's own dialog, and Avbryt sends nothing.
+  let cleaned = false;
+  await page.route('**/api/reports/archive/cleanup', route => { cleaned = true; return route.fulfill({json: {ok: true, deleted: 0, freed_mb: 0}}); });
+  await buttons.first().click();
+  await expect(page.locator('#confirm-modal-title')).toHaveText('Slette alle rapporter eldre enn 3 måneder?');
+  await page.locator('#confirm-modal [data-click-handler="resolveConfirm"][data-answer="false"]').click();
+  await expect(page.locator('#confirm-modal')).toBeHidden();
+  expect(cleaned).toBe(false);
+});
