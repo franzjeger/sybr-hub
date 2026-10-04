@@ -3695,6 +3695,17 @@ export async function unifiSmSaveController() {
   if (data && data.ok) showToast(t('msg_controller_access_saved','Controller access saved'),'success');
 }
 
+// The inform host UniFi devices are pointed at (Set-Inform's default, and
+// provisioning's DHCP option 43). Empty clears it.
+export async function unifiSaveInformHost() {
+  var input = document.getElementById('input-unifi-inform-host');
+  var result = document.getElementById('unifi-inform-host-result');
+  var host = input.value.trim();
+  var data = await apiFetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({unifi_inform_host: host})});
+  if (data && data.ok) result.innerHTML = '<span class="text-success">' + esc(t(host ? 'lagret' : 'msg_inform_host_cleared')) + '</span>';
+  else result.textContent = '';
+}
+
 export async function unifiSmSave() {
   var apiKey = document.getElementById('unifi-sm-apikey').value.trim();
   if (!apiKey) { showToast(t('err_fill_api_key_first','Enter API key first'),'error'); return; }

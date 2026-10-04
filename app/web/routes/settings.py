@@ -99,6 +99,7 @@ async def get_settings(user: User = _auth):
         if settings.get("unifi_site_manager_api_key")
         else "",
         "unifi_site_manager_api_key_set": bool(settings.get("unifi_site_manager_api_key")),
+        "unifi_inform_host": settings.get("unifi_inform_host", ""),
         "fortigate_configured": _check_fortigate_configured(),
         "also_username": settings.get("also_username", ""),
         "also_password": "••••••" if settings.get("also_password") else "",
@@ -231,6 +232,17 @@ async def save_settings(body: SettingsUpdate, request: Request, user: User = _ad
         val = getattr(body, key).strip()
         if val:
             settings[key] = val
+
+    # The inform host UniFi devices are pointed at. It was one MSP's own
+    # controller, written into the code, for every installation.
+    if "unifi_inform_host" in sent:
+        inform_host = body.unifi_inform_host.strip()
+        if inform_host:
+            from app.core.validation import validate_host
+
+            settings["unifi_inform_host"] = validate_host(inform_host, "unifi_inform_host")
+        else:
+            settings.pop("unifi_inform_host", None)
 
     # ALSO Cloud Marketplace
     for key in ("also_username", "also_password", "also_country"):

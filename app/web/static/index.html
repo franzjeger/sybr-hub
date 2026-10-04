@@ -677,7 +677,7 @@
                 <summary class="text-sm text-muted cursor-pointer mb-2" data-i18n="unifi_controller_access">Kontroller-tilgang (for WLAN, VLAN, klient-detaljer)</summary>
                 <p class="text-sm text-muted mb-2"><span data-i18n="unifi_detail_before">For å hente detaljert info per site (WLAN-navn, VLAN, klienter) trenger du enten en</span> <strong>Organization API key</strong> <span data-i18n="unifi_detail_after">fra unifi.ui.com, eller direkte tilgang til kontrolleren.</span></p>
                 <label class="field-label" for="unifi-sm-ctrl-host" data-i18n="lbl_controller_url_optional">Kontroller-URL (valgfritt)</label>
-                <input class="field-input" id="unifi-sm-ctrl-host" type="text" data-i18n-placeholder="f_eks_https_sybr_unihosted" placeholder="f.eks. https://sybr.unihosted.com">
+                <input class="field-input" id="unifi-sm-ctrl-host" type="text" data-i18n-placeholder="ph_unifi_controller_url" placeholder="f.eks. https://unifi.example.com">
                 <label class="field-label mt-3" for="unifi-sm-ctrl-user" data-i18n="lbl_username_label">Brukernavn</label>
                 <input class="field-input" id="unifi-sm-ctrl-user" type="text" data-i18n-placeholder="lokal_kontroller_bruker" placeholder="Lokal kontroller-bruker">
                 <label class="field-label mt-3" for="unifi-sm-ctrl-pass" data-i18n="lbl_password_label">Passord</label>
@@ -692,6 +692,17 @@
                 <button data-write class="btn btn-primary btn-sm" data-click-handler="unifiSmAuth" id="unifi-sm-auth-btn" data-i18n="btn_test_connection">Test tilkobling</button>
                 <button data-write class="btn btn-ghost btn-sm" data-click-handler="unifiSmSave" data-i18n="btn_save_key">Lagre nøkkel</button>
                 <span id="unifi-sm-auth-result" class="text-xs text-muted self-center"></span>
+              </div>
+              <!-- Where devices report in: Set-Inform's default on a customer's
+                   Nettverk tab, and provisioning's DHCP option 43. -->
+              <div class="mt-4 border-t pt-3">
+                <label class="field-label" for="input-unifi-inform-host" data-i18n="lbl_unifi_inform_host">Standard inform-vert</label>
+                <input class="field-input" id="input-unifi-inform-host" type="text" autocomplete="off" data-i18n-placeholder="ph_unifi_inform_host" placeholder="f.eks. unifi.example.com" aria-describedby="unifi-inform-host-hint">
+                <p class="field-hint" id="unifi-inform-host-hint" data-i18n="unifi_inform_host_hint">Vertsnavnet eller IP-adressen UniFi-enhetene skal melde seg til. Set-Inform på kundens Nettverk-fane foreslår http://&lt;vert&gt;:8080/inform, og provisjonering peker DHCP option 43 hit.</p>
+                <div class="flex gap-2 mt-2">
+                  <button data-write class="btn btn-ghost btn-sm" data-click-handler="unifiSaveInformHost" data-i18n="btn_save">Lagre</button>
+                  <span id="unifi-inform-host-result" class="text-xs text-muted self-center" role="status"></span>
+                </div>
               </div>
               <div id="unifi-sm-sites" class="mt-4 border-t pt-3" style="display:none;">
                 <div class="flex items-center justify-between mb-2">

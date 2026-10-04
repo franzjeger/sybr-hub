@@ -1387,6 +1387,7 @@ async function _loadIntegrationCards() {
     // other integration shows for a stored credential. A key that is stored is
     // configured here, exactly as it is for IT Glue and the rest.
     setStatus('unifi-sm-integ-dot', 'unifi-sm-integ-label', !!d.unifi_site_manager_api_key_set); _countInteg(!!d.unifi_site_manager_api_key_set);
+    _setVal('input-unifi-inform-host', d.unifi_inform_host || '');
     // FortiGate: set up when any customer has one (on its page, under Nettverk).
     setStatus('fg-integ-dot', 'fg-integ-label', !!d.fortigate_configured); _countInteg(!!d.fortigate_configured);
     // Tailscale status + populate

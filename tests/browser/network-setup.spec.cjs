@@ -271,3 +271,91 @@ test('Integrasjoner says where a customer\'s FortiGate is set up, and no setup a
   const tools = await page.locator('[data-tool-customer]').evaluateAll(els => els.map(el => el.dataset.toolCustomer).sort());
   expect(tools).toEqual(['pentest', 'provisioning']);
 });
+
+// Set-Inform was a browser prompt() on the quick check's cards and, on the
+// scan results, a dialog whose one preset was an MSP's own controller written
+// into the code. It is a form under the device now, starting from the inform
+// host set in Integrasjoner › UniFi.
+async function withInformHost(page, host) {
+  await page.route('**/api/settings', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    return route.fulfill({response, json: Object.assign(await response.json(), {unifi_inform_host: host})});
+  });
+}
+
+test('Set-Inform on a device card is a form that starts from the inform host setting', async ({page}) => {
+  page.on('dialog', dialog => { throw new Error('a browser dialog opened: ' + dialog.message()); });
+  await page.route('**/api/network-devices/Browser_Beta', route => route.fulfill({json: LISTING}));
+  await page.route('**/api/network/quick-audit/Browser_Beta', route => route.fulfill({json: QUICK_CHECK}));
+  await withInformHost(page, 'unifi.example.com');
+  const sent = [];
+  await page.route('**/api/unifi/set-inform', route => {
+    sent.push(route.request().postDataJSON());
+    return route.fulfill({json: {ok: true, output: 'Adoption request sent'}});
+  });
+  await login(page);
+  await openNetworkTab(page);
+  await page.locator('#btn-run-network-audit').click();
+  const card = page.locator('#net-audit-result [data-unifi-card="192.0.2.31"]');
+  await card.getByRole('button', {name: 'Set-Inform'}).click();
+
+  const form = card.locator('form.cust-net-inform');
+  await expect(form.getByLabel('Inform-URL')).toHaveValue('http://unifi.example.com:8080/inform');
+  await expect(form).toContainText('Forhåndsutfylt med standard inform-vert');
+  await form.getByRole('button', {name: 'Send'}).click();
+  await expect(form.locator('.cust-net-result')).toHaveText('Set-inform sendt til 192.0.2.31 · Adoption request sent');
+  expect(sent).toEqual([{host: '192.0.2.31', customer_id: 'Browser_Beta', controller_url: 'http://unifi.example.com:8080/inform'}]);
+});
+
+test('Set-Inform on a scan result opens in its row, and with no inform host set asks for the address', async ({page}) => {
+  page.on('dialog', dialog => { throw new Error('a browser dialog opened: ' + dialog.message()); });
+  await withInformHost(page, '');
+  await page.route('**/api/network/scan', route => route.fulfill({json: {found: [
+    {host: '192.0.2.40', ssh: true, https: false, is_unifi: true, device_hint: 'UniFi'},
+  ]}}));
+  const sent = [];
+  await page.route('**/api/unifi/set-inform', route => {
+    sent.push(route.request().postDataJSON());
+    return route.fulfill({json: {ok: true}});
+  });
+  await login(page);
+  await openNetworkTab(page);
+  await page.locator('#input-scan-subnet').fill('192.0.2.0/24');
+  await page.locator('#btn-subnet-scan').click();
+  await page.locator('#subnet-scan-result').getByRole('button', {name: 'Set-Inform'}).click();
+
+  const row = page.locator('#scan-cfg-192_0_2_40');
+  const form = row.locator('form.cust-net-inform');
+  await expect(row).toBeVisible();
+  await expect(form.getByLabel('Inform-URL')).toHaveValue('');
+  await expect(form).toContainText('Ingen standard inform-vert er satt');
+  await form.getByRole('button', {name: 'Send'}).click();
+  await expect(form.locator('.cust-net-result')).toHaveText('Skriv inn en URL');
+  expect(sent).toEqual([]);
+  await form.getByLabel('Inform-URL').fill('http://192.0.2.5:8080/inform');
+  await form.getByLabel('Inform-URL').press('Enter');
+  await expect(form.locator('.cust-net-result')).toHaveText('Set-inform sendt til 192.0.2.40');
+  expect(sent[0]).toEqual({host: '192.0.2.40', customer_id: 'Browser_Beta', controller_url: 'http://192.0.2.5:8080/inform'});
+  await form.getByRole('button', {name: 'Avbryt'}).click();
+  await expect(row).toBeHidden();
+});
+
+test('the default inform host is set in Integrasjoner › UniFi', async ({page}) => {
+  const saved = [];
+  await page.route('**/api/settings', route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    saved.push(route.request().postDataJSON());
+    return route.fulfill({json: {ok: true}});
+  });
+  await login(page);
+  await inApp(page, app => { app.openAdmin('integrations'); app.toggleIntegConfig('unifi-sm-config'); });
+  // The cards are filled from /api/settings, the inform host with them; the
+  // summary is written last.
+  await expect(page.locator('#integ-summary')).not.toBeEmpty();
+  const field = page.getByLabel('Standard inform-vert');
+  await field.fill('unifi.example.com');
+  await page.locator('[data-click-handler="unifiSaveInformHost"]').click();
+  await expect(page.locator('#unifi-inform-host-result')).toHaveText('Lagret');
+  expect(saved).toEqual([{unifi_inform_host: 'unifi.example.com'}]);
+});

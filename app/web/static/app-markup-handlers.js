@@ -21,7 +21,7 @@ import {
   provisionStart, runCmsScan, runCredentialTest, runDnsPentest, runPentest, runSegTest,
   runSmbEnum, runTakeoverCheck, runTlsAudit, sshShowExec, sshShowKeys, switchDashTab,
   termChangeFontSize, termConnect, termDisconnect, termModeChanged, unifiSmAuth,
-  unifiSmLoadCoverage, unifiSmLoadSites, unifiSmSave, unifiSmSaveController,
+  unifiSaveInformHost, unifiSmLoadCoverage, unifiSmLoadSites, unifiSmSave, unifiSmSaveController,
   unifiSmTestController, vpnLoadProfiles, vpnShowCreate, vpnShowImport,
 } from './app-infra.js';
 import {
@@ -206,6 +206,7 @@ registerUiHandlers({
   unifiSmLoadCoverage: function() { unifiSmLoadCoverage(); },
   unifiSmLoadSites: function() { unifiSmLoadSites(); },
   unifiSmSave: function() { unifiSmSave(); },
+  unifiSaveInformHost: function() { unifiSaveInformHost(); },
   unifiSmSaveController: function() { unifiSmSaveController(); },
   unifiSmTestController: function() { unifiSmTestController(); },
   uniwebSaveConfig: function() { uniwebSaveConfig(); },
