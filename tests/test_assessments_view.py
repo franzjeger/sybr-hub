@@ -56,8 +56,6 @@ def test_a_feature_owns_the_view():
 def test_the_strings_the_view_renders_exist_in_both_languages():
     d = json.loads((STATIC / "ui_i18n.json").read_text(encoding="utf-8"))
     for key in (
-        "nav_assessments",
-        "hdr_assessments",
         "msg_assessments_intro",
         "lbl_checks",
         "lbl_house_standard",

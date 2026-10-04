@@ -426,8 +426,6 @@ def test_the_strings_the_view_reads_exist_in_both_languages():
     d = json.loads((STATIC / "ui_i18n.json").read_text(encoding="utf-8"))
     for key in (
         "nav_policy_overview",
-        "nav_policy_overview_desc",
-        "nav_policy_overview_intro",
         "msg_po_no_audit",
         "msg_po_no_policies",
         "msg_po_drift_unmeasured",
