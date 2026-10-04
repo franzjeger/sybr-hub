@@ -79,6 +79,8 @@ h3 { font-size: 15px; font-weight: 600; margin: 24px 0 10px; color: var(--text);
 .risk-grade.red   { background: #fee2e2; color: #991b1b; }
 .risk-info h3 { margin: 0 0 4px; font-size: 16px; }
 .risk-info p  { margin: 0; color: var(--muted); font-size: 12px; }
+.risk-gaps { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.risk-gaps ul { margin: 4px 0 0 18px; padding: 0; }
 .risk-score { margin-left: auto; text-align: right; }
 .risk-score .num { font-size: 28px; font-weight: 700; font-family: var(--mono); }
 .risk-score .lbl { font-size: 11px; color: var(--muted); }
@@ -357,6 +359,19 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <div class="risk-info">
     <h3>{{ t.security_posture }}: {{ risk.level }}</h3>
     <p>{{ t.risk_based_on_desc }}</p>
+    {# Why there is no grade, or what the grade could not measure. Neither
+       reached this report: a "?" stood here with no reason, and a score
+       stood here with no word that Secure Score or a whole section was
+       missing from it. #}
+    {% if risk.blocking_data_gaps %}
+    <div class="risk-gaps"><strong>{{ t.posture_blocking_gaps_label }}</strong>
+      <ul>{% for gap in risk.blocking_data_gaps %}<li>{{ gap }}</li>{% endfor %}</ul>
+    </div>
+    {% elif risk.score is not none and risk.data_quality_issues %}
+    <div class="risk-gaps" id="score-gaps"><strong>{{ t.risk_not_in_score_label }}</strong>
+      <ul>{% for issue in risk.data_quality_issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
   </div>
   <div class="risk-score">
     {# _compute_risk returns score=None when a blocking data gap makes the
