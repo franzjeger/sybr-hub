@@ -1,3 +1,15 @@
+# Alerts and exports (unreleased)
+
+- **Exports no longer leave a plaintext copy on disk.** `/api/report/csv`
+  wrote `audit_export_<kunde>.csv` into the run folder and
+  `/api/export/excel` wrote `dashboard_export_<tid>.csv` into the audit
+  directory, both unencrypted. Neither is written now, and the Excel export
+  no longer sends an `X-File-Path` header. Copies from earlier exports are
+  still there: delete `audit_export_*.csv` under the run folders and
+  `dashboard_export_*.csv` in the audit directory.
+
+---
+
 # A customer's FortiGate and UniFi are set up on its page (unreleased)
 
 - **Verktøy › Nettverk lost its Enheter and Audit tabs** and its "Kunde"
