@@ -891,7 +891,8 @@ export async function exportCSV(customerId) {
   area.innerHTML = '<div class="loader"></div> ' + t('msg_generating_csv');
   try {
     const r = await fetch('/api/report/csv', {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
+      // The report language the screen offers, as generateReport sends it.
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId, lang: document.getElementById('report-lang')?.value || 'no'}),
     });
     if (!r.ok) {
       try { const d = await r.json(); area.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`; } catch(_) { area.innerHTML = '<div class="alert alert-error">' + t('err_export_failed','Export failed') + '</div>'; }
