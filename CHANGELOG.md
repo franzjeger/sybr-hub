@@ -6,6 +6,17 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Rapportene sier hva de ikke målte, på riktig språk
+
+- Begge rapportene viser under scoren hva som ikke kunne måles og derfor
+  ikke er med i den. Uten score står årsaken, ikke et spørsmålstegn.
+- Norske rapporter er på norsk: forsiden, overskriftene for rådata,
+  prioriteter (Høy, Middels, Lav), WLAN-sikkerhet, nettverksstatus,
+  CIS-kontrollenes titler og risikoverdier fra Entra.
+- CSV-eksporten følger språket du velger for rapporten. En verdi som ikke ble
+  målt, står som «ikke målt» og ikke som 0.
+- Rapport-e-posten er på samme språk som rapporten den sender, skriver ikke
+  lenger «None», og sier bare at PDF-en er vedlagt når den er det.
 ### Firmware vurderes mot dagens versjoner
 
 - UniFi-firmware ble slått opp på produktnavn, mens kontrolleren rapporterer
