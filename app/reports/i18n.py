@@ -2197,7 +2197,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Apps with broad permissions",
     },
     "delegated_perms": {
-        "no": "Delegerte tillatelser (Admin Consent)",
+        "no": "Delegerte tillatelser (administratorsamtykke)",
         "en": "Delegated Permissions (Admin Consent)",
     },
     "app_label": {
@@ -2205,7 +2205,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "App",
     },
     "permissions_scopes": {
-        "no": "Tillatelser (scopes)",
+        "no": "Tillatelser",
         "en": "Permissions (scopes)",
     },
     "app_permissions_heading": {
@@ -2516,7 +2516,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Email security not assessed: the DNS lookups failed",
     },
     "risk_dq_admin_roles": {
-        "no": "Admin-roller utilgjengelig",
+        "no": "Administratorroller utilgjengelig",
         "en": "Admin roles unavailable",
     },
     "risk_dq_intune": {
@@ -2528,7 +2528,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "SharePoint configuration unavailable",
     },
     "risk_dq_oauth": {
-        "no": "OAuth-grants utilgjengelig",
+        "no": "OAuth-samtykker utilgjengelig",
         "en": "OAuth grants unavailable",
     },
     "risk_dq_risky_users": {
@@ -2548,11 +2548,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Network audit unavailable: {file} could not be read (the score is missing up to 15 penalty points)",
     },
     "risk_dq_fg_admins": {
-        "no": "FortiGate-administratorer kunne ikke leses, så 2FA/trust-host-funn mangler",
+        "no": "FortiGate-administratorer kunne ikke leses, så funn om tofaktor og IP-begrensning mangler",
         "en": "FortiGate administrators could not be read, so the 2FA and trusted-host findings are missing",
     },
     "risk_dq_fg_policies": {
-        "no": "FortiGate-brannmurregler kunne ikke leses, så allow-all/logging-funn mangler",
+        "no": "FortiGate-brannmurregler kunne ikke leses, så funn om regler som tillater alt og om logging mangler",
         "en": "FortiGate firewall rules could not be read, so the allow-all and logging findings are missing",
     },
     "posture_grade_invalid": {
@@ -2734,7 +2734,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     # 1.1.3 Global Admins
     "cis_gap_admin_roles": {
-        "no": "admin-rolle data utilgjengelig",
+        "no": "data om administratorroller utilgjengelig",
         "en": "admin role data unavailable",
     },
     "cis_ga_none_standing": {
@@ -3439,7 +3439,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "These accounts use licenses but are inactive. Consider disabling the accounts and freeing the licenses, or investigate whether the users are still employed.",
     },
     "rec_cred_expiry_title": {
-        "no": "App-registreringer: {count} credential(s) utg\u00e5tt eller utg\u00e5r snart",
+        "no": "App-registreringer: legitimasjon som er utgått eller utgår snart ({count})",
         "en": "App registrations: {count} credential(s) expired or expiring soon",
     },
     "rec_cred_expiry_detail": {
@@ -3500,7 +3500,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "MFA data is not available for this customer.",
     },
     "exec_mfa_subset": {
-        "no": "MFA-dekningen er {pct:.0f}%, men målt på kun {measured} av {total} brukere fordi {unknown} ikke kunne kontrolleres (throttling eller manglende tilgang).",
+        "no": "MFA-dekningen er {pct:.0f}%, men målt på kun {measured} av {total} brukere fordi {unknown} ikke kunne kontrolleres (Microsoft begrenset antall oppslag, eller tilgangen manglet).",
         "en": "MFA coverage is {pct:.0f}%, but measured on only {measured} of {total} users — {unknown} could not be checked (throttling or missing access).",
     },
     "exec_ss_good": {
@@ -3662,7 +3662,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "No sign-in data available — requires Microsoft Entra ID P1 (formerly Azure AD Premium P1) for signInActivity.",
     },
     "lo_not_collected": {
-        "no": "Stale-konto-deteksjon ble ikke utført i denne auditen. Sannsynlig årsak: app-registreringen mangler AuditLog.Read.All-consent, eller PowerShell-versjonen av auditen henter ikke signInActivity-feltet. Kjør auditen på nytt etter å ha verifisert tillatelser.",
+        "no": "Søket etter inaktive kontoer ble ikke utført i denne auditen. Sannsynlig årsak: app-registreringen mangler samtykke til AuditLog.Read.All, eller PowerShell-versjonen av auditen henter ikke feltet signInActivity. Kontroller tillatelsene og kjør auditen på nytt.",
         "en": "Stale-account detection was not performed in this audit. Likely cause: the app registration lacks AuditLog.Read.All consent, or the PowerShell variant of the audit does not fetch the signInActivity field. Re-run the audit after verifying permissions.",
     },
     "lo_no_issues": {
@@ -3744,7 +3744,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Firewall rules",
     },
     "net_admins": {
-        "no": "Admins",
+        "no": "Administratorer",
         "en": "Admins",
     },
     "net_vpn_tunnels": {
