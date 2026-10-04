@@ -404,6 +404,48 @@ def _run_pdf(run: Path) -> Path | None:
     return pdfs[0] if pdfs else None
 
 
+def _scheduled_reports_card(sent: int, errors: int, recipient: str, lang: str) -> dict:
+    """The Teams card that says the weekly reports went out, in the hub's language.
+
+    It was Norwegian whatever the hub's language, with a chart emoji in front.
+    The counts stand alone, as in the alert card, so no sentence has to agree
+    with a number ("sendt til 1 kunder").
+    """
+    from app.reports.i18n import T
+
+    t = T(lang)
+    facts = str(t("scheduled_reports_card_facts", sent=sent, recipient=recipient))
+    if errors:
+        facts += " " + str(t("scheduled_reports_card_errors", errors=errors))
+    return {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "text": str(t("scheduled_reports_card_title")),
+                            "weight": "Bolder",
+                            "size": "Medium",
+                        },
+                        {
+                            "type": "TextBlock",
+                            "text": facts,
+                            "wrap": True,
+                            "size": "Small",
+                            "color": "Attention" if errors else "Default",
+                        },
+                    ],
+                },
+            }
+        ],
+    }
+
+
 async def _do_scheduled_reports() -> str:
     """E-mail each customer's latest audit report to the default recipient.
 
@@ -485,33 +527,7 @@ async def _do_scheduled_reports() -> str:
             if webhook_url:
                 import httpx
 
-                card = {
-                    "type": "message",
-                    "attachments": [
-                        {
-                            "contentType": "application/vnd.microsoft.card.adaptive",
-                            "content": {
-                                "type": "AdaptiveCard",
-                                "version": "1.4",
-                                "body": [
-                                    {
-                                        "type": "TextBlock",
-                                        "text": f"📊 Ukentlig rapport sendt til {sent} kunder",
-                                        "weight": "Bolder",
-                                        "size": "Medium",
-                                    },
-                                    {
-                                        "type": "TextBlock",
-                                        "text": f"Mottaker: {recipient}"
-                                        + (f" ({errors} feil)" if errors else ""),
-                                        "size": "Small",
-                                        "color": "Default" if not errors else "Attention",
-                                    },
-                                ],
-                            },
-                        }
-                    ],
-                }
+                card = _scheduled_reports_card(sent, errors, recipient, report_language(None))
                 async with httpx.AsyncClient(timeout=10) as client:
                     await client.post(webhook_url, json=card)
         except Exception as e:
