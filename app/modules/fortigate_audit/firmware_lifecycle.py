@@ -20,6 +20,10 @@ Two questions are answered here, from two sources:
 
 Update process: refresh the dates from Fortinet's product life cycle page
 (support.fortinet.com, Product Life Cycle, FortiOS) and set ``LAST_UPDATED``.
+That page is a script-only portal guarded by a captcha, so the dates below
+were also checked against what Fortinet publishes openly (its support bulletins
+on community.fortinet.com) and two public trackers that copy the life cycle
+page, listed beside the table; all agreed on every date.
 """
 
 from __future__ import annotations
@@ -27,12 +31,18 @@ from __future__ import annotations
 import re
 from datetime import date
 
-LAST_UPDATED = "2026-10-03"
+# The day every date below was last checked against the sources.
+LAST_UPDATED = "2026-10-04"
 FRESHNESS_DAYS = 180
 SOURCE = "fortios-lifecycle (manuell tabell)"
 
 # Branch -> End of Support. Fortinet's dates as published on its life cycle
-# page; 7.4 and 7.6 carry the March 2026 extension.
+# page; 7.4 and 7.6 carry the March 2026 extension. Checked 2026-10-04 against:
+# * 7.4, 7.6: Fortinet's bulletin CSB-260330-1, "FortiOS End of Support change
+#   for FortiOS v7.4 and v7.6" (7.4 to 11 Nov 2028, 7.6 to 25 Jan 2030),
+#   https://community.fortinet.com/fortigate-3/technical-tip-fortios-end-of-support-change-for-fortios-v7-4-and-v7-6-224876
+# * every branch: https://eol.network/fortinet/fortios (updated 2026-10-04)
+#   and https://endoflife.date/api/fortios.json, both from the life cycle page.
 END_OF_SUPPORT: dict[tuple[int, int], str] = {
     (6, 0): "2022-09-29",
     (6, 2): "2023-09-28",
