@@ -1,6 +1,6 @@
 """A customer's FortiGate and UniFi, as the customer page's Nettverk tab sets them up.
 
-The setup forms moved from Verktøy › Nettverk (technicians only) onto the
+The setup forms moved from Verktøy > Nettverk (technicians only) onto the
 customer page, which every account with access to the customer opens. Three
 things in the routes behind them had to change for that:
 
@@ -162,8 +162,9 @@ async def test_a_device_saved_back_without_its_password_keeps_the_stored_one(cli
     listing = [
         {k: v for k, v in d.items() if k != "password"} for d in listed["unifi"]["direct_devices"]
     ]
-    devices = listing + [
-        {"host": "192.0.2.12", "device_type": "gateway", "username": "root", "password": "gw-pass"}
+    devices = [
+        *listing,
+        {"host": "192.0.2.12", "device_type": "gateway", "username": "root", "password": "gw-pass"},
     ]
 
     r = client.post(
