@@ -481,6 +481,18 @@ def _prepare_audit(request: Request, customer_id: str) -> tuple[str | None, dict
     }
 
 
+def _email_status(ok: bool, key: str, **params: str) -> dict:
+    """What auto-send came to, for the audit screen to word.
+
+    The audit's completion event is built in the background job, where no
+    reader is known, so it carries the key and the values: the screen shows
+    them in the reader's language. ``msg`` is the Norwegian text for any
+    other client. It was only that, so an English reader got "Rapport sendt
+    til ..." and "Auto-send aktivert, men ...".
+    """
+    return {"ok": ok, "msg": ui_t(key, None, params), "msg_key": key, "msg_params": params}
+
+
 async def _post_audit_side_effects(
     cfg: dict, results: list[dict], out_dir, customer_name: str, customer_id: str
 ) -> dict | None:
@@ -532,19 +544,18 @@ async def _post_audit_side_effects(
             None, lambda: auto_send_after_audit(out_dir)
         )
         if email_err:
-            email_status = {"ok": False, "msg": email_err}
+            email_status = _email_status(False, email_err.key, **email_err.params)
         elif email_err is None:
             from app.core.config import load_app_settings
 
             _s = load_app_settings()
             if _s.get("email_auto_send"):
-                email_status = {
-                    "ok": True,
-                    "msg": "Rapport sendt til " + _s.get("email_default_recipient", ""),
-                }
+                email_status = _email_status(
+                    True, "audit_report_sent", recipient=_s.get("email_default_recipient", "")
+                )
     except Exception as exc:
         logger.warning("Auto-send email after audit failed: %s", exc)
-        email_status = {"ok": False, "msg": str(exc)}
+        email_status = _email_status(False, "err_auto_send_failed", error=str(exc))
 
     try:
         from app.services.audit_scheduler import scheduler as _sched

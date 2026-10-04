@@ -203,8 +203,36 @@ def build_report_body_html(
 """
 
 
-def auto_send_after_audit(out_dir: Path) -> str | None:
-    """If auto-send is enabled, generate PDF and email it. Returns None on success, error string on failure."""
+class AutoSendFailure:
+    """Why the report e-mail after an audit did not go out, as a message key.
+
+    auto_send_after_audit returned a Norwegian sentence, and the audit screen
+    showed it to a reader in any language. The caller words this one: the
+    key is in app/core/messages.py, so the web layer renders it in the
+    reader's language and the browser from ui_i18n.json. ``str()`` is the
+    Norwegian text, for the scheduler's log line, as messages.py has it.
+    """
+
+    __slots__ = ("key", "params")
+
+    def __init__(self, key: str, **params: str) -> None:
+        self.key = key
+        self.params = params
+
+    def __str__(self) -> str:
+        from app.core.messages import text
+
+        return text(self.key, **self.params)
+
+    def __repr__(self) -> str:
+        return f"AutoSendFailure({self.key!r}, {self.params!r})"
+
+
+def auto_send_after_audit(out_dir: Path) -> AutoSendFailure | None:
+    """If auto-send is enabled, email the run's report.
+
+    None when it went out or auto-send is off; otherwise why it did not.
+    """
     from app.core.config import load_app_settings
 
     settings = load_app_settings()
@@ -213,11 +241,11 @@ def auto_send_after_audit(out_dir: Path) -> str | None:
 
     recipient = settings.get("email_default_recipient", "").strip()
     if not recipient:
-        return "Auto-send aktivert, men ingen standard mottaker konfigurert"
+        return AutoSendFailure("err_auto_send_no_recipient")
 
     smtp_server = settings.get("smtp_server", "").strip()
     if not smtp_server:
-        return "Auto-send aktivert, men SMTP-server ikke konfigurert"
+        return AutoSendFailure("err_auto_send_no_smtp")
 
     # Find the PDF report in out_dir
     pdf_path = None
@@ -263,4 +291,4 @@ def auto_send_after_audit(out_dir: Path) -> str | None:
         return None  # success
     except Exception as e:
         log.exception("auto_send_after_audit failed")
-        return f"E-post feilet: {e}"
+        return AutoSendFailure("err_auto_send_failed", error=str(e))
