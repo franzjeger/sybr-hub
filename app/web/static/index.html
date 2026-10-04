@@ -985,11 +985,13 @@
           <label for="input-scheduler-enabled" class="text-ui" data-i18n="settings_scheduler_enabled">Aktiver automatisk audit</label>
         </div>
 
-        <div class="flex items-center gap-2 mb-3">
-          <input type="checkbox" id="input-scheduler-audit-all" checked>
-          <label for="input-scheduler-audit-all" class="text-ui" data-i18n="settings_scheduler_audit_all">Audit alle kunder</label>
-          <span class="text-xs text-muted" data-i18n="settings_scheduler_hint">(deaktivert = kun aktiv kunde)</span>
-        </div>
+        <!-- Every configured customer, or one named by id. The options are the
+             customer list, filled in by app-settings.js. -->
+        <label class="field-label" for="input-scheduler-customer" data-i18n="lbl_scheduler_customers">Kunder som auditeres</label>
+        <select class="field-input" id="input-scheduler-customer">
+          <option value="" data-i18n="opt_scheduler_all_customers">Alle kunder som er satt opp for audit</option>
+        </select>
+        <p class="field-hint text-warning" id="scheduler-customer-warning" hidden></p>
 
         <label class="field-label" for="input-scheduler-interval" data-i18n="lbl_interval_hours">Intervall (timer)</label>
         <input class="field-input" id="input-scheduler-interval" type="number" value="168" min="1" data-i18n-placeholder="ukentlig" placeholder="168 (ukentlig)">

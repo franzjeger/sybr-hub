@@ -245,11 +245,13 @@ async def test_the_settings_forms_scheduler_block_saves(admin_client):
     With extra="forbid" that made every save of this block a 422, so the
     scheduler could not be configured from the Settings page at all.
     """
+    customer = _customer("Acme")
     r = admin_client.post(
         "/api/scheduler",
         json={
             "enabled": True,
             "audit_all_customers": False,
+            "customer_id": customer,
             "interval_hours": 24,
             "webhook_url": "",
             "backup_after_audit": True,
@@ -269,6 +271,7 @@ async def test_the_settings_forms_scheduler_block_saves(admin_client):
     stored = admin_client.get("/api/scheduler").json()
     assert stored["backup_after_audit"] is True
     assert stored["interval_hours"] == 24
+    assert stored["customer_id"] == customer
 
 
 async def test_saving_the_webhook_card_leaves_the_schedule_on(admin_client):
@@ -281,6 +284,85 @@ async def test_saving_the_webhook_card_leaves_the_schedule_on(admin_client):
     assert r.status_code == 200
     block = _stored()["scheduler"]
     assert block["enabled"] is True and block["interval_hours"] == 24
+    assert block["webhook_url"] == "https://hooks.example.no/x"
+
+
+# ── POST /api/scheduler: the one customer the one-customer mode audits ───────
+# That mode audited the setup staging slot, the customer set up last. It names
+# a customer by id now, and the id is checked before it is stored.
+
+
+def _customer(name: str) -> str:
+    from app.core.customer import CustomerManager
+
+    return CustomerManager.save_customer(
+        {"CustomerName": name, "TenantId": f"{name.lower()}-tenant"}, create=True
+    )
+
+
+async def test_one_customer_mode_without_a_customer_is_refused(admin_client):
+    body = assert_refused(
+        admin_client.post("/api/scheduler", json={"audit_all_customers": False}), 400
+    )
+    assert body["error_key"] == "err_scheduler_customer_required"
+    assert "scheduler" not in _stored(), "the refused mode was stored anyway"
+
+
+async def test_a_customer_that_does_not_exist_is_refused(admin_client):
+    body = assert_refused(
+        admin_client.post(
+            "/api/scheduler", json={"audit_all_customers": False, "customer_id": "Nobody"}
+        ),
+        400,
+    )
+    assert body["error_key"] == "err_scheduler_customer_unknown"
+
+
+async def test_a_customer_the_admin_cannot_reach_is_refused(admin_client, monkeypatch):
+    """An admin reaches every customer today; the check is there for the day that changes."""
+    customer = _customer("Acme")
+
+    async def no_access(user, customer_id):
+        return customer_id != customer
+
+    monkeypatch.setattr("app.core.rbac.check_customer_access", no_access)
+    assert_refused(
+        admin_client.post(
+            "/api/scheduler", json={"audit_all_customers": False, "customer_id": customer}
+        ),
+        403,
+    )
+    assert "scheduler" not in _stored()
+
+
+async def test_choosing_every_customer_forgets_the_one(admin_client):
+    customer = _customer("Acme")
+    admin_client.post(
+        "/api/scheduler", json={"audit_all_customers": False, "customer_id": customer}
+    )
+    assert _stored()["scheduler"]["customer_id"] == customer
+
+    r = admin_client.post("/api/scheduler", json={"audit_all_customers": True})
+
+    assert r.status_code == 200, r.text
+    assert _stored()["scheduler"]["customer_id"] is None
+
+
+async def test_the_webhook_card_saves_beside_a_mode_that_names_no_customer(admin_client):
+    """Settings from before the id: one customer, none named. They stay as
+    they are (the scheduler audits nothing and says so) until someone picks a
+    customer, and the card that sends neither field still saves."""
+    from app.core.config import update_app_settings
+
+    update_app_settings(
+        lambda s: s.__setitem__("scheduler", {"enabled": True, "audit_all_customers": False})
+    )
+
+    r = admin_client.post("/api/scheduler", json={"webhook_url": "https://hooks.example.no/x"})
+
+    assert r.status_code == 200, r.text
+    block = _stored()["scheduler"]
+    assert block["audit_all_customers"] is False and block["customer_id"] is None
     assert block["webhook_url"] == "https://hooks.example.no/x"
 
 

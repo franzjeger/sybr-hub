@@ -154,7 +154,8 @@ def get_branding() -> dict:
 DEFAULT_SCHEDULER = {
     "enabled": False,
     "interval_hours": 168,  # weekly
-    "audit_all_customers": True,  # True = rotate all customers, False = only active
+    "audit_all_customers": True,  # True = every configured customer, False = customer_id only
+    "customer_id": None,  # the one customer audit_all_customers=False audits
     "webhook_url": "",  # Teams/Slack incoming webhook URL
     "alert_on": {
         "audit_completed": True,

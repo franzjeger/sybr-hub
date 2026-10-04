@@ -36,6 +36,19 @@ def _save_anchor(when: datetime | None) -> None:
     update_app_settings(mutate)
 
 
+def _is_configured_for_audit(customer: dict) -> bool:
+    """Whether the customer record holds enough to build its audit login.
+
+    An app registration needs its tenant and app id; delegated (GDAP) access
+    needs only the tenant, as the audit route has it (``_prepare_audit``).
+    A missing secret or certificate is not checked here: building the auth
+    finds that and the run reports it as a failure, not a skip.
+    """
+    if not customer.get("TenantId"):
+        return False
+    return customer.get("AuthMode") == "gdap" or bool(customer.get("ClientId"))
+
+
 class AuditScheduler:
     """Runs audits on a schedule and sends webhook alerts on changes.
 
@@ -105,69 +118,116 @@ class AuditScheduler:
                 await asyncio.sleep(_TICK_SECONDS)
 
     async def _run_scheduled_audit(self):
-        """Run audits for all customers (or just the active one) depending on config."""
+        """Audit every configured customer, or the one customer the settings name."""
         config = get_scheduler_config()
-        audit_all = config.get("audit_all_customers", True)
-
-        if audit_all:
+        if config.get("audit_all_customers", True):
             await self._run_all_customers_audit()
         else:
-            await self._run_single_customer_audit()
+            await self._run_single_customer_audit(config.get("customer_id"))
 
-    async def _run_single_customer_audit(self):
-        """Run an audit for the currently active customer only.
+    async def _run_single_customer_audit(self, customer_id: str | None):
+        """Audit the one customer the scheduler settings name, by its id.
 
-        This mode reads the active-customer globals rather than being handed a
-        customer, which is what "audit the active customer" means — but it
-        must still not run alongside a manual audit, or two collectors compete
-        for Graph quota and both write into the same progress map.
+        This mode used to audit whatever the setup staging slot held
+        (``load_config()``, audit_config.json): the customer somebody set up
+        last, which nobody chose for the schedule, with credentials read from
+        that slot and the staging certificate. It now does what the audit
+        route does: read the customer's record and certificate path once,
+        build the auth from them, and hand both to the collector.
+
+        Settings saved before the id existed say "one customer" without
+        saying which. That audits nothing and says so, every cycle, rather
+        than fall back to the staging slot. The settings page says it too.
         """
-        from app.core import job_state as state
-        from app.core.credentials import load_config
-        from app.modules.m365_audit.auth import AuthManager
-        from app.modules.m365_audit.collector import AuditCollector, make_output_dir
+        from app.core.customer import CustomerManager
+        from app.modules.m365_audit.auth import get_auth_for_customer
 
-        cfg = load_config()
-        if not cfg:
+        if not customer_id:
+            log.warning(
+                "Scheduled audit is set to one customer but names none, so nothing was "
+                "audited. Choose the customer under Administrasjon > Varsler og planlagte "
+                "oppgaver."
+            )
             return
+        customer = CustomerManager.get_customer(customer_id)
+        if not customer:
+            log.warning(
+                "Scheduled audit: customer %s no longer exists, so nothing was audited",
+                customer_id,
+            )
+            return
+        name = customer.get("CustomerName", customer_id)
+        if not _is_configured_for_audit(customer):
+            log.warning(
+                "Scheduled audit: %s has no Microsoft 365 setup, so nothing was audited", name
+            )
+            return
+        try:
+            auth = get_auth_for_customer(customer, CustomerManager.get_cert_path(customer_id))
+        except Exception as e:
+            log.error("Auth setup failed for customer %s: %s", name, e)
+            await self._send_webhook(f"⚠️ Scheduled audit failed for {name}: {e}")
+            return
+        await self._audit_customer(customer_id, customer, auth)
 
-        customer_name = cfg.get("CustomerName", "Ukjent")
+    async def _audit_customer(
+        self, customer_id: str, customer: dict, auth, position: str = ""
+    ) -> str:
+        """Run one customer's audit with the auth built for it, and report on it.
 
+        Returns "audited", "skipped" (a manual audit held the flag) or the
+        failure text. ``position`` ("2/7") goes into the activity log.
+        """
+        # Imported here, not at module scope: core reaching into web state is
+        # a layering compromise made deliberately. A lock of its own in core
+        # would not serialise against the manual audit route, which is the
+        # only thing this needs to serialise against.
+        from app.core import job_state as state
+        from app.modules.m365_audit.collector import AuditCollector, make_output_dir
+        from app.reports.generator import build_report_context
+
+        name = customer.get("CustomerName", customer_id or "Ukjent")
+        suffix = f" ({position})" if position else ""
+
+        # Claimed per customer rather than for a whole cycle. Holding it
+        # across every tenant would lock a technician out of running an
+        # audit by hand for as long as the cycle lasts, which is the kind
+        # of guard people work around.
         async with state.audit_lock:
             if state.audit_running:
-                log.info("Scheduled audit skipped: an audit is already running")
-                return
+                log.info("Skipping %s this cycle: an audit is already running", name)
+                return "skipped"
             state.audit_running = True
 
-        log.info("Scheduled audit starting for %s", customer_name)
-
         try:
-            self._log_activity("audit_started", "Planlagt audit startet", customer_name)
-            auth = AuthManager.from_config()
-            out_dir = make_output_dir(customer_name)
+            self._log_activity("audit_started", f"Planlagt audit startet{suffix}", name)
+
+            out_dir = make_output_dir(name)
             collector = AuditCollector(auth=auth, out_dir=out_dir)
             results = await collector.run()
 
-            from app.reports.generator import build_report_context
-
             ctx = build_report_context(
-                customer_name=customer_name,
-                org_domain=cfg.get("PrimaryDomain", ""),
+                customer_name=name,
+                org_domain=customer.get("PrimaryDomain", ""),
                 out_dir=out_dir,
                 results=results,
+                customer_id=customer_id,
             )
 
-            await self._check_and_alert(ctx, customer_name)
-            await self._notify_audit_completed(customer_name)
+            await self._check_and_alert(ctx, name)
+            await self._notify_audit_completed(name)
 
             # Auto-generate report + send email if configured
-            await self._auto_report_and_email(customer_name, cfg, out_dir, results)
+            await self._auto_report_and_email(name, customer, out_dir, results)
 
-            self._log_activity("audit_completed", "Planlagt audit fullfort", customer_name)
+            self._log_activity("audit_completed", f"Planlagt audit fullfort{suffix}", name)
+            log.info("Scheduled audit completed for %s", name)
+            return "audited"
 
         except Exception as e:
-            log.error("Scheduled audit failed: %s", e)
-            await self._send_webhook(f"⚠️ Scheduled audit failed for {customer_name}: {e}")
+            log.error("Scheduled audit failed for %s: %s", name, e)
+            await self._send_webhook(f"⚠️ Scheduled audit failed for {name}: {e}")
+            return str(e)
         finally:
             state.audit_running = False
 
@@ -205,15 +265,8 @@ class AuditScheduler:
         GDAP branch, so every scheduled audit of a GDAP tenant failed, while
         the same customer audited manually was fine.
         """
-        # Imported here, not at module scope: core reaching into web state is
-        # a layering compromise made deliberately. A lock of its own in core
-        # would not serialise against the manual audit route, which is the
-        # only thing this needs to serialise against.
-        from app.core import job_state as state
         from app.core.customer import CustomerManager
         from app.modules.m365_audit.auth import get_auth_for_customer
-        from app.modules.m365_audit.collector import AuditCollector, make_output_dir
-        from app.reports.generator import build_report_context
 
         all_customers = CustomerManager.list_customers()
         if not all_customers:
@@ -252,52 +305,13 @@ class AuditScheduler:
                 failed.append(f"{cust_name} (autentisering feilet: {e})")
                 continue
 
-            # Claimed per customer rather than for the whole cycle. Holding it
-            # across every tenant would lock a technician out of running an
-            # audit by hand for as long as the cycle lasts, which is the kind
-            # of guard people work around.
-            async with state.audit_lock:
-                if state.audit_running:
-                    log.info("Skipping %s this cycle: an audit is already running", cust_name)
-                    skipped.append(f"{cust_name} (audit pagikk)")
-                    continue
-                state.audit_running = True
-
-            try:
-                self._log_activity(
-                    "audit_started", f"Planlagt audit startet ({idx + 1}/{total})", cust_name
-                )
-
-                out_dir = make_output_dir(cust_name)
-                collector = AuditCollector(auth=auth, out_dir=out_dir)
-                results = await collector.run()
-
-                ctx = build_report_context(
-                    customer_name=cust_name,
-                    org_domain=full_cust.get("PrimaryDomain", ""),
-                    out_dir=out_dir,
-                    results=results,
-                    customer_id=cust_id,
-                )
-
-                await self._check_and_alert(ctx, cust_name)
-                await self._notify_audit_completed(cust_name)
-
-                # Auto-generate report + send email if configured
-                await self._auto_report_and_email(cust_name, full_cust, out_dir, results)
-
+            outcome = await self._audit_customer(cust_id, full_cust, auth, f"{idx + 1}/{total}")
+            if outcome == "audited":
                 audited.append(cust_name)
-                self._log_activity(
-                    "audit_completed", f"Planlagt audit fullfort ({idx + 1}/{total})", cust_name
-                )
-                log.info("Scheduled audit completed for %s", cust_name)
-
-            except Exception as e:
-                log.error("Scheduled audit failed for %s: %s", cust_name, e)
-                failed.append(f"{cust_name} ({e})")
-                await self._send_webhook(f"⚠️ Scheduled audit failed for {cust_name}: {e}")
-            finally:
-                state.audit_running = False
+            elif outcome == "skipped":
+                skipped.append(f"{cust_name} (audit pagikk)")
+            else:
+                failed.append(f"{cust_name} ({outcome})")
 
         # ── Summary ──
         summary_parts = [f"Planlagt audit-syklus fullfort: {len(audited)}/{total} OK"]

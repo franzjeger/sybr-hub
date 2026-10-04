@@ -486,6 +486,14 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Webhook-test feilet",
         "Webhook test failed",
     ),
+    "err_scheduler_customer_required": (
+        "Velg kunden automatisk audit skal gjelde, eller velg alle kunder.",
+        "Choose the customer the automatic audit is for, or choose all customers.",
+    ),
+    "err_scheduler_customer_unknown": (
+        "Kunden du valgte for automatisk audit, finnes ikke.",
+        "The customer you chose for the automatic audit does not exist.",
+    ),
     "err_provisioning_session_not_found": (
         "Sesjon ikke funnet",
         "Session not found",

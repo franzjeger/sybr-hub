@@ -1,3 +1,18 @@
+# Automatic audit of one customer names the customer (unreleased)
+
+- **The one-customer mode audited the setup staging slot**, the customer set
+  up last, whoever that was. It now audits a customer chosen under
+  Administrasjon › Varsler og planlagte oppgaver › Kunder som auditeres, by
+  id, with that customer's own record and certificate.
+  `POST /api/scheduler` takes `customer_id` beside `audit_all_customers:
+  false` and refuses the mode without a customer, or with one that does not
+  exist (400). Choosing all customers drops the id.
+- **An install that had the mode on keeps it and audits nothing** until a
+  customer is chosen. The scheduler says so in its log every cycle, and the
+  settings page says so under the list.
+
+---
+
 # Report outputs in the report's language (unreleased)
 
 - **`POST /api/report/csv` takes an optional `lang`** (`"no"` or `"en"`,

@@ -215,7 +215,8 @@ async function _loadAdminSettings() {
     try {
       const sched = await apiFetch('/api/scheduler');
       document.getElementById('input-scheduler-enabled').checked = sched.enabled || false;
-      document.getElementById('input-scheduler-audit-all').checked = sched.audit_all_customers !== false;
+      const custList = await apiFetch('/api/customers');
+      _renderSchedulerCustomers(sched, (custList && custList.customers) || []);
       document.getElementById('input-scheduler-interval').value = sched.interval_hours || 168;
       document.getElementById('input-webhook-url').value = sched.webhook_url || '';
       document.getElementById('input-scheduler-backup').checked = sched.backup_after_audit || false;
@@ -264,6 +265,45 @@ async function _loadAdminSettings() {
   // Snapshot form values for dirty-flag detection
   _snapshotSettingsForm();
   _initSettingsDirtyTracking();
+}
+
+// ── Automatisk audit: which customers ─────────────────────────────────────────
+// Every customer set up for auditing (value ""), or one customer by id. The
+// one-customer mode used to audit the setup staging slot, whoever was set up
+// last; it names its customer now. Settings saved before that say "one
+// customer" without saying which, and a customer can be deleted after it was
+// chosen: either way the audit does not run, the list shows a placeholder
+// ("?", which no customer id can be) and the line under it says why. Saving
+// with the placeholder still chosen leaves the stored choice alone.
+var SCHED_UNSET = '?';
+var _schedCustomers = [];
+
+function _renderSchedulerCustomers(sched, customers) {
+  _schedCustomers = customers;
+  var sel = document.getElementById('input-scheduler-customer');
+  var warn = document.getElementById('scheduler-customer-warning');
+  var one = sched.audit_all_customers === false;
+  var known = customers.some(function(c) { return c._id === sched.customer_id; });
+  var problem = !one ? '' : (!sched.customer_id ? 'msg_scheduler_customer_unset' : (known ? '' : 'msg_scheduler_customer_gone'));
+  var html = '<option value="">' + esc(t('opt_scheduler_all_customers')) + '</option>';
+  if (problem) html += '<option value="' + SCHED_UNSET + '" disabled>' + esc(t('opt_scheduler_customer_unset')) + '</option>';
+  customers.slice().sort(function(a, b) {
+    return String(a.CustomerName || a._id).localeCompare(String(b.CustomerName || b._id), _lang);
+  }).forEach(function(c) {
+    html += '<option value="' + esc(c._id) + '">' + esc(c.CustomerName || c._id) + '</option>';
+  });
+  sel.innerHTML = html;
+  sel.value = problem ? SCHED_UNSET : (one ? sched.customer_id : '');
+  warn.textContent = problem ? t(problem) : '';
+  warn.hidden = !problem;
+}
+
+// The scope fields of the scheduler block, or nothing while the placeholder
+// is still chosen.
+function _schedulerScope() {
+  var value = document.getElementById('input-scheduler-customer').value;
+  if (value === SCHED_UNSET) return {};
+  return value ? {audit_all_customers: false, customer_id: value} : {audit_all_customers: true, customer_id: null};
 }
 
 // ── Settings dirty-flag detection ─────────────────────────────────────────────
@@ -887,7 +927,7 @@ export async function saveSettings() {
     // Save scheduler separately
     const schedData = {
       enabled: document.getElementById('input-scheduler-enabled').checked,
-      audit_all_customers: document.getElementById('input-scheduler-audit-all').checked,
+      ..._schedulerScope(),
       interval_hours: parseInt(document.getElementById('input-scheduler-interval').value) || 168,
       webhook_url: document.getElementById('input-webhook-url').value.trim(),
       backup_after_audit: document.getElementById('input-scheduler-backup').checked,
@@ -901,10 +941,17 @@ export async function saveSettings() {
         mfa_below_threshold: document.getElementById('alert-mfa-below-threshold').checked ? (parseInt(document.getElementById('alert-mfa-threshold').value) || 80) : false,
       },
     };
-    await apiFetch('/api/scheduler', {
+    const schedSaved = await apiFetch('/api/scheduler', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(schedData)
     });
+    // A refused block (apiFetch has said why) is not saved, whatever the
+    // line above says about the rest of the form.
+    if (!schedSaved) msg.textContent = '';
+    else {
+      const sched = await apiFetch('/api/scheduler');
+      if (sched) { _renderSchedulerCustomers(sched, _schedCustomers); _snapshotSettingsForm(); }
+    }
   } catch (e) {
     msg.style.color = 'var(--red)';
     msg.textContent = '✗ ' + t('err_network_error').replace('{msg}', e.message);
