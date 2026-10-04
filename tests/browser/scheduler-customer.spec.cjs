@@ -34,9 +34,10 @@ test('the automatic audit names its one customer, and settings that name none sa
     const warning = page.locator('#scheduler-customer-warning');
 
     // Every customer, then the customers by name. Nothing about an active one.
-    await expect(picker.locator('option')).toHaveText([
-      'Alle kunder som er satt opp for audit', 'Browser Alpha', 'Browser Beta',
-    ]);
+    // (Other specs add customers to the shared fixture, so not the whole list.)
+    await expect(picker.locator('option').first()).toHaveText('Alle kunder som er satt opp for audit');
+    await expect(picker.locator('option[value="Browser_Alpha"]')).toHaveText('Browser Alpha');
+    await expect(picker.locator('option[value="Browser_Beta"]')).toHaveText('Browser Beta');
     await expect(picker).toHaveValue('');
     await expect(warning).toBeHidden();
     await expect(page.locator('#admin-pane-alerts')).not.toContainText('aktiv kunde');

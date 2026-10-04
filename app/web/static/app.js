@@ -574,7 +574,8 @@ export async function doLogout() {
 // ── Tools that act on one customer ──────────────────────────────────────────
 // The FortiGate API form, provisioning and pentest's segmentation test each
 // work on one customer at a time. (A customer's own FortiGate and UniFi are
-// set up on its page, which needs no such field.) They say which in a customer bar ([data-tool-customer]),
+// set up on its page, which needs no such field.) They say which in a
+// customer bar ([data-tool-customer]),
 // whose choice is this tab's current customer; picking another there changes
 // it for this tab only and reloads the tool. A tool sends that id with every
 // call; there is no customer the server would assume.
