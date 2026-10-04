@@ -4159,6 +4159,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "csv_priority_medium": {"no": "Middels", "en": "Medium"},
     "csv_priority_low": {"no": "Lav", "en": "Low"},
     "csv_unknown_customer": {"no": "Ukjent kunde", "en": "Unknown customer"},
+    # ── Dashboard export (/export/excel); it also uses csv_* above ──
+    "dash_csv_mfa_pct": {"no": "MFA-dekning %", "en": "MFA coverage %"},
+    "dash_csv_secure_score_pct": {"no": "Secure Score %", "en": "Secure Score %"},
+    "dash_csv_total_users": {"no": "Brukere totalt", "en": "Total users"},
+    "dash_csv_users_no_mfa": {"no": "Brukere uten MFA", "en": "Users without MFA"},
+    "dash_csv_ca_enabled": {"no": "Aktive CA-policyer", "en": "Enabled CA policies"},
+    "dash_csv_intune_pct": {"no": "Intune-samsvar %", "en": "Intune compliance %"},
+    "dash_csv_last_audit": {"no": "Siste audit", "en": "Last audit"},
+    "dash_csv_tags": {"no": "Tags", "en": "Tags"},
     # ── The report e-mail (core.email_sender.build_report_body_html) ──
     "email_subject": {
         "no": "Auditrapport: {customer} ({date})",

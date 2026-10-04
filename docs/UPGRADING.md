@@ -7,6 +7,11 @@
   no longer sends an `X-File-Path` header. Copies from earlier exports are
   still there: delete `audit_export_*.csv` under the run folders and
   `dashboard_export_*.csv` in the audit directory.
+- **`POST /api/export/excel` takes an optional body `{"lang": "no"|"en"}`**,
+  as `/api/report/csv` does, and its headers follow it. Without a body the
+  headers are Norwegian ("Kunde; Domene; Karakter; ..."); they were English.
+  A script that reads the export by its English headers should send
+  `{"lang": "en"}`.
 
 ---
 

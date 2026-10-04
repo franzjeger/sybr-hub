@@ -19,6 +19,7 @@ from app.core.exceptions import (
 )
 from app.models.reports import (
     BatchSummaryRequest,
+    DashboardExportRequest,
     EmailReportRequest,
     EmailTestRequest,
     ReportArchiveCleanup,
@@ -692,12 +693,17 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
 
 
 @router.post("/export/excel")
-async def export_dashboard_excel(user: User = Depends(get_current_user)):
+async def export_dashboard_excel(
+    body: DashboardExportRequest | None = None, user: User = Depends(get_current_user)
+):
     """Export the caller's customers with metrics as Excel-compatible CSV.
 
     Took no user argument at all, so it exported every customer's audit
-    metrics — grade, score, MFA coverage, admin counts — to anyone logged in,
-    and wrote the cross-customer result to disk in plaintext besides.
+    metrics — grade, score, MFA coverage, admin counts — to anyone logged in.
+
+    The headers are in the language the body asks for, as /report/csv's are.
+    They were English whatever the reader's language, beside a Norwegian
+    "Ukjent" for a customer without a name.
     """
     import csv
     import io
@@ -706,31 +712,33 @@ async def export_dashboard_excel(user: User = Depends(get_current_user)):
     from app.core.customer import CustomerManager
     from app.core.encryption import encrypted_read_json
     from app.core.rbac import filter_customers, get_accessible_customer_ids
+    from app.reports.i18n import T
 
+    t = T((body or DashboardExportRequest()).lang)
     customers = filter_customers(
         CustomerManager.list_customers(), await get_accessible_customer_ids(user)
     )
     audit_dir = get_audit_dir()
 
     headers = [
-        "Customer",
-        "Domain",
-        "Risk Grade",
-        "Risk Score",
-        "MFA Coverage %",
-        "Secure Score %",
-        "Total Users",
-        "Users Without MFA",
-        "CA Policies",
-        "Intune Compliance %",
-        "Global Admins",
-        "Last Audit Date",
-        "Tags",
+        t.csv_cat_customer,
+        t.csv_domain,
+        t.csv_risk_grade,
+        t.csv_risk_score,
+        t.dash_csv_mfa_pct,
+        t.dash_csv_secure_score_pct,
+        t.dash_csv_total_users,
+        t.dash_csv_users_no_mfa,
+        t.dash_csv_ca_enabled,
+        t.dash_csv_intune_pct,
+        t.csv_global_admins,
+        t.dash_csv_last_audit,
+        t.dash_csv_tags,
     ]
 
     rows = []
     for c in customers:
-        name = c.get("CustomerName", "Ukjent")
+        name = c.get("CustomerName") or t.csv_unknown_customer
         domain = c.get("PrimaryDomain", "")
         cid = c.get("_id", "")
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
