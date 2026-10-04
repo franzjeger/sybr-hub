@@ -6,6 +6,25 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Opprydding i grensesnittet
+
+- «Endre tags» startet på nytt fra taggene siden ble tegnet med, så tagger
+  lagt til siden forsvant ved neste lagring. Nå lukkes og åpnes redigeringen
+  riktig.
+- Oppsett av en ny FortiGate og nedlasting av påloggingsinformasjonen ligger
+  på kundens Nettverk-fane. Integrasjoner har bare det som gjelder hele MSP-en.
+- Verktøy › Nettverk åpner på lagrede avlesninger i stedet for å kontakte hver
+  brannmur, og «Oppdater nå» henter ferske tall.
+- Set-Inform for UniFi er et skjema under enheten, og adressen enhetene skal
+  rapportere til er en innstilling under Integrasjoner › UniFi.
+- Terminalen følger lyst tema.
+- Varsler, knapper og innloggingskortet bruker temaets farger. Gult i lyst
+  tema har nå god nok kontrast.
+- Slette-knappene i rapportarkivet passer på mobil og spør i siden, ikke i et
+  nettleservindu.
+- Død kode, ubrukt CSS og 484 ubrukte tekster er fjernet, med sjekker som
+  hindrer at de kommer tilbake.
+
 ### Varsler, eksport og masseaudit
 
 - Varsel-e-posten og Teams- og Slack-meldingene satte navn fra kundens tenant,
