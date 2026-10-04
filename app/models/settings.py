@@ -57,6 +57,10 @@ class SchedulerConfig(BaseModel):
     enabled: bool = False
     interval_hours: int = Field(default=168, ge=1, le=8760)
     audit_all_customers: bool = True
+    # The customer audit_all_customers=False audits, by id. Without one that
+    # mode audits nothing; it used to audit the setup staging slot, which
+    # holds whichever customer was set up last. The route checks the id.
+    customer_id: str | None = Field(default=None, max_length=255)
     webhook_url: str = Field(default="", max_length=2048)
     # Read by audit_scheduler._maybe_create_backup and sent by the Settings
     # form's scheduler block. It was missing here, so with extra="forbid" that

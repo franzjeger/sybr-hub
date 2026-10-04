@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, Response
 
 from app.core.customer import CustomerManager
 from app.core.exceptions import (
+    ForbiddenError,
     IntegrationError,
     ValidationError,
 )
@@ -430,9 +431,11 @@ async def update_scheduler(body: SchedulerConfig, user: User = _admin):
     card switched scheduled audits off. Sent fields are laid over the stored
     block, and the result is validated as a whole.
     """
-    from app.core.config import update_app_settings
+    from app.core.config import get_scheduler_config, update_app_settings
 
     sent = body.model_dump(exclude_unset=True)
+    if "audit_all_customers" in sent or "customer_id" in sent:
+        await _check_scheduler_customer(sent, get_scheduler_config(), user)
     result: dict = {}
 
     def merge(settings: dict) -> None:
@@ -454,6 +457,34 @@ async def update_scheduler(body: SchedulerConfig, user: User = _admin):
     )
 
     return {"ok": True}
+
+
+async def _check_scheduler_customer(sent: dict, stored: dict, user: User) -> None:
+    """Settle which customer the one-customer mode audits, or refuse.
+
+    That mode audited the setup staging slot, which holds whichever customer
+    was set up last, and its hint called that "the active customer". It now
+    audits a customer named by id. This runs only when the request touches the
+    mode or the id, so the webhook card (which sends neither) still saves on
+    an install whose stored mode predates the id. Choosing every customer
+    drops the id, so a later switch back cannot audit a stale choice.
+    """
+    from app.core.rbac import check_customer_access
+
+    if "customer_id" in sent:
+        sent["customer_id"] = (sent["customer_id"] or "").strip() or None
+    audit_all = sent.get("audit_all_customers", stored.get("audit_all_customers", True))
+    if audit_all:
+        sent["customer_id"] = None
+        return
+    customer_id = sent.get("customer_id", stored.get("customer_id"))
+    if not customer_id:
+        raise refusal(ValidationError, "err_scheduler_customer_required")
+    if not CustomerManager.get_customer(customer_id):
+        raise refusal(ValidationError, "err_scheduler_customer_unknown")
+    if not await check_customer_access(user, customer_id):
+        raise refusal(ForbiddenError, "err_customer_access_denied")
+    sent["customer_id"] = customer_id
 
 
 @router.post("/scheduler/test-webhook")
