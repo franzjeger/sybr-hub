@@ -6,6 +6,13 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Fonten ligger i appen
+
+- Fonten Cairo ble hentet fra Google Fonts hver gang appen lastet, så Google
+  fikk vite hvilken adresse som brukte huben, og uten nett manglet fonten. Nå
+  serveres den fra appen selv, og sikkerhetsreglene åpner ikke lenger for
+  Googles fontservere.
+
 ### Opprydding i grensesnittet
 
 - «Endre tags» startet på nytt fra taggene siden ble tegnet med, så tagger
