@@ -142,3 +142,54 @@ async def test_without_email_settings_nothing_is_sent(hub, monkeypatch):
 
     assert _SMTP.sent == []
     assert result.startswith("skipped")
+
+
+class _Webhook:
+    """Stands in for httpx.AsyncClient and keeps what was posted."""
+
+    posted: list[dict] = []  # noqa: RUF012
+
+    def __init__(self, timeout=None):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, json=None):
+        _Webhook.posted.append(json)
+
+
+def _card_text(card: dict) -> list[str]:
+    return [block["text"] for block in card["attachments"][0]["content"]["body"]]
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        ("no", ["Sybr HUB: ukentlige rapporter sendt", "Kunder: 1. Mottaker: ops@msp.example."]),
+        ("en", ["Sybr HUB: weekly reports sent", "Customers: 1. Recipient: ops@msp.example."]),
+    ],
+)
+async def test_the_teams_card_is_in_the_hubs_language_without_an_emoji(
+    hub, monkeypatch, lang, expected
+):
+    """It said "📊 Ukentlig rapport sendt til 1 kunder" whatever the hub's language."""
+    import app.core.config as config
+
+    settings = dict(
+        config.load_app_settings(), ui_language=lang, webhook_url="https://hooks.example/x"
+    )
+    monkeypatch.setattr("app.core.config.load_app_settings", lambda: settings)
+    monkeypatch.setattr("httpx.AsyncClient", _Webhook)
+    _Webhook.posted = []
+    _run(hub, "Beta", "2026-09-28_0700")
+
+    await _do_scheduled_reports()
+
+    assert len(_Webhook.posted) == 1
+    text = _card_text(_Webhook.posted[0])
+    assert text == expected
+    assert not any(ord(ch) > 0x2FFF for line in text for ch in line), "an emoji in the card"

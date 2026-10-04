@@ -4204,6 +4204,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Sendt fra Sybr HUB",
         "en": "Sent from Sybr HUB",
     },
+    # The chat card the weekly report task posts when it has sent them
+    # (services.scheduler), in the hub's language.
+    "scheduled_reports_card_title": {
+        "no": "Sybr HUB: ukentlige rapporter sendt",
+        "en": "Sybr HUB: weekly reports sent",
+    },
+    "scheduled_reports_card_facts": {
+        "no": "Kunder: {sent}. Mottaker: {recipient}.",
+        "en": "Customers: {sent}. Recipient: {recipient}.",
+    },
+    "scheduled_reports_card_errors": {
+        "no": "Feilet: {errors}.",
+        "en": "Failed: {errors}.",
+    },
     # ── Automatic alerts (services.alert_engine, services.webhook_sender) ──
     # In the hub's language. The counts stand alone so no sentence has to
     # agree with a number ("1 nye varsler").
