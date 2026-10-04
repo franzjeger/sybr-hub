@@ -3049,6 +3049,11 @@ textarea.field-input { resize: vertical; }
 .device-card.is-short { grid-template-rows: 24px 1fr; }
 .device-card-head { display: flex; align-items: center; height: 24px; overflow: hidden; }
 .device-card-sub { font-size: var(--font-sm); color: var(--text-muted); line-height: 20px; height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The fleet (Verktøy › Nettverk › FortiGate): when a card was last read,
+   and the line above the cards that says the list is not live. */
+.fg-card-foot { margin-top: var(--space-2); font-size: var(--font-xs); color: var(--text-dim); overflow-wrap: anywhere; }
+.fg-fleet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.fg-fleet-note { flex: 1 1 260px; margin: 0; font-size: var(--font-sm); color: var(--text-muted); }
 .device-card-tag {
   font-size: var(--font-2xs); color: var(--text-dim); background: var(--bg); border-radius: var(--radius-sm);
   padding: 0 var(--space-1); margin-left: var(--space-2); min-width: 0; max-width: 45%; flex-shrink: 1;
