@@ -53,9 +53,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         "frame-ancestors 'self'; form-action 'self'; "
         "script-src 'self'; script-src-elem 'self'; "
         "script-src-attr 'none'; "
-        "style-src 'self' https://fonts.googleapis.com; style-src-elem 'self' https://fonts.googleapis.com; "
+        "style-src 'self'; style-src-elem 'self'; "
         "style-src-attr 'unsafe-inline'; "
-        "img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; "
+        "img-src 'self' data: blob:; font-src 'self' data:; "
         "connect-src 'self' ws: wss:; frame-src 'self'; "
         "worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:"
     )
@@ -65,7 +65,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         "script-src 'self' https://cdn.jsdelivr.net; "
         "style-src 'self' https://cdn.jsdelivr.net; "
         "img-src 'self' data:; "
-        "font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; frame-src 'none'"
+        "font-src 'self' data:; connect-src 'self'; frame-src 'none'"
     )
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
