@@ -14,8 +14,6 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import httpx
-
 from app.core.config import CONFIG_DIR, load_app_settings
 from app.core.database import get_db
 
@@ -675,92 +673,6 @@ def _recommend(alert: dict, lang: str) -> str:
 
 
 # ── Notification senders ─────────────────────────────────────────────────────
-
-
-async def send_teams_alert(webhook_url: str, alerts: list[dict]) -> None:
-    """Send alert summary to Teams/Slack webhook using Adaptive Card."""
-    if not webhook_url or not alerts:
-        return
-
-    # Build message text
-    critical = [a for a in alerts if a["severity"] == "critical"]
-    warnings = [a for a in alerts if a["severity"] == "warning"]
-
-    lines = [f"🚨 **Sybr HUB: {len(alerts)} nye varsler**"]
-    if critical:
-        lines.append(f"**Kritiske ({len(critical)}):**")
-        for a in critical[:10]:
-            lines.append(f"🔴 [{a['customer']}] {a['item']}: {a['detail']}")
-    if warnings:
-        lines.append(f"**Advarsler ({len(warnings)}):**")
-        for a in warnings[:10]:
-            lines.append(f"🟡 [{a['customer']}] {a['item']}: {a['detail']}")
-    if len(alerts) > 20:
-        lines.append(f"_...og {len(alerts) - 20} flere_")
-
-    message = "\n".join(lines)
-
-    # Build Adaptive Card
-    body_blocks: list[dict] = []
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if i == 0:
-            body_blocks.append(
-                {
-                    "type": "TextBlock",
-                    "text": stripped,
-                    "wrap": True,
-                    "weight": "Bolder",
-                    "size": "Medium",
-                }
-            )
-        else:
-            body_blocks.append(
-                {
-                    "type": "TextBlock",
-                    "text": stripped,
-                    "wrap": True,
-                    "spacing": "Small",
-                }
-            )
-
-    card = {
-        "type": "AdaptiveCard",
-        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-        "version": "1.4",
-        "body": body_blocks,
-    }
-
-    # Detect webhook type and format payload
-    url_lower = webhook_url.lower()
-    if (
-        "logic.azure.com" in url_lower
-        or "powerautomate" in url_lower
-        or "flow.microsoft.com" in url_lower
-    ):
-        payload = card
-    elif "office.com" in url_lower or "webhook.office" in url_lower:
-        payload = {
-            "type": "message",
-            "attachments": [
-                {
-                    "contentType": "application/vnd.microsoft.card.adaptive",
-                    "content": card,
-                }
-            ],
-        }
-    else:
-        payload = {"text": message}
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(webhook_url, json=payload)
-            if resp.status_code >= 400:
-                logger.warning("Alert webhook failed: %d %s", resp.status_code, resp.text[:200])
-    except Exception as exc:
-        logger.error("Alert webhook error: %s", exc)
 
 
 async def send_email_alert(
