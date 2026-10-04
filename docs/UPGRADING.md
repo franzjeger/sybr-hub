@@ -12,6 +12,11 @@
   headers are Norwegian ("Kunde; Domene; Karakter; ..."); they were English.
   A script that reads the export by its English headers should send
   `{"lang": "en"}`.
+- **A UniFi firmware verdict's `reason` is a code**: `model_unknown`,
+  `version_unparsed` or `table_stale`, the codes `/api/firmware/devices`
+  already uses. It was a Norwegian sentence in
+  `GET /api/unifi/firmware-check/{id}` (`devices[].reason`) and in a network
+  audit's stored `fw_check`. Results stored before keep the sentence.
 
 ---
 
