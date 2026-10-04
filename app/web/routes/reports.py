@@ -681,10 +681,9 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
     writer.writerows(_csv_rows(ctx, customer_name, lang))
     csv_content = output.getvalue()
 
-    # Save CSV to audit folder
-    csv_path = out_dir / f"audit_export_{customer_name.replace(' ', '_')}.csv"
-    csv_path.write_text(csv_content, encoding="utf-8-sig")  # BOM for Excel compat
-
+    # The export is the download and nothing else. A copy went into the run
+    # folder as plaintext, where everything else is encrypted at rest, and
+    # nothing ever read it back.
     return Response(
         content=csv_content.encode("utf-8-sig"),
         media_type="text/csv",
@@ -792,19 +791,17 @@ async def export_dashboard_excel(user: User = Depends(get_current_user)):
 
     csv_content = output.getvalue()
 
-    # Save to audit output directory
+    # The download only. Every customer's grade, score and MFA coverage went
+    # to the audit directory as a plaintext copy as well, where everything
+    # else is encrypted at rest, and its server path went back in a header.
     from datetime import datetime as _dt
 
     timestamp = _dt.now().strftime("%Y-%m-%d_%H%M")
-    csv_path = audit_dir / f"dashboard_export_{timestamp}.csv"
-    csv_path.write_text(csv_content, encoding="utf-8-sig")
-
     return Response(
         content=csv_content.encode("utf-8-sig"),
         media_type="text/csv",
         headers={
             "Content-Disposition": f'attachment; filename="dashboard_export_{timestamp}.csv"',
-            "X-File-Path": str(csv_path),
         },
     )
 
