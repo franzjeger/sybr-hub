@@ -16,7 +16,7 @@ def _parse_network_audit(file_contents: dict) -> dict:
 
     A file that is present but will not parse is *not* the same as no network
     audit. Both used to produce has_data=False, and the caller reads that to
-    decide whether to run _compute_network_risk at all — so a malformed file
+    decide whether to run _network_penalty at all — so a malformed file
     dropped the firewall findings and their risk penalty, and the customer
     scored better for it. Unreadable is now recorded and reported as itself.
     """

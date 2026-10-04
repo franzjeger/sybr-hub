@@ -5,8 +5,7 @@
 field — older firmware, a partial response — became the string "open", and two
 consumers acted on it as fact:
 
-  * ``_compute_network_risk`` charged 5 penalty points and added
-    "Åpent WiFi-nettverk" to the findings list;
+  * the network risk (now ``_network_penalty``) charged 5 penalty points;
   * ``_build_recommendations`` raised a *critical* recommendation naming the
     SSID, telling a technician to go secure a network that may already be
     encrypted.
@@ -23,7 +22,7 @@ from __future__ import annotations
 import pytest
 
 from app.reports.recommendations import _build_recommendations
-from app.reports.risk import _compute_network_risk, _is_open_wlan
+from app.reports.risk import _is_open_wlan, _network_penalty
 
 
 def _network(wlans: list[dict]) -> dict:
@@ -69,22 +68,33 @@ def test_label_from_an_older_file_still_falls_back_to_the_raw_value():
 
 
 def test_missing_security_field_does_not_cost_penalty_points():
-    risk = _compute_network_risk(_network([{"name": "Corp", "enabled": True}]))
-    assert risk["penalty"] == 0
-    assert risk["findings"] == []
+    assert _network_penalty(_network([{"name": "Corp", "enabled": True}])) == 0
 
 
 def test_a_real_open_wlan_still_costs_penalty_points():
-    risk = _compute_network_risk(_network([{"name": "Guest", "security": "open", "enabled": True}]))
-    assert risk["penalty"] == 5
-    assert any("pent WiFi" in f for f in risk["findings"])
+    assert _network_penalty(_network([{"name": "Guest", "security": "open", "enabled": True}])) == 5
+
+
+def test_two_open_wlans_cost_the_same_as_one():
+    wlans = [
+        {"name": "Guest", "security": "open", "enabled": True},
+        {"name": "Lobby", "security": "open", "enabled": True},
+    ]
+    assert _network_penalty(_network(wlans)) == 5
 
 
 def test_a_disabled_open_wlan_is_not_penalised():
-    risk = _compute_network_risk(
-        _network([{"name": "Old-Guest", "security": "open", "enabled": False}])
-    )
-    assert risk["penalty"] == 0
+    network = _network([{"name": "Old-Guest", "security": "open", "enabled": False}])
+    assert _network_penalty(network) == 0
+
+
+def test_the_network_penalty_is_capped_at_fifteen():
+    network = {
+        "has_data": True,
+        "fortigate": {"admins": [{"two_factor": False}] * 3, "policy_warnings": []},
+        "unifi": {"mode": "direct", "default_creds_count": 3, "eol_count": 2},
+    }
+    assert _network_penalty(network) == 15
 
 
 # ── Recommendations ───────────────────────────────────────────────────────────

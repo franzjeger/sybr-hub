@@ -26,10 +26,16 @@ def _is_open_wlan(wlan: dict) -> bool:
     return is_open_wlan_security(wlan.get("security"))
 
 
-def _compute_network_risk(network: dict) -> dict:
-    """Compute network-specific risk factors. Returns {penalty, findings}."""
+def _network_penalty(network: dict) -> int:
+    """The points the network findings cost the score, at most 15.
+
+    This used to return ``{penalty, findings}`` and build a Norwegian sentence
+    per finding ("2 FortiGate-admin uten 2FA", "Åpent WiFi-nettverk") that
+    nothing rendered: the report names each finding through its
+    recommendation, in the report's language. Only tests read the sentences,
+    so they are gone and the number is what is left.
+    """
     penalty = 0
-    findings: list[str] = []
 
     fg = network.get("fortigate")
     if fg and "error" not in fg:
@@ -37,17 +43,14 @@ def _compute_network_risk(network: dict) -> dict:
         admins_no_2fa = [a for a in fg.get("admins", []) if not a.get("two_factor")]
         if admins_no_2fa:
             penalty += min(5, len(admins_no_2fa) * 2)
-            findings.append(f"{len(admins_no_2fa)} FortiGate-admin uten 2FA")
         # Allow-all policies
         allow_all = [w for w in fg.get("policy_warnings", []) if "allow-all" in w.lower()]
         if allow_all:
             penalty += min(5, len(allow_all) * 3)
-            findings.append(f"{len(allow_all)} allow-all-regler")
         # No-logging policies
         no_log = [w for w in fg.get("policy_warnings", []) if "logging" in w.lower()]
         if no_log:
             penalty += min(3, len(no_log))
-            findings.append(f"{len(no_log)} regler uten logging")
 
     uf = network.get("unifi")
     if uf and "error" not in uf:
@@ -55,25 +58,19 @@ def _compute_network_risk(network: dict) -> dict:
         default_creds = uf.get("default_creds_count", 0)
         if default_creds:
             penalty += min(10, default_creds * 5)
-            findings.append(f"{default_creds} enheter med standard-passord")
         # Outdated firmware
         outdated = uf.get("outdated_firmware_count", 0)
         eol = uf.get("eol_count", 0)
         if eol:
             penalty += min(5, eol * 3)
-            findings.append(f"{eol} EOL-enheter")
         if outdated:
             penalty += min(3, outdated * 2)
-            findings.append(f"{outdated} enheter med utdatert firmware")
-        # Check for open WiFi in controller mode
-        if uf.get("mode") == "controller":
-            for w in uf.get("wlans", []):
-                if _is_open_wlan(w) and w.get("enabled", True):
-                    penalty += 5
-                    findings.append("Åpent WiFi-nettverk")
-                    break
+        # An enabled open WLAN, in controller mode (the only mode that lists them)
+        wlans = uf.get("wlans", []) if uf.get("mode") == "controller" else []
+        if any(_is_open_wlan(w) and w.get("enabled", True) for w in wlans):
+            penalty += 5
 
-    return {"penalty": min(15, penalty), "findings": findings}
+    return min(15, penalty)
 
 
 def _compute_risk(
@@ -310,8 +307,7 @@ def _compute_risk(
 
     # ── Network security (up to 15 pts) ────────────────────────────
     if network and network.get("has_data"):
-        net_risk = _compute_network_risk(network)
-        score -= net_risk["penalty"]
+        score -= _network_penalty(network)
     # A file that would not parse is an input this function could not read, and
     # that is what data_quality_issues is for — every other unverifiable input
     # is declared there. Not blocking: the network is worth 15 points against
