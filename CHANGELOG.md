@@ -6,6 +6,18 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Ett designsystem
+
+- Grensesnittet er bygget på felles designtokens og klasser i stedet for
+  rundt 3800 inline-stiler. Skriftstørrelser, avstander, hjørner og farger
+  følger én skala, og det som så likt ut, er likt nå.
+- Én fanestil overalt, én stil for korttitler og tre knappestørrelser.
+  Knappene for å starte Nettleser og RDP er blå som andre hovedknapper, ikke
+  grønne. Farger utenfor paletten er byttet til temaets farger.
+- Filterknappene i Varsler er piller igjen. Skillelinjer, fremdriftslinjer,
+  advarselen om krypteringsnøkkelen og gule og blå meldingsbokser ble aldri
+  tegnet, fordi stilene pekte på farger som ikke fantes. Nå vises de.
+
 ### Grensesnittet er bygget om innvendig
 
 - Grensesnittet lastes som moduler med eksplisitte avhengigheter, i stedet for
