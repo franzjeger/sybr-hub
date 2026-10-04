@@ -627,58 +627,25 @@
               </div>
             </div>
           </div>
-          <!-- FortiGate REST API card -->
+          <!-- FortiGate: nothing here is one customer's. Each customer's FortiGate
+               (its connection, setting up a new one from the factory, its
+               stored login) is set up on that customer's page, under Nettverk. -->
           <div class="card integ-card">
             <div class="integ-head">
               <div class="integ-logo integ-logo--fortigate">FG</div>
               <div>
                 <div class="integ-name" data-i18n="integ_fortigate">FortiGate REST API</div>
-                <div class="integ-desc" data-i18n="integ_fortigate_desc">Firewall-dashboard, config backup, CIS-compliance</div>
+                <div class="integ-desc" data-i18n="integ_fortigate_desc">Brannmurene i Verktøy › Nettverk, config-backup og CIS-sjekk</div>
               </div>
             </div>
             <div class="integ-status" id="fg-integ-status">
               <span class="integ-dot" id="fg-integ-dot"></span>
               <span class="integ-status__label" id="fg-integ-label" data-i18n="status_not_configured">Ikke konfigurert</span>
             </div>
-            <div class="integ-actions">
-              <button class="btn btn-primary" data-click-handler="toggleIntegConfig" data-config="fg-api-config" data-i18n="btn_configure">Konfigurer</button>
-            </div>
-            <div id="fg-api-config" class="integ-config">
-              <p class="text-sm text-muted mb-2" data-i18n="fg_intro">Koble til FortiGate REST API for live dashboard, config backup og compliance-sjekk.</p>
-              <p class="text-xs text-warning mb-3" data-i18n="fg_per_customer_note">Lagres for kunden som er valgt i feltet Kunde.</p>
-              <div class="tool-customer-bar" data-tool-customer="fgapi"></div>
-              <p class="text-xs text-dim mb-3"><span data-i18n="fg_token_hint_before">Generer API-token på FortiGate:</span> <strong>System → Administrators → Create New → REST API Admin</strong></p>
-              <!-- Factory bootstrap -->
-              <div class="inset mb-3">
-                <div class="fw-semibold text-sm mb-2" data-i18n="fg_bootstrap_title">Ny FortiGate? Automatisk oppsett</div>
-                <p class="text-xs text-muted mb-2" data-i18n="fg_bootstrap_note">Kobler til med fabrikkinnstillinger (admin / tomt passord), setter sterkt passord, aktiverer hardening og oppretter REST API-nøkkel automatisk.</p>
-                <label class="field-label" for="fg-bootstrap-host" data-i18n="lbl_fortigate_ip">FortiGate IP</label>
-                <input class="field-input" id="fg-bootstrap-host" type="text" placeholder="192.168.1.99">
-                <label class="field-label mt-2" for="fg-bootstrap-hostname" data-i18n="lbl_hostname_optional">Hostname (valgfritt)</label>
-                <input class="field-input" id="fg-bootstrap-hostname" type="text" data-i18n-placeholder="ph_fw_customer_name" placeholder="FW-Kundenavn">
-                <div class="flex gap-2 mt-3 items-center">
-                  <button data-write class="btn btn-primary btn-sm" data-click-handler="fgBootstrap" id="btn-fg-bootstrap" data-i18n="btn_setup_fortigate">Sett opp FortiGate</button>
-                  <span id="fg-bootstrap-status" class="text-xs text-muted"></span>
-                </div>
-                <div id="fg-bootstrap-result" class="inset bg-card border-success mt-3" style="display:none;"></div>
-              </div>
-              <label class="field-label" for="fg-api-host" data-i18n="lbl_host_ip">Host / IP</label>
-              <input class="field-input" id="fg-api-host" type="text" data-i18n-placeholder="f_eks_eller_fw_kunde" placeholder="f.eks. 192.168.1.1 eller fw.kunde.no">
-              <label class="field-label mt-3" for="fg-api-port" data-i18n="lbl_port">Port</label>
-              <input class="field-input" id="fg-api-port" type="number" value="443" placeholder="443">
-              <label class="field-label mt-3" for="fg-api-token" data-i18n="lbl_api_token">API-token</label>
-              <input class="field-input" id="fg-api-token" type="password" data-i18n-placeholder="fortigate_rest_api_token" placeholder="FortiGate REST API token">
-              <label class="field-label mt-3" for="fg-api-vdom" data-i18n="lbl_vdom_optional">VDOM (valgfritt)</label>
-              <input class="field-input" id="fg-api-vdom" type="text" value="root" placeholder="root">
-              <div class="flex gap-2 mt-3">
-                <button class="btn btn-default btn-sm" data-click-handler="fgApiTest" data-i18n="btn_test_connection">Test tilkobling</button>
-                <span id="fg-api-test-result" class="text-xs text-muted self-center"></span>
-              </div>
-              <div class="flex gap-2 mt-3">
-                <button data-write class="btn btn-primary btn-sm" data-click-handler="fgApiSave" data-i18n="btn_save">Lagre</button>
-                <button class="btn btn-default btn-sm" data-click-handler="fgDownloadCredentials" data-i18n-title="last_ned_admin_passord_og" title="Last ned admin-passord og API-token for valgt kunde" data-i18n="btn_download_credentials">Last ned credentials</button>
-                <span id="fg-api-save-msg" class="text-xs text-muted self-center"></span>
-              </div>
+            <p class="integ-note" data-i18n="fg_per_customer_signpost">Hver kundes FortiGate settes opp på kundens side, under Nettverk: tilkoblingen, automatisk oppsett av en ny FortiGate og nedlasting av påloggingsinformasjonen.</p>
+            <div class="integ-actions flex flex-col gap-2">
+              <button class="btn btn-default" data-view-gate="customers" data-click-handler="showView" data-view="customers" data-i18n="nav_customers">Kunder</button>
+              <button class="btn btn-ghost" data-view-gate="network" data-click-handler="showView" data-view="network" data-i18n="btn_open_network_tool">Alle kunders nettverk</button>
             </div>
           </div>
           <!-- UniFi Site Manager card -->

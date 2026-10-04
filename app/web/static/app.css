@@ -2027,6 +2027,13 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .cust-net-form-title { font-size: var(--font-sm); font-weight: 700; margin: 0 0 var(--space-3); }
 .cust-net-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
 .cust-net-result { min-width: 0; overflow-wrap: anywhere; }
+/* What a new FortiGate's setup made: copy it now, the password is shown once. */
+.cust-net-boot-answer { margin-top: var(--space-3); }
+.cust-net-boot-ask:not([hidden]) + .cust-net-boot-answer { padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.cust-net-boot-head { font-weight: 600; margin-bottom: var(--space-2); }
+.cust-net-secret { font-family: var(--mono); font-size: var(--font-ui); font-weight: 600; user-select: all; overflow-wrap: anywhere; }
+.cust-net-boot-debug { margin-top: var(--space-2); font-size: var(--font-xs); }
+.cust-net-boot-debug pre { max-height: 240px; overflow: auto; white-space: pre-wrap; }
 .cust-net-mode { border: 0; padding: 0; margin: 0 0 var(--space-3); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
 .cust-net-mode legend { padding: 0; float: left; width: 100%; }
 .cust-net-add-device { margin-top: var(--space-3); padding: var(--space-3); border: 1px dashed var(--border); border-radius: var(--radius-md); }
@@ -2284,6 +2291,8 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .integ-status { display: flex; align-items: center; gap: var(--space-2); }
 .integ-status__label { font-size: var(--font-xs); color: var(--text-muted); }
 .integ-actions { margin-top: auto; }
+/* What a card says about where its setup lives, when that is not here. */
+.integ-note { margin: 0; font-size: var(--font-sm); line-height: 1.5; color: var(--text-muted); }
 .integ-actions .btn { width: 100%; }
 /* Why an action is disabled, beside it. No display rule, so [hidden] works. */
 .integ-needs-config { font-size: var(--font-xs); color: var(--text-muted); margin-top: 6px; }
