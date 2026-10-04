@@ -493,7 +493,7 @@ class TestComputeRiskAdminRolesDataGap:
             "",
             admin_roles=admin_roles,
         )
-        assert any("Admin-roller" in issue for issue in risk["data_quality_issues"])
+        assert any("Administratorroller" in issue for issue in risk["data_quality_issues"])
 
     def test_admin_roles_present_with_few_admins_no_issue(self):
         admin_roles = {
@@ -515,7 +515,7 @@ class TestComputeRiskAdminRolesDataGap:
             "",
             admin_roles=admin_roles,
         )
-        assert not any("Admin-roller" in issue for issue in risk["data_quality_issues"])
+        assert not any("Administratorroller" in issue for issue in risk["data_quality_issues"])
 
 
 # ---------------------------------------------------------------------------

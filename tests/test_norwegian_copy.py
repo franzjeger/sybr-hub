@@ -74,3 +74,41 @@ def test_no_dashes_in_norwegian_data(folder):
 def test_the_glossary_holds(pattern, use):
     hits = sorted(k for k, v in _norwegian().items() if re.search(pattern, v))
     assert not hits, f"{hits} use {pattern!r}; write {use}"
+
+
+# "credentials" is a key no script or page asks for any more; it goes with the
+# unused keys rather than being reworded here.
+_UNUSED = {"credentials"}
+
+
+def _norwegian_everywhere() -> dict[str, str]:
+    """The interface's and the server's Norwegian, and the report's."""
+    from app.reports.i18n import TRANSLATIONS
+
+    report = {f"report:{k}": v.get("no", "") for k, v in TRANSLATIONS.items()}
+    everything = _norwegian() | {k: v for k, v in report.items() if isinstance(v, str)}
+    return {k: v for k, v in everything.items() if k not in _UNUSED}
+
+
+@pytest.mark.parametrize(
+    ("pattern", "use"),
+    [
+        # English words inside Norwegian sentences. Product and setting names
+        # (Secure Score, Conditional Access, AuditLog.Read.All) stay.
+        (r"\bOAuth-grants\b", "OAuth-samtykker"),
+        # "credential stuffing" is the attack's name.
+        (r"\b[Cc]redentials?\b(?! stuffing)", "legitimasjon or påloggingsinformasjon"),
+        (r"\b[Ss]ecret utløper\b|\b[Cc]lient [Ss]ecret\b", "klienthemmelighet"),
+        (r"\bRemediation\b", "Utbedring"),
+        (r"\bAdmin Consent\b|-consent\b", "administratorsamtykke, samtykke"),
+        (r"\bStale-konto", "inaktive kontoer"),
+        (r"\badmin-rolle data\b|\bAdmin-roller\b|^Admins$", "administratorroller, administratorer"),
+        (r"\btrust-host-funn\b|\ballow-all/logging-funn\b", "a Norwegian description"),
+        (r"\bthrottling\b", "a Norwegian description"),
+        (r"^Renews$|^with an? \.", "Norwegian"),
+        (r"\bendpoints reference\b", "Oversikt over REST API-endepunkter"),
+    ],
+)
+def test_no_english_words_in_norwegian_copy(pattern, use):
+    hits = sorted(k for k, v in _norwegian_everywhere().items() if re.search(pattern, v))
+    assert not hits, f"{hits} use {pattern!r}; write {use}"

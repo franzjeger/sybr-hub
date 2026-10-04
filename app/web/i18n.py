@@ -705,7 +705,7 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "You do not have access to the customer this FortiGate was to be saved for",
     ),
     "err_fortigate_no_credentials": (
-        "Ingen lagrede credentials for denne FortiGaten",
+        "Ingen lagret påloggingsinformasjon for denne FortiGaten",
         "No saved credentials for this FortiGate",
     ),
     "err_fortigate_address_admin_only": (
