@@ -10,17 +10,19 @@
 // server answers in the terminal and closes, so the terminal opens and draws
 // text without a shell being started on the machine running this.
 const { test, expect } = require('@playwright/test');
-const { expectSignedIn } = require('./app.cjs');
+const { expectSignedIn, inApp } = require('./app.cjs');
 
-async function login(page) {
-  await page.addInitScript(() => {
+// Dark unless a test asks for light: the terminal's palette follows the theme.
+async function login(page, theme = 'dark') {
+  await page.addInitScript(theme => {
     localStorage.setItem('onboarding_done', '1');
     localStorage.setItem('ui_lang', 'no');
+    localStorage.setItem('sybr-theme', theme);
     window.__cspViolations = [];
     document.addEventListener('securitypolicyviolation', event => {
       window.__cspViolations.push(`${event.violatedDirective} blocked ${event.blockedURI || 'inline'} at ${event.sourceFile}:${event.lineNumber}`);
     });
-  });
+  }, theme);
   await page.goto('/');
   await page.locator('#login-username').fill('browser-term');
   await page.locator('#login-password').fill('Browser-test123!');
@@ -78,6 +80,29 @@ test('the terminal opens at the size this browser chose last', async ({page}) =>
   await expectSignedIn(page);
   await openTerminal(page);
   expect((await rows(page).evaluate(look)).size).toBe('14px');
+  expect(await violations(page)).toEqual([]);
+});
+
+// The palette comes from the --term-* tokens: it was dark on the light theme.
+test('on the light theme the terminal is light, and it follows a theme switch while open', async ({page}) => {
+  await login(page, 'light');
+  await openTerminal(page);
+  const paint = () => page.evaluate(() => ({
+    text: getComputedStyle(document.querySelector('#term-container .xterm-rows')).color,
+    screen: getComputedStyle(document.querySelector('#term-container .xterm-viewport')).backgroundColor,
+    frame: getComputedStyle(document.querySelector('#term-container')).backgroundColor,
+  }));
+  expect(await paint()).toEqual({text: 'rgb(31, 35, 40)', screen: 'rgb(255, 255, 255)', frame: 'rgb(255, 255, 255)'});
+
+  // Switched to dark with the terminal open (the avatar menu's toggle): it
+  // repaints, no reconnect.
+  await inApp(page, app => app.toggleTheme());
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(paint).toEqual({text: 'rgb(230, 237, 243)', screen: 'rgb(13, 17, 23)', frame: 'rgb(13, 17, 23)'});
+  await inApp(page, app => app.toggleTheme());
+  await expect.poll(paint).toEqual({text: 'rgb(31, 35, 40)', screen: 'rgb(255, 255, 255)', frame: 'rgb(255, 255, 255)'});
+  // Still through the constructed stylesheet, not an inline <style>.
+  await expect(page.locator('#term-container style')).toHaveCount(0);
   expect(await violations(page)).toEqual([]);
 });
 

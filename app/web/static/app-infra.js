@@ -4508,6 +4508,27 @@ var _termFontSize = (function() {
   return stored >= _TERM_FONT_MIN && stored <= _TERM_FONT_MAX ? stored : 14;
 })();
 
+// The terminal's colours, from the --term-* tokens in app.css, so it follows
+// the theme: it was dark on the light theme. A bright variant the theme does
+// not define is left to xterm.
+var _TERM_COLOURS = {
+  background: 'bg', foreground: 'fg', cursor: 'cursor', selectionBackground: 'selection',
+  black: 'black', red: 'red', green: 'green', yellow: 'yellow',
+  blue: 'blue', magenta: 'magenta', cyan: 'cyan', white: 'white',
+  brightBlack: 'bright-black', brightRed: 'bright-red', brightGreen: 'bright-green',
+  brightYellow: 'bright-yellow', brightBlue: 'bright-blue', brightMagenta: 'bright-magenta',
+  brightCyan: 'bright-cyan', brightWhite: 'bright-white',
+};
+function _termTheme() {
+  var style = getComputedStyle(document.documentElement);
+  var theme = {};
+  Object.keys(_TERM_COLOURS).forEach(function(key) {
+    var value = style.getPropertyValue('--term-' + _TERM_COLOURS[key]).trim();
+    if (value) theme[key] = value;
+  });
+  return theme;
+}
+
 function _termEnsureXterm() {
   if (_xterm) return;
   var container = document.getElementById('term-container');
@@ -4517,15 +4538,12 @@ function _termEnsureXterm() {
     cursorBlink: true,
     fontSize: _termFontSize,
     fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
-    theme: {
-      background: '#0d1117',
-      foreground: '#e6edf3',
-      cursor: '#4d9fb5',
-      selectionBackground: '#264f78',
-      black: '#484f58', red: '#f85149', green: '#3fb950', yellow: '#d29922',
-      blue: '#58a6ff', magenta: '#bc8cff', cyan: '#4d9fb5', white: '#e6edf3',
-    },
+    theme: _termTheme(),
   });
+  // Light or dark, whenever the page switches (app-chrome.js sets data-theme).
+  new MutationObserver(function() {
+    if (_xterm) _xterm.options.theme = _termTheme();
+  }).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
   _xtermFit = new FitAddon.FitAddon();
   _xterm.loadAddon(_xtermFit);
   _xterm.open(container);
@@ -4630,7 +4648,7 @@ export function termConnect() {
   };
 
   _termWs.onclose = function() {
-    _xterm.write('\r\n\x1b[90m--- Sesjon avsluttet ---\x1b[0m\r\n');
+    _xterm.write('\r\n\x1b[90m--- ' + t('term_session_ended') + ' ---\x1b[0m\r\n');
     document.getElementById('term-status').innerHTML = '<span class="text-muted">' + t('frakoblet') + '</span>';
     document.getElementById('term-connect-btn').style.display = 'inline-flex';
     document.getElementById('term-disconnect-btn').style.display = 'none';
