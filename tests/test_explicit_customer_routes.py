@@ -123,6 +123,8 @@ ROUTES = [
     ("get", "/api/network-devices/{cid}", None),
     ("post", "/api/unifi/save/{cid}", {"site": "default"}),
     ("post", "/api/fortigate/save/{cid}", {"vdom": "root"}),
+    ("delete", "/api/fortigate/{cid}", None),
+    ("delete", "/api/unifi/{cid}", None),
     ("get", "/api/network/config-backups/{cid}", None),
     ("post", "/api/network/save-config-backup/{cid}", {"host": "192.0.2.1", "config": "x"}),
     ("post", "/api/network/quick-audit/{cid}", None),
