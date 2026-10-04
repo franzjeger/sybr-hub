@@ -80,3 +80,13 @@ test('the terminal opens at the size this browser chose last', async ({page}) =>
   expect((await rows(page).evaluate(look)).size).toBe('14px');
   expect(await violations(page)).toEqual([]);
 });
+
+test('back on the terminal view, the keyboard goes to the terminal', async ({page}) => {
+  await login(page);
+  await openTerminal(page);
+  await page.evaluate(() => { location.hash = '#/customers'; });
+  await expect(page.locator('#view-customers')).toHaveClass(/\bactive\b/);
+  await page.locator('[data-click-handler="showView"][data-view="terminal"]').first().evaluate(el => el.click());
+  await expect(page.locator('#view-terminal')).toHaveClass(/\bactive\b/);
+  await expect.poll(() => page.evaluate(() => !!document.activeElement && !!document.activeElement.closest('#term-container'))).toBe(true);
+});

@@ -107,35 +107,6 @@ test('command output and errors from SSH devices are rendered as text', async ({
 test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text', async ({page}) => {
   await login(page);
 
-  // Live FortiGate view, fed the way the live WebSocket feeds it.
-  await inApp(page, (app, xss, breakout) => {
-    app.liveRenderDevices([{
-      name: xss, status: 'online', vendor: 'fortigate', model: xss, firmware: xss, wan_ip: xss, uptime: xss,
-      cpu_pct: 5, mem_pct: 7, sessions: 3, vpn_tunnels: 1, ha_mode: xss, clients: 2, error: xss, customer_id: breakout,
-      extra: {
-        interfaces: [{name: xss, ip: '10.0.0.1', link: true, speed: 1000}],
-        vpn_tunnels: [{name: xss, remote_gw: xss}],
-        policies: [{id: 1, name: xss, src: xss, dst: xss, svc: xss, log: xss}],
-        dhcp: [{interface: xss, range: xss}], dns: {primary: xss, secondary: xss},
-        admins: [{name: xss, profile: xss}],
-      },
-    }]);
-  }, XSS, BREAKOUT);
-  await expect(page.locator('#dash-fg-content strong').first()).toContainText(XSS);
-  await expectInert(page, '#dash-fg-content');
-  // The live view is not on screen here, so the card gets the click directly.
-  await page.locator('#dash-fg-content [data-click-handler="liveShowDeviceDetail"]').first().evaluate(card => card.click());
-  await expect(page.locator('#dash-fg-content h3')).toContainText(XSS);
-  // The CIS check asks for the device's customer exactly as stored.
-  await page.route(url => new URL(url).pathname.startsWith('/api/fortigate/compliance/'),
-    route => route.fulfill({json: {findings: []}}));
-  const [cis] = await Promise.all([
-    page.waitForRequest(r => new URL(r.url()).pathname.startsWith('/api/fortigate/compliance/')),
-    page.locator('#dash-fg-content button[data-click-handler="fgComplianceCheck"]').evaluate(button => button.click()),
-  ]);
-  expect(new URL(cis.url()).pathname).toBe('/api/fortigate/compliance/' + encodeURIComponent(BREAKOUT));
-  await expectInert(page, '#dash-fg-content');
-
   // FortiGate fleet cards.
   await page.route('**/api/fortigate/all', route => route.fulfill({json: {fortigates: [{
     customer_id: BREAKOUT, hostname: XSS, customer_name: XSS, model: XSS, firmware: XSS, serial: XSS,
@@ -143,6 +114,37 @@ test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text',
   }]}}));
   await inApp(page, app => app.dashLoadFortiGates());
   await expect(page.locator('#dash-fg-content .card strong').last()).toHaveText(XSS);
+  await expectInert(page, '#dash-fg-content');
+
+  // A firewall's detail panel: threats, the rule audit and what the device
+  // itself reports, fed the way the poller returns it.
+  const under = prefix => url => new URL(url).pathname.startsWith(prefix);
+  await page.route(under('/api/fortigate/threats/'), route => route.fulfill({json: {
+    summary: {critical: 1, high: 0, medium: 0, low: 0, total: 1},
+    recent: [{timestamp: XSS, type: XSS, severity: 'critical', srcip: XSS, attack: XSS}],
+  }}));
+  await page.route(under('/api/fortigate/firewall-audit/'), route => route.fulfill({json: {
+    score: 50, total_rules: 1, enabled: 1, issues: [{name: XSS, issue: XSS, severity: 'critical', detail: XSS}],
+  }}));
+  await page.route(under('/api/dashboard/poll/'), route => route.fulfill({json: {devices: [{
+    name: XSS, status: 'online', vendor: 'fortigate', model: XSS, firmware: XSS, cpu_pct: 5, mem_pct: 7, sessions: 3, vpn_tunnels: 1,
+    extra: {
+      interfaces: [{name: XSS, type: XSS, ip: '192.0.2.1', mask: XSS, link: true, speed: 1000}],
+      vpn_tunnels: [{name: XSS, remote_gw: XSS, status: 'up'}],
+      ssl_vpn_users: [{user: XSS, remote_ip: XSS, tunnel_ip: XSS, duration: 60}],
+    },
+  }]}}));
+  await page.locator('#dash-fg-content [data-click-handler="dashFgDetail"]').first().evaluate(card => card.click());
+  await expect(page.locator('.fg-detail-panel table').first()).toContainText(XSS);
+  await expectInert(page, '#dash-fg-content');
+  // The CIS check asks for the firewall's customer exactly as stored.
+  await page.route(under('/api/fortigate/compliance/'), route => route.fulfill({json: {score: 50, findings: [{title: XSS, status: 'fail', detail: XSS}]}}));
+  const [cis] = await Promise.all([
+    page.waitForRequest(r => new URL(r.url()).pathname.startsWith('/api/fortigate/compliance/')),
+    page.locator('.fg-detail-panel button[data-click-handler="fgComplianceCheck"]').evaluate(button => button.click()),
+  ]);
+  expect(new URL(cis.url()).pathname).toBe('/api/fortigate/compliance/' + encodeURIComponent(BREAKOUT));
+  await expect(page.locator('.fg-detail-panel [id^="fg-compliance-"] table')).toContainText(XSS);
   await expectInert(page, '#dash-fg-content');
 
   // Tailscale device cards: OS and client version come from the device.

@@ -462,7 +462,7 @@ async function custReport(kind, btn) {
     window.open('/api/reports/customer-summary/' + encodeURIComponent(_custPage.id), '_blank');
     return;
   }
-  if (kind === 'itglue') { uploadReportsToITGlue(btn, _custPage.id); return; }
+  if (kind === 'itglue') { uploadReportsToITGlue(_custPage.id); return; }
   if (!(await _custEnsureReportRun())) return;
   if (kind === 'csv') { exportCSV(_custPage.id); return; }
   var spec = {
@@ -533,7 +533,7 @@ async function _custLoadDetails(customerId) {
   html += '<div class="card">'
     + '<div class="card-title">' + esc(t('lbl_tags')) + '</div>'
     + '<div class="cust-tags-row"><span id="tag-pills-' + esc(safeId) + '">' + tagPillsHtml(tags) + '</span>'
-    + '<button class="btn btn-ghost btn-sm" data-write data-click-handler="openTagEditor" data-customer-id="' + esc(customerId) + '" data-tags="' + esc(JSON.stringify(tags)) + '">' + esc(t('btn_edit_tags', 'Endre tags')) + '</button></div>'
+    + '<button class="btn btn-ghost btn-sm" data-write data-click-handler="openTagEditor" aria-expanded="false" data-customer-id="' + esc(customerId) + '" data-tags="' + esc(JSON.stringify(tags)) + '">' + esc(t('btn_edit_tags', 'Endre tags')) + '</button></div>'
     + '<div id="tag-editor-' + esc(safeId) + '" class="cust-tag-editor" hidden></div>'
     + '</div>';
 
@@ -682,55 +682,6 @@ function _baselineStatusPill(status) {
   if (status === 'pass') return '<span class="text-success">&#10003;</span>';
   if (status === 'fail') return '<span class="text-danger">&#10007;</span>';
   return '<span class="text-dim">&#8211;</span>';
-}
-
-// The policies actually in production for this customer, lifted onto the card
-// by the last audit. Read-only; each row carries a plain-language line the
-// server produced from the raw policy object, so it reads the same everywhere.
-async function _loadCustomerPoliciesCard(customerId) {
-  var el = document.getElementById('customer-policies-panel');
-  if (!el) return;
-  var inv = await apiFetch('/api/policy-backup/' + encodeURIComponent(customerId) + '/live').catch(function(){ return null; });
-  if (!inv || !inv.workloads || Object.keys(inv.workloads).length === 0) { el.style.display = 'none'; return; }
-  el.style.display = '';
-
-  function stateP(s) {
-    var map = { 'on': ['var(--green)', t('lbl_policy_on','On')],
-                'report-only': ['var(--orange)', t('lbl_policy_report','Report-only')],
-                'off': ['var(--text-dim)', t('lbl_policy_off','Off')],
-                'trusted': ['var(--blue)', t('lbl_policy_trusted','Trusted')] };
-    var m = map[s];
-    var colour = m ? m[0] : 'var(--text-muted)';
-    var label = m ? m[1] : s;
-    return '<span class="' + badgeClass(colour) + '">' + esc(label) + '</span>';
-  }
-  function loc(v) { return (v && (v[_lang] || v.no || v.en)) || ''; }
-
-  var html = '<div class="card p-5 mb-4">';
-  html += '<div class="flex items-center justify-between flex-wrap gap-3 mb-4">';
-  html += '<div class="card-title mb-0">'
-        + t('hdr_policies_live','Policies in production') + '</div>';
-  html += '<div class="text-xs text-muted">'
-        + t('lbl_captured','Captured') + ': ' + esc((inv.captured_at || '').slice(0, 10)) + '</div>';
-  html += '</div>';
-
-  Object.keys(inv.workloads).forEach(function(k) {
-    var wl = inv.workloads[k];
-    html += '<div class="mb-3">';
-    html += '<div class="label-caps mb-2">'
-          + esc(loc(wl.label)) + ' <span class="text-dim fw-normal">(' + Number(wl.count) + ')</span></div>';
-    html += '<table class="data-table data-table--compact">';
-    (wl.items || []).forEach(function(it) {
-      html += '<tr>';
-      html += '<td class="nowrap align-top">' + stateP(it.state) + '</td>';
-      html += '<td class="fw-semibold align-top">' + esc(it.name) + '</td>';
-      html += '<td class="text-muted">' + esc(loc(it.summary)) + '</td>';
-      html += '</tr>';
-    });
-    html += '</table></div>';
-  });
-  html += '</div>';
-  el.innerHTML = html;
 }
 
 async function _loadCustomerBaselineCard(customerId) {
@@ -1640,10 +1591,7 @@ async function _loadCustomerTrendChart(customerId) {
 
 // ── Customer Licenses (ALSO Cloud) ───────────────────────────────────────────
 
-var _currentAlsoAccountId = '';
-
 export async function loadCustomerLicenses(accountId) {
-  _currentAlsoAccountId = accountId;
   // On the customer page's Detaljer tab, under Lisenser.
   var box = document.getElementById('cust-licenses-panel');
   if (!box) return;

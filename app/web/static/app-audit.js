@@ -366,7 +366,6 @@ const sectionRows = {}; // name -> tr element
 var _auditStarting = false;
 // When the run on screen started, for the elapsed time in its summary.
 var _auditStartTime = null;
-const statusOrder = { pending: 0, running: 1, done: 2, skipped: 3, failed: 4 };
 
 // Audits one customer: the one named, else the page on screen, else this
 // tab's current customer (the keyboard shortcut has no page to ask).

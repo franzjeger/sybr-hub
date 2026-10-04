@@ -162,11 +162,6 @@ export function openShortcutsModal() {
 export function closeShortcutsModal() {
   document.getElementById('shortcuts-modal').classList.remove('open');
 }
-function closeAllModals() {
-  document.querySelectorAll('.modal-backdrop.open').forEach(function(m) {
-    m.classList.remove('open');
-  });
-}
 
 // Close only the topmost open modal. Used by ESC so a nested confirmation
 // dialog doesn't wipe out an underlying settings modal with unsaved edits.

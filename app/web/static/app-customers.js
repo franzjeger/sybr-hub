@@ -18,8 +18,6 @@ import {openCustomerPage} from './app-customer-detail.js';
 
 registerUiHandlers({
   // IT Glue organisation picker, upload and import dialogs.
-  filterITGlueOrgPicker: function() { filterITGlueOrgPicker(); },
-  itglueOrgPickEnable: function() { document.getElementById('btn-itglue-org-pick').disabled = false; },
   itglueUploadSelectAll: function(el) {
     document.querySelectorAll('.itglue-file-cb').forEach(function(c) { c.checked = el.checked; });
     updateITGlueUploadBtn();
@@ -46,14 +44,6 @@ registerUiHandlers({
 
 // ── Expiry banner ─────────────────────────────────────────────────────────────
 let _expiryData = null;
-
-async function loadExpiryBanner() {
-  try {
-    const d = await apiFetch('/api/expiry/check');
-    _expiryData = d;
-    renderExpiryBanner(d);
-  } catch(e) { console.warn('loadExpiryBanner failed:', e); }
-}
 
 export function renderExpiryBanner(d) {
   const area = document.getElementById('expiry-banner-area');
@@ -83,94 +73,11 @@ function getExpiryBadgeForCustomer(customerId) {
 
 let _itglueOrgCache = null;
 
-// ── IT Glue org picker (reusable) ───────────────────────────────────────────
-var _itgluePickerCallback = null;
-
-async function openITGlueOrgPicker(callback, autoMatchName) {
-  _itgluePickerCallback = callback;
-  var modal = document.getElementById('itglue-org-picker-modal');
-  var content = document.getElementById('itglue-org-picker-content');
-  var btn = document.getElementById('btn-itglue-org-pick');
-  modal.style.display = 'flex';
-  btn.disabled = true;
-  btn.textContent = t('btn_select');
-  content.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div>' + t('msg_fetching_orgs') + '</div>';
-
-  try {
-    if (!_itglueOrgCache) {
-      var d = await apiFetch('/api/itglue/organizations', {method: 'POST'});
-      if (d.error) { content.innerHTML = '<div class="alert alert-error">' + esc(d.error) + '</div>'; return; }
-      _itglueOrgCache = d.organizations || [];
-    }
-    if (_itglueOrgCache.length === 0) {
-      content.innerHTML = '<div class="empty-note is-compact">' + t('msg_no_orgs_found') + '</div>';
-      return;
-    }
-
-    var orgs = _itglueOrgCache.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
-
-    // Auto-match: find best match for current customer name
-    var bestIdx = -1;
-    if (autoMatchName) {
-      var lower = autoMatchName.toLowerCase();
-      // Exact match first
-      for (let i = 0; i < orgs.length; i++) {
-        if (orgs[i].name.toLowerCase() === lower) { bestIdx = i; break; }
-      }
-      // Partial match
-      if (bestIdx < 0) {
-        for (let i = 0; i < orgs.length; i++) {
-          if (orgs[i].name.toLowerCase().indexOf(lower) >= 0 || lower.indexOf(orgs[i].name.toLowerCase()) >= 0) { bestIdx = i; break; }
-        }
-      }
-    }
-
-    var html = '<input type="text" id="itglue-org-picker-search" class="field-input mb-3 py-2 px-3 text-sm" placeholder="' + t('lbl_search') + '" data-input-handler="filterITGlueOrgPicker">';
-    html += '<div class="max-h-md overflow-y-auto border rounded">';
-    for (let i = 0; i < orgs.length; i++) {
-      var matched = (i === bestIdx);
-      html += '<label class="itglue-org-picker-row picker-row' + (matched ? ' is-match' : '') + '" data-name="' + esc(orgs[i].name.toLowerCase()) + '">';
-      html += '<input type="radio" class="checkbox" name="itglue-org-pick" value="' + esc(orgs[i].id) + '" data-orgname="' + esc(orgs[i].name) + '" ' + (matched ? 'checked' : '') + ' data-change-handler="itglueOrgPickEnable">';
-      html += '<span class="text-ui">' + esc(orgs[i].name) + '</span>';
-      if (matched) html += '<span class="ml-auto text-2xs text-success fw-semibold">' + t('msg_recommended_match') + '</span>';
-      html += '</label>';
-    }
-    html += '</div>';
-    content.innerHTML = html;
-    if (bestIdx >= 0) btn.disabled = false;
-
-    // Scroll to match
-    setTimeout(function() {
-      var checked = content.querySelector('input[name="itglue-org-pick"]:checked');
-      if (checked) checked.closest('label').scrollIntoView({block:'center'});
-    }, 100);
-  } catch (e) {
-    content.innerHTML = '<div class="alert alert-error">' + t('status_error') + ': ' + esc(e.message) + '</div>';
-  }
-}
-
-function filterITGlueOrgPicker() {
-  var q = (document.getElementById('itglue-org-picker-search') || {}).value.toLowerCase();
-  document.querySelectorAll('.itglue-org-picker-row').forEach(function(row) {
-    row.style.display = row.dataset.name.indexOf(q) >= 0 ? '' : 'none';
-  });
-}
-
-export function confirmITGlueOrgPick() {
-  var selected = document.querySelector('input[name="itglue-org-pick"]:checked');
-  if (!selected || !_itgluePickerCallback) return;
-  document.getElementById('itglue-org-picker-modal').style.display = 'none';
-  _itgluePickerCallback({id: selected.value, name: selected.dataset.orgname});
-  _itgluePickerCallback = null;
-}
-
-var _itglueUploadBtn = null;
 // The customer whose reports the open upload dialog sends.
 var _itglueUploadCustomerId = null;
 
-export async function uploadReportsToITGlue(btn, customerId) {
+export async function uploadReportsToITGlue(customerId) {
   if (!customerId) return;
-  _itglueUploadBtn = btn;
   _itglueUploadCustomerId = customerId;
   // Check IT Glue config
   try {
@@ -460,12 +367,23 @@ function _tagEl(id) {
   return document.querySelector('.view.active [id="' + id + '"]') || document.getElementById(id);
 }
 var _tagEditorData={};
-export function openTagEditor(cid,tags){_tagEditorData[cid]=tags?tags.slice():[];showTagEditor(cid,_tagEditorData[cid])}
+// "Endre tags" opens the editor and, pressed again, closes it.
+export function openTagEditor(cid,tags){
+  var open=_tagEl('tag-editor-'+cid.replace(/[^a-zA-Z0-9_-]/g,'_'));
+  if(open&&!open.hidden){closeTagEditor(cid);_tagButtons(cid,function(b){b.setAttribute('aria-expanded','false')});return}
+  _tagEditorData[cid]=tags?tags.slice():[];showTagEditor(cid,_tagEditorData[cid]);
+  _tagButtons(cid,function(b){b.setAttribute('aria-expanded','true')})}
+function _tagButtons(cid,fn){document.querySelectorAll('[data-click-handler="openTagEditor"]').forEach(function(b){if(b.dataset.customerId===cid)fn(b)})}
 function closeTagEditor(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var c=_tagEl('tag-editor-'+si);if(c){c.innerHTML='';c.hidden=true}delete _tagEditorData[cid]}
 function addTagFromInput(cid){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var inp=_tagEl('tag-input-'+si);if(!inp||!inp.value.trim())return;if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(inp.value.trim())===-1)_tagEditorData[cid].push(inp.value.trim());saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function addSuggestedTag(cid,tag){if(!_tagEditorData[cid])_tagEditorData[cid]=[];if(_tagEditorData[cid].indexOf(tag)===-1)_tagEditorData[cid].push(tag);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
 function removeTagAndRefresh(cid,index){if(!_tagEditorData[cid])return;_tagEditorData[cid].splice(index,1);saveCustomerTags(cid,_tagEditorData[cid]).then(function(){showTagEditor(cid,_tagEditorData[cid]);refreshTagPills(cid,_tagEditorData[cid])})}
-function refreshTagPills(cid,tags){var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var el=_tagEl('tag-pills-'+si);if(el)el.innerHTML=tagPillsHtml(tags)}
+// The pills, and the tags "Endre tags" reopens the editor with: the button
+// carries them, and reopening from the tags the page was drawn with made the
+// next save drop every tag added since.
+function refreshTagPills(cid,tags){
+  var si=cid.replace(/[^a-zA-Z0-9_-]/g,'_');var el=_tagEl('tag-pills-'+si);if(el)el.innerHTML=tagPillsHtml(tags);
+  _tagButtons(cid,function(b){b.dataset.tags=JSON.stringify(tags)})}
 
 // ── Manual Customer ─────────────────────────────────────────────────────────────
 

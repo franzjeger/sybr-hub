@@ -723,8 +723,6 @@ async function alsoCombinedSync() {
 // LICENSE OPTIMIZATION — Compare ALSO paid vs audit assigned
 // ═══════════════════════════════════════════════════════════════════
 
-var _licOptData = null;
-
 async function alsoShowLicenseOptimization() {
   var el = document.getElementById('dash-renewals-content');
   el.innerHTML = '<div class="loader loader-md"></div>'
@@ -739,7 +737,6 @@ async function alsoShowLicenseOptimization() {
       + t('btn_back_renewals','Back to renewals') + '</button></div>';
     return;
   }
-  _licOptData = data;
   _renderLicenseOptimization(data, el);
 }
 

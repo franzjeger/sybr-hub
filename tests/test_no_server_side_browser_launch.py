@@ -8,6 +8,10 @@ window nobody could see and then reported which browser it had used —
 
 It was also remote process execution reachable by any authenticated user,
 for a feature that never worked. Opening a tab belongs in the page.
+
+The page's replacement went with the device-code sign-in it served: setup
+signs in with PKCE now, where the operator copies the link into a private
+window of their own, so no button claims to open one.
 """
 
 from __future__ import annotations
@@ -33,27 +37,3 @@ def test_the_open_private_endpoint_is_gone():
     # A comment may name the endpoint it replaced; a fetch may not.
     called = re.findall(r"""(?:apiFetch|fetch)\(\s*['"][^'"]*open-private""", js)
     assert not called, "the page still calls the removed endpoint"
-
-
-def test_the_page_opens_the_tab_itself():
-    js = (STATIC / "app-setup.js").read_text(encoding="utf-8")
-    body = re.search(r"function openPrivateBrowser\(\)\s*\{.*?\n\}", js, re.S)
-    assert body, "openPrivateBrowser is gone"
-    assert "window.open(" in body.group(0), (
-        "the sign-in URL is not opened in the operator's own browser"
-    )
-
-
-def test_the_ui_does_not_promise_a_private_window():
-    """A page cannot open one, so the button must not say it does."""
-    import json
-
-    d = json.loads((STATIC / "ui_i18n.json").read_text(encoding="utf-8"))
-    for lang in ("no", "en"):
-        label = d[lang].get("btn_open_private_window_label", "")
-        assert "privat" not in label.lower() and "private" not in label.lower(), (
-            f"{lang} button label still claims a private window: {label!r}"
-        )
-        assert d[lang].get("setup_private_hint"), (
-            f"{lang} has no hint telling the reader to open a private window themselves"
-        )

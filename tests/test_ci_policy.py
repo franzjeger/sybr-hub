@@ -41,3 +41,13 @@ def test_test_matrix_installs_the_async_test_plugin():
     """Installing only the production package silently disables async tests
     and never installs textual, so the [tui] smoke tests skip in CI."""
     assert "python -m pip install '.[dev,tui]' pytest-timeout" in WORKFLOW
+
+
+def test_dead_browser_code_fails_the_javascript_check():
+    """As a warning, unused functions and variables were printed and passed:
+    sixteen had piled up before anyone removed them. The rule is an error, and
+    the check fails on any warning ESLint still reports."""
+    config = Path("eslint.config.cjs").read_text(encoding="utf-8")
+    assert re.search(r"'no-unused-vars':\s*\['error'", config), "no-unused-vars is not an error"
+    check = Path("scripts/check-javascript.cjs").read_text(encoding="utf-8")
+    assert "errors || warnings" in check, "ESLint warnings no longer fail npm run check"

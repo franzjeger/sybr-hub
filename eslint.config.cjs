@@ -34,8 +34,10 @@ const rules = {
   'no-redeclare': ['error', {builtinGlobals: true}],
   'no-restricted-globals': ['error', ...CONFUSING_GLOBALS],
   // A module's top-level names are its own: one nothing reads or exports is
-  // dead code.
-  'no-unused-vars': ['warn', {vars: 'local', args: 'none', caughtErrors: 'none'}],
+  // dead code. An error, not a warning: as a warning sixteen accumulated
+  // (functions whose callers had gone, a live dashboard no view opened, a
+  // setup flow the page had stopped starting), each printed and passed.
+  'no-unused-vars': ['error', {vars: 'local', args: 'none', caughtErrors: 'none'}],
   // Free today: every loose comparison in the codebase is `== null`, which
   // means null-or-undefined on purpose. Keep it that way.
   eqeqeq: ['error', 'always', {null: 'ignore'}],

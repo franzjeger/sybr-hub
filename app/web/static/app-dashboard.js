@@ -590,14 +590,6 @@ function _buildChainSection(chainData) {
   return html;
 }
 
-function _fmtBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  if (bytes < 1024) return Number(bytes) + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
-  return (bytes / 1073741824).toFixed(2) + ' GB';
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // UNIFIED COST OVERVIEW — ALSO MRR + UNIWEB HOSTING
 // ═══════════════════════════════════════════════════════════════════
@@ -837,22 +829,29 @@ async function dashLoadDomains() {
 var _dashRefreshInterval = null;
 var _dashRefreshSeconds = 120; // 2 minutes
 
-export function stopDashRefreshInterval() {
-  if (_dashRefreshInterval) { clearInterval(_dashRefreshInterval); _dashRefreshInterval = null; }
+// The ↻ in Oversikt's tab bar: lit and pressed while the refresh runs. It
+// used to swap its glyph for "Auto-refresh: 2m", and leaving Oversikt stopped
+// the timer but left the button saying it was on.
+function _dashPaintAutoRefresh(on) {
+  var btn = document.getElementById('dash-autorefresh-btn');
+  if (!btn) return;
+  btn.classList.toggle('accent', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.title = on ? t('btn_auto_refresh_on') : t('tip_auto_refresh');
 }
 
-export function dashToggleAutoRefresh(btn) {
-  if (_dashRefreshInterval) {
-    clearInterval(_dashRefreshInterval);
-    _dashRefreshInterval = null;
-    if (btn) { btn.textContent = t('btn_auto_refresh_off','Auto-refresh: Off'); btn.style.opacity = '0.5'; }
-    return;
-  }
+export function stopDashRefreshInterval() {
+  if (_dashRefreshInterval) { clearInterval(_dashRefreshInterval); _dashRefreshInterval = null; }
+  _dashPaintAutoRefresh(false);
+}
+
+export function dashToggleAutoRefresh() {
+  if (_dashRefreshInterval) { stopDashRefreshInterval(); return; }
   _dashRefreshInterval = setInterval(function() {
     var active = document.querySelector('#view-overview .tab.active');
     if (active && currentView === 'overview') active.click();
   }, _dashRefreshSeconds * 1000);
-  if (btn) { btn.textContent = t('btn_auto_refresh_on','Auto-refresh: 2m'); btn.style.opacity = '1'; }
+  _dashPaintAutoRefresh(true);
 }
 
 
@@ -1058,57 +1057,37 @@ async function dashArchiveCleanup(months) {
 let _overviewSortKey = 'open_findings';
 let _overviewSortAsc = false;
 
-// ── Dashboard Charts ─────────────────────────────────────────────────────────
-var _dashAutoRefresh = null;
-var _dashAutoRefreshSec = 60;
-var _dashAutoRefreshRemaining = 0;
-
-function toggleDashAutoRefresh() {
-  if (_dashAutoRefresh) { stopDashAutoRefresh(); return; }
-  _dashAutoRefreshRemaining = _dashAutoRefreshSec;
-  var btn = document.getElementById('dash-autorefresh-btn');
-  var cd = document.getElementById('dash-autorefresh-countdown');
-  if (btn) btn.style.color = 'var(--green)';
-  if (cd) { cd.style.display = 'inline'; cd.textContent = _dashAutoRefreshRemaining + 's'; }
-  _dashAutoRefresh = setInterval(function() {
-    _dashAutoRefreshRemaining--;
-    if (cd) cd.textContent = _dashAutoRefreshRemaining + 's';
-    if (_dashAutoRefreshRemaining <= 0) {
-      _dashAutoRefreshRemaining = _dashAutoRefreshSec;
-      if (currentView === 'overview') loadOverview();
-    }
-  }, 1000);
-  showToast(t('msg_auto_refresh_on','Auto-oppdatering aktivert (60s)'), 'success', 2000);
+// A row's ⋯ opens its menu and, pressed again, closes it. It only ever
+// opened: the second click closed every menu and opened this one again.
+function _closeRowActions(except) {
+  document.querySelectorAll('.row-actions-menu').forEach(function(m) {
+    if (m === except) return;
+    m.hidden = true;
+    var btn = m.previousElementSibling;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  });
 }
 function toggleRowActions(btn) {
-  // Close any other open menus
-  document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.hidden = true; });
-  btn.nextElementSibling.hidden = false;
+  var menu = btn.nextElementSibling;
+  _closeRowActions(menu);
+  menu.hidden = !menu.hidden;
+  btn.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
 }
 // Close row action menus on outside click
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('.row-actions-wrap')) {
-    document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.hidden = true; });
-  }
+  if (!e.target.closest('.row-actions-wrap')) _closeRowActions(null);
 });
 
 async function quickSwitchAndAudit(customerId) {
-  document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.style.display = 'none'; });
+  _closeRowActions(null);
   await openCustomerPage(customerId, 'audit');
   startAudit();
 }
 async function quickSwitchAndView(customerId, tab) {
-  document.querySelectorAll('.row-actions-menu').forEach(function(m) { m.style.display = 'none'; });
+  _closeRowActions(null);
   await openCustomerPage(customerId, tab);
 }
 
-export function stopDashAutoRefresh() {
-  if (_dashAutoRefresh) { clearInterval(_dashAutoRefresh); _dashAutoRefresh = null; }
-  var btn = document.getElementById('dash-autorefresh-btn');
-  var cd = document.getElementById('dash-autorefresh-countdown');
-  if (btn) btn.style.color = '';
-  if (cd) cd.style.display = 'none';
-}
 export function _celebrateConfetti() {
   var colors = ['#3fb950','#4d9fb5','#d29922','#bc8cff','#58a6ff','#f85149'];
   for (var i = 0; i < 40; i++) {
@@ -1424,7 +1403,7 @@ function renderOverview(customers) {
             <td class="overview-last">${esc(lastAudit)}${ageNote}</td>
             <td class="overview-menu-col">
               <div class="row-actions-wrap">
-                <button class="row-actions-btn" data-click-handler="dashToggleRowActions" aria-label="${esc(t('lbl_more_actions', 'Flere handlinger'))}">&#8943;</button>
+                <button class="row-actions-btn" data-click-handler="dashToggleRowActions" aria-haspopup="true" aria-expanded="false" aria-label="${esc(t('lbl_more_actions', 'Flere handlinger'))}">&#8943;</button>
                 <div class="row-actions-menu" hidden>
                   <button class="hover-menu-item" data-click-handler="dashRowDetails" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_open_customer', 'Åpne kunde'))}</button>
                   <button class="hover-menu-item" data-write data-click-handler="dashRowAudit" data-customer-id="${esc(c.customer_id)}">${esc(t('btn_run_audit'))}</button>
