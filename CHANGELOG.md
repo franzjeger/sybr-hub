@@ -6,6 +6,20 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Firmware vurderes mot dagens versjoner
+
+- UniFi-firmware ble slått opp på produktnavn, mens kontrolleren rapporterer
+  modellkoder, så de fleste enheter fikk «ukjent». Tabellen er bygget på nytt
+  fra Ubiquitis egen firmwarekilde og slås opp på modellkoden.
+- Flere versjoner i den gamle tabellen var feil, og strømplugger og en
+  eldre access point ble vurdert som andre produkter. Det ga falske
+  kritiske funn. Etter neste avlesning vil mange gatewayer og svitsjer stå som
+  utdaterte, fordi de faktisk er det.
+- Produkter Ubiquiti har satt som «Legacy» regnes som end-of-life. «Vintage»
+  får fortsatt sikkerhetsoppdateringer og regnes ikke som det.
+- Varsler sier fra når en firmwaretabell er eldre enn 180 dager, så «ukjent»
+  får en forklaring.
+
 ### Terminalen og service workeren
 
 - Terminalen fikk aldri tema, skrift eller skriftstørrelse: sikkerhetsreglene
