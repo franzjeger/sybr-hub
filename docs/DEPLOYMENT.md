@@ -1,8 +1,8 @@
 # Supported release workflow
 
-The production dependency lock targets Python 3.14 on Linux. The compatibility
-test matrix also covers Python 3.11–3.13. `requirements.txt` declares runtime
-ranges; `requirements.lock` records the resolved production versions and hashes.
+The production dependency lock supports Python 3.12–3.14 on Linux. CI installs
+and tests the same hash-verified lockfile on every version in that range.
+`requirements.txt` declares runtime ranges; `requirements.lock` records the resolved production versions and hashes.
 `requirements-dev.txt` adds test/build tools. The experimental TUI is an optional
 `.[tui]` install and has its own `sybr-hub-tui` entrypoint.
 
@@ -17,8 +17,9 @@ ranges; `requirements.lock` records the resolved production versions and hashes.
 3. For Linux amd64 containers, build the checked-in Dockerfile:
 
    ```bash
+   python -m pip install setuptools-scm==9.2.2
    docker build --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" \
-     --build-arg RELEASE_VERSION=0.0.0.dev0 --tag sybr-hub:reviewed .
+     --build-arg RELEASE_VERSION="$(python -m setuptools_scm)" --tag sybr-hub:reviewed .
    ```
 
    Use an actual release version when a release is tagged. The GitHub repository

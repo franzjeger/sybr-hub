@@ -13,6 +13,7 @@ import logging
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core import modules
 from app.services import schedule_owner
@@ -190,7 +191,15 @@ def _seconds_until(target_time: time, weekday: int | None = None) -> float:
 
     If *weekday* is given (0=Mon … 6=Sun), find the next matching weekday.
     """
-    now = _now()
+    from app.core.config import load_app_settings
+
+    zone_name = load_app_settings().get("timezone", "Europe/Oslo")
+    try:
+        zone = ZoneInfo(zone_name)
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        zone = ZoneInfo("Europe/Oslo")
+    utc_now = _now()
+    now = utc_now.astimezone(zone)
     candidate = now.replace(
         hour=target_time.hour,
         minute=target_time.minute,
@@ -205,7 +214,7 @@ def _seconds_until(target_time: time, weekday: int | None = None) -> float:
     else:
         if candidate <= now:
             candidate += timedelta(days=1)
-    return (candidate - now).total_seconds()
+    return (candidate.astimezone(UTC) - utc_now).total_seconds()
 
 
 # ── Config helpers ─────────────────────────────���───────────────────────────

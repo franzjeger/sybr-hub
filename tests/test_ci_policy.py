@@ -37,10 +37,12 @@ def test_security_jobs_have_timeouts_and_read_only_default_permissions():
     assert WORKFLOW.count("timeout-minutes:") >= 3
 
 
-def test_test_matrix_installs_the_async_test_plugin():
-    """Installing only the production package silently disables async tests
-    and never installs textual, so the [tui] smoke tests skip in CI."""
-    assert "python -m pip install '.[dev,tui]' pytest-timeout" in WORKFLOW
+def test_test_matrix_keeps_runtime_locked_and_installs_async_and_tui_tests():
+    lock = "python -m pip install --require-hashes -r requirements.lock"
+    tools = "python -m pip install '.[dev,tui]' pytest-timeout -c /tmp/sybr-runtime-constraints.txt"
+    assert lock in WORKFLOW and tools in WORKFLOW
+    assert WORKFLOW.index(lock) < WORKFLOW.index(tools)
+    assert "python -m pip freeze > /tmp/sybr-runtime-constraints.txt" in WORKFLOW
 
 
 def test_dead_browser_code_fails_the_javascript_check():

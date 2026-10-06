@@ -49,14 +49,15 @@ asyncssh>=2.14.0,<3.0
 # Database — SQLAlchemy async ORM (SQLModel) over aiosqlite. The schema itself
 # is owned by the migration runner in app/core/database.py.
 aiosqlite>=0.20.0,<1.0
-sqlalchemy>=2.0.52,<3.0
+sqlalchemy[asyncio]>=2.0.52,<3.0
 sqlmodel>=0.0.42,<0.1.0
 
 # Authentication — PyJWT is actively maintained and broadly used (Django,
 # DRF, Authlib upstream). python-jose was dropped; it hasn't had a
 # meaningful release since 2023 and is deprecated in many downstream projects.
 argon2-cffi>=25.1.0,<26.0
-PyJWT[crypto]>=2.9.0,<3.0
+PyJWT[crypto]>=2.15.1,<3.0
+urllib3>=2.8.0,<3.0
 
 # DNS validation
 dnspython>=2.6.0,<3.0

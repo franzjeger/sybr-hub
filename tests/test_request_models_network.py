@@ -15,6 +15,7 @@ import pytest
 from tests.request_body_fixtures import (  # autouse fixtures apply to this module
     _init_db,
     _reset_middleware_state,
+    admin_client,
     assert_refused,
     tech_client,
 )
@@ -130,17 +131,17 @@ async def test_a_bad_fortigate_port_keeps_its_own_message(tech_client):
     assert "Ugyldig port" in body["error"]
 
 
-async def test_deploy_key_and_generate_token_keep_their_required_field_messages(tech_client):
-    cid = _active_customer(tech_client)
+async def test_deploy_key_and_generate_token_keep_their_required_field_messages(admin_client):
+    cid = _active_customer(admin_client)
 
-    body = assert_refused(tech_client.post(f"/api/fortigate/deploy-key/{cid}", json={}), 400)
+    body = assert_refused(admin_client.post(f"/api/fortigate/deploy-key/{cid}", json={}), 400)
     assert "admin_user" in body["error"]
-    body = assert_refused(tech_client.post(f"/api/fortigate/generate-token/{cid}", json={}), 400)
+    body = assert_refused(admin_client.post(f"/api/fortigate/generate-token/{cid}", json={}), 400)
     assert "ssh_host" in body["error"]
 
 
-async def test_deploy_key_and_generate_token_refuse_a_wrong_type(tech_client):
-    cid = _active_customer(tech_client)
+async def test_deploy_key_and_generate_token_refuse_a_wrong_type(admin_client):
+    cid = _active_customer(admin_client)
 
     for path, body in (
         (f"/api/fortigate/deploy-key/{cid}", {"admin_user": 1, "public_key": "k"}),
@@ -149,7 +150,7 @@ async def test_deploy_key_and_generate_token_refuse_a_wrong_type(tech_client):
         (f"/api/fortigate/generate-token/{cid}", {"ssh_host": "h", "ssh_port": "ssh"}),
         (f"/api/fortigate/generate-token/{cid}", {"ssh_host": "h", "accprofile": ["x"]}),
     ):
-        assert_refused(tech_client.post(path, json=body), 422)
+        assert_refused(admin_client.post(path, json=body), 422)
 
 
 async def test_bootstrap_keeps_its_messages_and_refuses_a_wrong_type(tech_client):

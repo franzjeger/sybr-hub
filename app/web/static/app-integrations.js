@@ -4,7 +4,7 @@ import {registerUiHandlers} from './app-handlers.js';
 import {onViewShown} from './app-hooks.js';
 import {hasModule} from './app-state.js';
 import {toneClass} from './app-format.js';
-import {adminSignpostButton, showToast} from './app-ui.js';
+import {adminSignpostButton, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {renderToolCustomerPickers} from './app.js';
 import {
@@ -757,7 +757,7 @@ async function uniwebDoImport() {
 
   // Confirmation step
   var confirmMsg = t('integ_confirm_import','Er du sikker på at du vil importere') + ' ' + ids.length + ' ' + (ids.length > 1 ? t('integ_customers_lc','kunder') : t('integ_customer_lc','kunde')) + '?';
-  if (!confirm(confirmMsg)) return;
+  if (!await showConfirm(confirmMsg)) return;
 
   var btn = document.getElementById('uniweb-import-btn');
   if (btn) { btn.disabled = true; btn.textContent = t('msg_importing','Importing …'); }
@@ -1446,8 +1446,8 @@ async function _loadIntegrationCards() {
   try {
     const sched = await apiFetch('/api/scheduler');
     if (!sched) return;
-    setStatus('webhook-integ-dot', 'webhook-integ-label', !!sched.webhook_url);
-    document.getElementById('input-webhook-url').value = sched.webhook_url || '';
+    setStatus('webhook-integ-dot', 'webhook-integ-label', !!sched.webhook_url_set);
+    document.getElementById('input-webhook-url').value = sched.webhook_url_set ? '••••••' : '';
     const ao = sched.alert_on || {};
     document.getElementById('alert-audit-completed').checked = ao.audit_completed !== false;
     document.getElementById('alert-risk-score-drop').checked = ao.risk_score_drop !== false && ao.risk_score_drop !== 0;

@@ -8,6 +8,9 @@ the "Out of scope" section. If you're not sure, open an issue first.
 
 ## Setting up
 
+Use Python 3.12 or newer. CI tests the hashed production lock on every supported
+Python version before installing the test tools.
+
 ```bash
 git clone https://github.com/franzjeger/sybr-hub
 cd sybr-hub
@@ -138,7 +141,7 @@ is a bug we've had at least eight times.
 - Include the current full-suite output in the PR description.
 
 Before protecting `main`, configure GitHub to require the stable CI checks
-`pytest (3.11)`, `pytest (3.12)`, `pytest (3.13)`, `pytest (3.14)`, `ruff`, and
+`pytest (3.12)`, `pytest (3.13)`, `pytest (3.14)`, `ruff`, and
 `pip-audit`, and `browser, types and package`; also require an up-to-date branch, resolved review conversations,
 and at least one approval. Repository settings are an external control and
 cannot be enforced by workflow YAML alone. The workflow includes a

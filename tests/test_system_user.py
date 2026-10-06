@@ -9,6 +9,8 @@ on.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from app.core import system_user
@@ -217,9 +219,6 @@ def test_the_lock_is_not_on_routes_that_touch_no_tunnel():
         assert "_refuse_if_system_holds_tunnels" not in block.split("@router.")[0], (
             f"{name.group(1)} is an authentication flow and disturbs no tunnel"
         )
-
-
-import pathlib  # noqa: E402
 
 
 async def test_the_refusal_names_only_profiles_the_caller_may_see(tunnels, monkeypatch):

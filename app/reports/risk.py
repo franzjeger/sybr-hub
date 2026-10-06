@@ -89,6 +89,7 @@ def _compute_risk(
     lang: str = "no",
     unavailable_sections: list[str] | None = None,
     file_contents: dict[str, str] | None = None,
+    error_files: list[str] | None = None,
 ) -> dict:
     """Compute a security health score from 0 (worst) to 100 (best).
 
@@ -238,6 +239,13 @@ def _compute_risk(
         data_quality_issues.append(t.risk_dq_oauth)
 
     # ── Critical findings ────────────────────────────────────────────
+
+    if "28_exchange_mailbox_forwarding.txt" in (error_files or []):
+        data_quality_issues.append(
+            "Videresending kunne ikke måles"
+            if lang == "no"
+            else "Mailbox forwarding was not measured"
+        )
 
     # External forwarding (up to 10 pts) — any active forwarding is severe
     if ext_fwd and ext_fwd.strip():

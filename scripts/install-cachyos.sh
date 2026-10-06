@@ -85,9 +85,9 @@ sudo -u "$SVC_USER" git clone --branch "$BRANCH" "$REPO" "$PREFIX"
 
 # ── Python environment ────────────────────────────────────────────────────────
 # Arch/CachyOS ships whatever Python is newest (3.14 at time of writing).
-# CI covers 3.11-3.14; the version is reported rather than blocked, since
-# the test run below is the real check.
+# Locked production supports Python 3.12 and newer, tested in CI.
 PYVER="$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else "Python 3.12 or newer is required")'
 log "Building virtualenv (Python $PYVER)"
 [[ -x "$PREFIX/.venv/bin/python" ]] || sudo -u "$SVC_USER" python -m venv "$PREFIX/.venv"
 sudo -u "$SVC_USER" "$PREFIX/.venv/bin/pip" install --quiet --upgrade pip

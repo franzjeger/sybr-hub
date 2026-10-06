@@ -33,6 +33,7 @@ class AzureStorageSection(BaseSection):
         sub_name: str = "",
         multi: bool = False,
     ):
+        self._failures: list[str] = []
         self.auth = auth_manager
         self._sub_id = sub_id
         self._sub_name = sub_name
@@ -61,7 +62,10 @@ class AzureStorageSection(BaseSection):
         try:
             await self._collect_storage_accounts()
             await self._collect_managed_disks()
-            self._report(SectionStatus.DONE)
+            self._report(
+                SectionStatus.FAILED if self._failures else SectionStatus.DONE,
+                "; ".join(self._failures)[:500] or None,
+            )
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result
@@ -73,6 +77,7 @@ class AzureStorageSection(BaseSection):
             client = self.auth.storage_client_for(self._sub_id)
             accounts = await _run_sync(lambda: list(client.storage_accounts.list()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("35_azure_storage.txt"), f"Error: {ex}\n")
             return
 
@@ -144,6 +149,7 @@ class AzureStorageSection(BaseSection):
             client = self.auth.compute_client_for(self._sub_id)
             disks = await _run_sync(lambda: list(client.disks.list()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("36_azure_disks.txt"), f"Error: {ex}\n")
             return
 

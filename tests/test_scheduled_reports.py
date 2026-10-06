@@ -14,6 +14,7 @@ from __future__ import annotations
 import email
 import re
 from email.message import Message
+from typing import ClassVar
 
 import pytest
 
@@ -31,7 +32,7 @@ METRICS = {"risk_grade": "B", "risk_score": 72, "mfa_coverage_pct": 91.7, "total
 class _SMTP:
     """Stands in for smtplib.SMTP and keeps every message sent through it."""
 
-    sent: list[Message] = []  # noqa: RUF012
+    sent: ClassVar[list[Message]] = []
 
     def __init__(self, host, port, timeout=None):
         self.host = host
@@ -147,7 +148,7 @@ async def test_without_email_settings_nothing_is_sent(hub, monkeypatch):
 class _Webhook:
     """Stands in for httpx.AsyncClient and keeps what was posted."""
 
-    posted: list[dict] = []  # noqa: RUF012
+    posted: ClassVar[list[dict]] = []
 
     def __init__(self, timeout=None):
         pass

@@ -426,7 +426,9 @@ async def set_language(body: LanguageChoice, user: User = _admin):
 async def get_scheduler(user: User = _auth):
     from app.core.config import get_scheduler_config
 
-    return get_scheduler_config()
+    config = dict(get_scheduler_config())
+    config["webhook_url_set"] = bool(config.pop("webhook_url", ""))
+    return config
 
 
 @router.post("/scheduler")
@@ -446,6 +448,8 @@ async def update_scheduler(body: SchedulerConfig, user: User = _admin):
     from app.core.config import get_scheduler_config, update_app_settings
 
     sent = body.model_dump(exclude_unset=True)
+    if sent.get("webhook_url") == "••••••":
+        sent.pop("webhook_url")
     if "audit_all_customers" in sent or "customer_id" in sent:
         await _check_scheduler_customer(sent, get_scheduler_config(), user)
     result: dict = {}
@@ -502,6 +506,10 @@ async def _check_scheduler_customer(sent: dict, stored: dict, user: User) -> Non
 @router.post("/scheduler/test-webhook")
 async def test_webhook(body: WebhookTest, request: Request, user: User = _admin):
     url = body.webhook_url
+    if url == "••••••":
+        from app.core.config import get_scheduler_config
+
+        url = get_scheduler_config().get("webhook_url", "")
 
     # Send straight to the supplied URL. This used to write the URL into
     # settings, send, then restore the old value — a persist/restore dance that

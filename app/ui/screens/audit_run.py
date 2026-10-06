@@ -179,6 +179,18 @@ class AuditRunScreen(Screen):
             results = await collector.run()
             self._results = results
 
+            from app.reports.generator import build_report_context
+
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: build_report_context(
+                    cfg.get("CustomerName", "Unknown"),
+                    cfg.get("PrimaryDomain", ""),
+                    out_dir,
+                    results,
+                    customer_id=cfg.get("CustomerId") or cfg.get("_id"),
+                ),
+            )
             self._on_audit_complete()
 
         except Exception as e:

@@ -292,7 +292,8 @@ async def test_a_refused_unifi_login_is_stored_as_unread(monkeypatch):
     assert (await _rows())["controller"]["status"] == "unknown"
 
 
-async def test_the_network_audit_stores_the_controllers_devices(monkeypatch):
+@pytest.mark.parametrize("model_in_lts", [False, True])
+async def test_the_network_audit_stores_the_controllers_devices(monkeypatch, model_in_lts):
     """The site collector runs this over VPN, so it is how a customer the hub
     cannot reach directly gets a firmware reading at all."""
     import app.modules.unifi_audit.client as client_mod
@@ -300,7 +301,13 @@ async def test_the_network_audit_stores_the_controllers_devices(monkeypatch):
     from app.services.network_audit import _audit_unifi_controller
 
     devices = [
-        {"mac": "02:00:00:00:00:09", "name": "Lager", "model": "UAP-LR", "version": "4.3.28"}
+        {
+            "mac": "02:00:00:00:00:09",
+            "name": "Lager",
+            "model": "UAP-LR",
+            "version": "4.3.28",
+            "model_in_lts": model_in_lts,
+        }
     ]
 
     def handler(request: httpx.Request) -> httpx.Response:

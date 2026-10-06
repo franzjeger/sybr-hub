@@ -121,7 +121,9 @@ def test_backup_stream_confidentiality_path_binding_and_authentication(tmp_path)
 async def test_idle_terminal_resumes_when_output_arrives():
     from app.core.async_fd import read_fd
 
-    read, write = os.pipe2(os.O_NONBLOCK)
+    read, write = os.pipe()
+    os.set_blocking(read, False)
+    os.set_blocking(write, False)
     try:
         task = asyncio.create_task(read_fd(read))
         await asyncio.sleep(0.02)

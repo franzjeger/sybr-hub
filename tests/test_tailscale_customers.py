@@ -227,3 +227,12 @@ async def test_the_node_list_names_only_customers_the_caller_holds(client, tailn
     assert devices["beta-fw"]["customer_hidden"] is True
     assert devices["spare"]["customer_id"] is None and devices["spare"]["customer_hidden"] is False
     assert "Beta AS" not in str(devices)
+
+
+async def test_a_technician_cannot_take_another_customers_tagged_node(client, tailnet):
+    headers = await _tech()
+    response = client.put(
+        "/api/tailscale/device/beta-fw/customer", headers=headers, json={"customer_id": ACME}
+    )
+    assert response.status_code == 403, response.text
+    assert "beta-fw" not in await tc.manual_assignments()

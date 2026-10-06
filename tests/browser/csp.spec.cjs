@@ -203,8 +203,8 @@ test.describe('migrated controls, view by view', () => {
     await expect(page.locator('#overview-attention-badge')).toBeVisible();
     await page.locator('#overview-active-filters [data-click-handler="dashClearAllFilters"]').click();
     await expect(page.locator('#overview-active-filters')).toBeHidden();
-    await page.locator('th[data-click-handler="sortOverview"][data-sort="customer_name"]').click();
-    await expect(page.locator('th[data-click-handler="sortOverview"][data-sort="customer_name"]')).toContainText(/[▲▼]/);
+    await page.locator('button[data-click-handler="sortOverview"][data-sort="customer_name"]').click();
+    await expect(page.locator('button[data-click-handler="sortOverview"][data-sort="customer_name"]')).toContainText(/[▲▼]/);
     const row = table.locator('tbody tr', {hasText: 'Browser Beta'});
     await row.locator('[data-click-handler="dashToggleRowActions"]').click();
     await expect(row.locator('.row-actions-menu')).toBeVisible();

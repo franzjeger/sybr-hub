@@ -36,11 +36,19 @@ let _scopeSections = [];   // [{name, category, enabled}]
 export let _scopeLoaded = false;
 let _scopeCustomerId = null;
 let _scopePanelOpen = false;
+let _scopeLoadGeneration = 0;
+let _scopeLoading = false;
 
 // The chooser reads its sections again for the next customer page.
 export function resetAuditScope() {
+  _scopeLoadGeneration++;
+  _scopeLoading = false;
   _scopeLoaded = false;
   _scopeSections = [];
+  const box = document.getElementById('scope-sections');
+  if (box) box.replaceChildren();
+  const summary = document.getElementById('scope-summary');
+  if (summary) summary.textContent = '';
 }
 
 export function toggleScopePanel() {
@@ -55,14 +63,16 @@ export function toggleScopePanel() {
 
 export async function loadScopeSections() {
   const customerId = _custPage.id;
-  if (!customerId) return;
+  if (!customerId || _scopeLoading) return;
+  const generation = _scopeLoadGeneration;
+  _scopeLoading = true;
   const cid = encodeURIComponent(customerId);
   try {
     const [secRes, scopeRes] = await Promise.all([
       apiFetch('/api/audit/sections?customer_id=' + cid),
       apiFetch('/api/audit/scope?customer_id=' + cid),
     ]);
-    if (_custPage.id !== customerId) return;
+    if (_custPage.id !== customerId || generation !== _scopeLoadGeneration) return;
     _scopeCustomerId = customerId;
     _scopeSections = secRes.sections || [];
     // Apply saved scope if available
@@ -74,8 +84,11 @@ export async function loadScopeSections() {
     renderScopeSections();
     loadPresets();
   } catch (e) {
+    if (generation !== _scopeLoadGeneration) return;
     const box = document.getElementById('scope-sections');
     if (box) box.innerHTML = '<div class="text-sm text-danger">' + t('err_could_not_load_sections') + '</div>';
+  } finally {
+    if (generation === _scopeLoadGeneration) _scopeLoading = false;
   }
 }
 

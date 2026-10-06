@@ -25,8 +25,6 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.reports.generator import build_report_context  # noqa: E402
-from tests.audit_fixture import FULL_AUDIT  # noqa: E402
 
 # Top-level keys that carry raw HTML/text/objects, not measurable scalars.
 SKIP_TOP = {
@@ -80,6 +78,9 @@ def _scalars(obj, prefix: str = "") -> list[tuple[str, str, str]]:
 
 
 def build_context() -> dict:
+    from app.reports.generator import build_report_context
+    from tests.audit_fixture import FULL_AUDIT
+
     tmp = pathlib.Path(tempfile.mkdtemp()) / "Acme_AS" / "2026-01-01_0900"
     tmp.mkdir(parents=True)
     for name, content in FULL_AUDIT.items():

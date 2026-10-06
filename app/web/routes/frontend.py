@@ -459,6 +459,13 @@ async def serve_audit_data(
     if not file_path.is_file():
         return JSONResponse({"error": "Not found"}, status_code=404)
 
+    from app.models.user import Role
+
+    relative = file_path.resolve().relative_to(get_audit_dir().resolve())
+    if user.role < Role.technician and {"fortigate_backups", "network_configs"}.intersection(
+        relative.parts[1:-1]
+    ):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
     data = encrypted_read_bytes(file_path)
     content_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
     headers: dict[str, str] = {}

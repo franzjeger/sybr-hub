@@ -7,6 +7,8 @@ on:
     branches: [main]
   merge_group:
   workflow_dispatch:
+  schedule:
+    - cron: "23 5 * * 1"
 
 permissions:
   contents: read
@@ -30,11 +32,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.11 is the floor from pyproject. 3.13/3.14 are here because Arch —
+        # 3.12 is the production floor. 3.13/3.14 are here because Arch —
         # and so CachyOS, which is a real deployment target — ships whatever is
         # newest; the install script builds its venv from the system Python, so
         # an untested version there means an untested production install.
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       # Pin third-party actions to immutable commits. The version comment keeps
       # Dependabot updates readable without trusting a mutable major tag.
@@ -60,7 +62,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install '.[dev,tui]' pytest-timeout
+          python -m pip install --require-hashes -r requirements.lock
+          python -m pip freeze > /tmp/sybr-runtime-constraints.txt
+          python -m pip install '.[dev,tui]' pytest-timeout -c /tmp/sybr-runtime-constraints.txt
           python -m pip check
 
       # --timeout names the offending test and dumps its stack if one hangs;
@@ -185,7 +189,10 @@ jobs:
           cd /tmp
           /tmp/sybr-wheel/bin/python "$GITHUB_WORKSPACE/scripts/smoke_installed.py"
       - name: Build deployment image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" --tag sybr-hub:ci .
+        run: |
+          python -m pip install setuptools-scm==9.2.2
+          RELEASE_VERSION="$(python -m setuptools_scm)"
+          docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" --build-arg RELEASE_VERSION="$RELEASE_VERSION" --tag sybr-hub:ci .
       - name: Exercise isolated installed service
         run: |
           printf '%s\n' 'isolated-ci-smoke-wrapping-secret-32-bytes-minimum' > "$RUNNER_TEMP/sybr-smoke.secret"

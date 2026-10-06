@@ -18,6 +18,8 @@ Description=Sybr HUB schedule standby — takes over scheduled jobs while the we
 Documentation=https://github.com/franzjeger/sybr-hub
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=180
+StartLimitBurst=5
 
 [Service]
 Type=exec
@@ -25,6 +27,7 @@ User=sybrhub
 Group=sybrhub
 
 WorkingDirectory=/opt/sybr-hub
+Environment=PYTHONPATH=/opt/sybr-hub
 ExecStart=/opt/sybr-hub/.venv/bin/python /opt/sybr-hub/scripts/run_scheduler.py
 
 Restart=on-failure

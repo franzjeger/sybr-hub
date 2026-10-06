@@ -172,7 +172,7 @@ async def get_enhanced_device_stats(customer_id: str) -> list[dict[str, Any]]:
                 {
                     "name": d.get("name", d.get("hostname", mac or "unknown")),
                     "model": d.get("model", ""),
-                    "model_long": d.get("model_in_lts", d.get("model_in_eol", "")),
+                    "model_long": d.get("model", ""),
                     "type": d.get("type", ""),
                     "firmware": d.get("version", ""),
                     "ip": d.get("ip", ""),

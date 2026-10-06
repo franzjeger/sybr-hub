@@ -67,10 +67,10 @@ documentation, fakes or mocks, and says so in its code.
    `app/modules/fortigate_audit/firmware_lifecycle.py` (7.2 is end of life
    there, and a 7.4 device behind on patches is outdated). Done when: the
    alert reads the stored verdicts, so the two never disagree.
-9. **Excel export prints invented zeros.** `/export/excel` reads persisted
-   metrics where an unmeasured section is stored as 0 (the CSV export
-   already writes "ikke målt"). Done when: unmeasured values are empty and
-   marked, with a test.
+9. **Resolved in the October audit fixes:** `/export/excel` previously crashed
+   with `round(None)` when any customer had an unmeasured metric. Missing
+   percentages now export as "not measured" in the chosen language, with
+   regression coverage. Spreadsheet formulas in imported text are neutralised.
 10. **Bulk audit renders reports in Norwegian only** (`lang="no"` in the
     bulk route; the scheduler uses the hub's `ui_language`). Done when: it
     follows `ui_language`.
@@ -91,7 +91,9 @@ documentation, fakes or mocks, and says so in its code.
     ("Audit feilet for …", "Bulk-audit fullført …") sent through
     `send_simple_message`, which also passes exception text unescaped into
     markdown, and `_notify_task_failure`'s card (English, with ⚠ and an em
-    dash). Done when: keyed in the hub's language and escaped.
+    dash). Scheduled audit messages now neutralise imported names and errors
+    before inserting them into markdown. Remaining language work is keyed
+    text in the hub's language; apply the same protection to other senders.
 15. **Collectors' own English text reaches Norwegian reports** (Teams guest
     labels such as "Admins and Guest Inviters", FortiGate's "is an allow-all
     rule", the break-glass notes). `tests/test_norwegian_reports.py` treats

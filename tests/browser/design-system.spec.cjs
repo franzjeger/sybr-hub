@@ -80,7 +80,7 @@ for (const theme of ['dark', 'light']) {
     await expect(hero).toHaveText('C');
     const [bg, orange] = await hero.evaluate(el => {
       const probe = document.createElement('span');
-      probe.style.color = 'var(--orange)';
+      probe.style.color = 'var(--orange-btn)';
       document.body.appendChild(probe);
       const want = getComputedStyle(probe).color;
       probe.remove();

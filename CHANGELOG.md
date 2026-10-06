@@ -1,10 +1,35 @@
 # Endringslogg
 
+Kildeinstallasjoner må følge [oppgraderingsveiledningen for oktober](docs/UPGRADING.md) før neste oppdatering. `git pull` kan ikke krysse den omskrevne historikken.
+
 Sybr HUB versjoneres etter semver fra og med `v1.0.0` (august 2026). Historikken
 til den importerte MSP-Toolkit-auditmotoren (`v0.1.0` til `v10.11.0`, mars til
 juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
+
+### Oktober: sikkerhet, målinger og tilgjengelighet
+
+- Kundelisten og planleggerinnstillingene sender ikke lenger passord eller
+  webhookadresser. Lesere kan ikke hente dekrypterte nettverksbackuper.
+  Varige superadmin-tilganger på FortiGate krever administrator og loggføres.
+- Rendering av gamle rapporter endrer ikke kundens siste målinger. Manglende
+  data forblir «ikke målt» i trender, varsler og eksport. Azure-lesefeil vises
+  som feil; kunder uten Azure får ikke falske hull i risikoscoren.
+- UniFi-kontrolleren bruker modellkoden ved firmwarekontroll. Planlagte
+  auditer venter på en pågående audit og leser også kundesteder over VPN.
+- Standardmerkevaren beholder temaets lesbare farger. Alvorlighetsbrikker og
+  karakterfliser har kontrollert kontrast i begge temaer. Bekreftelser,
+  eksportmenyen og arkivet kan brukes med tastatur; Nettverk-kortet fungerer
+  på mobil uten at tittelen brytes bokstav for bokstav.
+- CSV-eksporter beskytter mot formler i importert tekst. Arkivsletting kan
+  bare slette én kjøringsmappe, og store nettverk avvises før adresseopplisting.
+- Produksjon krever Python 3.12 eller nyere. CI tester de låste avhengighetene,
+  kjører ukentlig sårbarhetsskanning og bygger containere med riktig versjon.
+  Kildeinstallasjonens separate planleggertjeneste har rett importsti og
+  begrenset antall omstarter. Kalenderjobber følger innstilt tidssone,
+  med Europe/Oslo som standard.
+- [Oversikt over alle 37 funn og rettingene](docs/OCTOBER_AUDIT_FIXES.md).
 
 ### Fonten ligger i appen
 

@@ -764,7 +764,7 @@ class DashboardPoller:
                         customer_id=customer_id,
                         vendor="unifi",
                         name=d.get("name", d.get("hostname", mac)),
-                        model=d.get("model_in_lts", d.get("model", "")),
+                        model=d.get("model", ""),
                         firmware=d.get("version", ""),
                         serial=mac,
                         status="online" if is_online else "offline",

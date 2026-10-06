@@ -41,6 +41,7 @@ class AzureNetworkSection(BaseSection):
         sub_name: str = "",
         multi: bool = False,
     ):
+        self._failures: list[str] = []
         self.auth = auth_manager
         self._sub_id = sub_id
         self._sub_name = sub_name
@@ -78,7 +79,10 @@ class AzureNetworkSection(BaseSection):
             await self._collect_vpn_gateways()
             orphan_lines += await self._collect_orphaned_nics()
             await self._save_orphans(orphan_lines)
-            self._report(SectionStatus.DONE)
+            self._report(
+                SectionStatus.FAILED if self._failures else SectionStatus.DONE,
+                "; ".join(self._failures)[:500] or None,
+            )
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result
@@ -90,6 +94,7 @@ class AzureNetworkSection(BaseSection):
             client = self.auth.network_client_for(self._sub_id)
             vnets = await _run_sync(lambda: list(client.virtual_networks.list_all()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("31_azure_vnets.txt"), f"Error: {ex}\n")
             return
 
@@ -123,6 +128,7 @@ class AzureNetworkSection(BaseSection):
             client = self.auth.network_client_for(self._sub_id)
             nsgs = await _run_sync(lambda: list(client.network_security_groups.list_all()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("32_azure_nsgs.txt"), f"Error: {ex}\n")
             return
 
@@ -273,6 +279,7 @@ class AzureNetworkSection(BaseSection):
             client = self.auth.network_client_for(self._sub_id)
             pips = await _run_sync(lambda: list(client.public_ip_addresses.list_all()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("33_azure_public_ips.txt"), f"Error: {ex}\n")
             self._orphan_errors.append({"listing": "public_ips", "error": str(ex)})
             return orphans
@@ -317,6 +324,7 @@ class AzureNetworkSection(BaseSection):
             client = self.auth.network_client_for(self._sub_id)
             gws = await _run_sync(lambda: list(client.virtual_network_gateways.list_all()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("34_azure_vpn_gateways.txt"), f"Error: {ex}\n")
             return
 
@@ -350,6 +358,7 @@ class AzureNetworkSection(BaseSection):
                         f"Type: {c.connection_type}"
                     )
             except Exception as ex:
+                self._failures.append(str(ex))
                 lines.append(f"    Connections: Error — {ex}")
 
         lines += ["", "=" * 100, ""]
@@ -375,6 +384,7 @@ class AzureNetworkSection(BaseSection):
                         }
                     )
         except Exception as ex:
+            self._failures.append(str(ex))
             # Orphan-NIC enumeration is additive; the section still reports
             # everything else it collected.
             logger.debug("Could not enumerate network interfaces", exc_info=True)

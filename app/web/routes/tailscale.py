@@ -252,8 +252,21 @@ async def tailscale_assign_customer(device_id: str, body: TailscaleNodeAssign, u
             raise refusal(ForbiddenError, "err_customer_no_access")
         if CustomerManager.get_customer(target) is None:
             raise refusal(NotFoundError, "err_customer_not_found")
-    current = (await tailscale_customers.manual_assignments()).get(device_id)
-    if current and current != target and not await check_customer_access(user, current):
+    from app.services import tailscale_api
+
+    manual = await tailscale_customers.manual_assignments()
+    try:
+        devices = await tailscale_api.list_devices()
+    except Exception as exc:
+        raise refusal(IntegrationError, "err_tailscale_unreachable") from exc
+    ids = [c["_id"] for c in CustomerManager.list_customers()]
+    owners = tailscale_customers.resolve(devices, ids, manual)
+    tag_owners = tailscale_customers.resolve(devices, ids, {})
+    current = manual.get(device_id)
+    for owner in (owners.get(device_id), tag_owners.get(device_id)):
+        if owner and not await check_customer_access(user, owner[0]):
+            raise refusal(ForbiddenError, "err_customer_no_access")
+    if current and not await check_customer_access(user, current):
         raise refusal(ForbiddenError, "err_customer_no_access")
     await tailscale_customers.assign(device_id, target, user.username)
 

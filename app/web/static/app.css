@@ -180,7 +180,7 @@
     --green-deep:  #177032;
     --orange-deep: #8a5c00;
     --red-deep:    #c21f29;
-    --blue-deep:   var(--blue);
+    --blue-deep:   #195878;
     --text-dim-deep: #586169;
     --bg-input:  #ffffff;
     --bg-overlay: rgba(0,0,0,0.4);
@@ -1561,7 +1561,7 @@
     [style*="text-transform:uppercase"][style*="letter-spacing"] { letter-spacing: 0.8px; }
 
     /* ── Tags and pills: don't overflow card edges ────────────────────── */
-    .card { overflow-wrap: anywhere; }
+    .card { overflow-wrap: normal; }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -1975,10 +1975,10 @@ body:not(.is-admin) [data-admin-only] { display: none !important; }
   font-size: var(--font-xs); font-weight: 700; padding: 2px var(--space-2);
   border-radius: var(--radius-full); border: 1px solid currentColor;
 }
-.grade-A { color: var(--green); }
-.grade-B { color: var(--blue); }
-.grade-C { color: var(--orange); }
-.grade-D, .grade-F { color: var(--red); }
+.grade-A:where(:not(.grade-tile)) { color: var(--green); }
+.grade-B:where(:not(.grade-tile)) { color: var(--blue); }
+.grade-C:where(:not(.grade-tile)) { color: var(--orange); }
+.grade-D:where(:not(.grade-tile)), .grade-F:where(:not(.grade-tile)) { color: var(--red); }
 .cust-access-notice { margin-bottom: var(--space-4); }
 
 .cust-links {
@@ -2016,8 +2016,8 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .cust-section-title { font-size: var(--font-base); font-weight: 700; margin: 0; }
 .cust-section-actions { display: flex; gap: var(--space-2); align-items: center; }
 .cust-card-text { font-size: var(--font-sm); color: var(--text-muted); line-height: 1.6; margin: 0 0 var(--space-3); }
-.cust-card-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
-.cust-card-head .card-title { margin: 0; flex: 1; }
+.cust-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.cust-card-head .card-title { margin: 0; flex: 1; min-width: max-content; }
 .cust-card-status { font-size: var(--font-xs); color: var(--text-dim); }
 .cust-tags-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .cust-tag-editor { margin-top: var(--space-2); padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
@@ -2244,8 +2244,8 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   font-size: var(--font-xs); font-weight: 700; padding: 2px var(--space-2);
   border-radius: var(--radius-sm); border: 1px solid currentColor;
 }
-.sev-critical { color: var(--red); background: var(--color-danger-bg); }
-.sev-high { color: var(--orange); background: var(--color-warning-bg); }
+.sev-critical { color: var(--red-deep); background: var(--color-danger-bg); }
+.sev-high { color: var(--orange-deep); background: var(--color-warning-bg); }
 .sev-medium { color: var(--blue); background: var(--blue-dark); }
 .sev-low { color: var(--text-muted); }
 .finding-body { flex: 1; min-width: 0; }
@@ -2710,7 +2710,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .admin-rule { border: none; border-top: 1px solid var(--border); margin: var(--space-4) 0; }
 .admin-rules-wrap { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--space-4); }
 .admin-rules { width: 100%; border-collapse: collapse; font-size: var(--font-sm); }
-.admin-rules th { text-align: left; padding: 8px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); }
+.admin-rules th { text-align: left; padding: 8px; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .admin-rules td { padding: 8px; }
 .admin-rules tbody tr:not(:last-child) { border-bottom: 1px solid var(--border); }
 .admin-rules td.admin-hint { font-size: var(--font-xs); }
@@ -2957,10 +2957,10 @@ textarea.field-input { resize: vertical; }
   border-radius: var(--radius-xl); font-weight: 800; font-size: var(--font-2xl); color: var(--on-accent);
   background: var(--tone); box-shadow: 0 4px 12px color-mix(in srgb, var(--tone) 25%, transparent);
 }
-.grade-hero.grade-A { --tone: var(--green); }
-.grade-hero.grade-B { --tone: var(--blue); }
-.grade-hero.grade-C { --tone: var(--orange); }
-.grade-hero.grade-D, .grade-hero.grade-F { --tone: var(--red); }
+.grade-hero.grade-A { --tone: var(--green-btn); }
+.grade-hero.grade-B { --tone: var(--blue-btn); }
+.grade-hero.grade-C { --tone: var(--orange-btn); }
+.grade-hero.grade-D, .grade-hero.grade-F { --tone: var(--red-btn); }
 .gauge { position: relative; width: 80px; height: 80px; margin: 0 auto var(--space-2); }
 
 /* ── Small pieces of the customer page and Kunder ── */

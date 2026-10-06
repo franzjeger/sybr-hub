@@ -688,7 +688,7 @@ class MFASection(BaseSection):
 
         lines.append(f"  Users covered by CA MFA (incl. groups) : {len(covered_active)}")
         lines.append(f"  Users excluded from CA MFA             : {len(excluded_active)}")
-        lines.append(f"  Effectively covered (covered − excluded): {len(covered_not_excluded)}")  # noqa: RUF001
+        lines.append(f"  Effectively covered (covered - excluded): {len(covered_not_excluded)}")
         lines.append("")
 
         if deactivated_ids:

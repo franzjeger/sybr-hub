@@ -1058,7 +1058,7 @@ async def _dispatch_tool(
         token = get_secret(cid, "fortigate_api_token")
         if not token:
             return {"error": "FortiGate API-token ikke konfigurert"}
-        return await backup_config(config, token)
+        return await backup_config(config, token, customer_id=cid)
 
     # -- UniFi tools --
     if name == "unifi_devices":

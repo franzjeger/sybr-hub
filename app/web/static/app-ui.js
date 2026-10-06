@@ -85,6 +85,30 @@ window.onunhandledrejection = function(event) {
 
 // ── Styled confirm modal (replaces native confirm()) ─────────────────────────
 var _confirmResolver = null;
+var _confirmReturnFocus = null;
+function _openConfirm() {
+  _confirmReturnFocus = document.activeElement;
+  document.getElementById('confirm-modal').style.display = 'flex';
+  document.getElementById('confirm-modal-cancel').focus();
+}
+document.addEventListener('keydown', function(event) {
+  if (!_confirmResolver) return;
+  var modal = document.getElementById('confirm-modal');
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    resolveConfirm(false);
+  } else if (event.key === 'Tab') {
+    var items = Array.from(modal.querySelectorAll('button:not([disabled]), input:not([disabled])'));
+    var first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+      event.preventDefault(); first.focus();
+    }
+    event.stopImmediatePropagation();
+  }
+}, true);
 // ── Empty-state helper ──────────────────────────────────────────────────────
 // Generates consistent markup for "no X yet" states. Use in place of ad-hoc
 //   ad-hoc inline-styled "No data" divs
@@ -107,15 +131,14 @@ export function emptyStateHTML(opts) {
 }
 
 export function showConfirm(title, body) {
+  if (_confirmResolver) resolveConfirm(false);
   return new Promise(function(resolve) {
     _confirmResolver = resolve;
     document.getElementById('confirm-modal-title').textContent = title;
     var bodyEl = document.getElementById('confirm-modal-body');
     bodyEl.textContent = body || '';
     bodyEl.style.display = body ? 'block' : 'none';
-    var modal = document.getElementById('confirm-modal');
-    modal.style.display = 'flex';
-    document.getElementById('confirm-modal-ok').focus();
+    _openConfirm();
   });
 }
 
@@ -125,6 +148,7 @@ export function showConfirm(title, body) {
 //
 //   if (!await showTypedConfirm(customer.name, "Slett kunde", "Dette sletter alle audits, rapporter og credentials permanent.")) return;
 export function showTypedConfirm(subject, title, body) {
+  if (_confirmResolver) resolveConfirm(false);
   return new Promise(function(resolve) {
     _confirmResolver = resolve;
     document.getElementById('confirm-modal-title').textContent = title;
@@ -178,9 +202,7 @@ export function showTypedConfirm(subject, title, body) {
       }
     });
 
-    var modal = document.getElementById('confirm-modal');
-    modal.style.display = 'flex';
-    setTimeout(function() { input.focus(); }, 50);
+    _openConfirm();
   });
 }
 
@@ -194,6 +216,8 @@ export function resolveConfirm(val) {
     ok.style.cursor = '';
   }
   if (_confirmResolver) { _confirmResolver(val); _confirmResolver = null; }
+  if (_confirmReturnFocus && _confirmReturnFocus.isConnected) _confirmReturnFocus.focus();
+  _confirmReturnFocus = null;
 }
 
 // ── Login screen ──────────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ test('login, header and footer branding images decode in the browser', async ({p
 });
 
 test('stored customer data stays data across two users and keyboard activation', async ({browser}) => {
-  const attack = "Example');globalThis.auditExecuted=true;//";
+  const attack = "Example');globalThis.auditExecuted=true;<!--";
   const technician = await browser.newContext();
   const techPage = await technician.newPage();
   await login(techPage, 'browser-tech');
