@@ -40,7 +40,7 @@ def registry(tmp_path, monkeypatch):
 
 
 def test_colliding_customer_names_cannot_replace_identity(registry):
-    cid = CustomerManager.save_customer({"CustomerName": "A/B", "TenantId": "first"}, create=True)
+    cid = CustomerManager.save_customer({"CustomerName": "A&B", "TenantId": "first"}, create=True)
     with pytest.raises(ConflictError):
         CustomerManager.save_customer({"CustomerName": "A?B", "TenantId": "second"}, create=True)
     assert CustomerManager.get_customer(cid)["TenantId"] == "first"

@@ -2,7 +2,7 @@
 // ALSO RENEWAL ACTION LIST
 // ═══════════════════════════════════════════════════════════════════
 
-import {esc} from './app-esc.js';
+import {csvCell, esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
@@ -510,19 +510,19 @@ function alsoExportCSV() {
   var lines = ['Customer,Product,Vendor,Term,Qty,Unit Price,Monthly,Renewal Date,Days Left,Status,Handled,Notes'];
   data.forEach(function(r) {
     lines.push([
-      '"'+(r.customer_name||'').replace(/"/g,'""')+'"',
-      '"'+(r.service_display||'').replace(/"/g,'""')+'"',
-      '"'+(r.vendor||'')+'"',
-      '"'+(r.term||'')+'"',
-      r.quantity||0,
-      r.unit_price ? r.unit_price.toFixed(2) : '',
-      r.monthly_cost ? r.monthly_cost.toFixed(2) : '',
+      r.customer_name || '',
+      r.service_display || '',
+      r.vendor || '',
+      r.term || '',
+      r.quantity || 0,
+      r.unit_price ? Number(r.unit_price.toFixed(2)) : '',
+      r.monthly_cost ? Number(r.monthly_cost.toFixed(2)) : '',
       r.contract_end ? r.contract_end.slice(0,10) : '',
       r.days_left != null ? r.days_left : '',
-      r.account_state||'',
+      r.account_state || '',
       r.handled ? 'Yes' : 'No',
-      '"'+(r.notes||'').replace(/"/g,'""')+'"',
-    ].join(','));
+      r.notes || '',
+    ].map(csvCell).join(','));
   });
   var blob = new Blob([lines.join('\n')], {type:'text/csv'});
   var a = document.createElement('a');

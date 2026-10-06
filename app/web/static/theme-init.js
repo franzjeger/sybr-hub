@@ -5,7 +5,7 @@
       || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
         ? 'light' : 'dark');
     document.documentElement.setAttribute('data-theme', theme);
-    var lang = localStorage.getItem('sybr-lang') || 'no';
+    var lang = localStorage.getItem('ui_lang') || 'no';
     document.documentElement.lang = lang;
   } catch (error) {
     // Private mode may deny storage access; the stylesheet's default remains.

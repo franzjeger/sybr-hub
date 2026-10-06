@@ -140,10 +140,12 @@ async def scan_subnet(
     except ValueError as e:
         return [{"error": f"Ugyldig subnet: {e}"}]
 
-    hosts = list(network.hosts())
-    total = len(hosts)
+    total = network.num_addresses
     if total > 1024:
         return [{"error": f"Subnet for stort ({total} adresser). Maks /22 (1024)."}]
+
+    hosts = list(network.hosts())
+    total = len(hosts)
 
     log.info("Scanning %d hosts in %s", total, subnet)
 

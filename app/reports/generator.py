@@ -19,6 +19,7 @@ from app.reports.metrics import (
     _baseline_for,
     _compute_trends,
     _drift_for,
+    _metric,
     load_metrics_history,
     load_previous_metrics,
     save_audit_metrics,
@@ -315,7 +316,10 @@ def build_report_context(
 
     network = _parse_network_audit(file_contents)
     _unavailable = [
-        r.name for r in results if r.status in (SectionStatus.SKIPPED, SectionStatus.FAILED)
+        r.name
+        for r in results
+        if r.status in (SectionStatus.SKIPPED, SectionStatus.FAILED)
+        and not r.name.startswith("Azure ")
     ]
     risk = _compute_risk(
         secure_score,
@@ -332,6 +336,7 @@ def build_report_context(
         network=network,
         lang=lang,
         unavailable_sections=_unavailable,
+        error_files=error_files,
         file_contents=file_contents,
     )
     recs = _build_recommendations(
@@ -357,16 +362,16 @@ def build_report_context(
 
     # Build current metrics snapshot for trend comparison
     current_metrics = {
-        "mfa_coverage_pct": mfa.get("pct", 0),
-        "secure_score_pct": secure_score.get("pct", 0),
-        "total_users": users.get("total", 0),
-        "users_no_mfa": mfa.get("no_mfa", 0),
-        "ca_policies_enabled": ca.get("enabled", 0),
-        "intune_compliance_pct": intune.get("compliance_pct", 0.0),
-        "intune_total_devices": intune.get("total", 0),
-        "admin_roles_ga_count": admin_roles.get("global_admin_count", 0) if admin_roles else 0,
+        "mfa_coverage_pct": _metric(mfa, "pct"),
+        "secure_score_pct": _metric(secure_score, "pct"),
+        "total_users": _metric(users, "total"),
+        "users_no_mfa": _metric(mfa, "no_mfa"),
+        "ca_policies_enabled": _metric(ca, "enabled"),
+        "intune_compliance_pct": _metric(intune, "compliance_pct"),
+        "intune_total_devices": _metric(intune, "total"),
+        "admin_roles_ga_count": _metric(admin_roles, "global_admin_count"),
         "total_warns": len(all_warns),
-        "risk_score": risk.get("score", 0),
+        "risk_score": risk.get("score"),
         "risk_grade": risk.get("grade", ""),
     }
     prev = load_previous_metrics(out_dir)
@@ -710,6 +715,7 @@ def generate_reports(
     frameworks: str = "all",  # "cis" | "cis+nist" | "cis+iso" | "all"
     theme: str = "light",  # "light" or "dark"
     customer_id: str | None = None,
+    persist_metrics: bool = False,
 ) -> dict[str, Path]:
     context = build_report_context(
         customer_name,
@@ -719,6 +725,7 @@ def generate_reports(
         lang=lang,
         frameworks=frameworks,
         customer_id=customer_id,
+        persist_metrics=persist_metrics,
     )
 
     # Add translation helper — use {{ t.key }} or {{ t('key', count=5) }} in templates

@@ -689,7 +689,7 @@ function _cleanupViewTimers() {
   stopAlsoScans();
 }
 
-export function showView(name) {
+export async function showView(name) {
   // Integrasjoner was a page of its own; it is a pane of Administrasjon now.
   if (name === 'integrations') { openAdmin('integrations'); return; }
   // TLS-monitor is a tab of Nettverk.
@@ -698,7 +698,7 @@ export function showView(name) {
   // are tabs of the customer page now: this tab's current customer's.
   if (CUSTOMER_TAB_ALIASES[name]) { openCurrentCustomerTab(CUSTOMER_TAB_ALIASES[name][0], CUSTOMER_TAB_ALIASES[name][1]); return; }
   // Leaving Administrasjon with unsaved edits asks first.
-  if (currentView === 'admin' && name !== 'admin' && !adminMayLeave()) return;
+  if (currentView === 'admin' && name !== 'admin' && !await adminMayLeave()) return;
   _cleanupViewTimers();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   var viewEl = document.getElementById('view-' + name);

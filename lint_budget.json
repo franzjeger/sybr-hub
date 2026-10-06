@@ -1,5 +1,5 @@
 {
-  "total": 54,
+  "total": 53,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -369,6 +369,7 @@
     "tests/test_norwegian_copy.py",
     "tests/test_norwegian_reports.py",
     "tests/test_notification_centre.py",
+    "tests/test_october_audit_regressions.py",
     "tests/test_onedrive_scan_scope.py",
     "tests/test_operational_guards.py",
     "tests/test_overview_open_findings.py",
@@ -469,6 +470,7 @@
     "tests/test_row_furniture.py",
     "tests/test_schedule_owner.py",
     "tests/test_scheduled_reports.py",
+    "tests/test_scheduler_isolation.py",
     "tests/test_scheduler_lifecycle.py",
     "tests/test_scheduler_single_customer.py",
     "tests/test_schema_single_authority.py",
@@ -556,7 +558,6 @@
     "tests/test_http_retry.py": 1,
     "tests/test_parsers.py": 5,
     "tests/test_report_golden.py": 2,
-    "tests/test_scheduler_isolation.py": 1,
     "tests/test_web_auth.py": 3,
     "tests/test_write_capability.py": 1,
     "tests/test_write_controls_are_marked.py": 2

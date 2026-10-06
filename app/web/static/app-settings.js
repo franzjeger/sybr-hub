@@ -217,7 +217,7 @@ async function _loadAdminSettings() {
       const custList = await apiFetch('/api/customers');
       _renderSchedulerCustomers(sched, (custList && custList.customers) || []);
       document.getElementById('input-scheduler-interval').value = sched.interval_hours || 168;
-      document.getElementById('input-webhook-url').value = sched.webhook_url || '';
+      document.getElementById('input-webhook-url').value = sched.webhook_url_set ? '••••••' : '';
       document.getElementById('input-scheduler-backup').checked = sched.backup_after_audit || false;
       // Load alert_on event preferences
       const ao = sched.alert_on || {};
@@ -355,9 +355,9 @@ function _initSettingsDirtyTracking() {
 
 // Leaving Administrasjon with unsaved edits asks first. True when it is fine
 // to go: nothing unsaved, or the person said to discard it.
-export function adminMayLeave() {
+export async function adminMayLeave() {
   if (!_isSettingsDirty()) return true;
-  if (!confirm(t('du_har_ulagrede_endringer_vil'))) return false;
+  if (!await showConfirm(t('du_har_ulagrede_endringer_vil'))) return false;
   _settingsSnapshot = null;
   _settingsDirty = false;
   return true;
@@ -505,7 +505,7 @@ export function showRestoreKeyInput() {
 export async function restoreEncryptionKey() {
   const key = document.getElementById('input-restore-key').value.trim();
   const msg = document.getElementById('encryption-restore-msg');
-  if (!key) { msg.textContent = t('msg_paste_key_first'); msg.style.color = 'var(--danger)'; return; }
+  if (!key) { msg.textContent = t('msg_paste_key_first'); msg.style.color = 'var(--red)'; return; }
   if (!await showConfirm(t('dlg_confirm_replace_key'))) return;
   try {
     const d = await apiFetch('/api/encryption/key-restore', {
@@ -514,12 +514,12 @@ export async function restoreEncryptionKey() {
     });
 
     if (d.ok) {
-      msg.textContent = t('msg_key_restored'); msg.style.color = 'var(--success)';
+      msg.textContent = t('msg_key_restored'); msg.style.color = 'var(--green)';
       document.getElementById('input-restore-key').value = '';
     } else {
-      msg.textContent = d.error || t('err_invalid_key'); msg.style.color = 'var(--danger)';
+      msg.textContent = d.error || t('err_invalid_key'); msg.style.color = 'var(--red)';
     }
-  } catch (e) { msg.textContent = t('status_error') + ': ' + e.message; msg.style.color = 'var(--danger)'; }
+  } catch (e) { msg.textContent = t('status_error') + ': ' + e.message; msg.style.color = 'var(--red)'; }
 }
 
 // ── Settings tabs ────────────────────────────────────────────────────────────
@@ -689,7 +689,7 @@ async function setUserCapability(userId, field, enabled) {
   // that gives it away needs somebody at a shell to get it back.
   var self = _currentUser && (_currentUser.id === userId);
   if (self && field === 'can_write' && !enabled) {
-    var ok = confirm(t('dlg_revoke_own_write',
+    var ok = await showConfirm(t('dlg_revoke_own_write',
       'This removes your own write access. Granting it back is itself a write, so you will not be able to do it from here — it needs the grant_write script on the server. Continue?'));
     if (!ok) { loadUsers(); return; }
   }
@@ -836,20 +836,36 @@ async function loadModuleSettings() {
 }
 
 // ── Branding / White-label ────────────────────────────────────────────────────
+var _brandingGeneration = 0;
 export async function applyBranding() {
+  var generation = ++_brandingGeneration;
+  var root = document.documentElement;
+  // Theme tokens take effect immediately, even if fetching settings fails.
+  ['--blue', '--border-hi', '--blue-btn', '--blue-dark'].forEach(function(key) { root.style.removeProperty(key); });
+  var header = document.querySelector('header');
+  if (header) header.style.borderImage = '';
   try {
     var d = await apiFetch('/api/settings');
-    if (!d || !d.branding) return;
+    if (generation !== _brandingGeneration || !d || !d.branding) return;
     var b = d.branding;
     var color = b.primary_color;
-    if (color && /^#[0-9a-fA-F]{6}$/.test(color) && color !== '#4d9fb5') {
-      var root = document.documentElement;
+    function luminance(rgb) {
+      return rgb.map(function(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); })
+        .reduce(function(sum, v, i) { return sum + v * [0.2126, 0.7152, 0.0722][i]; }, 0);
+    }
+    function contrast(fg, bg) {
+      var a = luminance(fg), z = luminance(bg);
+      return (Math.max(a, z) + 0.05) / (Math.min(a, z) + 0.05);
+    }
+    var cardRgb = getComputedStyle(root).getPropertyValue('--bg-card').match(/[0-9a-f]{2}/gi);
+    var brandRgb = /^#[0-9a-f]{6}$/i.test(color || '') ? color.slice(1).match(/../g).map(function(v) { return parseInt(v, 16); }) : null;
+    if (brandRgb && cardRgb && color.toLowerCase() !== '#0f4c81' && color.toLowerCase() !== '#4d9fb5' && contrast(brandRgb, cardRgb.map(function(v) { return parseInt(v, 16); })) >= 4.5) {
       root.style.setProperty('--blue', color);
       root.style.setProperty('--border-hi', color);
       // Derive button color (slightly darker)
       var r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), bl = parseInt(color.slice(5,7),16);
       var darker = '#' + [r,g,bl].map(function(c){return Math.max(0,Math.round(c*0.75)).toString(16).padStart(2,'0')}).join('');
-      root.style.setProperty('--blue-btn', darker);
+      if (contrast([r, g, bl].map(function(v) { return Math.round(v * 0.75); }), [255, 255, 255]) >= 4.5) root.style.setProperty('--blue-btn', darker);
       root.style.setProperty('--blue-dark', color + '1a');
       // Header border gradient
       var hdr = document.querySelector('header');

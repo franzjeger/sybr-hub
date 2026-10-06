@@ -395,7 +395,7 @@ async def fortigate_diff(
 async def fortigate_deploy_key(
     customer_id: str,
     body: FortiGateDeployKey,
-    _user=Depends(require_customer_access(Role.technician)),
+    _user=Depends(require_customer_access(Role.admin)),
 ):
     """Push an SSH public key to a FortiGate admin user via REST API."""
     from app.services.fortigate_api import deploy_ssh_key
@@ -407,7 +407,21 @@ async def fortigate_deploy_key(
         raise refusal(ValidationError, "err_fortigate_admin_key_required")
 
     config, token = _get_fg_config(customer_id)
+    import asyncssh
+
+    from app.core.activity_log import log_activity
+
+    try:
+        fingerprint = asyncssh.import_public_key(public_key).get_fingerprint()
+    except (ValueError, asyncssh.KeyImportError) as exc:
+        raise refusal(ValidationError, "err_fortigate_admin_key_required") from exc
     result = await deploy_ssh_key(config, token, admin_user, public_key)
+    log_activity(
+        "fortigate_key_deployed",
+        customer=customer_id,
+        user=_user.username,
+        detail=f"Admin {admin_user}; key {fingerprint}; success={bool(result.get('ok'))}",
+    )
     status = 200 if result.get("ok") else 502
     return JSONResponse(result, status_code=status)
 
@@ -416,7 +430,7 @@ async def fortigate_deploy_key(
 async def fortigate_generate_token(
     customer_id: str,
     body: FortiGateGenerateToken,
-    _user=Depends(require_customer_access(Role.technician)),
+    _user=Depends(require_customer_access(Role.admin)),
 ):
     """Create a FortiGate REST API token via SSH."""
     from app.services.fortigate_api import generate_api_token
@@ -442,6 +456,14 @@ async def fortigate_generate_token(
         vdom=vdom,
         trusted_hosts=trusted_hosts,
         accprofile=accprofile,
+    )
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "fortigate_token_generated",
+        customer=customer_id,
+        user=_user.username,
+        detail=f"API admin {api_admin_name}; success={bool(result.get('ok'))}",
     )
     status = 200 if result.get("ok") else 502
     return JSONResponse(result, status_code=status)
@@ -493,6 +515,15 @@ async def fortigate_bootstrap(
         active = CustomerManager.get_customer(body.customer_id)
         if active is None:
             raise refusal(NotFoundError, "err_customer_not_found")
+
+    from app.core.credentials import get_secret
+
+    if (
+        body.customer_id
+        and user.role < Role.admin
+        and get_secret(body.customer_id, "fortigate_admin_password")
+    ):
+        raise refusal(ForbiddenError, "err_fortigate_customer_forbidden")
 
     result = await factory_bootstrap(
         host=host,

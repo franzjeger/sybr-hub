@@ -630,6 +630,15 @@ def _csv_rows(ctx: dict, customer_name: str, lang: str) -> list[list]:
     return rows
 
 
+def _safe_csv_cell(value):
+    """Keep imported customer text from becoming a spreadsheet formula."""
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    if isinstance(value, str) and value.startswith(("\t", "\r", "\n")):
+        return "'" + value
+    return value
+
+
 @router.post("/report/csv")
 async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_user)):
     """Export key audit metrics of a customer's selected run as CSV.
@@ -680,7 +689,9 @@ async def export_csv(body: ReportCsvRequest, user: User = Depends(get_current_us
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")
-    writer.writerows(_csv_rows(ctx, customer_name, lang))
+    writer.writerows(
+        [_safe_csv_cell(cell) for cell in row] for row in _csv_rows(ctx, customer_name, lang)
+    )
     csv_content = output.getvalue()
 
     # The export is the download and nothing else. A copy went into the run
@@ -776,14 +787,18 @@ async def export_dashboard_excel(
                 domain,
                 metrics.get("risk_grade", ""),
                 metrics.get("risk_score", ""),
-                round(metrics["mfa_coverage_pct"], 1) if "mfa_coverage_pct" in metrics else "",
-                round(metrics["secure_score_pct"], 1) if "secure_score_pct" in metrics else "",
+                round(metrics["mfa_coverage_pct"], 1)
+                if metrics.get("mfa_coverage_pct") is not None
+                else t.csv_not_measured,
+                round(metrics["secure_score_pct"], 1)
+                if metrics.get("secure_score_pct") is not None
+                else t.csv_not_measured,
                 metrics.get("total_users", ""),
                 metrics.get("users_no_mfa", ""),
                 metrics.get("ca_policies_enabled", ""),
                 round(metrics["intune_compliance_pct"], 1)
-                if "intune_compliance_pct" in metrics
-                else "",
+                if metrics.get("intune_compliance_pct") is not None
+                else t.csv_not_measured,
                 metrics.get("admin_roles_ga_count", ""),
                 fmt_date,
                 tag_str,
@@ -794,7 +809,7 @@ async def export_dashboard_excel(
     writer = csv.writer(output, delimiter=";")
     writer.writerow(headers)
     for row in rows:
-        writer.writerow(row)
+        writer.writerow([_safe_csv_cell(cell) for cell in row])
 
     csv_content = output.getvalue()
 
@@ -975,7 +990,9 @@ async def delete_report(body: ReportArchiveDelete, user: User = Depends(require_
     # path-component boundary — a startswith() check would also accept a
     # sibling directory sharing the prefix (e.g. Audits_evil for Audits).
     try:
-        target.relative_to(audit_dir)
+        relative = target.relative_to(audit_dir)
+        if len(relative.parts) != 2:
+            raise refusal(ForbiddenError, "err_invalid_path")
     except ValueError:
         raise refusal(ForbiddenError, "err_invalid_path") from None
     if not target.exists() or not target.is_dir():

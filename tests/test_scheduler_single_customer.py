@@ -178,12 +178,16 @@ async def test_a_manual_audit_in_progress_is_not_run_over(wired):
     settings, _, _, _ = wired
     settings["customer_id"] = "beta"
     state.audit_running = True
+    task = asyncio.create_task(AuditScheduler()._run_scheduled_audit())
     try:
-        await AuditScheduler()._run_scheduled_audit()
-    finally:
+        await asyncio.sleep(0.02)
+        assert _Collector.seen == [], "the scheduler ran on top of a manual audit"
         state.audit_running = False
-
-    assert _Collector.seen == [], "the scheduler ran on top of a manual audit"
+        await asyncio.wait_for(task, 2)
+        assert len(_Collector.seen) == 1, "the scheduled customer was silently skipped"
+    finally:
+        task.cancel()
+        state.audit_running = False
 
 
 async def test_the_flag_is_released_when_the_audit_fails(wired, monkeypatch):

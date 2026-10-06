@@ -2723,7 +2723,12 @@
     "btn_remove_link": "Fjern",
     "msg_tailscale_tag_hint": "Noder med taggen {tag} i Tailscale knyttes hit av seg selv.",
     "lbl_tailscale_assign": "Knytt en node til kunden",
-    "btn_link_node": "Knytt til"
+    "btn_link_node": "Knytt til",
+    "activity_fortigate_save": "Brannmurinnstillinger lagret",
+    "activity_fortigate_removed": "Brannmur fjernet",
+    "activity_fortigate_bootstrapped": "Brannmur satt opp",
+    "activity_fortigate_key_deployed": "SSH-nøkkel lagt til på brannmur",
+    "activity_fortigate_token_generated": "API-token opprettet for brannmur"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -5449,6 +5454,11 @@
     "btn_remove_link": "Remove",
     "msg_tailscale_tag_hint": "Nodes tagged {tag} in Tailscale are linked here automatically.",
     "lbl_tailscale_assign": "Link a node to this customer",
-    "btn_link_node": "Link"
+    "btn_link_node": "Link",
+    "activity_fortigate_save": "Firewall settings saved",
+    "activity_fortigate_removed": "Firewall removed",
+    "activity_fortigate_bootstrapped": "Firewall configured",
+    "activity_fortigate_key_deployed": "Firewall SSH key deployed",
+    "activity_fortigate_token_generated": "Firewall API token created"
   }
 }

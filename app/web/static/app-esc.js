@@ -13,3 +13,11 @@ export function esc(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// Quote a CSV field and keep imported text from becoming an Excel formula.
+// Numbers remain numbers, including negative quantities.
+export function csvCell(value) {
+  var text = value == null ? '' : String(value);
+  if (typeof value === 'string' && (/^[\t\r\n]/.test(text) || /^[=+@-]/.test(text.trimStart()))) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}

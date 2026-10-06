@@ -193,13 +193,14 @@ def test_disabling_clears_the_anchor_so_re_enabling_starts_fresh(monkeypatch):
     assert audit_mod._load_anchor() is None
 
 
-async def test_a_due_cycle_runs_the_audit_and_the_opt_in_backup_only(monkeypatch):
+async def test_a_due_cycle_collects_sites_then_audits_and_backs_up(monkeypatch):
     calls = []
     s = audit_mod.AuditScheduler()
 
     async def record(name):
         calls.append(name)
 
+    monkeypatch.setattr(s, "_collect_customer_sites", lambda: record("sites"))
     monkeypatch.setattr(s, "_run_scheduled_audit", lambda: record("audit"))
     monkeypatch.setattr(s, "_maybe_create_backup", lambda: record("backup"))
     # Owned by the task scheduler; running them here would run them twice.
@@ -212,7 +213,7 @@ async def test_a_due_cycle_runs_the_audit_and_the_opt_in_backup_only(monkeypatch
     s.start()
     await asyncio.sleep(0.1)
     await s.stop()
-    assert calls == ["audit", "backup"]
+    assert calls == ["sites", "audit", "backup"]
     assert audit_mod._load_anchor() is not None
 
 

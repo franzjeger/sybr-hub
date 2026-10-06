@@ -226,7 +226,7 @@ async def _audit_unifi_controller(customer_id: str, config: dict) -> dict | None
             device_summary = [
                 {
                     "name": d.get("name", d.get("hostname", d.get("mac", "?"))),
-                    "model": d.get("model_in_lts", d.get("model", "")),
+                    "model": d.get("model", ""),
                     "type": d.get("type", ""),
                     "firmware": d.get("version", ""),
                     "upgrade": d.get("upgrade_to_firmware") or None,

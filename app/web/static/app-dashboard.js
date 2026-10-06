@@ -2,7 +2,7 @@
 // ALERTS DASHBOARD — MORNING OVERVIEW
 // ═══════════════════════════════════════════════════════════════════
 
-import {esc} from './app-esc.js';
+import {csvCell, esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
@@ -23,7 +23,33 @@ import {openCustomerPage} from './app-customer-detail.js';
 import {_activityLabel} from './app-chrome.js';
 
 // Handlers for the markup this file builds (see registerUiHandlers in app-handlers.js).
+function closeExportMenu(restoreFocus) {
+  var menu = document.getElementById('overview-export-dd');
+  menu.classList.remove('open');
+  menu.classList.add('is-resting');
+  var trigger = document.getElementById('overview-export-toggle');
+  trigger.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) trigger.focus();
+}
+document.addEventListener('click', function(event) {
+  var menu = document.getElementById('overview-export-dd');
+  if (menu && menu.classList.contains('open') && event.target.id !== 'overview-export-toggle' && !event.target.closest('#overview-export-toggle')) closeExportMenu(false);
+});
+document.addEventListener('keydown', function(event) {
+  var menu = document.getElementById('overview-export-dd');
+  if (event.key === 'Escape' && menu && menu.classList.contains('open')) {
+    event.preventDefault(); closeExportMenu(true);
+  }
+});
 registerUiHandlers({
+  dashToggleExportMenu: function() {
+    var menu = document.getElementById('overview-export-dd');
+    var open = !menu.classList.contains('open');
+    if (!open) { closeExportMenu(false); return; }
+    menu.classList.remove('is-resting');
+    menu.classList.add('open');
+    document.getElementById('overview-export-toggle').setAttribute('aria-expanded', 'true');
+  },
   // Notification centre
   notifSetSevFilter: function(el) { notifSetFilter('sev', el.dataset.sev); },
   notifSetFilter: function(el) { notifSetFilter(el.dataset.kind, el.value); },
@@ -37,6 +63,7 @@ registerUiHandlers({
   dashArchiveToggleRuns: function(el) {
     el.nextElementSibling.style.display = el.nextElementSibling.style.display === 'none' ? 'block' : 'none';
     el.querySelector('.chevron').classList.toggle('open');
+    el.setAttribute('aria-expanded', el.nextElementSibling.style.display !== 'none' ? 'true' : 'false');
   },
   // Customer overview: toolbar, filter badges, sorting and pagination
   filterOverview: function() { filterOverview(); },
@@ -301,10 +328,11 @@ function _notifCollect(data, uniweb, history, activity) {
   var hide = {settings_changed: true, customer_switched: true, alert_config_changed: true};
   ((activity && activity.entries) || []).forEach(function(e) {
     if (hide[e.action]) return;
+    var customerRow = ((_overviewData && _overviewData.customers) || []).find(function(c) { return c.customer_id === e.customer || c.customer_name === e.customer; });
     out.push({
       id: 'event:' + (e.timestamp || '') + ':' + (e.action || ''), kind: 'event',
       sev: 'info', title: _activityLabel(e.action || ''),
-      customer: e.customer || '', customerId: idByName[e.customer] || '',
+      customer: customerRow ? customerRow.customer_name : (e.customer || ''), customerId: customerRow ? customerRow.customer_id : '',
       source: t('src_events', 'Hendelser'),
       days: null, when: e.timestamp ? timeAgo(e.timestamp) : '', detail: e.detail || '',
       action: t('btn_open_customer', 'Åpne kunde'), act: 'customer'
@@ -869,8 +897,7 @@ function _dashExportTableCSV(containerId, filename) {
   table.querySelectorAll('tr').forEach(function(tr) {
     var cells = [];
     tr.querySelectorAll('th, td').forEach(function(td) {
-      var text = td.textContent.trim().replace(/"/g, '""');
-      cells.push('"' + text + '"');
+      cells.push(csvCell(td.textContent.trim()));
     });
     if (cells.length) rows.push(cells.join(';'));
   });
@@ -989,11 +1016,11 @@ export async function dashLoadArchive() {
   // Customer list with collapsible runs
   data.customers.forEach(function(c, idx) {
     html += '<div class="card p-0 mb-2">';
-    html += '<div data-click-handler="dashArchiveToggleRuns" class="py-3 px-4 cursor-pointer flex justify-between items-center">';
-    html += '<div><span class="fw-semibold">'+esc(c.customer_name)+'</span> <span class="text-sm text-muted">('+Number(c.run_count)+' '+t('lbl_reports','reports')+', '+Number(c.total_size_mb)+' MB)</span></div>';
+    html += '<button type="button" aria-expanded="false" data-click-handler="dashArchiveToggleRuns" class="btn btn-ghost w-full flex justify-between items-center">';
+    html += '<span><span class="fw-semibold">'+esc(c.customer_name)+'</span> <span class="text-sm text-muted">('+Number(c.run_count)+' '+t('lbl_reports','reports')+', '+Number(c.total_size_mb)+' MB)</span></span>';
     html += '<span class="chevron text-2xs text-dim transition-transform">&#9660;</span>';
-    html += '</div>';
-    html += '<div class="border-t" style="display:none;">';
+    html += '</button>';
+    html += '<div class="border-t overflow-x-auto" style="display:none;">';
     html += '<table class="data-table">';
     html += '<thead><tr><th>'+t('lbl_date','Date')+'</th><th class="text-center">'+t('lbl_files','Files')+'</th><th class="text-center">'+t('lbl_size','Size')+'</th><th class="text-center">PDF</th><th class="text-center">HTML</th><th class="text-right"></th></tr></thead><tbody>';
     c.runs.forEach(function(r) {
@@ -1013,7 +1040,7 @@ export async function dashLoadArchive() {
 }
 
 async function dashArchiveDelete(path) {
-  if (!confirm(t('confirm_delete_report','Delete this report permanently?'))) return;
+  if (!await showConfirm(t('confirm_delete_report','Delete this report permanently?'))) return;
   var d = await apiFetch('/api/reports/archive/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:path})});
   if (d && d.ok) {
     showToast(t('msg_deleted','Deleted'), 'success', 2000);
@@ -1360,9 +1387,9 @@ function renderOverview(customers) {
       <table class="slim-table customer-overview-table">
         <thead>
           <tr>
-            <th class="sortable" data-click-handler="sortOverview" data-sort="customer_name">${esc(t('lbl_customer'))}${arrow('customer_name')}</th>
-            <th class="sortable" data-click-handler="sortOverview" data-sort="open_findings">${esc(t('hdr_open_findings', 'Åpne funn'))}${arrow('open_findings')}</th>
-            <th class="num sortable" data-click-handler="sortOverview" data-sort="mfa_coverage_pct">MFA${arrow('mfa_coverage_pct')}</th>
+            <th class="sortable"><button type="button" class="btn btn-ghost btn-sm" data-click-handler="sortOverview" data-sort="customer_name">${esc(t('lbl_customer'))}${arrow('customer_name')}</button></th>
+            <th class="sortable"><button type="button" class="btn btn-ghost btn-sm" data-click-handler="sortOverview" data-sort="open_findings">${esc(t('hdr_open_findings', 'Åpne funn'))}${arrow('open_findings')}</button></th>
+            <th class="num sortable"><button type="button" class="btn btn-ghost btn-sm" data-click-handler="sortOverview" data-sort="mfa_coverage_pct">MFA${arrow('mfa_coverage_pct')}</button></th>
             <th>${esc(t('lbl_last_audit'))}</th>
             <th class="overview-menu-col"></th>
           </tr>
@@ -1392,7 +1419,7 @@ function renderOverview(customers) {
               title="${esc(t('tip_click_to_open_customer', 'Åpne kunden'))}">
             <td>
               <div class="cust-cell">
-                <span class="grade-tile grade-${esc(grade.replace('-', 'none'))}" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${esc(t('tip_click_filter_grade','Click to filter by grade'))}">${esc(grade)}</span>
+                <button type="button" class="grade-tile grade-${esc(grade.replace('-', 'none'))}" data-click-handler="dashFilterByGrade" data-grade="${esc(grade)}" title="${esc(t('tip_click_filter_grade','Click to filter by grade'))}">${esc(grade)}</button>
                 <span class="cust-cell-text">
                   <span class="cname">${esc(c.customer_name)}</span>
                   <span class="cdom">${esc(c.primary_domain || '')}</span>

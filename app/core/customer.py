@@ -255,6 +255,9 @@ class CustomerManager:
             not isinstance(name, str)
             or not name.strip()
             or len(name) > 128
+            or "/" in name
+            or "\\" in name
+            or ".." in name
             or any(ord(c) < 32 for c in name)
         ):
             raise ValidationError("Ugyldig kundenavn")

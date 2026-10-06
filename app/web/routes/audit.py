@@ -1026,8 +1026,8 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                         cust_summary = {
                             "customer": cust_name,
                             "status": "done",
-                            "grade": ctx.get("risk_grade", "-"),
-                            "risk_score": ctx.get("risk_score", 0),
+                            "grade": ctx.get("risk", {}).get("grade", "-"),
+                            "risk_score": ctx.get("risk", {}).get("score"),
                             "sections_done": done_count,
                             "sections_failed": fail_count,
                             "sections_total": len(audit_results_raw),

@@ -37,7 +37,7 @@ BUDGET_FILE = pathlib.Path(__file__).parent.parent / "lint_budget.json"
 def current() -> tuple[int, dict[str, int]]:
     """Ruff's findings now, as a total and a per-file count."""
     proc = subprocess.run(
-        [sys.executable, "-m", "ruff", "check", "--output-format=json", "."],
+        [sys.executable, "-m", "ruff", "check", "--ignore-noqa", "--output-format=json", "."],
         capture_output=True,
         text=True,
         cwd=BUDGET_FILE.parent,

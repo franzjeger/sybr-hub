@@ -317,7 +317,7 @@ async def network_save_config_backup(
 ):
     """Save a device config dump to the named customer's audit directory."""
     from app.core.config import get_audit_dir
-    from app.core.customer import CustomerManager
+    from app.core.customer import CustomerManager, customer_dir_name
     from app.core.encryption import encrypted_write_text
 
     host = body.host.strip()
@@ -332,7 +332,7 @@ async def network_save_config_backup(
     # Save to customer audit dir under network_configs/
     from datetime import datetime
 
-    safe_name = active.get("CustomerName", "unknown").replace(" ", "_")
+    safe_name = customer_dir_name(active.get("CustomerName", "unknown"))
     audit_dir = get_audit_dir() / safe_name / "network_configs"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
@@ -352,13 +352,13 @@ async def network_list_config_backups(
 ):
     """List the named customer's saved network config backups."""
     from app.core.config import get_audit_dir
-    from app.core.customer import CustomerManager
+    from app.core.customer import CustomerManager, customer_dir_name
 
     active = CustomerManager.get_customer(customer_id)
     if not active:
         raise refusal(NotFoundError, "err_customer_not_found")
 
-    safe_name = active.get("CustomerName", "unknown").replace(" ", "_")
+    safe_name = customer_dir_name(active.get("CustomerName", "unknown"))
     backup_dir = get_audit_dir() / safe_name / "network_configs"
     if not backup_dir.exists():
         return {"backups": []}
@@ -369,7 +369,6 @@ async def network_list_config_backups(
         backups.append(
             {
                 "filename": f.name,
-                "path": str(f),
                 "timestamp": parts[0] + " " + parts[1] if len(parts) >= 2 else f.stem,
                 "host": parts[2].replace("_", ".") if len(parts) >= 3 else "",
                 "size": f.stat().st_size,
@@ -561,7 +560,7 @@ async def network_quick_audit(
     """Run a quick network audit of the named customer's FortiGate and/or UniFi."""
     import json as _json
 
-    from app.core.customer import CustomerManager
+    from app.core.customer import CustomerManager, customer_dir_name
     from app.services.network_audit import run_quick_network_audit
 
     active = CustomerManager.get_customer(customer_id)
@@ -587,7 +586,7 @@ async def network_quick_audit(
         from app.core.config import get_audit_dir
         from app.core.encryption import encrypted_write_text
 
-        safe_name = active.get("CustomerName", "unknown").replace(" ", "_")
+        safe_name = customer_dir_name(active.get("CustomerName", "unknown"))
         audit_base = get_audit_dir() / safe_name
         runs = sorted(audit_base.glob("20*_*"), reverse=True) if audit_base.exists() else []
         if runs:

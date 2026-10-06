@@ -6,7 +6,7 @@ import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {toneClass, toneVar} from './app-format.js';
-import {adminSignpostButton, showToast} from './app-ui.js';
+import {adminSignpostButton, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 
 // Handlers for the markup this file builds: the device cards and detail panel,
@@ -375,7 +375,7 @@ async function tsToggleKeyExpiry(deviceId, disabled) {
 }
 
 async function tsRemoveDevice(deviceId) {
-  if (!confirm(t('ts_confirm_remove','Fjerne denne enheten fra tailnettet? Dette kan ikke angres.'))) return;
+  if (!await showConfirm(t('ts_confirm_remove','Fjerne denne enheten fra tailnettet? Dette kan ikke angres.'))) return;
   var d = await apiFetch('/api/tailscale/device/'+encodeURIComponent(deviceId), {method:'DELETE'});
   if (d && d.ok) { showToast(t('ts_device_removed','Enhet fjernet'), 'success'); document.getElementById('ts-detail-panel').style.display='none'; tsLoadDevices(); }
   else { showToast(d && d.error || t('msg_failed','Feilet'), 'error'); }
@@ -474,7 +474,7 @@ async function tsDoCreateKey() {
 }
 
 async function tsRevokeKey(keyId) {
-  if (!confirm(t('ts_confirm_revoke','Revoke this auth key?'))) return;
+  if (!await showConfirm(t('ts_confirm_revoke','Revoke this auth key?'))) return;
   var d = await apiFetch('/api/tailscale/keys/' + encodeURIComponent(keyId), {method:'DELETE'});
   if (d && d.ok) {
     showToast(t('ts_key_revoked','Key revoked'), 'success');

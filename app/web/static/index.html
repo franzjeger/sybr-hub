@@ -36,7 +36,7 @@
     <div class="modal-title" id="confirm-modal-title"></div>
     <div id="confirm-modal-body" class="modal-body-text"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-click-handler="resolveConfirm" data-answer="false" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-ghost" id="confirm-modal-cancel" data-click-handler="resolveConfirm" data-answer="false" data-i18n="btn_cancel">Avbryt</button>
       <button class="btn btn-danger" id="confirm-modal-ok" data-click-handler="resolveConfirm" data-answer="true" data-i18n="btn_confirm">Bekreft</button>
     </div>
   </div>
@@ -221,9 +221,9 @@
         <button class="tab" data-click-handler="switchDashTab" data-tab="dash-alerts"><span data-i18n="dash_tab_alerts">Varsler</span></button>
         <div class="tabs-spacer"></div>
         <span class="dash-updated" id="dash-updated-wrap" hidden><span data-i18n="lbl_updated">Oppdatert</span> <span id="dash-updated-time">--:--</span></span>
-        <div class="nav-dropdown">
-          <button class="tab-tool accent" data-i18n-title="btn_export" title="Eksport"><span data-i18n="btn_export">Eksport</span> &#9662;</button>
-          <div class="nav-dropdown-menu is-right"><div class="nav-dropdown-menu-inner">
+        <div class="nav-dropdown" id="overview-export-dd">
+          <button id="overview-export-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="overview-export-menu" data-click-handler="dashToggleExportMenu" class="tab-tool accent" data-i18n-title="btn_export" title="Eksport"><span data-i18n="btn_export">Eksport</span> &#9662;</button>
+          <div id="overview-export-menu" class="nav-dropdown-menu is-right"><div class="nav-dropdown-menu-inner">
             <button data-click-handler="dashExportCurrentTab">CSV</button>
             <button data-click-handler="exportDashboardExcel">Excel</button>
             <button data-click-handler="copyOverviewToClipboard" data-i18n="kopier_tabell">Kopier tabell</button>

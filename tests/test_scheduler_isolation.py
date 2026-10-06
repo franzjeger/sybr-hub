@@ -19,6 +19,7 @@ Nothing downstream ever needed the globals. These tests hold that line.
 from __future__ import annotations
 
 import asyncio
+from typing import ClassVar
 
 import pytest
 
@@ -33,7 +34,7 @@ CUSTOMERS = [
 class _Collector:
     """Stands in for AuditCollector, recording which auth it was handed."""
 
-    seen: list = []
+    seen: ClassVar[list] = []
 
     def __init__(self, auth, out_dir, **kw):
         self.auth = auth
@@ -164,16 +165,20 @@ async def test_one_customer_failing_does_not_end_the_cycle(wired, monkeypatch):
 # ── Serialisation against a manual audit ─────────────────────────────────────
 
 
-async def test_a_manual_audit_in_progress_is_skipped_not_run_alongside(wired):
+async def test_a_manual_audit_in_progress_is_waited_for(wired):
     from app.core import job_state as state
 
     state.audit_running = True
+    task = asyncio.create_task(AuditScheduler()._run_all_customers_audit())
     try:
-        await AuditScheduler()._run_all_customers_audit()
-    finally:
+        await asyncio.sleep(0.02)
+        assert _Collector.seen == [], "the scheduler ran on top of a manual audit"
         state.audit_running = False
-
-    assert _Collector.seen == [], "the scheduler ran on top of a manual audit"
+        await asyncio.wait_for(task, 2)
+        assert len(_Collector.seen) == 2
+    finally:
+        task.cancel()
+        state.audit_running = False
 
 
 async def test_the_flag_is_released_even_when_an_audit_raises(wired, monkeypatch):

@@ -5,6 +5,9 @@
 
 A read-mostly aggregator for MSP technicians.
 
+Requires Python 3.12 or newer. Existing source installations must follow the
+[October history migration](docs/UPGRADING.md) before their next update.
+
 Sybr HUB pulls everything an MSP technician needs to know about a
 customer — Microsoft 365 audit results, Autotask classification,
 active contract, IT Glue documentation — into one per-customer view,
@@ -75,8 +78,7 @@ export SYBR_KEY_WRAP_SECRET_FILE="$PWD/.local-secrets/key-wrap.secret"
 python main.py
 ```
 
-The repository is private; configure GitHub authentication before cloning.
-Do not put a GitHub token in the clone URL.
+The repository is public. Do not put a GitHub token in the clone URL.
 
 Open <http://localhost:8099/>. The default bind is loopback, and plain-HTTP
 authentication is **refused** from any other machine — the app answers 403

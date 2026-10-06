@@ -61,6 +61,7 @@ class AzureComputeSection(BaseSection):
         sub_name: str = "",
         multi: bool = False,
     ):
+        self._failures: list[str] = []
         self.auth = auth_manager
         self._sub_id = sub_id
         self._sub_name = sub_name
@@ -91,7 +92,10 @@ class AzureComputeSection(BaseSection):
             vms = await self._collect_vms()
             await self._collect_vm_metrics(vms)
             await self._collect_avd()
-            self._report(SectionStatus.DONE)
+            self._report(
+                SectionStatus.FAILED if self._failures else SectionStatus.DONE,
+                "; ".join(self._failures)[:500] or None,
+            )
         except Exception as e:
             self._report(SectionStatus.FAILED, str(e))
         return self.result
@@ -103,6 +107,7 @@ class AzureComputeSection(BaseSection):
             client = self.auth.compute_client_for(self._sub_id)
             vms = await _run_sync(lambda: list(client.virtual_machines.list_all()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("30_azure_vms.txt"), f"Error listing VMs: {ex}\n")
             # Surface it in the section result too — an enumeration that
             # failed must not read as "this subscription has no VMs".
@@ -159,6 +164,7 @@ class AzureComputeSection(BaseSection):
         try:
             mon_client = self.auth.monitor_client_for(self._sub_id)
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(
                 self._fname("30b_azure_vm_cpu_metrics.txt"),
                 f"Error creating monitor client: {ex}\n",
@@ -198,6 +204,7 @@ class AzureComputeSection(BaseSection):
                 avg = sum(values) / len(values) if values else 0.0
                 daily = ", ".join(f"{v:.1f}%" for v in values[-7:])
             except Exception as ex:
+                self._failures.append(str(ex))
                 avg = -1.0
                 daily = f"Error: {ex}"
 
@@ -214,6 +221,7 @@ class AzureComputeSection(BaseSection):
             avd_client = self.auth.avd_client_for(self._sub_id)
             host_pools = await _run_sync(lambda: list(avd_client.host_pools.list()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("40_avd.txt"), f"Error listing AVD host pools: {ex}\n")
             self._warn(f"Could not list AVD host pools for {self._sub_name or self._sub_id}: {ex}")
             return
@@ -255,6 +263,7 @@ class AzureComputeSection(BaseSection):
                         f"Sessions:{sessions}  Agent:{agent}"
                     )
             except Exception as ex:
+                self._failures.append(str(ex))
                 lines.append(f"    Session Hosts      : Error — {ex}")
 
         lines += ["", "=" * 110, ""]

@@ -93,11 +93,9 @@ def test_it_has_no_network_at_all():
         )
 
 
-def test_the_font_import_stays_blocked():
-    # The stylesheet @imports Google Fonts. Left reachable, opening a
-    # confidential audit tells Google who and when — including for the copy
-    # sent to the customer.
-    assert "fonts.googleapis.com" in TEMPLATE, "premise changed"
+def test_reports_do_not_request_external_fonts():
+    for path in Path("app/reports/templates").glob("report_*.html.j2"):
+        assert "fonts.googleapis.com" not in path.read_text()
     assert "googleapis" not in " ".join(_artefact_csp().values())
 
 

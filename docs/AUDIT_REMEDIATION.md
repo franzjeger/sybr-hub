@@ -1,7 +1,8 @@
 # Oppfølging av revisjonen 8. september 2026
 
-Revisjonsendringene på `fix/review-reliability` er basert på
-`6fd9e5f2466e5996439b88898b8c7705870815cd`. Denne rapporten dokumenterer den
+Revisjonsendringene på `fix/review-reliability` tilhører historikken før den
+offentlige omskrivingen. Den opprinnelige commiten finnes ikke lenger i den
+offentlige historikken. Denne rapporten dokumenterer den
 første lokale implementerings- og testfasen. Etterfølgende container-/CI-resultater
 finnes i PR-en og eventuell release-verifikasjon. Ingen produksjonsutrulling er
 utført; den eldre homelab-containeren er ikke endret.

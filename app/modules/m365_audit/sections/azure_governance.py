@@ -70,6 +70,7 @@ class AzureGovernanceSection(BaseSection):
         sub_name: str = "",
         multi: bool = False,
     ):
+        self._failures: list[str] = []
         self.auth = auth_manager
         self._sub_id = sub_id
         self._sub_name = sub_name
@@ -110,7 +111,7 @@ class AzureGovernanceSection(BaseSection):
                 self._warn(f"{collector.__name__} feilet: {e}")
                 failed = True
 
-        self._report(SectionStatus.FAILED if failed else SectionStatus.DONE)
+        self._report(SectionStatus.FAILED if failed or self._failures else SectionStatus.DONE)
         return self.result
 
     # ── Azure Advisor ─────────────────────────────────────────────────────────
@@ -120,6 +121,7 @@ class AzureGovernanceSection(BaseSection):
             client = self.auth.advisor_client_for(self._sub_id)
             recs = await _run_sync(lambda: list(client.recommendations.list()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("51_azure_advisor.txt"), f"Error: {ex}\n")
             return
 
@@ -175,6 +177,7 @@ class AzureGovernanceSection(BaseSection):
             client = self.auth.recovery_client_for(self._sub_id)
             vaults = await _run_sync(lambda: list(client.vaults.list_by_subscription_id()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("52_azure_backup.txt"), f"Error: {ex}\n")
             return
 
@@ -225,6 +228,7 @@ class AzureGovernanceSection(BaseSection):
                         f"  Health:{row['health_status']}"
                     )
             except Exception as ex:
+                self._failures.append(str(ex))
                 entry["items_error"] = str(ex)
                 lines.append(f"    Protected Items: Error: {ex}")
             record.append(entry)
@@ -240,6 +244,7 @@ class AzureGovernanceSection(BaseSection):
             client = self.auth.log_analytics_client_for(self._sub_id)
             workspaces = await _run_sync(lambda: list(client.workspaces.list()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("53_azure_log_analytics.txt"), f"Error: {ex}\n")
             return
 
@@ -267,6 +272,7 @@ class AzureGovernanceSection(BaseSection):
             client = self.auth.resource_client_for(self._sub_id)
             resources = await _run_sync(lambda: list(client.resources.list()))
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(self._fname("60_azure_resource_inventory_summary.txt"), f"Error: {ex}\n")
             self._save(self._fname("60b_azure_resource_inventory_full.txt"), f"Error: {ex}\n")
             return
@@ -364,6 +370,7 @@ class AzureGovernanceSection(BaseSection):
                         }
                     )
         except Exception as ex:
+            self._failures.append(str(ex))
             orphans.append(f"  DISK (list error)     : {ex}")
             errors.append({"listing": "disks", "error": str(ex)})
 
@@ -402,6 +409,7 @@ class AzureGovernanceSection(BaseSection):
                         }
                     )
         except Exception as ex:
+            self._failures.append(str(ex))
             orphans.append(f"  NETWORK (list error)  : {ex}")
             errors.append({"listing": "network", "error": str(ex)})
 
@@ -435,6 +443,7 @@ class AzureGovernanceSection(BaseSection):
                 "Content-Type": "application/json",
             }
         except Exception as ex:
+            self._failures.append(str(ex))
             self._save(
                 self._fname("50_azure_cost_by_service.txt"), f"Cost data unavailable: {ex}\n"
             )
@@ -459,11 +468,11 @@ class AzureGovernanceSection(BaseSection):
                     resp = await c.post(url, headers=headers, json=body)
                 lines = self._format_cost(resp, group_dim)
             except Exception as ex:
+                self._failures.append(str(ex))
                 lines = f"Cost data unavailable: {ex}\n"
             self._save(self._fname(base_filename), lines)
 
-    @staticmethod
-    def _format_cost(resp: httpx.Response, group_dim: str) -> str:
+    def _format_cost(self, resp: httpx.Response, group_dim: str) -> str:
         title = f"AZURE COST — BY {group_dim.upper()}  (Month-to-Date)"
         hdr = ["=" * 80, f"  {title}", "=" * 80]
         try:
@@ -484,6 +493,7 @@ class AzureGovernanceSection(BaseSection):
             lines += ["=" * 80, ""]
             return "\n".join(lines)
         except Exception as ex:
+            self._failures.append(str(ex))
             if resp.status_code in (400, 403, 404):
                 return "\n".join(
                     [

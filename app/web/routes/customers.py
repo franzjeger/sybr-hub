@@ -33,7 +33,25 @@ async def list_customers(user: User = Depends(get_current_user)):
     CustomerManager.migrate_legacy()  # auto-migrate on first access
     all_customers = CustomerManager.list_customers()
     allowed = await get_accessible_customer_ids(user)
-    customers = filter_customers(all_customers, allowed)
+    public_fields = {
+        "_id",
+        "CustomerId",
+        "CustomerName",
+        "PrimaryDomain",
+        "InitialDomain",
+        "TenantId",
+        "ClientId",
+        "AppObjectId",
+        "SubscriptionId",
+        "SetupDate",
+        "SecretExpiry",
+        "CertExpiry",
+        "AuthMode",
+    }
+    customers = [
+        {key: value for key, value in customer.items() if key in public_fields}
+        for customer in filter_customers(all_customers, allowed)
+    ]
     # Batch-annotate notes/tags (avoid N+1 file I/O)
     cids = [c.get("_id", "") for c in customers]
     tags_cache = {cid: CustomerManager.get_tags(cid) for cid in cids}

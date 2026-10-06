@@ -13,7 +13,7 @@ import {_syncConnChip, currentView, setVpnTunnelUp, showView, toggleCommandPalet
 import {aiQuickPrompt} from './app-infra.js';
 import {_gradeFilter, clearGradeFilter, openOverviewTab} from './app-dashboard.js';
 import {auditRunning, startAudit} from './app-audit.js';
-import {openAdmin} from './app-settings.js';
+import {applyBranding, openAdmin} from './app-settings.js';
 
 // ── Theme toggle ────────────────────────────────────────────────────────────────
 // ── Notification bell ─────────────────────────────────────────────────────────
@@ -91,6 +91,7 @@ export function toggleTheme() {
   const next = current === 'dark' ? 'light' : 'dark';
   applyTheme(next);
   localStorage.setItem('sybr-theme', next);
+  applyBranding();
 }
 
 function applyTheme(theme) {
@@ -118,6 +119,14 @@ function applyTheme(theme) {
 
 // ── Activity log labels ─────────────────────────────────────────────────────
 export function _activityLabel(key) {
+  var labels = {
+    fortigate_save: t('activity_fortigate_save'),
+    fortigate_removed: t('activity_fortigate_removed'),
+    fortigate_bootstrapped: t('activity_fortigate_bootstrapped'),
+    fortigate_key_deployed: t('activity_fortigate_key_deployed'),
+    fortigate_token_generated: t('activity_fortigate_token_generated'),
+  };
+  if (labels[key]) return labels[key];
   return t('activity_' + key, key.replace(/_/g, ' '));
 }
 

@@ -1584,7 +1584,7 @@ export async function aiSend() {
   var msg = input.value.trim();
   if (!msg) return;
   if (!_aiExternalConsent) {
-    if (!confirm(t('msg_ai_privacy','Messages, customer context and read tool results are sent to Anthropic. Do not include secrets. Approve external processing for this session?'))) return;
+    if (!await showConfirm(t('msg_ai_privacy','Messages, customer context and read tool results are sent to Anthropic. Do not include secrets. Approve external processing for this session?'))) return;
     _aiExternalConsent = true;
   }
   input.value = '';

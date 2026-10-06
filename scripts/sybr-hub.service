@@ -16,13 +16,7 @@ Documentation=https://github.com/franzjeger/sybr-hub
 After=network-online.target
 Wants=network-online.target
 
-# Crash-loop backstop for the in-app self-update. Restart=on-failure below would
-# otherwise restart a bad deploy every 5s forever; the updater import-smokes new
-# code and rolls back before re-exec, but a *runtime* failure it cannot catch (a
-# broken startup migration, a key it can no longer unwrap) would loop silently.
-# After 5 failed starts in 3 minutes systemd gives up and parks the unit in a
-# visible 'failed' state instead — recovery is then the manual git reset in
-# docs/UPGRADING.md. Well clear of the ~1 legitimate restart a real re-exec costs.
+# Stop repeated startup failures after five attempts in three minutes.
 StartLimitIntervalSec=180
 StartLimitBurst=5
 
