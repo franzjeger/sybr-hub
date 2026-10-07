@@ -239,11 +239,11 @@ class SettingsUpdate(BaseModel):
     email_default_recipient: str = ""
     email_auto_send: bool = False
 
-    # The ALSO and Tailscale cards save by sending the whole GET /api/settings
-    # response back with their own fields changed, so every read-only key that
-    # response carries arrives too. They are named here, accepted and dropped,
+    # Older clients echoed the whole GET /api/settings response. Preserve
+    # compatibility with their read-only keys, accepted and dropped,
     # rather than ignoring every unknown key — that keeps a misspelt writable
     # key a 422 instead of a setting that silently never saves.
+    integration_health: dict[str, Any] | None = None
     audit_dir_default: Any = None
     audit_dir_custom: Any = None
     cert_dir_default: Any = None

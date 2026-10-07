@@ -30,16 +30,14 @@
 //        app-ui.js        toasts, confirm dialogs, the login screen,
 //                         skeletons, sortable tables, the report window
 //        app-api.js       apiFetch()
-//   3. The shell and the features: app.js (views and the address bar,
-//      signing in, the command palette, the menus) and app-*.js. They call
-//      each other, so they import each other: showView opens a customer's
-//      page and the customer page calls showView. Those cycles are allowed
-//      because the code a module runs while it loads touches nothing from
-//      this layer: it declares functions and state, registers its handlers
-//      and hooks (layer 1) and installs listeners. Calls between features
-//      happen later, from events and from start-up below, when every
-//      module has run. scripts/js-modules.cjs fails on a module whose
-//      top-level code reads anything imported from its own cycle.
+//        app-forms.js     protect edited fields during asynchronous loads
+//        app-navigation.js, app-audit-presentation.js: composed interfaces
+//        app-shell-status.js: connection status in the shell
+//   3. Shell and feature modules form an acyclic graph. Shared formatters and
+//      presentation helpers belong in services. Features call the shell through
+//      app-navigation.js, and the audit calls the customer presenter through
+//      app-audit-presentation.js. Both interfaces are wired explicitly below,
+//      before authentication or view events. The module check rejects cycles.
 //   4. app-markup-handlers.js: the handlers index.html's own controls name.
 //      Nothing imports it.
 //   5. This module.
@@ -56,9 +54,13 @@ import './app-state.js';
 import './app-format.js';
 import './app-ui.js';
 import './app-api.js';
-import {checkAuth} from './app.js';
+import './app-forms.js';
+import './app-shell-status.js';
+import {showView, showNetworkTab, syncRoute, checkAuth, passwordMeetsRule, applyWriteCapability, applyFeatureVisibility, renderToolCustomerPickers, toolCustomerId, _syncConnChip, setVpnTunnelUp, toggleCommandPalette} from './app.js';
+import {configureNavigation} from './app-navigation.js';
+import {configureAuditPresentation} from './app-audit-presentation.js';
 import './app-infra.js';
-import './app-dashboard.js';
+import {dashLoadAlerts, dashLoadArchive} from './app-dashboard.js';
 import './app-also.js';
 import './app-tailscale.js';
 import './app-tls.js';
@@ -69,14 +71,16 @@ import './app-policy-overview.js';
 import './app-assessments.js';
 import './app-setup.js';
 import './app-audit.js';
-import './app-settings.js';
+import {openAdmin} from './app-settings.js';
 import './app-network.js';
-import './app-customers.js';
+import {overviewSelectCustomer, loadCustomers} from './app-customers.js';
 import './app-findings.js';
-import './app-customer-detail.js';
+import {openCustomerPage, custAuditTabOpen, custPageAuditFinished, custReportFromRun, custSyncReportButton, setCustReportRun, setCustRuns} from './app-customer-detail.js';
 import {renderAiQuickPrompts} from './app-chrome.js';
 import './app-markup-handlers.js';
 
 // Start-up: the strings first, then who is signed in. Run once per page
 // load; checkAuth runs again after a sign-in, from the login form.
+configureAuditPresentation({custAuditTabOpen, custPageAuditFinished, custReportFromRun, custSyncReportButton, setCustReportRun, setCustRuns});
+configureNavigation({dashLoadAlerts, overviewSelectCustomer, loadCustomers, dashLoadArchive, openAdmin, openCustomerPage, showView, showNetworkTab, syncRoute, checkAuth, passwordMeetsRule, applyWriteCapability, applyFeatureVisibility, renderToolCustomerPickers, toolCustomerId, _syncConnChip, setVpnTunnelUp, toggleCommandPalette});
 loadI18n().then(() => { renderAiQuickPrompts(); checkAuth(); });

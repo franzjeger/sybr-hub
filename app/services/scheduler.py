@@ -930,15 +930,11 @@ async def _task_loop(task_id: str) -> None:
 
 
 async def _notify_task_failure(task_id: str, failures: int, error: str) -> None:
-    """Post a Teams-style adaptive card to the configured webhook so the
-    operator sees that a scheduled task has been auto-disabled.
-
-    Best-effort — webhook unavailability never propagates back into the
-    scheduler. The card uses the same MessageCard format as
-    _do_scheduled_reports above so existing receivers don't need new code.
-    """
+    """Best-effort notification; configured language and literal external text."""
     try:
         from app.core.config import load_app_settings
+        from app.services.notification_text import notification_text
+        from app.services.webhook_sender import send_simple_message
 
         settings = load_app_settings()
         webhook_url = settings.get("webhook_url") or settings.get("scheduler", {}).get(
@@ -946,61 +942,21 @@ async def _notify_task_failure(task_id: str, failures: int, error: str) -> None:
         )
         if not webhook_url:
             return
-
+        lang = settings.get("ui_language", "no")
+        lang = lang if lang in ("no", "en") else "no"
         cfg = get_task_scheduler_config().get(task_id, {})
-        label = cfg.get("label_no") or cfg.get("label_en") or task_id
-
-        import httpx
-
-        card = {
-            "type": "message",
-            "attachments": [
-                {
-                    "contentType": "application/vnd.microsoft.card.adaptive",
-                    "content": {
-                        "type": "AdaptiveCard",
-                        "version": "1.4",
-                        "body": [
-                            {
-                                "type": "TextBlock",
-                                "text": "\u26a0 MSP Toolkit \u2014 task auto-disabled",
-                                "weight": "Bolder",
-                                "size": "Medium",
-                                "color": "Attention",
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": f"{label} ({task_id})",
-                                "weight": "Bolder",
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": f"Failed {failures}\u00d7 in a row.",
-                                "wrap": True,
-                                "size": "Small",
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": f"Last error: {error[:300]}",
-                                "wrap": True,
-                                "size": "Small",
-                                "color": "Default",
-                            },
-                            {
-                                "type": "TextBlock",
-                                "text": "Re-enable in Settings \u2192 Scheduler when fixed.",
-                                "wrap": True,
-                                "size": "Small",
-                                "color": "Accent",
-                            },
-                        ],
-                    },
-                }
-            ],
-        }
-        async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(webhook_url, json=card)
-        log.info("Failure webhook posted for task %s", task_id)
+        label = cfg.get(f"label_{lang}") or task_id
+        lines = [
+            notification_text("background_task_disabled", settings=settings),
+            f"{label} ({task_id})",
+            notification_text("background_task_failures", settings=settings, count=failures),
+            notification_text("background_task_error", settings=settings, error=error[:300]),
+            notification_text("background_task_reenable", settings=settings),
+        ]
+        if await send_simple_message(webhook_url, "\n".join(lines)):
+            log.info("Failure webhook posted for task %s", task_id)
+        else:
+            log.warning("Failure webhook was not delivered for task %s", task_id)
     except Exception as e:
         log.warning("Failure webhook failed for task %s: %s", task_id, e)
 

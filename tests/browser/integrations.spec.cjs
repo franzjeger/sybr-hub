@@ -15,6 +15,30 @@ async function login(page, language = 'en') {
   await expectSignedIn(page);
 }
 
+for (const language of ['no', 'en']) {
+  test(`IT Glue explains the missing Save button to a read-only administrator in ${language}`, async ({page}, testInfo) => {
+    await page.setViewportSize({width:language === 'no' ? 390 : 1280,height:900});
+    await page.route('**/api/auth/me', async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      if (body.user) body.user.can_write = false;
+      await route.fulfill({response, json:body});
+    });
+    await login(page, language);
+    await inApp(page, app => app.openAdmin('integrations'));
+    await page.locator('[data-config="itglue-config"]').click();
+    const panel = page.locator('#itglue-config');
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('[data-click-handler="saveITGlueSettings"]')).toBeHidden();
+    const notice = panel.locator('.readonly-settings-notice');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(language === 'no' ? 'Lagreknappen er skjult' : 'The Save button is hidden');
+    await expect(notice).toContainText(language === 'no' ? 'Administrasjon > Brukere' : 'Administration > Users');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await panel.screenshot({path:testInfo.outputPath(`itglue-readonly-${language}.png`)});
+  });
+}
+
 test('a rejected provider token cannot log a valid Hub user out', async ({page}) => {
   await login(page);
   let refreshes = 0;
@@ -176,4 +200,78 @@ test('hosting card reads current vendor field names and English headings', async
   await expect(box).toContainText('Subscriptions');
   await expect(box).toContainText('Email accounts');
   await expect(box).not.toContainText('Abonnementer');
+});
+
+test('late integration settings preserve typed text, passwords and checkbox edits', async ({page}) => {
+  await login(page);
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  let settingsRequests = 0;
+  await page.route('**/api/settings', async route => {
+    settingsRequests++;
+    await gate;
+    await route.fulfill({json:{smtp_server:'old.example.invalid',smtp_user:'saved@example.invalid',smtp_port:465,
+      smtp_password:'old-secret',email_auto_send:false,email_default_recipient:'saved-recipient@example.invalid'}});
+  });
+  await inApp(page, app => { app.openAdmin('integrations'); app.toggleIntegConfig('email-config'); });
+  await expect.poll(() => settingsRequests).toBeGreaterThan(0);
+  await page.locator('#input-smtp-server').fill('new.example.invalid');
+  await page.locator('#input-smtp-password').fill('new-synthetic-password');
+  await page.locator('#input-email-auto-send').check();
+  release();
+  await expect(page.locator('#input-smtp-user')).toHaveValue('saved@example.invalid');
+  await expect(page.locator('#input-smtp-port')).toHaveValue('465');
+  await expect(page.locator('#input-smtp-server')).toHaveValue('new.example.invalid');
+  await expect(page.locator('#input-smtp-password')).toHaveValue('new-synthetic-password');
+  await expect(page.locator('#input-email-auto-send')).toBeChecked();
+  // A second status refresh must also preserve the draft.
+  await inApp(page, app => app.loadIntegrationStatus());
+  await expect(page.locator('#input-smtp-password')).toHaveValue('new-synthetic-password');
+});
+
+test('each document carries its own audit selection identity without requiring HTTPS randomUUID', async ({page,context}) => {
+  await page.addInitScript(() => { Object.defineProperty(crypto,'randomUUID',{value:undefined}); });
+  await login(page);
+  const first = await inApp(page, app => app.auditTabHeaders().get('X-Audit-Tab'));
+  expect(first).toMatch(/^[a-zA-Z0-9_-]{16,64}$/);
+  const secondPage = await context.newPage();
+  await secondPage.goto('/');
+  await expectSignedIn(secondPage);
+  const second = await inApp(secondPage, app => app.auditTabHeaders().get('X-Audit-Tab'));
+  expect(second).not.toBe(first);
+  let transmitted;
+  await page.route('**/api/auth/me', async route => {
+    transmitted = route.request().headers()['x-audit-tab'];
+    await route.continue();
+  });
+  await inApp(page, app => app.apiFetch('/api/auth/me'));
+  expect(transmitted).toBe(first);
+  await secondPage.close();
+});
+
+test('integration cards distinguish stored, verified, failed and stale checks', async ({page}) => {
+  let state = 'configured';
+  await login(page, 'en');
+  const saved = await (await page.request.get('/api/settings')).json();
+  await page.route('**/api/settings', route => route.fulfill({json:{...saved,
+    itglue_api_key:'••••••', integration_health:{...saved.integration_health,
+      itglue:{state, checked_at:state === 'configured' ? null : '2026-10-01T12:00:00+00:00'}
+    }
+  }}));
+  await inApp(page, app => app.openAdmin('integrations'));
+  const label = page.locator('#itglue-integ-label');
+  for (const [value, text] of [['configured','Saved · unverified'],['verified','Connection verified'],['failed','Connection check failed'],['stale','Check is older than 24 hours']]) {
+    state = value;
+    await inApp(page, app => app.loadIntegrationStatus());
+    await expect(label).toContainText(text);
+    if (value !== 'configured') await expect(label).toContainText('Last checked');
+  }
+  await page.reload();
+  await expectSignedIn(page);
+  await inApp(page, app => app.openAdmin('integrations'));
+  await expect(label).toContainText('Check is older than 24 hours');
+});
+
+test.afterEach(async ({page}) => {
+  await page.unrouteAll({behavior:'wait'});
 });

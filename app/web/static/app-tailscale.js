@@ -57,11 +57,10 @@ export async function tsTestConnection() {
 
 export async function tsSaveConfig() {
   var msg = document.getElementById('ts-config-msg');
-  var settings = await apiFetch('/api/settings');
-  var body = Object.assign({}, settings || {}, {
+  var body = {
     tailscale_api_key: document.getElementById('input-ts-api-key').value.trim(),
     tailscale_tailnet: document.getElementById('input-ts-tailnet').value.trim() || '-',
-  });
+  };
   var d = await apiFetch('/api/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -483,4 +482,3 @@ async function tsRevokeKey(keyId) {
     showToast(esc(d && d.error || t('msg_failed','Feilet')), 'error');
   }
 }
-

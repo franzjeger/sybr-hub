@@ -177,6 +177,69 @@ async def test_one_unreachable_direct_device_is_unknown_and_the_rest_are_read():
     assert rows["b"]["status"] == "unknown"
 
 
+async def test_automatic_firmware_alerts_match_the_stored_attention_list(monkeypatch):
+    from app.services.alert_engine import (
+        _alert_fingerprint,
+        _check_firmware_outdated,
+        render_detail,
+    )
+
+    monkeypatch.setattr(firmware_inventory, "_customer_names", lambda: NAMES)
+
+    def no_poll(*args, **kwargs):
+        raise AssertionError("the alert must use stored readings, not poll the fleet")
+
+    monkeypatch.setattr("app.services.fortigate_api.poll_all_fortigates", no_poll)
+    await firmware_inventory.record(
+        ACME,
+        "fortigate",
+        [
+            {**_current("old", "Firewall"), "version": "v7.2.11", "status": "eol"},
+            {
+                **_current("patch", "Firewall"),
+                "version": "v7.4.3",
+                "status": "outdated",
+                "latest": "7.4.8",
+            },
+            _current("ok", "Current firewall"),
+            {**_current("unread", "Unread firewall"), "status": "unknown"},
+        ],
+    )
+    await firmware_inventory.record_read_failure(ACME, "fortigate", "HTTP 403", key="controller")
+    await firmware_inventory.record(
+        BETA,
+        "unifi",
+        [{**_current("ap", "AP"), "status": "outdated", "latest": "6.7.0"}],
+    )
+    await firmware_inventory.record(
+        "deleted-customer", "fortigate", [{**_current("gone", "Gone"), "status": "eol"}]
+    )
+
+    attention = await firmware_inventory.attention(None)
+    alerts = await _check_firmware_outdated()
+
+    assert len(alerts) == len(attention) == 3
+    assert [a["severity"] for a in alerts] == [d["category"] for d in attention]
+    assert [a["customer"] for a in alerts] == [d["customer_name"] for d in attention]
+    assert alerts[0]["detail_key"] == "alert_detail_firmware_eol"
+    assert "end of support" in render_detail(alerts[0], "en")
+    assert "7.4.8" in render_detail(alerts[1], "no")
+    assert "7.4 or newer" not in render_detail(alerts[1], "en")
+    assert len({_alert_fingerprint(a) for a in alerts}) == 3
+
+
+async def test_an_unreadable_firmware_store_reports_a_failed_check(monkeypatch):
+    from app.services.alert_engine import AlertCheckFailed, _check_firmware_outdated
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(firmware_inventory, "attention", broken)
+    with pytest.raises(AlertCheckFailed) as exc:
+        await _check_firmware_outdated()
+    assert exc.value.check == "firmware_outdated"
+
+
 # ── The readers fill it ─────────────────────────────────────────────────────
 
 

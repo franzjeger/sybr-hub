@@ -1,3 +1,5 @@
+import {_syncBottomNav} from './app-ui.js';
+import {_checkVpnHeaderBadge} from './app-shell-status.js';
 // ═══════════════════════════════════════════════════════════════════
 // SHELL: the views and the address bar, signing in, the command palette,
 // the top-bar menus and the connection chip
@@ -24,7 +26,7 @@ import {reloadToolCustomer, signedIn, viewShown} from './app-hooks.js';
 import {
   _allCustomers, _allowedViews, _currentUser, _overviewData, canOpenView, canTenantWrite,
   canWrite, currentCustomerId, hasFeature, hasModule, setAllCustomers, setCurrentCustomer,
-  setCurrentUser, setOverviewData, setSession,
+  setCurrentUser, setOverviewData, setSession, currentView, setCurrentView,
 } from './app-state.js';
 import {hideLoginView, showLoginView, showToast, skeletonHTML} from './app-ui.js';
 import {apiFetch, setAuth} from './app-api.js';
@@ -48,9 +50,7 @@ import {
 import {
   _custHash, CUSTOMER_TAB_ALIASES, openCurrentCustomerTab, openCustomerPage,
 } from './app-customer-detail.js';
-import {
-  _checkNotifBadge, _checkVpnHeaderBadge, _syncBottomNav, loadLogs, stopLogAutoRefresh,
-} from './app-chrome.js';
+import {_checkNotifBadge, loadLogs, stopLogAutoRefresh} from './app-chrome.js';
 
 // Handlers shared by markup in several scripts (the generic ones are in
 // app-handlers.js).
@@ -624,7 +624,7 @@ registerUiHandlers({
 });
 
 // ── State ──────────────────────────────────────────────────────────────────────
-export let currentView = 'home';
+
 
 // ── View routing ───────────────────────────────────────────────────────────────
 
@@ -714,7 +714,7 @@ export async function showView(name) {
   closeToolsMenu();
   _syncBottomNav(name);
 
-  currentView = name;
+  setCurrentView(name);
   _updateBreadcrumb(name);
 
   // Show skeleton placeholders immediately before data loads

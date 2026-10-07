@@ -21,7 +21,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.core import modules
 from app.core.database import close_pool, run_migrations
-from app.core.encryption import verify_master_key_available
 from app.core.exceptions import ToolkitError
 from app.core.redact import redact
 from app.core.version import get_version
@@ -30,6 +29,7 @@ from app.web.i18n import get_ui_lang, ui_t
 from app.web.middleware.auth import AuthMiddleware, get_current_user
 from app.web.middleware.rate_limit import RateLimitMiddleware
 from app.web.middleware.security_headers import SecurityHeadersMiddleware
+from app.web.middleware.startup_config import StartupConfigMiddleware
 from app.web.middleware.write_guard import WriteGuardMiddleware
 from app.web.routes import (
     also,
@@ -125,13 +125,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("Sybr HUB starting — version %s", get_version())
     # Attach the /api/logs ring buffer before anything interesting is logged.
     frontend.install_log_capture()
-    # Resolve the master key before serving anything. The key is otherwise
-    # resolved lazily on first use, so a host that can no longer unwrap its own
-    # key backups would serve traffic and then fail somewhere deep in a
-    # request. Fail fast instead: MasterKeyUnavailableError carries the
-    # remediation, and stopping here is what stops a new key being minted over
-    # recoverable data.
-    verify_master_key_available()
+    # StartupConfigMiddleware has already resolved the master key, before the
+    # router's nested lifespan contexts can turn a known refusal into a traceback.
     await run_migrations()
     await modules.initialize()
 
@@ -239,6 +234,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(StartupConfigMiddleware)
 
     @app.exception_handler(ToolkitError)
     async def _toolkit_error_handler(request: Request, exc: ToolkitError) -> JSONResponse:

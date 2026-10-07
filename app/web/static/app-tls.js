@@ -1,3 +1,4 @@
+import {_notifDays, tlsChainLabel} from './app-format.js';
 // ═══════════════════════════════════════════════════════════════════
 // TLS / CERTIFICATE MONITOR
 // ═══════════════════════════════════════════════════════════════════
@@ -9,7 +10,7 @@ import {canWrite} from './app-state.js';
 import {toneClass, toneVar} from './app-format.js';
 import {showConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {_notifDays} from './app-dashboard.js';
+
 
 // Handlers for the controls tlsLoadView renders (see registerUiHandlers in app-handlers.js).
 registerUiHandlers({
@@ -76,18 +77,7 @@ function tlsStateLabel(status) {
 
 // Why a chain did not validate, as the server classifies it
 // (app/services/tls_monitor.py, _CHAIN_PROBLEMS). Varsler uses it too.
-export function tlsChainLabel(code) {
-  switch (code) {
-    case 'self_signed': return t('tls_chain_self_signed', 'Selvsignert sertifikat');
-    case 'untrusted': return t('tls_chain_untrusted', 'Utstederen er ikke klarert');
-    case 'incomplete_chain': return t('tls_chain_incomplete_chain', 'Mellomsertifikat mangler, eller utstederen er ukjent');
-    case 'hostname_mismatch': return t('tls_chain_hostname_mismatch', 'Navnet passer ikke med sertifikatet');
-    case 'expired': return t('tls_chain_expired', 'Sertifikatet er utløpt');
-    case 'not_yet_valid': return t('tls_chain_not_yet_valid', 'Sertifikatet er ikke gyldig ennå');
-    case 'revoked': return t('tls_chain_revoked', 'Sertifikatet er trukket tilbake');
-    default: return t('tls_chain_other', 'Kjeden kunne ikke valideres');
-  }
-}
+
 
 async function tlsLoadKnown() {
   var el = document.getElementById('tls-known');

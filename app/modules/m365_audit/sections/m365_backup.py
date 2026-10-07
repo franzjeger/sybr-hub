@@ -258,6 +258,8 @@ def _failure(err: Exception) -> tuple[str, str]:
     missing licence), "not_found" (404) or "error" (anything else).
     """
     if isinstance(err, GraphPermissionError):
+        if err.is_service_registration_gap:
+            return "not_registered", str(err)[:400]
         return ("licence" if err.is_licence_gap else "permission"), str(err)[:400]
     if isinstance(err, httpx.HTTPStatusError) and err.response is not None:
         status = err.response.status_code
@@ -624,9 +626,14 @@ class M365BackupSection(BaseSection):
     def _warn_findings(self, native: dict, third_party: dict) -> None:
         service, policies = native["service"], native["policies"]
         if not service["read"]:
+            detail = (
+                f"it needs {SERVICE_PERMISSION}"
+                if service["error_kind"] == "permission"
+                else service["error"]
+            )
             self._warn(
                 f"Microsoft 365 Backup status could not be read ({service['error_kind']}); "
-                f"it needs {SERVICE_PERMISSION}",
+                f"{detail}",
                 level="info",
             )
         elif service["status"] in ("protectionChangeLocked", "restoreLocked"):
@@ -635,9 +642,14 @@ class M365BackupSection(BaseSection):
                 f"possible (reason: {service['disable_reason'] or 'unknown'})"
             )
         if not policies["read"]:
+            detail = (
+                f"they need {POLICY_PERMISSION}"
+                if policies["error_kind"] == "permission"
+                else policies["error"]
+            )
             self._warn(
                 f"Microsoft 365 Backup policies could not be read ({policies['error_kind']}); "
-                f"they need {POLICY_PERMISSION}",
+                f"{detail}",
                 level="info",
             )
         if not third_party["read"]:

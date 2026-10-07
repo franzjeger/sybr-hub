@@ -267,9 +267,11 @@ would keep VPN shut until somebody restarted the service.
 
 ## Write is a grant, not a role
 
-Every account is read-only. Changing anything needs `can_write`, and that is a
-per-user grant nobody inherits — admins included, because a capability implied
-by a role is not a capability.
+Accounts created by an administrator start read-only. Changing anything needs
+the per-user `can_write` grant; the administrator role alone does not grant it.
+First-run setup creates the initial human administrator with `all_customers`,
+`can_write` and `tenant_write` enabled in the same transaction, so that person
+can configure the Hub and grant access to others immediately.
 
 Enforced in `middleware/write_guard.py`, not on the routes. There are 163
 mutating endpoints; a decorator on each is 163 chances to forget one, and the
@@ -299,10 +301,11 @@ Two capabilities, layered:
   underneath it: an account that may not save a note here has no business
   changing configuration there.
 
-**The migration turns it off for everyone**, which means the first grant cannot
-be made through the interface — granting is itself a write.
-`scripts/grant_write.py` is that key, and it ships in the same change, because
-a lock with no key is not a security model but an outage.
+Migration 29 repairs older installations once: the earliest human account gets
+all three grants if it is still an active administrator. System accounts are
+excluded, and a disabled or demoted first account is left alone. Subsequent
+revocations are preserved because the repair is versioned, not repeated at
+every startup. `scripts/grant_write.py` remains available for operator recovery.
 
 The interface does the same thing twice, and the split matters.
 
@@ -887,9 +890,12 @@ which imports the rest; nothing is shared through `window`, and a module
 imports what it uses from the module that declares it. `main.js` documents the
 layers: leaves that import nothing (`app-esc.js`, `app-i18n.js`,
 `app-icons.js`, `app-handlers.js`, `app-hooks.js`, `app-state.js`), services
-on top of them (`app-format.js`, `app-ui.js`, `app-api.js`), then the shell
-(`app.js`) and the features (`app-*.js`), which call each other and so import
-each other. Shared state (the signed-in account, this tab's customer, the
+on top of them (`app-format.js`, `app-ui.js`, `app-api.js`, `app-forms.js`,
+`app-navigation.js`, `app-audit-presentation.js`, `app-shell-status.js`), then
+the shell (`app.js`) and the features (`app-*.js`). The graph is acyclic.
+`main.js` explicitly wires the shell navigation interface and the audit
+presenter before authentication; formatting and shared form helpers stay
+below features. Shared state (the signed-in account, this tab's customer, the
 customer page, the shared customer lists) lives in `app-state.js`, read
 anywhere and changed through its setters. The vendored libraries and
 `theme-init.js` (which must run before the first paint) stay classic scripts.
@@ -909,9 +915,8 @@ Four rules keep it workable:
   import, `no-import-assign` on a module assigning another's binding.
   `scripts/js-modules.cjs` checks the graph: every import names a module and
   an export that exist, imports are static and relative (the form the server
-  versions), the layering above holds, and code a module runs while it loads
-  reads nothing imported from a module in its own import cycle, which may not
-  have run yet.
+  versions), the layering above holds, and no import cycles exist.
+  New cycles fail the check, including those within feature modules.
 - **Specs reach the app through its modules.** A Playwright spec calls an
   exported function with `inApp(page, app => ...)` (`tests/browser/app.cjs`),
   which imports the modules at the URLs the page loaded them from; a second
@@ -1011,3 +1016,33 @@ The frontend remains vanilla JavaScript, without inline handlers (see
 **Front-end structure**). Browser regression tests exercise the actual HTML
 parser and the CSP (`tests/browser/csp.spec.cjs` opens every view and fails on
 a policy violation); source-string presence is not evidence of XSS safety.
+
+
+## Connection checks and risk evidence
+
+`core/integration_health.py` stores encrypted connection-check evidence beside
+settings. Each result is bound to all of the provider's credential and endpoint
+fields; changed settings invalidate it. Successful checks expire after 24 hours.
+The API exposes only state and timestamp. `web/connection_checks.py` captures a
+request-local settings snapshot so a check and its recorded fingerprint describe
+the same configuration. Unsaved credentials never verify a stored configuration,
+and a concurrent edit prevents recording a result against the replacement.
+IT Glue, Autotask, myITprocess, ALSO, Tailscale and SMTP have check metadata; GDAP
+keeps its existing validation evidence. Other cards remain saved/unverified
+until a supported connection check can substantiate verification.
+
+Risk calculations keep translation recipes for the same missing-data reasons
+used by reports. Audit metrics persist both UI languages under `risk_coverage`.
+The customer page shows complete, partial, blocked or unknown evidence beside
+the score. Older runs remain unknown until recollected.
+
+The policy workflow links a saved package, captured evidence, prioritized actions,
+pilot runbooks and effectiveness review. Bounded CA setting checks identify MFA
+and legacy-auth control candidates from conditions and grants. They never set a
+human review to aligned, infer assignment coverage or assert that report-only
+policies enforce access. Unsupported service checks remain explicit manual work.
+Draft reviews remain in authenticated tab memory per customer and are cleared
+on sign-out; navigation preserves them and page exit warns about unsaved work.
+
+The strict mypy gate includes authentication, password execution, settings/user
+models, policy plans/routes and connection evidence (11 files total).

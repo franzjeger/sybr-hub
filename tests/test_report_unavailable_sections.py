@@ -1,7 +1,7 @@
 """A section that did not run keeps its points, and must say so.
 
-The collector records a failure — Exchange writes EXCHANGE_ERROR.txt and reports
-SKIPPED — and the report counts skipped and failed sections for its summary. The
+The collector records a failure: Exchange writes EXCHANGE_ERROR.txt and reports
+FAILED. The report counts skipped and failed sections for its summary. The
 count never reached the score. So a tenant whose Exchange collection failed,
 which the collector itself calls a routine outcome when PowerShell cannot
 connect, scored as though Exchange were clean: no external forwarding, no

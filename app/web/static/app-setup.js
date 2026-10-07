@@ -7,37 +7,40 @@ import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {showConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {applyWriteCapability, showView} from './app.js';
+import {navApplyWriteCapability as applyWriteCapability, navShowView as showView} from './app-navigation.js';
 
 registerUiHandlers({
   setupCopyPkceUrl: function() { const el = document.getElementById('pkce-url-out'); el.select(); document.execCommand('copy'); },
   setupPastePkceOob: function() { navigator.clipboard.readText().then(text => document.getElementById('pkce-oob-input').value = text); },
   submitPkceOob: function() { submitPkceOob(); },
+  setupRestartPkce: function() { startPkceAuth(); },
 });
+
+var _pkceStarting = false;
+var _pkceSubmitting = false;
+var _renewCustomerId = null;
 
 // ── Customer actions ───────────────────────────────────────────────────────────
 // Renews one customer's credentials: the one whose page the button is on.
 export async function renewCreds(customerId) {
   if (!customerId) return;
   if (!await showConfirm(t('dlg_confirm_renew'))) return;
-  // Renewal issues a fresh certificate + client secret — exactly what first-run
-  // setup does. Clear the old local credentials, then run the same sign-in
-  // (startSetup, the PKCE flow) so the operator finishes this one action with
-  // working, renewed credentials, instead of being dropped back on a status
-  // page with none and a "run setup again" note.
-  var d = await apiFetch('/api/customer/renew', {
-    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId}),
-  });
-  if (!d || !d.ok) return;
-  startSetup();
+  // Keep the customer's current credentials until setup has verified the
+  // replacement or repaired the existing app's permissions.
+  startSetup(customerId);
 }
 
 // Setup ends by registering the customer it set up; the answer says which, and
 // "Åpne kunden" opens that one (openSetupCustomer).
 export var _setupCustomerId = null;
 async function _registerSetupCustomer() {
-  var reg = await apiFetch('/api/customers/register', {method: 'POST'});
-  if (reg && reg.customer_id) _setupCustomerId = reg.customer_id;
+  var reg = await apiFetch('/api/customers/register', {
+    method: 'POST', retry: false,
+    onError: function(msg) { appendSetupLog({step:'SAVE', status:'error', msg:msg}); },
+  });
+  if (!reg || !reg.customer_id) return false;
+  _setupCustomerId = reg.customer_id;
+  return true;
 }
 
 // ── Setup flow ─────────────────────────────────────────────────────────────────
@@ -98,7 +101,9 @@ export function _renderSetupIdle() {
 }
 
 
-export function startSetup() {
+export function startSetup(renewCustomerId = null) {
+  if (_pkceStarting || _pkceSubmitting) return;
+  _renewCustomerId = renewCustomerId;
   _setupRunning = true;
   showView('setup');
   var intro = document.getElementById('setup-intro');
@@ -116,13 +121,19 @@ export function startSetup() {
 
 
 async function startPkceAuth() {
-  document.getElementById('pkce-login-card').classList.add('visible');
+  if (_pkceStarting || _pkceSubmitting) return;
+  _pkceStarting = true;
+  var loginCard = document.getElementById('pkce-login-card');
+  loginCard.classList.add('visible');
+  loginCard.innerHTML = '<button id="pkce-restart" class="btn btn-default" data-click-handler="setupRestartPkce" disabled>' + esc(t('pkce_btn_restart')) + '</button>';
   document.getElementById('setup-log').innerHTML = '';
   appendSetupLog({step: 'AUTH', status: 'warn', msg: t('pkce_log_gen')});
   
   try {
-    const res = await fetch('/api/setup/pkce/start');
-    const data = await res.json();
+    const data = await apiFetch('/api/setup/pkce/start', {
+      onError: function(msg) { appendSetupLog({step:'AUTH', status:'error', msg:msg}); }
+    });
+    if (!data) return;
     if (data.url) {
       appendSetupLog({step: 'AUTH', status: 'ok', msg: t('pkce_log_ready')});
       
@@ -149,8 +160,9 @@ async function startPkceAuth() {
           <button class="btn btn-default btn-sm" data-click-handler="setupPastePkceOob">${esc(t('btn_paste'))}</button>
         </div>
         
-        <div class="mt-3">
-          <button class="btn btn-primary w-full" data-click-handler="submitPkceOob">${esc(t('pkce_btn_complete'))}</button>
+        <div class="mt-3 flex gap-2 flex-wrap">
+          <button id="pkce-submit" class="btn btn-primary flex-1" data-click-handler="submitPkceOob">${esc(t('pkce_btn_complete'))}</button>
+          <button id="pkce-restart" class="btn btn-default" data-click-handler="setupRestartPkce">${esc(t('pkce_btn_restart'))}</button>
         </div>
       `;
     } else {
@@ -158,10 +170,15 @@ async function startPkceAuth() {
     }
   } catch (err) {
     appendSetupLog({step: 'NET', status: 'error', msg: String(err)});
+  } finally {
+    _pkceStarting = false;
+    var restart = document.getElementById('pkce-restart');
+    if (restart && !_pkceSubmitting) restart.disabled = false;
   }
 }
 
 async function submitPkceOob() {
+    if (_pkceSubmitting || _pkceStarting) return;
     const input = document.getElementById('pkce-oob-input').value.trim();
     if (!input) return;
     if (input.includes('/reprocess')) {
@@ -185,23 +202,34 @@ async function submitPkceOob() {
         return;
     }
     
+    _pkceSubmitting = true;
+    const submit = document.getElementById('pkce-submit');
+    const restart = document.getElementById('pkce-restart');
+    submit.disabled = true;
+    restart.disabled = true;
     appendSetupLog({step: 'GRAPH', status: 'warn', msg: t('pkce_log_exchange')});
     
     try {
         const res = await apiFetch('/api/setup/pkce/callback-manual', {
             method: 'POST',
-            body: JSON.stringify({code, state})
+            retry: false,
+            body: JSON.stringify(_renewCustomerId ? {code, state, renew_customer_id:_renewCustomerId} : {code, state}),
+            onError: function(msg) { appendSetupLog({step:'AUTH', status:'error', msg:msg}); }
         });
         if (res && res.ok) {
             appendSetupLog({step: 'GRAPH', status: 'ok', msg: t('pkce_log_saved')});
+            document.getElementById('pkce-oob-input').value = '';
+            if (!await _registerSetupCustomer()) return;
+            _renewCustomerId = null;
             document.getElementById('pkce-login-card').classList.remove('visible');
-            await _registerSetupCustomer();
             document.getElementById('setup-result-area').innerHTML = '<div class="alert alert-success">'+esc(t('msg_setup_complete'))+'</div><button class="btn btn-primary" data-click-handler="openSetupCustomer">'+esc(t('btn_open_customer'))+'</button>';
-        } else {
-            appendSetupLog({step: 'GRAPH', status: 'error', msg: t('pkce_log_error')});
         }
     } catch(err) {
         appendSetupLog({step: 'NET', status: 'error', msg: String(err)});
+    } finally {
+        _pkceSubmitting = false;
+        submit.disabled = false;
+        restart.disabled = false;
     }
 }
 

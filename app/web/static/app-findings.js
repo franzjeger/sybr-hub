@@ -1,3 +1,4 @@
+import {navOpenAdmin as openAdmin} from './app-navigation.js';
 // ═══════════════════════════════════════════════════════════════════
 // FINDINGS: what the newest audit found for one customer, and what to do
 // ═══════════════════════════════════════════════════════════════════
@@ -20,7 +21,7 @@ import {_lang, t} from './app-i18n.js';
 import {_currentUser, canOpenView, canWrite, hasFeature} from './app-state.js';
 import {showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {openAdmin} from './app-settings.js';
+
 
 var _FINDING_SEVERITIES = ['critical', 'high', 'medium', 'low'];
 var _FINDING_STATUSES = ['open', 'in_progress', 'done', 'ignored'];

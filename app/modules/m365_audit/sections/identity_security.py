@@ -182,7 +182,9 @@ class IdentitySecuritySection(BaseSection):
 
     async def _collect_risky_users(self) -> None:
         try:
-            users = await self.graph.get_all("riskyUsers")
+            # The short /riskyUsers alias exists in beta, not v1.0.
+            # https://learn.microsoft.com/en-us/graph/api/riskyuser-list
+            users = await self.graph.get_all("identityProtection/riskyUsers")
         except Exception as ex:
             err_str = str(ex)
             if isinstance(ex, GraphPermissionError) or any(
@@ -264,8 +266,9 @@ class IdentitySecuritySection(BaseSection):
                 self._save(
                     "18d_risk_detections.txt",
                     "RISK DETECTIONS  (not available)\n"
-                    "Risk detections krever Microsoft Entra ID P2 (tidligere Azure AD Premium P2).\n"
-                    f"{_unavailable_reason(ex, 'Microsoft Entra ID P2')}\n"
+                    "Risk detections requires Microsoft Entra ID P1 or P2 and "
+                    "IdentityRiskEvent.Read.All with admin consent.\n"
+                    f"{_unavailable_reason(ex, 'Microsoft Entra ID P1 or P2')}\n"
                     f"Teknisk detalj: {err}\n",
                 )
             else:

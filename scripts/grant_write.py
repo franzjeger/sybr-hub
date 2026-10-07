@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Grant or revoke write capabilities from the server.
 
-Every account starts read-only, admins included, and granting is itself a
-write — so immediately after the migration there is no way to hand out the
-first grant through the interface. This is that way. It exists in the same
-change as the capability rather than being left for later, because a lock with
-no key is not a security model, it is an outage.
+First-run setup grants full access to the initial administrator. Other users
+start read-only. This script provides operator recovery if no active
+administrator retains write access; granting through the interface is itself
+a write.
 
     python scripts/grant_write.py --list
     python scripts/grant_write.py --user frank --write

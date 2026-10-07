@@ -263,7 +263,11 @@ class ExchangeSection(BaseSection):
                     "EXCHANGE_ERROR.txt",
                     f"Exchange Online data collection failed:\n{err_msg}\n",
                 )
-                self._report(SectionStatus.SKIPPED, err_msg)
+                self.result.error = err_msg
+                self._report(
+                    SectionStatus.SKIPPED if self.exo_data.get("skipped") else SectionStatus.FAILED,
+                    err_msg,
+                )
                 return self.result
 
             # Each sub-collection is isolated: one failing save must not discard

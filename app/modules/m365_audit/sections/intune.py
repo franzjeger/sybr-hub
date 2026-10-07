@@ -99,22 +99,24 @@ class IntuneSection(BaseSection):
     def _reason(self, filename: str, err: Exception) -> str:
         """One line naming the cause, for the report to print verbatim."""
         if isinstance(err, GraphPermissionError):
+            perm = self._PERMISSION.get(filename, "the matching DeviceManagement permission")
             if err.is_licence_gap:
                 return (
                     f"Graph refused this collection with {err.status}, reporting a "
-                    "licence gap: the tenant does not have the Intune SKU this "
-                    "endpoint requires. Granting a permission will not change that."
+                    "licence gap. Verify the required licence for this endpoint; "
+                    "the response does not identify a specific missing Intune SKU."
                 )
             if err.is_service_refusal:
                 return (
                     f"The Intune service refused this collection ({err.status}). "
-                    "The DeviceManagement permission is not the problem — check "
-                    "whether this tenant has an Intune subscription at all."
+                    f"Check {perm} and admin consent, an active Intune licence "
+                    "and tenant service provisioning. The response alone does not "
+                    "establish which prerequisite failed."
                 )
-            perm = self._PERMISSION.get(filename, "the matching DeviceManagement permission")
             return (
-                f"Graph refused this collection with {err.status}: the app "
-                f"registration is missing {perm} or its admin consent."
+                f"Graph refused this collection with {err.status}. Check {perm} "
+                "and admin consent, token validity and an active Intune licence. "
+                "The response alone does not establish the cause."
             )
         return f"The collection failed before it could be read: {err}"
 
@@ -461,10 +463,13 @@ class IntuneSection(BaseSection):
     # endpoint that 404s, never turns a healthy Intune section red.
 
     async def _collect_settings_catalog(self) -> None:
+        # Settings Catalog is documented under Microsoft Graph beta.
+        # https://learn.microsoft.com/en-us/graph/api/intune-deviceconfigv2-devicemanagementconfigurationpolicy-list?view=graph-rest-beta
         try:
             policies = await self.graph.get_all(
                 "deviceManagement/configurationPolicies",
                 params={"$top": "999"},
+                beta=True,
             )
             self._save_snapshot(
                 "intune_settings_catalog",
@@ -494,10 +499,12 @@ class IntuneSection(BaseSection):
         self._save("12b_intune_settings_catalog.txt", "\n".join(lines))
 
     async def _collect_admin_templates(self) -> None:
+        # https://learn.microsoft.com/en-us/graph/api/intune-grouppolicy-grouppolicyconfiguration-list?view=graph-rest-beta
         try:
             policies = await self.graph.get_all(
                 "deviceManagement/groupPolicyConfigurations",
                 params={"$top": "999"},
+                beta=True,
             )
             self._save_snapshot(
                 "intune_admin_templates",

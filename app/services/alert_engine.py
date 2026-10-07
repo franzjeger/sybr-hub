@@ -82,6 +82,8 @@ DETAIL_KEYS = (
     "alert_detail_licence_expiring",
     "alert_detail_threats",
     "alert_detail_firmware_outdated",
+    "alert_detail_firmware_patch",
+    "alert_detail_firmware_eol",
     "alert_detail_mfa_coverage",
     "alert_detail_policy_removed",
     "alert_detail_policy_changed",
@@ -374,43 +376,33 @@ async def _check_fortigate_threats(threshold: int) -> list[dict]:
 
 
 async def _check_firmware_outdated() -> list[dict]:
-    """Check for outdated FortiGate firmware (< 7.4)."""
-    alerts: list[dict] = []
+    """Use the same stored device verdicts and severity as the Varsler page."""
     try:
-        from app.services.fortigate_api import poll_all_fortigates
+        from app.services.firmware_inventory import attention
 
-        results = await poll_all_fortigates()
-        for fg in results:
-            if fg.get("status") != "online":
-                continue
-            firmware = fg.get("firmware", "")
-            if not firmware:
-                continue
-            try:
-                parts = firmware.replace("v", "").split(".")
-                major = int(parts[0])
-                minor = int(parts[1]) if len(parts) > 1 else 0
-                if major < 7 or (major == 7 and minor < 4):
-                    cust_name = fg.get("customer_name", fg.get("customer_id", "?"))
-                    alerts.append(
-                        _detailed(
-                            {
-                                "type": "firmware_outdated",
-                                "severity": "warning",
-                                "customer": cust_name,
-                                "item": fg.get("hostname", "FortiGate"),
-                                "days_remaining": 0,
-                            },
-                            "alert_detail_firmware_outdated",
-                            firmware=firmware,
-                        )
-                    )
-            except (ValueError, IndexError):
-                pass
+        alerts = []
+        for device in await attention(None):
+            is_eol = device["status"] == "eol"
+            alerts.append(
+                _detailed(
+                    {
+                        "type": "firmware_outdated",
+                        "severity": device["category"],
+                        "customer": device["customer_name"],
+                        "item": (
+                            f"{device['vendor']}: {device['device_name']} ({device['device_key']})"
+                        ),
+                        "days_remaining": 0,
+                    },
+                    "alert_detail_firmware_eol" if is_eol else "alert_detail_firmware_patch",
+                    firmware=device["version"],
+                    latest=device["latest"],
+                )
+            )
+        return alerts
     except Exception as exc:
         logger.warning("Alert check firmware_outdated failed: %s", exc)
         raise AlertCheckFailed("firmware_outdated") from exc
-    return alerts
 
 
 async def _check_also_license_expiry(days_threshold: int) -> list[dict]:
@@ -941,16 +933,25 @@ async def run_alert_check(*, scheduled: bool = False) -> dict:
     try:
         from app.core.activity_log import log_activity
         from app.core.system_user import USERNAME
+        from app.services.notification_text import notification_text
 
-        _failed = (
-            f", {len(failed_checks)} sjekk(er) feilet: {', '.join(failed_checks)}"
-            if failed_checks
-            else ""
+        detail = notification_text(
+            "background_alert_sweep",
+            settings=settings,
+            total=len(all_alerts),
+            new=len(new_alerts),
+            channels=sent_count,
         )
+        if failed_checks:
+            detail += notification_text(
+                "background_alert_checks_failed",
+                settings=settings,
+                count=len(failed_checks),
+                checks=", ".join(failed_checks),
+            )
         log_activity(
             "alert_check",
-            detail=f"Fant {len(all_alerts)} varsler, {len(new_alerts)} nye, "
-            f"sendt via {sent_count} kanal(er){_failed}",
+            detail=detail,
             # Attributed to the system account rather than left blank: an alert
             # sweep is unattended work, and an empty actor read as "nobody" in
             # the log next to human entries.

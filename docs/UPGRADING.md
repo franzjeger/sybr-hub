@@ -22,6 +22,108 @@ service. Restore the preserved checkout and data together if rollback is needed.
 
 ---
 
+# Background notifications and Graph read cooldown (October 2026, unreleased)
+
+- Background audit, credential, task-failure and alert-sweep messages follow
+  the Hub's `ui_language`. Simple Teams cards and Slack blocks now display
+  literal text; customer names and exception text cannot supply markdown
+  formatting or mentions. Scheduled audit completion includes failed sections.
+- Parallel Graph clients for the same tenant and event loop share cooldowns
+  after HTTP 429. JSON reads, pagination and CSV reports honor Retry-After,
+  with at most three HTTP attempts and a bounded cooldown wait. Exhaustion
+  remains unavailable data. Separate scheduler processes have separate cooldowns.
+- Recovery verification must use isolated destinations. Existing unreadable
+  key backups may belong to another installation; preserve them until their
+  original wrapping secret or master key is available. A successful recovery
+  of the active installation does not prove those other copies are recoverable.
+
+# Manual app consent repair (October 2026, unreleased)
+
+- The old PKCE setup granted Graph only. It omitted Exchange Online and
+  Purview `Exchange.ManageAsApp`, Exchange Administrator for Exchange and
+  Global Reader for Purview. Upgrading the Hub does not itself change Microsoft tenant grants.
+- Reload the Hub and start customer setup (`#/setup`). Sign in with an active
+  Global Administrator for the affected tenant. The setup requests delegated
+  application-management, app-role-consent, directory-role-management and
+  organization-read scopes. Microsoft administrator sign-in is required to
+  grant the missing Exchange/Purview application permissions. The audit app
+  is not granted application-level app-role-consent permissions.
+- Setup reuses the app ID saved for that tenant, rather than selecting an app
+  by display name. Valid saved credentials and customer metadata are retained.
+  Missing/expired credentials get replacements without removing old public
+  certificates. Multiple saved app IDs for the same tenant require resolution
+  before setup will pick one. Customer-access checks run before tenant writes.
+- Every grant response is checked. Setup requests fresh Graph tokens using the
+  secret and Exchange/Purview tokens using the actual PFX, checks required
+  roles and the appropriate Exchange Administrator / Global Reader claims,
+  and verifies a Graph organization read before success. This does not prove every workload is licensed or that
+  every Exchange/Purview cmdlet is available; rerun the audit after repair.
+- Propagation is polled for two minutes. On timeout, setup reports incomplete
+  and keeps an encrypted checkpoint under `MSP_DATA_DIR/setup_pending/`.
+  Wait a few minutes and choose **New sign-in** to resume the same app and
+  credential pair. Completed staging removes this checkpoint. A failed
+  customer-registration request never shows **Setup complete**.
+- The renewal button binds sign-in to the selected customer tenant, requests
+  fresh credentials and retains local credentials while setup is underway.
+  The explicit credential-wipe endpoint retains its destructive semantics.
+- Backup Storage `AppNotRegistered` means the workload has not registered
+  this app. It is reported separately from missing Graph consent. The audit
+  does not register a backup controller, change billing or enable protection.
+
+# Manual customer sign-in recovery (October 2026, unreleased)
+
+- Reload the Hub page after upgrading. Setup now includes **New sign-in**
+  and explains server-side DNS/connection failures in its progress log.
+- In-progress sign-ins remain memory-backed and are invalidated by a server
+  restart. A code from a failed attempt on the previous version needs a new
+  sign-in; pasting that same return URL cannot restore its deleted verifier.
+- Only requests that never connected can reuse their verifier for a manual
+  retry before expiry. Once delivery is uncertain or Microsoft has answered,
+  use a new sign-in. No background retry creates a tenant application.
+
+# Live audit log follow-up (October 2026, unreleased)
+
+- Risk detections now declare `IdentityRiskEvent.Read.All` as a required read
+  permission. Existing app registrations need renewed administrator consent
+  for this permission; the audit continues with an explicit data gap until
+  it is granted. No tenant grants are changed automatically by this upgrade.
+- Certificate-based Exchange collection resolves the tenant's initial
+  `.onmicrosoft.com` domain from Graph when the saved public domain is used.
+  The public domain in customer settings and reports stays unchanged.
+  `Exchange.ManageAsApp` and the appropriate Exchange role/RBAC are still
+  prerequisites for connecting.
+- Exchange connection failures now report FAILED; an explicitly unsupported
+  GDAP certificate path still reports SKIPPED. A persisted `EXCHANGE_ERROR.txt`
+  remains a data-coverage gap when a historical report is rebuilt without
+  its original section statuses. Rebuilding does not collect missing mail data.
+
+# Correctness backlog B6–B10 (unreleased)
+
+- **`POST /api/export/excel` appends a column**, "Ikke målte verdier" in
+  Norwegian or "Unmeasured values" in English. Existing columns retain their
+  positions. Unknown metric cells are empty; the new column lists their
+  headers. Measured zeros remain numeric zeros. A script expecting exactly
+  13 columns must accept the new final column.
+- **Old metric snapshots cannot prove whether zero was measured.** Current
+  snapshots use `null` for unread sections, but older ones may have stored
+  zero. Regenerate the report for such a run to rebuild `_audit_metrics.json`
+  from its collected evidence, or run a fresh audit. The export cannot infer
+  that distinction from a stored zero alone.
+- **Scheduled audits now skip customers missing their client secret**, as
+  bulk audits already did. Restore the secret in the customer's setup to
+  include it again. GDAP customers need a tenant id but no customer app secret.
+- **Automatic firmware alerts use the saved inventory**, including UniFi,
+  and no longer poll FortiGates during the alert sweep. The daily firmware
+  job, network audits and "Oppdater nå" refresh these readings. End-of-life
+  verdicts remain critical after a failed read, matching Varsler; unknown
+  devices do not become firmware findings.
+- **Known master-key configuration failures exit non-zero without a
+  lifespan traceback**, through `main.py` and direct Uvicorn startup. The
+  message names the recovery settings. Unexpected exceptions retain their
+  normal diagnostics.
+
+---
+
 # Font served by the hub (unreleased)
 
 - **The interface no longer loads anything from Google.** Cairo is served
@@ -908,3 +1010,53 @@ will run against an upgraded database. It will ignore `users.all_customers`
 and fall back to the previous "no rows means unrestricted" behaviour, which is
 more permissive, not less. Nothing else in this change is persisted in a form
 an older build cannot read.
+
+
+## Initial administrator access (schema 29)
+
+First-run setup now gives the initial human administrator `all_customers`,
+`can_write` and `tenant_write` in the account-creation transaction. That first
+account can save integration credentials and manage permissions immediately.
+Additional accounts still start without write capabilities.
+
+On upgrade, migration 29 grants all three capabilities to the earliest
+surviving human account, ordered by creation time and insertion order, only
+if it is still an active administrator. System accounts are excluded. A
+disabled or demoted first account is left unchanged, without selecting a
+later administrator instead. This is a one-time access repair; later explicit
+revocations survive restarts. If recovery is still necessary, an operator can
+use `scripts/grant_write.py` against the installation's configured database.
+Reload the browser after upgrading to refresh the account capabilities.
+
+## Policy workspace
+
+The new library is bundled as `app/policy_catalog/library.json` and requires
+no database migration or Microsoft consent. Customer intent and review notes
+are stored in the customer's encrypted `policy_plan.json`; include the whole
+customer directory in backups. Do not remove a customer plan to resolve a
+read error: restore the original encrypted data and its master key.
+
+New customers see a proposed package, with no inferred compliance. Saving
+requires a technician or administrator with customer access and `can_write`.
+Tenant changes retain the separate `tenant_write` requirement. Reviews are
+human evidence, not automated measurements; library content changes and
+expired review dates make them stale. Licence requirements and pilot scopes
+must be checked before applying a recommendation in Microsoft administration.
+
+Browser report selections carry `X-Audit-Tab`. A page reload starts a new
+selection identity; reselect historical runs after reloading. Reverse proxies
+must forward this header. Clients without it retain the legacy user/customer
+selection behavior.
+
+
+### Quality plan G35–41
+
+No new dependency or database migration is required for these quality changes.
+Connection-check evidence is encrypted in application settings; existing saved
+credentials initially display as saved/unverified. A supported successful check
+verifies that configuration for 24 hours; editing its credentials or endpoint
+invalidates the result. IT Glue and SMTP tests use stored masked secrets.
+Existing audit files have no risk-coverage evidence and remain unknown; the next
+audit writes the scorer's actual coverage reasons beside its score.
+Policy drafts are kept only in the signed-in tab's memory, per customer, and
+cleared at logout. A full page exit warns about unsaved changes.

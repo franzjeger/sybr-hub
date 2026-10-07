@@ -102,7 +102,9 @@ class AuditCollector:
         self.out_dir.mkdir(parents=True, exist_ok=True)
 
         async with self.auth as auth:
-            async with GraphClient(auth.credential) as graph:
+            async with GraphClient(
+                auth.credential, tenant_id=getattr(auth, "tenant_id", None)
+            ) as graph:
                 # ── 1. Collect EXO data via PS helper (async subprocess) ─────
                 exo_enabled = self._is_enabled("Exchange Online")
                 exo_task = (

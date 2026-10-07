@@ -17,10 +17,11 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 
-from app.core.config import load_app_settings
 from app.core.exceptions import IntegrationError, ValidationError
 from app.models.integrations import MyITProcessTestRequest
 from app.models.user import Role
+from app.web.connection_checks import connection_check
+from app.web.connection_checks import connection_settings as load_app_settings
 from app.web.i18n import refusal
 from app.web.middleware.auth import get_current_user, require_role
 
@@ -43,6 +44,9 @@ def _client_from_settings():
 
 
 @router.post("/myitprocess/test")
+@connection_check(
+    "myitprocess", {"api_key": "myitprocess_api_key", "base_url": "myitprocess_base_url"}
+)
 async def myitprocess_test(
     body: MyITProcessTestRequest | None = None, _user=Depends(require_role(Role.admin))
 ):
@@ -52,9 +56,13 @@ async def myitprocess_test(
     # An unsaved key can be tested directly, so an operator can check a key
     # before storing it. Same shape as /autotask/test. The body is optional.
     if body and body.api_key:
+        saved = load_app_settings()
+        masked = body.api_key == "••••••"
         client = MyITProcessClient(
-            api_key=body.api_key,
-            base_url=body.base_url,
+            api_key=saved.get("myitprocess_api_key", "") if masked else body.api_key,
+            base_url=saved.get("myitprocess_base_url", "")
+            if masked and "base_url" not in body.model_fields_set
+            else body.base_url,
         )
     else:
         client = _client_from_settings()

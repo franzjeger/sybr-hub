@@ -1,0 +1,2418 @@
+{
+  "version": "1.0.0",
+  "reviewed_on": "2026-10-04",
+  "areas": [
+    {
+      "id": "entra",
+      "name": {
+        "no": "Entra ID",
+        "en": "Entra ID"
+      },
+      "portal": "https://entra.microsoft.com"
+    },
+    {
+      "id": "ca",
+      "name": {
+        "no": "Conditional Access",
+        "en": "Conditional Access"
+      },
+      "portal": "https://entra.microsoft.com"
+    },
+    {
+      "id": "intune",
+      "name": {
+        "no": "Intune",
+        "en": "Intune"
+      },
+      "portal": "https://intune.microsoft.com"
+    },
+    {
+      "id": "sharepoint",
+      "name": {
+        "no": "SharePoint",
+        "en": "SharePoint"
+      },
+      "portal": "https://admin.microsoft.com/sharepoint"
+    },
+    {
+      "id": "onedrive",
+      "name": {
+        "no": "OneDrive",
+        "en": "OneDrive"
+      },
+      "portal": "https://admin.microsoft.com/sharepoint"
+    },
+    {
+      "id": "teams",
+      "name": {
+        "no": "Teams",
+        "en": "Teams"
+      },
+      "portal": "https://admin.teams.microsoft.com"
+    },
+    {
+      "id": "purview",
+      "name": {
+        "no": "Microsoft Purview",
+        "en": "Microsoft Purview"
+      },
+      "portal": "https://purview.microsoft.com"
+    },
+    {
+      "id": "exchange",
+      "name": {
+        "no": "Exchange og e-post",
+        "en": "Exchange and email"
+      },
+      "portal": "https://security.microsoft.com"
+    },
+    {
+      "id": "defender",
+      "name": {
+        "no": "Microsoft Defender",
+        "en": "Microsoft Defender"
+      },
+      "portal": "https://security.microsoft.com"
+    }
+  ],
+  "packages": [
+    {
+      "id": "foundation",
+      "name": {
+        "no": "Grunnsikring",
+        "en": "Security foundation"
+      },
+      "description": {
+        "no": "Identitet, MFA, e-post og sporbarhet før videre herding.",
+        "en": "Identity, MFA, email and traceability before further hardening."
+      },
+      "audience": {
+        "no": "Alle kunder, med lisens og scope avklart.",
+        "en": "All customers with licensing and scope confirmed."
+      },
+      "policy_ids": [
+        "entra-emergency",
+        "purview-audit",
+        "ca-legacy",
+        "ca-mfa",
+        "exo-dkim",
+        "exo-forwarding",
+        "exo-presets",
+        "intune-encryption",
+        "intune-firewall"
+      ]
+    },
+    {
+      "id": "managed-workplace",
+      "name": {
+        "no": "Sybr anbefalt arbeidsplass",
+        "en": "Sybr recommended workplace"
+      },
+      "description": {
+        "no": "En samlet standard for identitet, enheter, samhandling og informasjon.",
+        "en": "A complete standard for identity, devices, collaboration and information."
+      },
+      "audience": {
+        "no": "Administrerte Microsoft 365-miljøer; vurder Intune og Purview-lisensene.",
+        "en": "Managed Microsoft 365 estates; check Intune and Purview licensing."
+      },
+      "policy_ids": [
+        "entra-consent",
+        "entra-emergency",
+        "entra-guests",
+        "entra-methods",
+        "od-offboarding",
+        "purview-audit",
+        "ca-legacy",
+        "ca-mfa",
+        "defender-cloud",
+        "defender-onboarding",
+        "exo-dkim",
+        "exo-forwarding",
+        "exo-presets",
+        "intune-baseline",
+        "intune-compliance",
+        "intune-encryption",
+        "intune-firewall",
+        "intune-laps",
+        "intune-mam",
+        "intune-updates",
+        "od-kfm",
+        "od-sharing",
+        "purview-labels",
+        "spo-default-link",
+        "spo-sharing",
+        "spo-versioning",
+        "teams-apps",
+        "teams-external",
+        "teams-guests",
+        "teams-meetings"
+      ],
+      "recommended": true
+    },
+    {
+      "id": "collaboration",
+      "name": {
+        "no": "Sikker samhandling",
+        "en": "Secure collaboration"
+      },
+      "description": {
+        "no": "SharePoint, Teams, OneDrive og Purview med samordnede delingsregler.",
+        "en": "SharePoint, Teams, OneDrive and Purview with coordinated sharing rules."
+      },
+      "audience": {
+        "no": "Kunder med eksterne samarbeidspartnere og følsomme arbeidsdokumenter.",
+        "en": "Customers with external partners and sensitive work documents."
+      },
+      "policy_ids": [
+        "entra-consent",
+        "entra-guests",
+        "od-offboarding",
+        "purview-audit",
+        "od-kfm",
+        "od-sharing",
+        "purview-labels",
+        "spo-default-link",
+        "spo-sharing",
+        "spo-versioning",
+        "teams-apps",
+        "teams-external",
+        "teams-guests",
+        "teams-meetings",
+        "purview-dlp",
+        "purview-retention"
+      ]
+    },
+    {
+      "id": "advanced",
+      "name": {
+        "no": "Utvidet beskyttelse",
+        "en": "Advanced protection"
+      },
+      "description": {
+        "no": "Arbeidsplassstandarden pluss risikosignaler, sterkere tilgang og ASR.",
+        "en": "The workplace standard plus risk signals, stronger access and ASR."
+      },
+      "audience": {
+        "no": "Kunder med høyere risiko og nødvendige tilleggslisenser. Ingen sertifiseringsgaranti.",
+        "en": "Higher-risk customers with required add-on licences. No certification guarantee."
+      },
+      "policy_ids": [
+        "entra-consent",
+        "entra-emergency",
+        "entra-guests",
+        "entra-methods",
+        "od-offboarding",
+        "purview-audit",
+        "ca-legacy",
+        "ca-mfa",
+        "defender-cloud",
+        "defender-onboarding",
+        "exo-dkim",
+        "exo-forwarding",
+        "exo-presets",
+        "intune-baseline",
+        "intune-compliance",
+        "intune-encryption",
+        "intune-firewall",
+        "intune-laps",
+        "intune-mam",
+        "intune-updates",
+        "od-kfm",
+        "od-sharing",
+        "purview-labels",
+        "spo-default-link",
+        "spo-sharing",
+        "spo-versioning",
+        "teams-apps",
+        "teams-external",
+        "teams-guests",
+        "teams-meetings",
+        "ca-admin-strength",
+        "ca-compliant",
+        "ca-signin-risk",
+        "ca-user-risk",
+        "defender-asr",
+        "entra-pim",
+        "purview-dlp",
+        "purview-retention",
+        "spo-unmanaged"
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "id": "entra-emergency",
+      "area": "entra",
+      "name": {
+        "no": "Nødtilgang som virker",
+        "en": "Working emergency access"
+      },
+      "desired": {
+        "no": "Minst to skybaserte nødkontoer med phishing-resistent autentisering, sikkert oppbevarte nøkler og varsling ved bruk.",
+        "en": "At least two cloud-only emergency accounts with phishing-resistant authentication, securely held keys and alerts on use."
+      },
+      "why": {
+        "no": "Bevar administrativ tilgang ved feil i normal innlogging.",
+        "en": "Preserve administrative access when normal sign-in fails."
+      },
+      "impact": {
+        "no": "Unnta nødkontoene fra CA som kan blokkere dem; unntak betyr ikke at MFA skal være av.",
+        "en": "Exclude emergency accounts from blocking CA; an exclusion does not mean disabling MFA."
+      },
+      "verify": {
+        "no": "Test begge kontoene og kontroller at varsling utløses.",
+        "en": "Test both accounts and confirm alerts fire."
+      },
+      "rollback": {
+        "no": "Behold en testet nødkonto mens oppsettet endres.",
+        "en": "Keep one tested emergency account throughout changes."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "essential",
+      "stage": 1,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/security-emergency-access"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "To skybaserte kontoer på onmicrosoft.com-domenet; ingen føderering",
+          "en": "Two cloud-only accounts on the onmicrosoft.com domain; no federation"
+        },
+        {
+          "no": "FIDO2-nøkler eller sertifikatbasert MFA; oppbevar uavhengig av vanlig administratorutstyr",
+          "en": "FIDO2 keys or certificate-based MFA; store separately from everyday administrator devices"
+        },
+        {
+          "no": "Unnta fra CA-regler som kan blokkere gjenoppretting; varsle og test tilgang regelmessig",
+          "en": "Exclude from CA rules that can block recovery; alert on use and test access regularly"
+        }
+      ]
+    },
+    {
+      "id": "entra-methods",
+      "area": "entra",
+      "name": {
+        "no": "Phishing-resistente innloggingsmetoder",
+        "en": "Phishing-resistant sign-in methods"
+      },
+      "desired": {
+        "no": "Tilby passkeys/FIDO2 og Windows Hello. Registrer administratorene først; planlegg gjenoppretting.",
+        "en": "Offer passkeys/FIDO2 and Windows Hello. Enrol administrators first and plan recovery."
+      },
+      "why": {
+        "no": "Reduser risikoen fra stjålne passord og falske innloggingssider.",
+        "en": "Reduce exposure to stolen passwords and fake sign-in pages."
+      },
+      "impact": {
+        "no": "Brukerne må registrere en støttet metode før strengere CA innføres.",
+        "en": "Users need a supported method before stronger CA is enforced."
+      },
+      "verify": {
+        "no": "Pilotbrukere kan logge inn og gjenopprette tilgang.",
+        "en": "Pilot users can sign in and recover access."
+      },
+      "rollback": {
+        "no": "Tilbakestill pilotens metodescope, og behold fungerende registreringer.",
+        "en": "Revert pilot method scope while keeping working registrations."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 1,
+      "dependencies": [
+        "entra-emergency"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-enable-passkey-fido2"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Authentication methods: aktiver FIDO2/passkeys for pilotgruppen",
+          "en": "Authentication methods: enable FIDO2/passkeys for the pilot group"
+        },
+        {
+          "no": "Bruk Temporary Access Pass for kontrollert førstegangsregistrering",
+          "en": "Use Temporary Access Pass for controlled initial registration"
+        },
+        {
+          "no": "Fjern foreldede metoder først etter bekreftet registrering og gjenoppretting",
+          "en": "Remove obsolete methods only after verified registration and recovery"
+        }
+      ]
+    },
+    {
+      "id": "entra-consent",
+      "area": "entra",
+      "name": {
+        "no": "Kontrollert appsamtykke",
+        "en": "Controlled app consent"
+      },
+      "desired": {
+        "no": "Begrens brukersamtykke til godkjente lavrisikotillatelser; bruk en administrativ godkjenningsprosess.",
+        "en": "Limit user consent to approved low-risk permissions and use an admin approval process."
+      },
+      "why": {
+        "no": "Hindre uoversiktlige apper med tilgang til kundedata.",
+        "en": "Prevent unmanaged apps receiving customer data access."
+      },
+      "impact": {
+        "no": "Nye apper kan trenge godkjenning; kartlegg eksisterende integrasjoner.",
+        "en": "New apps may need approval; inventory existing integrations."
+      },
+      "verify": {
+        "no": "Test en godkjent app og en app som skal kreve godkjenning.",
+        "en": "Test an approved app and one requiring approval."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere samtykkeregler, ikke alle gamle grant automatisk.",
+        "en": "Restore previous consent rules without blindly restoring old grants."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 1,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-user-consent"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "User consent: bare verifiserte utgivere og valgte lavrisikotillatelser, eller administratorgodkjenning",
+          "en": "User consent: only verified publishers and selected low-risk permissions, or admin approval"
+        },
+        {
+          "no": "Admin consent workflow: navngitte kontrollører med ansvar for køen",
+          "en": "Admin consent workflow: named reviewers responsible for the queue"
+        }
+      ]
+    },
+    {
+      "id": "entra-pim",
+      "area": "entra",
+      "name": {
+        "no": "Tidsbegrenset administratortilgang",
+        "en": "Time-bound administrator access"
+      },
+      "desired": {
+        "no": "Bruk PIM med kvalifiserte roller, tidsbegrenset aktivering og begrunnelse.",
+        "en": "Use PIM with eligible roles, time-limited activation and justification."
+      },
+      "why": {
+        "no": "Reduser stående privilegier.",
+        "en": "Reduce standing privileges."
+      },
+      "impact": {
+        "no": "Administratorene må kunne aktivere roller, også når godkjenner er borte.",
+        "en": "Administrators need a working activation path when approvers are absent."
+      },
+      "verify": {
+        "no": "Test aktivering, utløp og nødtilgang.",
+        "en": "Test activation, expiry and emergency access."
+      },
+      "rollback": {
+        "no": "Behold nødvendig administrativ tilgang før roller flyttes tilbake.",
+        "en": "Preserve required admin access before reverting assignments."
+      },
+      "license": {
+        "no": "Entra ID P2 / Entra ID Governance",
+        "en": "Entra ID P2 / Entra ID Governance"
+      },
+      "tier": "extended",
+      "stage": 3,
+      "dependencies": [
+        "entra-emergency"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/id-governance/privileged-identity-management/pim-configure"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Administrative roller: eligible som normalvalg; behold testet nødtilgang",
+          "en": "Administrative roles: eligible by default; retain tested emergency access"
+        },
+        {
+          "no": "Sybr pilot: maks 8 timer, MFA og begrunnelse; godkjenning for Global Administrator",
+          "en": "Sybr pilot: maximum 8 hours, MFA and justification; approval for Global Administrator"
+        }
+      ]
+    },
+    {
+      "id": "entra-guests",
+      "area": "entra",
+      "name": {
+        "no": "Gjester med eier og utløpskontroll",
+        "en": "Guest ownership and access review"
+      },
+      "desired": {
+        "no": "Gi gjester en intern eier og jevnlig vurdering av fortsatt tilgang.",
+        "en": "Give guests an internal owner and regularly review continuing access."
+      },
+      "why": {
+        "no": "Avslutt tilgang når samarbeidet er over.",
+        "en": "End access when collaboration ends."
+      },
+      "impact": {
+        "no": "Automatiske access reviews krever tilleggslisens; bruk manuell kontroll ellers.",
+        "en": "Automated access reviews require additional licensing; review manually otherwise."
+      },
+      "verify": {
+        "no": "Kontroller et utvalg gjester mot avtalt eier og siste vurdering.",
+        "en": "Check a sample against the assigned owner and latest review."
+      },
+      "rollback": {
+        "no": "Gjenopprett bare tilgang eieren bekrefter at fortsatt trengs.",
+        "en": "Restore only access the owner confirms is still needed."
+      },
+      "license": {
+        "no": "Entra ID; automatiserte tilgangskontroller krever Entra ID Governance",
+        "en": "Entra ID; automated access reviews require Entra ID Governance"
+      },
+      "tier": "recommended",
+      "stage": 1,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/id-governance/access-reviews-overview"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Utpek intern eier og gjennomgå tilgang minst kvartalsvis som Sybr-startpunkt",
+          "en": "Assign an internal owner and review access at least quarterly as a Sybr starting point"
+        },
+        {
+          "no": "Fjern foreldede tilganger etter bekreftelse fra eier; skill mellom invitasjon og ressurstilgang",
+          "en": "Remove obsolete access after owner confirmation; distinguish invitations from resource access"
+        }
+      ]
+    },
+    {
+      "id": "ca-mfa",
+      "area": "ca",
+      "name": {
+        "no": "MFA for alle brukere",
+        "en": "MFA for all users"
+      },
+      "desired": {
+        "no": "Krev MFA for alle brukere og ressurser; dokumenter nødvendige unntak. Start i rapporteringsmodus.",
+        "en": "Require MFA for all users and resources, document necessary exclusions and start report-only."
+      },
+      "why": {
+        "no": "En registrert metode beskytter ikke brukeren uten et håndhevet krav.",
+        "en": "A registered method does not protect a user without enforcement."
+      },
+      "impact": {
+        "no": "MFA kreves ved innlogging; kontroller integrasjoner og gjestescenarioer.",
+        "en": "Sign-ins require MFA; check integrations and guest scenarios."
+      },
+      "verify": {
+        "no": "Les rapporteringslogg og test både vanlig bruker og nødkonto.",
+        "en": "Read report-only logs and test a normal user and an emergency account."
+      },
+      "rollback": {
+        "no": "Sett den nye policyen tilbake i rapporteringsmodus.",
+        "en": "Return the new policy to report-only."
+      },
+      "license": {
+        "no": "Entra ID P1",
+        "en": "Entra ID P1"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [
+        "entra-emergency"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-all-users-mfa-strength"
+        }
+      ],
+      "deployment": {
+        "kind": "ca",
+        "template_id": "sybr-iam-core",
+        "policy_name": "Sybr — Require MFA for all users"
+      },
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Users: alle brukere med dokumentert nødtilgangsunntak",
+          "en": "Users: all users with documented emergency-access exclusions"
+        },
+        {
+          "no": "Target resources: alle ressurser; Grant: require multifactor authentication",
+          "en": "Target resources: all resources; Grant: require multifactor authentication"
+        },
+        {
+          "no": "State: report-only, deretter pilot og håndheving etter loggkontroll",
+          "en": "State: report-only, then pilot and enforcement after log review"
+        }
+      ]
+    },
+    {
+      "id": "ca-legacy",
+      "area": "ca",
+      "name": {
+        "no": "Blokker eldre autentisering",
+        "en": "Block legacy authentication"
+      },
+      "desired": {
+        "no": "Blokker eldre klientprotokoller etter kartlegging av interaktive og ikke-interaktive pålogginger.",
+        "en": "Block legacy client protocols after examining interactive and non-interactive sign-ins."
+      },
+      "why": {
+        "no": "Eldre autentisering kan omgå MFA.",
+        "en": "Legacy authentication can bypass MFA."
+      },
+      "impact": {
+        "no": "Skrivere og eldre klienter kan slutte å sende eller lese e-post.",
+        "en": "Printers and old clients may stop sending or reading email."
+      },
+      "verify": {
+        "no": "Test klienter og bekreft at den forventede legacy-påloggingen blokkeres.",
+        "en": "Test clients and confirm expected legacy sign-ins are blocked."
+      },
+      "rollback": {
+        "no": "Gå tilbake til rapporteringsmodus og lag et tidsbegrenset, begrunnet unntak.",
+        "en": "Return to report-only and create a justified, time-limited exception."
+      },
+      "license": {
+        "no": "Entra ID P1",
+        "en": "Entra ID P1"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [
+        "entra-emergency"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-block-legacy-authentication"
+        }
+      ],
+      "deployment": {
+        "kind": "ca",
+        "template_id": "sybr-iam-core",
+        "policy_name": "Sybr — Block legacy authentication"
+      },
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Client apps: Exchange ActiveSync clients og Other clients; Grant: block",
+          "en": "Client apps: Exchange ActiveSync clients and Other clients; Grant: block"
+        },
+        {
+          "no": "Alle brukere og ressurser; kontroller tjenestekontoer og påloggingslogger før håndheving",
+          "en": "All users and resources; check service accounts and sign-in logs before enforcement"
+        }
+      ]
+    },
+    {
+      "id": "ca-admin-strength",
+      "area": "ca",
+      "name": {
+        "no": "Phishing-resistent MFA for administratorer",
+        "en": "Phishing-resistant MFA for administrators"
+      },
+      "desired": {
+        "no": "Krev phishing-resistent autentiseringsstyrke for administrative roller.",
+        "en": "Require phishing-resistant authentication strength for administrator roles."
+      },
+      "why": {
+        "no": "Administratorenes tilgang fortjener et sterkere krav enn vanlig MFA.",
+        "en": "Privileged access needs stronger authentication than ordinary MFA."
+      },
+      "impact": {
+        "no": "SMS og vanlig push oppfyller ikke dette kravet; registrer støttede metoder først.",
+        "en": "SMS and ordinary push do not satisfy this requirement; enrol supported methods first."
+      },
+      "verify": {
+        "no": "Test passkey/Hello og sjekk at en svakere metode ikke godtas.",
+        "en": "Test passkey/Hello and check that a weaker method is rejected."
+      },
+      "rollback": {
+        "no": "Tilbakestill bare den nye styrkepolicyen til rapporteringsmodus.",
+        "en": "Return only the new strength policy to report-only."
+      },
+      "license": {
+        "no": "Entra ID P1",
+        "en": "Entra ID P1"
+      },
+      "tier": "recommended",
+      "stage": 3,
+      "dependencies": [
+        "entra-methods",
+        "entra-emergency"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-admin-phish-resistant-mfa"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Users: administrative directory roles; Target resources: alle ressurser",
+          "en": "Users: administrative directory roles; Target resources: all resources"
+        },
+        {
+          "no": "Grant: require authentication strength, phishing-resistant MFA",
+          "en": "Grant: require authentication strength, phishing-resistant MFA"
+        },
+        {
+          "no": "Registrer sterke metoder og test nødtilgang før håndheving",
+          "en": "Register strong methods and test emergency access before enforcement"
+        }
+      ]
+    },
+    {
+      "id": "ca-compliant",
+      "area": "ca",
+      "name": {
+        "no": "Tilgang fra samsvarende enheter",
+        "en": "Access from compliant devices"
+      },
+      "desired": {
+        "no": "Krev samsvarende enhet for avtalte ressurser og brukergrupper etter at Intune-samsvar virker.",
+        "en": "Require a compliant device for agreed resources and user groups once Intune compliance works."
+      },
+      "why": {
+        "no": "Knytt tilgang til faktisk enhetstilstand.",
+        "en": "Tie access to actual device posture."
+      },
+      "impact": {
+        "no": "Uadministrerte enheter kan miste tilgang; avklar BYOD og nødtilgang.",
+        "en": "Unmanaged devices may lose access; resolve BYOD and emergency access."
+      },
+      "verify": {
+        "no": "Test samsvarende, ikke-samsvarende og nyinnrullerte enheter.",
+        "en": "Test compliant, noncompliant and newly enrolled devices."
+      },
+      "rollback": {
+        "no": "Sett den nye CA-policyen i rapporteringsmodus uten å fjerne Intune-policyer.",
+        "en": "Return new CA to report-only without removing Intune policies."
+      },
+      "license": {
+        "no": "Entra ID P1 + Intune Plan 1",
+        "en": "Entra ID P1 + Intune Plan 1"
+      },
+      "tier": "recommended",
+      "stage": 3,
+      "dependencies": [
+        "intune-compliance",
+        "entra-emergency"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-all-users-device-compliance"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Grant: require device to be marked as compliant; pilotgruppe før bredt scope",
+          "en": "Grant: require device to be marked as compliant; pilot group before broad scope"
+        },
+        {
+          "no": "Avklar gjester, BYOD, mobilapper og nødvendige plattformer; hybrid join alene er ikke samsvar",
+          "en": "Confirm guests, BYOD, mobile apps and required platforms; hybrid join alone is not compliance"
+        }
+      ]
+    },
+    {
+      "id": "ca-signin-risk",
+      "area": "ca",
+      "name": {
+        "no": "Risikobasert innlogging",
+        "en": "Risk-based sign-in"
+      },
+      "desired": {
+        "no": "Krev MFA ved middels eller høy påloggingsrisiko. Vurder sterkere tiltak for høy risiko.",
+        "en": "Require MFA for medium or high sign-in risk and assess stronger controls for high risk."
+      },
+      "why": {
+        "no": "Bruk risikosignaler til å håndtere mistenkelige innlogginger.",
+        "en": "Use risk signals to handle suspicious sign-ins."
+      },
+      "impact": {
+        "no": "Krever P2 og registrerte metoder; risikotilfeller trenger en støtteprosess.",
+        "en": "Requires P2 and enrolled methods; risk cases need a support process."
+      },
+      "verify": {
+        "no": "Kontroller risikorapporter og forventet policyutfall før håndheving.",
+        "en": "Check risk reports and expected policy results before enforcement."
+      },
+      "rollback": {
+        "no": "Gå tilbake til rapporteringsmodus og behold hendelsesoppfølgingen.",
+        "en": "Return to report-only while keeping incident follow-up."
+      },
+      "license": {
+        "no": "Entra ID P2",
+        "en": "Entra ID P2"
+      },
+      "tier": "extended",
+      "stage": 3,
+      "dependencies": [
+        "ca-mfa"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-risk-based-sign-in"
+        }
+      ],
+      "deployment": {
+        "kind": "ca",
+        "template_id": "sybr-iam-riskbased",
+        "policy_name": "Sybr — Require MFA for risky sign-ins"
+      },
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Sign-in risk: medium og high; Grant: require MFA",
+          "en": "Sign-in risk: medium and high; Grant: require MFA"
+        },
+        {
+          "no": "Start i report-only; avklar overvåking, ekskluderinger og håndtering av reelle funn",
+          "en": "Start in report-only; confirm monitoring, exclusions and handling of real detections"
+        }
+      ]
+    },
+    {
+      "id": "ca-user-risk",
+      "area": "ca",
+      "name": {
+        "no": "Utbedring av høyrisikobrukere",
+        "en": "Remediation for high-risk users"
+      },
+      "desired": {
+        "no": "Krev sikkert passordbytte ved høy brukerrisiko, med SSPR og nødvendig hybridstøtte avklart.",
+        "en": "Require secure password change for high user risk with SSPR and hybrid prerequisites resolved."
+      },
+      "why": {
+        "no": "Håndter identiteter som kan være kompromittert.",
+        "en": "Handle potentially compromised identities."
+      },
+      "impact": {
+        "no": "Brukere må kunne fullføre SSPR; test passord-writeback i hybridmiljøer.",
+        "en": "Users must be able to complete SSPR; test password writeback in hybrid environments."
+      },
+      "verify": {
+        "no": "Kontroller at berørt bruker får en fungerende utbedringsflyt.",
+        "en": "Check that affected users have a working remediation flow."
+      },
+      "rollback": {
+        "no": "Gå tilbake til rapportering og utbedre hendelsen manuelt.",
+        "en": "Return to report-only and remediate the incident manually."
+      },
+      "license": {
+        "no": "Entra ID P2",
+        "en": "Entra ID P2"
+      },
+      "tier": "extended",
+      "stage": 3,
+      "dependencies": [
+        "ca-mfa"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-risk-based-user"
+        }
+      ],
+      "deployment": {
+        "kind": "ca",
+        "template_id": "sybr-iam-riskbased",
+        "policy_name": "Sybr — Require password change for high-risk users"
+      },
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "User risk: high; Grant: MFA og require password change",
+          "en": "User risk: high; Grant: MFA and require password change"
+        },
+        {
+          "no": "Bekreft SSPR, forhåndsregistrering og hybrid password writeback der det trengs",
+          "en": "Verify SSPR, preregistration and hybrid password writeback where needed"
+        }
+      ]
+    },
+    {
+      "id": "intune-baseline",
+      "area": "intune",
+      "name": {
+        "no": "Windows-baseline med én innstillingseier",
+        "en": "Windows baseline with one owner per setting"
+      },
+      "desired": {
+        "no": "Bruk en støttet Microsoft-baseline; la hver innstilling eies av én profil. Unngå preview i produksjon.",
+        "en": "Use a supported Microsoft baseline and one profile owner per setting. Avoid preview in production."
+      },
+      "why": {
+        "no": "En kjent grunnkonfigurasjon reduserer avvik og motstridende profiler.",
+        "en": "A known configuration reduces drift and conflicting profiles."
+      },
+      "impact": {
+        "no": "Sammenlign først med GPO, Settings Catalog og endepunktspolicyer.",
+        "en": "Compare with GPO, Settings Catalog and endpoint policies first."
+      },
+      "verify": {
+        "no": "Pilotens innstillingsrapport har ingen uløste konflikter.",
+        "en": "Pilot setting reports have no unresolved conflicts."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere verdier; å fjerne tildeling gjenoppretter ikke nødvendigvis innstillingene.",
+        "en": "Restore previous values; unassigning a profile may not restore settings."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/device-security/security-baselines/overview"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Endpoint security > Security baselines: velg gjeldende støttet utgave",
+          "en": "Endpoint security > Security baselines: choose the current supported release"
+        },
+        {
+          "no": "Tildel en enhetsbasert pilotgruppe; avklar overlapp med GPO og andre profiler",
+          "en": "Assign a device pilot group; resolve overlap with GPO and other profiles"
+        }
+      ]
+    },
+    {
+      "id": "intune-compliance",
+      "area": "intune",
+      "name": {
+        "no": "Samsvar som forutsetning for tilgang",
+        "en": "Compliance as an access prerequisite"
+      },
+      "desired": {
+        "no": "Krev kryptering, aktiv antivirus/brannmur og støttet OS. Velg frist og handling for manglende samsvar.",
+        "en": "Require encryption, active antivirus/firewall and a supported OS; choose grace periods and noncompliance actions."
+      },
+      "why": {
+        "no": "Samsvar måler kravene; konfigurasjonsprofiler setter verdiene.",
+        "en": "Compliance measures requirements; configuration profiles set values."
+      },
+      "impact": {
+        "no": "Enhetene trenger tid til innrullering og korrigering før CA kan blokkere dem.",
+        "en": "Devices need time for enrolment and remediation before CA blocks them."
+      },
+      "verify": {
+        "no": "Kontroller samsvar per enhet og test varsling og frist.",
+        "en": "Check per-device compliance and test notifications and grace periods."
+      },
+      "rollback": {
+        "no": "Tilbakestill nye krav og hold berørte CA-policyer i rapportering.",
+        "en": "Revert new requirements and keep affected CA report-only."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [
+        "intune-encryption",
+        "intune-firewall"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/intune-service/protect/device-compliance-get-started"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Enheter uten tildelt compliance policy: Not compliant; pilotér konsekvensen",
+          "en": "Devices without an assigned compliance policy: Not compliant; pilot the impact"
+        },
+        {
+          "no": "Windows: BitLocker, Secure Boot, antivirus og brannmur; støttet OS-versjon",
+          "en": "Windows: BitLocker, Secure Boot, antivirus and firewall; supported OS version"
+        },
+        {
+          "no": "Sybr pilot: varsle straks, merk noncompliant etter 7 dager; avtal frist med kunden",
+          "en": "Sybr pilot: notify immediately, mark noncompliant after 7 days; agree the grace period with the customer"
+        }
+      ]
+    },
+    {
+      "id": "intune-encryption",
+      "area": "intune",
+      "name": {
+        "no": "BitLocker og gjenopprettingsnøkler",
+        "en": "BitLocker and recovery keys"
+      },
+      "desired": {
+        "no": "Aktiver BitLocker med gjenopprettingsnøkkel lagret i Entra ID før bred utrulling.",
+        "en": "Enable BitLocker with recovery keys escrowed in Entra ID before broad rollout."
+      },
+      "why": {
+        "no": "Beskytt data på tapte enheter uten å miste gjenoppretting.",
+        "en": "Protect lost-device data while preserving recovery."
+      },
+      "impact": {
+        "no": "Avklar maskinvarestøtte, eksisterende kryptering og rettigheter til nøkkeloppslag.",
+        "en": "Check hardware, existing encryption and recovery-key access."
+      },
+      "verify": {
+        "no": "Test kryptert disk og oppslag av riktig gjenopprettingsnøkkel.",
+        "en": "Test disk encryption and retrieval of the correct recovery key."
+      },
+      "rollback": {
+        "no": "Behold nøklene og gjenopprett tidligere policy; ikke dekrypter automatisk.",
+        "en": "Keep keys and restore previous policy; do not automatically decrypt."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/intune-service/protect/encrypt-devices"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Endpoint security > Disk encryption: BitLocker med Entra ID recovery escrow",
+          "en": "Endpoint security > Disk encryption: BitLocker with Entra ID recovery escrow"
+        },
+        {
+          "no": "Kontroller recovery key og test gjenoppretting før silent encryption utvides",
+          "en": "Verify recovery key and test recovery before expanding silent encryption"
+        }
+      ]
+    },
+    {
+      "id": "intune-firewall",
+      "area": "intune",
+      "name": {
+        "no": "Brannmur på alle nettverksprofiler",
+        "en": "Firewall on all network profiles"
+      },
+      "desired": {
+        "no": "Aktiver brannmur for domene, privat og offentlig profil med dokumenterte unntak.",
+        "en": "Enable firewall on domain, private and public profiles with documented exceptions."
+      },
+      "why": {
+        "no": "Begrens uønsket innkommende trafikk.",
+        "en": "Restrict unwanted inbound traffic."
+      },
+      "impact": {
+        "no": "Fjernverktøy og fagapplikasjoner kan trenge eksplisitte regler.",
+        "en": "Remote tools and business applications may need explicit rules."
+      },
+      "verify": {
+        "no": "Test fjernsupport og nødvendige porter fra de aktuelle nettene.",
+        "en": "Test remote support and required ports from relevant networks."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere regler fremfor å slå av all brannmur.",
+        "en": "Restore previous rules rather than disabling the firewall."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/intune-service/protect/endpoint-security-firewall-policy"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Microsoft Defender Firewall: Enabled for Domain, Private og Public",
+          "en": "Microsoft Defender Firewall: Enabled for Domain, Private and Public"
+        },
+        {
+          "no": "Innkommende forbindelser blokkeres som normalvalg; opprett spesifikke unntak for nødvendige tjenester",
+          "en": "Block inbound connections by default; create specific exceptions for required services"
+        }
+      ]
+    },
+    {
+      "id": "intune-updates",
+      "area": "intune",
+      "name": {
+        "no": "Oppdateringsringer og støttede Windows-versjoner",
+        "en": "Update rings and supported Windows versions"
+      },
+      "desired": {
+        "no": "Bruk pilot og produksjonsring med avtalte frister. Styr funksjonsversjon separat og planlegg støttet OS.",
+        "en": "Use pilot and production rings with agreed deadlines; control feature versions separately and plan supported OS releases."
+      },
+      "why": {
+        "no": "Oppdater forutsigbart uten å stå på utgåtte versjoner.",
+        "en": "Update predictably without leaving devices on unsupported versions."
+      },
+      "impact": {
+        "no": "Omstart påvirker arbeidstid; bestem varsling og vedlikeholdsvinduer.",
+        "en": "Restarts affect work; agree notifications and maintenance windows."
+      },
+      "verify": {
+        "no": "Kontroller etterlevelse, omstarter og utrullingsrapport i piloten.",
+        "en": "Check update compliance, restarts and pilot rollout reports."
+      },
+      "rollback": {
+        "no": "Pause den berørte ringen og bruk tilgjengelig tilbakerulling der den støttes.",
+        "en": "Pause the affected ring and use supported rollback when available."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/intune-service/protect/windows-10-update-rings"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Sybr pilotforslag: quality deferral 0 dager i pilot, 7 dager i produksjon",
+          "en": "Sybr pilot proposal: quality deferral 0 days in pilot, 7 days in production"
+        },
+        {
+          "no": "Sybr pilotforslag: deadline 7 dager, grace period 2 dager; avtal omstartsvindu",
+          "en": "Sybr pilot proposal: deadline 7 days, grace period 2 days; agree the restart window"
+        },
+        {
+          "no": "Feature update policy: støttet Windows-utgave; eldre Windows krever dokumentert ESU eller migrering",
+          "en": "Feature update policy: supported Windows release; older Windows requires documented ESU or migration"
+        }
+      ]
+    },
+    {
+      "id": "intune-laps",
+      "area": "intune",
+      "name": {
+        "no": "Unike lokale administratorpassord med LAPS",
+        "en": "Unique local administrator passwords with LAPS"
+      },
+      "desired": {
+        "no": "Administrer lokale administratorpassord med Windows LAPS og begrens hvem som kan hente dem.",
+        "en": "Manage local administrator passwords with Windows LAPS and restrict retrieval rights."
+      },
+      "why": {
+        "no": "Et delt passord skal ikke åpne alle maskiner.",
+        "en": "One shared password must not unlock every device."
+      },
+      "impact": {
+        "no": "Kontroller støttet OS og om eksisterende LAPS-oppsett overlapper.",
+        "en": "Check supported OS and overlap with existing LAPS."
+      },
+      "verify": {
+        "no": "Test nøkkeloppslag, rotasjon og lokal gjenoppretting på pilotmaskin.",
+        "en": "Test password retrieval, rotation and local recovery on a pilot."
+      },
+      "rollback": {
+        "no": "Sikre fungerende lokal tilgang før gammel løsning gjeninnføres.",
+        "en": "Secure working local access before restoring the previous solution."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/intune-service/protect/windows-laps-policy"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Backup directory: Entra ID for Entra-tilknyttede enheter; tildel én policy per enhet",
+          "en": "Backup directory: Entra ID for Entra-joined devices; assign one policy per device"
+        },
+        {
+          "no": "Sybr pilotforslag: 20 tegn og rotasjon hver 30. dag; avklar administratorkonto og OS-støtte",
+          "en": "Sybr pilot proposal: 20 characters and rotation every 30 days; confirm administrator account and OS support"
+        },
+        {
+          "no": "Begrens lesing av passord og test rotasjon samt backup til katalogen",
+          "en": "Restrict password reads and test rotation and directory backup"
+        }
+      ]
+    },
+    {
+      "id": "intune-mam",
+      "area": "intune",
+      "name": {
+        "no": "Appbeskyttelse for mobil og BYOD",
+        "en": "App protection for mobile and BYOD"
+      },
+      "desired": {
+        "no": "Beskytt jobbdata i støttede mobilapper med PIN og kontroller for lagring og kopiering.",
+        "en": "Protect work data in supported mobile apps with PIN and storage/copy controls."
+      },
+      "why": {
+        "no": "Beskytt jobbdata på enheter kunden ikke administrerer fullt ut.",
+        "en": "Protect work data on devices the customer does not fully manage."
+      },
+      "impact": {
+        "no": "Personlig bruk og jobbdata må skilles; bare støttede apper kan håndheve MAM.",
+        "en": "Separate personal and work data; only supported apps can enforce MAM."
+      },
+      "verify": {
+        "no": "Test Outlook/Teams, kopiering til privat app og selektiv sletting av jobbdata.",
+        "en": "Test Outlook/Teams, copying to personal apps and selective work-data wipe."
+      },
+      "rollback": {
+        "no": "Tilbakestill pilotens tildeling; sletting av data kan ikke reverseres.",
+        "en": "Revert pilot assignments; deleted data cannot be recovered by unassignment."
+      },
+      "license": {
+        "no": "Intune Plan 1",
+        "en": "Intune Plan 1"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/intune/intune-service/apps/app-protection-policy"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "iOS/Android: støttede jobbapper med PIN og kryptering",
+          "en": "iOS/Android: supported work apps with PIN and encryption"
+        },
+        {
+          "no": "Save copies: blokkér private plasseringer; dataoverføring til policyadministrerte apper",
+          "en": "Save copies: block personal locations; transfer data to policy-managed apps"
+        },
+        {
+          "no": "Sybr pilotforslag: 6-sifret PIN; avklar selektiv sletting og tilgjengelighet",
+          "en": "Sybr pilot proposal: 6-digit PIN; confirm selective wipe and accessibility"
+        }
+      ]
+    },
+    {
+      "id": "spo-sharing",
+      "area": "sharepoint",
+      "name": {
+        "no": "Kontrollert ekstern deling",
+        "en": "Controlled external sharing"
+      },
+      "desired": {
+        "no": "Bruk autentiserte gjester som normalvalg; steng anonyme lenker der de ikke trengs. Strammere nettsteder overstyrer tenantens maksimum.",
+        "en": "Prefer authenticated guests and disable anonymous links where unnecessary; sites may be more restrictive than the tenant maximum."
+      },
+      "why": {
+        "no": "Vet hvem som får tilgang til arbeidsdokumenter.",
+        "en": "Know who receives access to work documents."
+      },
+      "impact": {
+        "no": "Eksisterende eksternt samarbeid må prøves før nivået strammes inn.",
+        "en": "Test existing external collaboration before tightening sharing."
+      },
+      "verify": {
+        "no": "Test intern bruker, autentisert gjest og anonym lenke på pilotnettsted.",
+        "en": "Test internal users, authenticated guests and anonymous links on a pilot site."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere delingsnivå på pilotnettstedet etter godkjenning.",
+        "en": "Restore the pilot site sharing level after approval."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [
+        "entra-guests"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-off"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Tenant sharing: New and existing guests som Sybr-startpunkt; Anyone bare etter avklart behov",
+          "en": "Tenant sharing: New and existing guests as a Sybr starting point; Anyone only for an agreed need"
+        },
+        {
+          "no": "Sensitive nettsteder: Existing guests eller Only people in your organization",
+          "en": "Sensitive sites: Existing guests or Only people in your organization"
+        },
+        {
+          "no": "Gjesteutløp: vurder 90 dager som pilot; avklar eier og fornyelse",
+          "en": "Guest expiry: consider 90 days as a pilot; confirm owner and renewal"
+        }
+      ]
+    },
+    {
+      "id": "spo-default-link",
+      "area": "sharepoint",
+      "name": {
+        "no": "Spesifikke personer som standardlenke",
+        "en": "Specific people as the default link"
+      },
+      "desired": {
+        "no": "Bruk Spesifikke personer og lesetilgang som normalvalg; vurder redigering per arbeidsflyt.",
+        "en": "Default to Specific people and view permission; allow editing where workflows need it."
+      },
+      "why": {
+        "no": "Reduser utilsiktet vid deling.",
+        "en": "Reduce unintended broad sharing."
+      },
+      "impact": {
+        "no": "Standardvalg begrenser ikke alle andre lenketyper; delingsnivået må også kontrolleres.",
+        "en": "A default does not prohibit other link types; also control sharing capability."
+      },
+      "verify": {
+        "no": "Opprett en lenke og sjekk mottakere og standardrettighet.",
+        "en": "Create a link and check recipients and default permission."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere standard uten å endre eksisterende lenker automatisk.",
+        "en": "Restore previous defaults without automatically altering existing links."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/change-default-sharing-link"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Default sharing link type: Specific people",
+          "en": "Default sharing link type: Specific people"
+        },
+        {
+          "no": "Default link permission: View; bruk Edit etter eksplisitt behov",
+          "en": "Default link permission: View; use Edit for an explicit need"
+        }
+      ]
+    },
+    {
+      "id": "spo-unmanaged",
+      "area": "sharepoint",
+      "name": {
+        "no": "Begrens nedlasting fra uadministrerte enheter",
+        "en": "Restrict downloads on unmanaged devices"
+      },
+      "desired": {
+        "no": "Vurder begrenset nettlesertilgang uten nedlasting på sensitive nettsteder fra uadministrerte enheter.",
+        "en": "Consider limited web access without downloads on sensitive sites from unmanaged devices."
+      },
+      "why": {
+        "no": "Begrens lokal spredning av sensitive dokumenter.",
+        "en": "Limit local spread of sensitive documents."
+      },
+      "impact": {
+        "no": "Kan påvirke synkronisering og Office-klienter; koordiner SharePoint og CA.",
+        "en": "May affect sync and Office clients; coordinate SharePoint and CA."
+      },
+      "verify": {
+        "no": "Test administrert og uadministrert nettleser, Office og synkronisering.",
+        "en": "Test managed/unmanaged browsers, Office and sync."
+      },
+      "rollback": {
+        "no": "Gjenopprett nettstedstilgang og berørt CA-policy samlet.",
+        "en": "Restore site access and related CA together."
+      },
+      "license": {
+        "no": "SharePoint Online + Entra ID P1",
+        "en": "SharePoint Online + Entra ID P1"
+      },
+      "tier": "extended",
+      "stage": 3,
+      "dependencies": [
+        "spo-sharing"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/control-access-from-unmanaged-devices"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Access control > Unmanaged devices: Allow limited, web-only access for avtalt scope",
+          "en": "Access control > Unmanaged devices: Allow limited, web-only access for the agreed scope"
+        },
+        {
+          "no": "Test avhengig CA-policy, klientapper og nedlasting på både administrerte og uadministrerte enheter",
+          "en": "Test the dependent CA policy, client apps and downloads on both managed and unmanaged devices"
+        }
+      ]
+    },
+    {
+      "id": "spo-versioning",
+      "area": "sharepoint",
+      "name": {
+        "no": "Versjonshistorikk og gjenoppretting",
+        "en": "Version history and recovery"
+      },
+      "desired": {
+        "no": "Bruk avtalte versjonsgrenser og test gjenoppretting av dokumenter.",
+        "en": "Use agreed version-history limits and test document recovery."
+      },
+      "why": {
+        "no": "Gi brukerne en kontrollert vei tilbake fra feil og uønskede endringer.",
+        "en": "Give users a controlled recovery path from mistakes and unwanted changes."
+      },
+      "impact": {
+        "no": "Lagringsbehov og bevaringskrav må vurderes før historikk trimmes.",
+        "en": "Assess storage and retention requirements before trimming history."
+      },
+      "verify": {
+        "no": "Gjenopprett en pilotfil og kontroller hvilken historikk som beholdes.",
+        "en": "Recover a pilot file and inspect retained history."
+      },
+      "rollback": {
+        "no": "Gjenopprett gamle grenser; allerede slettede versjoner kommer ikke tilbake.",
+        "en": "Restore limits; already deleted versions do not return."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/document-library-version-history-limits"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Version history limits: Automatic som startpunkt, eller godkjente manuelle grenser",
+          "en": "Version history limits: Automatic as a starting point, or approved manual limits"
+        },
+        {
+          "no": "Ingen trimming før gjenoppretting og retentionkrav er avklart; retention kan bevare flere versjoner",
+          "en": "No trimming before recovery and retention requirements are confirmed; retention can preserve more versions"
+        }
+      ]
+    },
+    {
+      "id": "od-sharing",
+      "area": "onedrive",
+      "name": {
+        "no": "OneDrive følger kundens delingsregler",
+        "en": "OneDrive follows the customer sharing rules"
+      },
+      "desired": {
+        "no": "Sett OneDrive like strengt som eller strengere enn SharePoint, med autentiserte mottakere.",
+        "en": "Set OneDrive at least as restrictive as SharePoint with authenticated recipients."
+      },
+      "why": {
+        "no": "Personlige arbeidsfiler trenger også en definert ekstern grense.",
+        "en": "Personal work files also need a defined external boundary."
+      },
+      "impact": {
+        "no": "Kan endre hvordan brukere deler filer med kunder og samarbeidspartnere.",
+        "en": "May change how users share files with customers and partners."
+      },
+      "verify": {
+        "no": "Test brukerens delingsvalg og tilgang for en ekstern mottaker.",
+        "en": "Test a user sharing flow and external recipient access."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere OneDrive-nivå innenfor SharePoint-grensen.",
+        "en": "Restore the previous OneDrive level within the SharePoint maximum."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [
+        "spo-sharing"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-off"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "OneDrive external sharing: aldri mer åpent enn SharePoint; bruk autentiserte gjester",
+          "en": "OneDrive external sharing: never broader than SharePoint; use authenticated guests"
+        },
+        {
+          "no": "Default sharing link: Specific people; permission: View",
+          "en": "Default sharing link: Specific people; permission: View"
+        }
+      ]
+    },
+    {
+      "id": "od-kfm",
+      "area": "onedrive",
+      "name": {
+        "no": "Kjente mapper i OneDrive",
+        "en": "Known folders in OneDrive"
+      },
+      "desired": {
+        "no": "Flytt Skrivebord, Dokumenter og Bilder kontrollert til OneDrive med pilot og synkroniseringskontroll.",
+        "en": "Move Desktop, Documents and Pictures to OneDrive through a pilot with sync checks."
+      },
+      "why": {
+        "no": "Samle arbeidsfiler i kundens administrerte lagring.",
+        "en": "Bring work files into managed storage."
+      },
+      "impact": {
+        "no": "Avklar eksisterende mappeomdirigering, lagringsplass og OneDrive-pålogging.",
+        "en": "Check existing folder redirection, storage and OneDrive sign-in."
+      },
+      "verify": {
+        "no": "Kontroller mapper, synkronisering og filtilgang fra en annen enhet.",
+        "en": "Check folders, sync and file access from another device."
+      },
+      "rollback": {
+        "no": "Planlegg tilbakeflytting og unngå lokale slettinger mens synkronisering pågår.",
+        "en": "Plan moving folders back and avoid local deletions during sync."
+      },
+      "license": {
+        "no": "OneDrive for Business; Intune for sentral utrulling",
+        "en": "OneDrive for Business; Intune for central rollout"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/redirect-known-folders"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "OneDrive policy: Silently move Windows known folders to OneDrive, med korrekt tenant-ID",
+          "en": "OneDrive policy: Silently move Windows known folders to OneDrive, with the correct tenant ID"
+        },
+        {
+          "no": "Pilotér Desktop, Documents og Pictures; kontroller tidligere folder redirection og sync-feil",
+          "en": "Pilot Desktop, Documents and Pictures; check previous folder redirection and sync errors"
+        }
+      ]
+    },
+    {
+      "id": "od-offboarding",
+      "area": "onedrive",
+      "name": {
+        "no": "Kontrollert avslutning og fileierskap",
+        "en": "Controlled offboarding and file ownership"
+      },
+      "desired": {
+        "no": "Avtal ansvarlig mottaker, tilgangsoverføring og OneDrive-bevaringsperiode før en konto slettes.",
+        "en": "Agree a responsible recipient, access transfer and OneDrive retention period before deleting an account."
+      },
+      "why": {
+        "no": "Arbeidsfiler skal ikke forsvinne uten eierskap når ansatte slutter.",
+        "en": "Work files must not disappear without ownership when employees leave."
+      },
+      "impact": {
+        "no": "Perioden velges med kunden; retention er ikke en uavhengig backup.",
+        "en": "Choose the period with the customer; retention is not independent backup."
+      },
+      "verify": {
+        "no": "Prøv avslutningsrutinen på en testkonto og dokumenter hvem som får tilgang.",
+        "en": "Try offboarding with a test account and record who receives access."
+      },
+      "rollback": {
+        "no": "Gjenopprett slettet konto eller data innenfor tilgjengelige gjenopprettingsvinduer.",
+        "en": "Recover account/data within available recovery windows."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 1,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/sharepoint/retention-and-deletion"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Sett leder eller secondary owner og Enable access delegation",
+          "en": "Set a manager or secondary owner and Enable access delegation"
+        },
+        {
+          "no": "Avtal bevaringsperiode før sletting; håndter ulisensierte kontoer separat",
+          "en": "Agree the retention period before deletion; handle unlicensed accounts separately"
+        }
+      ]
+    },
+    {
+      "id": "teams-guests",
+      "area": "teams",
+      "name": {
+        "no": "Gjester med avklart tilgang",
+        "en": "Guests with defined access"
+      },
+      "desired": {
+        "no": "Tillat gjester bare der samarbeidsbehovet er avklart; samordne Teams, grupper og SharePoint.",
+        "en": "Allow guests where collaboration needs are agreed and align Teams, groups and SharePoint."
+      },
+      "why": {
+        "no": "Medlemskap i Teams må gi forventet tilgang til filer og samtaler.",
+        "en": "Teams membership must give expected access to files and conversations."
+      },
+      "impact": {
+        "no": "Teams gjestetilgang og SharePoint-deling er separate innstillinger.",
+        "en": "Teams guest access and SharePoint sharing are separate settings."
+      },
+      "verify": {
+        "no": "Test en gjest i et pilotteam med både samtaler og filer.",
+        "en": "Test a guest in a pilot team with conversations and files."
+      },
+      "rollback": {
+        "no": "Gjenopprett pilotens gjesteregel og avtalte medlemskap.",
+        "en": "Restore the pilot guest rule and agreed membership."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [
+        "spo-sharing",
+        "entra-guests"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/microsoftteams/guest-access"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Guest access: tillat bare med avklart eier og behov; tilpass gjestenes møte- og samtalerettigheter",
+          "en": "Guest access: allow only with an agreed owner and need; tailor guest meeting and calling permissions"
+        },
+        {
+          "no": "Test medlemskap, filer og møter; Entra, M365-grupper og SharePoint må tillate samme samarbeid",
+          "en": "Test membership, files and meetings; Entra, M365 groups and SharePoint must allow the same collaboration"
+        }
+      ]
+    },
+    {
+      "id": "teams-external",
+      "area": "teams",
+      "name": {
+        "no": "Eksterne samtaler med avtalte domener",
+        "en": "External chat with agreed domains"
+      },
+      "desired": {
+        "no": "Vurder tillatte partnerdomener og regler for uadministrerte eksterne kontoer.",
+        "en": "Assess allowed partner domains and rules for unmanaged external accounts."
+      },
+      "why": {
+        "no": "Eksterne samtaler skal følge kundens samarbeidsbehov.",
+        "en": "External conversations should follow customer collaboration needs."
+      },
+      "impact": {
+        "no": "Ekstern tilgang er ikke gjestemedlemskap og gir ikke i seg selv filtilgang.",
+        "en": "External access is not guest membership and does not itself give file access."
+      },
+      "verify": {
+        "no": "Test tillatt partner, ikke-tillatt domene og uadministrert konto.",
+        "en": "Test an allowed partner, disallowed domain and unmanaged account."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere domene- og kontoregler.",
+        "en": "Restore previous domain and account rules."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/microsoftteams/manage-external-access"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "External access: velg godkjente partnerdomener når virksomheten kan vedlikeholde listen",
+          "en": "External access: choose approved partner domains when the business can maintain the list"
+        },
+        {
+          "no": "Uadministrerte Teams-kontoer: blokkér eksternt initierte henvendelser hvis det ikke finnes forretningsbehov",
+          "en": "Unmanaged Teams accounts: block externally initiated contact unless there is a business need"
+        }
+      ]
+    },
+    {
+      "id": "teams-meetings",
+      "area": "teams",
+      "name": {
+        "no": "Møter med kontrollert lobby og presentatør",
+        "en": "Meetings with controlled lobby and presenters"
+      },
+      "desired": {
+        "no": "Velg lobby, presentatører og opptak etter møtetype; bruk en strengere profil for sensitive møter.",
+        "en": "Choose lobby, presenters and recording by meeting type; use stricter settings for sensitive meetings."
+      },
+      "why": {
+        "no": "Begrens uventede deltakere og utilsiktet deling.",
+        "en": "Limit unexpected participants and accidental sharing."
+      },
+      "impact": {
+        "no": "Opptak og transkripsjon påvirker informasjonshåndtering og brukernes arbeidsflyt.",
+        "en": "Recording and transcription affect information handling and workflows."
+      },
+      "verify": {
+        "no": "Test ekstern deltaker, lobby, skjermdeling og opptak.",
+        "en": "Test an external attendee, lobby, screen sharing and recording."
+      },
+      "rollback": {
+        "no": "Gjenopprett møtepilotens tidligere policy.",
+        "en": "Restore the pilot meeting policy."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/microsoftteams/meeting-policies-participants-and-guests"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Sybr standardforslag: lobby for eksterne, presentatører begrenset til organisasjonen",
+          "en": "Sybr standard proposal: lobby for external attendees, presenters limited to the organization"
+        },
+        {
+          "no": "Sensitive møter: lobby bare for arrangører/co-organizers; slå av anonym deltakelse i tildelt policy",
+          "en": "Sensitive meetings: only organizers/co-organizers bypass the lobby; disable anonymous join in the assigned policy"
+        },
+        {
+          "no": "Opptak og transkripsjon krever avklart informasjon, lagring og tilgang",
+          "en": "Recording and transcription require agreed notification, storage and access"
+        }
+      ]
+    },
+    {
+      "id": "teams-apps",
+      "area": "teams",
+      "name": {
+        "no": "Godkjente Teams-apper",
+        "en": "Approved Teams apps"
+      },
+      "desired": {
+        "no": "Begrens apptilgjengelighet til godkjente apper med en tydelig vurderingsprosess.",
+        "en": "Limit app availability to approved apps with a clear review process."
+      },
+      "why": {
+        "no": "Teams-apper kan behandle kundedata og utvide tilgang.",
+        "en": "Teams apps can process customer data and extend access."
+      },
+      "impact": {
+        "no": "Kartlegg eksisterende apper og kontroller om tenanten bruker appsentrert administrasjon.",
+        "en": "Inventory existing apps and check whether the tenant uses app-centric management."
+      },
+      "verify": {
+        "no": "Test godkjent app og en app som ikke skal kunne installeres.",
+        "en": "Test an approved app and one that must not be installable."
+      },
+      "rollback": {
+        "no": "Gjenopprett den avtalte apptilgjengeligheten for berørte brukere.",
+        "en": "Restore agreed availability for affected users."
+      },
+      "license": {
+        "no": "Microsoft 365",
+        "en": "Microsoft 365"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [
+        "entra-consent"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/microsoftteams/app-centric-management"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Manage apps: vurder tillatelse og tilgjengelighet for hver godkjent app",
+          "en": "Manage apps: review permission and availability for each approved app"
+        },
+        {
+          "no": "App setup policy: pin bare nødvendige apper; avklar Microsofts app-centric management-modell",
+          "en": "App setup policy: pin only required apps; confirm Microsoft app-centric management"
+        }
+      ]
+    },
+    {
+      "id": "purview-labels",
+      "area": "purview",
+      "name": {
+        "no": "Følsomhetsetiketter med forståelig taksonomi",
+        "en": "Sensitivity labels with a clear taxonomy"
+      },
+      "desired": {
+        "no": "Start med en enkel taksonomi, for eksempel Offentlig, Intern og Konfidensiell. Pilotér publisering og eventuell kryptering.",
+        "en": "Start with a simple taxonomy such as Public, Internal and Confidential; pilot publishing and any encryption."
+      },
+      "why": {
+        "no": "Gi brukere et felles språk for hvordan informasjon behandles.",
+        "en": "Give users a shared vocabulary for handling information."
+      },
+      "impact": {
+        "no": "Krypterte dokumenter kan påvirke eksternt samarbeid og apper.",
+        "en": "Encrypted documents may affect external collaboration and apps."
+      },
+      "verify": {
+        "no": "Test merking, mottakertilgang og åpning i brukernes faktiske apper.",
+        "en": "Test labelling, recipient access and opening in users actual apps."
+      },
+      "rollback": {
+        "no": "Tilbakestill publisering; avklar tilgang til dokumenter som allerede er kryptert.",
+        "en": "Revert publishing and resolve access to already encrypted documents."
+      },
+      "license": {
+        "no": "Purview Information Protection; lisens avhenger av funksjonene",
+        "en": "Purview Information Protection; licensing depends on the features"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/purview/sensitivity-labels"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Sybr forslag: Offentlig, Intern, Konfidensiell; dokumenter eierskap og bruk",
+          "en": "Sybr proposal: Public, Internal, Confidential; document ownership and use"
+        },
+        {
+          "no": "Publiser til pilotgruppe først; aktiver kryptering bare etter test av ekstern samhandling",
+          "en": "Publish to a pilot group first; enable encryption only after testing external collaboration"
+        }
+      ]
+    },
+    {
+      "id": "purview-dlp",
+      "area": "purview",
+      "name": {
+        "no": "DLP fra simulering til kontrollert håndheving",
+        "en": "DLP from simulation to controlled enforcement"
+      },
+      "desired": {
+        "no": "Velg relevante datatyper og plasseringer. Start i simulering; juster treff før blokkering.",
+        "en": "Choose relevant data types and locations; start in simulation and tune matches before blocking."
+      },
+      "why": {
+        "no": "Reduser utilsiktet deling av beskyttede data.",
+        "en": "Reduce accidental sharing of protected data."
+      },
+      "impact": {
+        "no": "Teams og endepunkter kan kreve tilleggslisens; falske treff påvirker arbeid.",
+        "en": "Teams and endpoints may require add-on licensing; false positives affect work."
+      },
+      "verify": {
+        "no": "Kontroller simuleringsfunn og test både tillatt og uønsket deling.",
+        "en": "Review simulation findings and test allowed and unwanted sharing."
+      },
+      "rollback": {
+        "no": "Gå tilbake til simulering og behold hendelsesoppfølging.",
+        "en": "Return to simulation while keeping incident follow-up."
+      },
+      "license": {
+        "no": "Purview DLP; lisens avhenger av dataplasseringene",
+        "en": "Purview DLP; licensing depends on the data locations"
+      },
+      "tier": "recommended",
+      "stage": 3,
+      "dependencies": [
+        "purview-labels"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/purview/dlp-test-dlp-policies"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Plasseringer: Exchange, SharePoint og OneDrive først; Teams og endpoint etter lisens og scope",
+          "en": "Locations: Exchange, SharePoint and OneDrive first; Teams and endpoint according to license and scope"
+        },
+        {
+          "no": "State: simulation med hendelsesovervåking; deretter policy tips og begrenset håndheving",
+          "en": "State: simulation with incident monitoring; then policy tips and limited enforcement"
+        },
+        {
+          "no": "Velg relevante sensitive information types og terskler med dataeier",
+          "en": "Choose relevant sensitive information types and thresholds with the data owner"
+        }
+      ]
+    },
+    {
+      "id": "purview-retention",
+      "area": "purview",
+      "name": {
+        "no": "Bevaring med kundeavklarte formål og frister",
+        "en": "Retention with agreed purposes and periods"
+      },
+      "desired": {
+        "no": "Avtal hva som skal beholdes, slettes og av hvem. Bruk separate regler per datasett og arbeidsflate.",
+        "en": "Agree what to retain/delete and who owns the decision; use distinct rules per dataset and workload."
+      },
+      "why": {
+        "no": "Gjør livssyklusen styrbar uten vilkårlige standardfrister.",
+        "en": "Make lifecycle manageable without arbitrary default periods."
+      },
+      "impact": {
+        "no": "Sletting kan være irreversibel. Ikke aktiver låst bevaring uten en særskilt beslutning.",
+        "en": "Deletion may be irreversible; do not enable retention lock without a specific decision."
+      },
+      "verify": {
+        "no": "Kontroller scope, perioder og forventet utfall på testdata.",
+        "en": "Check scope, periods and expected results on test data."
+      },
+      "rollback": {
+        "no": "Stans nye slettetiltak der det er mulig; slettede data og låste regler kan være irreversible.",
+        "en": "Stop new deletion actions where possible; deleted data and locked rules may be irreversible."
+      },
+      "license": {
+        "no": "Purview Data Lifecycle Management; lisens avhenger av funksjonene",
+        "en": "Purview Data Lifecycle Management; licensing depends on the features"
+      },
+      "tier": "recommended",
+      "stage": 3,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/purview/retention"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Retentionperioder må godkjennes per datasett; ingen universell standard i antall år",
+          "en": "Retention periods must be approved per dataset; no universal default number of years"
+        },
+        {
+          "no": "Ikke aktiver Preservation Lock eller automatisk permanent sletting uten særskilt godkjenning",
+          "en": "Do not enable Preservation Lock or automatic permanent deletion without specific approval"
+        },
+        {
+          "no": "Retention erstatter ikke backup; test behov for gjenoppretting separat",
+          "en": "Retention does not replace backup; test recovery requirements separately"
+        }
+      ]
+    },
+    {
+      "id": "purview-audit",
+      "area": "purview",
+      "name": {
+        "no": "Sporbarhet og avtalt loggbevaring",
+        "en": "Traceability and agreed audit retention"
+      },
+      "desired": {
+        "no": "Kontroller at audit er aktiv og at tilgjengelig loggperiode dekker kundens behov.",
+        "en": "Check auditing is enabled and available log retention covers customer needs."
+      },
+      "why": {
+        "no": "Hendelser trenger dokumenterbar etterforskning.",
+        "en": "Incidents need a documented investigation trail."
+      },
+      "impact": {
+        "no": "Loggbevaring og avanserte hendelser varierer med lisens.",
+        "en": "Retention and advanced events depend on licensing."
+      },
+      "verify": {
+        "no": "Utfør en testhendelse og finn den i audit-søket med riktig bruker og tidspunkt.",
+        "en": "Create a test event and find its user and timestamp in audit search."
+      },
+      "rollback": {
+        "no": "Gjenopprett loggpolicyen uten å slå av nødvendig sporbarhet.",
+        "en": "Restore the log policy without disabling required traceability."
+      },
+      "license": {
+        "no": "Audit Standard; Premium ved behov",
+        "en": "Audit Standard; Premium as needed"
+      },
+      "tier": "essential",
+      "stage": 1,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/purview/audit-solutions-overview"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Kontroller audit-søk og faktisk loggperiode med en kjent testhendelse",
+          "en": "Check audit search and the actual log period using a known test event"
+        },
+        {
+          "no": "Gi Audit Reader til nødvendig kontrollpersonell; avklar Premium og retention ved lengre behov",
+          "en": "Grant Audit Reader to required reviewers; confirm Premium and retention for longer needs"
+        }
+      ]
+    },
+    {
+      "id": "exo-presets",
+      "area": "exchange",
+      "name": {
+        "no": "Standard e-postbeskyttelse og strengere høyrisikogruppe",
+        "en": "Standard email protection and stricter high-risk group"
+      },
+      "desired": {
+        "no": "Bruk Standard forhåndsdefinert sikkerhetspolicy og vurder Strict for utsatte brukere etter pilot.",
+        "en": "Use Standard preset security policies and consider Strict for high-risk users after a pilot."
+      },
+      "why": {
+        "no": "Samordne antispam, anti-phish og tilgjengelig Defender-beskyttelse.",
+        "en": "Align anti-spam, anti-phishing and available Defender protections."
+      },
+      "impact": {
+        "no": "Safe Links/Attachments avhenger av lisens; kartlegg prioritet mot eksisterende policyer.",
+        "en": "Safe Links/Attachments depend on licensing; inspect priority against existing policies."
+      },
+      "verify": {
+        "no": "Kontroller tildeling, karantene og legitim post fra viktige avsendere.",
+        "en": "Check assignment, quarantine and legitimate mail from key senders."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere tildeling og dokumentert policyprioritet.",
+        "en": "Restore previous assignments and documented policy priority."
+      },
+      "license": {
+        "no": "Exchange Online Protection; Defender for Office 365 for avanserte funksjoner",
+        "en": "Exchange Online Protection; Defender for Office 365 for advanced features"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/defender-office-365/preset-security-policies"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Preset security policy: Standard for normalbrukere; vurder Strict for utsatte grupper",
+          "en": "Preset security policy: Standard for regular users; consider Strict for exposed groups"
+        },
+        {
+          "no": "Avklar policyprioritet, unntak og quarantine policy; test legitime avsendere",
+          "en": "Confirm policy priority, exceptions and quarantine policy; test legitimate senders"
+        }
+      ]
+    },
+    {
+      "id": "exo-forwarding",
+      "area": "exchange",
+      "name": {
+        "no": "Blokker uavklart ekstern videresending",
+        "en": "Block unapproved external forwarding"
+      },
+      "desired": {
+        "no": "Blokker automatisk ekstern videresending som standard; registrer nødvendige unntak.",
+        "en": "Block automatic external forwarding by default and record necessary exceptions."
+      },
+      "why": {
+        "no": "Reduser stille uttrekk av e-post.",
+        "en": "Reduce silent email exfiltration."
+      },
+      "impact": {
+        "no": "Integrasjoner og kundens arbeidsflyter må kartlegges før blokkering.",
+        "en": "Inventory integrations and customer workflows before blocking."
+      },
+      "verify": {
+        "no": "Test forventet blokkering og et eksplisitt godkjent unntak.",
+        "en": "Test expected blocking and an explicitly approved exception."
+      },
+      "rollback": {
+        "no": "Gjenopprett kun nødvendig unntak med ansvarlig eier.",
+        "en": "Restore only required exceptions with an accountable owner."
+      },
+      "license": {
+        "no": "Exchange Online Protection",
+        "en": "Exchange Online Protection"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/defender-office-365/outbound-spam-policies-external-email-forwarding"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Outbound spam policy > Automatic forwarding rules: Off",
+          "en": "Outbound spam policy > Automatic forwarding rules: Off"
+        },
+        {
+          "no": "Avgrens eventuelle unntak til godkjente brukere og overvåk forwarding-regler",
+          "en": "Limit any exceptions to approved users and monitor forwarding rules"
+        }
+      ]
+    },
+    {
+      "id": "exo-dkim",
+      "area": "exchange",
+      "name": {
+        "no": "DKIM og koordinert SPF/DMARC",
+        "en": "DKIM and coordinated SPF/DMARC"
+      },
+      "desired": {
+        "no": "Aktiver DKIM for kundens avsenderdomener og samordne SPF/DMARC etter avsenderkartlegging.",
+        "en": "Enable DKIM for sending domains and coordinate SPF/DMARC after sender inventory."
+      },
+      "why": {
+        "no": "Gi mottakere grunnlag for å kontrollere avsenderdomene.",
+        "en": "Let recipients verify sender domains."
+      },
+      "impact": {
+        "no": "Tredjepartsavsendere må tas med før DMARC strammes inn.",
+        "en": "Include third-party senders before tightening DMARC."
+      },
+      "verify": {
+        "no": "Kontroller DNS og Authentication-Results i levert testpost.",
+        "en": "Check DNS and Authentication-Results in delivered test mail."
+      },
+      "rollback": {
+        "no": "Gjenopprett dokumenterte DNS-verdier; la nye poster få tid til å propagere.",
+        "en": "Restore documented DNS values and allow propagation."
+      },
+      "license": {
+        "no": "Exchange Online",
+        "en": "Exchange Online"
+      },
+      "tier": "essential",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/defender-office-365/email-authentication-dkim-configure"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Publiser Microsofts CNAME-poster og Enable DKIM for hvert avsenderdomene",
+          "en": "Publish Microsoft CNAME records and Enable DKIM for each sending domain"
+        },
+        {
+          "no": "Kartlegg alle avsendere før SPF/DMARC strammes; mål DMARC-rapporter før reject",
+          "en": "Map all senders before tightening SPF/DMARC; assess DMARC reports before reject"
+        }
+      ]
+    },
+    {
+      "id": "defender-onboarding",
+      "area": "defender",
+      "name": {
+        "no": "Defender med fullstendig enhetsdekning",
+        "en": "Defender with complete device coverage"
+      },
+      "desired": {
+        "no": "Onboard avtalte enheter og utpek ansvarlig for varsler og hendelser.",
+        "en": "Onboard agreed devices and assign ownership of alerts and incidents."
+      },
+      "why": {
+        "no": "Beskyttelse uten hendelsesoppfølging etterlater et hull.",
+        "en": "Protection without incident follow-up leaves a gap."
+      },
+      "impact": {
+        "no": "Kontroller samtidig antivirus og lisensdekning per enhet.",
+        "en": "Check concurrent antivirus and per-device licensing."
+      },
+      "verify": {
+        "no": "Sammenlign enhetslisten med flåten og kjør en godkjent deteksjonstest.",
+        "en": "Compare inventory with the fleet and run an approved detection test."
+      },
+      "rollback": {
+        "no": "Bruk dokumentert offboarding bare når erstatningsbeskyttelse er på plass.",
+        "en": "Use documented offboarding only when replacement protection is ready."
+      },
+      "license": {
+        "no": "Defender for Business / Defender for Endpoint",
+        "en": "Defender for Business / Defender for Endpoint"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/defender-endpoint/onboarding"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Endpoint detection and response: onboard pilot, deretter avtalte enhetsgrupper",
+          "en": "Endpoint detection and response: onboard pilot, then agreed device groups"
+        },
+        {
+          "no": "Kontroller sensor health, siste kontakt og varsling til hendelsesansvarlig",
+          "en": "Check sensor health, last contact and alerts to the incident owner"
+        }
+      ]
+    },
+    {
+      "id": "defender-asr",
+      "area": "defender",
+      "name": {
+        "no": "ASR med audit før blokkering",
+        "en": "ASR with audit before blocking"
+      },
+      "desired": {
+        "no": "Pilotér relevante ASR-regler i audit eller warn og håndhev etter vurdering av funn.",
+        "en": "Pilot relevant ASR rules in audit or warn and enforce after reviewing findings."
+      },
+      "why": {
+        "no": "Reduser vanlige angrepsflater uten å bryte fagapplikasjoner ukontrollert.",
+        "en": "Reduce common attack surfaces without uncontrolled business-app disruption."
+      },
+      "impact": {
+        "no": "Test makroer, skript og fagapplikasjoner; unntak må være smale og begrunnede.",
+        "en": "Test macros, scripts and business apps; keep exclusions narrow and justified."
+      },
+      "verify": {
+        "no": "Les ASR-funn og test kundens kritiske arbeidsflyter.",
+        "en": "Read ASR findings and test critical customer workflows."
+      },
+      "rollback": {
+        "no": "Tilbakestill den berørte regelen til audit; behold fungerende regler.",
+        "en": "Return the affected rule to audit and keep working rules."
+      },
+      "license": {
+        "no": "Støttet Windows med Defender; lisens avhenger av funksjonene",
+        "en": "Supported Windows with Defender; licensing depends on the features"
+      },
+      "tier": "extended",
+      "stage": 3,
+      "dependencies": [
+        "defender-onboarding"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction-rules-deployment"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Start relevante ASR-regler i Audit; evaluer påvirkning før Warn eller Block",
+          "en": "Start relevant ASR rules in Audit; evaluate impact before Warn or Block"
+        },
+        {
+          "no": "Prioriter Office child processes, executable email content og credential theft etter kompatibilitet",
+          "en": "Prioritize Office child processes, executable email content and credential theft according to compatibility"
+        },
+        {
+          "no": "Dokumenter spesifikke unntak; unngå brede mappeunntak",
+          "en": "Document specific exclusions; avoid broad folder exclusions"
+        }
+      ]
+    },
+    {
+      "id": "defender-cloud",
+      "area": "defender",
+      "name": {
+        "no": "Skybeskyttelse og manipulasjonsbeskyttelse",
+        "en": "Cloud protection and tamper protection"
+      },
+      "desired": {
+        "no": "Aktiver skybeskyttelse og manipulasjonsbeskyttelse der de støttes, med avklart feilsøkingsrutine.",
+        "en": "Enable cloud and tamper protection where supported with an agreed troubleshooting process."
+      },
+      "why": {
+        "no": "Beskytt sikkerhetsinnstillinger og bruk oppdaterte deteksjonssignaler.",
+        "en": "Protect security settings and use current detection signals."
+      },
+      "impact": {
+        "no": "Avklar personvern, nettverkstilgang og andre sikkerhetsverktøy.",
+        "en": "Resolve privacy, network access and other security tools."
+      },
+      "verify": {
+        "no": "Kontroller aktiv beskyttelse og rettigheter til autorisert feilsøking.",
+        "en": "Check protection status and authorized troubleshooting access."
+      },
+      "rollback": {
+        "no": "Gjenopprett tidligere policy gjennom autorisert administrasjon.",
+        "en": "Restore previous policy through authorized administration."
+      },
+      "license": {
+        "no": "Defender for Business / Defender for Endpoint",
+        "en": "Defender for Business / Defender for Endpoint"
+      },
+      "tier": "recommended",
+      "stage": 2,
+      "dependencies": [
+        "defender-onboarding"
+      ],
+      "sources": [
+        {
+          "title": "Microsoft Learn",
+          "url": "https://learn.microsoft.com/en-us/defender-endpoint/prevent-changes-to-security-settings-with-tamper-protection"
+        }
+      ],
+      "deployment": null,
+      "reviewed_on": "2026-10-04",
+      "settings": [
+        {
+          "no": "Cloud-delivered protection: Enabled; Tamper protection: Enabled der støttet",
+          "en": "Cloud-delivered protection: Enabled; Tamper protection: Enabled where supported"
+        },
+        {
+          "no": "Avklar sample submission og troubleshooting mode; test at uautoriserte endringer blokkeres",
+          "en": "Confirm sample submission and troubleshooting mode; test that unauthorized changes are blocked"
+        }
+      ]
+    }
+  ]
+}

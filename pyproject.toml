@@ -84,6 +84,7 @@ app = [
     "baselines/*.json",
     "helpers/*.ps1",
     "policy_templates/*.json",
+    "policy_catalog/*.json",
     "reports/templates/*",
     "web/static/*",
     "web/static/branding/*",
@@ -151,6 +152,12 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["app/core/audit_results.py", "app/core/async_fd.py"]
+files = [
+    "app/core/audit_results.py", "app/core/async_fd.py", "app/core/auth.py",
+    "app/core/password_work.py", "app/models/user.py", "app/models/settings.py",
+    "app/core/policy_library.py", "app/web/routes/policy_overview.py",
+    "app/core/integration_health.py", "app/core/policy_evidence.py", "app/web/connection_checks.py",
+    "app/modules/m365_audit/throttling.py", "app/services/notification_text.py",
+]
 strict = true
 follow_imports = "silent"

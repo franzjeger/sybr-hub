@@ -7,7 +7,22 @@ picking an item up, person or agent, should read CONTRIBUTING.md first: it
 lists the checks every change must pass and the conventions that keep them
 green.
 
-Items are grouped, then roughly ordered by value within each group.
+Items are grouped, then roughly ordered by value within each group. Checked
+items are complete; their numbers stay stable so commits and tests can refer
+to them. The quality plan G35–41 below is complete locally. C15 is the next
+repository item. Section A still needs live systems.
+The October access repair is also complete: first-run administrators receive
+full customer, Hub-write and tenant-write access, and schema 29 repairs the
+initial active administrator on existing installs. See docs/UPGRADING.md.
+The October live recheck of Intune and Teams now completes: nullable Teams
+settings no longer crash, and Settings Catalog / ADMX use Graph beta.
+Intune read-role and successful service-plan provisioning were verified;
+an earlier 403 was not proof of a missing subscription. These targeted reads
+do not close the broader Exchange and backup checks in A1.
+The subsequent log review is recorded in H42–44 below. The latest live run
+collected Intune, Teams, SharePoint and DNS. Exchange consent, identity
+licensing remain explicit external follow-ups. Active-installation key recovery
+was verified in isolation; older installation copies remain preserved.
 
 ---
 
@@ -49,51 +64,61 @@ documentation, fakes or mocks, and says so in its code.
 
 ## B. Correctness
 
-6. **Start-up failures print a wall of traceback.** A missing key-wrapping
-   secret (`MasterKeyUnavailableError`, raised from
-   `app/core/encryption.py` in `app/web/server.py::_lifespan`) ends in
-   several hundred lines of nested lifespan frames before the one clear
-   sentence. Done when: known start-up configuration errors log one line
-   saying what is wrong and how to fix it, and exit non-zero, with a test.
-7. **Two rules for "ready to audit".** The scheduler's all-customer cycle
-   uses `_is_configured_for_audit` (`app/services/audit_scheduler.py`: tenant plus
-   app id or GDAP, no secret check); the bulk audit uses
-   `credentials.m365_ready` (`app/web/routes/audit.py::_bulk_targets`). They
-   disagree for a customer whose secret is missing. Done when: both use one
-   rule (likely `m365_ready`), with tests for both callers.
-8. **The alert engine's firmware rule ignores the lifecycle table.**
-   `firmware_outdated` in `app/services/alert_engine.py` is a hard-coded
-   "FortiOS below 7.4"; Varsler uses `app/services/firmware_inventory.py` and
-   `app/modules/fortigate_audit/firmware_lifecycle.py` (7.2 is end of life
-   there, and a 7.4 device behind on patches is outdated). Done when: the
-   alert reads the stored verdicts, so the two never disagree.
-9. **Resolved in the October audit fixes:** `/export/excel` previously crashed
-   with `round(None)` when any customer had an unmeasured metric. Missing
-   percentages now export as "not measured" in the chosen language, with
-   regression coverage. Spreadsheet formulas in imported text are neutralised.
-10. **Bulk audit renders reports in Norwegian only** (`lang="no"` in the
-    bulk route; the scheduler uses the hub's `ui_language`). Done when: it
-    follows `ui_language`.
-11. **Weekly report e-mail often has no PDF**: the scheduled audit renders
-    HTML only, and the e-mail says so. Done when: the scheduled run also
-    renders the PDF, or the e-mail links to the report in the hub.
-12. **Two tabs on the same customer share one selected-run slot**
-    (`app/core/job_state.py`, `get_user_audit`, per user and customer). Done when: the selection is
-    per tab or carried in the request.
-13. **Integrasjoner: a value typed before the cards finish loading is
-    overwritten** when they load. Done when: loading never replaces a field
-    the user has edited.
+6. [x] **Concise start-up configuration failures** (October 2026).
+   `app/web/middleware/startup_config.py` checks the master key before the
+   router's lifespan. A known key configuration error sends one ASGI startup
+   failure with the cause and recovery settings; unexpected failures retain
+   their diagnostics. `tests/test_startup_config.py` checks the protocol and
+   real non-zero exits through both `main.py` and Uvicorn, with no traceback.
+7. [x] **One rule for "ready to audit"** (October 2026). Both scheduler modes
+   and `app/web/routes/audit.py::_bulk_targets` use `credentials.m365_ready`:
+   tenant plus app id and a stored secret, or GDAP with a tenant. Scheduler
+   and bulk tests cover missing secrets and delegated access.
+8. [x] **Firmware alerts follow the stored lifecycle verdicts** (October
+   2026). `app/services/alert_engine.py` uses `firmware_inventory.attention`,
+   as Varsler does, for FortiGate and UniFi. End-of-life is critical; outdated
+   firmware is a warning with the available version. The sweep does no fleet
+   poll. `tests/test_firmware_inventory.py` checks agreement, failed reads,
+   retired customers, distinct devices and an unreadable inventory.
+9. [x] **Excel export preserves unknown values** (October 2026). The metrics
+   writer already stores an unread section as `null`; Excel tried to round
+   those percentages and crashed. It now leaves unknown values empty, keeps
+   measured zeros and appends a translated column naming the unmeasured
+   fields. `tests/test_dashboard_export_language.py` covers both languages,
+   nulls, absent fields, measured zero and customers without a run. Older
+   metrics that flattened missing data to zero must be regenerated; a zero
+   alone cannot establish whether it was measured (see docs/UPGRADING.md). Imported text that
+   starts like a spreadsheet formula is neutralised in both exports.
+10. [x] **Bulk reports follow `ui_language`** (October 2026). The bulk route
+    reads the hub's language once per cycle for both report generation and
+    summary context, falling back to Norwegian for an invalid setting.
+    `tests/test_bulk_audit_targets.py` covers Norwegian, English and fallback.
+11. [x] **Scheduled reports include a PDF** (October 2026). The scheduled
+    audit renders HTML and PDF before automatic e-mail. If rendering fails,
+    it logs the failure and sends no incomplete report. The report-e-mail
+    tests cover generation order and failure; the existing sender attaches
+    the generated PDF.
+12. [x] **Separate selected runs in same-customer browser tabs** (October
+    2026). Requests carry a per-document `X-Audit-Tab`; selections remain
+    scoped to authenticated user and customer. Server-owned collection is
+    still shared, with bounded browser selections and support for legacy
+    API clients. An end-to-end route test loads two actual runs and verifies
+    each tab's CSV contains its own measured values.
+13. [x] **Integration reads preserve edits** (October 2026). Settings loads
+    populate only untouched fields, including passwords and checkboxes.
+    Browser tests delay the settings response, edit fields, then refresh
+    status again; untouched fields populate and drafts stay intact.
 
 ## C. Language
 
-14. **Norwegian-only server texts**: the alert sweep's activity-log detail
-    ("Fant N varsler…"), the scheduler's and bulk audit's webhook messages
-    ("Audit feilet for …", "Bulk-audit fullført …") sent through
-    `send_simple_message`, which also passes exception text unescaped into
-    markdown, and `_notify_task_failure`'s card (English, with ⚠ and an em
-    dash). Scheduled audit messages now neutralise imported names and errors
-    before inserting them into markdown. Remaining language work is keyed
-    text in the hub's language; apply the same protection to other senders.
+14. [x] **Background notification language and literal data** (October 2026).
+    Alert-sweep activity, scheduled and bulk audit notifications, credential
+    notices and auto-disabled task messages now use keyed text in the Hub's
+    configured language. Simple Teams cards use literal TextRuns; Slack uses
+    plain-text blocks, so customer names and exception strings cannot become
+    markdown links or channel mentions. Task delivery checks require HTTP 2xx.
+    Scheduled completion includes the actual report context and failed sections.
+    Norwegian/English and mocked-delivery regressions cover these paths.
 15. **Collectors' own English text reaches Norwegian reports** (Teams guest
     labels such as "Admins and Guest Inviters", FortiGate's "is an allow-all
     rule", the break-glass notes). `tests/test_norwegian_reports.py` treats
@@ -157,3 +182,176 @@ documentation, fakes or mocks, and says so in its code.
     through `documentOverride.createElement`
     (`app/web/static/app-infra.js`). `tests/browser/terminal.spec.cjs` will
     catch a change; the workaround would then need redoing.
+
+
+## F. Policy workspace
+
+33. [x] **Coherent policy packages and service library** (October 2026).
+    Four cross-service packages and 39 bilingual recommendations across
+    Entra, Conditional Access, Intune, SharePoint, OneDrive, Teams, Purview,
+    Exchange and Defender. Each includes proposed settings, rationale,
+    licensing, dependencies, pilot impact, verification, rollback and
+    Microsoft Learn sources. Customer plans and evidence are encrypted,
+    scoped and revision checked; expired exceptions and changed guidance
+    require reassessment. Name matches are explicitly not effective compliance.
+34. **Evaluate effective settings and assignments across all services.**
+    The workspace currently records human assessments and separately shows
+    captured policy inventory. Broader automated verification and rollout
+    need service-specific evidence, licence checks, previews and restore
+    support. Done when: each supported recommendation is evaluated against
+    actual settings and scope, with unknowns preserved and live pilot checks.
+
+## G. Quality execution plan (October 2026)
+
+Completed locally: 35–37 first, followed by 38–41. Customer scope and
+capability checks are preserved. Deployment follows the existing release
+procedure; live vendor validation remains in section A.
+
+35. [x] **Isolate settings writes.** Storage and branding save only their
+    own fields; integration cards send focused updates, never echo a full
+    settings snapshot. Done when concurrent unrelated edits survive saves.
+36. [x] **Preserve policy drafts.** Keep review text, status, due date and
+    plan selections per customer across filters and navigation; show dirty
+    state and provide an explicit discard action. Done when filtering and
+    switching customers cannot silently lose or mix unsaved work.
+37. [x] **Use stored IT Glue secrets correctly.** Masked and omitted keys
+    use the encrypted stored key; an explicitly selected region remains the
+    region tested. Done when reload, region changes and vendor failures are
+    covered without a live vendor or exposing the secret.
+38. [x] **Make integration status precise.** Separate configured, verified,
+    failed and stale states; include the last check time. Saving credentials
+    is not verification. Done when refresh preserves the same meaning and
+    changes invalidate previous verification.
+39. [x] **Guide policy work.** Connect package selection, customer evidence,
+    prioritised gaps, pilot instructions and verification in one workflow.
+    Compare captured settings where evidence supports a verdict; remaining
+    recommendations stay explicitly unmeasured. Broad rollout and live
+    service verification remain F34. Done when the next useful action is
+    clear and captured evidence never implies effective scope by name alone.
+40. [x] **Explain risk-score coverage.** Persist the scorer's missing-data
+    reasons and show them beside the customer's score in both languages.
+    Old runs without coverage evidence remain unknown. Done when the report
+    and customer page agree, including a blocked or partial score.
+41. [x] **Strengthen code boundaries.** Extend checked typing to the changed
+    settings/auth/policy boundaries, remove the frontend import cycle and
+    centralise shared settings-form behaviour. Done when module checks reject
+    cycles, new code is lint clean and the wider type check passes.
+
+For completion: targeted regression tests, full Python suite, three consecutive
+full browser runs, JavaScript and vendor hash checks, architecture and typing
+checks, lint budget, wheel build/asset verification, and desktop/mobile visual
+inspection. Report unavailable external checks explicitly.
+
+
+Validation on 2026-10-04: 6025 Python tests passed, 1 skipped (two inherited
+TestClient deprecation warnings); 181 browser tests passed in three consecutive
+full runs. JavaScript checks found 35 modules and no import cycles. Strict mypy
+passed for 11 files; architecture, vendor hashes and the unchanged lint budget
+(54 inherited findings) passed. The wheel was rebuilt and its new modules and
+assets verified; desktop/mobile policy and risk-evidence screens were inspected.
+OSV found no known vulnerabilities in either vendored JavaScript or the Python
+lock file. PyPI-based auditing/hash validation could not complete because
+pypi.org failed DNS resolution; OSV verifies vulnerability records and hash
+presence, not package hash validity. No dependencies were changed.
+
+## H. October live-log follow-up
+
+42. [x] **Correct collector diagnostics and report coverage.** Risky users
+    use `identityProtection/riskyUsers`; setup includes the separate
+    `IdentityRiskEvent.Read.All` grant for risk detections. Explicit Graph
+    licence errors, including PIM's licence-only HTTP 400, retain their
+    cause. Exchange certificate login resolves the initial onmicrosoft.com
+    domain without changing the customer's public report domain. Failed
+    Exchange collection remains failed and its data gap survives historical
+    report regeneration. PDF templates no longer request blocked remote
+    fonts, emit duplicate named anchors or link to absent Exchange content.
+    Regression tests and synthetic
+    PDF rendering cover these changes.
+43. **Complete tenant-side access and licence validation.** Fresh Graph
+    tokens contain all required Graph roles, including IdentityRiskEvent.Read.All;
+    risk-detection reads succeed. Exchange/Purview application permissions and
+    supported directory roles still require administrator sign-in. Risky users
+    explicitly refuse the tenant's licence; PIM requires Entra ID P2 or Governance.
+    Done when a fresh audit measures those services after consent, or records
+    them as deliberately unavailable. Successful Exchange/Purview collection has
+    not yet been verified.
+44. [x] **Active recovery verification and shared Graph read cooldown.** A copy
+    of the active installation's protected key was opened in a private isolated
+    directory. An authenticated encrypted archive was restored only into that
+    directory; SQLite integrity and all restored customer configurations passed.
+    The two older unreadable copies are byte-identical to the default installation's
+    data-directory copy, rather than the active temporary installation's key
+    backup. All original copies and both installations were left untouched.
+    Recovering that older installation still requires its original wrapping
+    secret or master key; no ownership is inferred beyond matching existing blobs.
+    Graph JSON/paginated reads and CSV reports now share a per-tenant, per-process
+    event-loop cooldown. Retry-After delta/date values and fallback backoff are
+    supported; three attempts and a bounded wait preserve failure rather than
+    returning false empty data. Parallel-client, tenant-isolation, cancellation,
+    pagination-completeness and long-wait regressions passed. No new live 429
+    experiment was forced against Microsoft.
+
+H42 verification: full Python suite, three consecutive full browser suites,
+JavaScript/module checks, vendor hashes, architecture, strict typing, lint
+budget and wheel/asset checks passed. Collected and empty synthetic PDF
+reports rendered successfully; contents and summary pages were inspected.
+The local test service was restarted after verifying no audit was running;
+health/database checks passed and the first active administrator retained
+all three grants. Tenant consent and licences were not changed.
+
+45. [x] **Recover manual customer sign-in after an undelivered request.** The
+    October 5 failure began with server-side DNS resolution and then became
+    invalid state because the verifier was deleted before delivery. A DNS,
+    connection or connect-timeout failure now keeps the verifier until expiry
+    for an explicit retry; uncertain delivery, rejection and success consume
+    it. Attempts are bound to the Hub user and concurrent exchanges are
+    refused. Setup disables duplicate submission, logs translated causes,
+    offers a new sign-in and avoids API-only retries that omit registration
+    and completion handling. Mocked transport, authenticated-route and
+    Norwegian/English browser tests cover the recovery branches.
+
+46. [x] **Complete and verify manual app consent.** PKCE setup now configures
+    and grants Graph, Exchange Online and Purview application roles plus the
+    Exchange Administrator for Exchange and Global Reader for Purview. Grant
+    responses are checked;
+    fresh secret/certificate tokens and an organization read gate completion.
+    Known app IDs and valid credentials are reused; encrypted checkpoints
+    resume partial setup without duplicate apps or repeated credential minting.
+    Existing permissions, certificates, customer metadata and access boundaries
+    are preserved. Renewal binds administrator sign-in to the selected tenant,
+    issues a fresh pair after consent and retains current credentials until
+    verification. Failed customer registration cannot report success. Tenant-side consent still requires administrator
+    sign-in; live workload availability is verified by a subsequent audit.
+
+47. [x] **Explain Backup Storage registration separately from consent.** A
+    `403 AppNotRegistered` now records `not_registered` coverage and names the
+    workload registration gap instead of claiming Graph permissions are missing.
+    Licence and other service failures retain their own diagnostic detail.
+    No backup billing/controller registration is performed by an audit.
+
+H45–47 verification on 2026-10-05: 6082 Python tests passed, 1 skipped;
+187 browser tests passed in three consecutive full runs. Targeted transport,
+setup/renewal, workload-role, customer-scope and backup-diagnostic regressions
+passed. JavaScript, strict typing, architecture, vendor hashes, lint budget
+(54 inherited findings), wheel build and packaged assets passed. The setup
+panel was inspected with an isolated test account. The local Hub was restarted
+only after checking audits were idle; health/database and authenticated PKCE
+start checks passed, and the administrator retained all three grants.
+Fresh read-only Microsoft checks succeeded for Intune, Teams, SharePoint,
+Conditional Access and other Graph sources. PIM/risky-user refusals named
+licence requirements; Backup returned AppNotRegistered. Exchange/Purview
+certificate token acquisition worked, but application permissions and the
+supported directory roles still require administrator consent. No live tenant
+grants were changed and a successful Exchange/Purview audit is not claimed.
+
+C14/H44 verification on 2026-10-05: the full Python and browser suites passed,
+along with JavaScript/module checks, vendor hashes/advisories, architecture,
+strict typing (including both new modules), unchanged lint debt and wheel
+assets. The active encrypted archive and key copy passed isolated restoration,
+SQLite integrity and customer-configuration decryption. Original key backup
+blobs were unchanged; no older installation was restored or overwritten.
+The local Hub was restarted only after authenticated checks confirmed user
+audits and setup were idle and scheduled audits were disabled. Public health
+and database checks passed; the initial administrator retained all three
+capabilities. No Microsoft tenant grants were changed. H43 and broader policy
+service evaluation in F34 still require live verification.

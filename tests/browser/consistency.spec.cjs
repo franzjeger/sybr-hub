@@ -125,6 +125,7 @@ test('Policy-oversikt reads unknown as unknown when no policies were captured', 
   await login(page);
   await asBeta(page);
   await inApp(page, app => app.showView('policy-overview'));
+  await page.getByRole('button', {name: 'Innsamlet oppsett', exact:true}).click();
   const standards = page.locator('#po-standards');
   await expect(standards).toContainText('Kundens policyer er ikke samlet inn ennå');
   await expect(standards.locator('.po-unknown').first()).toBeVisible();

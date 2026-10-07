@@ -321,6 +321,10 @@ def build_report_context(
         if r.status in (SectionStatus.SKIPPED, SectionStatus.FAILED)
         and not r.name.startswith("Azure ")
     ]
+    # History reconstructs older runs without their original section statuses.
+    # The persisted helper failure must still reach the score's data coverage.
+    if "EXCHANGE_ERROR.txt" in error_files and "Exchange Online" not in _unavailable:
+        _unavailable.append("Exchange Online")
     risk = _compute_risk(
         secure_score,
         mfa,

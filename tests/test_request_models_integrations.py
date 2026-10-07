@@ -90,6 +90,30 @@ async def test_itglue_test_without_a_key_still_falls_back_to_settings(admin_clie
     assert r.json()["ok"] is False
 
 
+@pytest.mark.parametrize("key", ["", "••••••", "  ••••••  "])
+async def test_itglue_uses_stored_key_and_the_selected_region(admin_client, monkeypatch, key):
+    from app.core.config import update_app_settings
+
+    update_app_settings(lambda s: s.update(itglue_api_key="synthetic-key", itglue_region="eu"))
+    calls = []
+
+    class Client:
+        def __init__(self, api_key, region):
+            calls.append((api_key, region))
+
+        async def test_connection(self):
+            return {"ok": True, "organizations": 1}
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr("app.integrations.itglue.ITGlueClient", Client)
+    assert admin_client.post("/api/itglue/test", json={"api_key": key, "region": "us"}).json()["ok"]
+    assert calls == [("synthetic-key", "us")]
+    assert admin_client.post("/api/itglue/test", json={"api_key": key}).json()["ok"]
+    assert calls[-1] == ("synthetic-key", "eu")
+
+
 async def test_a_connection_test_needs_an_admin(tech_client):
     """It runs with the stored credentials, which only an admin may configure."""
     for path in ("/api/itglue/test", "/api/autotask/test", "/api/myitprocess/test"):
@@ -278,3 +302,105 @@ async def test_a_psa_test_with_no_body_or_an_empty_one_uses_the_stored_settings(
 )
 async def test_a_malformed_psa_test_is_a_422(admin_client, path, body):
     assert_refused(admin_client.post(path, json=body), 422)
+
+
+async def test_itglue_check_status_survives_reload_and_credential_changes(
+    admin_client, monkeypatch, tmp_path
+):
+    from app.core.config import save_app_settings
+
+    monkeypatch.setattr("app.core.config._settings_path", lambda: tmp_path / "settings.json")
+    save_app_settings({"itglue_api_key": "synthetic-saved-key", "itglue_region": "eu"})
+
+    class Client:
+        ok = True
+
+        def __init__(self, api_key, region):
+            assert api_key == "synthetic-saved-key"
+            assert region == "eu"
+
+        async def test_connection(self):
+            return {"ok": self.ok, "organizations": 0}
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr("app.integrations.itglue.ITGlueClient", Client)
+    assert (
+        admin_client.get("/api/settings").json()["integration_health"]["itglue"]["state"]
+        == "configured"
+    )
+    response = admin_client.post("/api/itglue/test", json={"api_key": "••••••", "region": "eu"})
+    assert response.status_code == 200
+    health = admin_client.get("/api/settings").json()["integration_health"]["itglue"]
+    assert health["state"] == "verified" and health["checked_at"]
+    Client.ok = False
+    assert admin_client.post("/api/itglue/test", json={}).status_code == 200
+    assert (
+        admin_client.get("/api/settings").json()["integration_health"]["itglue"]["state"]
+        == "failed"
+    )
+    assert (
+        admin_client.post(
+            "/api/settings", json={"itglue_api_key": "synthetic-replacement"}
+        ).status_code
+        == 200
+    )
+    assert admin_client.get("/api/settings").json()["integration_health"]["itglue"] == {
+        "state": "configured",
+        "checked_at": None,
+    }
+
+
+@pytest.mark.parametrize("provider", ["autotask", "myitprocess"])
+async def test_masked_provider_checks_use_stored_credentials_and_endpoint(
+    admin_client, monkeypatch, tmp_path, provider
+):
+    from app.core.config import save_app_settings
+
+    monkeypatch.setattr("app.core.config._settings_path", lambda: tmp_path / "settings.json")
+    settings = {
+        "autotask_integration_code": "synthetic-code",
+        "autotask_username": "synthetic-user",
+        "autotask_secret": "synthetic-secret",
+        "autotask_zone_url": "https://zone.example.invalid",
+        "myitprocess_api_key": "synthetic-key",
+        "myitprocess_base_url": "https://service.example.invalid",
+    }
+    save_app_settings(settings)
+
+    class Client:
+        def __init__(self, **kwargs):
+            if provider == "autotask":
+                assert kwargs == {
+                    "api_integration_code": "synthetic-code",
+                    "username": "synthetic-user",
+                    "secret": "synthetic-secret",
+                    "zone_url": "https://zone.example.invalid",
+                }
+            else:
+                assert kwargs == {
+                    "api_key": "synthetic-key",
+                    "base_url": "https://service.example.invalid",
+                }
+
+        async def test_connection(self):
+            return {"ok": True}
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(
+        f"app.integrations.{provider}.{'AutotaskClient' if provider == 'autotask' else 'MyITProcessClient'}",
+        Client,
+    )
+    body = (
+        {"integration_code": "••••••", "username": "synthetic-user", "secret": "••••••"}
+        if provider == "autotask"
+        else {"api_key": "••••••"}
+    )
+    assert admin_client.post(f"/api/{provider}/test", json=body).status_code == 200
+    assert (
+        admin_client.get("/api/settings").json()["integration_health"][provider]["state"]
+        == "verified"
+    )

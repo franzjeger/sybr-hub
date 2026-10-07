@@ -50,6 +50,7 @@ def wired(monkeypatch, tmp_path):
     built: list[tuple] = []
     contexts: list[dict] = []
     settings: dict = {"audit_all_customers": False, "customer_id": None}
+    monkeypatch.setattr("app.core.credentials.get_secret", lambda tenant, kind: "test-secret")
 
     def _forbidden(name):
         def boom(*a, **kw):
@@ -170,6 +171,16 @@ async def test_a_customer_without_a_microsoft_setup_is_not_attempted(wired, capl
 
     assert built == [] and _Collector.seen == []
     assert "Half has no Microsoft 365 setup" in caplog.text
+
+
+async def test_the_selected_customer_is_skipped_when_its_secret_is_missing(wired, monkeypatch):
+    settings, built, _, _ = wired
+    settings["customer_id"] = "beta"
+    monkeypatch.setattr("app.core.credentials.get_secret", lambda tenant, kind: None)
+
+    await AuditScheduler()._run_scheduled_audit()
+
+    assert built == [] and _Collector.seen == []
 
 
 async def test_a_manual_audit_in_progress_is_not_run_over(wired):

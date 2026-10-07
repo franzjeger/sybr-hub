@@ -124,22 +124,23 @@ class TeamsPoliciesSection(BaseSection):
             cross_tenant = await self.graph.get(
                 "policies/crossTenantAccessPolicy/default", beta=True
             )
-            b2b_in = cross_tenant.get("b2bCollaborationInbound", {})
-            b2b_out = cross_tenant.get("b2bCollaborationOutbound", {})
-            b2b_direct_in = cross_tenant.get("b2bDirectConnectInbound", {})
+            b2b_in = cross_tenant.get("b2bCollaborationInbound") or {}
+            b2b_out = cross_tenant.get("b2bCollaborationOutbound") or {}
+            b2b_direct_in = cross_tenant.get("b2bDirectConnectInbound") or {}
+            inbound = b2b_in.get("usersAndGroups") or {}
+            outbound = b2b_out.get("usersAndGroups") or {}
+            direct_inbound = b2b_direct_in.get("usersAndGroups") or {}
             cross_defaults = {
-                "b2b_collaboration_inbound": b2b_in.get("usersAndGroups", {}).get("accessType"),
-                "b2b_collaboration_outbound": b2b_out.get("usersAndGroups", {}).get("accessType"),
-                "b2b_direct_connect_inbound": b2b_direct_in.get("usersAndGroups", {}).get(
-                    "accessType"
-                ),
+                "b2b_collaboration_inbound": inbound.get("accessType"),
+                "b2b_collaboration_outbound": outbound.get("accessType"),
+                "b2b_direct_connect_inbound": direct_inbound.get("accessType"),
             }
 
             lines += [
                 "  Cross-Tenant Defaults:",
-                f"    B2B Collab Inbound     : {b2b_in.get('usersAndGroups', {}).get('accessType', 'N/A')}",
-                f"    B2B Collab Outbound    : {b2b_out.get('usersAndGroups', {}).get('accessType', 'N/A')}",
-                f"    B2B Direct Inbound     : {b2b_direct_in.get('usersAndGroups', {}).get('accessType', 'N/A')}",
+                f"    B2B Collab Inbound     : {inbound.get('accessType') or 'N/A'}",
+                f"    B2B Collab Outbound    : {outbound.get('accessType') or 'N/A'}",
+                f"    B2B Direct Inbound     : {direct_inbound.get('accessType') or 'N/A'}",
                 "",
             ]
         except Exception as e:
@@ -181,7 +182,7 @@ class TeamsPoliciesSection(BaseSection):
             self._warn(f"Teamwork messaging settings fetch failed: {ex}")
             return
 
-        msg = data.get("messagingSettings", {})
+        msg = data.get("messagingSettings") or {}
 
         lines = [
             "=" * 90,

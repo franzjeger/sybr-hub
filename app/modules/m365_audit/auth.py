@@ -274,6 +274,35 @@ class AuthManager:
 
     # ── EXO via PowerShell helper ─────────────────────────────────────────────
 
+    async def _exo_organization(self) -> str:
+        """Resolve the onmicrosoft.com organization required by certificate auth.
+
+        PrimaryDomain is the customer's public/report domain. It is not the
+        Organization parameter for Connect-ExchangeOnline or Connect-IPPSSession.
+        https://learn.microsoft.com/powershell/exchange/app-only-auth-powershell-v2
+        """
+        if self.org_domain.lower().endswith(".onmicrosoft.com"):
+            return self.org_domain
+
+        from app.modules.m365_audit.graph_client import GraphClient
+
+        async with GraphClient(self.credential, tenant_id=self.tenant_id) as graph:
+            orgs = await graph.get_all("organization", params={"$select": "verifiedDomains"})
+        # These entries are already verified: unlike /domains, organization
+        # verifiedDomains does not carry an isVerified property.
+        initial = [
+            domain["name"]
+            for org in orgs
+            for domain in org.get("verifiedDomains", []) or []
+            if domain.get("isInitial") is True
+            and str(domain.get("name") or "").lower().endswith(".onmicrosoft.com")
+        ]
+        if len(initial) != 1:
+            raise AuthError(
+                "Could not determine the tenant's initial onmicrosoft.com domain for Exchange"
+            )
+        return initial[0]
+
     async def collect_exo_data(self, out_dir: Path) -> dict:
         """Run the PowerShell EXO helper and return parsed JSON output."""
         # GDAP customers have no per-customer cert — EXO requires cert-based auth
@@ -290,6 +319,11 @@ class AuthManager:
         ps_exe = find_pwsh()
         if not ps_exe:
             return {"error": "PowerShell 7 (pwsh) not found — Exchange data skipped"}
+
+        try:
+            exo_organization = await self._exo_organization()
+        except Exception as exc:
+            return {"error": f"EXO organization lookup failed: {exc}"}
 
         # The .pfx is encrypted at rest (MSPTK header + AES-GCM), so handing its
         # path to PowerShell gave X509Certificate2 a blob of ciphertext and it
@@ -321,7 +355,7 @@ class AuthManager:
                     "ClientId": self.client_id,
                     "CertPath": temp_cert,
                     "CertPassword": self.cert_password,
-                    "OrgDomain": self.org_domain,
+                    "OrgDomain": exo_organization,
                     "OutDir": str(out_dir),
                 }
             )

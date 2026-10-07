@@ -24,6 +24,7 @@ from app.models.integrations import (
     AlsoTestRequest,
 )
 from app.models.user import Role, User
+from app.web.connection_checks import connection_check
 from app.web.i18n import refusal, ui_t
 from app.web.middleware.auth import get_current_user, require_module, require_role
 
@@ -139,7 +140,7 @@ def _detect_term(row: dict, now=None) -> str | None:
 
 def _get_also_config() -> dict:
     """Load ALSO credentials from app settings."""
-    from app.core.config import load_app_settings
+    from app.web.connection_checks import connection_settings as load_app_settings
 
     settings = load_app_settings()
     return {
@@ -198,6 +199,9 @@ async def _get_client():
 
 
 @router.post("/also/test")
+@connection_check(
+    "also", {"username": "also_username", "password": "also_password", "country": "also_country"}
+)
 async def test_connection(
     body: AlsoTestRequest,
     user: User = Depends(require_role(Role.technician)),

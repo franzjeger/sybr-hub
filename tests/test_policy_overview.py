@@ -370,16 +370,18 @@ def test_an_overview_route_serves_the_compose(admin_client):
     assert hint["code"] in ("enforce", "add_break_glass"), "report-only gets a next step"
 
 
-def test_the_router_is_read_only():
-    """The overview is a screen, not a writer."""
+def test_inventory_route_stays_read_only_and_only_hub_plans_can_be_saved():
     from app.web.routes.policy_overview import router
 
-    offenders = []
-    for route in router.routes:
-        methods = set(getattr(route, "methods", []) or [])
-        if methods - {"GET", "HEAD", "OPTIONS"}:
-            offenders.append((getattr(route, "path", "?"), sorted(methods)))
-    assert not offenders, f"policy-overview gained a mutating route: {offenders}"
+    writes = {
+        route.path
+        for route in router.routes
+        if set(getattr(route, "methods", [])) - {"GET", "HEAD", "OPTIONS"}
+    }
+    assert writes == {
+        "/policy-overview/{customer_id}/plan",
+        "/policy-overview/{customer_id}/reviews/{policy_id}",
+    }
 
 
 # ── Wiring — the same assertions the assessments view carries ───────────────

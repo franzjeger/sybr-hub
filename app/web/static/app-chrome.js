@@ -1,3 +1,6 @@
+import {_checkVpnHeaderBadge} from './app-shell-status.js';
+import {_syncBottomNav} from './app-ui.js';
+
 // ═══════════════════════════════════════════════════════════════════
 // CHROME — theme, notifications, shortcuts, onboarding & bootstrap
 // ═══════════════════════════════════════════════════════════════════
@@ -5,11 +8,12 @@
 import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {onLoginViewShown, onSignedIn} from './app-hooks.js';
-import {_currentUser, hasFeature} from './app-state.js';
-import {_formatBytes} from './app-format.js';
+import {_currentUser} from './app-state.js';
+
 import {showToast, showToastWithRetry} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {_syncConnChip, currentView, setVpnTunnelUp, showView, toggleCommandPalette} from './app.js';
+import {navShowView as showView, navToggleCommandPalette as toggleCommandPalette} from './app-navigation.js';
+import {currentView} from './app-state.js';
 import {aiQuickPrompt} from './app-infra.js';
 import {_gradeFilter, clearGradeFilter, openOverviewTab} from './app-dashboard.js';
 import {auditRunning, startAudit} from './app-audit.js';
@@ -32,32 +36,7 @@ export function toggleNotifications() {
   openOverviewTab('dash-alerts');
 }
 
-export async function _checkVpnHeaderBadge() {
-  // Signed-out pages and accounts without the VPN feature have nothing to show
-  // here, and the server refuses them.
-  if (!_currentUser || !hasFeature('vpn')) return;
-  try {
-    var d = await apiFetch('/api/vpn/status');
-    // Single status chip: prefix "VPN · " ahead of the live dot when a tunnel
-    // is up (the old standalone #vpn-header-badge was merged into #conn-status).
-    var prefix = document.getElementById('vpn-chip-prefix');
-    if (!prefix) return;
-    setVpnTunnelUp(!!(d && d.state === 'connected'));
-    _syncConnChip();
-    if (d && d.state === 'connected') {
-      prefix.hidden = false;
-      var stats = d.stats || {};
-      var tip = 'VPN ' + t('vpn_connected','Connected');
-      if (d.interface) tip += ' (' + d.interface + ')';
-      if (stats.local_ip) tip += '\nIP: ' + stats.local_ip;
-      if (stats.tx_bytes || stats.rx_bytes) tip += '\nTX: ' + _formatBytes(stats.tx_bytes||0) + ' / RX: ' + _formatBytes(stats.rx_bytes||0);
-      tip += '\n' + t('tip_click_to_manage','Click to manage');
-      prefix.title = tip;
-    } else {
-      prefix.hidden = true;
-    }
-  } catch(e) { /* VPN badge poll — retries every 30s */ }
-}
+
 
 // Re-check VPN status periodically
 setInterval(_checkVpnHeaderBadge, 30000);
@@ -118,17 +97,7 @@ function applyTheme(theme) {
 }
 
 // ── Activity log labels ─────────────────────────────────────────────────────
-export function _activityLabel(key) {
-  var labels = {
-    fortigate_save: t('activity_fortigate_save'),
-    fortigate_removed: t('activity_fortigate_removed'),
-    fortigate_bootstrapped: t('activity_fortigate_bootstrapped'),
-    fortigate_key_deployed: t('activity_fortigate_key_deployed'),
-    fortigate_token_generated: t('activity_fortigate_token_generated'),
-  };
-  if (labels[key]) return labels[key];
-  return t('activity_' + key, key.replace(/_/g, ' '));
-}
+
 
 
 // ── Mobile bottom nav + «Mer» sheet (frame 4a) ──────────────────────────────
@@ -145,24 +114,7 @@ export function closeMoreSheet() {
   _syncBottomNav(av ? av.id.replace('view-', '') : 'overview');
 }
 function _closeMoreSheetEsc(e) { if (e.key === 'Escape') closeMoreSheet(); }
-export function _syncBottomNav(name) {
-  // Map every view onto one of the bottom tabs. Søk opens the palette over
-  // whatever is showing, so it never stays lit; Varsler is Oversikt's
-  // Varsler tab; Verktøy, Administrasjon and Hjelp live in Mer.
-  var map = {
-    overview: 'dashboard',
-    customers: 'customers', setup: 'customers', 'customer-detail': 'customers',
-    more: 'more',
-  };
-  var active = map[name] || (name ? 'more' : '');
-  if (name === 'overview') {
-    var tab = document.querySelector('#view-overview .tab.active');
-    if (tab && tab.dataset.tab === 'dash-alerts') active = 'alerts';
-  }
-  document.querySelectorAll('.bnav-item').forEach(function(el) {
-    el.classList.toggle('active', el.getAttribute('data-bnav') === active);
-  });
-}
+
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 export function openShortcutsModal() {
@@ -558,12 +510,7 @@ function _notifySwUpdateAvailable(worker) {
 
 // Desktop notifications are asked for when an audit starts (startAudit),
 // a moment the operator can connect with the question, not on page load.
-export function requestAuditNotifications() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    var asked = Notification.requestPermission();
-    if (asked && asked.catch) asked.catch(function() {});
-  }
-}
+
 
 // Scroll-to-top button
 window.addEventListener('scroll', function() {

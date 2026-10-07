@@ -393,14 +393,23 @@ def load_from_card(customer_id: str) -> dict | None:
 def persist_from_run(out_dir: Path) -> bool:
     """Audit-completion hook: lift this run's policies onto the customer card.
 
-    The customer id is the parent directory of the run — the audit tree and the
-    customer card use the same name transform (``customer_dir_name``), so
-    ``<audit>/<customer_id>/<run>`` gives the card key directly. Best-effort: a
-    failure here must never fail the audit. Returns whether a record was written.
+    Resolve the audit folder's display name to its stable customer id. A rename
+    changes the folder but preserves the id. Ambiguous names must not copy one
+    tenant's inventory to several cards. Legacy folders without a customer
+    record retain their original card key. Best-effort; never fails the audit.
     """
     try:
         out_dir = Path(out_dir)
-        customer_id = out_dir.parent.name
+        from app.core.customer import customers_for_dir_name
+
+        try:
+            matches = customers_for_dir_name(out_dir.parent.name)
+        except FileNotFoundError:
+            matches = []  # Legacy inventory before a customer directory exists.
+        if len(matches) > 1:
+            logger.warning("Ambiguous customer folder for policy inventory")
+            return False
+        customer_id = matches[0]["_id"] if matches else out_dir.parent.name
         if not customer_id:
             return False
         inventory = build_inventory(out_dir)

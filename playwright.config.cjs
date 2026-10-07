@@ -18,8 +18,11 @@ module.exports = defineConfig({
   // records its firmware, which Varsler counts); scheduler-customer sets the
   // automatic audit's customer.
   projects: [
-    {name: 'shared', testIgnore: /(modules|network-setup|scheduler-customer)\.spec\.cjs$/},
+    {name: 'shared', testIgnore: /(modules|network-setup|scheduler-customer|integration-save)\.spec\.cjs$/},
     {name: 'server-settings', testMatch: /(modules|network-setup|scheduler-customer)\.spec\.cjs$/, dependencies: ['shared']},
+    // The general settings form also posts its IT Glue region snapshot.
+    // Run persistence checks after those specs so their saves cannot race.
+    {name: 'integration-settings', testMatch: /integration-save\.spec\.cjs$/, dependencies: ['server-settings']},
   ],
   webServer: {
     command: (process.env.SYBR_TEST_PYTHON || '.venv/bin/python') + ' tests/browser/server.py',

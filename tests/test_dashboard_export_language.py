@@ -92,3 +92,42 @@ def test_the_excel_button_sends_the_readers_language():
     source = Path("app/web/static/app-customers.js").read_text(encoding="utf-8")
     call = source[source.index("fetch('/api/export/excel'") :].split("\n", 1)[0]
     assert "lang:" in call and "_lang" in call
+
+
+@pytest.mark.parametrize("lang", ["no", "en"])
+async def test_unknown_values_are_empty_and_named_while_measured_zero_stays_zero(
+    client, metrics, lang
+):
+    run = next((metrics / "Acme_AS").iterdir())
+    encrypted_write_json(
+        run / "_audit_metrics.json",
+        {
+            "risk_grade": "?",
+            "risk_score": None,
+            "mfa_coverage_pct": None,
+            "secure_score_pct": 0,
+            "total_users": 0,
+            "users_no_mfa": None,
+            "ca_policies_enabled": 0,
+            "intune_compliance_pct": None,
+            # An absent GA count must be treated the same as an explicit null.
+        },
+    )
+    headers = await login("excel-unmeasured", customers=(ACME,))
+
+    rows = _export(client, headers, json={"lang": lang})
+
+    assert rows[1][2:11] == ["", "", "", "0", "0", "", "0", "", ""]
+    label = "Unmeasured values" if lang == "en" else "Ikke målte verdier"
+    assert rows[0][-1] == label
+    assert rows[1][-1].split(", ") == [rows[0][i] for i in (2, 3, 4, 7, 9, 10)]
+
+
+async def test_a_customer_without_a_run_has_no_invented_metrics(client, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.core.config.get_audit_dir", lambda: tmp_path)
+    headers = await login("excel-no-run", customers=(ACME,))
+
+    rows = _export(client, headers, json={"lang": "en"})
+
+    assert rows[1][2:11] == [""] * 9
+    assert rows[1][-1].split(", ") == rows[0][2:11]

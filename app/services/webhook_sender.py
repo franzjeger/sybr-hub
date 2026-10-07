@@ -430,7 +430,7 @@ async def send_webhook(
 
 
 async def send_simple_message(webhook_url: str, message: str) -> bool:
-    """Send a simple text message (for test messages, audit-completed, etc.)."""
+    """Send literal text; tenant names and exceptions cannot create links or mentions."""
     if not webhook_url:
         return False
 
@@ -438,14 +438,12 @@ async def send_simple_message(webhook_url: str, message: str) -> bool:
 
     if wh_type in ("teams", "power_automate"):
         body = [
-            {
-                "type": "TextBlock",
-                "text": line.strip(),
-                "wrap": True,
-                "weight": "Bolder" if i == 0 else "Default",
-                "size": "Medium" if i == 0 else "Default",
-                "spacing": "None" if i > 0 else "Default",
-            }
+            _literal(
+                line.strip(),
+                weight="Bolder" if i == 0 else "Default",
+                size="Medium" if i == 0 else "Default",
+                spacing="None" if i > 0 else "Default",
+            )
             for i, line in enumerate(message.split("\n"))
             if line.strip()
         ]
@@ -472,7 +470,7 @@ async def send_simple_message(webhook_url: str, message: str) -> bool:
             "blocks": [
                 {
                     "type": "section",
-                    "text": {"type": "mrkdwn", "text": message},
+                    "text": {"type": "plain_text", "text": message, "emoji": False},
                 }
             ],
         }

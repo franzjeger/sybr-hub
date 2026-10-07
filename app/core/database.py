@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -136,6 +136,23 @@ async def _add_tenant_write_column(conn: aiosqlite.Connection) -> None:
     if "tenant_write" in columns:
         return
     await conn.execute("ALTER TABLE users ADD COLUMN tenant_write INTEGER NOT NULL DEFAULT 0")
+
+
+async def _restore_initial_admin_access(conn: aiosqlite.Connection) -> None:
+    """Repair the first human administrator's grants once on upgrade.
+
+    Older setup created a read-only administrator, leaving nobody able to
+    configure integrations or grant access. Only the earliest human account
+    is eligible; a disabled or demoted account must not be reactivated or
+    replaced by a later administrator. The version marker makes this a
+    one-time repair, so later deliberate revocations survive restarts.
+    """
+    await conn.execute(
+        "UPDATE users SET all_customers = 1, can_write = 1, tenant_write = 1 "
+        "WHERE id = (SELECT id FROM users WHERE is_system = 0 "
+        "ORDER BY julianday(created_at), rowid LIMIT 1) "
+        "AND role = 'admin' AND is_active = 1"
+    )
 
 
 async def _add_ssh_key_customer_column(conn: aiosqlite.Connection) -> None:
@@ -804,6 +821,11 @@ _MIGRATIONS: list = [
         CREATE INDEX IF NOT EXISTS idx_tailscale_node_customers_customer
             ON tailscale_node_customers(customer_id);
         """,
+    ),
+    (
+        29,
+        "Restore full access to the initial human administrator",
+        _restore_initial_admin_access,
     ),
 ]
 

@@ -2,9 +2,20 @@
 // API: apiFetch, the one way the interface calls the server
 // ═══════════════════════════════════════════════════════════════════
 
+import {connectionChecked} from './app-hooks.js';
 import {_lang, t} from './app-i18n.js';
 import {_currentUser, _writeExempt, canWrite} from './app-state.js';
 import {showLoginView, showToast, showToastWithRetry} from './app-ui.js';
+
+// Unique per document, including duplicated tabs. It carries only the report
+// view's identity; cookies and server customer grants still authorize requests.
+var _auditTab = typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
+  : Array.from(crypto.getRandomValues(new Uint8Array(16)), function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+export function auditTabHeaders(headers) {
+  var out = new Headers(headers || {});
+  out.set('X-Audit-Tab', _auditTab);
+  return out;
+}
 
 export function setAuth() {
   // Remove credentials left by versions that persisted bearer tokens.
@@ -61,11 +72,13 @@ export async function apiFetch(url, options, _retryCount, _authRetried) {
   if (!options) options = {};
   if (!options.headers) options.headers = {};
   var requestOptions = Object.assign({}, options);
-  requestOptions.headers = new Headers(options.headers);
+  requestOptions.headers = auditTabHeaders(options.headers);
   requestOptions.headers.set('Accept-Language', _lang === 'en' ? 'en' : 'nb-NO');
   delete requestOptions.onError;
+  delete requestOptions.retry;
   try {
     var r = await fetch(url, requestOptions);
+    if ((options.method || 'GET').toUpperCase() === 'POST' && (/^\/api\/(itglue|autotask|myitprocess|also|tailscale|email)\/test$/.test(url) || url === '/api/settings' || url === '/api/gdap/setup')) setTimeout(connectionChecked, 0);
     if (r.ok) {
       var ct = (r.headers.get('content-type') || '');
       if (ct.indexOf('application/json') !== -1) {
@@ -86,13 +99,14 @@ export async function apiFetch(url, options, _retryCount, _authRetried) {
         if (eb.error_id) errBody += ' (' + t('lbl_error_id', 'Feil-ID') + ': ' + eb.error_id + ')';
       } catch(_) { errBody = await r.text().catch(function(){return '';}); }
       var safeRead = /^(GET|HEAD)$/.test((options.method || 'GET').toUpperCase());
-      if (safeRead && (!eb || eb.error_type !== 'integration_error') && _retryCount < maxRetries) {
+      if (options.retry !== false && safeRead && (!eb || eb.error_type !== 'integration_error') && _retryCount < maxRetries) {
         showToast(t('err_server_error','Server error') + ' (' + (_retryCount+1) + '/' + maxRetries + '): ' + (errBody || r.status), 'warning', 3000);
         await new Promise(function(resolve) { setTimeout(resolve, 3000); });
         return apiFetch(url, options, _retryCount + 1, _authRetried);
       }
       if (options.onError) options.onError(errBody || 'HTTP ' + r.status);
-      showToastWithRetry(t('err_server_error','Server error') + ': ' + (errBody || 'HTTP ' + r.status), function() { apiFetch(url, options, 0); }, 'error', eb && eb.error_key || url);
+      if (options.retry === false) showToast(errBody || 'HTTP ' + r.status, 'error');
+      else showToastWithRetry(t('err_server_error','Server error') + ': ' + (errBody || 'HTTP ' + r.status), function() { apiFetch(url, options, 0); }, 'error', eb && eb.error_key || url);
       console.error('API error', url, r.status, errBody);
       return null;
     }
@@ -104,7 +118,9 @@ export async function apiFetch(url, options, _retryCount, _authRetried) {
         return null;
       }
       if (sessionState === 'unavailable') {
-        showToastWithRetry(t('toast_lost_connection'), function() { apiFetch(url, options, 0); });
+        if (options.onError) options.onError(t('toast_lost_connection'));
+        if (options.retry === false) showToast(t('toast_lost_connection'), 'error');
+        else showToastWithRetry(t('toast_lost_connection'), function() { apiFetch(url, options, 0); });
         return null;
       }
       if (sessionState === 'refreshed' && !_authRetried) return apiFetch(url, options, _retryCount, true);
@@ -128,7 +144,8 @@ export async function apiFetch(url, options, _retryCount, _authRetried) {
   } catch (e) {
     // Network error
     if (options.onError) options.onError(t('toast_lost_connection'));
-    showToastWithRetry(t('toast_lost_connection'), function() { apiFetch(url, options, 0); });
+    if (options.retry === false) showToast(t('toast_lost_connection'), 'error');
+    else showToastWithRetry(t('toast_lost_connection'), function() { apiFetch(url, options, 0); });
     return null;
   }
 }

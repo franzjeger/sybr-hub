@@ -76,7 +76,7 @@ class TeamsSection(BaseSection):
                 return "N/A"
             return "Enabled" if val else "Disabled"
 
-        msg_settings = data.get("messagingSettings", {})
+        msg_settings = data.get("messagingSettings") or {}
         calling = data.get("isSkypeForBusinessInteropEnabled")
 
         lines = [
@@ -119,16 +119,21 @@ class TeamsSection(BaseSection):
             logger.debug("Cross-tenant partner configurations not read", exc_info=True)
             partner_configs = None
 
-        b2b_collab = default.get("b2bCollaborationInbound", {})
-        b2b_direct = default.get("b2bDirectConnectInbound", {})
+        b2b_collab = default.get("b2bCollaborationInbound")
+        b2b_direct = default.get("b2bDirectConnectInbound")
+
+        def access(setting: dict | None) -> str | None:
+            # Graph can return null for a B2B setting or usersAndGroups.
+            # Keep the absence unknown rather than inventing a restriction.
+            return ((setting or {}).get("usersAndGroups") or {}).get("accessType")
 
         lines = [
             "=" * 70,
             "  TEAMS / CROSS-TENANT EXTERNAL ACCESS POLICY",
             "=" * 70,
             "  Default Inbound Settings:",
-            f"    B2B Collaboration  : {b2b_collab.get('usersAndGroups', {}).get('accessType', 'N/A')}",
-            f"    B2B Direct Connect : {b2b_direct.get('usersAndGroups', {}).get('accessType', 'N/A')}",
+            f"    B2B Collaboration  : {access(b2b_collab) or 'N/A'}",
+            f"    B2B Direct Connect : {access(b2b_direct) or 'N/A'}",
             "",
         ]
 
@@ -138,20 +143,13 @@ class TeamsSection(BaseSection):
             lines.append(f"  Partner Configurations ({len(partner_configs)}):")
             for pc in partner_configs:
                 tenant_id = pc.get("tenantId", "N/A")
-                in_type = (
-                    pc.get("b2bCollaborationInbound", {})
-                    .get("usersAndGroups", {})
-                    .get("accessType", "N/A")
-                )
+                in_type = access(pc.get("b2bCollaborationInbound")) or "N/A"
                 lines.append(f"    Tenant {tenant_id} — inbound: {in_type}")
         else:
             lines.append("  Partner Configurations: (none)")
 
         lines += ["=" * 70, ""]
         self._save("16c_teams_external_access.txt", "\n".join(lines))
-
-        def access(setting: dict | None) -> str | None:
-            return ((setting or {}).get("usersAndGroups") or {}).get("accessType")
 
         self._save_sidecar(
             "16c_teams_external_access.txt",

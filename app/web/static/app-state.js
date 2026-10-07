@@ -142,3 +142,7 @@ export var _allCustomers = [];
 export function setAllCustomers(list) {
   _allCustomers = list;
 }
+
+// Active shell view, shared without importing the shell.
+export let currentView = 'home';
+export function setCurrentView(name) { currentView = name; }

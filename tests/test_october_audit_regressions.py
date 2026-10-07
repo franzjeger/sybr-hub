@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from unittest.mock import AsyncMock
 
 import pytest
@@ -151,7 +153,11 @@ async def test_excel_export_preserves_unknowns_and_neutralises_formulas(
     )
     response = admin_client.post("/api/export/excel", json={"lang": "no"})
     assert response.status_code == 200, response.text
-    assert "ikke målt" in response.text
+    header, row = list(csv.reader(io.StringIO(response.text.lstrip("\ufeff")), delimiter=";"))[:2]
+    cells = dict(zip(header, row, strict=True))
+    # An unknown is left empty and named, never written as 0.
+    assert cells["MFA-dekning %"] == "" and cells["Secure Score %"] == ""
+    assert "MFA-dekning %" in cells["Ikke målte verdier"]
     assert "'=HYPERLINK" in response.text and "'+cmd" in response.text
 
 

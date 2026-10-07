@@ -39,7 +39,7 @@ const THIRD_PARTY = new Set(['guacamole.min.js']);
 const CLASSIC = new Set(['theme-init.js', 'sw.js']);
 
 const LEAVES = ['app-esc.js', 'app-i18n.js', 'app-icons.js', 'app-handlers.js', 'app-hooks.js', 'app-state.js'];
-const SERVICES = ['app-format.js', 'app-ui.js', 'app-api.js'];
+const SERVICES = ['app-format.js', 'app-ui.js', 'app-api.js', 'app-navigation.js', 'app-forms.js', 'app-shell-status.js', 'app-audit-presentation.js'];
 const MARKUP_HANDLERS = 'app-markup-handlers.js';
 
 function sourceTypeOf(file) {
@@ -328,14 +328,15 @@ function check() {
     if (!modules[file]) problems.push(`app/web/static/${file}: named in the layering but not in the graph`);
   }
 
-  // Cycles: none among leaves and services; in layer 3, nothing read at load.
+  // No import cycles, including feature modules. Compose callbacks in main.js.
   const comp = components(modules);
   const members = {};
   for (const file of files) (members[comp[file]] = members[comp[file]] || []).push(file);
   for (const file of files) {
     const cycle = members[comp[file]];
-    if (cycle.length < 2) continue;
-    if (layer(file) !== 3) problems.push(`app/web/static/${file}: in an import cycle with ${cycle.filter(f => f !== file).join(', ')}`);
+    const selfImport = modules[file].imports.some(i => i.source === './' + file);
+    if (cycle.length < 2 && !selfImport) continue;
+    problems.push(`app/web/static/${file}: in an import cycle with ${(selfImport ? [file] : cycle.filter(f => f !== file)).join(', ')}`);
     for (const use of loadTimeImports(modules[file])) {
       if (comp[use.source] !== comp[file]) continue;
       problems.push(`app/web/static/${file}:${use.line}: reads ${use.name} from ${use.source} while loading, ` +
@@ -358,7 +359,7 @@ function main() {
   }
   const cycles = Object.values(members).filter(m => m.length > 1);
   console.log(`Modules: ${Object.keys(modules).length} from ${entry}, every import resolves; ` +
-    `layering holds; ${cycles.length} cycle(s) in layer 3, none read at load`);
+    `layering holds; ${cycles.length} import cycles`);
 }
 
 module.exports = {STATIC_DIR, THIRD_PARTY, CLASSIC, sourceTypeOf, parse, entries, moduleGraph, evaluationOrder, check, main};

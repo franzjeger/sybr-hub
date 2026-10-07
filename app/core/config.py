@@ -79,6 +79,7 @@ REQUIRED_GRAPH_PERMISSIONS: list[str] = [
     "Directory.Read.All",
     "Group.Read.All",
     "IdentityRiskyUser.Read.All",
+    "IdentityRiskEvent.Read.All",
     "Organization.Read.All",
     "Policy.Read.All",
     "Reports.Read.All",

@@ -88,7 +88,7 @@ async def test_the_pasted_redirect_is_still_read_without_a_json_content_type(
 ):
     seen = []
 
-    async def _exchange(code, state, redirect_uri):
+    async def _exchange(code, state, redirect_uri, *, owner_user_id):
         seen.append((code, state))
         raise RuntimeError("stop here")
 
@@ -101,6 +101,48 @@ async def test_the_pasted_redirect_is_still_read_without_a_json_content_type(
     )
 
     assert seen == [("the-code", "the-state")]
+
+
+async def test_pkce_connection_error_retains_localised_retry_advice(
+    tenant_writer_client, monkeypatch
+):
+    from app.modules.m365_audit.pkce import PkceSetupError
+
+    async def exchange(*args, **kwargs):
+        raise PkceSetupError("err_setup_pkce_connect", 503, restart_required=False)
+
+    monkeypatch.setattr("app.modules.m365_audit.pkce.exchange_code_for_token", exchange)
+    r = tenant_writer_client.post(
+        "/api/setup/pkce/callback-manual",
+        json={"code": "c", "state": "s"},
+        headers={"Accept-Language": "en"},
+    )
+    assert r.status_code == 503
+    assert r.json()["restart_required"] is False
+    assert "DNS" in r.json()["error"]
+    assert "retry Complete Setup" in r.json()["error"]
+
+
+async def test_pkce_state_is_bound_to_the_signed_in_setup_user(tenant_writer_client):
+    from urllib.parse import parse_qs, urlparse
+
+    from app.modules.m365_audit.pkce import _pkce_store
+
+    url = tenant_writer_client.get("/api/setup/pkce/start").json()["url"]
+    state = parse_qs(urlparse(url).query)["state"][0]
+    try:
+        assert _pkce_store[state].owner_user_id
+        _pkce_store[state].expires_at = 0
+        r = tenant_writer_client.post(
+            "/api/setup/pkce/callback-manual",
+            json={"code": "c", "state": state},
+            headers={"Accept-Language": "en"},
+        )
+        assert r.status_code == 400
+        assert r.json()["restart_required"] is True
+        assert "New sign-in" in r.json()["error"]
+    finally:
+        _pkce_store.pop(state, None)
 
 
 async def test_a_pasted_redirect_without_code_keeps_its_answer(tenant_writer_client):
@@ -157,3 +199,59 @@ async def test_deleting_runs_outside_the_audit_dir_is_still_reported_per_path(te
 )
 async def test_a_malformed_history_request_deletes_nothing(tech_client, path, body):
     assert_refused(tech_client.post(path, json=body), 422)
+
+
+async def test_renewal_callback_passes_the_selected_customer_configuration(
+    tenant_writer_client, monkeypatch
+):
+    from app.core.customer import CustomerManager
+
+    tenant = "11111111-1111-4111-8111-111111111111"
+    customer_id = CustomerManager.save_customer(
+        {
+            "CustomerName": "Customer A",
+            "TenantId": tenant,
+            "ClientId": "22222222-2222-4222-8222-222222222222",
+        }
+    )
+    seen = []
+
+    async def exchange(*args, **kwargs):
+        return "synthetic-token"
+
+    async def provision(token, *, allowed_customer_ids, renew_config):
+        seen.append(renew_config)
+        return {"TenantId": tenant, "CustomerName": "Customer A"}
+
+    monkeypatch.setattr("app.modules.m365_audit.pkce.exchange_code_for_token", exchange)
+    monkeypatch.setattr("app.modules.m365_audit.pkce.create_sybr_app", provision)
+    monkeypatch.setattr("app.core.credentials.save_config", lambda _: None)
+    response = tenant_writer_client.post(
+        "/api/setup/pkce/callback-manual",
+        json={
+            "code": "synthetic-code",
+            "state": "synthetic-state",
+            "renew_customer_id": customer_id,
+        },
+    )
+    assert response.status_code == 200
+    assert seen[0]["CustomerId"] == customer_id
+    assert seen[0]["TenantId"] == tenant
+
+
+async def test_missing_renewal_customer_is_refused_before_app_provisioning(
+    tenant_writer_client, monkeypatch
+):
+    async def exchange(*args, **kwargs):
+        return "synthetic-token"
+
+    async def provision(*args, **kwargs):
+        pytest.fail("Missing renewal target must not provision an app")
+
+    monkeypatch.setattr("app.modules.m365_audit.pkce.exchange_code_for_token", exchange)
+    monkeypatch.setattr("app.modules.m365_audit.pkce.create_sybr_app", provision)
+    response = tenant_writer_client.post(
+        "/api/setup/pkce/callback-manual",
+        json={"code": "synthetic-code", "state": "synthetic-state", "renew_customer_id": "missing"},
+    )
+    assert response.status_code == 404

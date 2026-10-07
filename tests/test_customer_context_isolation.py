@@ -657,3 +657,67 @@ async def test_status_says_a_gdap_customer_can_be_audited(client):
     status = client.get(f"/api/customer/{gdap}/status", headers=_headers(token)).json()
     assert status["has_credentials"] is False, "no app secret is held for it"
     assert status["m365_ready"] is True
+
+
+async def test_same_customer_tabs_keep_separate_history_for_report_requests(client):
+    from app.core.config import get_audit_dir
+    from app.core.customer import customer_dir_name
+
+    cid = _customer("Same customer", "same")
+    _, token = await _auth("same-customer-tabs")
+    runs = []
+    for day, marker in (("01", "FIRST"), ("02", "SECOND")):
+        run = get_audit_dir() / customer_dir_name("Same customer") / f"2026-08-{day}_120000"
+        run.mkdir(parents=True)
+        (run / "03_users_count.txt").write_text(
+            "Total users: " + ("11" if marker == "FIRST" else "22")
+        )
+        runs.append(run)
+    for tab, run in zip(("tab-a", "tab-b"), runs, strict=True):
+        headers = {**_headers(token), "X-Audit-Tab": tab}
+        result = client.post(
+            "/api/history/load", headers=headers, json={"customer_id": cid, "path": str(run)}
+        )
+        assert result.status_code == 200, result.text
+    # Read the actual report endpoint through authentication middleware: a
+    # forged view identifier grants no customer access and never selects a
+    # different user's run.
+    for tab, day in (("tab-a", "01"), ("tab-b", "02"), ("tab-a", "01")):
+        report = client.post(
+            "/api/report/csv",
+            headers={**_headers(token), "X-Audit-Tab": tab},
+            json={"customer_id": cid, "lang": "en"},
+        )
+        assert report.status_code == 200, report.text
+        assert "Users;Total;" + ("11" if day == "01" else "22") + ";" in report.text
+        assert "Users;Total;" + ("22" if day == "01" else "11") + ";" not in report.text
+    _other_id, other_token = await _auth("other-tab-user")
+    report = client.post(
+        "/api/report/csv",
+        headers={**_headers(other_token), "X-Audit-Tab": "tab-a"},
+        json={"customer_id": cid},
+    )
+    assert report.status_code == 400
+
+
+def test_tab_history_does_not_hide_a_running_collection_and_is_bounded():
+    from pathlib import Path
+
+    from app.core import job_state as state
+
+    for n in range(40):
+        context = state.request_audit_tab.set(f"tab-{n}")
+        try:
+            state.select_user_audit("user", "customer", out_dir=Path(f"run-{n}"), results=[])
+        finally:
+            state.request_audit_tab.reset(context)
+    assert len(state._tab_audit_runs) == 32
+    context = state.request_audit_tab.set("tab-39")
+    try:
+        running = state.begin_user_audit("user", "customer")
+        assert state.get_user_audit("user", "customer") is running
+        running.running = False
+        assert state.get_user_audit("user", "customer") is running
+        assert state.get_user_audit("other", "customer") is None
+    finally:
+        state.request_audit_tab.reset(context)

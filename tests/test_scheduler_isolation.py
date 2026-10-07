@@ -51,6 +51,7 @@ def wired(monkeypatch, tmp_path):
 
     _Collector.seen = []
     built: list[tuple] = []
+    monkeypatch.setattr("app.core.credentials.get_secret", lambda tenant, kind: "test-secret")
 
     def _forbidden(name):
         def boom(*a, **kw):
@@ -143,6 +144,18 @@ async def test_an_unconfigured_customer_is_skipped_not_attempted(wired, monkeypa
     await AuditScheduler()._run_all_customers_audit()
 
     assert [cid for cid, _ in built] == ["acme", "beta"], "the half-configured one was tried"
+
+
+async def test_a_customer_whose_secret_is_missing_is_skipped(wired, monkeypatch):
+    _, built = wired
+    monkeypatch.setattr(
+        "app.core.credentials.get_secret",
+        lambda tenant, kind: "test-secret" if tenant == "t-beta" else None,
+    )
+
+    await AuditScheduler()._run_all_customers_audit()
+
+    assert [cid for cid, _ in built] == ["beta"]
 
 
 async def test_one_customer_failing_does_not_end_the_cycle(wired, monkeypatch):

@@ -481,7 +481,7 @@ async def test_get_all_retries_without_top_when_the_endpoint_rejects_it():
         def json(self):
             return {}
 
-    client = GraphClient.__new__(GraphClient)
+    client = GraphClient(object())
 
     async def fake_get(url, params=None, extra_headers=None):
         calls.append(params)
@@ -624,7 +624,7 @@ async def test_exo_helper_gets_a_decrypted_certificate(tmp_path, monkeypatch):
     mgr.cert_password = "pw"
     mgr.tenant_id = "t"
     mgr.client_id = "c"
-    mgr.org_domain = "example.com"
+    mgr.org_domain = "example.onmicrosoft.com"
 
     helper = auth_mod.Path(auth_mod.__file__).parent.parent.parent / "helpers" / "exo_collector.ps1"
     if not helper.exists():
@@ -1118,7 +1118,7 @@ async def test_sensitivity_labels_survive_a_failed_exo_helper():
     assert "1 total" in written
 
     # The EXO half must still report its own failure honestly.
-    assert result.status is SectionStatus.SKIPPED
+    assert result.status is SectionStatus.FAILED
     assert (out_dir / "EXCHANGE_ERROR.txt").exists()
 
 

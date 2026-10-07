@@ -1,3 +1,4 @@
+import {_reason, baselineReason} from './app-format.js';
 /* Assessment library (Fase B).
  *
  * A browsable list of named, scored frameworks — the Sybr Standard, Essential
@@ -19,7 +20,7 @@ import {_lang, t, translatePage} from './app-i18n.js';
 import {_custPage} from './app-state.js';
 import {showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {_reason, baselineReason} from './app-customer-detail.js';
+
 
 var _asmtBaselines = null;
 

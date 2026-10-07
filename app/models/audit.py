@@ -72,6 +72,7 @@ class PkceManualCallback(BaseModel):
 
     code: str | None = None
     state: str | None = None
+    renew_customer_id: str | None = PydanticField(default=None, min_length=1, max_length=255)
 
 
 class HistoryLoad(BaseModel):

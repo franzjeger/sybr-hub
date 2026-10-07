@@ -38,6 +38,23 @@ from tests.audit_fixture import FULL_AUDIT
 TEMPLATES = ["report_customer.html.j2", "report_tech.html.j2"]
 
 
+@pytest.mark.parametrize("template", TEMPLATES)
+def test_report_css_does_not_import_remote_fonts(template):
+    env = _jinja_env()
+    source = env.loader.get_source(env, template)[0]
+    assert not re.search(r"@import\s+url\(['\"]?https?://", source)
+
+
+@pytest.mark.parametrize("files", [None, FULL_AUDIT], ids=["unmeasured", "collected"])
+def test_technical_report_uses_one_anchor_per_destination(tmp_path, files):
+    html = _render_strict(tmp_path, "report_tech.html.j2", files)
+    ids = re.findall(r'\bid="([^"]+)"', html)
+    assert len(ids) == len(set(ids))
+    assert not re.search(r'<a\s+name="', html)
+    destinations = set(re.findall(r'href="#([^"]+)"', html))
+    assert destinations <= set(ids)
+
+
 def _audit_dir(tmp_path: Path, files: dict[str, str] | None) -> Path:
     d = tmp_path / "Acme_AS" / "2026-01-01_0900"
     d.mkdir(parents=True, exist_ok=True)
