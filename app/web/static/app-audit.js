@@ -1,3 +1,5 @@
+import {navOpenCustomerPage as openCustomerPage} from './app-navigation.js';
+import {_celebrateConfetti, requestAuditNotifications} from './app-ui.js';
 // ═══════════════════════════════════════════════════════════════════
 // AUDIT — scope, presets, flow & history
 // ═══════════════════════════════════════════════════════════════════
@@ -8,14 +10,12 @@ import {registerUiHandlers} from './app-handlers.js';
 import {_custPage, currentCustomerId} from './app-state.js';
 import {formatRunName, metricPct, toneClass} from './app-format.js';
 import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
-import {apiFetch} from './app-api.js';
-import {currentView, showView} from './app.js';
-import {_celebrateConfetti} from './app-dashboard.js';
-import {
-  custAuditTabOpen, custPageAuditFinished, custReportFromRun, custSyncReportButton,
-  openCustomerPage, setCustReportRun, setCustRuns,
-} from './app-customer-detail.js';
-import {requestAuditNotifications} from './app-chrome.js';
+import {apiFetch, auditTabHeaders} from './app-api.js';
+import {navShowView as showView} from './app-navigation.js';
+import {currentView} from './app-state.js';
+
+import {presentCustAuditTabOpen as custAuditTabOpen, presentCustPageAuditFinished as custPageAuditFinished, presentCustReportFromRun as custReportFromRun, presentCustSyncReportButton as custSyncReportButton, presentSetCustReportRun as setCustReportRun, presentSetCustRuns as setCustRuns} from './app-audit-presentation.js';
+
 
 registerUiHandlers({
   toggleScopeGroup: function(el) { toggleScopeGroup(el, el.dataset.group); },
@@ -528,7 +528,7 @@ function _emailStatusText(s) {
 
 async function _attemptAuditStream(streamUrl) {
   try {
-    const resp = await fetch(streamUrl, {method: streamUrl.indexOf('attach=1') === -1 ? 'POST' : 'GET'});
+    const resp = await fetch(streamUrl, {method: streamUrl.indexOf('attach=1') === -1 ? 'POST' : 'GET', headers: auditTabHeaders()});
     if (!resp.ok) {
       // 409 = an audit is already running. Nothing was started by this call,
       // and there is no way to attach to the existing run's stream, so fall
@@ -916,7 +916,7 @@ export async function exportCSV(customerId) {
   try {
     const r = await fetch('/api/report/csv', {
       // The report language the screen offers, as generateReport sends it.
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({customer_id: customerId, lang: document.getElementById('report-lang')?.value || 'no'}),
+      method: 'POST', headers: auditTabHeaders({'Content-Type': 'application/json'}), body: JSON.stringify({customer_id: customerId, lang: document.getElementById('report-lang')?.value || 'no'}),
     });
     if (!r.ok) {
       try { const d = await r.json(); area.innerHTML = `<div class="alert alert-error">✗ ${esc(d.error)}</div>`; } catch(_) { area.innerHTML = '<div class="alert alert-error">' + t('err_export_failed','Export failed') + '</div>'; }

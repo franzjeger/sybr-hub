@@ -13,12 +13,13 @@ import logging
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from app.core.config import load_app_settings
 from app.core.customer import CustomerManager
 from app.core.exceptions import IntegrationError, NotFoundError, ValidationError
 from app.core.rbac import filter_customers, get_accessible_customer_ids
 from app.models.integrations import AutotaskTestRequest
 from app.models.user import Role, User
+from app.web.connection_checks import connection_check
+from app.web.connection_checks import connection_settings as load_app_settings
 from app.web.i18n import ui_t
 from app.web.middleware.auth import get_current_user, require_role
 
@@ -68,6 +69,14 @@ def _client_from_settings(request: Request):
 
 
 @router.post("/autotask/test")
+@connection_check(
+    "autotask",
+    {
+        "integration_code": "autotask_integration_code",
+        "username": "autotask_username",
+        "secret": "autotask_secret",
+    },
+)
 async def autotask_test(
     request: Request,
     body: AutotaskTestRequest | None = None,
@@ -82,10 +91,23 @@ async def autotask_test(
     from app.integrations.autotask import AutotaskClient
 
     if body and body.integration_code and body.username and body.secret:
+        saved = load_app_settings()
+        code = (
+            saved.get("autotask_integration_code", "")
+            if body.integration_code == "••••••"
+            else body.integration_code
+        )
+        secret = saved.get("autotask_secret", "") if body.secret == "••••••" else body.secret
+        same_account = (code, body.username, secret) == (
+            saved.get("autotask_integration_code", ""),
+            saved.get("autotask_username", ""),
+            saved.get("autotask_secret", ""),
+        )
         client = AutotaskClient(
-            api_integration_code=body.integration_code,
+            api_integration_code=code,
             username=body.username,
-            secret=body.secret,
+            secret=secret,
+            zone_url=saved.get("autotask_zone_url", "") if same_account else "",
         )
     else:
         client = _client_from_settings(request)

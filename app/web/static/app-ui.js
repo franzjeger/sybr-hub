@@ -447,3 +447,45 @@ export function openReportWindow(html, title) {
   doc.body.appendChild(frame);
   return win;
 }
+
+export function _celebrateConfetti() {
+  var colors = ['#3fb950','#4d9fb5','#d29922','#bc8cff','#58a6ff','#f85149'];
+  for (var i = 0; i < 40; i++) {
+    var el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.animationDelay = (Math.random() * 1.5) + 's';
+    el.style.animationDuration = (2 + Math.random() * 2) + 's';
+    el.style.width = (5 + Math.random() * 8) + 'px';
+    el.style.height = (5 + Math.random() * 8) + 'px';
+    document.body.appendChild(el);
+    setTimeout(function(e){ e.remove(); }.bind(null, el), 5000);
+  }
+}
+
+export function _syncBottomNav(name) {
+  // Map every view onto one of the bottom tabs. Søk opens the palette over
+  // whatever is showing, so it never stays lit; Varsler is Oversikt's
+  // Varsler tab; Verktøy, Administrasjon and Hjelp live in Mer.
+  var map = {
+    overview: 'dashboard',
+    customers: 'customers', setup: 'customers', 'customer-detail': 'customers',
+    more: 'more',
+  };
+  var active = map[name] || (name ? 'more' : '');
+  if (name === 'overview') {
+    var tab = document.querySelector('#view-overview .tab.active');
+    if (tab && tab.dataset.tab === 'dash-alerts') active = 'alerts';
+  }
+  document.querySelectorAll('.bnav-item').forEach(function(el) {
+    el.classList.toggle('active', el.getAttribute('data-bnav') === active);
+  });
+}
+
+export function requestAuditNotifications() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    var asked = Notification.requestPermission();
+    if (asked && asked.catch) asked.catch(function() {});
+  }
+}

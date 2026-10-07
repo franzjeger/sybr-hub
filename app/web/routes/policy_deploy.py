@@ -23,8 +23,9 @@ waived it, one POST away — so restoring a policy that would lock the tenant ou
 is refused exactly as deploying one is, and the operator fixes the exclusion
 first.
 
-All of them require ``tenant_write``, which requires ``can_write``, which is off
-by default for every account. And both need the customer's own consent to
+All of them require ``tenant_write``, which requires ``can_write``. First-run
+setup grants both to the initial administrator; additional accounts start
+without them. Both also need the customer's own consent to
 ``Policy.ReadWrite.ConditionalAccess``, which is a different party's decision —
 reported separately so nobody goes to argue with the wrong one.
 """

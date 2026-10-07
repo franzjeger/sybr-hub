@@ -11,7 +11,37 @@ This document is the source of truth for what's in scope and what
 isn't. If a feature isn't here, it's not on the roadmap yet — open
 an issue to discuss.
 
+## October 2026 quality work — complete locally
+
+The execution plan and completion criteria are in
+[docs/TODO.md, G35–41](docs/TODO.md#g-quality-execution-plan-october-2026).
+
+- [x] First: isolated settings saves, preserved policy drafts and correct IT Glue
+      stored-secret handling (35–37).
+- [x] Next: integration check evidence, the guided policy workflow and visible
+      risk-score coverage (38–40).
+- [x] Then: acyclic frontend imports, shared form helpers and broader strict
+      typing (41).
+
+Customer isolation and capability checks are preserved. Captured evidence stays
+separate from human alignment reviews. Local implementation and verification are
+complete; live-system checks remain in section A and broader service rollout in
+F34. C14 is complete locally; C15 is the next repository cleanup item.
+
+October live-log follow-up is tracked in [docs/TODO.md, H42–47](docs/TODO.md#h-october-live-log-follow-up).
+Collector and historical-report corrections are implemented. Tenant-side
+Exchange/Purview consent and identity licences still need live
+validation; active key-backup recovery was verified in isolation, with old
+installation copies preserved; completed Intune, Teams, SharePoint and DNS reads do not imply
+those remaining services are available.
+Manual customer sign-in now retains an undelivered attempt after connection
+failure, blocks simultaneous exchanges and provides explicit recovery advice.
+Manual setup also repairs saved app consent for Exchange Online/Purview, waits
+for fresh token roles and retains credentials until verification succeeds.
+Administrator sign-in is still needed to apply those tenant-side grants.
+
 ## Done in v1.0.0 (Initial release)
+
 
 Validated audit layer carried forward from MSP-Toolkit-V2 v10.10.12.
 The data-quality pass that produced v10.10.2–.12 is locked in by
@@ -203,12 +233,44 @@ VPN routes are kept. What's out is any future "VPN-as-a-service for
 end-users" framing — Sybr HUB is for MSP technicians, not customer
 employees.
 
+## Policy workspace — October 2026
+
+Requested as a coherent customer policy section, with packages above the
+individual Microsoft 365 services.
+
+- [x] Four packages: security foundation, recommended workplace, secure
+      collaboration and advanced protection.
+- [x] Service library for Entra ID, Conditional Access, Intune, SharePoint,
+      OneDrive, Teams, Purview, Exchange and Defender, available before audit.
+- [x] Concrete proposed settings, licensing, dependencies, rollout stages,
+      pilot impact, verification, rollback and primary Microsoft sources.
+- [x] Tailored, encrypted customer plans and documented human assessments,
+      with revision conflicts, evidence and expiring exceptions.
+- [x] Separate captured inventory and drift from recommendations; a template
+      name match never counts as verified effective configuration.
+
+These are Sybr starting points with customer-specific scope and licensing,
+not a certification. Saving a plan changes Hub data. Microsoft tenant writes
+remain in the existing separately guarded CA/Intune deployment flows;
+recommendations for the other services have manual administration runbooks.
+Broader automatic evaluation is tracked as item F34 in docs/TODO.md.
+
 ## Known cleanup, deferred by choice
 
 Recorded here so they are decisions rather than forgotten debt. None
 blocks a release; each is a focused change that deserves its own PR and
 its own review rather than being smuggled into an unrelated one.
 
+- [x] **Operational correctness, backlog B6–B13** (October 2026). Known
+  master-key configuration failures stop startup with a concise recovery
+  message. Scheduled and bulk audits share the customer page's readiness
+  rule. Firmware alerts read the same stored FortiGate and UniFi verdicts
+  as Varsler. Excel leaves unmeasured values empty and names the gaps, and
+  bulk reports use the hub's language. Scheduled reports include a PDF,
+  same-customer tabs retain separate historical selections, and background
+  integration reads preserve edits. The next repository item is language
+  cleanup C15; live-system verification remains in section A of
+  [docs/TODO.md](docs/TODO.md).
 - [x] **Converge the two migration paths.** Resolved the other way round:
   the runner in `app/core/database.py` is what every install runs and is
   transactional, so it stays the single authority. The unused Alembic setup

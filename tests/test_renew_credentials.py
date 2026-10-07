@@ -4,9 +4,8 @@ Two defects an operator hit on the customer status page:
 
 * The button cleared the stored credentials and stopped there, dropping the
   operator on a status page with no credentials and a "run setup again" note.
-  Renewal now clears the old credentials and then runs the same device-code
-  sign-in that first-run setup does, so it finishes with fresh, working
-  credentials in one action.
+  Renewal now runs customer-bound sign-in and retains the current credentials
+  until replacement access has been verified.
 
 * Re-running setup left the previous audit app registration standing in the
   customer tenant. Over many renewals a tenant accumulated a pile of identical,
@@ -29,23 +28,14 @@ APP_JS = (ROOT / "app/web/static/app-setup.js").read_text(encoding="utf-8")
 PS1 = (ROOT / "app/helpers/setup_helper.ps1").read_text(encoding="utf-8")
 
 
-def test_renew_runs_setup_after_clearing_credentials():
-    """renewCreds must clear the old credentials AND start the sign-in.
-
-    Clearing without starting setup is the exact bug: the credentials were gone
-    and nothing re-issued them, so the button "did nothing" the operator could
-    use.
-    """
+def test_renew_starts_customer_bound_setup_without_wiping_credentials():
+    """Cancelled/failed Microsoft sign-in must leave the working pair intact."""
     m = re.search(r"function renewCreds\(customerId\)\s*\{(.*?)\n\}", APP_JS, re.S)
     assert m, "renewCreds not found"
     body = m.group(1)
-    assert "/api/customer/renew" in body, "renew no longer clears the old credentials"
-    # The customer whose page the button is on, named: there is no default.
-    assert "customer_id: customerId" in body
-    assert "startSetup()" in body, (
-        "renew clears the credentials but never re-runs setup — the operator is "
-        "left with none, which is the bug being fixed"
-    )
+    assert "/api/customer/renew" not in body
+    assert "startSetup(customerId)" in body
+    assert "renew_customer_id:_renewCustomerId" in APP_JS
 
 
 def test_the_setup_helper_prunes_duplicate_audit_apps():

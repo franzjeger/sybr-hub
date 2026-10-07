@@ -3,194 +3,146 @@ import hashlib
 import logging
 import secrets
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+from app.core.exceptions import ToolkitError
+from app.core.messages import MESSAGES
+
 logger = logging.getLogger(__name__)
 
-# Azure CLI Client ID - a first-party Microsoft application we "borrow"
-# to bootstrap our own application registration.
-AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
-DEFAULT_SCOPE = "Application.ReadWrite.All Directory.AccessAsUser.All openid profile offline_access"
+# The same Microsoft Graph PowerShell public client used by setup_helper.ps1.
+# Its registered nativeclient redirect supports manual PKCE sign-in.
+BOOTSTRAP_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
+DEFAULT_SCOPE = (
+    "Application.ReadWrite.All AppRoleAssignment.ReadWrite.All "
+    "RoleManagement.ReadWrite.Directory Organization.Read.All openid profile offline_access"
+)
 
-# In-memory store for PKCE state -> (verifier, expires_at)
-_pkce_store = {}
+
+@dataclass
+class _PkceAttempt:
+    verifier: str
+    expires_at: float
+    owner_user_id: str | None
+    busy: bool = False
 
 
-def generate_pkce_challenge() -> tuple[str, str, str]:
+class PkceSetupError(ToolkitError):
+    error_type = "integration_error"
+
+    def __init__(self, key: str, status: int, *, restart_required: bool, **params: str):
+        super().__init__(MESSAGES[key][0].format(**params), message_key=key, params=params)
+        self.status_code = status
+        self.restart_required = restart_required
+
+    def to_dict(self) -> dict:
+        return {**super().to_dict(), "restart_required": self.restart_required}
+
+
+_pkce_store: dict[str, _PkceAttempt] = {}
+
+
+def generate_pkce_challenge(owner_user_id: str | None = None) -> tuple[str, str, str]:
     """Generates (state, code_verifier, code_challenge)"""
     state = secrets.token_urlsafe(32)
     code_verifier = secrets.token_urlsafe(64)
     hashed = hashlib.sha256(code_verifier.encode("ascii")).digest()
     code_challenge = base64.urlsafe_b64encode(hashed).decode("ascii").rstrip("=")
 
-    # Store verifier for 10 minutes
-    _pkce_store[state] = (code_verifier, time.time() + 600)
+    now = time.time()
+    for old_state, entry in list(_pkce_store.items()):
+        if entry.expires_at <= now and not entry.busy:
+            del _pkce_store[old_state]
+    _pkce_store[state] = _PkceAttempt(code_verifier, now + 600, owner_user_id)
     return state, code_verifier, code_challenge
 
 
-async def exchange_code_for_token(code: str, state: str, redirect_uri: str) -> str:
+async def exchange_code_for_token(
+    code: str, state: str, redirect_uri: str, *, owner_user_id: str | None = None
+) -> str:
     """Exchanges the authorization code for an access token."""
-    entry = _pkce_store.pop(state, None)
-    if not entry or entry[1] < time.time():
-        raise ValueError("Invalid or expired state parameter")
-    code_verifier = entry[0]
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-            data={
-                "client_id": AZURE_CLI_CLIENT_ID,
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": redirect_uri,
-                "code_verifier": code_verifier,
-                "scope": DEFAULT_SCOPE,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()["access_token"]
-
-
-async def create_sybr_app(access_token: str) -> dict[str, Any]:
-    from app.core.config import AUDIT_APP_NAME, REQUIRED_GRAPH_PERMISSIONS
-
-    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-
-    async with httpx.AsyncClient() as client:
-        # 0. Get Microsoft Graph Service Principal
-        mg_sp_resp = await client.get(
-            "https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '00000003-0000-0000-c000-000000000000'",
-            headers=headers,
-        )
-        mg_sp_resp.raise_for_status()
-        mg_sp_data = mg_sp_resp.json()["value"][0]
-        mg_sp_id = mg_sp_data["id"]
-
-        role_map = {r["value"]: r["id"] for r in mg_sp_data.get("appRoles", [])}
-        required_roles = [
-            *list(REQUIRED_GRAPH_PERMISSIONS),
-            "Policy.ReadWrite.ConditionalAccess",
-            "DeviceManagementConfiguration.ReadWrite.All",
-            "RoleManagement.ReadWrite.Directory",
-        ]
-
-        role_access_list = []
-        role_ids_to_grant = []
-        for role_name in set(required_roles):
-            if role_name in role_map:
-                role_ids_to_grant.append(role_map[role_name])
-                role_access_list.append({"id": role_map[role_name], "type": "Role"})
-
-        # 1. Create Application
-        app_resp = await client.post(
-            "https://graph.microsoft.com/v1.0/applications",
-            headers=headers,
-            json={
-                "displayName": AUDIT_APP_NAME,
-                "signInAudience": "AzureADMultipleOrgs",
-                "requiredResourceAccess": [
-                    {
-                        "resourceAppId": "00000003-0000-0000-c000-000000000000",
-                        "resourceAccess": role_access_list,
-                    }
-                ],
-            },
-        )
-        app_resp.raise_for_status()
-        app_data = app_resp.json()
-        app_id = app_data["appId"]
-        object_id = app_data["id"]
-
-        # Generate Certificate
-        import uuid
-
-        from app.modules.m365_audit.setup import _generate_cert
-
-        cert_der_b64, cert_expiry_iso, cert_start_iso, pfx_bytes, cert_password = _generate_cert()
-
-        # 2. Add Key Credential (Certificate) using PATCH
-        patch_resp = await client.patch(
-            f"https://graph.microsoft.com/v1.0/applications/{object_id}",
-            headers=headers,
-            json={
-                "keyCredentials": [
-                    {
-                        "type": "AsymmetricX509Cert",
-                        "usage": "Verify",
-                        "keyId": str(uuid.uuid4()),
-                        "key": cert_der_b64,
-                        "endDateTime": cert_expiry_iso,
-                        "startDateTime": cert_start_iso,
-                        "displayName": "Sybr HUB Setup Cert",
-                    }
-                ]
-            },
-        )
-        try:
-            patch_resp.raise_for_status()
-        except Exception:
-            logging.error(f"PATCH failed: {patch_resp.text}")
-            raise
-
-        # Also add a Client Secret just in case for non-cert flows
-        pwd_resp = await client.post(
-            f"https://graph.microsoft.com/v1.0/applications/{object_id}/addPassword",
-            headers=headers,
-            json={"passwordCredential": {"displayName": "Sybr HUB Setup Secret"}},
-        )
-        pwd_resp.raise_for_status()
-        secret = pwd_resp.json()["secretText"]
-
-        # 3. Create Service Principal
-        import asyncio
-
-        sp_resp = await client.post(
-            "https://graph.microsoft.com/v1.0/servicePrincipals",
-            headers=headers,
-            json={"appId": app_id},
-        )
-        sp_resp.raise_for_status()
-        my_sp_id = sp_resp.json()["id"]
-
-        await asyncio.sleep(3)
-
-        # 4. Grant Admin Consent via appRoleAssignments
-        for r_id in role_ids_to_grant:
-            await client.post(
-                f"https://graph.microsoft.com/v1.0/servicePrincipals/{my_sp_id}/appRoleAssignments",
-                headers=headers,
-                json={"principalId": my_sp_id, "resourceId": mg_sp_id, "appRoleId": r_id},
+    entry = _pkce_store.get(state)
+    if not entry or entry.owner_user_id != owner_user_id:
+        raise PkceSetupError("err_setup_pkce_expired", 400, restart_required=True)
+    if entry.busy:
+        raise PkceSetupError("err_setup_pkce_busy", 409, restart_required=False)
+    if entry.expires_at <= time.time():
+        del _pkce_store[state]
+        raise PkceSetupError("err_setup_pkce_expired", 400, restart_required=True)
+    entry.busy = True
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                resp = await client.post(
+                    "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+                    data={
+                        "client_id": BOOTSTRAP_CLIENT_ID,
+                        "grant_type": "authorization_code",
+                        "code": code,
+                        "redirect_uri": redirect_uri,
+                        "code_verifier": entry.verifier,
+                        "scope": DEFAULT_SCOPE,
+                    },
+                )
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                # DNS/TCP/TLS never established a connection: the request was
+                # not delivered. Keep the verifier for an explicit retry.
+                raise PkceSetupError("err_setup_pkce_connect", 503, restart_required=False) from exc
+            except BaseException:
+                # Once delivery is uncertain, including cancellation, the
+                # one-use code must not be sent again automatically.
+                _pkce_store.pop(state, None)
+                raise
+        _pkce_store.pop(state, None)
+        if not resp.is_success:
+            try:
+                codes = resp.json().get("error_codes", [])
+                diagnostic = (
+                    ", ".join(f"AADSTS{v}" for v in codes[:3] if isinstance(v, int))
+                    if isinstance(codes, list)
+                    else ""
+                )
+            except (ValueError, AttributeError):
+                diagnostic = ""
+            raise PkceSetupError(
+                "err_setup_pkce_rejected",
+                400,
+                restart_required=True,
+                code=diagnostic or f"HTTP {resp.status_code}",
             )
+        try:
+            token = resp.json()["access_token"]
+            if not isinstance(token, str) or not token:
+                raise ValueError("Missing access token")
+            return token
+        except (ValueError, KeyError, TypeError) as exc:
+            raise PkceSetupError(
+                "err_setup_pkce_rejected",
+                502,
+                restart_required=True,
+                code="invalid token response",
+            ) from exc
+    except httpx.RequestError as exc:
+        raise PkceSetupError("err_setup_pkce_delivery", 502, restart_required=True) from exc
+    finally:
+        entry.busy = False
 
-        org_resp = await client.get(
-            "https://graph.microsoft.com/v1.0/organization", headers=headers
-        )
-        org_resp.raise_for_status()
-        org_data = org_resp.json()["value"][0]
-        tenant_id = org_data["id"]
-        customer_name = org_data.get("displayName", "Ukjent Kunde")
 
-        domains = org_data.get("verifiedDomains", [])
-        primary_domain = next((d["name"] for d in domains if d.get("isDefault")), None)
-        if not primary_domain and domains:
-            primary_domain = domains[0]["name"]
+def registration_failure() -> PkceSetupError:
+    return PkceSetupError("err_setup_pkce_registration", 502, restart_required=True)
 
-        # Save PFX to disk
-        from app.core.credentials import global_cert_path
-        from app.core.encryption import encrypted_write_bytes
 
-        encrypted_write_bytes(global_cert_path(), pfx_bytes)
+async def create_sybr_app(
+    access_token: str,
+    *,
+    allowed_customer_ids: set[str] | None = None,
+    renew_config: dict | None = None,
+) -> dict[str, Any]:
+    from app.modules.m365_audit.app_setup import provision_app
 
-        return {
-            "CustomerName": customer_name,
-            "PrimaryDomain": primary_domain,
-            "TenantId": tenant_id,
-            "ClientId": app_id,
-            "ClientSecret": secret,
-            "CertPassword": cert_password,
-            "SecretExpiry": cert_expiry_iso,
-            "CertExpiry": cert_expiry_iso,
-            "AuthMode": "csp",
-        }
+    return await provision_app(
+        access_token, allowed_customer_ids=allowed_customer_ids, renew_config=renew_config
+    )

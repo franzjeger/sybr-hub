@@ -1,3 +1,5 @@
+import {navDashLoadArchive as dashLoadArchive} from './app-navigation.js';
+import {integrationSetField} from './app-forms.js';
 // ═══════════════════════════════════════════════════════════════════
 // SETTINGS — webhooks, branding, version, users & backup
 // ═══════════════════════════════════════════════════════════════════
@@ -11,9 +13,10 @@ import {_currentUser, canOpenView} from './app-state.js';
 import {timeAgo} from './app-format.js';
 import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {checkAuth, currentView, passwordMeetsRule, showView, syncRoute} from './app.js';
+import {navCheckAuth as checkAuth, navPasswordMeetsRule as passwordMeetsRule, navShowView as showView, navSyncRoute as syncRoute} from './app-navigation.js';
+import {currentView} from './app-state.js';
 import {claudeLoadSaved, unifiSmLoadSaved} from './app-infra.js';
-import {dashLoadArchive} from './app-dashboard.js';
+
 import {alertLoadConfig, loadIntegrationStatus, taskSchedRefresh} from './app-integrations.js';
 
 // Handlers for the user list, the password dialog and the customer-access
@@ -198,17 +201,17 @@ async function _loadAdminSettings() {
     document.querySelectorAll('#view-admin [data-settings-msg]').forEach(function(m) { m.textContent = ''; });
 
     // Load IT Glue settings
-    document.getElementById('input-itglue-key').value = d.itglue_api_key || '';
-    document.getElementById('input-itglue-region').value = d.itglue_region || 'eu';
+    integrationSetField('input-itglue-key', d.itglue_api_key || '');
+    integrationSetField('input-itglue-region', d.itglue_region || 'eu');
 
     // Load email settings
-    document.getElementById('input-smtp-server').value = d.smtp_server || '';
-    document.getElementById('input-smtp-port').value = d.smtp_port || 587;
-    document.getElementById('input-smtp-user').value = d.smtp_user || '';
-    document.getElementById('input-smtp-password').value = d.smtp_password || '';
-    document.getElementById('input-smtp-from').value = d.smtp_from || '';
-    document.getElementById('input-email-recipient').value = d.email_default_recipient || '';
-    document.getElementById('input-email-auto-send').checked = d.email_auto_send || false;
+    integrationSetField('input-smtp-server', d.smtp_server || '');
+    integrationSetField('input-smtp-port', d.smtp_port || 587);
+    integrationSetField('input-smtp-user', d.smtp_user || '');
+    integrationSetField('input-smtp-password', d.smtp_password || '');
+    integrationSetField('input-smtp-from', d.smtp_from || '');
+    integrationSetField('input-email-recipient', d.email_default_recipient || '');
+    integrationSetField('input-email-auto-send', d.email_auto_send || false, true);
 
     // Load scheduler config
     try {
@@ -263,7 +266,6 @@ async function _loadAdminSettings() {
   }
   // Snapshot form values for dirty-flag detection
   _snapshotSettingsForm();
-  _initSettingsDirtyTracking();
 }
 
 // ── Automatisk audit: which customers ─────────────────────────────────────────
@@ -308,7 +310,6 @@ function _schedulerScope() {
 // ── Settings dirty-flag detection ─────────────────────────────────────────────
 var _storagePathsLoaded = false;
 var _settingsSnapshot = null;
-var _settingsDirty = false;
 
 // The fields the Lagre on Branding, Lagring and Automatisk audit sends. The
 // integration cards and the alert rules save themselves, so they are no part
@@ -317,9 +318,10 @@ function _settingsFormFields() {
   return document.querySelectorAll('#view-admin [data-settings-form] input, #view-admin [data-settings-form] select, #view-admin [data-settings-form] textarea');
 }
 
-function _snapshotSettingsForm() {
-  var data = {};
+function _snapshotSettingsForm(pane) {
+  var data = pane ? Object.assign({}, _settingsSnapshot || {}) : {};
   _settingsFormFields().forEach(function(el) {
+    if (pane && el.closest('.admin-pane').id !== 'admin-pane-' + pane) return;
     var key = el.id || el.name;
     if (!key) return;
     if (el.type === 'checkbox' || el.type === 'radio') {
@@ -329,11 +331,10 @@ function _snapshotSettingsForm() {
     }
   });
   _settingsSnapshot = data;
-  _settingsDirty = false;
 }
 
 function _isSettingsDirty() {
-  if (!_settingsSnapshot || !_settingsDirty) return false;
+  if (!_settingsSnapshot) return false;
   var dirty = false;
   _settingsFormFields().forEach(function(el) {
     var key = el.id || el.name;
@@ -344,22 +345,12 @@ function _isSettingsDirty() {
   return dirty;
 }
 
-var _settingsDirtyTrackingInit = false;
-function _initSettingsDirtyTracking() {
-  if (_settingsDirtyTrackingInit) return;
-  _settingsDirtyTrackingInit = true;
-  var page = document.getElementById('view-admin');
-  page.addEventListener('input', function(e) { if (e.target.closest('[data-settings-form]')) _settingsDirty = true; });
-  page.addEventListener('change', function(e) { if (e.target.closest('[data-settings-form]')) _settingsDirty = true; });
-}
-
 // Leaving Administrasjon with unsaved edits asks first. True when it is fine
 // to go: nothing unsaved, or the person said to discard it.
 export async function adminMayLeave() {
   if (!_isSettingsDirty()) return true;
   if (!await showConfirm(t('du_har_ulagrede_endringer_vil'))) return false;
   _settingsSnapshot = null;
-  _settingsDirty = false;
   return true;
 }
 
@@ -675,7 +666,7 @@ export async function createUser() {
 // changing configuration in a customer's tenant.
 function _capabilityToggles(u) {
   var write = !!u.can_write, tenant = !!u.tenant_write;
-  return '<label class="flex items-center gap-1 text-xs text-muted cursor-pointer nowrap" title="' + t('tip_cap_write','May change anything in Sybr HUB. Off by default for every account.') + '">'
+  return '<label class="flex items-center gap-1 text-xs text-muted cursor-pointer nowrap" title="' + t('tip_cap_write','May change things in Sybr HUB. The initial administrator receives access automatically; additional accounts start without it.') + '">'
     + '<input type="checkbox"' + (write ? ' checked' : '') + ' data-change-handler="setUserCapability" data-user-id="' + esc(u.id) + '" data-capability="can_write"> ' + t('lbl_cap_write','Write')
     + '</label>'
     + '<label class="flex items-center gap-1 text-xs nowrap ' + (write ? 'text-muted cursor-pointer' : 'text-dim cursor-not-allowed') + '" title="' + t('tip_cap_tenant','May write into a customer Microsoft tenant. Requires Write.') + '">'
@@ -890,87 +881,48 @@ function _settingsMsgEl() {
 }
 
 export async function saveSettings() {
-  const dir = document.getElementById('input-audit-dir').value.trim();
+  const pane = _adminPane;
   const msg = _settingsMsgEl();
   msg.style.color = '';
   msg.textContent = t('btn_saving');
-  try {
-    var body = {
-        itglue_api_key: document.getElementById('input-itglue-key').value.trim(),
-        itglue_region: document.getElementById('input-itglue-region').value,
-        smtp_server: document.getElementById('input-smtp-server').value.trim(),
-        smtp_port: parseInt(document.getElementById('input-smtp-port').value) || 587,
-        smtp_user: document.getElementById('input-smtp-user').value.trim(),
-        smtp_password: document.getElementById('input-smtp-password').value.trim(),
-        smtp_from: document.getElementById('input-smtp-from').value.trim(),
-        email_default_recipient: document.getElementById('input-email-recipient').value.trim(),
-        email_auto_send: document.getElementById('input-email-auto-send').checked,
-        branding: {
-          company_name: document.getElementById('input-company-name').value.trim(),
-          contact_email: document.getElementById('input-contact-email').value.trim(),
-          website: document.getElementById('input-website').value.trim(),
-          primary_color: document.getElementById('input-brand-color').value,
-        },
-    };
-    // The server keeps a field that was not sent; only paths it showed us go back.
-    if (_storagePathsLoaded) {
-      body.audit_dir = dir;
-      body.cert_dir = document.getElementById('input-cert-dir').value.trim();
-    }
-    const d = await apiFetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!d) {
-      // apiFetch has said why.
-      msg.textContent = '';
-      return;
-    } else if (d.error) {
-      msg.style.color = 'var(--red)';
-      msg.textContent = '✗ ' + d.error;
-    } else {
-      msg.style.color = 'var(--green)';
-      msg.textContent = d.audit_dir ? t('msg_saved_active_dir').replace('{dir}', d.audit_dir) : t('msg_saved', 'Lagret');
-      if (d.audit_dir) document.getElementById('settings-current-dir').textContent = t('lbl_active_dir') + ': ' + d.audit_dir;
-      applyBranding(); // Re-apply brand colors immediately
-      // Clear dirty flag and re-snapshot after successful save
-      _snapshotSettingsForm();
-    }
-
-    // Save scheduler separately
-    const schedData = {
+  const value = id => document.getElementById(id).value.trim();
+  let endpoint = '/api/settings';
+  let body;
+  if (pane === 'branding') {
+    body = {branding: {
+      company_name: value('input-company-name'), contact_email: value('input-contact-email'),
+      website: value('input-website'), primary_color: value('input-brand-color'),
+    }};
+  } else if (pane === 'storage' && _storagePathsLoaded) {
+    body = {audit_dir: value('input-audit-dir'), cert_dir: value('input-cert-dir')};
+  } else if (pane === 'alerts') {
+    endpoint = '/api/scheduler';
+    body = {
       enabled: document.getElementById('input-scheduler-enabled').checked,
       ..._schedulerScope(),
-      interval_hours: parseInt(document.getElementById('input-scheduler-interval').value) || 168,
-      webhook_url: document.getElementById('input-webhook-url').value.trim(),
+      interval_hours: parseInt(value('input-scheduler-interval')) || 168,
       backup_after_audit: document.getElementById('input-scheduler-backup').checked,
-      alert_on: {
-        audit_completed: document.getElementById('alert-audit-completed').checked,
-        risk_score_drop: document.getElementById('alert-risk-score-drop').checked ? (parseInt(document.getElementById('alert-risk-score-drop-threshold').value) || 5) : false,
-        new_risky_users: document.getElementById('alert-new-risky-users').checked,
-        expired_credentials: document.getElementById('alert-expired-credentials').checked,
-        secure_score_drop: document.getElementById('alert-secure-score-drop').checked ? (parseInt(document.getElementById('alert-secure-score-drop-threshold').value) || 5) : false,
-        new_nsg_warnings: document.getElementById('alert-new-nsg-warnings').checked,
-        mfa_below_threshold: document.getElementById('alert-mfa-below-threshold').checked ? (parseInt(document.getElementById('alert-mfa-threshold').value) || 80) : false,
-      },
     };
-    const schedSaved = await apiFetch('/api/scheduler', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(schedData)
-    });
-    // A refused block (apiFetch has said why) is not saved, whatever the
-    // line above says about the rest of the form.
-    if (!schedSaved) msg.textContent = '';
-    else {
-      const sched = await apiFetch('/api/scheduler');
-      if (sched) { _renderSchedulerCustomers(sched, _schedCustomers); _snapshotSettingsForm(); }
-    }
-  } catch (e) {
-    msg.style.color = 'var(--red)';
-    msg.textContent = '✗ ' + t('err_network_error').replace('{msg}', e.message);
+  } else {
+    msg.textContent = t('status_error');
+    return;
   }
+  const result = await apiFetch(endpoint, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    onError: message => { msg.textContent = message; msg.style.color = 'var(--red)'; },
+  });
+  if (!result || result.error) return;
+  msg.style.color = 'var(--green)';
+  msg.textContent = t('msg_saved');
+  if (pane === 'branding') applyBranding();
+  if (pane === 'storage' && result.audit_dir) {
+    document.getElementById('settings-current-dir').textContent = t('lbl_active_dir') + ': ' + result.audit_dir;
+  }
+  if (pane === 'alerts') {
+    const scheduler = await apiFetch('/api/scheduler');
+    if (scheduler) _renderSchedulerCustomers(scheduler, _schedCustomers);
+  }
+  _snapshotSettingsForm(pane);
 }
 
 export async function resetAuditDir() {

@@ -17,6 +17,7 @@ from app.core import job_state as state
 from app.core.capabilities import require_write
 from app.core.exceptions import (
     ConflictError,
+    ForbiddenError,
     NotFoundError,
     ValidationError,
 )
@@ -148,19 +149,19 @@ async def _run_setup_job(setup_run: state.SetupRunContext) -> None:
 async def setup_pkce_start(request: Request, user: User = Depends(get_current_user)):
     require_write(user, tenant=True)
     from app.modules.m365_audit.pkce import (
-        AZURE_CLI_CLIENT_ID,
+        BOOTSTRAP_CLIENT_ID,
         DEFAULT_SCOPE,
         generate_pkce_challenge,
     )
 
-    state_val, _, code_challenge = generate_pkce_challenge()
+    state_val, _, code_challenge = generate_pkce_challenge(user.id)
 
     # Use nativeclient redirect URI to support externally hosted Sybr HUB instances
     redirect_uri = "https://login.microsoftonline.com/common/oauth2/nativeclient"
 
     url = (
         "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-        f"?client_id={AZURE_CLI_CLIENT_ID}"
+        f"?client_id={BOOTSTRAP_CLIENT_ID}"
         f"&response_type=code"
         f"&redirect_uri={redirect_uri}"
         f"&response_mode=query"
@@ -192,11 +193,30 @@ async def setup_pkce_callback_manual(request: Request, user: User = Depends(get_
     redirect_uri = "https://login.microsoftonline.com/common/oauth2/nativeclient"
 
     from app.core.credentials import save_config
-    from app.modules.m365_audit.pkce import create_sybr_app, exchange_code_for_token
+    from app.modules.m365_audit.pkce import (
+        PkceSetupError,
+        create_sybr_app,
+        exchange_code_for_token,
+        registration_failure,
+    )
 
     try:
-        token = await exchange_code_for_token(code, state_val, redirect_uri)
-        app_config = await create_sybr_app(token)
+        token = await exchange_code_for_token(code, state_val, redirect_uri, owner_user_id=user.id)
+        from app.core.rbac import get_accessible_customer_ids
+
+        allowed = await get_accessible_customer_ids(user)
+        renew_config = None
+        if data.renew_customer_id:
+            from app.core.customer import CustomerManager
+
+            if allowed is not None and data.renew_customer_id not in allowed:
+                raise refusal(ForbiddenError, "err_customer_access_denied")
+            renew_config = CustomerManager.get_customer(data.renew_customer_id)
+            if not renew_config:
+                raise refusal(NotFoundError, "err_customer_not_found")
+        app_config = await create_sybr_app(
+            token, allowed_customer_ids=allowed, renew_config=renew_config
+        )
 
         from app.core.credentials import store_secret
 
@@ -210,10 +230,15 @@ async def setup_pkce_callback_manual(request: Request, user: User = Depends(get_
                 store_secret(tenant_id, "cert_password", cert_pwd)
 
         save_config(app_config)
+        from app.modules.m365_audit.app_setup import finish_setup
+
+        finish_setup(tenant_id)
         return {"ok": True}
-    except Exception as e:
+    except (PkceSetupError, ForbiddenError, NotFoundError):
+        raise
+    except Exception:
         logger.exception("PKCE manual callback failed")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        raise registration_failure() from None
 
 
 @router.get("/setup/stream")
@@ -874,10 +899,15 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
 
     async def generate() -> AsyncGenerator[str, None]:
         try:
+            from app.core.config import load_app_settings
             from app.core.customer import CustomerManager
             from app.modules.base import SectionResult, SectionStatus
             from app.modules.m365_audit.collector import AuditCollector, make_output_dir
             from app.reports.generator import build_report_context, generate_reports
+
+            report_lang = load_app_settings().get("ui_language", "no")
+            if report_lang not in ("no", "en"):
+                report_lang = "no"
 
             all_customers = CustomerManager.list_customers()
             if not all_customers:
@@ -1001,7 +1031,7 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                                     results=_ro,
                                     formats=["html"],
                                     report_type="tech",
-                                    lang="no",
+                                    lang=report_lang,
                                     customer_id=cust_id,
                                 )
                             ),
@@ -1011,7 +1041,7 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                             None,
                             lambda _cn=cust_name, _od=org_domain, _odir=out_dir, _ro=results_objs: (
                                 build_report_context(
-                                    _cn, _od, _odir, _ro, lang="no", customer_id=cust_id
+                                    _cn, _od, _odir, _ro, lang=report_lang, customer_id=cust_id
                                 )
                             ),
                         )
@@ -1060,8 +1090,13 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
                         )
                         try:
                             from app.services.audit_scheduler import scheduler as _sched
+                            from app.services.notification_text import notification_text
 
-                            await _sched._send_webhook(f"⚠️ Audit feilet for **{cust_name}**: {e}")
+                            await _sched._send_webhook(
+                                notification_text(
+                                    "background_audit_failed", customer=cust_name, error=str(e)
+                                )
+                            )
                         except Exception as e2:
                             logger.warning(
                                 "Webhook error notification failed for %s: %s", cust_name, e2
@@ -1092,22 +1127,9 @@ async def bulk_audit_stream(request: Request, user: User = Depends(require_role(
             # Send bulk summary webhook
             try:
                 from app.services.audit_scheduler import scheduler as _sched
+                from app.services.notification_text import bulk_audit_message
 
-                done_custs = [s for s in summary if s.get("status") == "done"]
-                fail_custs = [s for s in summary if s.get("status") == "error"]
-                skip_custs = [s for s in summary if s.get("status") == "skipped"]
-                lines = [
-                    f"📋 **Bulk-audit fullført: {len(done_custs)}/{total} OK** ({MAX_CONCURRENT} parallelle)"
-                ]
-                for s in done_custs:
-                    lines.append(
-                        f"✅ {s['customer']} — Karakter {s.get('grade', '-')} (score {s.get('risk_score', 0)})"
-                    )
-                for s in fail_custs:
-                    lines.append(f"❌ {s['customer']} — {s.get('error', 'Ukjent feil')}")
-                for s in skip_custs:
-                    lines.append(f"⏭ {s['customer']} — Hoppet over")
-                await _sched._send_webhook("\n".join(lines))
+                await _sched._send_webhook(bulk_audit_message(summary, total, MAX_CONCURRENT))
             except Exception as e:
                 logger.warning("Bulk summary webhook failed: %s", e)
 

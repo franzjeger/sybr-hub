@@ -1,3 +1,4 @@
+import {toggleIntegConfig} from './app-forms.js';
 // ═══════════════════════════════════════════════════════════════════
 // MARKUP HANDLERS: the handlers index.html's own controls name
 // ═══════════════════════════════════════════════════════════════════
@@ -29,13 +30,7 @@ import {
   openOverviewTab, switchBillingTab,
 } from './app-dashboard.js';
 import {tsSaveConfig, tsTestConnection} from './app-tailscale.js';
-import {
-  alertRunCheckNow, alertSaveConfig, alertToggleMaster, alsoSaveConfig, alsoSyncCustomers,
-  alsoTestConnection, gdapDiscoverCustomers, gdapImportSelected, gdapSaveConfig,
-  gdapTestConnection, itglueSyncAllDocumentation, saveEmailSettings, saveITGlueSettings,
-  saveWebhookSettings, taskSchedRefresh, testAutotask, testMyITProcess, toggleIntegConfig,
-  uniwebSaveConfig, uniwebSync,
-} from './app-integrations.js';
+import {alertRunCheckNow, alertSaveConfig, alertToggleMaster, alsoSaveConfig, alsoSyncCustomers, alsoTestConnection, gdapDiscoverCustomers, gdapImportSelected, gdapSaveConfig, gdapTestConnection, itglueSyncAllDocumentation, saveEmailSettings, saveITGlueSettings, saveWebhookSettings, taskSchedRefresh, testAutotask, testMyITProcess, uniwebSaveConfig, uniwebSync} from './app-integrations.js';
 import {startSetup} from './app-setup.js';
 import {closeReportViewer, deleteSelectedRuns, runComparison} from './app-audit.js';
 import {

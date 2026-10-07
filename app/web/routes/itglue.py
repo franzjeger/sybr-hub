@@ -10,7 +10,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Request
 
 from app.core import job_state as state
-from app.core.config import load_app_settings
 from app.core.customer import CustomerManager
 from app.core.exceptions import (
     ForbiddenError,
@@ -27,6 +26,8 @@ from app.models.integrations import (
     ITGlueUploadRequest,
 )
 from app.models.user import Role, User
+from app.web.connection_checks import connection_check
+from app.web.connection_checks import connection_settings as load_app_settings
 from app.web.i18n import keyed, refusal, ui_t
 from app.web.middleware.auth import get_current_user, require_customer_access, require_role
 
@@ -35,18 +36,20 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/itglue/test")
+@connection_check("itglue", {"api_key": "itglue_api_key", "region": "itglue_region"})
 async def itglue_test(
     body: ITGlueTestRequest, request: Request, _user: User = Depends(require_role(Role.admin))
 ):
     """Test IT Glue API connection."""
     from app.integrations.itglue import ITGlueClient
 
-    api_key = body.api_key
+    api_key = body.api_key.strip()
     region = body.region
-    if not api_key:
+    if not api_key or api_key == "••••••":
         settings = load_app_settings()
         api_key = settings.get("itglue_api_key", "")
-        region = settings.get("itglue_region", "eu")
+        if "region" not in body.model_fields_set:
+            region = settings.get("itglue_region", "eu")
     if not api_key:
         return {"ok": False, **keyed("error", "err_no_api_key", request)}
     client = ITGlueClient(api_key=api_key, region=region)

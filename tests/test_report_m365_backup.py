@@ -786,3 +786,34 @@ async def test_a_run_without_the_section_shows_no_backup_section(tmp_path):
 
     assert ctx["m365_backup"]["has_data"] is False
     assert 'id="m365backup"' not in customer
+
+
+def test_backup_service_registration_is_distinct_from_graph_consent(tmp_path):
+    import json
+
+    from app.modules.m365_audit.graph_client import GraphPermissionError
+    from app.modules.m365_audit.sections.m365_backup import _failure
+
+    error = GraphPermissionError(
+        "solutions/backupRestore",
+        403,
+        json.dumps(
+            {"error": {"code": "AppNotRegistered", "message": "Application is not registered."}}
+        ),
+    )
+    kind, detail = _failure(error)
+    assert kind == "not_registered"
+    assert "separate from Graph permissions" in detail
+    section = M365BackupSection(tmp_path, None)
+    section._warn_findings(
+        {
+            "service": {"read": False, "error_kind": kind, "error": detail},
+            "policies": {"read": False, "error_kind": kind, "error": detail},
+        },
+        {"read": True},
+    )
+    assert all(
+        "needs BackupRestore" not in str(w) and "need BackupRestore" not in str(w)
+        for w in section.result.warns
+    )
+    assert any("AppNotRegistered" in str(w) for w in section.result.warns)

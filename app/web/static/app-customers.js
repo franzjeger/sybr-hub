@@ -1,3 +1,6 @@
+import {navOpenCustomerPage as openCustomerPage} from './app-navigation.js';
+import {navOpenAdmin as openAdmin} from './app-navigation.js';
+import {toggleIntegConfig} from './app-forms.js';
 // ═══════════════════════════════════════════════════════════════════
 // CUSTOMERS — notes, expiry, IT Glue, tags, management & switcher
 // ═══════════════════════════════════════════════════════════════════
@@ -10,11 +13,11 @@ import {_allCustomers, _overviewData, setAllCustomers} from './app-state.js';
 import {formatRunName, metricPct, toneClass} from './app-format.js';
 import {setButtonLabel, showConfirm, showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {showView} from './app.js';
-import {toggleIntegConfig} from './app-integrations.js';
+import {navShowView as showView} from './app-navigation.js';
+
 import {startSetup} from './app-setup.js';
-import {openAdmin} from './app-settings.js';
-import {openCustomerPage} from './app-customer-detail.js';
+
+
 
 registerUiHandlers({
   // IT Glue organisation picker, upload and import dialogs.

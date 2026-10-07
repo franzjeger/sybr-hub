@@ -1,3 +1,5 @@
+
+import {tlsChainLabel, _taskSchedLabel, _activityLabel, _notifDays} from './app-format.js';
 // ═══════════════════════════════════════════════════════════════════
 // ALERTS DASHBOARD — MORNING OVERVIEW
 // ═══════════════════════════════════════════════════════════════════
@@ -11,16 +13,17 @@ import {_overviewData, canOpenView, hasModule, setOverviewData} from './app-stat
 import {badgeClass, formatRunName, metricPct, timeAgo, toneClass, toneVar} from './app-format.js';
 import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {currentView, showNetworkTab, showView} from './app.js';
+import {navShowNetworkTab as showNetworkTab, navShowView as showView} from './app-navigation.js';
+import {currentView} from './app-state.js';
 import {switchDashTab} from './app-infra.js';
 import {dashLoadRenewals} from './app-also.js';
-import {tlsChainLabel} from './app-tls.js';
-import {_taskSchedLabel, alertDetail} from './app-integrations.js';
+
+import {alertDetail} from './app-integrations.js';
 import {startAudit} from './app-audit.js';
 import {openAdmin} from './app-settings.js';
 import {deleteCustomer, overviewSelectCustomer, startBulkAudit} from './app-customers.js';
 import {openCustomerPage} from './app-customer-detail.js';
-import {_activityLabel} from './app-chrome.js';
+
 
 // Handlers for the markup this file builds (see registerUiHandlers in app-handlers.js).
 function closeExportMenu(restoreFocus) {
@@ -160,10 +163,7 @@ var _SEV = {
   info:     { label: 'Info',     tone: 'is-info' }
 };
 
-export function _notifDays(n) {
-  if (n === null || n === undefined) return '';
-  return n < 0 ? t('lbl_expired', 'Utløpt') : n + ' ' + t('lbl_days_short', 'd');
-}
+
 
 // What Varsler last loaded: its items, the alert settings and the coverage
 // the server reported. Unset until it has loaded once.
@@ -1116,21 +1116,7 @@ async function quickSwitchAndView(customerId, tab) {
   await openCustomerPage(customerId, tab);
 }
 
-export function _celebrateConfetti() {
-  var colors = ['#3fb950','#4d9fb5','#d29922','#bc8cff','#58a6ff','#f85149'];
-  for (var i = 0; i < 40; i++) {
-    var el = document.createElement('div');
-    el.className = 'confetti-piece';
-    el.style.left = Math.random() * 100 + 'vw';
-    el.style.background = colors[Math.floor(Math.random() * colors.length)];
-    el.style.animationDelay = (Math.random() * 1.5) + 's';
-    el.style.animationDuration = (2 + Math.random() * 2) + 's';
-    el.style.width = (5 + Math.random() * 8) + 'px';
-    el.style.height = (5 + Math.random() * 8) + 'px';
-    document.body.appendChild(el);
-    setTimeout(function(e){ e.remove(); }.bind(null, el), 5000);
-  }
-}
+
 
 // ── Integrations: one banner when a configured one is failing ───────────
 // Oversikt answers "who needs me today". A strip of every integration's

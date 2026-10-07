@@ -65,8 +65,9 @@ async def set_can_write(user_id: str, enabled: bool) -> None:
     """Grant or revoke the system-wide write capability for one user.
 
     Revoking is the interesting direction: an account left without it can read
-    the whole toolkit and change none of it, which is the default every account
-    starts from. Logged at warning level either way — this is the switch that
+    its permitted parts of the toolkit and change none of it. Additional
+    accounts start this way; first-run setup grants the initial administrator
+    full access. Logged at warning level either way — this is the switch that
     decides whether somebody can alter anything at all.
     """
     async with get_session() as session:

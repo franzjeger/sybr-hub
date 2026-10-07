@@ -3,6 +3,151 @@
 from __future__ import annotations
 
 TRANSLATIONS: dict[str, dict[str, str]] = {
+    # Background notifications use the Hub language, independently of report language.
+    "background_alert_sweep": {
+        "no": "Fant {total} varsler, {new} nye, sendt via {channels} kanaler.",
+        "en": "Found {total} alerts, {new} new, sent through {channels} channels.",
+    },
+    "background_alert_checks_failed": {
+        "no": " Sjekker som feilet ({count}): {checks}.",
+        "en": " Failed checks ({count}): {checks}.",
+    },
+    "background_audit_failed": {
+        "no": "Audit feilet for {customer}: {error}",
+        "en": "Audit failed for {customer}: {error}",
+    },
+    "background_audit_done": {
+        "no": "Audit fullført for {customer}",
+        "en": "Audit completed for {customer}",
+    },
+    "background_audit_started": {
+        "no": "Planlagt audit startet{position}",
+        "en": "Scheduled audit started{position}",
+    },
+    "background_scheduled_done": {
+        "no": "Planlagt audit fullført{position}",
+        "en": "Scheduled audit completed{position}",
+    },
+    "background_audit_cycle": {
+        "no": "Planlagt audit-syklus fullført: {done}/{total} OK",
+        "en": "Scheduled audit cycle completed: {done}/{total} OK",
+    },
+    "background_skipped": {"no": "Hoppet over: {customers}", "en": "Skipped: {customers}"},
+    "background_failed": {"no": "Feilet: {customers}", "en": "Failed: {customers}"},
+    "background_missing_customer": {
+        "no": "{customer} (ikke funnet)",
+        "en": "{customer} (not found)",
+    },
+    "background_auth_failed": {
+        "no": "{customer} (autentisering feilet: {error})",
+        "en": "{customer} (authentication failed: {error})",
+    },
+    "background_already_running": {
+        "no": "{customer} (audit pågår)",
+        "en": "{customer} (audit already running)",
+    },
+    "background_site_failed": {
+        "no": "Innsamling fra lokasjoner feilet: {error}",
+        "en": "Site collection failed: {error}",
+    },
+    "background_site_partial": {
+        "no": "Lokasjoner: {done}/{total} lest. Ingen data fra: {sites}",
+        "en": "Sites: {done}/{total} read. No data from: {sites}",
+    },
+    "background_sites_read": {
+        "no": "{done} av {total} lokasjoner lest",
+        "en": "{done} of {total} sites read",
+    },
+    "background_auto_audit": {
+        "no": "Automatisk audit: {customer}",
+        "en": "Automatic audit: {customer}",
+    },
+    "background_risk_drop": {
+        "no": "Sikkerhetsscore falt med {delta:.0f} poeng (nå {score})",
+        "en": "Security score fell by {delta:.0f} points (now {score})",
+    },
+    "background_secure_drop": {
+        "no": "Secure Score falt med {delta:.1f}% (nå {score:.1f}%)",
+        "en": "Secure Score fell by {delta:.1f}% (now {score:.1f}%)",
+    },
+    "background_new_no_mfa": {
+        "no": "{count} nye brukere uten MFA",
+        "en": "{count} new users without MFA",
+    },
+    "background_expired_credentials": {
+        "no": "App-legitimasjon har utløpt. Integrasjoner kan være brutt.",
+        "en": "App credentials have expired. Integrations may be broken.",
+    },
+    "background_nsg": {
+        "no": "Nye risikable NSG-regler oppdaget i Azure",
+        "en": "New risky NSG rules detected in Azure",
+    },
+    "background_mfa_threshold": {
+        "no": "MFA-dekning er {pct:.0f}% (under terskel {threshold}%)",
+        "en": "MFA coverage is {pct:.0f}% (below threshold {threshold}%)",
+    },
+    "background_risk_grade": {
+        "no": "Risikokarakter: {grade} | Score: {score}",
+        "en": "Risk grade: {grade} | Score: {score}",
+    },
+    "background_mfa": {
+        "no": "MFA-dekning: {pct} | Brukere uten MFA: {count}",
+        "en": "MFA coverage: {pct} | Users without MFA: {count}",
+    },
+    "background_secure": {
+        "no": "Secure Score: {pct} | Global Admin-kontoer: {count}",
+        "en": "Secure Score: {pct} | Global Admin accounts: {count}",
+    },
+    "background_sections": {
+        "no": "Seksjoner: {done}/{total} OK | Advarsler: {warns}",
+        "en": "Sections: {done}/{total} OK | Warnings: {warns}",
+    },
+    "background_sections_failed": {
+        "no": "{count} seksjoner feilet under audit",
+        "en": "{count} sections failed during the audit",
+    },
+    "background_credential_title": {"no": "Varsler om legitimasjon:", "en": "Credential alerts:"},
+    "background_certificate": {"no": "Sertifikat", "en": "Certificate"},
+    "background_secret": {"no": "Klienthemmelighet", "en": "Client secret"},
+    "background_credential_expired": {
+        "no": "{customer}: {kind} utløpt ({date})",
+        "en": "{customer}: {kind} expired ({date})",
+    },
+    "background_credential_soon": {
+        "no": "{customer}: {kind} utløper om {days} dager",
+        "en": "{customer}: {kind} expires in {days} days",
+    },
+    "background_credential_critical": {
+        "no": "{customer}: {kind} utløper om {days} dager (kritisk)",
+        "en": "{customer}: {kind} expires in {days} days (critical)",
+    },
+    "background_backup_created": {
+        "no": "Automatisk backup: {path}",
+        "en": "Automatic backup: {path}",
+    },
+    "background_bulk_done": {
+        "no": "Bulk-audit fullført: {done}/{total} OK ({parallel} parallelle)",
+        "en": "Bulk audit completed: {done}/{total} OK ({parallel} concurrent)",
+    },
+    "background_bulk_customer": {
+        "no": "{customer}: Karakter {grade} (score {score})",
+        "en": "{customer}: Grade {grade} (score {score})",
+    },
+    "background_customer_skipped": {"no": "{customer}: Hoppet over", "en": "{customer}: Skipped"},
+    "background_unknown_error": {"no": "Ukjent feil", "en": "Unknown error"},
+    "background_task_disabled": {
+        "no": "Sybr HUB: Planlagt oppgave deaktivert automatisk",
+        "en": "Sybr HUB: Scheduled task automatically disabled",
+    },
+    "background_task_failures": {
+        "no": "Feilet {count} ganger på rad.",
+        "en": "Failed {count} times in a row.",
+    },
+    "background_task_error": {"no": "Siste feil: {error}", "en": "Last error: {error}"},
+    "background_task_reenable": {
+        "no": "Aktiver oppgaven igjen under Innstillinger > Planlagte oppgaver når feilen er rettet.",
+        "en": "Re-enable the task under Settings > Scheduled tasks after fixing the error.",
+    },
     # ── Report titles ──
     "report_title_customer": {
         "no": "IT-Sikkerhetsrapport",
@@ -4168,6 +4313,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "dash_csv_intune_pct": {"no": "Intune-samsvar %", "en": "Intune compliance %"},
     "dash_csv_last_audit": {"no": "Siste audit (UTC)", "en": "Last audit (UTC)"},
     "dash_csv_tags": {"no": "Tags", "en": "Tags"},
+    "dash_csv_unmeasured": {"no": "Ikke målte verdier", "en": "Unmeasured values"},
     # ── The report e-mail (core.email_sender.build_report_body_html) ──
     "email_subject": {
         "no": "Auditrapport: {customer} ({date})",
@@ -4282,8 +4428,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "{total} threats in the last 24 hours (threshold: {threshold})",
     },
     "alert_detail_firmware_outdated": {
-        "no": "FortiOS {firmware} er utdatert. Anbefalt er 7.4 eller nyere.",
-        "en": "FortiOS {firmware} is out of date. 7.4 or newer is recommended.",
+        "no": "Firmware {firmware} er utdatert. Se enhetens firmwarestatus for anbefalt versjon.",
+        "en": "Firmware {firmware} is out of date. See the device's firmware status for the recommended version.",
+    },
+    "alert_detail_firmware_patch": {
+        "no": "Firmware {firmware} er utdatert. Nyere versjon: {latest}.",
+        "en": "Firmware {firmware} is out of date. Newer version: {latest}.",
+    },
+    "alert_detail_firmware_eol": {
+        "no": "Enheten eller firmwaregrenen har nådd slutten av støtteperioden. Sist lest versjon: {firmware}.",
+        "en": "The device or firmware branch has reached end of support. Last read version: {firmware}.",
     },
     "alert_detail_mfa_coverage": {
         "no": "MFA-dekning {pct} % (terskelen er {threshold} %)",
@@ -4315,8 +4469,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Review the IPS and antivirus logs on the FortiGate. Consider blocking the source address, and update the signatures.",
     },
     "alert_rec_firmware_outdated": {
-        "no": "Oppgrader til FortiOS 7.4 eller nyere. Planlegg et vedlikeholdsvindu og ta sikkerhetskopi først.",
-        "en": "Upgrade to FortiOS 7.4 or newer. Plan a maintenance window and take a backup first.",
+        "no": "Oppgrader til en støttet firmwareversjon etter leverandørens oppgraderingssti. Bytt enheter som ikke lenger støttes. Ta sikkerhetskopi først.",
+        "en": "Upgrade to supported firmware following the vendor's upgrade path. Replace devices that are no longer supported. Take a backup first.",
     },
     "alert_rec_also_license_expiry": {
         "no": "Kontakt ALSO eller kunden for å fornye lisensen, og sjekk om tjenesten fortsatt er i bruk.",

@@ -83,7 +83,7 @@ def _cross_tenant(direct_in: str, *, service_default: bool = False) -> dict:
 
 def _routes(**overrides) -> dict:
     routes = {
-        "riskyUsers": ORDINARY_RISKY,
+        "identityProtection/riskyUsers": ORDINARY_RISKY,
         "identityProtection/riskDetections": [],
         "policies/authorizationPolicy": {"allowInvitesFrom": "everyone"},
         "policies/crossTenantAccessPolicy/default": _cross_tenant("blocked"),
@@ -245,7 +245,7 @@ async def test_a_clean_tenant_passes_from_either_file(tmp_path, sidecars):
     files = await _collect(
         tmp_path,
         sidecars=sidecars,
-        riskyUsers=[],
+        **{"identityProtection/riskyUsers": []},
         **{
             "security/alerts_v2": [],
             "identityGovernance/accessReviews/definitions": [],
@@ -308,7 +308,9 @@ async def test_a_long_upn_keeps_its_risk_level_and_state(tmp_path, sidecars):
     user was listed as a live risk. Its rows are now read by the collector's
     columns, so the text gives the sidecar's answer.
     """
-    files = await _collect(tmp_path, sidecars=sidecars, riskyUsers=RISKY_WITH_LONG_UPN)
+    files = await _collect(
+        tmp_path, sidecars=sidecars, **{"identityProtection/riskyUsers": RISKY_WITH_LONG_UPN}
+    )
 
     assert _verdicts(files)["9.3"] == (
         "fail",
@@ -326,7 +328,7 @@ async def test_failed_reads_write_no_sidecar_and_stay_unverified(tmp_path):
     files = await _collect(
         tmp_path,
         sidecars=True,
-        riskyUsers=LICENCE_GAP,
+        **{"identityProtection/riskyUsers": LICENCE_GAP},
         **{
             "roleManagement/directory/roleEligibilitySchedules": refused(),
             "identityGovernance/accessReviews/definitions": refused(),

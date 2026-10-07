@@ -110,7 +110,7 @@ _OrgId = Union[int, str, None]
 
 
 class ITGlueTestRequest(BaseModel):
-    """A key and region to try; no key means "the stored settings"."""
+    """Omitted or masked key uses the stored key; omitted region uses its region."""
 
     model_config = ConfigDict(extra="forbid")
 

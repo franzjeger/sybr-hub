@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import String, text
 from sqlmodel import Field, SQLModel
 
 
@@ -22,16 +22,24 @@ class Role(str, Enum):
     def level(self) -> int:
         return {"viewer": 0, "technician": 1, "admin": 2}[self.value]
 
-    def __ge__(self, other: Role) -> bool:
+    def __ge__(self, other: str) -> bool:
+        if not isinstance(other, Role):
+            return NotImplemented
         return self.level >= other.level
 
-    def __gt__(self, other: Role) -> bool:
+    def __gt__(self, other: str) -> bool:
+        if not isinstance(other, Role):
+            return NotImplemented
         return self.level > other.level
 
-    def __le__(self, other: Role) -> bool:
+    def __le__(self, other: str) -> bool:
+        if not isinstance(other, Role):
+            return NotImplemented
         return self.level <= other.level
 
-    def __lt__(self, other: Role) -> bool:
+    def __lt__(self, other: str) -> bool:
+        if not isinstance(other, Role):
+            return NotImplemented
         return self.level < other.level
 
 
@@ -59,8 +67,9 @@ class User(SQLModel, table=True):
     # is about this tool, the second reaches a customer's production. Rolling
     # them together would hand the second to every admin the day it shipped.
     #
-    # Read stays the default for every account. This is the exception, granted
-    # one user at a time and revocable on its own.
+    # Accounts created by an administrator start read-only. First-run setup
+    # explicitly grants both capabilities to the initial administrator.
+    # Each capability remains independently revocable afterwards.
     is_system: bool = Field(default=False)
     can_write: bool = Field(default=False)
     tenant_write: bool = Field(default=False)
@@ -167,7 +176,7 @@ class AppSecret(SQLModel, table=True):
     __tablename__ = "app_secrets"
 
     key: str = Field(primary_key=True)
-    value: str
+    value: str | bytes = Field(sa_type=String)
 
 
 class CustomerAccess(SQLModel, table=True):

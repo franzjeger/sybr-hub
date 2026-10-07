@@ -89,3 +89,55 @@ async def test_a_delegated_customer_is_audited_and_an_unready_one_is_not(client,
     attempted = {e["customer"] for e in events if e["type"] == "customer_error"}
     assert attempted == {"Kunde App", "Kunde GDAP"}
     assert events[-1]["type"] == "bulk_done"
+
+
+def test_delegated_access_still_needs_a_tenant(bulk):
+    from app.core.credentials import m365_ready
+    from app.web.routes.audit import _bulk_targets
+
+    customer = {"_id": "incomplete", "AuthMode": "gdap"}
+    assert not m365_ready(customer)
+    assert _bulk_targets([customer]) == []
+
+
+@pytest.mark.parametrize("language", ["no", "en", "de", None])
+async def test_bulk_reports_and_summary_follow_the_hub_language(
+    client, bulk, monkeypatch, tmp_path, language
+):
+    from app.core.config import save_app_settings
+
+    save_app_settings({"ui_language": language})
+    monkeypatch.setattr("app.modules.m365_audit.auth.get_auth_for_customer", lambda *a: object())
+    monkeypatch.setattr(
+        "app.modules.m365_audit.collector.make_output_dir", lambda name: tmp_path / name
+    )
+
+    class Collector:
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self):
+            return []
+
+    generated = []
+    contexts = []
+    monkeypatch.setattr("app.modules.m365_audit.collector.AuditCollector", Collector)
+    monkeypatch.setattr(
+        "app.reports.generator.generate_reports", lambda **kwargs: generated.append(kwargs)
+    )
+
+    def build(*args, **kwargs):
+        contexts.append(kwargs)
+        return {"risk_grade": "B", "risk_score": 71}
+
+    monkeypatch.setattr("app.reports.generator.build_report_context", build)
+    headers = await login("bulk-language", role=Role.admin, all_customers=True)
+
+    response = client.post("/api/audit/bulk", headers=headers)
+
+    assert response.status_code == 200, response.text
+    events = _events(response.text)
+    assert [e["status"] for e in events if e["type"] == "customer_done"] == ["done", "done"]
+    expected = language if language in ("no", "en") else "no"
+    assert [g["lang"] for g in generated] == [expected, expected]
+    assert [c["lang"] for c in contexts] == [expected, expected]

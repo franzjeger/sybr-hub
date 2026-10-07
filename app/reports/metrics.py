@@ -48,6 +48,29 @@ def stored_recommendation(rec: dict) -> dict:
     }
 
 
+def risk_coverage(risk: dict) -> dict:
+    """Keep the scorer's evidence, including both UI languages, with this run.
+
+    Old or third-party contexts without evidence recipes remain unknown.
+    A numerical score alone is never evidence of complete collection.
+    """
+    from app.reports.i18n import T
+
+    evidence = risk.get("data_quality_evidence")
+    if not isinstance(evidence, list) or "has_full_data" not in risk:
+        return {"state": "unknown", "issues": []}
+    issues = [
+        {lang: T(lang)(item["key"], **item.get("params", {})) for lang in ("no", "en")}
+        for item in evidence
+    ]
+    state = (
+        "blocked"
+        if risk.get("blocking_data_gaps")
+        else ("complete" if risk["has_full_data"] else "partial")
+    )
+    return {"state": state, "issues": issues}
+
+
 def save_audit_metrics(out_dir: Path, context: dict, *, customer_id: str | None = None) -> None:
     """Save key audit metrics as JSON for future trend comparison."""
     mfa = context.get("mfa", {})
@@ -78,6 +101,7 @@ def save_audit_metrics(out_dir: Path, context: dict, *, customer_id: str | None 
         # the grade fiction — carry it through rather than flattening to 0.
         "risk_score": context.get("risk", {}).get("score"),
         "risk_grade": context.get("risk", {}).get("grade", ""),
+        "risk_coverage": risk_coverage(context.get("risk", {})),
         # Network metrics — None when the network audit produced nothing, so
         # a customer with no FortiGate/UniFi reachable does not register as
         # "0 devices, 0 default credentials" alongside tenants we did scan.

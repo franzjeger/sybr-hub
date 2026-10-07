@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections import OrderedDict
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -80,17 +82,35 @@ class AuditRunContext:
             q.put_nowait(event)
 
 
-# One latest selection per user *and customer*. Keyed by the user alone, two
-# browser tabs of one technician shared a slot: loading customer B's run in one
-# tab threw away the run customer A's tab was about to build its report from.
-# A new audit or an explicit history load replaces the slot for its customer.
+# Server-owned collection and legacy API selections are per user and customer.
+# Browser history selections additionally carry a per-document identity below.
 _user_audit_runs: dict[tuple[str, str], AuditRunContext] = {}
+
+# A tab's history choice is separate from the server-owned collecting run.
+# The authenticated user and customer remain part of the key: the opaque tab
+# header selects a view, never grants access. Bound memory to 32 selections per
+# user; an evicted tab gets the collecting/latest run until it selects again.
+request_audit_tab: ContextVar[str] = ContextVar("request_audit_tab", default="")
+_tab_audit_runs: OrderedDict[tuple[str, str, str], AuditRunContext] = OrderedDict()
+
+
+def _select_tab(run: AuditRunContext) -> None:
+    tab = request_audit_tab.get()
+    if not tab:
+        return
+    key = (run.owner_user_id, run.customer_id, tab)
+    _tab_audit_runs[key] = run
+    _tab_audit_runs.move_to_end(key)
+    owned = [k for k in _tab_audit_runs if k[0] == run.owner_user_id]
+    for old in owned[:-32]:
+        del _tab_audit_runs[old]
 
 
 def begin_user_audit(user_id: str, customer_id: str) -> AuditRunContext:
     """Create and select a fresh running context for one user and customer."""
     run = AuditRunContext(owner_user_id=user_id, customer_id=customer_id, running=True)
     _user_audit_runs[(user_id, customer_id)] = run
+    _select_tab(run)
     return run
 
 
@@ -108,13 +128,24 @@ def select_user_audit(
         results=results,
         out_dir=out_dir,
     )
-    _user_audit_runs[(user_id, customer_id)] = run
+    if request_audit_tab.get():
+        _select_tab(run)
+    else:
+        _user_audit_runs[(user_id, customer_id)] = run
     return run
 
 
 def get_user_audit(user_id: str, customer_id: str) -> AuditRunContext | None:
     """Return this user's selected run for exactly this customer."""
-    return _user_audit_runs.get((user_id, customer_id))
+    collecting = _user_audit_runs.get((user_id, customer_id))
+    if collecting and collecting.running:
+        return collecting
+    tab = request_audit_tab.get()
+    if tab:
+        selected = _tab_audit_runs.get((user_id, customer_id, tab))
+        if selected is not None:
+            return selected
+    return collecting
 
 
 def get_running_user_audit(user_id: str) -> AuditRunContext | None:
@@ -133,6 +164,7 @@ def get_running_user_audit(user_id: str) -> AuditRunContext | None:
 def clear_user_audits() -> None:
     """Test/shutdown helper; never use it to switch customers."""
     _user_audit_runs.clear()
+    _tab_audit_runs.clear()
 
 
 # ── First-run setup state ────────────────────────────────────────────────

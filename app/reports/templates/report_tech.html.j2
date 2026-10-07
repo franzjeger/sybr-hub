@@ -306,7 +306,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <li><a href="#lisenser">{{ t.license_overview }}</a></li>
     <li><a href="#ca">{{ t.conditional_access }}</a></li>
     <li><a href="#epost">{{ t.email_security }}</a></li>
-    <li><a href="#exchange">{{ t.exchange_online }}</a></li>
+    {% if exchange and exchange.has_data %}<li><a href="#exchange">{{ t.exchange_online }}</a></li>{% endif %}
     <li><a href="#securescor">{{ t.ms_secure_score }}</a></li>
     <li><a href="#enheter">{{ t.devices_intune }}</a></li>
     <li><a href="#sharepoint">{{ t.sharepoint_teams }}</a></li>
@@ -353,7 +353,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <div class="tab-panel active" id="tab-overview">
 <!-- ── 1. Security Overview ── -->
-<a name="oversikt"></a><h2 id="oversikt">{{ t.security_summary }}</h2>
+<h2 id="oversikt">{{ t.security_summary }}</h2>
 
 <div class="risk-bar">
   <div class="risk-grade {{ risk.color }}">{{ risk.grade }}</div>
@@ -516,7 +516,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-recommendations">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 2. Recommendations ── -->
-<a name="anbefalinger"></a><h2 id="anbefalinger">{{ t.recommendation_heading }}</h2>
+<h2 id="anbefalinger">{{ t.recommendation_heading }}</h2>
 {% if recommendations %}
 <table>
   <tr>
@@ -569,7 +569,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-identity">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 3. Section Status ── -->
-<a name="seksjonstatus"></a><h2 id="seksjonstatus">{{ t.audit_section_status }}</h2>
+<h2 id="seksjonstatus">{{ t.audit_section_status }}</h2>
 <table>
   <tr><th>{{ t.status }}</th><th>{{ t.section }}</th><th>{{ t.files }}</th><th>{{ t.warnings_label }}</th><th>{{ t.errors }}</th></tr>
   {% for r in results %}
@@ -590,7 +590,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 4. Users & MFA ── -->
-<a name="brukere"></a><h2 id="brukere">{{ t.users_and_mfa }}</h2>
+<h2 id="brukere">{{ t.users_and_mfa }}</h2>
 <div class="summary-bar" style="grid-template-columns:repeat(5,1fr);">
   <div class="stat-box blue"><div class="num">{{ users.total }}</div><div class="lbl">{{ t.total }}</div></div>
   <div class="stat-box green"><div class="num">{{ users.enabled }}</div><div class="lbl">{{ t.active }}</div></div>
@@ -733,7 +733,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 5. Admin Roles & PIM ── -->
-<a name="adminroller"></a><h2 id="adminroller">{{ t.admin_roles_pim }}</h2>
+<h2 id="adminroller">{{ t.admin_roles_pim }}</h2>
 
 {% if admin_roles and admin_roles.total_assignments > 0 %}
 <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
@@ -780,7 +780,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 6. Groups ── -->
-<a name="grupper"></a><h2 id="grupper">{{ t.groups_heading }}</h2>
+<h2 id="grupper">{{ t.groups_heading }}</h2>
 
 {% if groups and groups.total > 0 %}
 <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);">
@@ -806,7 +806,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 7. Licenses ── -->
-<a name="lisenser"></a><h2 id="lisenser">{{ t.license_overview }}</h2>
+<h2 id="lisenser">{{ t.license_overview }}</h2>
 {% if usage and usage.has_data and usage.licensed_idle > 0 %}
 <div class="alert warning"><strong>{{ t.idle_licences }}</strong>{{ t.idle_licences_desc.format(count=usage.licensed_idle, days=usage.period_days) }}{% if usage.concealed %}. {{ t.usage_names_concealed }}{% endif %}</div>
 {% endif %}
@@ -872,7 +872,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 8. Conditional Access ── -->
-<a name="ca"></a><h2 id="ca">{{ t.conditional_access }}</h2>
+<h2 id="ca">{{ t.conditional_access }}</h2>
 <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
   <div class="stat-box green"><div class="num">{{ ca.enabled }}</div><div class="lbl">{{ t.active_policies_label }}</div></div>
   <div class="stat-box orange"><div class="num">{{ ca.report_only }}</div><div class="lbl">{{ t.report_mode }}</div></div>
@@ -950,7 +950,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-email">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 9. Email Security ── -->
-<a name="epost"></a><h2 id="epost">{{ t.email_security }}</h2>
+<h2 id="epost">{{ t.email_security }}</h2>
 {% if spf_dmarc %}
 <table>
   <tr><th>{{ t.domain }}</th><th>SPF</th><th>DMARC</th><th>DKIM sel1</th><th>DKIM sel2</th><th>MTA-STS</th></tr>
@@ -979,7 +979,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── Exchange Online ── -->
 {% if exchange and exchange.has_data %}
-<a name="exchange"></a><h2 id="exchange">{{ t.exchange_online }}</h2>
+<h2 id="exchange">{{ t.exchange_online }}</h2>
 
 <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);">
   <div class="stat-box blue"><div class="num">{{ exchange.mailbox_total }}</div><div class="lbl">{{ t.mailboxes }}</div></div>
@@ -1065,7 +1065,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 10. Secure Score ── -->
-<a name="securescor"></a><h2 id="securescor">{{ t.ms_secure_score }}</h2>
+<h2 id="securescor">{{ t.ms_secure_score }}</h2>
 <div class="card">
   <div class="card-grid">
     <div class="metric">
@@ -1101,7 +1101,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-devices">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 11. Devices & Intune ── -->
-<a name="enheter"></a><h2 id="enheter">{{ t.devices_intune }}</h2>
+<h2 id="enheter">{{ t.devices_intune }}</h2>
 
 {% if intune and intune.total > 0 %}
 <div class="summary-bar" style="grid-template-columns:repeat(6,1fr);">
@@ -1174,7 +1174,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-apps">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 12. SharePoint & Teams ── -->
-<a name="sharepoint"></a><h2 id="sharepoint">{{ t.sharepoint_teams }}</h2>
+<h2 id="sharepoint">{{ t.sharepoint_teams }}</h2>
 
 {% if sharepoint %}
 <div class="card">
@@ -1223,7 +1223,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 13. Apps & OAuth ── -->
-<a name="apper"></a><h2 id="apper">{{ t.apps_oauth }}</h2>
+<h2 id="apper">{{ t.apps_oauth }}</h2>
 
 {% if oauth and oauth.total_grants > 0 %}
 <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
@@ -1542,7 +1542,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-findings">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 14. Critical Findings ── -->
-<a name="kritiske"></a><h2 id="kritiske">{{ t.critical_findings }}</h2>
+<h2 id="kritiske">{{ t.critical_findings }}</h2>
 
 {# A count of 0 is a clean tenant's "(0 unresolved)" table, not a finding. #}
 {% set _no_alerts = defender_alert_count is defined and defender_alert_count == 0 %}
@@ -1598,7 +1598,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="tab-panel" id="tab-rawdata">
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- ── 15. Raw Data ── -->
-<a name="rawdata"></a><h2 id="rawdata">{{ t.raw_data }}</h2>
+<h2 id="rawdata">{{ t.raw_data }}</h2>
 <p style="color:var(--muted);margin-bottom:20px;font-size:12px;">{{ t.raw_data_desc }}</p>
 
 {% for filename, content in file_contents.items() | sort %}

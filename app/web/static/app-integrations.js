@@ -1,18 +1,22 @@
+import {navLoadCustomers as loadCustomers} from './app-navigation.js';
+
+import {_taskSchedLabel} from './app-format.js';
+import {integrationSetField} from './app-forms.js';
 import {esc} from './app-esc.js';
 import {_lang, t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
-import {onViewShown} from './app-hooks.js';
+import {onConnectionCheck, onViewShown} from './app-hooks.js';
 import {hasModule} from './app-state.js';
 import {toneClass} from './app-format.js';
 import {adminSignpostButton, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {renderToolCustomerPickers} from './app.js';
+import {navRenderToolCustomerPickers as renderToolCustomerPickers} from './app-navigation.js';
 import {
   aiLoadCustomers, browserInit, hostsLoad, loadPentestCapabilities, rdpInit,
   sshShowKeys, termFocus, vpnLoadProfiles,
 } from './app-infra.js';
 import {tsLoadView} from './app-tailscale.js';
-import {loadCustomers} from './app-customers.js';
+
 
 // Handlers for the markup this file builds: the docs tree, the ALSO and
 // Uniweb import and match dialogs, and the task scheduler.
@@ -174,12 +178,11 @@ export async function alsoTestConnection() {
 
 export async function alsoSaveConfig() {
   var msg = document.getElementById('also-config-msg');
-  var settings = await apiFetch('/api/settings');
-  var body = Object.assign({}, settings || {}, {
+  var body = {
     also_username: document.getElementById('input-also-username').value.trim(),
     also_password: document.getElementById('input-also-password').value.trim(),
     also_country: document.getElementById('input-also-country').value,
-  });
+  };
   var d = await apiFetch('/api/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -837,24 +840,7 @@ export async function taskSchedRefresh() {
 // The API sends the schedule as fields and as an English summary ("daily
 // 02:00", "every 6h", "sunday 03:00"). The summary was printed as it came, in
 // English in a Norwegian table; the label is built from the fields instead.
-export function _taskSchedLabel(task) {
-  var time = task.time || '';
-  if (task.type === 'interval') {
-    var hours = Number(task.interval_hours) || 0;
-    return hours === 1 ? t('sched_every_hour') : t('sched_every_n_hours').replace('{n}', String(hours));
-  }
-  if (task.type === 'weekly') {
-    var days = {
-      monday: t('day_monday'), tuesday: t('day_tuesday'), wednesday: t('day_wednesday'),
-      thursday: t('day_thursday'), friday: t('day_friday'), saturday: t('day_saturday'),
-      sunday: t('day_sunday')
-    };
-    var day = String(task.day || '').toLowerCase();
-    return t('sched_weekly').replace('{day}', days[day] || day).replace('{time}', time);
-  }
-  if (task.type === 'daily') return t('sched_daily').replace('{time}', time);
-  return task.schedule || '';
-}
+
 
 function taskSchedRender(tasks) {
   var container = document.getElementById('task-scheduler-table');
@@ -963,15 +949,15 @@ export async function alertLoadConfig() {
 
   var toggle = document.getElementById('alert-master-toggle');
   var dot = document.getElementById('alert-status-dot');
-  if (toggle) toggle.checked = !!d.enabled;
+  if (toggle) integrationSetField(toggle.id, !!d.enabled, true);
   if (dot) dot.style.background = d.enabled ? 'var(--green)' : 'var(--text-dim)';
 
   var teamsCheck = document.getElementById('alert-notify-teams');
   var emailCheck = document.getElementById('alert-notify-email');
   var emailInput = document.getElementById('alert-email-recipient');
-  if (teamsCheck) teamsCheck.checked = !!d.notify_teams;
-  if (emailCheck) emailCheck.checked = !!d.notify_email;
-  if (emailInput) emailInput.value = d.email_recipient || '';
+  if (teamsCheck) integrationSetField(teamsCheck.id, !!d.notify_teams, true);
+  if (emailCheck) integrationSetField(emailCheck.id, !!d.notify_email, true);
+  if (emailInput) integrationSetField(emailInput.id, d.email_recipient || '');
 
   var rules = d.rules || {};
   var ruleMap = {
@@ -989,10 +975,10 @@ export async function alertLoadConfig() {
     var ruleKey = cfg[0], valId = cfg[1], valField = cfg[2];
     var rule = rules[ruleKey] || {};
     var el = document.getElementById(checkId);
-    if (el) el.checked = !!rule.enabled;
+    if (el) integrationSetField(el.id, !!rule.enabled, true);
     if (valId && valField && rule[valField] !== undefined) {
       var valEl = document.getElementById(valId);
-      if (valEl) valEl.value = rule[valField];
+      if (valEl) integrationSetField(valEl.id, rule[valField]);
     }
   });
 
@@ -1162,8 +1148,8 @@ async function uniwebCheckStatus() {
     if (settings) {
       var emailField = document.getElementById('input-uniweb-email');
       var passField = document.getElementById('input-uniweb-password');
-      if (emailField && settings.uniweb_email) emailField.value = settings.uniweb_email;
-      if (passField && settings.uniweb_password_set) passField.value = '••••••';
+      if (emailField && settings.uniweb_email) integrationSetField(emailField.id, settings.uniweb_email);
+      if (passField && settings.uniweb_password_set) integrationSetField(passField.id, '••••••');
     }
     if (d.last_sync) {
       document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + new Date(d.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO');
@@ -1239,32 +1225,14 @@ export async function itglueSyncAllDocumentation() {
 
 // ── Integrations ──────────────────────────────────────────────────────────────
 
-export function toggleIntegConfig(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  // Computed, not inline. A panel whose hidden state comes from a stylesheet
-  // class has an empty el.style.display, which read as "open" and made the
-  // first click close everything and open nothing.
-  const isOpen = getComputedStyle(el).display !== 'none';
-  // One open configuration gets the full grid width, including its tables.
-  document.querySelectorAll('#integ-active [id$="-config"]').forEach(function(panel) {
-    panel.style.display = 'none';
-    const card = panel.closest('.card');
-    if (card) card.classList.remove('integ-expanded');
-  });
-  if (!isOpen) {
-    el.style.display = 'block';
-    const card = el.closest('.card');
-    if (card) card.classList.add('integ-expanded');
-  }
-}
+
 
 // ── Card status ─────────────────────────────────────────────────────────────
 // One look per state on every card: green for working, orange for stored but
 // known not to work, grey for not set up, red for a check that failed. "Not
 // configured" was red on most cards and grey on FortiGate and Sybrt AI; it is
 // not an error, so it is grey everywhere.
-var _INTEG_STATE_COLOR = {ok: 'var(--green)', warn: 'var(--orange)', off: 'var(--text-dim)', error: 'var(--red)'};
+var _INTEG_STATE_COLOR = {ok: 'var(--text-dim)', configured: 'var(--text-dim)', verified: 'var(--green)', stale: 'var(--orange)', failed: 'var(--red)', warn: 'var(--orange)', off: 'var(--text-dim)', error: 'var(--red)'};
 
 function _integPaint(prefix, state, text) {
   var dot = document.getElementById(prefix + '-integ-dot');
@@ -1272,7 +1240,7 @@ function _integPaint(prefix, state, text) {
   if (!dot || !label) return;
   dot.style.background = _INTEG_STATE_COLOR[state];
   label.style.color = state === 'off' ? 'var(--text-muted)' : _INTEG_STATE_COLOR[state];
-  label.textContent = text || (state === 'off' ? t('status_not_configured') : t('status_configured'));
+  label.textContent = text || (state === 'off' ? t('status_not_configured') : t('integ_state_configured'));
   // A failed check says nothing about whether credentials are stored.
   if (state !== 'error') _integGateActions(prefix, state !== 'off');
 }
@@ -1333,17 +1301,20 @@ export async function loadIntegrationStatus() {
   alertLoadConfig();
 }
 
+onConnectionCheck(function() { _loadIntegrationCards(); });
+
+var _integrationStatusSequence = 0;
 async function _loadIntegrationCards() {
+  var sequence = ++_integrationStatusSequence;
   function _setVal(id, value) {
     // Tolerant of a missing element, like setStatus above: this function
     // populates several cards and a view that has not rendered one of them
     // must not stop the rest being filled in.
-    const el = document.getElementById(id);
-    if (el) el.value = value;
+    integrationSetField(id, value);
   }
   try {
     const d = await apiFetch('/api/settings');
-    if (!d) return;
+    if (!d || sequence !== _integrationStatusSequence) return;
     // IT Glue status + populate
     var _integCount = 0, _integActive = 0;
     // A card whose module is off is hidden, so it does not count either.
@@ -1353,8 +1324,8 @@ async function _loadIntegrationCards() {
       if (configured) _integActive++;
     }
     setStatus('itglue-integ-dot', 'itglue-integ-label', !!d.itglue_api_key); _countInteg(!!d.itglue_api_key);
-    document.getElementById('input-itglue-key').value = d.itglue_api_key || '';
-    document.getElementById('input-itglue-region').value = d.itglue_region || 'eu';
+    integrationSetField('input-itglue-key', d.itglue_api_key || '');
+    integrationSetField('input-itglue-region', d.itglue_region || 'eu');
     // Autotask status + populate. The two secrets come back masked, so the
     // *_set booleans are what say whether one is stored — writing the mask
     // into the field and saving it back would store the bullets.
@@ -1378,9 +1349,9 @@ async function _loadIntegrationCards() {
     var _alsoU = document.getElementById('input-also-username');
     var _alsoP = document.getElementById('input-also-password');
     var _alsoC = document.getElementById('input-also-country');
-    if (_alsoU) _alsoU.value = d.also_username || '';
-    if (_alsoP) _alsoP.value = d.also_password || '';
-    if (_alsoC) _alsoC.value = d.also_country || 'no';
+    if (_alsoU) integrationSetField(_alsoU.id, d.also_username || '');
+    if (_alsoP) integrationSetField(_alsoP.id, d.also_password || '');
+    if (_alsoC) integrationSetField(_alsoC.id, d.also_country || 'no');
     // UniFi Site Manager status. It was absent from this block entirely, so it
     // never counted towards "n/m configured" and its card was left on whatever
     // unifiSmLoadSaved() painted — blue "key saved" rather than the green every
@@ -1394,8 +1365,8 @@ async function _loadIntegrationCards() {
     setStatus('ts-integ-dot', 'ts-integ-label', !!d.tailscale_api_key_set); _countInteg(!!d.tailscale_api_key_set, 'tailscale');
     var _tsKey = document.getElementById('input-ts-api-key');
     var _tsTailnet = document.getElementById('input-ts-tailnet');
-    if (_tsKey) _tsKey.value = d.tailscale_api_key || '';
-    if (_tsTailnet) _tsTailnet.value = d.tailscale_tailnet || '-';
+    if (_tsKey) integrationSetField(_tsKey.id, d.tailscale_api_key || '');
+    if (_tsTailnet) integrationSetField(_tsTailnet.id, d.tailscale_tailnet || '-');
     // GDAP / Partner Center status + populate
     // Three states. Credentials stored is not the same claim as credentials
     // that work: a client secret Partner Center had just rejected still went
@@ -1404,10 +1375,15 @@ async function _loadIntegrationCards() {
     // gdap_validated is null for configs written before it was recorded — that
     // is "we do not know", not "broken", so those keep their old appearance.
     if (d.gdap_configured && d.gdap_validated === false) {
-      setStatusWarn('gdap-integ-dot', 'gdap-integ-label',
-        t('gdap_status_unverified', 'Lagret, ikke verifisert'));
+      _integPaint('gdap', 'failed', t('integ_state_failed'));
     } else {
       setStatus('gdap-integ-dot', 'gdap-integ-label', !!d.gdap_configured);
+    }
+    if (d.gdap_configured && d.gdap_validated === true) {
+      var gdapAge = Date.now() - Date.parse(d.gdap_validated_at || '');
+      _integPaint('gdap', Number.isFinite(gdapAge) ? (gdapAge < 86400000 ? 'verified' : 'stale') : 'configured',
+        t(Number.isFinite(gdapAge) ? (gdapAge < 86400000 ? 'integ_state_verified' : 'integ_state_stale') : 'integ_state_configured')
+        + (d.gdap_validated_at ? ' · ' + t('integ_last_check') + ': ' + new Date(d.gdap_validated_at).toLocaleString() : ''));
     }
     _countInteg(!!(d.gdap_configured && d.gdap_validated !== false));
     if (d.gdap_configured) {
@@ -1418,27 +1394,35 @@ async function _loadIntegrationCards() {
     }
     var _gdapTenant = document.getElementById('input-gdap-tenant');
     var _gdapClient = document.getElementById('input-gdap-client');
-    if (_gdapTenant) _gdapTenant.value = d.gdap_partner_tenant_id || '';
-    if (_gdapClient) _gdapClient.value = d.gdap_client_id || '';
+    if (_gdapTenant) integrationSetField(_gdapTenant.id, d.gdap_partner_tenant_id || '');
+    if (_gdapClient) integrationSetField(_gdapClient.id, d.gdap_client_id || '');
     // Uniweb status + populate
     setStatus('uniweb-integ-dot', 'uniweb-integ-label', !!d.uniweb_password_set); _countInteg(!!d.uniweb_password_set, 'billing');
+    Object.entries(d.integration_health || {}).forEach(function(entry) {
+      var prefix = entry[0] === 'tailscale' ? 'ts' : entry[0];
+      var health = entry[1];
+      var label = health.state === 'off' ? t('status_not_configured') : t('integ_state_' + health.state);
+      if (health.checked_at) label += ' · ' + t('integ_last_check') + ': ' + new Date(health.checked_at).toLocaleString();
+      _integPaint(prefix, health.state, label);
+    });
+
     var _uwEmail = document.getElementById('input-uniweb-email');
     var _uwPass = document.getElementById('input-uniweb-password');
-    if (_uwEmail) _uwEmail.value = d.uniweb_email || '';
-    if (_uwPass) _uwPass.value = d.uniweb_password || '';
+    if (_uwEmail) integrationSetField(_uwEmail.id, d.uniweb_email || '');
+    if (_uwPass) integrationSetField(_uwPass.id, d.uniweb_password || '');
     if (d.uniweb_password_set) uniwebCheckStatus();
     // Update summary. The dot is green only when something is set up; a green
     // dot beside "0 of 9" read as all clear.
     var sumEl = document.getElementById('integ-summary');
     if (sumEl) sumEl.innerHTML = '<span class="' + (_integActive ? 'text-success' : 'text-dim') + '">&#9679;</span> '
       + esc(t('integ_summary').replace('{active}', String(_integActive)).replace('{total}', String(_integCount)));
-    document.getElementById('input-smtp-server').value = d.smtp_server || '';
-    document.getElementById('input-smtp-port').value = d.smtp_port || 587;
-    document.getElementById('input-smtp-user').value = d.smtp_user || '';
-    document.getElementById('input-smtp-password').value = d.smtp_password || '';
-    document.getElementById('input-smtp-from').value = d.smtp_from || '';
-    document.getElementById('input-email-recipient').value = d.email_default_recipient || '';
-    document.getElementById('input-email-auto-send').checked = d.email_auto_send || false;
+    integrationSetField('input-smtp-server', d.smtp_server || '');
+    integrationSetField('input-smtp-port', d.smtp_port || 587);
+    integrationSetField('input-smtp-user', d.smtp_user || '');
+    integrationSetField('input-smtp-password', d.smtp_password || '');
+    integrationSetField('input-smtp-from', d.smtp_from || '');
+    integrationSetField('input-email-recipient', d.email_default_recipient || '');
+    integrationSetField('input-email-auto-send', d.email_auto_send || false, true);
   } catch(e) {
     _integPaint('itglue', 'error', t('err_check_failed'));
   }
@@ -1446,19 +1430,20 @@ async function _loadIntegrationCards() {
   try {
     const sched = await apiFetch('/api/scheduler');
     if (!sched) return;
+    // The server sends only whether a webhook is stored, never its address.
     setStatus('webhook-integ-dot', 'webhook-integ-label', !!sched.webhook_url_set);
-    document.getElementById('input-webhook-url').value = sched.webhook_url_set ? '••••••' : '';
+    integrationSetField('input-webhook-url', sched.webhook_url_set ? '••••••' : '');
     const ao = sched.alert_on || {};
-    document.getElementById('alert-audit-completed').checked = ao.audit_completed !== false;
-    document.getElementById('alert-risk-score-drop').checked = ao.risk_score_drop !== false && ao.risk_score_drop !== 0;
-    document.getElementById('alert-risk-score-drop-threshold').value = (typeof ao.risk_score_drop === 'number' ? ao.risk_score_drop : 5);
-    document.getElementById('alert-new-risky-users').checked = ao.new_risky_users !== false;
-    document.getElementById('alert-expired-credentials').checked = ao.expired_credentials !== false;
-    document.getElementById('alert-secure-score-drop').checked = ao.secure_score_drop !== false && ao.secure_score_drop !== 0;
-    document.getElementById('alert-secure-score-drop-threshold').value = (typeof ao.secure_score_drop === 'number' ? ao.secure_score_drop : 5);
-    document.getElementById('alert-new-nsg-warnings').checked = ao.new_nsg_warnings !== false;
-    document.getElementById('alert-mfa-below-threshold').checked = ao.mfa_below_threshold !== false && ao.mfa_below_threshold !== 0;
-    document.getElementById('alert-mfa-threshold').value = (typeof ao.mfa_below_threshold === 'number' ? ao.mfa_below_threshold : 80);
+    integrationSetField('alert-audit-completed', ao.audit_completed !== false, true);
+    integrationSetField('alert-risk-score-drop', ao.risk_score_drop !== false && ao.risk_score_drop !== 0, true);
+    integrationSetField('alert-risk-score-drop-threshold', (typeof ao.risk_score_drop === 'number' ? ao.risk_score_drop : 5));
+    integrationSetField('alert-new-risky-users', ao.new_risky_users !== false, true);
+    integrationSetField('alert-expired-credentials', ao.expired_credentials !== false, true);
+    integrationSetField('alert-secure-score-drop', ao.secure_score_drop !== false && ao.secure_score_drop !== 0, true);
+    integrationSetField('alert-secure-score-drop-threshold', (typeof ao.secure_score_drop === 'number' ? ao.secure_score_drop : 5));
+    integrationSetField('alert-new-nsg-warnings', ao.new_nsg_warnings !== false, true);
+    integrationSetField('alert-mfa-below-threshold', ao.mfa_below_threshold !== false && ao.mfa_below_threshold !== 0, true);
+    integrationSetField('alert-mfa-threshold', (typeof ao.mfa_below_threshold === 'number' ? ao.mfa_below_threshold : 80));
   } catch(e) { console.warn('Alert options init failed:', e); }
 }
 

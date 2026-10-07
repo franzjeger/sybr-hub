@@ -75,6 +75,7 @@ def test_every_declared_permission_has_something_that_uses_it():
         "Directory.Read.All": "directoryRoles",
         "Group.Read.All": "groups",
         "IdentityRiskyUser.Read.All": "riskyUsers",
+        "IdentityRiskEvent.Read.All": "identityProtection/riskDetections",
         "Organization.Read.All": "organization",
         "Policy.Read.All": "policies",
         "Reports.Read.All": "getOffice365ActiveUserDetail",
@@ -187,7 +188,7 @@ def test_get_report_reads_the_csv_these_endpoints_actually_return():
             seen["follow"] = follow_redirects
             return _Resp()
 
-    client = GraphClient.__new__(GraphClient)
+    client = GraphClient(object())
     client._http = _Http()
 
     async def _headers():
@@ -216,15 +217,8 @@ def test_get_report_reads_the_csv_these_endpoints_actually_return():
     assert rows[0]["oneDriveLastActivityDate"] == ""
 
 
-def test_an_intune_service_refusal_is_not_reported_as_missing_consent():
-    """Measured against a tenant with all four DeviceManagement roles granted.
-
-    Graph wraps the Intune service's own refusal in a 401 with code
-    UnknownError, and the body carries a manage.microsoft.com URL with a
-    nested ErrorCode of Forbidden. Read as a permission failure it sends a
-    technician to inspect a grant that is already there; what it means is
-    that the service will not answer for this tenant at all.
-    """
+def test_an_intune_service_refusal_does_not_guess_the_root_cause():
+    """The service URL identifies Intune, not the tenant's licence or grants."""
     from app.modules.m365_audit.graph_client import GraphPermissionError
 
     body = (
@@ -236,8 +230,10 @@ def test_an_intune_service_refusal_is_not_reported_as_missing_consent():
 
     assert err.is_service_refusal is True
     assert err.is_licence_gap is False
-    assert "permission is not the problem" in str(err)
-    assert "admin consent" not in str(err)
+    assert "permission is not the problem" not in str(err)
+    assert "most likely has no" not in str(err)
+    assert "admin consent" in str(err)
+    assert "does not establish the cause" in str(err)
 
 
 def test_a_plain_403_is_still_reported_as_missing_consent():
@@ -279,7 +275,7 @@ def test_get_raises_on_refusal_instead_of_returning_an_error_dict():
         async def get(self, url, headers=None, **kw):
             return _Resp()
 
-    client = GraphClient.__new__(GraphClient)
+    client = GraphClient(object())
     client._http = _Http()
 
     async def _headers():

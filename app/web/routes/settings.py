@@ -15,6 +15,7 @@ from app.core.exceptions import (
     IntegrationError,
     ValidationError,
 )
+from app.core.integration_health import integration_health
 from app.core.rbac import filter_customers, get_accessible_customer_ids
 from app.models.settings import (
     AlertConfigUpdate,
@@ -83,6 +84,7 @@ async def get_settings(user: User = _auth):
     )
     return {
         **paths,
+        "integration_health": integration_health(settings),
         "branding": get_branding(),
         "itglue_api_key": "••••••" if settings.get("itglue_api_key") else "",
         "itglue_api_key_set": bool(settings.get("itglue_api_key")),

@@ -96,6 +96,12 @@ def test_it_has_no_network_at_all():
 def test_reports_do_not_request_external_fonts():
     for path in Path("app/reports/templates").glob("report_*.html.j2"):
         assert "fonts.googleapis.com" not in path.read_text()
+
+
+def test_external_fonts_are_absent_and_stay_blocked():
+    # Confidential reports carry no Google Fonts import, including the copy
+    # opened from disk. Keep the network prohibition in the served CSP too.
+    assert "fonts.googleapis.com" not in TEMPLATE
     assert "googleapis" not in " ".join(_artefact_csp().values())
 
 

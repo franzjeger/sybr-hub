@@ -35,7 +35,7 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 INLINE_STYLE_ATTRIBUTE_BUDGET = 43
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
-_REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): function\b", re.M)
+_REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): (?:async )?function\b", re.M)
 _HANDLER_ATTRIBUTE = re.compile(r"""data-([a-z]+)-handler=\\?["']([A-Za-z0-9_$]+)""")
 # An on*= attribute in markup: preceded by whitespace, a quote or a slash and
 # followed by a quote (escaped, inside a JavaScript string, or not). Property

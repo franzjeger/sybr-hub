@@ -99,3 +99,92 @@ export function badgeClass(color) {
     accent: 'badge-info', info: 'badge-info', purple: 'badge-purple'}[name];
   return 'badge' + (badge ? ' ' + badge : '');
 }
+
+export function _notifDays(n) {
+  if (n === null || n === undefined) return '';
+  return n < 0 ? t('lbl_expired', 'Utløpt') : n + ' ' + t('lbl_days_short', 'd');
+}
+
+export function tlsChainLabel(code) {
+  switch (code) {
+    case 'self_signed': return t('tls_chain_self_signed', 'Selvsignert sertifikat');
+    case 'untrusted': return t('tls_chain_untrusted', 'Utstederen er ikke klarert');
+    case 'incomplete_chain': return t('tls_chain_incomplete_chain', 'Mellomsertifikat mangler, eller utstederen er ukjent');
+    case 'hostname_mismatch': return t('tls_chain_hostname_mismatch', 'Navnet passer ikke med sertifikatet');
+    case 'expired': return t('tls_chain_expired', 'Sertifikatet er utløpt');
+    case 'not_yet_valid': return t('tls_chain_not_yet_valid', 'Sertifikatet er ikke gyldig ennå');
+    case 'revoked': return t('tls_chain_revoked', 'Sertifikatet er trukket tilbake');
+    default: return t('tls_chain_other', 'Kjeden kunne ikke valideres');
+  }
+}
+
+export function _activityLabel(key) {
+  // Named here so the used-key check sees them; the rest are found by prefix.
+  var labels = {
+    fortigate_save: t('activity_fortigate_save'),
+    fortigate_removed: t('activity_fortigate_removed'),
+    fortigate_bootstrapped: t('activity_fortigate_bootstrapped'),
+    fortigate_key_deployed: t('activity_fortigate_key_deployed'),
+    fortigate_token_generated: t('activity_fortigate_token_generated'),
+  };
+  if (labels[key]) return labels[key];
+  return t('activity_' + key, key.replace(/_/g, ' '));
+}
+
+export function _taskSchedLabel(task) {
+  var time = task.time || '';
+  if (task.type === 'interval') {
+    var hours = Number(task.interval_hours) || 0;
+    return hours === 1 ? t('sched_every_hour') : t('sched_every_n_hours').replace('{n}', String(hours));
+  }
+  if (task.type === 'weekly') {
+    var days = {
+      monday: t('day_monday'), tuesday: t('day_tuesday'), wednesday: t('day_wednesday'),
+      thursday: t('day_thursday'), friday: t('day_friday'), saturday: t('day_saturday'),
+      sunday: t('day_sunday')
+    };
+    var day = String(task.day || '').toLowerCase();
+    return t('sched_weekly').replace('{day}', days[day] || day).replace('{time}', time);
+  }
+  if (task.type === 'daily') return t('sched_daily').replace('{time}', time);
+  return task.schedule || '';
+}
+
+export function _reason(prefix, code, params) {
+  var out = t(prefix + code, '');
+  if (!out) return '';
+  Object.keys(params || {}).forEach(function(k) {
+    // A run is named to a person by its date, not its folder.
+    out = out.split('{' + k + '}').join(String(k === 'run' ? formatRunName(params[k]) : params[k]));
+  });
+  return out;
+}
+
+var _BASELINE_SECTIONS = ['mfa', 'admin_roles', 'ca', 'secure_score', 'entra_devices', 'intune',
+  'exchange', 'backup_coverage', 'sharepoint', 'usage'];
+
+function _baselineValue(v) {
+  if (v === true) return t('lbl_yes', 'Ja');
+  if (v === false) return t('lbl_no', 'Nei');
+  if (v === null || v === undefined) return t('lbl_unknown_value', 'ukjent');
+  return String(v);
+}
+
+export function baselineReason(c) {
+  var p = c.params || {};
+  var code = c.reason_code;
+  if (code === 'guard_unset') {
+    var section = String(p.guard || '').split('.')[0];
+    if (section === 'drift') return t('bl_guard_unset_drift', 'Ikke vurdert: det finnes ingen tidligere kjøring å sammenligne policyene med.');
+    var name = _BASELINE_SECTIONS.indexOf(section) >= 0
+      ? t('bl_section_' + section, '') : '';
+    return t('bl_guard_unset', 'Ikke vurdert: {section} ble ikke samlet inn i denne kjøringen.')
+      .replace('{section}', name || t('bl_section_unknown', 'grunnlaget for dette kravet'));
+  }
+  if (!code) return '';
+  var out = t('bl_' + code, '');
+  return out
+    .split('{actual}').join(_baselineValue(p.actual))
+    .split('{expected}').join(_baselineValue(p.expected))
+    .split('{op}').join(String(p.op || ''));
+}

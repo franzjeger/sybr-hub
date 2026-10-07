@@ -2,9 +2,14 @@
 
 import asyncio
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from typing import ParamSpec, TypeVar
 
 from app.core.exceptions import ToolkitError
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="sybr-password")
 _admission = threading.BoundedSemaphore(8)
@@ -15,11 +20,11 @@ class PasswordServiceBusy(ToolkitError):
     error_type = "authentication_busy"
 
 
-async def run_password_work(function, *args):
+async def run_password_work(function: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
     if not _admission.acquire(blocking=False):
         raise PasswordServiceBusy("Innlogging er opptatt. Prøv igjen om litt.")
     try:
-        future = _executor.submit(function, *args)
+        future = _executor.submit(function, *args, **kwargs)
     except BaseException:
         _admission.release()
         raise

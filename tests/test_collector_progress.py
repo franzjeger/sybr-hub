@@ -58,6 +58,7 @@ class _StubExchangeSection:
 
 
 class _StubAuth(_NullAsyncContext):
+    tenant_id = "synthetic-tenant"
     credential = object()
     subscription_id = ""
 
@@ -79,10 +80,12 @@ async def _run_collector(tmp_path, monkeypatch, sections_filter):
         "app.modules.m365_audit.sections.exchange",
         SimpleNamespace(ExchangeSection=_StubExchangeSection),
     )
-    monkeypatch.setattr(
-        "app.modules.m365_audit.collector.GraphClient",
-        lambda credential: _NullAsyncContext(),
-    )
+
+    def graph_client(credential, *, tenant_id):
+        assert tenant_id == _StubAuth.tenant_id
+        return _NullAsyncContext()
+
+    monkeypatch.setattr("app.modules.m365_audit.collector.GraphClient", graph_client)
     monkeypatch.setattr(AuditCollector, "_build_graph_sections", lambda self, g, d: [])
 
     reported: list[tuple[str, SectionStatus]] = []

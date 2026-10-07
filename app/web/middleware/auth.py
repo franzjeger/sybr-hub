@@ -290,9 +290,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         allowed = await get_accessible_customer_ids(user)
         customer_scope = bind_request_customer_scope(user.id, allowed)
+        from app.core.job_state import request_audit_tab
+
+        tab = request.headers.get("X-Audit-Tab", "")
+        # Invalid identifiers use the legacy script context, never an
+        # unbounded client-controlled key in the selection store.
+        tab = tab if 0 < len(tab) <= 64 and all(c.isalnum() or c in "-_" for c in tab) else ""
+        tab_scope = request_audit_tab.set(tab)
         try:
             return await call_next(request)
         finally:
+            request_audit_tab.reset(tab_scope)
             reset_request_customer_scope(customer_scope)
 
 

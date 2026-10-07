@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.modules.base import SectionStatus
 from app.modules.m365_audit.sections.teams import TeamsSection
 from app.modules.m365_audit.sections.teams_policies import TeamsPoliciesSection
 from tests.collector_rig import FakeGraph, refused, run_sections
@@ -188,3 +189,70 @@ async def test_unread_partners_are_unknown_not_none(tmp_path):
     assert "Partner Configurations: not available" in files["16c_teams_external_access.txt"]
     assert json.loads(files["16c_teams_external_access.json"])["partners"] is None
     assert _verdict(report(tmp_path), "8.1.1")[0] == "warn", "the default was still read"
+
+
+@pytest.mark.parametrize(
+    "setting", [None, {"usersAndGroups": None}, {"usersAndGroups": {"accessType": None}}]
+)
+async def test_null_teams_settings_do_not_crash_or_become_restricted(tmp_path, setting):
+    """Real Graph nulls used to stop the section before its evidence was saved."""
+    import json
+
+    routes = _routes(
+        **{
+            "teamwork": {"messagingSettings": None},
+            "policies/crossTenantAccessPolicy/default": {
+                "b2bCollaborationInbound": setting,
+                "b2bCollaborationOutbound": setting,
+                "b2bDirectConnectInbound": setting,
+            },
+            "policies/crossTenantAccessPolicy/partners": [],
+        }
+    )
+    async with FakeGraph(routes) as fake:
+        sections = [
+            TeamsSection(tmp_path, fake.client),
+            TeamsPoliciesSection(tmp_path, fake.client),
+        ]
+        files = await run_sections(*sections)
+    assert fake.unrouted == []
+    assert all(section.result.status is SectionStatus.DONE for section in sections)
+    assert "Allow User Edit Messages       : N/A" in files["16b_teams_settings.txt"]
+    assert "Allow User Edit Messages        : N/A" in files["30c_teams_messaging_policies.txt"]
+    access = json.loads(files["16c_teams_external_access.json"])
+    assert access["b2b_collaboration_inbound"] is None
+    assert access["b2b_direct_connect_inbound"] is None
+    guest = json.loads(files["30b_teams_guest_access.json"])
+    assert guest["cross_tenant_defaults"] == {
+        "b2b_collaboration_inbound": None,
+        "b2b_collaboration_outbound": None,
+        "b2b_direct_connect_inbound": None,
+    }
+    for sidecars in (True, False):
+        assert _verdict(report(tmp_path, sidecars=sidecars), "8.1.1")[0] == "info"
+
+
+@pytest.mark.parametrize("setting", [None, {"usersAndGroups": None}])
+async def test_null_partner_override_preserves_default_evidence(tmp_path, setting):
+    """Partner null means inheritance, not a broken collection or blocked access.
+
+    https://learn.microsoft.com/en-us/graph/api/resources/crosstenantaccesspolicy-overview
+    """
+    import json
+
+    files = await _teams(
+        tmp_path,
+        **{
+            "policies/crossTenantAccessPolicy/partners": [
+                {"tenantId": PARTNER_TENANT, "b2bCollaborationInbound": setting},
+            ],
+        },
+    )
+    assert f"Tenant {PARTNER_TENANT} — inbound: N/A" in files["16c_teams_external_access.txt"]
+    assert (
+        json.loads(files["16c_teams_external_access.json"])["partners"][0][
+            "b2b_collaboration_inbound"
+        ]
+        is None
+    )
+    assert _verdict(report(tmp_path), "8.1.1")[0] == "warn"

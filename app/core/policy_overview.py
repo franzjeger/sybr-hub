@@ -40,8 +40,12 @@ logger = logging.getLogger(__name__)
 def _latest_run(customer_id: str) -> Path | None:
     """The most recent audit run directory for this customer, or None."""
     from app.core.config import get_audit_dir
+    from app.core.customer import CustomerManager, customer_dir_name
 
-    root = get_audit_dir() / customer_id
+    customer = CustomerManager.get_customer(customer_id)
+    root = get_audit_dir() / (
+        customer_dir_name(customer["CustomerName"]) if customer else customer_id
+    )
     if not root.is_dir():
         return None
     runs = sorted((p for p in root.iterdir() if p.is_dir()), key=str, reverse=True)
@@ -75,7 +79,7 @@ def _live_ca_by_name(customer_id: str) -> dict[str, dict] | None:
     except Exception:
         logger.warning("Could not read CA snapshot for %s", customer_id)
         return None
-    if not isinstance(env, dict):
+    if not isinstance(env, dict) or not isinstance(env.get("items"), list):
         return None
     return {
         str(p.get("displayName", "")): p for p in (env.get("items") or []) if isinstance(p, dict)
@@ -246,6 +250,7 @@ def build_overview(customer_id: str, lang: str = "no") -> dict[str, Any]:
     an empty dict — the interface should be able to tell "we have not
     captured this yet" from "we have captured it and it is empty".
     """
+    from app.core.policy_evidence import captured_checks
     from app.core.policy_inventory import load_from_card
 
     inventory = load_from_card(customer_id)
@@ -274,4 +279,7 @@ def build_overview(customer_id: str, lang: str = "no") -> dict[str, Any]:
         "workloads": workloads,
         "drift": drift,
         "standards": _standard_gaps(lang, live_by_name),
+        "captured_checks": captured_checks(
+            list(live_by_name.values()) if live_by_name is not None else None
+        ),
     }

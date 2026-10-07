@@ -225,3 +225,51 @@ async def test_missing_smtp_settings_are_refused_in_the_readers_language(client)
     )
     assert r.status_code == 400, r.text
     assert r.json()["error"] == "The SMTP settings are missing the server, user or password"
+
+
+async def test_scheduled_audit_renders_pdf_before_automatic_email(tmp_path, monkeypatch):
+    from app.services.audit_scheduler import AuditScheduler
+
+    monkeypatch.setattr(
+        "app.core.config.load_app_settings",
+        lambda: {
+            "ui_language": "en",
+            "email_auto_send": True,
+            "smtp_server": "smtp.example",
+            "email_default_recipient": "ops@example.invalid",
+        },
+    )
+    calls = []
+
+    def generate(**kwargs):
+        assert kwargs["formats"] == ["html", "pdf"]
+        assert kwargs["lang"] == "en"
+        calls.append("generate")
+        (kwargs["out_dir"] / "audit.pdf").write_bytes(b"%PDF-test")
+
+    monkeypatch.setattr("app.reports.generator.generate_reports", generate)
+
+    def send(out_dir):
+        assert (out_dir / "audit.pdf").exists()
+        calls.append("send")
+
+    monkeypatch.setattr(email_sender, "auto_send_after_audit", send)
+    await AuditScheduler()._auto_report_and_email("Acme", {"_id": "acme"}, tmp_path, [])
+    assert calls == ["generate", "send"]
+
+
+async def test_pdf_generation_failure_does_not_send_an_incomplete_scheduled_report(
+    tmp_path, monkeypatch
+):
+    from app.services.audit_scheduler import AuditScheduler
+
+    monkeypatch.setattr("app.core.config.load_app_settings", lambda: {"email_auto_send": True})
+
+    def fail(**kwargs):
+        raise RuntimeError("synthetic PDF failure")
+
+    monkeypatch.setattr("app.reports.generator.generate_reports", fail)
+    monkeypatch.setattr(
+        email_sender, "auto_send_after_audit", lambda *a: pytest.fail("should not send")
+    )
+    await AuditScheduler()._auto_report_and_email("Acme", {}, tmp_path, [])

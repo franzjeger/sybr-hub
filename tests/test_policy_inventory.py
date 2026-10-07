@@ -209,3 +209,24 @@ def test_persist_with_no_snapshots_does_not_write(tmp_path, monkeypatch):
     empty.mkdir(parents=True)
     assert persist_from_run(empty) is False
     assert load_from_card("Nobody") is None
+
+
+def test_persist_after_rename_uses_stable_customer_id(run_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(customer_module, "_CUSTOMERS_DIR", tmp_path / "customers")
+    monkeypatch.setattr(
+        "app.core.customer.customers_for_dir_name",
+        lambda _: [{"_id": "stable-id", "CustomerName": "Acme AS"}],
+    )
+    assert persist_from_run(run_dir)
+    assert load_from_card("stable-id")["total"] == 5
+    assert load_from_card("Acme_AS") is None
+
+
+def test_ambiguous_customer_folder_never_updates_policy_cards(run_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(customer_module, "_CUSTOMERS_DIR", tmp_path / "customers")
+    monkeypatch.setattr(
+        "app.core.customer.customers_for_dir_name", lambda _: [{"_id": "a"}, {"_id": "b"}]
+    )
+    assert persist_from_run(run_dir) is False
+    assert load_from_card("a") is None
+    assert load_from_card("b") is None

@@ -1,3 +1,7 @@
+import {navOverviewSelectCustomer as overviewSelectCustomer} from './app-navigation.js';
+import {navDashLoadAlerts as dashLoadAlerts} from './app-navigation.js';
+import {_syncBottomNav} from './app-ui.js';
+import {_checkVpnHeaderBadge} from './app-shell-status.js';
 // ═══════════════════════════════════════════════════════════════════
 // UI handlers for the markup this file builds. Controls name them in
 // data-<event>-handler attributes and carry their arguments in data-*
@@ -12,10 +16,10 @@ import {_allCustomers, _overviewData, currentCustomerId, setOverviewData} from '
 import {_formatBytes, badgeClass, timeAgo, toneClass, toneVar} from './app-format.js';
 import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {renderToolCustomerPickers, showView, toolCustomerId} from './app.js';
-import {dashLoadAlerts} from './app-dashboard.js';
-import {overviewSelectCustomer} from './app-customers.js';
-import {_checkVpnHeaderBadge, _syncBottomNav} from './app-chrome.js';
+import {navRenderToolCustomerPickers as renderToolCustomerPickers, navShowView as showView, navToolCustomerId as toolCustomerId} from './app-navigation.js';
+
+
+
 
 registerUiHandlers({
   // Hosts and SSH

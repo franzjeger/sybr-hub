@@ -1,3 +1,5 @@
+import {_syncBottomNav} from './app-ui.js';
+import {_activityLabel, _reason, baselineReason} from './app-format.js';
 // ═══════════════════════════════════════════════════════════════════
 // CUSTOMER DETAIL VIEW
 // ═══════════════════════════════════════════════════════════════════
@@ -14,9 +16,8 @@ import {
 } from './app-format.js';
 import {setButtonLabel, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
-import {
-  applyFeatureVisibility, applyWriteCapability, currentView, showView, syncRoute,
-} from './app.js';
+import {navApplyFeatureVisibility as applyFeatureVisibility, navApplyWriteCapability as applyWriteCapability, navShowView as showView, navSyncRoute as syncRoute} from './app-navigation.js';
+import {currentView} from './app-state.js';
 import {_uwArBody} from './app-also.js';
 import {policyDeployLoad} from './app-policy-deploy.js';
 import {baselineDeployLoad} from './app-baseline-deploy.js';
@@ -31,9 +32,17 @@ import {
 import {custNetworkLoad, loadFiles} from './app-network.js';
 import {renderExpiryBanner, tagPillsHtml, uploadReportsToITGlue} from './app-customers.js';
 import {_auditDateLabel, mountCustomerFindings, openLinkPicker} from './app-findings.js';
-import {_activityLabel, _syncBottomNav} from './app-chrome.js';
+
 
 // sshTerminal and vpnConnect (data-id) are registered by app-infra.js.
+function riskCoverageHtml(coverage) {
+  var state = (coverage && coverage.state) || 'unknown';
+  var issues = (coverage && coverage.issues) || [];
+  return '<section class="card mb-4" id="cust-risk-coverage"><h3>' + esc(t('risk_coverage_title')) + '</h3><p>'
+    + esc(t('risk_coverage_' + state)) + '</p>'
+    + (issues.length ? '<ul>' + issues.map(function(issue) { return '<li>' + esc(issue[_lang] || issue.en || issue.no) + '</li>'; }).join('') + '</ul>' : '') + '</section>';
+}
+
 registerUiHandlers({
   // FortiGate threat log: show or hide the rows past the first five.
   cdToggleFgThreatRows: function(el) {
@@ -331,6 +340,7 @@ async function loadCustomerDetail(customerId) {
       </div>
     </div>
 
+    ${riskCoverageHtml(m && m.risk_coverage)}
     <div id="customer-baseline-panel"></div>
 
     <div class="card cust-trend" id="cust-trend">
@@ -635,48 +645,17 @@ async function _loadCustomerLinks(customerId, customerName) {
 // reassuring zero.
 // Reason codes carry their values separately, so the sentence is assembled
 // in the reader's language rather than shipped from the server in one.
-export function _reason(prefix, code, params) {
-  var out = t(prefix + code, '');
-  if (!out) return '';
-  Object.keys(params || {}).forEach(function(k) {
-    // A run is named to a person by its date, not its folder.
-    out = out.split('{' + k + '}').join(String(k === 'run' ? formatRunName(params[k]) : params[k]));
-  });
-  return out;
-}
+
 
 // The sentence beside a requirement. The server sends a reason code and the
 // values behind it, including the internal path the check reads
 // ("mfa.has_data"). A person reads which part of the collection was missing,
 // never the field name.
-var _BASELINE_SECTIONS = ['mfa', 'admin_roles', 'ca', 'secure_score', 'entra_devices', 'intune',
-  'exchange', 'backup_coverage', 'sharepoint', 'usage'];
 
-function _baselineValue(v) {
-  if (v === true) return t('lbl_yes', 'Ja');
-  if (v === false) return t('lbl_no', 'Nei');
-  if (v === null || v === undefined) return t('lbl_unknown_value', 'ukjent');
-  return String(v);
-}
 
-export function baselineReason(c) {
-  var p = c.params || {};
-  var code = c.reason_code;
-  if (code === 'guard_unset') {
-    var section = String(p.guard || '').split('.')[0];
-    if (section === 'drift') return t('bl_guard_unset_drift', 'Ikke vurdert: det finnes ingen tidligere kjøring å sammenligne policyene med.');
-    var name = _BASELINE_SECTIONS.indexOf(section) >= 0
-      ? t('bl_section_' + section, '') : '';
-    return t('bl_guard_unset', 'Ikke vurdert: {section} ble ikke samlet inn i denne kjøringen.')
-      .replace('{section}', name || t('bl_section_unknown', 'grunnlaget for dette kravet'));
-  }
-  if (!code) return '';
-  var out = t('bl_' + code, '');
-  return out
-    .split('{actual}').join(_baselineValue(p.actual))
-    .split('{expected}').join(_baselineValue(p.expected))
-    .split('{op}').join(String(p.op || ''));
-}
+
+
+
 
 function _baselineStatusPill(status) {
   if (status === 'pass') return '<span class="text-success">&#10003;</span>';

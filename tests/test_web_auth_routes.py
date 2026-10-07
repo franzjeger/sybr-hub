@@ -135,8 +135,21 @@ def test_setup_creates_the_first_admin_and_returns_tokens(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["user"]["role"] == "admin"
+    assert body["user"]["can_write"] is True
+    assert body["user"]["tenant_write"] is True
     assert body["access_token"] and body["refresh_token"]
     assert client.get("/api/auth/status").json()["setup_required"] is False
+    # The first login must be usable, without a separate CLI capability grant.
+    saved = client.post(
+        "/api/settings",
+        headers={"Authorization": "Bearer " + body["access_token"]},
+        json={"itglue_api_key": "synthetic-key", "itglue_region": "eu"},
+    )
+    assert saved.status_code == 200, saved.text
+    settings = client.get(
+        "/api/settings", headers={"Authorization": "Bearer " + body["access_token"]}
+    )
+    assert settings.json()["itglue_api_key_set"] is True
 
 
 def test_setup_is_refused_once_an_account_exists(client):
@@ -154,6 +167,8 @@ async def test_simultaneous_setup_creates_exactly_one_admin():
     )
     assert sum(not isinstance(result, Exception) for result in results) == 1
     assert sum(isinstance(result, ConflictError) for result in results) == 1
+    winner = next(result for result in results if not isinstance(result, Exception))
+    assert winner.can_write and winner.tenant_write and winner.all_customers
 
 
 def test_setup_enforces_the_password_policy(client):

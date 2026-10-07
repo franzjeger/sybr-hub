@@ -323,7 +323,7 @@ def m365_ready(customer: dict) -> bool:
     access. A customer without either can be opened and documented, but an
     audit would only fail after the technician clicked.
     """
-    if customer.get("AuthMode") == "gdap":
-        return True
     tenant = customer.get("TenantId")
+    if customer.get("AuthMode") == "gdap":
+        return bool(tenant)
     return bool(tenant and customer.get("ClientId") and get_secret(tenant, "client_secret"))

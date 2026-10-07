@@ -9,8 +9,25 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.core.config import get_scheduler_config, load_app_settings, update_app_settings
+from app.core.credentials import m365_ready
+from app.services.notification_text import notification_text as nt
 
 log = logging.getLogger(__name__)
+
+
+def _literal(value: object) -> str:
+    """A customer name or error as plain text in a notification.
+
+    Delivery already sends Teams and Slack text literally; this also keeps
+    imported names and exception text from carrying links, mentions or
+    formatting into the message itself (the October audit fixes).
+    """
+    text = str(value)
+    for symbol in "[]<>*`_~|":
+        text = text.replace(symbol, "")
+    text = re.sub(r"(?i)\b(https?|ftp)://", r"\1: //", text)
+    text = re.sub(r"(?i)\bwww\.", "www .", text)
+    return text.replace("\n", " ").replace("\r", " ")
 
 
 # How often the loop re-reads its config. A change in Settings (enable,
@@ -35,29 +52,6 @@ def _save_anchor(when: datetime | None) -> None:
             state["anchor"] = when.isoformat()
 
     update_app_settings(mutate)
-
-
-def _is_configured_for_audit(customer: dict) -> bool:
-    """Whether the customer record holds enough to build its audit login.
-
-    An app registration needs its tenant and app id; delegated (GDAP) access
-    needs only the tenant, as the audit route has it (``_prepare_audit``).
-    A missing secret or certificate is not checked here: building the auth
-    finds that and the run reports it as a failure, not a skip.
-    """
-    if not customer.get("TenantId"):
-        return False
-    return customer.get("AuthMode") == "gdap" or bool(customer.get("ClientId"))
-
-
-def _webhook_text(value: str) -> str:
-    """Plain text in Teams/Slack markdown; no links or formatting from customers."""
-    text = str(value)
-    for symbol in "[]<>*`_~|":
-        text = text.replace(symbol, "")
-    text = re.sub(r"(?i)\b(https?|ftp)://", r"\1: //", text)
-    text = re.sub(r"(?i)\bwww\.", "www .", text)
-    return text.replace("\n", " ").replace("\r", " ")
 
 
 class AuditScheduler:
@@ -169,7 +163,7 @@ class AuditScheduler:
             )
             return
         name = customer.get("CustomerName", customer_id)
-        if not _is_configured_for_audit(customer):
+        if not m365_ready(customer):
             log.warning(
                 "Scheduled audit: %s has no Microsoft 365 setup, so nothing was audited", name
             )
@@ -179,7 +173,7 @@ class AuditScheduler:
         except Exception as e:
             log.error("Auth setup failed for customer %s: %s", name, e)
             await self._send_webhook(
-                f"⚠️ Scheduled audit failed for {_webhook_text(name)}: {_webhook_text(e)}"
+                nt("background_audit_failed", customer=_literal(name), error=_literal(e))
             )
             return
         await self._audit_customer(customer_id, customer, auth)
@@ -215,7 +209,9 @@ class AuditScheduler:
             await asyncio.sleep(1)
 
         try:
-            self._log_activity("audit_started", f"Planlagt audit startet{suffix}", name)
+            self._log_activity(
+                "audit_started", nt("background_audit_started", position=suffix), name
+            )
 
             out_dir = make_output_dir(name)
             collector = AuditCollector(auth=auth, out_dir=out_dir)
@@ -230,19 +226,21 @@ class AuditScheduler:
             )
 
             await self._check_and_alert(ctx, name)
-            await self._notify_audit_completed(name)
+            await self._notify_audit_completed(name, ctx=ctx)
 
             # Auto-generate report + send email if configured
             await self._auto_report_and_email(name, customer, out_dir, results)
 
-            self._log_activity("audit_completed", f"Planlagt audit fullfort{suffix}", name)
+            self._log_activity(
+                "audit_completed", nt("background_scheduled_done", position=suffix), name
+            )
             log.info("Scheduled audit completed for %s", name)
             return "audited"
 
         except Exception as e:
             log.error("Scheduled audit failed for %s: %s", name, e)
             await self._send_webhook(
-                f"⚠️ Scheduled audit failed for {_webhook_text(name)}: {_webhook_text(e)}"
+                nt("background_audit_failed", customer=_literal(name), error=_literal(e))
             )
             return str(e)
         finally:
@@ -282,7 +280,7 @@ class AuditScheduler:
         scheduled audit of a GDAP tenant failed, while the same customer
         audited manually was fine. (The filter that followed still asked for
         a ClientId, which a GDAP customer does not have, so they were skipped
-        instead; ``_is_configured_for_audit`` asks what the audit route asks.)
+        instead; ``credentials.m365_ready`` is also the bulk audit's rule.)
         """
         from app.core.customer import CustomerManager
         from app.modules.m365_audit.auth import get_auth_for_customer
@@ -292,7 +290,7 @@ class AuditScheduler:
             log.warning("Scheduled audit: no customers registered, skipping")
             return
 
-        customers = [c for c in all_customers if _is_configured_for_audit(c)]
+        customers = [c for c in all_customers if m365_ready(c)]
         unconfigured = len(all_customers) - len(customers)
         if unconfigured:
             log.info("Scheduled audit: skipping %d unconfigured customer(s)", unconfigured)
@@ -316,32 +314,34 @@ class AuditScheduler:
                 full_cust = CustomerManager.get_customer(cust_id)
                 if not full_cust:
                     log.warning("Customer %s not found, skipping", cust_name)
-                    failed.append(f"{cust_name} (ikke funnet)")
+                    failed.append(nt("background_missing_customer", customer=_literal(cust_name)))
                     continue
                 auth = get_auth_for_customer(full_cust, CustomerManager.get_cert_path(cust_id))
             except Exception as e:
                 log.error("Auth setup failed for customer %s: %s", cust_name, e)
-                failed.append(f"{cust_name} (autentisering feilet: {e})")
+                failed.append(
+                    nt("background_auth_failed", customer=_literal(cust_name), error=_literal(e))
+                )
                 continue
 
             outcome = await self._audit_customer(cust_id, full_cust, auth, f"{idx + 1}/{total}")
             if outcome == "audited":
                 audited.append(cust_name)
             elif outcome == "skipped":
-                skipped.append(f"{cust_name} (audit pagikk)")
+                skipped.append(nt("background_already_running", customer=_literal(cust_name)))
             else:
                 failed.append(f"{cust_name} ({outcome})")
 
         # ── Summary ──
-        summary_parts = [f"Planlagt audit-syklus fullfort: {len(audited)}/{total} OK"]
+        summary_parts = [nt("background_audit_cycle", done=len(audited), total=total)]
         if skipped:
-            summary_parts.append(f"Hoppet over: {', '.join(_webhook_text(v) for v in skipped)}")
+            summary_parts.append(nt("background_skipped", customers=", ".join(skipped)))
         if failed:
-            summary_parts.append(f"Feilet: {', '.join(_webhook_text(v) for v in failed)}")
+            summary_parts.append(nt("background_failed", customers=", ".join(failed)))
         summary_msg = ". ".join(summary_parts)
         log.info(summary_msg)
         if failed or skipped:
-            await self._send_webhook(f"⚠️ {summary_msg}")
+            await self._send_webhook(summary_msg)
 
     async def _collect_customer_sites(self):
         """Visit each customer site over VPN and read what is there.
@@ -357,7 +357,7 @@ class AuditScheduler:
             summary = await collect_all()
         except Exception as exc:
             log.error("Site collection failed outright: %s", exc)
-            await self._send_webhook(f"⚠️ Site collection failed: {_webhook_text(exc)}")
+            await self._send_webhook(nt("background_site_failed", error=_literal(exc)))
             return
 
         if summary["failed"]:
@@ -365,12 +365,16 @@ class AuditScheduler:
                 r["profile_name"] for r in summary["results"] if r["outcome"] == "failed"
             ]
             await self._send_webhook(
-                f"⚠️ Site collection: {summary['collected']}/{summary['sites']} read. "
-                f"No data from: {', '.join(_webhook_text(v) for v in unreachable)}"
+                nt(
+                    "background_site_partial",
+                    done=summary["collected"],
+                    total=summary["sites"],
+                    sites=", ".join(_literal(v) for v in unreachable),
+                )
             )
         self._log_activity(
             "site_collection",
-            f"{summary['collected']} av {summary['sites']} lokasjoner lest",
+            nt("background_sites_read", done=summary["collected"], total=summary["sites"]),
             "",
         )
 
@@ -461,7 +465,7 @@ class AuditScheduler:
     async def _auto_report_and_email(
         self, customer_name: str, config: dict, out_dir: Path, results
     ) -> None:
-        """Generate HTML report and send via email if auto-send is configured."""
+        """Generate HTML and PDF, then send if auto-send is configured."""
         from app.core.config import load_app_settings
 
         settings = load_app_settings()
@@ -489,7 +493,7 @@ class AuditScheduler:
                     org_domain=config.get("PrimaryDomain", ""),
                     out_dir=out_dir,
                     results=results_objs,
-                    formats=["html"],
+                    formats=["html", "pdf"],
                     report_type="tech",
                     lang=settings.get("ui_language", "no"),
                     customer_id=config.get("_id") or None,
@@ -555,7 +559,11 @@ class AuditScheduler:
             delta = current["risk_score"].get("delta", 0)
             if delta < -risk_threshold:
                 alerts.append(
-                    f"📉 Risikoscore falt med {abs(delta):.0f} poeng (nå {current['risk_score']['current']})"
+                    nt(
+                        "background_risk_drop",
+                        delta=abs(delta),
+                        score=current["risk_score"]["current"],
+                    )
                 )
 
         # Secure Score drop (value is threshold int or False to disable)
@@ -564,7 +572,11 @@ class AuditScheduler:
             delta = current["secure_score_pct"].get("delta", 0)
             if delta < -ss_threshold:
                 alerts.append(
-                    f"📉 Secure Score falt med {abs(delta):.1f}% (nå {current['secure_score_pct']['current']:.1f}%)"
+                    nt(
+                        "background_secure_drop",
+                        delta=abs(delta),
+                        score=current["secure_score_pct"]["current"],
+                    )
                 )
 
         # New risky users
@@ -573,7 +585,7 @@ class AuditScheduler:
             and "users_no_mfa" in current
             and current["users_no_mfa"].get("delta", 0) > 0
         ):
-            alerts.append(f"🔓 {current['users_no_mfa']['delta']} nye bruker(e) uten MFA")
+            alerts.append(nt("background_new_no_mfa", count=current["users_no_mfa"]["delta"]))
 
         # Expired credentials
         if alert_config.get("expired_credentials"):
@@ -585,25 +597,27 @@ class AuditScheduler:
             # The 17c sidecar's counts first, where the run has them.
             counts = _app_credential_counts(fc) or credential_expiry_counts(cred_warn)
             if counts and counts[0] > 0:
-                alerts.append("🔑 App-credentials har utløpt — integrasjoner kan være brutt")
+                alerts.append(nt("background_expired_credentials"))
 
         # NSG warnings
         if alert_config.get("new_nsg_warnings"):
             fc = ctx.get("file_contents", {})
             nsg_warns = [k for k in fc if "nsg_risky" in k.lower() and "WARN" in k]
             if nsg_warns:
-                alerts.append("🛡️ Nye risikable NSG-regler oppdaget i Azure")
+                alerts.append(nt("background_nsg"))
 
         # MFA coverage below threshold (value is threshold % or False to disable)
         mfa_threshold = alert_config.get("mfa_below_threshold", 80)
         if mfa_threshold and "mfa_coverage_pct" in current:
             mfa_pct = current["mfa_coverage_pct"].get("current", 100)
             if mfa_pct < mfa_threshold:
-                alerts.append(f"🔓 MFA-dekning er {mfa_pct:.0f}% (under terskel {mfa_threshold}%)")
+                alerts.append(nt("background_mfa_threshold", pct=mfa_pct, threshold=mfa_threshold))
 
         if alerts:
-            message = f"🔍 **Automatisk audit — {_webhook_text(customer_name)}**\n\n" + "\n".join(
-                alerts
+            message = (
+                nt("background_auto_audit", customer=_literal(customer_name))
+                + "\n\n"
+                + "\n".join(alerts)
             )
             await self._send_webhook(message)
         else:
@@ -619,13 +633,14 @@ class AuditScheduler:
         if ctx:
             grade = ctx.get("risk", {}).get("grade", "?")
             score = ctx.get("risk", {}).get("score")
-            score_text = "ikke målt" if score is None else f"{score}/100"
+            not_measured = nt("csv_not_measured")
+            score_text = not_measured if score is None else f"{score}/100"
             from app.reports.metrics import _metric
 
             def measured(source, key, percent=False):
                 value = _metric(ctx.get(source), key)
                 if value is None:
-                    return "ikke målt"
+                    return not_measured
                 return f"{value:.0f}%" if percent else str(value)
 
             mfa_pct = measured("mfa", "pct", True)
@@ -637,21 +652,18 @@ class AuditScheduler:
             fail_sec = ctx.get("failed_sections", 0)
             total_sec = ctx.get("total_sections", 0)
 
-            # Grade → color emoji
-            grade_emoji = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "🔴"}.get(grade, "⚪")
-
             lines = [
-                f"✅ Audit fullført — {_webhook_text(customer_name)}",
-                f"{grade_emoji} Risikokarakter: **{grade}**  |  Score: **{score_text}**",
-                f"🔒 MFA-dekning: **{mfa_pct}**  |  Brukere uten MFA: **{no_mfa}**",
-                f"🛡️ Secure Score: **{ss_pct}**  |  Global Admin-kontoer: **{ga_count}**",
-                f"📋 Seksjoner: **{done_sec}/{total_sec}** OK  |  Advarsler: **{total_warns}**",
+                nt("background_audit_done", customer=_literal(customer_name)),
+                nt("background_risk_grade", grade=grade, score=score_text),
+                nt("background_mfa", pct=mfa_pct, count=no_mfa),
+                nt("background_secure", pct=ss_pct, count=ga_count),
+                nt("background_sections", done=done_sec, total=total_sec, warns=total_warns),
             ]
             if fail_sec:
-                lines.append(f"⚠️ {fail_sec} seksjon(er) feilet under audit")
+                lines.append(nt("background_sections_failed", count=fail_sec))
             await self._send_webhook("\n".join(lines))
         else:
-            await self._send_webhook(f"✅ Audit fullført for **{_webhook_text(customer_name)}**")
+            await self._send_webhook(nt("background_audit_done", customer=_literal(customer_name)))
 
     async def _check_credential_expiry(self):
         """Check all customers' credential expiry and send webhook if anything is <30 days."""
@@ -669,10 +681,10 @@ class AuditScheduler:
         alerts: list[str] = []
 
         for c in customers:
-            name = _webhook_text(c.get("CustomerName", "Ukjent"))
+            name = _literal(c.get("CustomerName", "Ukjent"))
             for cred_label, key in [
-                ("Client secret", "SecretExpiry"),
-                ("Sertifikat", "CertExpiry"),
+                (nt("background_secret"), "SecretExpiry"),
+                (nt("background_certificate"), "CertExpiry"),
             ]:
                 iso_val = c.get(key, "")
                 if not iso_val:
@@ -686,14 +698,30 @@ class AuditScheduler:
                     continue
 
                 if days < 0:
-                    alerts.append(f"[{name}] {cred_label} UTLOPT ({iso_val[:10]})")
+                    alerts.append(
+                        nt(
+                            "background_credential_expired",
+                            customer=name,
+                            kind=cred_label,
+                            date=iso_val[:10],
+                        )
+                    )
                 elif days < 7:
-                    alerts.append(f"[{name}] {cred_label} utloper om {days} dager! (kritisk)")
+                    alerts.append(
+                        nt(
+                            "background_credential_critical",
+                            customer=name,
+                            kind=cred_label,
+                            days=days,
+                        )
+                    )
                 elif days < 30:
-                    alerts.append(f"[{name}] {cred_label} utloper om {days} dager")
+                    alerts.append(
+                        nt("background_credential_soon", customer=name, kind=cred_label, days=days)
+                    )
 
         if alerts:
-            message = "**Credential-varsler:**\n\n" + "\n".join(alerts)
+            message = nt("background_credential_title") + "\n\n" + "\n".join(alerts)
             await self._send_webhook(message)
 
     async def _maybe_create_backup(self):
@@ -707,47 +735,11 @@ class AuditScheduler:
 
             result = await loop.run_in_executor(None, create_backup_sync)
             log.info("Post-audit backup created: %s", result.get("path", "?"))
-            self._log_activity("backup_created", f"Automatisk backup: {result.get('path', '')}", "")
+            self._log_activity(
+                "backup_created", nt("background_backup_created", path=result.get("path", "")), ""
+            )
         except Exception as e:
             log.error("Post-audit backup failed: %s", e)
-
-    @staticmethod
-    def _build_adaptive_card(message: str) -> dict:
-        """Build an Adaptive Card body from a plain-text message.
-
-        Lines starting with an emoji header (e.g. '📋 **Title**') become a
-        bold heading; remaining lines become individual TextBlock rows.
-        """
-        lines = [line for line in message.split("\n") if line.strip()]
-        body: list[dict] = []
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if i == 0:
-                # First line is always a prominent heading
-                body.append(
-                    {
-                        "type": "TextBlock",
-                        "text": stripped,
-                        "wrap": True,
-                        "weight": "Bolder",
-                        "size": "Medium",
-                    }
-                )
-            else:
-                body.append(
-                    {
-                        "type": "TextBlock",
-                        "text": stripped,
-                        "wrap": True,
-                        "spacing": "Small",
-                    }
-                )
-        return {
-            "type": "AdaptiveCard",
-            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-            "version": "1.4",
-            "body": body,
-        }
 
     async def _send_webhook(self, message: str):
         """Send message to Teams/Slack webhook using shared sender."""

@@ -31,6 +31,102 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
   med Europe/Oslo som standard.
 - [Oversikt over alle 37 funn og rettingene](docs/OCTOBER_AUDIT_FIXES.md).
 
+- Parallelle Graph-lesinger for samme tenant deler ventetid ved begrenset
+  trafikk. Retry-After og begrensede forsøk gjelder også CSV-rapporter;
+  manglende data blir fortsatt en feil og rapporteres ikke som null funn.
+- Bakgrunnsvarsler, audit-sammendrag og aktivitetsloggen for varselsjekker
+  følger nå Hubens språk. Teams og Slack viser kundenavn og feilmeldinger
+  som vanlig tekst. Varsler om deaktiverte oppgaver sjekker faktisk levering,
+  og planlagt audit viser også seksjoner som feilet.
+
+- Backup-feilen `AppNotRegistered` skilles fra manglende Graph-samtykke;
+  uleselige data beholdes som manglende dekning.
+- Manuelt kundeoppsett gir nå `Exchange.ManageAsApp` for Exchange Online og
+  Purview, samt Exchange Administrator og Global Reader, og sjekker hvert samtykkesvar.
+  Ferske Graph- og sertifikattokens kontrolleres før kunden meldes klar.
+  Eksisterende app-ID, gyldig legitimasjon, sertifikater og kundedata beholdes
+  ved reparasjon. Avbrutte forsøk gjenopptas fra et kryptert kontrollpunkt.
+  Fornyelse sletter ikke lenger kundens fungerende nøkler før oppsettet, og
+  mislykket kunderegistrering vises ikke som fullført.
+
+- Kundeoppsettet beholder påloggingsgrunnlaget ved DNS- og tilkoblingsfeil
+  før innloggingskoden sendes. Brukte, utløpte og usikkert leverte koder
+  krever ny pålogging; samme forsøk kan ikke sendes samtidig eller fra en
+  annen Hub-bruker. Oppsettet viser konkrete feil, har en Ny pålogging-knapp
+  og tilbyr ikke API-baserte gjentakelser som hopper over resten av oppsettet.
+- Logggjennomgang rettet risikobruker-kallet til v1.0-endepunktet under
+  `identityProtection` og la til `IdentityRiskEvent.Read.All` i samtykkeoppsettet.
+  Risikohendelser krever P1 eller P2; et PIM-avslag med lisenskode vises som
+  lisenskrav fremfor en generell HTTP 400.
+- Exchange bruker tenantens opprinnelige `.onmicrosoft.com`-domene ved
+  sertifikatinnlogging. Tilkoblingsfeil vises som Feilet og beholdes i
+  sikkerhetsscorens datadekning når rapporter fra historikken regenereres.
+- PDF-rapportene laster ikke lenger Google Fonts, og teknisk rapport bruker
+  ett anker per innholdslenke. Exchange-lenken vises bare når seksjonen har
+  data. Blokkeringen av eksterne PDF-ressurser beholdes.
+- Teams-innsamlingen håndterer nullverdier i meldingsinnstillinger og
+  tilgangspolicyer uten å krasje. Manglende innstillinger beholdes som ukjente.
+- Intune-feil ved 401/403 utelukker ikke lenger rettigheter eller fastslår
+  manglende abonnement uten belegg i svaret fra Microsoft. Settings Catalog
+  og administrative maler bruker dokumenterte Graph beta-endepunkter.
+- Innstillingspaneler og integrasjonskort lagrer bare egne felter. Samtidige
+  endringer i andre paneler beholdes ved lagring av mapper og merkevare.
+- Policyutkast beholdes ved filtrering og kundebytte, med tydelig beskjed om
+  ulagrede endringer og eksplisitt forkasting. Arbeidsflyten binder sammen
+  pakker, datagrunnlag, prioriterte tiltak, pilot og verifikasjon.
+- IT Glue bruker lagret nøkkel når feltet er maskert eller utelatt, og tester
+  valgt region. Integrasjonskort skiller mellom lagret, verifisert, feilet og
+  utdatert kontroll, viser kontrolltidspunkt og ugyldiggjør kontrollen ved
+  endrede nøkler eller endepunkter. Maskerte Autotask- og myITprocess-nøkler
+  bruker også lagrede endepunkter; SMTP-testen støtter lagret passord.
+- Kundens sikkerhetsscore viser scorerens manglende datagrunnlag på norsk og
+  engelsk. Eldre auditer uten lagret datadekning vises som ukjente.
+- Importgrafen i grensesnittet er uten sykluser; modulkontrollen avviser nye
+  sykluser. Felles skjemalogikk er samlet, og streng typekontroll dekker nå
+  11 Python-filer for autentisering, innstillinger og policyarbeid.
+
+### Første administrator
+
+- Første bruker får administratorrollen, tilgang til alle kunder og både
+  Skriv- og Tenant-rettigheter i samme transaksjon som kontoen opprettes.
+- Oppgradering til databaseskjema 29 gir disse rettighetene til den eldste
+  menneskelige kontoen dersom den fortsatt er en aktiv administrator.
+  Reparasjonen kjører én gang; senere tilbakekalling beholdes ved omstart.
+
+### Samlet policyarbeidsplass
+
+- Policyer har egne deler for oversikt, pakker, bibliotek, innsamlet oppsett
+  og endringer. Fire pakker dekker grunnsikring, anbefalt arbeidsplass,
+  sikker samhandling og utvidet beskyttelse.
+- Biblioteket inneholder 39 anbefalinger for Entra ID, Conditional Access,
+  Intune, SharePoint, OneDrive, Teams, Purview, Exchange og Defender, med
+  konkrete innstillinger, lisenskrav, avhengigheter og lenker til Microsoft.
+- Kundeplaner og kontrollgrunnlag lagres kryptert. Samtidige endringer blir
+  oppdaget, og unntak krever begrunnelse og fremtidig utløpsdato.
+- Et navnetreff i en utrullingsmal bekrefter ikke samsvar. Manuelle vurderinger
+  vises separat, og endret veiledning eller utløpt frist krever ny kontroll.
+- Innsamlede policyer følger kundens stabile ID etter navnebytte. Et tvetydig
+  mappenavn kopierer ikke data til flere kundekort.
+
+### Oppstart, planlagt audit og eksport
+
+- En kjent feil i krypteringsnøkkelens oppsett stopper tjenesten med en kort
+  melding om årsak og retting, uten hundrevis av linjer med kallstakk.
+- Planlagt audit og masseaudit bruker samme regel for hvilke kunder som er
+  klare. Kunder som mangler apphemmeligheten, hoppes over; delegert tilgang
+  trenger fortsatt en tenant.
+- Automatiske firmwarevarsler følger samme lagrede vurderinger som Varsler,
+  for både FortiGate og UniFi. Slutten av støtteperioden er kritisk, og en
+  manglende oppdatering gir et varsel med den nyere versjonen.
+- Excel-eksporten krasjer ikke på umålte prosenter. Umålte felt er tomme,
+  målte nullverdier beholdes, og kolonnen «Ikke målte verdier» navngir hullene.
+- Rapportene fra masseaudit følger appens språkinnstilling.
+- Planlagte rapporter genereres også som PDF før automatisk e-postutsending.
+- To faner på samme kunde kan velge hver sin historiske kjøring for rapporter.
+- Bakgrunnslasting i Integrasjoner overskriver ikke redigerte felt.
+- IT Glue forklarer hvorfor Lagre er skjult for kontoer med lesetilgang,
+  og hvor en administrator med skrivetilgang kan gi tilgang.
+
 ### Fonten ligger i appen
 
 - Fonten Cairo ble hentet fra Google Fonts hver gang appen lastet, så Google

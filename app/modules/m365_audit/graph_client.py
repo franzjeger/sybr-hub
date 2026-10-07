@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -16,6 +17,12 @@ import httpx
 from azure.core.credentials_async import AsyncTokenCredential
 
 from app.core.config import REQUIRED_GRAPH_PERMISSIONS
+from app.modules.m365_audit.throttling import (
+    MAX_WAIT_SECONDS,
+    ReadCooldown,
+    retry_delay,
+    tenant_cooldown,
+)
 
 log = logging.getLogger(__name__)
 
@@ -32,17 +39,22 @@ _LICENCE_ERROR_CODES = frozenset(
     {
         "Authentication_RequestFromNonPremiumTenantOrB2CTenant",
         "Authentication_RequestFromNonPremiumTenant",
+        "AadPremiumLicenseRequired",
     }
 )
-_LICENCE_MESSAGE_HINTS = ("premium license", "premium licence", "premium tenant")
+_LICENCE_MESSAGE_HINTS = (
+    "premium license",
+    "premium licence",
+    "premium tenant",
+    "tenant is not licensed for this feature",
+)
 
 # Intune answers through its own service, and Graph passes that answer back
 # wrapped in a 401 with code UnknownError. The body is the giveaway: a
 # manage.microsoft.com URL and a nested ErrorCode of Forbidden. Measured on a
 # tenant where all four DeviceManagement roles were granted and consented, so
-# reporting it as missing consent sends a technician to look at a grant that
-# is already there. What it actually means is that the service will not answer
-# for this tenant — most often because there is no Intune subscription.
+# this body identifies the service refusal, not its root cause. A licence,
+# service provisioning or consent problem still needs independent evidence.
 _SERVICE_REFUSAL_HINTS = ("manage.microsoft.com", '"errorcode":"forbidden"')
 
 
@@ -115,7 +127,7 @@ class GraphIncompleteError(Exception):
 
 
 class GraphPermissionError(Exception):
-    """Graph refused a collection with 401/403.
+    """Graph refused a collection with 401/403 or a recognised licence-only 400.
 
     Its own type because the caller must not treat it as "no results". A
     section that catches this records itself as failed, which is what puts
@@ -139,13 +151,21 @@ class GraphPermissionError(Exception):
         self.is_service_refusal = any(
             hint in self.detail.lower() for hint in _SERVICE_REFUSAL_HINTS
         )
-        if self.is_licence_gap:
-            cause = "the tenant does not have the Entra ID licence this endpoint requires"
+        self.is_service_registration_gap = (
+            self.code == "AppNotRegistered" and "solutions/backupRestore" in path
+        )
+        if self.is_service_registration_gap:
+            cause = (
+                "the calling app is not registered with Microsoft 365 Backup Storage; "
+                "this service registration is separate from Graph permissions and admin consent"
+            )
+        elif self.is_licence_gap:
+            cause = "the tenant does not have the Microsoft Entra licence this endpoint requires"
         elif self.is_service_refusal:
             cause = (
-                "the service behind this endpoint refused the request — the "
-                "permission is not the problem; the tenant most likely has no "
-                "subscription for it"
+                "the service behind this endpoint refused the request; check "
+                "its active subscription, service provisioning and application "
+                "permissions or admin consent. The response alone does not establish the cause"
             )
         else:
             cause = "the app registration is missing a permission or admin consent"
@@ -164,10 +184,14 @@ class GraphRequestBudgetExceeded(Exception):
 class GraphClient:
     """Async Graph API client. Use as an async context manager."""
 
-    def __init__(self, credential: AsyncTokenCredential, timeout: int = 120):
+    def __init__(
+        self, credential: AsyncTokenCredential, timeout: int = 120, *, tenant_id: str | None = None
+    ):
         self._credential = credential
         self._timeout = timeout
         self._http: httpx.AsyncClient | None = None
+        self._tenant_id = tenant_id
+        self._cooldown: ReadCooldown | None = None
 
     async def __aenter__(self) -> GraphClient:
         self._http = httpx.AsyncClient(timeout=self._timeout)
@@ -187,6 +211,16 @@ class GraphClient:
             "Accept": "application/json",
         }
 
+    def _read_cooldown(self) -> ReadCooldown:
+        if self._cooldown is None:
+            self._cooldown = tenant_cooldown(self._tenant_id) if self._tenant_id else ReadCooldown()
+        return self._cooldown
+
+    def _defer_read(self, response: httpx.Response, attempt: int) -> None:
+        delay = retry_delay(response.headers.get("Retry-After"), attempt)
+        self._read_cooldown().defer(delay)
+        log.warning("Graph throttled; tenant reads deferred for %.1fs", delay)
+
     # ── Core HTTP ─────────────────────────────────────────────────────────────
 
     async def _get(
@@ -199,22 +233,28 @@ class GraphClient:
         if self._http is None:
             raise RuntimeError("GraphClient is not entered — use as async context manager")
         last_status = None
+        deadline = time.monotonic() + MAX_WAIT_SECONDS
+        cooldown = self._read_cooldown()
         for attempt in range(3):
             try:
+                await cooldown.wait(deadline)
                 hdrs = await self._headers()
                 if extra_headers:
                     hdrs.update(extra_headers)
+                # Token acquisition can yield while another collector extends
+                # the cooldown. Check again immediately before the HTTP read.
+                await cooldown.wait(deadline)
                 if before_request is not None and not before_request():
                     raise GraphRequestBudgetExceeded(f"Graph request budget exhausted before {url}")
                 resp = await self._http.get(url, headers=hdrs, params=params)
                 last_status = resp.status_code
                 if resp.status_code == 429:  # throttled
-                    retry_after = resp.headers.get("Retry-After")
-                    wait = int(retry_after) if retry_after else min(2**attempt, 30)
-                    log.warning("Graph throttled — waiting %ds", wait)
-                    await asyncio.sleep(wait)
+                    self._defer_read(resp, attempt)
                     continue
-                if resp.status_code in (401, 403):
+                if resp.status_code in (401, 403) or (
+                    resp.status_code == 400
+                    and _graph_error_fields(resp.text)[0] in _LICENCE_ERROR_CODES
+                ):
                     # A permission refusal is not "no data". Returning an
                     # error dict here let callers do data.get("value", [])
                     # and read "you may not read this" as "the tenant has
@@ -279,18 +319,22 @@ class GraphClient:
 
         url = f"{_GRAPH_V1}/reports/{name}(period='{period}')"
         last_status = None
+        deadline = time.monotonic() + MAX_WAIT_SECONDS
+        cooldown = self._read_cooldown()
         for attempt in range(3):
+            await cooldown.wait(deadline)
             hdrs = await self._headers()
             hdrs["Accept"] = "text/csv"
+            await cooldown.wait(deadline)
             resp = await self._http.get(url, headers=hdrs, follow_redirects=True)
             last_status = resp.status_code
             if resp.status_code == 429:
-                retry_after = resp.headers.get("Retry-After")
-                wait = int(retry_after) if retry_after else min(2**attempt, 30)
-                log.warning("Graph throttled — waiting %ds", wait)
-                await asyncio.sleep(wait)
+                self._defer_read(resp, attempt)
                 continue
-            if resp.status_code in (401, 403):
+            if resp.status_code in (401, 403) or (
+                resp.status_code == 400
+                and _graph_error_fields(resp.text)[0] in _LICENCE_ERROR_CODES
+            ):
                 raise GraphPermissionError(f"reports/{name}", resp.status_code, resp.text)
             resp.raise_for_status()
             # utf-8-sig: the report opens with a BOM, which would otherwise
@@ -426,6 +470,7 @@ class GraphClient:
 
     # Permissions that merely degrade results (non-critical).
     _WARN_ONLY_PERMISSIONS: ClassVar[set[str]] = {
+        "IdentityRiskEvent.Read.All",
         "SensitivityLabels.Read.All",
         "AccessReview.Read.All",
         "SecurityAlert.Read.All",

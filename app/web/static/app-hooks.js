@@ -55,3 +55,8 @@ export function reloadToolCustomer(tool) {
   var reload = _toolReloaders[tool];
   if (reload) reload();
 }
+
+// A completed provider test lets its status card refresh server evidence.
+var _connectionCheckHooks = [];
+export function onConnectionCheck(fn) { _connectionCheckHooks.push(fn); }
+export function connectionChecked() { _connectionCheckHooks.forEach(function(fn) { fn(); }); }

@@ -12,6 +12,70 @@ from __future__ import annotations
 from app.core.exceptions import ConflictError, ValidationError
 
 MESSAGES: dict[str, tuple[str, str]] = {
+    "err_setup_pkce_expired": (
+        "Påloggingen er utløpt, brukt eller tilhører en annen økt. Velg Ny pålogging og lim inn den nye returadressen.",
+        "This sign-in has expired, was used or belongs to another session. Choose New sign-in and paste the new return URL.",
+    ),
+    "err_setup_pkce_connect": (
+        "Serveren kunne ikke koble til Microsoft. Kontroller DNS og nettverk, og prøv Fullfør oppsett igjen. Ved utløpt kode velger du Ny pålogging.",
+        "The server could not connect to Microsoft. Check DNS and network, then retry Complete Setup. If the code expires, choose New sign-in.",
+    ),
+    "err_setup_pkce_delivery": (
+        "Forbindelsen til Microsoft ble brutt. Koden kan allerede være brukt. Velg Ny pålogging før nytt forsøk.",
+        "The connection to Microsoft was interrupted. The code may already be used. Choose New sign-in before retrying.",
+    ),
+    "err_setup_pkce_rejected": (
+        "Microsoft avviste innloggingskoden ({code}). Velg Ny pålogging og lim inn den nye returadressen med en gang.",
+        "Microsoft rejected the sign-in code ({code}). Choose New sign-in and paste the new return URL immediately.",
+    ),
+    "err_setup_pkce_busy": (
+        "Innloggingen behandles allerede. Vent til forsøket er ferdig.",
+        "This sign-in is already being processed. Wait for the attempt to finish.",
+    ),
+    "err_setup_pkce_registration": (
+        "App-oppsettet feilet etter pålogging. Kontroller serverloggen og eventuell opprettet appregistrering før nytt forsøk.",
+        "App setup failed after sign-in. Check the server log and any created app registration before retrying.",
+    ),
+    "err_setup_renew_tenant": (
+        "Du logget inn på en annen tenant enn kunden som skal fornyes. Ingen app eller legitimasjon er endret. Velg Ny pålogging med kundens administrator.",
+        "You signed in to a different tenant than the customer being renewed. No app or credentials were changed. Choose New sign-in with the customer's administrator.",
+    ),
+    "err_setup_customer_access": (
+        "Denne tenanten er allerede lagret som en kunde du ikke har tilgang til. Oppsettet er stoppet før appen eller kundens legitimasjon endres.",
+        "This tenant is already saved as a customer you cannot access. Setup stopped before changing the app or customer credentials.",
+    ),
+    "err_setup_grant": (
+        "Microsoft avviste oppsettstrinnet {step} ({http_status}). Oppsettet er ikke ferdig. Velg Ny pålogging med en aktiv Global Administrator og prøv igjen; den lagrede appen gjenbrukes.",
+        "Microsoft refused setup step {step} ({http_status}). Setup is incomplete. Choose New sign-in with an active Global Administrator and retry; the saved app will be reused.",
+    ),
+    "err_setup_permissions_pending": (
+        "Microsoft har ikke gjort alle tilganger tilgjengelige ennå ({missing}). Appen er lagret for gjenopptakelse, men oppsettet er ikke ferdig. Vent noen minutter og velg Ny pålogging.",
+        "Microsoft has not made all permissions available yet ({missing}). The app is saved for resuming, but setup is incomplete. Wait a few minutes and choose New sign-in.",
+    ),
+    "err_readonly_account": (
+        "Kontoen din har lesetilgang. Endringer krever skrivetilgang.",
+        "Your account has read access. Changes require write.",
+    ),
+    "err_policy_plan_unreadable": (
+        "Kundens policyplan kunne ikke leses. Gjenopprett lagrede data før endringer.",
+        "The customer policy plan could not be read. Restore the saved data before making changes.",
+    ),
+    "err_policy_plan_changed": (
+        "Policyplanen er endret i en annen fane. Last inn på nytt før du lagrer.",
+        "The policy plan changed in another tab. Reload before saving.",
+    ),
+    "err_policy_plan_selection": (
+        "Velg en gyldig pakke og policyer fra biblioteket.",
+        "Select a valid package and policies from the library.",
+    ),
+    "err_policy_review_evidence": (
+        "Skriv kontrollgrunnlag eller begrunnelse for vurderingen.",
+        "Enter verification evidence or a reason for the assessment.",
+    ),
+    "err_policy_review_date": (
+        "Unntak krever en fremtidig utløpsdato. Kontrollnotatet kan ha maksimalt 2000 tegn.",
+        "Exceptions require a future expiry date. Review notes may contain at most 2000 characters.",
+    ),
     "err_field_required": (
         "{field} er påkrevd",
         "{field} is required",
@@ -143,6 +207,10 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "err_setup_already_done": (
         "Oppsett er allerede fullført",
         "Setup is already complete",
+    ),
+    "err_smtp_reenter_password": (
+        "Skriv inn SMTP-passordet på nytt når du endrer konto eller server.",
+        "Enter the SMTP password again after changing the account or server.",
     ),
     "err_smtp_settings_missing": (
         "SMTP-innstillingene mangler server, bruker eller passord",

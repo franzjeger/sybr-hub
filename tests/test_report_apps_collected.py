@@ -324,11 +324,16 @@ async def test_refused_registrations_leave_credentials_unverified(tmp_path):
     assert _verdict(report(tmp_path), "2.1.2")[0] == "info", "cannot verify, as before"
 
 
+@pytest.mark.parametrize(
+    "lang,phrase", [("no", "App-legitimasjon har utløpt"), ("en", "App credentials have expired")]
+)
 @pytest.mark.parametrize("warning", ["as written", "relaid out"])
 async def test_the_scheduler_alerts_on_expired_credentials_from_the_sidecar(
-    tmp_path, monkeypatch, warning
+    tmp_path, monkeypatch, warning, lang, phrase
 ):
-    from app.services import audit_scheduler
+    from app.services import audit_scheduler, notification_text
+
+    monkeypatch.setattr(notification_text, "load_app_settings", lambda: {"ui_language": lang})
 
     await _apps(tmp_path)
     if warning == "relaid out":
@@ -357,4 +362,4 @@ async def test_the_scheduler_alerts_on_expired_credentials_from_the_sidecar(
 
     await scheduler._check_and_alert(report(tmp_path), "Acme AS")
 
-    assert len(sent) == 1 and "App-credentials har utløpt" in sent[0]
+    assert len(sent) == 1 and phrase in sent[0]

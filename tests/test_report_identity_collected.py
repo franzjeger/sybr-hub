@@ -144,7 +144,7 @@ def _routes(*, groups: list[dict], risky: list[dict]) -> dict:
             ]
         },
         "identity/conditionalAccess/authenticationStrength/policies": [],
-        "riskyUsers": risky,
+        "identityProtection/riskyUsers": risky,
         "identityProtection/riskDetections": [],
         "policies/authorizationPolicy": {},
         "policies/crossTenantAccessPolicy/default": {

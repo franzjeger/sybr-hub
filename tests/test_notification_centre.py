@@ -107,7 +107,7 @@ class TestSeverityIsAFilterNotALayout:
     def test_every_severity_has_one_vocabulary(self, sev):
         """Colour, dot and badge come from a single table, so a colour cannot
         mean two things on one screen."""
-        assert f"{sev}:" in JS[JS.index("var _SEV") : JS.index("function _notifDays")]
+        assert f"{sev}:" in JS[JS.index("var _SEV") : JS.index("var _notifItems")]
 
     def test_unread_is_not_signalled_by_colour_alone(self):
         """A 5% tint is invisible to plenty of people; the weight change is

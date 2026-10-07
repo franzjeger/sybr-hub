@@ -17,14 +17,16 @@ import uuid
 from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Any, cast
 
 import jwt  # PyJWT — import is `jwt`, package is `PyJWT`
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from jwt import PyJWTError
 from sqlalchemy import delete, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.core import access_events
 from app.core.messages import conflict
@@ -183,8 +185,10 @@ async def _get_secret_from_db(key: str) -> str | None:
             return None
 
         stored = secret.value
-        if is_encrypted(stored.encode("utf-8") if isinstance(stored, str) else stored):
-            return decrypt_text(stored)
+        stored_bytes = stored.encode("utf-8") if isinstance(stored, str) else stored
+        if is_encrypted(stored_bytes):
+            return decrypt_text(stored_bytes)
+        stored = stored_bytes.decode("utf-8")
 
         # Migrate plaintext to encrypted
         encrypted = encrypt_text(stored)
@@ -261,6 +265,8 @@ async def _get_jwt_secret() -> str:
         # held, and every token it issued answered 401.
         await _insert_secret_if_absent("jwt_secret", secrets.token_urlsafe(64))
         secret = await _get_secret_from_db("jwt_secret")
+    if secret is None:
+        raise RuntimeError("JWT signing secret was not persisted")
     _secret_cache[cache_key] = secret
     return secret
 
@@ -454,10 +460,10 @@ async def delete_user_sessions(user_id: str, *, except_session_id: str | None = 
 async def _delete_sessions_of(
     session: AsyncSession, user_id: str, except_session_id: str | None
 ) -> list[str]:
-    stmt = delete(UserSession).where(UserSession.user_id == user_id)
+    stmt = delete(UserSession).where(col(UserSession.user_id) == user_id)
     if except_session_id:
-        stmt = stmt.where(UserSession.id != except_session_id)
-    result = await session.execute(stmt.returning(UserSession.id))
+        stmt = stmt.where(col(UserSession.id) != except_session_id)
+    result = await session.execute(stmt.returning(col(UserSession.id)))
     return list(result.scalars().all())
 
 
@@ -484,7 +490,7 @@ async def validate_session(session_id: str) -> bool:
     """Check if a session exists and hasn't expired."""
     async with get_session() as session:
         result = await session.execute(
-            select(UserSession.expires_at).where(UserSession.id == session_id)
+            select(col(UserSession.expires_at)).where(col(UserSession.id) == session_id)
         )
         expires = result.scalar_one_or_none()
         if not expires:
@@ -549,7 +555,7 @@ async def rotate_refresh_token(
                     UserSession.user_id,
                     UserSession.expires_at,
                     UserSession.refresh_token_hash,
-                ).where(UserSession.id == session_id)
+                ).where(col(UserSession.id) == session_id)
             )
         ).first()
         if row is None or row.user_id != user_id or _as_utc(row.expires_at) <= datetime.now(UTC):
@@ -563,13 +569,13 @@ async def rotate_refresh_token(
             swapped = await session.execute(
                 update(UserSession)
                 .where(
-                    UserSession.id == session_id,
-                    UserSession.refresh_token_hash == presented_hash,
+                    col(UserSession.id) == session_id,
+                    col(UserSession.refresh_token_hash) == presented_hash,
                 )
                 .values(refresh_token_hash=_token_hash(replacement))
             )
             await session.commit()
-            if swapped.rowcount == 1:
+            if cast(CursorResult[Any], swapped).rowcount == 1:
                 return RefreshResult.ROTATED
 
     if _within_grace(session_id, presented_hash):
@@ -701,10 +707,10 @@ async def cleanup_expired_sessions() -> int:
     async with get_session() as session:
         # Note: SQLite stores datetime as ISO strings. We can query by formatted string.
         result = await session.execute(
-            delete(UserSession).where(UserSession.expires_at < datetime.now(UTC))
+            delete(UserSession).where(col(UserSession.expires_at) < datetime.now(UTC))
         )
         await session.commit()
-        return result.rowcount
+        return cast(CursorResult[Any], result).rowcount
 
 
 async def rotate_jwt_secret() -> None:
@@ -743,7 +749,9 @@ async def get_user_count() -> int:
     from sqlalchemy import func
 
     async with get_session() as session:
-        result = await session.execute(select(func.count(User.id)).where(User.is_system.is_(False)))
+        result = await session.execute(
+            select(func.count(col(User.id))).where(col(User.is_system).is_(False))
+        )
         return result.scalar() or 0
 
 
@@ -810,7 +818,7 @@ async def create_initial_admin(
     display_name: str,
     email: str | None = None,
 ) -> User:
-    """Atomically create the only account permitted during first-run setup."""
+    """Atomically create the first-run administrator with full access."""
     from app.core.exceptions import ValidationError
 
     pw_err = await validate_password(password)
@@ -829,7 +837,9 @@ async def create_initial_admin(
         role=Role.admin,
         created_at=datetime.fromisoformat(now),
         is_active=True,
-        all_customers=False,
+        all_customers=True,
+        can_write=True,
+        tenant_write=True,
     )
 
     async with get_session() as session:
@@ -848,7 +858,9 @@ async def create_initial_admin(
 
         from sqlalchemy import func
 
-        result = await session.execute(select(func.count(User.id)).where(User.is_system.is_(False)))
+        result = await session.execute(
+            select(func.count(col(User.id))).where(col(User.is_system).is_(False))
+        )
         count = result.scalar() or 0
         if count > 0:
             await session.rollback()
@@ -936,7 +948,7 @@ async def delete_user(user_id: str) -> bool:
 
 async def list_users() -> list[User]:
     async with get_session() as session:
-        result = await session.execute(select(User).order_by(User.created_at))
+        result = await session.execute(select(User).order_by(col(User.created_at)))
         return list(result.scalars().all())
 
 

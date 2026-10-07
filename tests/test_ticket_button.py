@@ -32,7 +32,8 @@ STATIC = pathlib.Path("app/web/static")
 # from in app-integrations.js. The handlers for index.html's own controls
 # are registered in app-markup-handlers.js.
 APP_JS = "\n\n".join(
-    (STATIC / name).read_text(encoding="utf-8") for name in ("app-audit.js", "app-integrations.js")
+    (STATIC / name).read_text(encoding="utf-8")
+    for name in ("app-audit.js", "app-integrations.js", "app-forms.js")
 )
 CORE_JS = (STATIC / "app-markup-handlers.js").read_text(encoding="utf-8")
 
@@ -40,7 +41,7 @@ CORE_JS = (STATIC / "app-markup-handlers.js").read_text(encoding="utf-8")
 def _function(name: str) -> str:
     """Source of one top-level function, up to the next one."""
     start = re.search(rf"^(?:export\s+)?(?:async\s+)?function\s+{re.escape(name)}\b", APP_JS, re.M)
-    assert start, f"{name} not found in app-audit.js / app-integrations.js"
+    assert start, f"{name} not found in audit, integrations or shared forms"
     nxt = re.search(r"^(?:export\s+)?(?:async\s+)?function\s+\w+", APP_JS[start.end() :], re.M)
     return APP_JS[start.start() : start.end() + (nxt.start() if nxt else len(APP_JS))]
 

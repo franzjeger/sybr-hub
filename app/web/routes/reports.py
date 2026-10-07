@@ -29,6 +29,7 @@ from app.models.reports import (
     ReportGenerateRequest,
 )
 from app.models.user import Role, User
+from app.web.connection_checks import connection_check
 from app.web.i18n import refusal, ui_t
 from app.web.middleware.auth import (
     get_current_user,
@@ -64,6 +65,16 @@ async def _selected_audit_run(
 
 
 @router.post("/email/test")
+@connection_check(
+    "email",
+    {
+        "smtp_server": "smtp_server",
+        "smtp_port": "smtp_port",
+        "smtp_user": "smtp_user",
+        "smtp_password": "smtp_password",
+        "smtp_from": "smtp_from",
+    },
+)
 async def email_test(
     body: EmailTestRequest, request: Request, user: User = Depends(require_role(Role.admin))
 ):
@@ -71,6 +82,16 @@ async def email_test(
     from app.core.email_sender import send_report_email
 
     smtp_config = body.model_dump(exclude_unset=True)
+    if body.smtp_password.strip() == "••••••":
+        from app.web.connection_checks import connection_settings
+
+        saved = connection_settings()
+        if (body.smtp_server.strip(), body.smtp_user.strip()) != (
+            saved.get("smtp_server", ""),
+            saved.get("smtp_user", ""),
+        ):
+            raise refusal(ValidationError, "err_smtp_reenter_password")
+        smtp_config["smtp_password"] = saved.get("smtp_password", "")
     to = body.to.strip()
     if not to:
         to = body.smtp_user.strip()
@@ -746,6 +767,19 @@ async def export_dashboard_excel(
         t.csv_global_admins,
         t.dash_csv_last_audit,
         t.dash_csv_tags,
+        t.dash_csv_unmeasured,
+    ]
+
+    metric_columns = [
+        ("risk_grade", t.csv_risk_grade, False),
+        ("risk_score", t.csv_risk_score, False),
+        ("mfa_coverage_pct", t.dash_csv_mfa_pct, True),
+        ("secure_score_pct", t.dash_csv_secure_score_pct, True),
+        ("total_users", t.dash_csv_total_users, False),
+        ("users_no_mfa", t.dash_csv_users_no_mfa, False),
+        ("ca_policies_enabled", t.dash_csv_ca_enabled, False),
+        ("intune_compliance_pct", t.dash_csv_intune_pct, True),
+        ("admin_roles_ga_count", t.csv_global_admins, False),
     ]
 
     rows = []
@@ -781,29 +815,18 @@ async def export_dashboard_excel(
         tags = CustomerManager.get_tags(cid)
         tag_str = ", ".join(tags) if tags else ""
 
-        rows.append(
-            [
-                name,
-                domain,
-                metrics.get("risk_grade", ""),
-                metrics.get("risk_score", ""),
-                round(metrics["mfa_coverage_pct"], 1)
-                if metrics.get("mfa_coverage_pct") is not None
-                else t.csv_not_measured,
-                round(metrics["secure_score_pct"], 1)
-                if metrics.get("secure_score_pct") is not None
-                else t.csv_not_measured,
-                metrics.get("total_users", ""),
-                metrics.get("users_no_mfa", ""),
-                metrics.get("ca_policies_enabled", ""),
-                round(metrics["intune_compliance_pct"], 1)
-                if metrics.get("intune_compliance_pct") is not None
-                else t.csv_not_measured,
-                metrics.get("admin_roles_ga_count", ""),
-                fmt_date,
-                tag_str,
-            ]
-        )
+        values = []
+        unmeasured = []
+        for key, label, percentage in metric_columns:
+            value = metrics.get(key)
+            # Persisted metrics already use None for an unread section. A
+            # measured zero stays zero; None never goes through round().
+            if value is None or value in ("", "?"):
+                values.append("")
+                unmeasured.append(label)
+            else:
+                values.append(round(value, 1) if percentage else value)
+        rows.append([name, domain, *values, fmt_date, tag_str, ", ".join(unmeasured)])
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")

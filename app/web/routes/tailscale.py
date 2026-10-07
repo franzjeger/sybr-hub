@@ -23,6 +23,7 @@ from app.models.tailscale import (
     TailscaleTest,
 )
 from app.models.user import Role, User
+from app.web.connection_checks import connection_check
 from app.web.i18n import refusal
 from app.web.middleware.auth import (
     require_customer_access,
@@ -49,7 +50,7 @@ _admin = Depends(require_role(Role.admin))
 
 def _ensure_configured() -> bool:
     """Check if Tailscale API is configured; return False if not."""
-    from app.core.config import load_app_settings
+    from app.web.connection_checks import connection_settings as load_app_settings
 
     settings = load_app_settings()
     api_key = settings.get("tailscale_api_key", "")
@@ -67,7 +68,7 @@ def _ensure_configured() -> bool:
 @router.get("/tailscale/status")
 async def tailscale_status(user: User = _tech):
     """Check if Tailscale is configured and reachable."""
-    from app.core.config import load_app_settings
+    from app.web.connection_checks import connection_settings as load_app_settings
 
     settings = load_app_settings()
     has_key = bool(settings.get("tailscale_api_key"))
@@ -463,12 +464,13 @@ async def tailscale_revoke_key(key_id: str, user: User = _admin):
 
 
 @router.post("/tailscale/test")
+@connection_check("tailscale", {"api_key": "tailscale_api_key", "tailnet": "tailscale_tailnet"})
 async def tailscale_test(body: TailscaleTest, user: User = _admin):
     """Test a Tailscale API key before saving (saving it is admin-only too)."""
     api_key = body.api_key.strip()
     tailnet = body.tailnet.strip() or "-"
     if api_key == "••••••":
-        from app.core.config import load_app_settings
+        from app.web.connection_checks import connection_settings as load_app_settings
 
         api_key = load_app_settings().get("tailscale_api_key", "")
     if not api_key:

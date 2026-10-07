@@ -21,6 +21,18 @@ def check(path: Path) -> None:
             "app/web/static/branding/sybr_logo_transparent.png",
             "app/core/_version.py",
             "app/core/mfa.py",
+            "app/modules/m365_audit/app_setup.py",
+            "app/modules/m365_audit/throttling.py",
+            "app/services/notification_text.py",
+            "app/policy_catalog/library.json",
+            "app/core/policy_library.py",
+            "app/core/policy_evidence.py",
+            "app/core/integration_health.py",
+            "app/web/connection_checks.py",
+            "app/web/static/app-forms.js",
+            "app/web/static/app-navigation.js",
+            "app/web/static/app-audit-presentation.js",
+            "app/web/static/app-shell-status.js",
         }
         missing = required - set(names)
         if missing:
