@@ -1527,6 +1527,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Det som ikke kunne leses",
         "en": "What could not be read",
     },
+    "m365_backup_permissions_skipped": {
+        "no": "Ikke lest: flere enn {limit} apper passet, og auditen leser tillatelsene til {limit}",
+        "en": "Not read: more than {limit} apps matched, and the audit reads the permissions of {limit}",
+    },
     "m365_backup_graph_said": {
         "no": "Graph svarte",
         "en": "Graph said",

@@ -277,3 +277,15 @@ async def test_the_sidecar_keeps_each_finding_whole(tmp_path):
     grantee = data["external_shares"][0]["granted_to"][0]["user"]
     assert grantee["userPrincipalName"] == EXT_UPN
     assert data["complete"] is True and data["drives_scanned"] == 2
+
+
+def test_the_collectors_placeholder_is_not_a_sharing_setting():
+    """A text-only run wrote "N/A" where it had no setting, and the report
+    printed it as the setting's name (TODO C15)."""
+    from app.reports.parsers.collaboration import _parse_sharepoint_settings
+
+    text = "  Sharing Capability       : N/A\n"
+    parsed = _parse_sharepoint_settings(text, "", lang="no")
+
+    assert parsed["sharing_level"] == "unknown"
+    assert parsed["sharing_label"] == "Ukjent"

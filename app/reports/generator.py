@@ -10,6 +10,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from app.core.config import get_branding, get_logo_path
+from app.core.policy_inventory import workload_label
 from app.modules.base import SectionResult, SectionStatus
 from app.reports.compliance import _build_compliance_map, dkim_status_by_domain
 from app.reports.evidence import _EVIDENCE_MAP, _reported_count
@@ -20,6 +21,7 @@ from app.reports.metrics import (
     _compute_trends,
     _drift_for,
     _metric,
+    drift_reason_text,
     load_metrics_history,
     load_previous_metrics,
     save_audit_metrics,
@@ -476,6 +478,8 @@ def build_report_context(
         "_device_error_text": device_error_text,
         "_subscription_state_text": subscription_state_text,
         "_power_state_text": power_state_text,
+        "_drift_reason": drift_reason_text,
+        "_workload_label": workload_label,
     }
 
     # Build compliance mapping after context is ready

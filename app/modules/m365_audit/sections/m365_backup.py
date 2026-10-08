@@ -578,7 +578,9 @@ class M365BackupSection(BaseSection):
                 reads += 1
                 await self._permissions(app, role_names, resource_names)
             elif not app["permissions_read"]:
-                app["permissions_error"] = f"not read: more than {_MAX_APPS_READ} matching apps"
+                # Not read, and why, as a number the report words: more
+                # matching apps than the audit reads. It was an English phrase.
+                app["permissions_skipped"] = _MAX_APPS_READ
             # A catch-all match is a backup product only if it reaches the data.
             if how == "generic" and app["permissions_read"] and not app["workloads"]:
                 continue
@@ -778,7 +780,10 @@ class M365BackupSection(BaseSection):
                         f"tenant={app['publisher_name'] or '(none)'}"
                     )
                 if not app["permissions_read"]:
-                    lines.append(f"      permissions : unreadable ({app['permissions_error']})")
+                    if app.get("permissions_skipped"):
+                        lines.append(f"      permissions : skipped {app['permissions_skipped']}")
+                    else:
+                        lines.append(f"      permissions : unreadable ({app['permissions_error']})")
                     continue
                 roles = ", ".join(
                     f"{p['resource']}/{p['value']}" for p in app["application_permissions"]

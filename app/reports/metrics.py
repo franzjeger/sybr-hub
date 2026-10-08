@@ -306,6 +306,20 @@ def _drift_for(out_dir: Path) -> dict:
         return unmeasured("comparison_failed")
 
 
+def drift_reason_text(code: str, params: dict | None, t) -> str:
+    """Why drift could not be compared, with a snapshot named as the reader knows it.
+
+    The snapshot's own name ("intune_compliance_policies") is the collector's
+    file name; the sentence names its workload instead.
+    """
+    from app.core.policy_inventory import workload_label
+
+    params = dict(params or {})
+    if params.get("name"):
+        params["name"] = workload_label(str(params["name"]), t.lang)
+    return str(t(f"drift_{code}", **params))
+
+
 def _baseline_for(context: dict, lang: str = "no") -> dict | None:
     """Judge the finished context against the house standard, worded in *lang*.
 

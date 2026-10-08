@@ -80,7 +80,8 @@ def _parse_sharepoint_settings(
     # "SharePoint external sharing is at its most permissive level"
     # recommendation, an amber CIS 7.2.1, and a red panel — all from a field
     # nobody read. An unrecognised value is likewise unknown, not permissive.
-    if not sharing_key:
+    # "N/A" is the collector's placeholder for a value it had not, not a setting.
+    if not sharing_key or sharing_key == "n/a":
         sharing_level, sharing_label = "unknown", t.sp_sharing_unknown
     else:
         sharing_level, sharing_label = sharing_map.get(

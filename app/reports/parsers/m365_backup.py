@@ -199,7 +199,11 @@ def _from_text(text: str) -> dict | None:
             )
         elif block == "third" and app is not None and label == "permissions":
             app["permissions_read"] = False
-            app["permissions_error"] = value
+            skipped = re.fullmatch(r"skipped (\d+)", value)
+            if skipped:
+                app["permissions_skipped"] = int(skipped.group(1))
+            else:
+                app["permissions_error"] = value
         elif block == "third" and app is not None and label == "application":
             app["application_permissions"] = _permission_list(value)
         elif block == "third" and app is not None and label == "delegated":
@@ -496,6 +500,7 @@ def _parse_m365_backup(
             {
                 **app,
                 "name": _app_name(app),
+                "permissions_note": _permissions_note(app, t),
                 "access": _join(
                     [getattr(t, f"m365_backup_access_{w}") for w in app.get("workloads") or []], t
                 ),
@@ -511,6 +516,21 @@ def _parse_m365_backup(
         unread_notes=notes,
     )
     return result
+
+
+# What the collector wrote before it counted the apps it left unread.
+_LEGACY_SKIPPED = re.compile(r"not read: more than (\d+) matching apps")
+
+
+def _permissions_note(app: dict, t: T) -> str:
+    """Why an app's permissions were not read: a skip worded, an error as Graph said it."""
+    limit = app.get("permissions_skipped")
+    if not limit:
+        legacy = _LEGACY_SKIPPED.search(str(app.get("permissions_error") or ""))
+        limit = int(legacy.group(1)) if legacy else None
+    if limit:
+        return str(t("m365_backup_permissions_skipped", limit=limit))
+    return str(app.get("permissions_error") or "")
 
 
 def m365_backup_control(audit) -> tuple[str, str]:

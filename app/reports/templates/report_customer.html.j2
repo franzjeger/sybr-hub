@@ -1814,7 +1814,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% if not drift.measured %}
 <div class="env-card">
   <p style="margin:0;font-size:13px;color:var(--muted);">
-    <strong>{{ t.drift_not_measured }}.</strong> {{ t('drift_' ~ drift.reason_code, **drift.reason_params) }}
+    <strong>{{ t.drift_not_measured }}.</strong> {{ _drift_reason(drift.reason_code, drift.reason_params, t) }}
   </p>
 </div>
 {% elif drift.added_total == 0 and drift.removed_total == 0 and drift.changed_total == 0 %}
