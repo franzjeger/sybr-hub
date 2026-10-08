@@ -6,11 +6,12 @@
 const { test, expect } = require('@playwright/test');
 const { expectSignedIn } = require('./app.cjs');
 
+const HOURS_AGO = h => new Date(Date.now() - h * 3600 * 1000).toISOString();
 const STORED = {fortigates: [
   {customer_id: 'Browser_Alpha', customer_name: 'Browser Alpha', host: '192.0.2.10', hostname: 'FW-ALPHA', model: 'FortiGate-60F',
-    firmware: 'v7.4.8', firmware_status: 'current', read_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), read_error: '', has_token: true},
+    firmware: 'v7.4.8', firmware_status: 'current', read_at: HOURS_AGO(3), checked_at: HOURS_AGO(3), read_error: '', has_token: true},
   {customer_id: 'Browser_Beta', customer_name: 'Browser Beta', host: '192.0.2.20', hostname: '', model: '',
-    firmware: '', firmware_status: '', read_at: null, read_error: '', has_token: false},
+    firmware: '', firmware_status: '', read_at: null, checked_at: null, read_error: '', has_token: false},
 ]};
 const LIVE = {fortigates: [
   {customer_id: 'Browser_Alpha', customer_name: 'Browser Alpha', host: '192.0.2.10', hostname: 'FW-ALPHA', model: 'FortiGate-60F',
@@ -47,11 +48,14 @@ test('the FortiGate tab opens on the stored readings, and Oppdater nå reads eve
   await expect(alpha).toContainText('FW-ALPHA');
   await expect(alpha).toContainText('v7.4.8');
   await expect(alpha.locator('.badge')).toHaveText('Oppdatert');
-  await expect(alpha.locator('.fg-card-foot')).toHaveText('Lest 3 timer siden');
+  // The dot is the last read, not "online now", and the card says so.
+  await expect(alpha.locator('.fg-card-foot')).toHaveText('Siste lesing OK, 3 timer siden');
+  await expect(alpha.locator('.dot')).toHaveAttribute('title', 'Siste lesing OK, 3 timer siden');
   // Never read: its address, and that it has not been read.
   await expect(beta).toContainText('192.0.2.20');
   await expect(beta.locator('.fg-card-foot')).toHaveText('Ikke lest ennå · mangler API-token');
   await expect(content).toContainText('Viser det huben sist leste fra brannmurene');
+  await expect(content).toContainText('En grønn prikk betyr at siste lesing gikk bra, ikke at brannmuren svarer nå');
   await expect(content.locator('.kpi-card')).toHaveText([/2\s*Brannmurer/, /0\s*Firmware å følge opp/, /1\s*Ikke lest/, /3 timer siden\s*Sist lest/]);
   // Opening the tab reached no firewall.
   expect(asked).toEqual(['/api/fortigate/fleet']);
@@ -59,8 +63,98 @@ test('the FortiGate tab opens on the stored readings, and Oppdater nå reads eve
   await page.locator('#net-fortigates [data-click-handler="fgPollAll"]').click();
   await expect(alpha).toContainText('CPU: 7%');
   await expect(alpha).toContainText('FGT60F0000000001');
+  // Read live, the dot does mean it answered.
+  await expect(alpha.locator('.dot')).toHaveAttribute('title', 'Svarte nå');
   await expect(page.locator('#fg-live-status')).toContainText('Sist oppdatert');
   await expect(content).not.toContainText('Viser det huben sist leste');
   // One live read: no second listing, no poll per customer.
   expect(asked).toEqual(['/api/fortigate/fleet', '/api/fortigate/all']);
+});
+
+// TODO D20. A firewall set up with its token said "Ikke lest ennå" until
+// somebody pressed "Oppdater nå" or the daily firmware job ran. One that
+// nobody has tried to read is read once, after the stored list is drawn.
+const NEW = {fortigates: [
+  {customer_id: 'Browser_Alpha', customer_name: 'Browser Alpha', host: '192.0.2.10', hostname: '', model: '',
+    firmware: '', firmware_status: '', read_at: null, checked_at: null, read_error: '', has_token: true},
+]};
+const NEW_READ = () => ({read: 1, fortigates: [
+  {customer_id: 'Browser_Alpha', customer_name: 'Browser Alpha', host: '192.0.2.10', hostname: 'FW-ALPHA', model: 'FortiGate-60F',
+    firmware: 'v7.4.8', firmware_status: 'current', read_at: HOURS_AGO(0), checked_at: HOURS_AGO(0), read_error: '', has_token: true},
+]});
+
+// The first read, answered when the spec says so.
+async function holdFirstRead(page) {
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  await page.route('**/api/fortigate/fleet/first-read', async route => {
+    await held;
+    await route.fulfill({json: NEW_READ()});
+  });
+  return () => release();
+}
+
+function recordAsked(page) {
+  const asked = [];
+  page.on('request', r => {
+    const path = new URL(r.url()).pathname;
+    if (path.startsWith('/api/fortigate/') || path.startsWith('/api/dashboard/poll/')) asked.push(r.method() + ' ' + path);
+  });
+  return asked;
+}
+
+test('a firewall nobody has read is read once on opening, and says so meanwhile', async ({page}) => {
+  const asked = recordAsked(page);
+  await page.route('**/api/fortigate/fleet', route => route.fulfill({json: NEW}));
+  const release = await holdFirstRead(page);
+  await login(page);
+  await page.evaluate(() => { location.hash = '#/network'; });
+
+  const alpha = page.locator('#dash-fg-content .device-card', {hasText: 'Browser Alpha'});
+  await expect(alpha.locator('.fg-card-foot')).toHaveText('Leses for første gang…');
+  release();
+  await expect(alpha.locator('.fg-card-foot')).toHaveText('Siste lesing OK, akkurat nå');
+  await expect(alpha).toContainText('FW-ALPHA');
+  await expect(page.locator('#dash-fg-content .kpi-card')).toContainText([/1\s*Brannmurer/, /0\s*Firmware å følge opp/, /0\s*Ikke lest/]);
+  expect(asked).toEqual(['GET /api/fortigate/fleet', 'POST /api/fortigate/fleet/first-read']);
+});
+
+test('Oppdater nå while the first read is under way is not drawn over', async ({page}) => {
+  await page.route('**/api/fortigate/fleet', route => route.fulfill({json: NEW}));
+  await page.route('**/api/fortigate/all', route => route.fulfill({json: LIVE}));
+  const release = await holdFirstRead(page);
+  await login(page);
+  await page.evaluate(() => { location.hash = '#/network'; });
+  const content = page.locator('#dash-fg-content');
+  await expect(content).toContainText('Leses for første gang…');
+
+  await page.locator('#net-fortigates [data-click-handler="fgPollAll"]').click();
+  await expect(content).toContainText('CPU: 7%');
+  const answered = page.waitForResponse('**/api/fortigate/fleet/first-read');
+  release();
+  await answered;
+  // Whatever the page does with the answer, it has done once it settles.
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+  await expect(content).toContainText('CPU: 7%');
+  await expect(content).not.toContainText('Viser det huben sist leste');
+});
+
+test('a read-only account reads nothing on opening, and is told when it will be read', async ({page}) => {
+  const asked = recordAsked(page);
+  await page.route('**/api/auth/me', async route => {
+    const response = await route.fetch();
+    const me = await response.json();
+    // Before signing in it is a 401 with no account in it.
+    if (me.user) me.user.can_write = false;
+    return route.fulfill({response, json: me});
+  });
+  await page.route('**/api/fortigate/fleet', route => route.fulfill({json: NEW}));
+  await login(page);
+  await page.evaluate(() => { location.hash = '#/network'; });
+
+  const alpha = page.locator('#dash-fg-content .device-card', {hasText: 'Browser Alpha'});
+  await expect(alpha.locator('.fg-card-foot')).toHaveText('Ikke lest ennå: leses ved neste firmware-sjekk');
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+  expect(asked).toEqual(['GET /api/fortigate/fleet']);
+  await page.unrouteAll({behavior: 'ignoreErrors'});
 });

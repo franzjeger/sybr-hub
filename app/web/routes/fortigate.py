@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -685,48 +686,51 @@ async def fortigate_fleet(user: User = Depends(require_feature("network"))):
     them before the page drew anything). This is what it shows on open: each
     customer's stored FortiGate address, and the reading the fleet poll, the
     daily firmware job or a detail panel last left in the firmware inventory
-    (app/services/firmware_inventory.py). /fortigate/all stays the live read,
-    on demand. Gated like the firmware lists it reads (app/web/routes/firmware.py).
+    (app/services/firmware_inventory.py, fortigate_fleet). /fortigate/all
+    stays the live read, on demand. Gated like the firmware lists it reads
+    (app/web/routes/firmware.py).
     """
-    from app.core.credentials import get_secret
-    from app.core.customer import CustomerManager
-    from app.core.rbac import customer_in_scope, get_accessible_customer_ids
+    from app.core.rbac import get_accessible_customer_ids
     from app.services import firmware_inventory
 
-    allowed = await get_accessible_customer_ids(user)
-    names: dict[str, str] = {}
-    configured: list[tuple[str, str]] = []
-    for c in CustomerManager.list_customers():
-        cid = c.get("_id", "")
-        names[cid] = c.get("CustomerName", "")
-        host = str(c.get("FortiGateHost") or "").strip()
-        if cid and host and customer_in_scope(cid, allowed):
-            configured.append((cid, host))
-    # The poll records each firewall under its address, lower-cased.
-    readings = {
-        (d["customer_id"], d["device_key"]): d
-        for d in await firmware_inventory.list_devices(allowed, names=names)
-        if d["vendor"] == "fortigate"
-    }
-    fleet = []
-    for cid, host in configured:
-        reading = readings.get((cid, host.lower()), {})
-        fleet.append(
-            {
-                "customer_id": cid,
-                "customer_name": names.get(cid, ""),
-                "host": host,
-                "has_token": bool(get_secret(cid, "fortigate_api_token")),
-                "hostname": reading.get("device_name") or "",
-                "model": reading.get("model") or "",
-                "firmware": reading.get("version") or "",
-                "firmware_status": reading.get("status") or "",
-                "read_at": reading.get("read_at") or reading.get("checked_at") or None,
-                "read_error": reading.get("read_error") or "",
-            }
-        )
-    fleet.sort(key=lambda f: (f["customer_name"].lower(), f["host"]))
+    fleet = await firmware_inventory.fortigate_fleet(await get_accessible_customer_ids(user))
     return {"fortigates": fleet, "count": len(fleet)}
+
+
+# One first read at a time, so two people opening the page together do not
+# both read the same new firewalls: the second finds them read.
+_first_read_lock = asyncio.Lock()
+
+
+@router.post("/fortigate/fleet/first-read")
+async def fortigate_fleet_first_read(user: User = Depends(require_feature("network"))):
+    """Read, once, each FortiGate in the caller's fleet nobody has read yet.
+
+    A FortiGate set up with its API token showed "Ikke lest ennå" in
+    Verktøy > Nettverk until somebody pressed "Oppdater nå" or the daily
+    firmware job ran in the early morning. The page asks for this when it
+    draws such a firewall. Only those are contacted, and only until each has
+    a reading, worked or failed (the fleet poll records both), so opening the
+    page again reads nothing: no polling, and nothing at start-up. It stores
+    readings, so it is a POST and needs can_write (write_guard), as the page's
+    "Oppdater nå" button does. Answers with the stored fleet, as
+    /fortigate/fleet does.
+    """
+    from app.core.rbac import get_accessible_customer_ids
+    from app.services import firmware_inventory
+    from app.services.fortigate_api import poll_all_fortigates
+
+    allowed = await get_accessible_customer_ids(user)
+    async with _first_read_lock:
+        never_read = {
+            f["customer_id"]
+            for f in await firmware_inventory.fortigate_fleet(allowed)
+            if f["has_token"] and not f["checked_at"]
+        }
+        if never_read:
+            await poll_all_fortigates(customer_ids=never_read)
+    fleet = await firmware_inventory.fortigate_fleet(allowed)
+    return {"fortigates": fleet, "count": len(fleet), "read": len(never_read)}
 
 
 @router.get("/fortigate/all")
@@ -747,8 +751,6 @@ async def fortigate_all(user: User = Depends(get_current_user)):
 @router.post("/fortigate/backup-all")
 async def fortigate_backup_all(user: User = Depends(require_role(Role.admin))):
     """Trigger config backup for ALL FortiGates. Returns per-customer results."""
-    import asyncio
-
     from app.core.credentials import get_secret
     from app.core.customer import CustomerManager
     from app.services.fortigate_api import backup_config
