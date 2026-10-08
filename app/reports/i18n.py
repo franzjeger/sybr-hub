@@ -2077,6 +2077,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ingen administratorroller funnet",
         "en": "No admin roles found",
     },
+    # A registered MFA method (users_mfa.MFA_METHODS).
+    "mfa_method_authenticator": {"no": "Authenticator-app", "en": "Authenticator app"},
+    "mfa_method_phone": {"no": "Telefon (SMS/anrop)", "en": "Phone (SMS/call)"},
+    "mfa_method_fido2": {"no": "FIDO2-sikkerhetsnøkkel", "en": "FIDO2 security key"},
+    "mfa_method_windows_hello": {
+        "no": "Windows Hello for Business",
+        "en": "Windows Hello for Business",
+    },
+    "mfa_method_email": {"no": "Engangskode på e-post", "en": "Email one-time passcode"},
+    "mfa_method_tap": {"no": "Midlertidig tilgangspass", "en": "Temporary Access Pass"},
+    "mfa_method_oath": {"no": "OATH-kode (TOTP)", "en": "OATH code (TOTP)"},
+    "mfa_method_certificate": {"no": "Sertifikat (X.509)", "en": "Certificate (X.509)"},
     # A group's kind (groups_roles.GROUP_TYPES).
     "group_type_m365": {"no": "Microsoft 365", "en": "Microsoft 365"},
     "group_type_dynamic": {"no": "Dynamisk", "en": "Dynamic"},

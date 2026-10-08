@@ -71,7 +71,7 @@ from app.reports.parsers.email import (
     spf_status,
     spf_words,
 )
-from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.identity import _risky_users_from_text, mfa_method_text
 from app.reports.parsers.m365_backup import m365_backup_control
 
 # Names shown next to the ids, so the cross-reference columns are readable.
@@ -361,7 +361,8 @@ def _phishing_resistant_mfa(audit: _Audit) -> _Verdict:
         return "info", audit.cannot_verify("cis_gap_auth_methods_policy")
     enabled = _phishing_resistant_methods(text, sidecar)
     if enabled:
-        return "pass", audit.say("cis_phish_resistant_enabled", methods=", ".join(enabled))
+        methods = ", ".join(mfa_method_text(m, audit.t) for m in enabled)
+        return "pass", audit.say("cis_phish_resistant_enabled", methods=methods)
     return "warn", audit.say("cis_phish_resistant_none")
 
 

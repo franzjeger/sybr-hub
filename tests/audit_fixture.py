@@ -204,7 +204,7 @@ def _teams_table(rows: list[tuple[str, str, str, str]]) -> str:
 # column width, where the padding disappears and a whitespace-splitting reader
 # merges it with the UPN.
 _MFA_ROWS: list[tuple[str, str, str, str, str, str]] = [
-    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "YES", "NO", "Authenticator")
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "YES", "NO", "microsoftAuthenticator")
     for i in range(1, 38)
 ] + [
     ("Testbruker Langnavn Fiktivsen Berga", "user38@acme.no", "NO", "YES", "NO", "(none)"),
@@ -866,7 +866,7 @@ FULL_AUDIT: dict[str, str] = {
 # the finding has something to catch.
 
 _BROKEN_MFA_ROWS: list[tuple[str, str, str, str, str, str]] = [
-    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "NO", "NO", "Authenticator")
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "NO", "NO", "microsoftAuthenticator")
     for i in range(1, 9)
 ] + [(f"User {i:02d}", f"user{i:02d}@acme.no", "NO", "NO", "NO", "(none)") for i in range(9, 41)]
 

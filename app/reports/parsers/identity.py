@@ -281,7 +281,9 @@ def _parse_mfa(
         u_has_mfa = rec.get("mfa_registered") is True
         u_has_ca = bool(rec.get("ca_covered"))
         u_excluded = bool(rec.get("ca_excluded"))
-        u_methods = ", ".join(rec.get("methods") or [])
+        u_methods = ", ".join(
+            mfa_method_code(m) for m in rec.get("methods") or [] if m and m != "(none)"
+        )
         users_detail.append(
             {
                 "name": rec.get("display_name", ""),
@@ -660,6 +662,55 @@ def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
         "role_summary": role_summary,
         "has_data": len(roles) > 0,
     }
+
+
+# ── MFA methods ─────────────────────────────────────────────────────────────
+
+# What users_mfa.py wrote for a method before it stored codes, as a run from
+# then holds it in 04_mfa_methods.
+_LEGACY_MFA_METHODS = {
+    "Phone (SMS/Call)": "phone",
+    "Authenticator App": "microsoftAuthenticator",
+    "FIDO2 Key": "fido2",
+    "Windows Hello": "windowsHelloForBusiness",
+    "Email OTP": "email",
+    "Temp Access Pass": "temporaryAccessPass",
+    "OATH TOTP": "softwareOath",
+    "Certificate": "x509Certificate",
+    "Password": "password",
+}
+# The report's word for each (users_mfa.MFA_METHODS). The authentication
+# methods policy names three of them the same way, for CIS 1.1.2.
+_MFA_METHOD_WORDS = {
+    "microsoftauthenticator": "mfa_method_authenticator",
+    "phone": "mfa_method_phone",
+    "fido2": "mfa_method_fido2",
+    "windowshelloforbusiness": "mfa_method_windows_hello",
+    "email": "mfa_method_email",
+    "temporaryaccesspass": "mfa_method_tap",
+    "softwareoath": "mfa_method_oath",
+    "x509certificate": "mfa_method_certificate",
+}
+
+
+def mfa_method_code(value: str) -> str:
+    """A registered method as users_mfa writes it, from a code or an old run's label."""
+    value = value.strip()
+    if value in _LEGACY_MFA_METHODS:
+        return _LEGACY_MFA_METHODS[value]
+    # An old run's label for a type it had no label for was the type itself.
+    return value.removesuffix("AuthenticationMethod") or value
+
+
+def mfa_method_text(value: str, t) -> str:
+    """A method in the report's language; one the report cannot name, as stored."""
+    key = _MFA_METHOD_WORDS.get(mfa_method_code(value).lower().replace(" ", ""))
+    return str(getattr(t, key)) if key else value.strip()
+
+
+def mfa_methods_text(methods: str, t) -> str:
+    """A user's ", "-joined methods, each in the report's language."""
+    return ", ".join(mfa_method_text(m, t) for m in methods.split(",") if m.strip())
 
 
 # What groups_roles.py wrote for a group's kind before it stored codes

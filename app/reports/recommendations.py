@@ -33,7 +33,7 @@ from app.reports.parsers import (
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items, dmarc_status, spf_status
-from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.identity import _risky_users_from_text, mfa_method_code
 from app.reports.parsers.m365_backup import _parse_m365_backup
 from app.reports.parsers.network import (
     NETWORK_AUDIT_FILES,
@@ -140,24 +140,24 @@ def _build_finding_rec_map(recs: list[dict]) -> dict[str, list[int]]:
     return result
 
 
-# Registered-method labels (04_mfa_methods) → the authentication-methods policy
-# IDs (09b) that make them usable. A phone can be used via SMS or Voice, so it is
+# Registered methods (04_mfa_methods) → the authentication-methods policy IDs
+# (09b) that make them usable. A phone can be used via SMS or Voice, so it is
 # only unusable when BOTH are disabled.
 #
-# The keys MUST be the exact display labels the collector emits, i.e. the values
-# of users_mfa._METHOD_LABELS — a mismatch makes _auth_method_lockout_users treat
-# the method as an unrecognised (assumed-usable) label and silently drop the
-# lockout warning for anyone whose only method is that one. tests/test_recommendation_identity.py
-# cross-checks the two maps so they cannot drift again (M365 review follow-up).
-_METHOD_LABEL_TO_POLICY: dict[str, set[str]] = {
-    "Authenticator App": {"microsoftAuthenticator"},
-    "Phone (SMS/Call)": {"sms", "voice"},
-    "FIDO2 Key": {"fido2"},
-    "OATH TOTP": {"softwareOath"},
-    "Windows Hello": {"windowsHelloForBusiness"},
-    "Temp Access Pass": {"temporaryAccessPass"},
-    "Email OTP": {"email"},
-    "Certificate": {"x509Certificate"},
+# The keys are the codes the collector emits (users_mfa.MFA_METHODS); a run
+# from before them holds labels, which mfa_method_code reads back. A method
+# the map does not know is treated as usable and never fires the lockout
+# warning, so tests/test_recommendation_identity.py cross-checks the two
+# (M365 review follow-up).
+_METHOD_TO_POLICY: dict[str, set[str]] = {
+    "microsoftAuthenticator": {"microsoftAuthenticator"},
+    "phone": {"sms", "voice"},
+    "fido2": {"fido2"},
+    "softwareOath": {"softwareOath"},
+    "windowsHelloForBusiness": {"windowsHelloForBusiness"},
+    "temporaryAccessPass": {"temporaryAccessPass"},
+    "email": {"email"},
+    "x509Certificate": {"x509Certificate"},
 }
 
 
@@ -199,8 +199,8 @@ def _auth_method_lockout_users(
         if not methods:
             continue
         usable = False
-        for label in methods:
-            ids = _METHOD_LABEL_TO_POLICY.get(label)
+        for method in methods:
+            ids = _METHOD_TO_POLICY.get(mfa_method_code(method))
             if ids is None or any(pid not in disabled for pid in ids):
                 usable = True
                 break

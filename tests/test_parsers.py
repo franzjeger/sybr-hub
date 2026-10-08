@@ -1295,7 +1295,8 @@ class TestCompliancePhishingResistantMFA:
             if c["cis_id"] == "1.1.2"
         ]
         assert ctrl[0]["status"] == "pass"
-        assert "Fido2" in ctrl[0]["detail"]
+        # The policy's method id, worded by the report (TODO C15).
+        assert "FIDO2-sikkerhetsnøkkel" in ctrl[0]["detail"]
 
     def test_only_weak_methods_warns(self):
         text = (
