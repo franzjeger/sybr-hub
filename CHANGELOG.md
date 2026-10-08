@@ -8,6 +8,21 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Backup av Microsoft 365-data og Datto RMM
+
+- Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
+  visningsnavnet: på Microsoft-verifisert utgiver, og for en app uten kjent
+  navn på tilgangen et backupprodukt trenger (alle postbokser og alle
+  nettsteder eller disker). En slik app meldes som en kandidat å sjekke,
+  aldri som backup. Hver app har en grad av sikkerhet, og begge rapportene
+  sier at auditen ikke kan se om siste backup lyktes.
+- Datto RMM: en administrator lagrer API-adresse, nøkkel og hemmelig nøkkel
+  under Integrasjoner og kobler kunden til sin Datto-site. Tilgang-fanen gir
+  da «Open WebRemote» for hver enhet fra siste audit som Datto kjenner med
+  nøyaktig samme navn eller MAC-adresse. Lenken er Dattos egen, åpnes i en ny
+  fane og bærer ingenting fra huben. Ikke verifisert mot en ekte Datto-tenant
+  ennå.
+
 ### Tailscale, UniFi-firmware og opprydding
 
 - Kundens Tilgang-fane leser Tailscale én gang per åpning i stedet for to, og

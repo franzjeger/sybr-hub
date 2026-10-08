@@ -69,6 +69,19 @@ No migration. API changes for scripts that read these routes:
 
 ---
 
+# Datto RMM deep-link and backup app recognition (October 2026, unreleased)
+
+- **Datto RMM** needs API access enabled in Datto (Setup › Global Settings ›
+  Access Control) and API keys for a user (Setup › Users) whose security
+  level can read sites and devices. Enter the API URL exactly as Datto shows
+  it. Matching by MAC address needs an audit run from this version, which
+  keeps each Intune device's Wi-Fi MAC.
+- **Backup of Microsoft 365 data** needs no new Graph permission. An app with
+  backup-shaped access but no known name now makes that workload read
+  "could not be determined" instead of "no backup".
+
+---
+
 # Background notifications and Graph read cooldown (October 2026, unreleased)
 
 - Background audit, credential, task-failure and alert-sweep messages follow
