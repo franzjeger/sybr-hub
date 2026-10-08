@@ -306,6 +306,7 @@ function _notifCollect(data, uniweb, history, activity) {
     fortigate_threats: t('rule_fortigate_threats', 'Brannmur-hendelser'), firmware_outdated: t('rule_firmware', 'Utdatert firmware'),
     also_license_expiry: t('rule_also', 'Lisensfornyelser'), mfa_coverage: t('rule_mfa', 'MFA-dekning'),
     pentest_critical: t('rule_pentest', 'Kritiske pentest-funn'),
+    policy_drift: t('rule_policy_drift', 'Endrede sikkerhetspolicyer'),
   };
   var since = new Date(Date.now() - 30 * 86400000).toISOString();
   var seenAlert = {};

@@ -2869,7 +2869,8 @@
     "net_ha_active_active": "Aktiv-aktiv",
     "unifi_error_ssh_timeout": "SSH svarte ikke i tide",
     "unifi_error_sshpass_missing": "sshpass er ikke installert på serveren",
-    "unifi_error_connection_failed": "Enheten svarte verken på HTTP eller SSH"
+    "unifi_error_connection_failed": "Enheten svarte verken på HTTP eller SSH",
+    "rule_policy_drift": "Endrede sikkerhetspolicyer"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -5741,6 +5742,7 @@
     "net_ha_active_active": "Active-active",
     "unifi_error_ssh_timeout": "SSH did not answer in time",
     "unifi_error_sshpass_missing": "sshpass is not installed on the server",
-    "unifi_error_connection_failed": "The device answered neither HTTP nor SSH"
+    "unifi_error_connection_failed": "The device answered neither HTTP nor SSH",
+    "rule_policy_drift": "Changed security policies"
   }
 }

@@ -104,3 +104,19 @@ test.describe('on a 375 px phone', () => {
     expect(widths[0]).toBeLessThanOrEqual(widths[1]);
   });
 });
+
+// A policy-drift alert was titled by its rule's code, "policy_drift: ...",
+// and its day was ISO (TODO C16).
+test('Varsler titles a policy-drift alert in words and dates it for the reader', async ({page}) => {
+  await page.route('**/api/alerts/history**', route => route.fulfill({json: {entries: [{
+    type: 'policy_drift', severity: 'critical', customer: 'Browser Beta', item: 'Require MFA',
+    sent_at: new Date().toISOString(), detail_key: 'alert_detail_policy_removed',
+    detail_params: {policy: 'Require MFA', since: '2026-09-30'},
+  }]}}));
+  await login(page);
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
+  const row = page.locator('#dash-alerts .notif-row', {hasText: 'Require MFA'});
+  await expect(row.locator('.notif-title')).toHaveText('Endrede sikkerhetspolicyer: Require MFA');
+  await expect(row).toContainText('er fjernet siden 30. september 2026.');
+  await expect(row.locator('.notif-meta')).not.toContainText(/\d{4}-\d{2}-\d{2}/);
+});
