@@ -1702,10 +1702,12 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       <td style="font-family: monospace; font-size:11px;">{{ d.firmware or '—' }}</td>
       {% if uf.mode == 'controller' %}
       <td>{{ d.clients | default(0) }}</td>
-      <td style="color: {{ 'green' if d.status == 'online' else 'var(--red, red)' }};">{{ d.status | default('—') }}</td>
+      <td style="color: {{ 'green' if d.status == 'online' else 'var(--red, red)' }};">{% if d.status == 'online' %}{{ t.net_online }}{% elif d.status == 'offline' %}{{ t.net_offline }}{% else %}{{ d.status | default('—') }}{% endif %}</td>
       {% else %}
       <td style="font-family: monospace; font-size:11px;">{{ d.mac or '—' }}</td>
-      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{{ t.net_online if d.ok else (d.error or t.net_offline) }}</td>
+      {# Unreachable, and why where the run says: the audit's own reasons are
+         codes worded here, an exception's message is shown as it is. #}
+      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{% if d.ok %}{{ t.net_online }}{% else %}{{ t.net_offline }}{% if d.error %}<div style="font-size:11px;color:var(--muted, #6b7280);">{{ _device_error_text(d.error, t) }}</div>{% endif %}{% endif %}</td>
       {% endif %}
     </tr>
     {% endfor %}

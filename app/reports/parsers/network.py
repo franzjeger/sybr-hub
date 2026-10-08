@@ -58,6 +58,27 @@ def policy_finding_text(finding: dict, t) -> str:
     return str(finding.get("text") or "")
 
 
+# What an old run holds for a direct device it could not read, before the
+# audit stored codes (network_audit.DEVICE_READ_ERRORS).
+_LEGACY_DEVICE_ERRORS = {
+    "SSH timeout": "ssh_timeout",
+    "sshpass not installed — run: brew install hudochenkov/sshpass/sshpass": "sshpass_missing",
+    "Connection failed": "connection_failed",
+}
+
+
+def device_error_text(error, t) -> str:
+    """Why a direct UniFi device could not be read, in the report's language.
+
+    An exception's own message, which no code names, is shown as it is.
+    """
+    from app.services.network_audit import DEVICE_READ_ERRORS
+
+    text = str(error or "").strip()
+    code = _LEGACY_DEVICE_ERRORS.get(text, text)
+    return str(getattr(t, f"unifi_error_{code}")) if code in DEVICE_READ_ERRORS else text
+
+
 def ha_mode_text(mode, t) -> str:
     """FortiOS's HA mode in the report's language; one it does not name, as stored."""
     if not mode:

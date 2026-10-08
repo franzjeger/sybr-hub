@@ -2866,7 +2866,10 @@
     "fg_finding_no_logging": "Regel {policy}: logger ikke trafikken",
     "net_ha_standalone": "Frittstående",
     "net_ha_active_passive": "Aktiv-passiv",
-    "net_ha_active_active": "Aktiv-aktiv"
+    "net_ha_active_active": "Aktiv-aktiv",
+    "unifi_error_ssh_timeout": "SSH svarte ikke i tide",
+    "unifi_error_sshpass_missing": "sshpass er ikke installert på serveren",
+    "unifi_error_connection_failed": "Enheten svarte verken på HTTP eller SSH"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -5735,6 +5738,9 @@
     "fg_finding_no_logging": "Policy {policy}: does not log its traffic",
     "net_ha_standalone": "Standalone",
     "net_ha_active_passive": "Active-passive",
-    "net_ha_active_active": "Active-active"
+    "net_ha_active_active": "Active-active",
+    "unifi_error_ssh_timeout": "SSH did not answer in time",
+    "unifi_error_sshpass_missing": "sshpass is not installed on the server",
+    "unifi_error_connection_failed": "The device answered neither HTTP nor SSH"
   }
 }

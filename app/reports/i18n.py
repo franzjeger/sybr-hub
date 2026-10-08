@@ -4425,6 +4425,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Frakoblet",
         "en": "Offline",
     },
+    # Why a direct UniFi device could not be read (network_audit.DEVICE_READ_ERRORS).
+    "unifi_error_ssh_timeout": {"no": "SSH svarte ikke i tide", "en": "SSH did not answer in time"},
+    "unifi_error_sshpass_missing": {
+        "no": "sshpass er ikke installert på serveren",
+        "en": "sshpass is not installed on the server",
+    },
+    "unifi_error_connection_failed": {
+        "no": "Enheten svarte verken på HTTP eller SSH",
+        "en": "The device answered neither HTTP nor SSH",
+    },
     # A WLAN's security as the UniFi collector labels it
     # (unifi_api.wlan_security_label). WPA2 and WPA3 are names and stay.
     "wlan_security_open": {

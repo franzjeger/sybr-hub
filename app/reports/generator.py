@@ -51,7 +51,12 @@ from app.reports.parsers import (
 from app.reports.parsers.common import _sidecar, unavailable_text
 from app.reports.parsers.email import _spf_dmarc_records, dkim_summary, dns_pill, dns_tag
 from app.reports.parsers.identity import _emergency_access, group_type_text, mfa_methods_text
-from app.reports.parsers.network import ha_mode_text, policy_finding_text, policy_findings
+from app.reports.parsers.network import (
+    device_error_text,
+    ha_mode_text,
+    policy_finding_text,
+    policy_findings,
+)
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
 from app.reports.risk import _apply_critical_floor, _compute_risk
@@ -467,6 +472,7 @@ def build_report_context(
         "_fg_findings": policy_findings,
         "_fg_finding_text": policy_finding_text,
         "_fg_ha_mode": ha_mode_text,
+        "_device_error_text": device_error_text,
     }
 
     # Build compliance mapping after context is ready

@@ -805,6 +805,17 @@ function _fgFindingText(f) {
   return String(f.text || '');
 }
 
+// Why a direct UniFi device could not be read: the audit's own reasons come
+// as codes, an exception's message as it is.
+function _deviceErrorText(error) {
+  switch (error) {
+    case 'ssh_timeout': return t('unifi_error_ssh_timeout', 'SSH did not answer in time');
+    case 'sshpass_missing': return t('unifi_error_sshpass_missing', 'sshpass is not installed on the server');
+    case 'connection_failed': return t('unifi_error_connection_failed', 'The device answered neither HTTP nor SSH');
+    default: return String(error || '');
+  }
+}
+
 // FortiOS's HA mode, as the reader calls it; one it does not name, as sent.
 function _fgHaModeText(mode) {
   switch (String(mode || '').toLowerCase()) {
@@ -914,7 +925,7 @@ function _quickAuditHtml(d) {
           html += '</div></div>';
 
           if (!dev.ok && dev.error) {
-            html += '<div class="alert alert-error m-0">' + esc(dev.error) + '</div>';
+            html += '<div class="alert alert-error m-0">' + esc(_deviceErrorText(dev.error)) + '</div>';
           } else {
             // Info grid — identity
             html += '<div class="grid grid-auto-sm gap-2 text-sm">';
