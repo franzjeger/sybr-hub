@@ -662,7 +662,32 @@ def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
     }
 
 
-_GROUP_TYPES = {"Microsoft 365", "Dynamic", "Security", "Distribution", "Other"}
+# What groups_roles.py wrote for a group's kind before it stored codes
+# (groups_roles.GROUP_TYPES), as a run from then holds it.
+_LEGACY_GROUP_TYPES = {
+    "Microsoft 365": "m365",
+    "Dynamic": "dynamic",
+    "Security": "security",
+    "Distribution": "distribution",
+    "Other": "other",
+}
+
+
+def _group_type_code(value: str) -> str:
+    """A group's kind as one of groups_roles.GROUP_TYPES, or as stored when it is neither."""
+    from app.modules.m365_audit.sections.groups_roles import GROUP_TYPES
+
+    value = value.strip()
+    if value in GROUP_TYPES:
+        return value
+    return _LEGACY_GROUP_TYPES.get(value, value)
+
+
+def group_type_text(value: str, t) -> str:
+    """A group's kind in the report's language; one the report cannot name, as stored."""
+    from app.modules.m365_audit.sections.groups_roles import GROUP_TYPES
+
+    return str(getattr(t, f"group_type_{value}")) if value in GROUP_TYPES else value
 
 
 def _group_row_by_column(line: str) -> tuple[str, str, str] | None:
@@ -673,10 +698,12 @@ def _group_row_by_column(line: str) -> tuple[str, str, str] | None:
     and a split on runs of two or more spaces then found two columns, not
     three, and dropped the group from every count. None for any other layout.
     """
+    from app.modules.m365_audit.sections.groups_roles import GROUP_TYPES
+
     if len(line) < 71 or line[52] != " " or line[69] != " ":
         return None
     gtype = line[53:69].strip()
-    if gtype not in _GROUP_TYPES:
+    if gtype not in GROUP_TYPES and gtype not in _LEGACY_GROUP_TYPES:
         return None
     return line[2:52].strip(), gtype, line[70:].strip()
 
@@ -693,7 +720,7 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
     groups: list[dict] = [
         {
             "name": g.get("name") or "",
-            "type": g.get("type") or "",
+            "type": _group_type_code(g.get("type") or ""),
             "members": g["members"] if isinstance(g.get("members"), int) else 0,
             "members_known": isinstance(g.get("members"), int),
         }
@@ -748,7 +775,7 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
             groups.append(
                 {
                     "name": name,
-                    "type": gtype,
+                    "type": _group_type_code(gtype),
                     "members": members,
                     "members_known": members_known,
                 }
@@ -763,7 +790,7 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
         # failed member-count fetch ("N/A") is not the same as zero.
         if g["members_known"] and g["members"] == 0:
             empty += 1
-        if "Dynamic" in g["type"]:
+        if g["type"] == "dynamic" or "Dynamic" in g["type"]:
             dynamic += 1
 
     return {

@@ -1174,7 +1174,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <h4>{{ t.groups_label }}</h4>
     <div class="env-row"><span>{{ t.total_groups }}</span><span>{{ groups.total }}</span></div>
     {% for gtype, count in groups.by_type.items() %}
-    <div class="env-row"><span>{{ gtype }}</span><span>{{ count }}</span></div>
+    <div class="env-row"><span>{{ _group_type_text(gtype, t) }}</span><span>{{ count }}</span></div>
     {% endfor %}
     <div class="env-row"><span>{{ t.dynamic_groups }}</span><span>{{ groups.dynamic_groups }}</span></div>
     <div class="env-row"><span>{{ t.empty_groups }}</span><span>{{ groups.empty_groups }}</span></div>
@@ -1247,7 +1247,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="env-row"><span>Conditional Access</span><span>{{ t('active_policies', count=ca.enabled) }}</span></div>
     {% if groups %}
     <div class="env-row"><span>{{ t.m365_groups_incl_teams }}</span>
-      <span>{% set m365 = groups.by_type.get('M365', 0) + groups.by_type.get('M365+Dynamic', 0) %}{{ m365 }}</span>
+      <span>{% set m365 = groups.by_type.get('m365', 0) %}{{ m365 }}</span>
     </div>
     {% endif %}
   </div>

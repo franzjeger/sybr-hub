@@ -50,7 +50,7 @@ from app.reports.parsers import (
 )
 from app.reports.parsers.common import _sidecar, unavailable_text
 from app.reports.parsers.email import _spf_dmarc_records, dkim_summary, dns_pill, dns_tag
-from app.reports.parsers.identity import _emergency_access
+from app.reports.parsers.identity import _emergency_access, group_type_text
 from app.reports.parsers.network import ha_mode_text, policy_finding_text, policy_findings
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
@@ -460,6 +460,7 @@ def build_report_context(
         "SectionStatus": SectionStatus,
         "_dns_tag": dns_tag,
         "_unavailable_text": unavailable_text,
+        "_group_type_text": group_type_text,
         "_dns_pill": dns_pill,
         "_dkim_summary": dkim_summary,
         "_fg_findings": policy_findings,

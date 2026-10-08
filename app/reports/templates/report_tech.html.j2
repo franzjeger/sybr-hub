@@ -816,7 +816,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% for g in groups.groups %}
   <tr>
     <td style="font-weight:500;">{{ g.name }}</td>
-    <td><span class="tag {% if 'Dynamic' in g.type %}blue{% else %}ok{% endif %}">{{ g.type }}</span></td>
+    <td><span class="tag {% if g.type == 'dynamic' %}blue{% else %}ok{% endif %}">{{ _group_type_text(g.type, t) }}</span></td>
     <td style="text-align:right;font-family:var(--mono);">{{ g.members }}</td>
   </tr>
   {% endfor %}

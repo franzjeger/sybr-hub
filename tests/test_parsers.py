@@ -419,10 +419,11 @@ class TestParseGroupsMatchesCollectorFormat:
 
     def test_group_type_with_internal_space_preserved(self):
         """'Microsoft 365' is a single type with a space in it — the
-        columnar parser must rejoin the middle columns."""
+        columnar parser must rejoin the middle columns. Rejoined, the old
+        label reads back as its code ("m365"); split, it would not."""
         result = _parse_groups(self.SAMPLE)
         by_name = {g["name"]: g for g in result["groups"]}
-        assert by_name["Sales Team"]["type"] == "Microsoft 365"
+        assert by_name["Sales Team"]["type"] == "m365"
 
     def test_legacy_pipe_format_still_parses(self):
         legacy = "Old Team | Microsoft 365 | 12\n"

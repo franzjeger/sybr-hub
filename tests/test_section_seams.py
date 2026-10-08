@@ -783,8 +783,8 @@ async def test_group_inventory_survives_the_round_trip():
     assert parsed["total"] == 3
     assert parsed["has_data"] is True
     by_name = {gr["name"]: gr for gr in parsed["groups"]}
-    assert by_name["All Staff"]["type"] == "Microsoft 365"
-    assert by_name["Dynamic Sales"]["type"] == "Dynamic"
+    assert by_name["All Staff"]["type"] == "m365"
+    assert by_name["Dynamic Sales"]["type"] == "dynamic"
     assert by_name["All Staff"]["members"] == 42
 
 

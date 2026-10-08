@@ -2077,6 +2077,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ingen administratorroller funnet",
         "en": "No admin roles found",
     },
+    # A group's kind (groups_roles.GROUP_TYPES).
+    "group_type_m365": {"no": "Microsoft 365", "en": "Microsoft 365"},
+    "group_type_dynamic": {"no": "Dynamisk", "en": "Dynamic"},
+    "group_type_security": {"no": "Sikkerhet", "en": "Security"},
+    "group_type_distribution": {"no": "Distribusjon", "en": "Distribution"},
+    "group_type_other": {"no": "Annet", "en": "Other"},
     "emergency_access_heading": {
         "no": "N\u00f8dtilgang / Break-Glass",
         "en": "Emergency Access / Break-Glass",

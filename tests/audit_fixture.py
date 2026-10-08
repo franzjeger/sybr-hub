@@ -301,12 +301,19 @@ FULL_AUDIT: dict[str, str] = {
         "User                  Reason                 Count\n"
         "user07@acme.no        Invalid password       3\n"
     ),
-    "06_groups.txt": (
-        "GROUPS\n"
-        "======\n"
-        "Name              Type          Members\n"
-        "All Staff         Microsoft365  38\n"
-        "IT Admins         Security      4\n"
+    # groups_roles.py: each group's kind a code the report words.
+    "06_groups.txt": "\n".join(
+        [
+            "=" * 80,
+            "  GROUPS  (2 total)",
+            "=" * 80,
+            f"  {'Group Name':<50} {'Type':<16} {'Members':>8}",
+            "  " + "-" * 76,
+            f"  {'All Staff':<50} {'m365':<16} {'38':>8}",
+            f"  {'IT Admins':<50} {'security':<16} {'4':>8}",
+            "=" * 80,
+            "",
+        ]
     ),
     "11_intune_compliance_policies.txt": (
         "INTUNE COMPLIANCE POLICIES\n"
