@@ -896,7 +896,7 @@ export function startBulkAudit() {
   var btn = document.getElementById('bulk-audit-btn');
   if (btn) { btn.disabled = true; btn.textContent = t('status_running'); }
   var panel = document.getElementById('bulk-audit-panel');
-  panel.style.display = 'block';
+  panel.hidden = false;
   panel.innerHTML = '<div class="card p-5 mb-6" id="bulk-progress-card">' +
     '<div class="flex items-center justify-between mb-4">' +
     '<div class="fw-bold text-md">' + t('bulk_audit') + '</div>' +

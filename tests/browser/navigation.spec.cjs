@@ -329,6 +329,23 @@ test('Oversikt leads with who needs attention, without tiles, charts or an integ
   await expect(page.locator('.customer-overview-table th', {hasText: 'Åpne funn'})).toContainText('▼');
 });
 
+test('Kjør alle kunder shows its progress and each customer\'s result', async ({page}) => {
+  // The panel had become hidden while the script still showed it with
+  // style.display, which [hidden] overrides: the bulk audit ran unseen.
+  await page.route('**/api/audit/bulk', route => route.fulfill({contentType: 'text/event-stream', body: [
+    {type: 'bulk_started', total_customers: 1},
+    {type: 'customer_done', customer: 'Kunde A', grade: 'B', risk_score: 22, sections_done: 3, sections_total: 3},
+    {type: 'bulk_done'},
+  ].map(e => 'data: ' + JSON.stringify(e) + '\n\n').join('')}));
+  await login(page);
+  await inApp(page, app => app.showView('overview'));
+  await page.locator('#bulk-audit-btn').click();
+  await expect(page.locator('#bulk-progress-card')).toBeVisible();
+  await expect(page.locator('#bulk-results-table')).toBeVisible();
+  await expect(page.locator('#bulk-results-tbody tr')).toHaveText([/Kunde A\s*B\s*22\s*3\/3\s*OK/]);
+  await expect(page.locator('#audit-running-indicator')).toBeHidden();
+});
+
 test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({page}) => {
   await login(page);
   await page.locator('#nav-customers').click();
