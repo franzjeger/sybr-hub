@@ -64,11 +64,13 @@ changed in it, ideally after comparing old and new context by context.
 - a CSS class in `app.css` nothing uses (`scripts/check-css-usage.cjs`);
 - any ESLint error or warning (unused variables included).
 
-The Python suite also holds the interface to its design system: no new
-`style=` attribute (`tests/test_frontend_csp_budget.py`; the 43 left are all
-`display:none`), colours only from tokens and no padding on `.btn`
-(`tests/test_css_colours_are_tokens.py`), and every `ui_i18n.json` key
-referenced somewhere (`tests/test_i18n_keys_are_used.py`).
+The Python suite also holds the interface to its design system: no
+`style=` attribute at all, and an element a script shows and hides carries
+`hidden` and is shown by setting `.hidden`, never `style.display`, which
+`[hidden]` overrides (`tests/test_frontend_csp_budget.py`); colours only from
+tokens and no padding on `.btn` (`tests/test_css_colours_are_tokens.py`); and
+every `ui_i18n.json` key referenced somewhere
+(`tests/test_i18n_keys_are_used.py`).
 
 Browser specs share one fixture server (`tests/browser/server.py`). Reach a
 module's function through `inApp(page, app => ...)` from

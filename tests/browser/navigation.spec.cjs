@@ -360,6 +360,11 @@ test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({
   await expect(page.locator('#new-cust-form')).toBeVisible();
   await expect(page.locator('#manual-cust-name')).toBeFocused();
   await expect(page.locator('#btn-manual-cust-save')).toBeVisible();
+  // Avbryt closes the dialog the way it was opened, so it opens again.
+  await modal.getByRole('button', {name: 'Avbryt'}).click();
+  await expect(modal).toBeHidden();
+  await page.locator('#view-customers [data-click-handler="openNewCustomer"]').click();
+  await expect(modal).toBeVisible();
   await modal.getByRole('button', {name: 'Avbryt'}).click();
   await expect(modal).toBeHidden();
 });

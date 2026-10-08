@@ -302,7 +302,7 @@ export function setVpnTunnelUp(up) {
 
 export function _syncConnChip() {
   var box = document.getElementById('conn-status');
-  if (box) box.style.display = (_vpnTunnelUp || _connState !== 'ok') ? 'flex' : 'none';
+  if (box) box.hidden = !(_vpnTunnelUp || _connState !== 'ok');
 }
 
 function _setConnStatus(state, label, title) {

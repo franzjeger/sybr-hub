@@ -72,7 +72,7 @@ test('handler arguments escaped into data attributes reach the handler intact', 
     const button = page.locator('#escape-fixture button');
     expect(await button.evaluate(el => el.getAttributeNames())).toEqual(['data-click-handler', 'data-target']);
     await button.click();
-    expect(await page.evaluate(value => document.getElementById(value).style.display, value)).toBe('none');
+    expect(await page.evaluate(value => document.getElementById(value).hidden, value)).toBe(true);
     expect(await page.evaluate(() => globalThis.auditExecuted)).toBeUndefined();
     await page.locator('#escape-fixture').evaluate(el => el.remove());
   }

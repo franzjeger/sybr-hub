@@ -1696,7 +1696,7 @@ async function loadCustomerLicenses(accountId) {
         + '<td class="text-center"><span class="' + badgeClass(statusColor) + '">' + esc(status) + '</span></td>'
         + '</tr>';
       // Detail row (hidden by default, loaded on click)
-      html += '<tr id="also-sub-'+esc(subId)+'" style="display:none;"><td colspan="7"></td></tr>';
+      html += '<tr id="also-sub-'+esc(subId)+'" hidden><td colspan="7"></td></tr>';
     });
 
     html += '</tbody></table></div>';
@@ -2047,11 +2047,11 @@ async function uwToggleDns(row, domain) {
 async function alsoToggleSubDetail(rowEl, subId) {
   var detailRow = document.getElementById('also-sub-' + subId);
   if (!detailRow) return;
-  if (detailRow.style.display !== 'none') {
-    detailRow.style.display = 'none';
+  if (!detailRow.hidden) {
+    detailRow.hidden = true;
     return;
   }
-  detailRow.style.display = '';
+  detailRow.hidden = false;
   var cell = detailRow.querySelector('td');
   cell.innerHTML = '<div class="py-3 px-4"><div class="loader"></div> ' + t('loading_details') + '</div>';
 

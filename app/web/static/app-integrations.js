@@ -682,7 +682,7 @@ async function uniwebShowImport() {
   html += '</tbody></table></div>';
 
   // Error display area (hidden initially)
-  html += '<div id="uniweb-import-errors" class="status-box is-bad text-xs max-h-sm overflow-y-auto mt-3" style="display:none;"></div>';
+  html += '<div id="uniweb-import-errors" class="status-box is-bad text-xs max-h-sm overflow-y-auto mt-3" hidden></div>';
 
   // Buttons
   html += '<div class="flex gap-2 justify-end mt-4 flex-wrap">';
@@ -767,7 +767,7 @@ async function uniwebDoImport() {
 
   // Hide any previous errors
   var errBox = document.getElementById('uniweb-import-errors');
-  if (errBox) errBox.style.display = 'none';
+  if (errBox) errBox.hidden = true;
 
   try {
     var d = await apiFetch('/api/uniweb/import-customers', {
@@ -793,7 +793,7 @@ async function uniwebDoImport() {
           }
         });
         errBox.innerHTML = errHtml;
-        errBox.style.display = 'block';
+        errBox.hidden = false;
       }
     }
 
@@ -1167,7 +1167,7 @@ export async function itglueSyncAllDocumentation() {
 
   btn.disabled = true;
   btn.textContent = t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...');
-  status.style.display = 'block';
+  status.hidden = false;
   status.innerHTML = '<span class="text-muted">' + t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...') + '</span>';
 
   try {
@@ -1414,7 +1414,7 @@ async function _loadIntegrationCards() {
     _countInteg(!!(d.gdap_configured && d.gdap_validated !== false));
     if (d.gdap_configured) {
       var _gdapBtn = document.getElementById('gdap-discover-btn');
-      if (_gdapBtn) _gdapBtn.style.display = 'block';
+      if (_gdapBtn) _gdapBtn.hidden = false;
       var _gdapCount = document.getElementById('gdap-customer-count');
       if (_gdapCount && d.gdap_customer_count) _gdapCount.textContent = d.gdap_customer_count + ' ' + t('gdap_customers_linked', 'kunder koblet');
     }
@@ -1647,7 +1647,7 @@ export async function gdapSaveConfig() {
       setStatusWarn('gdap-integ-dot', 'gdap-integ-label',
         t('gdap_status_unverified', 'Lagret, ikke verifisert'));
     }
-    document.getElementById('gdap-discover-btn').style.display = 'block';
+    document.getElementById('gdap-discover-btn').hidden = false;
     if (d.customer_count) {
       var cc = document.getElementById('gdap-customer-count');
       if (cc) cc.textContent = d.customer_count + ' ' + t('gdap_customers_linked', 'kunder koblet');
@@ -1667,7 +1667,7 @@ export async function gdapTestConnection() {
 export async function gdapDiscoverCustomers() {
   var panel = document.getElementById('gdap-discover-panel');
   var list = document.getElementById('gdap-discover-list');
-  panel.style.display = 'block';
+  panel.hidden = false;
   list.innerHTML = '<div class="text-muted text-sm">' + t('msg_loading', 'Laster...') + '</div>';
   var d = await apiFetch('/api/gdap/customers');
   if (!d || !d.customers) {

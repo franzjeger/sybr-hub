@@ -280,7 +280,7 @@ export async function _reconcileAuditState() {
       auditRunning = true;
       auditCustomerId = d.customer_id || null;
       var ind = document.getElementById('audit-running-indicator');
-      if (ind) ind.style.display = 'flex';
+      if (ind) ind.hidden = false;
       _showAuditRunOrIdle();
       startAuditProgressPolling();
       // We never had a stream to lose; with the customer known, the watcher
@@ -337,7 +337,7 @@ export function _renderAuditIdle() {
   var tbody = document.getElementById('section-tbody');
   if (tbody && !tbody.children.length) {
     var findings = document.getElementById('audit-findings');
-    if (findings) findings.style.display = 'none';
+    if (findings) findings.hidden = true;
   }
 
   var idle = document.getElementById('audit-idle');
@@ -368,7 +368,7 @@ function _clearStaleAuditBadge() {
   stopAuditProgressPolling();
   _hideAuditProgressBar();
   var ind = document.getElementById('audit-running-indicator');
-  if (ind) ind.style.display = 'none';
+  if (ind) ind.hidden = true;
 }
 
 // ── Audit flow ─────────────────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ export async function startAudit(customerId) {
   sectionTotal = 0; // will grow dynamically as sections register
 
   document.getElementById('section-tbody').innerHTML = '';
-  document.getElementById('audit-done-area').style.display = 'none';
+  document.getElementById('audit-done-area').hidden = true;
   document.getElementById('report-result').innerHTML = '';
   setAuditStatus('<div class="loader"></div><span>' + t('msg_starting') + '</span>');
   updateProgress(0, sectionTotal);
@@ -419,7 +419,7 @@ export async function startAudit(customerId) {
   _showAuditRunningChrome();
   auditRunning = true;
   _auditStarting = false;
-  var _ari = document.getElementById('audit-running-indicator'); if (_ari) _ari.style.display = 'flex';
+  var _ari = document.getElementById('audit-running-indicator'); if (_ari) _ari.hidden = false;
   startAuditProgressPolling();
 
   // Build stream URL: the customer, and the section filter if there is one.
@@ -509,7 +509,7 @@ function _finishAuditWithoutStream() {
   stopAuditProgressPolling();
   _hideAuditProgressBar();
   var ind = document.getElementById('audit-running-indicator');
-  if (ind) ind.style.display = 'none';
+  if (ind) ind.hidden = true;
   setAuditStatus('<span class="text-warning">' + t('msg_audit_done_stream_lost') + '</span>');
   custPageAuditFinished();
 }
@@ -567,7 +567,7 @@ async function _attemptAuditStream(streamUrl) {
           } else if (d.type === 'done') {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();
-            var _ari_d = document.getElementById('audit-running-indicator'); if (_ari_d) _ari_d.style.display = 'none';
+            var _ari_d = document.getElementById('audit-running-indicator'); if (_ari_d) _ari_d.hidden = true;
             handleAuditDone(d.results || []);
             if (d.email_status) {
               var area = document.getElementById('report-result');
@@ -579,7 +579,7 @@ async function _attemptAuditStream(streamUrl) {
           } else if (d.type === 'error') {
             auditRunning = false; document.title = _origTitle;
             stopAuditProgressPolling(); _hideAuditProgressBar();
-            var _ari_e = document.getElementById('audit-running-indicator'); if (_ari_e) _ari_e.style.display = 'none';
+            var _ari_e = document.getElementById('audit-running-indicator'); if (_ari_e) _ari_e.hidden = true;
             setAuditStatus('<span class="text-danger">✗ '+t('status_error')+': '+esc(d.msg)+'</span>');
             return 'done';
           } else if (d.type === 'cancelled') {
@@ -670,7 +670,7 @@ function renderAuditFindings(results) {
   });
 
   if (!failures.length && !findings.length && !skipped.length) {
-    box.style.display = 'block';
+    box.hidden = false;
     box.innerHTML = '<div class="card edge-success">'
       + '<div class="fw-semibold text-success">&#10003; '
       + esc(t('audit_no_findings', 'Ingen varsler')) + '</div>'
@@ -698,7 +698,7 @@ function renderAuditFindings(results) {
       + '</div>';
   }
 
-  box.style.display = 'block';
+  box.hidden = false;
   var anyCritical = findings.some(function (f) { return f.level === 'critical'; });
   box.innerHTML = '<div class="card ' + (failures.length || anyCritical ? 'edge-danger' : 'edge-warning') + '">'
     + list(failures, 'red', t('status_failed', 'Feilet'))
@@ -761,7 +761,7 @@ function handleAuditDone(results) {
   document.getElementById('sum-done').textContent = done;
   document.getElementById('sum-warn').textContent = warns;
   document.getElementById('sum-fail').textContent = failed;
-  document.getElementById('audit-done-area').style.display = 'block';
+  document.getElementById('audit-done-area').hidden = false;
   renderAuditFindings(results);
 
   // Browser notification if tab is hidden
@@ -821,7 +821,7 @@ export async function pollAuditProgress() {
     if (!d || !d.total_sections) return;
     // Update the global indicator in the header
     var ind = document.getElementById('audit-running-indicator');
-    if (ind && ind.style.display !== 'none') {
+    if (ind && !ind.hidden) {
       ind.innerHTML = '<span class="dot"></span> '
         + 'Audit ' + Number(d.progress) + '% · ' + esc(d.current_section);
     }
@@ -970,8 +970,8 @@ function onCompareCheck(path, checked) {
       if (cb.dataset.hasMetrics === 'false') canCompare = false;
     });
   }
-  btnCompare.style.display = canCompare ? 'inline-block' : 'none';
-  btnDelete.style.display = _compareSelected.length > 0 ? 'inline-block' : 'none';
+  btnCompare.hidden = !canCompare;
+  btnDelete.hidden = _compareSelected.length === 0;
   btnDelete.textContent = t('btn_delete_selected') + ' (' + _compareSelected.length + ')';
 }
 
@@ -984,7 +984,7 @@ export async function runComparison() {
   btn.disabled = true;
   btn.textContent = t('btn_loading');
   const box = document.getElementById('compare-result');
-  box.style.display = 'block';
+  box.hidden = false;
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   box.innerHTML = '<div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div>' + t('msg_comparing') + '</div>';
   try {
@@ -1015,8 +1015,8 @@ export async function deleteSelectedRuns() {
       showToast(t('hist_deleted_runs').replace('{count}', d.deleted) + ' · ' + d.errors.join(', '), 'warning', 8000);
     }
     _compareSelected = [];
-    document.getElementById('btn-delete-selected').style.display = 'none';
-    document.getElementById('btn-compare').style.display = 'none';
+    document.getElementById('btn-delete-selected').hidden = true;
+    document.getElementById('btn-compare').hidden = true;
     loadHistory();
   } catch (e) {
     showToast(t('err_delete_failed').replace('{msg}', e.message), 'error');
@@ -1041,8 +1041,8 @@ async function deleteAllCustomerRuns(customerDirName, customerName, runCount) {
       return;
     }
     _compareSelected = [];
-    document.getElementById('btn-delete-selected').style.display = 'none';
-    document.getElementById('btn-compare').style.display = 'none';
+    document.getElementById('btn-delete-selected').hidden = true;
+    document.getElementById('btn-compare').hidden = true;
     loadHistory();
   } catch (e) {
     showToast(t('err_delete_failed').replace('{msg}', e.message), 'error');
@@ -1101,8 +1101,8 @@ function renderComparison(data, box) {
 function renderHistory(runs, scoped) {
   const box = document.getElementById('history-content');
   _compareSelected = [];
-  document.getElementById('btn-compare').style.display = 'none';
-  document.getElementById('compare-result').style.display = 'none';
+  document.getElementById('btn-compare').hidden = true;
+  document.getElementById('compare-result').hidden = true;
 
   if (runs.length === 0) {
     // Kjør audit is in the page's head; this says there is nothing yet.

@@ -131,8 +131,8 @@ async function tsLoadDevices() {
   html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="tsShowCreateKey">' + t('ts_create_key','Create auth key') + '</button>';
   html += '<button class="btn btn-ghost btn-sm" data-click-handler="tsShowKeys">' + t('ts_manage_keys','Manage keys') + '</button>';
   html += '</div>';
-  html += '<div id="ts-key-panel" class="mb-4" style="display:none;"></div>';
-  html += '<div id="ts-detail-panel" class="mb-4" style="display:none;"></div>';
+  html += '<div id="ts-key-panel" class="mb-4" hidden></div>';
+  html += '<div id="ts-detail-panel" class="mb-4" hidden></div>';
 
   // ── Device cards: strict 3-row grid ──
   html += '<div class="grid grid-auto-lg gap-3">';
@@ -197,7 +197,7 @@ async function tsShowDetail(idx) {
   var d = _tsDevices[idx];
   if (!d) return;
   var panel = document.getElementById('ts-detail-panel');
-  panel.style.display = 'block';
+  panel.hidden = false;
   panel.scrollIntoView({behavior:'smooth', block:'start'});
 
   var color = d.online ? 'var(--green)' : 'var(--orange)';
@@ -376,7 +376,7 @@ async function tsToggleKeyExpiry(deviceId, disabled) {
 async function tsRemoveDevice(deviceId) {
   if (!await showConfirm(t('ts_confirm_remove','Fjerne denne enheten fra tailnettet? Dette kan ikke angres.'))) return;
   var d = await apiFetch('/api/tailscale/device/'+encodeURIComponent(deviceId), {method:'DELETE'});
-  if (d && d.ok) { showToast(t('ts_device_removed','Enhet fjernet'), 'success'); document.getElementById('ts-detail-panel').style.display='none'; tsLoadDevices(); }
+  if (d && d.ok) { showToast(t('ts_device_removed','Enhet fjernet'), 'success'); document.getElementById('ts-detail-panel').hidden = true; tsLoadDevices(); }
   else { showToast(d && d.error || t('msg_failed','Feilet'), 'error'); }
 }
 
@@ -392,8 +392,8 @@ async function tsUpdateTags(deviceId, idx) {
 
 async function tsShowKeys() {
   var panel = document.getElementById('ts-key-panel');
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
+  if (!panel.hidden) { panel.hidden = true; return; }
+  panel.hidden = false;
   panel.innerHTML = '<div class="loader mx-auto my-2"></div>';
 
   var data = await apiFetch('/api/tailscale/keys');
@@ -422,7 +422,7 @@ async function tsShowKeys() {
 
 function tsShowCreateKey() {
   var panel = document.getElementById('ts-key-panel');
-  panel.style.display = 'block';
+  panel.hidden = false;
   var html = '<div class="card p-4">';
   html += '<div class="subhead mb-3">' + t('ts_create_key','Create auth key') + '</div>';
   html += '<div class="grid grid-cols-2 gap-3">';

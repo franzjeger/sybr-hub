@@ -28,11 +28,19 @@ SCRIPTS = sorted(p for p in STATIC.glob("*.js") if p.name != "guacamole.min.js")
 # (palette, sign-in, report viewer, footer) moved to classes on the token
 # scale and every view took the one tab bar (.tabs / .tab); to 3655 with Oversikt
 # and Varsler; to 2894 with the customer page and Kunder; to 2261 with
-# Administrasjon; to 84 with the Verktøy pages; to 46 with the dialogs. What is
-# left is style="display:none" on elements a script shows by setting
-# style.display and reads back; keep new ones out (use hidden). To 43 when
-# the network setup forms moved onto the customer page, built on hidden.
-INLINE_STYLE_ATTRIBUTE_BUDGET = 43
+# Administrasjon; to 84 with the Verktøy pages; to 46 with the dialogs. What was
+# left was style="display:none" on elements a script showed by setting
+# style.display and read back; to 43 when the network setup forms moved onto
+# the customer page, built on hidden, and to 0 when the rest took the hidden
+# attribute (TODO E28). An element a script shows and hides carries hidden;
+# app.css holds [hidden] { display: none !important; } so no class can
+# override it, which is also why a script must set .hidden, not style.display.
+INLINE_STYLE_ATTRIBUTE_BUDGET = 0
+
+# A style attribute in markup or in markup a script builds: style= followed by
+# a quote (escaped inside a JavaScript string, or not). `var style = ...` and
+# el.style.display are not attributes.
+_STYLE_ATTRIBUTE = re.compile(r"""\bstyle\s*=\s*\\?["']""", re.I)
 
 _REGISTRATION = re.compile(r"^registerUiHandlers\(\{\n(.*?)\n\}\);", re.S | re.M)
 _REGISTERED_NAME = re.compile(r"^  ([A-Za-z0-9_$]+): (?:async )?function\b", re.M)
@@ -44,11 +52,8 @@ _INLINE_HANDLER = re.compile(r"""(?:^|[\s"'\\/])on[a-z]+\s*=\s*\\?["']""", re.I)
 _JAVASCRIPT_URL = re.compile(r"""(?:href|src|action)\s*=\s*\\?["']?\s*javascript:""", re.I)
 
 
-def _count(pattern: str) -> int:
-    return sum(
-        len(re.findall(pattern, path.read_text(encoding="utf-8"), flags=re.IGNORECASE))
-        for path in SOURCES
-    )
+def _count(pattern: re.Pattern[str]) -> int:
+    return sum(len(pattern.findall(path.read_text(encoding="utf-8"))) for path in SOURCES)
 
 
 def _registered() -> dict[str, str]:
@@ -101,25 +106,92 @@ def test_the_inline_handler_pattern_still_finds_them():
 
 
 def test_inline_style_attribute_debt_cannot_grow():
-    count = _count(r"\bstyle\s*=")
+    """Everything is a class on the design tokens in app.css. A colour, a size
+    or a spacing written inline is a value off the scale that the next person
+    copies; a value a script must vary is set through el.style or data-bar
+    (app-ui.js), and an element a script shows and hides carries hidden."""
+    count = _count(_STYLE_ATTRIBUTE)
     assert count <= INLINE_STYLE_ATTRIBUTE_BUDGET, (
         f"inline style debt grew: {count} > {INLINE_STYLE_ATTRIBUTE_BUDGET}"
     )
 
 
-def test_the_only_inline_style_left_is_display_none():
-    """Everything else is a class on the design tokens in app.css. A colour,
-    a size or a spacing written inline is a value off the scale that the next
-    person copies; a value a script must vary is set through el.style or
-    data-bar (app-ui.js), not built into a style attribute."""
+def test_the_style_attribute_pattern_still_finds_them():
+    """A pattern that matches nothing passes for the wrong reason."""
+    for sample in (
+        """<div id="x" style="display:none;">""",
+        """html += '<div id="x" style="display:none;">';""",
+        r"""html += "<div style=\"color:red\">";""",
+        """<span style='margin:0'>""",
+    ):
+        assert _STYLE_ATTRIBUTE.search(sample), sample
+    for sample in (
+        "var style = getComputedStyle(document.documentElement);",
+        "el.style.display = 'none';",
+        "<div hidden>",
+    ):
+        assert not _STYLE_ATTRIBUTE.search(sample), sample
+
+
+# An element written with the hidden attribute, by id, in index.html or in
+# markup a script builds.
+_HIDDEN_BY_ID = re.compile(
+    r"""<[a-zA-Z][^<>]*?\bid=\\?["']([\w-]+)\\?["'][^<>]*?\shidden(?=[\s>/'"\\])"""
+)
+
+
+def _shown_by_display(source: str, element_id: str) -> list[str]:
+    """Where a script sets style.display on the element: directly, or through
+    a variable it was looked up into, before the function ends."""
+    found = []
+    lookup = re.escape(f"getElementById('{element_id}')")
+    for m in re.finditer(lookup + r"\.style\.display\s*=[^=]", source):
+        found.append(source[: m.start()].count("\n") + 1)
+    for m in re.finditer(r"(?:var|const|let)\s+(\w+)\s*=\s*document\." + lookup, source):
+        end = source.find("\n}", m.end())
+        body = source[m.end() : end if end != -1 else len(source)]
+        use = re.search(r"\b" + m.group(1) + r"\.style\.display\s*=[^=]", body)
+        if use:
+            found.append(source[: m.end() + use.start()].count("\n") + 1)
+    return [str(line) for line in found]
+
+
+def test_an_element_marked_hidden_is_shown_through_hidden():
+    """[hidden] { display: none !important; } in app.css wins over any display
+    a script sets, so style.display = 'block' on a hidden element shows
+    nothing. Kjør alle kunder did exactly that: its panel had become hidden
+    and the script still set style.display, so the bulk audit ran unseen."""
+    ids = set()
+    for path in [*STATIC.glob("*.html"), *SCRIPTS]:
+        ids |= set(_HIDDEN_BY_ID.findall(path.read_text(encoding="utf-8")))
+    assert len(ids) > 50
     offenders = []
-    for path in SOURCES:
+    for path in SCRIPTS:
         source = path.read_text(encoding="utf-8")
-        for m in re.finditer(r"""\bstyle\s*=\s*(\\?["'])(.*?)\1""", source, re.S):
-            if m.group(2).replace(" ", "").rstrip(";") != "display:none":
-                line = source[: m.start()].count("\n") + 1
-                offenders.append(f"{path.name}:{line}: {m.group(0)[:100]}")
-    assert not offenders, "inline styles other than display:none:\n" + "\n".join(offenders)
+        for element_id in sorted(ids):
+            for line in _shown_by_display(source, element_id):
+                offenders.append(f"{path.name}:{line}: #{element_id}")
+    assert not offenders, "style.display on an element marked hidden:\n" + "\n".join(offenders)
+
+
+def test_the_hidden_element_pattern_still_finds_them():
+    assert _HIDDEN_BY_ID.findall("""<div id="bulk-audit-panel" hidden></div>""") == [
+        "bulk-audit-panel"
+    ]
+    assert _HIDDEN_BY_ID.findall("""html += '<tr id="row-1" hidden><td>';""") == ["row-1"]
+    assert _HIDDEN_BY_ID.findall("""<div id="x" data-hidden-reason="y">""") == []
+    script = """function show() {
+  var panel = document.getElementById('bulk-audit-panel');
+  panel.style.display = 'block';
+}
+"""
+    assert _shown_by_display(script, "bulk-audit-panel") == ["3"]
+    assert (
+        _shown_by_display(
+            script.replace("style.display = 'block'", "hidden = false"), "bulk-audit-panel"
+        )
+        == []
+    )
 
 
 def test_no_tag_carries_two_class_attributes():

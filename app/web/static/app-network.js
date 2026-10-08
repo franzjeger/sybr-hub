@@ -78,17 +78,17 @@ export async function loadFiles(customerId) {
   const noCustomer = document.getElementById('files-no-customer');
   const content = document.getElementById('files-content');
   if (!customerId) {
-    noCustomer.style.display = 'block';
-    content.style.display = 'none';
+    noCustomer.hidden = false;
+    content.hidden = true;
     return;
   }
   try {
     const d = await apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/files');
     // Another customer's page opened meanwhile: these are not its files.
     if (_custPage.id !== customerId) return;
-    if (!d) { content.style.display = 'none'; return; }
-    noCustomer.style.display = 'none';
-    content.style.display = 'block';
+    if (!d) { content.hidden = true; return; }
+    noCustomer.hidden = true;
+    content.hidden = false;
 
     // Credentials
     const c = d.credentials || {};
@@ -154,8 +154,8 @@ export async function loadFiles(customerId) {
     }
   } catch (e) {
     content.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_files').replace('{msg}', esc(e.message)) + '</div>';
-    content.style.display = 'block';
-    noCustomer.style.display = 'none';
+    content.hidden = false;
+    noCustomer.hidden = true;
   }
 }
 

@@ -80,8 +80,8 @@ function refreshLogoPreview() {
   const noPreview = document.getElementById('logo-no-preview');
   const ts = Date.now();
   const testImg = new Image();
-  testImg.onload = () => { img.src = '/api/settings/logo?t=' + ts; img.style.display = ''; noPreview.style.display = 'none'; };
-  testImg.onerror = () => { img.style.display = 'none'; noPreview.style.display = ''; };
+  testImg.onload = () => { img.src = '/api/settings/logo?t=' + ts; img.hidden = false; noPreview.hidden = true; };
+  testImg.onerror = () => { img.hidden = true; noPreview.hidden = false; };
   testImg.src = '/api/settings/logo?t=' + ts;
 }
 
@@ -475,7 +475,7 @@ export async function backupEncryptionKey() {
     const d = await apiFetch('/api/encryption/key-backup');
     if (!d.ok) { showToast(t('status_error') + ': ' + (d.error || t('err_unknown')), 'error'); return; }
     document.getElementById('encryption-key-value').textContent = d.key;
-    document.getElementById('encryption-key-display').style.display = 'block';
+    document.getElementById('encryption-key-display').hidden = false;
     document.getElementById('encryption-copy-msg').textContent = '';
   } catch (e) { showToast(t('err_could_not_fetch_key', 'Kunne ikke hente nøkkel') + ': ' + e.message, 'error'); }
 }
@@ -489,7 +489,7 @@ export function copyEncryptionKey() {
 }
 
 export function showRestoreKeyInput() {
-  document.getElementById('encryption-restore-input').style.display = 'block';
+  document.getElementById('encryption-restore-input').hidden = false;
   document.getElementById('encryption-restore-msg').textContent = '';
 }
 
@@ -580,7 +580,7 @@ export async function showChangePasswordModal() {
     + '<input id="pw-confirm" type="password" class="field-input mb-3" placeholder="' + t('placeholder_confirm_password','Confirm new password') + '">'
     + '<div id="pw-change-msg" class="text-xs mb-3"></div>'
     + '<div class="flex gap-2 justify-end">'
-    + '<button class="btn btn-ghost" data-click-handler="hideElement" data-target="confirm-modal">' + t('btn_cancel') + '</button>'
+    + '<button class="btn btn-ghost" data-click-handler="closeModal" data-target="confirm-modal">' + t('btn_cancel') + '</button>'
     + '<button class="btn btn-primary" data-click-handler="doChangePassword">' + t('btn_save') + '</button>'
     + '</div>';
   document.getElementById('confirm-modal-title').textContent = '';
@@ -608,7 +608,7 @@ async function doChangePassword() {
 }
 
 // ── User Management ──────────────────────────────────────────────────────────
-export function showAddUserForm() { document.getElementById('add-user-form').style.display = 'block'; }
+export function showAddUserForm() { document.getElementById('add-user-form').hidden = false; }
 
 async function loadUsers() {
   var el = document.getElementById('users-list');
@@ -649,7 +649,7 @@ export async function createUser() {
   if (!u || !passwordMeetsRule(p)) { msg.innerHTML = '<span class="text-danger">' + esc(t(u ? 'err_password_rule' : 'err_fill_all_fields')) + '</span>'; return; }
   var d = await apiFetch('/api/auth/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u, display_name:n||u, password:p, role:r})});
   if (d && d.ok) {
-    document.getElementById('add-user-form').style.display = 'none';
+    document.getElementById('add-user-form').hidden = true;
     document.getElementById('new-user-username').value = '';
     document.getElementById('new-user-displayname').value = '';
     document.getElementById('new-user-password').value = '';
