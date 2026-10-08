@@ -219,6 +219,7 @@ async def record_read_failure(
     Every device stored for this customer and vendor carries the failure, and
     none of them stays "current". With nothing stored yet, one row stands for
     the device that was configured and could not be read, so the gap shows.
+    A FortiGate's failed read goes through record_fortigate_failure instead.
     """
     async with (
         get_db() as db,
@@ -237,6 +238,20 @@ async def record_read_failure(
         )
     else:
         await record(customer_id, vendor, [unread(key=key, name=name, error=error)])
+
+
+async def record_fortigate_failure(customer_id: str, host: str, error: str) -> None:
+    """The customer's FortiGate, at *host*, could not be read.
+
+    A customer has one FortiGate, kept under its address. record_read_failure
+    marks whatever is stored instead, and after the address changed that was
+    the old firewall's row: the failure landed on it, the configured address
+    had no row and showed as never read, and the old address stayed in
+    Varsler. This records the failure under the address that was tried, and a
+    row kept for an earlier address goes, as a read that worked would drop it.
+    """
+    key = host.strip().lower()
+    await record(customer_id, "fortigate", [unread(key=key, name=host.strip(), error=error)])
 
 
 async def forget(customer_id: str, vendor: str) -> None:
@@ -379,9 +394,7 @@ async def record_fortigate_poll(results: list[dict]) -> None:
         if not cid or not host:
             continue
         if fg.get("status") != "online":
-            await record_read_failure(
-                cid, "fortigate", str(fg.get("error") or "unreachable"), key=host, name=host
-            )
+            await record_fortigate_failure(cid, host, str(fg.get("error") or "unreachable"))
             continue
         await record(
             cid,
