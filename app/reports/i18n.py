@@ -2085,6 +2085,36 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Analyse av nødtilgang",
         "en": "Emergency Access Analysis",
     },
+    # The break-glass check per Global Admin (07c's sidecar).
+    "bg_col_account": {"no": "Konto", "en": "Account"},
+    "bg_col_mfa": {"no": "MFA registrert", "en": "MFA registered"},
+    "bg_col_ca_excluded": {"no": "Unntatt fra CA", "en": "Excluded from CA"},
+    "bg_col_last_sign_in": {"no": "Sist pålogget", "en": "Last sign-in"},
+    "bg_col_notes": {"no": "Merknad", "en": "Note"},
+    "bg_unknown": {"no": "Ukjent", "en": "Unknown"},
+    "bg_days_ago": {"no": "for {days} dager siden", "en": "{days} days ago"},
+    "bg_skipped": {
+        "no": "Sjekken ble ikke kjørt: ingen globale administratorer ble gitt til den.",
+        "en": "The check did not run: it was given no Global Administrators.",
+    },
+    "bg_note_no_mfa": {
+        "no": "Ingen MFA registrert: kan være en nødtilgangskonto",
+        "en": "No MFA registered: possibly a break-glass account",
+    },
+    "bg_note_ca_excluded": {
+        "no": "Unntatt fra Conditional Access og ikke brukt nylig: kandidat for nødtilgangskonto",
+        "en": "Excluded from Conditional Access and not used recently: break-glass candidate",
+    },
+    "bg_note_ca_excluded_in_use": {
+        "no": "Unntatt fra Conditional Access, men logget på for {days} dager siden: "
+        "en administrator i daglig bruk som omgår MFA, ikke en nødtilgangskonto",
+        "en": "Excluded from Conditional Access but signed in {days} days ago: "
+        "an admin in daily use bypassing MFA, not a break-glass account",
+    },
+    "bg_note_ca_unknown": {
+        "no": "Conditional Access ble ikke samlet inn, så unntaket kan ikke bekreftes",
+        "en": "Conditional Access was not collected, so the exclusion cannot be confirmed",
+    },
     "pim_assignments_heading": {
         "no": "PIM-tildelinger (Privileged Identity Management)",
         "en": "PIM Assignments (Privileged Identity Management)",

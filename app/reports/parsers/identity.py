@@ -1221,3 +1221,65 @@ def _risky_users_from_sidecar(file_contents: dict[str, str]) -> list[dict] | Non
         }
         for u in sidecar.get("users") or []
     ]
+
+
+# ── The break-glass check ───────────────────────────────────────────────────
+
+# The notes identity_security.py wrote before it stored codes, as a run from
+# then holds them in 07c's sidecar.
+_LEGACY_BREAK_GLASS_NOTES = {
+    "No MFA — potential break-glass": "no_mfa",
+    "Excluded from CA — confirmed break-glass candidate": "ca_excluded",
+    "CA policies not collected — cannot confirm exclusion": "ca_unknown",
+}
+_LEGACY_IN_USE_NOTE = re.compile(
+    r"Excluded from CA but signed in (\d+)d ago — an actively-used admin bypassing MFA, "
+    r"NOT a break-glass account"
+)
+
+
+def _break_glass_note(note: str, days: int | None) -> dict:
+    """{"code", "days", "text"}: a note as the code the report words, or as stored.
+
+    "code" is one of BREAK_GLASS_NOTES, or None for a note the report cannot
+    name, which is then shown as its "text".
+    """
+    from app.modules.m365_audit.sections.identity_security import BREAK_GLASS_NOTES
+
+    if note in BREAK_GLASS_NOTES:
+        return {"code": note, "days": days, "text": note}
+    if note in _LEGACY_BREAK_GLASS_NOTES:
+        return {"code": _LEGACY_BREAK_GLASS_NOTES[note], "days": days, "text": note}
+    m = _LEGACY_IN_USE_NOTE.fullmatch(note)
+    if m:
+        return {"code": "ca_excluded_in_use", "days": int(m.group(1)), "text": note}
+    return {"code": None, "days": days, "text": note}
+
+
+def _emergency_access(file_contents: dict[str, str]) -> dict | None:
+    """The break-glass check per Global Admin, from 07c_emergency_access_check.json.
+
+    {"skipped": bool, "admins": [{"account", "mfa", "ca_excluded",
+    "last_sign_in_days", "notes"}]}, with "mfa" and "ca_excluded" True, False
+    or None where unknown, and each note as _break_glass_note gives it. None
+    for a run without the sidecar: the report then shows the text as it is.
+    """
+    data = _sidecar(file_contents, "07c_emergency_access_check.txt")
+    if data is None:
+        return None
+    admins = []
+    for admin in data.get("admins") or []:
+        if not isinstance(admin, dict):
+            continue
+        days = admin.get("last_sign_in_days")
+        days = days if isinstance(days, int) else None
+        admins.append(
+            {
+                "account": admin.get("upn") or admin.get("display_name") or admin.get("id") or "",
+                "mfa": admin.get("mfa_registered"),
+                "ca_excluded": admin.get("ca_excluded"),
+                "last_sign_in_days": days,
+                "notes": [_break_glass_note(str(n), days) for n in admin.get("notes") or []],
+            }
+        )
+    return {"skipped": bool(data.get("skipped")), "admins": admins}

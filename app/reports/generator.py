@@ -51,6 +51,7 @@ from app.reports.parsers import (
 )
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.email import _spf_dmarc_records
+from app.reports.parsers.identity import _emergency_access
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
 from app.reports.risk import _apply_critical_floor, _compute_risk
@@ -444,6 +445,7 @@ def build_report_context(
         "compliance_policies": fc("11_intune_compliance_policies.txt"),
         "app_registrations": fc("17_app_registrations.txt"),
         "emergency_access": fc("07c_emergency_access_check.txt"),
+        "emergency_check": _emergency_access(file_contents),
         "pim_assignments": fc("07b_pim_eligible_assignments.txt"),
         "teams_info": fc("16_teams.txt"),
         "teams_settings": fc("16b_teams_settings.txt"),

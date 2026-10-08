@@ -762,7 +762,28 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="alert info"><strong>{{ t.no_admin_roles }}</strong></div>
 {% endif %}
 
-{% if emergency_access and emergency_access.strip() %}
+{# The check per Global Admin, from 07c's sidecar: its notes are codes worded
+   here. A run without the sidecar has only the collector's text, shown as it
+   is. The raw-data appendix keeps the file either way. #}
+{% if emergency_check %}
+<h3>{{ t.emergency_access_heading }}</h3>
+{% if emergency_check.skipped %}
+<div class="alert info">{{ t.bg_skipped }}</div>
+{% elif emergency_check.admins %}
+<table>
+  <tr><th>{{ t.bg_col_account }}</th><th>{{ t.bg_col_mfa }}</th><th>{{ t.bg_col_ca_excluded }}</th><th>{{ t.bg_col_last_sign_in }}</th><th>{{ t.bg_col_notes }}</th></tr>
+  {% for a in emergency_check.admins %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:11px;">{{ a.account }}</td>
+    <td>{% if a.mfa is none %}{{ t.bg_unknown }}{% else %}<span class="tag {{ 'ok' if a.mfa else 'fail' }}">{{ t.yes if a.mfa else t.no_word }}</span>{% endif %}</td>
+    <td>{% if a.ca_excluded is none %}{{ t.bg_unknown }}{% else %}{{ t.yes if a.ca_excluded else t.no_word }}{% endif %}</td>
+    <td>{% if a.last_sign_in_days is none %}{{ t.bg_unknown }}{% else %}{{ t('bg_days_ago', days=a.last_sign_in_days) }}{% endif %}</td>
+    <td style="font-size:12px;">{% for n in a.notes %}<div>{% if n.code %}{{ t('bg_note_' ~ n.code, days=n.days) }}{% else %}{{ n.text }}{% endif %}</div>{% endfor %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% elif emergency_access and emergency_access.strip() %}
 <h3>{{ t.emergency_access_heading }}</h3>
 <div class="data-section">
   <div class="data-header"><span>{{ t.emergency_access_analysis }}</span><span class="fn">07c_emergency_access_check.txt</span></div>

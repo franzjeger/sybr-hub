@@ -35,6 +35,17 @@ _FAILURE_GROUP_THRESHOLD = 5
 # available here without an extra auditLogs fetch.
 _BG_ACTIVE_WINDOW_DAYS = 30
 
+# What the break-glass check notes about a Global Admin, as codes the report
+# words (bg_note_<code> in app/reports/i18n.py). They were English sentences,
+# which the technical report printed as they stood.
+#   no_mfa             no MFA method registered: possibly a break-glass account
+#   ca_excluded        excluded from CA and not recently used: a candidate
+#   ca_excluded_in_use excluded from CA but signed in within the window
+#                      (last_sign_in_days says when): an everyday admin
+#                      bypassing MFA, not a break-glass account
+#   ca_unknown         CA policies not collected: the exclusion is unconfirmed
+BREAK_GLASS_NOTES = ("no_mfa", "ca_excluded", "ca_excluded_in_use", "ca_unknown")
+
 
 def _last_sign_in_days_ago(user: dict) -> int | None:
     """Days since the user's last sign-in, or None if it cannot be determined.
@@ -671,17 +682,11 @@ class IdentitySecuritySection(BaseSection):
             ca_str = ("Yes" if ca_excluded else "No") if ca_known else "Unknown"
             notes = []
             if not has_mfa and has_mfa is not None:
-                notes.append("No MFA — potential break-glass")
+                notes.append("no_mfa")
             if ca_excluded:
-                if actively_used:
-                    notes.append(
-                        f"Excluded from CA but signed in {days_ago}d ago — "
-                        "an actively-used admin bypassing MFA, NOT a break-glass account"
-                    )
-                else:
-                    notes.append("Excluded from CA — confirmed break-glass candidate")
+                notes.append("ca_excluded_in_use" if actively_used else "ca_excluded")
             if not ca_known:
-                notes.append("CA policies not collected — cannot confirm exclusion")
+                notes.append("ca_unknown")
             lines.append(f"  {label[:45]:<45} {mfa_str:>15} {ca_str:>12}  {'; '.join(notes)}")
             admins.append(
                 {
