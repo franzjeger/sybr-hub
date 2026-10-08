@@ -22,6 +22,23 @@ service. Restore the preserved checkout and data together if rollback is needed.
 
 ---
 
+# FortiGate fleet first read and card status (October 2026, unreleased)
+
+No migration. API changes for scripts that read these routes:
+
+- **New route `POST /api/fortigate/fleet/first-read`** (network feature,
+  can_write): reads, once, each FortiGate in the caller's scope that has a
+  token and no stored reading, and answers with the stored fleet.
+- **`GET /api/fortigate/fleet`**: `read_at` is now the last read that worked
+  (it was the last attempt when none had); the new `checked_at` is the last
+  attempt.
+- **`GET /api/settings`**: `fortigate_configured` (a hub-wide yes or no) is
+  replaced by `fortigate_fleet` (counts and a state over the caller's own
+  customers). `fortigate_configured` is still accepted on POST from older
+  clients.
+
+---
+
 # Background notifications and Graph read cooldown (October 2026, unreleased)
 
 - Background audit, credential, task-failure and alert-sweep messages follow

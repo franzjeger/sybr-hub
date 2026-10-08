@@ -130,10 +130,12 @@ documentation, fakes or mocks, and says so in its code.
 
 ## D. Product
 
-17. **Customer page KPI tiles do not show the score's gaps.** The reports
+17. [x] **Customer page KPI tiles do not show the score's gaps.** The reports
     list what the score could not measure; `_audit_metrics.json` does not
     store the gaps, so the page cannot. Done when: the metrics carry the
     gap keys and values, and the tiles show the same note.
+    Done by G40: `_audit_metrics.json` stores `risk_coverage`, and the
+    customer page shows it.
 18. **Microsoft 365 data backup**: native Microsoft 365 Backup is unproven
     live (A1), and third-party apps are found by display name only, so a
     renamed app is missed and nothing reads the last successful backup.
@@ -141,14 +143,19 @@ documentation, fakes or mocks, and says so in its code.
     the limit stays documented.
 19. **RMM deep-link** (ROADMAP v0.5.0, not started): an `RMMProvider`
     interface, a Datto RMM driver and per-device "Open WebRemote" buttons.
-20. **Fleet and status cards**: Verktøy › Nettverk shows "Ikke lest ennå"
+20. [x] **Fleet and status cards**: Verktøy › Nettverk shows "Ikke lest ennå"
     on a fresh install until "Oppdater nå" or the daily firmware job; the
     FortiGate integration card's status is yes/no, not a count; the card
-    dot means "last read OK", not "online now".
-21. **Expiry banners**: expired and critical now look almost alike; only
-    the title and dot differ.
-22. **Terminal light palette** is modelled on GitHub's; its contrast is not
-    measured.
+    dot means "last read OK", not "online now". Done (October 2026): a
+    FortiGate with a token and no reading is read once when Nettverk opens;
+    the card counts read, failed and unread firewalls; the dot and footer
+    say "last read", with its time.
+21. [x] **Expiry banners**: expired and critical now look almost alike; only
+    the title and dot differ. Done (October 2026): expired has a solid red
+    edge, a warning icon and a solid badge; every line says its state.
+22. [x] **Terminal light palette** is modelled on GitHub's; its contrast is not
+    measured. Done (October 2026): `tests/test_terminal_palette.py` measures
+    all 16 colours in both themes; all but dark-theme black reach 4.5:1.
 23. **Provisioning and pentest keep a Kunde field** by design (provisioning
     can run for a prospect). Revisit if they move onto the customer page.
 
@@ -162,10 +169,11 @@ documentation, fakes or mocks, and says so in its code.
 25. **Endpoints with no web caller**: `/api/setup/stream`, `/ws/dashboard`,
     `/api/dashboard/interval`, `/api/policy-backup/{id}/live`. Done when:
     removed with an UPGRADING note, or documented as API.
-26. **One import cycle in the frontend**: the shell (`app.js`) and every
+26. [x] **One import cycle in the frontend**: the shell (`app.js`) and every
     feature module import each other. It is safe only because
     `scripts/js-modules.cjs` forbids load-time reads inside the cycle. Done
     when: shared pieces move down a layer and the cycle is broken.
+    Done by G41: `scripts/js-modules.cjs` rejects every import cycle.
 27. **Ten exports exist only for specs** (listed in the ES-modules PR #22);
     drive those specs through the UI where reasonable.
 28. **CSS**: a large utility layer (about 250 classes; 96 tags carry six or
