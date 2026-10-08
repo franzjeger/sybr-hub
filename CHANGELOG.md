@@ -8,6 +8,23 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Tailscale, UniFi-firmware og opprydding
+
+- Kundens Tilgang-fane leser Tailscale én gang per åpning i stedet for to, og
+  husker svaret i ett minutt. En administrator kan gi en kunde sin egen
+  Tailscale-tag der tailnettet ikke bruker `tag:customer-<navn>`.
+- `scripts/refresh_unifi_firmware.py` oppdaterer UniFi-firmwaretabellen fra
+  Ubiquitis feed og daterer den. Å holde 180-dagersvinduet åpent er da én
+  kommando og en kikk på Ubiquitis Legacy-liste.
+- Aktivaoversikten (`/api/dashboard/assets`) viser FortiGate- og
+  UniFi-enheter fra lagrede lesinger. Den sa alltid null enheter, og en
+  feilet lesing meldes nå i stedet for å skjules.
+- Fire endepunkter som ingenting kalte er fjernet: oppsettstrømmen,
+  dashbord-WebSocketen, innstillingen for avlesningsintervall og den rå
+  policyinventaren.
+- Gamle filer fra den fjernede serverside aktive kunden slettes ved
+  oppgradering.
+
 ### Brannmurkort, utløpsvarsler og terminalfarger
 
 - Verktøy › Nettverk leser en ny FortiGate med API-token én gang når siden

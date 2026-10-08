@@ -161,14 +161,20 @@ documentation, fakes or mocks, and says so in its code.
 
 ## E. Maintenance and debt
 
-24. **UniFi firmware table is hand-maintained**; its 180-day window ends
+24. [x] **UniFi firmware table is hand-maintained**; its 180-day window ends
     around 2027-04-02. Done when: a script refreshes it from Ubiquiti's
     public feed (`fw-update.ui.com/api/firmware-latest`), or a scheduled read
     uses the table as fallback. Power devices, SmartPower, LTE, Cloud Keys
     and AirWire are not in it and read unknown.
-25. **Endpoints with no web caller**: `/api/setup/stream`, `/ws/dashboard`,
+    Done (October 2026): `scripts/refresh_unifi_firmware.py` reads the feed
+    for every model code in the table; tested on a fixture, so the feed's
+    real shape still needs one live run.
+25. [x] **Endpoints with no web caller**: `/api/setup/stream`, `/ws/dashboard`,
     `/api/dashboard/interval`, `/api/policy-backup/{id}/live`. Done when:
     removed with an UPGRADING note, or documented as API.
+    Done (October 2026): all four removed. `/api/dashboard/assets` has no
+    web caller either; it was fixed (it never listed network devices) and
+    kept as API.
 26. [x] **One import cycle in the frontend**: the shell (`app.js`) and every
     feature module import each other. It is safe only because
     `scripts/js-modules.cjs` forbids load-time reads inside the cycle. Done
@@ -182,10 +188,13 @@ documentation, fakes or mocks, and says so in its code.
     change each (several read `style.display` back).
 29. **Service worker**: no navigation preload; a proxy 502 during a restart
     shows the proxy's page, not the offline page.
-30. **Tailscale on the Tilgang tab** makes two uncached API calls per open;
+30. [x] **Tailscale on the Tilgang tab** makes two uncached API calls per open;
     the tag slug comes from the customer id with no override.
-31. **Old selection files** from the removed server-side active customer
+    Done (October 2026): one call per open, cached for a minute and
+    cleared on any mapping change; a per-customer tag override (migration 31).
+31. [x] **Old selection files** from the removed server-side active customer
     (`customers/.active/*`, `active.txt`) stay on disk; nothing reads them.
+    Done (October 2026): migration 30 removes exactly those files.
 32. **The xterm styling workaround** depends on xterm 5.5 creating its styles
     through `documentOverride.createElement`
     (`app/web/static/app-infra.js`). `tests/browser/terminal.spec.cjs` will
