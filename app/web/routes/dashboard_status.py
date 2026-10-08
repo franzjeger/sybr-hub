@@ -164,7 +164,6 @@ async def get_customer_status(
             "tenant_id": tenant_id,
         },
         "audit_running": bool(audit_run and audit_run.running),
-        "setup_running": state.setup_running,
     }
 
 
