@@ -296,7 +296,24 @@ very different responses from a technician.
 
 ## Status
 
-Per the README, the audit layer and report generator are battle-tested; the
-write-side clients (Autotask, myITprocess, RMM) are scaffolded but not yet
-wired to routes. Treat the interfaces above as the intended shape rather than
-as something you can point at production today.
+Every integration above is wired to routes. What differs is what has been
+checked against a real system rather than against published documentation,
+fakes and recorded fixtures. "Not recorded" below means this repository holds
+no record of a live check, not that one failed. The open live checks are listed
+in [docs/TODO.md](TODO.md), section A.
+
+| Integration | Wired to routes | Live verification |
+|---|---|---|
+| Microsoft 365 / Azure | Audit and setup (`routes/audit.py`), registration (`routes/customers.py`), renewal (`routes/dashboard_status.py`) and GDAP (`routes/gdap.py`) | October 2026 runs against a live tenant read Intune, Teams, SharePoint, Conditional Access and DNS. Not yet verified: Exchange Online and Purview collection (application consent pending), the Exchange helper's forwarding recipient lookup, and Microsoft 365 Backup, which answered `AppNotRegistered`. The third-party backup scan's publisher and access tiers have only met fakes |
+| FortiGate | Save, test, remove, token, bootstrap, audit, backup and fleet routes (`routes/fortigate.py`) | Not recorded. The SSH provisioning path has run only against a fake device |
+| UniFi | Controller and direct-device routes (`routes/unifi.py`) | Not recorded. The firmware table's model codes are not yet checked against a real controller |
+| VPN | Profile, connect and capability routes (`routes/vpn.py`) | Not recorded |
+| IT Glue | Test, organisations, import, upload and sync routes (`routes/itglue.py`) | Not recorded; stored-key and region handling are tested against fakes |
+| Autotask PSA | Test, companies and company (`routes/autotask.py`); tickets from findings (`POST /api/hub/{id}/tickets`) | **Unverified live**: written against Autotask's published REST reference |
+| myITprocess | Test and accounts (`routes/myitprocess.py`); recommendations from findings (`POST /api/hub/{id}/recommendations`) | **Unverified live**: built from the contract the old stub declared |
+| Datto RMM | Test, sites and devices (`routes/rmm.py`); site binding (`POST /api/hub/{id}/link`) | **Unverified live**: written from Datto's published API page and OpenAPI document |
+| DNS / email security | `POST /api/dns/check`, `/api/dns/check-bulk` (`routes/tls.py`) and the audit's DNS section | Queries live DNS on every check; collected in the October live audit run |
+
+The optional-module integrations not described above (ALSO, Uniweb,
+Tailscale) are wired to their own route modules; no live check of them is
+recorded here either.
