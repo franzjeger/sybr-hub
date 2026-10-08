@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<!-- lang stays hard-coded here, unlike index.html: this page never loads
-     theme-init.js, so nothing would set it at runtime, and its body text is
-     Norwegian only. A missing lang is worse than a correct one. -->
+<!-- Written in Norwegian, the interface's default. offline.js puts it in the
+     signed-in person's language (ui_lang) and sets lang to match; this page
+     never loads theme-init.js or ui_i18n.json, since the hub may not answer. -->
 <html lang="no">
 <head>
 <meta charset="UTF-8">
@@ -15,8 +15,8 @@
   <div class="wrap">
     <div class="card" role="alert">
       <div class="icon" aria-hidden="true"></div>
-      <h1>Du er offline</h1>
-      <p>
+      <h1 id="offline-title">Du er offline</h1>
+      <p id="offline-text">
         Sybr HUB krever kontakt med serveren for å vise live data. Siden vil prøve
         å laste på nytt når nettverket er tilbake.
       </p>

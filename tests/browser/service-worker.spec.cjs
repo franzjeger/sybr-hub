@@ -231,7 +231,10 @@ test('while a proxy answers 502, 503 or 504 the offline page shows, and the app 
       proxy.state.down = status;
       proxy.state.seen.length = 0;
       await page.reload();
-      await expect(page.locator('h1')).toHaveText('Du er offline');
+      // The browser is online; the hub is what does not answer, and the page
+      // says so rather than "Du er offline".
+      await expect(page.locator('h1')).toHaveText('Huben svarer ikke');
+      await expect(page.locator('#offline-text')).toContainText('laster seg selv inn igjen');
       await expect(page.locator('#proxy-error')).toHaveCount(0);
       // The page load did reach the proxy (preloaded), which answered it.
       expect(loadsOf(proxy.state.seen, '/')).toEqual([{path: '/', preload: 'true'}]);
@@ -241,7 +244,13 @@ test('while a proxy answers 502, 503 or 504 the offline page shows, and the app 
       // The API is still never the worker's to answer: it passes the error on.
       expect(await page.evaluate(() => fetch('/api/health').then(r => r.status))).toBe(status);
     }
-    // The hub is back: Prøv igjen (or the page's own health poll) loads the app.
+    // In the language the interface stored (this runs after open()'s 'no').
+    await page.addInitScript(() => localStorage.setItem('ui_lang', 'en'));
+    await page.reload();
+    await expect(page.locator('h1')).toHaveText('The hub is not answering');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('#offline-retry')).toHaveText('Try again');
+    // The hub is back: Try again (or the page's own health poll) loads the app.
     proxy.state.down = 0;
     await page.locator('#offline-retry').click();
     await expect(page.locator('#login-username')).toBeVisible();

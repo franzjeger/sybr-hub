@@ -878,7 +878,8 @@ shell names the asset versions. The browser sends it while the worker starts
 (navigation preload), and the worker answers with that response rather than
 fetching again. When the network fails, or a reverse proxy answers 502, 503 or
 504 while the hub restarts, the worker answers with the offline page it stored
-at install, which reloads into the app once `/api/health` answers. A `/static/`
+at install. It says which of the two it is (`navigator.onLine`), in the
+interface's language, and reloads into the app once `/api/health` answers. A `/static/`
 URL with `?v=` is served cache-first, and only a plain same-origin 200 the
 server marked `immutable` is kept, so an error, a sign-in page or a stale
 version is not. `/api/`, `/audit_data/` and `/guacamole/` never reach its
