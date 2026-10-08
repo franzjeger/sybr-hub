@@ -172,10 +172,18 @@ Workshop direction: leverage existing RMM WebRemote rather than
 building remote control. Start with one provider, add others as
 demand surfaces.
 
-- [ ] `RMMProvider` interface (the early stub was removed unused in 2026-10)
-- [ ] Datto RMM driver (most common in our customer base)
-- [ ] Hub view shows per-device "Open WebRemote" buttons
+- [x] `RMMProvider` interface (`app/integrations/rmm.py`, October 2026)
+- [x] Datto RMM driver (most common in our customer base): read-only, sites
+      and devices, written from Datto's published API page and OpenAPI document
+- [x] The customer's Tilgang tab shows per-device "Open WebRemote" buttons for
+      the devices of the newest audit, only where exactly one Datto device in
+      the customer's site has the same name or MAC address. The link is
+      Datto's own and opens in a new tab behind Datto's sign-in
 - [ ] Optional: Ninja, Atera drivers in subsequent releases
+
+**Unverified against a live Datto tenant.** Run `/api/rmm/test` first and
+compare `sample_fields`; the token grant, the device fields and the Web Remote
+link's host are the things to confirm (docs/TODO.md, section A).
 
 ## v0.6.0 — Workshop carry-overs
 

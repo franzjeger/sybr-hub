@@ -251,11 +251,33 @@ a given username.
 
 ---
 
-## RMM (Datto / Ninja / Atera / …)
+## RMM: Datto RMM deep-link
 
-Not integrated. Sybr HUB deliberately does not implement remote control; the
-plan is deep links into the RMM that already does (ROADMAP, v0.5.0). An
-unused provider interface for this was removed rather than left as a promise.
+**Read only:** the account's sites, one site's devices, a device by MAC
+address. Sybr HUB does not implement remote control; it offers the RMM's own
+Web Remote link for a device, which opens in a new tab behind the RMM's own
+sign-in (ROADMAP, v0.5.0).
+
+`RMMProvider` (`app/integrations/rmm.py`) is the interface a driver
+implements; `DattoRMMClient` (`app/integrations/datto_rmm.py`) is the only
+driver, written from Datto's published API page and OpenAPI document, which its
+docstring cites. Settings: the API URL as Datto shows it on the user page
+(`https://<platform>-api.centrastage.net`; any other host is refused, since the
+key and secret are sent there), the API key and the API secret key, stored with
+the other integration settings and masked on read. `/api/rmm/test` is an
+administrator's and reports the field names a site came back with.
+
+A customer is bound to its Datto site through the link picker on the customer
+page; the site is looked up in Datto before it is stored, and one site belongs
+to one customer. The Tilgang tab lists the Windows, macOS and Linux devices from
+the customer's newest finished audit (Intune and Entra ID) and offers the
+button only when exactly one Datto device in the customer's site has the same
+whole name (letter case aside) or one of the device's Wi-Fi MAC addresses.
+Two candidates, a device found in another site, or one Datto device claimed by
+two hub devices: no button, and the row says why. MAC lookups are capped per
+page view, and a device past the cap reads "not checked".
+
+Not verified against a live Datto tenant; see docs/TODO.md, section A.
 
 ---
 

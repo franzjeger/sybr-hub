@@ -59,7 +59,8 @@ A new install starts with all of them off.
 ## What it does not do
 
 - Replace your RMM, ticketing system or documentation tool. RMM WebRemote stays
-  a deep link into the RMM; there is no RMM integration.
+  a deep link into the RMM: the Hub reads Datto RMM's sites and devices to find
+  a device's own Web Remote link, and opens no session itself.
 - Create tickets, remediate or change anything on its own.
 - Host the application for you.
 
