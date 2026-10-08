@@ -34,7 +34,10 @@ from datetime import date
 # The day every date below was last checked against the sources.
 LAST_UPDATED = "2026-10-04"
 FRESHNESS_DAYS = 180
-SOURCE = "fortios-lifecycle (manuell tabell)"
+# Where a verdict came from, as a code in the "kind:name" form the pentest
+# findings use (app/modules/pentest/finding.py): this hand-kept table. It
+# said so in Norwegian, which reached every English reader of the API.
+SOURCE = "manual-table:fortios-lifecycle"
 
 # Branch -> End of Support. Fortinet's dates as published on its life cycle
 # page; 7.4 and 7.6 carry the March 2026 extension. Checked 2026-10-04 against:
