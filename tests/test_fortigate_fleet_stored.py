@@ -216,3 +216,29 @@ async def test_the_first_read_needs_write_and_the_network_feature(client, monkey
     assert client.post("/api/fortigate/fleet/first-read", headers=read_only).status_code == 403
     assert client.post("/api/fortigate/fleet/first-read", headers=viewer).status_code == 403
     assert asked == []
+
+
+# ── Integrasjoner's FortiGate card (TODO D20) ───────────────────────────────
+
+
+async def test_the_integrations_card_counts_the_callers_fortigates(client):
+    """It was one yes or no for the whole hub, any customer's firewall
+    included. It counts what the caller may see, and how many were read."""
+    await _read_acme()
+    everyone = await login("tech-all", all_customers=True)
+    acme_only = await login("tech-acme", customers=(ACME,))
+
+    body = client.get("/api/settings", headers=everyone).json()
+    assert "fortigate_configured" not in body
+    counts = body["fortigate_fleet"]
+    assert (counts["configured"], counts["read_ok"], counts["unread"], counts["failed"]) == (
+        2,
+        1,
+        1,
+        0,
+    )
+    assert counts["state"] == "configured", "one has never been read"
+    assert counts["last_read"]
+
+    own = client.get("/api/settings", headers=acme_only).json()["fortigate_fleet"]
+    assert (own["configured"], own["read_ok"], own["state"]) == (1, 1, "verified")

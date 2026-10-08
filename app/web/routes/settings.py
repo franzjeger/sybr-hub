@@ -38,17 +38,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _check_fortigate_configured() -> bool:
-    """Check if any customer has a FortiGate host configured."""
-    try:
-        from app.core.customer import CustomerManager
+async def _fortigate_fleet(user: User) -> dict | None:
+    """The FortiGate card's counts, over the caller's own customers.
 
-        for c in CustomerManager.list_customers():
-            if c.get("FortiGateHost"):
-                return True
+    It was one yes or no for the whole hub, any customer's firewall
+    included: "configured" with no word on how many, or whether any had been
+    read. None when the counts could not be made, so the card says the check
+    failed rather than "not configured".
+    """
+    from app.services import firmware_inventory
+
+    try:
+        fleet = await firmware_inventory.fortigate_fleet(await get_accessible_customer_ids(user))
     except Exception as e:
-        logger.debug("Failed to check FortiGate configuration: %s", e)
-    return False
+        logger.warning("FortiGate counts for the integrations page failed: %s", e)
+        return None
+    return firmware_inventory.fortigate_fleet_summary(fleet)
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -102,7 +107,7 @@ async def get_settings(user: User = _auth):
         else "",
         "unifi_site_manager_api_key_set": bool(settings.get("unifi_site_manager_api_key")),
         "unifi_inform_host": settings.get("unifi_inform_host", ""),
-        "fortigate_configured": _check_fortigate_configured(),
+        "fortigate_fleet": await _fortigate_fleet(user),
         "also_username": settings.get("also_username", ""),
         "also_password": "••••••" if settings.get("also_password") else "",
         "also_password_set": bool(settings.get("also_password")),
