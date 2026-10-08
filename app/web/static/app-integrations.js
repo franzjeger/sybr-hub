@@ -1308,6 +1308,9 @@ function _integGateActions(prefix, configured) {
   });
 }
 
+// The card ids where a provider's name is not its prefix.
+var _INTEG_HEALTH_PREFIX = {tailscale: 'ts', datto_rmm: 'drmm'};
+
 // The alert settings sit on the same view, so they are loaded with it. This
 // used to be done by reassigning loadIntegrationStatus at the bottom of the
 // file, which hid from every reader of this function that it did more.
@@ -1357,6 +1360,14 @@ async function _loadIntegrationCards() {
     _countInteg(!!d.myitprocess_api_key_set);
     _setVal('input-myitprocess-key', d.myitprocess_api_key_set ? '••••••' : '');
     _setVal('input-myitprocess-base', d.myitprocess_base_url || '');
+    // Datto RMM status + populate. Key and secret come back masked, so the
+    // *_set booleans say whether one is stored.
+    var drmmSet = !!(d.datto_rmm_api_key_set && d.datto_rmm_api_secret_set && d.datto_rmm_api_url);
+    setStatus('drmm-integ-dot', 'drmm-integ-label', drmmSet);
+    _countInteg(drmmSet);
+    _setVal('input-drmm-url', d.datto_rmm_api_url || '');
+    _setVal('input-drmm-key', d.datto_rmm_api_key_set ? '••••••' : '');
+    _setVal('input-drmm-secret', d.datto_rmm_api_secret_set ? '••••••' : '');
     // Email status + populate
     setStatus('email-integ-dot', 'email-integ-label', !!d.smtp_server); _countInteg(!!d.smtp_server);
     // ALSO status + populate
@@ -1414,7 +1425,7 @@ async function _loadIntegrationCards() {
     // Uniweb status + populate
     setStatus('uniweb-integ-dot', 'uniweb-integ-label', !!d.uniweb_password_set); _countInteg(!!d.uniweb_password_set, 'billing');
     Object.entries(d.integration_health || {}).forEach(function(entry) {
-      var prefix = entry[0] === 'tailscale' ? 'ts' : entry[0];
+      var prefix = _INTEG_HEALTH_PREFIX[entry[0]] || entry[0];
       var health = entry[1];
       var label = health.state === 'off' ? t('status_not_configured') : t('integ_state_' + health.state);
       if (health.checked_at) label += ' · ' + t('integ_last_check') + ': ' + new Date(health.checked_at).toLocaleString();
@@ -1540,6 +1551,47 @@ async function _saveAutotaskSettings() {
   const secret = val('input-autotask-secret');
   if (code && code !== '••••••') body.autotask_integration_code = code;
   if (secret && secret !== '••••••') body.autotask_secret = secret;
+
+  const d = await apiFetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  return !!(d && !d.error);
+}
+
+export async function testDattoRmm() {
+  const out = document.getElementById('drmm-test-result');
+  out.textContent = t('msg_testing', 'Tester…');
+  out.style.color = 'var(--text-muted)';
+
+  // Save first, as the Autotask card does: the test reads the stored
+  // credentials, so testing what is on screen means storing it.
+  const saved = await _saveDattoRmmSettings();
+  if (!saved) { out.textContent = t('msg_save_failed', 'Kunne ikke lagre'); out.style.color = 'var(--red)'; return; }
+
+  const d = await apiFetch('/api/rmm/test', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (d && d.ok) {
+    // The field names are the point: nothing in the driver has met a live
+    // Datto tenant, so what came back is what confirms or corrects it.
+    const fields = (d.sample_fields || []).join(', ');
+    out.textContent = t('status_ok', 'OK') + (fields ? ' · ' + fields : '');
+    out.style.color = 'var(--green)';
+  } else {
+    out.textContent = (d && d.error) || t('msg_failed', 'Feilet');
+    out.style.color = 'var(--red)';
+  }
+}
+
+async function _saveDattoRmmSettings() {
+  const val = function(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = {datto_rmm_api_url: val('input-drmm-url')};
+  // The mask means "unchanged". Sending it back would store the bullets.
+  const key = val('input-drmm-key');
+  const secret = val('input-drmm-secret');
+  if (key && key !== '••••••') body.datto_rmm_api_key = key;
+  if (secret && secret !== '••••••') body.datto_rmm_api_secret = secret;
 
   const d = await apiFetch('/api/settings', {
     method: 'POST', headers: {'Content-Type': 'application/json'},

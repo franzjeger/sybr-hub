@@ -519,6 +519,38 @@
               <p class="readonly-settings-notice alert alert-warning mt-3" role="status" data-i18n="msg_itglue_readonly">Lagreknappen er skjult fordi kontoen din har lesetilgang. En administrator med Skriv-tilgang kan gi deg Skriv under Administrasjon > Brukere. Administratorrollen alene gir ikke skrivetilgang.</p>
             </div>
           </div>
+          <!-- Datto RMM card. Read-only: the sites and their devices, so the
+               customer page can offer Datto's own Web Remote link per device
+               (app/web/routes/rmm.py). -->
+          <div class="card integ-card">
+            <div class="integ-head">
+              <div class="integ-logo integ-logo--datto">DR</div>
+              <div>
+                <div class="integ-name" data-i18n="integ_datto_rmm">Datto RMM</div>
+                <div class="integ-desc" data-i18n="integ_datto_rmm_desc">Fjernstyring med WebRemote fra kundesiden</div>
+              </div>
+            </div>
+            <div class="integ-status" id="drmm-integ-status">
+              <span class="integ-dot" id="drmm-integ-dot"></span>
+              <span class="integ-status__label" id="drmm-integ-label" data-i18n="msg_checking">Sjekker...</span>
+            </div>
+            <div class="integ-actions">
+              <button class="btn btn-primary" data-click-handler="toggleIntegConfig" data-config="drmm-config" data-i18n="btn_configure">Konfigurer</button>
+            </div>
+            <div id="drmm-config" class="integ-config">
+              <label class="field-label" for="input-drmm-url" data-i18n="lbl_drmm_api_url">API-URL</label>
+              <input class="field-input" id="input-drmm-url" type="url" data-i18n-placeholder="ph_drmm_api_url" placeholder="https://concord-api.centrastage.net" autocomplete="off">
+              <label class="field-label" for="input-drmm-key" data-i18n="lbl_drmm_api_key">API-nøkkel</label>
+              <input class="field-input" id="input-drmm-key" type="password" autocomplete="off">
+              <label class="field-label" for="input-drmm-secret" data-i18n="lbl_drmm_api_secret">Hemmelig API-nøkkel</label>
+              <input class="field-input" id="input-drmm-secret" type="password" autocomplete="off">
+              <p class="integ-note" data-i18n="hint_drmm_api">Lag nøklene i Datto RMM under Setup › Users › brukeren › Generate API Keys. API-URL-en står på samme side. Hub-en leser bare områder og enheter.</p>
+              <div class="integ-testrow">
+                <button data-write class="btn btn-default btn-sm" data-click-handler="testDattoRmm" data-i18n="btn_test_connection">Test tilkobling</button>
+                <span class="integ-testresult" id="drmm-test-result"></span>
+              </div>
+            </div>
+          </div>
           <!-- E-post card -->
           <div class="card integ-card">
             <div class="integ-head">

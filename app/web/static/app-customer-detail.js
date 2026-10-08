@@ -510,8 +510,11 @@ function _custLoadNetwork(customerId) {
 
 function _custLoadAccess(customerId) {
   var body = document.getElementById('cust-access-body');
-  body.innerHTML = '<div id="customer-infra-panel"></div>'
+  // The RMM card first: where the RMM is set up, its Web Remote is the way in.
+  body.innerHTML = '<div id="customer-rmm-panel" class="card cust-rmm" hidden></div>'
+    + '<div id="customer-infra-panel"></div>'
     + (hasModule('tailscale') && canOpenView('tailscale') ? '<div id="customer-tailscale-panel" class="card cust-ts"></div>' : '');
+  _loadCustomerRmm(customerId);
   _loadCustomerInfraCard(customerId);
   if (document.getElementById('customer-tailscale-panel')) _loadCustomerTailscale(customerId);
 }
@@ -597,7 +600,7 @@ async function _loadCustomerLinks(customerId, customerName) {
   if (!d || document.getElementById('cust-links') !== el) return;
   var canLink = hasFeature('integrations') && canWrite();
   var chips = [];
-  [['autotask', 'Autotask'], ['myitprocess', 'myITprocess'], ['itglue', 'IT Glue']].forEach(function(pair) {
+  [['autotask', 'Autotask'], ['myitprocess', 'myITprocess'], ['itglue', 'IT Glue'], ['rmm', 'Datto RMM']].forEach(function(pair) {
     var sys = pair[0], label = pair[1], b = d[sys] || {};
     if (!b.status || b.status === 'not_configured') return;
     if (b.status === 'not_linked') {
@@ -610,7 +613,7 @@ async function _loadCustomerLinks(customerId, customerName) {
       chips.push('<span class="link-chip is-warning" title="' + esc(b.reason || '') + '">' + esc(label + ': ' + t('lbl_unavailable', 'utilgjengelig')) + '</span>');
       return;
     }
-    var name = b.account_name || b.account_id || b.organization_id || '';
+    var name = b.account_name || b.account_id || b.organization_id || b.site_name || b.site_uid || '';
     var text = esc(label) + ' <span class="link-chip-name">' + esc(String(name)) + '</span>';
     if (sys === 'itglue' && b.documents_url) {
       chips.push('<a class="link-chip" href="' + esc(b.documents_url) + '" target="_blank" rel="noopener noreferrer">' + text + '</a>'
@@ -630,6 +633,7 @@ async function _loadCustomerLinks(customerId, customerName) {
       mountCustomerFindings(document.getElementById('cust-findings'), customerId, {
         onLinked: function() { _loadCustomerLinks(customerId, customerName); },
       });
+      if (document.getElementById('customer-rmm-panel')) _loadCustomerRmm(customerId);
     });
   };
 }
@@ -2128,6 +2132,97 @@ async function alsoToggleSubDetail(rowEl, subId) {
   cell.innerHTML = html;
 }
 
+// ── Tilgang: Web Remote through the customer's RMM ──────────────────────────
+// The devices are the ones the newest audit found (Intune and Entra ID); the
+// server matches each against the customer's Datto RMM site and sends Datto's
+// own Web Remote link only for an exact match on the whole name or a MAC
+// address (app/integrations/rmm.py). The link opens in a new tab, where Datto
+// asks for its own sign-in; nothing of the Hub's goes with it.
+function _rmmMatchLabel(match) {
+  if (match === 'ambiguous') return t('lbl_rmm_ambiguous', 'Flere treff');
+  if (match === 'not_checked') return t('lbl_rmm_not_checked', 'Ikke sjekket');
+  return t('lbl_rmm_not_found', 'Ikke funnet');
+}
+
+function _rmmDeviceCell(dev) {
+  return '<td><span class="cust-device-name">' + esc(dev.name) + '</span> <span class="cust-device-os">' + esc(dev.os || '') + '</span></td>';
+}
+
+function _rmmMatchedRow(dev) {
+  var state = dev.online === true
+    ? '<span class="cust-device-state is-online">' + esc(t('lbl_ts_online', 'Pålogget')) + '</span>'
+    : '<span class="cust-device-state">' + esc(dev.online === false ? t('lbl_ts_offline', 'Frakoblet') : t('lbl_rmm_status_unknown', 'Ukjent status')) + '</span>';
+  var by = dev.matched_by === 'mac' ? ' <span class="cust-device-os">' + esc(t('lbl_rmm_by_mac', 'på MAC-adresse')) + '</span>' : '';
+  return '<tr>' + _rmmDeviceCell(dev)
+    + '<td>' + state + by + '</td>'
+    + '<td class="cust-device-act"><a class="btn btn-default btn-sm" href="' + esc(dev.web_remote_url) + '" target="_blank" rel="noopener noreferrer"'
+    + ' aria-label="' + esc(t('btn_open_webremote_for', 'Åpne WebRemote for {device}').replace('{device}', dev.name)) + '">'
+    + esc(t('btn_open_webremote', 'Åpne WebRemote')) + '</a></td>'
+    + '</tr>';
+}
+
+function _rmmUnmatchedRow(dev) {
+  var text = _rmmMatchLabel(dev.match);
+  if (dev.match === 'ambiguous' && dev.candidates) text += ' (' + Number(dev.candidates) + ')';
+  return '<tr>' + _rmmDeviceCell(dev) + '<td><span class="cust-device-state">' + esc(text) + '</span></td><td></td></tr>';
+}
+
+async function _loadCustomerRmm(customerId) {
+  var el = document.getElementById('customer-rmm-panel');
+  if (!el) return;
+  var d = await apiFetch('/api/rmm/devices/' + encodeURIComponent(customerId)).catch(function() { return null; });
+  if (!el.isConnected || _custPage.id !== customerId) return;
+  // Not set up is the Integrations page's business, not this customer's.
+  if (d && d.status === 'not_configured') { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  var site = (d && d.site && (d.site.name || d.site.uid)) || '';
+  var html = '<div class="cust-card-head"><div class="card-title">' + esc(t('hdr_rmm_remote', 'Fjernstyring')) + ' · Datto RMM</div>'
+    + (site ? '<span class="cust-card-status">' + esc(t('lbl_rmm_site', 'Område: {site}').replace('{site}', site)) + '</span>' : '')
+    + '</div>';
+  var say = function(text) { return '<p class="cust-card-text">' + esc(text) + '</p>'; };
+  if (!d) {
+    el.innerHTML = html + say(t('err_rmm_devices_unread', 'Enhetene kunne ikke hentes.'));
+    return;
+  }
+  if (d.status === 'not_linked') {
+    var canLink = hasFeature('integrations') && canWrite();
+    el.innerHTML = html + say(t('msg_rmm_not_linked', 'Kunden er ikke koblet til et område i Datto RMM.'))
+      + (canLink ? '<div class="btn-row"><button class="btn btn-default btn-sm" data-rmm-link>' + esc(t('btn_link_system', 'Koble til {system}').replace('{system}', 'Datto RMM')) + '</button></div>' : '');
+    var linkBtn = el.querySelector('[data-rmm-link]');
+    if (linkBtn) linkBtn.addEventListener('click', function() {
+      openLinkPicker(customerId, (_custPage.cust || {}).customer_name || '', 'rmm', function() {
+        _loadCustomerRmm(customerId);
+        _loadCustomerLinks(customerId, (_custPage.cust || {}).customer_name || '');
+      });
+    });
+    return;
+  }
+  if (d.status === 'no_run') { el.innerHTML = html + say(t('msg_rmm_no_run', 'Enhetslisten kommer fra siste audit. Kjør en audit for å se kundens enheter her.')); return; }
+  if (d.status === 'no_devices') { el.innerHTML = html + say(t('msg_rmm_no_device_list', 'Siste audit har ingen enhetsliste fra Intune eller Entra ID.')); return; }
+  if (d.status === 'unavailable') { el.innerHTML = html + say(t(d.reason_key, d.reason || '')); return; }
+
+  var devices = d.devices || [];
+  if (!devices.length) { el.innerHTML = html + say(t('msg_rmm_no_devices', 'Siste audit fant ingen Windows-, macOS- eller Linux-enheter.')); return; }
+  var matched = devices.filter(function(dev) { return !!dev.web_remote_url; });
+  var rest = devices.filter(function(dev) { return !dev.web_remote_url; });
+  html += '<p class="cust-card-text">' + esc(t('msg_rmm_summary', '{matched} av {total} enheter fra auditen {run} har et eksakt treff i Datto RMM.')
+    .replace('{matched}', String(matched.length)).replace('{total}', String(devices.length)).replace('{run}', formatRunName(d.audit_date || ''))) + '</p>';
+  var head = '<thead><tr><th>' + esc(t('lbl_rmm_device', 'Enhet')) + '</th><th>' + esc(t('lbl_rmm_in_datto', 'I Datto RMM')) + '</th><th></th></tr></thead>';
+  if (matched.length) {
+    html += '<table class="cust-device-table">' + head + '<tbody>' + matched.map(_rmmMatchedRow).join('') + '</tbody></table>';
+  }
+  if (rest.length) {
+    // Below the matched table its header already names the columns.
+    var restTable = '<table class="cust-device-table">' + (matched.length ? '' : head) + '<tbody>' + rest.map(_rmmUnmatchedRow).join('') + '</tbody></table>';
+    // With nothing to open, the rows are the answer; otherwise they fold away.
+    html += matched.length
+      ? '<details class="cust-rmm-rest"><summary>' + esc(t('btn_rmm_show_unmatched', 'Vis {n} enheter uten treff').replace('{n}', String(rest.length))) + '</summary>' + restTable + '</details>'
+      : restTable;
+  }
+  html += '<p class="cust-card-text cust-device-hint">' + esc(t('msg_rmm_rule', 'Knappen vises bare når hele enhetsnavnet eller en MAC-adresse treffer nøyaktig én enhet i kundens område. Datto RMM ber om sin egen innlogging; Hub-en sender ingen nøkler.')) + '</p>';
+  el.innerHTML = html;
+}
+
 // ── Tilgang: this customer's Tailscale nodes ────────────────────────────────
 // A node belongs to a customer when a technician assigned it here, or when it
 // carries the customer's tag in the tailnet (tag:customer-<slug>, or one an
@@ -2159,7 +2254,7 @@ async function _loadCustomerTailscale(customerId) {
   if (!nodes.length) {
     html += '<p class="cust-card-text">' + esc(t('msg_tailscale_no_nodes', 'Ingen Tailscale-noder er knyttet til kunden.')) + '</p>';
   } else {
-    html += '<table class="cust-ts-table"><thead><tr>'
+    html += '<table class="cust-device-table"><thead><tr>'
       + '<th>' + esc(t('lbl_host_name', 'Navn')) + '</th>'
       + '<th>' + esc(t('lbl_status', 'Status')) + '</th>'
       + '<th>' + esc(t('lbl_connect_to', 'Koble til')) + '</th>'
@@ -2167,8 +2262,8 @@ async function _loadCustomerTailscale(customerId) {
       + '<th></th></tr></thead><tbody>';
     nodes.forEach(function(n) {
       var status = n.online
-        ? '<span class="cust-ts-state is-online">' + esc(t('lbl_ts_online', 'Pålogget')) + '</span>'
-        : '<span class="cust-ts-state">' + esc(t('lbl_ts_offline', 'Frakoblet')) + (n.last_seen_ago ? ' · ' + esc(n.last_seen_ago) : '') + '</span>';
+        ? '<span class="cust-device-state is-online">' + esc(t('lbl_ts_online', 'Pålogget')) + '</span>'
+        : '<span class="cust-device-state">' + esc(t('lbl_ts_offline', 'Frakoblet')) + (n.last_seen_ago ? ' · ' + esc(n.last_seen_ago) : '') + '</span>';
       var connect = '';
       [n.ip, n.dns_name].forEach(function(v) {
         if (v) connect += '<button class="cust-ts-addr" data-click-handler="custTsCopy" data-value="' + esc(v) + '" title="' + esc(t('tip_click_to_copy', 'Klikk for å kopiere')) + '">' + esc(v) + '</button>';
@@ -2178,7 +2273,7 @@ async function _loadCustomerTailscale(customerId) {
         ? '<button class="btn btn-ghost btn-sm" data-write data-click-handler="custTsUnassign" data-customer-id="' + esc(customerId) + '" data-device-id="' + esc(n.id) + '">' + esc(t('btn_remove_link', 'Fjern')) + '</button>'
         : '';
       html += '<tr>'
-        + '<td><span class="cust-ts-name">' + esc(n.name || n.hostname || '') + '</span> <span class="cust-ts-os">' + esc(n.os || '') + '</span></td>'
+        + '<td><span class="cust-device-name">' + esc(n.name || n.hostname || '') + '</span> <span class="cust-device-os">' + esc(n.os || '') + '</span></td>'
         + '<td>' + status + '</td>'
         + '<td><div class="cust-ts-connect">' + (connect || '-') + '</div></td>'
         + '<td>' + esc(source) + '</td>'
@@ -2187,7 +2282,7 @@ async function _loadCustomerTailscale(customerId) {
     });
     html += '</tbody></table>';
   }
-  html += '<p class="cust-card-text cust-ts-hint">' + esc(t('msg_tailscale_tag_hint', 'Noder med taggen {tag} i Tailscale knyttes hit av seg selv.').replace('{tag}', d.tag || '')) + '</p>';
+  html += '<p class="cust-card-text cust-device-hint">' + esc(t('msg_tailscale_tag_hint', 'Noder med taggen {tag} i Tailscale knyttes hit av seg selv.').replace('{tag}', d.tag || '')) + '</p>';
   html += '<div class="cust-ts-assign" data-write>'
     + '<select class="field-input" id="cust-ts-device" aria-label="' + esc(t('lbl_tailscale_assign', 'Knytt en node til kunden')) + '"><option value="">' + esc(t('lbl_tailscale_assign', 'Knytt en node til kunden')) + '</option></select>'
     + '<button class="btn btn-default btn-sm" data-click-handler="custTsAssign" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_link_node', 'Knytt til')) + '</button>'

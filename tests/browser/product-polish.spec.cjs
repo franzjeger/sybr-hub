@@ -224,7 +224,8 @@ test.describe('signed in as an administrator', () => {
       return status ? status.id.replace(/-integ-status$/, '') : null;
     }));
     expect(order.slice(0, 4)).toEqual(['gdap', 'autotask', 'myitprocess', 'itglue']);
-    expect(order).toEqual(['gdap', 'autotask', 'myitprocess', 'itglue', 'email', 'webhook',
+    // Datto RMM follows them: the per-device Web Remote on the customer page.
+    expect(order).toEqual(['gdap', 'autotask', 'myitprocess', 'itglue', 'drmm', 'email', 'webhook',
       'fg', 'unifi-sm', 'ts', 'also', 'uniweb', 'claude']);
   });
 

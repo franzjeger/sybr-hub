@@ -30,7 +30,7 @@ import {
   openOverviewTab, switchBillingTab,
 } from './app-dashboard.js';
 import {tsSaveConfig, tsTestConnection} from './app-tailscale.js';
-import {alertRunCheckNow, alertSaveConfig, alertToggleMaster, alsoSaveConfig, alsoSyncCustomers, alsoTestConnection, gdapDiscoverCustomers, gdapImportSelected, gdapSaveConfig, gdapTestConnection, itglueSyncAllDocumentation, saveEmailSettings, saveITGlueSettings, saveWebhookSettings, taskSchedRefresh, testAutotask, testMyITProcess, uniwebSaveConfig, uniwebSync} from './app-integrations.js';
+import {alertRunCheckNow, alertSaveConfig, alertToggleMaster, alsoSaveConfig, alsoSyncCustomers, alsoTestConnection, gdapDiscoverCustomers, gdapImportSelected, gdapSaveConfig, gdapTestConnection, itglueSyncAllDocumentation, saveEmailSettings, saveITGlueSettings, saveWebhookSettings, taskSchedRefresh, testAutotask, testDattoRmm, testMyITProcess, uniwebSaveConfig, uniwebSync} from './app-integrations.js';
 import {startSetup} from './app-setup.js';
 import {closeReportViewer, deleteSelectedRuns, runComparison} from './app-audit.js';
 import {
@@ -192,6 +192,7 @@ registerUiHandlers({
   termDisconnect: function() { termDisconnect(); },
   testAutotask: function() { testAutotask(); },
   testMyITProcess: function() { testMyITProcess(); },
+  testDattoRmm: function() { testDattoRmm(); },
   testEmail: function() { testEmail(); },
   testITGlue: function() { testITGlue(); },
   testWebhook: function() { testWebhook(); },
