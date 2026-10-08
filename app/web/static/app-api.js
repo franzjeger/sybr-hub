@@ -78,7 +78,7 @@ export async function apiFetch(url, options, _retryCount, _authRetried) {
   delete requestOptions.retry;
   try {
     var r = await fetch(url, requestOptions);
-    if ((options.method || 'GET').toUpperCase() === 'POST' && (/^\/api\/(itglue|autotask|myitprocess|also|tailscale|email)\/test$/.test(url) || url === '/api/settings' || url === '/api/gdap/setup')) setTimeout(connectionChecked, 0);
+    if ((options.method || 'GET').toUpperCase() === 'POST' && (/^\/api\/(itglue|autotask|myitprocess|rmm|also|tailscale|email)\/test$/.test(url) || url === '/api/settings' || url === '/api/gdap/setup')) setTimeout(connectionChecked, 0);
     if (r.ok) {
       var ct = (r.headers.get('content-type') || '');
       if (ct.indexOf('application/json') !== -1) {

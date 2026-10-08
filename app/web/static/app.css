@@ -2102,15 +2102,32 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   .cust-net-table .cust-net-act { grid-area: act; text-align: left; white-space: normal; }
 }
 
+/* Tilgang: a customer's devices, as the RMM and Tailscale cards list them. */
+.cust-device-table { width: 100%; font-size: var(--font-xs); border-collapse: collapse; margin-bottom: var(--space-3); }
+.cust-device-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); }
+.cust-device-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cust-device-name { font-weight: 600; }
+.cust-device-os { color: var(--text-dim); }
+.cust-device-state { color: var(--text-dim); }
+.cust-device-state.is-online { color: var(--green); }
+.cust-device-act { text-align: right; white-space: nowrap; }
+.cust-device-hint { font-size: var(--font-xs); }
+@media (max-width: 767px) {
+  .cust-device-table thead { display: none; }
+  .cust-device-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .cust-device-table td { border-bottom: 0; padding: 2px 8px 2px 0; }
+  .cust-device-table td.cust-device-act { grid-column: 1 / -1; text-align: left; padding-top: 6px; }
+  .cust-device-table td:empty { display: none; }
+}
+/* Tilgang: Web Remote through the customer's RMM. The matched and the folded
+   table share their first column, so the two read as one list. */
+.cust-rmm { margin-top: var(--space-4); }
+.cust-rmm .cust-device-table td:first-child,
+.cust-rmm .cust-device-table th:first-child { width: 45%; }
+.cust-rmm-rest { margin-bottom: var(--space-3); }
+.cust-rmm-rest > summary { cursor: pointer; font-size: var(--font-xs); color: var(--text-muted); margin-bottom: var(--space-2); }
 /* Tilgang: the customer's Tailscale nodes. */
 .cust-ts { margin-top: var(--space-4); }
-.cust-ts-table { width: 100%; font-size: var(--font-xs); border-collapse: collapse; margin-bottom: var(--space-3); }
-.cust-ts-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); }
-.cust-ts-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
-.cust-ts-name { font-weight: 600; }
-.cust-ts-os { color: var(--text-dim); }
-.cust-ts-state { color: var(--text-dim); }
-.cust-ts-state.is-online { color: var(--green); }
 .cust-ts-connect { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
 .cust-ts-addr { font-family: var(--mono); font-size: var(--font-xs); color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px; cursor: copy; }
 .cust-ts-addr:hover { border-color: var(--blue); }
@@ -2358,6 +2375,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
   letter-spacing: 0.5px;
 }
 .integ-subhead + .field-label { margin-top: 6px; }
+.integ-config .integ-note { margin-top: 10px; font-size: var(--font-xs); }
 .integ-testrow { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 .integ-testresult { font-size: var(--font-xs); color: var(--text-muted); }
 
@@ -2385,6 +2403,7 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .integ-logo--also { background: linear-gradient(135deg, #00a651, #00cc66); font-size: var(--font-base); }
 .integ-logo--uniweb { background: linear-gradient(135deg, #2b5797, #4a8bc2); font-size: var(--font-base); }
 .integ-logo--ai { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.integ-logo--datto { background: linear-gradient(135deg, #0e6fa8, #199ed9); }
 .integ-name { font-weight: 600; font-size: var(--font-base); }
 .integ-desc { font-size: var(--font-xs); color: var(--text-muted); }
 

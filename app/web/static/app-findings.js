@@ -58,6 +58,7 @@ var _LINK_SYSTEMS = {
   autotask: {label: 'Autotask', field: 'autotask_account_id'},
   myitprocess: {label: 'myITprocess', field: 'myitprocess_account_id'},
   itglue: {label: 'IT Glue', field: 'itglue_org_id'},
+  rmm: {label: 'Datto RMM', field: 'datto_rmm_site_uid'},
 };
 
 function _findingsCanAct() {
@@ -410,6 +411,10 @@ async function _fetchLinkCandidates(system, query) {
   if (system === 'myitprocess') {
     d = await apiFetch('/api/myitprocess/accounts');
     return d ? d.accounts || [] : null;
+  }
+  if (system === 'rmm') {
+    d = await apiFetch('/api/rmm/sites');
+    return d ? d.sites || [] : null;
   }
   d = await apiFetch('/api/itglue/organizations', {method: 'POST'});
   return d ? d.organizations || [] : null;
