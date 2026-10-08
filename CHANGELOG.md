@@ -8,6 +8,23 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Brannmurkort, utløpsvarsler og terminalfarger
+
+- Verktøy › Nettverk leser en ny FortiGate med API-token én gang når siden
+  åpnes, i stedet for å vise «Ikke lest ennå» til noen trykker Oppdater nå
+  eller nattens firmware-sjekk kjører. En lesing som feilet teller, så neste
+  besøk leser ingenting. Kortene sier «Siste lesing OK» eller «Siste lesing
+  feilet» med tidspunkt; prikken viser siste lesing, ikke om brannmuren
+  svarer nå.
+- FortiGate-kortet under Integrasjoner teller brannmurene du har tilgang til,
+  og hvor mange som er lest, feilet eller ikke lest ennå.
+- En feilet lesing etter at FortiGate-adressen er endret lagres på den nye
+  adressen; den gamle forsvinner fra Varsler.
+- Utløpt legitimasjon skiller seg tydelig fra kritisk: rød kant,
+  varseltrekant og hel rød merkelapp. Hver linje sier tilstanden i ord.
+- Terminalens farger er målt mot bakgrunnen i begge temaer, og alle
+  forgrunnsfarger unntatt svart på mørk bakgrunn holder minst 4,5:1.
+
 ### Oktober: sikkerhet, målinger og tilgjengelighet
 
 - Kundelisten og planleggerinnstillingene sender ikke lenger passord eller
