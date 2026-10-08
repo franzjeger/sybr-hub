@@ -48,6 +48,15 @@ registerUiHandlers({
 // ── Expiry banner ─────────────────────────────────────────────────────────────
 let _expiryData = null;
 
+// Expired, critical and warning each look their own (app.css, Expiry alerts):
+// an expired credential has stopped working, so its banner has a solid edge,
+// a warning sign rather than a clock, and a solid badge on its line. They
+// were one red tint with a red dot, told apart only by the title's words.
+function _expiryBadge(category) {
+  const label = category === 'expired' ? t('expiry_badge_expired','Expired') : category === 'critical' ? t('expiry_badge_critical','Critical') : t('expiry_badge_warning','Expiring soon');
+  return '<span class="cust-expiry-badge ' + esc(category) + '">' + esc(label) + '</span>';
+}
+
 export function renderExpiryBanner(d) {
   const area = document.getElementById('expiry-banner-area');
   if (!area) return;
@@ -60,18 +69,17 @@ export function renderExpiryBanner(d) {
   const itemsHtml = urgent.map(i => {
     const typeLabel = i.type === 'secret' ? t('expiry_type_secret','Client secret') : t('expiry_type_cert','Certificate');
     const daysText = i.days_remaining < 0 ? t('expiry_days_ago','expired {days} days ago').replace('{days}', Math.abs(i.days_remaining)) : t('expiry_days_remaining','{days} days remaining').replace('{days}', Number(i.days_remaining));
-    return '<div class="expiry-item"><span class="expiry-dot ' + esc(i.category) + '"></span><strong>' + esc(i.customer_name) + '</strong> · ' + typeLabel + ' (' + esc(i.expiry_date) + ', ' + daysText + ')</div>';
+    return '<div class="expiry-item">' + _expiryBadge(i.category) + '<span><strong>' + esc(i.customer_name) + '</strong> · ' + esc(typeLabel) + ' (' + esc(i.expiry_date) + ', ' + esc(daysText) + ')</span></div>';
   }).join('');
-  area.innerHTML = '<div class="expiry-banner ' + cls + '"><div class="expiry-banner-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ' + titleText + '</div>' + itemsHtml + '</div>';
+  area.innerHTML = '<div class="expiry-banner ' + cls + '"><div class="expiry-banner-title">' + icon(hasExpired ? 'warning' : 'clock', 14) + ' ' + esc(titleText) + '</div>' + itemsHtml + '</div>';
 }
 
 function getExpiryBadgeForCustomer(customerId) {
   if (!_expiryData || !_expiryData.items) return '';
   const items = _expiryData.items.filter(i => i.customer_id === customerId && (i.category === 'expired' || i.category === 'critical' || i.category === 'warning'));
   if (items.length === 0) return '';
-  const worst = items[0].category;
-  const label = worst === 'expired' ? t('expiry_badge_expired','Expired') : worst === 'critical' ? t('expiry_badge_critical','Critical') : t('expiry_badge_warning','Expiring soon');
-  return '<span class="cust-expiry-badge ' + esc(worst) + '">' + label + '</span>';
+  // The server sorts the worst first.
+  return _expiryBadge(items[0].category);
 }
 
 let _itglueOrgCache = null;
