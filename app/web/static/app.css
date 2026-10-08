@@ -1044,14 +1044,19 @@
   .alert-info { background: var(--color-info-bg); border: 1px solid var(--color-info-border); color: var(--text); }
   .alert-success { background: var(--color-success-bg); border: 1px solid var(--color-success-border); color: var(--green-deep); }
 
-  /* ── Expiry alerts ── */
+  /* ── Expiry alerts ──
+     Each state a step heavier than the one before: expiring within 30 days
+     (an orange tint), within 7 (a red tint), expired (a red tint with a
+     solid red edge, and a solid badge). Expired and critical were the same
+     red tint, the same red title and the same red dot; only the words told
+     a credential that had stopped working from one about to. */
   .expiry-banner {
     border-radius: var(--radius-lg);
     padding: 14px 18px;
     margin-bottom: 16px;
     border: 1px solid;
   }
-  .expiry-banner.has-expired { background: var(--color-danger-bg); border-color: var(--color-danger-border); }
+  .expiry-banner.has-expired { background: var(--color-danger-bg); border-color: var(--red); border-left-width: 4px; }
   .expiry-banner.has-critical { background: color-mix(in srgb, var(--red) 8%, transparent); border-color: color-mix(in srgb, var(--red) 24%, transparent); }
   .expiry-banner.has-warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); }
   .expiry-banner-title {
@@ -1062,27 +1067,23 @@
     align-items: center;
     gap: 8px;
   }
-  .expiry-banner.has-expired .expiry-banner-title { color: var(--red); }
-  .expiry-banner.has-critical .expiry-banner-title { color: var(--red); }
-  .expiry-banner.has-warning .expiry-banner-title { color: var(--orange); }
+  /* The -deep shades: the base red and orange are under 4.5:1 on a tint. */
+  .expiry-banner.has-expired .expiry-banner-title,
+  .expiry-banner.has-critical .expiry-banner-title { color: var(--red-deep); }
+  .expiry-banner.has-warning .expiry-banner-title { color: var(--orange-deep); }
   .expiry-item {
     font-size: var(--font-sm);
     color: var(--text-muted);
     padding: 3px 0;
     display: flex;
-    align-items: center;
-    gap: 6px;
+    align-items: baseline;
+    gap: 8px;
   }
-  .expiry-item .expiry-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    flex-shrink: 0;
-  }
-  .expiry-dot.expired  { background: var(--red); }
-  .expiry-dot.critical { background: var(--red); }
-  .expiry-dot.warning  { background: var(--orange); }
 
+  /* One badge per state, on a Kunder card and on each line of the banner.
+     The tints are mixed into the card colour, not into transparent: on a
+     banner's own tint a see-through one doubled up, and the critical
+     badge's text fell to 4.1:1 on the light theme. */
   .cust-expiry-badge {
     display: inline-flex;
     align-items: center;
@@ -1091,10 +1092,12 @@
     padding: 2px 8px;
     border-radius: var(--radius-xl);
     font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
-  .cust-expiry-badge.expired  { background: var(--color-danger-bg); border: 1px solid var(--color-danger-border); color: var(--red-deep); }
-  .cust-expiry-badge.critical { background: color-mix(in srgb, var(--red) 8%, transparent); border: 1px solid color-mix(in srgb, var(--red) 24%, transparent); color: var(--red-deep); }
-  .cust-expiry-badge.warning  { background: var(--color-warning-bg); border: 1px solid var(--color-warning-border); color: var(--orange-deep); }
+  .cust-expiry-badge.expired  { background: var(--red-btn); border: 1px solid var(--red-btn); color: var(--on-accent); }
+  .cust-expiry-badge.critical { background: color-mix(in srgb, var(--red) 8%, var(--bg-card)); border: 1px solid color-mix(in srgb, var(--red) 24%, transparent); color: var(--red-deep); }
+  .cust-expiry-badge.warning  { background: color-mix(in srgb, var(--orange) 12%, var(--bg-card)); border: 1px solid var(--color-warning-border); color: var(--orange-deep); }
 
   /* ── Modal ── */
   .modal-backdrop {
