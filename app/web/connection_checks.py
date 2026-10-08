@@ -28,6 +28,23 @@ def connection_settings() -> dict[str, Any]:
     return snapshot if snapshot is not None else config.load_app_settings()
 
 
+def _datto_rmm_sent(sent: dict[str, Any]) -> dict[str, Any]:
+    """The Datto RMM test body as stored: all three or nothing, the URL normalised.
+
+    The route uses the stored settings unless all three are sent, so a partial
+    body tests the stored ones. A URL that is not Datto's stays as sent, so it
+    cannot match the stored one.
+    """
+    if not all(sent.get(k) for k in ("api_url", "api_key", "api_secret")):
+        return {}
+    from app.integrations.datto_rmm import normalise_api_url
+
+    try:
+        return {**sent, "api_url": normalise_api_url(str(sent["api_url"]))}
+    except ValueError:
+        return sent
+
+
 def connection_check(
     provider: str, fields: dict[str, str]
 ) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
@@ -45,6 +62,8 @@ def connection_check(
                 sent = {}
             if provider == "myitprocess" and not sent.get("api_key"):
                 sent = {}
+            if provider == "datto_rmm":
+                sent = _datto_rmm_sent(sent)
             if (
                 provider == "myitprocess"
                 and sent.get("api_key") == "••••••"

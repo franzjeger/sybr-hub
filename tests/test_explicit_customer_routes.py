@@ -131,6 +131,7 @@ ROUTES = [
     ("get", "/api/itglue/available-reports?customer_id={cid}", None),
     ("post", "/api/itglue/upload/audit", {"customer_id": "{cid}", "org_id": "1"}),
     ("get", "/api/tailscale/customer/{cid}/nodes", None),
+    ("get", "/api/rmm/devices/{cid}", None),
 ]
 
 

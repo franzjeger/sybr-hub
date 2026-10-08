@@ -226,6 +226,9 @@ class SettingsUpdate(BaseModel):
     autotask_default_status: _PicklistValue = None
     myitprocess_api_key: str = ""
     myitprocess_base_url: str = ""
+    datto_rmm_api_url: str = ""
+    datto_rmm_api_key: str = ""
+    datto_rmm_api_secret: str = ""
     tailscale_api_key: str = ""
     tailscale_tailnet: str = ""
     uniweb_email: str = ""
@@ -257,6 +260,8 @@ class SettingsUpdate(BaseModel):
     autotask_integration_code_set: Any = None
     autotask_secret_set: Any = None
     myitprocess_api_key_set: Any = None
+    datto_rmm_api_key_set: Any = None
+    datto_rmm_api_secret_set: Any = None
     tailscale_api_key_set: Any = None
     uniweb_password_set: Any = None
     gdap_configured: Any = None

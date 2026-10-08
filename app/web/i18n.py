@@ -558,8 +558,8 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "autotask_account_id must be a number",
     ),
     "err_hub_link_nothing_sent": (
-        "Send autotask_account_id, itglue_org_id og/eller myitprocess_account_id for å endre en kobling.",
-        "Send autotask_account_id, itglue_org_id and/or myitprocess_account_id to change a binding.",
+        "Send autotask_account_id, itglue_org_id, myitprocess_account_id og/eller datto_rmm_site_uid for å endre en kobling.",
+        "Send autotask_account_id, itglue_org_id, myitprocess_account_id and/or datto_rmm_site_uid to change a binding.",
     ),
     "err_itglue_org_not_linked": (
         "IT Glue-organisasjonen er ikke koblet til denne kunden",
@@ -612,6 +612,30 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
     "err_myitprocess_accounts_failed": (
         "Kunne ikke hente myITprocess-kontoer: {error}",
         "Could not fetch myITprocess accounts: {error}",
+    ),
+    "err_rmm_not_configured": (
+        "Datto RMM er ikke satt opp. Legg inn API-URL, API-nøkkel og hemmelig nøkkel under Integrasjoner.",
+        "Datto RMM is not set up. Add the API URL, API key and secret key under Integrations.",
+    ),
+    "err_rmm_api_url_invalid": (
+        "API-URL-en må ha formen https://<plattform>-api.centrastage.net, slik Datto RMM viser den på brukersiden.",
+        "The API URL must have the form https://<platform>-api.centrastage.net, as Datto RMM shows it on the user page.",
+    ),
+    "err_rmm_sites_failed": (
+        "Kunne ikke hente områdene fra Datto RMM: {error}",
+        "Could not fetch the sites from Datto RMM: {error}",
+    ),
+    "err_rmm_site_failed": (
+        "Kunne ikke slå opp området i Datto RMM: {error}",
+        "Could not look the site up in Datto RMM: {error}",
+    ),
+    "err_rmm_site_not_found": (
+        "Datto RMM har ikke dette området.",
+        "Datto RMM has no such site.",
+    ),
+    "err_rmm_devices_failed": (
+        "Kunne ikke lese enhetene i Datto RMM: {error}",
+        "Could not read the devices in Datto RMM: {error}",
     ),
     "err_uniweb_not_configured": (
         "Uniweb-legitimasjon er ikke konfigurert",

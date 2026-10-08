@@ -57,11 +57,12 @@ _ProviderId = Union[int, str, None]
 
 
 class CustomerLinks(BaseModel):
-    """Bind a customer to its Autotask, IT Glue and myITprocess records.
+    """Bind a customer to its Autotask, IT Glue, myITprocess and Datto RMM records.
 
     Only the keys present are changed (``model_fields_set``); null or an empty
     string clears that binding. The Autotask id is checked as a number by the
-    handler, which has the message for one that is not.
+    handler, which has the message for one that is not. A Datto RMM site uid
+    is looked up in Datto before it is stored.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -69,6 +70,9 @@ class CustomerLinks(BaseModel):
     autotask_account_id: _ProviderId = None
     itglue_org_id: _ProviderId = None
     myitprocess_account_id: _ProviderId = None
+    # Datto site uids are short opaque strings; the cap keeps a body from
+    # carrying anything else into the Datto request path.
+    datto_rmm_site_uid: str | None = Field(default=None, max_length=64)
 
 
 class CredentialResetTarget(BaseModel):

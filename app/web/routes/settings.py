@@ -126,6 +126,13 @@ async def get_settings(user: User = _auth):
         "myitprocess_api_key": "••••••" if settings.get("myitprocess_api_key") else "",
         "myitprocess_api_key_set": bool(settings.get("myitprocess_api_key")),
         "myitprocess_base_url": settings.get("myitprocess_base_url", ""),
+        # Datto RMM: the URL says which platform; the key and the secret key
+        # are both credentials and come back masked.
+        "datto_rmm_api_url": settings.get("datto_rmm_api_url", ""),
+        "datto_rmm_api_key": "••••••" if settings.get("datto_rmm_api_key") else "",
+        "datto_rmm_api_key_set": bool(settings.get("datto_rmm_api_key")),
+        "datto_rmm_api_secret": "••••••" if settings.get("datto_rmm_api_secret") else "",
+        "datto_rmm_api_secret_set": bool(settings.get("datto_rmm_api_secret")),
         "tailscale_api_key": "••••••" if settings.get("tailscale_api_key") else "",
         "tailscale_api_key_set": bool(settings.get("tailscale_api_key")),
         "tailscale_tailnet": settings.get("tailscale_tailnet", "-"),
@@ -303,6 +310,21 @@ async def save_settings(body: SettingsUpdate, request: Request, user: User = _ad
         if key == "myitprocess_api_key" and val == "••••••":
             continue
         if val:
+            settings[key] = val
+
+    # Datto RMM. The URL is where the key and secret are sent, so it has to be
+    # one of Datto's API hosts; the two credentials keep the mask out of storage.
+    rmm_url = body.datto_rmm_api_url.strip()
+    if rmm_url:
+        from app.integrations.datto_rmm import normalise_api_url
+
+        try:
+            settings["datto_rmm_api_url"] = normalise_api_url(rmm_url)
+        except ValueError as exc:
+            raise refusal(ValidationError, "err_rmm_api_url_invalid") from exc
+    for key in ("datto_rmm_api_key", "datto_rmm_api_secret"):
+        val = getattr(body, key).strip()
+        if val and val != "••••••":
             settings[key] = val
 
     # Tailscale
