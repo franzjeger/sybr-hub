@@ -61,6 +61,21 @@ documentation, fakes or mocks, and says so in its code.
    ids and titles do not. Done when: every id and title is checked against
    the benchmark document (needs a CIS account) and corrected, with the
    characterisation snapshot regenerated and explained.
+48. **Datto RMM against a live tenant** (`app/integrations/datto_rmm.py`,
+    built from Datto's published API docs and fakes). Check:
+    - the token request (password grant, Basic `public-client:public`) and
+      what a wrong key returns;
+    - `/api/rmm/test` `sample_fields`;
+    - the site and device list keys, paging and `max=250`;
+    - how Datto's `hostname` compares with Intune and Entra names (case,
+      15-character truncation, domain suffix);
+    - `webRemoteUrl`: host, https, sign-in, no session token;
+    - the MAC lookup format and its 404;
+    - the minimum security level, and the answer for a site outside the
+      user's view;
+    - that 20 MAC lookups per view stay under the rate limit.
+    Then consider locking the Web Remote link to Datto's host. Done when:
+    every point is confirmed or the code corrected.
 
 ## B. Correctness
 
@@ -136,13 +151,19 @@ documentation, fakes or mocks, and says so in its code.
     gap keys and values, and the tiles show the same note.
     Done by G40: `_audit_metrics.json` stores `risk_coverage`, and the
     customer page shows it.
-18. **Microsoft 365 data backup**: native Microsoft 365 Backup is unproven
+18. [x] **Microsoft 365 data backup**: native Microsoft 365 Backup is unproven
     live (A1), and third-party apps are found by display name only, so a
     renamed app is missed and nothing reads the last successful backup.
     Done when: a vendor API or a heuristic beyond the name is in place, or
     the limit stays documented.
-19. **RMM deep-link** (ROADMAP v0.5.0, not started): an `RMMProvider`
+    Done (October 2026): verified publisher and app-only access beyond the
+    name, reported as a candidate with a confidence, never as proof; the
+    reports say backup success is not verified. Live check in A1.
+19. [x] **RMM deep-link** (ROADMAP v0.5.0, not started): an `RMMProvider`
     interface, a Datto RMM driver and per-device "Open WebRemote" buttons.
+    Done (October 2026): `app/integrations/rmm.py` and `datto_rmm.py`, a
+    settings card, site binding, and a button only on an exact name or MAC
+    match. Live check in 48.
 20. [x] **Fleet and status cards**: Verktøy › Nettverk shows "Ikke lest ennå"
     on a fresh install until "Oppdater nå" or the daily firmware job; the
     FortiGate integration card's status is yes/no, not a count; the card
