@@ -305,18 +305,15 @@ test('Oversikt leads with who needs attention, without tiles, charts or an integ
   const audited = (id, findings) => ({customer_id: id, customer_name: id, primary_domain: '', has_metrics: true,
     last_audit: '2026-09-30_120000', metrics: {risk_grade: 'C', mfa_coverage_pct: 90},
     open_findings: {critical: 0, high: 0, medium: 0, low: 0, ...findings}});
-  await page.route('**/api/dashboard/overview', async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    body.customers = [
-      audited('Order_Low', {low: 9}),
-      {customer_id: 'Order_Never', customer_name: 'Order_Never', primary_domain: '', has_metrics: false, metrics: null, last_audit: null},
-      audited('Order_Medium', {medium: 5, low: 1}),
-      audited('Order_Critical', {critical: 1}),
-      audited('Order_High', {high: 2}),
-    ];
-    await route.fulfill({response, json: body});
-  });
+  // Answered without asking the server: a late reload must not be left
+  // waiting on it when the test ends.
+  await page.route('**/api/dashboard/overview', route => route.fulfill({json: {customers: [
+    audited('Order_Low', {low: 9}),
+    {customer_id: 'Order_Never', customer_name: 'Order_Never', primary_domain: '', has_metrics: false, metrics: null, last_audit: null},
+    audited('Order_Medium', {medium: 5, low: 1}),
+    audited('Order_Critical', {critical: 1}),
+    audited('Order_High', {high: 2}),
+  ]}}));
   await login(page);
   await inApp(page, app => app.showView('overview'));
   const rows = page.locator('.customer-overview-table tbody tr');

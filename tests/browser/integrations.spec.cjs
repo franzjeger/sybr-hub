@@ -199,6 +199,9 @@ for (const width of [1280, 390]) {
     await expect(page.locator('#uniweb-config-msg')).toContainText('2 av 10 kontoer');
     await page.locator('[data-config="uniweb-config"]').click();
     await expect(page.locator('#uniweb-config')).not.toBeVisible();
+    // The settings route asks the server; a request still in flight at the
+    // end must not fail the next test.
+    await page.unrouteAll({behavior: 'ignoreErrors'});
   });
 }
 

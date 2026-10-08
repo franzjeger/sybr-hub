@@ -383,4 +383,7 @@ test('the customer licence panel renders ALSO subscriptions as text', async ({pa
   expect(await detail.getAttribute('id')).toBe('also-sub-' + accountId);
   await expect(detail).toContainText(XSS);
   await expectInert(page, '#cust-licenses-panel');
+  // The overview route asks the server; a reload still in flight at the end
+  // must not fail the next test.
+  await page.unrouteAll({behavior: 'ignoreErrors'});
 });
