@@ -82,8 +82,9 @@ def test_an_unconfigured_integration_says_so(client, auth, customer, monkeypatch
 
     assert body["autotask"]["status"] == "not_configured"
     assert body["itglue"]["status"] == "not_configured"
-    # No RMM integration exists, so the view does not pretend to have a slot for one.
-    assert "rmm" not in body
+    # The RMM deep-link exists now (TODO D19), and says not_configured like the
+    # rest rather than leaving the page to guess from an absent key.
+    assert body["rmm"]["status"] == "not_configured"
     assert body["audit"]["status"] == "never_run"
 
 

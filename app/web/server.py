@@ -60,6 +60,7 @@ from app.web.routes import (
     provisioning,
     proxy,
     reports,
+    rmm,
     settings,
     ssh,
     system,
@@ -108,6 +109,7 @@ _API_ROUTERS = (
     # Integrations and analysis.
     ("itglue", itglue),
     ("myitprocess", myitprocess),
+    ("rmm", rmm),
     ("also", also),
     ("gdap", gdap),
     ("uniweb", uniweb),

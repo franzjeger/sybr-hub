@@ -1,5 +1,6 @@
 """Integration records (ALSO, GDAP, Uniweb) and the request bodies of the
-integration routes (GDAP, IT Glue, ALSO, Uniweb, Autotask, myITprocess)."""
+integration routes (GDAP, IT Glue, ALSO, Uniweb, Autotask, myITprocess,
+Datto RMM)."""
 
 from __future__ import annotations
 
@@ -272,3 +273,17 @@ class MyITProcessTestRequest(BaseModel):
 
     api_key: str | None = None
     base_url: str = ""
+
+
+class DattoRMMTestRequest(BaseModel):
+    """Unsaved Datto RMM credentials to try. All three, or the stored ones are used.
+
+    The mask as key or secret means "the stored one". The body is optional:
+    the settings card saves first and posts ``{}``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_url: str | None = Field(default=None, max_length=200)
+    api_key: str | None = Field(default=None, max_length=500)
+    api_secret: str | None = Field(default=None, max_length=500)

@@ -5,6 +5,8 @@ Aggregates what is known about one customer:
     - M365 audit results, from the stored metrics
     - Autotask company + active contracts (read)
     - IT Glue documentation pointers (read)
+    - the Datto RMM site the customer is bound to (stored; the devices and
+      their Web Remote links are routes/rmm.py's)
 
 Plus two action endpoints (manual operator clicks only):
 
@@ -200,6 +202,27 @@ async def _itglue_block(customer: dict) -> dict[str, Any]:
     }
 
 
+def _rmm_block(customer: dict) -> dict[str, Any]:
+    """Configured, bound, or neither, with the site name stored at binding.
+
+    No network call: the binding route looked the site up in Datto when it
+    stored it, and the devices are read only when the Tilgang tab asks.
+    """
+    from app.core.config import load_app_settings
+    from app.web.routes.rmm import SITE_KEY, SITE_NAME_KEY, configured
+
+    if not configured(load_app_settings()):
+        return _blank("not_configured")
+    site_uid = customer.get(SITE_KEY)
+    if not site_uid:
+        return _blank("not_linked")
+    return {
+        "status": "ok",
+        "site_uid": site_uid,
+        "site_name": customer.get(SITE_NAME_KEY) or "",
+    }
+
+
 def _myitprocess_block(customer: dict) -> dict[str, Any]:
     """Configured, bound, or neither — no network call.
 
@@ -247,6 +270,7 @@ async def get_customer_hub(
         "autotask": await _autotask_block(customer),
         "itglue": await _itglue_block(customer),
         "myitprocess": _myitprocess_block(customer),
+        "rmm": _rmm_block(customer),
     }
 
 
@@ -262,9 +286,14 @@ async def link_customer_records(
     Without this the integrations can be configured tenant-wide and still have
     nothing to fetch, which is the difference between not_configured and
     not_linked. Sending null for a field clears that binding.
+
+    A Datto RMM site is looked up in Datto first, and stored with its name:
+    the site decides whose devices the Tilgang tab offers a remote session on,
+    so a uid nobody has seen in Datto is refused rather than stored.
     """
     from app.core.customer import CustomerManager
     from app.core.exceptions import NotFoundError
+    from app.web.routes.rmm import SITE_KEY, SITE_NAME_KEY, verified_site
 
     customer = CustomerManager.get_customer(customer_id)
     if customer is None:
@@ -304,6 +333,15 @@ async def link_customer_records(
             customer[_MYITPROCESS_ID] = str(value)
         changed.append("myitprocess")
 
+    if "datto_rmm_site_uid" in sent:
+        site_uid = (body.datto_rmm_site_uid or "").strip()
+        if not site_uid:
+            customer.pop(SITE_KEY, None)
+            customer.pop(SITE_NAME_KEY, None)
+        else:
+            customer[SITE_KEY], customer[SITE_NAME_KEY] = await verified_site(site_uid)
+        changed.append("datto_rmm")
+
     if not changed:
         raise refusal(ValidationError, "err_hub_link_nothing_sent")
 
@@ -311,7 +349,7 @@ async def link_customer_records(
     # binding as proof of ownership (Autotask contracts, IT Glue uploads), so
     # binding a record another customer already holds would hand this caller
     # that customer's data.
-    for key in (_AUTOTASK_ID, _ITGLUE_ID, _MYITPROCESS_ID):
+    for key in (_AUTOTASK_ID, _ITGLUE_ID, _MYITPROCESS_ID, SITE_KEY):
         value = customer.get(key)
         if value in (None, ""):
             continue
