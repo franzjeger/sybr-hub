@@ -1,17 +1,16 @@
-"""Live dashboard poller — polls FortiGate and UniFi devices at configurable intervals.
+"""Dashboard poller: reads a customer's FortiGate and UniFi devices on request.
 
-Maintains an in-memory cache of device status and broadcasts updates via
-registered WebSocket callbacks.
+Keeps the last status of every device it has read in memory. A poll is asked
+for (POST /api/dashboard/poll/{customer_id}, from the FortiGate panel in
+Nettverk); the cache serves the views that list devices without reading them
+again.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -71,43 +70,11 @@ class DeviceStatus:
         return d
 
 
-# Callback type: async function that receives a list of DeviceStatus dicts
-BroadcastFn = Callable[[list[dict]], Coroutine[Any, Any, None]]
-
-
 class DashboardPoller:
-    """Polls network devices and broadcasts status updates."""
+    """Polls one customer's network devices and caches what it read."""
 
     def __init__(self) -> None:
         self._cache: dict[str, DeviceStatus] = {}  # device_id -> latest status
-        self._subscriptions: dict[str, set[str]] = {}  # ws_id -> set of customer_ids
-        self._broadcast_fns: dict[str, BroadcastFn] = {}  # ws_id -> callback
-        self._poll_task: asyncio.Task | None = None
-        self._interval: int = 60  # seconds
-        self._running = False
-
-    # ── Subscription management ──────────────────────────────────────────
-
-    def subscribe(self, ws_id: str, customer_ids: list[str], callback: BroadcastFn) -> None:
-        self._subscriptions[ws_id] = set(customer_ids)
-        self._broadcast_fns[ws_id] = callback
-        # Start polling if not running
-        if not self._running and self._subscriptions:
-            self.start()
-
-    def unsubscribe(self, ws_id: str) -> None:
-        self._subscriptions.pop(ws_id, None)
-        self._broadcast_fns.pop(ws_id, None)
-        # Stop if no subscribers
-        if not self._subscriptions and self._running:
-            self.stop()
-
-    def update_subscription(self, ws_id: str, customer_ids: list[str]) -> None:
-        if ws_id in self._subscriptions:
-            self._subscriptions[ws_id] = set(customer_ids)
-
-    def set_interval(self, seconds: int) -> None:
-        self._interval = max(10, min(300, seconds))
 
     # ── Cache access ─────────────────────────────────────────────────────
 
@@ -122,57 +89,15 @@ class DashboardPoller:
             key=lambda x: (0 if x["status"] == "offline" else 1, x["name"].lower()),
         )
 
-    # ── Polling lifecycle ────────────────────────────────────────────────
+    # ── Polling ──────────────────────────────────────────────────────────
 
-    def start(self) -> None:
-        if self._running:
-            return
-        self._running = True
-        self._poll_task = asyncio.create_task(self._poll_loop())
-        logger.info("Dashboard poller started (interval=%ds)", self._interval)
-
-    def stop(self) -> None:
-        self._running = False
-        if self._poll_task:
-            self._poll_task.cancel()
-            self._poll_task = None
-        logger.info("Dashboard poller stopped")
-
-    async def _poll_loop(self) -> None:
-        while self._running:
-            try:
-                await self._poll_all()
-                await self._broadcast_updates()
-            except Exception as e:
-                logger.error("Dashboard poll error: %s", e, exc_info=True)
-            await asyncio.sleep(self._interval)
-
-    async def poll_now(self, customer_id: str | None = None) -> list[dict]:
-        """Force an immediate poll and return results."""
-        await self._poll_all(customer_id_filter=customer_id)
+    async def poll_now(self, customer_id: str) -> list[dict]:
+        """Poll one customer's devices now and return them."""
+        try:
+            await self._poll_customer(customer_id)
+        except Exception as e:
+            logger.warning("Poll failed for a customer: %s", e)
         return self.get_devices(customer_id)
-
-    # ── Polling implementation ───────────────────────────────────────────
-
-    async def _poll_all(self, customer_id_filter: str | None = None) -> None:
-        """Poll all subscribed customers' devices."""
-        # Determine which customers to poll
-        customer_ids: set[str] = set()
-        if customer_id_filter:
-            customer_ids.add(customer_id_filter)
-        else:
-            for cids in self._subscriptions.values():
-                customer_ids.update(cids)
-
-        if not customer_ids:
-            return
-
-        tasks = [self._poll_customer(cid) for cid in customer_ids]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for result in results:
-            if isinstance(result, Exception):
-                logger.warning("Poll failed for a customer: %s", result)
 
     async def _poll_customer(self, customer_id: str) -> None:
         """Poll all devices for a single customer."""
@@ -839,24 +764,6 @@ class DashboardPoller:
                     error=str(e),
                     last_poll=now,
                 )
-
-    # ── Broadcasting ─────────────────────────────────────────────────────
-
-    async def _broadcast_updates(self) -> None:
-        """Send current device status to all subscribers."""
-        for ws_id, customer_ids in list(self._subscriptions.items()):
-            callback = self._broadcast_fns.get(ws_id)
-            if not callback:
-                continue
-            devices = []
-            for cid in customer_ids:
-                devices.extend(self.get_devices(cid))
-            try:
-                await callback(devices)
-            except Exception as e:
-                # Connection closed
-                logger.debug("WebSocket broadcast failed for %s: %s", ws_id, e)
-                self.unsubscribe(ws_id)
 
 
 # Singleton instance

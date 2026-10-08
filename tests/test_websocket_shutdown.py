@@ -37,7 +37,7 @@ async def test_scope_cancellation_finishes_websocket_cleanup(monkeypatch):
                 cleaned = True
 
         await security.WebSocketSecurityMiddleware(socket_app)(
-            {"type": "websocket", "path": "/api/ws/dashboard", "headers": []},
+            {"type": "websocket", "path": "/api/ws/test-ping", "headers": []},
             AsyncMock(),
             AsyncMock(),
         )
