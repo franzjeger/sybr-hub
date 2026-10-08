@@ -59,10 +59,12 @@ def _spf_dmarc_records(file_contents: dict[str, str]) -> list[dict]:
 
     From 26_email_dns_spf_dmarc.json, in the shape _parse_spf_dmarc reads the
     text into, so every consumer of the list reads either the same way: the
-    statuses as the collector words them, a record only where one was looked
+    statuses as the collector wrote them, a record only where one was looked
     up ("" for DMARC when none is published), and the two DKIM summaries in
     the text's "selector: status | ..." form. A run without the sidecar is
-    read from the text.
+    read from the text. A status is a code in a new run and an English phrase
+    in an old one; every reader takes it through the *_status functions
+    below, which read either.
     """
     data = _sidecar(file_contents, "26_email_dns_spf_dmarc.txt")
     if data is None:
@@ -80,13 +82,238 @@ def _spf_dmarc_records(file_contents: dict[str, str]) -> list[dict]:
             record["dmarc_record"] = d["dmarc_record"].strip()
         dkim = d.get("dkim") if isinstance(d.get("dkim"), dict) else {}
         m365 = ("selector1", "selector2")
-        record["dkim1"] = " | ".join(f"{s}: {dkim.get(s, 'MISSING')}" for s in m365)
+        record["dkim1"] = " | ".join(f"{s}: {dkim.get(s, 'missing')}" for s in m365)
         record["dkim2"] = " | ".join(f"{s}: {v}" for s, v in dkim.items() if s not in m365)
         found = d.get("dkim_found") if isinstance(d.get("dkim_found"), list) else []
         record["dkim_found"] = ", ".join(str(s) for s in found) or "(none)"
         record["mta_sts"] = str(d.get("mta_sts") or "").strip()
         records.append(record)
     return records
+
+
+# ── The DNS collector's statuses ──────────────────────────────────────────────
+#
+# dns.py writes each status as a code (dns.SPF_STATUSES, dns.DMARC_STATUSES;
+# a DKIM selector "cname -> <target>", "txt" or "missing"; MTA-STS the record
+# or "missing"), or "error (<what failed>)" for a lookup that went unanswered.
+# It wrote English phrases before ("WEAK (~all softfail)", "TXT present",
+# "ERROR (...)"), which an old run still holds; those are read to the same
+# codes. Each reader gets (code, detail): the detail is an error's message,
+# a CNAME's target or MTA-STS's record. A value neither form names comes back
+# as ("", value), for the report to show as it was stored.
+
+SPF_STATUSES = ("hardfail", "softfail", "neutral", "pass_all", "no_all", "missing", "error")
+DMARC_STATUSES = ("reject", "quarantine", "none", "unknown_policy", "missing", "error")
+
+_LEGACY_SPF = {
+    "OK (-all hardfail)": "hardfail",
+    "WEAK (~all softfail)": "softfail",
+    "WEAK (?all neutral)": "neutral",
+    "CRITICAL (+all — allows anyone)": "pass_all",
+    "PRESENT (no 'all' mechanism)": "no_all",
+    "MISSING": "missing",
+}
+_LEGACY_DMARC = {
+    "OK (p=reject)": "reject",
+    "WARN (p=quarantine)": "quarantine",
+    "WEAK (p=none)": "none",
+    "PRESENT (unknown policy)": "unknown_policy",
+    "MISSING": "missing",
+}
+_ERROR_STATUS = re.compile(r"error \((.*)\)", re.IGNORECASE | re.DOTALL)
+
+
+def _status(value, codes: tuple[str, ...], legacy: dict[str, str]) -> tuple[str, str]:
+    text = str(value or "").strip()
+    if text in codes:
+        return text, ""
+    if text in legacy:
+        return legacy[text], ""
+    m = _ERROR_STATUS.fullmatch(text)
+    if m:
+        return "error", m.group(1)
+    return "", text
+
+
+def spf_status(record: dict) -> tuple[str, str]:
+    """The domain's SPF status: (one of SPF_STATUSES, an error's message)."""
+    return _status(record.get("spf"), SPF_STATUSES, _LEGACY_SPF)
+
+
+def dmarc_status(record: dict) -> tuple[str, str]:
+    """The domain's DMARC status: (one of DMARC_STATUSES, an error's message)."""
+    return _status(record.get("dmarc"), DMARC_STATUSES, _LEGACY_DMARC)
+
+
+def mta_sts_status(record: dict) -> tuple[str, str]:
+    """("present", the record), ("missing", ""), or ("error", its message)."""
+    text = str(record.get("mta_sts") or "").strip()
+    if text.lower().startswith("v=stsv1"):
+        return "present", text
+    return _status(text, ("missing",), {"MISSING": "missing"})
+
+
+def dkim_status(value: str) -> tuple[str, str]:
+    """A DKIM selector's status: "cname" (with its target), "txt", "missing" or "error"."""
+    text = str(value or "").strip()
+    head, sep, target = text.partition("->")
+    if sep and head.strip().lower() == "cname":
+        return "cname", target.strip()
+    if text.lower() in ("txt", "txt present"):
+        return "txt", ""
+    return _status(text, ("missing",), {"MISSING": "missing"})
+
+
+# The report's word for each status: the tag in the technical report's email
+# table, and the sentence CIS 5.2.1 and 5.2.2 give as their detail. The tag's
+# colour is the class _severity used to read off the English.
+_SPF_TAGS = {
+    "hardfail": ("ok", "ok"),
+    "softfail": ("weak_label", "warning"),
+    "neutral": ("weak_label", "warning"),
+    "pass_all": ("critical", "critical"),
+    "no_all": ("dns_present", "ok"),
+    "missing": ("missing_label", "critical"),
+    "error": ("error_status", "warning"),
+}
+_DMARC_TAGS = {
+    "reject": ("ok", "ok"),
+    "quarantine": ("warning", "warning"),
+    "none": ("weak_label", "warning"),
+    "unknown_policy": ("dns_present", "ok"),
+    "missing": ("missing_label", "critical"),
+    "error": ("error_status", "warning"),
+}
+_MTA_STS_TAGS = {
+    "present": ("dns_present", "ok"),
+    "missing": ("missing_label", "critical"),
+    "error": ("error_status", "warning"),
+}
+
+
+def dns_tag(record: dict, field: str, t) -> dict:
+    """{"word", "severity"} for a record's "spf", "dmarc" or "mta_sts" cell.
+
+    A status the report cannot name is shown as stored, coloured as _severity
+    reads its words.
+    """
+    reader, tags = {
+        "spf": (spf_status, _SPF_TAGS),
+        "dmarc": (dmarc_status, _DMARC_TAGS),
+        "mta_sts": (mta_sts_status, _MTA_STS_TAGS),
+    }[field]
+    code, _ = reader(record)
+    if code in tags:
+        key, severity = tags[code]
+        return {"word": str(getattr(t, key)), "severity": severity}
+    raw = str(record.get(field) or "")
+    word = raw.split("(")[0].strip() if "(" in raw else raw[:20]
+    return {"word": word, "severity": _severity(raw)}
+
+
+# The customer report's pill for each status: (class, word).
+_SPF_PILLS = {
+    "hardfail": ("ok", "ok"),
+    "no_all": ("ok", "ok"),
+    "softfail": ("warning", "weak_label"),
+    "neutral": ("warning", "weak_label"),
+    "pass_all": ("critical", "critical"),
+    "missing": ("critical", "missing_label"),
+    "error": ("unknown", "data_unavailable"),
+}
+_DMARC_PILLS = {
+    "reject": ("ok", "ok"),
+    "quarantine": ("ok", "ok"),
+    "unknown_policy": ("ok", "ok"),
+    "none": ("warning", "weak_label"),
+    "missing": ("critical", "missing_label"),
+    "error": ("unknown", "data_unavailable"),
+}
+_MTA_STS_PILLS = {
+    "present": ("ok", "ok"),
+    "missing": ("warning", "missing_label"),
+    "error": ("unknown", "data_unavailable"),
+}
+
+
+def dns_pill(record: dict, field: str, t) -> dict:
+    """{"pill", "word"} for the customer report's "spf", "dmarc" or "mta_sts" cell.
+
+    A lookup that failed is unknown: it showed as a green OK. A status no
+    collector wrote is read by its words, as before.
+    """
+    reader, pills = {
+        "spf": (spf_status, _SPF_PILLS),
+        "dmarc": (dmarc_status, _DMARC_PILLS),
+        "mta_sts": (mta_sts_status, _MTA_STS_PILLS),
+    }[field]
+    code, _ = reader(record)
+    if code in pills:
+        pill, key = pills[code]
+    else:
+        raw = str(record.get(field) or "")
+        missing = "MISSING" in raw or (field == "spf" and "CRITICAL" in raw)
+        weak = "WEAK" in raw or (field == "dmarc" and "none" in raw)
+        if missing:
+            pill, key = ("warning" if field == "mta_sts" else "critical"), "missing_label"
+        elif weak and field != "mta_sts":
+            pill, key = "warning", "weak_label"
+        else:
+            pill, key = "ok", "ok"
+    return {"pill": pill, "word": str(getattr(t, key))}
+
+
+# What a status says, for CIS 5.2.1 and 5.2.2 to give as their detail.
+_SPF_WORDS = {
+    "hardfail": "dns_spf_hardfail",
+    "softfail": "dns_spf_softfail",
+    "neutral": "dns_spf_neutral",
+    "pass_all": "dns_spf_pass_all",
+    "no_all": "dns_spf_no_all",
+    "missing": "missing_label",
+}
+_DMARC_WORDS = {
+    "reject": "dns_dmarc_reject",
+    "quarantine": "dns_dmarc_quarantine",
+    "none": "dns_dmarc_none",
+    "unknown_policy": "dns_dmarc_unknown_policy",
+    "missing": "missing_label",
+}
+
+
+def spf_words(record: dict, t) -> str:
+    """What the domain's SPF status says, worded; one the report cannot name, as stored."""
+    code, _ = spf_status(record)
+    key = _SPF_WORDS.get(code)
+    return str(getattr(t, key)) if key else str(record.get("spf") or "")
+
+
+def dmarc_words(record: dict, t) -> str:
+    """What the domain's DMARC status says, worded; one the report cannot name, as stored."""
+    code, _ = dmarc_status(record)
+    key = _DMARC_WORDS.get(code)
+    return str(getattr(t, key)) if key else str(record.get("dmarc") or "")
+
+
+def dkim_summary(record: dict, field: str, t) -> str:
+    """The technical report's DKIM cell: "dkim1" (Exchange's two selectors) or
+    "dkim2" (the others, only those with a key or an error), worded."""
+    words = []
+    for part in str(record.get(field) or "").split("|"):
+        name, sep, value = part.partition(":")
+        if not sep or not name.strip():
+            continue
+        code, _ = dkim_status(value)
+        if field == "dkim2" and code == "missing":
+            continue
+        word = {
+            "cname": "CNAME",
+            "txt": "TXT",
+            "missing": str(t.missing_label).lower(),
+            "error": str(t.dns_lookup_failed).lower(),
+        }.get(code, value.strip())
+        words.append(f"{name.strip()}: {word}")
+    return " | ".join(words)
 
 
 # ── DKIM: who signs a domain's mail ───────────────────────────────────────────
@@ -170,7 +397,10 @@ def _dkim_selectors(record: dict) -> dict[str, str]:
 
 def _key_published(status: str) -> bool:
     """A selector the DNS lookup found a key (or a CNAME to one) at."""
-    return status.upper().startswith(("CNAME", "TXT"))
+    code, _ = dkim_status(status)
+    if code:
+        return code in ("cname", "txt")
+    return str(status).upper().startswith(("CNAME", "TXT"))
 
 
 _EXCHANGE_SPF = "spf.protection.outlook.com"

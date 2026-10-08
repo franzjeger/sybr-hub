@@ -978,20 +978,16 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% for d in spf_dmarc %}
   <tr>
     <td style="font-weight:600;">{{ d.get('domain','') }}</td>
-    <td>
-      {% set s = d.get('spf','') %}
-      <span class="tag {{ _severity(s) }}">{{ s.split('(')[0].strip() if '(' in s else s[:20] }}</span>
-    </td>
-    <td>
-      {% set s = d.get('dmarc','') %}
-      <span class="tag {{ _severity(s) }}">{{ s.split('(')[0].strip() if '(' in s else s[:20] }}</span>
-    </td>
-    <td style="font-size:11px;">{{ d.get('dkim1','')[:35] }}</td>
-    <td style="font-size:11px;">{{ d.get('dkim2','')[:35] }}</td>
-    <td>
-      {% set s = d.get('mta_sts','') %}
-      <span class="tag {% if 'MISSING' in s %}critical{% else %}ok{% endif %}">{{ s[:15] }}</span>
-    </td>
+    {# The collector's statuses are codes, worded here (_dns_tag); a status
+       no collector wrote is shown as stored. #}
+    {% for field in ('spf', 'dmarc') %}
+    {% set tag = _dns_tag(d, field, t) %}
+    <td><span class="tag {{ tag.severity }}">{{ tag.word }}</span></td>
+    {% endfor %}
+    <td style="font-size:11px;">{{ _dkim_summary(d, 'dkim1', t) }}</td>
+    <td style="font-size:11px;">{{ _dkim_summary(d, 'dkim2', t) or '—' }}</td>
+    {% set tag = _dns_tag(d, 'mta_sts', t) %}
+    <td><span class="tag {{ tag.severity }}">{{ tag.word }}</span></td>
   </tr>
   {% endfor %}
 </table>

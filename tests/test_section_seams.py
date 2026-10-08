@@ -819,12 +819,12 @@ async def test_a_group_whose_member_count_failed_is_not_reported_as_empty():
 # ── DNS / email security ─────────────────────────────────────────────────────
 #
 # The seam behind CIS 5.2.1 and 5.2.2. The section is careful to keep a failed
-# lookup ("ERROR (...)") apart from an absent record ("MISSING"), and the two
+# lookup ("error (...)") apart from an absent record ("missing"), and the two
 # controls used to collapse both into a failed control — telling a customer to
 # configure SPF for a domain that may well have it.
 
 
-def _dns_result(domain, spf="OK (-all hardfail)", dmarc="OK (p=reject)"):
+def _dns_result(domain, spf="hardfail", dmarc="reject"):
     """The shape _check_domain really returns."""
     return {
         "domain": domain,
@@ -832,10 +832,10 @@ def _dns_result(domain, spf="OK (-all hardfail)", dmarc="OK (p=reject)"):
         "spf_record": "v=spf1 -all",
         "dmarc_status": dmarc,
         "dmarc_record": "v=DMARC1; p=reject;",
-        "dkim_selector1": "CNAME -> selector1._domainkey",
-        "dkim_selector2": "MISSING",
+        "dkim_selector1": "cname -> selector1._domainkey",
+        "dkim_selector2": "missing",
         "dkim_third_party": {},
-        "mta_sts": "MISSING",
+        "mta_sts": "missing",
     }
 
 
@@ -858,8 +858,8 @@ async def test_dns_statuses_survive_the_round_trip(monkeypatch):
     parsed = _parse_spf_dmarc(text)
     assert len(parsed) == 1
     assert parsed[0]["domain"] == "example.no"
-    assert "OK" in parsed[0]["spf"]
-    assert "reject" in parsed[0]["dmarc"].lower() or "OK" in parsed[0]["dmarc"]
+    assert parsed[0]["spf"] == "hardfail"
+    assert parsed[0]["dmarc"] == "reject"
 
 
 @pytest.mark.asyncio
@@ -868,12 +868,12 @@ async def test_a_failed_lookup_reaches_the_control_as_unverifiable(monkeypatch):
     text = await _run_dns(
         monkeypatch,
         [
-            _dns_result("example.no", spf="ERROR (SERVFAIL)", dmarc="ERROR (SERVFAIL)"),
+            _dns_result("example.no", spf="error (SERVFAIL)", dmarc="error (SERVFAIL)"),
         ],
     )
 
     parsed = _parse_spf_dmarc(text)
-    assert parsed[0]["spf"].startswith("ERROR")
+    assert parsed[0]["spf"] == "error (SERVFAIL)"
 
     rows = {
         c["cis_id"]: c
@@ -890,7 +890,7 @@ async def test_a_genuinely_absent_record_still_fails_the_control(monkeypatch):
     text = await _run_dns(
         monkeypatch,
         [
-            _dns_result("example.no", spf="MISSING", dmarc="MISSING"),
+            _dns_result("example.no", spf="missing", dmarc="missing"),
         ],
     )
 
@@ -911,7 +911,7 @@ async def test_each_domain_is_graded_separately(monkeypatch):
         monkeypatch,
         [
             _dns_result("good.no"),
-            _dns_result("broken.no", spf="ERROR (timeout)", dmarc="ERROR (timeout)"),
+            _dns_result("broken.no", spf="error (timeout)", dmarc="error (timeout)"),
         ],
     )
 

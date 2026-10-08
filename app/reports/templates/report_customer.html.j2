@@ -1944,18 +1944,10 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% for d in spf_dmarc %}
     <tr>
       <td style="font-weight:600;">{{ d.get('domain','') }}</td>
-      <td>
-        {% set s = d.get('spf','') %}
-        {% if 'MISSING' in s or 'CRITICAL' in s %}<span class="status-pill critical">{{ t.missing_label }}</span>
-        {% elif 'WEAK' in s %}<span class="status-pill warning">{{ t.weak_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
-      </td>
-      <td>
-        {% set s = d.get('dmarc','') %}
-        {% if 'MISSING' in s %}<span class="status-pill critical">{{ t.missing_label }}</span>
-        {% elif 'WEAK' in s or 'none' in s %}<span class="status-pill warning">{{ t.weak_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
-      </td>
+      {% for field in ('spf', 'dmarc') %}
+      {% set pill = _dns_pill(d, field, t) %}
+      <td><span class="status-pill {{ pill.pill }}">{{ pill.word }}</span></td>
+      {% endfor %}
       <td>
         {# CIS 5.2.3's verdict for the domain, so this cell cannot say "Found"
            beside a control that warns signing is off. #}
@@ -1964,11 +1956,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
         {% elif ds in ('warn', 'fail') %}<span class="status-pill critical">{{ t.missing_label }}</span>
         {% else %}<span class="status-pill unknown">{{ t.data_unavailable }}</span>{% endif %}
       </td>
-      <td>
-        {% set s = d.get('mta_sts','') %}
-        {% if 'MISSING' in s %}<span class="status-pill warning">{{ t.missing_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
-      </td>
+      {% set pill = _dns_pill(d, 'mta_sts', t) %}
+      <td><span class="status-pill {{ pill.pill }}">{{ pill.word }}</span></td>
     </tr>
     {% endfor %}
   </table>

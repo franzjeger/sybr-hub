@@ -101,7 +101,7 @@ async def test_doh_query_servfail_raises():
 @pytest.mark.asyncio
 async def test_check_domain_marks_error_not_missing_on_lookup_failure():
     """The classification for a domain whose SPF lookup failed must be
-    'ERROR (...)', not 'MISSING'. Auditors interpret 'MISSING' as
+    'error (...)', not 'missing'. Auditors interpret 'missing' as
     'configure SPF' — a wrong recommendation when the truth is 'we
     don't know'."""
     from app.modules.m365_audit.sections import dns as dns_section
@@ -113,11 +113,11 @@ async def test_check_domain_marks_error_not_missing_on_lookup_failure():
     with patch.object(dns_section, "_doh_query", side_effect=_query):
         result = await dns_section._check_domain(httpx.AsyncClient(), "example.com")
 
-    assert result["spf_status"].startswith("ERROR")
-    assert result["dmarc_status"].startswith("ERROR")
+    assert result["spf_status"].startswith("error (")
+    assert result["dmarc_status"].startswith("error (")
     assert "_lookup_errors" in result
-    # MTA-STS uses MISSING for "name exists but no record" — distinct from ERROR
-    assert result["mta_sts"].startswith("ERROR")
+    # MTA-STS uses "missing" for "name exists but no record" — distinct from an error
+    assert result["mta_sts"].startswith("error (")
 
 
 # ── Graph client: never return {} silently ────────────────────────────────────

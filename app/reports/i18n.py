@@ -2886,6 +2886,28 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Mangler",
         "en": "Missing",
     },
+    # What the DNS collector found for a mail domain (dns.SPF_STATUSES,
+    # dns.DMARC_STATUSES), worded for CIS 5.2.1 and 5.2.2 and the email table.
+    "dns_spf_hardfail": {"no": "OK (-all, hard fail)", "en": "OK (-all hardfail)"},
+    "dns_spf_softfail": {"no": "Svak (~all, soft fail)", "en": "Weak (~all softfail)"},
+    "dns_spf_neutral": {"no": "Svak (?all, nøytral)", "en": "Weak (?all neutral)"},
+    "dns_spf_pass_all": {
+        "no": "Kritisk (+all: hvem som helst kan sende)",
+        "en": "Critical (+all: anyone may send)",
+    },
+    "dns_spf_no_all": {
+        "no": "Publisert, uten all-mekanisme",
+        "en": "Published, without an 'all' mechanism",
+    },
+    "dns_dmarc_reject": {"no": "OK (p=reject)", "en": "OK (p=reject)"},
+    "dns_dmarc_quarantine": {"no": "Karantene (p=quarantine)", "en": "Quarantine (p=quarantine)"},
+    "dns_dmarc_none": {"no": "Svak (p=none)", "en": "Weak (p=none)"},
+    "dns_dmarc_unknown_policy": {
+        "no": "Publisert, ukjent policy",
+        "en": "Published, unknown policy",
+    },
+    "dns_present": {"no": "Publisert", "en": "Published"},
+    "dns_lookup_failed": {"no": "Oppslaget feilet", "en": "Lookup failed"},
     "cis_dmarc_missing": {
         "no": "Mangler",
         "en": "Missing",

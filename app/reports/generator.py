@@ -47,10 +47,9 @@ from app.reports.parsers import (
     _parse_usage,
     _parse_user_counts,
     _risky_users_from_sidecar,
-    _severity,
 )
 from app.reports.parsers.common import _sidecar
-from app.reports.parsers.email import _spf_dmarc_records
+from app.reports.parsers.email import _spf_dmarc_records, dkim_summary, dns_pill, dns_tag
 from app.reports.parsers.identity import _emergency_access
 from app.reports.parsers.network import ha_mode_text, policy_finding_text, policy_findings
 from app.reports.radar import _build_risk_radar, _render_radar_svg
@@ -459,7 +458,9 @@ def build_report_context(
         "app_version": _get_app_version(),
         # Helpers
         "SectionStatus": SectionStatus,
-        "_severity": _severity,
+        "_dns_tag": dns_tag,
+        "_dns_pill": dns_pill,
+        "_dkim_summary": dkim_summary,
         "_fg_findings": policy_findings,
         "_fg_finding_text": policy_finding_text,
         "_fg_ha_mode": ha_mode_text,

@@ -65,6 +65,40 @@ def _entry_block(title: str, entries: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _dns_report(
+    *,
+    spf: str,
+    dmarc: str,
+    selector1: str,
+    selector2: str,
+    mta_sts: str,
+    spf_record: str = "(none)",
+    dmarc_record: str = "(none)",
+) -> str:
+    """26_email_dns_spf_dmarc.txt for acme.no, as app/modules/m365_audit/sections/dns.py writes it."""
+    found = [s for s, v in (("selector1", selector1), ("selector2", selector2)) if v != "missing"]
+    others = " | ".join(f"{s}: missing" for s in ("google", "k1", "k2", "default", "dkim"))
+    return "\n".join(
+        [
+            "=" * 110,
+            "  DNS / EMAIL SECURITY REPORT (SPF · DMARC · DKIM · MTA-STS)",
+            "=" * 110,
+            "\n  Domain : acme.no",
+            f"    SPF            : {spf}",
+            f"                   {spf_record}",
+            f"    DMARC          : {dmarc}",
+            f"                   {dmarc_record}",
+            f"    DKIM (M365)    : selector1: {selector1} | selector2: {selector2}",
+            f"    DKIM (3rd party): {others}",
+            f"    DKIM found     : {', '.join(found) or '(none)'}",
+            f"    MTA-STS        : {mta_sts}",
+            "",
+            "=" * 110,
+            "",
+        ]
+    )
+
+
 def _dkim_table(rows: list[tuple[str, str, str]]) -> str:
     """25_exchange_dkim.txt as exchange.py's _save_dkim writes it: (domain, Yes/No, status)."""
     lines = [
@@ -442,14 +476,15 @@ FULL_AUDIT: dict[str, str] = {
     "25_exchange_dkim.txt": _dkim_table(
         [("acme.no", "Yes", "Valid"), ("acmeno.onmicrosoft.com", "Yes", "Valid")]
     ),
-    "26_email_dns_spf_dmarc.txt": (
-        "EMAIL DNS SECURITY\n"
-        "==================\n"
-        "Domain : acme.no\n"
-        "SPF   : OK (v=spf1 include:spf.protection.outlook.com -all)\n"
-        "DMARC : OK (v=DMARC1; p=reject; rua=mailto:dmarc@acme.no)\n"
-        "DKIM (sel1) : CNAME selector1._domainkey.acme.no OK\n"
-        "DKIM (sel2) : CNAME selector2._domainkey.acme.no OK\n"
+    # dns.py: each status a code the report words.
+    "26_email_dns_spf_dmarc.txt": _dns_report(
+        spf="hardfail",
+        spf_record="v=spf1 include:spf.protection.outlook.com -all",
+        dmarc="reject",
+        dmarc_record="v=DMARC1; p=reject; rua=mailto:dmarc@acme.no",
+        selector1="cname -> selector1-acme-no._domainkey.acme.onmicrosoft.example.",
+        selector2="cname -> selector2-acme-no._domainkey.acme.onmicrosoft.example.",
+        mta_sts="v=STSv1; id=20260101T000000;",
     ),
     "27_exchange_defender_policies.txt": (
         "DEFENDER FOR OFFICE 365 POLICIES\n"
@@ -876,13 +911,8 @@ _BROKEN_OVERRIDES: dict[str, str] = {
     ),
     # Signing set up for acme.no but switched off.
     "25_exchange_dkim.txt": _dkim_table([("acme.no", "No", "CnameMissing")]),
-    "26_email_dns_spf_dmarc.txt": (
-        "EMAIL DNS SECURITY\n"
-        "==================\n"
-        "Domain : acme.no\n"
-        "SPF   : MISSING\n"
-        "DMARC : MISSING\n"
-        "DKIM (sel1) : NOT FOUND\n"
+    "26_email_dns_spf_dmarc.txt": _dns_report(
+        spf="missing", dmarc="missing", selector1="missing", selector2="missing", mta_sts="missing"
     ),
     "18_risky_users.txt": (
         "==========================================================================================\n"

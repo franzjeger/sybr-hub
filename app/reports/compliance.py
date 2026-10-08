@@ -62,10 +62,14 @@ from app.reports.parsers.email import (
     _exchange_dkim_configs,
     _exchange_signs,
     _inbox_rule_counts,
-    _key_published,
     _spf_senders,
     _third_party_dkim,
     _unverified_forwarding_count,
+    dkim_status,
+    dmarc_status,
+    dmarc_words,
+    spf_status,
+    spf_words,
 )
 from app.reports.parsers.identity import _risky_users_from_text
 from app.reports.parsers.m365_backup import m365_backup_control
@@ -846,35 +850,52 @@ def _safe_attachments(audit: _Audit) -> _Verdict:
     return _defender_policy(audit, "safe_attachments", "Safe Attachments")
 
 
-# Per-domain checks. A failed DNS lookup comes back as "ERROR (...)", never as
-# "MISSING", and is cannot-verify rather than an absent record.
+# Per-domain checks. A failed DNS lookup is the status "error", never
+# "missing", and is cannot-verify rather than an absent record. The statuses
+# are codes the report words; a status no collector wrote is judged by its
+# words, as before, and shown as it was stored.
 
 
 def _spf(audit: _Audit, record: dict, domain: str) -> _Verdict:
-    spf = record.get("spf", "")
-    unresolved = spf.strip().upper().startswith("ERROR")
+    code, error = spf_status(record)
+    if code == "error":
+        return "info", audit.cannot_verify("cis_gap_spf_lookup", domain=domain, result=error)
+    if code == "hardfail":
+        return "pass", spf_words(record, audit.t)
+    if code == "missing":
+        return "fail", audit.t.cis_spf_missing
+    if code:
+        return "fail", spf_words(record, audit.t)
+    spf = str(record.get("spf") or "")
     if "OK" in spf:
         return "pass", spf
-    if unresolved:
+    if spf.strip().upper().startswith("ERROR"):
         return "info", audit.cannot_verify("cis_gap_spf_lookup", domain=domain, result=spf)
     return "fail", spf or audit.t.cis_spf_missing
 
 
 def _dmarc(audit: _Audit, record: dict, domain: str) -> _Verdict:
-    dmarc = record.get("dmarc", "")
+    code, error = dmarc_status(record)
+    if code == "error":
+        return "info", audit.cannot_verify("cis_gap_dmarc_lookup", domain=domain, result=error)
     published = record.get("dmarc_record", "")
+    dmarc = str(record.get("dmarc") or "")
+    if code == "missing":
+        dmarc = audit.t.cis_dmarc_missing
+    elif code:
+        dmarc = dmarc_words(record, audit.t)
     detail = dmarc
     if published and published != "(none)":
         detail = f"{dmarc}: {published}" if dmarc else published
-    if "reject" in dmarc.lower():
+    if code == "reject" or (not code and "reject" in dmarc.lower()):
         return "pass", detail
-    if "quarantine" in dmarc.lower():
+    if code == "quarantine" or (not code and "quarantine" in dmarc.lower()):
         return "partial", detail
-    if "p=none" in dmarc.lower() or "p=none" in published.lower():
+    if code == "none" or (not code and "p=none" in dmarc.lower()) or "p=none" in published.lower():
         return "partial", (
             audit.say("cis_dmarc_monitor_only", record=published) if published else dmarc
         )
-    if dmarc.strip().upper().startswith("ERROR"):
+    if not code and dmarc.strip().upper().startswith("ERROR"):
         return "info", audit.cannot_verify("cis_gap_dmarc_lookup", domain=domain, result=dmarc)
     return "fail", dmarc or audit.t.cis_dmarc_missing
 
@@ -918,12 +939,18 @@ def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
         # it was switched on. Only the M365 selectors decide here: the others
         # are guessed third-party names, and a blip there must not hide a miss.
         dkim1 = str(record.get("dkim1") or "")
-        m365 = [_dkim_selectors(record).get(s) for s in ("selector1", "selector2")]
-        if "error" in dkim1.lower():
-            return "info", audit.cannot_verify("cis_gap_dkim_lookup", domain=domain, result=dkim1)
-        if any(s and _key_published(s) for s in m365):
+        selectors = _dkim_selectors(record)
+        m365 = [dkim_status(selectors.get(s) or "") for s in ("selector1", "selector2")]
+        if any(code == "error" for code, _ in m365) or (
+            not any(code for code, _ in m365) and "error" in dkim1.lower()
+        ):
+            # What failed, once each; the summary as stored when it does not say.
+            failed = ", ".join(dict.fromkeys(d for code, d in m365 if code == "error" and d))
+            result = failed or dkim1
+            return "info", audit.cannot_verify("cis_gap_dkim_lookup", domain=domain, result=result)
+        if any(code in ("cname", "txt") for code, _ in m365):
             return "info", audit.cannot_verify("cis_gap_dkim_not_fetched", domain=domain)
-        if not all(s == "MISSING" for s in m365):
+        if not all(code == "missing" for code, _ in m365):
             return "info", audit.cannot_verify("cis_gap_dkim_unchecked")
         detail = audit.say("cis_dkim_no_m365_selectors", domain=domain)
     if keys:

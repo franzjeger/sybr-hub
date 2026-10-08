@@ -32,7 +32,7 @@ from app.reports.parsers import (
 )
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
-from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers.email import _external_forwarding_items, dmarc_status, spf_status
 from app.reports.parsers.identity import _risky_users_from_text
 from app.reports.parsers.m365_backup import _parse_m365_backup
 from app.reports.parsers.network import (
@@ -677,7 +677,10 @@ def _dmarc(audit: _Audit) -> Iterator[dict]:
         # used to raise on it and take the whole report down.
         if not d.get("domain") or not _is_audit_relevant_domain(d["domain"]):
             continue
-        if "MISSING" in d.get("dmarc", "") or "WEAK" in d.get("dmarc", ""):
+        code, _ = dmarc_status(d)
+        if code in ("missing", "none") or (
+            not code and ("MISSING" in d.get("dmarc", "") or "WEAK" in d.get("dmarc", ""))
+        ):
             yield {
                 "priority": "high",
                 "finding_id": "finding-email",
@@ -696,10 +699,10 @@ def _spf(audit: _Audit) -> Iterator[dict]:
     for d in audit.spf_dmarc:
         if not d.get("domain") or not _is_audit_relevant_domain(d["domain"]):
             continue
-        if (
-            "MISSING" in d.get("spf", "")
-            or "CRITICAL" in d.get("spf", "")
-            or "WEAK" in d.get("spf", "")
+        code, _ = spf_status(d)
+        spf = d.get("spf", "")
+        if code in ("missing", "pass_all", "softfail", "neutral") or (
+            not code and ("MISSING" in spf or "CRITICAL" in spf or "WEAK" in spf)
         ):
             yield {
                 "priority": "high",
