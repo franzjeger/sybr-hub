@@ -1156,7 +1156,7 @@ async def dashboard_assets(user=Depends(get_current_user)):
         "domains": [],
         "subscriptions": [],
     }
-    counts = {
+    counts: dict[str, int | None] = {
         "network": 0,
         "ssh": 0,
         "vpn": 0,
@@ -1164,6 +1164,8 @@ async def dashboard_assets(user=Depends(get_current_user)):
         "subscriptions": 0,
         "customers": len(customers),
     }
+    # Sections whose source could not be read; their count is None, not 0.
+    unavailable: list[str] = []
 
     # SSH hosts
     try:
@@ -1211,31 +1213,38 @@ async def dashboard_assets(user=Depends(get_current_user)):
     except Exception as exc:
         logger.debug("Asset inventory VPN failed: %s", exc)
 
-    # Network devices (FortiGate + UniFi from poller cache)
+    # Network devices: FortiGate and UniFi as each was last read, from the
+    # stored readings (device_firmware). The daily firmware check reads every
+    # firewall and controller the hub reaches, and the pollers and audits add
+    # theirs, so this survives a restart; the dashboard poller's cache holds
+    # only what somebody polled since. A store that cannot be read is said so
+    # (count None, "network_devices" in unavailable), never shown as no devices.
     try:
-        from app.web.routes.dashboard_ws import _poller
+        from app.services import firmware_inventory
 
-        if _poller:
-            for dev in _poller.get_devices():
-                cid = dev.get("customer_id", "")
-                if not customer_in_scope(cid, allowed):
-                    continue
-                assets["network_devices"].append(
-                    {
-                        "name": dev.get("name", ""),
-                        "vendor": dev.get("vendor", ""),
-                        "model": dev.get("model", ""),
-                        "firmware": dev.get("firmware", ""),
-                        "serial": dev.get("serial", ""),
-                        "status": dev.get("status", ""),
-                        "customer_id": cid,
-                        "customer_name": customer_map.get(cid, ""),
-                        "wan_ip": dev.get("wan_ip", ""),
-                    }
-                )
+        stored = await firmware_inventory.list_devices(allowed, names=customer_map)
+    except Exception:
+        logger.exception("Asset inventory: the stored device readings could not be read")
+        unavailable.append("network_devices")
+        counts["network"] = None
+    else:
+        for dev in stored:
+            assets["network_devices"].append(
+                {
+                    "name": dev["device_name"],
+                    "vendor": dev["vendor"],
+                    "model": dev["model"],
+                    "firmware": dev["version"],
+                    "firmware_status": dev["status"],
+                    "latest": dev["latest"],
+                    "device_key": dev["device_key"],
+                    "read_at": dev["read_at"],
+                    "read_error": dev["read_error"],
+                    "customer_id": dev["customer_id"],
+                    "customer_name": dev["customer_name"],
+                }
+            )
         counts["network"] = len(assets["network_devices"])
-    except Exception as exc:
-        logger.debug("Asset inventory network failed: %s", exc)
 
     # Domains (from Uniweb)
     try:
@@ -1311,4 +1320,5 @@ async def dashboard_assets(user=Depends(get_current_user)):
     return {
         "assets": assets,
         "counts": counts,
+        "unavailable": unavailable,
     }
