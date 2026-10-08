@@ -42,9 +42,29 @@ test('an alert detail is built in the reader\'s language from its key', async ({
     detail_params: {policy: 'Require MFA', since: '2026-09-30'},
   };
   await inApp(page, app => app.setLanguage('en'));
+  // The day is written as the reader writes a date, not as ISO (TODO C16).
   expect(await inApp(page, (app, a) => app.alertDetail(a), alert))
-    .toBe('The security policy “Require MFA” has been removed since 2026-09-30.');
+    .toBe('The security policy “Require MFA” has been removed since 30 September 2026.');
+  await inApp(page, app => app.setLanguage('no'));
+  expect(await inApp(page, (app, a) => app.alertDetail(a), alert))
+    .toBe('Sikkerhetspolicyen «Require MFA» er fjernet siden 30. september 2026.');
   // An entry from before alerts had keys shows the sentence it was stored with.
   expect(await inApp(page, app => app.alertDetail({detail: 'SMBv1 er slått på'})))
     .toBe('SMBv1 er slått på');
+});
+
+// The alert history's time column was written with a fixed nb-NO locale, so
+// an English reader saw "8.10.2026, 14:05:00" (TODO C16). A moment is written
+// in the reader's language and own time zone.
+test('a recorded moment is written in the reader\'s language', async ({page}) => {
+  await login(page);
+  const moment = '2026-10-08T12:05:00Z';
+  const expected = lang => page.evaluate(([value, locale]) => new Date(value).toLocaleString(locale),
+    [moment, lang === 'en' ? 'en-GB' : 'nb-NO']);
+  for (const lang of ['en', 'no']) {
+    await inApp(page, (app, value) => app.setLanguage(value), lang);
+    expect(await inApp(page, (app, value) => app.formatDateTime(value), moment)).toBe(await expected(lang));
+  }
+  expect(await inApp(page, app => app.formatDateTime(''))).toBe('');
+  expect(await inApp(page, app => app.formatDateTime('ikke en tid'))).toBe('ikke en tid');
 });

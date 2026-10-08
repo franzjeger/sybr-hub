@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from datetime import date
+
 TRANSLATIONS: dict[str, dict[str, str]] = {
     # Background notifications use the Hub language, independently of report language.
     "background_alert_sweep": {
@@ -4438,7 +4441,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "alert_fact_critical": {"no": "Kritiske", "en": "Critical"},
     "alert_fact_warnings": {"no": "Advarsler", "en": "Warnings"},
     "alert_and_more": {"no": "... og {count} til", "en": "... and {count} more"},
-    "alert_sent_at": {"no": "Sendt {when}", "en": "Sent {when}"},
+    "alert_sent_at": {"no": "Sendt {date} kl. {time} UTC", "en": "Sent {date}, {time} UTC"},
     "alert_open_dashboard": {"no": "Åpne Sybr HUB", "en": "Open Sybr HUB"},
     "alert_email_footer": {
         "no": "Sendt automatisk fra Sybr HUB",
@@ -4541,6 +4544,62 @@ def get_translations(lang: str = "no") -> dict[str, str]:
     for key, translations in TRANSLATIONS.items():
         result[key] = translations.get(lang, translations.get("no", key))
     return result
+
+
+# A day written into a sentence the way the interface writes it
+# (formatRunName in app-format.js): "30. september 2026", "30 September 2026".
+# Not the platform's locale, which is one setting for the whole process and
+# often has no Norwegian installed.
+_MONTHS = {
+    "no": (
+        "januar",
+        "februar",
+        "mars",
+        "april",
+        "mai",
+        "juni",
+        "juli",
+        "august",
+        "september",
+        "oktober",
+        "november",
+        "desember",
+    ),
+    "en": (
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ),
+}
+_ISO_DAY = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+
+def format_date(value: object, lang: str = "no") -> str:
+    """The day of an ISO date or timestamp, written for a reader of *lang*.
+
+    A value that does not start with an ISO date is returned as it is: the
+    caller's data is never dropped for not being a date.
+    """
+    text = str(value or "")
+    m = _ISO_DAY.match(text)
+    if not m:
+        return text
+    try:
+        day = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return text
+    if lang == "en":
+        return f"{day.day} {_MONTHS['en'][day.month - 1]} {day.year}"
+    return f"{day.day}. {_MONTHS['no'][day.month - 1]} {day.year}"
 
 
 class Localised(str):

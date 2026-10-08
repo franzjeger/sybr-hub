@@ -447,7 +447,8 @@ function _notifRow(n) {
   html += '<div class="notif-meta">';
   if (n.customer) html += '<span class="cust">' + esc(n.customer) + '</span>';
   html += '<span class="src">' + esc(n.source) + '</span>';
-  if (n.when) html += '<span>' + esc(n.when) + '</span>';
+  // A day comes as an ISO date; an event's "5 min ago" is left as it is.
+  if (n.when) html += '<span>' + esc(formatRunName(n.when, true)) + '</span>';
   if (n.detail) html += '<span class="notif-detail">' + esc(n.detail) + '</span>';
   html += '</div></div>';
   html += '<div class="notif-actions">';
@@ -530,7 +531,8 @@ function _notifCoverageCard() {
   var html = '<div class="notif-card"><h4>' + esc(t('hdr_checked_state', 'Hva er sjekket')) + '</h4>';
   var tls = cov.tls || {};
   var fw = cov.firmware || {};
-  var day = function(iso) { return String(iso || '').slice(0, 10); };
+  // The day of a stored timestamp, as the reader writes a date.
+  var day = function(iso) { return formatRunName(String(iso || '').slice(0, 10)); };
   var line;
   if (tls.unavailable) line = t('msg_cov_tls_unavailable', 'Lagrede sertifikater kunne ikke leses.');
   else if (!tls.endpoints) line = t('msg_cov_tls_none', 'Ingen TLS-endepunkter er sjekket ennå.');

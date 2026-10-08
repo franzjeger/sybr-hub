@@ -110,6 +110,14 @@ def _detailed(alert: dict, key: str, **params: Any) -> dict:
     return alert
 
 
+# The detail values that are days. They are kept as ISO dates ("2026-09-30"),
+# so an entry in the history means the same in every language, and written
+# the way the reader writes a date when the sentence is built: here for the
+# e-mail and the chat card, in alertDetail() (app-integrations.js) for the
+# Varsler page.
+DATE_PARAMS = frozenset({"date", "since"})
+
+
 def render_detail(alert: dict, lang: str) -> str:
     """An alert's detail in *lang*.
 
@@ -119,9 +127,13 @@ def render_detail(alert: dict, lang: str) -> str:
     key = alert.get("detail_key")
     if not key:
         return str(alert.get("detail") or "")
-    from app.reports.i18n import T
+    from app.reports.i18n import T, format_date
 
-    return str(T(lang)(key, **(alert.get("detail_params") or {})))
+    params = {
+        name: format_date(value, lang) if name in DATE_PARAMS else value
+        for name, value in (alert.get("detail_params") or {}).items()
+    }
+    return str(T(lang)(key, **params))
 
 
 def _detail_fields(alert: dict) -> dict:

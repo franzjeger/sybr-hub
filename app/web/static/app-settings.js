@@ -10,7 +10,7 @@ import {icon} from './app-icons.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {onViewShown} from './app-hooks.js';
 import {_currentUser, canOpenView} from './app-state.js';
-import {timeAgo} from './app-format.js';
+import {formatDateTime, timeAgo} from './app-format.js';
 import {showConfirm, showToast, showTypedConfirm} from './app-ui.js';
 import {apiFetch} from './app-api.js';
 import {navCheckAuth as checkAuth, navPasswordMeetsRule as passwordMeetsRule, navShowView as showView, navSyncRoute as syncRoute} from './app-navigation.js';
@@ -937,8 +937,7 @@ async function loadBackupInfo() {
     const d = await apiFetch('/api/backup/info');
     const el = document.getElementById('backup-last-info');
     if (d.last_backup_date) {
-      const dt = new Date(d.last_backup_date);
-      el.innerHTML = t('msg_last_backup') + ': <strong>' + dt.toLocaleString('nb-NO') + '</strong>' +
+      el.innerHTML = t('msg_last_backup') + ': <strong>' + esc(formatDateTime(d.last_backup_date)) + '</strong>' +
         (d.last_backup_path ? '<br>' + esc(d.last_backup_path) : '');
     } else {
       el.textContent = t('msg_no_backup_yet');
