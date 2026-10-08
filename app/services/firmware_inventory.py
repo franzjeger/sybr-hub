@@ -411,6 +411,54 @@ async def record_fortigate_poll(results: list[dict]) -> None:
         )
 
 
+async def fortigate_fleet(allowed: set[str] | None) -> list[dict]:
+    """Every configured FortiGate the caller may see, with its last reading.
+
+    Contacts no firewall: each customer's stored address, joined to the row
+    the fleet poll, the daily firmware job, the network audit or a detail
+    panel last left here. ``read_at`` is the last read that worked,
+    ``checked_at`` the last attempt, ``read_error`` why that attempt failed.
+    A FortiGate nobody has tried to read yet has neither time.
+    """
+    from app.core.credentials import get_secret
+    from app.core.customer import CustomerManager
+
+    names: dict[str, str] = {}
+    configured: list[tuple[str, str]] = []
+    for c in CustomerManager.list_customers():
+        cid = c.get("_id", "")
+        names[cid] = c.get("CustomerName", "")
+        host = str(c.get("FortiGateHost") or "").strip()
+        if cid and host and customer_in_scope(cid, allowed):
+            configured.append((cid, host))
+    # The readers key each firewall by its address, lower-cased.
+    readings = {
+        (d["customer_id"], d["device_key"]): d
+        for d in await list_devices(allowed, names=names)
+        if d["vendor"] == "fortigate"
+    }
+    fleet = []
+    for cid, host in configured:
+        reading = readings.get((cid, host.lower()), {})
+        fleet.append(
+            {
+                "customer_id": cid,
+                "customer_name": names.get(cid, ""),
+                "host": host,
+                "has_token": bool(get_secret(cid, "fortigate_api_token")),
+                "hostname": reading.get("device_name") or "",
+                "model": reading.get("model") or "",
+                "firmware": reading.get("version") or "",
+                "firmware_status": reading.get("status") or "",
+                "read_at": reading.get("read_at") or None,
+                "checked_at": reading.get("checked_at") or None,
+                "read_error": reading.get("read_error") or "",
+            }
+        )
+    fleet.sort(key=lambda f: (f["customer_name"].lower(), f["host"]))
+    return fleet
+
+
 async def record_unifi_devices(customer_id: str, devices: list[dict]) -> None:
     """Store a controller's device list (the controller API's own shape)."""
     readings = []

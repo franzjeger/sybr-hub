@@ -111,3 +111,108 @@ async def test_the_fleet_is_scoped_to_the_callers_customers(client):
 async def test_a_viewer_does_not_reach_it(client):
     headers = await login("viewer", role=Role.viewer, all_customers=True)
     assert client.get("/api/fortigate/fleet", headers=headers).status_code == 403
+
+
+async def test_a_failed_read_has_an_attempt_time_and_no_read_time(client):
+    """read_at is the last read that worked; checked_at the last attempt.
+    The fleet used to send the attempt as read_at, so a firewall never read
+    once looked read, and "Sist lest" counted a failure."""
+    await firmware_inventory.record_fortigate_failure(ACME, HOSTS[ACME], "timed out")
+    headers = await login("tech-all", all_customers=True)
+    fleet = client.get("/api/fortigate/fleet", headers=headers).json()["fortigates"]
+    acme = next(f for f in fleet if f["customer_id"] == ACME)
+    assert (acme["read_at"], acme["read_error"]) == (None, "timed out")
+    assert acme["checked_at"]
+    beta = next(f for f in fleet if f["customer_id"] == BETA)
+    assert (beta["read_at"], beta["checked_at"]) == (None, None)
+
+
+# ── The first read (TODO D20) ───────────────────────────────────────────────
+# A FortiGate set up with its token showed "Ikke lest ennå" until somebody
+# pressed "Oppdater nå" or the daily firmware job ran. The page now asks for
+# one read of each firewall nobody has read; these pin that it is one.
+
+
+def _poll(monkeypatch, *, online: bool = True) -> list[set[str]]:
+    """Answer the fleet poll for the customers asked, storing each reading as
+    poll_all_fortigates does, and keep who was asked."""
+    asked: list[set[str]] = []
+
+    async def poll(customer_ids=None):
+        asked.append(set(customer_ids or ()))
+        results = [
+            {
+                "customer_id": cid,
+                "host": HOSTS[cid],
+                "status": "online",
+                "hostname": "FW-NEW",
+                "model": "FortiGate-60F",
+                "firmware": "v7.4.8",
+                "firmware_available": [],
+            }
+            if online
+            else {"customer_id": cid, "host": HOSTS[cid], "status": "error", "error": "timed out"}
+            for cid in sorted(customer_ids or ())
+        ]
+        await firmware_inventory.record_fortigate_poll(results)
+        return results
+
+    monkeypatch.setattr("app.services.fortigate_api.poll_all_fortigates", poll)
+    return asked
+
+
+async def test_the_first_read_reads_each_new_firewall_once(client, monkeypatch):
+    asked = _poll(monkeypatch)
+    headers = await login("tech-all", all_customers=True)
+
+    r = client.post("/api/fortigate/fleet/first-read", headers=headers)
+
+    assert r.status_code == 200, r.text
+    # Beta has no token to read it with.
+    assert asked == [{ACME}]
+    assert r.json()["read"] == 1
+    acme = next(f for f in r.json()["fortigates"] if f["customer_id"] == ACME)
+    assert (acme["hostname"], acme["firmware"]) == ("FW-NEW", "v7.4.8")
+    assert acme["read_at"]
+    # Opening the page again reads nothing.
+    again = client.post("/api/fortigate/fleet/first-read", headers=headers)
+    assert again.json()["read"] == 0
+    assert asked == [{ACME}]
+
+
+async def test_a_first_read_that_failed_is_not_retried_on_every_open(client, monkeypatch):
+    """An unreachable firewall would otherwise be contacted, and waited ten
+    seconds for, each time anybody opened the page."""
+    asked = _poll(monkeypatch, online=False)
+    headers = await login("tech-all", all_customers=True)
+
+    first = client.post("/api/fortigate/fleet/first-read", headers=headers).json()
+    acme = next(f for f in first["fortigates"] if f["customer_id"] == ACME)
+    assert (acme["read_at"], acme["read_error"]) == (None, "timed out")
+
+    client.post("/api/fortigate/fleet/first-read", headers=headers)
+    assert asked == [{ACME}]
+
+
+async def test_the_first_read_reads_only_the_callers_customers(client, monkeypatch):
+    monkeypatch.setattr("app.core.credentials.get_secret", lambda cid, name: "token")
+    asked = _poll(monkeypatch)
+    headers = await login("tech-acme", customers=(ACME,))
+
+    r = client.post("/api/fortigate/fleet/first-read", headers=headers)
+
+    assert asked == [{ACME}]
+    assert [f["customer_id"] for f in r.json()["fortigates"]] == [ACME]
+    assert_no_foreign(r.text)
+
+
+async def test_the_first_read_needs_write_and_the_network_feature(client, monkeypatch):
+    """It stores readings, like "Oppdater nå", which a read-only account does
+    not see; a viewer has no Nettverk at all."""
+    asked = _poll(monkeypatch)
+    read_only = await login("tech-read-only", all_customers=True, write=False)
+    viewer = await login("viewer-fg", role=Role.viewer, all_customers=True)
+
+    assert client.post("/api/fortigate/fleet/first-read", headers=read_only).status_code == 403
+    assert client.post("/api/fortigate/fleet/first-read", headers=viewer).status_code == 403
+    assert asked == []

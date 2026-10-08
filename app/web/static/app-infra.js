@@ -12,7 +12,7 @@ import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {registerToolCustomer} from './app-hooks.js';
-import {_allCustomers, _overviewData, currentCustomerId, setOverviewData} from './app-state.js';
+import {_allCustomers, _overviewData, canWrite, currentCustomerId, setOverviewData} from './app-state.js';
 import {_formatBytes, badgeClass, timeAgo, toneClass, toneVar} from './app-format.js';
 import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
@@ -1422,6 +1422,8 @@ async function fgBackupAll() {
 // It used to read the list, then poll each customer again, then read the
 // list a third time.
 export async function fgPollAll() {
+  // A first read still under way must not draw over this one.
+  ++_fgFleetDraw;
   var statusEl = document.getElementById('fg-live-status');
   if (statusEl) statusEl.textContent = t('msg_updating');
   var data = await apiFetch('/api/fortigate/all');
@@ -2104,15 +2106,37 @@ function _customersSignpostButton() {
 // customer's FortiGate live before drawing anything, so it opened as slowly
 // as the slowest firewall. "Oppdater nå" reads them all live (fgPollAll); a
 // card's detail panel reads its own.
+//
+// A firewall set up with its token that nobody has tried to read said "Ikke
+// lest ennå" until somebody pressed "Oppdater nå" or the daily firmware job
+// ran. Those, and only those, are read once after the stored list is drawn
+// (/api/fortigate/fleet/first-read); a read that failed counts, so the next
+// visit reads nothing. It stores readings, so it waits for write access, as
+// "Oppdater nå" does.
+var _fgFleetDraw = 0;
+
 export async function dashLoadFortiGates() {
+  var draw = ++_fgFleetDraw;
   var el = document.getElementById('dash-fg-content');
   el.innerHTML = '<div class="loader loader-md"></div><div class="text-center text-muted text-sm">' + esc(t('msg_loading_fortigates')) + '</div>';
   var status = document.getElementById('fg-live-status');
   if (status) status.textContent = '';
   var data = await apiFetch('/api/fortigate/fleet');
+  if (draw !== _fgFleetDraw) return;
   // apiFetch has said why it got nothing.
   if (!data || !data.fortigates) { el.innerHTML = '<div class="empty-note">' + esc(t('net_fleet_fortigate_failed')) + '</div>'; return; }
-  _fgRenderFleet(data.fortigates, false);
+  var firstRead = canWrite() && data.fortigates.some(_fgAwaitingFirstRead);
+  _fgRenderFleet(data.fortigates, false, firstRead);
+  if (!firstRead) return;
+  var read = await apiFetch('/api/fortigate/fleet/first-read', {method: 'POST'});
+  // "Oppdater nå" or a new visit since, or a detail panel open: left as it is.
+  if (draw !== _fgFleetDraw || document.querySelector('.fg-detail-panel')) return;
+  _fgRenderFleet(read && read.fortigates ? read.fortigates : data.fortigates, false, false);
+}
+
+// Never tried, and there is a token to read it with.
+function _fgAwaitingFirstRead(f) {
+  return !!f.has_token && !f.checked_at && !f.read_at && !f.read_error;
 }
 
 var _FG_FIRMWARE = {current: ['fg_fw_current', 'badge-success'], outdated: ['fg_fw_outdated', 'badge-warning'],
@@ -2124,7 +2148,8 @@ function _fgAverage(fgs, key) {
 }
 
 // The KPI row and the cards, from the stored list or from a live read.
-function _fgRenderFleet(fgs, live) {
+// firstRead: the firewalls never read are being read now.
+function _fgRenderFleet(fgs, live, firstRead) {
   var el = document.getElementById('dash-fg-content');
   // A customer's FortiGate is set up on its page, under Nettverk.
   if (!fgs.length) { el.innerHTML = '<div class="empty-signpost"><p>' + esc(t('msg_no_fortigates')) + '</p>' + _customersSignpostButton() + '</div>'; return; }
@@ -2169,25 +2194,37 @@ function _fgRenderFleet(fgs, live) {
   html += '</div>';
 
   html += '<div class="grid grid-auto-lg gap-3">';
-  fgs.forEach(function(f) { html += live ? _fgLiveCard(f) : _fgStoredCard(f); });
+  fgs.forEach(function(f) { html += live ? _fgLiveCard(f) : _fgStoredCard(f, firstRead); });
   html += '</div>';
   el.innerHTML = html;
 }
 
+// The dot's meaning is its title, and the card's foot says it in words; the
+// dot itself is hidden from a screen reader, which reads the foot.
 function _fgCardHead(f, color, title) {
   return '<div class="card device-card cursor-pointer edge-tone ' + toneVar(color) + '" data-click-handler="dashFgDetail" data-customer-id="' + esc(f.customer_id) + '">'
     + '<div class="device-card-head">'
     + '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">' + esc(f.hostname || f.host || '-') + '</strong>'
-    + '<span class="dot ' + toneClass(color) + ' ml-2" title="' + esc(title) + '"></span>'
+    + '<span class="dot ' + toneClass(color) + ' ml-2" title="' + esc(title) + '" aria-hidden="true"></span>'
     + '</div>'
     + '<div class="device-card-sub">' + esc(f.customer_name || '-') + '</div>';
 }
 
+// What a stored card says about its last read. Its dot was green for a read
+// that worked and read as "online now"; it says "Siste lesing OK" instead,
+// and when. read_at is the last read that worked, checked_at the last try.
+function _fgStoredRead(f, firstRead) {
+  if (f.read_error) return {color: 'var(--red)', text: t('fg_last_read_failed') + (f.checked_at ? ', ' + timeAgo(f.checked_at) : '')};
+  if (f.read_at) return {color: 'var(--green)', text: t('fg_last_read_ok') + ', ' + timeAgo(f.read_at)};
+  if (f.has_token && firstRead) return {color: 'var(--text-dim)', text: t('fg_first_read_running')};
+  if (f.has_token) return {color: 'var(--text-dim)', text: t('fg_never_read_next_check')};
+  return {color: 'var(--text-dim)', text: t('fg_never_read')};
+}
+
 // As last read: its model and firmware, the firmware's verdict, and when.
-function _fgStoredCard(f) {
-  var color = f.read_error ? 'var(--red)' : f.read_at ? 'var(--green)' : 'var(--text-dim)';
-  var when = f.read_at ? t('fg_read_at').replace('{time}', timeAgo(f.read_at)) : t('fg_never_read');
-  var html = _fgCardHead(f, color, f.read_error || when);
+function _fgStoredCard(f, firstRead) {
+  var read = _fgStoredRead(f, firstRead);
+  var html = _fgCardHead(f, read.color, read.text);
   var fw = _FG_FIRMWARE[f.firmware_status];
   html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
   html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
@@ -2195,16 +2232,17 @@ function _fgStoredCard(f) {
   html += '<span class="cust-net-addr">' + esc(f.host || '-') + '</span>';
   html += '<span>' + (fw ? '<span class="badge ' + fw[1] + '">' + esc(t(fw[0])) + '</span>' : '') + '</span>';
   html += '</div>';
-  html += '<div class="fg-card-foot' + (f.read_error ? ' text-danger' : '') + '">' + esc(f.read_error ? when + ': ' + f.read_error : when)
+  html += '<div class="fg-card-foot' + (f.read_error ? ' text-danger' : '') + '">' + esc(f.read_error ? read.text + ': ' + f.read_error : read.text)
     + (f.has_token ? '' : ' · ' + esc(t('fg_no_token'))) + '</div>';
   html += '</div>';
   return html;
 }
 
-// As read just now.
+// As read just now: here the dot does mean that it answered.
 function _fgLiveCard(f) {
   var color = f.status === 'online' ? 'var(--green)' : f.status === 'error' ? 'var(--red)' : 'var(--orange)';
-  var html = _fgCardHead(f, color, f.error || f.status || '');
+  var title = f.status === 'online' ? t('fg_live_online') : f.status === 'error' ? t('fg_live_error') + (f.error ? ': ' + f.error : '') : (f.status || '');
+  var html = _fgCardHead(f, color, title);
   html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
   html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
   html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
