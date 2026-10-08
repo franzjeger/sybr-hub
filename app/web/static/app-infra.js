@@ -230,7 +230,7 @@ export async function hostsLoad() {
 
     // ROW 1 — Header (24px): label + group badge + status dot
     html += '<div class="device-card-head">';
-    html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">'+esc(h.label||'-')+'</strong>';
+    html += '<strong class="device-card-name">'+esc(h.label||'-')+'</strong>';
     html += '<span class="device-card-tag">'+esc(h.group_name||'-')+'</span>';
     html += '<span class="dot ' + toneClass(statusColor) + ' ml-2"></span>';
     html += '</div>';
@@ -829,7 +829,7 @@ export async function sshShowExec() {
   if (!box.owns() || !data) return;
   var hhtml = '';
   (data.hosts||[]).forEach(function(h) {
-    hhtml += '<label class="inline-flex items-center gap-1 mr-3 text-ui cursor-pointer"><input type="checkbox" class="ssh-exec-host-cb" value="'+esc(h.id)+'"> '+esc(h.label)+'</label>';
+    hhtml += '<label class="check-label inline-flex gap-1 mr-3 text-ui"><input type="checkbox" class="ssh-exec-host-cb" value="'+esc(h.id)+'"> '+esc(h.label)+'</label>';
   });
   document.getElementById('ssh-exec-hosts').innerHTML = hhtml || '<span class="text-muted">' + t('msg_no_hosts_short','No hosts registered.') + '</span>';
 }
@@ -1743,8 +1743,8 @@ function provisionRenderStep(step) {
   } else if (step === 4) {
     html += '<div class="max-w-md">'
       + '<input id="prov-admin-pw" type="password" placeholder="' + t('placeholder_admin_password','Admin password') + '" class="field-input mb-2">'
-      + '<label class="flex items-center gap-2 text-ui mb-2"><input type="checkbox" id="prov-webfilter" checked> ' + t('web_filter') + '</label>'
-      + '<label class="flex items-center gap-2 text-ui mb-2"><input type="checkbox" id="prov-ids" checked> IDS/IPS</label>'
+      + '<label class="check-label text-ui mb-2"><input type="checkbox" id="prov-webfilter" checked> ' + t('web_filter') + '</label>'
+      + '<label class="check-label text-ui mb-2"><input type="checkbox" id="prov-ids" checked> IDS/IPS</label>'
       + '</div>';
   } else if (step === 5) {
     html += '<div id="prov-summary" class="text-muted">' + t('msg_loading_summary','Loading summary...') + '</div>'
@@ -2204,7 +2204,7 @@ function _fgRenderFleet(fgs, live, firstRead) {
 function _fgCardHead(f, color, title) {
   return '<div class="card device-card cursor-pointer edge-tone ' + toneVar(color) + '" data-click-handler="dashFgDetail" data-customer-id="' + esc(f.customer_id) + '">'
     + '<div class="device-card-head">'
-    + '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">' + esc(f.hostname || f.host || '-') + '</strong>'
+    + '<strong class="device-card-name">' + esc(f.hostname || f.host || '-') + '</strong>'
     + '<span class="dot ' + toneClass(color) + ' ml-2" title="' + esc(title) + '" aria-hidden="true"></span>'
     + '</div>'
     + '<div class="device-card-sub">' + esc(f.customer_name || '-') + '</div>';
@@ -2226,7 +2226,7 @@ function _fgStoredCard(f, firstRead) {
   var read = _fgStoredRead(f, firstRead);
   var html = _fgCardHead(f, read.color, read.text);
   var fw = _FG_FIRMWARE[f.firmware_status];
-  html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+  html += '<div class="device-card-stats">';
   html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
   html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
   html += '<span class="cust-net-addr">' + esc(f.host || '-') + '</span>';
@@ -2243,7 +2243,7 @@ function _fgLiveCard(f) {
   var color = f.status === 'online' ? 'var(--green)' : f.status === 'error' ? 'var(--red)' : 'var(--orange)';
   var title = f.status === 'online' ? t('fg_live_online') : f.status === 'error' ? t('fg_live_error') + (f.error ? ': ' + f.error : '') : (f.status || '');
   var html = _fgCardHead(f, color, title);
-  html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+  html += '<div class="device-card-stats">';
   html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
   html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
   html += '<span>S/N: <span class="font-mono text-xs">' + esc(f.serial || '-') + '</span></span>';
@@ -2649,7 +2649,7 @@ export async function dashLoadUnifiAll() {
       // ROW 1 — Header
       html += '<div class="device-card-head">';
       html += '<span class="dot ' + toneClass(color) + '"></span>';
-      html += '<strong class="flex-1 text-base ml-2 nowrap overflow-hidden ellipsis">'+esc(d.name||'-')+'</strong>';
+      html += '<strong class="device-card-name ml-2">'+esc(d.name||'-')+'</strong>';
       if (d.source === 'site_manager') html += '<span class="badge badge-info shrink-0">' + t('cloud') + '</span>';
       html += '</div>';
 
@@ -2657,7 +2657,7 @@ export async function dashLoadUnifiAll() {
       html += '<div class="device-card-sub">'+esc(d.customer_name||d.model_full||d.model||'')+'</div>';
 
       // ROW 3 — Stats grid (enriched)
-      html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+      html += '<div class="device-card-stats">';
       html += '<span>' + t('modell') + ' <strong class="text-default">'+esc(d.model||'-')+'</strong></span>';
       html += '<span>FW: '+esc(d.firmware||'-')+'</span>';
       html += '<span>' + t('klienter') + ' <strong>'+(d.clients!=null?Number(d.clients):'-')+'</strong></span>';
@@ -3852,7 +3852,7 @@ function _renderSiteTable(sites) {
 
       // ROW 1: name + badges (24px)
       html += '<div class="device-card-head">';
-      html += '<strong class="text-ui nowrap overflow-hidden ellipsis flex-1 min-w-0" title="'+esc(sub.name)+'">'+esc(sub.name)+'</strong>';
+      html += '<strong class="device-card-name text-ui" title="'+esc(sub.name)+'">'+esc(sub.name)+'</strong>';
       if (sub.offline_devices > 0) html += '<span class="text-2xs text-danger fw-semibold nowrap shrink-0 ml-2">'+Number(sub.offline_devices)+' offline</span>';
       if (sub.critical_notifications > 0) html += '<span class="text-2xs text-warning fw-semibold nowrap shrink-0 ml-2">'+Number(sub.critical_notifications)+' ' + t('inf_alert_sg','varsel') + '</span>';
       html += '</div>';
@@ -3886,7 +3886,7 @@ function _renderSiteTable(sites) {
 
       // ROW 1: name + dot (24px)
       html += '<div class="device-card-head">';
-      html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0" title="'+esc(s.name||'')+'">'+esc(s.name||t('lbl_unknown','Unknown'))+'</strong>';
+      html += '<strong class="device-card-name" title="'+esc(s.name||'')+'">'+esc(s.name||t('lbl_unknown','Unknown'))+'</strong>';
       html += '<span class="dot ' + toneClass(statusColor) + ' ml-2"></span>';
       html += '</div>';
 
@@ -3894,7 +3894,7 @@ function _renderSiteTable(sites) {
       html += '<div class="device-card-sub">' + t('wan') + ' <strong class="text-default">'+esc(s.wan_ip||'-')+'</strong></div>';
 
       // ROW 3: stats grid (1fr) — ALWAYS 6 fields
-      html += '<div class="grid grid-cols-3 gap-1 text-sm text-muted content-start pt-2">';
+      html += '<div class="device-card-stats grid-cols-3">';
       html += '<span>' + t('lbl_devices','Devices') + ': <strong>'+(Number(s.device_count)||0)+'</strong>'+(s.offline_devices>0?' <span class="text-danger">('+Number(s.offline_devices)+'⬇)</span>':'')+'</span>';
       html += '<span>' + t('lbl_clients','Clients') + ': '+(Number(s.client_count)||0)+'</span>';
       html += '<span>' + t('lbl_model','Model') + ': '+esc(s.model||'-')+'</span>';

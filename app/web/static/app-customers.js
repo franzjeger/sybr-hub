@@ -159,7 +159,7 @@ export async function uploadReportsToITGlue(customerId) {
     for (let i = 0; i < files.length; i++) {
       var f = files[i];
       var ficon = f.name.endsWith('.pdf') ? icon('document',14) : icon('globe',14);
-      html += '<label class="flex items-center gap-2 py-2 px-3 cursor-pointer border-b text-sm">';
+      html += '<label class="picker-row text-sm">';
       html += '<input type="checkbox" class="itglue-file-cb checkbox" value="' + esc(f.name) + '" checked data-change-handler="updateITGlueUploadBtn">';
       html += ficon + ' <span class="flex-1">' + esc(f.name) + '</span>';
       html += '<span class="text-muted">' + esc(f.size) + '</span>';
@@ -328,7 +328,7 @@ function pickITGlueOrg(orgs) {
     function render(filter) {
       const filtered = filter ? orgs.filter(o => o.name.toLowerCase().includes(filter.toLowerCase())) : orgs;
       list.innerHTML = filtered.map(o =>
-        `<div class="itglue-org-item py-2 px-3 border-b cursor-pointer text-ui" data-id="${esc(o.id)}">${esc(o.name)}</div>`
+        `<div class="itglue-org-item picker-row text-ui" data-id="${esc(o.id)}">${esc(o.name)}</div>`
       ).join('');
     }
     render('');
@@ -497,7 +497,7 @@ export async function openITGlueImport() {
 
     var html = '<div class="mb-3 flex gap-2 items-center">';
     html += '<input type="text" id="itglue-import-search" class="field-input flex-1 py-2 px-3 text-sm" placeholder="' + t('lbl_search') + '" data-input-handler="filterITGlueImport">';
-    html += '<label class="text-sm flex items-center gap-1 cursor-pointer nowrap"><input type="checkbox" id="itglue-import-select-all" data-change-handler="toggleAllITGlueImport"> ' + t('btn_select_all') + '</label>';
+    html += '<label class="check-label gap-1 text-sm nowrap"><input type="checkbox" id="itglue-import-select-all" data-change-handler="toggleAllITGlueImport"> ' + t('btn_select_all') + '</label>';
     html += '</div>';
     html += '<div class="max-h-lg overflow-y-auto border rounded">';
     html += '<table class="section-table w-full"><thead><tr><th class="col-check"></th><th class="text-left">' + t('lbl_organization') + '</th><th class="text-left">' + t('lbl_id') + '</th><th></th></tr></thead><tbody>';

@@ -107,11 +107,11 @@ function renderScopeSections() {
     html += '<div class="inset scope-group">';
     html += '<div class="flex items-center justify-between mb-2">';
     html += '<span class="card-title mb-0">' + esc(cat) + ' <span class="text-dim fw-normal">(' + sections.length + ')</span></span>';
-    html += '<label class="text-2xs text-dim cursor-pointer flex items-center gap-1"><input type="checkbox" ' + (allChecked?'checked':'') + ' data-change-handler="toggleScopeGroup" data-group="' + esc(catId) + '"> ' + t('btn_select_all','Alle') + '</label>';
+    html += '<label class="check-label gap-1 text-2xs text-dim"><input type="checkbox" ' + (allChecked?'checked':'') + ' data-change-handler="toggleScopeGroup" data-group="' + esc(catId) + '"> ' + t('btn_select_all','Alle') + '</label>';
     html += '</div>';
     for (const s of sections) {
       const id = 'scope-cb-' + s.name.replace(/[^a-zA-Z0-9]/g, '_');
-      html += '<label class="flex items-center gap-2 text-xs py-0-5 px-0 cursor-pointer" data-scope-group="' + catId + '">';
+      html += '<label class="check-label text-xs py-0-5 px-0" data-scope-group="' + catId + '">';
       html += '<input type="checkbox" id="' + id + '" data-section="' + esc(s.name) + '" ' + (s.enabled ? 'checked' : '') + ' data-change-handler="onScopeChange">';
       html += esc(s.name) + '</label>';
     }

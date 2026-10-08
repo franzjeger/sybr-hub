@@ -156,6 +156,14 @@ def _shown_by_display(source: str, element_id: str) -> list[str]:
     return [str(line) for line in found]
 
 
+def test_no_css_rule_matches_a_style_attribute():
+    """With no style attribute left, a selector like [style*="display:grid"]
+    matches nothing; it only tells the next reader that inline styles still
+    lay pages out. The utilities in app.css carry those responsive rules."""
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    assert not re.findall(r"\[style[\]*^$|~=]", css)
+
+
 def test_an_element_marked_hidden_is_shown_through_hidden():
     """[hidden] { display: none !important; } in app.css wins over any display
     a script sets, so style.display = 'block' on a hidden element shows

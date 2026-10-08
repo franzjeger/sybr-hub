@@ -666,7 +666,7 @@ export async function createUser() {
 // changing configuration in a customer's tenant.
 function _capabilityToggles(u) {
   var write = !!u.can_write, tenant = !!u.tenant_write;
-  return '<label class="flex items-center gap-1 text-xs text-muted cursor-pointer nowrap" title="' + t('tip_cap_write','May change things in Sybr HUB. The initial administrator receives access automatically; additional accounts start without it.') + '">'
+  return '<label class="check-label gap-1 text-xs text-muted nowrap" title="' + t('tip_cap_write','May change things in Sybr HUB. The initial administrator receives access automatically; additional accounts start without it.') + '">'
     + '<input type="checkbox"' + (write ? ' checked' : '') + ' data-change-handler="setUserCapability" data-user-id="' + esc(u.id) + '" data-capability="can_write"> ' + t('lbl_cap_write','Write')
     + '</label>'
     + '<label class="flex items-center gap-1 text-xs nowrap ' + (write ? 'text-muted cursor-pointer' : 'text-dim cursor-not-allowed') + '" title="' + t('tip_cap_tenant','May write into a customer Microsoft tenant. Requires Write.') + '">'
@@ -755,7 +755,7 @@ async function editUserCustomers(userId, displayName) {
   customers.customers.forEach(function(c) {
     var cid = c._id || '';
     var checked = accessSet[cid] ? ' checked' : '';
-    html += '<label class="flex items-center gap-2 py-1 px-2 text-xs cursor-pointer"><input type="checkbox" class="rbac-cb" data-cid="'+esc(cid)+'"'+checked+'> '+esc(c.CustomerName||cid)+'</label>';
+    html += '<label class="check-label py-1 px-2 text-xs"><input type="checkbox" class="rbac-cb" data-cid="'+esc(cid)+'"'+checked+'> '+esc(c.CustomerName||cid)+'</label>';
   });
   html += '</div>';
   html += '<div class="flex gap-2 mt-2">';

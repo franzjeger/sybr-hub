@@ -154,7 +154,7 @@ async function tsLoadDevices() {
 
     // ROW 1 — Header (24px): name + badges + status dot
     html += '<div class="device-card-head">';
-    html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">'+icon+' '+esc(displayName)+'</strong>';
+    html += '<strong class="device-card-name">'+icon+' '+esc(displayName)+'</strong>';
     if (d.update_available) html += '<span class="text-2xs text-warning shrink-0 ml-2" title="Update available">⬆</span>';
     if (hasRoutes) html += '<span class="text-2xs text-accent shrink-0 ml-1" title="Subnet router"></span>';
     if (d.is_exit_node) html += '<span class="text-2xs text-purple shrink-0 ml-1" title="Exit node"></span>';
@@ -169,7 +169,7 @@ async function tsLoadDevices() {
     html += '</div>';
 
     // ROW 3 — Data (1fr): 2-col stats grid, ALWAYS 8 fields
-    html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+    html += '<div class="device-card-stats">';
     html += '<span>' + t('ts_lbl_os','OS') + ': <strong class="text-default">'+esc(d.os||'-')+'</strong></span>';
     html += '<span>' + t('ts_lbl_version','Versjon') + ': '+esc(d.client_version ? d.client_version.split('-')[0] : '-')+'</span>';
     html += '<span>' + t('ts_lbl_hostname','Vertsnavn') + ': <span class="font-mono text-xs">'+esc(d.hostname||'-')+'</span></span>';
@@ -432,9 +432,9 @@ function tsShowCreateKey() {
   html += '<input id="ts-key-expiry" type="number" value="24" class="field-input"></div>';
   html += '</div>';
   html += '<div class="flex gap-3 mt-3">';
-  html += '<label class="text-sm flex items-center gap-1"><input type="checkbox" id="ts-key-reusable"> ' + t('ts_reusable','Gjenbrukbar') + '</label>';
-  html += '<label class="text-sm flex items-center gap-1"><input type="checkbox" id="ts-key-ephemeral"> ' + t('ts_ephemeral','Kortlevd') + '</label>';
-  html += '<label class="text-sm flex items-center gap-1"><input type="checkbox" id="ts-key-preauth" checked> ' + t('ts_preauthorized','Forhåndsautorisert') + '</label>';
+  html += '<label class="check-label gap-1 text-sm"><input type="checkbox" id="ts-key-reusable"> ' + t('ts_reusable','Gjenbrukbar') + '</label>';
+  html += '<label class="check-label gap-1 text-sm"><input type="checkbox" id="ts-key-ephemeral"> ' + t('ts_ephemeral','Kortlevd') + '</label>';
+  html += '<label class="check-label gap-1 text-sm"><input type="checkbox" id="ts-key-preauth" checked> ' + t('ts_preauthorized','Forhåndsautorisert') + '</label>';
   html += '</div>';
   html += '<div class="flex gap-2 mt-3">';
   html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="tsDoCreateKey">' + t('btn_create','Create') + '</button>';

@@ -332,7 +332,7 @@ function _netOpenFortiGateForm(editing) {
   html += '<label class="field-label mt-2" for="input-fg-token">' + esc(t('api_token')) + '</label>';
   html += '<input class="field-input" id="input-fg-token" type="password" autocomplete="new-password" aria-describedby="input-fg-token-hint" placeholder="' + esc(t(fg && fg.has_token ? 'placeholder_token_saved' : 'net_token_placeholder')) + '">';
   html += '<p class="field-hint" id="input-fg-token-hint">' + esc(t('fg_token_hint_before')) + ' System → Administrators → Create New → REST API Admin</p>';
-  html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-fg-verify-ssl"' + (fg && fg.verify_ssl ? ' checked' : '') + '> ' + esc(t('verifiser_ssl_sertifikat')) + '</label>';
+  html += '<label class="check-label mt-2 text-sm"><input type="checkbox" id="input-fg-verify-ssl"' + (fg && fg.verify_ssl ? ' checked' : '') + '> ' + esc(t('verifiser_ssl_sertifikat')) + '</label>';
   html += _netFormActions('fortigate');
   html += '</form>';
   box.innerHTML = html;
@@ -548,8 +548,8 @@ function _netOpenUniFiForm(editing) {
   var html = '<form class="inset cust-net-form" data-submit-handler="netSaveUniFi" data-customer-id="' + esc(_netCustomerId) + '">';
   html += '<h4 class="cust-net-form-title">' + esc(t(uf ? 'net_edit_unifi' : 'net_link_unifi')) + '</h4>';
   html += '<fieldset class="cust-net-mode"><legend class="field-label">' + esc(t('net_unifi_mode')) + '</legend>';
-  html += '<label class="flex items-center gap-2 text-ui cursor-pointer"><input type="radio" name="unifi-mode" value="controller"' + (mode === 'controller' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('controller_2')) + '</label>';
-  html += '<label class="flex items-center gap-2 text-ui cursor-pointer"><input type="radio" name="unifi-mode" value="direct"' + (mode === 'direct' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('direkte_enheter')) + '</label>';
+  html += '<label class="check-label text-ui"><input type="radio" name="unifi-mode" value="controller"' + (mode === 'controller' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('controller_2')) + '</label>';
+  html += '<label class="check-label text-ui"><input type="radio" name="unifi-mode" value="direct"' + (mode === 'direct' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('direkte_enheter')) + '</label>';
   html += '</fieldset>';
 
   // A controller and the site on it.
@@ -562,7 +562,7 @@ function _netOpenUniFiForm(editing) {
   html += '</div>';
   html += '<label class="field-label mt-2" for="input-uf-site">' + esc(t('site')) + '</label>';
   html += '<input class="field-input" id="input-uf-site" type="text" placeholder="default" value="' + esc((uf && uf.site) || 'default') + '">';
-  html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-uf-os"' + (uf && uf.is_unifi_os ? ' checked' : '') + '> ' + esc(t('unifi_os_udm_cloud_key_gen2')) + '</label>';
+  html += '<label class="check-label mt-2 text-sm"><input type="checkbox" id="input-uf-os"' + (uf && uf.is_unifi_os ? ' checked' : '') + '> ' + esc(t('unifi_os_udm_cloud_key_gen2')) + '</label>';
   html += '</div>';
 
   // Devices reached one by one, no controller.

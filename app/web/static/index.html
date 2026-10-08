@@ -954,7 +954,7 @@
           <div class="card admin-card">
             <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div class="flex items-center gap-3">
-                <label class="flex items-center gap-2 cursor-pointer">
+                <label class="check-label">
                   <input type="checkbox" id="alert-master-toggle" data-change-handler="alertToggleMaster">
                   <span class="fw-semibold text-base" data-i18n="lbl_alerts_enabled">Varsler aktivert</span>
                 </label>
@@ -965,11 +965,11 @@
 
             <!-- Notification channels -->
             <div class="flex flex-wrap items-center gap-y-3 gap-x-6 mb-4 text-ui">
-              <label class="flex items-center gap-2 cursor-pointer nowrap">
+              <label class="check-label nowrap">
                 <input type="checkbox" id="alert-notify-teams" data-change-handler="alertSaveConfig">
                 <span data-i18n="lbl_notify_teams">Teams webhook</span>
               </label>
-              <label class="flex items-center gap-2 cursor-pointer nowrap">
+              <label class="check-label nowrap">
                 <input type="checkbox" id="alert-notify-email" data-change-handler="alertSaveConfig">
                 <span data-i18n="lbl_notify_email">E-post</span>
               </label>
@@ -1713,7 +1713,7 @@
         <button class="btn btn-ghost btn-sm" data-click-handler="loadLogs" data-i18n="btn_refresh">Oppdater</button>
         <button class="btn btn-ghost btn-sm" data-click-handler="copyLogs" data-i18n="log_copy">Kopier</button>
         <button data-write class="btn btn-default btn-sm text-danger" data-click-handler="clearLogs" data-i18n="log_clear">T&#248;m logg</button>
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <label class="check-label text-sm">
           <input type="checkbox" id="log-auto-refresh" data-change-handler="toggleLogAutoRefresh"> <span data-i18n="log_auto_refresh_3s">Auto-refresh (3s)</span>
         </label>
       </div>

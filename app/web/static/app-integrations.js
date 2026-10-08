@@ -212,7 +212,7 @@ export async function alsoSyncCustomers() {
     if (newC.length > 0) {
       html += '<div class="max-h-sm overflow-y-auto border rounded mb-3">';
       newC.forEach(function(c) {
-        html += '<label class="flex items-center gap-2 py-2 px-3 border-b text-xs cursor-pointer">'
+        html += '<label class="picker-row text-xs">'
           + '<input type="checkbox" checked class="also-import-cb" data-name="' + esc(c.also_name) + '" data-domain="' + esc(c.also_domain||'') + '" data-id="' + esc(c.also_id||'') + '">'
           + '<span class="flex-1">' + esc(c.also_name) + '</span>'
           + '<span class="text-dim font-mono text-2xs">' + esc(c.also_domain||'') + '</span>'
@@ -651,7 +651,7 @@ async function uniwebShowImport() {
   // Search + select all
   html += '<div class="flex gap-2 items-center mb-3 flex-wrap">';
   html += '<input type="text" id="uniweb-import-search" class="field-input field-input-sm flex-field" placeholder="' + t('integ_search','Søk ...') + '" data-input-handler="uniwebFilterImport">';
-  html += '<label class="text-sm flex items-center gap-1 cursor-pointer nowrap"><input type="checkbox" id="uniweb-import-select-all" data-change-handler="uniwebToggleAllImport"> ' + t('velg_alle') + '</label>';
+  html += '<label class="check-label gap-1 text-sm nowrap"><input type="checkbox" id="uniweb-import-select-all" data-change-handler="uniwebToggleAllImport"> ' + t('velg_alle') + '</label>';
   html += '</div>';
 
   // Table
@@ -1683,7 +1683,7 @@ export async function gdapDiscoverCustomers() {
     var imported = c.already_imported;
     var gdapBadge = c.gdap_status === 'active' ? '<span class="badge badge-success ml-2">GDAP</span>' : '';
     var importedBadge = imported ? '<span class="badge badge-info ml-2">' + (c.local_auth_mode === 'gdap' ? 'GDAP' : 'Legacy') + '</span>' : '';
-    html += '<label class="flex items-center gap-2 py-2 px-1 border-b cursor-pointer text-ui">';
+    html += '<label class="picker-row px-1 text-ui">';
     html += '<input type="checkbox" class="gdap-import-cb shrink-0" value="' + esc(c.tenant_id) + '" ' + (imported ? 'checked disabled' : '') + '>';
     html += '<div class="flex-1 min-w-0">';
     html += '<div class="fw-semibold">' + esc(c.company_name) + gdapBadge + importedBadge + '</div>';
