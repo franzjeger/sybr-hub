@@ -68,3 +68,17 @@ test('a recorded moment is written in the reader\'s language', async ({page}) =>
   expect(await inApp(page, app => app.formatDateTime(''))).toBe('');
   expect(await inApp(page, app => app.formatDateTime('ikke en tid'))).toBe('ikke en tid');
 });
+
+// The Varsler page's severity chips and badges were Norwegian in an English
+// interface ("Kritisk", "KRITISK"), next to English titles and dates.
+test('Varsler names each severity in the reader\'s language', async ({page}) => {
+  await login(page);
+  await inApp(page, app => app.setLanguage('en'));
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
+  const alerts = page.locator('#dash-alerts');
+  await expect(alerts.locator('.notif-row').first()).toBeVisible();
+  await expect(alerts.locator('.filter-chip', {hasText: 'Critical'})).toBeVisible();
+  await expect(alerts.locator('.notif-sev', {hasText: 'CRITICAL'}).first()).toBeVisible();
+  await expect(alerts).not.toContainText('Kritisk');
+  await expect(alerts).not.toContainText('KRITISK');
+});

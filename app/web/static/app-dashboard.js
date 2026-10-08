@@ -159,9 +159,10 @@ function notifOpenRules() {
 // colour never means two things in one screen.
 var _SEV = {
   // tone: the is-* modifier .filter-chip, .notif-dot and .notif-sev colour by.
-  critical: { label: 'Kritisk', tone: 'is-critical' },
-  warning:  { label: 'Advarsel', tone: 'is-warning' },
-  info:     { label: 'Info',     tone: 'is-info' }
+  // label: read when drawn, in the reader's language; it was Norwegian in both.
+  critical: { label: function() { return t('lbl_critical', 'Kritisk'); }, tone: 'is-critical' },
+  warning:  { label: function() { return t('lbl_warning_sev', 'Advarsel'); }, tone: 'is-warning' },
+  info:     { label: function() { return 'Info'; }, tone: 'is-info' }
 };
 
 
@@ -375,8 +376,8 @@ function _notifRender() {
   });
 
   var html = '<div class="notif-toolbar">';
-  [['all', t('sev_all', 'Alle')], ['critical', _SEV.critical.label],
-   ['warning', _SEV.warning.label], ['info', _SEV.info.label]].forEach(function(p) {
+  [['all', t('sev_all', 'Alle')], ['critical', _SEV.critical.label()],
+   ['warning', _SEV.warning.label()], ['info', _SEV.info.label()]].forEach(function(p) {
     var key = p[0];
     var tone = key === 'all' ? 'is-all' : _SEV[key].tone;
     html += '<button class="filter-chip ' + tone + (_notifState.sev === key ? ' active' : '') + '"'
@@ -440,7 +441,7 @@ function _notifRow(n) {
   html += '<span class="notif-dot ' + sev.tone + '"></span>';
   html += '<div class="notif-body">';
   html += '<div class="notif-head"><span class="notif-title">' + esc(n.title) + '</span>';
-  html += '<span class="notif-sev ' + sev.tone + '">' + esc(sev.label.toUpperCase()) + '</span>';
+  html += '<span class="notif-sev ' + sev.tone + '">' + esc(sev.label().toUpperCase()) + '</span>';
   if (n.days !== null && n.days !== undefined) {
     html += '<span class="notif-sev ' + sev.tone + '">' + esc(_notifDays(n.days)) + '</span>';
   }
