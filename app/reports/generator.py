@@ -48,6 +48,7 @@ from app.reports.parsers import (
     _parse_user_counts,
     _risky_users_from_sidecar,
 )
+from app.reports.parsers.azure import power_state_text, subscription_state_text
 from app.reports.parsers.common import _sidecar, unavailable_text
 from app.reports.parsers.email import _spf_dmarc_records, dkim_summary, dns_pill, dns_tag
 from app.reports.parsers.identity import _emergency_access, group_type_text, mfa_methods_text
@@ -473,6 +474,8 @@ def build_report_context(
         "_fg_finding_text": policy_finding_text,
         "_fg_ha_mode": ha_mode_text,
         "_device_error_text": device_error_text,
+        "_subscription_state_text": subscription_state_text,
+        "_power_state_text": power_state_text,
     }
 
     # Build compliance mapping after context is ready

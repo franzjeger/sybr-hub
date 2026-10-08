@@ -1454,9 +1454,9 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr><th>{{ t.subscription }}</th><th>ID</th><th>{{ t.status }}</th></tr>
   {% for s in azure.subscriptions %}
   <tr>
-    <td style="font-weight:600;">{{ s.name }}</td>
+    <td style="font-weight:600;">{{ s.name or '—' }}</td>
     <td style="font-family:var(--mono);font-size:11px;">{{ s.id }}</td>
-    <td><span class="tag {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ s.state }}</span></td>
+    <td><span class="tag {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ _subscription_state_text(s.state, t) }}</span></td>
   </tr>
   {% endfor %}
 </table>
@@ -1467,7 +1467,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <h3>{{ t.resources_per_sub }}</h3>
 {% for sub in azure.per_sub %}
 <div class="card" style="margin-bottom:12px;">
-  <div class="card-title">{{ sub.name }} ({{ t('n_resources', count=sub.resources) }})</div>
+  <div class="card-title">{{ sub.name or t.azure_subscription_unnamed }} ({{ t('n_resources', count=sub.resources) }})</div>
   {% if sub.types %}
   <table>
     <tr><th>{{ t.resource_type_header }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
@@ -1499,11 +1499,11 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr>
     <td style="font-weight:500;">{{ vm.name }}</td>
     <td style="font-size:11px;color:var(--muted);">{{ vm.subscription }}</td>
-    <td style="font-size:11px;">{{ vm.rg }}</td>
+    <td style="font-size:11px;">{{ vm.rg or '—' }}</td>
     <td>{{ vm.location }}</td>
-    <td>{{ vm.os }}</td>
-    <td style="font-family:var(--mono);font-size:11px;">{{ vm.size }}</td>
-    <td><span class="tag {% if vm.status == 'running' %}ok{% elif vm.status == 'deallocated' %}skip{% else %}warning{% endif %}">{{ vm.status or 'N/A' }}</span></td>
+    <td>{{ vm.os or '—' }}</td>
+    <td style="font-family:var(--mono);font-size:11px;">{{ vm.size or '—' }}</td>
+    <td><span class="tag {% if vm.status == 'running' %}ok{% elif vm.status == 'deallocated' %}skip{% else %}warning{% endif %}">{{ _power_state_text(vm.status, t) or '—' }}</span></td>
   </tr>
   {% endfor %}
 </table>
@@ -1517,8 +1517,8 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr>
     <td style="font-weight:500;font-family:var(--mono);font-size:12px;">{{ sa.name }}</td>
     <td style="font-size:11px;color:var(--muted);">{{ sa.subscription }}</td>
-    <td>{{ sa.sku }}</td>
-    <td>{{ sa.kind }}</td>
+    <td>{{ sa.sku or '—' }}</td>
+    <td>{{ sa.kind or '—' }}</td>
   </tr>
   {% endfor %}
 </table>

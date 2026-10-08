@@ -1469,8 +1469,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   <h4>{{ t.subscriptions }}</h4>
   {% for s in azure.subscriptions %}
   <div class="env-row">
-    <span>{{ s.name }}</span>
-    <span><span class="status-pill {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ s.state }}</span></span>
+    <span>{{ s.name or s.id }}</span>
+    <span><span class="status-pill {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ _subscription_state_text(s.state, t) }}</span></span>
   </div>
   {% endfor %}
 </div>
@@ -1486,8 +1486,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       <td style="font-weight:600;">{{ vm.name }}</td>
       <td style="font-size:11px;">{{ vm.subscription }}</td>
       <td>{{ vm.location }}</td>
-      <td>{{ vm.os }}</td>
-      <td style="font-size:11px;">{{ vm.size }}</td>
+      <td>{{ vm.os or '—' }}</td>
+      <td style="font-size:11px;">{{ vm.size or '—' }}</td>
     </tr>
     {% endfor %}
   </table>
@@ -1526,7 +1526,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   {% for sub in azure.per_sub %}
   {% if sub.resources > 0 %}
   <div class="env-card">
-    <h4>{{ sub.name }} ({{ t('n_resources', count=sub.resources) }})</h4>
+    <h4>{{ sub.name or t.azure_subscription_unnamed }} ({{ t('n_resources', count=sub.resources) }})</h4>
     {% for rtype, count in sub.types[:8] %}
     <div class="env-row"><span style="font-size:11px;">{{ rtype.split('/')[-1] }}</span><span>{{ count }}</span></div>
     {% endfor %}

@@ -234,6 +234,8 @@ class AzureNetworkSection(BaseSection):
                         f"allows inbound from {src} to port(s) {ports_str}"
                     )
                     risky_lines.append(f"  ⚠ {detail}")
+                    # The rule's facts, which the report words; the sentence
+                    # stays in the text for a person.
                     risky.append(
                         {
                             "nsg": nsg.name,
@@ -241,7 +243,6 @@ class AzureNetworkSection(BaseSection):
                             "priority": r.priority,
                             "source": src,
                             "ports": sorted(set(matched_ports)),
-                            "detail": detail,
                         }
                     )
                     self._warn(detail)

@@ -205,6 +205,12 @@ def _parse_backup_coverage(file_contents: dict[str, str]) -> dict:
     }
 
 
+def _known(cols: list[str], i: int) -> str:
+    """A table column, "" where the collector wrote "N/A" for a value it had not."""
+    value = cols[i].strip() if len(cols) > i else ""
+    return "" if value == "N/A" else value
+
+
 def _vm_rows(sidecar: dict | None) -> list[dict] | None:
     """The VM table from a 30_azure_vms sidecar, or None to read the text.
 
@@ -219,18 +225,23 @@ def _vm_rows(sidecar: dict | None) -> list[dict] | None:
     return [
         {
             "name": vm.get("name") or "",
-            "rg": vm.get("resource_group") or "N/A",
+            "rg": vm.get("resource_group") or "",
             "location": vm.get("location") or "",
-            "os": vm.get("os_type") or "N/A",
-            "size": vm.get("size") or "N/A",
-            "status": vm.get("power_state") or "N/A",
+            "os": vm.get("os_type") or "",
+            "size": vm.get("size") or "",
+            "status": vm.get("power_state") or "",
         }
         for vm in vms
     ]
 
 
 def _orphan_detail(orphan: dict) -> str:
-    """One orphan from the 61 sidecar, worded as the text's line after the colon."""
+    """One orphan from the 61 sidecar, as the text's line after the colon.
+
+    So an orphan reads the same from either file. The report words an orphan
+    from the sidecar's fields (orphan_text); this is what a run without them
+    has.
+    """
     parts = [orphan.get("name") or ""]
     if "size_gb" in orphan:
         parts += [f"{orphan.get('size_gb') or 0} GB", orphan.get("sku") or "N/A"]
@@ -238,6 +249,113 @@ def _orphan_detail(orphan: dict) -> str:
         parts.append(f"IP: {orphan.get('ip_address') or 'unassigned'}")
     parts.append(f"RG: {orphan.get('resource_group') or 'N/A'}")
     return "  ".join(parts)
+
+
+# ── The Azure collectors' words, worded by the report ─────────────────────────
+#
+# An orphan's kind and status, an NSG rule, a subscription's state and a VM's
+# power state are codes the collectors write (or Azure's own values); the
+# report words them here. An English sentence an old run holds is read back
+# where the words are certain, and shown as stored otherwise.
+
+_ORPHAN_KINDS = {"DISK": "orphan_disk", "NIC": "orphan_nic", "PUBLIC IP": "orphan_public_ip"}
+_ORPHAN_STATUSES = {"unattached": "orphan_unattached"}
+
+
+def orphan_text(orphan: dict, t) -> str:
+    """An orphaned resource, as the recommendation lists it."""
+    kind = str(orphan.get("type") or "")
+    status = str(orphan.get("status") or "")
+    kind_word = str(getattr(t, _ORPHAN_KINDS[kind])) if kind in _ORPHAN_KINDS else kind
+    status_word = (
+        str(getattr(t, _ORPHAN_STATUSES[status])) if status in _ORPHAN_STATUSES else status
+    )
+    if "name" not in orphan:  # read from an old run's text: its line as it was
+        return f"{kind_word} ({status_word}): {orphan.get('detail') or ''}".strip()
+    facts = []
+    if kind == "DISK":
+        facts.append(f"{orphan.get('size_gb') or 0} GB")
+        if orphan.get("sku"):
+            facts.append(str(orphan["sku"]))
+    if kind == "PUBLIC IP":
+        facts.append(str(orphan.get("ip_address") or t.orphan_ip_unassigned))
+    if orphan.get("resource_group"):
+        facts.append(str(t("orphan_resource_group", name=orphan["resource_group"])))
+    head = f"{kind_word} {orphan.get('name') or ''} ({status_word})"
+    return f"{head}: {', '.join(facts)}" if facts else head
+
+
+_LEGACY_NSG_RULE = re.compile(
+    r"NSG '(?P<nsg>.*)' rule '(?P<rule>.*)' \(priority (?P<priority>[^)]*)\): "
+    r"allows inbound from (?P<source>\S+) to port\(s\) (?P<ports>.+)"
+)
+
+
+def nsg_rule_text(rule: dict | str, t) -> str:
+    """A risky inbound NSG rule: from the sidecar's fields, or an old run's WARN line.
+
+    A line that is not the collector's sentence is shown as it stands.
+    """
+    if isinstance(rule, str):
+        m = _LEGACY_NSG_RULE.fullmatch(rule.strip())
+        if not m:
+            return rule
+        rule = {**m.groupdict(), "ports": [p.strip() for p in m["ports"].split(",")]}
+    ports = rule.get("ports") or []
+    return str(
+        t(
+            "nsg_rule_open",
+            nsg=rule.get("nsg") or "",
+            rule=rule.get("rule") or "",
+            priority=rule.get("priority") if rule.get("priority") is not None else "?",
+            source=rule.get("source") or "",
+            ports=", ".join(str(p) for p in ports) if isinstance(ports, list) else ports,
+        )
+    )
+
+
+# Azure's subscription states; an old run wrote the enum's repr
+# ("SubscriptionState.ENABLED").
+_SUBSCRIPTION_STATES = {
+    "Enabled": "sub_state_enabled",
+    "Warned": "sub_state_warned",
+    "PastDue": "sub_state_past_due",
+    "Disabled": "sub_state_disabled",
+    "Deleted": "sub_state_deleted",
+}
+_LEGACY_SUBSCRIPTION_STATES = {
+    "SubscriptionState.ENABLED": "Enabled",
+    "SubscriptionState.WARNED": "Warned",
+    "SubscriptionState.PAST_DUE": "PastDue",
+    "SubscriptionState.DISABLED": "Disabled",
+    "SubscriptionState.DELETED": "Deleted",
+}
+
+
+def subscription_state(state: str) -> str:
+    """A subscription's state as Azure names it, from either form a run holds."""
+    return _LEGACY_SUBSCRIPTION_STATES.get(state, state)
+
+
+def subscription_state_text(state: str, t) -> str:
+    key = _SUBSCRIPTION_STATES.get(subscription_state(state))
+    return str(getattr(t, key)) if key else state
+
+
+# A VM's power state, as Azure's PowerState/<state> names it.
+_POWER_STATES = {
+    "running": "vm_state_running",
+    "stopped": "vm_state_stopped",
+    "deallocated": "vm_state_deallocated",
+    "starting": "vm_state_starting",
+    "stopping": "vm_state_stopping",
+    "deallocating": "vm_state_deallocating",
+}
+
+
+def power_state_text(state: str, t) -> str:
+    key = _POWER_STATES.get(str(state or "").lower())
+    return str(getattr(t, key)) if key else str(state or "")
 
 
 def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
@@ -286,7 +404,9 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
             if m:
                 sub_id = m.group(1)
                 name = name_id[: m.start()].strip()
-                result["subscriptions"].append({"name": name, "id": sub_id, "state": state})
+                result["subscriptions"].append(
+                    {"name": name, "id": sub_id, "state": subscription_state(state)}
+                )
 
     # ── Resource inventory (aggregate across all subs) ─────────────────────
     for fname, content, sub_name in _find_azure_files(
@@ -352,12 +472,18 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
         if sub_resources > 0 or sub_types:
             result["per_sub"].append(
                 {
-                    "name": sub_name or "Default",
+                    "name": sub_name,
                     "resources": sub_resources,
                     "types": sorted(sub_types.items(), key=lambda x: -x[1]),
                     "rgs": sub_rgs,
                 }
             )
+
+    # A run with one subscription names its files without it; its name is
+    # the subscription's own.
+    if len(result["subscriptions"]) == 1:
+        for sub in result["per_sub"]:
+            sub["name"] = sub["name"] or result["subscriptions"][0]["name"]
 
     # ── VMs (aggregate across all subs) ────────────────────────────────────
     for fname, content, sub_name in _find_azure_files(file_contents, "30_azure_vms"):
@@ -382,11 +508,11 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
                 result["vms"].append(
                     {
                         "name": cols[0],
-                        "rg": cols[1] if len(cols) > 1 else "",
-                        "location": cols[2] if len(cols) > 2 else "",
-                        "os": cols[3] if len(cols) > 3 else "",
-                        "size": cols[4] if len(cols) > 4 else "",
-                        "status": cols[5] if len(cols) > 5 else "",
+                        "rg": _known(cols, 1),
+                        "location": _known(cols, 2),
+                        "os": _known(cols, 3),
+                        "size": _known(cols, 4),
+                        "status": _known(cols, 5),
                         "subscription": sub_name,
                     }
                 )
@@ -398,8 +524,8 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
             result["storage_accounts"] += [
                 {
                     "name": account.get("name") or "",
-                    "sku": account.get("sku") or "N/A",
-                    "kind": account.get("kind") or "N/A",
+                    "sku": account.get("sku") or "",
+                    "kind": account.get("kind") or "",
                     "subscription": sub_name,
                 }
                 for account in storage.get("accounts") or []
@@ -420,8 +546,8 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
                 result["storage_accounts"].append(
                     {
                         "name": cols[0],
-                        "sku": cols[1] if len(cols) > 1 else "",
-                        "kind": cols[2] if len(cols) > 2 else "",
+                        "sku": _known(cols, 1),
+                        "kind": _known(cols, 2),
                         "subscription": sub_name,
                     }
                 )
@@ -448,8 +574,8 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
                 {
                     "category": rec.get("category") or "General",
                     "impact": rec.get("impact") or "Medium",
-                    "description": rec.get("description") or "N/A",
-                    "resource": rec.get("resource") or "N/A",
+                    "description": rec.get("description") or "",
+                    "resource": rec.get("resource") or "",
                     "subscription": sub_name,
                 }
                 for rec in advisor.get("recommendations") or []
@@ -512,6 +638,7 @@ def _parse_azure_overview(file_contents: dict[str, str]) -> dict:
             result["orphaned"] += int(orphans.get("count") or 0)
             result["orphaned_details"] += [
                 {
+                    **orphan,
                     "type": orphan.get("type") or "",
                     "status": orphan.get("status") or "",
                     "detail": _orphan_detail(orphan),

@@ -2089,6 +2089,32 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "mfa_method_tap": {"no": "Midlertidig tilgangspass", "en": "Temporary Access Pass"},
     "mfa_method_oath": {"no": "OATH-kode (TOTP)", "en": "OATH code (TOTP)"},
     "mfa_method_certificate": {"no": "Sertifikat (X.509)", "en": "Certificate (X.509)"},
+    # Azure: a subscription's state, a VM's power state, an orphaned resource
+    # and a risky NSG rule, worded from what the collectors store.
+    "sub_state_enabled": {"no": "Aktiv", "en": "Enabled"},
+    "sub_state_warned": {"no": "Advart", "en": "Warned"},
+    "sub_state_past_due": {"no": "Betaling forfalt", "en": "Past due"},
+    "sub_state_disabled": {"no": "Deaktivert", "en": "Disabled"},
+    "sub_state_deleted": {"no": "Slettet", "en": "Deleted"},
+    "azure_subscription_unnamed": {"no": "Abonnement uten navn", "en": "Unnamed subscription"},
+    "vm_state_running": {"no": "Kjører", "en": "Running"},
+    "vm_state_stopped": {"no": "Stoppet", "en": "Stopped"},
+    "vm_state_deallocated": {"no": "Stoppet (frigjort)", "en": "Stopped (deallocated)"},
+    "vm_state_starting": {"no": "Starter", "en": "Starting"},
+    "vm_state_stopping": {"no": "Stopper", "en": "Stopping"},
+    "vm_state_deallocating": {"no": "Frigjøres", "en": "Deallocating"},
+    "orphan_disk": {"no": "Disk", "en": "Disk"},
+    "orphan_nic": {"no": "Nettverkskort", "en": "Network interface"},
+    "orphan_public_ip": {"no": "Offentlig IP", "en": "Public IP"},
+    "orphan_unattached": {"no": "ikke tilkoblet", "en": "unattached"},
+    "orphan_ip_unassigned": {"no": "ingen adresse tildelt", "en": "no address assigned"},
+    "orphan_resource_group": {"no": "ressursgruppe {name}", "en": "resource group {name}"},
+    "nsg_rule_open": {
+        "no": "NSG «{nsg}», regel «{rule}» (prioritet {priority}): tillater innkommende "
+        "trafikk fra {source} til port {ports}",
+        "en": "NSG '{nsg}' rule '{rule}' (priority {priority}): allows inbound from {source} "
+        "to port(s) {ports}",
+    },
     # A group's kind (groups_roles.GROUP_TYPES).
     "group_type_m365": {"no": "Microsoft 365", "en": "Microsoft 365"},
     "group_type_dynamic": {"no": "Dynamisk", "en": "Dynamic"},
@@ -3729,6 +3755,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ytelse",
         "en": "Performance",
     },
+    "rec_advisor_cat_general": {"no": "Generelt", "en": "General"},
     "rec_advisor_cat_ops": {
         "no": "Drift",
         "en": "Operations",
