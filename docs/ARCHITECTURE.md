@@ -53,12 +53,15 @@ app/
     firmware_inventory.py   each device's firmware as last read; never "current" unread
     remediation.py          per-customer remediation tracking
     latest_metrics.py       the newest audit_metrics row per customer, one query
+    rmm_devices.py          a customer's devices from its newest audit, for the RMM deep-link
     provisioning.py         device provisioning as named steps with honest results
   modules/                  audit collectors
     m365_audit/             28 sections (24 M365 + 4 Azure), CIS / NIST CSF / ISO 27001 mapped
     fortigate_audit/        policy and admin audit
     unifi_audit/            device, firmware and subnet scanning
-  integrations/             write-side clients (autotask, itglue, myitprocess)
+  integrations/             write-side clients (autotask, itglue, myitprocess);
+                            rmm.py, the RMM deep-link interface and its exact
+                            device matching, with the read-only datto_rmm.py
   reports/                  Jinja2 templates + WeasyPrint PDF generation;
                             compliance.py is a table of CIS controls, pinned
                             by a characterisation snapshot
