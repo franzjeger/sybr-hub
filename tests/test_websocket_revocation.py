@@ -10,6 +10,7 @@ from app.core.rbac import set_user_customers
 from app.models.user import Role
 from app.web.middleware.auth import _reset_users_exist_cache
 from app.web.server import create_app
+from tests.ws_ping import PING_PATH, with_ping_socket
 
 
 @pytest.fixture(autouse=True)
@@ -24,13 +25,13 @@ async def db(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("change", ["disabled", "customer_scope"])
-async def test_open_dashboard_is_closed_when_permissions_change(change):
+async def test_an_open_socket_is_closed_when_permissions_change(change):
     user = await create_user("socketuser", "Socket-Test!1234", "Socket User", Role.technician)
     token = await create_access_token(user)
     with (
-        TestClient(create_app()) as client,
+        TestClient(with_ping_socket(create_app())) as client,
         client.websocket_connect(
-            "/api/ws/dashboard?token=" + token, headers={"origin": "http://testserver"}
+            PING_PATH + "?token=" + token, headers={"origin": "http://testserver"}
         ) as ws,
     ):
         ws.send_json({"type": "ping"})
@@ -48,10 +49,10 @@ async def test_sibling_origin_cannot_use_an_authenticated_socket():
     user = await create_user("originuser", "Socket-Test!1234", "Origin User")
     token = await create_access_token(user)
     with (
-        TestClient(create_app()) as client,
+        TestClient(with_ping_socket(create_app())) as client,
         pytest.raises(WebSocketDisconnect),
         client.websocket_connect(
-            "/api/ws/dashboard?token=" + token,
+            PING_PATH + "?token=" + token,
             headers={"origin": "https://sibling.example.invalid"},
         ),
     ):

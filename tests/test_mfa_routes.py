@@ -9,6 +9,7 @@ from app.core.auth import create_access_token, create_refresh_token, create_sess
 from app.core.database import get_db
 from app.core.rbac import set_can_write
 from tests.test_web_auth_routes import GOOD_PASSWORD, _init_db, _reset_middleware_state, client
+from tests.ws_ping import PING_PATH, with_ping_socket
 
 
 async def test_enrollment_login_and_sensitive_action_step_up(client, monkeypatch):
@@ -98,12 +99,16 @@ async def test_session_created_after_enrollment_still_requires_its_own_mfa_proof
     client.headers["Authorization"] = "Bearer " + access
     assert client.get("/api/auth/me").status_code == 401
     assert client.post("/api/auth/refresh", json={"refresh_token": refresh}).status_code == 401
+    with_ping_socket(client.app)
+    socket = PING_PATH + "?token=" + access
     with (
         pytest.raises(WebSocketDisconnect),
-        client.websocket_connect(
-            "/api/ws/dashboard?token=" + access, headers={"origin": "http://testserver"}
-        ),
+        client.websocket_connect(socket, headers={"origin": "http://testserver"}),
     ):
         pytest.fail("Unverified MFA session accepted")
     await mfa.mark_recent(sid)
     assert client.get("/api/auth/me").status_code == 200
+    # Positive control: the refusal above was the missing proof, not the socket.
+    with client.websocket_connect(socket, headers={"origin": "http://testserver"}) as ws:
+        ws.send_json({"type": "ping"})
+        assert ws.receive_json() == {"type": "pong"}

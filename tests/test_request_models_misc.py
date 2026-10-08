@@ -102,24 +102,3 @@ async def test_a_malformed_credential_reset_deletes_nothing(tech_client, monkeyp
 
     assert_refused(tech_client.post(path, json=body), 422)
     assert deleted == []
-
-
-# ── Device dashboard poll interval ───────────────────────────────────────────
-
-
-async def test_the_poll_interval_is_still_set_and_clamped(admin_client):
-    from app.services.dashboard_poller import poller
-
-    before = poller._interval
-    try:
-        r = admin_client.post("/api/dashboard/interval", json={"interval": 5})
-        assert r.status_code == 200, r.text
-        assert r.json()["interval"] == 10
-    finally:
-        poller.set_interval(before)
-
-
-@pytest.mark.parametrize("body", [{"interval": "fast"}, {"seconds": 30}, [30]])
-async def test_a_malformed_poll_interval_is_a_422_not_a_500(admin_client, body):
-    """``int(body["interval"])`` on a word was a 500."""
-    assert_refused(admin_client.post("/api/dashboard/interval", json=body), 422)

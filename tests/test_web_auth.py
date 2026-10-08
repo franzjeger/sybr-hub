@@ -29,6 +29,7 @@ from app.web.middleware.auth import (
 )
 from app.web.middleware.rate_limit import RateLimitMiddleware
 from app.web.server import create_app
+from tests.ws_ping import PING_PATH, with_ping_socket
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -68,6 +69,13 @@ def app():
 def client(app):
     # The lifespan runs migrations against the patched DB_PATH.
     with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture()
+def ping_client():
+    """The app with a socket that only answers ping (tests/ws_ping.py)."""
+    with TestClient(with_ping_socket(create_app())) as c:
         yield c
 
 
@@ -252,7 +260,6 @@ def test_ws_route_walk_finds_the_websocket_routes(app):
     paths = {path for path, _ in _iter_ws_routes(app)}
     assert paths == {
         "/guacamole/{path:path}",
-        "/api/ws/dashboard",
         "/api/ws/terminal",
     }, f"unexpected WebSocket route set: {sorted(paths)}"
 
@@ -284,7 +291,7 @@ def test_public_paths_do_not_exempt_websockets(app):
 
 @pytest.mark.parametrize(
     "path",
-    ["/guacamole/websocket-tunnel", "/api/ws/dashboard", "/api/ws/terminal?mode=ssh"],
+    ["/guacamole/websocket-tunnel", "/api/ws/terminal?mode=ssh"],
 )
 def test_ws_rejects_unauthenticated_handshake(client, existing_user, path):
     """No token, no socket — on every WebSocket route."""
@@ -295,7 +302,7 @@ def test_ws_rejects_unauthenticated_handshake(client, existing_user, path):
 
 @pytest.mark.parametrize(
     "path",
-    ["/guacamole/websocket-tunnel", "/api/ws/dashboard", "/api/ws/terminal?mode=ssh"],
+    ["/guacamole/websocket-tunnel", "/api/ws/terminal?mode=ssh"],
 )
 def test_ws_rejects_garbage_token(client, existing_user, path):
     client.cookies.set("access_token", "not-a-jwt")
@@ -317,7 +324,7 @@ async def test_ws_first_run_does_not_bypass_auth(client):
     assert exc.value.code == 1008
 
 
-async def test_ws_rejects_a_revoked_session(client, existing_user):
+async def test_ws_rejects_a_revoked_session(ping_client, existing_user):
     """Logging out everywhere must close the WebSocket door too.
 
     The HTTP middleware checks validate_session; before this the WebSocket
@@ -337,99 +344,49 @@ async def test_ws_rejects_a_revoked_session(client, existing_user):
         user_agent="",
         session_id=session_id,
     )
-    client.cookies.set(
+    ping_client.cookies.set(
         "access_token", await create_access_token(existing_user, session_id=session_id)
     )
 
     # Positive control: the same token opens a socket while the session lives.
-    with client.websocket_connect("/api/ws/dashboard") as ws:
+    with ping_client.websocket_connect(PING_PATH) as ws:
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
 
     await delete_session(session_id)
 
-    with pytest.raises(WebSocketDisconnect) as exc:
-        with client.websocket_connect("/api/ws/dashboard"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc, ping_client.websocket_connect(PING_PATH):
+        pass
     assert exc.value.code == 1008
 
 
-async def test_ws_rejects_a_refresh_token(client, existing_user):
+async def test_ws_rejects_a_refresh_token(ping_client, existing_user):
     """Only access tokens open a socket; a refresh token must not."""
     from app.core.auth import create_refresh_token
 
-    client.cookies.set("access_token", await create_refresh_token(existing_user))
-    with pytest.raises(WebSocketDisconnect) as exc:
-        with client.websocket_connect("/api/ws/dashboard"):
-            pass
+    ping_client.cookies.set("access_token", await create_refresh_token(existing_user))
+    with pytest.raises(WebSocketDisconnect) as exc, ping_client.websocket_connect(PING_PATH):
+        pass
     assert exc.value.code == 1008
 
 
-async def test_ws_accepts_a_valid_access_token(client, existing_user):
+async def test_ws_accepts_a_valid_access_token(ping_client, existing_user):
     """Positive control — otherwise every assertion above passes vacuously.
 
-    ``mode=ssh`` with no host returns immediately; ``mode=local`` would fork a
-    real PTY under CI.
+    On the ping socket: the terminal would start a shell, the tunnel needs guacd.
     """
-    client.cookies.set("access_token", await create_access_token(existing_user))
-    with client.websocket_connect("/api/ws/dashboard") as ws:
+    ping_client.cookies.set("access_token", await create_access_token(existing_user))
+    with ping_client.websocket_connect(PING_PATH) as ws:
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
 
 
-async def test_ws_accepts_token_via_subprotocol(client, existing_user):
+async def test_ws_accepts_token_via_subprotocol(ping_client, existing_user):
     """A browser cannot set headers on a handshake, so the subprotocol carries it."""
     token = await create_access_token(existing_user)
-    with client.websocket_connect(
-        "/api/ws/dashboard", subprotocols=["access_token." + token]
-    ) as ws:
+    with ping_client.websocket_connect(PING_PATH, subprotocols=["access_token." + token]) as ws:
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
-
-
-async def test_ws_dashboard_filters_customers_the_user_cannot_see(
-    client, existing_user, monkeypatch
-):
-    """Only customers the user may see reach the poller.
-
-    The REST twins gate on require_customer_access; the socket reaches the same
-    poller and previously trusted whatever customer_ids the client asked for.
-
-    Asserting on the reply is not enough — an unknown customer yields no
-    devices whether or not it was filtered, so that version of this test passed
-    with the filter deleted. Record what the poller is actually handed.
-    """
-    from app.core.rbac import grant_access
-    from app.services.dashboard_poller import poller
-
-    await grant_access(existing_user.id, "mine")
-
-    seen: list[list[str]] = []
-    original = poller.subscribe
-
-    def _record(ws_id, customer_ids, callback):
-        seen.append(list(customer_ids))
-        return original(ws_id, customer_ids, callback)
-
-    monkeypatch.setattr(poller, "subscribe", _record)
-
-    client.cookies.set("access_token", await create_access_token(existing_user))
-    with client.websocket_connect("/api/ws/dashboard") as ws:
-        ws.send_json({"type": "subscribe", "customer_ids": ["mine", "not-mine"]})
-        ws.receive_json()
-
-    # The granted one survives, the other never reaches the poller. Both halves
-    # matter: filtering everything would satisfy a negative-only assertion.
-    assert seen == [["mine"]], f"poller was handed the wrong customer set: {seen}"
-
-
-async def test_ws_dashboard_set_interval_requires_admin(client, existing_user):
-    """set_interval is global; its REST twin is admin-only."""
-    client.cookies.set("access_token", await create_access_token(existing_user))
-    with client.websocket_connect("/api/ws/dashboard") as ws:
-        ws.send_json({"type": "set_interval", "interval": 5})
-        reply = ws.receive_json()
-        assert reply["type"] == "error"
 
 
 def test_public_paths_do_not_require_auth(client):

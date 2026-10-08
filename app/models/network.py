@@ -1,4 +1,4 @@
-"""Request models for the FortiGate, UniFi, TLS/DNS-check and device-dashboard endpoints.
+"""Request models for the FortiGate, UniFi, TLS/DNS-check and provisioning endpoints.
 
 These routes decide where a customer's stored device credentials travel, so
 the models are strict about shape (``extra="forbid"``, typed fields) and
@@ -265,15 +265,7 @@ class DnsBulkCheckRequest(BaseModel):
     domains: list[str] = []
 
 
-# ── Device dashboard ─────────────────────────────────────────────────────────
-
-
-class PollInterval(BaseModel):
-    """Seconds between device polls; the poller clamps it to 10-300."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    interval: int = 60
+# ── Provisioning ─────────────────────────────────────────────────────────────
 
 
 class ProvisioningStart(BaseModel):
