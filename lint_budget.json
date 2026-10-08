@@ -1,5 +1,5 @@
 {
-  "total": 53,
+  "total": 51,
   "clean_files": [
     "app/__init__.py",
     "app/core/__init__.py",
@@ -254,6 +254,7 @@
     "scripts/purge_customer.py",
     "scripts/rebuild_metrics_trend.py",
     "scripts/reconcile_finding.py",
+    "scripts/refresh_unifi_firmware.py",
     "scripts/repair_metrics_timestamps.py",
     "scripts/run_scheduler.py",
     "scripts/smoke_container.py",
@@ -272,6 +273,7 @@
     "tests/request_body_fixtures.py",
     "tests/scope_fixtures.py",
     "tests/test_access_control_gaps.py",
+    "tests/test_active_selection_cleanup.py",
     "tests/test_activity_log.py",
     "tests/test_activity_log_scope.py",
     "tests/test_ai_limits.py",
@@ -284,6 +286,7 @@
     "tests/test_api_result.py",
     "tests/test_app_setup.py",
     "tests/test_assessments_view.py",
+    "tests/test_asset_inventory_network.py",
     "tests/test_audit_log_failures.py",
     "tests/test_audit_progress.py",
     "tests/test_audit_serverside.py",
@@ -503,7 +506,6 @@
     "tests/test_session_rotation.py",
     "tests/test_settings_concurrency.py",
     "tests/test_settings_logo.py",
-    "tests/test_setup_serverside.py",
     "tests/test_shared_customer_pool.py",
     "tests/test_sidecar_helpers.py",
     "tests/test_site_collector.py",
@@ -528,6 +530,7 @@
     "tests/test_unifi_api_diagnostics.py",
     "tests/test_unifi_controller_coverage.py",
     "tests/test_unifi_devices.py",
+    "tests/test_unifi_firmware_refresh.py",
     "tests/test_unifi_firmware_table.py",
     "tests/test_unifi_host_matcher.py",
     "tests/test_unifi_inform_host.py",
@@ -556,7 +559,8 @@
     "tests/test_webhook_delivery.py",
     "tests/test_websocket_revocation.py",
     "tests/test_websocket_shutdown.py",
-    "tests/test_write_routes_have_a_role_floor.py"
+    "tests/test_write_routes_have_a_role_floor.py",
+    "tests/ws_ping.py"
   ],
   "per_file": {
     "app/core/activity_log.py": 2,
@@ -579,7 +583,7 @@
     "tests/test_http_retry.py": 1,
     "tests/test_parsers.py": 5,
     "tests/test_report_golden.py": 2,
-    "tests/test_web_auth.py": 3,
+    "tests/test_web_auth.py": 1,
     "tests/test_write_capability.py": 1,
     "tests/test_write_controls_are_marked.py": 2
   }

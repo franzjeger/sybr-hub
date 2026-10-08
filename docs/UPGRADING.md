@@ -39,6 +39,36 @@ No migration. API changes for scripts that read these routes:
 
 ---
 
+# Removed endpoints, migrations 30 and 31, UniFi firmware refresh (October 2026, unreleased)
+
+- **Removed, nothing in the app called them:** `GET/POST /api/setup/stream`
+  (first-run setup in the web app uses `/api/setup/pkce/*`), the WebSocket
+  `/api/ws/dashboard`, `POST /api/dashboard/interval`, and
+  `GET /api/policy-backup/{id}/live` (the same data is in
+  `GET /api/policy-overview/{id}`). `/api/customer/{id}/status` no longer
+  returns `setup_running`. The dashboard poller reads devices only when asked
+  (`POST /api/dashboard/poll/{id}`); it no longer polls on a timer.
+- **`/api/dashboard/assets`** lists network devices from the stored readings
+  (`device_firmware`). Device rows carry firmware status, newest known
+  version, device key, last read time and read error; serial, WAN address and
+  online state, which only a live poll gives, are gone. If the store cannot
+  be read, `counts.network` is `null` and `unavailable` names
+  `network_devices`.
+- **Migration 30** deletes `customers/active.txt` and
+  `customers/.active/<64 hex>.txt` in the data directory, then `.active` if it
+  is empty: the files of the removed server-side active customer, which
+  nothing reads. Each removal is logged at INFO; anything else found there is
+  left in place and logged as a WARNING.
+- **Migration 31** adds `tailscale_customer_tags`. It starts empty, so every
+  customer keeps `tag:customer-<slug>` until an administrator sets a tag.
+- **UniFi firmware:** run `python scripts/refresh_unifi_firmware.py --write`
+  before 2027-04-02, check Ubiquiti's Legacy list, and update
+  `tests/test_unifi_firmware_table.py`, which pins the date and the versions.
+  The feed's shape is tested against a hand-written answer; check the first
+  run's output against a live answer.
+
+---
+
 # Background notifications and Graph read cooldown (October 2026, unreleased)
 
 - Background audit, credential, task-failure and alert-sweep messages follow
