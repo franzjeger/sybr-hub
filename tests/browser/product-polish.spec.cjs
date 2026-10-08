@@ -175,7 +175,14 @@ test.describe('signed in as an administrator', () => {
       return value;
     });
     expect(await attention.evaluate(el => getComputedStyle(el).color)).not.toBe(green);
-    await expect(page.locator('.attn-strip')).toContainText(never + ' uten audit');
+    // Read the count and the strip in one go: a spec running alongside can add
+    // a customer between two reads, and the page then redraws the strip with
+    // one more than a count taken a moment earlier.
+    await expect.poll(() => inApp(page, app => {
+      const now = app._overviewData.customers.filter(c => !c.last_audit).length;
+      const strip = document.querySelector('.attn-strip');
+      return !!strip && strip.textContent.includes(now + ' uten audit');
+    })).toBe(true);
     // A never-audited customer's findings are unknown, not none.
     const row = page.locator('.customer-overview-table tbody tr', {hasText: 'Browser Alpha'});
     await expect(row.locator('.sev-count.sev-unknown')).toHaveText('Aldri auditert');
