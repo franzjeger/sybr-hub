@@ -28,10 +28,15 @@ Where the data comes from, all of it Ubiquiti's own:
   *Vintage* products still get critical bug fixes and security updates, so they
   are **not** EOL (US-L2-24/48-PoE and USW-Enterprise-8/24/48-PoE are Vintage).
 
-Update process: read the feed above for each family's first code, check the
-release notes for that version say Official, compare the help.ui.com list, and
-set ``LAST_UPDATED`` to that day. A model whose version could not be found in
-one of these sources stays out of the table: "unknown" is the honest answer.
+Update process: run ``scripts/refresh_unifi_firmware.py``. It reads the feed
+for every code in the table and, with ``--write``, records each version newer
+than its family's in ``_NEWER_IN_FEED`` and sets ``LAST_UPDATED`` to that day.
+Before committing, compare the help.ui.com list (the feed says nothing about
+end of life) and, where a release-notes check is wanted, fold a version into
+its family with the notes that confirm it. A model whose version could not be
+found in one of these sources stays out of the table: "unknown" is the honest
+answer. The script lists the codes the feed has and the table does not; adding
+one needs its product name and an end-of-life check, so it is done by hand.
 """
 
 from __future__ import annotations
@@ -42,7 +47,8 @@ from datetime import date
 
 log = logging.getLogger(__name__)
 
-# The day the versions and EOL flags below were last checked against the sources.
+# The day the versions and EOL flags below were last checked against the sources
+# (scripts/refresh_unifi_firmware.py --write sets it).
 LAST_UPDATED = "2026-10-04"
 
 # How long the manually maintained table is trusted before it fails closed.
@@ -405,13 +411,23 @@ _FAMILIES: tuple[dict, ...] = (
     },
 )
 
+# The newest release-channel version the feed listed for a code, where it is
+# newer than the version its family above was checked at. Written by
+# scripts/refresh_unifi_firmware.py, between the markers; the families keep
+# what was checked against the release notes. A code here is judged against
+# this version, read from the feed. Folding a version into its family by hand
+# drops its entries on the next refresh. Never an end-of-life code.
+# BEGIN refresh_unifi_firmware
+_NEWER_IN_FEED: dict[str, str] = {}
+# END refresh_unifi_firmware
+
 # Controller model code -> {"latest", "eol", "name", "source"}.
 FIRMWARE_DB: dict[str, dict] = {
     code: {
-        "latest": family["latest"],
+        "latest": _NEWER_IN_FEED.get(code, family["latest"]),
         "eol": family.get("eol", False),
         "name": names[0],
-        "source": family["source"],
+        "source": _FEED + code if code in _NEWER_IN_FEED else family["source"],
     }
     for family in _FAMILIES
     for code, names in family["models"].items()
