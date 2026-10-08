@@ -338,6 +338,8 @@ FULL_AUDIT: dict[str, str] = {
         "Role                     User\n"
         "Global Administrator     ola@acme.no\n"
     ),
+    # identity_security.py: each note a code the report words, in the text
+    # and in the sidecar the report draws its table from.
     "07c_emergency_access_check.txt": (
         "==========================================================================================\n"
         "  EMERGENCY / BREAK-GLASS ACCOUNT CHECK\n"
@@ -345,9 +347,30 @@ FULL_AUDIT: dict[str, str] = {
         "  User (UPN)                                     MFA Registered  CA Excluded  Notes\n"
         "  ------------------------------------------------------------------------------------------\n"
         "  bg@acme.no                                                 NO          Yes  "
-        "No MFA — potential break-glass; Excluded from CA — confirmed break-glass candidate\n"
+        "no_mfa; ca_excluded\n"
         "  SUMMARY: break_glass_candidates=1 ca_exclusions_known=yes global_admins=1\n"
         "==========================================================================================\n"
+    ),
+    "07c_emergency_access_check.json": json.dumps(
+        {
+            "skipped": False,
+            "break_glass_candidates": 1,
+            "ca_exclusions_known": True,
+            "ca_excluded_admins": 1,
+            "global_admins": 1,
+            "admins": [
+                {
+                    "id": "u-bg",
+                    "upn": "bg@acme.no",
+                    "display_name": "Break Glass",
+                    "mfa_registered": False,
+                    "ca_excluded": True,
+                    "last_sign_in_days": None,
+                    "break_glass_candidate": True,
+                    "notes": ["no_mfa", "ca_excluded"],
+                }
+            ],
+        }
     ),
     "08_conditional_access.txt": (
         "CONDITIONAL ACCESS POLICIES\n"
@@ -807,8 +830,8 @@ FULL_AUDIT: dict[str, str] = {
     "30b_teams_guest_access.txt": (
         "=" * 90 + "\n"
         "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n" + "=" * 90 + "\n"
-        "  Allow Invites From       : Admins and Guest Inviters\n"
-        "  Guest User Role          : Restricted access (most restrictive)\n"
+        "  Allow Invites From       : adminsAndGuestInviters\n"
+        "  Guest User Role          : restricted (2af84b1e-32c8-42b7-82bc-daa82404023b)\n"
         "\n"
         "  Cross-Tenant Defaults:\n"
         "    B2B Collab Inbound     : blocked\n"
@@ -983,3 +1006,93 @@ _BROKEN_OVERRIDES: dict[str, str] = {
 }
 
 BROKEN_AUDIT: dict[str, str] = {**FULL_AUDIT, **_BROKEN_OVERRIDES}
+
+
+# ── A run from before the collectors stored codes ────────────────────────────
+#
+# What they wrote then, in their own English, as a run still on disk holds it:
+# the broken tenant, collected by the earlier collectors. A report regenerated
+# from it words every one of these phrases (TODO C15).
+_OLD_MFA_ROWS = [
+    (name, upn, mfa, ca, excl, "Authenticator App, Phone (SMS/Call)" if mfa == "YES" else methods)
+    for name, upn, mfa, ca, excl, methods in _BROKEN_MFA_ROWS
+]
+
+_OLD_OVERRIDES: dict[str, str] = {
+    "04_mfa_methods.txt": _mfa_table(_OLD_MFA_ROWS),
+    "04_mfa_methods.json": _mfa_json(_OLD_MFA_ROWS),
+    "30b_teams_guest_access.txt": (
+        "=" * 90 + "\n"
+        "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n" + "=" * 90 + "\n"
+        "  Allow Invites From       : Everyone (most open)\n"
+        "  Guest User Role          : Same as member users\n"
+        "\n" + "=" * 90 + "\n"
+    ),
+    "07c_emergency_access_check.json": json.dumps(
+        {
+            "skipped": False,
+            "break_glass_candidates": 0,
+            "ca_exclusions_known": True,
+            "ca_excluded_admins": 1,
+            "global_admins": 2,
+            "admins": [
+                {
+                    "id": "u-bg",
+                    "upn": "bg@acme.no",
+                    "mfa_registered": False,
+                    "ca_excluded": False,
+                    "last_sign_in_days": None,
+                    "notes": ["No MFA — potential break-glass"],
+                },
+                {
+                    "id": "u-ola",
+                    "upn": "ola@acme.no",
+                    "mfa_registered": True,
+                    "ca_excluded": True,
+                    "last_sign_in_days": 2,
+                    "notes": [
+                        "Excluded from CA but signed in 2d ago — an actively-used admin "
+                        "bypassing MFA, NOT a break-glass account"
+                    ],
+                },
+            ],
+        }
+    ),
+    "26_email_dns_spf_dmarc.txt": _dns_report(
+        spf="WEAK (~all softfail)",
+        spf_record="v=spf1 include:spf.protection.outlook.com ~all",
+        dmarc="WEAK (p=none)",
+        dmarc_record="v=DMARC1; p=none",
+        selector1="MISSING",
+        selector2="MISSING",
+        mta_sts="MISSING",
+    ),
+    "06_groups.txt": "\n".join(
+        [
+            "=" * 80,
+            "  GROUPS  (3 total)",
+            "=" * 80,
+            f"  {'Group Name':<50} {'Type':<16} {'Members':>8}",
+            "  " + "-" * 76,
+            f"  {'All Staff':<50} {'Microsoft 365':<16} {'38':>8}",
+            f"  {'IT Admins':<50} {'Security':<16} {'4':>8}",
+            f"  {'Postmottak':<50} {'Distribution':<16} {'2':>8}",
+            "=" * 80,
+            "",
+        ]
+    ),
+    "60_fortigate_audit.txt": json.dumps(
+        {
+            "hostname": "acme-fgt-01",
+            "firmware": "v7.4.3",
+            "ha_mode": "Standalone",
+            "admins": [{"name": "admin", "two_factor": False, "trusthost": False}],
+            "policy_warnings": [
+                "Policy 12: allow-all (src=all, dst=all, svc=ALL)",
+                "Policy 19: logging disabled",
+            ],
+        }
+    ),
+}
+
+OLD_AUDIT: dict[str, str] = {**BROKEN_AUDIT, **_OLD_OVERRIDES}

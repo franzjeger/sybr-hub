@@ -122,7 +122,7 @@ def test_break_glass_machine_summary_is_not_rendered_to_the_customer(tmp_path):
     assert "SUMMARY: break_glass_candidates" not in ctx["emergency_access"], (
         "the machine-readable parser token leaked into the human-facing evidence"
     )
-    assert "break-glass candidate" in ctx["emergency_access"], (
+    assert "bg@acme.no" in ctx["emergency_access"] and "ca_excluded" in ctx["emergency_access"], (
         "the human rows must survive the token strip"
     )
     # And it is gone from the fully-rendered tech report too.
