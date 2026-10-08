@@ -4351,8 +4351,9 @@ var _termFontSize = (function() {
 })();
 
 // The terminal's colours, from the --term-* tokens in app.css, so it follows
-// the theme: it was dark on the light theme. A bright variant the theme does
-// not define is left to xterm.
+// the theme: it was dark on the light theme. Both themes define every one,
+// and tests/test_terminal_palette.py measures their contrast; a colour left
+// undefined would fall back to xterm's own, which nothing measures.
 var _TERM_COLOURS = {
   background: 'bg', foreground: 'fg', cursor: 'cursor', selectionBackground: 'selection',
   black: 'black', red: 'red', green: 'green', yellow: 'yellow',
