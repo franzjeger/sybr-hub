@@ -124,6 +124,25 @@ async def test_lookups_past_the_limit_are_not_checked_rather_than_not_found():
     assert len(provider.asked) == 2
 
 
+async def test_a_refused_mac_lookup_leaves_the_name_matches_standing():
+    """One refused lookup must not cost the page the matches it already has."""
+    from app.integrations.rmm import RMMError
+
+    class _Refusing(_Provider):
+        async def devices_by_mac(self, mac: str) -> list[RMMDevice]:
+            self.asked.append(mac)
+            raise RMMError("refused (403)")
+
+    devices = [_hub("PC-01"), _hub("MAC-1", "0A1B2C3D4E5F"), _hub("MAC-2", "0A1B2C3D4E60")]
+    matches = match_by_hostname(devices, [_rmm("d1", "PC-01")])
+    provider = _Refusing({})
+
+    await match_by_mac(matches, provider, "site-a")
+
+    assert [m.status for m in matches] == ["matched", "not_checked", "not_checked"]
+    assert len(provider.asked) == 1, "no more lookups after a refusal"
+
+
 def test_one_rmm_device_claimed_by_two_hub_devices_cancels_both():
     matches = match_by_hostname([_hub("PC-01"), _hub("PC-02")], [_rmm("d1", "PC-01")])
     matches[1].status, matches[1].by, matches[1].rmm = "matched", "mac", matches[0].rmm

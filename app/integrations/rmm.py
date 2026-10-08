@@ -157,20 +157,28 @@ async def match_by_mac(
 
     Only devices still not found are looked up, and at most ``limit`` lookups
     are spent; a device past the limit reads "not checked", not "not found".
+    A lookup the RMM refuses stops the lookups: that device and the rest read
+    "not checked", and the matches the host names made stand.
     """
     spent = 0
+    failed = False
     for match in matches:
         if match.status != "not_found" or not match.device.macs:
             continue
-        if spent + len(match.device.macs) > limit:
+        if failed or spent + len(match.device.macs) > limit:
             match.status = "not_checked"
             continue
         uids: dict[str, RMMDevice] = {}
-        for mac in match.device.macs:
-            spent += 1
-            for candidate in await provider.devices_by_mac(mac):
-                if candidate.site_uid == site_uid:
-                    uids[candidate.uid] = candidate
+        try:
+            for mac in match.device.macs:
+                spent += 1
+                for candidate in await provider.devices_by_mac(mac):
+                    if candidate.site_uid == site_uid:
+                        uids[candidate.uid] = candidate
+        except RMMError:
+            failed = True
+            match.status = "not_checked"
+            continue
         if len(uids) == 1:
             match.status, match.by, match.rmm = "matched", "mac", next(iter(uids.values()))
         elif uids:
