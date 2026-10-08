@@ -1423,15 +1423,21 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% for note in m365_backup.unread_notes %}<div>{{ note }}</div>{% endfor %}
   </div>
   {% endif %}
-  {% set found_apps = m365_backup.apps | selectattr('enabled') | selectattr('workloads') | list %}
-  {% if found_apps %}
+  {% set listed_apps = m365_backup.apps | selectattr('enabled') | selectattr('workloads') | list %}
+  {% set found_apps = listed_apps | rejectattr('candidate') | list %}
+  {% set candidate_apps = listed_apps | selectattr('candidate') | list %}
+  {% if found_apps or candidate_apps %}
   <div class="backup-apps">
     {% for a in found_apps %}
     <div>{{ t('m365_backup_app_access', app=a.name, access=a.access) }}</div>
     {% endfor %}
-    <div class="backup-note">{{ t.m365_backup_proof_note }}</div>
+    {% for a in candidate_apps %}
+    <div>{{ t('m365_backup_app_possible_access', app=a.name, access=a.access) }}</div>
+    {% endfor %}
+    {% if found_apps %}<div class="backup-note">{{ t.m365_backup_proof_note }}</div>{% endif %}
   </div>
   {% endif %}
+  <div class="backup-note">{{ t.m365_backup_success_not_verified }}</div>
 </div>
 {% endif %}
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 import pathlib
 
 import pytest
+from markupsafe import escape
 
 from app.core.baseline import evaluate
 from app.modules.base import SectionStatus
@@ -102,6 +103,23 @@ def _assignment(resource: str, role: str) -> dict:
     return {"appRoleId": role, "resourceId": resource, "resourceDisplayName": ""}
 
 
+# The access scan: who holds app roles on Microsoft Graph and Exchange Online,
+# read from the resource side by application id.
+GRAPH_GRANTS = "servicePrincipals(appId='00000003-0000-0000-c000-000000000000')/appRoleAssignedTo"
+EXO_GRANTS = "servicePrincipals(appId='00000002-0000-0ff1-ce00-000000000000')/appRoleAssignedTo"
+_NO_GRANTS = {GRAPH_GRANTS: [], EXO_GRANTS: []}
+
+
+def _granted(principal: str, resource: str, role: str) -> dict:
+    return {
+        "principalId": principal,
+        "principalType": "ServicePrincipal",
+        "appRoleId": role,
+        "resourceId": resource,
+        "resourceDisplayName": "",
+    }
+
+
 _ENABLED = {"serviceStatus": {"status": "enabled", "disableReason": "none"}}
 _DISABLED = {"serviceStatus": {"status": "disabled", "disableReason": "none"}}
 
@@ -116,6 +134,7 @@ _ALL_PROTECTED = {
     **_counts("pol-sp", 12, 12),
     **_counts("pol-od", 40, 38, in_progress=2),
     "servicePrincipals": [_sp("sp-teams", "Microsoft Teams", owner="tenant-ms")],
+    **_NO_GRANTS,
 }
 
 # Microsoft 365 Backup off, and no backup vendor among the service principals.
@@ -129,6 +148,9 @@ _NOTHING = {
     ],
     "servicePrincipals/sp-barracuda/appRoleAssignments": [_assignment(GRAPH_SP, "role-mail-read")],
     "servicePrincipals/sp-barracuda/oauth2PermissionGrants": [],
+    # The filter reads every mailbox and nothing else: not a backup candidate.
+    GRAPH_GRANTS: [_granted("sp-barracuda", GRAPH_SP, "role-mail-read")],
+    EXO_GRANTS: [],
     **_RESOURCES,
 }
 
@@ -142,6 +164,11 @@ _KEEPIT = {
         _assignment(GRAPH_SP, "role-user-read"),
     ],
     "servicePrincipals/sp-keepit/oauth2PermissionGrants": [],
+    GRAPH_GRANTS: [
+        _granted("sp-keepit", GRAPH_SP, "role-files-read"),
+        _granted("sp-keepit", GRAPH_SP, "role-user-read"),
+    ],
+    EXO_GRANTS: [_granted("sp-keepit", EXO_SP, "role-faa")],
     **_RESOURCES,
 }
 
@@ -551,6 +578,198 @@ async def test_an_unknown_product_called_backup_counts_only_with_data_access(tmp
     assert not any("sp-ms" in path for path in asked)
 
 
+# ── Beyond the name (TODO D18) ────────────────────────────────────────────────
+
+# An app the tenant's admin renamed: nothing in its display names says backup.
+_RENAMED = {
+    **_NOTHING,
+    "servicePrincipals": [
+        {
+            **_sp("sp-renamed", "Mail and files archive"),
+            "verifiedPublisher": {
+                "displayName": "Keepit A/S",
+                "verifiedPublisherId": "1234567",
+                "addedDateTime": "2024-01-01T00:00:00Z",
+            },
+            "publisherName": "Keepit",
+        }
+    ],
+    "servicePrincipals/sp-renamed/appRoleAssignments": [
+        _assignment(EXO_SP, "role-faa"),
+        _assignment(GRAPH_SP, "role-files-read"),
+    ],
+    "servicePrincipals/sp-renamed/oauth2PermissionGrants": [],
+    GRAPH_GRANTS: [_granted("sp-renamed", GRAPH_SP, "role-files-read")],
+    EXO_GRANTS: [_granted("sp-renamed", EXO_SP, "role-faa")],
+}
+
+# No name and no publisher, but app-only read of every mailbox and every drive.
+_UNNAMED = {
+    **_NOTHING,
+    "servicePrincipals": [_sp("sp-archiver", "Contoso Archiver")],
+    "servicePrincipals/sp-archiver/appRoleAssignments": [
+        _assignment(GRAPH_SP, "role-mail-read"),
+        _assignment(GRAPH_SP, "role-files-read"),
+    ],
+    "servicePrincipals/sp-archiver/oauth2PermissionGrants": [],
+    GRAPH_GRANTS: [
+        _granted("sp-archiver", GRAPH_SP, "role-mail-read"),
+        _granted("sp-archiver", GRAPH_SP, "role-files-read"),
+    ],
+    EXO_GRANTS: [],
+}
+
+
+async def test_a_renamed_backup_app_is_found_by_its_verified_publisher(tmp_path):
+    """The gap D18 names: a backup app renamed in the tenant used to be missed.
+
+    Microsoft verifies the publisher and the customer's admin cannot change it,
+    so it identifies the product with high confidence. The verdict is still
+    evidence of an installed product, never a backup that ran.
+    """
+    _, files = await _collect(tmp_path, _RENAMED)
+
+    reading = _parse_m365_backup(files)
+    app = reading["apps"][0]
+
+    assert (app["name"], app["match"], app["confidence"]) == ("Keepit", "publisher", "high")
+    assert app["publisher"] == "Keepit A/S"
+    assert _verdicts(reading)["exchange"] == "third_party"
+    assert _control(files)["status"] == "info", "an installed product is not a verified backup"
+
+
+def test_an_unverified_publisher_is_not_a_publisher():
+    """Graph sends verifiedPublisher on every app, all null when unverified.
+
+    Matching on the null object's display name would let anyone who names a
+    tenant "Keepit" pass as the vendor.
+    """
+    sp = {
+        "displayName": "Sync tool",
+        "verifiedPublisher": {"displayName": "Keepit", "verifiedPublisherId": None},
+    }
+    assert match_product(sp) is None
+
+
+def test_a_verified_vendor_that_sells_other_products_matches_only_its_backup():
+    """AvePoint publishes its migration tool as well; the publisher alone is not backup."""
+    publisher = {"displayName": "AvePoint, Inc.", "verifiedPublisherId": "42"}
+
+    assert match_product({"displayName": "AvePoint Fly", "verifiedPublisher": publisher}) is None
+    matched = match_product(
+        {"displayName": "AvePoint Cloud Backup", "verifiedPublisher": publisher}
+    )
+    assert matched is not None and matched[1] == "name"
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only"])
+async def test_an_unnamed_app_with_backup_access_is_a_candidate_not_a_backup(tmp_path, sidecars):
+    """App-only read of every mailbox and drive is what a backup product needs.
+
+    It is also what an archiver or a migration tool holds, so the app is a
+    candidate to check: the workloads read "could not be determined", never
+    "backed up", and never "no backup" either while it is unexplained.
+    """
+    section, files = await _collect(tmp_path, _UNNAMED, sidecars=sidecars)
+
+    reading = _parse_m365_backup(files)
+    app = reading["apps"][0]
+
+    assert (app["match"], app["confidence"], app["candidate"]) == ("access", "low", True)
+    assert app["product"] is None and app["name"] == "Contoso Archiver"
+    assert _verdicts(reading) == {
+        "exchange": "unknown",
+        "onedrive": "unknown",
+        "sharepoint": "unknown",
+        "teams": "files_only",
+    }
+    assert reading["gaps"] == [] and reading["third_party_only"] == []
+    assert "Contoso Archiver" in reading["workloads"][0]["third_text"]
+    assert "ikke et kjent backupprodukt" in reading["workloads"][0]["third_text"]
+    assert _rec(files) is None
+    row = _control(files)
+    assert row["status"] == "info" and "Contoso Archiver" in row["detail"]
+    if sidecars:
+        assert any("Contoso Archiver" in str(w) for w in section.result.warns)
+
+
+async def test_one_workload_alone_is_no_backup_candidate(tmp_path):
+    """A mail filter reads every mailbox and nothing else: no candidate, a real gap."""
+    _, files = await _collect(tmp_path, _NOTHING)
+
+    reading = _parse_m365_backup(files)
+
+    assert reading["apps"] == []
+    assert reading["gaps"] == ["exchange", "onedrive", "sharepoint"]
+
+
+async def test_microsofts_own_apps_are_never_candidates(tmp_path):
+    routes = {
+        **_UNNAMED,
+        "servicePrincipals": [
+            _sp("sp-archiver", "Office 365 Archive", owner="72f988bf-86f1-41af-91ab-2d7cd011db47")
+        ],
+    }
+    _, files = await _collect(tmp_path, routes)
+
+    assert _parse_m365_backup(files)["apps"] == []
+
+
+def test_the_audits_own_registration_is_never_a_candidate():
+    """The audit app reads sites, never every mailbox, so it cannot flag itself."""
+    from app.core.config import EXO_PERMISSION, REQUIRED_GRAPH_PERMISSIONS
+    from app.modules.m365_audit.sections.m365_backup import has_backup_scope
+
+    assert not has_backup_scope([*REQUIRED_GRAPH_PERMISSIONS, EXO_PERMISSION])
+
+
+async def test_an_unreadable_access_scan_is_said_and_changes_no_verdict(tmp_path):
+    """The scan is an extra. Failing it is noted; the name tiers stand as before."""
+    routes = {**_NOTHING, GRAPH_GRANTS: refused()}
+    section, files = await _collect(tmp_path, routes)
+
+    reading = _parse_m365_backup(files)
+
+    assert reading["gaps"] == ["exchange", "onedrive", "sharepoint"]
+    assert str(T("no").m365_backup_access_scan_unread) in reading["unread_notes"]
+    assert any("renamed backup app may be missed" in str(w) for w in section.result.warns)
+
+
+def test_a_run_from_before_the_access_scan_carries_no_note_about_it():
+    """Old sidecars have no access_scan; they are judged as they were then."""
+    import json
+
+    from tests.audit_fixture import FULL_AUDIT
+
+    old = json.loads(FULL_AUDIT["34_m365_backup.json"])
+    del old["third_party"]["access_scan"]
+    reading = _parse_m365_backup({"34_m365_backup.json": json.dumps(old)})
+
+    assert reading["unread_notes"] == []
+    assert reading["gaps"] == []
+
+
+@pytest.mark.parametrize("lang", ["no", "en"])
+async def test_both_reports_say_backup_success_is_not_verified(tmp_path, lang):
+    """Neither source can say whether the last backup succeeded; the report says so."""
+    await _collect(tmp_path, _UNNAMED)
+    ctx = _context(tmp_path, lang)
+    t = T(lang)
+
+    customer = _render(ctx, "report_customer.html.j2")
+    tech = _render(ctx, "report_tech.html.j2")
+
+    for html in (customer, tech):
+        assert str(escape(t.m365_backup_success_not_verified)) in html
+    # The candidate is named as one, not as a backup app that was found.
+    possible = t("m365_backup_app_possible_access", app="Contoso Archiver", access="")
+    assert str(escape(str(possible).split(",")[0])) in customer
+    found = t("m365_backup_app_access", app="Contoso Archiver", access="")
+    assert str(escape(found)).strip() not in customer
+    assert str(t.m365_backup_confidence_low) in tech
+    assert str(t.m365_backup_match_access) in tech
+
+
 @pytest.mark.parametrize(
     ("name", "product"),
     [
@@ -639,6 +858,7 @@ async def test_the_healthy_fixture_is_what_the_collector_writes(tmp_path):
         **_counts("pol-sharepoint", 6, 6),
         **_counts("pol-onedrive", 10, 10),
         "servicePrincipals": [_sp("sp-teams", "Microsoft Teams", owner="tenant-ms")],
+        **_NO_GRANTS,
     }
     _, files = await _collect(tmp_path, routes)
 

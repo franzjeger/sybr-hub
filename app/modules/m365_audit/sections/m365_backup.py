@@ -39,7 +39,29 @@ Endpoints and permissions, verified against Microsoft Learn (October 2026):
 
 The third-party read lists the service principals (Application.Read.All,
 already granted) and, for the few that match a backup product, their
-application permissions and delegated grants.
+application permissions and delegated grants. A service principal is matched
+on what it says about itself, strongest first:
+
+* ``app_id``: an application id the vendor publishes for its backup app. None
+  of the vendors below publishes one (October 2026), so this tier is empty
+  rather than filled with ids nobody can cite.
+* ``publisher``: the app's Microsoft-verified publisher is a backup vendor.
+  Microsoft verifies the publisher against the vendor's partner account, and
+  the customer's admin cannot rename it, so a renamed app is still found.
+* ``name``: the service principal's or its app's display name names a product.
+  The tenant's own admin can rename the first, which is the gap the two tiers
+  above and below exist for.
+* ``generic``: "backup" in the name, kept only with access to the data.
+* ``access``: no name at all, but the application permissions a backup product
+  needs: every mailbox and every site or drive, app-only. Found from the
+  resource side (who holds app roles on Microsoft Graph and Exchange Online), so
+  it costs two listings rather than one read per app. This is a candidate to
+  check, never a backup product: mail archivers, migration tools and e-mail
+  security products hold the same access, and the report says so.
+
+None of the tiers says whether a backup ran. The last successful backup is in
+the vendor's own API, behind the vendor's own credentials, and the audit reads
+neither; the report states that plainly.
 """
 
 from __future__ import annotations
@@ -51,6 +73,7 @@ from pathlib import Path
 
 import httpx
 
+from app.core.config import EXO_APP_ID, GRAPH_APP_ID
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
 
@@ -97,11 +120,15 @@ class BackupProduct:
     """A backup product as it shows up among a tenant's service principals.
 
     ``patterns`` are regular expressions matched, case-insensitively, against
-    the service principal's display name and its app's display name.
+    the app's Microsoft-verified publisher and against the service principal's
+    display name and its app's display name. A vendor that also sells other
+    products has a pattern that needs "backup", so its verified publisher
+    alone ("AvePoint, Inc.") matches none of them, which is what keeps a
+    migration tool from the same publisher out.
     ``app_ids`` are multi-tenant application ids, listed only where the vendor
     publishes one; none of the products below does, so every entry matches on
-    its name. ``name`` is None only for the generic catch-all, whose matches
-    the report names by the app's own display name.
+    its publisher or its name. ``name`` is None only for the generic catch-all,
+    whose matches the report names by the app's own display name.
     """
 
     name: str | None
@@ -176,6 +203,10 @@ BACKUP_PRODUCTS: tuple[BackupProduct, ...] = (
 
 # The tenants Microsoft's first-party apps are registered in. A service
 # principal owned by one of these is Microsoft's, never a third-party product.
+# Both are named in "Verify first-party Microsoft applications in sign-in
+# reports": f8cdef31-… is the Microsoft Services tenant, 72f988bf-… the tenant
+# of Microsoft's own tenant-owned applications.
+# https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/governance/verify-first-party-apps-sign-in
 _MICROSOFT_OWNER_TENANTS = {
     "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
     "72f988bf-86f1-41af-91ab-2d7cd011db47",
@@ -220,22 +251,59 @@ _WORKLOAD_PERMISSIONS["sharepoint"] = _WORKLOAD_PERMISSIONS["onedrive"]
 # called "backup" than this is unusual; the rest are recorded as not read.
 _MAX_APPS_READ = 25
 
+# The resources whose app-only grants the access scan lists, addressed by
+# application id as "GET /servicePrincipals(appId='{appId}')/appRoleAssignedTo"
+# allows (Application.Read.All). Microsoft Graph carries Mail.*, Files.* and
+# Sites.*; Exchange Online carries full_access_as_app, the EWS role mailbox
+# backup products use. Both ids are the resourceAppId values in Microsoft's
+# Exchange Online app-only manifest example.
+# https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list-approleassignedto
+# https://learn.microsoft.com/en-us/powershell/exchange/app-only-auth-powershell-v2
+# SharePoint's own REST resource is not listed: a product that reads sites only
+# through it, and mail only through EWS, is found by name or not at all.
+_ACCESS_SCAN_RESOURCES = (GRAPH_APP_ID, EXO_APP_ID)
+
+
+def _verified_publisher(sp: dict) -> str:
+    """The Microsoft-verified publisher's name, or "" when there is none.
+
+    ``verifiedPublisher`` is always present and all null for an unverified app,
+    so the publisher counts only when it carries the publisher's Partner Center
+    id. The name is the one on that Partner Center account.
+    https://learn.microsoft.com/en-us/graph/api/resources/verifiedpublisher
+    """
+    verified = sp.get("verifiedPublisher") or {}
+    if not isinstance(verified, dict) or not verified.get("verifiedPublisherId"):
+        return ""
+    return str(verified.get("displayName") or "")
+
 
 def match_product(sp: dict) -> tuple[BackupProduct, str] | None:
     """The backup product a service principal belongs to, and how it matched.
 
-    ("app_id" | "name" | "generic"), or None for an app that is not one.
+    ("app_id" | "publisher" | "name" | "generic"), or None for an app that is
+    not one. The access tier is not decided here: it needs the app's grants.
     """
     app_id = (sp.get("appId") or "").lower()
+    owner = (sp.get("appOwnerOrganizationId") or "").lower()
+    publisher = _verified_publisher(sp)
     names = " ".join(n for n in (sp.get("displayName"), sp.get("appDisplayName")) if n)
     for product in BACKUP_PRODUCTS:
         if app_id and app_id in (a.lower() for a in product.app_ids):
             return product, "app_id"
+        # The catch-all says nothing about a vendor, so a publisher with
+        # "backup" in its name is no more a product than its other apps are.
+        if (
+            product.name is not None
+            and publisher
+            and owner not in _MICROSOFT_OWNER_TENANTS
+            and any(re.search(p, publisher, re.IGNORECASE) for p in product.patterns)
+        ):
+            return product, "publisher"
         if not any(re.search(p, names, re.IGNORECASE) for p in product.patterns):
             continue
         if product.name is not None:
             return product, "name"
-        owner = (sp.get("appOwnerOrganizationId") or "").lower()
         if owner in _MICROSOFT_OWNER_TENANTS:
             return None
         return product, "generic"
@@ -246,6 +314,16 @@ def workloads_reached(permissions: list[str]) -> list[str]:
     """The workloads these permission values reach, in report order."""
     granted = set(permissions)
     return [w for w in WORKLOADS if granted & _WORKLOAD_PERMISSIONS[w]]
+
+
+def has_backup_scope(permissions: list[str]) -> bool:
+    """Whether these app-only permissions are what a backup product needs.
+
+    Every mailbox and every site or drive. An app with only one of the two is
+    a mail filter, an archiver or a file tool, and is not a candidate.
+    """
+    reached = workloads_reached(permissions)
+    return "exchange" in reached and ("onedrive" in reached or "sharepoint" in reached)
 
 
 # ── Reading a refusal ─────────────────────────────────────────────────────────
@@ -431,51 +509,75 @@ class M365BackupSection(BaseSection):
     # ── Third-party products ──────────────────────────────────────────────────
 
     async def _third_party(self) -> dict:
-        found: dict = {"read": False, "error_kind": "", "error": "", "scanned": 0, "apps": []}
+        found: dict = {
+            "read": False,
+            "error_kind": "",
+            "error": "",
+            "scanned": 0,
+            "access_scan": {"read": False, "error_kind": "", "error": ""},
+            "apps": [],
+        }
         try:
             principals = await self.graph.get_all(
                 "servicePrincipals",
                 params={
                     "$select": (
                         "id,appId,displayName,appDisplayName,appOwnerOrganizationId,"
-                        "accountEnabled,servicePrincipalType"
+                        "accountEnabled,servicePrincipalType,verifiedPublisher,publisherName"
                     ),
                     "$top": "999",
                 },
             )
         except Exception as ex:
             found["error_kind"], found["error"] = _failure(ex)
+            found["access_scan"]["error_kind"] = found["error_kind"]
             return found
         found["read"] = True
         found["scanned"] = len(principals)
 
         role_names: dict[str, dict[str, str]] = {}
         resource_names: dict[str, str] = {}
+        broad = await self._access_scan(found["access_scan"], role_names, resource_names)
         reads = 0
         for sp in principals:
             if (sp.get("servicePrincipalType") or "") == "ManagedIdentity":
                 continue
+            sp_id = str(sp.get("id") or "")
+            owner = (sp.get("appOwnerOrganizationId") or "").lower()
             matched = match_product(sp)
-            if matched is None:
+            if matched is not None:
+                product_name, how = matched[0].name, matched[1]
+            elif (
+                sp_id in broad
+                and owner not in _MICROSOFT_OWNER_TENANTS
+                and has_backup_scope([p["value"] for p in broad[sp_id]])
+            ):
+                product_name, how = None, "access"
+            else:
                 continue
-            product, how = matched
             app = {
-                "product": product.name,
+                "product": product_name,
                 "display_name": str(sp.get("displayName") or sp.get("appDisplayName") or ""),
                 "app_id": str(sp.get("appId") or ""),
-                "sp_id": str(sp.get("id") or ""),
+                "sp_id": sp_id,
                 "enabled": sp.get("accountEnabled") is not False,
                 "match": how,
+                "publisher": _verified_publisher(sp),
+                "publisher_name": str(sp.get("publisherName") or ""),
                 "permissions_read": False,
                 "permissions_error": "",
                 "application_permissions": [],
                 "delegated_scopes": [],
                 "workloads": [],
             }
+            if how == "access":
+                # Already read from the resource side, which is what made it a
+                # candidate; the per-app read below adds the rest when it can.
+                self._set_permissions(app, broad[sp_id], [])
             if reads < _MAX_APPS_READ:
                 reads += 1
                 await self._permissions(app, role_names, resource_names)
-            else:
+            elif not app["permissions_read"]:
                 app["permissions_error"] = f"not read: more than {_MAX_APPS_READ} matching apps"
             # A catch-all match is a backup product only if it reaches the data.
             if how == "generic" and app["permissions_read"] and not app["workloads"]:
@@ -483,18 +585,81 @@ class M365BackupSection(BaseSection):
             found["apps"].append(app)
         return found
 
+    async def _access_scan(
+        self,
+        scan: dict,
+        role_names: dict[str, dict[str, str]],
+        resource_names: dict[str, str],
+    ) -> dict[str, list[dict]]:
+        """{service principal id: app-only permissions} on Graph and Exchange Online.
+
+        Records in ``scan`` whether it could be read. A failed scan leaves the
+        name tiers standing, as they stood before this scan existed, and the
+        report notes that an unnamed app may have been missed.
+        """
+        granted: dict[str, list[dict]] = {}
+        try:
+            for app_id in _ACCESS_SCAN_RESOURCES:
+                assignments = await self.graph.get_all(
+                    f"servicePrincipals(appId='{app_id}')/appRoleAssignedTo"
+                )
+                for assignment in assignments:
+                    if (assignment.get("principalType") or "") != "ServicePrincipal":
+                        continue
+                    resource_id = str(assignment.get("resourceId") or "")
+                    roles = await self._resource_roles(resource_id, role_names, resource_names)
+                    if not roles:
+                        # Every grant would stay a GUID and none could qualify:
+                        # that is a scan that did not happen, not one that
+                        # found nothing.
+                        scan["error_kind"] = "error"
+                        scan["error"] = f"the app roles of resource {resource_id} could not be read"
+                        return {}
+                    role_id = str(assignment.get("appRoleId") or "")
+                    granted.setdefault(str(assignment.get("principalId") or ""), []).append(
+                        {
+                            "value": roles.get(role_id, "") or role_id,
+                            "resource": str(
+                                assignment.get("resourceDisplayName")
+                                or resource_names.get(resource_id)
+                                or ""
+                            ),
+                        }
+                    )
+        except Exception as ex:
+            scan["error_kind"], scan["error"] = _failure(ex)
+            return {}
+        scan["read"] = True
+        return granted
+
+    @staticmethod
+    def _set_permissions(app: dict, application: list[dict], delegated: list[dict]) -> None:
+        app["application_permissions"] = application
+        app["delegated_scopes"] = delegated
+        app["permissions_read"] = True
+        app["permissions_error"] = ""
+        values = [p["value"] for p in application + delegated]
+        app["workloads"] = workloads_reached(values)
+
     async def _permissions(
         self, app: dict, role_names: dict[str, dict[str, str]], resource_names: dict[str, str]
     ) -> None:
-        """Fill in what the app may read: its app roles and delegated grants."""
+        """Fill in what the app may read: its app roles and delegated grants.
+
+        A failed read leaves whatever the app already carried, so an access
+        candidate keeps the grants the resource side showed.
+        """
         sp_id = app["sp_id"]
         try:
             assignments = await self.graph.get_all(f"servicePrincipals/{sp_id}/appRoleAssignments")
             grants = await self.graph.get_all(f"servicePrincipals/{sp_id}/oauth2PermissionGrants")
         except Exception as ex:
-            app["permissions_error"] = _failure(ex)[1]
+            if not app["permissions_read"]:
+                app["permissions_error"] = _failure(ex)[1]
             return
 
+        application: list[dict] = []
+        delegated: list[dict] = []
         for assignment in assignments:
             resource_id = str(assignment.get("resourceId") or "")
             roles = await self._resource_roles(resource_id, role_names, resource_names)
@@ -502,7 +667,7 @@ class M365BackupSection(BaseSection):
             resource = str(
                 assignment.get("resourceDisplayName") or resource_names.get(resource_id) or ""
             )
-            app["application_permissions"].append(
+            application.append(
                 {"value": value or str(assignment.get("appRoleId") or ""), "resource": resource}
             )
         for grant in grants:
@@ -510,12 +675,8 @@ class M365BackupSection(BaseSection):
             if resource_id not in resource_names:
                 await self._resource_roles(resource_id, role_names, resource_names)
             for scope in str(grant.get("scope") or "").split():
-                app["delegated_scopes"].append(
-                    {"value": scope, "resource": resource_names.get(resource_id, "")}
-                )
-        app["permissions_read"] = True
-        values = [p["value"] for p in app["application_permissions"] + app["delegated_scopes"]]
-        app["workloads"] = workloads_reached(values)
+                delegated.append({"value": scope, "resource": resource_names.get(resource_id, "")})
+        self._set_permissions(app, application, delegated)
 
     async def _resource_roles(
         self,
@@ -596,6 +757,14 @@ class M365BackupSection(BaseSection):
                 f"  Apps found        : {len(third_party['apps'])} "
                 f"(of {third_party['scanned']} service principals)"
             )
+            scan = third_party["access_scan"]
+            if scan["read"]:
+                lines.append("  Access scan       : read")
+            else:
+                lines += [
+                    f"  Access scan       : unreadable ({scan['error_kind']})",
+                    f"  Access detail     : {scan['error']}",
+                ]
             for app in third_party["apps"]:
                 workloads = ",".join(app["workloads"]) if app["permissions_read"] else "unknown"
                 lines.append(
@@ -603,6 +772,11 @@ class M365BackupSection(BaseSection):
                     f"{'enabled' if app['enabled'] else 'disabled'} | match={app['match']} | "
                     f"workloads={workloads or 'none'} | app_id={app['app_id']}"
                 )
+                if app["publisher"] or app["publisher_name"]:
+                    lines.append(
+                        f"      publisher   : verified={app['publisher'] or '(none)'} | "
+                        f"tenant={app['publisher_name'] or '(none)'}"
+                    )
                 if not app["permissions_read"]:
                     lines.append(f"      permissions : unreadable ({app['permissions_error']})")
                     continue
@@ -658,3 +832,18 @@ class M365BackupSection(BaseSection):
                 f"({third_party['error_kind']})",
                 level="info",
             )
+            return
+        scan = third_party.get("access_scan") or {}
+        if scan and not scan.get("read"):
+            self._warn(
+                "The scan for unnamed apps with backup-like access could not be read "
+                f"({scan.get('error_kind')}); a renamed backup app may be missed",
+                level="info",
+            )
+        for app in third_party.get("apps") or []:
+            if app["match"] == "access" and app["enabled"]:
+                self._warn(
+                    f"{app['display_name']} holds app-only read access to every mailbox and "
+                    "site, as a backup product does, but is not a known one; check what it is",
+                    level="info",
+                )
