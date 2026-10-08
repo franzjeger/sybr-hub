@@ -102,8 +102,16 @@
     /* The web terminal's palette (app-infra.js reads these into xterm when it
        opens a terminal and when the theme changes). Plain colours only: the
        script reads them as written, so a var() or color-mix() here would
-       reach xterm unresolved. The eight ANSI colours, and their bright
-       variants where xterm's own would not read on this background. */
+       reach xterm unresolved. All sixteen ANSI colours, in both themes, so
+       what xterm draws is what tests/test_terminal_palette.py measures:
+       every foreground at least 4.5:1 on --term-bg (WCAG AA, normal text).
+       The bright variants were xterm's own here, and its bright black,
+       2.6:1, is the grey a shell draws suggestions and comments in.
+       One exception, on purpose: --term-black, 2.3:1. On a dark screen
+       black is the background's own colour, drawn behind text or as text on
+       a coloured cell (a status line, a highlighted match). At 4.5:1 it
+       would be a mid grey, the same as bright black, and that text would
+       lose its contrast instead. Bold black is drawn as bright black. */
     --term-bg:        #0d1117;
     --term-fg:        #e6edf3;
     --term-cursor:    #4d9fb5;
@@ -116,6 +124,14 @@
     --term-magenta:   #bc8cff;
     --term-cyan:      #4d9fb5;
     --term-white:     #e6edf3;
+    --term-bright-black:   #848c96;
+    --term-bright-red:     #ffa198;
+    --term-bright-green:   #56d364;
+    --term-bright-yellow:  #e3b341;
+    --term-bright-blue:    #79c0ff;
+    --term-bright-magenta: #d2a8ff;
+    --term-bright-cyan:    #76c3d6;
+    --term-bright-white:   #ffffff;
     --mono:      'Cascadia Code', 'Fira Code', 'Consolas', monospace;
     --sans:      'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --logo-src:  url('/branding/SYBR_3.png');
@@ -203,7 +219,12 @@
     --amber:     #6e6a00;
     /* The terminal on a white page: dark text, and ANSI colours dark enough
        to read on it, bright variants included (xterm's own bright white and
-       yellow vanish on white). */
+       yellow vanish on white). Every one clears 4.5:1 here, white included:
+       programs written for a dark screen print in white, and bold white is
+       drawn as bright white. A lighter shade cannot clear it on white, so a
+       bright variant is a deeper one where the base colour is already near
+       4.5:1. GitHub's bright blue, magenta, cyan and white, which this
+       palette started from, measured 3.0 to 3.6. */
     --term-bg:        #ffffff;
     --term-fg:        #1f2328;
     --term-cursor:    #1d6387;
@@ -220,10 +241,10 @@
     --term-bright-red:     #a40e26;
     --term-bright-green:   #1a7f37;
     --term-bright-yellow:  #633c01;
-    --term-bright-blue:    #218bff;
-    --term-bright-magenta: #a475f9;
-    --term-bright-cyan:    #3192aa;
-    --term-bright-white:   #8c959f;
+    --term-bright-blue:    #0550ae;
+    --term-bright-magenta: #6639ba;
+    --term-bright-cyan:    #0f5f66;
+    --term-bright-white:   #636c76;
     --purple:    #8250df;
     --info:      #0969da;
     --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
