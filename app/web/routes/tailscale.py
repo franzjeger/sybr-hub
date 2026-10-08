@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Depends
 
 from app.core.exceptions import (
+    ConflictError,
     ForbiddenError,
     IntegrationError,
     NotFoundError,
@@ -14,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.models.tailscale import (
     TailscaleAuthorize,
+    TailscaleCustomerTagSet,
     TailscaleKeyCreate,
     TailscaleKeyExpiry,
     TailscaleNodeAssign,
@@ -159,7 +161,10 @@ async def _annotate_customers(devices: list[dict], user: User) -> None:
 
     customers = {c["_id"]: c for c in CustomerManager.list_customers()}
     owners = tailscale_customers.resolve(
-        devices, list(customers), await tailscale_customers.manual_assignments()
+        devices,
+        list(customers),
+        await tailscale_customers.manual_assignments(),
+        await tailscale_customers.tag_overrides(),
     )
     allowed = await get_accessible_customer_ids(user)
     for device in devices:
@@ -185,17 +190,33 @@ async def tailscale_customer_nodes(
 ):
     """This customer's nodes: assigned by hand, or tagged for it in the tailnet.
 
-    Each with its status and what to connect to. ``tag`` is the tag that would
-    map a node here without anyone assigning it.
+    Each with its status and what to connect to. ``tag`` is the tag that maps
+    a node here without anyone assigning it: ``tag_override``, the customer's
+    own when an administrator set one, or else ``default_tag``.
+    ``unassigned`` are the nodes no customer has, for the list a node is
+    assigned from, so the Tilgang tab asks once. The answer comes from a cache
+    of a minute (``tailscale_customers.cached_nodes``) that any mapping change
+    empties.
     """
     from app.core.customer import CustomerManager
     from app.services import tailscale_customers
 
     if CustomerManager.get_customer(customer_id) is None:
         raise refusal(NotFoundError, "err_customer_not_found")
-    tag = tailscale_customers.customer_tag(customer_id)
     if not _ensure_configured():
-        return {"configured": False, "customer_id": customer_id, "tag": tag, "nodes": []}
+        override = (await tailscale_customers.tag_overrides()).get(customer_id)
+        return {
+            "configured": False,
+            "customer_id": customer_id,
+            "tag": override or tailscale_customers.customer_tag(customer_id),
+            "default_tag": tailscale_customers.customer_tag(customer_id),
+            "tag_override": override,
+            "nodes": [],
+            "unassigned": [],
+        }
+    cached = tailscale_customers.cached_nodes(customer_id)
+    if cached is not None:
+        return cached
     try:
         from app.services import tailscale_api
 
@@ -204,20 +225,33 @@ async def tailscale_customer_nodes(
         log.warning("Tailscale device list failed: %s", e)
         raise refusal(IntegrationError, "err_tailscale_unreachable") from e
 
+    overrides = await tailscale_customers.tag_overrides()
     owners = tailscale_customers.resolve(
         devices,
         [c["_id"] for c in CustomerManager.list_customers()],
         await tailscale_customers.manual_assignments(),
+        overrides,
     )
     nodes = []
+    unassigned = []
     for device in devices:
         owner = owners.get(str(device.get("id") or ""))
-        if owner is None or owner[0] != customer_id:
+        name = device.get("given_name") or device.get("hostname") or device.get("name")
+        if owner is None:
+            unassigned.append(
+                {
+                    "id": device.get("id"),
+                    "name": name or device.get("id"),
+                    "ip": device.get("tailscale_ip") or "",
+                }
+            )
+            continue
+        if owner[0] != customer_id:
             continue
         nodes.append(
             {
                 "id": device.get("id"),
-                "name": device.get("given_name") or device.get("hostname") or device.get("name"),
+                "name": name,
                 "hostname": device.get("hostname", ""),
                 "os": device.get("os", ""),
                 "online": bool(device.get("online")),
@@ -231,7 +265,72 @@ async def tailscale_customer_nodes(
             }
         )
     nodes.sort(key=lambda n: (not n["online"], (n["name"] or "").lower()))
-    return {"configured": True, "customer_id": customer_id, "tag": tag, "nodes": nodes}
+    unassigned.sort(key=lambda n: str(n["name"]).lower())
+    override = overrides.get(customer_id)
+    payload = {
+        "configured": True,
+        "customer_id": customer_id,
+        "tag": override or tailscale_customers.customer_tag(customer_id),
+        "default_tag": tailscale_customers.customer_tag(customer_id),
+        "tag_override": override,
+        "nodes": nodes,
+        "unassigned": unassigned,
+    }
+    tailscale_customers.cache_nodes(customer_id, payload)
+    return payload
+
+
+@router.put("/tailscale/customer/{customer_id}/tag")
+async def tailscale_set_customer_tag(
+    customer_id: str,
+    body: TailscaleCustomerTagSet,
+    user: User = Depends(require_customer_access(Role.admin)),
+):
+    """Give the customer a tag of its own, or go back to tag:customer-<slug> (null).
+
+    For a tailnet whose tags do not follow tag:customer-<slug>. Admin only,
+    like the other changes to how the tailnet is read: the tag decides which
+    customer's page shows a node. It is held to Tailscale's own syntax ("tag:",
+    a letter, then letters, digits and "-") and kept in lower case, as
+    Tailscale keeps it. A tag another customer already has is refused: on one
+    tag, both would lose the nodes. The tag in the tailnet is not touched.
+    """
+    from app.core.customer import CustomerManager
+    from app.services import tailscale_customers
+
+    if CustomerManager.get_customer(customer_id) is None:
+        raise refusal(NotFoundError, "err_customer_not_found")
+    tag = None
+    if (body.tag or "").strip():
+        tag = tailscale_customers.normalize_tag(body.tag or "")
+        if tag is None:
+            raise refusal(ValidationError, "err_tailscale_tag_invalid")
+    if tag == tailscale_customers.customer_tag(customer_id):
+        tag = None  # the tag from the id needs no row
+    if tag is not None:
+        others = [c["_id"] for c in CustomerManager.list_customers() if c["_id"] != customer_id]
+        taken = tailscale_customers.effective_tags(
+            others, await tailscale_customers.tag_overrides()
+        )
+        if tag in taken.values():
+            raise refusal(ConflictError, "err_tailscale_tag_taken")
+    await tailscale_customers.set_tag_override(customer_id, tag, user.username)
+
+    from app.core.activity_log import log_activity
+
+    log_activity(
+        "tailscale_customer_tag_set",
+        detail=tag or "-",
+        customer=customer_id,
+        user=user.username,
+    )
+    return {
+        "ok": True,
+        "customer_id": customer_id,
+        "tag": tag or tailscale_customers.customer_tag(customer_id),
+        "default_tag": tailscale_customers.customer_tag(customer_id),
+        "tag_override": tag,
+    }
 
 
 @router.put("/tailscale/device/{device_id}/customer")
@@ -256,13 +355,14 @@ async def tailscale_assign_customer(device_id: str, body: TailscaleNodeAssign, u
     from app.services import tailscale_api
 
     manual = await tailscale_customers.manual_assignments()
+    overrides = await tailscale_customers.tag_overrides()
     try:
         devices = await tailscale_api.list_devices()
     except Exception as exc:
         raise refusal(IntegrationError, "err_tailscale_unreachable") from exc
     ids = [c["_id"] for c in CustomerManager.list_customers()]
-    owners = tailscale_customers.resolve(devices, ids, manual)
-    tag_owners = tailscale_customers.resolve(devices, ids, {})
+    owners = tailscale_customers.resolve(devices, ids, manual, overrides)
+    tag_owners = tailscale_customers.resolve(devices, ids, {}, overrides)
     current = manual.get(device_id)
     for owner in (owners.get(device_id), tag_owners.get(device_id)):
         if owner and not await check_customer_access(user, owner[0]):
