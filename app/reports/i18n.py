@@ -4723,6 +4723,96 @@ def get_translations(lang: str = "no") -> dict[str, str]:
     return result
 
 
+# The audit's sections, which the report names in its own sentences. A
+# section's name is the collector's English ("Sign-in Activity"), and a run
+# reloaded from history carries the history view's ("Tenant Info"); both are
+# read here. A name not listed is shown as it is.
+_SECTION_NAMES: dict[str, dict[str, str]] = {
+    "Tenant Information": {"no": "Tenant-informasjon", "en": "Tenant information"},
+    "Tenant Info": {"no": "Tenant-informasjon", "en": "Tenant information"},
+    "Licenses": {"no": "Lisenser", "en": "Licences"},
+    "Users": {"no": "Brukere", "en": "Users"},
+    "MFA Methods": {"no": "MFA-metoder", "en": "MFA methods"},
+    "Sign-in Activity": {"no": "Påloggingsaktivitet", "en": "Sign-in activity"},
+    "Groups": {"no": "Grupper", "en": "Groups"},
+    "Admin Roles": {"no": "Administratorroller", "en": "Admin roles"},
+    "Admin Roles & PIM": {"no": "Administratorroller og PIM", "en": "Admin roles and PIM"},
+    "Conditional Access": {"no": "Conditional Access", "en": "Conditional Access"},
+    "Secure Score": {"no": "Secure Score", "en": "Secure Score"},
+    "Secure Score & Auth": {
+        "no": "Secure Score og autentiseringsmetoder",
+        "en": "Secure Score and authentication methods",
+    },
+    "Intune": {"no": "Intune", "en": "Intune"},
+    "Intune Devices": {"no": "Intune-enheter", "en": "Intune devices"},
+    "Intune Compliance": {"no": "Intune-samsvar", "en": "Intune compliance"},
+    "Intune Apps": {"no": "Intune-apper", "en": "Intune apps"},
+    "Intune Autopilot": {"no": "Intune Autopilot", "en": "Intune Autopilot"},
+    "Entra Devices": {"no": "Entra-enheter", "en": "Entra devices"},
+    "SharePoint": {"no": "SharePoint", "en": "SharePoint"},
+    "OneDrive Sharing": {"no": "OneDrive-deling", "en": "OneDrive sharing"},
+    "Microsoft Teams": {"no": "Microsoft Teams", "en": "Microsoft Teams"},
+    "Teams": {"no": "Teams", "en": "Teams"},
+    "Teams Policies": {"no": "Teams-policyer", "en": "Teams policies"},
+    "App Registrations & OAuth": {
+        "no": "Appregistreringer og OAuth",
+        "en": "App registrations and OAuth",
+    },
+    "Apps & OAuth": {"no": "Apper og OAuth", "en": "Apps and OAuth"},
+    "Identity Security": {"no": "Identitetssikkerhet", "en": "Identity security"},
+    "Privileged Identity Management": {
+        "no": "Privileged Identity Management",
+        "en": "Privileged Identity Management",
+    },
+    "Password Protection": {"no": "Passordbeskyttelse", "en": "Password protection"},
+    "Compliance Score": {"no": "Samsvarspoeng", "en": "Compliance score"},
+    "Defender for Office 365": {"no": "Defender for Office 365", "en": "Defender for Office 365"},
+    "Defender & Purview": {"no": "Defender og Purview", "en": "Defender and Purview"},
+    "DNS / Email Security": {"no": "DNS og e-postsikkerhet", "en": "DNS and email security"},
+    "Email DNS (SPF/DMARC)": {"no": "E-post-DNS (SPF/DMARC)", "en": "Email DNS (SPF/DMARC)"},
+    "Exchange Online": {"no": "Exchange Online", "en": "Exchange Online"},
+    "Exchange Mailboxes": {"no": "Exchange-postbokser", "en": "Exchange mailboxes"},
+    "Exchange Transport Rules": {
+        "no": "Exchange-transportregler",
+        "en": "Exchange transport rules",
+    },
+    "Exchange Connectors": {"no": "Exchange-koblinger", "en": "Exchange connectors"},
+    "Exchange Anti-Phish": {"no": "Exchange antiphishing", "en": "Exchange anti-phishing"},
+    "Exchange Anti-Spam": {"no": "Exchange antispam", "en": "Exchange anti-spam"},
+    "Exchange DKIM": {"no": "Exchange DKIM", "en": "Exchange DKIM"},
+    "Exchange Defender Policies": {
+        "no": "Defender-policyer i Exchange",
+        "en": "Exchange Defender policies",
+    },
+    "Mailbox Forwarding": {"no": "Videresending fra postbokser", "en": "Mailbox forwarding"},
+    "Inbox Rules": {"no": "Innboksregler", "en": "Inbox rules"},
+    "Usage Reports": {"no": "Bruksrapporter", "en": "Usage reports"},
+    "Microsoft 365 Backup": {"no": "Microsoft 365 Backup", "en": "Microsoft 365 Backup"},
+    "Azure Compute": {"no": "Azure Compute", "en": "Azure Compute"},
+    "Azure Network": {"no": "Azure-nettverk", "en": "Azure network"},
+    "Azure Storage": {"no": "Azure Storage", "en": "Azure Storage"},
+    "Azure Governance": {"no": "Azure-styring", "en": "Azure governance"},
+}
+
+
+def section_name(name: object, lang: str = "no") -> str:
+    """An audit section's name in *lang*; one not listed, as it is."""
+    text = str(name or "")
+    names = _SECTION_NAMES.get(text)
+    return names["en" if lang == "en" else "no"] if names else text
+
+
+def worded_params(params: dict, lang: str) -> dict:
+    """A sentence's values with a section's name in *lang*: the "section" value.
+
+    Kept apart from the values so the evidence a run stores names the section
+    the same way in every language and is worded when it is read.
+    """
+    if "section" not in params:
+        return params
+    return {**params, "section": section_name(params["section"], lang)}
+
+
 # A day written into a sentence the way the interface writes it
 # (formatRunName in app-format.js): "30. september 2026", "30 September 2026".
 # Not the platform's locale, which is one setting for the whole process and

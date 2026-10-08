@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.reports.evidence import _evidence_unavailable, _reported_count
-from app.reports.i18n import T
+from app.reports.i18n import T, worded_params
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.email import _external_forwarding_items, dmarc_status, spf_status
 from app.reports.parsers.network import policy_findings
@@ -119,7 +119,7 @@ def _compute_risk(
 
     def gap(key: str, **params) -> str:
         data_quality_evidence.append({"key": key, "params": params})
-        return t(key, **params)
+        return t(key, **worded_params(params, lang))
 
     blocking_data_gaps: list[str] = []  # Gaps that invalidate the whole grade
 

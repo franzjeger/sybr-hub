@@ -54,13 +54,16 @@ def risk_coverage(risk: dict) -> dict:
     Old or third-party contexts without evidence recipes remain unknown.
     A numerical score alone is never evidence of complete collection.
     """
-    from app.reports.i18n import T
+    from app.reports.i18n import T, worded_params
 
     evidence = risk.get("data_quality_evidence")
     if not isinstance(evidence, list) or "has_full_data" not in risk:
         return {"state": "unknown", "issues": []}
     issues = [
-        {lang: T(lang)(item["key"], **item.get("params", {})) for lang in ("no", "en")}
+        {
+            lang: T(lang)(item["key"], **worded_params(item.get("params", {}), lang))
+            for lang in ("no", "en")
+        }
         for item in evidence
     ]
     state = (

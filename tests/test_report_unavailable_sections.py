@@ -128,3 +128,46 @@ def test_a_complete_run_stays_quiet(tmp_path):
         persist_metrics=False,
     )
     assert not [g for g in ctx["risk"].get("data_quality_issues", []) if "ikke fullført" in g]
+
+
+# ── The section is named in the report's language ─────────────────────────────
+#
+# A section's name is the collector's English, and the Norwegian sentence read
+# "Sign-in Activity ble ikke fullført, ..." (TODO C15).
+
+
+def test_the_section_is_named_in_the_reports_language():
+    result = _score(unavailable_sections=["Sign-in Activity", "Usage Reports", "Something New"])
+    issues = result["data_quality_issues"]
+
+    assert any(i.startswith("Påloggingsaktivitet ble ikke fullført") for i in issues)
+    assert any(i.startswith("Bruksrapporter ble ikke fullført") for i in issues)
+    assert any(i.startswith("Something New ble ikke fullført") for i in issues), (
+        "a section nobody named is still named, as it is"
+    )
+
+
+def test_the_stored_evidence_names_the_section_in_both_languages():
+    """The run keeps both languages of each note, for the customer page."""
+    from app.reports.metrics import risk_coverage
+
+    coverage = risk_coverage(_score(unavailable_sections=["Sign-in Activity"]))
+
+    (issue,) = [i for i in coverage["issues"] if "Sign-in" in i["en"] or "Pålogging" in i["no"]]
+    assert issue["no"].startswith("Påloggingsaktivitet ble ikke fullført")
+    assert issue["en"].startswith("Sign-in activity did not complete")
+
+
+def test_the_technical_reports_status_table_names_each_section(tmp_path):
+    from app.modules.base import SectionResult, SectionStatus
+    from app.reports.generator import _jinja_env, build_report_context
+    from app.reports.i18n import T
+
+    d = tmp_path / "Acme_AS" / "2026-01-01_0902"
+    d.mkdir(parents=True)
+    results = [SectionResult(name="Sign-in Activity", status=SectionStatus.DONE)]
+    ctx = build_report_context("Acme AS", "acme.no", d, results, lang="no", persist_metrics=False)
+    ctx.update(t=T("no"), lang="no", theme="light")
+    page = _jinja_env().get_template("report_tech.html.j2").render(**ctx)
+
+    assert '<td style="font-weight:500;">Påloggingsaktivitet</td>' in page

@@ -580,7 +580,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
       {% elif r.status == SectionStatus.SKIPPED %}<span class="tag skip">&#x2192; {{ t.skipped }}</span>
       {% else %}<span class="tag skip">?</span>{% endif %}
     </td>
-    <td style="font-weight:500;">{{ r.name }}</td>
+    <td style="font-weight:500;">{{ _section_name(r.name, lang) }}</td>
     <td style="font-family:var(--mono);color:var(--muted);">{{ r.files | length }}</td>
     <td>{% for w in r.warns %}<div style="font-size:11px;color:var(--orange);">{{ w }}</div>{% endfor %}</td>
     <td style="font-size:11px;color:var(--red);">{% if r.error %}{{ r.error[:100] }}{% endif %}</td>

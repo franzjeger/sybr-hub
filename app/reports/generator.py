@@ -14,7 +14,7 @@ from app.core.policy_inventory import workload_label
 from app.modules.base import SectionResult, SectionStatus
 from app.reports.compliance import _build_compliance_map, dkim_status_by_domain
 from app.reports.evidence import _EVIDENCE_MAP, _reported_count
-from app.reports.i18n import T
+from app.reports.i18n import T, section_name
 from app.reports.metrics import (
     METRICS_FILE,
     _baseline_for,
@@ -480,6 +480,7 @@ def build_report_context(
         "_power_state_text": power_state_text,
         "_drift_reason": drift_reason_text,
         "_workload_label": workload_label,
+        "_section_name": section_name,
     }
 
     # Build compliance mapping after context is ready
