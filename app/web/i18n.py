@@ -669,6 +669,14 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Tailscale svarte ikke, så nodene kunne ikke hentes",
         "Tailscale did not answer, so the nodes could not be read",
     ),
+    "err_tailscale_tag_invalid": (
+        "En tag begynner med «tag:» og en bokstav, og har ellers bare bokstaver, tall og bindestrek",
+        'A tag starts with "tag:" and a letter, and otherwise has only letters, digits and hyphens',
+    ),
+    "err_tailscale_tag_taken": (
+        "En annen kunde har allerede denne taggen",
+        "Another customer already has this tag",
+    ),
     # FortiGate and UniFi.
     "err_fortigate_host_token_required": (
         "Host og API-token er påkrevd",

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 30
+SCHEMA_VERSION = 31
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -903,6 +903,20 @@ _MIGRATIONS: list = [
         30,
         "Remove the selection files of the server-side active customer",
         _remove_active_customer_selections,
+    ),
+    (
+        31,
+        "A customer's own Tailscale tag, in place of tag:customer-<slug>",
+        # One row per customer that has one; without a row the customer keeps
+        # the tag made from its id (app/services/tailscale_customers.py).
+        """
+        CREATE TABLE IF NOT EXISTS tailscale_customer_tags (
+            customer_id TEXT PRIMARY KEY,
+            tag         TEXT NOT NULL,
+            set_by      TEXT NOT NULL DEFAULT '',
+            set_at      TEXT NOT NULL
+        );
+        """,
     ),
 ]
 

@@ -71,6 +71,7 @@ registerUiHandlers({
   custTsAssign: function(el) { _custTsAssign(el.dataset.customerId, el); },
   custTsUnassign: function(el) { _custTsUnassign(el.dataset.customerId, el.dataset.deviceId); },
   custTsCopy: function(el) { _custTsCopy(el.dataset.value); },
+  custTsSetTag: function(el) { _custTsSetTag(el.dataset.customerId, el); },
 });
 
 // ── The customer page ─────────────────────────────────────────────────────────
@@ -2129,9 +2130,12 @@ async function alsoToggleSubDetail(rowEl, subId) {
 
 // ── Tilgang: this customer's Tailscale nodes ────────────────────────────────
 // A node belongs to a customer when a technician assigned it here, or when it
-// carries the customer's tag (tag:customer-<slug>) in the tailnet; the server
-// decides (app/services/tailscale_customers.py). Each row says how to reach
-// the node; a hand assignment can be taken back, a tag is changed in Tailscale.
+// carries the customer's tag in the tailnet (tag:customer-<slug>, or one an
+// administrator set for the customer); the server decides
+// (app/services/tailscale_customers.py). Each row says how to reach the node;
+// a hand assignment can be taken back, a node's tag is changed in Tailscale.
+// One request fills the panel, the assign list included, and the server
+// answers it from a cache of a minute.
 async function _loadCustomerTailscale(customerId) {
   var el = document.getElementById('customer-tailscale-panel');
   if (!el) return;
@@ -2188,22 +2192,44 @@ async function _loadCustomerTailscale(customerId) {
     + '<select class="field-input" id="cust-ts-device" aria-label="' + esc(t('lbl_tailscale_assign', 'Knytt en node til kunden')) + '"><option value="">' + esc(t('lbl_tailscale_assign', 'Knytt en node til kunden')) + '</option></select>'
     + '<button class="btn btn-default btn-sm" data-click-handler="custTsAssign" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_link_node', 'Knytt til')) + '</button>'
     + '</div>';
+  // The customer's own tag, for a tailnet that names its tags otherwise.
+  // Administrators only; the server refuses everyone else as well.
+  html += '<details class="cust-ts-tag" data-admin-only data-write>'
+    + '<summary>' + esc(t('lbl_tailscale_own_tag', 'Egen tag for kunden')) + '</summary>'
+    + '<p class="cust-card-text cust-ts-hint">' + esc(t('msg_tailscale_own_tag', 'For en tailnet som navngir taggene sine annerledes. Tomt felt gir {tag}.').replace('{tag}', d.default_tag || '')) + '</p>'
+    + '<div class="cust-ts-assign">'
+    + '<input class="field-input" id="cust-ts-tag" autocomplete="off" spellcheck="false" value="' + esc(d.tag_override || '') + '" placeholder="' + esc(d.default_tag || '') + '" aria-label="' + esc(t('lbl_tailscale_own_tag', 'Egen tag for kunden')) + '">'
+    + '<button class="btn btn-default btn-sm" data-click-handler="custTsSetTag" data-customer-id="' + esc(customerId) + '">' + esc(t('btn_save', 'Lagre')) + '</button>'
+    + '</div></details>';
   el.innerHTML = html;
   applyWriteCapability();
-  if (canWrite()) _custTsFillChoices(customerId);
+  if (canWrite()) _custTsFillChoices(d.unassigned || []);
 }
 
 // The nodes no customer has yet, for the assign list.
-async function _custTsFillChoices(customerId) {
-  var all = await apiFetch('/api/tailscale/devices').catch(function() { return null; });
+function _custTsFillChoices(unassigned) {
   var sel = document.getElementById('cust-ts-device');
-  if (!sel || !all || _custPage.id !== customerId) return;
-  (all.devices || []).filter(function(dev) { return !dev.customer_id && !dev.customer_hidden; }).forEach(function(dev) {
+  if (!sel) return;
+  unassigned.forEach(function(dev) {
     var opt = document.createElement('option');
     opt.value = dev.id;
-    opt.textContent = (dev.given_name || dev.hostname || dev.name || dev.id) + (dev.tailscale_ip ? ' (' + dev.tailscale_ip + ')' : '');
+    opt.textContent = dev.name + (dev.ip ? ' (' + dev.ip + ')' : '');
     sel.appendChild(opt);
   });
+}
+
+async function _custTsSetTag(customerId, btn) {
+  var input = document.getElementById('cust-ts-tag');
+  if (!input || _custPage.id !== customerId) return;
+  btn.disabled = true;
+  var d = await apiFetch('/api/tailscale/customer/' + encodeURIComponent(customerId) + '/tag', {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tag: input.value.trim() || null}),
+  });
+  btn.disabled = false;
+  if (d && d.ok) {
+    showToast(t('msg_saved', 'Lagret'), 'success', 1500);
+    _loadCustomerTailscale(customerId);
+  }
 }
 
 async function _custTsAssign(customerId, btn) {

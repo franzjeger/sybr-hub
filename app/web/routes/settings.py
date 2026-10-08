@@ -306,12 +306,18 @@ async def save_settings(body: SettingsUpdate, request: Request, user: User = _ad
             settings[key] = val
 
     # Tailscale
+    ts_before = (settings.get("tailscale_api_key"), settings.get("tailscale_tailnet"))
     ts_key = body.tailscale_api_key.strip()
     if ts_key and ts_key != "••••••":
         settings["tailscale_api_key"] = ts_key
     ts_tailnet = body.tailscale_tailnet.strip()
     if ts_tailnet:
         settings["tailscale_tailnet"] = ts_tailnet
+    if (settings.get("tailscale_api_key"), settings.get("tailscale_tailnet")) != ts_before:
+        # The customer pages' cached node lists were read from the old tailnet.
+        from app.services import tailscale_customers
+
+        tailscale_customers.invalidate_nodes()
 
     # Uniweb hosting provider
     for key in ("uniweb_email", "uniweb_password"):

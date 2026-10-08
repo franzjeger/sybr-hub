@@ -78,6 +78,25 @@ class TailscaleNodeCustomer(SQLModel, table=True):
     assigned_at: str
 
 
+class TailscaleCustomerTag(SQLModel, table=True):
+    """The tag that maps nodes to a customer, where it is not tag:customer-<slug>."""
+
+    __tablename__ = "tailscale_customer_tags"
+
+    customer_id: str = Field(primary_key=True)
+    tag: str
+    set_by: str = Field(default="", sa_column_kwargs={"server_default": text("''")})
+    set_at: str
+
+
+class TailscaleCustomerTagSet(BaseModel):
+    """A customer's own tag; null or empty goes back to tag:customer-<slug>."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tag: str | None = None
+
+
 class TailscaleNodeAssign(BaseModel):
     """The customer a node belongs to; null removes the manual assignment."""
 
