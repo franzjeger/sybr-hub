@@ -490,6 +490,41 @@ def test_a_refused_intune_read_is_not_reported_as_no_devices(tmp_path):
     assert "DeviceManagementManagedDevices.Read.All" in text
 
 
+@pytest.mark.parametrize(
+    ("cause", "error", "expected"),
+    [
+        (
+            "Cause: refused status=403 permission=DeviceManagementManagedDevices.Read.All",
+            "GraphPermissionError: 403",
+            "Graph avviste innsamlingen med 403. Kontroller "
+            "DeviceManagementManagedDevices.Read.All og administratorsamtykket",
+        ),
+        ("Cause: failed", "ReadTimeout: timed out", "feilet før dataene kunne leses: ReadTimeout"),
+    ],
+)
+def test_the_cause_of_a_refused_intune_read_is_worded(tmp_path, cause, error, expected):
+    """The collector names the cause as a code; the report words it.
+
+    It wrote an English sentence "for the report to print verbatim", which
+    CIS 6.1.1 and the technical report set inside Norwegian text (TODO C15).
+    """
+    files = {
+        "10_intune_devices.txt": (
+            "=" * 80 + "\n  INTUNE MANAGED DEVICES  (not available)\n" + "=" * 80 + "\n\n"
+            f"  {cause}\n\n  Error details for troubleshooting:\n    {error}\n"
+        ),
+        "10_intune_devices_count.txt": "",
+    }
+    ctx = build_report_context("Acme AS", "acme.no", _audit_dir(tmp_path, files), [], lang="no")
+    detail = next(str(c["detail"]) for c in ctx["compliance"] if c["cis_id"] == "6.1.1")
+    assert expected in detail
+    page = _render_strict(tmp_path, "report_tech.html.j2", files)
+    # Outside the raw-data appendix, which keeps the file as it was collected.
+    text = " ".join(_visible_text(page.split('id="tab-rawdata"')[0]).split())
+    assert expected in text
+    assert "Cause:" not in text
+
+
 def test_a_tenant_that_enrols_nothing_still_reads_as_measured(tmp_path):
     """The counterpart. A real zero must not be dressed up as a failure."""
     files = {

@@ -55,7 +55,7 @@ from app.reports.parsers.collaboration import (
     _teams_cross_tenant,
     _teams_guest_settings,
 )
-from app.reports.parsers.common import _record_count, _sidecar
+from app.reports.parsers.common import _record_count, _sidecar, unavailable_text
 from app.reports.parsers.email import (
     _defender_policies,
     _dkim_selectors,
@@ -998,8 +998,10 @@ def _device_compliance(audit: _Audit) -> _Verdict:
     has_policies = policy_count > 0
     has_devices = intune.get("has_data") and intune.get("total", 0) > 0
     if intune.get("unavailable") and not has_policies:
-        # The collector's own words for the refusal, when it gave any.
-        reason = intune.get("unavailable_reason")
+        # Why, as the collector's cause worded here; a cause it gave in words
+        # the report does not know, as it stands.
+        cause = intune.get("unavailable_cause")
+        reason = unavailable_text(cause, t) if cause else intune.get("unavailable_reason")
         if reason:
             return "info", audit.say("cis_cannot_verify", reason=reason)
         return "info", audit.cannot_verify("cis_gap_intune")

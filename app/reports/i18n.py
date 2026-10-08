@@ -2350,8 +2350,41 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Intune-data kunne ikke hentes. ",
         "en": "Intune data could not be collected. ",
     },
+    # Why a collection is "(not available)": the Intune section's cause codes
+    # (UNAVAILABLE_CAUSES in app/reports/parsers/common.py).
+    "unavailable_licence_gap": {
+        "no": "Graph avviste innsamlingen med {status} og meldte at en lisens mangler. "
+        "Kontroller lisensen endepunktet krever; svaret sier ikke hvilken Intune-lisens som mangler.",
+        "en": "Graph refused this collection with {status}, reporting a licence gap. "
+        "Verify the required licence for this endpoint; the response does not identify "
+        "a specific missing Intune SKU.",
+    },
+    "unavailable_service_refused": {
+        "no": "Intune-tjenesten avviste innsamlingen ({status}). Kontroller {permission} og "
+        "administratorsamtykket, en aktiv Intune-lisens og at tjenesten er klargjort i "
+        "tenanten. Svaret alene sier ikke hvilken forutsetning som mangler.",
+        "en": "The Intune service refused this collection ({status}). Check {permission} and "
+        "admin consent, an active Intune licence and tenant service provisioning. The response "
+        "alone does not establish which prerequisite failed.",
+    },
+    "unavailable_refused": {
+        "no": "Graph avviste innsamlingen med {status}. Kontroller {permission} og "
+        "administratorsamtykket, at tokenet er gyldig og at det finnes en aktiv Intune-lisens. "
+        "Svaret alene sier ikke hva årsaken er.",
+        "en": "Graph refused this collection with {status}. Check {permission} and admin "
+        "consent, token validity and an active Intune licence. The response alone does not "
+        "establish the cause.",
+    },
+    "unavailable_failed": {
+        "no": "Innsamlingen feilet før dataene kunne leses: {error}",
+        "en": "The collection failed before it could be read: {error}",
+    },
+    "intune_permission_unknown": {
+        "no": "den tilsvarende DeviceManagement-tillatelsen",
+        "en": "the matching DeviceManagement permission",
+    },
     "no_intune_desc": {
-        "no": "Enten er Intune ikke konfigurert, eller sa har appen ikke tilstrekkelige rettigheter.",
+        "no": "Enten er Intune ikke konfigurert, eller så har appen ikke tilstrekkelige rettigheter.",
         "en": "Either Intune is not configured, or the app does not have sufficient permissions.",
     },
     "sharepoint_teams": {

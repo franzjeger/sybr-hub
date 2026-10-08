@@ -1176,7 +1176,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 {% else %}
 {% if intune and intune.unavailable %}
-<div class="alert warning"><strong>{{ t.intune_not_measured }}</strong>{{ intune.unavailable_reason or t.no_intune_desc }}</div>
+<div class="alert warning"><strong>{{ t.intune_not_measured }}</strong>{% if intune.unavailable_cause %}{{ _unavailable_text(intune.unavailable_cause, t) }}{% else %}{{ intune.unavailable_reason or t.no_intune_desc }}{% endif %}</div>
 {% else %}
 {% if entra_devices and entra_devices.has_data and entra_devices.total > 0 %}
 <div class="alert warning"><strong>{{ t.no_intune_but_entra }}</strong>{{ t.no_intune_but_entra_desc }} ({{ entra_devices.total }})</div>
