@@ -102,47 +102,7 @@ class _ProgressTracker:
         }
 
 
-# ── API: Setup SSE stream ──────────────────────────────────────────────────────
-
-
-async def _run_setup_job(setup_run: state.SetupRunContext) -> None:
-    """Run first-run setup to completion and persist config + secrets, whether
-    or not the browser that started it is still connected.
-
-    ``FirstRunSetup`` writes the cert and — on the PowerShell ``[RESULT]`` —
-    saves the config and secrets. Run inside the SSE stream (as it used to be), a
-    client disconnect mid-sign-in tore it down before that write, and the
-    credentials were lost. Here it is a server-owned task; the stream only
-    subscribes. Publishes log / device_code / done events and resets
-    ``setup_running`` in its own ``finally``.
-    """
-    from app.modules.m365_audit.setup import FirstRunSetup
-
-    def on_device_code(code: str, url: str) -> None:
-        setup_run.publish({"type": "device_code", "code": code, "url": url})
-
-    try:
-        setup = FirstRunSetup(on_device_code=on_device_code)
-        async for event in setup.run():
-            setup_run.publish(
-                {
-                    "type": "log",
-                    "step": event.get("step", ""),
-                    "status": event.get("status", "ok"),
-                    "msg": event.get("msg", ""),
-                }
-            )
-            if event.get("status") == "error":
-                setup_run.publish({"type": "done", "success": False})
-                return
-        setup_run.publish({"type": "done", "success": True})
-    except Exception as e:
-        logger.warning("Setup job failed: %s", e)
-        setup_run.publish({"type": "error", "msg": str(e)})
-        setup_run.publish({"type": "done", "success": False})
-    finally:
-        setup_run.running = False
-        state.setup_running = False
+# ── API: First-run setup (PKCE) ───────────────────────────────────────────────
 
 
 @router.get("/setup/pkce/start")
@@ -239,74 +199,6 @@ async def setup_pkce_callback_manual(request: Request, user: User = Depends(get_
     except Exception:
         logger.exception("PKCE manual callback failed")
         raise registration_failure() from None
-
-
-@router.get("/setup/stream")
-@router.post("/setup/stream")
-async def setup_stream(request: Request, user: User = Depends(get_current_user)):
-    """Start first-run setup, or re-attach to the one already running.
-
-    The setup is a server-owned job (``_run_setup_job``): the PowerShell
-    device-code sign-in and the cert/credential write run to completion and
-    persist regardless of this stream. A reconnecting client re-attaches and is
-    replayed the current device-code prompt (so it can still finish signing in)
-    and the outcome. ``?attach=1`` forces attach-only so a reconnect can never
-    start a second setup.
-    """
-    require_write(user, tenant=True)
-    attach_only = request.method != "POST" or request.query_params.get("attach") == "1"
-
-    attach = False
-    attach_ended = False
-    setup_run: state.SetupRunContext | None = None
-    async with state.setup_lock:
-        existing = state.get_setup_run()
-        if existing is not None and existing.running:
-            setup_run = existing
-            attach = True
-        elif attach_only:
-            setup_run = existing
-            attach_ended = True
-        elif state.setup_running:
-            raise refusal(ConflictError, "err_setup_running")
-        else:
-            state.setup_running = True
-            setup_run = state.begin_setup()
-
-    # Launch the job outside the stream so it runs and persists even if the
-    # client never consumes this response (disconnects immediately).
-    if setup_run is not None and not attach and not attach_ended:
-        setup_run.task = asyncio.create_task(_run_setup_job(setup_run))
-
-    async def generate() -> AsyncGenerator[str, None]:
-        if attach_ended:
-            terminal = setup_run.terminal if setup_run is not None else None
-            yield f"data: {json.dumps(terminal if terminal is not None else {'type': 'ended'})}\n\n"
-            return
-
-        q = setup_run.subscribe()
-        try:
-            if attach:
-                # Replay the current sign-in prompt so a reconnecting operator can
-                # still complete it, and the outcome if it already finished.
-                if setup_run.device_code is not None:
-                    yield f"data: {json.dumps(setup_run.device_code)}\n\n"
-                if setup_run.terminal is not None:
-                    yield f"data: {json.dumps(setup_run.terminal)}\n\n"
-                    return
-            while True:
-                event = await q.get()
-                yield f"data: {json.dumps(event)}\n\n"
-                if event.get("type") == "done":
-                    break
-        finally:
-            setup_run.unsubscribe(q)
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
 
 
 # ── API: Permission validation ────────────────────────────────────────────────

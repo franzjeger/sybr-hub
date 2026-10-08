@@ -37,7 +37,6 @@ _SENSITIVE_PREFIXES: tuple[str, ...] = (
     "/api/vpn/",
     "/api/audit/stream",
     "/api/audit/bulk",
-    "/api/setup/stream",
 )
 # Audit read-only endpoints (progress, sections, presets, scope) use the general limit.
 
