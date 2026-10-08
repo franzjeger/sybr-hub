@@ -228,6 +228,11 @@ class IntuneSection(BaseSection):
                         "owner": d.get("managedDeviceOwnerType") or "",
                         "compliance": d.get("complianceState") or "unknown",
                         "last_sync": d.get("lastSyncDateTime"),
+                        # The one MAC address the list returns; the RMM
+                        # deep-link matches on it when the name does not
+                        # (app/integrations/rmm.py). ethernetMacAddress needs
+                        # a GET per device with $select, so it is not read.
+                        "wifi_mac": d.get("wiFiMacAddress") or "",
                     }
                     for d in devices
                 ],
