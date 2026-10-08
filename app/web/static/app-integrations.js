@@ -1258,6 +1258,21 @@ function setStatusWarn(dotId, labelId, text) {
   _integPaint(dotId.replace(/-integ-dot$/, ''), 'warn', text);
 }
 
+// The FortiGate card counts the caller's firewalls and how their last read
+// went (firmware_inventory.fortigate_fleet_summary). It said "configured" for
+// one firewall or fifty, read or not, and its dot is the last read, never
+// whether a firewall answers now, so the label says "lest OK".
+function _fgIntegPaint(fleet) {
+  if (!fleet) { _integPaint('fg', 'error', t('err_check_failed')); return; }
+  if (!fleet.configured) { _integPaint('fg', 'off'); return; }
+  var parts = [t('fg_integ_read').replace('{ok}', String(fleet.read_ok)).replace('{total}', String(fleet.configured))];
+  if (fleet.failed) parts.push(t('fg_integ_failed').replace('{n}', String(fleet.failed)));
+  if (fleet.unread) parts.push(t('fg_integ_unread').replace('{n}', String(fleet.unread)));
+  if (fleet.stale) parts.push(t('fg_integ_stale').replace('{n}', String(fleet.stale)));
+  if (fleet.last_read) parts.push(t('fg_kpi_last_read') + ': ' + new Date(fleet.last_read).toLocaleString());
+  _integPaint('fg', fleet.state, parts.join(' · '));
+}
+
 // Actions that only work once credentials are stored. They were enabled from
 // the start and answered with an error; now they wait, with the reason beside
 // them.
@@ -1359,8 +1374,8 @@ async function _loadIntegrationCards() {
     // configured here, exactly as it is for IT Glue and the rest.
     setStatus('unifi-sm-integ-dot', 'unifi-sm-integ-label', !!d.unifi_site_manager_api_key_set); _countInteg(!!d.unifi_site_manager_api_key_set);
     _setVal('input-unifi-inform-host', d.unifi_inform_host || '');
-    // FortiGate: set up when any customer has one (on its page, under Nettverk).
-    setStatus('fg-integ-dot', 'fg-integ-label', !!d.fortigate_configured); _countInteg(!!d.fortigate_configured);
+    // FortiGate: each customer's is set up on its page, under Nettverk.
+    _fgIntegPaint(d.fortigate_fleet); _countInteg(!!(d.fortigate_fleet && d.fortigate_fleet.configured));
     // Tailscale status + populate
     setStatus('ts-integ-dot', 'ts-integ-label', !!d.tailscale_api_key_set); _countInteg(!!d.tailscale_api_key_set, 'tailscale');
     var _tsKey = document.getElementById('input-ts-api-key');

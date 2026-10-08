@@ -4,7 +4,7 @@
 // and "Oppdater nå" read the list, polled each customer again and read the
 // list a third time. The firewalls are answered by the spec.
 const { test, expect } = require('@playwright/test');
-const { expectSignedIn } = require('./app.cjs');
+const { expectSignedIn, inApp } = require('./app.cjs');
 
 const HOURS_AGO = h => new Date(Date.now() - h * 3600 * 1000).toISOString();
 const STORED = {fortigates: [
@@ -156,5 +156,36 @@ test('a read-only account reads nothing on opening, and is told when it will be 
   await expect(alpha.locator('.fg-card-foot')).toHaveText('Ikke lest ennå: leses ved neste firmware-sjekk');
   await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
   expect(asked).toEqual(['GET /api/fortigate/fleet']);
+  await page.unrouteAll({behavior: 'ignoreErrors'});
+});
+
+// Integrasjoner's FortiGate card said "Konfigurert" for one firewall or
+// fifty, read or not. It counts them, and says "lest OK" beside its dot.
+async function withFortiGateCounts(page, counts) {
+  await page.route('**/api/settings', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    return route.fulfill({response, json: Object.assign(await response.json(), {fortigate_fleet: counts})});
+  });
+}
+
+test('the FortiGate integration card counts the firewalls and how their last read went', async ({page}) => {
+  const read = new Date(Date.now() - 3600 * 1000).toISOString();
+  await withFortiGateCounts(page, {state: 'failed', configured: 3, read_ok: 1, failed: 1, unread: 1, stale: 0, last_read: read});
+  await login(page);
+  await inApp(page, app => app.openAdmin('integrations'));
+  const label = page.locator('#fg-integ-label');
+  await expect(label).toHaveText(new RegExp('^1 av 3 lest OK · 1 feilet · 1 ikke lest ennå · Sist lest: '));
+  const red = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--red').trim());
+  expect(await page.locator('#fg-integ-dot').evaluate(el => el.style.background)).toBe('var(--red)');
+  expect(red).not.toBe('');
+  await page.unrouteAll({behavior: 'ignoreErrors'});
+});
+
+test('the FortiGate integration card is grey and says so with no firewall set up', async ({page}) => {
+  await withFortiGateCounts(page, {state: 'off', configured: 0, read_ok: 0, failed: 0, unread: 0, stale: 0, last_read: null});
+  await login(page);
+  await inApp(page, app => app.openAdmin('integrations'));
+  await expect(page.locator('#fg-integ-label')).toHaveText('Ikke konfigurert');
   await page.unrouteAll({behavior: 'ignoreErrors'});
 });

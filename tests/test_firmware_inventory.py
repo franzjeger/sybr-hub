@@ -10,7 +10,7 @@ fill it, and the routes that list it.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -495,3 +495,42 @@ async def test_the_daily_firmware_check_reads_fortigates_and_controllers(monkeyp
     assert polled == ["all"]
     assert checked == [ACME], "direct-mode customers are left to the network audit"
     assert result.startswith("1 FortiGate(s), 1 UniFi controller(s) read")
+
+
+# ── The FortiGate card's counts (TODO D20) ──────────────────────────────────
+
+NOW = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
+
+
+def _fg(*, read_hours_ago: float | None = None, error: str = "") -> dict:
+    if read_hours_ago is None:
+        return {"read_at": None, "read_error": error}
+    return {"read_at": (NOW - timedelta(hours=read_hours_ago)).isoformat(), "read_error": error}
+
+
+@pytest.mark.parametrize(
+    ("fleet", "state", "counts"),
+    [
+        ([], "off", (0, 0, 0, 0, 0)),
+        ([_fg(read_hours_ago=2)], "verified", (1, 1, 0, 0, 0)),
+        ([_fg(read_hours_ago=2), _fg()], "configured", (2, 1, 0, 1, 0)),
+        # A failure outranks a firewall not read yet.
+        ([_fg(read_hours_ago=2), _fg(), _fg(error="timed out")], "failed", (3, 1, 1, 1, 0)),
+        # A read that worked a day ago or more is no longer current.
+        ([_fg(read_hours_ago=2), _fg(read_hours_ago=25)], "stale", (2, 2, 0, 0, 1)),
+        # The version it read before stays, but the firewall counts as failed.
+        ([_fg(read_hours_ago=30, error="HTTP 401")], "failed", (1, 0, 1, 0, 0)),
+    ],
+)
+def test_the_fortigate_card_counts_and_state(fleet, state, counts):
+    summary = firmware_inventory.fortigate_fleet_summary(fleet, now=NOW)
+    assert summary["state"] == state
+    keys = ("configured", "read_ok", "failed", "unread", "stale")
+    assert tuple(summary[k] for k in keys) == counts
+
+
+def test_the_fortigate_card_shows_the_newest_read():
+    fleet = [_fg(read_hours_ago=30, error="HTTP 401"), _fg(read_hours_ago=2), _fg()]
+    summary = firmware_inventory.fortigate_fleet_summary(fleet, now=NOW)
+    assert summary["last_read"] == (NOW - timedelta(hours=2)).isoformat()
+    assert firmware_inventory.fortigate_fleet_summary([_fg()], now=NOW)["last_read"] is None

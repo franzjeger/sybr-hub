@@ -252,6 +252,7 @@ class SettingsUpdate(BaseModel):
     smtp_password_set: Any = None
     unifi_site_manager_api_key_set: Any = None
     fortigate_configured: Any = None
+    fortigate_fleet: Any = None
     also_password_set: Any = None
     autotask_integration_code_set: Any = None
     autotask_secret_set: Any = None

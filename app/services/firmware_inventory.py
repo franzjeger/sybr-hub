@@ -26,7 +26,7 @@ does not stop being one because the controller was down this morning.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from app.core.database import get_db
 from app.core.rbac import customer_in_scope
@@ -457,6 +457,55 @@ async def fortigate_fleet(allowed: set[str] | None) -> list[dict]:
         )
     fleet.sort(key=lambda f: (f["customer_name"].lower(), f["host"]))
     return fleet
+
+
+# The age at which a read that worked stops counting as current, as for the
+# other integrations' checks (app/core/integration_health.py).
+_READ_STALE_AFTER = timedelta(hours=24)
+
+
+def fortigate_fleet_summary(fleet: list[dict], *, now: datetime | None = None) -> dict:
+    """How many configured FortiGates were last read, for Integrasjoner's card.
+
+    The card said only whether any customer had a FortiGate. Its state is one
+    of the other cards' (integration_health): ``failed`` when any firewall's
+    last read failed, ``configured`` while one has never been read, ``stale``
+    when a read that worked is a day old or more, ``verified`` when every one
+    was read within the day, ``off`` with none set up. A read is what the hub
+    last managed, never a promise that the firewall answers now.
+    """
+    now = now or datetime.now(UTC)
+    read_ok = [f for f in fleet if f["read_at"] and not f["read_error"]]
+    failed = sum(1 for f in fleet if f["read_error"])
+    unread = len(fleet) - len(read_ok) - failed
+
+    def _stale(read_at: str) -> bool:
+        try:
+            return now - datetime.fromisoformat(read_at) >= _READ_STALE_AFTER
+        except (TypeError, ValueError):
+            return True
+
+    stale = sum(1 for f in read_ok if _stale(f["read_at"]))
+    if not fleet:
+        state = "off"
+    elif failed:
+        state = "failed"
+    elif unread:
+        state = "configured"
+    elif stale:
+        state = "stale"
+    else:
+        state = "verified"
+    reads = [f["read_at"] for f in fleet if f["read_at"]]
+    return {
+        "state": state,
+        "configured": len(fleet),
+        "read_ok": len(read_ok),
+        "failed": failed,
+        "unread": unread,
+        "stale": stale,
+        "last_read": max(reads) if reads else None,
+    }
 
 
 async def record_unifi_devices(customer_id: str, devices: list[dict]) -> None:
