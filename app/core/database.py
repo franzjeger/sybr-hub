@@ -10,9 +10,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import NamedTuple
 
 import aiosqlite
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "msp_toolkit.db"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 # ── Schema migrations ────────────────────────────────────────────────────────
 # Each entry is (version, description, body).  Migrations run sequentially
@@ -342,6 +344,76 @@ async def _key_unreadable_network_files_on_their_file(conn: aiosqlite.Connection
                 f"AND held.system = ? AND held.rec_id = ?)",
                 (new, row_key, customer_id, system, new),
             )
+
+
+# A per-user selection file of the removed server-side "active customer": the
+# SHA-256 of the user id, in hex, as the name.
+_ACTIVE_SELECTION_FILE = re.compile(r"[0-9a-f]{64}\.txt")
+
+
+async def _remove_active_customer_selections(conn: aiosqlite.Connection) -> None:
+    """Delete the files the removed server-side "active customer" left behind.
+
+    The server used to remember one customer per user, in
+    ``customers/.active/<SHA-256 of the user id>.txt``, and outside a web
+    request in ``customers/active.txt``. Every tab of a user shared that one
+    selection, so it was removed; nothing has read the files since, and each
+    still names the customer somebody last opened.
+
+    Those paths and nothing else: ``active.txt`` when it is a regular file,
+    the regular files in ``.active`` named like a selection, and ``.active``
+    itself once that empties it. Anything else is logged and left in place,
+    and so is a ``.active`` that holds a ``config.json``: that is a customer
+    whose id happens to be ".active". Each removal is logged, and a file that
+    cannot be removed is logged without stopping the upgrade. Running it again
+    finds nothing to remove.
+
+    It touches no table. It is a migration so that it runs once, before
+    anything else, in whichever process starts first.
+    """
+    from app.core.customer import CustomerManager
+
+    root = CustomerManager.get_customer_dir("")
+
+    def remove(path: Path) -> None:
+        try:
+            path.unlink()
+        except OSError as exc:
+            logger.warning("Could not remove the old active-customer file %s: %s", path, exc)
+            return
+        logger.info("Removed the old active-customer file %s", path)
+
+    def regular_file(path: Path) -> bool:
+        return path.is_file() and not path.is_symlink()
+
+    legacy = root / "active.txt"
+    if regular_file(legacy):
+        remove(legacy)
+    elif legacy.exists() or legacy.is_symlink():
+        logger.warning("Left %s in place: not a regular file", legacy)
+
+    folder = root / ".active"
+    if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+        logger.warning("Left %s in place: not a folder", folder)
+        return
+    if not folder.is_dir():
+        return
+    if (folder / "config.json").exists():
+        logger.warning("Left %s in place: it holds a customer's config.json", folder)
+        return
+    for entry in sorted(folder.iterdir()):
+        if _ACTIVE_SELECTION_FILE.fullmatch(entry.name) and regular_file(entry):
+            remove(entry)
+        else:
+            logger.warning("Left %s in place: not an active-customer selection", entry)
+    if any(folder.iterdir()):
+        return
+    try:
+        folder.rmdir()
+    except OSError as exc:
+        logger.warning("Could not remove the empty folder %s: %s", folder, exc)
+        return
+    logger.info("Removed the empty folder %s", folder)
 
 
 _MIGRATIONS: list = [
@@ -826,6 +898,11 @@ _MIGRATIONS: list = [
         29,
         "Restore full access to the initial human administrator",
         _restore_initial_admin_access,
+    ),
+    (
+        30,
+        "Remove the selection files of the server-side active customer",
+        _remove_active_customer_selections,
     ),
 ]
 
