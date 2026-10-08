@@ -1040,21 +1040,41 @@ def _teams_external_access(audit: _Audit) -> _Verdict:
     return _teams_access_from_text(audit, partners)
 
 
+# The words for the codes _teams_guest_settings reads. The collector wrote
+# English labels of its own here, which a Norwegian report printed inside its
+# own sentence.
+_GUEST_INVITE_WORDS = {
+    "everyone": "guest_invites_everyone",
+    "adminsGuestInvitersAndAllMembers": "guest_invites_members",
+    "adminsAndGuestInviters": "guest_invites_admins",
+    "none": "guest_invites_none",
+}
+_GUEST_ROLE_WORDS = {
+    "member": "guest_role_member",
+    "limited": "guest_role_limited",
+    "restricted": "guest_role_restricted",
+}
+
+
 def _teams_guest_access(audit: _Audit) -> _Verdict:
-    # Read from the Teams section's guest file, where teams_policies.py has
-    # already mapped the Graph values to readable names.
+    # Codes where the setting is one Graph and Entra ID name; a value they do
+    # not name is shown as stored and judged by its words, as before.
     invites, role = _teams_guest_settings(audit.fc)
     if not invites:
         return "info", audit.cannot_verify("cis_gap_guest_settings")
-    detail = audit.say(
-        "cis_guest_settings", invites=invites, role=role or audit.say("cis_guest_role_unknown")
-    )
-    if "same as member" in role.lower():
+    invites_word = invites
+    if invites in _GUEST_INVITE_WORDS:
+        invites_word = audit.say(_GUEST_INVITE_WORDS[invites])
+    role_word = role or audit.say("cis_guest_role_unknown")
+    if role in _GUEST_ROLE_WORDS:
+        role_word = audit.say(_GUEST_ROLE_WORDS[role])
+    detail = audit.say("cis_guest_settings", invites=invites_word, role=role_word)
+    if role == "member" or "same as member" in role.lower():
         # Worse than any invitation setting: whoever gets in sees what a member sees.
         return "fail", audit.say("cis_guest_same_as_member", detail=detail)
-    if invites.lower().startswith("everyone"):
+    if invites == "everyone" or invites.lower().startswith("everyone"):
         return "fail", audit.say("cis_guest_can_invite", detail=detail)
-    if "member" in invites.lower():
+    if invites == "adminsGuestInvitersAndAllMembers" or "member" in invites.lower():
         return "warn", audit.say("cis_guest_members_invite", detail=detail)
     return "pass", detail
 

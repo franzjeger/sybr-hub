@@ -3376,6 +3376,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "ukjent",
         "en": "unknown",
     },
+    # Who may invite guests (Graph's allowInvitesFrom), and the guest role.
+    "guest_invites_everyone": {"no": "Alle (mest åpent)", "en": "Everyone (most open)"},
+    "guest_invites_members": {
+        "no": "Administratorer, gjesteinvitører og medlemmer",
+        "en": "Admins, Guest Inviters, and Members",
+    },
+    "guest_invites_admins": {
+        "no": "Administratorer og gjesteinvitører",
+        "en": "Admins and Guest Inviters",
+    },
+    "guest_invites_none": {"no": "Ingen (mest restriktivt)", "en": "No one (most restrictive)"},
+    "guest_role_member": {"no": "Samme som medlemmer", "en": "Same as member users"},
+    "guest_role_limited": {
+        "no": "Begrenset tilgang (standard)",
+        "en": "Limited access (default)",
+    },
+    "guest_role_restricted": {
+        "no": "Sterkt begrenset tilgang (mest restriktivt)",
+        "en": "Restricted access (most restrictive)",
+    },
     "cis_guest_same_as_member": {
         "no": "{detail}. Gjester har samme tilgang som ansatte",
         "en": "{detail}. Guests have the same access as employees",
