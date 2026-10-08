@@ -324,12 +324,10 @@ async def _record_fortigate(customer_id: str, host: str, audit: dict | None) -> 
     key = host.strip().lower()
     if audit.get("ok") is not True:
         await firmware_inventory.record_quietly(
-            firmware_inventory.record_read_failure,
+            firmware_inventory.record_fortigate_failure,
             customer_id,
-            "fortigate",
+            host,
             str(audit.get("error") or "unreachable"),
-            key=key,
-            name=host,
         )
         return
     await firmware_inventory.record_quietly(

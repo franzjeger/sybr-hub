@@ -310,6 +310,29 @@ async def test_an_unreachable_firewall_is_stored_as_unknown(acme_fortigate):
     assert row["read_error"]
 
 
+async def test_a_failed_read_after_the_address_changed_is_kept_under_the_new_one():
+    """It landed on the old address's row: the configured firewall showed as
+    never read, so Nettverk's first read would read it on every visit, and the
+    old address stayed in Varsler."""
+    await firmware_inventory.record(
+        ACME, "fortigate", [{**_current("fw-old.acme.example", "FW"), "status": "eol"}]
+    )
+    await firmware_inventory.record_fortigate_poll(
+        [
+            {
+                "customer_id": ACME,
+                "host": "FW-New.acme.example",
+                "status": "error",
+                "error": "timed out",
+            }
+        ]
+    )
+    rows = await _rows()
+    assert list(rows) == ["fw-new.acme.example"]
+    assert rows["fw-new.acme.example"]["read_error"] == "timed out"
+    assert rows["fw-new.acme.example"]["read_at"] is None
+
+
 async def test_the_unifi_firmware_check_stores_what_it_judged(monkeypatch):
     from app.modules.unifi_audit.client import UniFiControllerClient
     from app.services.unifi_api import firmware_check_all
