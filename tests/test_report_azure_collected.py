@@ -875,8 +875,8 @@ def test_the_subscription_list_stores_azures_value_not_the_enums_repr(monkeypatc
     import sys
     import types
 
-    # The SDK's own shape: a str mixed into an Enum, whose str() is its repr.
-    class SubscriptionState(str, enum.Enum):  # noqa: UP042
+    # The SDK's enum, as far as str() goes: it gives "SubscriptionState.ENABLED".
+    class SubscriptionState(enum.Enum):
         ENABLED = "Enabled"
 
     class _Client:
