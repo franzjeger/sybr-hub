@@ -916,15 +916,22 @@ _BROKEN_OVERRIDES: dict[str, str] = {
         "  Mass download by a single user                     medium       newAlert        2026-01-03T07:45:00\n"
         "==============================================================================================================\n"
     ),
-    # A FortiGate with every finding the report knows how to raise.
-    "60_fortigate_audit.txt": (
-        '{"hostname": "acme-fgt-01", "version": "7.4.3", '
-        '"admins": ['
-        '{"name": "admin", "two_factor": false, "trusthost": false}, '
-        '{"name": "svc-monitor", "two_factor": false, "trusthost": true}], '
-        '"policy_warnings": ['
-        '"Policy 12 \\"any-any\\" is an allow-all rule", '
-        '"Policy 19 has no logging enabled"]}'
+    # A FortiGate with every finding the report knows how to raise, as
+    # quick_audit_fortigate saves it: each policy finding a kind, not a sentence.
+    "60_fortigate_audit.txt": json.dumps(
+        {
+            "hostname": "acme-fgt-01",
+            "firmware": "v7.4.3",
+            "ha_mode": "a-p",
+            "admins": [
+                {"name": "admin", "two_factor": False, "trusthost": False},
+                {"name": "svc-monitor", "two_factor": False, "trusthost": True},
+            ],
+            "policy_findings": [
+                {"policy_id": "12", "name": "any-any", "kind": "allow_all"},
+                {"policy_id": "19", "name": "", "kind": "no_logging"},
+            ],
+        }
     ),
     "61_unifi_audit.txt": (
         '{"mode": "controller", "sites": 1, "device_count": 6, "devices": [], '

@@ -52,6 +52,7 @@ from app.reports.parsers import (
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.email import _spf_dmarc_records
 from app.reports.parsers.identity import _emergency_access
+from app.reports.parsers.network import ha_mode_text, policy_finding_text, policy_findings
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
 from app.reports.risk import _apply_critical_floor, _compute_risk
@@ -459,6 +460,9 @@ def build_report_context(
         # Helpers
         "SectionStatus": SectionStatus,
         "_severity": _severity,
+        "_fg_findings": policy_findings,
+        "_fg_finding_text": policy_finding_text,
+        "_fg_ha_mode": ha_mode_text,
     }
 
     # Build compliance mapping after context is ready

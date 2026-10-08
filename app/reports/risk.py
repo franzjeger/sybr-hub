@@ -6,6 +6,7 @@ from app.reports.evidence import _evidence_unavailable, _reported_count
 from app.reports.i18n import T
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers.network import policy_findings
 
 
 def _is_open_wlan(wlan: dict) -> bool:
@@ -43,12 +44,13 @@ def _network_penalty(network: dict) -> int:
         admins_no_2fa = [a for a in fg.get("admins", []) if not a.get("two_factor")]
         if admins_no_2fa:
             penalty += min(5, len(admins_no_2fa) * 2)
+        findings = policy_findings(fg)
         # Allow-all policies
-        allow_all = [w for w in fg.get("policy_warnings", []) if "allow-all" in w.lower()]
+        allow_all = [f for f in findings if f.get("kind") == "allow_all"]
         if allow_all:
             penalty += min(5, len(allow_all) * 3)
         # No-logging policies
-        no_log = [w for w in fg.get("policy_warnings", []) if "logging" in w.lower()]
+        no_log = [f for f in findings if f.get("kind") == "no_logging"]
         if no_log:
             penalty += min(3, len(no_log))
 

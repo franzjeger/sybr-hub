@@ -35,7 +35,11 @@ from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items
 from app.reports.parsers.identity import _risky_users_from_text
 from app.reports.parsers.m365_backup import _parse_m365_backup
-from app.reports.parsers.network import NETWORK_AUDIT_FILES
+from app.reports.parsers.network import (
+    NETWORK_AUDIT_FILES,
+    policy_finding_text,
+    policy_findings,
+)
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -1149,7 +1153,7 @@ def _fg_allow_all(audit: _Audit) -> Iterator[dict]:
     fg, t = _network_device(audit, "fortigate"), audit.t
     if not fg:
         return
-    allow_all = [w for w in fg.get("policy_warnings", []) if "allow-all" in w.lower()]
+    allow_all = [f for f in policy_findings(fg) if f.get("kind") == "allow_all"]
     if allow_all:
         yield {
             "priority": "critical",
@@ -1157,7 +1161,7 @@ def _fg_allow_all(audit: _Audit) -> Iterator[dict]:
             "title": t("rec_fg_allow_all_title", count=len(allow_all)),
             "detail": t.rec_fg_allow_all_detail,
             "effort": t.rec_effort_medium,
-            "sub_items": allow_all,
+            "sub_items": [policy_finding_text(f, t) for f in allow_all],
         }
 
 
@@ -1165,7 +1169,7 @@ def _fg_no_logging(audit: _Audit) -> Iterator[dict]:
     fg, t = _network_device(audit, "fortigate"), audit.t
     if not fg:
         return
-    no_log = [w for w in fg.get("policy_warnings", []) if "logging" in w.lower()]
+    no_log = [f for f in policy_findings(fg) if f.get("kind") == "no_logging"]
     if no_log:
         yield {
             "priority": "high",
@@ -1173,7 +1177,7 @@ def _fg_no_logging(audit: _Audit) -> Iterator[dict]:
             "title": t("rec_fg_no_logging_title", count=len(no_log)),
             "detail": t.rec_fg_no_logging_detail,
             "effort": t.rec_effort_low,
-            "sub_items": no_log,
+            "sub_items": [policy_finding_text(f, t) for f in no_log],
         }
 
 

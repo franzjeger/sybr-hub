@@ -2861,7 +2861,12 @@
     "activity_fortigate_removed": "Brannmur fjernet",
     "activity_fortigate_token_generated": "API-token opprettet for brannmur",
     "activity_fortigate_save": "Brannmurinnstillinger lagret",
-    "activity_fortigate_bootstrapped": "Brannmur satt opp"
+    "activity_fortigate_bootstrapped": "Brannmur satt opp",
+    "fg_finding_allow_all": "Regel {policy}: tillater all trafikk (kilde all, mål all, tjeneste ALL)",
+    "fg_finding_no_logging": "Regel {policy}: logger ikke trafikken",
+    "net_ha_standalone": "Frittstående",
+    "net_ha_active_passive": "Aktiv-passiv",
+    "net_ha_active_active": "Aktiv-aktiv"
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -5725,6 +5730,11 @@
     "activity_fortigate_removed": "Firewall removed",
     "activity_fortigate_token_generated": "Firewall API token created",
     "activity_fortigate_save": "Firewall settings saved",
-    "activity_fortigate_bootstrapped": "Firewall configured"
+    "activity_fortigate_bootstrapped": "Firewall configured",
+    "fg_finding_allow_all": "Policy {policy}: allows all traffic (source all, destination all, service ALL)",
+    "fg_finding_no_logging": "Policy {policy}: does not log its traffic",
+    "net_ha_standalone": "Standalone",
+    "net_ha_active_passive": "Active-passive",
+    "net_ha_active_active": "Active-active"
   }
 }

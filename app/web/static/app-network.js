@@ -791,8 +791,32 @@ export async function runNetworkQuickAudit() {
   }
 }
 
+// What the quick check noted about a firewall policy, in the reader's
+// language. The server sends a kind and the policy; it used to send an
+// English sentence, which the interface showed as it stood.
+function _fgFindingText(f) {
+  var policy = String(f.policy_id || '?') + (f.name ? ' (' + f.name + ')' : '');
+  if (f.kind === 'allow_all') {
+    return t('fg_finding_allow_all', 'Policy {policy}: allows all traffic (source all, destination all, service ALL)').replace('{policy}', policy);
+  }
+  if (f.kind === 'no_logging') {
+    return t('fg_finding_no_logging', 'Policy {policy}: does not log its traffic').replace('{policy}', policy);
+  }
+  return String(f.text || '');
+}
+
+// FortiOS's HA mode, as the reader calls it; one it does not name, as sent.
+function _fgHaModeText(mode) {
+  switch (String(mode || '').toLowerCase()) {
+    case 'standalone': return t('net_ha_standalone', 'Standalone');
+    case 'a-p': return t('net_ha_active_passive', 'Active-passive');
+    case 'a-a': return t('net_ha_active_active', 'Active-active');
+    default: return String(mode || '—');
+  }
+}
+
 // The quick check's answer as cards: the FortiGate's figures, admins and
-// policy warnings; the UniFi devices, through the controller or one by one.
+// policy findings; the UniFi devices, through the controller or one by one.
 function _quickAuditHtml(d) {
   var html = '';
   // A count that a refused sub-read left null is unknown, not zero. Show "–"
@@ -813,7 +837,7 @@ function _quickAuditHtml(d) {
       html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.admin_count) + '</div><div class="text-xs text-muted">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
       html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.vpn_tunnels) + '</div><div class="text-xs text-muted">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
       html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.interface_count) + '</div><div class="text-xs text-muted">' + t('interfaces') + '</div></div>';
-      html += '<div class="kpi"><div class="text-xl fw-bold">' + esc(fg.ha_mode || '—') + '</div><div class="text-xs text-muted">' + t('lbl_ha_mode','HA mode') + '</div></div>';
+      html += '<div class="kpi"><div class="text-xl fw-bold">' + esc(_fgHaModeText(fg.ha_mode)) + '</div><div class="text-xs text-muted">' + t('lbl_ha_mode','HA mode') + '</div></div>';
       html += '</div>';
 
       // Admin table
@@ -828,11 +852,12 @@ function _quickAuditHtml(d) {
       }
       html += '</tbody></table></div>';
 
-      // Policy warnings
-      if (fg.policy_warnings.length > 0) {
-        html += '<div class="fw-semibold text-ui mb-2 text-danger">' + esc(t('net_policy_warnings').replace('{count}', fg.policy_warnings.length)) + '</div>';
+      // Policy findings
+      var policyFindings = fg.policy_findings || [];
+      if (policyFindings.length > 0) {
+        html += '<div class="fw-semibold text-ui mb-2 text-danger">' + esc(t('net_policy_warnings').replace('{count}', policyFindings.length)) + '</div>';
         html += '<ul class="ml-4 text-sm text-muted">';
-        for (var w of fg.policy_warnings) html += '<li>' + esc(w) + '</li>';
+        policyFindings.forEach(function(pf) { html += '<li>' + esc(_fgFindingText(pf)) + '</li>'; });
         html += '</ul>';
       } else {
         html += '<div class="text-sm text-success">' + t('ingen_policy_advarsler_funnet') + '</div>';

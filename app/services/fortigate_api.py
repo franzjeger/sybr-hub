@@ -1095,17 +1095,21 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
             }
         )
 
-    policy_warns = []
+    # What is wrong with a policy, as a kind the report and the interface word:
+    # "allow_all" accepts any source, destination and service, "no_logging"
+    # logs nothing. These were English sentences ("Policy 12: allow-all
+    # (src=all, ...)") that a Norwegian report listed as they stood.
+    policy_findings = []
     for p in policies if isinstance(policies, list) else []:
-        pid = p.get("policyid", "?")
+        policy = {"policy_id": str(p.get("policyid", "?")), "name": str(p.get("name") or "")}
         if p.get("action") == "accept":
             src = [s.get("name", "") for s in p.get("srcaddr", [])]
             dst = [d.get("name", "") for d in p.get("dstaddr", [])]
             svc = [s.get("name", "") for s in p.get("service", [])]
             if "all" in src and "all" in dst and "ALL" in svc:
-                policy_warns.append(f"Policy {pid}: allow-all (src=all, dst=all, svc=ALL)")
+                policy_findings.append({**policy, "kind": "allow_all"})
             if p.get("logtraffic", "") == "disable":
-                policy_warns.append(f"Policy {pid}: logging disabled")
+                policy_findings.append({**policy, "kind": "no_logging"})
 
     # A refused sub-read reports None rather than 0. The counts below feed a
     # customer-facing summary, and "0 policies" on a read that never happened is
@@ -1125,12 +1129,13 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         None if read_failed(policies) else (len(policies) if isinstance(policies, list) else 0)
     )
 
-    ha_mode = None if read_failed(ha) else "Standalone"
+    # FortiOS's own mode ("standalone", "a-p", "a-a"), which the report words.
+    ha_mode = None if read_failed(ha) else "standalone"
     if not read_failed(ha):
         if isinstance(ha, list) and ha:
-            ha_mode = ha[0].get("mode", "standalone").capitalize()
+            ha_mode = str(ha[0].get("mode") or "standalone")
         elif isinstance(ha, dict):
-            ha_mode = ha.get("mode", "standalone").capitalize()
+            ha_mode = str(ha.get("mode") or "standalone")
 
     return {
         "ok": True,
@@ -1147,7 +1152,7 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         "admins": admin_list,
         "admin_count": admin_count,
         "policy_count": policy_count,
-        "policy_warnings": policy_warns,
+        "policy_findings": policy_findings,
         "interface_count": iface_count,
         "vpn_tunnels": vpn_count,
         "license": license_status if isinstance(license_status, dict) else {},

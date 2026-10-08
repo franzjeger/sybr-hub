@@ -1591,7 +1591,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="lbl">{{ t.net_vpn_tunnels }}</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ fg.ha_mode if fg.ha_mode else '—' }}</div>
+    <div class="num brand">{{ _fg_ha_mode(fg.ha_mode, t) or '—' }}</div>
     <div class="lbl">{{ t.net_ha_mode }}</div>
   </div>
 </div>
@@ -1613,11 +1613,15 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </table>
 {% endif %}
 
-{% if fg.policy_warnings %}
+{# Each finding is a kind the quick audit noted about a policy, worded here;
+   one read from an old run's English warnings and naming no kind is shown
+   as it was stored. #}
+{% set fg_findings = _fg_findings(fg) %}
+{% if fg_findings %}
 <h4 style="margin-top:16px;">{{ t.net_firewall_warnings }}</h4>
 <ul style="font-size:12px;">
-  {% for w in fg.policy_warnings %}
-  <li style="color: var(--red, red);">{{ w }}</li>
+  {% for f in fg_findings %}
+  <li style="color: var(--red, red);">{{ _fg_finding_text(f, t) }}</li>
   {% endfor %}
 </ul>
 {% endif %}

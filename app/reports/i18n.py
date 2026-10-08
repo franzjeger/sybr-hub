@@ -4001,6 +4001,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "HA-modus",
         "en": "HA mode",
     },
+    # FortiOS's HA modes (system/ha "mode").
+    "net_ha_standalone": {"no": "Frittstående", "en": "Standalone"},
+    "net_ha_active_passive": {"no": "Aktiv-passiv", "en": "Active-passive"},
+    "net_ha_active_active": {"no": "Aktiv-aktiv", "en": "Active-active"},
+    # A FortiGate policy's finding; {policy} is its id, with its name after it.
+    "fg_finding_allow_all": {
+        "no": "Regel {policy}: tillater all trafikk (kilde all, mål all, tjeneste ALL)",
+        "en": "Policy {policy}: allows all traffic (source all, destination all, service ALL)",
+    },
+    "fg_finding_no_logging": {
+        "no": "Regel {policy}: logger ikke trafikken",
+        "en": "Policy {policy}: does not log its traffic",
+    },
     "net_administrators": {
         "no": "Administratorer",
         "en": "Administrators",
@@ -4087,7 +4100,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "{count} FortiGate rule(s) without logging",
     },
     "rec_fg_no_logging_detail": {
-        "no": "Brannmurregler uten logging gjør det umulig å oppdage og etterforskebrudd.",
+        "no": "Brannmurregler uten logging gjør det umulig å oppdage og etterforske brudd.",
         "en": "Firewall rules without logging make it impossible to detect and investigate breaches.",
     },
     "rec_fg_no_trusthost_title": {
