@@ -549,6 +549,7 @@ FULL_AUDIT: dict[str, str] = {
         "  THIRD-PARTY BACKUP APPS\n"
         "  " + "-" * 96 + "\n"
         "  Apps found        : 0 (of 1 service principals)\n"
+        "  Access scan       : read\n"
         "\n" + "=" * 100 + "\n"
     ),
     "34_m365_backup.json": json.dumps(
@@ -594,7 +595,14 @@ FULL_AUDIT: dict[str, str] = {
                     ],
                 },
             },
-            "third_party": {"read": True, "error_kind": "", "error": "", "scanned": 1, "apps": []},
+            "third_party": {
+                "read": True,
+                "error_kind": "",
+                "error": "",
+                "scanned": 1,
+                "access_scan": {"read": True, "error_kind": "", "error": ""},
+                "apps": [],
+            },
         }
     ),
     "51_azure_advisor.txt": (

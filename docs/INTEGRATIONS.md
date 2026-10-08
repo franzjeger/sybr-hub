@@ -73,6 +73,7 @@ before changing them:
 | OneDrive discovery (app-only) | `v1.0/users/{id}/drives` | the singular `/drive` endpoint does not support application permissions |
 | Microsoft 365 Backup status | `v1.0/solutions/backupRestore` | `serviceStatus.status`; needs `BackupRestore-Control.Read.All`. Microsoft documents the API as meant for registered backup controller apps, so a 403 is recorded as unreadable, not as "no backup" |
 | Microsoft 365 Backup policies | `v1.0/solutions/backupRestore/protectionPolicies` | one list, typed by `@odata.type`; needs `BackupRestore-Configuration.Read.All`. The protected count comes from `beta/.../protectionPolicies/{id}?$select=protectionPolicyArtifactCount` (returned only on `$select`), else from the v1.0 protection-unit lists. Units carry no names under application permissions |
+| Third-party backup apps beyond the name | `v1.0/servicePrincipals(appId='{Graph or Exchange Online}')/appRoleAssignedTo` | who holds app-only roles on Microsoft Graph and Exchange Online, read from the resource side in two listings (`Application.Read.All`). An app that reads every mailbox and every site or drive, with no known publisher or name, is a backup *candidate*: the workload reads "could not be determined", never "backed up". `verifiedPublisher` on the service principal list identifies a renamed app; it is all null when unverified. No source says whether the last backup succeeded |
 
 **OneDrive / SharePoint sharing coverage is bounded and explicit.** The audit
 discovers every site collection's drives plus every directory user's drives,

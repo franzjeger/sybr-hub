@@ -1368,6 +1368,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Fant {app}, men tilgangene kunne ikke leses",
         "en": "Found {app}, but its permissions could not be read",
     },
+    "m365_backup_app_possible": {
+        "no": "{apps} er ikke et kjent backupprodukt, men har den tilgangen et backupprodukt trenger: lesing av alle postbokser og alle områder uten innlogget bruker. Sjekk hva appen er",
+        "en": "{apps} is not a known backup product, but holds the access a backup product needs: reading every mailbox and every site without a signed-in user. Check what the app is",
+    },
+    "m365_backup_app_possible_access": {
+        "no": "Appen {app} har tilgang til {access}, men er ikke et kjent backupprodukt. Sjekk om den tar backup.",
+        "en": "The app {app} has access to {access}, but is not a known backup product. Check whether it takes backups.",
+    },
+    "m365_backup_access_scan_unread": {
+        "no": "Søket etter apper med samme tilgang som et backupprodukt kunne ikke leses, så en omdøpt backupapp kan være oversett.",
+        "en": "The search for apps with the same access as a backup product could not be read, so a renamed backup app may have been missed.",
+    },
+    "m365_backup_success_not_verified": {
+        "no": "Auditen kan ikke se om siste backup lyktes. Microsoft 365 Backup viser hvilke data som er med i en policy, og en backupapp viser at produktet får lese dataene. Når siste vellykkede backup ble tatt, står bare i backupproduktet selv og krever leverandørens eget API og innlogging. Sjekk det der.",
+        "en": "The audit cannot see whether the last backup succeeded. Microsoft 365 Backup shows which data a policy includes, and a backup app shows that the product may read the data. When the last successful backup was taken is recorded only in the backup product itself, behind the vendor's own API and sign-in. Check it there.",
+    },
+    "m365_backup_publisher_verified": {
+        "no": "Verifisert utgiver: {publisher}",
+        "en": "Verified publisher: {publisher}",
+    },
     "m365_backup_app_disabled": {
         "no": "deaktivert",
         "en": "disabled",
@@ -1433,8 +1453,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Third-party backup apps",
     },
     "m365_backup_apps_scanned": {
-        "no": "Lette blant {count} tjenestekontoer etter kjente backupprodukter.",
-        "en": "Searched {count} service principals for known backup products.",
+        "no": "Lette blant {count} tjenestekontoer etter kjente backupprodukter, på utgiver og navn, og etter apper som uten innlogget bruker kan lese både e-post og filer.",
+        "en": "Searched {count} service principals for known backup products, by publisher and name, and for apps that can read both mail and files without a signed-in user.",
     },
     "m365_backup_no_apps": {
         "no": "Ingen kjent backupapp funnet.",
@@ -1471,6 +1491,34 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "m365_backup_match_generic": {
         "no": "«backup» i navnet",
         "en": "'backup' in the name",
+    },
+    "m365_backup_match_publisher": {
+        "no": "verifisert utgiver",
+        "en": "verified publisher",
+    },
+    "m365_backup_match_access": {
+        "no": "bare tilgangen",
+        "en": "access only",
+    },
+    "m365_backup_col_confidence": {
+        "no": "Sikkerhet",
+        "en": "Confidence",
+    },
+    "m365_backup_confidence_high": {
+        "no": "høy",
+        "en": "high",
+    },
+    "m365_backup_confidence_medium": {
+        "no": "middels",
+        "en": "medium",
+    },
+    "m365_backup_confidence_low": {
+        "no": "lav",
+        "en": "low",
+    },
+    "m365_backup_confidence_note": {
+        "no": "Sikkerheten gjelder hvilket produkt appen er, ikke om backupen kjører. Høy: app-ID eller utgiver som Microsoft har verifisert, som kundens administrator ikke kan endre. Middels: produktnavnet, som kan endres i tenanten. Lav: «backup» i navnet, eller bare tilgangen.",
+        "en": "Confidence is about which product the app is, not whether its backups run. High: an app ID or a publisher Microsoft has verified, which the customer's admin cannot change. Medium: the product's name, which can be changed in the tenant. Low: 'backup' in the name, or the access alone.",
     },
     "m365_backup_unread_heading": {
         "no": "Det som ikke kunne leses",

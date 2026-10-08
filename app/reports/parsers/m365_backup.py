@@ -9,8 +9,18 @@ vendors. This module turns them into one verdict per workload:
   the product is installed and allowed to read the data, not proof that its
   backups run, and every sentence built here says so;
 * ``none``: both sources were read and neither shows anything;
-* ``unknown``: a source that could have answered was not read. A refusal is
-  not a zero, so this is never reported as "no backup".
+* ``unknown``: a source that could have answered was not read, or an app that
+  is no known product holds the access a backup product needs. A refusal is
+  not a zero, and an unidentified app with that access is not "nothing", so
+  neither is reported as "no backup".
+
+Each vendor app carries a confidence in its identity, from how it was matched:
+high for a published app id or a Microsoft-verified publisher, which the
+tenant's admin cannot change; medium for a product's display name, which they
+can; low for "backup" in a name or for access alone. Confidence is about
+which product the app is, never about whether its backups run: the audit
+cannot read the last successful backup, which lives in the vendor's own API,
+and the report says so beside the table.
 
 Teams is shown beside the three because customers ask about it, but it is not
 judged: Microsoft 365 Backup has no Teams policy (its files live in
@@ -51,7 +61,16 @@ def _blank_source() -> dict:
             "service": {"read": False, "status": "", "error_kind": "", "error": ""},
             "policies": {"read": False, "error_kind": "", "error": "", "items": []},
         },
-        "third_party": {"read": False, "error_kind": "", "error": "", "scanned": 0, "apps": []},
+        "third_party": {
+            "read": False,
+            "error_kind": "",
+            "error": "",
+            "scanned": 0,
+            # None: a run from before the access scan existed, which is
+            # judged as it was then and carries no note about the scan.
+            "access_scan": None,
+            "apps": [],
+        },
     }
 
 
@@ -140,6 +159,14 @@ def _from_text(text: str) -> dict | None:
                 third["scanned"] = int(scanned.group(1)) if scanned else 0
         elif block == "third" and label == "Apps detail":
             third["error"] = value
+        elif block == "third" and label == "Access scan":
+            third["access_scan"] = {
+                "read": not unreadable,
+                "error_kind": unreadable.group(1) if unreadable else "",
+                "error": "",
+            }
+        elif block == "third" and label == "Access detail" and third["access_scan"]:
+            third["access_scan"]["error"] = value
         elif block == "third" and raw.startswith("    ") and not raw.startswith("      "):
             fields = line.split(" | ")
             if len(fields) < 6:
@@ -148,7 +175,7 @@ def _from_text(text: str) -> dict | None:
             match = match.removeprefix("match=")
             workloads = workloads.removeprefix("workloads=")
             app = {
-                "product": None if match == "generic" else product,
+                "product": None if match in ("generic", "access") else product,
                 "display_name": display,
                 "app_id": fields[5].removeprefix("app_id="),
                 "enabled": enabled == "enabled",
@@ -158,8 +185,18 @@ def _from_text(text: str) -> dict | None:
                 "application_permissions": [],
                 "delegated_scopes": [],
                 "workloads": [] if workloads in ("none", "unknown") else workloads.split(","),
+                "publisher": "",
+                "publisher_name": "",
             }
             third["apps"].append(app)
+        elif block == "third" and app is not None and label == "publisher":
+            parts = dict(p.partition("=")[::2] for p in value.split(" | "))
+            app["publisher"] = (
+                "" if parts.get("verified") == "(none)" else parts.get("verified", "")
+            )
+            app["publisher_name"] = (
+                "" if parts.get("tenant") == "(none)" else parts.get("tenant", "")
+            )
         elif block == "third" and app is not None and label == "permissions":
             app["permissions_read"] = False
             app["permissions_error"] = value
@@ -284,6 +321,17 @@ def _native_state(native: dict, workload: str, total: int | None, t: T) -> dict:
     return out
 
 
+# How sure the reading is of which product an app is, by how it was matched.
+# Never a statement that its backups run. See the module docstring.
+_CONFIDENCE = {
+    "app_id": "high",
+    "publisher": "high",
+    "name": "medium",
+    "generic": "low",
+    "access": "low",
+}
+
+
 def _app_name(app: dict) -> str:
     return str(app.get("product") or app.get("display_name") or "?")
 
@@ -298,15 +346,20 @@ def _third_state(third: dict, workload: str, t: T) -> dict:
             "reason": t.m365_backup_app_unread,
         }
     apps = [a for a in third.get("apps") or [] if a.get("enabled", True)]
-    found = sorted(
-        {_app_name(a) for a in apps if a.get("permissions_read") and workload in a["workloads"]}
-    )
+    reaching = [a for a in apps if a.get("permissions_read") and workload in a["workloads"]]
+    found = sorted({_app_name(a) for a in reaching if a.get("match") != "access"})
     if found:
         return {
             "state": "found",
             "apps": found,
             "text": t("m365_backup_app_found", apps=_join(found, t)),
         }
+    # An app that is no known product, with the access one needs. Not backup,
+    # and not nothing either: somebody has to look at it.
+    possible = sorted({_app_name(a) for a in reaching if a.get("match") == "access"})
+    if possible:
+        text = t("m365_backup_app_possible", apps=_join(possible, t))
+        return {"state": "possible", "apps": [], "text": text, "reason": text}
     unread = sorted({_app_name(a) for a in apps if not a.get("permissions_read")})
     if unread:
         text = t("m365_backup_app_permissions_unread", app=_join(unread, t))
@@ -333,7 +386,7 @@ def _workload(native: dict, third: dict, workload: str, total: int | None, t: T)
     elif tp["state"] == "found":
         verdict = "third_party"
     elif workload == "teams":
-        verdict = "unknown" if tp["state"] == "unknown" else "files_only"
+        verdict = "unknown" if tp["state"] in ("unknown", "possible") else "files_only"
     elif nat["state"] == "none" and tp["state"] == "none":
         verdict = "none"
     else:
@@ -415,6 +468,8 @@ def _parse_m365_backup(
         notes.append(_unread_reason(policies.get("error_kind", ""), _POLICY_PERMISSION, t))
     if not third.get("read"):
         notes.append(t.m365_backup_app_unread)
+    elif isinstance(third.get("access_scan"), dict) and not third["access_scan"].get("read"):
+        notes.append(t.m365_backup_access_scan_unread)
 
     result.update(
         has_data=True,
@@ -444,6 +499,8 @@ def _parse_m365_backup(
                 "access": _join(
                     [getattr(t, f"m365_backup_access_{w}") for w in app.get("workloads") or []], t
                 ),
+                "confidence": _CONFIDENCE.get(str(app.get("match") or ""), "low"),
+                "candidate": app.get("match") == "access",
             }
             for app in third.get("apps") or []
         ],

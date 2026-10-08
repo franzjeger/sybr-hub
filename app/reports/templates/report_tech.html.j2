@@ -1378,12 +1378,13 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <p style="font-size:12px;color:var(--muted);">{{ t('m365_backup_apps_scanned', count=m365_backup.scanned) }}</p>
 {% if m365_backup.apps %}
 <table>
-  <tr><th>{{ t.m365_backup_col_product }}</th><th>{{ t.m365_backup_col_app }}</th><th>{{ t.m365_backup_col_match }}</th><th>{{ t.m365_backup_col_access }}</th><th>{{ t.m365_backup_col_permissions }}</th></tr>
+  <tr><th>{{ t.m365_backup_col_product }}</th><th>{{ t.m365_backup_col_app }}</th><th>{{ t.m365_backup_col_match }}</th><th>{{ t.m365_backup_col_confidence }}</th><th>{{ t.m365_backup_col_access }}</th><th>{{ t.m365_backup_col_permissions }}</th></tr>
   {% for a in m365_backup.apps %}
   <tr>
     <td style="font-weight:500;">{{ a.name }}{% if not a.enabled %} <span class="tag skip">{{ t.m365_backup_app_disabled }}</span>{% endif %}</td>
-    <td style="font-size:11px;">{{ a.display_name }}<br><span style="font-family:var(--mono);color:var(--muted);">{{ a.app_id }}</span></td>
+    <td style="font-size:11px;">{{ a.display_name }}<br><span style="font-family:var(--mono);color:var(--muted);">{{ a.app_id }}</span>{% if a.publisher %}<br>{{ t('m365_backup_publisher_verified', publisher=a.publisher) }}{% endif %}</td>
     <td style="font-size:11px;">{{ t('m365_backup_match_' ~ a.match) }}</td>
+    <td style="font-size:11px;">{{ t('m365_backup_confidence_' ~ a.confidence) }}</td>
     <td style="font-size:11px;">{% if a.permissions_read and a.access %}{{ a.access }}{% elif a.permissions_read %}&mdash;{% else %}{{ t.m365_backup_verdict_unknown }}{% endif %}</td>
     <td style="font-size:11px;font-family:var(--mono);word-break:break-word;">
       {% for p in a.application_permissions %}{{ p.value }}{% if p.resource %} ({{ p.resource }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
@@ -1393,11 +1394,13 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   </tr>
   {% endfor %}
 </table>
+<p style="font-size:12px;color:var(--muted);">{{ t.m365_backup_confidence_note }}</p>
 <div class="alert info">{{ t.m365_backup_proof_note }}</div>
 {% else %}
 <div class="alert info">{{ t.m365_backup_no_apps }}</div>
 {% endif %}
 {% endif %}
+<div class="alert info">{{ t.m365_backup_success_not_verified }}</div>
 
 {% if m365_backup.unread_notes %}
 <div class="alert warning">
