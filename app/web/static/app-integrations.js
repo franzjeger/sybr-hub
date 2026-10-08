@@ -341,7 +341,7 @@ export async function uniwebSync() {
   }
 }
 
-export async function uniwebPollStatus() {
+async function uniwebPollStatus() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
   var d = await apiFetch('/api/uniweb/status');
@@ -440,7 +440,7 @@ export async function uniwebPollStatus() {
   }
 }
 
-export async function uniwebLoadAccounts() {
+async function uniwebLoadAccounts() {
   var container = document.getElementById('uniweb-accounts-container');
   if (!container) return;
 

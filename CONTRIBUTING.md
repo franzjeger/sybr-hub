@@ -51,8 +51,9 @@ unchanged. When you mean to change a verdict or its wording, recompute it with
 changed in it, ideally after comparing old and new context by context.
 
 `npm run check` is more than a syntax check. It fails on:
-- an import that does not resolve to a real export, a dynamic import, a
-  module outside its layer, or a load-time read inside an import cycle
+- an import that does not resolve to a real export, an export no module
+  imports (a spec drives the page instead), a dynamic import, a module
+  outside its layer, or a load-time read inside an import cycle
   (`scripts/js-modules.cjs`; the layering is written at the top of
   `app/web/static/main.js`);
 - any inline event handler or `javascript:` URL, and any handler name that is

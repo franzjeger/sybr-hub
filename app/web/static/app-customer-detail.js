@@ -1575,7 +1575,7 @@ async function _loadCustomerTrendChart(customerId) {
 
 // ── Customer Licenses (ALSO Cloud) ───────────────────────────────────────────
 
-export async function loadCustomerLicenses(accountId) {
+async function loadCustomerLicenses(accountId) {
   // On the customer page's Detaljer tab, under Lisenser.
   var box = document.getElementById('cust-licenses-panel');
   if (!box) return;
@@ -1709,7 +1709,7 @@ export async function loadCustomerLicenses(accountId) {
 
 // ── Hosting card (billing module) ───────────────────────────────────────────
 
-export async function _unifiedLoadUniwebCard(custId) {
+async function _unifiedLoadUniwebCard(custId) {
   var cardEl = document.getElementById('customer-uniweb-panel');
 
   try {
@@ -1982,7 +1982,7 @@ async function _loadCustomerEmailDns(custId) {
   }
 }
 
-export async function uwToggleDns(row, domain) {
+async function uwToggleDns(row, domain) {
   // Check if DNS row already exists below
   var existing = row.nextElementSibling;
   var arrow = row.querySelector('.uw-dns-arrow');

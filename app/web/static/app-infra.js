@@ -430,7 +430,7 @@ export async function sshShowKeys() {
   el.innerHTML = html;
 }
 
-export function sshGenKey() {
+function sshGenKey() {
   var el = _claim('ssh-content').el;
   el.innerHTML = '<div class="max-w-md">'
     + '<h3 class="text-md fw-semibold mb-4">' + t('hdr_generate_ssh_key','Generate SSH key') + '</h3>'
@@ -3824,7 +3824,7 @@ export async function unifiSmLoadSites() {
   list.innerHTML = _renderSiteTable(sites);
 }
 
-export function _renderSiteTable(sites) {
+function _renderSiteTable(sites) {
   // Split into multi-site controllers (ours) and standalone consoles
   var multiSite = sites.filter(function(s) { return s.sub_sites && s.sub_sites.length > 1; });
   var standalone = sites.filter(function(s) { return !s.sub_sites || s.sub_sites.length <= 1; });

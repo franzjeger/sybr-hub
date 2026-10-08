@@ -610,10 +610,6 @@ export async function renderToolCustomerPickers() {
   });
 }
 
-export function toolNoCustomerHtml() {
-  return '<div class="empty-signpost"><p>' + esc(t('msg_tool_choose_customer', 'Velg kunden verktøyet skal gjelde, i feltet Kunde over.')) + '</p></div>';
-}
-
 registerUiHandlers({
   toolCustomerChanged: function(el) {
     if (!el.value) return;   // the empty first option is a prompt, not a choice

@@ -1211,7 +1211,7 @@ function _needsAttention(c) {
 // The order of the list: worst open finding first. A customer never audited
 // ranks just below one with a high finding: nobody knows what it holds, which
 // is more urgent than a list of medium ones.
-export function _findingWeight(c) {
+function _findingWeight(c) {
   if (!c.has_metrics) return 9999;
   var f = _openFindings(c);
   return f.critical * 1e6 + f.high * 1e4 + f.medium * 1e2 + f.low;

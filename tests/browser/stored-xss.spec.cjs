@@ -165,18 +165,19 @@ test('device data from FortiGate, Tailscale and UniFi APIs is rendered as text',
   await expect(page.locator('#ts-content .card-clickable')).toContainText('OS: ' + XSS);
   await expectInert(page, '#ts-content');
 
-  // UniFi Site Manager site table.
-  await inApp(page, (app, xss) => {
-    const host = document.createElement('div');
-    host.id = 'unifi-fixture';
-    host.innerHTML = app._renderSiteTable([
-      {name: xss, status: 'online', model: xss, wan_ip: xss, sub_sites: [{name: xss, device_count: 1}, {name: xss}]},
-      {name: xss, status: 'offline', wan_ip: xss, isp: xss, firmware: xss, model: xss},
-    ]);
-    document.body.appendChild(host);
-  }, XSS);
-  await expect(page.locator('#unifi-fixture strong').first()).toHaveText(XSS);
-  await expectInert(page, '#unifi-fixture');
+  // UniFi Site Manager's site table, listed once the cloud key connects.
+  await page.route('**/api/unifi/site-manager/auth', route => route.fulfill({json: {ok: true}}));
+  await page.route('**/api/unifi/site-manager/sites', route => route.fulfill({json: {sites: [
+    {name: XSS, status: 'online', model: XSS, wan_ip: XSS, sub_sites: [{name: XSS, device_count: 1}, {name: XSS}]},
+    {name: XSS, status: 'offline', wan_ip: XSS, isp: XSS, firmware: XSS, model: XSS},
+  ]}}));
+  await inApp(page, app => app.openAdmin('integrations'));
+  await page.locator('[data-config="unifi-sm-config"]').click();
+  await page.locator('#unifi-sm-apikey').fill('synthetic-key');
+  await page.locator('#unifi-sm-auth-btn').click();
+  await expect(page.locator('#unifi-sm-sites-list strong').first()).toHaveText(XSS);
+  await expect(page.locator('#unifi-sm-sites-list .device-card')).toHaveCount(3);
+  await expectInert(page, '#unifi-sm-sites-list');
 });
 
 test('generated reports open in a sandboxed frame where none of their content runs', async ({page}) => {
@@ -359,12 +360,15 @@ test('the customer licence panel renders ALSO subscriptions as text', async ({pa
     subscription: {ContractId: XSS, Fields: [{DisplayName: XSS, Value: XSS}]},
   }}));
 
-  // Detaljer's Lisenser card holds them; the panel stands in for it here.
-  await inApp(page, app => {
-    const box = document.createElement('div'); box.id = 'cust-licenses-panel';
-    document.body.appendChild(box);
-    return app.loadCustomerLicenses('acct-1');
+  // Detaljer's Lisenser card holds them, for a customer linked to ALSO.
+  await page.route('**/api/dashboard/overview', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    for (const c of body.customers) if (c.customer_id === 'Browser_Alpha') c.also_account_id = 'acct-1';
+    await route.fulfill({response, json: body});
   });
+  await page.evaluate(() => { location.hash = '#/customer/Browser_Alpha/detaljer'; });
+  await page.locator('#cust-load-licenses').click();
   const row = page.locator('#cust-licenses-panel tbody tr').first();
   await expect(row.locator('td').first()).toHaveText(XSS);
   await expect(row.locator('td').nth(2)).toHaveText('4');

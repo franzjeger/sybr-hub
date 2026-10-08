@@ -299,6 +299,24 @@ test('the bell opens Varsler on Oversikt, with the events it used to list', asyn
 });
 
 test('Oversikt leads with who needs attention, without tiles, charts or an integration strip', async ({page}) => {
+  // Worst first: the order follows the open findings, and a customer never
+  // audited sits just below one with a high finding, above medium and low.
+  // The list is answered here, shuffled, so the order is the page's doing.
+  const audited = (id, findings) => ({customer_id: id, customer_name: id, primary_domain: '', has_metrics: true,
+    last_audit: '2026-09-30_120000', metrics: {risk_grade: 'C', mfa_coverage_pct: 90},
+    open_findings: {critical: 0, high: 0, medium: 0, low: 0, ...findings}});
+  await page.route('**/api/dashboard/overview', async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.customers = [
+      audited('Order_Low', {low: 9}),
+      {customer_id: 'Order_Never', customer_name: 'Order_Never', primary_domain: '', has_metrics: false, metrics: null, last_audit: null},
+      audited('Order_Medium', {medium: 5, low: 1}),
+      audited('Order_Critical', {critical: 1}),
+      audited('Order_High', {high: 2}),
+    ];
+    await route.fulfill({response, json: body});
+  });
   await login(page);
   await inApp(page, app => app.showView('overview'));
   const rows = page.locator('.customer-overview-table tbody tr');
@@ -306,11 +324,8 @@ test('Oversikt leads with who needs attention, without tiles, charts or an integ
   await expect(page.locator('#view-overview canvas, #view-overview .kpi-row')).toHaveCount(0);
   // Nothing in the fixture is failing, so no banner either.
   await expect(page.locator('#integration-health-widget')).toBeHidden();
-  // Worst first: the order follows the open findings, and a customer never
-  // audited sits above one with only low ones.
-  const weights = await inApp(page, app => Array.from(document.querySelectorAll('.customer-overview-table tbody tr'))
-    .map(tr => app._findingWeight(app._overviewData.customers.find(c => c.customer_id === tr.dataset.customerId))));
-  expect(weights).toEqual([...weights].sort((a, b) => b - a));
+  expect(await rows.evaluateAll(trs => trs.map(tr => tr.dataset.customerId)))
+    .toEqual(['Order_Critical', 'Order_High', 'Order_Never', 'Order_Medium', 'Order_Low']);
   await expect(page.locator('.customer-overview-table th', {hasText: 'Åpne funn'})).toContainText('▼');
 });
 
