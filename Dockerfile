@@ -1,5 +1,5 @@
 # Supported container target: Linux amd64, Python 3.14. Base pinned by digest.
-FROM python:3.14-slim-bookworm@sha256:9ab8d9c8514b44f90cf0029dd42fdd7e9e211e639c8b995304cc04568dee900f AS builder
+FROM python:3.14-slim-bookworm@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83 AS builder
 WORKDIR /src
 COPY requirements.lock .
 RUN python -m venv /opt/venv && /opt/venv/bin/pip install --require-hashes -r requirements.lock
@@ -9,7 +9,7 @@ ARG RELEASE_VERSION=0.0.0.dev0
 RUN SETUPTOOLS_SCM_PRETEND_VERSION=${RELEASE_VERSION} python -m build --wheel --no-isolation --outdir /wheels \
     && /opt/venv/bin/pip install --no-deps /wheels/*.whl
 
-FROM python:3.14-slim-bookworm@sha256:9ab8d9c8514b44f90cf0029dd42fdd7e9e211e639c8b995304cc04568dee900f
+FROM python:3.14-slim-bookworm@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83
 ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/franzjeger/sybr-hub" \
       org.opencontainers.image.revision="${SOURCE_REVISION}"
