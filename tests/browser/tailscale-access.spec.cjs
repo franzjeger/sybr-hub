@@ -52,7 +52,7 @@ test('the Tailscale card asks once, assign list included', async ({page}) => {
   await page.goto('/#/customer/Browser_Beta/tilgang');
 
   const card = page.locator('#customer-tailscale-panel');
-  await expect(card.locator('.cust-ts-name')).toHaveText('beta-fw');
+  await expect(card.locator('.cust-device-name')).toHaveText('beta-fw');
   await expect(card.locator('#cust-ts-device option')).toHaveText(['Knytt en node til kunden', 'spare-box (100.64.0.20)']);
   await expect(card).toContainText('Noder med taggen tag:customer-browser-beta i Tailscale');
   expect(asked).toEqual(['GET /api/tailscale/customer/Browser_Beta/nodes']);
@@ -102,7 +102,7 @@ test('a technician does not see the tag control', async ({page}) => {
   await page.goto('/#/customer/Browser_Beta/tilgang');
 
   const card = page.locator('#customer-tailscale-panel');
-  await expect(card.locator('.cust-ts-name')).toHaveText('beta-fw');
+  await expect(card.locator('.cust-device-name')).toHaveText('beta-fw');
   await expect(card.locator('details.cust-ts-tag')).toBeHidden();
   await expect(card.locator('#cust-ts-device')).toBeVisible();
 });

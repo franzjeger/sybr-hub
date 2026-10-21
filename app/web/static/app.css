@@ -2137,11 +2137,6 @@ a.link-chip:hover, button.link-chip:hover { border-color: var(--blue); }
 .cust-ts-tag { margin-top: var(--space-3); }
 .cust-ts-tag > summary { cursor: pointer; font-size: var(--font-xs); color: var(--text-muted); }
 .cust-ts-tag[open] > summary { margin-bottom: var(--space-2); }
-@media (max-width: 767px) {
-  .cust-ts-table thead { display: none; }
-  .cust-ts-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 6px 0; border-bottom: 1px solid var(--border); }
-  .cust-ts-table td { border-bottom: 0; padding: 2px 8px 2px 0; }
-}
 /* The section chooser above the run. */
 .cust-scope { margin-bottom: var(--space-4); }
 .cust-scope-head { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; user-select: none; }
