@@ -3,20 +3,24 @@
 // /static/ assets from its cache, and /api/ never from it.
 //
 // No page.route() here: with request interception on, Playwright bypasses the
-// service worker, and these tests would watch the network instead of it.
+// service worker, and these tests would watch the network instead of it. Nor
+// does routing see a navigation preload, which the browser makes itself; a
+// small reverse proxy in front of the fixture server stands in for the
+// network where a test needs to answer for it.
+const http = require('node:http');
 const { test, expect } = require('@playwright/test');
 const { expectSignedIn } = require('./app.cjs');
 
 const PASSWORD = 'Browser-test123!';
 
-async function open(page) {
+async function open(page, url = '/') {
   await page.addInitScript(() => {
     localStorage.setItem('onboarding_done', '1');
     localStorage.setItem('ui_lang', 'no');
     // Page loads, not the about:blank frame the interface holds.
     if (window === top) sessionStorage.setItem('loads', String(Number(sessionStorage.getItem('loads') || 0) + 1));
   });
-  await page.goto('/');
+  await page.goto(url);
   await expect(page.locator('#login-username')).toBeVisible();
 }
 
@@ -160,4 +164,97 @@ test('with the network gone the offline page shows, and the app comes back with 
   // The offline page reloads when the network returns, into the app.
   await context.setOffline(false);
   await expect(page.locator('#login-username')).toBeVisible({timeout: 10000});
+});
+
+// A reverse proxy in front of the fixture server, the way a hub runs behind
+// nginx or Caddy, on a port of its own. While `down` holds a status it
+// answers every request with it, as such a proxy does while the hub behind
+// it restarts. `seen` is what reached it: the network, not the worker.
+async function reverseProxy() {
+  const state = {down: 0, seen: []};
+  const server = http.createServer((req, res) => {
+    state.seen.push({path: req.url, preload: req.headers['service-worker-navigation-preload'] || null});
+    if (state.down) {
+      res.writeHead(state.down, {'Content-Type': 'text/html'});
+      res.end('<!doctype html><title>Bad gateway</title><h1 id="proxy-error">Bad gateway</h1>');
+      return;
+    }
+    const upstream = http.request({host: '127.0.0.1', port: 18099, path: req.url, method: req.method, headers: req.headers}, answer => {
+      res.writeHead(answer.statusCode, answer.headers);
+      answer.pipe(res);
+    });
+    upstream.on('error', () => { res.writeHead(502); res.end(); });
+    req.pipe(upstream);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  return {
+    state,
+    origin: 'http://127.0.0.1:' + server.address().port,
+    close: () => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }),
+  };
+}
+
+const loadsOf = (seen, path) => seen.filter(r => r.path === path);
+
+test('a page load goes out while the worker starts, and reaches the server once', async ({page}) => {
+  const proxy = await reverseProxy();
+  try {
+    await open(page, proxy.origin + '/');
+    await controlled(page);
+    expect(await page.evaluate(async () => (await navigator.serviceWorker.ready).navigationPreload.getState()))
+      .toEqual({enabled: true, headerValue: 'true'});
+    proxy.state.seen.length = 0;
+    const [response] = await Promise.all([
+      page.waitForResponse(r => new URL(r.url()).pathname === '/'),
+      page.reload(),
+    ]);
+    await expect(page.locator('#login-username')).toBeVisible();
+    // The worker answered with the browser's preloaded request instead of
+    // making its own; a preload left unused is made a second time.
+    expect(response.fromServiceWorker()).toBe(true);
+    expect(loadsOf(proxy.state.seen, '/')).toEqual([{path: '/', preload: 'true'}]);
+    // So is a page under /api/, which the worker otherwise leaves alone.
+    proxy.state.seen.length = 0;
+    await page.goto(proxy.origin + '/api/version');
+    expect(loadsOf(proxy.state.seen, '/api/version')).toEqual([{path: '/api/version', preload: 'true'}]);
+  } finally {
+    await proxy.close();
+  }
+});
+
+test('while a proxy answers 502, 503 or 504 the offline page shows, and the app comes back', async ({page}) => {
+  const proxy = await reverseProxy();
+  try {
+    await open(page, proxy.origin + '/');
+    await controlled(page);
+    for (const status of [502, 503, 504]) {
+      proxy.state.down = status;
+      proxy.state.seen.length = 0;
+      await page.reload();
+      // The browser is online; the hub is what does not answer, and the page
+      // says so rather than "Du er offline".
+      await expect(page.locator('h1')).toHaveText('Huben svarer ikke');
+      await expect(page.locator('#offline-text')).toContainText('laster seg selv inn igjen');
+      await expect(page.locator('#proxy-error')).toHaveCount(0);
+      // The page load did reach the proxy (preloaded), which answered it.
+      expect(loadsOf(proxy.state.seen, '/')).toEqual([{path: '/', preload: 'true'}]);
+      // The offline page's own files were answered with the proxy's error
+      // too; the worker used the copies it kept at install.
+      expect(await page.locator('.card').evaluate(el => getComputedStyle(el).borderRadius)).not.toBe('0px');
+      // The API is still never the worker's to answer: it passes the error on.
+      expect(await page.evaluate(() => fetch('/api/health').then(r => r.status))).toBe(status);
+    }
+    // In the language the interface stored (this runs after open()'s 'no').
+    await page.addInitScript(() => localStorage.setItem('ui_lang', 'en'));
+    await page.reload();
+    await expect(page.locator('h1')).toHaveText('The hub is not answering');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('#offline-retry')).toHaveText('Try again');
+    // The hub is back: Try again (or the page's own health poll) loads the app.
+    proxy.state.down = 0;
+    await page.locator('#offline-retry').click();
+    await expect(page.locator('#login-username')).toBeVisible();
+  } finally {
+    await proxy.close();
+  }
 });

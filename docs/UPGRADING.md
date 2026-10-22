@@ -317,9 +317,12 @@ No migration. API changes for scripts that read these routes:
   their next visit.
 - **When a page load gets no answer at all, the browser shows the offline
   page** instead of its own error page, and returns to the app when the hub
-  answers. An error page from a reverse proxy (502 while the hub restarts) is
-  an answer and is shown as before. Nothing from `/api/` is ever cached, and
-  page loads always go to the server.
+  answers. An error page from a reverse proxy (502, 503 or 504 while the hub
+  restarts) now shows the offline page too, which says the hub is not
+  answering and reloads into the app once `/api/health` answers. Page loads
+  carry `Service-Worker-Navigation-Preload: true`; a proxy needs no change
+  for it. Nothing from `/api/` is ever cached, and page loads always go to the
+  server.
 
 ---
 

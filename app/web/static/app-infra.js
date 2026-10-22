@@ -230,7 +230,7 @@ export async function hostsLoad() {
 
     // ROW 1 — Header (24px): label + group badge + status dot
     html += '<div class="device-card-head">';
-    html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">'+esc(h.label||'-')+'</strong>';
+    html += '<strong class="device-card-name">'+esc(h.label||'-')+'</strong>';
     html += '<span class="device-card-tag">'+esc(h.group_name||'-')+'</span>';
     html += '<span class="dot ' + toneClass(statusColor) + ' ml-2"></span>';
     html += '</div>';
@@ -309,7 +309,7 @@ export function hostsAdd() {
       // Auth fields
       + '<div id="host-auth-pass" class="mt-3"><label class="field-label">' + t('passord_2') + '</label>'
       + '<input id="host-password" type="password" placeholder="' + t('placeholder_password','Password') + '" class="field-input"></div>'
-      + '<div id="host-auth-key" class="mt-3" style="display:none;"><label class="field-label">' + t('lbl_ssh_key','SSH key') + '</label>'
+      + '<div id="host-auth-key" class="mt-3" hidden><label class="field-label">' + t('lbl_ssh_key','SSH key') + '</label>'
       + '<select id="host-keyid" class="field-input">'+keyOpts+'</select></div>'
 
       // Customer selector
@@ -359,8 +359,8 @@ function hostsTypeChanged() {
 
 function hostsAuthChanged() {
   var method = document.getElementById('host-auth').value;
-  document.getElementById('host-auth-pass').style.display = method === 'password' ? 'block' : 'none';
-  document.getElementById('host-auth-key').style.display = method === 'key' ? 'block' : 'none';
+  document.getElementById('host-auth-pass').hidden = method !== 'password';
+  document.getElementById('host-auth-key').hidden = method !== 'key';
 }
 
 async function hostsDoAdd() {
@@ -430,7 +430,7 @@ export async function sshShowKeys() {
   el.innerHTML = html;
 }
 
-export function sshGenKey() {
+function sshGenKey() {
   var el = _claim('ssh-content').el;
   el.innerHTML = '<div class="max-w-md">'
     + '<h3 class="text-md fw-semibold mb-4">' + t('hdr_generate_ssh_key','Generate SSH key') + '</h3>'
@@ -446,7 +446,7 @@ export function sshGenKey() {
     + '<input id="ssh-gen-desc" type="text" placeholder="' + t('placeholder_key_desc','e.g. Used for automatic deploy to web servers') + '" class="field-input mb-3">'
     + '<label class="field-label">' + t('lbl_tags_optional','Tags (comma-separated, optional)') + '</label>'
     + '<input id="ssh-gen-tags" type="text" placeholder="f.eks. produksjon, deploy, web" class="field-input mb-4">'
-    + '<div id="ssh-gen-result" class="inset mb-4" style="display:none;"></div>'
+    + '<div id="ssh-gen-result" class="inset mb-4" hidden></div>'
     + '<div class="flex gap-2">'
     + '<button class="btn btn-primary" id="ssh-gen-btn" data-write data-click-handler="sshDoGenKey">' + t('btn_generate','Generate') + '</button>'
     + '<button class="btn btn-ghost" data-click-handler="sshShowKeys">' + t('btn_cancel','Cancel') + '</button>'
@@ -470,7 +470,7 @@ async function sshDoGenKey() {
   if (data && data.ok) {
     var k = data.key;
     var resEl = document.getElementById('ssh-gen-result');
-    resEl.style.display = 'block';
+    resEl.hidden = false;
     resEl.innerHTML = '<div class="flex items-center gap-2 mb-3"><span class="text-lg">&#10003;</span><strong class="text-success">' + t('msg_key_created','Key created') + '</strong></div>'
       + '<div class="text-sm mb-2"><strong>' + t('fingerprint') + '</strong> <span class="font-mono">'+esc(k.fingerprint)+'</span></div>'
       + '<div class="text-sm mb-2"><strong>' + t('type_3') + '</strong> '+esc(k.key_type)+'</div>'
@@ -493,7 +493,7 @@ function sshImportKey() {
     + '<input id="ssh-imp-desc" type="text" placeholder="' + t('placeholder_key_desc','e.g. Used for automatic deploy to web servers') + '" class="field-input mb-3">'
     + '<label class="field-label">' + t('lbl_tags_optional','Tags (comma-separated, optional)') + '</label>'
     + '<input id="ssh-imp-tags" type="text" placeholder="f.eks. produksjon, deploy, web" class="field-input mb-4">'
-    + '<div id="ssh-imp-result" class="inset mb-4" style="display:none;"></div>'
+    + '<div id="ssh-imp-result" class="inset mb-4" hidden></div>'
     + '<div class="flex gap-2">'
     + '<button class="btn btn-primary" id="ssh-imp-btn" data-write data-click-handler="sshDoImportKey">' + t('btn_import','Import') + '</button>'
     + '<button class="btn btn-ghost" data-click-handler="sshShowKeys">' + t('btn_cancel','Cancel') + '</button>'
@@ -518,7 +518,7 @@ async function sshDoImportKey() {
   if (data && data.ok) {
     var k = data.key;
     var resEl = document.getElementById('ssh-imp-result');
-    resEl.style.display = 'block';
+    resEl.hidden = false;
     resEl.innerHTML = '<div class="flex items-center gap-2 mb-3"><span class="text-lg">&#10003;</span><strong class="text-success">' + t('msg_key_imported','Key imported') + '</strong></div>'
       + '<div class="text-sm mb-2"><strong>' + t('fingerprint') + '</strong> <span class="font-mono">'+esc(k.fingerprint)+'</span></div>'
       + '<div class="text-sm mb-2"><strong>' + t('type_3') + '</strong> '+esc(k.key_type)+'</div>'
@@ -656,7 +656,7 @@ function sshAddHost() {
       + '<label class="field-label">' + t('lbl_ssh_key','SSH key') + '</label>'
       + '<select id="ssh-h-keyid" class="field-input">'+keyOpts+'</select>'
       + '</div>'
-      + '<div id="ssh-h-auth-pass" style="display:none;">'
+      + '<div id="ssh-h-auth-pass" hidden>'
       + '<label class="field-label">' + t('lbl_password','Password') + '</label>'
       + '<input id="ssh-h-pass" type="password" placeholder="' + t('placeholder_ssh_password','SSH password') + '" class="field-input">'
       + '</div></div>'
@@ -681,8 +681,8 @@ function sshAddHost() {
 
 function sshHostAuthChanged() {
   var method = document.getElementById('ssh-h-auth').value;
-  document.getElementById('ssh-h-auth-key').style.display = method === 'key' ? 'block' : 'none';
-  document.getElementById('ssh-h-auth-pass').style.display = method === 'password' ? 'block' : 'none';
+  document.getElementById('ssh-h-auth-key').hidden = method !== 'key';
+  document.getElementById('ssh-h-auth-pass').hidden = method !== 'password';
 }
 
 async function sshDoAddHost() {
@@ -829,7 +829,7 @@ export async function sshShowExec() {
   if (!box.owns() || !data) return;
   var hhtml = '';
   (data.hosts||[]).forEach(function(h) {
-    hhtml += '<label class="inline-flex items-center gap-1 mr-3 text-ui cursor-pointer"><input type="checkbox" class="ssh-exec-host-cb" value="'+esc(h.id)+'"> '+esc(h.label)+'</label>';
+    hhtml += '<label class="check-label inline-flex gap-1 mr-3 text-ui"><input type="checkbox" class="ssh-exec-host-cb" value="'+esc(h.id)+'"> '+esc(h.label)+'</label>';
   });
   document.getElementById('ssh-exec-hosts').innerHTML = hhtml || '<span class="text-muted">' + t('msg_no_hosts_short','No hosts registered.') + '</span>';
 }
@@ -1306,8 +1306,8 @@ export function vpnShowImport() {
     + '<div class="text-dim text-sm mt-1">' + t('msg_azure_vpn_select_both','Azure VPN: select <strong>both</strong> XML files (azurevpnconfig.xml + VpnSettings.xml)') + '</div>'
     + '<div class="text-dim text-sm">' + t('msg_or_click_to_select','or click to select file(s)') + '</div>'
     + '</div>'
-    + '<input id="vpn-file-input" type="file" accept=".conf,.ovpn,.xml,.toml" multiple style="display:none;" data-change-handler="vpnHandleFiles">'
-    + '<div id="vpn-file-info" class="inset mb-3 text-sm" style="display:none;">'
+    + '<input id="vpn-file-input" type="file" accept=".conf,.ovpn,.xml,.toml" multiple hidden data-change-handler="vpnHandleFiles">'
+    + '<div id="vpn-file-info" class="inset mb-3 text-sm" hidden>'
     + '<div class="flex justify-between items-center"><span id="vpn-file-name" class="fw-semibold"></span><button class="btn btn-ghost btn-sm text-danger" data-click-handler="vpnClearFile">' + t('btn_remove','Remove') + '</button></div>'
     + '<div id="vpn-file-type" class="text-muted mt-1"></div>'
     + '</div>'
@@ -1356,8 +1356,8 @@ function vpnHandleFiles(files) {
 }
 
 function vpnShowFileInfo(files) {
-  document.getElementById('vpn-file-info').style.display = 'block';
-  document.getElementById('vpn-drop-zone').style.display = 'none';
+  document.getElementById('vpn-file-info').hidden = false;
+  document.getElementById('vpn-drop-zone').hidden = true;
 
   var names = [];
   for (var i = 0; i < files.length; i++) names.push(files[i].name);
@@ -1393,8 +1393,8 @@ function vpnShowFileInfo(files) {
 
 function vpnClearFile() {
   document.getElementById('vpn-import-content').value = '';
-  document.getElementById('vpn-file-info').style.display = 'none';
-  document.getElementById('vpn-drop-zone').style.display = 'block';
+  document.getElementById('vpn-file-info').hidden = true;
+  document.getElementById('vpn-drop-zone').hidden = false;
   document.getElementById('vpn-import-btn').disabled = true;
   document.getElementById('vpn-file-input').value = '';
 }
@@ -1743,8 +1743,8 @@ function provisionRenderStep(step) {
   } else if (step === 4) {
     html += '<div class="max-w-md">'
       + '<input id="prov-admin-pw" type="password" placeholder="' + t('placeholder_admin_password','Admin password') + '" class="field-input mb-2">'
-      + '<label class="flex items-center gap-2 text-ui mb-2"><input type="checkbox" id="prov-webfilter" checked> ' + t('web_filter') + '</label>'
-      + '<label class="flex items-center gap-2 text-ui mb-2"><input type="checkbox" id="prov-ids" checked> IDS/IPS</label>'
+      + '<label class="check-label text-ui mb-2"><input type="checkbox" id="prov-webfilter" checked> ' + t('web_filter') + '</label>'
+      + '<label class="check-label text-ui mb-2"><input type="checkbox" id="prov-ids" checked> IDS/IPS</label>'
       + '</div>';
   } else if (step === 5) {
     html += '<div id="prov-summary" class="text-muted">' + t('msg_loading_summary','Loading summary...') + '</div>'
@@ -1753,8 +1753,8 @@ function provisionRenderStep(step) {
       + '<button class="btn btn-default" data-write data-click-handler="provisionGenerate">' + t('btn_generate_config','Generate config') + '</button>'
       + '<button class="btn btn-ghost" data-write data-click-handler="provisionGenerate" data-ai="1">' + t('btn_generate_with_ai','Generate with AI') + '</button>'
       + '</div>'
-      + '<div id="prov-deploy-result" class="mt-4" style="display:none;"></div>'
-      + '<pre id="prov-output" class="inset mt-4 text-sm font-mono overflow-x-auto pre-wrap max-h-lg overflow-y-auto" style="display:none;"></pre>';
+      + '<div id="prov-deploy-result" class="mt-4" hidden></div>'
+      + '<pre id="prov-output" class="inset mt-4 text-sm font-mono overflow-x-auto pre-wrap max-h-lg overflow-y-auto" hidden></pre>';
     setTimeout(provisionLoadSummary, 100);
   }
 
@@ -1800,7 +1800,7 @@ async function provisionLoadSummary() {
 
 async function provisionGenerate(useAi) {
   var el = document.getElementById('prov-output');
-  el.style.display = 'block';
+  el.hidden = false;
   el.textContent = useAi ? t('msg_generating_ai','Generating with AI...') : t('msg_generating_config','Generating configuration...');
   var data = await apiFetch('/api/provisioning/'+encodeURIComponent(_provisionSession)+'/generate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({use_ai:useAi})});
   if (!data || !data.configs) { el.textContent = t('err_generation_failed','Generation failed'); return; }
@@ -1891,7 +1891,7 @@ var _lastDeploySummary = null;
 
 async function provisionDeploy(method) {
   var el = document.getElementById('prov-deploy-result');
-  el.style.display = 'block';
+  el.hidden = false;
   el.innerHTML = '<div class="text-accent text-ui"><div class="loader align-middle mr-2"></div>' + t('msg_deploying','Deployer konfigurasjon...') + '</div>';
 
   // First ensure config is generated
@@ -2204,7 +2204,7 @@ function _fgRenderFleet(fgs, live, firstRead) {
 function _fgCardHead(f, color, title) {
   return '<div class="card device-card cursor-pointer edge-tone ' + toneVar(color) + '" data-click-handler="dashFgDetail" data-customer-id="' + esc(f.customer_id) + '">'
     + '<div class="device-card-head">'
-    + '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">' + esc(f.hostname || f.host || '-') + '</strong>'
+    + '<strong class="device-card-name">' + esc(f.hostname || f.host || '-') + '</strong>'
     + '<span class="dot ' + toneClass(color) + ' ml-2" title="' + esc(title) + '" aria-hidden="true"></span>'
     + '</div>'
     + '<div class="device-card-sub">' + esc(f.customer_name || '-') + '</div>';
@@ -2226,7 +2226,7 @@ function _fgStoredCard(f, firstRead) {
   var read = _fgStoredRead(f, firstRead);
   var html = _fgCardHead(f, read.color, read.text);
   var fw = _FG_FIRMWARE[f.firmware_status];
-  html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+  html += '<div class="device-card-stats">';
   html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
   html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
   html += '<span class="cust-net-addr">' + esc(f.host || '-') + '</span>';
@@ -2243,7 +2243,7 @@ function _fgLiveCard(f) {
   var color = f.status === 'online' ? 'var(--green)' : f.status === 'error' ? 'var(--red)' : 'var(--orange)';
   var title = f.status === 'online' ? t('fg_live_online') : f.status === 'error' ? t('fg_live_error') + (f.error ? ': ' + f.error : '') : (f.status || '');
   var html = _fgCardHead(f, color, title);
-  html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+  html += '<div class="device-card-stats">';
   html += '<span>' + esc(t('lbl_model')) + ': <strong class="text-default">' + esc(f.model || '-') + '</strong></span>';
   html += '<span>' + esc(t('lbl_firmware')) + ': ' + esc(f.firmware || '-') + '</span>';
   html += '<span>S/N: <span class="font-mono text-xs">' + esc(f.serial || '-') + '</span></span>';
@@ -2542,8 +2542,8 @@ export async function claudeLoadSaved() {
 
 export function claudeModeChanged() {
   var mode = document.getElementById('claude-mode').value;
-  document.getElementById('claude-mode-api').style.display = mode === 'api' ? 'block' : 'none';
-  document.getElementById('claude-mode-cli').style.display = mode === 'cli' ? 'block' : 'none';
+  document.getElementById('claude-mode-api').hidden = mode !== 'api';
+  document.getElementById('claude-mode-cli').hidden = mode !== 'cli';
   if (mode === 'cli') claudeCheckCli();
 }
 
@@ -2649,7 +2649,7 @@ export async function dashLoadUnifiAll() {
       // ROW 1 — Header
       html += '<div class="device-card-head">';
       html += '<span class="dot ' + toneClass(color) + '"></span>';
-      html += '<strong class="flex-1 text-base ml-2 nowrap overflow-hidden ellipsis">'+esc(d.name||'-')+'</strong>';
+      html += '<strong class="device-card-name ml-2">'+esc(d.name||'-')+'</strong>';
       if (d.source === 'site_manager') html += '<span class="badge badge-info shrink-0">' + t('cloud') + '</span>';
       html += '</div>';
 
@@ -2657,7 +2657,7 @@ export async function dashLoadUnifiAll() {
       html += '<div class="device-card-sub">'+esc(d.customer_name||d.model_full||d.model||'')+'</div>';
 
       // ROW 3 — Stats grid (enriched)
-      html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+      html += '<div class="device-card-stats">';
       html += '<span>' + t('modell') + ' <strong class="text-default">'+esc(d.model||'-')+'</strong></span>';
       html += '<span>FW: '+esc(d.firmware||'-')+'</span>';
       html += '<span>' + t('klienter') + ' <strong>'+(d.clients!=null?Number(d.clients):'-')+'</strong></span>';
@@ -3255,7 +3255,7 @@ function _renderPentestResults(data, el, target) {
       html += '<td class="text-right"><button class="btn btn-ghost btn-sm nowrap" data-click-handler="_pentestToggleExplain" data-row-id="'+rowId+'" data-index="'+i+'">'+esc(t('pentest_btn_explain','Explain'))+'</button></td>';
       html += '</tr>';
       // Hidden explainer row, populated on first toggle
-      html += '<tr id="'+rowId+'" style="display:none;"><td colspan="5"><div class="bg-input edge-tone ' + toneVar(sc) + ' py-3 px-4 text-xs lh-relaxed"></div></td></tr>';
+      html += '<tr id="'+rowId+'" hidden><td colspan="5"><div class="bg-input edge-tone ' + toneVar(sc) + ' py-3 px-4 text-xs lh-relaxed"></div></td></tr>';
     });
     html += '</tbody></table></div>';
   } else {
@@ -3338,7 +3338,7 @@ function _pentestToggleExplain(rowId, idx) {
   var f = findings[idx];
   if (!f) return;
 
-  if (row.style.display === 'none') {
+  if (row.hidden) {
     if (!inner.innerHTML) {
       var kb = _pentestKBLookup(f);
       var whyText = t(kb.why, '');
@@ -3349,9 +3349,9 @@ function _pentestToggleExplain(rowId, idx) {
         + '<div class="fw-semibold text-default mb-1">' + esc(t('pentest_lbl_how_to_fix','How to fix it')) + '</div>'
         + '<div class="pre-line text-muted font-mono text-2xs">' + esc(fixText) + '</div>';
     }
-    row.style.display = '';
+    row.hidden = false;
   } else {
-    row.style.display = 'none';
+    row.hidden = true;
   }
 }
 
@@ -3811,7 +3811,7 @@ export async function unifiSmLoadCoverage() {
 export async function unifiSmLoadSites() {
   var container = document.getElementById('unifi-sm-sites');
   var list = document.getElementById('unifi-sm-sites-list');
-  container.style.display = 'block';
+  container.hidden = false;
   list.innerHTML = '<div class="loader mx-auto my-2"></div>';
 
   var data = await apiFetch('/api/unifi/site-manager/sites');
@@ -3824,7 +3824,7 @@ export async function unifiSmLoadSites() {
   list.innerHTML = _renderSiteTable(sites);
 }
 
-export function _renderSiteTable(sites) {
+function _renderSiteTable(sites) {
   // Split into multi-site controllers (ours) and standalone consoles
   var multiSite = sites.filter(function(s) { return s.sub_sites && s.sub_sites.length > 1; });
   var standalone = sites.filter(function(s) { return !s.sub_sites || s.sub_sites.length <= 1; });
@@ -3852,7 +3852,7 @@ export function _renderSiteTable(sites) {
 
       // ROW 1: name + badges (24px)
       html += '<div class="device-card-head">';
-      html += '<strong class="text-ui nowrap overflow-hidden ellipsis flex-1 min-w-0" title="'+esc(sub.name)+'">'+esc(sub.name)+'</strong>';
+      html += '<strong class="device-card-name text-ui" title="'+esc(sub.name)+'">'+esc(sub.name)+'</strong>';
       if (sub.offline_devices > 0) html += '<span class="text-2xs text-danger fw-semibold nowrap shrink-0 ml-2">'+Number(sub.offline_devices)+' offline</span>';
       if (sub.critical_notifications > 0) html += '<span class="text-2xs text-warning fw-semibold nowrap shrink-0 ml-2">'+Number(sub.critical_notifications)+' ' + t('inf_alert_sg','varsel') + '</span>';
       html += '</div>';
@@ -3886,7 +3886,7 @@ export function _renderSiteTable(sites) {
 
       // ROW 1: name + dot (24px)
       html += '<div class="device-card-head">';
-      html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0" title="'+esc(s.name||'')+'">'+esc(s.name||t('lbl_unknown','Unknown'))+'</strong>';
+      html += '<strong class="device-card-name" title="'+esc(s.name||'')+'">'+esc(s.name||t('lbl_unknown','Unknown'))+'</strong>';
       html += '<span class="dot ' + toneClass(statusColor) + ' ml-2"></span>';
       html += '</div>';
 
@@ -3894,7 +3894,7 @@ export function _renderSiteTable(sites) {
       html += '<div class="device-card-sub">' + t('wan') + ' <strong class="text-default">'+esc(s.wan_ip||'-')+'</strong></div>';
 
       // ROW 3: stats grid (1fr) — ALWAYS 6 fields
-      html += '<div class="grid grid-cols-3 gap-1 text-sm text-muted content-start pt-2">';
+      html += '<div class="device-card-stats grid-cols-3">';
       html += '<span>' + t('lbl_devices','Devices') + ': <strong>'+(Number(s.device_count)||0)+'</strong>'+(s.offline_devices>0?' <span class="text-danger">('+Number(s.offline_devices)+'⬇)</span>':'')+'</span>';
       html += '<span>' + t('lbl_clients','Clients') + ': '+(Number(s.client_count)||0)+'</span>';
       html += '<span>' + t('lbl_model','Model') + ': '+esc(s.model||'-')+'</span>';
@@ -4455,7 +4455,7 @@ export function termFocus() {
 export function termModeChanged() {
   var mode = document.getElementById('term-mode').value;
   var sshOpts = document.getElementById('term-ssh-opts');
-  sshOpts.style.display = mode === 'ssh' ? 'flex' : 'none';
+  sshOpts.hidden = mode !== 'ssh';
   if (mode === 'ssh') termLoadHosts();
 }
 
@@ -4505,8 +4505,8 @@ export function termConnect() {
   }
 
   document.getElementById('term-status').textContent = t('vpn_connecting','Connecting...');
-  document.getElementById('term-connect-btn').style.display = 'none';
-  document.getElementById('term-disconnect-btn').style.display = 'inline-flex';
+  document.getElementById('term-connect-btn').hidden = true;
+  document.getElementById('term-disconnect-btn').hidden = false;
 
   _termWs = new WebSocket(url);
 
@@ -4531,8 +4531,8 @@ export function termConnect() {
   _termWs.onclose = function() {
     _xterm.write('\r\n\x1b[90m--- ' + t('term_session_ended') + ' ---\x1b[0m\r\n');
     document.getElementById('term-status').innerHTML = '<span class="text-muted">' + t('frakoblet') + '</span>';
-    document.getElementById('term-connect-btn').style.display = 'inline-flex';
-    document.getElementById('term-disconnect-btn').style.display = 'none';
+    document.getElementById('term-connect-btn').hidden = false;
+    document.getElementById('term-disconnect-btn').hidden = true;
     _termWs = null;
   };
 
@@ -4757,13 +4757,13 @@ export function browserInit() {
       '<input id="browser-url-input" type="text" placeholder="http://192.168.1.1" class="field-input font-mono flex-field w-auto" data-keydown-handler="browserNavigateOnEnter">' +
       '<button class="btn btn-primary" id="browser-go-btn" data-write data-click-handler="browserNavigate">' + t('gaa') + '</button>' +
       '<button class="btn btn-primary" id="browser-start-btn" data-write data-click-handler="browserStart">' + t('start_nettleser') + '</button>' +
-      '<button class="btn btn-danger" id="browser-stop-btn" data-write data-click-handler="browserStop" style="display:none;">' + t('stopp') + '</button>' +
-      '<button class="btn btn-ghost" id="browser-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="browser-guac-container" style="display:none;">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
+      '<button class="btn btn-danger" id="browser-stop-btn" data-write data-click-handler="browserStop" hidden>' + t('stopp') + '</button>' +
+      '<button class="btn btn-ghost" id="browser-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="browser-guac-container" hidden>' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="browser-status" class="session-status"></span>' +
     '</div>' +
     '<div id="browser-frame-wrap" class="session-frame">' +
       '<div id="browser-placeholder" class="session-placeholder">' + esc(t('browser_placeholder', 'Klikk «Start nettleser» for å åpne en ekstern nettleser.')) + '</div>' +
-      '<div id="browser-guac-container" class="session-canvas" style="display:none;"></div>' +
+      '<div id="browser-guac-container" class="session-canvas" hidden></div>' +
     '</div>';
 
   // Check if a session is already running
@@ -4788,9 +4788,9 @@ function browserUpdateButtons(running) {
   var stopBtn = document.getElementById('browser-stop-btn');
   var fsBtn = document.getElementById('browser-fullscreen-btn');
   var goBtn = document.getElementById('browser-go-btn');
-  if (startBtn) startBtn.style.display = running ? 'none' : '';
-  if (stopBtn) stopBtn.style.display = running ? '' : 'none';
-  if (fsBtn) fsBtn.style.display = running ? '' : 'none';
+  if (startBtn) startBtn.hidden = running;
+  if (stopBtn) stopBtn.hidden = !running;
+  if (fsBtn) fsBtn.hidden = !running;
   if (goBtn) goBtn.disabled = !running;
 }
 
@@ -4799,8 +4799,8 @@ function _browserShowDirect(token, connectionId) {
   var guacContainer = document.getElementById('browser-guac-container');
   if (!guacContainer) return;
 
-  if (placeholder) placeholder.style.display = 'none';
-  guacContainer.style.display = 'block';
+  if (placeholder) placeholder.hidden = true;
+  guacContainer.hidden = false;
 
   // Destroy previous session if any
   if (_guacSessions.browser) {
@@ -4921,8 +4921,8 @@ async function browserStop() {
   _browserRunning = false;
   browserUpdateButtons(false);
 
-  if (guacContainer) { guacContainer.style.display = 'none'; guacContainer.innerHTML = ''; }
-  if (placeholder) placeholder.style.display = 'flex';
+  if (guacContainer) { guacContainer.hidden = true; guacContainer.innerHTML = ''; }
+  if (placeholder) placeholder.hidden = false;
   if (status) status.innerHTML = '';
 }
 
@@ -4963,13 +4963,13 @@ export function rdpInit() {
       '<input id="rdp-user-input" type="text" placeholder="' + t('inf_ph_username','Brukernavn') + '" class="field-input font-mono flex-field w-auto">' +
       '<input id="rdp-pass-input" type="password" placeholder="' + t('inf_ph_password','Passord') + '" class="field-input font-mono flex-field w-auto" data-keydown-handler="rdpStartOnEnter">' +
       '<button class="btn btn-primary" id="rdp-start-btn" data-write data-click-handler="rdpStart">' + t('koble_til') + '</button>' +
-      '<button class="btn btn-danger" id="rdp-stop-btn" data-write data-click-handler="rdpStop" style="display:none;">' + t('koble_fra') + '</button>' +
-      '<button class="btn btn-ghost" id="rdp-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="rdp-guac-container" style="display:none;">' + t('btn_fullscreen','Fullskjerm') + '</button>' +
+      '<button class="btn btn-danger" id="rdp-stop-btn" data-write data-click-handler="rdpStop" hidden>' + t('koble_fra') + '</button>' +
+      '<button class="btn btn-ghost" id="rdp-fullscreen-btn" data-click-handler="toggleFullscreen" data-target="rdp-guac-container" hidden>' + t('btn_fullscreen','Fullskjerm') + '</button>' +
       '<span id="rdp-status" class="session-status"></span>' +
     '</div>' +
     '<div id="rdp-frame-wrap" class="border rounded-lg overflow-hidden bg-none relative">' +
       '<div id="rdp-placeholder" class="session-placeholder is-tall">' + t('fyll_inn_tilkoblingsdetaljer_og_klikk_la') + '</div>' +
-      '<div id="rdp-guac-container" class="session-canvas is-tall" style="display:none;"></div>' +
+      '<div id="rdp-guac-container" class="session-canvas is-tall" hidden></div>' +
     '</div>';
 
   // Check if a session is already running
@@ -5011,9 +5011,9 @@ function rdpUpdateButtons(running) {
   var portInput = document.getElementById('rdp-port-input');
   var userInput = document.getElementById('rdp-user-input');
   var passInput = document.getElementById('rdp-pass-input');
-  if (startBtn) startBtn.style.display = running ? 'none' : '';
-  if (stopBtn) stopBtn.style.display = running ? '' : 'none';
-  if (fsBtn) fsBtn.style.display = running ? '' : 'none';
+  if (startBtn) startBtn.hidden = running;
+  if (stopBtn) stopBtn.hidden = !running;
+  if (fsBtn) fsBtn.hidden = !running;
   if (hostInput) hostInput.disabled = running;
   if (portInput) portInput.disabled = running;
   if (userInput) userInput.disabled = running;
@@ -5025,8 +5025,8 @@ function _rdpShowDirect(token, connectionId) {
   var guacContainer = document.getElementById('rdp-guac-container');
   if (!guacContainer) return;
 
-  if (placeholder) placeholder.style.display = 'none';
-  guacContainer.style.display = 'block';
+  if (placeholder) placeholder.hidden = true;
+  guacContainer.hidden = false;
 
   // Destroy previous session if any
   if (_guacSessions.rdp) {
@@ -5108,7 +5108,7 @@ async function rdpStop() {
 
   rdpUpdateButtons(false);
 
-  if (guacContainer) { guacContainer.style.display = 'none'; guacContainer.innerHTML = ''; }
-  if (placeholder) placeholder.style.display = 'flex';
+  if (guacContainer) { guacContainer.hidden = true; guacContainer.innerHTML = ''; }
+  if (placeholder) placeholder.hidden = false;
   if (status) status.innerHTML = '';
 }

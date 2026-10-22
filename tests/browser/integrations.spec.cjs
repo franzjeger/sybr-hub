@@ -114,57 +114,76 @@ test('failed writes are not repeated and the error ID is visible in English', as
   await expect(page.locator('.toast').last()).toContainText('Error ID: abc123');
   await expect(page.locator('.toast').last()).not.toContainText('Norsk');
   const retryId = await page.locator('.toast').last().getAttribute('data-retry-id');
-  await page.locator('.toast').last().getByRole('button', {name:'Try Again'}).click();
+  // The retry action is forgotten once used. The toast stays on screen for
+  // its 300 ms exit, so a double click reaches Try Again twice: it must
+  // retry once, not repeat the failed write.
+  await page.locator('.toast').last().getByRole('button', {name:'Try Again'}).dblclick();
   await expect.poll(() => calls).toBe(2);
-  // The retry action is forgotten once used: the toast is gone, and a
-  // second Try Again (were the button still there) would find nothing.
   await expect(page.locator(`.toast[data-retry-id="${retryId}"]`)).toHaveCount(0);
-  await inApp(page, (app, id) => {
-    const el = document.createElement('div');
-    el.dataset.retryId = id;
-    app.retryToast(el);
-  }, retryId);
   await page.waitForTimeout(300);
   expect(calls).toBe(2);
 });
 
+// The hosting card on the customer page's Detaljer tab, answered by the spec.
+async function openHostingCard(page, body) {
+  await page.route('**/api/uniweb/customer/Browser_Alpha', route => route.fulfill({json: body}));
+  await page.evaluate(() => { location.hash = '#/customer/Browser_Alpha/detaljer'; });
+  const card = page.locator('#customer-uniweb-panel');
+  await expect(card.locator('.card')).toBeVisible();
+  return card;
+}
+
 test('parallel provider failures give one toast and clear DNS loading states', async ({page}) => {
   await login(page);
+  // Both lookups are held until both have been asked for, so they fail
+  // together: two rows opened at once must give one toast, not two.
   let calls = 0;
-  await page.route('**/api/uniweb/dns/*', route => {
-    calls++;
-    return route.fulfill({status:502,json:{error:'Unavailable',error_type:'integration_error',
+  let release;
+  const bothAsked = new Promise(resolve => { release = resolve; });
+  await page.route('**/api/uniweb/dns/*', async route => {
+    if (++calls === 2) release();
+    await bothAsked;
+    await route.fulfill({status:502,json:{error:'Unavailable',error_type:'integration_error',
       error_key:'err_uniweb_auth'}});
   });
-  await inApp(page, async app => {
-    const host = document.createElement('table');
-    host.id = 'dns-test';
-    host.innerHTML = '<tbody><tr><td>one.example</td></tr><tr><td>two.example</td></tr></tbody>';
-    document.body.appendChild(host);
-    await Promise.all(Array.from(host.rows).map((row, i) => app.uwToggleDns(row, i + '.example')));
-  });
-  expect(calls).toBe(2);
+  const card = await openHostingCard(page, {matched:true, account_name:'Synthetic Account',
+    domains:[{domain:'one.example'},{domain:'two.example'}]});
+  const rows = card.locator('tr[data-click-handler="uwToggleDns"]');
+  await expect(rows).toHaveCount(2);
+  await rows.nth(0).click();
+  await rows.nth(1).click();
+  await expect.poll(() => calls).toBe(2);
   await expect(page.locator('[data-error-key="err_uniweb_auth"]')).toHaveCount(1);
-  await expect(page.locator('#dns-test .loader')).toHaveCount(0);
-  await expect(page.locator('#dns-test')).not.toContainText('No DNS records');
+  await expect(card.locator('.uw-dns-row')).toHaveCount(2);
+  await expect(card.locator('.loader')).toHaveCount(0);
+  await expect(card).not.toContainText('No DNS records');
 });
 
 for (const width of [1280, 390]) {
   test(`integration configuration fits ${width}px and progress is translated`, async ({page}, testInfo) => {
     await page.setViewportSize({width,height:900});
     await login(page);
-    await page.route('**/api/uniweb/status', route => route.fulfill({json:{running:true,
+    await page.route('**/api/uniweb/status', route => route.fulfill({json:{configured:true,running:true,
       accounts_synced:2,total_accounts:10,current_account:'Synthetic Company With A Long Name',
       domains_found:5,sync_start_time:new Date(Date.now()-15000).toISOString()}}));
     await page.route('**/api/uniweb/accounts', route => route.fulfill({json:{total:1,accounts:[{
       id:'synthetic', name:'Synthetic Account', customer_name:'Synthetic Customer',domain_count:3,
       subscription_count:2,monthly_total:100,earliest_renewal:'2027-01-01'}]}}));
-    await inApp(page, async app => {
-      app.openAdmin('integrations');
-      app.toggleIntegConfig('also-config');
-      app.toggleIntegConfig('uniweb-config');
-      await Promise.all([app.uniwebLoadAccounts(), app.uniwebPollStatus()]);
+    await page.route('**/api/uniweb/sync', route => route.fulfill({json:{ok:true}}));
+    // Credentials stored, so the card checks its status, lists the accounts
+    // and offers Synkroniser.
+    await page.route('**/api/settings', async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const response = await route.fetch();
+      const body = await response.json();
+      body.uniweb_password_set = true;
+      await route.fulfill({response, json:body});
     });
+    await inApp(page, app => app.openAdmin('integrations'));
+    await page.locator('[data-config="also-config"]').click();
+    await page.locator('[data-config="uniweb-config"]').click();
+    await expect(page.locator('#uniweb-accounts-container')).toContainText('Synthetic Account');
+    await page.locator('#uniweb-sync-btn').click();
     await expect(page.locator('#also-config')).not.toBeVisible();
     await expect(page.locator('#uniweb-config')).toBeVisible();
     await expect(page.locator('#uniweb-config-msg')).toContainText('2 of 10 accounts');
@@ -173,27 +192,25 @@ for (const width of [1280, 390]) {
     expect(await page.locator('.uniweb-progress-track').evaluate(el => el.getBoundingClientRect().height)).toBe(8);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator('#uniweb-config').screenshot({path:testInfo.outputPath(`integrations-${width}.png`)});
-    await inApp(page, async app => { app.setLanguage('no'); await app.uniwebPollStatus(); });
+    // A running sync is polled every two seconds; the next poll speaks Norwegian.
+    await inApp(page, app => app.setLanguage('no'));
     await expect(page.locator('#uniweb-config-msg')).toContainText('Forløpt tid:');
     await expect(page.locator('#uniweb-config-msg')).toContainText('Gjenstående:');
     await expect(page.locator('#uniweb-config-msg')).toContainText('2 av 10 kontoer');
-    await inApp(page, app => app.toggleIntegConfig('uniweb-config'));
+    await page.locator('[data-config="uniweb-config"]').click();
     await expect(page.locator('#uniweb-config')).not.toBeVisible();
+    // The settings route asks the server; a request still in flight at the
+    // end must not fail the next test.
+    await page.unrouteAll({behavior: 'ignoreErrors'});
   });
 }
 
 test('hosting card reads current vendor field names and English headings', async ({page}) => {
   await login(page);
-  await page.route('**/api/uniweb/customer/synthetic', route => route.fulfill({json:{matched:true,
+  const box = await openHostingCard(page, {matched:true,
     account_name:'Synthetic Account',subscriptions:[{Service:'Test Hosting',Username:'example.test',
       'Price per month':'NOK 100','Renewed until':'2027-01-01'}],
-    domains:[{domain:'example.test'}],email:[{'':'mail@example.test',Type:'Mailbox'}]}}));
-  await inApp(page, async app => {
-    const box = document.createElement('div'); box.id = 'customer-uniweb-panel';
-    document.body.appendChild(box);
-    await app._unifiedLoadUniwebCard('synthetic');
-  });
-  const box = page.locator('#customer-uniweb-panel');
+    domains:[{domain:'example.test'}],email:[{'':'mail@example.test',Type:'Mailbox'}]});
   await expect(box).toContainText('Test Hosting');
   await expect(box).toContainText('mail@example.test');
   await expect(box).toContainText('Domains');

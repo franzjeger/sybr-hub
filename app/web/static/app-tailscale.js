@@ -131,8 +131,8 @@ async function tsLoadDevices() {
   html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="tsShowCreateKey">' + t('ts_create_key','Create auth key') + '</button>';
   html += '<button class="btn btn-ghost btn-sm" data-click-handler="tsShowKeys">' + t('ts_manage_keys','Manage keys') + '</button>';
   html += '</div>';
-  html += '<div id="ts-key-panel" class="mb-4" style="display:none;"></div>';
-  html += '<div id="ts-detail-panel" class="mb-4" style="display:none;"></div>';
+  html += '<div id="ts-key-panel" class="mb-4" hidden></div>';
+  html += '<div id="ts-detail-panel" class="mb-4" hidden></div>';
 
   // ── Device cards: strict 3-row grid ──
   html += '<div class="grid grid-auto-lg gap-3">';
@@ -154,7 +154,7 @@ async function tsLoadDevices() {
 
     // ROW 1 — Header (24px): name + badges + status dot
     html += '<div class="device-card-head">';
-    html += '<strong class="text-base nowrap overflow-hidden ellipsis flex-1 min-w-0">'+icon+' '+esc(displayName)+'</strong>';
+    html += '<strong class="device-card-name">'+icon+' '+esc(displayName)+'</strong>';
     if (d.update_available) html += '<span class="text-2xs text-warning shrink-0 ml-2" title="Update available">⬆</span>';
     if (hasRoutes) html += '<span class="text-2xs text-accent shrink-0 ml-1" title="Subnet router"></span>';
     if (d.is_exit_node) html += '<span class="text-2xs text-purple shrink-0 ml-1" title="Exit node"></span>';
@@ -169,7 +169,7 @@ async function tsLoadDevices() {
     html += '</div>';
 
     // ROW 3 — Data (1fr): 2-col stats grid, ALWAYS 8 fields
-    html += '<div class="grid grid-cols-2 gap-1 text-sm text-muted content-start pt-2">';
+    html += '<div class="device-card-stats">';
     html += '<span>' + t('ts_lbl_os','OS') + ': <strong class="text-default">'+esc(d.os||'-')+'</strong></span>';
     html += '<span>' + t('ts_lbl_version','Versjon') + ': '+esc(d.client_version ? d.client_version.split('-')[0] : '-')+'</span>';
     html += '<span>' + t('ts_lbl_hostname','Vertsnavn') + ': <span class="font-mono text-xs">'+esc(d.hostname||'-')+'</span></span>';
@@ -197,7 +197,7 @@ async function tsShowDetail(idx) {
   var d = _tsDevices[idx];
   if (!d) return;
   var panel = document.getElementById('ts-detail-panel');
-  panel.style.display = 'block';
+  panel.hidden = false;
   panel.scrollIntoView({behavior:'smooth', block:'start'});
 
   var color = d.online ? 'var(--green)' : 'var(--orange)';
@@ -376,7 +376,7 @@ async function tsToggleKeyExpiry(deviceId, disabled) {
 async function tsRemoveDevice(deviceId) {
   if (!await showConfirm(t('ts_confirm_remove','Fjerne denne enheten fra tailnettet? Dette kan ikke angres.'))) return;
   var d = await apiFetch('/api/tailscale/device/'+encodeURIComponent(deviceId), {method:'DELETE'});
-  if (d && d.ok) { showToast(t('ts_device_removed','Enhet fjernet'), 'success'); document.getElementById('ts-detail-panel').style.display='none'; tsLoadDevices(); }
+  if (d && d.ok) { showToast(t('ts_device_removed','Enhet fjernet'), 'success'); document.getElementById('ts-detail-panel').hidden = true; tsLoadDevices(); }
   else { showToast(d && d.error || t('msg_failed','Feilet'), 'error'); }
 }
 
@@ -392,8 +392,8 @@ async function tsUpdateTags(deviceId, idx) {
 
 async function tsShowKeys() {
   var panel = document.getElementById('ts-key-panel');
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
+  if (!panel.hidden) { panel.hidden = true; return; }
+  panel.hidden = false;
   panel.innerHTML = '<div class="loader mx-auto my-2"></div>';
 
   var data = await apiFetch('/api/tailscale/keys');
@@ -422,7 +422,7 @@ async function tsShowKeys() {
 
 function tsShowCreateKey() {
   var panel = document.getElementById('ts-key-panel');
-  panel.style.display = 'block';
+  panel.hidden = false;
   var html = '<div class="card p-4">';
   html += '<div class="subhead mb-3">' + t('ts_create_key','Create auth key') + '</div>';
   html += '<div class="grid grid-cols-2 gap-3">';
@@ -432,9 +432,9 @@ function tsShowCreateKey() {
   html += '<input id="ts-key-expiry" type="number" value="24" class="field-input"></div>';
   html += '</div>';
   html += '<div class="flex gap-3 mt-3">';
-  html += '<label class="text-sm flex items-center gap-1"><input type="checkbox" id="ts-key-reusable"> ' + t('ts_reusable','Gjenbrukbar') + '</label>';
-  html += '<label class="text-sm flex items-center gap-1"><input type="checkbox" id="ts-key-ephemeral"> ' + t('ts_ephemeral','Kortlevd') + '</label>';
-  html += '<label class="text-sm flex items-center gap-1"><input type="checkbox" id="ts-key-preauth" checked> ' + t('ts_preauthorized','Forhåndsautorisert') + '</label>';
+  html += '<label class="check-label gap-1 text-sm"><input type="checkbox" id="ts-key-reusable"> ' + t('ts_reusable','Gjenbrukbar') + '</label>';
+  html += '<label class="check-label gap-1 text-sm"><input type="checkbox" id="ts-key-ephemeral"> ' + t('ts_ephemeral','Kortlevd') + '</label>';
+  html += '<label class="check-label gap-1 text-sm"><input type="checkbox" id="ts-key-preauth" checked> ' + t('ts_preauthorized','Forhåndsautorisert') + '</label>';
   html += '</div>';
   html += '<div class="flex gap-2 mt-3">';
   html += '<button class="btn btn-primary btn-sm" data-write data-click-handler="tsDoCreateKey">' + t('btn_create','Create') + '</button>';

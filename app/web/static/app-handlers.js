@@ -70,8 +70,11 @@ document.addEventListener('DOMContentLoaded', function() { Object.freeze(_uiHand
 
 // Handlers shared by markup in several scripts.
 registerUiHandlers({
-  // data-target names an element by id.
-  hideElement: function(el) { var target = document.getElementById(el.dataset.target); if (target) target.style.display = 'none'; },
+  // data-target names an element by id: for hideElement, a panel that
+  // carries the hidden attribute; for closeModal, a dialog's backdrop, which
+  // its opener shows with style.display.
+  hideElement: function(el) { var target = document.getElementById(el.dataset.target); if (target) target.hidden = true; },
+  closeModal: function(el) { var target = document.getElementById(el.dataset.target); if (target) target.style.display = 'none'; },
   removeElement: function(el) { var target = document.getElementById(el.dataset.target); if (target) target.remove(); },
   // On a modal's backdrop: a click on the backdrop itself, not on the dialog.
   hideOnBackdrop: function(el, event) { if (event.target === el) el.style.display = 'none'; },

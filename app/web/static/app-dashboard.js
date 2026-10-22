@@ -64,9 +64,10 @@ registerUiHandlers({
   dashArchiveCleanup: function(el) { dashArchiveCleanup(Number(el.dataset.months)); },
   dashArchiveDelete: function(el) { dashArchiveDelete(el.dataset.path); },
   dashArchiveToggleRuns: function(el) {
-    el.nextElementSibling.style.display = el.nextElementSibling.style.display === 'none' ? 'block' : 'none';
+    var runs = el.nextElementSibling;
+    runs.hidden = !runs.hidden;
     el.querySelector('.chevron').classList.toggle('open');
-    el.setAttribute('aria-expanded', el.nextElementSibling.style.display !== 'none' ? 'true' : 'false');
+    el.setAttribute('aria-expanded', runs.hidden ? 'false' : 'true');
   },
   // Customer overview: toolbar, filter badges, sorting and pagination
   filterOverview: function() { filterOverview(); },
@@ -1020,7 +1021,7 @@ export async function dashLoadArchive() {
     html += '<span><span class="fw-semibold">'+esc(c.customer_name)+'</span> <span class="text-sm text-muted">('+Number(c.run_count)+' '+t('lbl_reports','reports')+', '+Number(c.total_size_mb)+' MB)</span></span>';
     html += '<span class="chevron text-2xs text-dim transition-transform">&#9660;</span>';
     html += '</button>';
-    html += '<div class="border-t overflow-x-auto" style="display:none;">';
+    html += '<div class="border-t overflow-x-auto" hidden>';
     html += '<table class="data-table">';
     html += '<thead><tr><th>'+t('lbl_date','Date')+'</th><th class="text-center">'+t('lbl_files','Files')+'</th><th class="text-center">'+t('lbl_size','Size')+'</th><th class="text-center">PDF</th><th class="text-center">HTML</th><th class="text-right"></th></tr></thead><tbody>';
     c.runs.forEach(function(r) {
@@ -1211,7 +1212,7 @@ function _needsAttention(c) {
 // The order of the list: worst open finding first. A customer never audited
 // ranks just below one with a high finding: nobody knows what it holds, which
 // is more urgent than a list of medium ones.
-export function _findingWeight(c) {
+function _findingWeight(c) {
   if (!c.has_metrics) return 9999;
   var f = _openFindings(c);
   return f.critical * 1e6 + f.high * 1e4 + f.medium * 1e2 + f.low;
