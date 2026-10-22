@@ -55,19 +55,23 @@ from app.reports.parsers.collaboration import (
     _teams_cross_tenant,
     _teams_guest_settings,
 )
-from app.reports.parsers.common import _record_count, _sidecar
+from app.reports.parsers.common import _record_count, _sidecar, unavailable_text
 from app.reports.parsers.email import (
     _defender_policies,
     _dkim_selectors,
     _exchange_dkim_configs,
     _exchange_signs,
     _inbox_rule_counts,
-    _key_published,
     _spf_senders,
     _third_party_dkim,
     _unverified_forwarding_count,
+    dkim_status,
+    dmarc_status,
+    dmarc_words,
+    spf_status,
+    spf_words,
 )
-from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.identity import _risky_users_from_text, mfa_method_text
 from app.reports.parsers.m365_backup import m365_backup_control
 
 # Names shown next to the ids, so the cross-reference columns are readable.
@@ -357,7 +361,8 @@ def _phishing_resistant_mfa(audit: _Audit) -> _Verdict:
         return "info", audit.cannot_verify("cis_gap_auth_methods_policy")
     enabled = _phishing_resistant_methods(text, sidecar)
     if enabled:
-        return "pass", audit.say("cis_phish_resistant_enabled", methods=", ".join(enabled))
+        methods = ", ".join(mfa_method_text(m, audit.t) for m in enabled)
+        return "pass", audit.say("cis_phish_resistant_enabled", methods=methods)
     return "warn", audit.say("cis_phish_resistant_none")
 
 
@@ -846,35 +851,52 @@ def _safe_attachments(audit: _Audit) -> _Verdict:
     return _defender_policy(audit, "safe_attachments", "Safe Attachments")
 
 
-# Per-domain checks. A failed DNS lookup comes back as "ERROR (...)", never as
-# "MISSING", and is cannot-verify rather than an absent record.
+# Per-domain checks. A failed DNS lookup is the status "error", never
+# "missing", and is cannot-verify rather than an absent record. The statuses
+# are codes the report words; a status no collector wrote is judged by its
+# words, as before, and shown as it was stored.
 
 
 def _spf(audit: _Audit, record: dict, domain: str) -> _Verdict:
-    spf = record.get("spf", "")
-    unresolved = spf.strip().upper().startswith("ERROR")
+    code, error = spf_status(record)
+    if code == "error":
+        return "info", audit.cannot_verify("cis_gap_spf_lookup", domain=domain, result=error)
+    if code == "hardfail":
+        return "pass", spf_words(record, audit.t)
+    if code == "missing":
+        return "fail", audit.t.cis_spf_missing
+    if code:
+        return "fail", spf_words(record, audit.t)
+    spf = str(record.get("spf") or "")
     if "OK" in spf:
         return "pass", spf
-    if unresolved:
+    if spf.strip().upper().startswith("ERROR"):
         return "info", audit.cannot_verify("cis_gap_spf_lookup", domain=domain, result=spf)
     return "fail", spf or audit.t.cis_spf_missing
 
 
 def _dmarc(audit: _Audit, record: dict, domain: str) -> _Verdict:
-    dmarc = record.get("dmarc", "")
+    code, error = dmarc_status(record)
+    if code == "error":
+        return "info", audit.cannot_verify("cis_gap_dmarc_lookup", domain=domain, result=error)
     published = record.get("dmarc_record", "")
+    dmarc = str(record.get("dmarc") or "")
+    if code == "missing":
+        dmarc = audit.t.cis_dmarc_missing
+    elif code:
+        dmarc = dmarc_words(record, audit.t)
     detail = dmarc
     if published and published != "(none)":
         detail = f"{dmarc}: {published}" if dmarc else published
-    if "reject" in dmarc.lower():
+    if code == "reject" or (not code and "reject" in dmarc.lower()):
         return "pass", detail
-    if "quarantine" in dmarc.lower():
+    if code == "quarantine" or (not code and "quarantine" in dmarc.lower()):
         return "partial", detail
-    if "p=none" in dmarc.lower() or "p=none" in published.lower():
+    if code == "none" or (not code and "p=none" in dmarc.lower()) or "p=none" in published.lower():
         return "partial", (
             audit.say("cis_dmarc_monitor_only", record=published) if published else dmarc
         )
-    if dmarc.strip().upper().startswith("ERROR"):
+    if not code and dmarc.strip().upper().startswith("ERROR"):
         return "info", audit.cannot_verify("cis_gap_dmarc_lookup", domain=domain, result=dmarc)
     return "fail", dmarc or audit.t.cis_dmarc_missing
 
@@ -918,12 +940,18 @@ def _dkim(audit: _Audit, record: dict, domain: str) -> _Verdict:
         # it was switched on. Only the M365 selectors decide here: the others
         # are guessed third-party names, and a blip there must not hide a miss.
         dkim1 = str(record.get("dkim1") or "")
-        m365 = [_dkim_selectors(record).get(s) for s in ("selector1", "selector2")]
-        if "error" in dkim1.lower():
-            return "info", audit.cannot_verify("cis_gap_dkim_lookup", domain=domain, result=dkim1)
-        if any(s and _key_published(s) for s in m365):
+        selectors = _dkim_selectors(record)
+        m365 = [dkim_status(selectors.get(s) or "") for s in ("selector1", "selector2")]
+        if any(code == "error" for code, _ in m365) or (
+            not any(code for code, _ in m365) and "error" in dkim1.lower()
+        ):
+            # What failed, once each; the summary as stored when it does not say.
+            failed = ", ".join(dict.fromkeys(d for code, d in m365 if code == "error" and d))
+            result = failed or dkim1
+            return "info", audit.cannot_verify("cis_gap_dkim_lookup", domain=domain, result=result)
+        if any(code in ("cname", "txt") for code, _ in m365):
             return "info", audit.cannot_verify("cis_gap_dkim_not_fetched", domain=domain)
-        if not all(s == "MISSING" for s in m365):
+        if not all(code == "missing" for code, _ in m365):
             return "info", audit.cannot_verify("cis_gap_dkim_unchecked")
         detail = audit.say("cis_dkim_no_m365_selectors", domain=domain)
     if keys:
@@ -971,8 +999,10 @@ def _device_compliance(audit: _Audit) -> _Verdict:
     has_policies = policy_count > 0
     has_devices = intune.get("has_data") and intune.get("total", 0) > 0
     if intune.get("unavailable") and not has_policies:
-        # The collector's own words for the refusal, when it gave any.
-        reason = intune.get("unavailable_reason")
+        # Why, as the collector's cause worded here; a cause it gave in words
+        # the report does not know, as it stands.
+        cause = intune.get("unavailable_cause")
+        reason = unavailable_text(cause, t) if cause else intune.get("unavailable_reason")
         if reason:
             return "info", audit.say("cis_cannot_verify", reason=reason)
         return "info", audit.cannot_verify("cis_gap_intune")
@@ -1040,21 +1070,41 @@ def _teams_external_access(audit: _Audit) -> _Verdict:
     return _teams_access_from_text(audit, partners)
 
 
+# The words for the codes _teams_guest_settings reads. The collector wrote
+# English labels of its own here, which a Norwegian report printed inside its
+# own sentence.
+_GUEST_INVITE_WORDS = {
+    "everyone": "guest_invites_everyone",
+    "adminsGuestInvitersAndAllMembers": "guest_invites_members",
+    "adminsAndGuestInviters": "guest_invites_admins",
+    "none": "guest_invites_none",
+}
+_GUEST_ROLE_WORDS = {
+    "member": "guest_role_member",
+    "limited": "guest_role_limited",
+    "restricted": "guest_role_restricted",
+}
+
+
 def _teams_guest_access(audit: _Audit) -> _Verdict:
-    # Read from the Teams section's guest file, where teams_policies.py has
-    # already mapped the Graph values to readable names.
+    # Codes where the setting is one Graph and Entra ID name; a value they do
+    # not name is shown as stored and judged by its words, as before.
     invites, role = _teams_guest_settings(audit.fc)
     if not invites:
         return "info", audit.cannot_verify("cis_gap_guest_settings")
-    detail = audit.say(
-        "cis_guest_settings", invites=invites, role=role or audit.say("cis_guest_role_unknown")
-    )
-    if "same as member" in role.lower():
+    invites_word = invites
+    if invites in _GUEST_INVITE_WORDS:
+        invites_word = audit.say(_GUEST_INVITE_WORDS[invites])
+    role_word = role or audit.say("cis_guest_role_unknown")
+    if role in _GUEST_ROLE_WORDS:
+        role_word = audit.say(_GUEST_ROLE_WORDS[role])
+    detail = audit.say("cis_guest_settings", invites=invites_word, role=role_word)
+    if role == "member" or "same as member" in role.lower():
         # Worse than any invitation setting: whoever gets in sees what a member sees.
         return "fail", audit.say("cis_guest_same_as_member", detail=detail)
-    if invites.lower().startswith("everyone"):
+    if invites == "everyone" or invites.lower().startswith("everyone"):
         return "fail", audit.say("cis_guest_can_invite", detail=detail)
-    if "member" in invites.lower():
+    if invites == "adminsGuestInvitersAndAllMembers" or "member" in invites.lower():
         return "warn", audit.say("cis_guest_members_invite", detail=detail)
     return "pass", detail
 

@@ -68,18 +68,23 @@ async def test_every_domain_survives_the_round_trip(tmp_path, monkeypatch, sidec
 
     assert [r["domain"] for r in records] == ["acme.example", "svak.example", "brutt.example"]
     acme, svak, brutt = records
-    assert acme["spf"] == "OK (-all hardfail)"
+    # Codes, which the report words: the collector wrote English phrases here
+    # ("OK (-all hardfail)", "TXT present", "MISSING") that a Norwegian report
+    # printed as they stood (TODO C15).
+    assert acme["spf"] == "hardfail"
+    assert acme["dmarc"] == "reject"
     assert acme["dmarc_record"].startswith("v=DMARC1; p=reject")
-    assert acme["dkim1"] == f"selector1: CNAME -> {M365_CNAME} | selector2: " + (
-        f"CNAME -> {M365_CNAME.replace('1', '2', 1)}"
+    assert acme["dkim1"] == f"selector1: cname -> {M365_CNAME} | selector2: " + (
+        f"cname -> {M365_CNAME.replace('1', '2', 1)}"
     )
     assert acme["mta_sts"] == "v=STSv1; id=20261001T000000;"
-    assert svak["dmarc"] == "WEAK (p=none)"
-    assert svak["dkim2"].startswith("google: TXT present | k1: MISSING")
+    assert svak["spf"] == "softfail"
+    assert svak["dmarc"] == "none"
+    assert svak["dkim2"].startswith("google: txt | k1: missing")
     assert svak["dkim_found"] == "google"
-    assert brutt["spf"].startswith("ERROR (")
+    assert brutt["spf"] == "error (TXT brutt.example: DoH status 2 (ServFail))"
     assert "spf_record" not in brutt, "a failed lookup has no record, not an empty one"
-    assert brutt["dmarc"] == "MISSING" and brutt["dmarc_record"] == ""
+    assert brutt["dmarc"] == "missing" and brutt["dmarc_record"] == ""
     assert brutt["dkim_found"] == "(none)"
 
     # DKIM is decided on Exchange's signing config, which only the Exchange
@@ -318,3 +323,170 @@ async def test_the_customer_reports_dkim_cell_says_what_the_control_says(
     assert dkim_cell("acme.example") == "OK"
     assert dkim_cell("av.example") == "Missing"
     assert dkim_cell("gmail.example") == "OK"
+
+
+# ── The statuses are codes, worded by the report ───────────────────────────────
+#
+# The collector wrote "WEAK (p=none)", "MISSING" and "TXT present", and the
+# report printed them as they stood: CIS 5.2.1 and 5.2.2 gave "MISSING" as a
+# Norwegian report's detail, and the technical report's email table its first
+# word (TODO C15).
+
+
+def _render(run, lang: str) -> dict[str, str]:
+    from app.reports.generator import _jinja_env
+    from app.reports.i18n import T
+
+    ctx = build_report_context("Acme AS", "acme.example", run, [], lang=lang, persist_metrics=False)
+    ctx.update(t=T(lang), lang=lang, theme="light")
+    env = _jinja_env()
+    pages = {
+        name: env.get_template(name).render(**ctx)
+        for name in ("report_tech.html.j2", "report_customer.html.j2")
+    }
+    pages["compliance"] = {
+        (r["cis_id"], r["title"].rsplit("(", 1)[-1].rstrip(")")): (r["status"], str(r["detail"]))
+        for r in ctx["compliance"]
+        if r["cis_id"] in ("5.2.1", "5.2.2")
+    }
+    return pages
+
+
+def _email_row(page: str, domain: str) -> list[str]:
+    import re
+
+    start = page.index('id="epost"') if 'id="epost"' in page else 0
+    row = re.search(
+        rf'<td style="font-weight:600;">{re.escape(domain)}</td>(.*?)</tr>', page[start:], re.DOTALL
+    )
+    assert row, domain
+    return [
+        " ".join(re.sub(r"<[^>]+>", " ", c).split())
+        for c in re.findall(r"<td[^>]*>(.*?)</td>", row.group(1), re.DOTALL)
+    ]
+
+
+async def test_a_norwegian_report_words_every_status(tmp_path, monkeypatch):
+    run = tmp_path / "Acme_AS" / "2026-10-03_0900"
+    run.mkdir(parents=True)
+    await _collect(run, monkeypatch)
+
+    pages = _render(run, "no")
+
+    assert pages["compliance"][("5.2.1", "acme.example")] == ("pass", "OK (-all, hard fail)")
+    assert pages["compliance"][("5.2.1", "svak.example")] == ("fail", "Svak (~all, soft fail)")
+    assert pages["compliance"][("5.2.2", "brutt.example")] == ("fail", "Mangler")
+    assert pages["compliance"][("5.2.1", "brutt.example")] == (
+        "info",
+        "Kan ikke verifiseres: SPF-oppslaget for brutt.example feilet med "
+        "TXT brutt.example: DoH status 2 (ServFail)",
+    )
+    tech = pages["report_tech.html.j2"]
+    assert _email_row(tech, "acme.example") == [
+        "OK",
+        "OK",
+        "selector1: CNAME | selector2: CNAME",
+        "—",
+        "Publisert",
+    ]
+    assert _email_row(tech, "svak.example") == [
+        "Svak",
+        "Svak",
+        "selector1: mangler | selector2: mangler",
+        "google: TXT",
+        "Mangler",
+    ]
+    assert _email_row(tech, "brutt.example")[:3] == [
+        "Feil",
+        "Mangler",
+        "selector1: oppslaget feilet | selector2: mangler",
+    ]
+    customer = pages["report_customer.html.j2"]
+    # A failed lookup is unknown: it showed as a green OK.
+    assert _email_row(customer, "brutt.example")[:2] == ["Ikke tilgjengelig", "Mangler"]
+    assert 'status-pill unknown">Ikke tilgjengelig' in customer
+
+
+# What the collector wrote before it stored codes: one domain of each kind.
+_OLD_TEXT = """==============================================================================================================
+  DNS / EMAIL SECURITY REPORT (SPF · DMARC · DKIM · MTA-STS)
+==============================================================================================================
+
+  Domain : gammel.example
+    SPF            : WEAK (~all softfail)
+                   v=spf1 include:spf.protection.outlook.com ~all
+    DMARC          : WARN (p=quarantine)
+                   v=DMARC1; p=quarantine
+    DKIM (M365)    : selector1: CNAME -> selector1-gammel._domainkey.acme.onmicrosoft.example. | selector2: MISSING
+    DKIM (3rd party): google: TXT present | k1: MISSING | k2: MISSING | default: MISSING | dkim: MISSING
+    DKIM found     : selector1, google
+    MTA-STS        : MISSING
+
+  Domain : rar.example
+    SPF            : SOMETHING NEW
+                   v=spf1 -all
+    DMARC          : ERROR (timeout)
+                   (query failed)
+    DKIM (M365)    : selector1: MISSING | selector2: MISSING
+    DKIM (3rd party): google: MISSING | k1: MISSING | k2: MISSING | default: MISSING | dkim: MISSING
+    DKIM found     : (none)
+    MTA-STS        : MISSING
+
+==============================================================================================================
+"""
+
+
+def test_an_old_runs_english_statuses_are_worded_and_an_unknown_one_kept(tmp_path):
+    from app.core.encryption import encrypted_write_text
+
+    run = tmp_path / "Acme_AS" / "2026-01-01_0900"
+    run.mkdir(parents=True)
+    encrypted_write_text(run / "26_email_dns_spf_dmarc.txt", _OLD_TEXT)
+
+    pages = _render(run, "no")
+
+    assert pages["compliance"][("5.2.1", "gammel.example")] == ("fail", "Svak (~all, soft fail)")
+    assert pages["compliance"][("5.2.2", "gammel.example")] == (
+        "partial",
+        "Karantene (p=quarantine): v=DMARC1; p=quarantine",
+    )
+    assert pages["compliance"][("5.2.2", "rar.example")] == (
+        "info",
+        "Kan ikke verifiseres: DMARC-oppslaget for rar.example feilet med timeout",
+    )
+    # A status no collector wrote is judged and shown as it was stored.
+    assert pages["compliance"][("5.2.1", "rar.example")] == ("fail", "SOMETHING NEW")
+    tech = pages["report_tech.html.j2"]
+    assert _email_row(tech, "gammel.example") == [
+        "Svak",
+        "Advarsel",
+        "selector1: CNAME | selector2: mangler",
+        "google: TXT",
+        "Mangler",
+    ]
+    assert _email_row(tech, "rar.example")[:2] == ["SOMETHING NEW", "Feil"]
+
+
+def test_every_status_is_worded_in_both_languages():
+    from app.modules.m365_audit.sections.dns import DMARC_STATUSES, SPF_STATUSES
+    from app.reports.i18n import T
+    from app.reports.parsers.email import dmarc_words, dns_pill, dns_tag, spf_words
+
+    for lang in ("no", "en"):
+        t = T(lang)
+        for code in SPF_STATUSES:
+            record = {"spf": code}
+            for text in (
+                spf_words(record, t),
+                dns_tag(record, "spf", t)["word"],
+                dns_pill(record, "spf", t)["word"],
+            ):
+                assert text and text != code and "_" not in text, (lang, code, text)
+        for code in DMARC_STATUSES:
+            record = {"dmarc": code}
+            for text in (
+                dmarc_words(record, t),
+                dns_tag(record, "dmarc", t)["word"],
+                dns_pill(record, "dmarc", t)["word"],
+            ):
+                assert text and "_" not in text, (lang, code, text)

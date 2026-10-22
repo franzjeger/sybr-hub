@@ -40,12 +40,15 @@ test('the new VPN profile form survives a list that loads late', async ({page}) 
   await expect(page.locator('#vpn-create-protocol')).toBeVisible();
 });
 
-test('the SSH key generator survives a key list that loads late', async ({page}) => {
+test('the SSH command form survives a key list that loads late', async ({page}) => {
   await login(page);
   const release = await holdBack(page, '**/api/ssh/keys');
   await inApp(page, app => app.showView('ssh'));
-  await inApp(page, app => app.sshGenKey());
-  await expect(page.locator('#ssh-content input, #ssh-content select').first()).toBeVisible();
+  // The key list, and Generer nøkkel with it, is still loading; Kjør
+  // kommando is in the view's own markup and takes the box over.
+  await page.locator('#view-ssh [data-click-handler="sshShowExec"]').click();
+  await expect(page.locator('#ssh-exec-cmd')).toBeVisible();
+  await expect(page.locator('#ssh-exec-hosts')).not.toBeEmpty();
   const form = await page.locator('#ssh-content').innerHTML();
   release();
   await page.waitForResponse('**/api/ssh/keys');

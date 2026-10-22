@@ -449,7 +449,7 @@ function _showPwaInstallHelp() {
         '<div class="modal-title">' + esc(t('pwa_help_title', 'Installer Sybr HUB som app')) + '</div>' +
         bodyHtml +
         '<div class="modal-actions">' +
-          '<button class="btn btn-primary" data-click-handler="hideElement" data-target="pwa-help-modal">' + esc(t('btn_ok', 'OK')) + '</button>' +
+          '<button class="btn btn-primary" data-click-handler="closeModal" data-target="pwa-help-modal">' + esc(t('btn_ok', 'OK')) + '</button>' +
         '</div>' +
       '</div>' +
     '</div>';

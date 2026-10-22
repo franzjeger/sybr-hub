@@ -49,6 +49,11 @@ test('Varsler lists a stored expiring certificate and an end-of-life device with
   // What the items rest on.
   await expect(alerts.locator('.notif-side')).toContainText('TLS-endepunkter sjekket: 1');
   await expect(alerts.locator('.notif-side')).toContainText('Enheter med lest firmware: 1');
+  // Every day on the page is written as the reader writes a date: the rows'
+  // dates and the "sist ..." above read as ISO before (TODO C16).
+  await expect(alerts.locator('.notif-side')).not.toContainText(/\d{4}-\d{2}-\d{2}/);
+  await expect(cert.locator('.notif-meta')).not.toContainText(/\d{4}-\d{2}-\d{2}/);
+  await expect(device.locator('.notif-meta')).not.toContainText(/\d{4}-\d{2}-\d{2}/);
   // The firmware tables are fresh, so nothing says otherwise.
   await expect(alerts.locator('.notif-side')).not.toContainText('Firmwaretabellen');
 
@@ -83,8 +88,9 @@ test('Varsler names a firmware table past its window beside the unconfirmed coun
   await inApp(page, app => app.openOverviewTab('dash-alerts'));
   const side = page.locator('#dash-alerts .notif-side');
   await expect(side).toContainText('Firmware ikke bekreftet: 3.');
+  // The table's date as the reader writes a date, not as ISO (TODO C16).
   await expect(side.locator('.notif-side-text.is-warn', {hasText: 'Firmwaretabellen for UniFi er utdatert'}))
-    .toHaveText('Firmwaretabellen for UniFi er utdatert, siste oppdatering 2026-03-30. Enheter på nyeste kjente versjon kan derfor ikke bekreftes.');
+    .toHaveText('Firmwaretabellen for UniFi er utdatert, siste oppdatering 30. mars 2026. Enheter på nyeste kjente versjon kan derfor ikke bekreftes.');
 });
 
 test.describe('on a 375 px phone', () => {
@@ -97,4 +103,20 @@ test.describe('on a 375 px phone', () => {
     const widths = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     expect(widths[0]).toBeLessThanOrEqual(widths[1]);
   });
+});
+
+// A policy-drift alert was titled by its rule's code, "policy_drift: ...",
+// and its day was ISO (TODO C16).
+test('Varsler titles a policy-drift alert in words and dates it for the reader', async ({page}) => {
+  await page.route('**/api/alerts/history**', route => route.fulfill({json: {entries: [{
+    type: 'policy_drift', severity: 'critical', customer: 'Browser Beta', item: 'Require MFA',
+    sent_at: new Date().toISOString(), detail_key: 'alert_detail_policy_removed',
+    detail_params: {policy: 'Require MFA', since: '2026-09-30'},
+  }]}}));
+  await login(page);
+  await inApp(page, app => app.openOverviewTab('dash-alerts'));
+  const row = page.locator('#dash-alerts .notif-row', {hasText: 'Require MFA'});
+  await expect(row.locator('.notif-title')).toHaveText('Endrede sikkerhetspolicyer: Require MFA');
+  await expect(row).toContainText('er fjernet siden 30. september 2026.');
+  await expect(row.locator('.notif-meta')).not.toContainText(/\d{4}-\d{2}-\d{2}/);
 });

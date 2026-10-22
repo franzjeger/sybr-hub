@@ -159,7 +159,7 @@ export async function uploadReportsToITGlue(customerId) {
     for (let i = 0; i < files.length; i++) {
       var f = files[i];
       var ficon = f.name.endsWith('.pdf') ? icon('document',14) : icon('globe',14);
-      html += '<label class="flex items-center gap-2 py-2 px-3 cursor-pointer border-b text-sm">';
+      html += '<label class="picker-row text-sm">';
       html += '<input type="checkbox" class="itglue-file-cb checkbox" value="' + esc(f.name) + '" checked data-change-handler="updateITGlueUploadBtn">';
       html += ficon + ' <span class="flex-1">' + esc(f.name) + '</span>';
       html += '<span class="text-muted">' + esc(f.size) + '</span>';
@@ -328,7 +328,7 @@ function pickITGlueOrg(orgs) {
     function render(filter) {
       const filtered = filter ? orgs.filter(o => o.name.toLowerCase().includes(filter.toLowerCase())) : orgs;
       list.innerHTML = filtered.map(o =>
-        `<div class="itglue-org-item py-2 px-3 border-b cursor-pointer text-ui" data-id="${esc(o.id)}">${esc(o.name)}</div>`
+        `<div class="itglue-org-item picker-row text-ui" data-id="${esc(o.id)}">${esc(o.name)}</div>`
       ).join('');
     }
     render('');
@@ -410,7 +410,7 @@ export function openNewCustomer() {
   document.getElementById('manual-cust-phone').value = '';
   document.getElementById('manual-cust-orgnum').value = '';
   document.getElementById('manual-cust-notes').value = '';
-  document.getElementById('manual-cust-error').style.display = 'none';
+  document.getElementById('manual-cust-error').hidden = true;
 }
 
 export function newCustomerWithM365() {
@@ -430,10 +430,10 @@ export async function submitManualCustomer() {
   var errEl = document.getElementById('manual-cust-error');
   if (!name) {
     errEl.textContent = t('err_name_required');
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return;
   }
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   var btn = document.getElementById('btn-manual-cust-save');
   btn.disabled = true;
 
@@ -460,7 +460,7 @@ export async function submitManualCustomer() {
     if (newId) openCustomerPage(newId, 'funn');
   } else if (d && d.error) {
     errEl.textContent = d.error;
-    errEl.style.display = 'block';
+    errEl.hidden = false;
   }
 }
 
@@ -497,7 +497,7 @@ export async function openITGlueImport() {
 
     var html = '<div class="mb-3 flex gap-2 items-center">';
     html += '<input type="text" id="itglue-import-search" class="field-input flex-1 py-2 px-3 text-sm" placeholder="' + t('lbl_search') + '" data-input-handler="filterITGlueImport">';
-    html += '<label class="text-sm flex items-center gap-1 cursor-pointer nowrap"><input type="checkbox" id="itglue-import-select-all" data-change-handler="toggleAllITGlueImport"> ' + t('btn_select_all') + '</label>';
+    html += '<label class="check-label gap-1 text-sm nowrap"><input type="checkbox" id="itglue-import-select-all" data-change-handler="toggleAllITGlueImport"> ' + t('btn_select_all') + '</label>';
     html += '</div>';
     html += '<div class="max-h-lg overflow-y-auto border rounded">';
     html += '<table class="section-table w-full"><thead><tr><th class="col-check"></th><th class="text-left">' + t('lbl_organization') + '</th><th class="text-left">' + t('lbl_id') + '</th><th></th></tr></thead><tbody>';
@@ -896,7 +896,7 @@ export function startBulkAudit() {
   var btn = document.getElementById('bulk-audit-btn');
   if (btn) { btn.disabled = true; btn.textContent = t('status_running'); }
   var panel = document.getElementById('bulk-audit-panel');
-  panel.style.display = 'block';
+  panel.hidden = false;
   panel.innerHTML = '<div class="card p-5 mb-6" id="bulk-progress-card">' +
     '<div class="flex items-center justify-between mb-4">' +
     '<div class="fw-bold text-md">' + t('bulk_audit') + '</div>' +
@@ -907,7 +907,7 @@ export function startBulkAudit() {
     '<div id="bulk-customer-status" class="text-ui text-muted mb-2"></div>' +
     '<div class="bar mb-4">' +
     '<div id="bulk-customer-bar" class="bar-fill"></div></div>' +
-    '<div id="bulk-results-table" style="display:none;">' +
+    '<div id="bulk-results-table" hidden>' +
     '<div class="subhead">' + t('resultater') + '</div>' +
     '<table class="data-table">' +
     '<thead><tr>' +
@@ -918,7 +918,7 @@ export function startBulkAudit() {
     '<th class="text-center">' + t('status') + '</th>' +
     '</tr></thead><tbody id="bulk-results-tbody"></tbody></table></div></div>';
   var _ari_b = document.getElementById('audit-running-indicator');
-  if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span class="dot"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.style.display = 'flex'; }
+  if (_ari_b) { _ari_b.textContent = ''; _ari_b.innerHTML = '<span class="dot"></span> ' + t('msg_bulk_audit_running'); _ari_b.onclick = function(){ showView('overview'); }; _ari_b.hidden = false; }
   var totalCustomers = 0, completedCustomers = 0, customerSectionsDone = 0, customerSectionsTotal = 0;
   fetch('/api/audit/bulk', {method:'POST'}).then(async function(resp) {
     if (!resp.ok) { document.getElementById('bulk-overall-status').innerHTML = '<span class="text-danger">HTTP '+Number(resp.status)+'</span>'; return; }
@@ -956,7 +956,7 @@ export function startBulkAudit() {
       document.getElementById('bulk-overall-status').textContent = t('audit_customers_done').replace('{done}', completedCustomers).replace('{total}', totalCustomers);
       var _bcb3 = document.getElementById('bulk-customer-bar'); if (_bcb3) _bcb3.style.width = '100%';
       var tbody = document.getElementById('bulk-results-tbody');
-      document.getElementById('bulk-results-table').style.display = 'block';
+      document.getElementById('bulk-results-table').hidden = false;
       var tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid var(--border)';
       tr.innerHTML = '<td class="fw-semibold">' + esc(d.customer) + '</td>' +
@@ -970,7 +970,7 @@ export function startBulkAudit() {
       document.getElementById('bulk-overall-bar').style.width = Math.round((completedCustomers / totalCustomers) * 100) + '%';
       document.getElementById('bulk-overall-status').textContent = t('audit_customers_done').replace('{done}', completedCustomers).replace('{total}', totalCustomers);
       var tbody2 = document.getElementById('bulk-results-tbody');
-      document.getElementById('bulk-results-table').style.display = 'block';
+      document.getElementById('bulk-results-table').hidden = false;
       var tr2 = document.createElement('tr');
       tr2.style.borderBottom = '1px solid var(--border)';
       tr2.innerHTML = '<td class="fw-semibold">' + esc(d.customer) + '</td>' +
@@ -994,7 +994,7 @@ export function startBulkAudit() {
       var cancelBtn = document.getElementById('bulk-cancel-btn');
       if (cancelBtn) cancelBtn.style.display = 'none';
       var _ari_be = document.getElementById('audit-running-indicator');
-      if (_ari_be) _ari_be.style.display = 'none';
+      if (_ari_be) _ari_be.hidden = true;
       var btn2 = document.getElementById('bulk-audit-btn');
       if (btn2) { btn2.disabled = false; btn2.textContent = t('btn_run_all_customers'); }
     }
@@ -1018,7 +1018,7 @@ function finishBulkAudit() {
   var btn = document.getElementById('bulk-audit-btn');
   if (btn) { btn.disabled = false; btn.textContent = t('btn_run_all_customers'); }
   var _ari_f = document.getElementById('audit-running-indicator');
-  if (_ari_f) _ari_f.style.display = 'none';
+  if (_ari_f) _ari_f.hidden = true;
 }
 
 // Opens a customer's page, on Funn. Kept by this name: the Kunder list, the

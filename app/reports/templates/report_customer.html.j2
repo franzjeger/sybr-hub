@@ -1174,7 +1174,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <h4>{{ t.groups_label }}</h4>
     <div class="env-row"><span>{{ t.total_groups }}</span><span>{{ groups.total }}</span></div>
     {% for gtype, count in groups.by_type.items() %}
-    <div class="env-row"><span>{{ gtype }}</span><span>{{ count }}</span></div>
+    <div class="env-row"><span>{{ _group_type_text(gtype, t) }}</span><span>{{ count }}</span></div>
     {% endfor %}
     <div class="env-row"><span>{{ t.dynamic_groups }}</span><span>{{ groups.dynamic_groups }}</span></div>
     <div class="env-row"><span>{{ t.empty_groups }}</span><span>{{ groups.empty_groups }}</span></div>
@@ -1247,7 +1247,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="env-row"><span>Conditional Access</span><span>{{ t('active_policies', count=ca.enabled) }}</span></div>
     {% if groups %}
     <div class="env-row"><span>{{ t.m365_groups_incl_teams }}</span>
-      <span>{% set m365 = groups.by_type.get('M365', 0) + groups.by_type.get('M365+Dynamic', 0) %}{{ m365 }}</span>
+      <span>{% set m365 = groups.by_type.get('m365', 0) %}{{ m365 }}</span>
     </div>
     {% endif %}
   </div>
@@ -1469,8 +1469,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   <h4>{{ t.subscriptions }}</h4>
   {% for s in azure.subscriptions %}
   <div class="env-row">
-    <span>{{ s.name }}</span>
-    <span><span class="status-pill {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ s.state }}</span></span>
+    <span>{{ s.name or s.id }}</span>
+    <span><span class="status-pill {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ _subscription_state_text(s.state, t) }}</span></span>
   </div>
   {% endfor %}
 </div>
@@ -1486,8 +1486,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       <td style="font-weight:600;">{{ vm.name }}</td>
       <td style="font-size:11px;">{{ vm.subscription }}</td>
       <td>{{ vm.location }}</td>
-      <td>{{ vm.os }}</td>
-      <td style="font-size:11px;">{{ vm.size }}</td>
+      <td>{{ vm.os or '—' }}</td>
+      <td style="font-size:11px;">{{ vm.size or '—' }}</td>
     </tr>
     {% endfor %}
   </table>
@@ -1526,7 +1526,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   {% for sub in azure.per_sub %}
   {% if sub.resources > 0 %}
   <div class="env-card">
-    <h4>{{ sub.name }} ({{ t('n_resources', count=sub.resources) }})</h4>
+    <h4>{{ sub.name or t.azure_subscription_unnamed }} ({{ t('n_resources', count=sub.resources) }})</h4>
     {% for rtype, count in sub.types[:8] %}
     <div class="env-row"><span style="font-size:11px;">{{ rtype.split('/')[-1] }}</span><span>{{ count }}</span></div>
     {% endfor %}
@@ -1591,7 +1591,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="lbl">{{ t.net_vpn_tunnels }}</div>
   </div>
   <div class="metric-card">
-    <div class="num brand">{{ fg.ha_mode if fg.ha_mode else '—' }}</div>
+    <div class="num brand">{{ _fg_ha_mode(fg.ha_mode, t) or '—' }}</div>
     <div class="lbl">{{ t.net_ha_mode }}</div>
   </div>
 </div>
@@ -1613,11 +1613,15 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 </table>
 {% endif %}
 
-{% if fg.policy_warnings %}
+{# Each finding is a kind the quick audit noted about a policy, worded here;
+   one read from an old run's English warnings and naming no kind is shown
+   as it was stored. #}
+{% set fg_findings = _fg_findings(fg) %}
+{% if fg_findings %}
 <h4 style="margin-top:16px;">{{ t.net_firewall_warnings }}</h4>
 <ul style="font-size:12px;">
-  {% for w in fg.policy_warnings %}
-  <li style="color: var(--red, red);">{{ w }}</li>
+  {% for f in fg_findings %}
+  <li style="color: var(--red, red);">{{ _fg_finding_text(f, t) }}</li>
   {% endfor %}
 </ul>
 {% endif %}
@@ -1698,10 +1702,12 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
       <td style="font-family: monospace; font-size:11px;">{{ d.firmware or '—' }}</td>
       {% if uf.mode == 'controller' %}
       <td>{{ d.clients | default(0) }}</td>
-      <td style="color: {{ 'green' if d.status == 'online' else 'var(--red, red)' }};">{{ d.status | default('—') }}</td>
+      <td style="color: {{ 'green' if d.status == 'online' else 'var(--red, red)' }};">{% if d.status == 'online' %}{{ t.net_online }}{% elif d.status == 'offline' %}{{ t.net_offline }}{% else %}{{ d.status | default('—') }}{% endif %}</td>
       {% else %}
       <td style="font-family: monospace; font-size:11px;">{{ d.mac or '—' }}</td>
-      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{{ t.net_online if d.ok else (d.error or t.net_offline) }}</td>
+      {# Unreachable, and why where the run says: the audit's own reasons are
+         codes worded here, an exception's message is shown as it is. #}
+      <td style="color: {{ 'green' if d.ok else 'var(--red, red)' }};">{% if d.ok %}{{ t.net_online }}{% else %}{{ t.net_offline }}{% if d.error %}<div style="font-size:11px;color:var(--muted, #6b7280);">{{ _device_error_text(d.error, t) }}</div>{% endif %}{% endif %}</td>
       {% endif %}
     </tr>
     {% endfor %}
@@ -1808,7 +1814,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
 {% if not drift.measured %}
 <div class="env-card">
   <p style="margin:0;font-size:13px;color:var(--muted);">
-    <strong>{{ t.drift_not_measured }}.</strong> {{ t('drift_' ~ drift.reason_code, **drift.reason_params) }}
+    <strong>{{ t.drift_not_measured }}.</strong> {{ _drift_reason(drift.reason_code, drift.reason_params, t) }}
   </p>
 </div>
 {% elif drift.added_total == 0 and drift.removed_total == 0 and drift.changed_total == 0 %}
@@ -1940,18 +1946,10 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     {% for d in spf_dmarc %}
     <tr>
       <td style="font-weight:600;">{{ d.get('domain','') }}</td>
-      <td>
-        {% set s = d.get('spf','') %}
-        {% if 'MISSING' in s or 'CRITICAL' in s %}<span class="status-pill critical">{{ t.missing_label }}</span>
-        {% elif 'WEAK' in s %}<span class="status-pill warning">{{ t.weak_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
-      </td>
-      <td>
-        {% set s = d.get('dmarc','') %}
-        {% if 'MISSING' in s %}<span class="status-pill critical">{{ t.missing_label }}</span>
-        {% elif 'WEAK' in s or 'none' in s %}<span class="status-pill warning">{{ t.weak_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
-      </td>
+      {% for field in ('spf', 'dmarc') %}
+      {% set pill = _dns_pill(d, field, t) %}
+      <td><span class="status-pill {{ pill.pill }}">{{ pill.word }}</span></td>
+      {% endfor %}
       <td>
         {# CIS 5.2.3's verdict for the domain, so this cell cannot say "Found"
            beside a control that warns signing is off. #}
@@ -1960,11 +1958,8 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
         {% elif ds in ('warn', 'fail') %}<span class="status-pill critical">{{ t.missing_label }}</span>
         {% else %}<span class="status-pill unknown">{{ t.data_unavailable }}</span>{% endif %}
       </td>
-      <td>
-        {% set s = d.get('mta_sts','') %}
-        {% if 'MISSING' in s %}<span class="status-pill warning">{{ t.missing_label }}</span>
-        {% else %}<span class="status-pill ok">{{ t.ok }}</span>{% endif %}
-      </td>
+      {% set pill = _dns_pill(d, 'mta_sts', t) %}
+      <td><span class="status-pill {{ pill.pill }}">{{ pill.word }}</span></td>
     </tr>
     {% endfor %}
   </table>

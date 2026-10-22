@@ -90,7 +90,10 @@ def _severity_groups(alerts: list[dict], t) -> list[tuple[list[dict], str, str]]
 
 
 def _sent_at(t) -> str:
-    return str(t("alert_sent_at", when=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")))
+    from app.reports.i18n import format_date
+
+    now = datetime.now(UTC)
+    return str(t("alert_sent_at", date=format_date(now.isoformat(), t.lang), time=f"{now:%H:%M}"))
 
 
 def _build_adaptive_card(

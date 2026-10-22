@@ -13,18 +13,22 @@ from app.modules.m365_audit.signin import latest_signin
 
 logger = logging.getLogger(__name__)
 
-# Friendly labels for @odata.type values
-_METHOD_LABELS: dict[str, str] = {
-    "#microsoft.graph.phoneAuthenticationMethod": "Phone (SMS/Call)",
-    "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod": "Authenticator App",
-    "#microsoft.graph.fido2AuthenticationMethod": "FIDO2 Key",
-    "#microsoft.graph.windowsHelloForBusinessAuthenticationMethod": "Windows Hello",
-    "#microsoft.graph.emailAuthenticationMethod": "Email OTP",
-    "#microsoft.graph.temporaryAccessPassAuthenticationMethod": "Temp Access Pass",
-    "#microsoft.graph.softwareOathAuthenticationMethod": "OATH TOTP",
-    "#microsoft.graph.x509CertificateAuthenticationMethod": "Certificate",
-    "#microsoft.graph.passwordAuthenticationMethod": "Password",
-}
+# The MFA methods a user can register, each as the code its Graph type gives
+# ("#microsoft.graph.fido2AuthenticationMethod" is "fido2"). The report words
+# them, and the lockout check matches them against the authentication methods
+# policy. They were English labels ("Authenticator App", "Phone (SMS/Call)")
+# that a Norwegian report printed as they stood. A type Graph adds later gets
+# its code the same way.
+MFA_METHODS = (
+    "microsoftAuthenticator",
+    "phone",
+    "fido2",
+    "windowsHelloForBusiness",
+    "email",
+    "temporaryAccessPass",
+    "softwareOath",
+    "x509Certificate",
+)
 
 
 # Graph $select for the users collection. signInActivity is licensed
@@ -39,8 +43,10 @@ _USER_SELECT_BASIC = (
 _USER_SELECT_WITH_SIGNIN = f"{_USER_SELECT_BASIC},signInActivity"
 
 
-def _method_label(odata_type: str) -> str:
-    return _METHOD_LABELS.get(odata_type, odata_type.split(".")[-1])
+def _method_code(odata_type: str) -> str:
+    """A method's code: its Graph type without the namespace and the suffix."""
+    name = odata_type.rsplit(".", 1)[-1]
+    return name.removesuffix("AuthenticationMethod") or name
 
 
 class UsersSection(BaseSection):
@@ -381,7 +387,7 @@ class MFASection(BaseSection):
                 return None
             methods = data.get("value", [])
             return [
-                _method_label(m.get("@odata.type", ""))
+                _method_code(m.get("@odata.type", ""))
                 for m in methods
                 if m.get("@odata.type") != "#microsoft.graph.passwordAuthenticationMethod"
             ]

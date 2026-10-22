@@ -30,12 +30,17 @@ from app.reports.parsers import (
     _mfa_user_records,
     _risky_users_from_sidecar,
 )
+from app.reports.parsers.azure import nsg_rule_text, orphan_text
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
-from app.reports.parsers.email import _external_forwarding_items
-from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.email import _external_forwarding_items, dmarc_status, spf_status
+from app.reports.parsers.identity import _risky_users_from_text, mfa_method_code
 from app.reports.parsers.m365_backup import _parse_m365_backup
-from app.reports.parsers.network import NETWORK_AUDIT_FILES
+from app.reports.parsers.network import (
+    NETWORK_AUDIT_FILES,
+    policy_finding_text,
+    policy_findings,
+)
 from app.reports.risk import _is_open_wlan
 
 logger = logging.getLogger(__name__)
@@ -136,24 +141,24 @@ def _build_finding_rec_map(recs: list[dict]) -> dict[str, list[int]]:
     return result
 
 
-# Registered-method labels (04_mfa_methods) → the authentication-methods policy
-# IDs (09b) that make them usable. A phone can be used via SMS or Voice, so it is
+# Registered methods (04_mfa_methods) → the authentication-methods policy IDs
+# (09b) that make them usable. A phone can be used via SMS or Voice, so it is
 # only unusable when BOTH are disabled.
 #
-# The keys MUST be the exact display labels the collector emits, i.e. the values
-# of users_mfa._METHOD_LABELS — a mismatch makes _auth_method_lockout_users treat
-# the method as an unrecognised (assumed-usable) label and silently drop the
-# lockout warning for anyone whose only method is that one. tests/test_recommendation_identity.py
-# cross-checks the two maps so they cannot drift again (M365 review follow-up).
-_METHOD_LABEL_TO_POLICY: dict[str, set[str]] = {
-    "Authenticator App": {"microsoftAuthenticator"},
-    "Phone (SMS/Call)": {"sms", "voice"},
-    "FIDO2 Key": {"fido2"},
-    "OATH TOTP": {"softwareOath"},
-    "Windows Hello": {"windowsHelloForBusiness"},
-    "Temp Access Pass": {"temporaryAccessPass"},
-    "Email OTP": {"email"},
-    "Certificate": {"x509Certificate"},
+# The keys are the codes the collector emits (users_mfa.MFA_METHODS); a run
+# from before them holds labels, which mfa_method_code reads back. A method
+# the map does not know is treated as usable and never fires the lockout
+# warning, so tests/test_recommendation_identity.py cross-checks the two
+# (M365 review follow-up).
+_METHOD_TO_POLICY: dict[str, set[str]] = {
+    "microsoftAuthenticator": {"microsoftAuthenticator"},
+    "phone": {"sms", "voice"},
+    "fido2": {"fido2"},
+    "softwareOath": {"softwareOath"},
+    "windowsHelloForBusiness": {"windowsHelloForBusiness"},
+    "temporaryAccessPass": {"temporaryAccessPass"},
+    "email": {"email"},
+    "x509Certificate": {"x509Certificate"},
 }
 
 
@@ -195,8 +200,8 @@ def _auth_method_lockout_users(
         if not methods:
             continue
         usable = False
-        for label in methods:
-            ids = _METHOD_LABEL_TO_POLICY.get(label)
+        for method in methods:
+            ids = _METHOD_TO_POLICY.get(mfa_method_code(method))
             if ids is None or any(pid not in disabled for pid in ids):
                 usable = True
                 break
@@ -673,7 +678,10 @@ def _dmarc(audit: _Audit) -> Iterator[dict]:
         # used to raise on it and take the whole report down.
         if not d.get("domain") or not _is_audit_relevant_domain(d["domain"]):
             continue
-        if "MISSING" in d.get("dmarc", "") or "WEAK" in d.get("dmarc", ""):
+        code, _ = dmarc_status(d)
+        if code in ("missing", "none") or (
+            not code and ("MISSING" in d.get("dmarc", "") or "WEAK" in d.get("dmarc", ""))
+        ):
             yield {
                 "priority": "high",
                 "finding_id": "finding-email",
@@ -692,10 +700,10 @@ def _spf(audit: _Audit) -> Iterator[dict]:
     for d in audit.spf_dmarc:
         if not d.get("domain") or not _is_audit_relevant_domain(d["domain"]):
             continue
-        if (
-            "MISSING" in d.get("spf", "")
-            or "CRITICAL" in d.get("spf", "")
-            or "WEAK" in d.get("spf", "")
+        code, _ = spf_status(d)
+        spf = d.get("spf", "")
+        if code in ("missing", "pass_all", "softfail", "neutral") or (
+            not code and ("MISSING" in spf or "CRITICAL" in spf or "WEAK" in spf)
         ):
             yield {
                 "priority": "high",
@@ -860,9 +868,13 @@ def _nsg(audit: _Audit) -> Iterator[dict]:
     # file when the run is from before the sidecar.
     fc, t = audit.fc, audit.t
     nsg_warns = [k for k in fc if "nsg_risky" in k.lower() and "WARN" in k]
-    nsg_sub_items, replaced = _risky_nsg_rules_from_sidecars(fc)
+    rules, replaced = _risky_nsg_rules_from_sidecars(fc)
+    nsg_sub_items = [nsg_rule_text(rule, t) for rule in rules]
     nsg_sub_items += [
-        rule for k in nsg_warns if k not in replaced for rule in _risky_nsg_rules(fc[k])
+        nsg_rule_text(rule, t)
+        for k in nsg_warns
+        if k not in replaced
+        for rule in _risky_nsg_rules(fc[k])
     ]
     if not nsg_warns and not nsg_sub_items:
         return
@@ -877,16 +889,16 @@ def _nsg(audit: _Audit) -> Iterator[dict]:
     }
 
 
-def _risky_nsg_rules_from_sidecars(fc: dict) -> tuple[list[str], set[str]]:
+def _risky_nsg_rules_from_sidecars(fc: dict) -> tuple[list[dict], set[str]]:
     """The risky inbound rules in each 32_azure_nsgs sidecar, and the WARN
     files they stand in for, which are then not read a second time."""
-    rules: list[str] = []
+    rules: list[dict] = []
     replaced: set[str] = set()
     for fname, _content, sub in _find_azure_files(fc, "32_azure_nsgs"):
         nsgs = _sidecar(fc, fname)
         if nsgs is None:
             continue
-        rules += [rule.get("detail") or "" for rule in nsgs.get("risky_rules") or []]
+        rules += [rule for rule in nsgs.get("risky_rules") or [] if isinstance(rule, dict)]
         replaced.add(f"32b_azure_nsg_risky_rules_WARN{'_' + sub if sub else ''}.txt")
     return rules, replaced
 
@@ -915,6 +927,11 @@ _ADVISOR_LABELS = {
     "Performance": "rec_advisor_cat_performance",
     "OperationalExcellence": "rec_advisor_cat_ops",
 }
+# The collector's own name for a recommendation Azure gave no category. Kept
+# apart from _ADVISOR_LABELS, whose labels database migration 24 froze.
+_ADVISOR_UNCATEGORISED = "General"
+# Azure's impact levels, in the reader's language.
+_ADVISOR_IMPACTS = {"High": "high", "Medium": "medium", "Low": "low"}
 
 
 def _advisor(audit: _Audit) -> Iterator[dict]:
@@ -930,7 +947,7 @@ def _advisor(audit: _Audit) -> Iterator[dict]:
         # Worth a finding with one high-impact item, or three of any.
         if not high_impact and len(items) < 3:
             continue
-        sub_items = [_advisor_line(item) for item in items]
+        sub_items = [_advisor_line(item, t) for item in items]
         # "category" is Azure's own name and part of the id; the reader sees
         # "category_label", which _worded puts in their language. The id used
         # to be the translated label, so one finding had a Norwegian and an
@@ -952,6 +969,8 @@ def _advisor(audit: _Audit) -> Iterator[dict]:
 def _advisor_label(category: str, t: T) -> str:
     """An Advisor category in the reader's language, or as Azure names it."""
     label_key = _ADVISOR_LABELS.get(category)
+    if category == _ADVISOR_UNCATEGORISED:
+        label_key = "rec_advisor_cat_general"
     return getattr(t, label_key) if label_key else category
 
 
@@ -1016,13 +1035,20 @@ def _in_current_shape(rec: dict) -> dict:
     return out
 
 
-def _advisor_line(item: dict) -> str:
-    """ "[High] description (x3, Prod)": count and subscription share one bracket."""
+def _advisor_line(item: dict, t: T) -> str:
+    """ "[Høy] description (x3, Prod)": count and subscription share one bracket.
+
+    The impact is Azure's ("High"), worded; the description is Azure's text.
+    """
     notes = [f"x{item['count']}"] if item["count"] > 1 else []
     if item.get("subscription"):
         notes.append(item["subscription"])
     note = f" ({', '.join(notes)})" if notes else ""
-    return f"[{item['impact']}] {item['description']}{note}"
+    impact = item["impact"]
+    if impact in _ADVISOR_IMPACTS:
+        impact = getattr(t, _ADVISOR_IMPACTS[impact])
+    description = "" if item["description"] == "N/A" else item["description"]
+    return " ".join(part for part in (f"[{impact}]", description) if part) + note
 
 
 def _orphaned(audit: _Audit) -> Iterator[dict]:
@@ -1034,7 +1060,7 @@ def _orphaned(audit: _Audit) -> Iterator[dict]:
             "title": t("rec_orphaned_title", count=azure["orphaned"]),
             "detail": t.rec_orphaned_detail,
             "effort": t.rec_effort_low,
-            "sub_items": [f"{o['type']} ({o['status']}): {o['detail']}" for o in orphan_details],
+            "sub_items": [orphan_text(o, t) for o in orphan_details],
         }
 
 
@@ -1149,7 +1175,7 @@ def _fg_allow_all(audit: _Audit) -> Iterator[dict]:
     fg, t = _network_device(audit, "fortigate"), audit.t
     if not fg:
         return
-    allow_all = [w for w in fg.get("policy_warnings", []) if "allow-all" in w.lower()]
+    allow_all = [f for f in policy_findings(fg) if f.get("kind") == "allow_all"]
     if allow_all:
         yield {
             "priority": "critical",
@@ -1157,7 +1183,7 @@ def _fg_allow_all(audit: _Audit) -> Iterator[dict]:
             "title": t("rec_fg_allow_all_title", count=len(allow_all)),
             "detail": t.rec_fg_allow_all_detail,
             "effort": t.rec_effort_medium,
-            "sub_items": allow_all,
+            "sub_items": [policy_finding_text(f, t) for f in allow_all],
         }
 
 
@@ -1165,7 +1191,7 @@ def _fg_no_logging(audit: _Audit) -> Iterator[dict]:
     fg, t = _network_device(audit, "fortigate"), audit.t
     if not fg:
         return
-    no_log = [w for w in fg.get("policy_warnings", []) if "logging" in w.lower()]
+    no_log = [f for f in policy_findings(fg) if f.get("kind") == "no_logging"]
     if no_log:
         yield {
             "priority": "high",
@@ -1173,7 +1199,7 @@ def _fg_no_logging(audit: _Audit) -> Iterator[dict]:
             "title": t("rec_fg_no_logging_title", count=len(no_log)),
             "detail": t.rec_fg_no_logging_detail,
             "effort": t.rec_effort_low,
-            "sub_items": no_log,
+            "sub_items": [policy_finding_text(f, t) for f in no_log],
         }
 
 

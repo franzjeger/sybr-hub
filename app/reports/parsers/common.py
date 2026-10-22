@@ -14,6 +14,93 @@ import re
 log = logging.getLogger(__name__)
 
 
+# Why a collector's "(not available)" file holds no data. The Intune section
+# writes "Cause: <code> status=<n> permission=<name>"; it wrote an English
+# sentence before, which an old run holds and LEGACY_CAUSES reads.
+UNAVAILABLE_CAUSES = ("licence_gap", "service_refused", "refused", "failed")
+
+_CAUSE_LINE = re.compile(r"^\s*Cause: (?P<code>\w+)(?P<values>(?: \w+=\S+)*)\s*$", re.M)
+_PERMISSION = r"(?P<permission>\w+(?:\.\w+)+)"
+_LEGACY_CAUSES = (
+    (
+        "licence_gap",
+        re.compile(
+            r"Graph refused this collection with (?P<status>\d+), reporting a licence gap\."
+        ),
+    ),
+    (
+        "service_refused",
+        re.compile(
+            r"The Intune service refused this collection \((?P<status>\d+)\)\. "
+            rf"Check {_PERMISSION} and admin consent"
+        ),
+    ),
+    (
+        "refused",
+        re.compile(rf"Graph refused this collection with (?P<status>\d+)\. Check {_PERMISSION} "),
+    ),
+    (
+        "refused",
+        re.compile(
+            r"Graph refused this collection with (?P<status>\d+): the app registration is "
+            rf"missing {_PERMISSION} or its admin consent\."
+        ),
+    ),
+    ("failed", re.compile(r"The collection failed before it could be read: (?P<error>.+)")),
+)
+
+
+def _error_details(text: str) -> str:
+    """The first line under "Error details for troubleshooting:", as the exception said it."""
+    lines = (text or "").splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().lower().startswith("error details"):
+            return next((rest.strip() for rest in lines[i + 1 :] if rest.strip()), "")
+    return ""
+
+
+def unavailable_cause(text: str) -> dict | None:
+    """{"code", "status", "permission", "error"} for a "(not available)" file, or None.
+
+    The code is one of UNAVAILABLE_CAUSES. None when the file names no cause
+    the report knows: the reader then shows its first sentence as it stands.
+    """
+    m = _CAUSE_LINE.search(text or "")
+    if m and m["code"] in UNAVAILABLE_CAUSES:
+        values = dict(v.split("=", 1) for v in m["values"].split())
+        return {
+            "code": m["code"],
+            "status": values.get("status", ""),
+            "permission": values.get("permission", ""),
+            "error": _error_details(text) if m["code"] == "failed" else "",
+        }
+    prose = _first_prose_line(text)
+    for code, pattern in _LEGACY_CAUSES:
+        legacy = pattern.match(prose)
+        if legacy:
+            found = legacy.groupdict()
+            return {
+                "code": code,
+                "status": found.get("status") or "",
+                "permission": found.get("permission") or "",
+                "error": found.get("error") or "",
+            }
+    return None
+
+
+def unavailable_text(cause: dict, t) -> str:
+    """Why the data is missing, in the report's language."""
+    permission = cause.get("permission") or t.intune_permission_unknown
+    return str(
+        t(
+            f"unavailable_{cause['code']}",
+            status=cause.get("status") or "?",
+            permission=permission,
+            error=cause.get("error") or "",
+        )
+    )
+
+
 def _first_prose_line(text: str) -> str:
     """The first sentence under a "(not available)" banner.
 

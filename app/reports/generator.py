@@ -10,16 +10,18 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from app.core.config import get_branding, get_logo_path
+from app.core.policy_inventory import workload_label
 from app.modules.base import SectionResult, SectionStatus
 from app.reports.compliance import _build_compliance_map, dkim_status_by_domain
 from app.reports.evidence import _EVIDENCE_MAP, _reported_count
-from app.reports.i18n import T
+from app.reports.i18n import T, section_name
 from app.reports.metrics import (
     METRICS_FILE,
     _baseline_for,
     _compute_trends,
     _drift_for,
     _metric,
+    drift_reason_text,
     load_metrics_history,
     load_previous_metrics,
     save_audit_metrics,
@@ -47,10 +49,17 @@ from app.reports.parsers import (
     _parse_usage,
     _parse_user_counts,
     _risky_users_from_sidecar,
-    _severity,
 )
-from app.reports.parsers.common import _sidecar
-from app.reports.parsers.email import _spf_dmarc_records
+from app.reports.parsers.azure import power_state_text, subscription_state_text
+from app.reports.parsers.common import _sidecar, unavailable_text
+from app.reports.parsers.email import _spf_dmarc_records, dkim_summary, dns_pill, dns_tag
+from app.reports.parsers.identity import _emergency_access, group_type_text, mfa_methods_text
+from app.reports.parsers.network import (
+    device_error_text,
+    ha_mode_text,
+    policy_finding_text,
+    policy_findings,
+)
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
 from app.reports.risk import _apply_critical_floor, _compute_risk
@@ -444,6 +453,7 @@ def build_report_context(
         "compliance_policies": fc("11_intune_compliance_policies.txt"),
         "app_registrations": fc("17_app_registrations.txt"),
         "emergency_access": fc("07c_emergency_access_check.txt"),
+        "emergency_check": _emergency_access(file_contents),
         "pim_assignments": fc("07b_pim_eligible_assignments.txt"),
         "teams_info": fc("16_teams.txt"),
         "teams_settings": fc("16b_teams_settings.txt"),
@@ -456,7 +466,21 @@ def build_report_context(
         "app_version": _get_app_version(),
         # Helpers
         "SectionStatus": SectionStatus,
-        "_severity": _severity,
+        "_dns_tag": dns_tag,
+        "_unavailable_text": unavailable_text,
+        "_group_type_text": group_type_text,
+        "_mfa_methods_text": mfa_methods_text,
+        "_dns_pill": dns_pill,
+        "_dkim_summary": dkim_summary,
+        "_fg_findings": policy_findings,
+        "_fg_finding_text": policy_finding_text,
+        "_fg_ha_mode": ha_mode_text,
+        "_device_error_text": device_error_text,
+        "_subscription_state_text": subscription_state_text,
+        "_power_state_text": power_state_text,
+        "_drift_reason": drift_reason_text,
+        "_workload_label": workload_label,
+        "_section_name": section_name,
     }
 
     # Build compliance mapping after context is ready

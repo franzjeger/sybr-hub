@@ -54,13 +54,16 @@ def risk_coverage(risk: dict) -> dict:
     Old or third-party contexts without evidence recipes remain unknown.
     A numerical score alone is never evidence of complete collection.
     """
-    from app.reports.i18n import T
+    from app.reports.i18n import T, worded_params
 
     evidence = risk.get("data_quality_evidence")
     if not isinstance(evidence, list) or "has_full_data" not in risk:
         return {"state": "unknown", "issues": []}
     issues = [
-        {lang: T(lang)(item["key"], **item.get("params", {})) for lang in ("no", "en")}
+        {
+            lang: T(lang)(item["key"], **worded_params(item.get("params", {}), lang))
+            for lang in ("no", "en")
+        }
         for item in evidence
     ]
     state = (
@@ -304,6 +307,20 @@ def _drift_for(out_dir: Path) -> dict:
     except Exception as e:
         log.warning("Drift comparison failed for %s: %s", out_dir.name, e)
         return unmeasured("comparison_failed")
+
+
+def drift_reason_text(code: str, params: dict | None, t) -> str:
+    """Why drift could not be compared, with a snapshot named as the reader knows it.
+
+    The snapshot's own name ("intune_compliance_policies") is the collector's
+    file name; the sentence names its workload instead.
+    """
+    from app.core.policy_inventory import workload_label
+
+    params = dict(params or {})
+    if params.get("name"):
+        params["name"] = workload_label(str(params["name"]), t.lang)
+    return str(t(f"drift_{code}", **params))
 
 
 def _baseline_for(context: dict, lang: str = "no") -> dict | None:

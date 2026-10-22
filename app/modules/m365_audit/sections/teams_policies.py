@@ -10,6 +10,15 @@ from app.modules.m365_audit.graph_client import GraphClient
 
 logger = logging.getLogger(__name__)
 
+# The built-in guest user roles Entra ID assigns by id, each with the code the
+# report words: guests see what members see, a limited view (the default), or
+# only their own directory objects.
+GUEST_ROLES = {
+    "a0b1b346-4d3e-4e8b-98f8-753987be4970": "member",
+    "10dae51f-b6af-4016-8d66-8c2a99b929b3": "limited",
+    "2af84b1e-32c8-42b7-82bc-daa82404023b": "restricted",
+}
+
 
 class TeamsPoliciesSection(BaseSection):
     name = "Teams Policies"
@@ -90,32 +99,21 @@ class TeamsPoliciesSection(BaseSection):
             self._warn(f"Authorization policy fetch failed: {ex}")
             return
 
-        guest_invite = auth_policy.get("allowInvitesFrom", "N/A")
-        guest_role = auth_policy.get("guestUserRoleId", "N/A")
-
-        # Map known guest role GUIDs to readable names
-        _GUEST_ROLES = {
-            "a0b1b346-4d3e-4e8b-98f8-753987be4970": "Same as member users",
-            "10dae51f-b6af-4016-8d66-8c2a99b929b3": "Limited access (default)",
-            "2af84b1e-32c8-42b7-82bc-daa82404023b": "Restricted access (most restrictive)",
-        }
-        guest_role_name = _GUEST_ROLES.get(guest_role, guest_role)
-
-        # Map invite settings to readable names
-        _INVITE_SETTINGS = {
-            "everyone": "Everyone (most open)",
-            "adminsAndGuestInviters": "Admins and Guest Inviters",
-            "adminsGuestInvitersAndAllMembers": "Admins, Guest Inviters, and Members",
-            "none": "No one (most restrictive)",
-        }
-        guest_invite_name = _INVITE_SETTINGS.get(guest_invite, guest_invite)
+        # Graph's own values, which the report words. They were written as
+        # English labels ("Admins and Guest Inviters", "Limited access
+        # (default)") that a Norwegian report then printed inside its own
+        # sentence.
+        guest_invite = auth_policy.get("allowInvitesFrom")
+        guest_role = auth_policy.get("guestUserRoleId")
+        role_code = GUEST_ROLES.get(guest_role or "")
+        role_text = f"{role_code} ({guest_role})" if role_code else (guest_role or "N/A")
 
         lines = [
             "=" * 90,
             "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS",
             "=" * 90,
-            f"  Allow Invites From       : {guest_invite_name}",
-            f"  Guest User Role          : {guest_role_name}",
+            f"  Allow Invites From       : {guest_invite or 'N/A'}",
+            f"  Guest User Role          : {role_text}",
             "",
         ]
 
@@ -151,17 +149,13 @@ class TeamsPoliciesSection(BaseSection):
 
         lines += ["=" * 90, ""]
         self._save("30b_teams_guest_access.txt", "\n".join(lines))
-        # Graph's values beside the readable names the text and CIS 8.1.2 use.
-        # None where Graph gave nothing, which the text writes as "N/A".
-        raw_invite = auth_policy.get("allowInvitesFrom")
-        raw_role = auth_policy.get("guestUserRoleId")
+        # Graph's values, which CIS 8.1.2 reads and the report words. None
+        # where Graph gave nothing, which the text writes as "N/A".
         self._save_sidecar(
             "30b_teams_guest_access.txt",
             {
-                "allow_invites_from": raw_invite,
-                "allow_invites_from_label": None if raw_invite is None else guest_invite_name,
-                "guest_user_role_id": raw_role,
-                "guest_user_role": None if raw_role is None else guest_role_name,
+                "allow_invites_from": guest_invite,
+                "guest_user_role_id": guest_role,
                 "cross_tenant_defaults": cross_defaults,
             },
         )
@@ -169,7 +163,7 @@ class TeamsPoliciesSection(BaseSection):
         # Warn if guest access is too open
         if guest_invite == "everyone":
             self._warn("Guest invitation policy is set to 'Everyone' — any user can invite guests")
-        if guest_role == "a0b1b346-4d3e-4e8b-98f8-753987be4970":
+        if role_code == "member":
             self._warn("Guest users have same access as member users — consider restricting")
 
     # ── External / Messaging Policies ──────────────────────────────────────

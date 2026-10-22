@@ -15,6 +15,12 @@ _GLOBAL_ADMIN_ROLE = "Company Administrator"  # display name in Graph
 _GA_WARN_THRESHOLD = 5
 
 
+# A group's kind, as a code the report words ("group_type_<code>" in
+# app/reports/i18n.py). These were English labels ("Security", "Other") that
+# a Norwegian report used as its own row headings.
+GROUP_TYPES = ("m365", "dynamic", "security", "distribution", "other")
+
+
 def _group_type(group: dict) -> str:
     gtypes = group.get("groupTypes") or []
     security = group.get("securityEnabled", False)
@@ -22,14 +28,14 @@ def _group_type(group: dict) -> str:
     rule = group.get("membershipRule")
 
     if "Unified" in gtypes:
-        return "Microsoft 365"
+        return "m365"
     if rule:
-        return "Dynamic"
+        return "dynamic"
     if security and not mail:
-        return "Security"
+        return "security"
     if mail and not security:
-        return "Distribution"
-    return "Other"
+        return "distribution"
+    return "other"
 
 
 class GroupsSection(BaseSection):
@@ -224,7 +230,9 @@ class AdminRolesSection(BaseSection):
 
             for role in roles:
                 role_id = role.get("id", "")
-                role_name = role.get("displayName", "Unknown Role")
+                # Its id when Graph gives no name: an English placeholder
+                # ("Unknown Role") reached the report as a role's name.
+                role_name = role.get("displayName") or role_id
 
                 try:
                     members = await self.graph.get_all(

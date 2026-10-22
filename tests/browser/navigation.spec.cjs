@@ -299,6 +299,21 @@ test('the bell opens Varsler on Oversikt, with the events it used to list', asyn
 });
 
 test('Oversikt leads with who needs attention, without tiles, charts or an integration strip', async ({page}) => {
+  // Worst first: the order follows the open findings, and a customer never
+  // audited sits just below one with a high finding, above medium and low.
+  // The list is answered here, shuffled, so the order is the page's doing.
+  const audited = (id, findings) => ({customer_id: id, customer_name: id, primary_domain: '', has_metrics: true,
+    last_audit: '2026-09-30_120000', metrics: {risk_grade: 'C', mfa_coverage_pct: 90},
+    open_findings: {critical: 0, high: 0, medium: 0, low: 0, ...findings}});
+  // Answered without asking the server: a late reload must not be left
+  // waiting on it when the test ends.
+  await page.route('**/api/dashboard/overview', route => route.fulfill({json: {customers: [
+    audited('Order_Low', {low: 9}),
+    {customer_id: 'Order_Never', customer_name: 'Order_Never', primary_domain: '', has_metrics: false, metrics: null, last_audit: null},
+    audited('Order_Medium', {medium: 5, low: 1}),
+    audited('Order_Critical', {critical: 1}),
+    audited('Order_High', {high: 2}),
+  ]}}));
   await login(page);
   await inApp(page, app => app.showView('overview'));
   const rows = page.locator('.customer-overview-table tbody tr');
@@ -306,12 +321,26 @@ test('Oversikt leads with who needs attention, without tiles, charts or an integ
   await expect(page.locator('#view-overview canvas, #view-overview .kpi-row')).toHaveCount(0);
   // Nothing in the fixture is failing, so no banner either.
   await expect(page.locator('#integration-health-widget')).toBeHidden();
-  // Worst first: the order follows the open findings, and a customer never
-  // audited sits above one with only low ones.
-  const weights = await inApp(page, app => Array.from(document.querySelectorAll('.customer-overview-table tbody tr'))
-    .map(tr => app._findingWeight(app._overviewData.customers.find(c => c.customer_id === tr.dataset.customerId))));
-  expect(weights).toEqual([...weights].sort((a, b) => b - a));
+  expect(await rows.evaluateAll(trs => trs.map(tr => tr.dataset.customerId)))
+    .toEqual(['Order_Critical', 'Order_High', 'Order_Never', 'Order_Medium', 'Order_Low']);
   await expect(page.locator('.customer-overview-table th', {hasText: 'Åpne funn'})).toContainText('▼');
+});
+
+test('Kjør alle kunder shows its progress and each customer\'s result', async ({page}) => {
+  // The panel had become hidden while the script still showed it with
+  // style.display, which [hidden] overrides: the bulk audit ran unseen.
+  await page.route('**/api/audit/bulk', route => route.fulfill({contentType: 'text/event-stream', body: [
+    {type: 'bulk_started', total_customers: 1},
+    {type: 'customer_done', customer: 'Kunde A', grade: 'B', risk_score: 22, sections_done: 3, sections_total: 3},
+    {type: 'bulk_done'},
+  ].map(e => 'data: ' + JSON.stringify(e) + '\n\n').join('')}));
+  await login(page);
+  await inApp(page, app => app.showView('overview'));
+  await page.locator('#bulk-audit-btn').click();
+  await expect(page.locator('#bulk-progress-card')).toBeVisible();
+  await expect(page.locator('#bulk-results-table')).toBeVisible();
+  await expect(page.locator('#bulk-results-tbody tr')).toHaveText([/Kunde A\s*B\s*22\s*3\/3\s*OK/]);
+  await expect(page.locator('#audit-running-indicator')).toBeHidden();
 });
 
 test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({page}) => {
@@ -328,6 +357,11 @@ test('Ny kunde is one flow from Kunder: with Microsoft 365 or without', async ({
   await expect(page.locator('#new-cust-form')).toBeVisible();
   await expect(page.locator('#manual-cust-name')).toBeFocused();
   await expect(page.locator('#btn-manual-cust-save')).toBeVisible();
+  // Avbryt closes the dialog the way it was opened, so it opens again.
+  await modal.getByRole('button', {name: 'Avbryt'}).click();
+  await expect(modal).toBeHidden();
+  await page.locator('#view-customers [data-click-handler="openNewCustomer"]').click();
+  await expect(modal).toBeVisible();
   await modal.getByRole('button', {name: 'Avbryt'}).click();
   await expect(modal).toBeHidden();
 });

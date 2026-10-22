@@ -80,7 +80,8 @@ def _parse_sharepoint_settings(
     # "SharePoint external sharing is at its most permissive level"
     # recommendation, an amber CIS 7.2.1, and a red panel — all from a field
     # nobody read. An unrecognised value is likewise unknown, not permissive.
-    if not sharing_key:
+    # "N/A" is the collector's placeholder for a value it had not, not a setting.
+    if not sharing_key or sharing_key == "n/a":
         sharing_level, sharing_label = "unknown", t.sp_sharing_unknown
     else:
         sharing_level, sharing_label = sharing_map.get(
@@ -195,17 +196,75 @@ def _teams_cross_tenant(file_contents: dict[str, str]) -> dict | None:
     }
 
 
-def _teams_guest_settings(file_contents: dict[str, str]) -> tuple[str, str]:
-    """(who may invite guests, the guest role), as the readable names, "" if unread.
+# Who may invite guests, as Graph's allowInvitesFrom names it.
+GUEST_INVITE_CODES = (
+    "everyone",
+    "adminsGuestInvitersAndAllMembers",
+    "adminsAndGuestInviters",
+    "none",
+)
 
-    From 30b_teams_guest_access.json where the run has it, and from the
-    labelled lines of the text otherwise.
+# What teams_policies.py wrote before it stored Graph's values: an English
+# label for each, which a run from then holds in 30b's text and sidecar.
+_LEGACY_GUEST_INVITES = {
+    "everyone most open": "everyone",
+    "admins guest inviters and members": "adminsGuestInvitersAndAllMembers",
+    "admins and guest inviters": "adminsAndGuestInviters",
+    "no one most restrictive": "none",
+}
+_LEGACY_GUEST_ROLES = {
+    "same as member users": "member",
+    "limited access default": "limited",
+    "restricted access most restrictive": "restricted",
+}
+
+
+def _plain(text: str) -> str:
+    """A label without its case and punctuation, to compare it with a known one."""
+    return " ".join(re.sub(r"[^\w\s]", " ", text).lower().split())
+
+
+def _guest_invite_code(value: str) -> str:
+    plain = _plain(value)
+    for code in GUEST_INVITE_CODES:
+        if plain == code.lower():
+            return code
+    return _LEGACY_GUEST_INVITES.get(plain, value)
+
+
+def _guest_role_code(value: str) -> str:
+    from app.modules.m365_audit.sections.teams_policies import GUEST_ROLES
+
+    if value in GUEST_ROLES:  # an id, as the sidecar and an older text hold it
+        return GUEST_ROLES[value]
+    code = value.split(" (", 1)[0]  # the text's "restricted (<id>)"
+    if code in GUEST_ROLES.values():
+        return code
+    return _LEGACY_GUEST_ROLES.get(_plain(value), value)
+
+
+def _teams_guest_settings(file_contents: dict[str, str]) -> tuple[str, str]:
+    """(who may invite guests, the guest role) as codes, "" where unread.
+
+    The invitation setting is one of GUEST_INVITE_CODES and the role one of
+    teams_policies.GUEST_ROLES' codes. A value neither names is returned as
+    it was stored, and the report shows it as it is. From
+    30b_teams_guest_access.json where the run has it, and from the labelled
+    lines of the text otherwise. A run from before the collector stored
+    Graph's values holds its English labels, which are read back to codes.
     """
     data = _sidecar(file_contents, "30b_teams_guest_access.txt")
     if data is not None:
-        return data.get("allow_invites_from_label") or "", data.get("guest_user_role") or ""
-    text = file_contents.get("30b_teams_guest_access.txt", "")
-    return _labelled_value(text, "Allow Invites From"), _labelled_value(text, "Guest User Role")
+        invites = str(data.get("allow_invites_from") or "")
+        role = str(data.get("guest_user_role_id") or "")
+    else:
+        text = file_contents.get("30b_teams_guest_access.txt", "")
+        invites = _labelled_value(text, "Allow Invites From")
+        role = _labelled_value(text, "Guest User Role")
+    return (
+        _guest_invite_code(invites) if invites else "",
+        _guest_role_code(role) if role else "",
+    )
 
 
 def _app_credential_counts(file_contents: dict[str, str]) -> tuple[int, int] | None:

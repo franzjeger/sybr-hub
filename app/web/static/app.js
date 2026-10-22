@@ -302,7 +302,7 @@ export function setVpnTunnelUp(up) {
 
 export function _syncConnChip() {
   var box = document.getElementById('conn-status');
-  if (box) box.style.display = (_vpnTunnelUp || _connState !== 'ok') ? 'flex' : 'none';
+  if (box) box.hidden = !(_vpnTunnelUp || _connState !== 'ok');
 }
 
 function _setConnStatus(state, label, title) {
@@ -608,10 +608,6 @@ export async function renderToolCustomerPickers() {
       + '<select class="field-input tool-customer-select" data-change-handler="toolCustomerChanged" data-tool="' + esc(bar.dataset.toolCustomer) + '">'
       + opts + '</select></label>';
   });
-}
-
-export function toolNoCustomerHtml() {
-  return '<div class="empty-signpost"><p>' + esc(t('msg_tool_choose_customer', 'Velg kunden verktøyet skal gjelde, i feltet Kunde over.')) + '</p></div>';
 }
 
 registerUiHandlers({

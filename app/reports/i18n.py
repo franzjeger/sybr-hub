@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from datetime import date
+
 TRANSLATIONS: dict[str, dict[str, str]] = {
     # Background notifications use the Hub language, independently of report language.
     "background_alert_sweep": {
@@ -1524,6 +1527,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Det som ikke kunne leses",
         "en": "What could not be read",
     },
+    "m365_backup_permissions_skipped": {
+        "no": "Ikke lest: flere enn {limit} apper passet, og auditen leser tillatelsene til {limit}",
+        "en": "Not read: more than {limit} apps matched, and the audit reads the permissions of {limit}",
+    },
     "m365_backup_graph_said": {
         "no": "Graph svarte",
         "en": "Graph said",
@@ -2074,6 +2081,50 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ingen administratorroller funnet",
         "en": "No admin roles found",
     },
+    # A registered MFA method (users_mfa.MFA_METHODS).
+    "mfa_method_authenticator": {"no": "Authenticator-app", "en": "Authenticator app"},
+    "mfa_method_phone": {"no": "Telefon (SMS/anrop)", "en": "Phone (SMS/call)"},
+    "mfa_method_fido2": {"no": "FIDO2-sikkerhetsnøkkel", "en": "FIDO2 security key"},
+    "mfa_method_windows_hello": {
+        "no": "Windows Hello for Business",
+        "en": "Windows Hello for Business",
+    },
+    "mfa_method_email": {"no": "Engangskode på e-post", "en": "Email one-time passcode"},
+    "mfa_method_tap": {"no": "Midlertidig tilgangspass", "en": "Temporary Access Pass"},
+    "mfa_method_oath": {"no": "OATH-kode (TOTP)", "en": "OATH code (TOTP)"},
+    "mfa_method_certificate": {"no": "Sertifikat (X.509)", "en": "Certificate (X.509)"},
+    # Azure: a subscription's state, a VM's power state, an orphaned resource
+    # and a risky NSG rule, worded from what the collectors store.
+    "sub_state_enabled": {"no": "Aktiv", "en": "Enabled"},
+    "sub_state_warned": {"no": "Advart", "en": "Warned"},
+    "sub_state_past_due": {"no": "Betaling forfalt", "en": "Past due"},
+    "sub_state_disabled": {"no": "Deaktivert", "en": "Disabled"},
+    "sub_state_deleted": {"no": "Slettet", "en": "Deleted"},
+    "azure_subscription_unnamed": {"no": "Abonnement uten navn", "en": "Unnamed subscription"},
+    "vm_state_running": {"no": "Kjører", "en": "Running"},
+    "vm_state_stopped": {"no": "Stoppet", "en": "Stopped"},
+    "vm_state_deallocated": {"no": "Stoppet (frigjort)", "en": "Stopped (deallocated)"},
+    "vm_state_starting": {"no": "Starter", "en": "Starting"},
+    "vm_state_stopping": {"no": "Stopper", "en": "Stopping"},
+    "vm_state_deallocating": {"no": "Frigjøres", "en": "Deallocating"},
+    "orphan_disk": {"no": "Disk", "en": "Disk"},
+    "orphan_nic": {"no": "Nettverkskort", "en": "Network interface"},
+    "orphan_public_ip": {"no": "Offentlig IP", "en": "Public IP"},
+    "orphan_unattached": {"no": "ikke tilkoblet", "en": "unattached"},
+    "orphan_ip_unassigned": {"no": "ingen adresse tildelt", "en": "no address assigned"},
+    "orphan_resource_group": {"no": "ressursgruppe {name}", "en": "resource group {name}"},
+    "nsg_rule_open": {
+        "no": "NSG «{nsg}», regel «{rule}» (prioritet {priority}): tillater innkommende "
+        "trafikk fra {source} til port {ports}",
+        "en": "NSG '{nsg}' rule '{rule}' (priority {priority}): allows inbound from {source} "
+        "to port(s) {ports}",
+    },
+    # A group's kind (groups_roles.GROUP_TYPES).
+    "group_type_m365": {"no": "Microsoft 365", "en": "Microsoft 365"},
+    "group_type_dynamic": {"no": "Dynamisk", "en": "Dynamic"},
+    "group_type_security": {"no": "Sikkerhet", "en": "Security"},
+    "group_type_distribution": {"no": "Distribusjon", "en": "Distribution"},
+    "group_type_other": {"no": "Annet", "en": "Other"},
     "emergency_access_heading": {
         "no": "N\u00f8dtilgang / Break-Glass",
         "en": "Emergency Access / Break-Glass",
@@ -2081,6 +2132,36 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "emergency_access_analysis": {
         "no": "Analyse av nødtilgang",
         "en": "Emergency Access Analysis",
+    },
+    # The break-glass check per Global Admin (07c's sidecar).
+    "bg_col_account": {"no": "Konto", "en": "Account"},
+    "bg_col_mfa": {"no": "MFA registrert", "en": "MFA registered"},
+    "bg_col_ca_excluded": {"no": "Unntatt fra CA", "en": "Excluded from CA"},
+    "bg_col_last_sign_in": {"no": "Sist pålogget", "en": "Last sign-in"},
+    "bg_col_notes": {"no": "Merknad", "en": "Note"},
+    "bg_unknown": {"no": "Ukjent", "en": "Unknown"},
+    "bg_days_ago": {"no": "for {days} dager siden", "en": "{days} days ago"},
+    "bg_skipped": {
+        "no": "Sjekken ble ikke kjørt: ingen globale administratorer ble gitt til den.",
+        "en": "The check did not run: it was given no Global Administrators.",
+    },
+    "bg_note_no_mfa": {
+        "no": "Ingen MFA registrert: kan være en nødtilgangskonto",
+        "en": "No MFA registered: possibly a break-glass account",
+    },
+    "bg_note_ca_excluded": {
+        "no": "Unntatt fra Conditional Access og ikke brukt nylig: kandidat for nødtilgangskonto",
+        "en": "Excluded from Conditional Access and not used recently: break-glass candidate",
+    },
+    "bg_note_ca_excluded_in_use": {
+        "no": "Unntatt fra Conditional Access, men logget på for {days} dager siden: "
+        "en administrator i daglig bruk som omgår MFA, ikke en nødtilgangskonto",
+        "en": "Excluded from Conditional Access but signed in {days} days ago: "
+        "an admin in daily use bypassing MFA, not a break-glass account",
+    },
+    "bg_note_ca_unknown": {
+        "no": "Conditional Access ble ikke samlet inn, så unntaket kan ikke bekreftes",
+        "en": "Conditional Access was not collected, so the exclusion cannot be confirmed",
     },
     "pim_assignments_heading": {
         "no": "PIM-tildelinger (Privileged Identity Management)",
@@ -2317,8 +2398,41 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Intune-data kunne ikke hentes. ",
         "en": "Intune data could not be collected. ",
     },
+    # Why a collection is "(not available)": the Intune section's cause codes
+    # (UNAVAILABLE_CAUSES in app/reports/parsers/common.py).
+    "unavailable_licence_gap": {
+        "no": "Graph avviste innsamlingen med {status} og meldte at en lisens mangler. "
+        "Kontroller lisensen endepunktet krever; svaret sier ikke hvilken Intune-lisens som mangler.",
+        "en": "Graph refused this collection with {status}, reporting a licence gap. "
+        "Verify the required licence for this endpoint; the response does not identify "
+        "a specific missing Intune SKU.",
+    },
+    "unavailable_service_refused": {
+        "no": "Intune-tjenesten avviste innsamlingen ({status}). Kontroller {permission} og "
+        "administratorsamtykket, en aktiv Intune-lisens og at tjenesten er klargjort i "
+        "tenanten. Svaret alene sier ikke hvilken forutsetning som mangler.",
+        "en": "The Intune service refused this collection ({status}). Check {permission} and "
+        "admin consent, an active Intune licence and tenant service provisioning. The response "
+        "alone does not establish which prerequisite failed.",
+    },
+    "unavailable_refused": {
+        "no": "Graph avviste innsamlingen med {status}. Kontroller {permission} og "
+        "administratorsamtykket, at tokenet er gyldig og at det finnes en aktiv Intune-lisens. "
+        "Svaret alene sier ikke hva årsaken er.",
+        "en": "Graph refused this collection with {status}. Check {permission} and admin "
+        "consent, token validity and an active Intune licence. The response alone does not "
+        "establish the cause.",
+    },
+    "unavailable_failed": {
+        "no": "Innsamlingen feilet før dataene kunne leses: {error}",
+        "en": "The collection failed before it could be read: {error}",
+    },
+    "intune_permission_unknown": {
+        "no": "den tilsvarende DeviceManagement-tillatelsen",
+        "en": "the matching DeviceManagement permission",
+    },
     "no_intune_desc": {
-        "no": "Enten er Intune ikke konfigurert, eller sa har appen ikke tilstrekkelige rettigheter.",
+        "no": "Enten er Intune ikke konfigurert, eller så har appen ikke tilstrekkelige rettigheter.",
         "en": "Either Intune is not configured, or the app does not have sufficient permissions.",
     },
     "sharepoint_teams": {
@@ -2853,6 +2967,28 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Mangler",
         "en": "Missing",
     },
+    # What the DNS collector found for a mail domain (dns.SPF_STATUSES,
+    # dns.DMARC_STATUSES), worded for CIS 5.2.1 and 5.2.2 and the email table.
+    "dns_spf_hardfail": {"no": "OK (-all, hard fail)", "en": "OK (-all hardfail)"},
+    "dns_spf_softfail": {"no": "Svak (~all, soft fail)", "en": "Weak (~all softfail)"},
+    "dns_spf_neutral": {"no": "Svak (?all, nøytral)", "en": "Weak (?all neutral)"},
+    "dns_spf_pass_all": {
+        "no": "Kritisk (+all: hvem som helst kan sende)",
+        "en": "Critical (+all: anyone may send)",
+    },
+    "dns_spf_no_all": {
+        "no": "Publisert, uten all-mekanisme",
+        "en": "Published, without an 'all' mechanism",
+    },
+    "dns_dmarc_reject": {"no": "OK (p=reject)", "en": "OK (p=reject)"},
+    "dns_dmarc_quarantine": {"no": "Karantene (p=quarantine)", "en": "Quarantine (p=quarantine)"},
+    "dns_dmarc_none": {"no": "Svak (p=none)", "en": "Weak (p=none)"},
+    "dns_dmarc_unknown_policy": {
+        "no": "Publisert, ukjent policy",
+        "en": "Published, unknown policy",
+    },
+    "dns_present": {"no": "Publisert", "en": "Published"},
+    "dns_lookup_failed": {"no": "Oppslaget feilet", "en": "Lookup failed"},
     "cis_dmarc_missing": {
         "no": "Mangler",
         "en": "Missing",
@@ -3373,6 +3509,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "ukjent",
         "en": "unknown",
     },
+    # Who may invite guests (Graph's allowInvitesFrom), and the guest role.
+    "guest_invites_everyone": {"no": "Alle (mest åpent)", "en": "Everyone (most open)"},
+    "guest_invites_members": {
+        "no": "Administratorer, gjesteinvitører og medlemmer",
+        "en": "Admins, Guest Inviters, and Members",
+    },
+    "guest_invites_admins": {
+        "no": "Administratorer og gjesteinvitører",
+        "en": "Admins and Guest Inviters",
+    },
+    "guest_invites_none": {"no": "Ingen (mest restriktivt)", "en": "No one (most restrictive)"},
+    "guest_role_member": {"no": "Samme som medlemmer", "en": "Same as member users"},
+    "guest_role_limited": {
+        "no": "Begrenset tilgang (standard)",
+        "en": "Limited access (default)",
+    },
+    "guest_role_restricted": {
+        "no": "Sterkt begrenset tilgang (mest restriktivt)",
+        "en": "Restricted access (most restrictive)",
+    },
     "cis_guest_same_as_member": {
         "no": "{detail}. Gjester har samme tilgang som ansatte",
         "en": "{detail}. Guests have the same access as employees",
@@ -3603,6 +3759,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Ytelse",
         "en": "Performance",
     },
+    "rec_advisor_cat_general": {"no": "Generelt", "en": "General"},
     "rec_advisor_cat_ops": {
         "no": "Drift",
         "en": "Operations",
@@ -3948,6 +4105,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "HA-modus",
         "en": "HA mode",
     },
+    # FortiOS's HA modes (system/ha "mode").
+    "net_ha_standalone": {"no": "Frittstående", "en": "Standalone"},
+    "net_ha_active_passive": {"no": "Aktiv-passiv", "en": "Active-passive"},
+    "net_ha_active_active": {"no": "Aktiv-aktiv", "en": "Active-active"},
+    # A FortiGate policy's finding; {policy} is its id, with its name after it.
+    "fg_finding_allow_all": {
+        "no": "Regel {policy}: tillater all trafikk (kilde all, mål all, tjeneste ALL)",
+        "en": "Policy {policy}: allows all traffic (source all, destination all, service ALL)",
+    },
+    "fg_finding_no_logging": {
+        "no": "Regel {policy}: logger ikke trafikken",
+        "en": "Policy {policy}: does not log its traffic",
+    },
     "net_administrators": {
         "no": "Administratorer",
         "en": "Administrators",
@@ -4034,7 +4204,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "{count} FortiGate rule(s) without logging",
     },
     "rec_fg_no_logging_detail": {
-        "no": "Brannmurregler uten logging gjør det umulig å oppdage og etterforskebrudd.",
+        "no": "Brannmurregler uten logging gjør det umulig å oppdage og etterforske brudd.",
         "en": "Firewall rules without logging make it impossible to detect and investigate breaches.",
     },
     "rec_fg_no_trusthost_title": {
@@ -4286,6 +4456,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no": "Frakoblet",
         "en": "Offline",
     },
+    # Why a direct UniFi device could not be read (network_audit.DEVICE_READ_ERRORS).
+    "unifi_error_ssh_timeout": {"no": "SSH svarte ikke i tide", "en": "SSH did not answer in time"},
+    "unifi_error_sshpass_missing": {
+        "no": "sshpass er ikke installert på serveren",
+        "en": "sshpass is not installed on the server",
+    },
+    "unifi_error_connection_failed": {
+        "no": "Enheten svarte verken på HTTP eller SSH",
+        "en": "The device answered neither HTTP nor SSH",
+    },
     # A WLAN's security as the UniFi collector labels it
     # (unifi_api.wlan_security_label). WPA2 and WPA3 are names and stay.
     "wlan_security_open": {
@@ -4438,7 +4618,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "alert_fact_critical": {"no": "Kritiske", "en": "Critical"},
     "alert_fact_warnings": {"no": "Advarsler", "en": "Warnings"},
     "alert_and_more": {"no": "... og {count} til", "en": "... and {count} more"},
-    "alert_sent_at": {"no": "Sendt {when}", "en": "Sent {when}"},
+    "alert_sent_at": {"no": "Sendt {date} kl. {time} UTC", "en": "Sent {date}, {time} UTC"},
     "alert_open_dashboard": {"no": "Åpne Sybr HUB", "en": "Open Sybr HUB"},
     "alert_email_footer": {
         "no": "Sendt automatisk fra Sybr HUB",
@@ -4541,6 +4721,152 @@ def get_translations(lang: str = "no") -> dict[str, str]:
     for key, translations in TRANSLATIONS.items():
         result[key] = translations.get(lang, translations.get("no", key))
     return result
+
+
+# The audit's sections, which the report names in its own sentences. A
+# section's name is the collector's English ("Sign-in Activity"), and a run
+# reloaded from history carries the history view's ("Tenant Info"); both are
+# read here. A name not listed is shown as it is.
+_SECTION_NAMES: dict[str, dict[str, str]] = {
+    "Tenant Information": {"no": "Tenant-informasjon", "en": "Tenant information"},
+    "Tenant Info": {"no": "Tenant-informasjon", "en": "Tenant information"},
+    "Licenses": {"no": "Lisenser", "en": "Licences"},
+    "Users": {"no": "Brukere", "en": "Users"},
+    "MFA Methods": {"no": "MFA-metoder", "en": "MFA methods"},
+    "Sign-in Activity": {"no": "Påloggingsaktivitet", "en": "Sign-in activity"},
+    "Groups": {"no": "Grupper", "en": "Groups"},
+    "Admin Roles": {"no": "Administratorroller", "en": "Admin roles"},
+    "Admin Roles & PIM": {"no": "Administratorroller og PIM", "en": "Admin roles and PIM"},
+    "Conditional Access": {"no": "Conditional Access", "en": "Conditional Access"},
+    "Secure Score": {"no": "Secure Score", "en": "Secure Score"},
+    "Secure Score & Auth": {
+        "no": "Secure Score og autentiseringsmetoder",
+        "en": "Secure Score and authentication methods",
+    },
+    "Intune": {"no": "Intune", "en": "Intune"},
+    "Intune Devices": {"no": "Intune-enheter", "en": "Intune devices"},
+    "Intune Compliance": {"no": "Intune-samsvar", "en": "Intune compliance"},
+    "Intune Apps": {"no": "Intune-apper", "en": "Intune apps"},
+    "Intune Autopilot": {"no": "Intune Autopilot", "en": "Intune Autopilot"},
+    "Entra Devices": {"no": "Entra-enheter", "en": "Entra devices"},
+    "SharePoint": {"no": "SharePoint", "en": "SharePoint"},
+    "OneDrive Sharing": {"no": "OneDrive-deling", "en": "OneDrive sharing"},
+    "Microsoft Teams": {"no": "Microsoft Teams", "en": "Microsoft Teams"},
+    "Teams": {"no": "Teams", "en": "Teams"},
+    "Teams Policies": {"no": "Teams-policyer", "en": "Teams policies"},
+    "App Registrations & OAuth": {
+        "no": "Appregistreringer og OAuth",
+        "en": "App registrations and OAuth",
+    },
+    "Apps & OAuth": {"no": "Apper og OAuth", "en": "Apps and OAuth"},
+    "Identity Security": {"no": "Identitetssikkerhet", "en": "Identity security"},
+    "Privileged Identity Management": {
+        "no": "Privileged Identity Management",
+        "en": "Privileged Identity Management",
+    },
+    "Password Protection": {"no": "Passordbeskyttelse", "en": "Password protection"},
+    "Compliance Score": {"no": "Samsvarspoeng", "en": "Compliance score"},
+    "Defender for Office 365": {"no": "Defender for Office 365", "en": "Defender for Office 365"},
+    "Defender & Purview": {"no": "Defender og Purview", "en": "Defender and Purview"},
+    "DNS / Email Security": {"no": "DNS og e-postsikkerhet", "en": "DNS and email security"},
+    "Email DNS (SPF/DMARC)": {"no": "E-post-DNS (SPF/DMARC)", "en": "Email DNS (SPF/DMARC)"},
+    "Exchange Online": {"no": "Exchange Online", "en": "Exchange Online"},
+    "Exchange Mailboxes": {"no": "Exchange-postbokser", "en": "Exchange mailboxes"},
+    "Exchange Transport Rules": {
+        "no": "Exchange-transportregler",
+        "en": "Exchange transport rules",
+    },
+    "Exchange Connectors": {"no": "Exchange-koblinger", "en": "Exchange connectors"},
+    "Exchange Anti-Phish": {"no": "Exchange antiphishing", "en": "Exchange anti-phishing"},
+    "Exchange Anti-Spam": {"no": "Exchange antispam", "en": "Exchange anti-spam"},
+    "Exchange DKIM": {"no": "Exchange DKIM", "en": "Exchange DKIM"},
+    "Exchange Defender Policies": {
+        "no": "Defender-policyer i Exchange",
+        "en": "Exchange Defender policies",
+    },
+    "Mailbox Forwarding": {"no": "Videresending fra postbokser", "en": "Mailbox forwarding"},
+    "Inbox Rules": {"no": "Innboksregler", "en": "Inbox rules"},
+    "Usage Reports": {"no": "Bruksrapporter", "en": "Usage reports"},
+    "Microsoft 365 Backup": {"no": "Microsoft 365 Backup", "en": "Microsoft 365 Backup"},
+    "Azure Compute": {"no": "Azure Compute", "en": "Azure Compute"},
+    "Azure Network": {"no": "Azure-nettverk", "en": "Azure network"},
+    "Azure Storage": {"no": "Azure Storage", "en": "Azure Storage"},
+    "Azure Governance": {"no": "Azure-styring", "en": "Azure governance"},
+}
+
+
+def section_name(name: object, lang: str = "no") -> str:
+    """An audit section's name in *lang*; one not listed, as it is."""
+    text = str(name or "")
+    names = _SECTION_NAMES.get(text)
+    return names["en" if lang == "en" else "no"] if names else text
+
+
+def worded_params(params: dict, lang: str) -> dict:
+    """A sentence's values with a section's name in *lang*: the "section" value.
+
+    Kept apart from the values so the evidence a run stores names the section
+    the same way in every language and is worded when it is read.
+    """
+    if "section" not in params:
+        return params
+    return {**params, "section": section_name(params["section"], lang)}
+
+
+# A day written into a sentence the way the interface writes it
+# (formatRunName in app-format.js): "30. september 2026", "30 September 2026".
+# Not the platform's locale, which is one setting for the whole process and
+# often has no Norwegian installed.
+_MONTHS = {
+    "no": (
+        "januar",
+        "februar",
+        "mars",
+        "april",
+        "mai",
+        "juni",
+        "juli",
+        "august",
+        "september",
+        "oktober",
+        "november",
+        "desember",
+    ),
+    "en": (
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ),
+}
+_ISO_DAY = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+
+def format_date(value: object, lang: str = "no") -> str:
+    """The day of an ISO date or timestamp, written for a reader of *lang*.
+
+    A value that does not start with an ISO date is returned as it is: the
+    caller's data is never dropped for not being a date.
+    """
+    text = str(value or "")
+    m = _ISO_DAY.match(text)
+    if not m:
+        return text
+    try:
+        day = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return text
+    if lang == "en":
+        return f"{day.day} {_MONTHS['en'][day.month - 1]} {day.year}"
+    return f"{day.day}. {_MONTHS['no'][day.month - 1]} {day.year}"
 
 
 class Localised(str):

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from app.reports.evidence import _evidence_unavailable, _reported_count
-from app.reports.i18n import T
+from app.reports.i18n import T, worded_params
 from app.reports.parsers.common import _sidecar
-from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers.email import _external_forwarding_items, dmarc_status, spf_status
+from app.reports.parsers.network import policy_findings
 
 
 def _is_open_wlan(wlan: dict) -> bool:
@@ -43,12 +44,13 @@ def _network_penalty(network: dict) -> int:
         admins_no_2fa = [a for a in fg.get("admins", []) if not a.get("two_factor")]
         if admins_no_2fa:
             penalty += min(5, len(admins_no_2fa) * 2)
+        findings = policy_findings(fg)
         # Allow-all policies
-        allow_all = [w for w in fg.get("policy_warnings", []) if "allow-all" in w.lower()]
+        allow_all = [f for f in findings if f.get("kind") == "allow_all"]
         if allow_all:
             penalty += min(5, len(allow_all) * 3)
         # No-logging policies
-        no_log = [w for w in fg.get("policy_warnings", []) if "logging" in w.lower()]
+        no_log = [f for f in findings if f.get("kind") == "no_logging"]
         if no_log:
             penalty += min(3, len(no_log))
 
@@ -117,7 +119,7 @@ def _compute_risk(
 
     def gap(key: str, **params) -> str:
         data_quality_evidence.append({"key": key, "params": params})
-        return t(key, **params)
+        return t(key, **worded_params(params, lang))
 
     blocking_data_gaps: list[str] = []  # Gaps that invalidate the whole grade
 
@@ -164,26 +166,31 @@ def _compute_risk(
     # "earned clean", they are unmeasured — flag it like every other axis. And
     # match p=none on the classifier's actual token ("p=none"), not "NONE", which
     # never matched and let a monitor-only DMARC policy score clean (accuracy sweep).
+    #
+    # The statuses are codes (spf_status, dmarc_status); one no collector
+    # wrote is judged by its words, as it always was.
     email_penalty = 0
     email_measured = 0
     for d in spf_dmarc:
-        spf = d.get("spf", "")
-        dmarc = d.get("dmarc", "")
-        spf_errored = spf.strip().upper().startswith("ERROR")
-        dmarc_errored = dmarc.strip().upper().startswith("ERROR")
+        spf_code, _ = spf_status(d)
+        dmarc_code, _ = dmarc_status(d)
+        spf = "" if spf_code else d.get("spf", "")
+        dmarc = "" if dmarc_code else d.get("dmarc", "")
+        spf_errored = spf_code == "error" or spf.strip().upper().startswith("ERROR")
+        dmarc_errored = dmarc_code == "error" or dmarc.strip().upper().startswith("ERROR")
         if not (spf_errored and dmarc_errored):
             email_measured += 1
         if not spf_errored:
-            if "MISSING" in spf or "CRITICAL" in spf:
+            if spf_code in ("missing", "pass_all") or "MISSING" in spf or "CRITICAL" in spf:
                 email_penalty = max(email_penalty, 10)
-            elif "WEAK" in spf or "WARN" in spf:
+            elif spf_code in ("softfail", "neutral") or "WEAK" in spf or "WARN" in spf:
                 email_penalty = max(email_penalty, 5)
         if not dmarc_errored:
-            if "MISSING" in dmarc:
+            if dmarc_code == "missing" or "MISSING" in dmarc:
                 email_penalty = max(email_penalty, 8)
-            elif "p=none" in dmarc.lower() or "WEAK" in dmarc.upper():
+            elif dmarc_code == "none" or "p=none" in dmarc.lower() or "WEAK" in dmarc.upper():
                 email_penalty = max(email_penalty, 5)
-            elif "quarantine" in dmarc.lower():
+            elif dmarc_code == "quarantine" or "quarantine" in dmarc.lower():
                 # p=quarantine is CIS "partial", not a clean pass — reject is the
                 # target. The classifier tokenises it as "WARN (p=quarantine)",
                 # which matched none of the branches above, so a monitor-stronger-

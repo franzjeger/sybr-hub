@@ -139,9 +139,17 @@ documentation, fakes or mocks, and says so in its code.
     rule", the break-glass notes). `tests/test_norwegian_reports.py` treats
     anything in a run's files as data, so it passes them. Done when: the
     collectors store codes and the reports word them.
-16. **Smaller copy**: `SOURCE` labels ("manuell tabell") and the history
+    Mostly done (October 2026): Teams, break-glass, FortiGate, DNS, Intune
+    causes, groups, MFA methods, UniFi devices, Azure and section names
+    store codes; `tests/collector_words.py` makes the Norwegian report scan
+    fail on a collector's own English. Left: the Intune section's own
+    failure message is still an English sentence.
+16. [x] **Smaller copy**: `SOURCE` labels ("manuell tabell") and the history
     timestamp's fixed `nb-NO` locale in `app-integrations.js`; alert dates
     shown as ISO in sentences. Done when: keyed and formatted for the reader.
+    Done (October 2026): source codes, `format_date()` on the server and
+    `formatDateTime` in the browser, Varsler's severities and policy-drift
+    titles worded.
 
 ## D. Product
 
@@ -201,14 +209,23 @@ documentation, fakes or mocks, and says so in its code.
     `scripts/js-modules.cjs` forbids load-time reads inside the cycle. Done
     when: shared pieces move down a layer and the cycle is broken.
     Done by G41: `scripts/js-modules.cjs` rejects every import cycle.
-27. **Ten exports exist only for specs** (listed in the ES-modules PR #22);
+27. [x] **Ten exports exist only for specs** (listed in the ES-modules PR #22);
     drive those specs through the UI where reasonable.
-28. **CSS**: a large utility layer (about 250 classes; 96 tags carry six or
+    Done (October 2026): nine specs go through the page, the tenth export
+    had no caller; `scripts/js-modules.cjs` fails on an export nothing
+    imports.
+28. [x] **CSS**: a large utility layer (about 250 classes; 96 tags carry six or
     more); repeated patterns could become components. The 43 remaining
     `style="display:none"` attributes could become `hidden` with a small JS
     change each (several read `style.display` back).
-29. **Service worker**: no navigation preload; a proxy 502 during a restart
+    Done (October 2026): no `style` attributes left (budget 0), and
+    `.check-label`, `.picker-row`, `.device-card-name` and
+    `.device-card-stats` name the pieces that recurred; tags with six or
+    more classes went from 90 to 66.
+29. [x] **Service worker**: no navigation preload; a proxy 502 during a restart
     shows the proxy's page, not the offline page.
+    Done (October 2026): navigation preload, and 502, 503 and 504 on a page
+    load show the offline page, which reloads once `/api/health` answers.
 30. [x] **Tailscale on the Tilgang tab** makes two uncached API calls per open;
     the tag slug comes from the customer id with no override.
     Done (October 2026): one call per open, cached for a minute and

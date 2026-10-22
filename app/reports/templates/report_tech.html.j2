@@ -580,7 +580,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
       {% elif r.status == SectionStatus.SKIPPED %}<span class="tag skip">&#x2192; {{ t.skipped }}</span>
       {% else %}<span class="tag skip">?</span>{% endif %}
     </td>
-    <td style="font-weight:500;">{{ r.name }}</td>
+    <td style="font-weight:500;">{{ _section_name(r.name, lang) }}</td>
     <td style="font-family:var(--mono);color:var(--muted);">{{ r.files | length }}</td>
     <td>{% for w in r.warns %}<div style="font-size:11px;color:var(--orange);">{{ w }}</div>{% endfor %}</td>
     <td style="font-size:11px;color:var(--red);">{% if r.error %}{{ r.error[:100] }}{% endif %}</td>
@@ -622,7 +622,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
         <td style="font-family:var(--mono);font-size:11px;">{{ u.upn }}</td>
         <td><span class="tag {% if u.has_mfa %}tag-yes{% else %}tag-no{% endif %}">{% if u.has_mfa %}{{ t.yes }}{% else %}{{ t.no_word }}{% endif %}</span></td>
         <td><span class="tag tag-no">{% if u.ca_excluded %}{{ t.excl_short }}{% else %}{{ t.no_word }}{% endif %}</span></td>
-        <td style="font-size:11px;">{{ u.methods if u.methods else '—' }}</td>
+        <td style="font-size:11px;">{{ _mfa_methods_text(u.methods, t) if u.methods else '—' }}</td>
         <td style="font-size:11px;color:var(--muted);">{% if u.ca_excluded %}{% if u.has_mfa %}{{ t.mfa_registered_excluded }}{% else %}{{ t.excluded_from_ca }}{% endif %}{% else %}{{ t.no_mfa_no_ca }}{% endif %}</td>
       </tr>
     {% endfor %}
@@ -762,7 +762,28 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <div class="alert info"><strong>{{ t.no_admin_roles }}</strong></div>
 {% endif %}
 
-{% if emergency_access and emergency_access.strip() %}
+{# The check per Global Admin, from 07c's sidecar: its notes are codes worded
+   here. A run without the sidecar has only the collector's text, shown as it
+   is. The raw-data appendix keeps the file either way. #}
+{% if emergency_check %}
+<h3>{{ t.emergency_access_heading }}</h3>
+{% if emergency_check.skipped %}
+<div class="alert info">{{ t.bg_skipped }}</div>
+{% elif emergency_check.admins %}
+<table>
+  <tr><th>{{ t.bg_col_account }}</th><th>{{ t.bg_col_mfa }}</th><th>{{ t.bg_col_ca_excluded }}</th><th>{{ t.bg_col_last_sign_in }}</th><th>{{ t.bg_col_notes }}</th></tr>
+  {% for a in emergency_check.admins %}
+  <tr>
+    <td style="font-family:var(--mono);font-size:11px;">{{ a.account }}</td>
+    <td>{% if a.mfa is none %}{{ t.bg_unknown }}{% else %}<span class="tag {{ 'ok' if a.mfa else 'fail' }}">{{ t.yes if a.mfa else t.no_word }}</span>{% endif %}</td>
+    <td>{% if a.ca_excluded is none %}{{ t.bg_unknown }}{% else %}{{ t.yes if a.ca_excluded else t.no_word }}{% endif %}</td>
+    <td>{% if a.last_sign_in_days is none %}{{ t.bg_unknown }}{% else %}{{ t('bg_days_ago', days=a.last_sign_in_days) }}{% endif %}</td>
+    <td style="font-size:12px;">{% for n in a.notes %}<div>{% if n.code %}{{ t('bg_note_' ~ n.code, days=n.days) }}{% else %}{{ n.text }}{% endif %}</div>{% endfor %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% elif emergency_access and emergency_access.strip() %}
 <h3>{{ t.emergency_access_heading }}</h3>
 <div class="data-section">
   <div class="data-header"><span>{{ t.emergency_access_analysis }}</span><span class="fn">07c_emergency_access_check.txt</span></div>
@@ -795,7 +816,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% for g in groups.groups %}
   <tr>
     <td style="font-weight:500;">{{ g.name }}</td>
-    <td><span class="tag {% if 'Dynamic' in g.type %}blue{% else %}ok{% endif %}">{{ g.type }}</span></td>
+    <td><span class="tag {% if g.type == 'dynamic' %}blue{% else %}ok{% endif %}">{{ _group_type_text(g.type, t) }}</span></td>
     <td style="text-align:right;font-family:var(--mono);">{{ g.members }}</td>
   </tr>
   {% endfor %}
@@ -914,7 +935,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <h3>{{ t.drift_heading }}</h3>
 {% if not drift or not drift.measured %}
 <div class="alert"><strong>{{ t.drift_not_measured }}.</strong>
-  {{ t('drift_' ~ drift.reason_code, **drift.reason_params) if drift else t.no_data }}</div>
+  {{ _drift_reason(drift.reason_code, drift.reason_params, t) if drift else t.no_data }}</div>
 {% elif drift.added_total == 0 and drift.removed_total == 0 and drift.changed_total == 0 %}
 <div class="alert ok"><strong>&#x2713;</strong> {{ t('drift_quiet', run=drift.compared_with) }}</div>
 {% else %}
@@ -927,7 +948,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% for s in drift.snapshots %}
 {% if s.comparable and (s.removed or s.changed or s.added) %}
 <table>
-  <tr><th colspan="4">{{ s.name }}</th></tr>
+  <tr><th colspan="4">{{ _workload_label(s.name, lang) }}</th></tr>
   <tr><th>{{ t.status }}</th><th>{{ t.drift_policy }}</th><th>ID</th><th>{{ t.drift_fields }}</th></tr>
   {% for p in s.removed %}
   <tr><td>{{ t.drift_removed }}</td><td>{{ p.name or t.drift_unnamed }}</td><td style="font-family:monospace;font-size:11px;">{{ p.id }}</td><td>&mdash;</td></tr>
@@ -940,7 +961,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% endfor %}
 </table>
 {% elif not s.comparable %}
-<div class="alert"><strong>{{ s.name }}:</strong> {{ t('drift_' ~ s.reason_code, **s.reason_params) }}</div>
+<div class="alert"><strong>{{ _workload_label(s.name, lang) }}:</strong> {{ _drift_reason(s.reason_code, s.reason_params, t) }}</div>
 {% endif %}
 {% endfor %}
 {% endif %}
@@ -957,20 +978,16 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   {% for d in spf_dmarc %}
   <tr>
     <td style="font-weight:600;">{{ d.get('domain','') }}</td>
-    <td>
-      {% set s = d.get('spf','') %}
-      <span class="tag {{ _severity(s) }}">{{ s.split('(')[0].strip() if '(' in s else s[:20] }}</span>
-    </td>
-    <td>
-      {% set s = d.get('dmarc','') %}
-      <span class="tag {{ _severity(s) }}">{{ s.split('(')[0].strip() if '(' in s else s[:20] }}</span>
-    </td>
-    <td style="font-size:11px;">{{ d.get('dkim1','')[:35] }}</td>
-    <td style="font-size:11px;">{{ d.get('dkim2','')[:35] }}</td>
-    <td>
-      {% set s = d.get('mta_sts','') %}
-      <span class="tag {% if 'MISSING' in s %}critical{% else %}ok{% endif %}">{{ s[:15] }}</span>
-    </td>
+    {# The collector's statuses are codes, worded here (_dns_tag); a status
+       no collector wrote is shown as stored. #}
+    {% for field in ('spf', 'dmarc') %}
+    {% set tag = _dns_tag(d, field, t) %}
+    <td><span class="tag {{ tag.severity }}">{{ tag.word }}</span></td>
+    {% endfor %}
+    <td style="font-size:11px;">{{ _dkim_summary(d, 'dkim1', t) }}</td>
+    <td style="font-size:11px;">{{ _dkim_summary(d, 'dkim2', t) or '—' }}</td>
+    {% set tag = _dns_tag(d, 'mta_sts', t) %}
+    <td><span class="tag {{ tag.severity }}">{{ tag.word }}</span></td>
   </tr>
   {% endfor %}
 </table>
@@ -1159,7 +1176,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% endif %}
 {% else %}
 {% if intune and intune.unavailable %}
-<div class="alert warning"><strong>{{ t.intune_not_measured }}</strong>{{ intune.unavailable_reason or t.no_intune_desc }}</div>
+<div class="alert warning"><strong>{{ t.intune_not_measured }}</strong>{% if intune.unavailable_cause %}{{ _unavailable_text(intune.unavailable_cause, t) }}{% else %}{{ intune.unavailable_reason or t.no_intune_desc }}{% endif %}</div>
 {% else %}
 {% if entra_devices and entra_devices.has_data and entra_devices.total > 0 %}
 <div class="alert warning"><strong>{{ t.no_intune_but_entra }}</strong>{{ t.no_intune_but_entra_desc }} ({{ entra_devices.total }})</div>
@@ -1389,7 +1406,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
     <td style="font-size:11px;font-family:var(--mono);word-break:break-word;">
       {% for p in a.application_permissions %}{{ p.value }}{% if p.resource %} ({{ p.resource }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
       {% if a.delegated_scopes %}<br>{% for p in a.delegated_scopes %}{{ p.value }}{% if p.resource %} ({{ p.resource }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
-      {% if a.permissions_error %}<br><span style="color:var(--muted);">{{ a.permissions_error }}</span>{% endif %}
+      {% if a.permissions_note %}<br><span style="color:var(--muted);">{{ a.permissions_note }}</span>{% endif %}
     </td>
   </tr>
   {% endfor %}
@@ -1437,9 +1454,9 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr><th>{{ t.subscription }}</th><th>ID</th><th>{{ t.status }}</th></tr>
   {% for s in azure.subscriptions %}
   <tr>
-    <td style="font-weight:600;">{{ s.name }}</td>
+    <td style="font-weight:600;">{{ s.name or '—' }}</td>
     <td style="font-family:var(--mono);font-size:11px;">{{ s.id }}</td>
-    <td><span class="tag {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ s.state }}</span></td>
+    <td><span class="tag {% if s.state == 'Enabled' %}ok{% else %}warning{% endif %}">{{ _subscription_state_text(s.state, t) }}</span></td>
   </tr>
   {% endfor %}
 </table>
@@ -1450,7 +1467,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 <h3>{{ t.resources_per_sub }}</h3>
 {% for sub in azure.per_sub %}
 <div class="card" style="margin-bottom:12px;">
-  <div class="card-title">{{ sub.name }} ({{ t('n_resources', count=sub.resources) }})</div>
+  <div class="card-title">{{ sub.name or t.azure_subscription_unnamed }} ({{ t('n_resources', count=sub.resources) }})</div>
   {% if sub.types %}
   <table>
     <tr><th>{{ t.resource_type_header }}</th><th style="text-align:right;">{{ t.count_header }}</th></tr>
@@ -1482,11 +1499,11 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr>
     <td style="font-weight:500;">{{ vm.name }}</td>
     <td style="font-size:11px;color:var(--muted);">{{ vm.subscription }}</td>
-    <td style="font-size:11px;">{{ vm.rg }}</td>
+    <td style="font-size:11px;">{{ vm.rg or '—' }}</td>
     <td>{{ vm.location }}</td>
-    <td>{{ vm.os }}</td>
-    <td style="font-family:var(--mono);font-size:11px;">{{ vm.size }}</td>
-    <td><span class="tag {% if vm.status == 'running' %}ok{% elif vm.status == 'deallocated' %}skip{% else %}warning{% endif %}">{{ vm.status or 'N/A' }}</span></td>
+    <td>{{ vm.os or '—' }}</td>
+    <td style="font-family:var(--mono);font-size:11px;">{{ vm.size or '—' }}</td>
+    <td><span class="tag {% if vm.status == 'running' %}ok{% elif vm.status == 'deallocated' %}skip{% else %}warning{% endif %}">{{ _power_state_text(vm.status, t) or '—' }}</span></td>
   </tr>
   {% endfor %}
 </table>
@@ -1500,8 +1517,8 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
   <tr>
     <td style="font-weight:500;font-family:var(--mono);font-size:12px;">{{ sa.name }}</td>
     <td style="font-size:11px;color:var(--muted);">{{ sa.subscription }}</td>
-    <td>{{ sa.sku }}</td>
-    <td>{{ sa.kind }}</td>
+    <td>{{ sa.sku or '—' }}</td>
+    <td>{{ sa.kind or '—' }}</td>
   </tr>
   {% endfor %}
 </table>

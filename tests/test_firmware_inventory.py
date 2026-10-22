@@ -10,6 +10,7 @@ fill it, and the routes that list it.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime, timedelta
 
 import httpx
@@ -93,6 +94,20 @@ def test_unifi_readings_follow_the_table():
     assert unknown_model["status"] == "unknown" and unknown_model["reason"] == "model_unknown"
     missing = firmware_inventory.unifi_reading(key="c", name="Y", model="U6-Pro", version="")
     assert missing["status"] == "unknown"
+
+
+def test_where_a_verdict_came_from_is_a_code_in_no_language():
+    """Both tables named themselves "(manuell tabell)", which reached every
+    English reader of the firmware API and of a run's 61_unifi_audit.txt
+    (TODO C16). The source is an identifier; whoever shows it words it."""
+    unifi = firmware_inventory.unifi_reading(key="a", name="AP", model="UAP-LR", version="4.3.28")
+    fortigate = firmware_inventory.fortigate_reading(
+        key="f", name="FW", model="FGT60F", version="v7.4.3", available=[]
+    )
+    assert unifi["source"].startswith("manual-table:unifi-firmware-db ")
+    assert fortigate["source"].startswith("manual-table:fortios-lifecycle ")
+    for source in (unifi["source"], fortigate["source"]):
+        assert re.fullmatch(r"[a-z0-9:-]+ \d{4}-\d{2}-\d{2}", source), source
 
 
 def test_the_controller_offering_an_upgrade_means_outdated():

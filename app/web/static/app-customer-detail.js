@@ -1575,7 +1575,7 @@ async function _loadCustomerTrendChart(customerId) {
 
 // ── Customer Licenses (ALSO Cloud) ───────────────────────────────────────────
 
-export async function loadCustomerLicenses(accountId) {
+async function loadCustomerLicenses(accountId) {
   // On the customer page's Detaljer tab, under Lisenser.
   var box = document.getElementById('cust-licenses-panel');
   if (!box) return;
@@ -1696,7 +1696,7 @@ export async function loadCustomerLicenses(accountId) {
         + '<td class="text-center"><span class="' + badgeClass(statusColor) + '">' + esc(status) + '</span></td>'
         + '</tr>';
       // Detail row (hidden by default, loaded on click)
-      html += '<tr id="also-sub-'+esc(subId)+'" style="display:none;"><td colspan="7"></td></tr>';
+      html += '<tr id="also-sub-'+esc(subId)+'" hidden><td colspan="7"></td></tr>';
     });
 
     html += '</tbody></table></div>';
@@ -1709,7 +1709,7 @@ export async function loadCustomerLicenses(accountId) {
 
 // ── Hosting card (billing module) ───────────────────────────────────────────
 
-export async function _unifiedLoadUniwebCard(custId) {
+async function _unifiedLoadUniwebCard(custId) {
   var cardEl = document.getElementById('customer-uniweb-panel');
 
   try {
@@ -1982,7 +1982,7 @@ async function _loadCustomerEmailDns(custId) {
   }
 }
 
-export async function uwToggleDns(row, domain) {
+async function uwToggleDns(row, domain) {
   // Check if DNS row already exists below
   var existing = row.nextElementSibling;
   var arrow = row.querySelector('.uw-dns-arrow');
@@ -2047,11 +2047,11 @@ export async function uwToggleDns(row, domain) {
 async function alsoToggleSubDetail(rowEl, subId) {
   var detailRow = document.getElementById('also-sub-' + subId);
   if (!detailRow) return;
-  if (detailRow.style.display !== 'none') {
-    detailRow.style.display = 'none';
+  if (!detailRow.hidden) {
+    detailRow.hidden = true;
     return;
   }
-  detailRow.style.display = '';
+  detailRow.hidden = false;
   var cell = detailRow.querySelector('td');
   cell.innerHTML = '<div class="py-3 px-4"><div class="loader"></div> ' + t('loading_details') + '</div>';
 

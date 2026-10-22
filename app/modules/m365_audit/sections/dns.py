@@ -22,7 +22,7 @@ class DnsLookupError(Exception):
 # DoH RCODE → human-readable string. 0 = NoError; any non-zero means the
 # upstream resolver returned a structured error (NXDOMAIN, SERVFAIL, …) — we
 # trust that NOERROR with no Answer means "the name exists, no records of
-# this type", which is the case we want to render as MISSING.
+# this type", which is the case we want to render as "missing".
 _DOH_RCODES = {
     0: "NoError",
     1: "FormErr",
@@ -33,23 +33,31 @@ _DOH_RCODES = {
 }
 
 
+# What a domain's records say, as codes the report words. Each was an English
+# phrase ("WEAK (~all softfail)", "MISSING", "TXT present") that a Norwegian
+# report printed as it stood. A lookup that could not be answered is written
+# "error (<what failed>)", never one of these.
+SPF_STATUSES = ("hardfail", "softfail", "neutral", "pass_all", "no_all", "missing")
+DMARC_STATUSES = ("reject", "quarantine", "none", "unknown_policy", "missing")
+
+
 def _classify_spf(record: str) -> str:
-    """Classify an SPF record as OK / WEAK / CRITICAL."""
+    """The SPF record's "all" qualifier, as one of SPF_STATUSES."""
     if not record:
-        return "MISSING"
+        return "missing"
     if "~all" in record:
-        return "WEAK (~all softfail)"
+        return "softfail"
     if "-all" in record:
-        return "OK (-all hardfail)"
+        return "hardfail"
     if "+all" in record:
-        return "CRITICAL (+all — allows anyone)"
+        return "pass_all"
     if "?all" in record:
-        return "WEAK (?all neutral)"
-    return "PRESENT (no 'all' mechanism)"
+        return "neutral"
+    return "no_all"
 
 
 def _classify_dmarc(record: str) -> str:
-    """Classify a DMARC record by its *policy* tag.
+    """The DMARC record's *policy* tag, as one of DMARC_STATUSES.
 
     Substring matching read the subdomain policy as the domain policy: a
     record like "v=DMARC1; p=none; sp=reject" contains "p=reject" inside
@@ -58,16 +66,12 @@ def _classify_dmarc(record: str) -> str:
     tag boundary instead, and read it before any sp=.
     """
     if not record:
-        return "MISSING"
+        return "missing"
     m = re.search(r"(?:^|;)\s*p\s*=\s*([A-Za-z]+)", record)
     policy = (m.group(1) or "").lower() if m else ""
-    if policy == "reject":
-        return "OK (p=reject)"
-    if policy == "quarantine":
-        return "WARN (p=quarantine)"
-    if policy == "none":
-        return "WEAK (p=none)"
-    return "PRESENT (unknown policy)"
+    if policy in ("reject", "quarantine", "none"):
+        return policy
+    return "unknown_policy"
 
 
 def _published(record: str) -> str | None:
@@ -82,7 +86,7 @@ async def _doh_query(client: httpx.AsyncClient, name: str, qtype: str) -> list[s
     Raises DnsLookupError on transport failures so the caller can distinguish
     "the record genuinely doesn't exist" (empty list) from "we never got a
     usable answer" (raised) — silently treating the latter as the former
-    produces false 'MISSING' verdicts in the email-security audit.
+    produces false "missing" verdicts in the email-security audit.
     """
     try:
         resp = await client.get(
@@ -113,7 +117,7 @@ async def _safe_query(
 
     `error_msg` is None on success (including a clean NXDOMAIN) and a short
     diagnostic string when the query itself failed — so the caller can
-    render 'ERROR' instead of fabricating 'MISSING'.
+    render an error instead of fabricating "missing".
     """
     try:
         return await _doh_query(client, name, qtype), None
@@ -124,10 +128,12 @@ async def _safe_query(
 async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
     """Return a dict of DNS check results for one domain.
 
-    Each *_status field is either a classification, "ERROR (...)" when the
-    underlying DoH query could not be answered, or "MISSING" when the name
-    exists but has no matching record. Callers MUST treat ERROR distinctly
-    from MISSING — a timeout is not the same as "no SPF configured".
+    Each *_status field is either a classification, "error (...)" when the
+    underlying DoH query could not be answered, or "missing" when the name
+    exists but has no matching record. Callers MUST treat an error distinctly
+    from "missing" — a timeout is not the same as "no SPF configured". A DKIM
+    selector is "cname -> <target>", "txt", "missing" or "error (...)", and
+    MTA-STS the published record, "missing" or "error (...)".
     """
     result: dict[str, str] = {"domain": domain}
     errors: list[str] = []
@@ -137,7 +143,7 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
     if err:
         errors.append(f"SPF lookup failed: {err}")
         result["spf_record"] = "(query failed)"
-        result["spf_status"] = f"ERROR ({err})"
+        result["spf_status"] = f"error ({err})"
     else:
         spf_record = next((r for r in txt_records if r.startswith("v=spf1")), "")
         result["spf_record"] = spf_record or "(none)"
@@ -148,7 +154,7 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
     if err:
         errors.append(f"DMARC lookup failed: {err}")
         result["dmarc_record"] = "(query failed)"
-        result["dmarc_status"] = f"ERROR ({err})"
+        result["dmarc_status"] = f"error ({err})"
     else:
         dmarc_record = next((r for r in dmarc_records if r.startswith("v=DMARC1")), "")
         result["dmarc_record"] = dmarc_record or "(none)"
@@ -161,22 +167,22 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
         txt_data, txt_err = await _safe_query(client, f"{sel}._domainkey.{domain}", "TXT")
         if cname_err and txt_err:
             errors.append(f"DKIM {sel} lookup failed: {cname_err}")
-            result[f"dkim_{sel}"] = f"ERROR ({cname_err})"
+            result[f"dkim_{sel}"] = f"error ({cname_err})"
         elif cname_data:
-            result[f"dkim_{sel}"] = f"CNAME -> {cname_data[0]}"
+            result[f"dkim_{sel}"] = f"cname -> {cname_data[0]}"
         elif txt_data:
-            result[f"dkim_{sel}"] = "TXT present"
+            result[f"dkim_{sel}"] = "txt"
         else:
-            result[f"dkim_{sel}"] = "MISSING"
+            result[f"dkim_{sel}"] = "missing"
 
     # MTA-STS
     mta_records, err = await _safe_query(client, f"_mta-sts.{domain}", "TXT")
     if err:
         errors.append(f"MTA-STS lookup failed: {err}")
-        result["mta_sts"] = f"ERROR ({err})"
+        result["mta_sts"] = f"error ({err})"
     else:
         mta_sts = next((r for r in mta_records if "v=STSv1" in r), "")
-        result["mta_sts"] = mta_sts if mta_sts else "MISSING"
+        result["mta_sts"] = mta_sts if mta_sts else "missing"
 
     if errors:
         result["_lookup_errors"] = "; ".join(errors)
@@ -233,7 +239,7 @@ class DnsSection(BaseSection):
                 # Build DKIM (3rd party) summary
                 tp_parts = []
                 for sel in _third_party_selectors:
-                    tp_parts.append(f"{sel}: {r.get(f'dkim_{sel}', 'MISSING')}")
+                    tp_parts.append(f"{sel}: {r.get(f'dkim_{sel}', 'missing')}")
                 tp_summary = " | ".join(tp_parts)
 
                 # Collect all found selectors for summary
@@ -241,8 +247,8 @@ class DnsSection(BaseSection):
                 found_selectors = [
                     sel
                     for sel in all_selectors
-                    if r.get(f"dkim_{sel}", "MISSING") not in ("MISSING",)
-                    and not r.get(f"dkim_{sel}", "").startswith("ERROR")
+                    if r.get(f"dkim_{sel}", "missing") != "missing"
+                    and not r.get(f"dkim_{sel}", "").startswith("error")
                 ]
 
                 lines += [
@@ -270,7 +276,7 @@ class DnsSection(BaseSection):
                         "dkim": {
                             "selector1": r["dkim_selector1"],
                             "selector2": r["dkim_selector2"],
-                            **{s: r.get(f"dkim_{s}", "MISSING") for s in _third_party_selectors},
+                            **{s: r.get(f"dkim_{s}", "missing") for s in _third_party_selectors},
                         },
                         "dkim_found": found_selectors,
                         "mta_sts": r["mta_sts"],
@@ -284,26 +290,24 @@ class DnsSection(BaseSection):
                         f"[{domain}] DNS lookups failed — verdict is partial: {r['_lookup_errors']}"
                     )
 
-                # Warnings — only when we have a real verdict. ERROR means the
-                # query failed, so reporting "SPF MISSING" would be a lie.
+                # Warnings — only when we have a real verdict. An error means
+                # the query failed, so reporting "SPF missing" would be a lie.
                 spf_s = r["spf_status"]
                 dmarc_s = r["dmarc_status"]
                 domain_issues = []
 
-                if not spf_s.startswith("ERROR") and (
-                    "MISSING" in spf_s or "WEAK" in spf_s or "CRITICAL" in spf_s
-                ):
+                if spf_s in ("missing", "softfail", "neutral", "pass_all"):
                     domain_issues.append(f"SPF: {spf_s}")
                     self._warn(f"[{domain}] SPF issue: {spf_s}")
-                if not dmarc_s.startswith("ERROR") and ("MISSING" in dmarc_s or "WEAK" in dmarc_s):
+                if dmarc_s in ("missing", "none"):
                     domain_issues.append(f"DMARC: {dmarc_s}")
                     self._warn(f"[{domain}] DMARC issue: {dmarc_s}")
 
-                # DKIM warning if both M365 selectors are missing (not ERROR)
-                sel1 = r.get("dkim_selector1", "MISSING")
-                sel2 = r.get("dkim_selector2", "MISSING")
-                m365_sel1_missing = sel1 == "MISSING"
-                m365_sel2_missing = sel2 == "MISSING"
+                # DKIM warning if both M365 selectors are missing (not an error)
+                sel1 = r.get("dkim_selector1", "missing")
+                sel2 = r.get("dkim_selector2", "missing")
+                m365_sel1_missing = sel1 == "missing"
+                m365_sel2_missing = sel2 == "missing"
                 if m365_sel1_missing and m365_sel2_missing:
                     domain_issues.append(
                         "DKIM: M365 DKIM not configured (both selector1 and selector2 missing)"

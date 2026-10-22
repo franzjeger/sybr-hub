@@ -96,8 +96,27 @@ class IntuneSection(BaseSection):
         "14b_intune_endpoint_security.txt": "DeviceManagementConfiguration.Read.All",
     }
 
+    def _cause(self, filename: str, err: Exception) -> str:
+        """The cause as a code with its values, for the report to word.
+
+        "Cause: <code> status=<n> permission=<name>", the code one of
+        UNAVAILABLE_CAUSES (app/reports/parsers/common.py). This was the
+        English sentence _reason gives, which the report printed as it stood.
+        """
+        if not isinstance(err, GraphPermissionError):
+            return "Cause: failed"
+        code = "refused"
+        if err.is_licence_gap:
+            code = "licence_gap"
+        elif err.is_service_refusal:
+            code = "service_refused"
+        permission = self._PERMISSION.get(filename)
+        return f"Cause: {code} status={err.status}" + (
+            f" permission={permission}" if permission else ""
+        )
+
     def _reason(self, filename: str, err: Exception) -> str:
-        """One line naming the cause, for the report to print verbatim."""
+        """One line naming the cause, for the section's failure message."""
         if isinstance(err, GraphPermissionError):
             perm = self._PERMISSION.get(filename, "the matching DeviceManagement permission")
             if err.is_licence_gap:
@@ -137,7 +156,7 @@ class IntuneSection(BaseSection):
             f"  {self._TITLE[filename]}  (not available)",
             "=" * 80,
             "",
-            f"  {self._reason(filename, err)}",
+            f"  {self._cause(filename, err)}",
         ]
         if isinstance(err, GraphPermissionError) and (err.code or err.message):
             lines += ["", f"  Graph said: {err.code} — {err.message}"[:300]]
