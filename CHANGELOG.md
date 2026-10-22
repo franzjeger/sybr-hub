@@ -8,6 +8,21 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Grensesnitt: offline-side, service worker og opprydding
+
+- Når huben starter på nytt bak nginx eller Caddy og proxyen svarer 502, 503
+  eller 504, viser nettleseren hubens egen offline-side i stedet for proxyens
+  feilside. Siden sier at huben ikke svarer (ikke «Du er offline» når
+  nettverket er der), følger språket i grensesnittet og laster appen igjen
+  så snart `/api/health` svarer.
+- Sideinnlasting bruker navigation preload, så forespørselen går mens
+  service workeren starter.
+- «Kjør alle kunder» på Oversikt viser fremdrift, resultater og Avbryt igjen.
+- De siste 42 `style="display:none"` er byttet til `hidden`, gjentatte
+  klasselister på avkrysningsbokser, plukklister og enhetskort har fått egne
+  klasser, og ti eksporter som bare fantes for testene er borte. Testene går
+  gjennom siden slik en bruker gjør.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
