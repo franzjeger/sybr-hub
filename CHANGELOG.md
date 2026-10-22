@@ -8,6 +8,24 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Rapporter og varsler på leserens språk
+
+- Innsamlerne lagrer koder i stedet for egne engelske setninger, og
+  rapportene formulerer dem på rapportens språk: Teams-gjesteinnstillinger,
+  break-glass-merknader, FortiGate-regelfunn og HA-modus, SPF/DMARC/DKIM/
+  MTA-STS-status, Intune-årsaker, gruppetyper, MFA-metoder, UniFi-enheters
+  lesefeil og status, Azure-funn (NSG-regler, foreldreløse ressurser,
+  Advisor, abonnementsstatus) og navn på auditseksjoner. Eldre kjøringer
+  leses tilbake til de samme ordene.
+- «M365-grupper (inkl. Teams)» i kunderapporten viste 0 for alle kunder; den
+  teller nå riktig. Et DNS-oppslag som feilet vises som ukjent, ikke som grønn
+  OK.
+- Datoer i varsler, varselhistorikk og planlagte oppgaver skrives slik
+  leseren skriver dem («13. oktober 2026» / «13 October 2026»), og Varsler-
+  siden navngir alvorlighetsgrad og policyavvik på leserens språk.
+- Firmwaretabellenes kilde er en kode (`manual-table:unifi-firmware-db`,
+  `manual-table:fortios-lifecycle`), ikke «(manuell tabell)».
+
 ### Grensesnitt: offline-side, service worker og opprydding
 
 - Når huben starter på nytt bak nginx eller Caddy og proxyen svarer 502, 503
