@@ -8,6 +8,11 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Rettelser
+
+- Integrasjoner viser ikke lenger «Not Found» når AI-modulen er slått av.
+  Siden spør ikke etter AI-statusen for en modul installasjonen har skrudd av.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn

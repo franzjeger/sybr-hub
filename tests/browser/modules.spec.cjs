@@ -28,6 +28,13 @@ test('switching the AI module off in Settings removes it everywhere', async ({pa
     expect((await page.request.get('/api/claude/status')).status()).toBe(404);
     const me = await (await page.request.get('/api/auth/me')).json();
     expect(me.modules).not.toContain('ai');
+    // Integrations no longer asks the switched-off route, which showed "Not Found".
+    const asked = [];
+    page.on('request', request => { if (request.url().includes('/api/claude/status')) asked.push(request.url()); });
+    await inApp(page, app => app.openAdmin('integrations'));
+    await expect(page.locator('#admin-pane-integrations')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(asked).toEqual([]);
   } finally {
     await page.request.put('/api/settings/modules', {data: {ai: true}});
   }
