@@ -640,6 +640,14 @@ async def factory_bootstrap(
 # ── 7. CIS compliance checking ──────────────────────────────────────────────
 
 
+def _as_int(value) -> int | None:
+    """An integer setting as a number; None when absent or not one."""
+    try:
+        return None if value is None or isinstance(value, bool) else int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _single_object(value) -> dict:
     """The one config object a single-object cmdb read returns.
 
@@ -757,6 +765,10 @@ async def check_compliance(config: dict, token: str) -> dict:
     else:
         allow_all_count = 0
         for pol in policies:
+            if pol.get("status") == "disable":
+                # A disabled policy passes no traffic. Reporting it as an
+                # allow-all rule fails a firewall for a rule that is off.
+                continue
             src = pol.get("srcaddr", [])
             dst = pol.get("dstaddr", [])
             action = pol.get("action", "")
@@ -822,18 +834,23 @@ async def check_compliance(config: dict, token: str) -> dict:
     else:
         pp = _single_object(password_policy)
         pp_status = pp.get("status", "disable")
-        min_len = pp.get("min-length", 0)
+        # FortiOS calls the field minimum-length. Only "min-length" was read,
+        # a key the firewall does not send, so the length was always 0 and an
+        # enabled 12-character policy failed. Both spellings are accepted.
+        min_len = _as_int(pp.get("minimum-length", pp.get("min-length")))
+        if pp_status != "enable":
+            pp_verdict, pp_detail = "fail", "Password policy is not enabled"
+        elif min_len is None:
+            # Enabled, and the length is not in the answer: not a failure.
+            pp_verdict = "unknown"
+            pp_detail = "Password policy enabled; the minimum length was not in the reply"
+        elif min_len >= 8:
+            pp_verdict, pp_detail = "pass", f"Password policy enabled, min length {min_len}"
+        else:
+            pp_verdict = "fail"
+            pp_detail = f"Password policy enabled, but min length is {min_len} (< 8)"
         findings.append(
-            {
-                "id": "CIS-5.1",
-                "title": "Password policy",
-                "status": "pass" if pp_status == "enable" and min_len >= 8 else "fail",
-                "detail": (
-                    f"Password policy enabled, min length {min_len}"
-                    if pp_status == "enable"
-                    else "Password policy is not enabled or minimum length < 8"
-                ),
-            }
+            {"id": "CIS-5.1", "title": "Password policy", "status": pp_verdict, "detail": pp_detail}
         )
 
     # --- Rule 7: Admin timeout (from global settings) ---
@@ -1098,7 +1115,8 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
     policy_warns = []
     for p in policies if isinstance(policies, list) else []:
         pid = p.get("policyid", "?")
-        if p.get("action") == "accept":
+        # A disabled policy passes no traffic: neither warning applies to it.
+        if p.get("action") == "accept" and p.get("status") != "disable":
             src = [s.get("name", "") for s in p.get("srcaddr", [])]
             dst = [d.get("name", "") for d in p.get("dstaddr", [])]
             svc = [s.get("name", "") for s in p.get("service", [])]
@@ -1371,6 +1389,10 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
     enabled = 0
     disabled = 0
     unused = 0
+    # Whether any policy carried a hit counter at all. The configuration API
+    # does not return one, and "no counter" was read as "0 hits": every enabled
+    # rule was then reported as unused.
+    counters_seen = False
     issues: list[dict] = []
     score = 100
 
@@ -1418,15 +1440,17 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
             score -= 5
 
         # Count rules with 0 hit count (informational only — counters reset on reboot)
-        hit_count = 0
-        if isinstance(pol.get("_hitcount"), int):
-            hit_count = pol["_hitcount"]
-        elif isinstance(pol.get("hit-count"), int):
-            hit_count = pol["hit-count"]
-        elif isinstance(pol.get("hitcount"), int):
-            hit_count = pol["hitcount"]
-
-        if hit_count == 0 and status != "disable":
+        hit_count = next(
+            (
+                pol[key]
+                for key in ("_hitcount", "hit-count", "hitcount")
+                if isinstance(pol.get(key), int)
+            ),
+            None,
+        )
+        if hit_count is not None:
+            counters_seen = True
+        if hit_count == 0:
             unused += 1
             # Don't flag as issue or deduct score — hit counters are unreliable
             # (reset on reboot, firmware upgrade, or may not be returned by API)
@@ -1455,6 +1479,7 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
         "enabled": enabled,
         "disabled": disabled,
         "issues": issues,
-        "unused_rules": unused,
+        # None: no policy came with a hit counter, so this was not measured.
+        "unused_rules": unused if counters_seen or not enabled else None,
         "score": score,
     }
