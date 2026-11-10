@@ -1175,6 +1175,28 @@ def _risky_user_row_by_column(line: str) -> dict | None:
     return {"upn": line[2:52].strip(), "level": level, "state": state}
 
 
+# riskState values that mean somebody, or Entra itself, has already dealt with
+# the risk. Graph keeps these users in /identityProtection/riskyUsers for the
+# record; the open ones are atRisk and confirmedCompromised.
+_HANDLED_RISK_STATES = ("remediated", "dismissed", "confirmedsafe", "safe")
+
+
+def _live_risky_users(users: list[dict]) -> list[dict]:
+    """The risky users whose risk is still open.
+
+    Every reader of the list has to agree on this. The recommendations left the
+    handled ones out while the score, the CIS control and the customer's card
+    counted them, so a tenant that had remediated every risky user still lost
+    five points, failed the control and was shown the users as a finding, with
+    no recommendation beside it because there was nothing left to do.
+    """
+    return [
+        u
+        for u in users
+        if (u.get("state") or "").lower().replace(" ", "") not in _HANDLED_RISK_STATES
+    ]
+
+
 def _risky_users_from_text(text: str) -> list[dict]:
     """Each risky user in 18_risky_users.txt, for a run without the sidecar.
 

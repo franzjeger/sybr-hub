@@ -6,6 +6,11 @@ from app.reports.evidence import _evidence_unavailable, _reported_count
 from app.reports.i18n import T
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.email import _external_forwarding_items
+from app.reports.parsers.identity import (
+    _live_risky_users,
+    _risky_users_from_sidecar,
+    _risky_users_from_text,
+)
 
 
 def _is_open_wlan(wlan: dict) -> bool:
@@ -71,6 +76,24 @@ def _network_penalty(network: dict) -> int:
             penalty += 5
 
     return min(15, penalty)
+
+
+def _live_risky_count(file_contents: dict[str, str], text: str) -> int | None:
+    """How many users are still at risk; None when the evidence does not say.
+
+    The collector's own count is every user Entra lists, and it lists the
+    remediated and dismissed ones too. Those are history, not a finding.
+    """
+    rows = _risky_users_from_sidecar(file_contents)
+    if rows is not None:
+        return len(_live_risky_users(rows))
+    listed = _reported_count(text)
+    if not listed:
+        return listed
+    rows = _risky_users_from_text(text)
+    # A table whose rows cannot be read keeps the collector's count: an
+    # unreadable row is not a handled one.
+    return len(_live_risky_users(rows)) if len(rows) == listed else listed
 
 
 def _compute_risk(
@@ -270,11 +293,7 @@ def _compute_risk(
     # tenant without Entra ID P2, or one where the fetch was refused, scored
     # identically to one verified to have no risky users.
     risky_sidecar = _sidecar(file_contents or {}, "18_risky_users.txt")
-    _risky_n = (
-        int(risky_sidecar.get("count") or 0)
-        if risky_sidecar is not None
-        else _reported_count(risky_users)
-    )
+    _risky_n = _live_risky_count(file_contents or {}, risky_users)
     if risky_sidecar is None and _evidence_unavailable(risky_users):
         # Only when the file exists and turned out to be prose. An absent file
         # means the section never ran, and that is already declared by name

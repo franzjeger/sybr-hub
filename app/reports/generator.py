@@ -51,14 +51,21 @@ from app.reports.parsers import (
 )
 from app.reports.parsers.common import _sidecar
 from app.reports.parsers.email import _spf_dmarc_records
+from app.reports.parsers.identity import _live_risky_users
 from app.reports.radar import _build_risk_radar, _render_radar_svg
 from app.reports.recommendations import _build_finding_rec_map, _build_recommendations
-from app.reports.risk import _apply_critical_floor, _compute_risk
+from app.reports.risk import _apply_critical_floor, _compute_risk, _live_risky_count
 from app.reports.summary import _build_executive_summary
 
 log = logging.getLogger(__name__)
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def _live_risky_rows(file_contents: dict[str, str]) -> list[dict] | None:
+    """The users still at risk, from the sidecar; None for a run without it."""
+    rows = _risky_users_from_sidecar(file_contents)
+    return None if rows is None else _live_risky_users(rows)
 
 
 def _logo_b64(filename: str) -> str:
@@ -432,12 +439,14 @@ def build_report_context(
         "inbox_rule_warn": fc("29_exchange_inbox_rules_external_fwd_WARN.txt"),
         "risky_users": risky,
         # The risky users as rows, from their sidecar; None for a run without it.
-        "risky_user_rows": _risky_users_from_sidecar(file_contents),
+        # Only the ones still at risk: a remediated or dismissed user is not
+        # something to show the customer as a finding.
+        "risky_user_rows": _live_risky_rows(file_contents),
         # The templates showed both files as findings whenever they were not
         # empty and did not say "No risky" / "No active", phrases no collector
         # writes: a clean tenant's "(0 total)" table was a finding. These say
         # how many rows there are, None when the file does not say.
-        "risky_user_count": _listed("18_risky_users.txt", risky),
+        "risky_user_count": _live_risky_count(file_contents, risky),
         "defender_alert_count": _listed("19b_defender_active_alerts.txt", defender),
         "defender_alerts": defender,
         "advisor_data": fc("51_azure_advisor.txt"),
