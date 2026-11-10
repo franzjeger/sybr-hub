@@ -140,6 +140,33 @@ async def test_importing_itglue_organisations_still_creates_customers(tech_clien
     assert stored["ITGlueOrgId"] == "77"
 
 
+async def test_an_itglue_import_takes_company_names_and_reports_the_rows_it_cannot(tech_client):
+    """One organisation the hub cannot take no longer aborts the whole import.
+
+    "Acme A/S" used to be refused as an invalid customer name, and the import
+    stopped there with organisations before it saved and none after it.
+    """
+    from app.core.customer import CustomerManager
+
+    r = tech_client.post(
+        "/api/customers/import-itglue",
+        json={
+            "organizations": [
+                {"name": "Acme A/S", "id": 1},
+                {"name": "Broken\x07Name", "id": 2},
+                {"name": "Nord/Sør Elektro", "id": 3},
+            ]
+        },
+    )
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["imported"] == 2
+    assert [f["name"] for f in body["failed"]] == ["Broken\x07Name"]
+    names = {c["CustomerName"] for c in CustomerManager.list_customers()}
+    assert names == {"Acme A/S", "Nord/Sør Elektro"}
+
+
 async def test_a_malformed_itglue_import_creates_nothing(tech_client):
     from app.core.customer import CustomerManager
 
