@@ -669,6 +669,9 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="num {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}">{{ mfa.pct | round(0) | int }}%</div>
     <div class="lbl">{{ t.mfa_coverage }}</div>
     <div class="pbar"><div class="pbar-fill {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}" style="width:{{ mfa.pct }}%"></div></div>
+    {% if mfa.enforced_all_apps_pct is defined and mfa.enforced_all_apps_pct is not none %}
+    <div class="sublbl">{{ t.mfa_enforced_all_apps_note.format(n=mfa.enforced_all_apps, total=mfa.total, pct=mfa.enforced_all_apps_pct | round(0) | int) }}</div>
+    {% endif %}
     {% else %}
     <div class="num" style="color:#9ca3af;">{{ t.data_unavailable_short }}</div>
     <div class="lbl">{{ t.mfa_coverage }}</div>

@@ -314,6 +314,19 @@ def _parse_mfa(
     # said 99.5% coverage on the same page as "42 users have no MFA methods",
     # and a reader could not reconcile the two. Both numbers are now named.
     registered_pct = round(mfa_registered / measured * 100, 1) if measured else 0.0
+    # The second figure: users an enabled MFA policy for *all* apps reaches.
+    # "Coverage" above also counts a user who merely has a method registered,
+    # or whom a policy for a single app or a risky sign-in covers. None for a
+    # run whose records do not carry the answer.
+    enforced_known = [r for r in records if "ca_enforced_all_apps" in r]
+    enforced_all_apps = (
+        sum(1 for r in enforced_known if r["ca_enforced_all_apps"]) if enforced_known else None
+    )
+    enforced_all_apps_pct = (
+        round(enforced_all_apps / total * 100, 1)
+        if enforced_all_apps is not None and total
+        else None
+    )
     # Split no_mfa into a clean partition, so the report can word it honestly: a
     # measured, not-covered user either has NO method registered at all, or has
     # one registered but is EXCLUDED from enforcement by a CA policy. Conflating
@@ -329,6 +342,8 @@ def _parse_mfa(
         "covered": effectively_covered,
         "registered_pct": registered_pct,
         "enforced_only": max(0, effectively_covered - mfa_registered),
+        "enforced_all_apps": enforced_all_apps,
+        "enforced_all_apps_pct": enforced_all_apps_pct,
         "total": total,
         "measured": measured,
         "unknown": unknown,

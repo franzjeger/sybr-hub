@@ -322,6 +322,25 @@ def _policy_enforces_mfa(policy: dict) -> bool:
     return bool(grant.get("authenticationStrength"))
 
 
+def _policy_applies_to_every_sign_in(policy: dict) -> bool:
+    """Whether an MFA policy asks for MFA whatever the user signs in to.
+
+    "Require MFA for Azure management" for all users is an MFA policy, and it
+    leaves Outlook, Teams and SharePoint open with a password. A risk-based
+    policy asks only when Entra scores the sign-in as risky. Neither is the
+    baseline "everyone, everywhere" policy, and the report names the two
+    figures apart. Location and device conditions are not judged here.
+    """
+    conditions = policy.get("conditions") or {}
+    apps = conditions.get("applications") or {}
+    if "All" not in (apps.get("includeApplications") or []):
+        return False
+    if conditions.get("userRiskLevels") or conditions.get("signInRiskLevels"):
+        return False
+    clients = set(conditions.get("clientAppTypes") or [])
+    return not clients or "all" in clients or {"browser", "mobileAppsAndDesktopClients"} <= clients
+
+
 def _mfa_policy_record(policy: dict) -> dict:
     """One MFA-enforcing CA policy as the 04b sidecar carries it."""
     grant = policy.get("grantControls") or {}
@@ -332,6 +351,7 @@ def _mfa_policy_record(policy: dict) -> dict:
         "state": policy.get("state", "unknown"),
         "built_in_controls": list(grant.get("builtInControls") or []),
         "authentication_strength": bool(grant.get("authenticationStrength")),
+        "applies_to_every_sign_in": _policy_applies_to_every_sign_in(policy),
         "include_users": list(users_cond.get("includeUsers") or []),
         "include_groups": list(users_cond.get("includeGroups") or []),
         "exclude_users": list(users_cond.get("excludeUsers") or []),
@@ -361,6 +381,11 @@ class MFASection(BaseSection):
         # by reference with the break-glass check, which previously always saw an
         # empty set and reported "cannot confirm" over data we had (review, F8).
         self.mfa_excluded_ids: set[str] = set()
+        # Users an enabled MFA policy for all apps reaches, policy by policy:
+        # in that policy's scope and not among that policy's exclusions.
+        self.enforced_everywhere_ids: set[str] = set()
+        # Groups named by an MFA policy whose members could not be read.
+        self.unread_group_ids: set[str] = set()
         # Whether the CA-exclusion analysis actually ran and populated the set
         # above. The break-glass check reads this to tell "ran, nobody excluded"
         # (an empty set that is a clean answer) from "never ran" (a stale empty
@@ -422,6 +447,8 @@ class MFASection(BaseSection):
         """
         mfa_policies: list[dict] = [p for p in self.ca_policies if _policy_enforces_mfa(p)]
 
+        self.enforced_everywhere_ids = set()
+        self.unread_group_ids = set()
         if not mfa_policies:
             return mfa_policies, set(), set(), {}, {}
 
@@ -469,50 +496,45 @@ class MFASection(BaseSection):
                 gid, info = result
                 group_info[gid] = info
 
-        def _is_dynamic(gid: str) -> bool:
-            info = group_info.get(gid, {})
-            return "DynamicMembership" in (info.get("groupTypes") or [])
-
         if all_group_ids:
             sem = asyncio.Semaphore(self.concurrency)
             _member_select = {"$select": "id,displayName,userPrincipalName"}
 
             async def fetch_group(gid: str) -> tuple[str, list[dict]]:
-                """Fetch group members with dynamic-group awareness.
+                """Everyone the group puts in the policy's scope.
 
-                Dynamic groups (membershipRule-based) often return 0 from
-                /members; /transitiveMembers is the correct endpoint for them.
-                We try the best endpoint first, then fall back to the other.
+                Conditional Access applies a group assignment to nested members
+                too, so the transitive list is the one to read for every group,
+                not only dynamic ones: with /members a policy assigned to a
+                group of groups read as covering nobody, and an exclusion group
+                holding another group as excluding nobody. /members is the
+                fallback when the transitive read fails or comes back empty.
                 """
                 async with sem:
-                    dynamic = _is_dynamic(gid)
-                    # Choose primary and fallback endpoints
-                    primary = "transitiveMembers" if dynamic else "members"
-                    fallback = "members" if dynamic else "transitiveMembers"
-
                     members: list[dict] = []
-                    try:
-                        members = await self.graph.get_all(
-                            f"groups/{gid}/{primary}",
-                            params={**_member_select},
-                        )
-                    except Exception:
-                        # The fallback endpoint below is tried next.
-                        logger.debug("Group %s members via %s failed", gid, primary, exc_info=True)
-
-                    # If primary returned nothing, try the other endpoint
-                    if not members:
+                    failures = 0
+                    for endpoint in ("transitiveMembers", "members"):
                         try:
                             members = await self.graph.get_all(
-                                f"groups/{gid}/{fallback}",
+                                f"groups/{gid}/{endpoint}",
                                 params={**_member_select},
                             )
                         except Exception:
+                            failures += 1
                             logger.debug(
-                                "Group %s members via %s failed", gid, fallback, exc_info=True
+                                "Group %s members via %s failed", gid, endpoint, exc_info=True
                             )
-
-                return gid, members
+                            continue
+                        if members:
+                            break
+                    if failures == 2:
+                        # Neither read answered. An empty list here would say
+                        # the group has no members, which nobody established.
+                        self.unread_group_ids.add(gid)
+                # Only users count; a nested group's own row is not a member.
+                return gid, [
+                    m for m in members if "group" not in (m.get("@odata.type") or "").lower()
+                ]
 
             group_results = await asyncio.gather(
                 *[fetch_group(gid) for gid in all_group_ids],
@@ -560,6 +582,27 @@ class MFASection(BaseSection):
             users_cond = conditions.get("users") or {}
             for uid in users_cond.get("excludeUsers") or []:
                 excluded_ids.add(uid)
+
+        def _members(group_ids) -> set[str]:
+            return {
+                m["id"]
+                for gid in group_ids or []
+                for m in group_members.get(gid, [])
+                if m.get("id")
+            }
+
+        all_user_ids = {u["id"] for u in self.users if u.get("id")}
+        for policy in mfa_policies:
+            if not _policy_applies_to_every_sign_in(policy):
+                continue
+            users_cond = (policy.get("conditions") or {}).get("users") or {}
+            included = set(users_cond.get("includeUsers") or [])
+            in_scope = all_user_ids if "All" in included else included & all_user_ids
+            in_scope = in_scope | (_members(users_cond.get("includeGroups")) & all_user_ids)
+            left_out = set(users_cond.get("excludeUsers") or []) | _members(
+                users_cond.get("excludeGroups")
+            )
+            self.enforced_everywhere_ids |= in_scope - left_out
 
         return mfa_policies, covered_ids, excluded_ids, group_names, group_info
 
@@ -636,6 +679,13 @@ class MFASection(BaseSection):
             "effectively_covered_users": labels(covered_not_excluded),
             "not_covered_users": labels(not_covered),
             "deactivated_users": labels(deactivated_ids),
+            "enforced_all_apps": len(self.enforced_everywhere_ids & active_ids),
+            # Groups an MFA policy names whose members no read returned. The
+            # coverage and exclusion figures above are incomplete by these.
+            "unread_groups": [
+                {"id": gid, "name": gi.get(gid, {}).get("displayName") or gid}
+                for gid in sorted(self.unread_group_ids)
+            ],
         }
 
         if not mfa_policies:
@@ -708,7 +758,23 @@ class MFASection(BaseSection):
         lines.append(f"  Users covered by CA MFA (incl. groups) : {len(covered_active)}")
         lines.append(f"  Users excluded from CA MFA             : {len(excluded_active)}")
         lines.append(f"  Effectively covered (covered - excluded): {len(covered_not_excluded)}")
+        lines.append(
+            "  MFA required at every sign-in (all apps): "
+            f"{len(self.enforced_everywhere_ids & active_ids)}"
+        )
         lines.append("")
+        if self.unread_group_ids:
+            lines.append(
+                f"  NOTE: the members of {len(self.unread_group_ids)} group(s) named by an MFA"
+            )
+            lines.append("  policy could not be read. Coverage and exclusions are incomplete:")
+            for gid in sorted(self.unread_group_ids):
+                lines.append(f"    - {gi.get(gid, {}).get('displayName') or gid}")
+            lines.append("")
+            self._warn(
+                f"Members of {len(self.unread_group_ids)} Conditional Access group(s) could not "
+                "be read — MFA coverage and exclusions are incomplete"
+            )
 
         if deactivated_ids:
             lines.append(f"  Deactivated / guest (not in the base)  : {len(deactivated_ids)}")
@@ -819,6 +885,9 @@ class MFASection(BaseSection):
                         "mfa_registered": None if methods is None else has_mfa,
                         "ca_covered": uid in covered_ids,
                         "ca_excluded": uid in excluded_ids,
+                        # MFA asked for at every sign-in, not just for some
+                        # apps or when the sign-in is judged risky.
+                        "ca_enforced_all_apps": uid in self.enforced_everywhere_ids,
                         "methods": list(methods or []),
                     }
                 )
