@@ -250,6 +250,11 @@ async def _do_uniweb_sync() -> str:
     cfg = _get_uniweb_config()
     if not cfg["email"] or not cfg["password"]:
         return "skipped — not configured"
+    if _sync_status.get("running"):
+        # _run_sync would return without syncing, and the stale last_error
+        # below would read as success. A sync still running at the next tick
+        # is either very slow or stuck; either way the operator should know.
+        raise RuntimeError(f"Uniweb sync still running since {_sync_status.get('sync_start_time')}")
     await _run_sync(cfg["email"], cfg["password"])
     if _sync_status.get("last_error"):
         raise RuntimeError("Uniweb collection failed; inspect sync diagnostics")
@@ -287,7 +292,12 @@ async def _do_fortigate_backup() -> str:
         except Exception as e:
             errors += 1
             log.warning("FortiGate backup exception for %s: %s", cust.get("CustomerName", cid), e)
-    return f"{backed_up} backed up, {errors} errors"
+    summary = f"{backed_up} backed up, {errors} errors"
+    if errors and not backed_up:
+        # Every FortiGate failed: an expired token or an unreachable network,
+        # not one bad device. Raising lets the failure count and notify.
+        raise RuntimeError(summary)
+    return summary
 
 
 async def _do_also_price_refresh() -> str:
@@ -351,37 +361,41 @@ async def _do_also_price_refresh() -> str:
                 break
         await asyncio.sleep(1.5)
 
-    return f"{scanned}/{len(batch)} scanned ({len(to_scan)} due, {len(linked)} linked)"
+    summary = f"{scanned}/{len(batch)} scanned ({len(to_scan)} due, {len(linked)} linked)"
+    if not scanned:
+        raise RuntimeError(summary)
+    return summary
 
 
 async def _do_alert_check() -> str:
-    """Run alert engine check + credential expiry webhook alerts."""
-    # Use alert_engine if available
-    try:
-        from app.services.alert_engine import run_alert_check
+    """Run alert engine check + credential expiry webhook alerts.
 
+    Both parts always run; if either fails the task fails, so a broken alert
+    engine shows up as a failing task instead of "ok — 0 alerts" every day.
+    """
+    from app.services.alert_engine import run_alert_check
+    from app.services.audit_scheduler import scheduler as audit_scheduler
+
+    failures: list[str] = []
+    alerts_found = 0
+    try:
         result = await run_alert_check(scheduled=True)
         # The engine reports new alerts and the channels that took them; it
         # never had an "alerts_sent" key, so this line always logged 0.
-        alerts_found = (
-            result.get("new_alerts", 0)
-            if isinstance(result, dict) and result.get("channels_notified")
-            else 0
-        )
-    except ImportError:
-        alerts_found = 0
+        if isinstance(result, dict) and result.get("channels_notified"):
+            alerts_found = result.get("new_alerts", 0)
     except Exception as e:
         log.warning("Alert engine check failed: %s", e)
-        alerts_found = 0
+        failures.append(f"alert engine: {e}")
 
-    # Also run credential expiry check via audit scheduler
     try:
-        from app.services.audit_scheduler import scheduler as audit_scheduler
-
         await audit_scheduler._check_credential_expiry()
     except Exception as e:
         log.warning("Credential expiry check failed: %s", e)
+        failures.append(f"credential expiry: {e}")
 
+    if failures:
+        raise RuntimeError("; ".join(failures))
     return f"ok — {alerts_found} alerts sent"
 
 
@@ -772,6 +786,21 @@ async def _do_guacamole_cleanup() -> str:
     return f"{cleaned} stale connections cleaned"
 
 
+# A task that has not finished in this time is treated as hung: it fails, its
+# lock is released and the failure counts toward the breaker. Generous on
+# purpose; it catches a stuck call, not a slow week.
+TASK_DEADLINE_SECONDS = 3 * 3600
+
+
+async def _run_with_deadline(task_id: str, runner) -> str:
+    try:
+        return await asyncio.wait_for(runner(), TASK_DEADLINE_SECONDS)
+    except TimeoutError as e:
+        raise RuntimeError(
+            f"{task_id} did not finish within {TASK_DEADLINE_SECONDS // 60} minutes"
+        ) from e
+
+
 _TASK_RUNNERS = {
     "uniweb_sync": _do_uniweb_sync,
     "fortigate_backup": _do_fortigate_backup,
@@ -867,7 +896,7 @@ async def _task_loop(task_id: str) -> None:
         _task_status[task_id]["last_start"] = start.isoformat()
         try:
             async with lock:
-                result = await runner()
+                result = await _run_with_deadline(task_id, runner)
             _task_status[task_id]["last_run"] = start.isoformat()
             _task_status[task_id]["last_result"] = result
             _task_status[task_id]["last_success"] = _now().isoformat()
@@ -1051,7 +1080,7 @@ async def run_now(task_id: str, actor: str = "") -> dict:
     _task_status.setdefault(task_id, {})["last_start"] = start.isoformat()
     try:
         async with lock:
-            result = await runner()
+            result = await _run_with_deadline(task_id, runner)
         _task_status[task_id]["last_run"] = start.isoformat()
         _task_status[task_id]["last_result"] = result
         _task_status[task_id]["last_success"] = _now().isoformat()

@@ -55,6 +55,10 @@ LOGIN_URL = "https://uniweb.no/controlpanel/login/"
 PRINCIPAL_URL = "https://uniweb.no/controlpanel/principal/?showExpanded=true"
 BASE_URL = "https://uniweb.no/controlpanel"
 PAGE_LOAD_WAIT = 2
+# Every CDP call waits at most this long. pychrome's default is to wait
+# forever: one hung renderer pinned the sync thread and left the sync marked
+# as running, so every later run was skipped and reported "ok".
+CDP_TIMEOUT = 30
 
 # A JSF-generated component id. JSF renumbers these when a component is added
 # earlier in the page, and nothing announces it — see the module docstring.
@@ -229,11 +233,11 @@ class UniwebClient:
     def _open_tab(self):
         self._tab = self._browser.new_tab()
         self._tab.start()
-        self._tab.Page.enable()
+        self._tab.Page.enable(_timeout=CDP_TIMEOUT)
 
     def _nav(self, url: str, wait: float = PAGE_LOAD_WAIT):
         logger.debug("Navigating to %s", url)
-        self._tab.Page.navigate(url=url)
+        self._tab.Page.navigate(url=url, _timeout=CDP_TIMEOUT)
         # Wait for page load via DOM ready check, fall back to fixed wait
         deadline = time.monotonic() + wait + 3
         time.sleep(0.5)
@@ -247,7 +251,7 @@ class UniwebClient:
     def _js(self, expression: str):
         """Run JS and return value."""
         try:
-            r = self._tab.Runtime.evaluate(expression=expression)
+            r = self._tab.Runtime.evaluate(expression=expression, _timeout=CDP_TIMEOUT)
             if "result" in r and "value" in r["result"]:
                 return r["result"]["value"]
         except Exception as e:
@@ -458,9 +462,11 @@ class UniwebClient:
         if not self._logged_in or not self._tab:
             raise UniwebScrapeError("Not logged in to Uniweb — cannot harvest cookies.")
         with contextlib.suppress(Exception):
-            self._tab.Network.enable()  # getAllCookies works without it on most CDP builds
+            self._tab.Network.enable(
+                _timeout=CDP_TIMEOUT
+            )  # getAllCookies works without it on most CDP builds
         try:
-            result = self._tab.Network.getAllCookies()
+            result = self._tab.Network.getAllCookies(_timeout=CDP_TIMEOUT)
         except Exception as exc:
             raise UniwebScrapeError(f"Could not read session cookies: {exc}") from exc
         cookies = _uniweb_cookies_from_cdp((result or {}).get("cookies", []))
