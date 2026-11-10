@@ -8,6 +8,12 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Den eksterne nettleseren krever sandkasse
+
+- Nettleseren starter ikke lenger uten bubblewrap (`bwrap`). Uten den kunne
+  en tekniker åpne `file://` i økten og lese databasen og master-nøkkelen.
+  Feilmeldingen sier hvilken pakke som mangler.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
