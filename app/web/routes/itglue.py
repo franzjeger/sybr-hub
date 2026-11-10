@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core import job_state as state
 from app.core.customer import CustomerManager
 from app.core.exceptions import (
+    ConflictError,
     ForbiddenError,
     IntegrationError,
     NotFoundError,
@@ -121,6 +122,7 @@ async def import_customers_from_itglue(
 
     imported = []
     skipped = []
+    failed = []
 
     for org in orgs:
         name = org.name.strip()
@@ -145,7 +147,15 @@ async def import_customers_from_itglue(
             "CertExpiry": "",
             "ITGlueOrgId": str(itglue_id),
         }
-        cust_id = CustomerManager.save_customer(config, create=True)
+        # One organisation the hub cannot take must not abort the rest: the
+        # ones before it were already saved, and the answer said only
+        # "invalid customer name" without saying which.
+        try:
+            cust_id = CustomerManager.save_customer(config, create=True)
+        except (ValidationError, ConflictError) as e:
+            logger.info("IT Glue import skipped %r: %s", name, e)
+            failed.append({"name": name, "error": str(e)})
+            continue
         imported.append({"name": name, "id": cust_id})
         existing_names.add(name.lower())
 
@@ -165,6 +175,7 @@ async def import_customers_from_itglue(
         "skipped": len(skipped),
         "imported_names": [i["name"] for i in imported],
         "skipped_names": skipped,
+        "failed": failed,
     }
 
 

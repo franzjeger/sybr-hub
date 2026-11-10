@@ -251,14 +251,15 @@ class CustomerManager:
         from app.core.exceptions import ConflictError, ForbiddenError, ValidationError
 
         name = config.get("CustomerName", "")
+        # The name is display text. Every path is built from the sanitised id
+        # or customer_dir_name(), never from the name itself, so "Firma A/S"
+        # or "Nord/Sør Elektro" are valid names; refusing "/" turned away a
+        # large share of Norwegian and Danish company names on IT Glue import.
         if (
             not isinstance(name, str)
             or not name.strip()
             or len(name) > 128
-            or "/" in name
-            or "\\" in name
-            or ".." in name
-            or any(ord(c) < 32 for c in name)
+            or any(ord(c) < 32 or ord(c) == 127 for c in name)
         ):
             raise ValidationError("Ugyldig kundenavn")
         explicit_id = config.get("CustomerId") or config.get("_id")

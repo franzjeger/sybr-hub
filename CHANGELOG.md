@@ -8,6 +8,13 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### IT Glue-import godtar vanlige firmanavn
+
+- Kundenavn kan inneholde `/`, for eksempel «Acme A/S». Navnet er bare
+  visningstekst, og mapper og ID-er lages fortsatt av en renset versjon.
+- Når én organisasjon ikke kan importeres, fortsetter importen med resten og
+  sier hvilke som ikke ble importert, og hvorfor.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
