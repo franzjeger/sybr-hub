@@ -8,6 +8,16 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Planlagte jobber melder feil når de feiler
+
+- FortiGate-backup der alle enheter feilet, ALSO-oppdatering der ingen kunde
+  ble lest, og varselsjekk der motoren krasjet, meldes nå som feil i stedet
+  for «ok». Da teller feilen, og varsling slår til.
+- Uniweb-synken kan ikke lenger henge for alltid i en nettleser som ikke
+  svarer. Hvert kall har en frist på 30 sekunder, og en synk som fortsatt
+  kjører ved neste tidspunkt meldes som feil.
+- Ingen planlagt jobb kan holde på lenger enn tre timer.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
