@@ -16,6 +16,7 @@ from app.core.rbac import check_customer_access, set_can_write
 from app.models.user import Role
 from app.web.middleware.auth import _reset_users_exist_cache
 from app.web.server import create_app
+from tests.session_fixtures import signed_in_token
 
 GOOD_PASSWORD = "Str0ng-Passphrase-For-Tests!"
 
@@ -52,7 +53,7 @@ async def _admin_headers() -> dict:
     user = await create_user("boss", GOOD_PASSWORD, "Boss", role=Role.admin)
     await set_can_write(user.id, True)  # /auth/users is a mutating route
     user = await get_user_by_id(user.id)
-    return {"Authorization": f"Bearer {await create_access_token(user)}"}
+    return {"Authorization": f"Bearer {await signed_in_token(user)}"}
 
 
 # ── Migration 19: existing accounts join the pool ─────────────────────────────

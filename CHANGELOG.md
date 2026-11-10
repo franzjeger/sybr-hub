@@ -8,6 +8,13 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Sensitive handlinger krever ferskt passord også uten MFA
+
+- Uten MFA slapp en stjålet innloggingskapsel tidligere rett til
+  master-nøkkelen, backupene, brukerstyringen og terminalen. Nå må passordet
+  være oppgitt de siste fem minuttene, enten ved innlogging eller med
+  «Bekreft innlogging» i MFA-dialogen. MFA er fortsatt valgfritt.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
