@@ -241,3 +241,42 @@ async def _noop():
 
 async def _profiles(items):
     return items
+
+
+# ── A failed read is not a reading ───────────────────────────────────────────
+
+
+async def test_appliances_that_answered_with_an_error_are_a_failure(site, monkeypatch):
+    """The quick audit reports a read it could not make as {"error": ...}. That
+    is a dict with something in it, and it used to count as the appliance
+    answering: the visit was "collected", the detail said "fortigate, unifi
+    read", and the two errors were filed as the site's statistics."""
+
+    async def _refused(customer, customer_id):
+        return {
+            "fortigate": {"error": "401 Unauthorized"},
+            "unifi": {"mode": "controller", "unavailable": True, "error": "login failed"},
+        }
+
+    monkeypatch.setattr("app.services.network_audit.run_quick_network_audit", _refused)
+
+    result = await sc.collect_site(_Profile("p1", "Kunde A"))
+
+    assert result.outcome == sc.FAILED
+    assert "401 Unauthorized" in result.detail
+    assert "login failed" in result.detail
+    stats = site["dir"] / "Acme" / "site_stats"
+    assert not stats.is_dir() or not list(stats.glob("*.json")), "errors were filed as a reading"
+
+
+async def test_one_appliance_read_and_one_refused_says_which(site, monkeypatch):
+    async def _half(customer, customer_id):
+        return {"fortigate": {"model": "FG-60F"}, "unifi": {"error": "timed out"}}
+
+    monkeypatch.setattr("app.services.network_audit.run_quick_network_audit", _half)
+
+    result = await sc.collect_site(_Profile("p1", "Kunde A"))
+
+    assert result.outcome == sc.COLLECTED
+    assert result.detail.startswith("fortigate read")
+    assert "unifi did not answer (timed out)" in result.detail

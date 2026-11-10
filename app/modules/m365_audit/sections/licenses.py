@@ -41,6 +41,16 @@ class LicensesSection(BaseSection):
                         f"License '{part}' is over 90% utilised ({used}/{total} = {pct:.0f}%)"
                     )
                 lines.append(f"  {part:<40} {used:>6} {total:>6}  {pct:>4.0f}%{status}")
+                # What the SKU actually contains. A part number is a bundle's
+                # name and Microsoft keeps minting new ones (the EEA "no Teams"
+                # suites); the plans inside are what a licence gate has to ask
+                # about. Left out when Graph listed none, which says nothing.
+                plans = sorted(
+                    plan["servicePlanName"]
+                    for plan in sku.get("servicePlans") or []
+                    if plan.get("servicePlanName")
+                    and (plan.get("provisioningStatus") or "").lower() != "disabled"
+                )
                 rows.append(
                     {
                         "part": part,
@@ -51,6 +61,7 @@ class LicensesSection(BaseSection):
                         # at 69.6% reads as 70% there.
                         "pct": pct,
                         "warn": total > 0 and used / total >= 0.9,
+                        **({"plans": plans} if sku.get("servicePlans") else {}),
                     }
                 )
 

@@ -388,7 +388,7 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
       - Security audit (30 pts) — latest risk grade
       - License compliance (20 pts) — ALSO subscription status
       - Domain health (20 pts) — Uniweb domains / SSL
-      - Infrastructure (15 pts) — FortiGate / UniFi configured
+      - Infrastructure — FortiGate / UniFi configured; listed, not scored
       - MFA status (15 pts) — from audit data
     """
     import json as _json
@@ -463,11 +463,20 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
         audit_data = metrics_by_customer.get(cid)
         audit_score = 0
         audit_detail = "Ingen data"
+        # An audit can end without a grade: when a blocking part of the
+        # evidence is missing the report grades it "?" rather than guess. That
+        # is "not measured", and scoring it 0 of 30 put the customer below one
+        # whose audit earned an F.
+        audit_graded = False
         if audit_data:
             grade = (audit_data.get("risk_grade") or "").upper()
             grade_map = {"A": 30, "B": 24, "C": 18, "D": 12, "F": 6}
-            audit_score = grade_map.get(grade, 0)
-            audit_detail = f"Karakter {grade}" if grade else "Ingen karakter"
+            if grade in grade_map:
+                audit_graded = True
+                audit_score = grade_map[grade]
+                audit_detail = f"Karakter {grade}"
+            else:
+                audit_detail = "Ingen karakter (mangler datagrunnlag)"
 
         # ── 2. License Compliance (20 pts) ──
         also_rows = also_by_cust.get(cid, [])
@@ -555,14 +564,19 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
         # ── 4. Infrastructure (15 pts) ──
         has_fortigate = bool(c.get("FortiGateHost"))
         has_unifi = bool(c.get("UniFiHost"))
-        infra_score = 0
-        infra_detail = "Ingen data"
-        if has_fortigate and has_unifi:
-            infra_score = 15
-            infra_detail = "FortiGate + UniFi"
-        elif has_fortigate or has_unifi:
-            infra_score = 8
-            infra_detail = "FortiGate" if has_fortigate else "UniFi"
+        # Listed, not scored. This used to give 15 points for having both a
+        # FortiGate and a UniFi controller configured and 8 for one of them:
+        # points for what the customer has bought, in a score about how the
+        # customer is doing. A customer with only a firewall lost seven points
+        # for not owning access points.
+        infra_detail = (
+            " + ".join(
+                name
+                for name, present in (("FortiGate", has_fortigate), ("UniFi", has_unifi))
+                if present
+            )
+            or "Ingen data"
+        )
 
         # ── 5. MFA Status (15 pts) ──
         mfa_score = 0
@@ -583,16 +597,14 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
                 mfa_detail = f"{mfa_pct:.0f}% MFA"
 
         # ── Total — exclude missing categories from max ──
-        total_score = audit_score + license_score + domain_score + infra_score + mfa_score
-        max_possible = 100
-        if not audit_data:
+        total_score = audit_score + license_score + domain_score + mfa_score
+        max_possible = 85
+        if not audit_graded:
             max_possible -= 30
         if not also_rows:
             max_possible -= 20
         if not uw_data:
             max_possible -= 20
-        if not (has_fortigate or has_unifi):
-            max_possible -= 15
         if not (audit_data and audit_data.get("mfa_coverage_pct") is not None):
             max_possible -= 15
 
@@ -621,6 +633,9 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
                 "customer_id": cid,
                 "customer_name": name,
                 "total_score": pct_score if pct_score is not None else 0,
+                # False: nothing is known about this customer. The 0 above is a
+                # placeholder for sorting, not a score.
+                "scored": pct_score is not None,
                 "max_possible": max_possible,
                 "grade": letter,
                 "breakdown": {
@@ -640,8 +655,8 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
                         "detail": domain_detail,
                     },
                     "infrastructure": {
-                        "score": infra_score,
-                        "max": 15,
+                        "score": None,
+                        "max": 0,
                         "detail": infra_detail,
                     },
                     "mfa_status": {
@@ -655,8 +670,10 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
 
     results.sort(key=lambda x: x["total_score"])
 
-    n = len(results)
-    avg = round(sum(r["total_score"] for r in results) / n, 1) if n else 0
+    # The average is of the customers that have a score. One with no data at
+    # all is not a customer scoring zero.
+    scored = [r["total_score"] for r in results if r["scored"]]
+    avg = round(sum(scored) / len(scored), 1) if scored else 0
 
     return {
         "scores": results,

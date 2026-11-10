@@ -183,7 +183,7 @@ function _tlsRenderSingleResult(r) {
   html += '<span>' + t('tls_issuer','Issuer') + ': ' + esc(r.issuer && r.issuer.organizationName || r.issuer && r.issuer.commonName || '-') + '</span>';
   html += '<span>' + t('tls_expires','Expires') + ': <strong class="' + (r.expired ? 'text-danger' : r.expiring_soon ? 'text-warning' : 'text-default') + '">' + (r.not_after ? esc(r.not_after.slice(0,10)) : '-') + '</strong></span>';
   html += '<span>' + t('tls_days_left','Days left') + ': <strong class="' + (r.days_remaining < 0 ? 'text-danger' : r.days_remaining < 30 ? 'text-warning' : 'text-success') + '">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></span>';
-  html += '<span>' + t('tls_protocol','Protocol') + ': <span class="fw-semibold ' + (r.weak_protocol ? 'text-danger' : 'text-success') + '">' + esc(r.protocol_version || '-') + '</span></span>';
+  html += '<span>' + t('tls_protocol','Protocol') + ': <span class="fw-semibold ' + (r.weak_protocol ? 'text-danger' : 'text-success') + '">' + esc((r.protocol_version || '-') + (r.legacy_protocol ? ' (+ ' + r.legacy_protocol + ')' : '')) + '</span></span>';
   html += '<span>' + t('tls_cipher','Cipher') + ': <span class="' + (r.weak_cipher ? 'text-danger' : 'text-default') + '">' + esc(r.cipher || '-') + '</span>' + (r.key_bits ? ' (' + Number(r.key_bits) + ' bit)' : '') + '</span>';
   if (r.san && r.san.length) {
     html += '<span class="col-span-2">SAN: ' + r.san.map(function(s){return esc(s);}).join(', ') + '</span>';
@@ -357,7 +357,7 @@ async function tlsScanAll() {
       html += '<td class="p-2 text-center"><strong class="' + toneClass(daysColor) + '">' + (r.days_remaining != null ? Number(r.days_remaining) : '-') + '</strong></td>';
 
       var protoColor = r.weak_protocol ? 'var(--red)' : 'var(--green)';
-      html += '<td class="p-2"><span class="' + toneClass(protoColor) + ' fw-semibold">' + esc(r.protocol_version || '-') + '</span></td>';
+      html += '<td class="p-2"><span class="' + toneClass(protoColor) + ' fw-semibold">' + esc((r.protocol_version || '-') + (r.legacy_protocol ? ' (+ ' + r.legacy_protocol + ')' : '')) + '</span></td>';
 
       var cipherColor = r.weak_cipher ? 'var(--red)' : 'var(--text-muted)';
       html += '<td class="p-2 text-xs ' + toneClass(cipherColor) + '">' + esc(r.cipher || '-') + (r.key_bits ? ' <span class="text-dim">(' + Number(r.key_bits) + 'b)</span>' : '') + '</td>';

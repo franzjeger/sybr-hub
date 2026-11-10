@@ -1172,7 +1172,7 @@ async function _loadFgFirewallAudit(customerId) {
     html += '<span>' + t('lbl_total_rules','Total rules') + ': <strong class="text-default">' + Number(d.total_rules) + '</strong></span>';
     html += '<span>' + t('lbl_enabled','Enabled') + ': <strong class="text-default">' + Number(d.enabled) + '</strong></span>';
     html += '<span>' + t('lbl_disabled_rules','Disabled') + ': <strong class="text-default">' + Number(d.disabled) + '</strong></span>';
-    html += '<span>' + t('lbl_unused_rules','Unused') + ': <strong class="text-default">' + Number(d.unused_rules) + '</strong></span>';
+    html += '<span>' + t('lbl_unused_rules','Unused') + ': <strong class="text-default">' + (d.unused_rules == null ? '–' : Number(d.unused_rules)) + '</strong></span>';
     html += '</div>';
 
     // Issues table

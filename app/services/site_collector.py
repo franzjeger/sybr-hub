@@ -68,6 +68,27 @@ class SiteResult:
         }
 
 
+_APPLIANCES = ("fortigate", "unifi")
+
+
+def _answered(reading: object) -> bool:
+    """Whether an appliance's entry in the quick audit is a reading of it.
+
+    None is "not configured". A dict carrying ``error`` or ``unavailable`` is
+    the audit saying it could not read the appliance, not data about it.
+    """
+    return (
+        isinstance(reading, dict)
+        and bool(reading)
+        and not reading.get("error")
+        and not reading.get("unavailable")
+    )
+
+
+def _why(reading: dict) -> str:
+    return str(reading.get("error") or "no reason given")[:200]
+
+
 def _store(customer_id: str, payload: dict) -> None:
     """Keep the reading beside the customer's audits, encrypted like the rest."""
     from app.core.config import get_audit_dir
@@ -124,9 +145,20 @@ async def collect_site(profile, *, timeout: int = SITE_TIMEOUT) -> SiteResult:
             connected = True
 
             data = await run_quick_network_audit(customer, customer_id)
-            if not any(data.get(k) for k in ("fortigate", "unifi")):
+            read = [k for k in _APPLIANCES if _answered(data.get(k))]
+            refused = [
+                f"{k} did not answer ({_why(data[k])})"
+                for k in _APPLIANCES
+                if data.get(k) and k not in read
+            ]
+            if not read:
+                # A failed read comes back as {"error": ...}, which is a dict
+                # with something in it. Taking that for an answer filed the
+                # error as the site's reading and called the visit a success.
                 result.outcome = FAILED
-                result.detail = "The tunnel came up and neither appliance answered."
+                result.detail = "The tunnel came up and neither appliance answered." + (
+                    " " + "; ".join(refused) if refused else ""
+                )
                 return result
 
             _store(
@@ -141,7 +173,7 @@ async def collect_site(profile, *, timeout: int = SITE_TIMEOUT) -> SiteResult:
             )
             result.outcome = COLLECTED
             result.data = data
-            result.detail = ", ".join(k for k in ("fortigate", "unifi") if data.get(k)) + " read"
+            result.detail = "; ".join([", ".join(read) + " read", *refused])
             return result
 
     except TimeoutError:
