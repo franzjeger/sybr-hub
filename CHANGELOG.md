@@ -8,6 +8,12 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Hemmelighetslageret mister ikke data
+
+- Når det krypterte hemmelighetslageret ikke kan leses, nekter lagring og
+  sletting i stedet for å skrive tilbake et lager med bare én hemmelighet.
+  Samtidige skrivinger, også fra reserveplanleggeren, går nå etter tur.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
