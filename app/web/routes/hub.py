@@ -50,7 +50,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request, status
 
-from app.core.exceptions import ConflictError, ValidationError
+from app.core.exceptions import ConflictError, ForbiddenError, ValidationError
+from app.core.rbac import get_accessible_customer_ids
 from app.models.customer import CustomerLinks
 from app.models.settings import (
     CreateRecommendationRequest,
@@ -301,6 +302,24 @@ async def link_customer_records(
 
     sent = body.model_fields_set
     changed: list[str] = []
+
+    # A binding decides whose Autotask company, IT Glue organisation,
+    # myITprocess account or Datto site this customer's users read and write.
+    # A scoped caller could otherwise bind another company's record to a
+    # customer they hold and read it through that customer. They may still
+    # clear a binding.
+    setting = [
+        field
+        for field in (
+            "autotask_account_id",
+            "itglue_org_id",
+            "myitprocess_account_id",
+            "datto_rmm_site_uid",
+        )
+        if field in sent and getattr(body, field) not in (None, "")
+    ]
+    if setting and await get_accessible_customer_ids(user) is not None:
+        raise refusal(ForbiddenError, "err_binding_needs_all_customers")
 
     if "autotask_account_id" in sent:
         value = body.autotask_account_id

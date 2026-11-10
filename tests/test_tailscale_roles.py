@@ -83,8 +83,15 @@ async def test_a_viewer_cannot_read_the_tailnet(client, path):
 
 @pytest.mark.parametrize("path", READS)
 async def test_a_technician_can_read_the_tailnet(client, path):
-    headers = await login("tech", role=Role.technician)
+    headers = await login("tech", role=Role.technician, all_customers=True)
     assert client.get(path, headers=headers).status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/api/tailscale/keys", "/api/tailscale/device/d1/routes"])
+async def test_a_scoped_technician_does_not_read_tailnet_wide_data(client, tailnet, path):
+    """Keys are tailnet-wide, and d1 belongs to no customer the caller holds."""
+    headers = await login("tech", role=Role.technician)
+    assert client.get(path, headers=headers).status_code in (403, 404)
 
 
 @pytest.mark.parametrize("method,path,body", MUTATIONS)
