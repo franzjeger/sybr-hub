@@ -463,11 +463,20 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
         audit_data = metrics_by_customer.get(cid)
         audit_score = 0
         audit_detail = "Ingen data"
+        # An audit can end without a grade: when a blocking part of the
+        # evidence is missing the report grades it "?" rather than guess. That
+        # is "not measured", and scoring it 0 of 30 put the customer below one
+        # whose audit earned an F.
+        audit_graded = False
         if audit_data:
             grade = (audit_data.get("risk_grade") or "").upper()
             grade_map = {"A": 30, "B": 24, "C": 18, "D": 12, "F": 6}
-            audit_score = grade_map.get(grade, 0)
-            audit_detail = f"Karakter {grade}" if grade else "Ingen karakter"
+            if grade in grade_map:
+                audit_graded = True
+                audit_score = grade_map[grade]
+                audit_detail = f"Karakter {grade}"
+            else:
+                audit_detail = "Ingen karakter (mangler datagrunnlag)"
 
         # ── 2. License Compliance (20 pts) ──
         also_rows = also_by_cust.get(cid, [])
@@ -585,7 +594,7 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
         # ── Total — exclude missing categories from max ──
         total_score = audit_score + license_score + domain_score + infra_score + mfa_score
         max_possible = 100
-        if not audit_data:
+        if not audit_graded:
             max_possible -= 30
         if not also_rows:
             max_possible -= 20
@@ -621,6 +630,9 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
                 "customer_id": cid,
                 "customer_name": name,
                 "total_score": pct_score if pct_score is not None else 0,
+                # False: nothing is known about this customer. The 0 above is a
+                # placeholder for sorting, not a score.
+                "scored": pct_score is not None,
                 "max_possible": max_possible,
                 "grade": letter,
                 "breakdown": {
@@ -655,8 +667,10 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
 
     results.sort(key=lambda x: x["total_score"])
 
-    n = len(results)
-    avg = round(sum(r["total_score"] for r in results) / n, 1) if n else 0
+    # The average is of the customers that have a score. One with no data at
+    # all is not a customer scoring zero.
+    scored = [r["total_score"] for r in results if r["scored"]]
+    avg = round(sum(scored) / len(scored), 1) if scored else 0
 
     return {
         "scores": results,
