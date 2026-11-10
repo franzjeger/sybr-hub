@@ -83,3 +83,25 @@ async def test_a_customer_with_no_data_is_left_out_of_the_average(fleet):
     assert by_id["blank"]["grade"] == "?"
     assert by_id["blank"]["scored"] is False
     assert out["average_score"] == 73.5, "the mean of 100 and 47, not of 100, 47 and 0"
+
+
+async def test_owning_a_firewall_and_access_points_earns_no_points(fleet, monkeypatch):
+    """The score is about how a customer is doing, not what it has bought."""
+    customers = [
+        {"_id": "failing", "CustomerName": "Only audit"},
+        {"_id": "ungraded", "CustomerName": "Both", "FortiGateHost": "10.0.0.1", "UniFiHost": "u"},
+    ]
+    monkeypatch.setattr(
+        "app.core.customer.CustomerManager.list_customers", staticmethod(lambda: customers)
+    )
+
+    by_id, _ = await _scores()
+
+    with_products, without = by_id["ungraded"], by_id["failing"]
+    assert with_products["breakdown"]["infrastructure"] == {
+        "score": None,
+        "max": 0,
+        "detail": "FortiGate + UniFi",
+    }
+    assert with_products["max_possible"] == 15, "MFA only, as without the products"
+    assert without["max_possible"] == 45

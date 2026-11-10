@@ -388,7 +388,7 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
       - Security audit (30 pts) — latest risk grade
       - License compliance (20 pts) — ALSO subscription status
       - Domain health (20 pts) — Uniweb domains / SSL
-      - Infrastructure (15 pts) — FortiGate / UniFi configured
+      - Infrastructure — FortiGate / UniFi configured; listed, not scored
       - MFA status (15 pts) — from audit data
     """
     import json as _json
@@ -564,14 +564,19 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
         # ── 4. Infrastructure (15 pts) ──
         has_fortigate = bool(c.get("FortiGateHost"))
         has_unifi = bool(c.get("UniFiHost"))
-        infra_score = 0
-        infra_detail = "Ingen data"
-        if has_fortigate and has_unifi:
-            infra_score = 15
-            infra_detail = "FortiGate + UniFi"
-        elif has_fortigate or has_unifi:
-            infra_score = 8
-            infra_detail = "FortiGate" if has_fortigate else "UniFi"
+        # Listed, not scored. This used to give 15 points for having both a
+        # FortiGate and a UniFi controller configured and 8 for one of them:
+        # points for what the customer has bought, in a score about how the
+        # customer is doing. A customer with only a firewall lost seven points
+        # for not owning access points.
+        infra_detail = (
+            " + ".join(
+                name
+                for name, present in (("FortiGate", has_fortigate), ("UniFi", has_unifi))
+                if present
+            )
+            or "Ingen data"
+        )
 
         # ── 5. MFA Status (15 pts) ──
         mfa_score = 0
@@ -592,16 +597,14 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
                 mfa_detail = f"{mfa_pct:.0f}% MFA"
 
         # ── Total — exclude missing categories from max ──
-        total_score = audit_score + license_score + domain_score + infra_score + mfa_score
-        max_possible = 100
+        total_score = audit_score + license_score + domain_score + mfa_score
+        max_possible = 85
         if not audit_graded:
             max_possible -= 30
         if not also_rows:
             max_possible -= 20
         if not uw_data:
             max_possible -= 20
-        if not (has_fortigate or has_unifi):
-            max_possible -= 15
         if not (audit_data and audit_data.get("mfa_coverage_pct") is not None):
             max_possible -= 15
 
@@ -652,8 +655,8 @@ async def dashboard_health_scores(user=Depends(get_current_user)):
                         "detail": domain_detail,
                     },
                     "infrastructure": {
-                        "score": infra_score,
-                        "max": 15,
+                        "score": None,
+                        "max": 0,
                         "detail": infra_detail,
                     },
                     "mfa_status": {
