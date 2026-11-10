@@ -935,6 +935,14 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Nettleseren ble stoppet, men Guacamole-tilkoblingen kunne ikke slettes; opprydding vil prøves på nytt",
         "The browser was stopped, but the Guacamole connection could not be deleted; cleanup will be retried",
     ),
+    "err_binding_needs_all_customers": (
+        "Bare en bruker med tilgang til alle kunder kan koble en ekstern konto eller node til en kunde",
+        "Only a user with access to every customer can link an external account or node to a customer",
+    ),
+    "err_tailscale_device_not_found": (
+        "Fant ikke enheten i Tailscale",
+        "The device was not found in Tailscale",
+    ),
     "err_proxy_xvfb_failed": (
         "Xvfb startet ikke (exit code {code})",
         "Xvfb did not start (exit code {code})",

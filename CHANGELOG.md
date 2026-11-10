@@ -8,6 +8,17 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Strammere kundeavgrensning
+
+- Teknikere med begrenset kundetilgang ser bare Tailscale-noder som tilhører
+  kundene deres. Auth-nøkler og ruter for andre noder vises ikke, og en node
+  ingen kunde eier, kan bare kobles til en kunde av noen som ser alle kunder.
+- Det samme gjelder å koble en Uniweb-konto, et Autotask-firma, en IT Glue-
+  organisasjon, en myITprocess-konto eller et Datto-område til en kunde.
+  Teknikere med begrenset tilgang kan fortsatt fjerne en kobling.
+- TLS-sjekk og TLS-skanning krever tekniker, og én skanning tar høyst 50
+  endepunkter.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
