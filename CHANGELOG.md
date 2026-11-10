@@ -8,6 +8,12 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### Sikkerhetsoppdateringer i avhengigheter
+
+- DOMPurify 3.4.17 (vendret og låst) retter tre omgåelser av rensingen.
+  brotli 1.2.1 (PYSEC-2026-4322) og dnspython 2.9.2 (CVE-2026-114605) er
+  oppdatert i låsefilen. minimatch er tvunget til 11.0.5 i utviklingsverktøyene.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
