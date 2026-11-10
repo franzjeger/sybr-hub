@@ -39,6 +39,25 @@ _USER_SELECT_BASIC = (
 _USER_SELECT_WITH_SIGNIN = f"{_USER_SELECT_BASIC},signInActivity"
 
 
+# Registered authentication methods that cannot answer an MFA prompt at sign-in.
+# The e-mail method is for self-service password reset only, and a Temporary
+# Access Pass is a time-limited code for getting a real method registered. A
+# user holding nothing else has no MFA, however many rows Graph returns.
+_NOT_MFA_METHODS = frozenset(
+    {
+        "#microsoft.graph.passwordAuthenticationMethod",
+        "#microsoft.graph.emailAuthenticationMethod",
+        "#microsoft.graph.temporaryAccessPassAuthenticationMethod",
+    }
+)
+_NOT_MFA_LABELS = frozenset(_METHOD_LABELS[t] for t in _NOT_MFA_METHODS)
+
+
+def is_mfa_method(odata_type: str) -> bool:
+    """Whether a registered authentication method can satisfy an MFA prompt."""
+    return bool(odata_type) and odata_type not in _NOT_MFA_METHODS
+
+
 def _method_label(odata_type: str) -> str:
     return _METHOD_LABELS.get(odata_type, odata_type.split(".")[-1])
 
@@ -782,9 +801,12 @@ class MFASection(BaseSection):
                     mfa_str, method_str = "?", "(lookup failed)"
                     unknown_users.append(upn)
                 else:
-                    mfa_str = "YES" if methods else "NO"
+                    # Every method is listed; only the ones that can answer an
+                    # MFA prompt make the user registered.
+                    has_mfa = any(m not in _NOT_MFA_LABELS for m in methods)
+                    mfa_str = "YES" if has_mfa else "NO"
                     method_str = ", ".join(methods) if methods else "(none)"
-                    if not methods:
+                    if not has_mfa:
                         no_mfa_users.append(upn)
                 ca_str = "YES" if uid in covered_ids else "NO"
                 ca_excl_str = "YES" if uid in excluded_ids else "NO"
@@ -794,7 +816,7 @@ class MFASection(BaseSection):
                         "upn": user.get("userPrincipalName") or "",
                         # None means "could not be determined", which is not the
                         # same as False and must never be counted as "no MFA".
-                        "mfa_registered": None if methods is None else bool(methods),
+                        "mfa_registered": None if methods is None else has_mfa,
                         "ca_covered": uid in covered_ids,
                         "ca_excluded": uid in excluded_ids,
                         "methods": list(methods or []),
