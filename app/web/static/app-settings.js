@@ -563,6 +563,12 @@ export async function showMfaSettings() {
     finally { if (!output.textContent.includes('\n')) primary.disabled = false; }
   });
   body.appendChild(primary);
+  if (!status.enabled) {
+    // Without MFA the password alone confirms the login for sensitive actions.
+    var verify = document.createElement('button'); verify.className = 'btn btn-ghost';
+    verify.textContent = t('btn_verify_login','Verify login');
+    verify.addEventListener('click', function() { submit('step-up'); }); body.appendChild(verify);
+  }
   if (status.enabled) {
     var disable = document.createElement('button'); disable.className = 'btn btn-ghost';
     disable.textContent = t('btn_disable_mfa','Disable MFA');

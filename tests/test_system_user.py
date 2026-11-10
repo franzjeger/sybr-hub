@@ -254,10 +254,10 @@ async def test_brukere_cannot_delete_it_and_says_why():
     from fastapi.testclient import TestClient
 
     import app.web.middleware.rate_limit as rate_limit
-    from app.core.auth import create_access_token
     from app.core.rbac import set_can_write
     from app.web.middleware.auth import _reset_users_exist_cache
     from app.web.server import create_app
+    from tests.session_fixtures import signed_in_token
 
     _reset_users_exist_cache()
     rate_limit._hits.clear()
@@ -267,7 +267,7 @@ async def test_brukere_cannot_delete_it_and_says_why():
     await set_can_write(admin.id, True)
     admin = await get_user_by_username("deleting-admin")
     other = await create_user("ordinary-tech", GOOD_PASSWORD, "Tech", role=Role.technician)
-    headers = {"Authorization": f"Bearer {await create_access_token(admin)}"}
+    headers = {"Authorization": f"Bearer {await signed_in_token(admin)}"}
 
     with TestClient(create_app()) as client:
         users = client.get("/api/auth/users", headers=headers).json()["users"]
@@ -306,10 +306,11 @@ async def test_brukere_cannot_change_its_role_or_capabilities(change):
     from fastapi.testclient import TestClient
 
     import app.web.middleware.rate_limit as rate_limit
-    from app.core.auth import create_access_token, get_user_by_id
+    from app.core.auth import get_user_by_id
     from app.core.rbac import set_can_write
     from app.web.middleware.auth import _reset_users_exist_cache
     from app.web.server import create_app
+    from tests.session_fixtures import signed_in_token
 
     _reset_users_exist_cache()
     rate_limit._hits.clear()
@@ -318,7 +319,7 @@ async def test_brukere_cannot_change_its_role_or_capabilities(change):
     admin = await create_user("editing-admin", GOOD_PASSWORD, "Admin", role=Role.admin)
     await set_can_write(admin.id, True)
     admin = await get_user_by_username("editing-admin")
-    headers = {"Authorization": f"Bearer {await create_access_token(admin)}"}
+    headers = {"Authorization": f"Bearer {await signed_in_token(admin)}"}
 
     with TestClient(create_app()) as client:
         refused = client.put(f"/api/auth/users/{system.id}", headers=headers, json=change)
