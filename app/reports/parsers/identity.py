@@ -666,9 +666,16 @@ def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
         key=lambda x: (-x["count"], x["role"]),
     )
     global_admin_users = [r for r in roles if r["role"] in _GA_ROLE_NAMES]
+    # The collector lists a role whose member read failed under failed_roles and
+    # writes no assignment for it. When that role is Global Administrator the
+    # count above is 0 because nobody could look, not because nobody holds it.
+    ga_unread = any(
+        (f.get("role") or "") in _GA_ROLE_NAMES for f in (sidecar or {}).get("failed_roles") or []
+    )
     return {
         "roles": roles,
         "global_admin_count": ga_count,
+        "global_admin_unread": ga_unread,
         "global_admin_users": global_admin_users,
         "total_assignments": len(roles),
         "unique_roles": len(role_counts),

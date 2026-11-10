@@ -741,7 +741,7 @@ div[style*="display:grid"] { max-width: 100%; overflow: hidden; }
 {% if admin_roles and admin_roles.total_assignments > 0 %}
 <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);">
   <div class="stat-box {% if admin_roles.global_admin_count > 4 %}red{% elif admin_roles.global_admin_count > 2 %}orange{% else %}green{% endif %}">
-    <div class="num">{{ admin_roles.global_admin_count }}</div><div class="lbl">{{ t.global_admins }}</div>
+    <div class="num">{% if admin_roles.global_admin_unread %}{{ t.data_unavailable_short }}{% else %}{{ admin_roles.global_admin_count }}{% endif %}</div><div class="lbl">{{ t.global_admins }}</div>
   </div>
   <div class="stat-box blue"><div class="num">{{ admin_roles.total_assignments }}</div><div class="lbl">{{ t.total_role_assignments }}</div></div>
   <div class="stat-box blue"><div class="num">{{ admin_roles.unique_roles }}</div><div class="lbl">{{ t.unique_roles }}</div></div>

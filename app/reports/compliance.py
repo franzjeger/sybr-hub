@@ -363,7 +363,7 @@ def _phishing_resistant_mfa(audit: _Audit) -> _Verdict:
 
 def _global_admins(audit: _Audit) -> _Verdict:
     admin, t = audit.admin_roles, audit.t
-    if not admin.get("has_data"):
+    if not admin.get("has_data") or admin.get("global_admin_unread"):
         return "info", audit.cannot_verify("cis_gap_admin_roles")
     ga = admin.get("global_admin_count", 0)
     if 2 <= ga <= 4:

@@ -14,6 +14,13 @@ METRICS_FILE = "_audit_metrics.json"
 # ── Trend comparison ──────────────────────────────────────────────────────────
 
 
+def _ga_count(admin_roles: dict | None):
+    """The Global Admin count, or None when the role's members were not read."""
+    if (admin_roles or {}).get("global_admin_unread"):
+        return None
+    return _metric(admin_roles, "global_admin_count")
+
+
 def _metric(source: dict | None, key: str):
     """Return a metric only when its source section actually produced data.
 
@@ -95,7 +102,7 @@ def save_audit_metrics(out_dir: Path, context: dict, *, customer_id: str | None 
         "ca_policies_enabled": _metric(context.get("ca", {}), "enabled"),
         "intune_compliance_pct": _metric(context.get("intune", {}), "compliance_pct"),
         "intune_total_devices": _metric(context.get("intune", {}), "total"),
-        "admin_roles_ga_count": _metric(context.get("admin_roles", {}), "global_admin_count"),
+        "admin_roles_ga_count": _ga_count(context.get("admin_roles", {})),
         "total_warns": len(context.get("all_warns", [])),
         # _compute_risk already returns None here when a blocking gap makes
         # the grade fiction — carry it through rather than flattening to 0.

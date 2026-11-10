@@ -221,7 +221,7 @@ def _compute_risk(
     # Only score when we actually have role data — has_data=False means the
     # /directoryRoles fetch failed, so a 0-admin reading is missing data,
     # not "no admin sprawl". Same pattern repeats for SharePoint and OAuth.
-    if admin_roles and admin_roles.get("has_data"):
+    if admin_roles and admin_roles.get("has_data") and not admin_roles.get("global_admin_unread"):
         ga = admin_roles.get("global_admin_count", 0)
         if ga > 4:
             score -= 5
