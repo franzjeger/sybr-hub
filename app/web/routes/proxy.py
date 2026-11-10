@@ -280,7 +280,7 @@ def _sandbox_prefix(bwrap: str, chromium_bin: str, session_dir: Path, display: s
 
 
 def _chromium_command(
-    chromium_bin: str, bwrap: str | None, session_dir: Path, display: str, url: str
+    chromium_bin: str, bwrap: str, session_dir: Path, display: str, url: str
 ) -> list[str]:
     """Full argv for one Chromium launch; start and navigate share it."""
     chrome_args = [
@@ -306,14 +306,12 @@ def _chromium_command(
     ]
     if url:
         chrome_args.append(url)
-    if bwrap is None:
-        return chrome_args
     return _sandbox_prefix(bwrap, chromium_bin, session_dir, display) + chrome_args
 
 
 def _spawn_chromium(
     chromium_bin: str,
-    bwrap: str | None,
+    bwrap: str,
     session_dir: Path,
     display: str,
     url: str,
@@ -487,10 +485,11 @@ async def browser_start(
         chromium_bin = _chromium_binary()
         bwrap_bin = _bwrap_binary()
         if bwrap_bin is None:
-            logger.warning(
-                "bubblewrap (bwrap) is not installed: the remote browser runs without "
-                "filesystem isolation, with the hub service account's file access"
-            )
+            # Unconfined, Chromium has the service account's file access: a
+            # file:// URL typed into the session reads the database and the
+            # master-key backup. No browser is better than that browser.
+            logger.error("Refused to start the remote browser: bubblewrap (bwrap) is not installed")
+            raise refusal(IntegrationError, "err_proxy_sandbox_missing")
 
         session_dir = _new_session_dir()
         env = _browser_env(display, session_dir)
@@ -710,7 +709,7 @@ async def browser_navigate(
         _clear_profile_locks(session_dir)
         chromium_proc = _spawn_chromium(
             _browser_session["chromium_bin"],
-            _browser_session.get("bwrap"),
+            _browser_session["bwrap"],
             session_dir,
             _browser_session["display"],
             target_url,
