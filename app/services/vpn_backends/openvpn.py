@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+import shlex
 import tempfile
 from pathlib import Path
 
@@ -44,10 +45,227 @@ _SCRIPT_DIRECTIVE_RE = re.compile(
 )
 
 
+# Every directive a client profile may contain. Anything else is refused: a
+# denylist missed directives hidden inside <connection> blocks and quoted
+# names, and every OpenVPN release adds options. Hooks (_SCRIPT_DIRECTIVES)
+# and path-taking options (_FILE_DIRECTIVES) are absent on purpose; the
+# key-material options stay subject to _INLINE_ONLY.
+_ALLOWED = frozenset(
+    {
+        "allow-compression",
+        "allow-pull-fqdn",
+        "allow-recursive-routing",
+        "auth",
+        "auth-nocache",
+        "auth-retry",
+        "auth-user-pass",
+        "bind",
+        "block-ipv6",
+        "block-outside-dns",
+        "ca",
+        "cert",
+        "cipher",
+        "client",
+        "comp-lzo",
+        "compress",
+        "connect-retry",
+        "connect-retry-max",
+        "connect-timeout",
+        "crl-verify",
+        "data-ciphers",
+        "data-ciphers-fallback",
+        "dev",
+        "dev-type",
+        "dh",
+        "dhcp-option",
+        "disable-dco",
+        "down-pre",
+        "ecdh-curve",
+        "explicit-exit-notify",
+        "extra-certs",
+        "float",
+        "fragment",
+        "hand-window",
+        "http-proxy",
+        "http-proxy-option",
+        "http-proxy-retry",
+        "http-proxy-timeout",
+        "http-proxy-user-pass",
+        "ifconfig",
+        "ifconfig-ipv6",
+        "ifconfig-nowarn",
+        "ignore-unknown-option",
+        "inactive",
+        "keepalive",
+        "key",
+        "key-direction",
+        "key-method",
+        "link-mtu",
+        "local",
+        "lport",
+        "mssfix",
+        "mtu-disc",
+        "mtu-test",
+        "mute",
+        "mute-replay-warnings",
+        "ncp-ciphers",
+        "ncp-disable",
+        "nobind",
+        "ns-cert-type",
+        "peer-fingerprint",
+        "persist-key",
+        "persist-local-ip",
+        "persist-remote-ip",
+        "persist-tun",
+        "ping",
+        "ping-exit",
+        "ping-restart",
+        "ping-timer-rem",
+        "pkcs12",
+        "port",
+        "proto",
+        "proto-force",
+        "pull",
+        "pull-filter",
+        "push-peer-info",
+        "rcvbuf",
+        "redirect-gateway",
+        "redirect-private",
+        "remote",
+        "remote-cert-eku",
+        "remote-cert-ku",
+        "remote-cert-tls",
+        "remote-random",
+        "remote-random-hostname",
+        "reneg-bytes",
+        "reneg-pkts",
+        "reneg-sec",
+        "replay-window",
+        "resolv-retry",
+        "route",
+        "route-delay",
+        "route-gateway",
+        "route-ipv6",
+        "route-metric",
+        "route-nopull",
+        "rport",
+        "secret",
+        "server-poll-timeout",
+        "setenv",
+        "setenv-safe",
+        "single-session",
+        "sndbuf",
+        "socks-proxy",
+        "socks-proxy-retry",
+        "static-challenge",
+        "tls-auth",
+        "tls-cert-profile",
+        "tls-cipher",
+        "tls-ciphersuites",
+        "tls-client",
+        "tls-crypt",
+        "tls-crypt-v2",
+        "tls-exit",
+        "tls-groups",
+        "tls-remote",
+        "tls-timeout",
+        "tls-version-max",
+        "tls-version-min",
+        "topology",
+        "tran-window",
+        "tun-ipv6",
+        "tun-mtu",
+        "tun-mtu-extra",
+        "txqueuelen",
+        "up-delay",
+        "up-restart",
+        "verb",
+        "verify-hash",
+        "verify-x509-name",
+        "x509-username-field",
+    }
+)
+# <tag> blocks that carry inline file content, not directives.
+_INLINE_BLOCKS = frozenset(
+    {
+        "auth-user-pass",
+        "ca",
+        "cert",
+        "crl-verify",
+        "dh",
+        "extra-certs",
+        "http-proxy-user-pass",
+        "key",
+        "peer-fingerprint",
+        "pkcs12",
+        "secret",
+        "tls-auth",
+        "tls-crypt",
+        "tls-crypt-v2",
+    }
+)
+
+
+class _Unparseable(ValueError):
+    """The profile cannot be read the way OpenVPN would read it."""
+
+
+def _directives(content: str) -> list[tuple[str, list[str]]]:
+    """Every directive in *content* as OpenVPN sees it: name and arguments.
+
+    Tokenised with OpenVPN's quoting rules, so a quoted name ("status") is the
+    name OpenVPN acts on. Directives inside <connection> blocks are included;
+    inline file blocks are skipped. A block that is unknown, nested where it
+    cannot be, or unterminated makes the whole profile unparseable.
+    """
+    found: list[tuple[str, list[str]]] = []
+    block: str | None = None
+    in_connection = False
+    for raw in content.splitlines():
+        line = raw.strip()
+        if block:
+            if line.lower() == f"</{block}>":
+                block = None
+            continue
+        if not line or line[0] in "#;":
+            continue
+        if line.startswith("<"):
+            tag = line[1:-1].strip().lower() if line.endswith(">") else ""
+            if tag == "connection" and not in_connection:
+                in_connection = True
+            elif tag == "/connection" and in_connection:
+                in_connection = False
+            elif tag in _INLINE_BLOCKS:
+                block = tag
+            else:
+                raise _Unparseable(line)
+            continue
+        try:
+            words = shlex.split(line, posix=True)
+        except ValueError as e:
+            raise _Unparseable(line) from e
+        if not words:
+            continue
+        name = words[0][2:] if words[0].startswith("--") else words[0]
+        found.append((name, words[1:]))
+    if block or in_connection:
+        raise _Unparseable(f"<{block or 'connection'}>")
+    return found
+
+
 def _reject_script_directives(content: str) -> str | None:
     """Return the offending directive if *content* can execute programs."""
     match = _SCRIPT_DIRECTIVE_RE.search(content)
-    return match.group(1) if match else None
+    if match:
+        return match.group(1)
+    try:
+        directives = _directives(content)
+    except _Unparseable:
+        return None  # refused by _reject_unknown_directives
+    for name, _ in directives:
+        if name.lower() in _SCRIPT_DIRECTIVES:
+            return name
+    return None
 
 
 # Directives that read or write files on the hub, or run a program, by path.
@@ -97,19 +315,11 @@ _INLINE_ONLY = frozenset(
 
 def _reject_file_directives(content: str) -> str | None:
     """Return the first directive that reaches the hub's filesystem by path."""
-    inside: str | None = None
-    for raw in content.splitlines():
-        line = raw.strip()
-        if inside:
-            if line.lower() == f"</{inside}>":
-                inside = None
-            continue
-        if line.startswith("<") and line.endswith(">") and not line.startswith("</"):
-            inside = line[1:-1].strip().lower()
-            continue
-        if not line or line[0] in "#;":
-            continue
-        directive, *args = line.split()
+    try:
+        directives = _directives(content)
+    except _Unparseable:
+        return None  # refused by _reject_unknown_directives
+    for directive, args in directives:
         name = directive.lower()
         if name in _FILE_DIRECTIVES:
             return directive
@@ -120,6 +330,18 @@ def _reject_file_directives(content: str) -> str | None:
         if name == "http-proxy" and len(args) >= 3 and args[2].lower() not in ("auto", "auto-nct"):
             return directive
         if name == "socks-proxy" and len(args) >= 3:
+            return directive
+    return None
+
+
+def _reject_unknown_directives(content: str) -> str | None:
+    """Return the first line or directive outside the client allowlist."""
+    try:
+        directives = _directives(content)
+    except _Unparseable as e:
+        return str(e)
+    for directive, _ in directives:
+        if directive.lower() not in _ALLOWED:
             return directive
     return None
 
@@ -139,6 +361,13 @@ def refusal_reason(content: str) -> str | None:
             f"Konfigurasjonen inneholder direktivet '{offending}', som lar "
             f"OpenVPN lese eller skrive filer på serveren. Lim inn nøkler og "
             f"sertifikater som innebygde blokker, og fjern direktivet."
+        )
+    offending = _reject_unknown_directives(content)
+    if offending:
+        return (
+            f"Konfigurasjonen inneholder '{offending}', som huben ikke godtar i "
+            f"en klientprofil. Fjern linjen, eller be om at direktivet vurderes "
+            f"for listen over tillatte direktiver."
         )
     return None
 

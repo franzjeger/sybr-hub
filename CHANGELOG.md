@@ -8,6 +8,12 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+### OpenVPN-profiler kontrolleres mot en tillatt-liste
+
+- Profilen leses slik OpenVPN leser den, også inne i `<connection>`-blokker
+  og med siterte direktivnavn. Bare kjente klientdirektiver godtas. Ukjente
+  blokker og blokker som ikke avsluttes, avvises med en melding som sier hvilken linje det gjelder.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
