@@ -210,9 +210,30 @@ def _labelled_int(text: str, label: str) -> int | None:
         return None
 
 
-# Which SKU part numbers carry which capability. Only the ones a CIS control
-# actually gates on; this is not meant to be a complete Microsoft catalogue,
-# and an unknown SKU deliberately yields "unknown" rather than "absent".
+# Which service plans carry which capability. A run that recorded each SKU's
+# plans is read from these: they are the same inside every bundle, whatever the
+# bundle is called this year.
+_PLAN_CAPABILITIES: dict[str, tuple[str, ...]] = {
+    "AAD_PREMIUM": ("entra_p1",),
+    "AAD_PREMIUM_P2": ("entra_p1", "entra_p2"),
+    "INTUNE_A": ("intune",),
+    "ATP_ENTERPRISE": ("defender_office",),
+    "THREAT_INTELLIGENCE": ("defender_office",),
+}
+
+# An unrecognised part number that looks like a suite or a security add-on.
+# Without its plans there is no telling what it carries, and "not in my table"
+# is not "not licensed": see _licensed_capabilities.
+_MAY_CARRY_A_CAPABILITY = re.compile(
+    r"SPE_|SPB|M365|MICROSOFT_?365|EMS|AAD|ENTRA|INTUNE|DEFENDER|ATP|THREAT|IDENTITY|"
+    r"(?<![A-Z0-9])[EAFG][35](?![0-9])",
+    re.IGNORECASE,
+)
+
+# Which SKU part numbers carry which capability, for a run that did not record
+# the plans. Only the ones a CIS control actually gates on; this is not meant
+# to be a complete Microsoft catalogue, and an unknown SKU deliberately yields
+# "unknown" rather than "absent".
 #
 # O365_BUSINESS_PREMIUM is Microsoft 365 Business *Standard*, not Premium —
 # Microsoft's part number predates the rename. Business Premium is SPB, and
@@ -226,7 +247,27 @@ _SKU_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "SPB": ("entra_p1", "intune", "defender_office"),
     "SPE_E3": ("entra_p1", "intune"),
     "SPE_E5": ("entra_p1", "entra_p2", "intune", "defender_office", "purview"),
-    "ENTERPRISEPREMIUM": ("entra_p1", "entra_p2", "intune", "defender_office", "purview"),
+    # The EEA suites sold without Teams since 2023. Same contents otherwise.
+    "Microsoft_365_Business_Premium_(no_Teams)": ("entra_p1", "intune", "defender_office"),
+    "Microsoft_365_E3_(no_Teams)": ("entra_p1", "intune"),
+    "Microsoft_365_E5_(no_Teams)": (
+        "entra_p1",
+        "entra_p2",
+        "intune",
+        "defender_office",
+        "purview",
+    ),
+    "SPE_F1": ("entra_p1", "intune"),
+    "IDENTITY_THREAT_PROTECTION": ("entra_p1", "entra_p2", "defender_office"),
+    # Office 365 E5: Defender for Office and Purview, but no Entra ID Premium
+    # and no Intune. Those come with Microsoft 365 E5 (SPE_E5) or EMS.
+    "ENTERPRISEPREMIUM": ("defender_office", "purview"),
+    # Suites that are known and carry none of these, so they are not "unknown".
+    "O365_BUSINESS_PREMIUM": (),
+    "O365_BUSINESS_ESSENTIALS": (),
+    "ENTERPRISEPACK": (),
+    "STANDARDPACK": (),
+    "Microsoft_365_Copilot": (),
     "INTUNE_A": ("intune",),
     "ATP_ENTERPRISE": ("defender_office",),
     "THREAT_INTELLIGENCE": ("defender_office",),
@@ -243,7 +284,8 @@ def _licensed_capabilities(licenses: list[dict] | None) -> set[str] | None:
     configuration failure the customer could act on, when the honest finding
     is that the licence needs assigning first.
 
-    None when the licence section produced nothing. An empty inventory and an
+    None when the licence section produced nothing, or when an assigned SKU
+    could carry a capability and nothing says whether it does. An empty inventory and an
     uncollected one are not the same claim, and callers must not read "no
     licence data" as "no licence" — that is the absence-as-finding mistake this
     whole pass exists to remove, and it is easy to make right here.
@@ -251,12 +293,26 @@ def _licensed_capabilities(licenses: list[dict] | None) -> set[str] | None:
     if not licenses:
         return None
     capabilities: set[str] = set()
+    unrecognised = False
     for lic in licenses:
         if lic.get("used", 0) <= 0:
             continue
-        for capability in _SKU_CAPABILITIES.get(lic.get("part", ""), ()):
-            capabilities.add(capability)
-    return capabilities
+        part = lic.get("part", "")
+        plans = lic.get("plans")
+        if isinstance(plans, list) and plans:
+            for plan in plans:
+                capabilities.update(_PLAN_CAPABILITIES.get(plan, ()))
+            capabilities.update(_SKU_CAPABILITIES.get(part, ()))
+        elif part in _SKU_CAPABILITIES:
+            capabilities.update(_SKU_CAPABILITIES[part])
+        elif _MAY_CARRY_A_CAPABILITY.search(part):
+            unrecognised = True
+    # An assigned suite this table does not know, and no plans to read it by:
+    # what the tenant lacks cannot be said. Answering with the capabilities
+    # that were recognised would report a control as "not licensed" (info, no
+    # finding) for a tenant that holds the licence under a newer part number
+    # and has simply not configured the feature.
+    return None if unrecognised else capabilities
 
 
 def _lacks(capabilities: set[str] | None, capability: str) -> bool:
