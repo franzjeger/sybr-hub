@@ -12,7 +12,7 @@ import {esc} from './app-esc.js';
 import {t} from './app-i18n.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {registerToolCustomer} from './app-hooks.js';
-import {_allCustomers, _overviewData, canWrite, currentCustomerId, setOverviewData} from './app-state.js';
+import {_allCustomers, _overviewData, canWrite, currentCustomerId, hasModule, setOverviewData} from './app-state.js';
 import {_formatBytes, badgeClass, timeAgo, toneClass, toneVar} from './app-format.js';
 import {adminSignpostButton, openReportWindow, showConfirm, showToast} from './app-ui.js';
 import {apiFetch} from './app-api.js';
@@ -2521,6 +2521,9 @@ function dashFgDetail(customerId) {
 // ═══════════════════════════════════════════════════════════════════
 
 export async function claudeLoadSaved() {
+  // A switched-off module answers 404 by design, and its card is hidden; asking
+  // anyway put a "Not Found" toast on the Integrations pane.
+  if (!hasModule('ai')) return;
   var data = await apiFetch('/api/claude/status');
   if (!data) return;
   var dot = document.getElementById('claude-integ-dot');
