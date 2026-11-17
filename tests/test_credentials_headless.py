@@ -142,3 +142,51 @@ def test_a_keyring_that_returns_something_else_is_not_trusted(tmp_path, monkeypa
 
     creds.store_secret("acme", "client_secret", "TOPSECRET")
     assert (tmp_path / "secrets.enc").exists(), "fallback not used despite a bad readback"
+
+
+def _unreadable(path):
+    def _raise(p, *a, **k):
+        if p == path:
+            raise ValueError("decryption failed")
+        raise AssertionError(f"unexpected read of {p}")
+
+    return _raise
+
+
+def test_an_unreadable_store_is_never_overwritten(headless, monkeypatch):
+    """A store that cannot be read must not be taken for an empty one.
+
+    The old reader returned {} on any error, and the next write saved a file
+    holding only its own entry: every other customer's secrets were gone.
+    """
+    headless.store_secret("acme", "client_secret", "aaa")
+    headless.store_secret("globex", "client_secret", "bbb")
+    path = headless._FALLBACK_PATH
+    before = path.read_bytes()
+
+    monkeypatch.setattr("app.core.encryption.encrypted_read_json", _unreadable(path))
+    with pytest.raises(ValueError):
+        headless.store_secret("initech", "client_secret", "ccc")
+    with pytest.raises(ValueError):
+        headless.delete_secret("acme", "client_secret")
+    assert path.read_bytes() == before
+
+
+def test_a_read_of_an_unreadable_store_degrades_to_missing(headless, monkeypatch):
+    headless.store_secret("acme", "client_secret", "aaa")
+    headless.clear_secret_cache()
+    monkeypatch.setattr(
+        "app.core.encryption.encrypted_read_json", _unreadable(headless._FALLBACK_PATH)
+    )
+    assert headless.get_secret("acme", "client_secret") is None
+
+
+def test_concurrent_writers_keep_every_secret(headless):
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(
+            pool.map(lambda i: headless.store_secret(f"t{i}", "client_secret", f"v{i}"), range(40))
+        )
+    headless.clear_secret_cache()
+    assert all(headless.get_secret(f"t{i}", "client_secret") == f"v{i}" for i in range(40))
