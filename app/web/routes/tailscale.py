@@ -13,6 +13,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.core.rbac import customer_in_scope, get_accessible_customer_ids
 from app.models.tailscale import (
     TailscaleAuthorize,
     TailscaleCustomerTagSet,
@@ -121,8 +122,7 @@ async def tailscale_devices(user: User = _tech):
     try:
         from app.services import tailscale_api
 
-        devices = await tailscale_api.list_devices()
-        await _annotate_customers(devices, user)
+        devices = await _annotate_customers(await tailscale_api.list_devices(), user)
 
         online = [d for d in devices if d["online"]]
         offline = [d for d in devices if not d["online"]]
@@ -149,14 +149,15 @@ async def tailscale_devices(user: User = _tech):
         raise IntegrationError(str(e)) from e
 
 
-async def _annotate_customers(devices: list[dict], user: User) -> None:
-    """Mark each node with the customer it belongs to, as far as the caller may see.
+async def _annotate_customers(devices: list[dict], user: User) -> list[dict]:
+    """The nodes the caller may see, each marked with the customer it belongs to.
 
-    A node of a customer the caller cannot reach says only that it is taken
-    (``customer_hidden``), never whose it is.
+    A caller who sees every customer gets the whole tailnet. A scoped caller
+    gets only the nodes of customers they hold: another customer's node, or
+    one nobody holds (often the MSP's own infrastructure), is left out, not
+    merely unnamed.
     """
     from app.core.customer import CustomerManager
-    from app.core.rbac import get_accessible_customer_ids
     from app.services import tailscale_customers
 
     customers = {c["_id"]: c for c in CustomerManager.list_customers()}
@@ -167,21 +168,18 @@ async def _annotate_customers(devices: list[dict], user: User) -> None:
         await tailscale_customers.tag_overrides(),
     )
     allowed = await get_accessible_customer_ids(user)
+    visible = []
     for device in devices:
         owner = owners.get(str(device.get("id") or ""))
-        device["customer_id"] = None
-        device["customer_name"] = None
-        device["customer_source"] = None
-        device["customer_hidden"] = False
-        if owner is None:
+        if not customer_in_scope(owner[0] if owner else None, allowed):
             continue
-        cid, source = owner
-        if allowed is not None and cid not in allowed:
-            device["customer_hidden"] = True
-            continue
-        device["customer_id"] = cid
-        device["customer_name"] = customers[cid].get("CustomerName", cid)
-        device["customer_source"] = source
+        device["customer_id"] = owner[0] if owner else None
+        device["customer_name"] = (
+            customers[owner[0]].get("CustomerName", owner[0]) if owner else None
+        )
+        device["customer_source"] = owner[1] if owner else None
+        visible.append(device)
+    return visible
 
 
 @router.get("/tailscale/customer/{customer_id}/nodes")
@@ -214,9 +212,10 @@ async def tailscale_customer_nodes(
             "nodes": [],
             "unassigned": [],
         }
+    sees_all = await get_accessible_customer_ids(user) is None
     cached = tailscale_customers.cached_nodes(customer_id)
     if cached is not None:
-        return cached
+        return _for_caller(cached, sees_all)
     try:
         from app.services import tailscale_api
 
@@ -277,7 +276,17 @@ async def tailscale_customer_nodes(
         "unassigned": unassigned,
     }
     tailscale_customers.cache_nodes(customer_id, payload)
-    return payload
+    return _for_caller(payload, sees_all)
+
+
+def _for_caller(payload: dict, sees_all: bool) -> dict:
+    """The tab's answer as this caller may see it.
+
+    ``unassigned`` lists nodes no customer holds, which may be any company's or
+    the MSP's own: only a caller who sees every customer gets it, and only that
+    caller assigns them. The cache holds the full answer for everyone.
+    """
+    return payload if sees_all else {**payload, "unassigned": []}
 
 
 @router.put("/tailscale/customer/{customer_id}/tag")
@@ -369,6 +378,9 @@ async def tailscale_assign_customer(device_id: str, body: TailscaleNodeAssign, u
             raise refusal(ForbiddenError, "err_customer_no_access")
     if current and not await check_customer_access(user, current):
         raise refusal(ForbiddenError, "err_customer_no_access")
+    held = owners.get(device_id) or tag_owners.get(device_id) or current
+    if not held and await get_accessible_customer_ids(user) is not None:
+        raise refusal(ForbiddenError, "err_binding_needs_all_customers")
     await tailscale_customers.assign(device_id, target, user.username)
 
     from app.core.activity_log import log_activity
@@ -472,12 +484,20 @@ async def tailscale_set_key_expiry(device_id: str, body: TailscaleKeyExpiry, use
 
 @router.get("/tailscale/device/{device_id}/routes")
 async def tailscale_get_routes(device_id: str, user: User = _tech):
-    """Get advertised and enabled routes for a device."""
+    """Get advertised and enabled routes for a device the caller may see."""
     if not _ensure_configured():
         raise refusal(ValidationError, "err_tailscale_not_configured")
-    try:
-        from app.services import tailscale_api
+    from app.services import tailscale_api
 
+    if await get_accessible_customer_ids(user) is not None:
+        try:
+            devices = await tailscale_api.list_devices()
+        except Exception as exc:
+            raise refusal(IntegrationError, "err_tailscale_unreachable") from exc
+        visible = await _annotate_customers(devices, user)
+        if not any(str(d.get("id")) == device_id for d in visible):
+            raise refusal(NotFoundError, "err_tailscale_device_not_found")
+    try:
         routes = await tailscale_api.get_device_routes(device_id)
         return routes
     except Exception as e:
@@ -506,7 +526,9 @@ async def tailscale_set_routes(device_id: str, body: TailscaleRoutes, user: User
 
 @router.get("/tailscale/keys")
 async def tailscale_list_keys(user: User = _tech):
-    """List auth keys."""
+    """List auth keys. They are tailnet-wide, so only for a caller who sees every customer."""
+    if await get_accessible_customer_ids(user) is not None:
+        raise refusal(ForbiddenError, "err_binding_needs_all_customers")
     if not _ensure_configured():
         raise refusal(ValidationError, "err_tailscale_not_configured")
     try:

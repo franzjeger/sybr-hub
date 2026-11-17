@@ -300,3 +300,36 @@ def test_an_empty_link_body_keeps_its_own_message(client, auth, customer, monkey
 
     assert r.status_code == 400
     assert "autotask_account_id" in r.json()["error"]
+
+
+async def _scoped_tech(customer_id: str) -> dict:
+    from app.core.rbac import grant_access, set_can_write
+
+    user = await create_user("scoped", GOOD_PASSWORD, "Scoped", role=Role.technician)
+    await set_can_write(user.id, True)
+    await grant_access(user.id, customer_id)
+    return {"Authorization": f"Bearer {await create_access_token(await get_user_by_id(user.id))}"}
+
+
+async def test_a_scoped_technician_cannot_bind_a_provider_record(client, customer, monkeypatch):
+    """A binding would let them read any company's Autotask or IT Glue data."""
+    _no_settings(monkeypatch)
+    headers = await _scoped_tech(customer)
+    for body in ({"autotask_account_id": 77}, {"itglue_org_id": "org-9"}):
+        r = client.post(f"/api/hub/{customer}/link", headers=headers, json=body)
+        assert r.status_code == 403, (body, r.text)
+
+    import app.core.customer as cm
+
+    record = cm.CustomerManager.get_customer(customer)
+    assert "AutotaskAccountId" not in record and "ITGlueOrgId" not in record
+
+
+async def test_a_scoped_technician_may_still_clear_a_binding(client, auth, customer, monkeypatch):
+    _no_settings(monkeypatch)
+    client.post(f"/api/hub/{customer}/link", headers=auth, json={"autotask_account_id": 77})
+    headers = await _scoped_tech(customer)
+    r = client.post(
+        f"/api/hub/{customer}/link", headers=headers, json={"autotask_account_id": None}
+    )
+    assert r.status_code == 200, r.text

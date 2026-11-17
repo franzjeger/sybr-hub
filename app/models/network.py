@@ -248,7 +248,9 @@ class TlsEndpoint(BaseModel):
 class TlsScanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    endpoints: list[TlsEndpoint] = []
+    # Discovery returns a customer's endpoints; 50 covers that and keeps one
+    # request from sweeping a network.
+    endpoints: list[TlsEndpoint] = Field(default=[], max_length=50)
 
 
 class DnsCheckRequest(BaseModel):
