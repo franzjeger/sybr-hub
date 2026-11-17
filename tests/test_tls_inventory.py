@@ -412,3 +412,30 @@ def test_a_failed_chain_is_named_by_its_openssl_code(code, expected):
     exc = ssl.SSLCertVerificationError("verify failed")
     exc.verify_code = code
     assert tls_monitor._chain_problem(exc) == expected
+
+
+async def test_a_viewer_cannot_use_the_hub_as_a_port_scanner(client, probe):
+    headers = await login("viewer", role=Role.viewer, all_customers=True)
+    assert (
+        client.post(
+            "/api/tls/check", json={"host": "10.0.0.1", "port": 22}, headers=headers
+        ).status_code
+        == 403
+    )
+    r = client.post("/api/tls/scan", json={"endpoints": [{"host": "10.0.0.1"}]}, headers=headers)
+    assert r.status_code == 403
+
+
+async def test_one_scan_covers_at_most_fifty_endpoints(client, probe):
+    headers = await login("tech", all_customers=True)
+    endpoints = [{"host": f"10.0.0.{i}", "port": 443} for i in range(51)]
+    assert (
+        client.post("/api/tls/scan", json={"endpoints": endpoints}, headers=headers).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/api/tls/scan", json={"endpoints": endpoints[:50]}, headers=headers
+        ).status_code
+        == 200
+    )

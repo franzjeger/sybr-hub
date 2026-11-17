@@ -939,6 +939,14 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Nettleseren startes ikke uten bubblewrap (bwrap), som hindrer den i å lese hubens filer. Installer pakken bubblewrap på serveren.",
         "The browser will not start without bubblewrap (bwrap), which keeps it from reading the hub's files. Install the bubblewrap package on the server.",
     ),
+    "err_binding_needs_all_customers": (
+        "Bare en bruker med tilgang til alle kunder kan koble en ekstern konto eller node til en kunde",
+        "Only a user with access to every customer can link an external account or node to a customer",
+    ),
+    "err_tailscale_device_not_found": (
+        "Fant ikke enheten i Tailscale",
+        "The device was not found in Tailscale",
+    ),
     "err_proxy_xvfb_failed": (
         "Xvfb startet ikke (exit code {code})",
         "Xvfb did not start (exit code {code})",

@@ -137,19 +137,12 @@ async def test_matches_for_a_viewer_hold_only_their_bound_accounts(client):
     assert_no_foreign(r.text)
 
 
-async def test_matches_offer_unbound_accounts_to_a_technician_by_name_only(client):
+async def test_matches_show_a_scoped_technician_only_their_accounts(client):
     r = client.get("/api/uniweb/matches", headers=await _tech())
     body = r.json()
     assert [m["uniweb_id"] for m in body["matched"]] == ["uw-acme"]
-    assert body["unmatched"] == [
-        {
-            "uniweb_id": "uw-orphan",
-            "uniweb_name": "Orphan Web",
-            "customer_id": None,
-            "customer_name": None,
-            "parent_name": "",
-        }
-    ]
+    assert body["unmatched"] == []
+    assert "Orphan Web" not in r.text
     assert_no_foreign(r.text)
 
 
@@ -214,21 +207,14 @@ async def test_a_scoped_technician_cannot_take_over_a_foreign_account(client):
     assert await _binding("uw-beta") == BETA
 
 
-async def test_a_scoped_technician_can_bind_an_unbound_account_to_their_customer(client):
-    headers = await _tech()
+async def test_a_scoped_technician_cannot_claim_an_unbound_account(client):
+    """An unbound account may be any company's; binding it would expose it."""
     r = client.post(
         "/api/uniweb/match",
-        headers=headers,
+        headers=await _tech(),
         json={"uniweb_account_id": "uw-orphan", "customer_id": ACME},
     )
-    assert r.status_code == 200, r.text
-    assert await _binding("uw-orphan") == ACME
-    r = client.post(
-        "/api/uniweb/match",
-        headers=headers,
-        json={"uniweb_account_id": "uw-orphan", "customer_id": ""},
-    )
-    assert r.status_code == 200, r.text
+    assert r.status_code == 403, r.text
     assert await _binding("uw-orphan") is None
 
 

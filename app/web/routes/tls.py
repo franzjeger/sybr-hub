@@ -27,12 +27,20 @@ from app.services.tls_monitor import (
     scan_customer_endpoints,
 )
 from app.web.i18n import refusal
-from app.web.middleware.auth import get_current_user, require_customer_access, require_feature
+from app.web.middleware.auth import (
+    get_current_user,
+    require_customer_access,
+    require_feature,
+    require_role,
+)
 
 log = logging.getLogger(__name__)
 # The whole module is the 'network' feature (app/core/features.py); per-route
 # floors below only ever raise it.
 router = APIRouter(tags=["tls"], dependencies=[Depends(require_feature("network"))])
+# A check opens a TCP connection to any host:port the hub can reach, VPN
+# tunnels into customer networks included: a port scanner in a viewer's hands.
+_tech = Depends(require_role(Role.technician))
 
 
 @router.get("/tls/auto-discover")
@@ -51,7 +59,7 @@ async def tls_auto_discover(user: User = Depends(get_current_user)):
 
 
 @router.post("/tls/check")
-async def tls_check_single(body: TlsCheckRequest, user: User = Depends(get_current_user)):
+async def tls_check_single(body: TlsCheckRequest, user: User = _tech):
     """Check TLS for a single endpoint, and keep what it found."""
     host = body.host.strip()
     port = body.port
@@ -69,7 +77,7 @@ async def tls_check_single(body: TlsCheckRequest, user: User = Depends(get_curre
 
 
 @router.post("/tls/scan")
-async def tls_scan_endpoints(body: TlsScanRequest, user: User = Depends(get_current_user)):
+async def tls_scan_endpoints(body: TlsScanRequest, user: User = _tech):
     """Scan multiple endpoints for TLS health, and keep what each one found.
 
     An endpoint may name its customer (auto-discover sends it back), which

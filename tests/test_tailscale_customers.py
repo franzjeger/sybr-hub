@@ -235,20 +235,34 @@ async def test_with_the_module_off_the_route_does_not_exist(client, monkeypatch)
     assert client.get(f"/api/tailscale/customer/{ACME}/nodes", headers=headers).status_code == 404
 
 
-async def test_a_technician_assigns_and_releases_a_node_of_their_customer(client, tailnet):
+async def test_a_technician_moves_and_releases_a_node_of_their_customer(client, tailnet):
+    await tc.assign("spare", ACME, "boss")
     headers = await _tech()
-
-    put = client.put(
-        "/api/tailscale/device/spare/customer", headers=headers, json={"customer_id": ACME}
-    )
-    assert put.status_code == 200, put.text
-    assert await tc.manual_assignments() == {"spare": ACME}
 
     put = client.put(
         "/api/tailscale/device/spare/customer", headers=headers, json={"customer_id": None}
     )
     assert put.status_code == 200, put.text
     assert await tc.manual_assignments() == {}
+
+
+async def test_a_scoped_technician_cannot_claim_a_node_nobody_holds(client, tailnet):
+    """An unheld node may be another company's, or the MSP's own server."""
+    headers = await _tech()
+    put = client.put(
+        "/api/tailscale/device/spare/customer", headers=headers, json={"customer_id": ACME}
+    )
+    assert put.status_code == 403, put.text
+    assert await tc.manual_assignments() == {}
+
+
+async def test_a_technician_who_sees_every_customer_claims_a_node(client, tailnet):
+    headers = await login("lead", role=Role.technician, all_customers=True, write=True)
+    put = client.put(
+        "/api/tailscale/device/spare/customer", headers=headers, json={"customer_id": ACME}
+    )
+    assert put.status_code == 200, put.text
+    assert await tc.manual_assignments() == {"spare": ACME}
 
 
 async def test_a_node_cannot_be_given_to_a_customer_the_caller_cannot_see(client, tailnet):
@@ -281,19 +295,23 @@ async def test_assigning_needs_write(client, tailnet):
     assert await tc.manual_assignments() == {}
 
 
-async def test_the_node_list_names_only_customers_the_caller_holds(client, tailnet):
+async def test_the_node_list_holds_only_nodes_of_customers_the_caller_holds(client, tailnet):
     headers = await _tech()
 
     devices = {
         d["id"]: d for d in client.get("/api/tailscale/devices", headers=headers).json()["devices"]
     }
 
+    assert set(devices) == {"acme-fw"}
     assert devices["acme-fw"]["customer_id"] == ACME
     assert devices["acme-fw"]["customer_name"] == "Acme AS"
-    assert devices["beta-fw"]["customer_id"] is None
-    assert devices["beta-fw"]["customer_hidden"] is True
-    assert devices["spare"]["customer_id"] is None and devices["spare"]["customer_hidden"] is False
-    assert "Beta AS" not in str(devices)
+
+
+async def test_the_whole_tailnet_is_for_a_caller_who_sees_every_customer(client, tailnet):
+    headers = await login("boss", role=Role.admin)
+    body = client.get("/api/tailscale/devices", headers=headers).json()
+    assert {d["id"] for d in body["devices"]} == {"acme-fw", "beta-fw", "spare"}
+    assert body["total"] == 3
 
 
 async def test_a_technician_cannot_take_another_customers_tagged_node(client, tailnet):
@@ -311,9 +329,17 @@ async def test_a_technician_cannot_take_another_customers_tagged_node(client, ta
 
 
 async def test_the_tab_gets_its_assign_list_in_the_same_answer(client, tailnet):
-    headers = await _tech()
+    headers = await login("boss", role=Role.admin)
     body = client.get(f"/api/tailscale/customer/{ACME}/nodes", headers=headers).json()
     assert body["unassigned"] == [{"id": "spare", "name": "spare", "ip": "100.64.0.1"}]
+    assert tailnet.calls == 1
+
+
+async def test_a_scoped_technician_gets_no_assign_list_even_from_the_cache(client, tailnet):
+    boss = await login("boss", role=Role.admin)
+    client.get(f"/api/tailscale/customer/{ACME}/nodes", headers=boss)  # fills the cache
+    body = client.get(f"/api/tailscale/customer/{ACME}/nodes", headers=await _tech()).json()
+    assert body["unassigned"] == []
     assert tailnet.calls == 1
 
 

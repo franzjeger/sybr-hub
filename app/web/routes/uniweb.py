@@ -569,12 +569,15 @@ async def uniweb_match(
             select(UniwebAccount.customer_id).where(UniwebAccount.id == uniweb_account_id)
         )
         current = result.first()
-        # An unbound account may be claimed; one bound to a customer the caller
-        # cannot see reads as missing rather than revealing the binding.
+        # One bound to a customer the caller cannot see reads as missing rather
+        # than revealing the binding. Only a caller who sees every customer
+        # claims an unbound account: it may be any company's.
         if current is None or (
             current.customer_id and not customer_in_scope(current.customer_id, allowed)
         ):
             raise refusal(NotFoundError, "err_uniweb_account_not_found")
+        if not current.customer_id and allowed is not None:
+            raise refusal(ForbiddenError, "err_binding_needs_all_customers")
 
         # customer_id can be empty to unmatch
         await session.execute(
@@ -615,20 +618,17 @@ async def uniweb_matches(user: User = _auth):
         )
         rows = result.mappings().all()
 
-    restricted = allowed is not None
     matched = []
     unmatched = []
     for row in rows:
-        # Unbound rows reach a scoped caller as id and name only, and only
-        # from technician up — the role that can bind them.
-        name_only = restricted and not row["customer_id"]
-        if row["customer_id"] and not customer_in_scope(row["customer_id"], allowed):
-            continue
-        if name_only and user.role < Role.technician:
+        # A scoped caller sees only accounts bound to their customers: an
+        # unbound one may belong to any company, and only an unrestricted
+        # caller binds it.
+        if not customer_in_scope(row["customer_id"], allowed):
             continue
         # Extract parent info from data_json
         parent_name = ""
-        if row["data_json"] and not name_only:
+        if row["data_json"]:
             try:
                 data = json.loads(row["data_json"])
                 parent_name = data.get("parent_name", "")
