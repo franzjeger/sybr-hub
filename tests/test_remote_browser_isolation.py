@@ -96,7 +96,7 @@ def launcher(monkeypatch, tmp_path):
     credentials.mkdir()
     monkeypatch.setenv("CREDENTIALS_DIRECTORY", str(credentials))
 
-    state = {"bwrap": None, "chromium_exit": None}
+    state = {"bwrap": BWRAP, "chromium_exit": None}
     launched: list[_Proc] = []
 
     def _popen(argv, stdout=None, stderr=None, env=None):
@@ -208,10 +208,7 @@ def _readable_inside(argv: list[str], host_path: str) -> bool:
 # ── Environment ──────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("sandboxed", [False, True])
-async def test_no_process_of_the_session_inherits_the_hub_environment(launcher, sandboxed):
-    launcher.sandbox(sandboxed)
-
+async def test_no_process_of_the_session_inherits_the_hub_environment(launcher):
     await proxy.browser_start(_json_request({"url": "http://intranet.local/"}), user=_user())
 
     assert len(launcher.procs) == 3, "expected Xvfb, Chromium and x11vnc"
@@ -253,9 +250,7 @@ async def test_every_session_gets_a_fresh_profile_and_stop_deletes_it(launcher):
     assert second != first and second.is_dir()
 
 
-@pytest.mark.parametrize("sandboxed", [False, True])
-async def test_navigate_restarts_chromium_in_the_session_profile(launcher, sandboxed):
-    launcher.sandbox(sandboxed)
+async def test_navigate_restarts_chromium_in_the_session_profile(launcher):
     user = _user()
     await proxy.browser_start(_json_request({"url": "http://a.local/"}), user=user)
     started = launcher.chromium()[-1]
@@ -267,7 +262,7 @@ async def test_navigate_restarts_chromium_in_the_session_profile(launcher, sandb
     assert _profile_dir(restarted) == _profile_dir(started)
     assert restarted.argv[-1] == "http://b.local/"
     assert set(restarted.env) <= ALLOWED_ENV
-    assert (restarted.argv[0] == BWRAP) is sandboxed
+    assert restarted.argv[0] == BWRAP
 
 
 async def test_navigate_clears_the_profile_lock_left_by_the_killed_browser(launcher):
@@ -312,15 +307,20 @@ async def test_a_failed_start_removes_its_session_directory(launcher, monkeypatc
 # ── Sandbox ──────────────────────────────────────────────────────────────────
 
 
-async def test_without_bwrap_the_browser_starts_unconfined_and_says_so(launcher, caplog):
+async def test_without_bwrap_the_browser_refuses_to_start(launcher, caplog):
+    """Unconfined, Chromium reads the hub's files: file:// shows the master-key backup."""
     launcher.sandbox(False)
     user = _user()
 
-    with caplog.at_level(logging.WARNING, logger=proxy.logger.name):
-        started = await proxy.browser_start(_json_request({}), user=user)
+    with (
+        caplog.at_level(logging.ERROR, logger=proxy.logger.name),
+        pytest.raises(IntegrationError) as refused,
+    ):
+        await proxy.browser_start(_json_request({}), user=user)
 
-    assert started["sandboxed"] is False
-    assert launcher.chromium()[-1].argv[0] == CHROMIUM
+    assert refused.value.message_key == "err_proxy_sandbox_missing"
+    assert launcher.procs == [], "nothing may start without the sandbox"
+    assert proxy._browser_session == {}
     assert any("bwrap" in record.getMessage() for record in caplog.records)
     assert (await proxy.browser_status(user=user))["sandboxed"] is False
 

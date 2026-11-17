@@ -935,6 +935,10 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Nettleseren ble stoppet, men Guacamole-tilkoblingen kunne ikke slettes; opprydding vil prøves på nytt",
         "The browser was stopped, but the Guacamole connection could not be deleted; cleanup will be retried",
     ),
+    "err_proxy_sandbox_missing": (
+        "Nettleseren startes ikke uten bubblewrap (bwrap), som hindrer den i å lese hubens filer. Installer pakken bubblewrap på serveren.",
+        "The browser will not start without bubblewrap (bwrap), which keeps it from reading the hub's files. Install the bubblewrap package on the server.",
+    ),
     "err_proxy_xvfb_failed": (
         "Xvfb startet ikke (exit code {code})",
         "Xvfb did not start (exit code {code})",
