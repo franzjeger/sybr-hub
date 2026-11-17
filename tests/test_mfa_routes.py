@@ -112,3 +112,45 @@ async def test_session_created_after_enrollment_still_requires_its_own_mfa_proof
     with client.websocket_connect(socket, headers={"origin": "http://testserver"}) as ws:
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
+
+
+async def test_without_mfa_sensitive_actions_still_need_a_fresh_password(client):
+    """A stolen session cookie alone must never reach the master key.
+
+    is_recent() used to answer True for every account without MFA, so a
+    session token copied from a browser fetched the raw key at any time.
+    """
+    setup = client.post(
+        "/api/auth/setup",
+        json={"username": "admin", "password": GOOD_PASSWORD, "display_name": "Admin"},
+    ).json()
+    client.headers["Authorization"] = "Bearer " + setup["access_token"]
+    # Just signed up: the password was proved a moment ago.
+    assert client.get("/api/encryption/key-backup").status_code == 200
+
+    async with get_db() as db:
+        await db.execute("UPDATE mfa_stepup SET verified_at=0")
+        await db.commit()
+    denied = client.get("/api/encryption/key-backup")
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "step_up_required"
+
+    wrong = client.post("/api/auth/step-up", json={"password": GOOD_PASSWORD + "x", "otp": ""})
+    assert wrong.status_code == 401
+    assert client.get("/api/encryption/key-backup").status_code == 403
+
+    ok = client.post("/api/auth/step-up", json={"password": GOOD_PASSWORD, "otp": ""})
+    assert ok.status_code == 200, ok.text
+    assert client.get("/api/encryption/key-backup").status_code == 200
+
+
+async def test_a_password_login_counts_as_a_step_up(client):
+    client.post(
+        "/api/auth/setup",
+        json={"username": "admin", "password": GOOD_PASSWORD, "display_name": "Admin"},
+    )
+    client.post("/api/auth/logout")
+    login = client.post("/api/auth/login", json={"username": "admin", "password": GOOD_PASSWORD})
+    assert login.status_code == 200
+    client.headers["Authorization"] = "Bearer " + login.json()["access_token"]
+    assert client.get("/api/encryption/key-backup").status_code == 200

@@ -178,8 +178,12 @@ async def session_verified(user_id: str, session_id: str | None) -> bool:
 
 
 async def is_recent(user_id: str, session_id: str | None) -> bool:
-    if not await enabled(user_id):
-        return True
+    """Whether this session proved its owner within the last five minutes.
+
+    Holds with or without MFA. Without it the proof is the password, entered at
+    login or at step-up; a stolen session cookie alone never reaches the master
+    key, backups, user management or the terminal.
+    """
     if not session_id:
         return False
     async with get_session() as session:
