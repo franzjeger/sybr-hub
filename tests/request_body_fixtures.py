@@ -24,6 +24,7 @@ from app.core.rbac import set_all_customers, set_can_write
 from app.models.user import Role
 from app.web.middleware.auth import _reset_users_exist_cache
 from app.web.server import create_app
+from tests.session_fixtures import signed_in_token
 
 PASSWORD = "Str0ng-Passphrase-For-Body-Tests!"
 
@@ -71,7 +72,7 @@ async def _token(name: str, role: Role, *, tenant_write: bool = False) -> str:
         from app.core.rbac import set_tenant_write
 
         await set_tenant_write(user.id, True)
-    return await create_access_token(await get_user_by_id(user.id))
+    return await signed_in_token(await get_user_by_id(user.id))
 
 
 def _client(token: str):

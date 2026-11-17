@@ -150,6 +150,11 @@ async def auth_setup(body: SetupRequest, request: Request, response: Response) -
         await users_exist()
 
     tokens = await _issue_tokens(user, request)
+    # The password was set a moment ago: the first admin may back up the key
+    # right away, as after a login.
+    from app.core import mfa
+
+    await mfa.mark_recent((await decode_token(tokens.access_token)).session_id)
     _set_auth_cookies(response, tokens.access_token, tokens.refresh_token, request)
     logger.info("Initial admin account created: %s", user.username)
     return {"ok": True, "user": _public_user(user), **tokens.model_dump()}
@@ -258,9 +263,9 @@ async def auth_login(body: LoginRequest, request: Request, response: Response) -
     if mfa_enabled and not (await mfa.verify(user.id, body.otp))[0]:
         raise refusal(AuthError, "err_auth_bad_mfa_code")
     tokens = await _issue_tokens(user, request)
-    if mfa_enabled:
-        payload = await decode_token(tokens.access_token)
-        await mfa.mark_recent(payload.session_id)
+    # The password (and code, with MFA) was just proved: that is a step-up.
+    payload = await decode_token(tokens.access_token)
+    await mfa.mark_recent(payload.session_id)
     _set_auth_cookies(response, tokens.access_token, tokens.refresh_token, request)
     return {"ok": True, "user": _public_user(user), **tokens.model_dump()}
 

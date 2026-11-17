@@ -16,6 +16,7 @@ from app.core.rbac import grant_access, set_all_customers, set_can_write
 from app.models.user import Role
 from app.web.middleware.auth import _reset_users_exist_cache
 from app.web.server import create_app
+from tests.session_fixtures import signed_in_token
 
 PASSWORD = "Str0ng-Passphrase-For-Scope-Tests!"
 
@@ -95,7 +96,7 @@ async def login(
     for cid in customers:
         await grant_access(user.id, cid)
     user = await get_user_by_id(user.id)
-    return {"Authorization": f"Bearer {await create_access_token(user)}"}
+    return {"Authorization": f"Bearer {await signed_in_token(user)}"}
 
 
 def assert_no_foreign(text: str) -> None:
