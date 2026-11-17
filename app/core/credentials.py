@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import logging
 import os
 import secrets
+import threading
+from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 
@@ -36,15 +40,42 @@ def _key(tenant_id: str, name: str) -> str:
 
 
 def _fallback_load() -> dict[str, str]:
+    """Every secret in the fallback store; raises when the file cannot be read.
+
+    An unreadable store (wrong key, I/O error, corruption) must not look empty:
+    a writer that took it for empty would save back a file holding only its own
+    entry and erase every other customer's secrets.
+    """
     from app.core.encryption import encrypted_read_json
 
     if not _FALLBACK_PATH.exists():
         return {}
-    try:
-        return encrypted_read_json(_FALLBACK_PATH) or {}
-    except Exception as e:
-        log.error("Could not read the secret fallback store: %s", e)
-        return {}
+    return encrypted_read_json(_FALLBACK_PATH) or {}
+
+
+# Writers read, change and save the whole file. The thread lock covers request
+# handlers; the flock covers the standby scheduler, a second process.
+_FALLBACK_LOCK = threading.Lock()
+
+
+@contextlib.contextmanager
+def _fallback_locked():
+    with _FALLBACK_LOCK:
+        _FALLBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(_FALLBACK_PATH.with_name(".secrets.lock"), os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)
+
+
+def _fallback_update(change: Callable[[dict[str, str]], bool]) -> None:
+    """Apply *change* to the store under the lock; save only if it reports a change."""
+    with _fallback_locked():
+        data = _fallback_load()
+        if change(data):
+            _fallback_save(data)
 
 
 def _fallback_save(data: dict[str, str]) -> None:
@@ -85,9 +116,12 @@ def store_secret(tenant_id: str, name: str, value: str) -> None:
     k = _key(tenant_id, name)
     if not _keyring_stored(k, value):
         log.info("Storing secret %r in the encrypted fallback store", name)
-        data = _fallback_load()
-        data[k] = value
-        _fallback_save(data)
+
+        def put(data: dict[str, str]) -> bool:
+            data[k] = value
+            return True
+
+        _fallback_update(put)
     _secret_cache[k] = value
 
 
@@ -107,7 +141,13 @@ def get_secret(tenant_id: str, name: str) -> str | None:
     if val is None:
         # Also covers the case where a keyring exists but the secret was
         # written before one did, so the fallback is the only copy.
-        val = _fallback_load().get(k)
+        try:
+            val = _fallback_load().get(k)
+        except Exception as e:
+            # A read can degrade to "not found"; the caller reports the missing
+            # credential. Writers never get this far with an unreadable store.
+            log.error("Could not read the secret fallback store: %s", e)
+            val = None
 
     if val is not None:
         _secret_cache[k] = val
@@ -122,9 +162,7 @@ def delete_secret(tenant_id: str, name: str) -> None:
     # Includes PasswordDeleteError (not stored) and NoKeyringError.
     with suppress(Exception):
         keyring.delete_password(_SERVICE, k)
-    data = _fallback_load()
-    if data.pop(k, None) is not None:
-        _fallback_save(data)
+    _fallback_update(lambda data: data.pop(k, None) is not None)
 
 
 def delete_all_secrets(tenant_id: str) -> None:

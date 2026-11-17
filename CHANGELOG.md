@@ -14,6 +14,12 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
   brotli 1.2.1 (PYSEC-2026-4322) og dnspython 2.9.2 (CVE-2026-114605) er
   oppdatert i låsefilen. minimatch er tvunget til 11.0.5 i utviklingsverktøyene.
 
+### Hemmelighetslageret mister ikke data
+
+- Når det krypterte hemmelighetslageret ikke kan leses, nekter lagring og
+  sletting i stedet for å skrive tilbake et lager med bare én hemmelighet.
+  Samtidige skrivinger, også fra reserveplanleggeren, går nå etter tur.
+
 ### Backup av Microsoft 365-data og Datto RMM
 
 - Backupkontrollen kjenner igjen en tredjeparts backupapp på mer enn
