@@ -33,7 +33,9 @@ The image contains PowerShell and Chromium. Microsoft modules, external VPN
 backends, Guacamole and provider credentials remain deployment prerequisites for
 the features that use them. The default container grants no host networking
 privileges; do not add broad privileges to make a particular VPN backend work.
-The container build and provider flows must pass in the deployment environment
+The remote browser additionally needs Xvfb, x11vnc and bubblewrap (`bwrap`) on the
+host; it refuses to start without bubblewrap, which keeps Chromium away from the
+hub's files. The container build and provider flows must pass in the deployment environment
 before this replaces the older homelab container branch.
 
 ## Cutover and rollback
