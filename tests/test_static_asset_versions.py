@@ -74,11 +74,11 @@ def test_every_import_a_served_module_makes_carries_the_graph_version(client):
             )
 
 
-def test_a_change_to_any_module_moves_every_module_url(client):
+def test_a_change_to_any_module_moves_every_module_url(client, writable_static_dir):
     """A leaf at the bottom of the graph is the case a per-file hash misses:
     the modules importing it are unchanged, so their URLs would not move and
     the browser would keep them, importing the old leaf."""
-    leaf = frontend._STATIC_DIR / "app-esc.js"
+    leaf = writable_static_dir / "app-esc.js"
     original = leaf.read_bytes()
     before = _entry_version(client.get("/").text)
     try:
@@ -189,13 +189,13 @@ def test_the_translations_url_is_versioned_too(client):
     assert f'<meta name="sybr-i18n" content="/static/ui_i18n.json?v={digest}">' in html
 
 
-def test_the_service_worker_cache_version_covers_every_module():
+def test_the_service_worker_cache_version_covers_every_module(writable_static_dir):
     """The worker serves /static/ cache-first and evicts only when its version
     changes, so a module the digest left out would be held across deploys."""
     covered = set(frontend._digest_inputs())
     modules, _ = frontend._module_graph()
     assert modules <= covered, sorted(p.name for p in modules - covered)
-    leaf = frontend._STATIC_DIR / "app-hooks.js"
+    leaf = writable_static_dir / "app-hooks.js"
     original = leaf.read_bytes()
     before = frontend._static_digest()
     try:

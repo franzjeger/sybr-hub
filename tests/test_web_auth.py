@@ -853,14 +853,12 @@ def test_the_cache_version_covers_every_shell_asset():
     } <= covered
 
 
-def test_a_change_to_any_bundle_moves_the_cache_version():
+def test_a_change_to_any_bundle_moves_the_cache_version(writable_static_dir):
     """app-dashboard.js was the one that proved the old key too narrow."""
-    import pathlib
-
     from app.web.routes import frontend
 
     for name in ("app-dashboard.js", "app-infra.js", "app.css"):
-        asset = pathlib.Path("app/web/static") / name
+        asset = writable_static_dir / name
         if not asset.is_file():
             continue
         before = frontend._static_digest()
