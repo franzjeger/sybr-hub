@@ -251,7 +251,11 @@ documentation, fakes or mocks, and says so in its code.
     require reassessment. Name matches are explicitly not effective compliance.
 34. **Evaluate effective settings and assignments across all services.**
     The workspace currently records human assessments and separately shows
-    captured policy inventory. Broader automated verification and rollout
+    captured policy inventory. The library checks captured CA settings for MFA,
+    legacy authentication and medium/high sign-in risk, and Windows Endpoint
+    Protection profiles for all three firewall modes. Each observation carries
+    its snapshot time when available. Assignment and device enforcement still
+    require verification. Broader automated verification and rollout
     need service-specific evidence, licence checks, previews and restore
     support. Done when: each supported recommendation is evaluated against
     actual settings and scope, with unknowns preserved and live pilot checks.

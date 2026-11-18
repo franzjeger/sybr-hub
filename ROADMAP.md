@@ -26,7 +26,9 @@ The execution plan and completion criteria are in
 Customer isolation and capability checks are preserved. Captured evidence stays
 separate from human alignment reviews. Local implementation and verification are
 complete; live-system checks remain in section A and broader service rollout in
-F34. C14 is complete locally; C15 is the next repository cleanup item.
+F34. The policy library reads risk-based MFA settings and the domain, private
+and public firewall modes from captured Windows Endpoint Protection profiles.
+The Intune failure message remains the last language item in C15.
 
 October live-log follow-up is tracked in [docs/TODO.md, H42–47](docs/TODO.md#h-october-live-log-follow-up).
 Collector and historical-report corrections are implemented. Tenant-side

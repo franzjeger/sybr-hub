@@ -444,3 +444,33 @@ def test_the_fetch_url_matches_the_route_shape():
     js = (STATIC / "app-policy-overview.js").read_text(encoding="utf-8")
     assert "/api/policy-overview/" in js
     assert "lang=" in js
+
+
+def test_policy_checks_read_distinct_snapshots_from_the_selected_run(tmp_path, monkeypatch):
+    from app.core.encryption import encrypted_write_json
+    from app.core.policy_overview import build_overview_for_run
+    from tests.test_policy_evidence import rule
+
+    monkeypatch.setattr("app.core.policy_inventory.load_from_card", lambda cid: None)
+    snapshot_dir = tmp_path / "Acme" / "r1" / "policy_snapshots"
+    snapshot_dir.mkdir(parents=True)
+    risk_policy = rule()
+    risk_policy["conditions"]["signInRiskLevels"] = ["high", "medium"]
+    firewall = {
+        "@odata.type": "#microsoft.graph.windows10EndpointProtectionConfiguration",
+        "displayName": "Site firewall",
+        **{
+            f"firewallProfile{kind}": {"firewallEnabled": "allowed"}
+            for kind in ("Domain", "Private", "Public")
+        },
+    }
+    for name, moment, items in (
+        ("conditional_access_policies", "2026-10-14T11:00:00Z", [risk_policy, rule()]),
+        ("intune_configuration_profiles", "2026-10-14T12:00:00Z", [firewall]),
+    ):
+        encrypted_write_json(snapshot_dir / f"{name}.json", {"items": items, "captured_at": moment})
+    checks = build_overview_for_run("Acme", "en", snapshot_dir.parent)["captured_checks"]
+    assert checks["ca-signin-risk"]["state"] == checks["ca-mfa"]["state"] == "settings_found"
+    assert checks["ca-signin-risk"]["captured_at"] == "2026-10-14T11:00:00Z"
+    assert checks["intune-firewall"]["matches"][0]["name"] == "Site firewall"
+    assert checks["intune-firewall"]["captured_at"] == "2026-10-14T12:00:00Z"

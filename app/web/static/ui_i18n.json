@@ -2854,7 +2854,7 @@
     "pl_actionable": "Prioriterte tiltak",
     "pl_captured_settings": "Innsamlede innstillinger",
     "pl_check_settings_found": "Aktuelle kontrollinnstillinger funnet; vurder virkning og unntak.",
-    "pl_check_no_match": "Ingen innsamlet CA-regel matcher de kontrollerte innstillingene.",
+    "pl_check_no_match": "Ingen treff blant de innsamlede innstillingene.",
     "pl_check_unmeasured": "CA-innstillinger er ikke samlet inn.",
     "pl_check_unsupported": "Denne anbefalingen krever manuell kontroll i tjenesten.",
     "pl_check_review": "Datagrunnlaget er fra siste audit. Kontroller tildelinger, unntak, nødtilgang og reelle resultater før samsvar bekreftes.",
@@ -2871,7 +2871,11 @@
     "unifi_error_ssh_timeout": "SSH svarte ikke i tide",
     "unifi_error_sshpass_missing": "sshpass er ikke installert på serveren",
     "unifi_error_connection_failed": "Enheten svarte verken på HTTP eller SSH",
-    "rule_policy_drift": "Endrede sikkerhetspolicyer"
+    "rule_policy_drift": "Endrede sikkerhetspolicyer",
+    "pl_firewall_profiles": "Brannmur aktivert for domene, privat og offentlig nettverk",
+    "pl_exclusions": "Unntaksoppføringer",
+    "pl_checked_at": "Innsamlet",
+    "pl_check_firewall_unmeasured": "Sammenlignbare innstillinger for Windows-brannmur er ikke samlet inn."
   },
   "en": {
     "rbac_no_customers": "No customers",
@@ -5728,7 +5732,7 @@
     "pl_actionable": "Prioritized actions",
     "pl_captured_settings": "Captured settings",
     "pl_check_settings_found": "Candidate control settings found; assess effectiveness and exclusions.",
-    "pl_check_no_match": "No captured CA rule matches the checked settings.",
+    "pl_check_no_match": "No match among the captured settings.",
     "pl_check_unmeasured": "CA settings have not been captured.",
     "pl_check_unsupported": "This recommendation requires a manual service review.",
     "pl_check_review": "Evidence is from the latest audit. Review assignments, exclusions, emergency access and real outcomes before confirming alignment.",
@@ -5745,6 +5749,10 @@
     "unifi_error_ssh_timeout": "SSH did not answer in time",
     "unifi_error_sshpass_missing": "sshpass is not installed on the server",
     "unifi_error_connection_failed": "The device answered neither HTTP nor SSH",
-    "rule_policy_drift": "Changed security policies"
+    "rule_policy_drift": "Changed security policies",
+    "pl_firewall_profiles": "Domain, private and public firewalls enabled",
+    "pl_exclusions": "Exclusion entries",
+    "pl_checked_at": "Captured",
+    "pl_check_firewall_unmeasured": "Comparable Windows firewall settings have not been captured."
   }
 }

@@ -52,45 +52,24 @@ def _latest_run(customer_id: str) -> Path | None:
     return runs[0] if runs else None
 
 
-def _live_ca_by_name(customer_id: str) -> dict[str, dict] | None:
-    """Raw Conditional Access policy objects keyed by display name.
+def _evidence_snapshot(
+    run: Path | None, name: str
+) -> tuple[list[dict[str, Any]] | None, str | None]:
+    from app.core.policy_inventory import _read_snapshot
 
-    The inventory on the card carries only name / state / summary — enough
-    to display, not enough to evaluate (``lockout_risk`` reads conditions
-    and grantControls). Re-reading the latest snapshot is one JSON read per
-    overview request, and it keeps the summary in the card separate from
-    the check the overview uses, so the two cannot silently diverge.
-
-    None when there is no snapshot to read, and {} when the snapshot holds
-    no policies. They are different answers: the first is "never captured",
-    the second "captured, and the tenant has none". Returning {} for both
-    marked every standard policy absent on a customer nobody had looked at.
-    """
-    latest = _latest_run(customer_id)
-    if latest is None:
-        return None
-    path = latest / "policy_snapshots" / "conditional_access_policies.json"
-    if not path.is_file():
-        return None
-    try:
-        from app.core.encryption import encrypted_read_json
-
-        env = encrypted_read_json(path)
-    except Exception:
-        logger.warning("Could not read CA snapshot for %s", customer_id)
-        return None
-    if not isinstance(env, dict) or not isinstance(env.get("items"), list):
-        return None
-    return {
-        str(p.get("displayName", "")): p for p in (env.get("items") or []) if isinstance(p, dict)
-    }
+    envelope = _read_snapshot(run, name) if run else None
+    if not envelope:
+        return None, None
+    items = envelope.get("items")
+    if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+        return None, None
+    return items, envelope.get("captured_at")
 
 
-def _drift(customer_id: str) -> dict[str, Any]:
+def _drift(customer_id: str, latest: Path | None) -> dict[str, Any]:
     """Latest run's drift against its predecessor, or unmeasured with a reason."""
     from app.core.policy_drift import compute_drift, unmeasured
 
-    latest = _latest_run(customer_id)
     if latest is None:
         return unmeasured("no_runs")
     try:
@@ -250,12 +229,25 @@ def build_overview(customer_id: str, lang: str = "no") -> dict[str, Any]:
     an empty dict — the interface should be able to tell "we have not
     captured this yet" from "we have captured it and it is empty".
     """
-    from app.core.policy_evidence import captured_checks
+    return build_overview_for_run(customer_id, lang, _latest_run(customer_id))
+
+
+def build_overview_for_run(customer_id: str, lang: str, latest: Path | None) -> dict[str, Any]:
+    """Read evidence and drift from the same run the caller selected."""
+    from app.core.policy_evidence import captured_checks, firewall_check
     from app.core.policy_inventory import load_from_card
 
     inventory = load_from_card(customer_id)
-    drift = _drift(customer_id)
-    live_by_name = _live_ca_by_name(customer_id)
+    drift = _drift(customer_id, latest)
+    policies, ca_time = _evidence_snapshot(latest, "conditional_access_policies")
+    profiles, profile_time = _evidence_snapshot(latest, "intune_configuration_profiles")
+    live_by_name = (
+        None if policies is None else {str(p.get("displayName", "")): p for p in policies}
+    )
+    checks = captured_checks(policies)
+    for check in checks.values():
+        check["captured_at"] = ca_time
+    checks["intune-firewall"] = {**firewall_check(profiles), "captured_at": profile_time}
 
     workloads = (inventory or {}).get("workloads") or {}
     ca = dict(workloads.get("conditional_access") or {})
@@ -279,7 +271,5 @@ def build_overview(customer_id: str, lang: str = "no") -> dict[str, Any]:
         "workloads": workloads,
         "drift": drift,
         "standards": _standard_gaps(lang, live_by_name),
-        "captured_checks": captured_checks(
-            list(live_by_name.values()) if live_by_name is not None else None
-        ),
+        "captured_checks": checks,
     }

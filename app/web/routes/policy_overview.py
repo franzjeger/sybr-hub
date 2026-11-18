@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core import policy_library
 from app.core.customer import CustomerManager
 from app.core.exceptions import ForbiddenError, NotFoundError
-from app.core.policy_overview import _latest_run, build_overview
+from app.core.policy_overview import _latest_run, build_overview_for_run
 from app.models.user import Role, User
 from app.web.middleware.auth import require_customer_access
 
@@ -42,7 +42,7 @@ async def policy_overview(
     latest = _latest_run(customer_id)
     if latest is not None and not await check_audit_path_access(user, str(latest)):
         raise refusal(ForbiddenError, "err_audit_run_access_denied")
-    overview = build_overview(customer_id, get_ui_lang(request))
+    overview = build_overview_for_run(customer_id, get_ui_lang(request), latest)
     overview["catalog"] = policy_library.catalog()
     overview["plan"] = policy_library.load_plan(customer_id)
     return overview
