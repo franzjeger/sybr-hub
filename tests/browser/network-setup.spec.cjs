@@ -134,7 +134,7 @@ const QUICK_CHECK = {
     hostname: 'FW-BETA', firmware: 'v7.4.4', policy_count: 41, admin_count: 2, vpn_tunnels: 3, interface_count: 12,
     ha_mode: 'standalone', serial: 'FGT60F0000000000', model: 'FortiGate-60F', uptime: '41d',
     admins: [{name: 'admin', profile: 'super_admin', trusthost: false, two_factor: false}],
-    policy_warnings: ['Policy 7 tillater all trafikk fra wan til lan'],
+    policy_findings: [{policy_id: '7', name: 'wan-lan', kind: 'allow_all'}],
   },
   unifi: {
     mode: 'direct', device_count: 1, reachable: 1, default_creds_count: 0, outdated_firmware_count: 0, eol_count: 0,
@@ -175,6 +175,10 @@ test('on a 375 px screen the tab, its UniFi form and the quick check fit without
   const result = page.locator('#net-audit-result');
   await expect(result).toContainText('FortiGate · FW-BETA');
   await expect(result).toContainText('Advarsler (1)');
+  // The finding and the HA mode come as codes, worded for the reader; the
+  // check sent English sentences once (TODO C15).
+  await expect(result).toContainText('Regel 7 (wan-lan): tillater all trafikk (kilde all, mål all, tjeneste ALL)');
+  await expect(result).toContainText('Frittstående');
   await expect(result.locator('[data-unifi-card="192.0.2.31"]')).toContainText('ap-lager');
   expect(await overflow()).toBe(0);
 

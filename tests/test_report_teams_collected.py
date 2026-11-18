@@ -15,7 +15,7 @@ import pytest
 
 from app.modules.base import SectionStatus
 from app.modules.m365_audit.sections.teams import TeamsSection
-from app.modules.m365_audit.sections.teams_policies import TeamsPoliciesSection
+from app.modules.m365_audit.sections.teams_policies import GUEST_ROLES, TeamsPoliciesSection
 from tests.collector_rig import FakeGraph, refused, run_sections
 from tests.report_from_run import relabel, report
 
@@ -256,3 +256,126 @@ async def test_null_partner_override_preserves_default_evidence(tmp_path, settin
         is None
     )
     assert _verdict(report(tmp_path), "8.1.1")[0] == "warn"
+
+
+# ── The guest settings are Graph's values, worded by the report ─────────────
+#
+# teams_policies.py wrote its own English labels for them ("Admins and Guest
+# Inviters", "Limited access (default)"), and CIS 8.1.2 set those inside a
+# Norwegian sentence (TODO C15).
+
+
+async def test_the_guest_settings_are_stored_as_graph_values(tmp_path):
+    import json
+
+    files = await _teams(tmp_path)
+
+    guest = json.loads(files["30b_teams_guest_access.json"])
+    assert guest["allow_invites_from"] == "adminsGuestInvitersAndAllMembers"
+    assert guest["guest_user_role_id"] == LIMITED_ROLE
+    assert "allow_invites_from_label" not in guest and "guest_user_role" not in guest
+    text = files["30b_teams_guest_access.txt"]
+    assert "Allow Invites From       : adminsGuestInvitersAndAllMembers" in text
+    assert f"Guest User Role          : limited ({LIMITED_ROLE})" in text
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_a_norwegian_report_words_the_guest_settings(tmp_path, sidecars):
+    await _teams(tmp_path)
+
+    assert _verdict(report(tmp_path, sidecars=sidecars, lang="no"), "8.1.2") == (
+        "warn",
+        "Invitasjoner: Administratorer, gjesteinvitører og medlemmer. "
+        "Gjesterolle: Begrenset tilgang (standard). Alle ansatte kan invitere gjester",
+    )
+
+
+# The two shapes a run written before the collector stored Graph's values
+# left on disk: the sidecar beside its English labels, and the text alone.
+_OLD_TEXT = (
+    "==========================================================================================\n"
+    "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n"
+    "==========================================================================================\n"
+    "  Allow Invites From       : {invites}\n"
+    "  Guest User Role          : {role}\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("invites", "role", "expected"),
+    [
+        (
+            "Everyone (most open)",
+            "Same as member users",
+            (
+                "fail",
+                "Invitasjoner: Alle (mest åpent). Gjesterolle: Samme som medlemmer. "
+                "Gjester har samme tilgang som ansatte",
+            ),
+        ),
+        (
+            "Admins and Guest Inviters",
+            "Restricted access (most restrictive)",
+            (
+                "pass",
+                "Invitasjoner: Administratorer og gjesteinvitører. "
+                "Gjesterolle: Sterkt begrenset tilgang (mest restriktivt)",
+            ),
+        ),
+        (
+            "No one (most restrictive)",
+            "Limited access (default)",
+            (
+                "pass",
+                "Invitasjoner: Ingen (mest restriktivt). Gjesterolle: Begrenset tilgang (standard)",
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize("shape", ["old sidecar", "text only"])
+def test_an_old_runs_english_labels_are_worded(tmp_path, invites, role, expected, shape):
+    """A report regenerated from an old run reads its labels back to codes."""
+    import json
+
+    from app.core.encryption import encrypted_write_text
+
+    encrypted_write_text(
+        tmp_path / "30b_teams_guest_access.txt", _OLD_TEXT.format(invites=invites, role=role)
+    )
+    if shape == "old sidecar":
+        ids = {v: k for k, v in GUEST_ROLES.items()}
+        code = {"Same as member users": "member", "Limited access (default)": "limited"}
+        encrypted_write_text(
+            tmp_path / "30b_teams_guest_access.json",
+            json.dumps(
+                {
+                    "allow_invites_from": {
+                        "Everyone (most open)": "everyone",
+                        "Admins and Guest Inviters": "adminsAndGuestInviters",
+                        "No one (most restrictive)": "none",
+                    }[invites],
+                    "allow_invites_from_label": invites,
+                    "guest_user_role_id": ids[code.get(role, "restricted")],
+                    "guest_user_role": role,
+                }
+            ),
+        )
+
+    assert _verdict(report(tmp_path, lang="no"), "8.1.2") == expected
+
+
+def test_a_value_nobody_names_is_shown_as_stored(tmp_path):
+    """A setting Graph adds later, or an id that is not a built-in role, is
+    neither dropped nor guessed at."""
+    from app.core.encryption import encrypted_write_text
+
+    other_role = "00000000-0000-0000-0000-00000000c0de"
+    encrypted_write_text(
+        tmp_path / "30b_teams_guest_access.txt",
+        _OLD_TEXT.format(invites="adminsAndCertainGroups", role=other_role),
+    )
+
+    assert _verdict(report(tmp_path, lang="no"), "8.1.2") == (
+        "pass",
+        f"Invitasjoner: adminsAndCertainGroups. Gjesterolle: {other_role}",
+    )

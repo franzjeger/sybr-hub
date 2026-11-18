@@ -26,14 +26,22 @@ export function metricCount(value) {
   return metricKnown(value) ? String(Number(value)) : t('lbl_unknown_value', 'ukjent');
 }
 
+// The locale a date or a time is written in: the interface language's, never
+// a fixed Norwegian one nor whatever the browser happens to be set to.
+function _locale() {
+  return _lang === 'en' ? 'en-GB' : 'nb-NO';
+}
+
 // Run folders are named "YYYY-MM-DD_HHMMSS" (older ones "YYYY-MM-DD_HHMM",
 // some with a suffix after). That name is for the file system; a person reads
 // the date and time. Returns the input unchanged when it is not a run name.
 // `short` gives the date alone in a compact form, for tables and lists.
+// An ISO date ("2026-09-30") is a run name without a time, so this is also
+// how a day is written into a sentence.
 export function formatRunName(name, short) {
   var m = /^(\d{4})-(\d{2})-(\d{2})(?:[_T ](\d{2}):?(\d{2}))?/.exec(String(name || ''));
   if (!m) return String(name || '');
-  var locale = _lang === 'en' ? 'en-GB' : 'nb-NO';
+  var locale = _locale();
   var date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   if (isNaN(date.getTime())) return String(name);
   if (short) return date.toLocaleDateString(locale, {day: 'numeric', month: 'short', year: 'numeric'});
@@ -52,8 +60,17 @@ export function timeAgo(dateStr) {
     if (diff < 3600) return Math.floor(diff/60) + ' ' + t('time_min_ago','min ago');
     if (diff < 86400) return Math.floor(diff/3600) + ' ' + t('time_hours_ago','hours ago');
     if (diff < 604800) return Math.floor(diff/86400) + ' ' + t('time_days_ago','days ago');
-    return d.toLocaleDateString(_lang === 'en' ? 'en-GB' : 'nb-NO', {day:'2-digit',month:'short'});
+    return d.toLocaleDateString(_locale(), {day:'2-digit',month:'short'});
   } catch(e) { return dateStr; }
+}
+
+// A moment the server recorded (an ISO timestamp), in the reader's own time
+// zone and language: "8.10.2026, 14:05:00" or "08/10/2026, 14:05:00".
+// Empty for no value; a value that is not a time is shown as it is.
+export function formatDateTime(value) {
+  if (!value) return '';
+  var d = new Date(value);
+  return isNaN(d.getTime()) ? String(value) : d.toLocaleString(_locale());
 }
 
 // app-customer-detail.js used to declare a second _formatBytes; this is the

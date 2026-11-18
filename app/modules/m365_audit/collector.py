@@ -154,10 +154,12 @@ class AuditCollector:
                             sub_enum_error = str(e)
                             subs = []
                             if auth.subscription_id:
+                                # Its name was not read, so it has none here:
+                                # "Primary" reached the report as if Azure said it.
                                 subs = [
                                     {
                                         "id": auth.subscription_id,
-                                        "name": "Primary",
+                                        "name": "",
                                         "state": "Enabled",
                                     }
                                 ]

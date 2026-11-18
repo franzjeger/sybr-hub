@@ -78,17 +78,17 @@ export async function loadFiles(customerId) {
   const noCustomer = document.getElementById('files-no-customer');
   const content = document.getElementById('files-content');
   if (!customerId) {
-    noCustomer.style.display = 'block';
-    content.style.display = 'none';
+    noCustomer.hidden = false;
+    content.hidden = true;
     return;
   }
   try {
     const d = await apiFetch('/api/customer/' + encodeURIComponent(customerId) + '/files');
     // Another customer's page opened meanwhile: these are not its files.
     if (_custPage.id !== customerId) return;
-    if (!d) { content.style.display = 'none'; return; }
-    noCustomer.style.display = 'none';
-    content.style.display = 'block';
+    if (!d) { content.hidden = true; return; }
+    noCustomer.hidden = true;
+    content.hidden = false;
 
     // Credentials
     const c = d.credentials || {};
@@ -154,8 +154,8 @@ export async function loadFiles(customerId) {
     }
   } catch (e) {
     content.innerHTML = '<div class="alert alert-error">' + t('err_could_not_load_files').replace('{msg}', esc(e.message)) + '</div>';
-    content.style.display = 'block';
-    noCustomer.style.display = 'none';
+    content.hidden = false;
+    noCustomer.hidden = true;
   }
 }
 
@@ -332,7 +332,7 @@ function _netOpenFortiGateForm(editing) {
   html += '<label class="field-label mt-2" for="input-fg-token">' + esc(t('api_token')) + '</label>';
   html += '<input class="field-input" id="input-fg-token" type="password" autocomplete="new-password" aria-describedby="input-fg-token-hint" placeholder="' + esc(t(fg && fg.has_token ? 'placeholder_token_saved' : 'net_token_placeholder')) + '">';
   html += '<p class="field-hint" id="input-fg-token-hint">' + esc(t('fg_token_hint_before')) + ' System → Administrators → Create New → REST API Admin</p>';
-  html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-fg-verify-ssl"' + (fg && fg.verify_ssl ? ' checked' : '') + '> ' + esc(t('verifiser_ssl_sertifikat')) + '</label>';
+  html += '<label class="check-label mt-2 text-sm"><input type="checkbox" id="input-fg-verify-ssl"' + (fg && fg.verify_ssl ? ' checked' : '') + '> ' + esc(t('verifiser_ssl_sertifikat')) + '</label>';
   html += _netFormActions('fortigate');
   html += '</form>';
   box.innerHTML = html;
@@ -548,8 +548,8 @@ function _netOpenUniFiForm(editing) {
   var html = '<form class="inset cust-net-form" data-submit-handler="netSaveUniFi" data-customer-id="' + esc(_netCustomerId) + '">';
   html += '<h4 class="cust-net-form-title">' + esc(t(uf ? 'net_edit_unifi' : 'net_link_unifi')) + '</h4>';
   html += '<fieldset class="cust-net-mode"><legend class="field-label">' + esc(t('net_unifi_mode')) + '</legend>';
-  html += '<label class="flex items-center gap-2 text-ui cursor-pointer"><input type="radio" name="unifi-mode" value="controller"' + (mode === 'controller' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('controller_2')) + '</label>';
-  html += '<label class="flex items-center gap-2 text-ui cursor-pointer"><input type="radio" name="unifi-mode" value="direct"' + (mode === 'direct' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('direkte_enheter')) + '</label>';
+  html += '<label class="check-label text-ui"><input type="radio" name="unifi-mode" value="controller"' + (mode === 'controller' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('controller_2')) + '</label>';
+  html += '<label class="check-label text-ui"><input type="radio" name="unifi-mode" value="direct"' + (mode === 'direct' ? ' checked' : '') + ' data-change-handler="netUniFiMode"> ' + esc(t('direkte_enheter')) + '</label>';
   html += '</fieldset>';
 
   // A controller and the site on it.
@@ -562,7 +562,7 @@ function _netOpenUniFiForm(editing) {
   html += '</div>';
   html += '<label class="field-label mt-2" for="input-uf-site">' + esc(t('site')) + '</label>';
   html += '<input class="field-input" id="input-uf-site" type="text" placeholder="default" value="' + esc((uf && uf.site) || 'default') + '">';
-  html += '<label class="flex items-center gap-2 mt-2 text-sm cursor-pointer"><input type="checkbox" id="input-uf-os"' + (uf && uf.is_unifi_os ? ' checked' : '') + '> ' + esc(t('unifi_os_udm_cloud_key_gen2')) + '</label>';
+  html += '<label class="check-label mt-2 text-sm"><input type="checkbox" id="input-uf-os"' + (uf && uf.is_unifi_os ? ' checked' : '') + '> ' + esc(t('unifi_os_udm_cloud_key_gen2')) + '</label>';
   html += '</div>';
 
   // Devices reached one by one, no controller.
@@ -791,8 +791,43 @@ export async function runNetworkQuickAudit() {
   }
 }
 
+// What the quick check noted about a firewall policy, in the reader's
+// language. The server sends a kind and the policy; it used to send an
+// English sentence, which the interface showed as it stood.
+function _fgFindingText(f) {
+  var policy = String(f.policy_id || '?') + (f.name ? ' (' + f.name + ')' : '');
+  if (f.kind === 'allow_all') {
+    return t('fg_finding_allow_all', 'Policy {policy}: allows all traffic (source all, destination all, service ALL)').replace('{policy}', policy);
+  }
+  if (f.kind === 'no_logging') {
+    return t('fg_finding_no_logging', 'Policy {policy}: does not log its traffic').replace('{policy}', policy);
+  }
+  return String(f.text || '');
+}
+
+// Why a direct UniFi device could not be read: the audit's own reasons come
+// as codes, an exception's message as it is.
+function _deviceErrorText(error) {
+  switch (error) {
+    case 'ssh_timeout': return t('unifi_error_ssh_timeout', 'SSH did not answer in time');
+    case 'sshpass_missing': return t('unifi_error_sshpass_missing', 'sshpass is not installed on the server');
+    case 'connection_failed': return t('unifi_error_connection_failed', 'The device answered neither HTTP nor SSH');
+    default: return String(error || '');
+  }
+}
+
+// FortiOS's HA mode, as the reader calls it; one it does not name, as sent.
+function _fgHaModeText(mode) {
+  switch (String(mode || '').toLowerCase()) {
+    case 'standalone': return t('net_ha_standalone', 'Standalone');
+    case 'a-p': return t('net_ha_active_passive', 'Active-passive');
+    case 'a-a': return t('net_ha_active_active', 'Active-active');
+    default: return String(mode || '—');
+  }
+}
+
 // The quick check's answer as cards: the FortiGate's figures, admins and
-// policy warnings; the UniFi devices, through the controller or one by one.
+// policy findings; the UniFi devices, through the controller or one by one.
 function _quickAuditHtml(d) {
   var html = '';
   // A count that a refused sub-read left null is unknown, not zero. Show "–"
@@ -813,7 +848,7 @@ function _quickAuditHtml(d) {
       html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.admin_count) + '</div><div class="text-xs text-muted">' + t('lbl_admin_accounts','Admin accounts') + '</div></div>';
       html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.vpn_tunnels) + '</div><div class="text-xs text-muted">' + t('lbl_vpn_tunnels','VPN tunnels') + '</div></div>';
       html += '<div class="kpi"><div class="text-xl fw-bold">' + numOrDash(fg.interface_count) + '</div><div class="text-xs text-muted">' + t('interfaces') + '</div></div>';
-      html += '<div class="kpi"><div class="text-xl fw-bold">' + esc(fg.ha_mode || '—') + '</div><div class="text-xs text-muted">' + t('lbl_ha_mode','HA mode') + '</div></div>';
+      html += '<div class="kpi"><div class="text-xl fw-bold">' + esc(_fgHaModeText(fg.ha_mode)) + '</div><div class="text-xs text-muted">' + t('lbl_ha_mode','HA mode') + '</div></div>';
       html += '</div>';
 
       // Admin table
@@ -828,11 +863,12 @@ function _quickAuditHtml(d) {
       }
       html += '</tbody></table></div>';
 
-      // Policy warnings
-      if (fg.policy_warnings.length > 0) {
-        html += '<div class="fw-semibold text-ui mb-2 text-danger">' + esc(t('net_policy_warnings').replace('{count}', fg.policy_warnings.length)) + '</div>';
+      // Policy findings
+      var policyFindings = fg.policy_findings || [];
+      if (policyFindings.length > 0) {
+        html += '<div class="fw-semibold text-ui mb-2 text-danger">' + esc(t('net_policy_warnings').replace('{count}', policyFindings.length)) + '</div>';
         html += '<ul class="ml-4 text-sm text-muted">';
-        for (var w of fg.policy_warnings) html += '<li>' + esc(w) + '</li>';
+        policyFindings.forEach(function(pf) { html += '<li>' + esc(_fgFindingText(pf)) + '</li>'; });
         html += '</ul>';
       } else {
         html += '<div class="text-sm text-success">' + t('ingen_policy_advarsler_funnet') + '</div>';
@@ -889,7 +925,7 @@ function _quickAuditHtml(d) {
           html += '</div></div>';
 
           if (!dev.ok && dev.error) {
-            html += '<div class="alert alert-error m-0">' + esc(dev.error) + '</div>';
+            html += '<div class="alert alert-error m-0">' + esc(_deviceErrorText(dev.error)) + '</div>';
           } else {
             // Info grid — identity
             html += '<div class="grid grid-auto-sm gap-2 text-sm">';

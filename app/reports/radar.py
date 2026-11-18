@@ -42,7 +42,7 @@ def _build_risk_radar(context: dict, lang: str = "no") -> dict:
         ca_enabled = ca.get("enabled", 0)
         identity_parts.append(100 if ca_enabled >= 3 else ca_enabled * 30)
     admin_roles = context.get("admin_roles", {})
-    if admin_roles.get("has_data"):
+    if admin_roles.get("has_data") and not admin_roles.get("global_admin_unread"):
         ga = admin_roles.get("global_admin_count", 0)
         identity_parts.append(
             100 if 2 <= ga <= 4 else max(0, 100 - (ga - 4) * 20) if ga > 4 else 50

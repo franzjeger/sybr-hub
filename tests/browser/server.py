@@ -46,6 +46,8 @@ def run():
             for username, role in [
                 ("browser-admin", Role.admin),
                 ("browser-tech", Role.technician),
+                # MFA enrollment persists for the lifetime of this server.
+                ("browser-mfa", Role.technician),
                 # The switch-race spec opens customers in quick succession.
                 ("browser-switcher", Role.technician),
                 # Two tabs of one user on two customers (two-tabs.spec): its
@@ -53,7 +55,6 @@ def run():
                 ("browser-tabs", Role.technician),
                 # The terminal spec asks for the local shell, which the server
                 # refuses a technician inside the terminal, so no shell starts.
-                # Its own account: security.spec enrols browser-tech in MFA.
                 ("browser-term", Role.technician),
             ]:
                 user = await create_user(

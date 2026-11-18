@@ -65,6 +65,40 @@ def _entry_block(title: str, entries: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _dns_report(
+    *,
+    spf: str,
+    dmarc: str,
+    selector1: str,
+    selector2: str,
+    mta_sts: str,
+    spf_record: str = "(none)",
+    dmarc_record: str = "(none)",
+) -> str:
+    """26_email_dns_spf_dmarc.txt for acme.no, as app/modules/m365_audit/sections/dns.py writes it."""
+    found = [s for s, v in (("selector1", selector1), ("selector2", selector2)) if v != "missing"]
+    others = " | ".join(f"{s}: missing" for s in ("google", "k1", "k2", "default", "dkim"))
+    return "\n".join(
+        [
+            "=" * 110,
+            "  DNS / EMAIL SECURITY REPORT (SPF · DMARC · DKIM · MTA-STS)",
+            "=" * 110,
+            "\n  Domain : acme.no",
+            f"    SPF            : {spf}",
+            f"                   {spf_record}",
+            f"    DMARC          : {dmarc}",
+            f"                   {dmarc_record}",
+            f"    DKIM (M365)    : selector1: {selector1} | selector2: {selector2}",
+            f"    DKIM (3rd party): {others}",
+            f"    DKIM found     : {', '.join(found) or '(none)'}",
+            f"    MTA-STS        : {mta_sts}",
+            "",
+            "=" * 110,
+            "",
+        ]
+    )
+
+
 def _dkim_table(rows: list[tuple[str, str, str]]) -> str:
     """25_exchange_dkim.txt as exchange.py's _save_dkim writes it: (domain, Yes/No, status)."""
     lines = [
@@ -170,7 +204,7 @@ def _teams_table(rows: list[tuple[str, str, str, str]]) -> str:
 # column width, where the padding disappears and a whitespace-splitting reader
 # merges it with the UPN.
 _MFA_ROWS: list[tuple[str, str, str, str, str, str]] = [
-    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "YES", "NO", "Authenticator")
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "YES", "NO", "microsoftAuthenticator")
     for i in range(1, 38)
 ] + [
     ("Testbruker Langnavn Fiktivsen Berga", "user38@acme.no", "NO", "YES", "NO", "(none)"),
@@ -267,12 +301,19 @@ FULL_AUDIT: dict[str, str] = {
         "User                  Reason                 Count\n"
         "user07@acme.no        Invalid password       3\n"
     ),
-    "06_groups.txt": (
-        "GROUPS\n"
-        "======\n"
-        "Name              Type          Members\n"
-        "All Staff         Microsoft365  38\n"
-        "IT Admins         Security      4\n"
+    # groups_roles.py: each group's kind a code the report words.
+    "06_groups.txt": "\n".join(
+        [
+            "=" * 80,
+            "  GROUPS  (2 total)",
+            "=" * 80,
+            f"  {'Group Name':<50} {'Type':<16} {'Members':>8}",
+            "  " + "-" * 76,
+            f"  {'All Staff':<50} {'m365':<16} {'38':>8}",
+            f"  {'IT Admins':<50} {'security':<16} {'4':>8}",
+            "=" * 80,
+            "",
+        ]
     ),
     "11_intune_compliance_policies.txt": (
         "INTUNE COMPLIANCE POLICIES\n"
@@ -297,6 +338,8 @@ FULL_AUDIT: dict[str, str] = {
         "Role                     User\n"
         "Global Administrator     ola@acme.no\n"
     ),
+    # identity_security.py: each note a code the report words, in the text
+    # and in the sidecar the report draws its table from.
     "07c_emergency_access_check.txt": (
         "==========================================================================================\n"
         "  EMERGENCY / BREAK-GLASS ACCOUNT CHECK\n"
@@ -304,9 +347,30 @@ FULL_AUDIT: dict[str, str] = {
         "  User (UPN)                                     MFA Registered  CA Excluded  Notes\n"
         "  ------------------------------------------------------------------------------------------\n"
         "  bg@acme.no                                                 NO          Yes  "
-        "No MFA — potential break-glass; Excluded from CA — confirmed break-glass candidate\n"
+        "no_mfa; ca_excluded\n"
         "  SUMMARY: break_glass_candidates=1 ca_exclusions_known=yes global_admins=1\n"
         "==========================================================================================\n"
+    ),
+    "07c_emergency_access_check.json": json.dumps(
+        {
+            "skipped": False,
+            "break_glass_candidates": 1,
+            "ca_exclusions_known": True,
+            "ca_excluded_admins": 1,
+            "global_admins": 1,
+            "admins": [
+                {
+                    "id": "u-bg",
+                    "upn": "bg@acme.no",
+                    "display_name": "Break Glass",
+                    "mfa_registered": False,
+                    "ca_excluded": True,
+                    "last_sign_in_days": None,
+                    "break_glass_candidate": True,
+                    "notes": ["no_mfa", "ca_excluded"],
+                }
+            ],
+        }
     ),
     "08_conditional_access.txt": (
         "CONDITIONAL ACCESS POLICIES\n"
@@ -442,14 +506,15 @@ FULL_AUDIT: dict[str, str] = {
     "25_exchange_dkim.txt": _dkim_table(
         [("acme.no", "Yes", "Valid"), ("acmeno.onmicrosoft.com", "Yes", "Valid")]
     ),
-    "26_email_dns_spf_dmarc.txt": (
-        "EMAIL DNS SECURITY\n"
-        "==================\n"
-        "Domain : acme.no\n"
-        "SPF   : OK (v=spf1 include:spf.protection.outlook.com -all)\n"
-        "DMARC : OK (v=DMARC1; p=reject; rua=mailto:dmarc@acme.no)\n"
-        "DKIM (sel1) : CNAME selector1._domainkey.acme.no OK\n"
-        "DKIM (sel2) : CNAME selector2._domainkey.acme.no OK\n"
+    # dns.py: each status a code the report words.
+    "26_email_dns_spf_dmarc.txt": _dns_report(
+        spf="hardfail",
+        spf_record="v=spf1 include:spf.protection.outlook.com -all",
+        dmarc="reject",
+        dmarc_record="v=DMARC1; p=reject; rua=mailto:dmarc@acme.no",
+        selector1="cname -> selector1-acme-no._domainkey.acme.onmicrosoft.example.",
+        selector2="cname -> selector2-acme-no._domainkey.acme.onmicrosoft.example.",
+        mta_sts="v=STSv1; id=20260101T000000;",
     ),
     "27_exchange_defender_policies.txt": (
         "DEFENDER FOR OFFICE 365 POLICIES\n"
@@ -765,8 +830,8 @@ FULL_AUDIT: dict[str, str] = {
     "30b_teams_guest_access.txt": (
         "=" * 90 + "\n"
         "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n" + "=" * 90 + "\n"
-        "  Allow Invites From       : Admins and Guest Inviters\n"
-        "  Guest User Role          : Restricted access (most restrictive)\n"
+        "  Allow Invites From       : adminsAndGuestInviters\n"
+        "  Guest User Role          : restricted (2af84b1e-32c8-42b7-82bc-daa82404023b)\n"
         "\n"
         "  Cross-Tenant Defaults:\n"
         "    B2B Collab Inbound     : blocked\n"
@@ -824,7 +889,7 @@ FULL_AUDIT: dict[str, str] = {
 # the finding has something to catch.
 
 _BROKEN_MFA_ROWS: list[tuple[str, str, str, str, str, str]] = [
-    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "NO", "NO", "Authenticator")
+    (f"User {i:02d}", f"user{i:02d}@acme.no", "YES", "NO", "NO", "microsoftAuthenticator")
     for i in range(1, 9)
 ] + [(f"User {i:02d}", f"user{i:02d}@acme.no", "NO", "NO", "NO", "(none)") for i in range(9, 41)]
 
@@ -876,13 +941,8 @@ _BROKEN_OVERRIDES: dict[str, str] = {
     ),
     # Signing set up for acme.no but switched off.
     "25_exchange_dkim.txt": _dkim_table([("acme.no", "No", "CnameMissing")]),
-    "26_email_dns_spf_dmarc.txt": (
-        "EMAIL DNS SECURITY\n"
-        "==================\n"
-        "Domain : acme.no\n"
-        "SPF   : MISSING\n"
-        "DMARC : MISSING\n"
-        "DKIM (sel1) : NOT FOUND\n"
+    "26_email_dns_spf_dmarc.txt": _dns_report(
+        spf="missing", dmarc="missing", selector1="missing", selector2="missing", mta_sts="missing"
     ),
     "18_risky_users.txt": (
         "==========================================================================================\n"
@@ -916,15 +976,22 @@ _BROKEN_OVERRIDES: dict[str, str] = {
         "  Mass download by a single user                     medium       newAlert        2026-01-03T07:45:00\n"
         "==============================================================================================================\n"
     ),
-    # A FortiGate with every finding the report knows how to raise.
-    "60_fortigate_audit.txt": (
-        '{"hostname": "acme-fgt-01", "version": "7.4.3", '
-        '"admins": ['
-        '{"name": "admin", "two_factor": false, "trusthost": false}, '
-        '{"name": "svc-monitor", "two_factor": false, "trusthost": true}], '
-        '"policy_warnings": ['
-        '"Policy 12 \\"any-any\\" is an allow-all rule", '
-        '"Policy 19 has no logging enabled"]}'
+    # A FortiGate with every finding the report knows how to raise, as
+    # quick_audit_fortigate saves it: each policy finding a kind, not a sentence.
+    "60_fortigate_audit.txt": json.dumps(
+        {
+            "hostname": "acme-fgt-01",
+            "firmware": "v7.4.3",
+            "ha_mode": "a-p",
+            "admins": [
+                {"name": "admin", "two_factor": False, "trusthost": False},
+                {"name": "svc-monitor", "two_factor": False, "trusthost": True},
+            ],
+            "policy_findings": [
+                {"policy_id": "12", "name": "any-any", "kind": "allow_all"},
+                {"policy_id": "19", "name": "", "kind": "no_logging"},
+            ],
+        }
     ),
     "61_unifi_audit.txt": (
         '{"mode": "controller", "sites": 1, "device_count": 6, "devices": [], '
@@ -939,3 +1006,93 @@ _BROKEN_OVERRIDES: dict[str, str] = {
 }
 
 BROKEN_AUDIT: dict[str, str] = {**FULL_AUDIT, **_BROKEN_OVERRIDES}
+
+
+# ── A run from before the collectors stored codes ────────────────────────────
+#
+# What they wrote then, in their own English, as a run still on disk holds it:
+# the broken tenant, collected by the earlier collectors. A report regenerated
+# from it words every one of these phrases (TODO C15).
+_OLD_MFA_ROWS = [
+    (name, upn, mfa, ca, excl, "Authenticator App, Phone (SMS/Call)" if mfa == "YES" else methods)
+    for name, upn, mfa, ca, excl, methods in _BROKEN_MFA_ROWS
+]
+
+_OLD_OVERRIDES: dict[str, str] = {
+    "04_mfa_methods.txt": _mfa_table(_OLD_MFA_ROWS),
+    "04_mfa_methods.json": _mfa_json(_OLD_MFA_ROWS),
+    "30b_teams_guest_access.txt": (
+        "=" * 90 + "\n"
+        "  TEAMS / ENTRA ID GUEST ACCESS SETTINGS\n" + "=" * 90 + "\n"
+        "  Allow Invites From       : Everyone (most open)\n"
+        "  Guest User Role          : Same as member users\n"
+        "\n" + "=" * 90 + "\n"
+    ),
+    "07c_emergency_access_check.json": json.dumps(
+        {
+            "skipped": False,
+            "break_glass_candidates": 0,
+            "ca_exclusions_known": True,
+            "ca_excluded_admins": 1,
+            "global_admins": 2,
+            "admins": [
+                {
+                    "id": "u-bg",
+                    "upn": "bg@acme.no",
+                    "mfa_registered": False,
+                    "ca_excluded": False,
+                    "last_sign_in_days": None,
+                    "notes": ["No MFA — potential break-glass"],
+                },
+                {
+                    "id": "u-ola",
+                    "upn": "ola@acme.no",
+                    "mfa_registered": True,
+                    "ca_excluded": True,
+                    "last_sign_in_days": 2,
+                    "notes": [
+                        "Excluded from CA but signed in 2d ago — an actively-used admin "
+                        "bypassing MFA, NOT a break-glass account"
+                    ],
+                },
+            ],
+        }
+    ),
+    "26_email_dns_spf_dmarc.txt": _dns_report(
+        spf="WEAK (~all softfail)",
+        spf_record="v=spf1 include:spf.protection.outlook.com ~all",
+        dmarc="WEAK (p=none)",
+        dmarc_record="v=DMARC1; p=none",
+        selector1="MISSING",
+        selector2="MISSING",
+        mta_sts="MISSING",
+    ),
+    "06_groups.txt": "\n".join(
+        [
+            "=" * 80,
+            "  GROUPS  (3 total)",
+            "=" * 80,
+            f"  {'Group Name':<50} {'Type':<16} {'Members':>8}",
+            "  " + "-" * 76,
+            f"  {'All Staff':<50} {'Microsoft 365':<16} {'38':>8}",
+            f"  {'IT Admins':<50} {'Security':<16} {'4':>8}",
+            f"  {'Postmottak':<50} {'Distribution':<16} {'2':>8}",
+            "=" * 80,
+            "",
+        ]
+    ),
+    "60_fortigate_audit.txt": json.dumps(
+        {
+            "hostname": "acme-fgt-01",
+            "firmware": "v7.4.3",
+            "ha_mode": "Standalone",
+            "admins": [{"name": "admin", "two_factor": False, "trusthost": False}],
+            "policy_warnings": [
+                "Policy 12: allow-all (src=all, dst=all, svc=ALL)",
+                "Policy 19: logging disabled",
+            ],
+        }
+    ),
+}
+
+OLD_AUDIT: dict[str, str] = {**BROKEN_AUDIT, **_OLD_OVERRIDES}

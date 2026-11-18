@@ -210,3 +210,13 @@ def _all_modules_on(request):
     everything = {m.key: True for m in modules.MODULES}
     with patch.object(modules, "_stored", lambda: dict(everything)):
         yield
+
+
+@pytest.fixture
+def writable_static_dir(tmp_path, monkeypatch):
+    """Run simulated frontend deployments against a private copy of the assets."""
+    from app.web.routes import frontend
+
+    static = shutil.copytree(frontend._STATIC_DIR, tmp_path / "static")
+    monkeypatch.setattr(frontend, "_STATIC_DIR", static)
+    return static

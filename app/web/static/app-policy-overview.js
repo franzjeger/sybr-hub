@@ -2,7 +2,7 @@
 import {esc} from './app-esc.js';
 import {_lang, t} from './app-i18n.js';
 import {_custPage, canWrite, _currentUser} from './app-state.js';
-import {formatRunName} from './app-format.js';
+import {formatDateTime, formatRunName} from './app-format.js';
 import {apiFetch} from './app-api.js';
 import {registerUiHandlers} from './app-handlers.js';
 import {showConfirm, showToast} from './app-ui.js';
@@ -248,9 +248,7 @@ function _poResults() {
     var draft = _poReviews[p.id] || _poReviewFields(review);
     html += '<article class="card pl-policy" data-policy-id="' + esc(p.id) + '"><div class="pl-policy-head"><div><span class="pl-eyebrow">' + esc(_poLoc(area.name)) + ' · ' + esc(t('pl_tier_' + p.tier)) + ' · ' + esc(t('pl_stage_' + p.stage)) + '</span><h3>' + esc(_poLoc(p.name)) + '</h3></div><span class="po-badge">' + esc(t('pl_status_' + _poStatusOf(p))) + '</span></div><p>' + esc(_poLoc(p.desired)) + '</p>';
     var check = (_po.captured_checks || {})[p.id];
-    html += '<div class="pl-captured-check text-sm"><strong>' + esc(t('pl_captured_settings')) + ': </strong>' + esc(t('pl_check_' + (check ? check.state : 'unsupported')))
-      + (check && check.matches.length ? '<ul>' + check.matches.map(function(match) { return '<li>' + esc(match.name) + ' · ' + esc(match.state) + '</li>'; }).join('') + '</ul>' : '')
-      + '<p class="text-muted">' + esc(t('pl_check_review')) + '</p></div>';
+    html += _poCapturedCheck(p.id, check);
     if (_poCanEdit()) html += '<label class="pl-select"><input type="checkbox" data-change-handler="poSelect" data-policy="' + esc(p.id) + '"' + (_poDraft.has(p.id) ? ' checked' : '') + (_poBusy ? ' disabled' : '') + '> ' + esc(t('pl_in_plan')) + '</label>';
     html += '<details' + (_poOpen.has(p.id) ? ' open' : '') + '><summary>' + esc(t('pl_details')) + '</summary><div class="pl-detail-grid"><section><h4>' + esc(t('pl_settings')) + '</h4><ul>';
     p.settings.forEach(function(s) { html += '<li>' + esc(_poLoc(s)) + '</li>'; });
@@ -334,6 +332,25 @@ function _poStateLabel(code) {
     'off':         t('lbl_policy_off', 'Off'),
     'trusted':     t('lbl_policy_trusted', 'Trusted'),
   }[code] || String(code || '?');
+}
+
+function _poCapturedCheck(id, check) {
+  var state = check ? check.state : 'unsupported';
+  if (id === 'intune-firewall' && state === 'unmeasured') state = 'firewall_unmeasured';
+  var html = '<div class="pl-captured-check text-sm"><strong>' + esc(t('pl_captured_settings')) + ': </strong>' + esc(t('pl_check_' + state));
+  if (check && check.matches.length) {
+    html += '<ul>';
+    for (var match of check.matches) {
+      var stateCode = {enabled: 'on', enabledForReportingButNotEnforced: 'report-only', disabled: 'off'}[match.state];
+      var label = match.state === 'firewall_profiles_enabled' ? t('pl_firewall_profiles') : _poStateLabel(stateCode || match.state);
+      html += '<li>' + esc(match.name) + ' · ' + esc(label);
+      if (typeof match.exclusions === 'number') html += ' · ' + esc(t('pl_exclusions')) + ' ' + Number(match.exclusions);
+      html += '</li>';
+    }
+    html += '</ul>';
+  }
+  if (check && check.captured_at) html += '<p>' + esc(t('pl_checked_at')) + ' ' + esc(formatDateTime(check.captured_at)) + '</p>';
+  return html + '<p class="text-muted">' + esc(t('pl_check_review')) + '</p></div>';
 }
 
 function _poStatePill(code) {

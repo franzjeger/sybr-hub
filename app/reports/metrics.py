@@ -14,6 +14,13 @@ METRICS_FILE = "_audit_metrics.json"
 # ── Trend comparison ──────────────────────────────────────────────────────────
 
 
+def _ga_count(admin_roles: dict | None):
+    """The Global Admin count, or None when the role's members were not read."""
+    if (admin_roles or {}).get("global_admin_unread"):
+        return None
+    return _metric(admin_roles, "global_admin_count")
+
+
 def _metric(source: dict | None, key: str):
     """Return a metric only when its source section actually produced data.
 
@@ -54,13 +61,16 @@ def risk_coverage(risk: dict) -> dict:
     Old or third-party contexts without evidence recipes remain unknown.
     A numerical score alone is never evidence of complete collection.
     """
-    from app.reports.i18n import T
+    from app.reports.i18n import T, worded_params
 
     evidence = risk.get("data_quality_evidence")
     if not isinstance(evidence, list) or "has_full_data" not in risk:
         return {"state": "unknown", "issues": []}
     issues = [
-        {lang: T(lang)(item["key"], **item.get("params", {})) for lang in ("no", "en")}
+        {
+            lang: T(lang)(item["key"], **worded_params(item.get("params", {}), lang))
+            for lang in ("no", "en")
+        }
         for item in evidence
     ]
     state = (
@@ -95,7 +105,7 @@ def save_audit_metrics(out_dir: Path, context: dict, *, customer_id: str | None 
         "ca_policies_enabled": _metric(context.get("ca", {}), "enabled"),
         "intune_compliance_pct": _metric(context.get("intune", {}), "compliance_pct"),
         "intune_total_devices": _metric(context.get("intune", {}), "total"),
-        "admin_roles_ga_count": _metric(context.get("admin_roles", {}), "global_admin_count"),
+        "admin_roles_ga_count": _ga_count(context.get("admin_roles", {})),
         "total_warns": len(context.get("all_warns", [])),
         # _compute_risk already returns None here when a blocking gap makes
         # the grade fiction — carry it through rather than flattening to 0.
@@ -304,6 +314,20 @@ def _drift_for(out_dir: Path) -> dict:
     except Exception as e:
         log.warning("Drift comparison failed for %s: %s", out_dir.name, e)
         return unmeasured("comparison_failed")
+
+
+def drift_reason_text(code: str, params: dict | None, t) -> str:
+    """Why drift could not be compared, with a snapshot named as the reader knows it.
+
+    The snapshot's own name ("intune_compliance_policies") is the collector's
+    file name; the sentence names its workload instead.
+    """
+    from app.core.policy_inventory import workload_label
+
+    params = dict(params or {})
+    if params.get("name"):
+        params["name"] = workload_label(str(params["name"]), t.lang)
+    return str(t(f"drift_{code}", **params))
 
 
 def _baseline_for(context: dict, lang: str = "no") -> dict | None:

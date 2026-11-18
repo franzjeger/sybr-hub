@@ -347,15 +347,26 @@ def test_finding_mfa_detail_breakdown_sums_to_its_own_title_count():
 # ── The lockout map must match the labels the collector actually emits (F5) ───
 
 
-def test_lockout_map_covers_every_method_label_the_collector_emits():
-    """A key that no collector label matches is a silent hole: the lockout check
+def test_lockout_map_covers_every_method_the_collector_emits():
+    """A key that no collector method matches is a silent hole: the lockout check
     treats the method as unrecognised (assumed usable) and never fires."""
-    from app.modules.m365_audit.sections.users_mfa import _METHOD_LABELS
-    from app.reports.recommendations import _METHOD_LABEL_TO_POLICY
+    from app.modules.m365_audit.sections.users_mfa import MFA_METHODS
+    from app.reports.recommendations import _METHOD_TO_POLICY
 
-    emitted = set(_METHOD_LABELS.values()) - {"Password"}  # Password is not MFA
-    missing = emitted - set(_METHOD_LABEL_TO_POLICY)
-    assert not missing, f"lockout check is blind to real method labels: {missing}"
+    missing = set(MFA_METHODS) - set(_METHOD_TO_POLICY)
+    assert not missing, f"lockout check is blind to real methods: {missing}"
+
+
+def test_an_old_runs_method_labels_still_reach_the_lockout_check():
+    """A run from before the codes holds the labels ("Temp Access Pass"); they
+    are read back to the codes the map is keyed on (TODO C15)."""
+    from app.reports.parsers.identity import _LEGACY_MFA_METHODS, mfa_method_code
+    from app.reports.recommendations import _METHOD_TO_POLICY
+
+    for label, code in _LEGACY_MFA_METHODS.items():
+        assert mfa_method_code(label) == code
+        if code != "password":  # not an MFA method
+            assert code in _METHOD_TO_POLICY, label
 
 
 def test_a_tap_only_user_with_tap_disabled_is_flagged():

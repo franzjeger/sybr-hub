@@ -57,7 +57,7 @@ var _toastRetryId = 0;
 // Each retry toast's action, by its data-retry-id, until it is dismissed.
 var _toastRetryFns = {};
 
-export function retryToast(el) {
+function retryToast(el) {
   var retryFn = el && _toastRetryFns[el.dataset.retryId];
   dismissToast(el);
   if (retryFn) retryFn();

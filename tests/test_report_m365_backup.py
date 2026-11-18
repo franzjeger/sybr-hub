@@ -1037,3 +1037,41 @@ def test_backup_service_registration_is_distinct_from_graph_consent(tmp_path):
         for w in section.result.warns
     )
     assert any("AppNotRegistered" in str(w) for w in section.result.warns)
+
+
+# ── An app the audit did not read is said so in the report's language ─────────
+#
+# Past the read limit the collector wrote "not read: more than 25 matching
+# apps" into the app's permissions error, which the technical report printed
+# as it stood (TODO C15).
+
+
+@pytest.mark.parametrize("sidecars", [True, False], ids=["json", "text-only run"])
+async def test_an_app_past_the_read_limit_is_worded(tmp_path, monkeypatch, sidecars):
+    import app.modules.m365_audit.sections.m365_backup as backup
+
+    monkeypatch.setattr(backup, "_MAX_APPS_READ", 1)
+    routes = {**_KEEPIT}
+    routes["servicePrincipals"] = [
+        _sp("sp-keepit", "Keepit Microsoft 365 Backup"),
+        _sp("sp-keepit-2", "Keepit Microsoft 365 Backup EU"),
+    ]
+    _, files = await _collect(tmp_path, routes, sidecars=sidecars)
+
+    notes = [a["permissions_note"] for a in _parse_m365_backup(files)["apps"]]
+    assert notes == [
+        "",
+        "Ikke lest: flere enn 1 apper passet, og auditen leser tillatelsene til 1",
+    ]
+
+
+def test_an_old_runs_skip_note_is_worded_and_a_graph_error_kept():
+    from app.reports.parsers.m365_backup import _permissions_note
+
+    t = T("en")
+    old = {"permissions_error": "not read: more than 25 matching apps"}
+    assert _permissions_note(old, t) == (
+        "Not read: more than 25 apps matched, and the audit reads the permissions of 25"
+    )
+    graph = {"permissions_error": "HTTP 403 Authorization_RequestDenied: Insufficient privileges"}
+    assert _permissions_note(graph, t) == graph["permissions_error"]

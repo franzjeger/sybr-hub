@@ -96,6 +96,20 @@ _CONTROL = {
 _UNNAMED = "(uten navn)"
 
 
+# Snapshots the audit writes that the inventory does not list, named for a
+# report that compares them (policy drift).
+_OTHER_SNAPSHOTS: dict[str, dict[str, str]] = {
+    "intune_detected_apps": {"no": "Intune - oppdagede apper", "en": "Intune detected apps"},
+}
+
+
+def workload_label(snapshot: str, lang: str) -> str:
+    """A policy snapshot's workload as a reader calls it; one not listed, by its name."""
+    labels = {wl["snapshot"]: wl["label"] for wl in _WORKLOADS} | _OTHER_SNAPSHOTS
+    label = labels.get(snapshot)
+    return label["en" if lang == "en" else "no"] if label else snapshot
+
+
 def _named(name: object) -> dict:
     """An item's name, or the placeholder and the flag that says it is one."""
     return {"name": name or _UNNAMED, "unnamed": not name}

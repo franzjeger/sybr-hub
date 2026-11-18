@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.core.config import get_scheduler_config, load_app_settings, update_app_settings
 from app.core.credentials import m365_ready
+from app.services.notification_text import notification_date
 from app.services.notification_text import notification_text as nt
 
 log = logging.getLogger(__name__)
@@ -703,7 +704,7 @@ class AuditScheduler:
                             "background_credential_expired",
                             customer=name,
                             kind=cred_label,
-                            date=iso_val[:10],
+                            date=notification_date(iso_val),
                         )
                     )
                 elif days < 7:

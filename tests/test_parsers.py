@@ -419,10 +419,11 @@ class TestParseGroupsMatchesCollectorFormat:
 
     def test_group_type_with_internal_space_preserved(self):
         """'Microsoft 365' is a single type with a space in it — the
-        columnar parser must rejoin the middle columns."""
+        columnar parser must rejoin the middle columns. Rejoined, the old
+        label reads back as its code ("m365"); split, it would not."""
         result = _parse_groups(self.SAMPLE)
         by_name = {g["name"]: g for g in result["groups"]}
-        assert by_name["Sales Team"]["type"] == "Microsoft 365"
+        assert by_name["Sales Team"]["type"] == "m365"
 
     def test_legacy_pipe_format_still_parses(self):
         legacy = "Old Team | Microsoft 365 | 12\n"
@@ -1294,7 +1295,8 @@ class TestCompliancePhishingResistantMFA:
             if c["cis_id"] == "1.1.2"
         ]
         assert ctrl[0]["status"] == "pass"
-        assert "Fido2" in ctrl[0]["detail"]
+        # The policy's method id, worded by the report (TODO C15).
+        assert "FIDO2-sikkerhetsnøkkel" in ctrl[0]["detail"]
 
     def test_only_weak_methods_warns(self):
         text = (

@@ -281,7 +281,9 @@ def _parse_mfa(
         u_has_mfa = rec.get("mfa_registered") is True
         u_has_ca = bool(rec.get("ca_covered"))
         u_excluded = bool(rec.get("ca_excluded"))
-        u_methods = ", ".join(rec.get("methods") or [])
+        u_methods = ", ".join(
+            mfa_method_code(m) for m in rec.get("methods") or [] if m and m != "(none)"
+        )
         users_detail.append(
             {
                 "name": rec.get("display_name", ""),
@@ -314,6 +316,19 @@ def _parse_mfa(
     # said 99.5% coverage on the same page as "42 users have no MFA methods",
     # and a reader could not reconcile the two. Both numbers are now named.
     registered_pct = round(mfa_registered / measured * 100, 1) if measured else 0.0
+    # The second figure: users an enabled MFA policy for *all* apps reaches.
+    # "Coverage" above also counts a user who merely has a method registered,
+    # or whom a policy for a single app or a risky sign-in covers. None for a
+    # run whose records do not carry the answer.
+    enforced_known = [r for r in records if "ca_enforced_all_apps" in r]
+    enforced_all_apps = (
+        sum(1 for r in enforced_known if r["ca_enforced_all_apps"]) if enforced_known else None
+    )
+    enforced_all_apps_pct = (
+        round(enforced_all_apps / total * 100, 1)
+        if enforced_all_apps is not None and total
+        else None
+    )
     # Split no_mfa into a clean partition, so the report can word it honestly: a
     # measured, not-covered user either has NO method registered at all, or has
     # one registered but is EXCLUDED from enforcement by a CA policy. Conflating
@@ -329,6 +344,8 @@ def _parse_mfa(
         "covered": effectively_covered,
         "registered_pct": registered_pct,
         "enforced_only": max(0, effectively_covered - mfa_registered),
+        "enforced_all_apps": enforced_all_apps,
+        "enforced_all_apps_pct": enforced_all_apps_pct,
         "total": total,
         "measured": measured,
         "unknown": unknown,
@@ -651,9 +668,16 @@ def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
         key=lambda x: (-x["count"], x["role"]),
     )
     global_admin_users = [r for r in roles if r["role"] in _GA_ROLE_NAMES]
+    # The collector lists a role whose member read failed under failed_roles and
+    # writes no assignment for it. When that role is Global Administrator the
+    # count above is 0 because nobody could look, not because nobody holds it.
+    ga_unread = any(
+        (f.get("role") or "") in _GA_ROLE_NAMES for f in (sidecar or {}).get("failed_roles") or []
+    )
     return {
         "roles": roles,
         "global_admin_count": ga_count,
+        "global_admin_unread": ga_unread,
         "global_admin_users": global_admin_users,
         "total_assignments": len(roles),
         "unique_roles": len(role_counts),
@@ -662,7 +686,81 @@ def _parse_admin_roles(text: str, sidecar: dict | None = None) -> dict:
     }
 
 
-_GROUP_TYPES = {"Microsoft 365", "Dynamic", "Security", "Distribution", "Other"}
+# ── MFA methods ─────────────────────────────────────────────────────────────
+
+# What users_mfa.py wrote for a method before it stored codes, as a run from
+# then holds it in 04_mfa_methods.
+_LEGACY_MFA_METHODS = {
+    "Phone (SMS/Call)": "phone",
+    "Authenticator App": "microsoftAuthenticator",
+    "FIDO2 Key": "fido2",
+    "Windows Hello": "windowsHelloForBusiness",
+    "Email OTP": "email",
+    "Temp Access Pass": "temporaryAccessPass",
+    "OATH TOTP": "softwareOath",
+    "Certificate": "x509Certificate",
+    "Password": "password",
+}
+# The report's word for each (users_mfa.MFA_METHODS). The authentication
+# methods policy names three of them the same way, for CIS 1.1.2.
+_MFA_METHOD_WORDS = {
+    "microsoftauthenticator": "mfa_method_authenticator",
+    "phone": "mfa_method_phone",
+    "fido2": "mfa_method_fido2",
+    "windowshelloforbusiness": "mfa_method_windows_hello",
+    "email": "mfa_method_email",
+    "temporaryaccesspass": "mfa_method_tap",
+    "softwareoath": "mfa_method_oath",
+    "x509certificate": "mfa_method_certificate",
+}
+
+
+def mfa_method_code(value: str) -> str:
+    """A registered method as users_mfa writes it, from a code or an old run's label."""
+    value = value.strip()
+    if value in _LEGACY_MFA_METHODS:
+        return _LEGACY_MFA_METHODS[value]
+    # An old run's label for a type it had no label for was the type itself.
+    return value.removesuffix("AuthenticationMethod") or value
+
+
+def mfa_method_text(value: str, t) -> str:
+    """A method in the report's language; one the report cannot name, as stored."""
+    key = _MFA_METHOD_WORDS.get(mfa_method_code(value).lower().replace(" ", ""))
+    return str(getattr(t, key)) if key else value.strip()
+
+
+def mfa_methods_text(methods: str, t) -> str:
+    """A user's ", "-joined methods, each in the report's language."""
+    return ", ".join(mfa_method_text(m, t) for m in methods.split(",") if m.strip())
+
+
+# What groups_roles.py wrote for a group's kind before it stored codes
+# (groups_roles.GROUP_TYPES), as a run from then holds it.
+_LEGACY_GROUP_TYPES = {
+    "Microsoft 365": "m365",
+    "Dynamic": "dynamic",
+    "Security": "security",
+    "Distribution": "distribution",
+    "Other": "other",
+}
+
+
+def _group_type_code(value: str) -> str:
+    """A group's kind as one of groups_roles.GROUP_TYPES, or as stored when it is neither."""
+    from app.modules.m365_audit.sections.groups_roles import GROUP_TYPES
+
+    value = value.strip()
+    if value in GROUP_TYPES:
+        return value
+    return _LEGACY_GROUP_TYPES.get(value, value)
+
+
+def group_type_text(value: str, t) -> str:
+    """A group's kind in the report's language; one the report cannot name, as stored."""
+    from app.modules.m365_audit.sections.groups_roles import GROUP_TYPES
+
+    return str(getattr(t, f"group_type_{value}")) if value in GROUP_TYPES else value
 
 
 def _group_row_by_column(line: str) -> tuple[str, str, str] | None:
@@ -673,10 +771,12 @@ def _group_row_by_column(line: str) -> tuple[str, str, str] | None:
     and a split on runs of two or more spaces then found two columns, not
     three, and dropped the group from every count. None for any other layout.
     """
+    from app.modules.m365_audit.sections.groups_roles import GROUP_TYPES
+
     if len(line) < 71 or line[52] != " " or line[69] != " ":
         return None
     gtype = line[53:69].strip()
-    if gtype not in _GROUP_TYPES:
+    if gtype not in GROUP_TYPES and gtype not in _LEGACY_GROUP_TYPES:
         return None
     return line[2:52].strip(), gtype, line[70:].strip()
 
@@ -693,7 +793,7 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
     groups: list[dict] = [
         {
             "name": g.get("name") or "",
-            "type": g.get("type") or "",
+            "type": _group_type_code(g.get("type") or ""),
             "members": g["members"] if isinstance(g.get("members"), int) else 0,
             "members_known": isinstance(g.get("members"), int),
         }
@@ -748,7 +848,7 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
             groups.append(
                 {
                     "name": name,
-                    "type": gtype,
+                    "type": _group_type_code(gtype),
                     "members": members,
                     "members_known": members_known,
                 }
@@ -763,7 +863,7 @@ def _parse_groups(text: str, sidecar: dict | None = None) -> dict:
         # failed member-count fetch ("N/A") is not the same as zero.
         if g["members_known"] and g["members"] == 0:
             empty += 1
-        if "Dynamic" in g["type"]:
+        if g["type"] == "dynamic" or "Dynamic" in g["type"]:
             dynamic += 1
 
     return {
@@ -1175,6 +1275,28 @@ def _risky_user_row_by_column(line: str) -> dict | None:
     return {"upn": line[2:52].strip(), "level": level, "state": state}
 
 
+# riskState values that mean somebody, or Entra itself, has already dealt with
+# the risk. Graph keeps these users in /identityProtection/riskyUsers for the
+# record; the open ones are atRisk and confirmedCompromised.
+_HANDLED_RISK_STATES = ("remediated", "dismissed", "confirmedsafe", "safe")
+
+
+def _live_risky_users(users: list[dict]) -> list[dict]:
+    """The risky users whose risk is still open.
+
+    Every reader of the list has to agree on this. The recommendations left the
+    handled ones out while the score, the CIS control and the customer's card
+    counted them, so a tenant that had remediated every risky user still lost
+    five points, failed the control and was shown the users as a finding, with
+    no recommendation beside it because there was nothing left to do.
+    """
+    return [
+        u
+        for u in users
+        if (u.get("state") or "").lower().replace(" ", "") not in _HANDLED_RISK_STATES
+    ]
+
+
 def _risky_users_from_text(text: str) -> list[dict]:
     """Each risky user in 18_risky_users.txt, for a run without the sidecar.
 
@@ -1221,3 +1343,65 @@ def _risky_users_from_sidecar(file_contents: dict[str, str]) -> list[dict] | Non
         }
         for u in sidecar.get("users") or []
     ]
+
+
+# ── The break-glass check ───────────────────────────────────────────────────
+
+# The notes identity_security.py wrote before it stored codes, as a run from
+# then holds them in 07c's sidecar.
+_LEGACY_BREAK_GLASS_NOTES = {
+    "No MFA — potential break-glass": "no_mfa",
+    "Excluded from CA — confirmed break-glass candidate": "ca_excluded",
+    "CA policies not collected — cannot confirm exclusion": "ca_unknown",
+}
+_LEGACY_IN_USE_NOTE = re.compile(
+    r"Excluded from CA but signed in (\d+)d ago — an actively-used admin bypassing MFA, "
+    r"NOT a break-glass account"
+)
+
+
+def _break_glass_note(note: str, days: int | None) -> dict:
+    """{"code", "days", "text"}: a note as the code the report words, or as stored.
+
+    "code" is one of BREAK_GLASS_NOTES, or None for a note the report cannot
+    name, which is then shown as its "text".
+    """
+    from app.modules.m365_audit.sections.identity_security import BREAK_GLASS_NOTES
+
+    if note in BREAK_GLASS_NOTES:
+        return {"code": note, "days": days, "text": note}
+    if note in _LEGACY_BREAK_GLASS_NOTES:
+        return {"code": _LEGACY_BREAK_GLASS_NOTES[note], "days": days, "text": note}
+    m = _LEGACY_IN_USE_NOTE.fullmatch(note)
+    if m:
+        return {"code": "ca_excluded_in_use", "days": int(m.group(1)), "text": note}
+    return {"code": None, "days": days, "text": note}
+
+
+def _emergency_access(file_contents: dict[str, str]) -> dict | None:
+    """The break-glass check per Global Admin, from 07c_emergency_access_check.json.
+
+    {"skipped": bool, "admins": [{"account", "mfa", "ca_excluded",
+    "last_sign_in_days", "notes"}]}, with "mfa" and "ca_excluded" True, False
+    or None where unknown, and each note as _break_glass_note gives it. None
+    for a run without the sidecar: the report then shows the text as it is.
+    """
+    data = _sidecar(file_contents, "07c_emergency_access_check.txt")
+    if data is None:
+        return None
+    admins = []
+    for admin in data.get("admins") or []:
+        if not isinstance(admin, dict):
+            continue
+        days = admin.get("last_sign_in_days")
+        days = days if isinstance(days, int) else None
+        admins.append(
+            {
+                "account": admin.get("upn") or admin.get("display_name") or admin.get("id") or "",
+                "mfa": admin.get("mfa_registered"),
+                "ca_excluded": admin.get("ca_excluded"),
+                "last_sign_in_days": days,
+                "notes": [_break_glass_note(str(n), days) for n in admin.get("notes") or []],
+            }
+        )
+    return {"skipped": bool(data.get("skipped")), "admins": admins}

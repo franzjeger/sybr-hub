@@ -59,8 +59,9 @@ async def test_an_english_hub_sends_an_english_email(mail):
     body = mail["body_html"]
     for english in ("automatic alerts", "Severity", "Customer", "Details", "Critical"):
         assert english in body
-    assert "The security policy “Require MFA for admins” has been removed since 2026-09-30." in (
-        body
+    assert (
+        "The security policy “Require MFA for admins” has been removed since 30 September 2026."
+        in body
     )
     for norwegian in ("varsler", "Alvorlighet", "Kunde<", "Kritisk", "fjernet", "Sendt"):
         assert norwegian not in body, f"{norwegian!r} in an English hub's e-mail"
@@ -72,10 +73,66 @@ async def test_a_norwegian_hub_sends_a_norwegian_email(mail):
 
     assert mail["subject"] == "Sybr HUB: nye varsler (1)"
     assert (
-        "Sikkerhetspolicyen «Require MFA for admins» er fjernet siden 2026-09-30."
+        "Sikkerhetspolicyen «Require MFA for admins» er fjernet siden 30. september 2026."
         in (mail["body_html"])
     )
     assert "Alvorlighet" in mail["body_html"]
+
+
+def test_an_alert_date_is_written_as_the_reader_writes_a_date():
+    """The detail's days are kept as ISO dates and written for the reader.
+
+    The e-mail and the chat card read "fjernet siden 2026-09-30" and "utløper
+    om 5 dager (2026-10-13)": a date the reader has to parse, the same in
+    both languages (TODO C16). The stored value stays ISO, so the history
+    means the same whatever language reads it later.
+    """
+    expiring = ae._detailed(
+        {
+            "type": "ssl_expiry",
+            "severity": "warning",
+            "customer": "Acme AS",
+            "item": "acme.example",
+        },
+        "alert_detail_ssl_expiring",
+        days=5,
+        date="2026-10-13",
+    )
+    assert (
+        ae.render_detail(expiring, "no") == "SSL-sertifikatet utløper om 5 dager (13. oktober 2026)"
+    )
+    assert (
+        ae.render_detail(expiring, "en")
+        == "The SSL certificate expires in 5 days (13 October 2026)"
+    )
+    assert expiring["detail_params"]["date"] == "2026-10-13"
+    # A value that is no date (an entry from before, a hand-edited history) is
+    # shown as it is rather than dropped.
+    expiring["detail_params"]["date"] = "snart"
+    assert ae.render_detail(expiring, "en").endswith("(snart)")
+
+
+def test_the_dates_the_browser_formats_are_the_ones_the_server_formats():
+    """alertDetail() in app-integrations.js names the same date values."""
+    script = Path("app/web/static/app-integrations.js").read_text(encoding="utf-8")
+    browser = re.search(r"_ALERT_DATE_PARAMS = \{([^}]*)\}", script)
+    assert browser, "alertDetail() no longer formats the alert's dates"
+    assert set(re.findall(r"(\w+): true", browser.group(1))) == set(ae.DATE_PARAMS)
+
+
+def test_the_cards_timestamp_is_written_for_the_reader(monkeypatch):
+    """ "Sendt 2026-10-08 14:05 UTC" on the chat card, in either language."""
+
+    class _Now:
+        @staticmethod
+        def now(_tz):
+            import datetime as _dt
+
+            return _dt.datetime(2026, 10, 8, 14, 5, tzinfo=_dt.UTC)
+
+    monkeypatch.setattr(ws, "datetime", _Now)
+    assert ws._sent_at(ws._labels("no")) == "Sendt 8. oktober 2026 kl. 14:05 UTC"
+    assert ws._sent_at(ws._labels("en")) == "Sent 8 October 2026, 14:05 UTC"
 
 
 async def test_an_alert_without_a_key_shows_its_own_text(mail):

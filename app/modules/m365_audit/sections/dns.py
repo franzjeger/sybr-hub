@@ -22,7 +22,7 @@ class DnsLookupError(Exception):
 # DoH RCODE → human-readable string. 0 = NoError; any non-zero means the
 # upstream resolver returned a structured error (NXDOMAIN, SERVFAIL, …) — we
 # trust that NOERROR with no Answer means "the name exists, no records of
-# this type", which is the case we want to render as MISSING.
+# this type", which is the case we want to render as "missing".
 _DOH_RCODES = {
     0: "NoError",
     1: "FormErr",
@@ -33,22 +33,31 @@ _DOH_RCODES = {
 }
 
 
+# What a domain's records say, as codes the report words. Each was an English
+# phrase ("WEAK (~all softfail)", "MISSING", "TXT present") that a Norwegian
+# report printed as it stood. A lookup that could not be answered is written
+# "error (<what failed>)", never one of these.
+SPF_STATUSES = ("hardfail", "softfail", "neutral", "pass_all", "no_all", "missing")
+DMARC_STATUSES = ("reject", "quarantine", "none", "unknown_policy", "missing")
+
+
+_SPF_VERSION = re.compile(r"^v=spf1(?:\s|$)", re.IGNORECASE)
+_SPF_ALL = re.compile(r"(?:^|\s)([+?~-]?)all(?=\s|$)", re.IGNORECASE)
+
+
 def _classify_spf(record: str) -> str:
-    """Classify an SPF record as OK / WEAK / CRITICAL."""
+    """Report the first all mechanism. An omitted qualifier means pass."""
     if not record:
-        return "MISSING"
-    if "~all" in record:
-        return "WEAK (~all softfail)"
-    if "-all" in record:
-        return "OK (-all hardfail)"
-    if "+all" in record:
-        return "CRITICAL (+all — allows anyone)"
-    if "?all" in record:
-        return "WEAK (?all neutral)"
-    return "PRESENT (no 'all' mechanism)"
+        return "missing"
+    match = _SPF_ALL.search(record)
+    if not match:
+        return "no_all"
+    return {"": "pass_all", "+": "pass_all", "-": "hardfail", "~": "softfail", "?": "neutral"}[
+        match.group(1)
+    ]
 
 
-def _classify_dmarc(record: str) -> str:
+def _classify_dmarc(record: str, *, inherited: bool = False) -> str:
     """Classify a DMARC record by its *policy* tag.
 
     Substring matching read the subdomain policy as the domain policy: a
@@ -58,16 +67,18 @@ def _classify_dmarc(record: str) -> str:
     tag boundary instead, and read it before any sp=.
     """
     if not record:
-        return "MISSING"
+        return "missing"
     m = re.search(r"(?:^|;)\s*p\s*=\s*([A-Za-z]+)", record)
     policy = (m.group(1) or "").lower() if m else ""
-    if policy == "reject":
-        return "OK (p=reject)"
-    if policy == "quarantine":
-        return "WARN (p=quarantine)"
-    if policy == "none":
-        return "WEAK (p=none)"
-    return "PRESENT (unknown policy)"
+    if inherited:
+        # A subdomain without its own record takes the parent's sp= tag, and
+        # the parent's p= only when there is no sp= (RFC 7489, 6.3).
+        sp = re.search(r"(?:^|;)\s*sp\s*=\s*([A-Za-z]+)", record)
+        if sp:
+            policy = sp.group(1).lower()
+    if policy in ("reject", "quarantine", "none"):
+        return policy
+    return "unknown_policy"
 
 
 def _published(record: str) -> str | None:
@@ -82,7 +93,7 @@ async def _doh_query(client: httpx.AsyncClient, name: str, qtype: str) -> list[s
     Raises DnsLookupError on transport failures so the caller can distinguish
     "the record genuinely doesn't exist" (empty list) from "we never got a
     usable answer" (raised) — silently treating the latter as the former
-    produces false 'MISSING' verdicts in the email-security audit.
+    produces false "missing" verdicts in the email-security audit.
     """
     try:
         resp = await client.get(
@@ -113,7 +124,7 @@ async def _safe_query(
 
     `error_msg` is None on success (including a clean NXDOMAIN) and a short
     diagnostic string when the query itself failed — so the caller can
-    render 'ERROR' instead of fabricating 'MISSING'.
+    render an error instead of fabricating "missing".
     """
     try:
         return await _doh_query(client, name, qtype), None
@@ -121,13 +132,57 @@ async def _safe_query(
         return [], str(ex)
 
 
+def _spf_redirect(record: str) -> str:
+    """The redirect= target of an SPF record that has no "all" of its own."""
+    if _SPF_ALL.search(record):
+        return ""
+    m = re.search(r"(?:^|\s)redirect=(\S+)", record, re.IGNORECASE)
+    return m.group(1).rstrip(".") if m else ""
+
+
+async def _follow_spf_redirect(
+    client: httpx.AsyncClient, target: str, hops: int = 3
+) -> tuple[str, str | None]:
+    """(the record a redirect chain ends at, error). "" when it leads nowhere."""
+    record = ""
+    for _ in range(hops):
+        records, err = await _safe_query(client, target, "TXT")
+        if err:
+            return "", err
+        record = next((r for r in records if _SPF_VERSION.match(r)), "")
+        target = _spf_redirect(record)
+        if not target:
+            break
+    return record, None
+
+
+async def _inherited_dmarc(client: httpx.AsyncClient, domain: str) -> tuple[str, str, str | None]:
+    """(parent domain, its DMARC record, error) for a name with no record itself.
+
+    Walks up one label at a time and never asks a single-label name, so a
+    public suffix such as "no" or "com" is not queried.
+    """
+    labels = domain.strip(".").split(".")
+    for start in range(1, len(labels) - 1):
+        parent = ".".join(labels[start:])
+        records, err = await _safe_query(client, f"_dmarc.{parent}", "TXT")
+        if err:
+            return parent, "", err
+        record = next((r for r in records if r.startswith("v=DMARC1")), "")
+        if record:
+            return parent, record, None
+    return "", "", None
+
+
 async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
     """Return a dict of DNS check results for one domain.
 
-    Each *_status field is either a classification, "ERROR (...)" when the
-    underlying DoH query could not be answered, or "MISSING" when the name
-    exists but has no matching record. Callers MUST treat ERROR distinctly
-    from MISSING — a timeout is not the same as "no SPF configured".
+    Each *_status field is either a classification, "error (...)" when the
+    underlying DoH query could not be answered, or "missing" when the name
+    exists but has no matching record. Callers MUST treat an error distinctly
+    from "missing" — a timeout is not the same as "no SPF configured". A DKIM
+    selector is "cname -> <target>", "txt", "missing" or "error (...)", and
+    MTA-STS the published record, "missing" or "error (...)".
     """
     result: dict[str, str] = {"domain": domain}
     errors: list[str] = []
@@ -137,22 +192,47 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
     if err:
         errors.append(f"SPF lookup failed: {err}")
         result["spf_record"] = "(query failed)"
-        result["spf_status"] = f"ERROR ({err})"
+        result["spf_status"] = f"error ({err})"
     else:
-        spf_record = next((r for r in txt_records if r.startswith("v=spf1")), "")
+        spf_record = next((r for r in txt_records if _SPF_VERSION.match(r)), "")
         result["spf_record"] = spf_record or "(none)"
         result["spf_status"] = _classify_spf(spf_record)
+        # "v=spf1 redirect=_spf.example.com" has no "all" of its own: the
+        # policy is the target's. Reading it as "no all mechanism" failed a
+        # domain whose SPF is exactly as strict as the record it points to.
+        target = _spf_redirect(spf_record)
+        if target:
+            followed, err = await _follow_spf_redirect(client, target)
+            if err:
+                errors.append(f"SPF redirect lookup failed: {err}")
+                result["spf_status"] = f"error ({err})"
+            elif followed:
+                result["spf_status"] = _classify_spf(followed)
+                result["spf_redirect"] = target
 
     # DMARC
     dmarc_records, err = await _safe_query(client, f"_dmarc.{domain}", "TXT")
     if err:
         errors.append(f"DMARC lookup failed: {err}")
         result["dmarc_record"] = "(query failed)"
-        result["dmarc_status"] = f"ERROR ({err})"
+        result["dmarc_status"] = f"error ({err})"
     else:
         dmarc_record = next((r for r in dmarc_records if r.startswith("v=DMARC1")), "")
         result["dmarc_record"] = dmarc_record or "(none)"
         result["dmarc_status"] = _classify_dmarc(dmarc_record)
+        if not dmarc_record:
+            # No record of its own: a receiver then applies the organisational
+            # domain's. Stopping here reported every verified subdomain
+            # (mail.example.no) as unprotected under a parent with p=reject.
+            parent, parent_record, err = await _inherited_dmarc(client, domain)
+            if err:
+                errors.append(f"DMARC lookup failed: {err}")
+                result["dmarc_record"] = "(query failed)"
+                result["dmarc_status"] = f"error ({err})"
+            elif parent_record:
+                result["dmarc_record"] = parent_record
+                result["dmarc_inherited_from"] = parent
+                result["dmarc_status"] = _classify_dmarc(parent_record, inherited=True)
 
     # DKIM — M365 + third-party selectors
     _third_party_selectors = ("google", "k1", "k2", "default", "dkim")
@@ -161,22 +241,22 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
         txt_data, txt_err = await _safe_query(client, f"{sel}._domainkey.{domain}", "TXT")
         if cname_err and txt_err:
             errors.append(f"DKIM {sel} lookup failed: {cname_err}")
-            result[f"dkim_{sel}"] = f"ERROR ({cname_err})"
+            result[f"dkim_{sel}"] = f"error ({cname_err})"
         elif cname_data:
-            result[f"dkim_{sel}"] = f"CNAME -> {cname_data[0]}"
+            result[f"dkim_{sel}"] = f"cname -> {cname_data[0]}"
         elif txt_data:
-            result[f"dkim_{sel}"] = "TXT present"
+            result[f"dkim_{sel}"] = "txt"
         else:
-            result[f"dkim_{sel}"] = "MISSING"
+            result[f"dkim_{sel}"] = "missing"
 
     # MTA-STS
     mta_records, err = await _safe_query(client, f"_mta-sts.{domain}", "TXT")
     if err:
         errors.append(f"MTA-STS lookup failed: {err}")
-        result["mta_sts"] = f"ERROR ({err})"
+        result["mta_sts"] = f"error ({err})"
     else:
         mta_sts = next((r for r in mta_records if "v=STSv1" in r), "")
-        result["mta_sts"] = mta_sts if mta_sts else "MISSING"
+        result["mta_sts"] = mta_sts if mta_sts else "missing"
 
     if errors:
         result["_lookup_errors"] = "; ".join(errors)
@@ -233,7 +313,7 @@ class DnsSection(BaseSection):
                 # Build DKIM (3rd party) summary
                 tp_parts = []
                 for sel in _third_party_selectors:
-                    tp_parts.append(f"{sel}: {r.get(f'dkim_{sel}', 'MISSING')}")
+                    tp_parts.append(f"{sel}: {r.get(f'dkim_{sel}', 'missing')}")
                 tp_summary = " | ".join(tp_parts)
 
                 # Collect all found selectors for summary
@@ -241,8 +321,8 @@ class DnsSection(BaseSection):
                 found_selectors = [
                     sel
                     for sel in all_selectors
-                    if r.get(f"dkim_{sel}", "MISSING") not in ("MISSING",)
-                    and not r.get(f"dkim_{sel}", "").startswith("ERROR")
+                    if r.get(f"dkim_{sel}", "missing") != "missing"
+                    and not r.get(f"dkim_{sel}", "").startswith("error")
                 ]
 
                 lines += [
@@ -263,14 +343,17 @@ class DnsSection(BaseSection):
                     {
                         "domain": domain,
                         "spf_status": r["spf_status"],
+                        "spf_redirect": r.get("spf_redirect"),
                         "spf_record": _published(r["spf_record"]),
                         "dmarc_status": r["dmarc_status"],
                         "dmarc_record": _published(r["dmarc_record"]),
+                        # The parent whose record applies, for a domain with none.
+                        "dmarc_inherited_from": r.get("dmarc_inherited_from"),
                         # Every selector the text shows, M365's two first.
                         "dkim": {
                             "selector1": r["dkim_selector1"],
                             "selector2": r["dkim_selector2"],
-                            **{s: r.get(f"dkim_{s}", "MISSING") for s in _third_party_selectors},
+                            **{s: r.get(f"dkim_{s}", "missing") for s in _third_party_selectors},
                         },
                         "dkim_found": found_selectors,
                         "mta_sts": r["mta_sts"],
@@ -284,26 +367,24 @@ class DnsSection(BaseSection):
                         f"[{domain}] DNS lookups failed — verdict is partial: {r['_lookup_errors']}"
                     )
 
-                # Warnings — only when we have a real verdict. ERROR means the
-                # query failed, so reporting "SPF MISSING" would be a lie.
+                # Warnings — only when we have a real verdict. An error means
+                # the query failed, so reporting "SPF missing" would be a lie.
                 spf_s = r["spf_status"]
                 dmarc_s = r["dmarc_status"]
                 domain_issues = []
 
-                if not spf_s.startswith("ERROR") and (
-                    "MISSING" in spf_s or "WEAK" in spf_s or "CRITICAL" in spf_s
-                ):
+                if spf_s in ("missing", "softfail", "neutral", "pass_all"):
                     domain_issues.append(f"SPF: {spf_s}")
                     self._warn(f"[{domain}] SPF issue: {spf_s}")
-                if not dmarc_s.startswith("ERROR") and ("MISSING" in dmarc_s or "WEAK" in dmarc_s):
+                if dmarc_s in ("missing", "none"):
                     domain_issues.append(f"DMARC: {dmarc_s}")
                     self._warn(f"[{domain}] DMARC issue: {dmarc_s}")
 
-                # DKIM warning if both M365 selectors are missing (not ERROR)
-                sel1 = r.get("dkim_selector1", "MISSING")
-                sel2 = r.get("dkim_selector2", "MISSING")
-                m365_sel1_missing = sel1 == "MISSING"
-                m365_sel2_missing = sel2 == "MISSING"
+                # DKIM warning if both M365 selectors are missing (not an error)
+                sel1 = r.get("dkim_selector1", "missing")
+                sel2 = r.get("dkim_selector2", "missing")
+                m365_sel1_missing = sel1 == "missing"
+                m365_sel2_missing = sel2 == "missing"
                 if m365_sel1_missing and m365_sel2_missing:
                     domain_issues.append(
                         "DKIM: M365 DKIM not configured (both selector1 and selector2 missing)"

@@ -19,7 +19,10 @@
 //   - the code a module runs while it loads touches nothing imported from a
 //     module in its own import cycle. Function declarations are hoisted, but
 //     another module's variables are not initialised until it has run, and in
-//     a cycle that may not have happened yet.
+//     a cycle that may not have happened yet;
+//   - every export is imported by another module. A spec reaches any export
+//     through inApp (tests/browser/app.cjs), so one only a spec calls is a
+//     test hook in the interface: drive the spec through the page instead.
 //
 //   node scripts/js-modules.cjs           check
 //   node scripts/js-modules.cjs --order   print the order the browser runs them
@@ -78,9 +81,11 @@ function moduleGraph() {
     if (modules[file]) continue;
     const full = path.join(STATIC_DIR, file);
     if (!fs.existsSync(full)) { problems.push(`app/web/static/${file}: imported but missing`); continue; }
+    const text = fs.readFileSync(full, 'utf8');
     let ast;
-    try { ast = parse(file); } catch (e) { problems.push(`app/web/static/${file}: ${e.message}`); continue; }
-    const info = {ast, imports: [], exports: new Set()};
+    try { ast = parse(file, text); } catch (e) { problems.push(`app/web/static/${file}: ${e.message}`); continue; }
+    // exports: name -> its export declaration.
+    const info = {ast, text, imports: [], exports: new Map()};
     modules[file] = info;
     for (const node of ast.body) {
       if (node.type === 'ImportDeclaration') {
@@ -97,9 +102,9 @@ function moduleGraph() {
       } else if (node.type === 'ExportNamedDeclaration') {
         if (node.source) { problems.push(`${where(file, node)}: no 'export ... from'; import, then export`); continue; }
         const d = node.declaration;
-        if (!d) { node.specifiers.forEach(s => info.exports.add(s.exported.name)); continue; }
-        if (d.type === 'VariableDeclaration') d.declarations.forEach(x => x.id.type === 'Identifier' && info.exports.add(x.id.name));
-        else if (d.id) info.exports.add(d.id.name);
+        if (!d) { node.specifiers.forEach(s => info.exports.set(s.exported.name, node)); continue; }
+        if (d.type === 'VariableDeclaration') d.declarations.forEach(x => x.id.type === 'Identifier' && info.exports.set(x.id.name, node));
+        else if (d.id) info.exports.set(d.id.name, node);
       } else if (node.type === 'ExportDefaultDeclaration' || node.type === 'ExportAllDeclaration') {
         problems.push(`${where(file, node)}: named exports only`);
       }
@@ -326,6 +331,20 @@ function check() {
   }
   for (const file of [...LEAVES, ...SERVICES, MARKUP_HANDLERS]) {
     if (!modules[file]) problems.push(`app/web/static/${file}: named in the layering but not in the graph`);
+  }
+
+  // Every export is imported somewhere. An export a spec needs and the page
+  // cannot reach says why on the line above it, starting "// For specs:".
+  const imported = new Set();
+  for (const info of Object.values(modules)) for (const imp of info.imports) for (const name of imp.names) imported.add(imp.source + ':' + name);
+  for (const file of files) {
+    const lines = modules[file].text.split('\n');
+    for (const [name, node] of modules[file].exports) {
+      if (imported.has(file + ':' + name)) continue;
+      if (/^\s*\/\/ For specs:/.test(lines[node.loc.start.line - 2] || '')) continue;
+      problems.push(`app/web/static/${file}:${node.loc.start.line}: ${name} is exported but no module imports it. ` +
+        'If only a spec calls it, drive the spec through the page; if that is not reasonable, say why above it ("// For specs: ...").');
+    }
   }
 
   // No import cycles, including feature modules. Compose callbacks in main.js.

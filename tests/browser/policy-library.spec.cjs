@@ -145,3 +145,23 @@ test('the guided workflow prioritizes the selected plan and opens a pilot runboo
   await expect(content.locator('.pl-policy details')).toHaveAttribute('open','');
   await expect(content).toContainText('Verify effectiveness');
 });
+
+test('captured controls show the observed mode, scope and collection time', async ({page}) => {
+  await page.route('**/api/policy-overview/Browser_Alpha?*', async route => {
+    const response = await route.fetch();
+    const overview = await response.json();
+    const captured_at = '2026-10-14T12:00:00Z';
+    overview.captured_checks['ca-signin-risk'] = {state: 'settings_found', captured_at,
+      matches: [{name: 'Risk pilot', state: 'enabledForReportingButNotEnforced', exclusions: 2}]};
+    overview.captured_checks['intune-firewall'] = {state: 'settings_found', captured_at,
+      matches: [{name: 'Endpoint protection', state: 'firewall_profiles_enabled'}]};
+    await route.fulfill({response, json: overview});
+  });
+  await login(page);
+  await page.locator('#policy-overview-content [data-pane="library"]').click();
+  const risk = page.locator('[data-policy-id="ca-signin-risk"] .pl-captured-check');
+  await expect(risk).toContainText('Risk pilot · Report-only · Exclusion entries 2');
+  await expect(risk).toContainText('14/10/2026');
+  await expect(page.locator('[data-policy-id="intune-firewall"] .pl-captured-check'))
+    .toContainText('Endpoint protection · Domain, private and public firewalls enabled');
+});

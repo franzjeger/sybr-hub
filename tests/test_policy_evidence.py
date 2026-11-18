@@ -43,3 +43,29 @@ def test_weaker_or_control_and_conditional_scopes_are_not_baseline_candidates():
     assert captured_checks([p])["ca-legacy"]["state"] == "settings_found"
     p["conditions"]["users"]["includeUsers"] = ["pilot"]
     assert captured_checks([p])["ca-legacy"]["state"] == "no_match"
+
+
+def test_signin_risk_requires_both_levels_and_preserves_exclusions():
+    p = rule()
+    p["conditions"]["users"]["excludeGroups"] = ["emergency"]
+    p["conditions"]["applications"]["excludeApplications"] = ["legacy-app"]
+    p["conditions"]["signInRiskLevels"] = ["high"]
+    assert captured_checks([p])["ca-signin-risk"]["state"] == "no_match"
+    p["conditions"]["signInRiskLevels"].append("medium")
+    checks = captured_checks([p])
+    assert checks["ca-signin-risk"]["matches"][0]["exclusions"] == 2
+    assert checks["ca-mfa"]["state"] == "no_match"
+
+
+def test_firewall_requires_three_values_in_same_profile():
+    from app.core.policy_evidence import firewall_check
+
+    p = {"@odata.type": "#microsoft.graph.windows10EndpointProtectionConfiguration"}
+    for profile in ("Domain", "Private", "Public"):
+        p["firewallProfile" + profile] = {"firewallEnabled": "allowed"}
+    assert firewall_check([p])["state"] == "settings_found"
+    p["firewallProfilePublic"]["firewallEnabled"] = "blocked"
+    assert firewall_check([p])["state"] == "no_match"
+    del p["firewallProfilePublic"]
+    assert firewall_check([p])["state"] == "unmeasured"
+    assert firewall_check(None)["state"] == "unmeasured"

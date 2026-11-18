@@ -351,11 +351,14 @@ def _nsg_rec(files: dict) -> dict | None:
 
 
 def _risky(sub: str) -> list[str]:
+    """The risky rules as a Norwegian recommendation lists them: worded from
+    the sidecar's fields, or from an old WARN line, the same either way. They
+    were the collector's English sentence (TODO C15)."""
     return [
-        f"NSG 'nsg-web-{sub[-2:]}' rule 'allow-rdp' (priority 100): "
-        "allows inbound from Internet to port(s) 3389",
-        f"NSG 'nsg-db-{sub[-2:]}' rule 'allow-sql' (priority 100): "
-        "allows inbound from 0.0.0.0/0 to port(s) 1433",
+        f"NSG «nsg-web-{sub[-2:]}», regel «allow-rdp» (prioritet 100): "
+        "tillater innkommende trafikk fra Internet til port 3389",
+        f"NSG «nsg-db-{sub[-2:]}», regel «allow-sql» (prioritet 100): "
+        "tillater innkommende trafikk fra 0.0.0.0/0 til port 1433",
     ]
 
 
@@ -575,7 +578,7 @@ async def test_the_resource_inventory_survives_the_round_trip(tmp_path, sidecars
     assert types[0] == {"type": "Microsoft.Compute/disks", "count": 2}
     assert len(types) == 4
     assert groups == [{"name": "rg-prod", "count": 3}, {"name": "rg-shared", "count": 2}]
-    assert per_sub[0]["name"] == "Default"
+    assert per_sub[0]["name"] == "", "no name was read; the report says so in its own words"
     assert per_sub[0]["resources"] == 5
     assert per_sub[0]["types"][0] == ("Microsoft.Compute/disks", 2)
 
@@ -813,3 +816,96 @@ async def test_the_network_sections_orphan_list_is_read(tmp_path):
         ("NIC", "unattached", "nic-old RG: rg-net", ""),
     ]
     assert text_only["orphaned"] == 0, "the text alone cannot carry them"
+
+
+# ── What the Azure collectors store, worded by the report ──────────────────────
+#
+# An orphan's kind ("PUBLIC IP (unattached)"), an Advisor impact ("[High]"),
+# a subscription's state and a VM's power state reached a Norwegian report as
+# the collectors or Azure wrote them (TODO C15).
+
+
+async def test_the_orphans_are_worded_from_the_sidecars_fields(tmp_path):
+    from app.reports.i18n import T
+    from app.reports.parsers.azure import orphan_text
+
+    await _collect_orphans(tmp_path, {SUB_A: _orphan_clients_for(SUB_A)}, multi=False)
+    azure = _parse_azure_overview(_read(tmp_path, sidecars=True))
+
+    assert [orphan_text(o, T("no")) for o in azure["orphaned_details"]] == [
+        "Disk disk-old (ikke tilkoblet): 128 GB, Premium_LRS, ressursgruppe rg-prod",
+        "Nettverkskort nic-old (ikke tilkoblet): ressursgruppe rg-net",
+        "Offentlig IP pip-old (ikke tilkoblet): 192.0.2.10, ressursgruppe rg-net",
+    ]
+    # A run without the sidecar: the kind and status worded, the rest as written.
+    old = _parse_azure_overview(_read(tmp_path, sidecars=False))["orphaned_details"][1]
+    assert " ".join(orphan_text(old, T("no")).split()) == (
+        "Nettverkskort (ikke tilkoblet): nic-old RG: rg-net"
+    )
+
+
+def test_an_nsg_line_the_collector_did_not_write_is_kept():
+    from app.reports.i18n import T
+    from app.reports.parsers.azure import nsg_rule_text
+
+    assert nsg_rule_text("NSG 'b' rule 'ssh': port 22", T("no")) == "NSG 'b' rule 'ssh': port 22"
+
+
+@pytest.mark.parametrize(
+    ("state", "word"),
+    [
+        ("Enabled", "Aktiv"),
+        # What auth.py wrote before: the enum's repr, read back to Azure's value.
+        ("SubscriptionState.ENABLED", "Aktiv"),
+        ("SubscriptionState.PAST_DUE", "Betaling forfalt"),
+        ("Somewhere new", "Somewhere new"),
+    ],
+)
+def test_a_subscriptions_state_is_worded(state, word):
+    from app.reports.i18n import T
+    from app.reports.parsers.azure import subscription_state, subscription_state_text
+
+    assert subscription_state_text(subscription_state(state), T("no")) == word
+
+
+def test_the_subscription_list_stores_azures_value_not_the_enums_repr(monkeypatch):
+    """str() of the SDK's enum gave "SubscriptionState.ENABLED", so every
+    enabled subscription was shown with a warning."""
+    import enum
+    import sys
+    import types
+
+    # The SDK's enum, as far as str() goes: it gives "SubscriptionState.ENABLED".
+    class SubscriptionState(enum.Enum):
+        ENABLED = "Enabled"
+
+    class _Client:
+        def __init__(self, _credential):
+            self.subscriptions = SimpleNamespace(
+                list=lambda: [
+                    SimpleNamespace(
+                        subscription_id="sub-a",
+                        display_name="Prod-A",
+                        state=SubscriptionState.ENABLED,
+                    )
+                ]
+            )
+
+    module = types.ModuleType("azure.mgmt.resource.subscriptions")
+    module.SubscriptionClient = _Client
+    monkeypatch.setitem(sys.modules, "azure.mgmt.resource.subscriptions", module)
+    from app.modules.m365_audit.auth import AuthManager
+
+    auth = AuthManager.__new__(AuthManager)
+    monkeypatch.setattr(auth, "_az_credential", lambda: None, raising=False)
+
+    assert auth.list_subscriptions() == [{"id": "sub-a", "name": "Prod-A", "state": "Enabled"}]
+
+
+def test_an_advisor_impact_is_worded():
+    from app.reports.i18n import T
+    from app.reports.recommendations import _advisor_line
+
+    item = {"impact": "High", "description": "Enable MFA", "count": 2, "subscription": "Prod"}
+    assert _advisor_line(item, T("no")) == "[Høy] Enable MFA (x2, Prod)"
+    assert _advisor_line({**item, "impact": "Severe"}, T("no")) == "[Severe] Enable MFA (x2, Prod)"

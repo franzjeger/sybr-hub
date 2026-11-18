@@ -64,9 +64,10 @@ registerUiHandlers({
   dashArchiveCleanup: function(el) { dashArchiveCleanup(Number(el.dataset.months)); },
   dashArchiveDelete: function(el) { dashArchiveDelete(el.dataset.path); },
   dashArchiveToggleRuns: function(el) {
-    el.nextElementSibling.style.display = el.nextElementSibling.style.display === 'none' ? 'block' : 'none';
+    var runs = el.nextElementSibling;
+    runs.hidden = !runs.hidden;
     el.querySelector('.chevron').classList.toggle('open');
-    el.setAttribute('aria-expanded', el.nextElementSibling.style.display !== 'none' ? 'true' : 'false');
+    el.setAttribute('aria-expanded', runs.hidden ? 'false' : 'true');
   },
   // Customer overview: toolbar, filter badges, sorting and pagination
   filterOverview: function() { filterOverview(); },
@@ -158,9 +159,10 @@ function notifOpenRules() {
 // colour never means two things in one screen.
 var _SEV = {
   // tone: the is-* modifier .filter-chip, .notif-dot and .notif-sev colour by.
-  critical: { label: 'Kritisk', tone: 'is-critical' },
-  warning:  { label: 'Advarsel', tone: 'is-warning' },
-  info:     { label: 'Info',     tone: 'is-info' }
+  // label: read when drawn, in the reader's language; it was Norwegian in both.
+  critical: { label: function() { return t('lbl_critical', 'Kritisk'); }, tone: 'is-critical' },
+  warning:  { label: function() { return t('lbl_warning_sev', 'Advarsel'); }, tone: 'is-warning' },
+  info:     { label: function() { return 'Info'; }, tone: 'is-info' }
 };
 
 
@@ -305,6 +307,7 @@ function _notifCollect(data, uniweb, history, activity) {
     fortigate_threats: t('rule_fortigate_threats', 'Brannmur-hendelser'), firmware_outdated: t('rule_firmware', 'Utdatert firmware'),
     also_license_expiry: t('rule_also', 'Lisensfornyelser'), mfa_coverage: t('rule_mfa', 'MFA-dekning'),
     pentest_critical: t('rule_pentest', 'Kritiske pentest-funn'),
+    policy_drift: t('rule_policy_drift', 'Endrede sikkerhetspolicyer'),
   };
   var since = new Date(Date.now() - 30 * 86400000).toISOString();
   var seenAlert = {};
@@ -373,8 +376,8 @@ function _notifRender() {
   });
 
   var html = '<div class="notif-toolbar">';
-  [['all', t('sev_all', 'Alle')], ['critical', _SEV.critical.label],
-   ['warning', _SEV.warning.label], ['info', _SEV.info.label]].forEach(function(p) {
+  [['all', t('sev_all', 'Alle')], ['critical', _SEV.critical.label()],
+   ['warning', _SEV.warning.label()], ['info', _SEV.info.label()]].forEach(function(p) {
     var key = p[0];
     var tone = key === 'all' ? 'is-all' : _SEV[key].tone;
     html += '<button class="filter-chip ' + tone + (_notifState.sev === key ? ' active' : '') + '"'
@@ -438,7 +441,7 @@ function _notifRow(n) {
   html += '<span class="notif-dot ' + sev.tone + '"></span>';
   html += '<div class="notif-body">';
   html += '<div class="notif-head"><span class="notif-title">' + esc(n.title) + '</span>';
-  html += '<span class="notif-sev ' + sev.tone + '">' + esc(sev.label.toUpperCase()) + '</span>';
+  html += '<span class="notif-sev ' + sev.tone + '">' + esc(sev.label().toUpperCase()) + '</span>';
   if (n.days !== null && n.days !== undefined) {
     html += '<span class="notif-sev ' + sev.tone + '">' + esc(_notifDays(n.days)) + '</span>';
   }
@@ -446,7 +449,8 @@ function _notifRow(n) {
   html += '<div class="notif-meta">';
   if (n.customer) html += '<span class="cust">' + esc(n.customer) + '</span>';
   html += '<span class="src">' + esc(n.source) + '</span>';
-  if (n.when) html += '<span>' + esc(n.when) + '</span>';
+  // A day comes as an ISO date; an event's "5 min ago" is left as it is.
+  if (n.when) html += '<span>' + esc(formatRunName(n.when, true)) + '</span>';
   if (n.detail) html += '<span class="notif-detail">' + esc(n.detail) + '</span>';
   html += '</div></div>';
   html += '<div class="notif-actions">';
@@ -529,7 +533,8 @@ function _notifCoverageCard() {
   var html = '<div class="notif-card"><h4>' + esc(t('hdr_checked_state', 'Hva er sjekket')) + '</h4>';
   var tls = cov.tls || {};
   var fw = cov.firmware || {};
-  var day = function(iso) { return String(iso || '').slice(0, 10); };
+  // The day of a stored timestamp, as the reader writes a date.
+  var day = function(iso) { return formatRunName(String(iso || '').slice(0, 10)); };
   var line;
   if (tls.unavailable) line = t('msg_cov_tls_unavailable', 'Lagrede sertifikater kunne ikke leses.');
   else if (!tls.endpoints) line = t('msg_cov_tls_none', 'Ingen TLS-endepunkter er sjekket ennå.');
@@ -1020,7 +1025,7 @@ export async function dashLoadArchive() {
     html += '<span><span class="fw-semibold">'+esc(c.customer_name)+'</span> <span class="text-sm text-muted">('+Number(c.run_count)+' '+t('lbl_reports','reports')+', '+Number(c.total_size_mb)+' MB)</span></span>';
     html += '<span class="chevron text-2xs text-dim transition-transform">&#9660;</span>';
     html += '</button>';
-    html += '<div class="border-t overflow-x-auto" style="display:none;">';
+    html += '<div class="border-t overflow-x-auto" hidden>';
     html += '<table class="data-table">';
     html += '<thead><tr><th>'+t('lbl_date','Date')+'</th><th class="text-center">'+t('lbl_files','Files')+'</th><th class="text-center">'+t('lbl_size','Size')+'</th><th class="text-center">PDF</th><th class="text-center">HTML</th><th class="text-right"></th></tr></thead><tbody>';
     c.runs.forEach(function(r) {
@@ -1211,7 +1216,7 @@ function _needsAttention(c) {
 // The order of the list: worst open finding first. A customer never audited
 // ranks just below one with a high finding: nobody knows what it holds, which
 // is more urgent than a list of medium ones.
-export function _findingWeight(c) {
+function _findingWeight(c) {
   if (!c.has_metrics) return 9999;
   var f = _openFindings(c);
   return f.critical * 1e6 + f.high * 1e4 + f.medium * 1e2 + f.low;

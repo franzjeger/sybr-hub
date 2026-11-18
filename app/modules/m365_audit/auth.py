@@ -222,7 +222,10 @@ class AuthManager:
                 {
                     "id": sub.subscription_id,
                     "name": sub.display_name,
-                    "state": str(sub.state),
+                    # Azure's own value ("Enabled"): str() of the enum gave
+                    # "SubscriptionState.ENABLED", which the report printed and
+                    # took for a state other than Enabled.
+                    "state": str(getattr(sub.state, "value", sub.state) or ""),
                 }
             )
         return subs

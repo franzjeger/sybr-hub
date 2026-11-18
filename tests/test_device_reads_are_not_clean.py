@@ -206,11 +206,13 @@ async def test_cis_compliance_still_scores_a_readable_firewall(_fg_build):
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
         if path.endswith("password-policy"):
-            return httpx.Response(200, json={"results": {"status": "enable", "min-length": 12}})
+            return httpx.Response(200, json={"results": {"status": "enable", "minimum-length": 12}})
         if path.endswith("system/global"):
             return httpx.Response(200, json={"results": {"admintimeout": 10}})
-        if path.endswith("log/setting"):
-            return httpx.Response(200, json={"results": {"log-disk": "enable"}})
+        if path.endswith("log.disk/setting"):
+            return httpx.Response(200, json={"results": {"status": "enable"}})
+        if path.endswith("/setting"):
+            return httpx.Response(200, json={"results": {"status": "disable"}})
         if path.endswith("system/ha"):
             return httpx.Response(200, json={"results": {"mode": "standalone"}})
         return httpx.Response(200, json={"results": []})

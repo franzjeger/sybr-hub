@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -232,11 +233,29 @@ async def test_huge_subnet_is_rejected_before_enumerating_hosts(monkeypatch):
 
 
 @pytest.mark.parametrize("value", ["Acme A/S", "x/../../escaped", "a\\b", "a..b"])
-def test_imported_customer_names_cannot_be_paths(value):
+def test_imported_customer_names_never_become_paths(value):
+    """A name is display text; its id and audit folder are always sanitised.
+
+    The October fix refused these names outright, which also refused common
+    company names such as "Acme A/S" on IT Glue import. Every path is built
+    from the id or customer_dir_name(), so the name itself never reaches one.
+    """
+    from app.core.customer import customer_dir_name
+
+    customer_id = CustomerManager.save_customer({"CustomerName": value}, create=True)
+    for derived in (customer_id, customer_dir_name(value)):
+        assert "/" not in derived and "\\" not in derived and ".." not in derived
+    saved = CustomerManager.get_customer(customer_id)
+    assert saved["CustomerName"] == value
+    assert Path(saved["_dir"]).parent == CustomerManager.get_customer_dir(customer_id).parent
+
+
+@pytest.mark.parametrize("value", ["", "   ", "a\nb", "a\x00b", "x" * 129])
+def test_customer_names_without_text_or_with_control_characters_are_refused(value):
     from app.core.exceptions import ValidationError
 
     with pytest.raises(ValidationError):
-        CustomerManager.save_customer({"CustomerName": value})
+        CustomerManager.save_customer({"CustomerName": value}, create=True)
 
 
 @pytest.mark.parametrize("month,hour", [(1, 6), (7, 5)])

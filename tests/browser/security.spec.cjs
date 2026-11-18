@@ -72,7 +72,7 @@ test('handler arguments escaped into data attributes reach the handler intact', 
     const button = page.locator('#escape-fixture button');
     expect(await button.evaluate(el => el.getAttributeNames())).toEqual(['data-click-handler', 'data-target']);
     await button.click();
-    expect(await page.evaluate(value => document.getElementById(value).style.display, value)).toBe('none');
+    expect(await page.evaluate(value => document.getElementById(value).hidden, value)).toBe(true);
     expect(await page.evaluate(() => globalThis.auditExecuted)).toBeUndefined();
     await page.locator('#escape-fixture').evaluate(el => el.remove());
   }
@@ -90,7 +90,7 @@ test('logout rejects copied refresh and access tokens', async ({page}) => {
 });
 
 test('MFA enrollment displays recovery once and subsequent login requires it', async ({page}) => {
-  await login(page, 'browser-tech');
+  await login(page, 'browser-mfa');
   await inApp(page, app => app.showMfaSettings());
   const modal = page.locator('#confirm-modal');
   await modal.locator('input[type=password]').fill('Browser-test123!');
@@ -112,7 +112,7 @@ test('MFA enrollment displays recovery once and subsequent login requires it', a
   await modal.locator('#confirm-modal-body .btn-ghost').last().click();
   await expect(modal.locator('pre')).toHaveCount(0);
   expect((await page.request.post('/api/auth/logout')).status()).toBe(200);
-  const credentials = {username:'browser-tech', password:'Browser-test123!'};
+  const credentials = {username:'browser-mfa', password:'Browser-test123!'};
   expect((await page.request.post('/api/auth/login', {data:credentials})).status()).toBe(401);
   expect((await page.request.post('/api/auth/login', {data:{...credentials, otp:recovery[0]}})).status()).toBe(200);
   expect((await page.request.get('/api/auth/me')).status()).toBe(200);
