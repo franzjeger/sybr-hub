@@ -24,7 +24,7 @@ def _parse_spf_dmarc(text: str) -> list[dict]:
         elif stripped.startswith("DMARC") and ":" in stripped and current:
             current["dmarc"] = stripped.split(":", 1)[1].strip()
             prev_key = "dmarc"
-        elif prev_key == "spf" and stripped.startswith("v=spf1") and current:
+        elif prev_key == "spf" and stripped.lower().startswith("v=spf1") and current:
             current["spf_record"] = stripped
             prev_key = ""
         elif (

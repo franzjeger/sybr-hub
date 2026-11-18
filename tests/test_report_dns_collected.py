@@ -501,3 +501,8 @@ def test_old_redirect_and_inheritance_statuses_keep_their_verdicts():
     }
     assert spf_status(record) == ("hardfail", "")
     assert dmarc_status(record) == ("none", "")
+
+
+def test_legacy_text_preserves_a_mixed_case_spf_record():
+    text = "Domain : acme.example\n    SPF : hardfail\n          V=SPF1 -ALL"
+    assert _parse_spf_dmarc(text)[0]["spf_record"] == "V=SPF1 -ALL"
