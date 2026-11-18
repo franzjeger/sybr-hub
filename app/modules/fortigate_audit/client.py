@@ -21,6 +21,10 @@ from app.modules.api_result import ApiDict, ApiList, read_failed
 log = logging.getLogger(__name__)
 
 
+# Device facts FortiOS puts in the response envelope rather than in "results".
+_ENVELOPE_FACTS = ("version", "serial", "build")
+
+
 class FortiGateClient:
     """Async FortiGate REST API client."""
 
@@ -138,7 +142,16 @@ class FortiGateClient:
         # is what callers expect (they read .get("results") or iterate it), so
         # hand back the outer object rather than the bare list.
         if isinstance(results, dict):
-            return ApiDict(results)
+            # FortiOS answers some facts about the device beside "results", in
+            # the envelope: system/status carries the firmware version, build
+            # and serial number there. Handing back "results" alone dropped
+            # them, and every caller that read status["version"] or
+            # status["serial"] showed an empty firmware and serial.
+            merged = dict(results)
+            for key in _ENVELOPE_FACTS:
+                if key in data and key not in merged:
+                    merged[key] = data[key]
+            return ApiDict(merged)
         return ApiDict(data)
 
     # ── Convenience methods ───────────────────────────────────────────────

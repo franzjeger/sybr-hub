@@ -13,6 +13,7 @@ from pathlib import Path
 
 from app.modules.base import BaseSection, SectionResult, SectionStatus
 from app.modules.m365_audit.graph_client import GraphClient, GraphPermissionError
+from app.modules.m365_audit.sections.users_mfa import is_mfa_method
 from app.modules.m365_audit.signin import latest_signin
 
 logger = logging.getLogger(__name__)
@@ -636,12 +637,11 @@ class IdentitySecuritySection(BaseSection):
                     # would flag a break-glass account we never actually read.
                     has_mfa = None  # unknown
                 else:
-                    methods = [
-                        m
-                        for m in meth_data.get("value", [])
-                        if m.get("@odata.type") != "#microsoft.graph.passwordAuthenticationMethod"
-                    ]
-                    has_mfa = bool(methods)
+                    # The same rule the MFA report uses: a password, an e-mail
+                    # address or a Temporary Access Pass is not MFA.
+                    has_mfa = any(
+                        is_mfa_method(m.get("@odata.type", "")) for m in meth_data.get("value", [])
+                    )
             except Exception:
                 # None, not False — the report must not claim "no MFA" when it
                 # simply could not read the methods.

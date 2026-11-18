@@ -120,6 +120,8 @@ def _parse_licenses(text: str, sidecar: dict | None = None) -> list[dict]:
                 "total": sku["total"],
                 "pct": float(sku["pct"]),
                 "warn": bool(sku["warn"]),
+                # The SKU's service plans, from a run that recorded them.
+                **({"plans": list(sku["plans"])} if isinstance(sku.get("plans"), list) else {}),
             }
             for sku in sidecar["skus"]
         ]

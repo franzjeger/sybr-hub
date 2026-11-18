@@ -92,7 +92,7 @@ def _routes(users: list[dict], policies: list[dict]) -> dict:
         "identity/conditionalAccess/policies": policies,
         "identity/conditionalAccess/namedLocations": [],
         "groups/group-mfa": {"id": "group-mfa", "displayName": "MFA-brukere", "groupTypes": []},
-        "groups/group-mfa/members": [{"id": "kari"}, {"id": "annemarie"}, {"id": "ola"}],
+        "groups/group-mfa/transitiveMembers": [{"id": "kari"}, {"id": "annemarie"}, {"id": "ola"}],
     }
     for u in users:
         routes[f"users/{u['id']}/authentication/methods"] = {"value": []}

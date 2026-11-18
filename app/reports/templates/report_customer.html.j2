@@ -669,6 +669,9 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <div class="num {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}">{{ mfa.pct | round(0) | int }}%</div>
     <div class="lbl">{{ t.mfa_coverage }}</div>
     <div class="pbar"><div class="pbar-fill {% if mfa.pct >= 95 %}green{% elif mfa.pct >= 80 %}orange{% else %}red{% endif %}" style="width:{{ mfa.pct }}%"></div></div>
+    {% if mfa.enforced_all_apps_pct is defined and mfa.enforced_all_apps_pct is not none %}
+    <div class="sublbl">{{ t.mfa_enforced_all_apps_note.format(n=mfa.enforced_all_apps, total=mfa.total, pct=mfa.enforced_all_apps_pct | round(0) | int) }}</div>
+    {% endif %}
     {% else %}
     <div class="num" style="color:#9ca3af;">{{ t.data_unavailable_short }}</div>
     <div class="lbl">{{ t.mfa_coverage }}</div>
@@ -698,7 +701,11 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   </div>
   {% if admin_roles %}
   <div class="metric-card">
+    {% if admin_roles.global_admin_unread %}
+    <div class="num" style="color:#9ca3af;">{{ t.data_unavailable_short }}</div>
+    {% else %}
     <div class="num {% if admin_roles.global_admin_count > 4 %}red{% elif admin_roles.global_admin_count > 2 %}orange{% else %}green{% endif %}">{{ admin_roles.global_admin_count }}</div>
+    {% endif %}
     <div class="lbl">{{ t.global_admins }}</div>
     <div class="sublbl">{{ t('n_role_assignments_total', count=admin_roles.total_assignments) }}</div>
   </div>
@@ -881,7 +888,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
   </div>
   <div class="finding-badge"><span class="badge warning">{{ t.recommended_action }}</span></div>
 </div>
-{% elif admin_roles and admin_roles.global_admin_count <= 4 %}
+{% elif admin_roles and admin_roles.global_admin_count <= 4 and not admin_roles.global_admin_unread %}
 <div class="finding ok">
   <div class="finding-body">
     <h4>{{ t('ga_ok_title', count=admin_roles.global_admin_count) }}</h4>
@@ -1156,7 +1163,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; max-width: 100%; }
     <h4>{{ t.admin_roles_label }}</h4>
     <div class="env-row"><span>{{ t.total_role_assignments }}</span><span>{{ admin_roles.total_assignments }}</span></div>
     <div class="env-row"><span>{{ t.unique_roles }}</span><span>{{ admin_roles.unique_roles }}</span></div>
-    <div class="env-row"><span>{{ t.global_admins_label }}</span><span style="{% if admin_roles.global_admin_count > 4 %}color:var(--red);{% endif %}">{{ admin_roles.global_admin_count }}</span></div>
+    <div class="env-row"><span>{{ t.global_admins_label }}</span>{% if admin_roles.global_admin_unread %}<span style="color:#9ca3af;">{{ t.data_unavailable }}</span>{% else %}<span style="{% if admin_roles.global_admin_count > 4 %}color:var(--red);{% endif %}">{{ admin_roles.global_admin_count }}</span>{% endif %}</div>
     <table class="email-table" style="margin-top:12px;">
       <tr><th>{{ t.role }}</th><th style="text-align:right;">{{ t.count }}</th></tr>
       {% for rs in admin_roles.role_summary %}

@@ -82,7 +82,7 @@ ROUTES = {
     "identity/conditionalAccess/policies": [MFA_POLICY],
     "identity/conditionalAccess/namedLocations": [],
     "groups/group-mfa": {"id": "group-mfa", "displayName": "MFA-brukere", "groupTypes": []},
-    "groups/group-mfa/members": [{"id": "kari"}, {"id": "breakglass"}],
+    "groups/group-mfa/transitiveMembers": [{"id": "kari"}, {"id": "breakglass"}],
 }
 
 

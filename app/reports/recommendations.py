@@ -33,7 +33,7 @@ from app.reports.parsers import (
 from app.reports.parsers.collaboration import _app_credential_counts
 from app.reports.parsers.common import _find_azure_files, _sidecar
 from app.reports.parsers.email import _external_forwarding_items
-from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.identity import _live_risky_users, _risky_users_from_text
 from app.reports.parsers.m365_backup import _parse_m365_backup
 from app.reports.parsers.network import NETWORK_AUDIT_FILES
 from app.reports.risk import _is_open_wlan
@@ -424,9 +424,6 @@ def _mfa_breakdown(audit: _Audit, high_risk_upns: set[str]) -> str:
     )
 
 
-_HANDLED_RISK_STATES = ("remediated", "dismissed", "confirmedsafe", "safe")
-
-
 def _risky_users(audit: _Audit) -> Iterator[dict]:
     text, t = audit.risky_users, audit.t
     users = _risky_users_from_sidecar(audit.fc)
@@ -463,8 +460,7 @@ def _users_at_risk(t: T, text: str, users: list[dict] | None = None) -> list[str
             level=_graph_word(t, "risk_value_", u["level"]),
             state=_graph_word(t, "risk_state_", u["state"]),
         )
-        for u in rows
-        if u["state"].lower().replace(" ", "") not in _HANDLED_RISK_STATES
+        for u in _live_risky_users(rows)
     ]
 
 

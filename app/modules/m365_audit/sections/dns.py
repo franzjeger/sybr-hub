@@ -48,7 +48,7 @@ def _classify_spf(record: str) -> str:
     return "PRESENT (no 'all' mechanism)"
 
 
-def _classify_dmarc(record: str) -> str:
+def _classify_dmarc(record: str, *, inherited: bool = False) -> str:
     """Classify a DMARC record by its *policy* tag.
 
     Substring matching read the subdomain policy as the domain policy: a
@@ -61,6 +61,12 @@ def _classify_dmarc(record: str) -> str:
         return "MISSING"
     m = re.search(r"(?:^|;)\s*p\s*=\s*([A-Za-z]+)", record)
     policy = (m.group(1) or "").lower() if m else ""
+    if inherited:
+        # A subdomain without its own record takes the parent's sp= tag, and
+        # the parent's p= only when there is no sp= (RFC 7489, 6.3).
+        sp = re.search(r"(?:^|;)\s*sp\s*=\s*([A-Za-z]+)", record)
+        if sp:
+            policy = sp.group(1).lower()
     if policy == "reject":
         return "OK (p=reject)"
     if policy == "quarantine":
@@ -121,6 +127,48 @@ async def _safe_query(
         return [], str(ex)
 
 
+def _spf_redirect(record: str) -> str:
+    """The redirect= target of an SPF record that has no "all" of its own."""
+    if not record or re.search(r"[-~+?]all\b", record):
+        return ""
+    m = re.search(r"(?:^|\s)redirect=(\S+)", record)
+    return m.group(1).rstrip(".") if m else ""
+
+
+async def _follow_spf_redirect(
+    client: httpx.AsyncClient, target: str, hops: int = 3
+) -> tuple[str, str | None]:
+    """(the record a redirect chain ends at, error). "" when it leads nowhere."""
+    record = ""
+    for _ in range(hops):
+        records, err = await _safe_query(client, target, "TXT")
+        if err:
+            return "", err
+        record = next((r for r in records if r.startswith("v=spf1")), "")
+        target = _spf_redirect(record)
+        if not target:
+            break
+    return record, None
+
+
+async def _inherited_dmarc(client: httpx.AsyncClient, domain: str) -> tuple[str, str, str | None]:
+    """(parent domain, its DMARC record, error) for a name with no record itself.
+
+    Walks up one label at a time and never asks a single-label name, so a
+    public suffix such as "no" or "com" is not queried.
+    """
+    labels = domain.strip(".").split(".")
+    for start in range(1, len(labels) - 1):
+        parent = ".".join(labels[start:])
+        records, err = await _safe_query(client, f"_dmarc.{parent}", "TXT")
+        if err:
+            return parent, "", err
+        record = next((r for r in records if r.startswith("v=DMARC1")), "")
+        if record:
+            return parent, record, None
+    return "", "", None
+
+
 async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
     """Return a dict of DNS check results for one domain.
 
@@ -142,6 +190,17 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
         spf_record = next((r for r in txt_records if r.startswith("v=spf1")), "")
         result["spf_record"] = spf_record or "(none)"
         result["spf_status"] = _classify_spf(spf_record)
+        # "v=spf1 redirect=_spf.example.com" has no "all" of its own: the
+        # policy is the target's. Reading it as "no all mechanism" failed a
+        # domain whose SPF is exactly as strict as the record it points to.
+        target = _spf_redirect(spf_record)
+        if target:
+            followed, err = await _follow_spf_redirect(client, target)
+            if err:
+                errors.append(f"SPF redirect lookup failed: {err}")
+                result["spf_status"] = f"ERROR ({err})"
+            elif followed:
+                result["spf_status"] = f"{_classify_spf(followed)} via redirect={target}"
 
     # DMARC
     dmarc_records, err = await _safe_query(client, f"_dmarc.{domain}", "TXT")
@@ -153,6 +212,21 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
         dmarc_record = next((r for r in dmarc_records if r.startswith("v=DMARC1")), "")
         result["dmarc_record"] = dmarc_record or "(none)"
         result["dmarc_status"] = _classify_dmarc(dmarc_record)
+        if not dmarc_record:
+            # No record of its own: a receiver then applies the organisational
+            # domain's. Stopping here reported every verified subdomain
+            # (mail.example.no) as unprotected under a parent with p=reject.
+            parent, parent_record, err = await _inherited_dmarc(client, domain)
+            if err:
+                errors.append(f"DMARC lookup failed: {err}")
+                result["dmarc_record"] = "(query failed)"
+                result["dmarc_status"] = f"ERROR ({err})"
+            elif parent_record:
+                result["dmarc_record"] = parent_record
+                result["dmarc_inherited_from"] = parent
+                result["dmarc_status"] = (
+                    f"{_classify_dmarc(parent_record, inherited=True)} inherited from {parent}"
+                )
 
     # DKIM — M365 + third-party selectors
     _third_party_selectors = ("google", "k1", "k2", "default", "dkim")
@@ -266,6 +340,8 @@ class DnsSection(BaseSection):
                         "spf_record": _published(r["spf_record"]),
                         "dmarc_status": r["dmarc_status"],
                         "dmarc_record": _published(r["dmarc_record"]),
+                        # The parent whose record applies, for a domain with none.
+                        "dmarc_inherited_from": r.get("dmarc_inherited_from"),
                         # Every selector the text shows, M365's two first.
                         "dkim": {
                             "selector1": r["dkim_selector1"],

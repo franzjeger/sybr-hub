@@ -187,11 +187,50 @@ def _unverified_details(host: str, port: int, timeout: float) -> dict | None:
         return None
 
 
+def _legacy_protocol_accepted(host: str, port: int, timeout: float) -> str:
+    """The TLS 1.0/1.1 version the endpoint accepts, or "" when it accepts neither.
+
+    The main handshake uses the default context, which negotiates the best
+    version both sides have and never offers anything below TLS 1.2, so what it
+    negotiates says nothing about whether the server still *accepts* an old
+    one. This asks that directly: a handshake capped at TLS 1.1, at the security
+    level a modern OpenSSL needs before it will offer those versions at all.
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
+        ctx.minimum_version = ssl.TLSVersion.TLSv1
+        ctx.maximum_version = ssl.TLSVersion.TLSv1_1
+    except (ValueError, OSError):
+        return ""  # this OpenSSL build cannot speak them, so it cannot ask
+    try:
+        with (
+            socket.create_connection((host, port), timeout=timeout) as raw,
+            ctx.wrap_socket(raw, server_hostname=host) as conn,
+        ):
+            return conn.version() or ""
+    except (OSError, ValueError):
+        return ""
+
+
 def _blocking_tls_check(host: str, port: int, timeout: float) -> dict:
-    """Perform a blocking TLS connection and return certificate details.
+    """Certificate details plus whether the endpoint still accepts TLS 1.0/1.1.
 
     Runs inside a thread executor so the event loop stays free.
     """
+    result = _certificate_check(host, port, timeout)
+    if not result.get("error"):
+        legacy = _legacy_protocol_accepted(host, port, timeout)
+        if legacy:
+            result["weak_protocol"] = True
+            result["legacy_protocol"] = legacy
+    return result
+
+
+def _certificate_check(host: str, port: int, timeout: float) -> dict:
+    """Perform a blocking TLS connection and return certificate details."""
     ctx = ssl.create_default_context()
 
     try:

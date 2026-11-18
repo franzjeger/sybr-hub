@@ -2274,6 +2274,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # Coverage counts a CA-enforced user as protected even with no method
     # registered. That is defensible and it is not what "MFA coverage" sounds
     # like, so the registration figure is named beside it.
+    "mfa_enforced_all_apps_note": {
+        "no": "MFA kreves ved all pålogging for {n} av {total} ({pct}%)",
+        "en": "MFA is required at every sign-in for {n} of {total} ({pct}%)",
+    },
     "mfa_registered_note": {
         "no": "{pct}% har registrert en MFA-metode, mens {n} dekkes kun av Conditional Access",
         "en": "{pct}% have registered an MFA method \u2014 {n} are covered by Conditional Access alone",

@@ -158,11 +158,32 @@ async def _audit_unifi_direct(customer_id: str, direct_devices: list[dict]) -> d
         ],
     )
 
+    reachable = sum(1 for d in device_results if d.get("ok"))
+    if device_results and not reachable:
+        # Nothing answered, so nothing was checked. Zero default passwords and
+        # zero outdated firmware would be a clean audit of devices nobody
+        # reached; the controller path already refuses to say that.
+        reasons = sorted({str(d.get("error") or "unreachable") for d in device_results})
+        return {
+            "mode": "direct",
+            "unavailable": True,
+            "error": (
+                f"None of the {len(device_results)} configured UniFi devices answered: "
+                + "; ".join(reasons)[:300]
+            ),
+            "device_count": len(device_results),
+            "devices": device_results,
+            "reachable": 0,
+            "default_creds_count": None,
+            "outdated_firmware_count": None,
+            "eol_count": None,
+        }
+
     return {
         "mode": "direct",
         "device_count": len(device_results),
         "devices": device_results,
-        "reachable": sum(1 for d in device_results if d.get("ok")),
+        "reachable": reachable,
         "default_creds_count": sum(1 for d in device_results if d.get("default_credentials")),
         "outdated_firmware_count": outdated_count,
         "eol_count": eol_count,

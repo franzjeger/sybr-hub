@@ -147,9 +147,11 @@ async def get_dashboard(config: dict, token: str) -> dict:
         if read_failed(perf) or not isinstance(perf, dict):
             cpu = mem = sessions = None
         else:
-            cpu = perf.get("cpu", perf.get("cpu-usage", 0))
-            mem = perf.get("memory", perf.get("mem-usage", 0))
-            sessions = perf.get("session", {}).get("total", 0)
+            # The same reading the fleet view makes. This used to hand the
+            # whole "cpu" object to the page as the percentage.
+            cpu, mem = _performance_percentages(perf)
+            session = perf.get("session")
+            sessions = session.get("total") if isinstance(session, dict) else None
 
         # HA mode — None when unread, not a defaulted "standalone".
         ha_mode = None
@@ -640,6 +642,14 @@ async def factory_bootstrap(
 # ── 7. CIS compliance checking ──────────────────────────────────────────────
 
 
+def _as_int(value) -> int | None:
+    """An integer setting as a number; None when absent or not one."""
+    try:
+        return None if value is None or isinstance(value, bool) else int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _single_object(value) -> dict:
     """The one config object a single-object cmdb read returns.
 
@@ -688,7 +698,15 @@ async def check_compliance(config: dict, token: str) -> dict:
     async with _build_client(config, token) as fg:
         admins = await fg.get_cmdb("system/admin")
         policies = await fg.get_cmdb("firewall/policy")
-        log_settings = await fg.get_cmdb("log/setting")
+        log_targets = {
+            label: await fg.get_cmdb(path)
+            for label, path in (
+                ("disk", "log.disk/setting"),
+                ("FortiAnalyzer", "log.fortianalyzer/setting"),
+                ("FortiCloud", "log.fortiguard/setting"),
+                ("syslog", "log.syslogd/setting"),
+            )
+        }
         ha_cfg = await fg.get_cmdb("system/ha")
         password_policy = await fg.get_cmdb("system/password-policy")
         global_settings = await fg.get_cmdb("system/global")
@@ -733,23 +751,27 @@ async def check_compliance(config: dict, token: str) -> dict:
             )
 
     # --- Rule 3: Logging enabled ---
-    if read_failed(log_settings):
-        _unknown("CIS-2.1", "Logging enabled", log_settings)
+    # "config log setting" has no on/off switch for a log target. Each target
+    # has its own block, and a firewall without a disk (most desktop models)
+    # logs to FortiAnalyzer, FortiCloud or syslog. Reading "log-disk" from
+    # log/setting found nothing on any firewall, so this warned every time.
+    targets = {name: _single_object(value) for name, value in log_targets.items()}
+    enabled_targets = [n for n, cfg in targets.items() if cfg.get("status") == "enable"]
+    unread = [n for n, value in log_targets.items() if read_failed(value)]
+    if enabled_targets:
+        log_status, log_detail = "pass", f"Logging enabled to: {', '.join(enabled_targets)}"
+    elif unread:
+        # Not every target answered, so "none enabled" was not established.
+        log_status = "unknown"
+        log_detail = f"Kunne ikke leses fra FortiGate: {', '.join(unread)}"
     else:
-        log_cfg = _single_object(log_settings)
-        log_disk = log_cfg.get("log-disk", log_cfg.get("status", "disable"))
-        findings.append(
-            {
-                "id": "CIS-2.1",
-                "title": "Logging enabled",
-                "status": "pass" if log_disk == "enable" else "warn",
-                "detail": (
-                    "Disk logging is enabled"
-                    if log_disk == "enable"
-                    else f"Disk logging status: {log_disk}"
-                ),
-            }
+        log_status, log_detail = (
+            "warn",
+            "No log target is enabled (disk, FortiAnalyzer, cloud, syslog)",
         )
+    findings.append(
+        {"id": "CIS-2.1", "title": "Logging enabled", "status": log_status, "detail": log_detail}
+    )
 
     # --- Rule 4: No allow-all firewall policies ---
     if read_failed(policies):
@@ -757,22 +779,8 @@ async def check_compliance(config: dict, token: str) -> dict:
     else:
         allow_all_count = 0
         for pol in policies:
-            src = pol.get("srcaddr", [])
-            dst = pol.get("dstaddr", [])
-            action = pol.get("action", "")
-            svc = pol.get("service", [])
-
-            src_all = (
-                any(a.get("name", "") == "all" for a in src) if isinstance(src, list) else False
-            )
-            dst_all = (
-                any(a.get("name", "") == "all" for a in dst) if isinstance(dst, list) else False
-            )
-            svc_all = (
-                any(s.get("name", "") == "ALL" for s in svc) if isinstance(svc, list) else False
-            )
-
-            if action == "accept" and src_all and dst_all and svc_all:
+            # Disabled policies pass no traffic; _is_allow_all leaves them out.
+            if _is_allow_all(pol):
                 allow_all_count += 1
                 findings.append(
                     {
@@ -822,18 +830,23 @@ async def check_compliance(config: dict, token: str) -> dict:
     else:
         pp = _single_object(password_policy)
         pp_status = pp.get("status", "disable")
-        min_len = pp.get("min-length", 0)
+        # FortiOS calls the field minimum-length. Only "min-length" was read,
+        # a key the firewall does not send, so the length was always 0 and an
+        # enabled 12-character policy failed. Both spellings are accepted.
+        min_len = _as_int(pp.get("minimum-length", pp.get("min-length")))
+        if pp_status != "enable":
+            pp_verdict, pp_detail = "fail", "Password policy is not enabled"
+        elif min_len is None:
+            # Enabled, and the length is not in the answer: not a failure.
+            pp_verdict = "unknown"
+            pp_detail = "Password policy enabled; the minimum length was not in the reply"
+        elif min_len >= 8:
+            pp_verdict, pp_detail = "pass", f"Password policy enabled, min length {min_len}"
+        else:
+            pp_verdict = "fail"
+            pp_detail = f"Password policy enabled, but min length is {min_len} (< 8)"
         findings.append(
-            {
-                "id": "CIS-5.1",
-                "title": "Password policy",
-                "status": "pass" if pp_status == "enable" and min_len >= 8 else "fail",
-                "detail": (
-                    f"Password policy enabled, min length {min_len}"
-                    if pp_status == "enable"
-                    else "Password policy is not enabled or minimum length < 8"
-                ),
-            }
+            {"id": "CIS-5.1", "title": "Password policy", "status": pp_verdict, "detail": pp_detail}
         )
 
     # --- Rule 7: Admin timeout (from global settings) ---
@@ -972,26 +985,7 @@ async def poll_all_fortigates(customer_ids: set[str] | None = None) -> list[dict
                             if secs > 0:
                                 uptime_str = format_uptime(secs)
 
-                cpu = None
-                mem = None
-                if isinstance(perf, dict):
-                    cpu_data = perf.get("cpu", {})
-                    if isinstance(cpu_data, dict):
-                        user = cpu_data.get("user", 0)
-                        system = cpu_data.get("system", 0)
-                        cpu = user + system if (user or system) else None
-                        if cpu is None and "cores" in cpu_data:
-                            cores = cpu_data["cores"]
-                            if isinstance(cores, list) and cores:
-                                cpu = round(
-                                    sum(100 - c.get("idle", 100) for c in cores) / len(cores), 1
-                                )
-                    mem_data = perf.get("mem", {})
-                    if isinstance(mem_data, dict):
-                        total = mem_data.get("total", 0)
-                        used = mem_data.get("used", 0)
-                        if total > 0:
-                            mem = round((used / total) * 100, 1)
+                cpu, mem = _performance_percentages(perf)
 
                 # A refused sub-read reports None, not 0 — the firewall is
                 # online (status read above), but "0 policies" would be a
@@ -1098,11 +1092,9 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
     policy_warns = []
     for p in policies if isinstance(policies, list) else []:
         pid = p.get("policyid", "?")
-        if p.get("action") == "accept":
-            src = [s.get("name", "") for s in p.get("srcaddr", [])]
-            dst = [d.get("name", "") for d in p.get("dstaddr", [])]
-            svc = [s.get("name", "") for s in p.get("service", [])]
-            if "all" in src and "all" in dst and "ALL" in svc:
+        # A disabled policy passes no traffic: neither warning applies to it.
+        if p.get("action") == "accept" and p.get("status") != "disable":
+            if _is_allow_all(p):
                 policy_warns.append(f"Policy {pid}: allow-all (src=all, dst=all, svc=ALL)")
             if p.get("logtraffic", "") == "disable":
                 policy_warns.append(f"Policy {pid}: logging disabled")
@@ -1153,6 +1145,56 @@ async def quick_audit_fortigate(config: dict, token: str) -> dict:
         "license": license_status if isinstance(license_status, dict) else {},
         "firmware_available": _firmware_available(firmware),
     }
+
+
+def _performance_percentages(perf) -> tuple[float | None, float | None]:
+    """(CPU %, memory %) from system/performance/status; None where not given.
+
+    One reading for the dashboard and the fleet view, which used to disagree.
+    A plain number under "cpu"/"memory" (older firmware) is taken as it is.
+    """
+    if not isinstance(perf, dict):
+        return None, None
+    cpu = mem = None
+    cpu_data = perf.get("cpu", perf.get("cpu-usage"))
+    if isinstance(cpu_data, dict):
+        user = cpu_data.get("user", 0)
+        system = cpu_data.get("system", 0)
+        cpu = user + system if (user or system) else None
+        cores = cpu_data.get("cores")
+        if cpu is None and isinstance(cores, list) and cores:
+            cpu = round(sum(100 - c.get("idle", 100) for c in cores) / len(cores), 1)
+    elif isinstance(cpu_data, int | float) and not isinstance(cpu_data, bool):
+        cpu = cpu_data
+    mem_data = perf.get("mem", perf.get("memory", perf.get("mem-usage")))
+    if isinstance(mem_data, dict):
+        total = mem_data.get("total", 0)
+        if total > 0:
+            mem = round((mem_data.get("used", 0) / total) * 100, 1)
+    elif isinstance(mem_data, int | float) and not isinstance(mem_data, bool):
+        mem = mem_data
+    return cpu, mem
+
+
+def _is_allow_all(policy: dict) -> bool:
+    """An enabled accept policy from any source to any destination on any service.
+
+    The one definition every check uses. There were three: compliance asked
+    for all of source, destination and service; the rule audit only for source
+    and destination; the quick audit for all three but on disabled rules too.
+    """
+    if policy.get("status") == "disable" or policy.get("action") != "accept":
+        return False
+
+    def names(key: str) -> set[str]:
+        value = policy.get(key)
+        return (
+            {e.get("name", "") for e in value if isinstance(e, dict)}
+            if isinstance(value, list)
+            else set()
+        )
+
+    return "all" in names("srcaddr") and "all" in names("dstaddr") and "ALL" in names("service")
 
 
 def _firmware_current(firmware) -> str:
@@ -1371,6 +1413,10 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
     enabled = 0
     disabled = 0
     unused = 0
+    # Whether any policy carried a hit counter at all. The configuration API
+    # does not return one, and "no counter" was read as "0 hits": every enabled
+    # rule was then reported as unused.
+    counters_seen = False
     issues: list[dict] = []
     score = 100
 
@@ -1378,7 +1424,6 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
         pid = pol.get("policyid", "?")
         name = pol.get("name", f"Policy {pid}")
         status = pol.get("status", "enable")
-        action = pol.get("action", "")
 
         if status == "disable":
             disabled += 1
@@ -1386,19 +1431,14 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
         enabled += 1
 
         # Check for any-any accept rules
-        src = pol.get("srcaddr", [])
-        dst = pol.get("dstaddr", [])
-        src_all = any(a.get("name", "") == "all" for a in src) if isinstance(src, list) else False
-        dst_all = any(a.get("name", "") == "all" for a in dst) if isinstance(dst, list) else False
-
-        if action == "accept" and src_all and dst_all:
+        if _is_allow_all(pol):
             issues.append(
                 {
                     "policy_id": pid,
                     "name": name,
                     "issue": "any_any",
                     "severity": "critical",
-                    "detail": "Source and destination are 'all' with action accept",
+                    "detail": "Source, destination and service are all 'all' with action accept",
                 }
             )
             score -= 20
@@ -1418,15 +1458,17 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
             score -= 5
 
         # Count rules with 0 hit count (informational only — counters reset on reboot)
-        hit_count = 0
-        if isinstance(pol.get("_hitcount"), int):
-            hit_count = pol["_hitcount"]
-        elif isinstance(pol.get("hit-count"), int):
-            hit_count = pol["hit-count"]
-        elif isinstance(pol.get("hitcount"), int):
-            hit_count = pol["hitcount"]
-
-        if hit_count == 0 and status != "disable":
+        hit_count = next(
+            (
+                pol[key]
+                for key in ("_hitcount", "hit-count", "hitcount")
+                if isinstance(pol.get(key), int)
+            ),
+            None,
+        )
+        if hit_count is not None:
+            counters_seen = True
+        if hit_count == 0:
             unused += 1
             # Don't flag as issue or deduct score — hit counters are unreliable
             # (reset on reboot, firmware upgrade, or may not be returned by API)
@@ -1455,6 +1497,7 @@ async def audit_firewall_rules(config: dict, token: str) -> dict:
         "enabled": enabled,
         "disabled": disabled,
         "issues": issues,
-        "unused_rules": unused,
+        # None: no policy came with a hit counter, so this was not measured.
+        "unused_rules": unused if counters_seen or not enabled else None,
         "score": score,
     }

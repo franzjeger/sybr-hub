@@ -67,7 +67,7 @@ from app.reports.parsers.email import (
     _third_party_dkim,
     _unverified_forwarding_count,
 )
-from app.reports.parsers.identity import _risky_users_from_text
+from app.reports.parsers.identity import _live_risky_users, _risky_users_from_text
 from app.reports.parsers.m365_backup import m365_backup_control
 
 # Names shown next to the ids, so the cross-reference columns are readable.
@@ -363,7 +363,7 @@ def _phishing_resistant_mfa(audit: _Audit) -> _Verdict:
 
 def _global_admins(audit: _Audit) -> _Verdict:
     admin, t = audit.admin_roles, audit.t
-    if not admin.get("has_data"):
+    if not admin.get("has_data") or admin.get("global_admin_unread"):
         return "info", audit.cannot_verify("cis_gap_admin_roles")
     ga = admin.get("global_admin_count", 0)
     if 2 <= ga <= 4:
@@ -1098,7 +1098,7 @@ def _defender_alerts(audit: _Audit) -> _Verdict:
 
 def _risky_user_rows(text: str) -> tuple[int, int]:
     """(rows, high- or medium-risk rows) in the "upn  risk-level  state" table."""
-    users = _risky_users_from_text(text)
+    users = _live_risky_users(_risky_users_from_text(text))
     return len(users), sum(1 for u in users if u["level"].lower() in ("high", "medium"))
 
 
@@ -1110,6 +1110,8 @@ def _risky_users(audit: _Audit) -> _Verdict:
     if users is None and _evidence_unavailable(text):
         return "info", audit.cannot_verify("cis_gap_risky_users")
     if users is not None:
+        # A remediated or dismissed user is on the list for the record only.
+        users = _live_risky_users(users)
         rows = len(users)
         high = sum(1 for u in users if u["level"].lower() in ("high", "medium"))
     else:
