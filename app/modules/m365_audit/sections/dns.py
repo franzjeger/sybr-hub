@@ -41,19 +41,20 @@ SPF_STATUSES = ("hardfail", "softfail", "neutral", "pass_all", "no_all", "missin
 DMARC_STATUSES = ("reject", "quarantine", "none", "unknown_policy", "missing")
 
 
+_SPF_VERSION = re.compile(r"^v=spf1(?:\s|$)", re.IGNORECASE)
+_SPF_ALL = re.compile(r"(?:^|\s)([+?~-]?)all(?=\s|$)", re.IGNORECASE)
+
+
 def _classify_spf(record: str) -> str:
-    """The SPF record's "all" qualifier, as one of SPF_STATUSES."""
+    """Report the first all mechanism. An omitted qualifier means pass."""
     if not record:
         return "missing"
-    if "~all" in record:
-        return "softfail"
-    if "-all" in record:
-        return "hardfail"
-    if "+all" in record:
-        return "pass_all"
-    if "?all" in record:
-        return "neutral"
-    return "no_all"
+    match = _SPF_ALL.search(record)
+    if not match:
+        return "no_all"
+    return {"": "pass_all", "+": "pass_all", "-": "hardfail", "~": "softfail", "?": "neutral"}[
+        match.group(1)
+    ]
 
 
 def _classify_dmarc(record: str, *, inherited: bool = False) -> str:
@@ -133,9 +134,9 @@ async def _safe_query(
 
 def _spf_redirect(record: str) -> str:
     """The redirect= target of an SPF record that has no "all" of its own."""
-    if not record or re.search(r"[-~+?]all\b", record):
+    if _SPF_ALL.search(record):
         return ""
-    m = re.search(r"(?:^|\s)redirect=(\S+)", record)
+    m = re.search(r"(?:^|\s)redirect=(\S+)", record, re.IGNORECASE)
     return m.group(1).rstrip(".") if m else ""
 
 
@@ -148,7 +149,7 @@ async def _follow_spf_redirect(
         records, err = await _safe_query(client, target, "TXT")
         if err:
             return "", err
-        record = next((r for r in records if r.startswith("v=spf1")), "")
+        record = next((r for r in records if _SPF_VERSION.match(r)), "")
         target = _spf_redirect(record)
         if not target:
             break
@@ -193,7 +194,7 @@ async def _check_domain(client: httpx.AsyncClient, domain: str) -> dict:
         result["spf_record"] = "(query failed)"
         result["spf_status"] = f"error ({err})"
     else:
-        spf_record = next((r for r in txt_records if r.startswith("v=spf1")), "")
+        spf_record = next((r for r in txt_records if _SPF_VERSION.match(r)), "")
         result["spf_record"] = spf_record or "(none)"
         result["spf_status"] = _classify_spf(spf_record)
         # "v=spf1 redirect=_spf.example.com" has no "all" of its own: the

@@ -97,3 +97,23 @@ async def test_no_record_anywhere_is_still_missing():
 
     assert result["dmarc_status"] == "missing"
     assert "dmarc_inherited_from" not in result
+
+
+async def test_redirect_hostname_cannot_supply_the_all_qualifier():
+    zone = {
+        ("acme.example", "TXT"): ["v=spf10 -all", "V=SPF1 REDIRECT=mail-all.example"],
+        ("mail-all.example", "TXT"): ["v=spf1 all"],
+    }
+    result, _ = await _check("acme.example", zone)
+    assert result["spf_status"] == "pass_all"
+    assert result["spf_redirect"] == "mail-all.example"
+
+
+async def test_first_all_mechanism_overrides_redirect_and_later_mechanisms():
+    zone = {
+        ("acme.example", "TXT"): ["v=spf1 redirect=mail.example ALL ~all"],
+        ("mail.example", "TXT"): ["v=spf1 -all"],
+    }
+    result, asked = await _check("acme.example", zone)
+    assert result["spf_status"] == "pass_all"
+    assert "mail.example" not in asked
