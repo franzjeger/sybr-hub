@@ -82,7 +82,7 @@ async def test_a_disabled_allow_all_policy_does_not_fail_the_firewall(firewall):
     quick = await fortigate_api.quick_audit_fortigate({}, "t")
 
     assert [f["status"] for f in _finding(compliance, "CIS-3.1")] == ["pass"]
-    assert quick["policy_warnings"] == []
+    assert quick["policy_findings"] == []
 
 
 async def test_an_enabled_allow_all_policy_still_does(firewall):
@@ -92,7 +92,7 @@ async def test_an_enabled_allow_all_policy_still_does(firewall):
     quick = await fortigate_api.quick_audit_fortigate({}, "t")
 
     assert [f["status"] for f in _finding(compliance, "CIS-3.1")] == ["fail"]
-    assert len(quick["policy_warnings"]) == 2, "allow-all, and logging disabled"
+    assert {f["kind"] for f in quick["policy_findings"]} == {"allow_all", "no_logging"}
 
 
 @pytest.mark.parametrize(

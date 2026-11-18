@@ -137,12 +137,16 @@ def _status(value, codes: tuple[str, ...], legacy: dict[str, str]) -> tuple[str,
 
 def spf_status(record: dict) -> tuple[str, str]:
     """The domain's SPF status: (one of SPF_STATUSES, an error's message)."""
-    return _status(record.get("spf"), SPF_STATUSES, _LEGACY_SPF)
+    value = str(record.get("spf") or "")
+    prefix = value.partition(" via redirect=")[0]
+    return _status(prefix if prefix in _LEGACY_SPF else value, SPF_STATUSES, _LEGACY_SPF)
 
 
 def dmarc_status(record: dict) -> tuple[str, str]:
     """The domain's DMARC status: (one of DMARC_STATUSES, an error's message)."""
-    return _status(record.get("dmarc"), DMARC_STATUSES, _LEGACY_DMARC)
+    value = str(record.get("dmarc") or "")
+    prefix = value.partition(" inherited from ")[0]
+    return _status(prefix if prefix in _LEGACY_DMARC else value, DMARC_STATUSES, _LEGACY_DMARC)
 
 
 def mta_sts_status(record: dict) -> tuple[str, str]:

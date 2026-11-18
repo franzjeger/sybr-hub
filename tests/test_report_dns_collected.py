@@ -490,3 +490,14 @@ def test_every_status_is_worded_in_both_languages():
                 dns_pill(record, "dmarc", t)["word"],
             ):
                 assert text and "_" not in text, (lang, code, text)
+
+
+def test_old_redirect_and_inheritance_statuses_keep_their_verdicts():
+    from app.reports.parsers.email import dmarc_status, spf_status
+
+    record = {
+        "spf": "OK (-all hardfail) via redirect=_spf.acme.example",
+        "dmarc": "WEAK (p=none) inherited from acme.example",
+    }
+    assert spf_status(record) == ("hardfail", "")
+    assert dmarc_status(record) == ("none", "")

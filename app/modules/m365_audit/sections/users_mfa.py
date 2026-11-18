@@ -860,8 +860,8 @@ class MFASection(BaseSection):
                     mfa_str, method_str = "?", "(lookup failed)"
                     unknown_users.append(upn)
                 else:
-                    # Every method is listed; only the ones that can answer an
-                    # MFA prompt make the user registered.
+                    # Keep temporary methods visible in the inventory while
+                    # measuring durable registrations for the coverage figure.
                     has_mfa = any(is_mfa_method(m) for m in methods)
                     mfa_str = "YES" if has_mfa else "NO"
                     method_str = ", ".join(methods) if methods else "(none)"
