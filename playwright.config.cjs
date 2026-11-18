@@ -1,9 +1,12 @@
+const {availableParallelism} = require('node:os');
 const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   forbidOnly: !!process.env.CI,
   testDir: './tests/browser',
   timeout: 30000,
   fullyParallel: false,
+  // All workers load assets and sign in against one disposable server.
+  workers: Math.min(4, Math.max(1, Math.floor(availableParallelism() / 2))),
   use: {
     baseURL: 'http://127.0.0.1:18099',
     headless: true,
