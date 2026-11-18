@@ -572,7 +572,12 @@ export async function runITGlueImport() {
 
     var msg = t('msg_customers_imported').replace('{count}', d.imported);
     if (d.skipped > 0) msg += ' ' + t('msg_customers_skipped').replace('{count}', d.skipped);
-    showToast(msg, 'success', 8000);
+    var failed = d.failed || [];
+    if (failed.length) {
+      msg += ' ' + t('msg_customers_import_failed', 'Not imported:') + ' '
+        + failed.map(function(f) { return f.name + ' (' + f.error + ')'; }).join(', ');
+    }
+    showToast(msg, failed.length ? 'warning' : 'success', failed.length ? 15000 : 8000);
 
     document.getElementById('itglue-import-modal').style.display = 'none';
     loadCustomers();

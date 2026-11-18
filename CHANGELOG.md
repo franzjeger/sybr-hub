@@ -59,6 +59,12 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
   svarer. Hvert kall har en frist på 30 sekunder, og en synk som fortsatt
   kjører ved neste tidspunkt meldes som feil.
 - Ingen planlagt jobb kan holde på lenger enn tre timer.
+### IT Glue-import godtar vanlige firmanavn
+
+- Kundenavn kan inneholde `/`, for eksempel «Acme A/S». Navnet er bare
+  visningstekst, og mapper og ID-er lages fortsatt av en renset versjon.
+- Når én organisasjon ikke kan importeres, fortsetter importen med resten og
+  sier hvilke som ikke ble importert, og hvorfor.
 
 ### Backup av Microsoft 365-data og Datto RMM
 
