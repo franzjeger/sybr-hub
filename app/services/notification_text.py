@@ -5,13 +5,23 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.config import load_app_settings
-from app.reports.i18n import T
+from app.reports.i18n import T, format_date
+
+
+def _hub_language(settings: dict[str, Any]) -> str:
+    lang = settings.get("ui_language", "no")
+    return lang if lang in ("no", "en") else "no"
 
 
 def notification_text(key: str, *, settings: dict[str, Any] | None = None, **params: object) -> str:
     settings = load_app_settings() if settings is None else settings
-    lang = settings.get("ui_language", "no")
-    return str(T(lang if lang in ("no", "en") else "no")(key, **params))
+    return str(T(_hub_language(settings))(key, **params))
+
+
+def notification_date(value: object, *, settings: dict[str, Any] | None = None) -> str:
+    """A day ("2026-10-08") in a notification, written as the Hub's language writes it."""
+    settings = load_app_settings() if settings is None else settings
+    return format_date(value, _hub_language(settings))
 
 
 def bulk_audit_message(summary: list[dict[str, Any]], total: int, parallel: int) -> str:

@@ -41,7 +41,8 @@ async def test_spf_redirect_is_judged_by_its_target():
 
     result, _ = await _check("acme.example", zone)
 
-    assert result["spf_status"] == "OK (-all hardfail) via redirect=_spf.acme.example"
+    assert result["spf_status"] == "hardfail"
+    assert result["spf_redirect"] == "_spf.acme.example"
     assert result["spf_record"] == "v=spf1 redirect=_spf.acme.example", "what is published"
 
 
@@ -50,7 +51,7 @@ async def test_spf_redirect_to_nothing_stays_a_finding():
 
     result, _ = await _check("acme.example", zone)
 
-    assert result["spf_status"] == "PRESENT (no 'all' mechanism)"
+    assert result["spf_status"] == "no_all"
 
 
 async def test_a_subdomain_inherits_the_parent_dmarc_policy():
@@ -58,7 +59,7 @@ async def test_a_subdomain_inherits_the_parent_dmarc_policy():
 
     result, asked = await _check("mail.sales.acme.example", zone)
 
-    assert result["dmarc_status"] == "OK (p=reject) inherited from acme.example"
+    assert result["dmarc_status"] == "reject"
     assert result["dmarc_inherited_from"] == "acme.example"
     assert "_dmarc.example" not in asked, "a public suffix is never asked"
 
@@ -67,8 +68,8 @@ async def test_a_subdomain_inherits_the_parent_dmarc_policy():
     ("parent_record", "status"),
     [
         # sp= is the policy for subdomains; p= applies only without it.
-        ("v=DMARC1; p=reject; sp=none", "WEAK (p=none) inherited from acme.example"),
-        ("v=DMARC1; p=none; sp=reject", "OK (p=reject) inherited from acme.example"),
+        ("v=DMARC1; p=reject; sp=none", "none"),
+        ("v=DMARC1; p=none; sp=reject", "reject"),
     ],
 )
 async def test_the_inherited_policy_is_the_parents_sp_tag(parent_record, status):
@@ -87,12 +88,12 @@ async def test_a_domain_with_its_own_record_does_not_look_further():
 
     result, asked = await _check("mail.acme.example", zone)
 
-    assert result["dmarc_status"] == "WEAK (p=none)"
+    assert result["dmarc_status"] == "none"
     assert "_dmarc.acme.example" not in asked
 
 
 async def test_no_record_anywhere_is_still_missing():
     result, _ = await _check("mail.acme.example", {})
 
-    assert result["dmarc_status"] == "MISSING"
+    assert result["dmarc_status"] == "missing"
     assert "dmarc_inherited_from" not in result

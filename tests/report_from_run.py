@@ -14,7 +14,7 @@ from app.core.encryption import encrypted_read_text, encrypted_write_text
 from app.reports.generator import build_report_context
 
 
-def report(out_dir: Path, *, sidecars: bool = True) -> dict:
+def report(out_dir: Path, *, sidecars: bool = True, lang: str = "en") -> dict:
     """The report context for the run in out_dir, built as a reader builds it.
 
     sidecars=False deletes the run's .json sidecars first, which is what a run
@@ -24,7 +24,7 @@ def report(out_dir: Path, *, sidecars: bool = True) -> dict:
         for path in out_dir.glob("*.json"):
             path.unlink()
     return build_report_context(
-        "Acme AS", "acme.example", out_dir, [], lang="en", persist_metrics=False
+        "Acme AS", "acme.example", out_dir, [], lang=lang, persist_metrics=False
     )
 
 

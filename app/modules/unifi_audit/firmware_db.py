@@ -57,7 +57,11 @@ LAST_UPDATED = "2026-10-04"
 # is badly out of date.
 FRESHNESS_DAYS = 180
 
-SOURCE = "unifi-firmware-db (manuell tabell)"
+# Where a verdict came from, as a code in the "kind:name" form the pentest
+# findings use (app/modules/pentest/finding.py): this hand-kept table. It
+# said so in Norwegian, which reached every English reader of the API and
+# of a run's 61_unifi_audit.txt.
+SOURCE = "manual-table:unifi-firmware-db"
 
 # Why check_firmware could not give a verdict (its "reason").
 REASONS = ("model_unknown", "version_unparsed", "table_stale")

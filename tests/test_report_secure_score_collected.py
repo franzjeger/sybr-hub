@@ -261,7 +261,7 @@ async def test_the_methods_policy_reads_the_same_from_either_file(tmp_path, side
     status, detail, lockout = _policy_verdicts(files)
 
     assert status == "pass"
-    assert detail.endswith("fido2"), "x509Certificate is disabled"
+    assert detail.endswith("FIDO2-sikkerhetsnøkkel"), "x509Certificate is disabled"
     assert lockout is not None
     assert lockout["sub_items"] == ["Ola Nordmann (ola@acme.example)"]
 

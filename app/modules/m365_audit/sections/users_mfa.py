@@ -13,18 +13,22 @@ from app.modules.m365_audit.signin import latest_signin
 
 logger = logging.getLogger(__name__)
 
-# Friendly labels for @odata.type values
-_METHOD_LABELS: dict[str, str] = {
-    "#microsoft.graph.phoneAuthenticationMethod": "Phone (SMS/Call)",
-    "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod": "Authenticator App",
-    "#microsoft.graph.fido2AuthenticationMethod": "FIDO2 Key",
-    "#microsoft.graph.windowsHelloForBusinessAuthenticationMethod": "Windows Hello",
-    "#microsoft.graph.emailAuthenticationMethod": "Email OTP",
-    "#microsoft.graph.temporaryAccessPassAuthenticationMethod": "Temp Access Pass",
-    "#microsoft.graph.softwareOathAuthenticationMethod": "OATH TOTP",
-    "#microsoft.graph.x509CertificateAuthenticationMethod": "Certificate",
-    "#microsoft.graph.passwordAuthenticationMethod": "Password",
-}
+# The MFA methods a user can register, each as the code its Graph type gives
+# ("#microsoft.graph.fido2AuthenticationMethod" is "fido2"). The report words
+# them, and the lockout check matches them against the authentication methods
+# policy. They were English labels ("Authenticator App", "Phone (SMS/Call)")
+# that a Norwegian report printed as they stood. A type Graph adds later gets
+# its code the same way.
+MFA_METHODS = (
+    "microsoftAuthenticator",
+    "phone",
+    "fido2",
+    "windowsHelloForBusiness",
+    "email",
+    "temporaryAccessPass",
+    "softwareOath",
+    "x509Certificate",
+)
 
 
 # Graph $select for the users collection. signInActivity is licensed
@@ -39,27 +43,16 @@ _USER_SELECT_BASIC = (
 _USER_SELECT_WITH_SIGNIN = f"{_USER_SELECT_BASIC},signInActivity"
 
 
-# Registered authentication methods that cannot answer an MFA prompt at sign-in.
-# The e-mail method is for self-service password reset only, and a Temporary
-# Access Pass is a time-limited code for getting a real method registered. A
-# user holding nothing else has no MFA, however many rows Graph returns.
-_NOT_MFA_METHODS = frozenset(
-    {
-        "#microsoft.graph.passwordAuthenticationMethod",
-        "#microsoft.graph.emailAuthenticationMethod",
-        "#microsoft.graph.temporaryAccessPassAuthenticationMethod",
-    }
-)
-_NOT_MFA_LABELS = frozenset(_METHOD_LABELS[t] for t in _NOT_MFA_METHODS)
+def _method_code(odata_type: str) -> str:
+    """A method's code: its Graph type without the namespace and the suffix."""
+    name = odata_type.rsplit(".", 1)[-1]
+    return name.removesuffix("AuthenticationMethod") or name
 
 
 def is_mfa_method(odata_type: str) -> bool:
-    """Whether a registered authentication method can satisfy an MFA prompt."""
-    return bool(odata_type) and odata_type not in _NOT_MFA_METHODS
-
-
-def _method_label(odata_type: str) -> str:
-    return _METHOD_LABELS.get(odata_type, odata_type.split(".")[-1])
+    """Whether the captured method is a durable MFA registration."""
+    code = _method_code(odata_type)
+    return bool(code) and code not in {"password", "email", "temporaryAccessPass"}
 
 
 class UsersSection(BaseSection):
@@ -425,7 +418,7 @@ class MFASection(BaseSection):
                 return None
             methods = data.get("value", [])
             return [
-                _method_label(m.get("@odata.type", ""))
+                _method_code(m.get("@odata.type", ""))
                 for m in methods
                 if m.get("@odata.type") != "#microsoft.graph.passwordAuthenticationMethod"
             ]
@@ -869,7 +862,7 @@ class MFASection(BaseSection):
                 else:
                     # Every method is listed; only the ones that can answer an
                     # MFA prompt make the user registered.
-                    has_mfa = any(m not in _NOT_MFA_LABELS for m in methods)
+                    has_mfa = any(is_mfa_method(m) for m in methods)
                     mfa_str = "YES" if has_mfa else "NO"
                     method_str = ", ".join(methods) if methods else "(none)"
                     if not has_mfa:

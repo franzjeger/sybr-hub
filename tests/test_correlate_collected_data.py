@@ -13,6 +13,8 @@ badge over complete data.
 
 from __future__ import annotations
 
+import json
+
 from app.core.encryption import encrypted_read_text
 from app.modules.base import SectionStatus
 from app.modules.m365_audit.sections.exchange import ExchangeSection
@@ -59,6 +61,12 @@ def _out(tmp_path):
     return encrypted_read_text(tmp_path / "07c_emergency_access_check.txt")
 
 
+def _notes(tmp_path) -> list[str]:
+    """The first admin's notes, as the codes the report words (TODO C15)."""
+    sidecar = json.loads(encrypted_read_text(tmp_path / "07c_emergency_access_check.json"))
+    return sidecar["admins"][0]["notes"]
+
+
 async def test_an_excluded_admin_is_confirmed_not_unknown(tmp_path):
     sec = _bg(
         tmp_path,
@@ -72,8 +80,8 @@ async def test_an_excluded_admin_is_confirmed_not_unknown(tmp_path):
     out = _out(tmp_path)
     assert "sybr_admin@acme.no" in out, "the GUID should be resolved to a UPN"
     assert "admin-guid" not in out, "the raw GUID should not be shown when a UPN exists"
-    assert "confirmed break-glass candidate" in out
-    assert "cannot confirm" not in out, "we had the exclusion data — do not say unknown"
+    assert _notes(tmp_path) == ["ca_excluded"]
+    assert "ca_unknown" not in out, "we had the exclusion data — do not say unknown"
 
 
 async def test_a_non_excluded_admin_reads_no_when_ca_was_collected(tmp_path):
@@ -90,7 +98,7 @@ async def test_a_non_excluded_admin_reads_no_when_ca_was_collected(tmp_path):
     await sec._collect_break_glass()
     out = _out(tmp_path)
     assert "ok@acme.no" in out
-    assert "cannot confirm" not in out
+    assert _notes(tmp_path) == []
 
 
 async def test_no_ca_policies_collected_still_says_cannot_confirm(tmp_path):
@@ -103,7 +111,8 @@ async def test_no_ca_policies_collected_still_says_cannot_confirm(tmp_path):
         methods={"a1": _APP_METHOD},
     )
     await sec._collect_break_glass()
-    assert "cannot confirm" in _out(tmp_path)
+    assert _notes(tmp_path) == ["ca_unknown"]
+    assert "ca_unknown" in _out(tmp_path)
 
 
 async def test_summary_line_counts_only_ca_excluded_candidates(tmp_path):
@@ -154,8 +163,8 @@ async def test_an_actively_used_excluded_admin_is_not_a_break_glass_candidate(tm
     assert "break_glass_candidates=0" in out, (
         "a recently-used excluded admin is a risk, not a break-glass account"
     )
-    assert "actively-used admin bypassing MFA" in out
-    assert "confirmed break-glass candidate" not in out
+    assert _notes(tmp_path) == ["ca_excluded_in_use"]
+    assert "ca_excluded_in_use" in out
 
 
 async def test_a_rarely_used_excluded_admin_still_counts(tmp_path):
@@ -173,7 +182,7 @@ async def test_a_rarely_used_excluded_admin_still_counts(tmp_path):
     await sec._collect_break_glass()
     out = _out(tmp_path)
     assert "break_glass_candidates=1" in out
-    assert "confirmed break-glass candidate" in out
+    assert _notes(tmp_path) == ["ca_excluded"]
 
 
 async def test_an_excluded_admin_with_no_sign_in_data_still_counts(tmp_path):
@@ -191,7 +200,7 @@ async def test_an_excluded_admin_with_no_sign_in_data_still_counts(tmp_path):
     await sec._collect_break_glass()
     out = _out(tmp_path)
     assert "break_glass_candidates=1" in out
-    assert "confirmed break-glass candidate" in out
+    assert _notes(tmp_path) == ["ca_excluded"]
 
 
 async def test_ca_known_is_false_when_the_mfa_analysis_never_ran(tmp_path):
@@ -210,7 +219,7 @@ async def test_ca_known_is_false_when_the_mfa_analysis_never_ran(tmp_path):
     )
     await sec._collect_break_glass()
     out = _out(tmp_path)
-    assert "cannot confirm" in out, "an uncomputed exclusion set is unknown, not clean"
+    assert _notes(tmp_path) == ["ca_unknown"], "an uncomputed exclusion set is unknown, not clean"
     assert "ca_exclusions_known=no" in out
 
 

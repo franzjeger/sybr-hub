@@ -76,8 +76,8 @@ async def test_only_methods_that_can_answer_an_mfa_prompt_count(tmp_path, sideca
     assert mfa["mfa_registered"] == 2, "the authenticator app and the phone"
     assert mfa["no_mfa_registered"] == 2, "e-mail only, and Temporary Access Pass only"
     # What they do have is still shown to the technician.
-    assert "Email OTP" in files["04_mfa_methods.txt"]
-    assert "Temp Access Pass" in files["04_mfa_methods.txt"]
+    assert "email" in files["04_mfa_methods.txt"]
+    assert "temporaryAccessPass" in files["04_mfa_methods.txt"]
 
 
 async def test_a_global_admin_with_only_an_email_method_has_no_mfa(tmp_path):

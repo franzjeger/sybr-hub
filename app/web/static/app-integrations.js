@@ -1,6 +1,6 @@
 import {navLoadCustomers as loadCustomers} from './app-navigation.js';
 
-import {_taskSchedLabel} from './app-format.js';
+import {_taskSchedLabel, formatDateTime, formatRunName} from './app-format.js';
 import {integrationSetField} from './app-forms.js';
 import {esc} from './app-esc.js';
 import {_lang, t} from './app-i18n.js';
@@ -434,7 +434,7 @@ async function uniwebPollStatus() {
 
     if (btn) { btn.disabled = false; btn.textContent = t('integ_sync','Synkroniser'); }
     if (d.last_sync) {
-      document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + new Date(d.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO');
+      document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + formatDateTime(d.last_sync);
     }
     uniwebLoadAccounts();
   }
@@ -610,7 +610,7 @@ async function uniwebShowDetail(accountId) {
     html += '</tbody></table>';
   }
 
-  html += '<div class="text-2xs text-dim mt-3">Sist synkronisert: ' + (d.last_sync ? new Date(d.last_sync).toLocaleString('nb-NO') : '-') + '</div>';
+  html += '<div class="text-2xs text-dim mt-3">' + t('lbl_last_synced','Last synced') + ': ' + esc(formatDateTime(d.last_sync) || '-') + '</div>';
   html += '</div></div>';
 
   document.body.insertAdjacentHTML('beforeend', html);
@@ -862,10 +862,10 @@ function taskSchedRender(tasks) {
     var label = lang === 'en' ? task.label_en : task.label_no;
 
     // Format last run
-    var lastRun = task.last_run ? new Date(task.last_run).toLocaleString('nb-NO') : '-';
+    var lastRun = formatDateTime(task.last_run) || '-';
 
     // Format next run
-    var nextRun = task.next_run ? new Date(task.next_run).toLocaleString('nb-NO') : '-';
+    var nextRun = formatDateTime(task.next_run) || '-';
 
     // Status indicator
     var statusHtml;
@@ -886,8 +886,8 @@ function taskSchedRender(tasks) {
     html += '<tr>';
     html += '<td class="fw-medium">' + esc(label) + '</td>';
     html += '<td class="font-mono text-xs text-muted">' + schedHtml + '</td>';
-    html += '<td class="text-center text-xs">' + lastRun + '</td>';
-    html += '<td class="text-center text-xs">' + nextRun + '</td>';
+    html += '<td class="text-center text-xs">' + esc(lastRun) + '</td>';
+    html += '<td class="text-center text-xs">' + esc(nextRun) + '</td>';
     html += '<td class="text-center">' + statusHtml + '</td>';
     html += '<td class="text-center">';
     html += '<label class="switch inline-block align-middle">';
@@ -1047,13 +1047,17 @@ async function _alertDoSave() {
 
 // An alert's detail in the reader's language. The server sends the key and
 // the values the sentence is built from; an entry written before alerts had
-// keys (or a pentest finding's own text) has only its sentence.
+// keys (or a pentest finding's own text) has only its sentence. The values
+// that are days come as ISO dates and are written as the reader writes a
+// date (DATE_PARAMS in alert_engine.py, which does the same for the e-mail).
+var _ALERT_DATE_PARAMS = {date: true, since: true};
 export function alertDetail(a) {
   var out = a && a.detail_key ? t(a.detail_key, '') : '';
   if (!out) return (a && a.detail) || '';
   var params = a.detail_params || {};
   Object.keys(params).forEach(function(k) {
-    out = out.split('{' + k + '}').join(String(params[k]));
+    var value = _ALERT_DATE_PARAMS[k] ? formatRunName(params[k]) : String(params[k]);
+    out = out.split('{' + k + '}').join(value);
   });
   return out;
 }
@@ -1124,7 +1128,7 @@ async function alertLoadHistory() {
   d.entries.forEach(function(h) {
     var color = h.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
     var sevLabel = h.severity === 'critical' ? t('lbl_critical','Kritisk') : t('lbl_warning_sev','Advarsel');
-    var timeStr = h.sent_at ? new Date(h.sent_at).toLocaleString('nb-NO') : '';
+    var timeStr = formatDateTime(h.sent_at);
     html += '<tr>';
     html += '<td class="font-mono text-2xs">' + esc(timeStr) + '</td>';
     html += '<td class="' + toneClass(color) + ' fw-semibold">' + sevLabel + '</td>';
@@ -1152,7 +1156,7 @@ async function uniwebCheckStatus() {
       if (passField && settings.uniweb_password_set) integrationSetField(passField.id, '••••••');
     }
     if (d.last_sync) {
-      document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + new Date(d.last_sync).toLocaleString(_lang === 'en' ? 'en-GB' : 'nb-NO');
+      document.getElementById('uniweb-last-sync').textContent = t('lbl_last_synced','Last synced') + ': ' + formatDateTime(d.last_sync);
     }
     uniwebLoadAccounts();
   }
@@ -1409,7 +1413,7 @@ async function _loadIntegrationCards() {
       var gdapAge = Date.now() - Date.parse(d.gdap_validated_at || '');
       _integPaint('gdap', Number.isFinite(gdapAge) ? (gdapAge < 86400000 ? 'verified' : 'stale') : 'configured',
         t(Number.isFinite(gdapAge) ? (gdapAge < 86400000 ? 'integ_state_verified' : 'integ_state_stale') : 'integ_state_configured')
-        + (d.gdap_validated_at ? ' · ' + t('integ_last_check') + ': ' + new Date(d.gdap_validated_at).toLocaleString() : ''));
+        + (d.gdap_validated_at ? ' · ' + t('integ_last_check') + ': ' + formatDateTime(d.gdap_validated_at) : ''));
     }
     _countInteg(!!(d.gdap_configured && d.gdap_validated !== false));
     if (d.gdap_configured) {
@@ -1428,7 +1432,7 @@ async function _loadIntegrationCards() {
       var prefix = _INTEG_HEALTH_PREFIX[entry[0]] || entry[0];
       var health = entry[1];
       var label = health.state === 'off' ? t('status_not_configured') : t('integ_state_' + health.state);
-      if (health.checked_at) label += ' · ' + t('integ_last_check') + ': ' + new Date(health.checked_at).toLocaleString();
+      if (health.checked_at) label += ' · ' + t('integ_last_check') + ': ' + formatDateTime(health.checked_at);
       _integPaint(prefix, health.state, label);
     });
 

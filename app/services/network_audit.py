@@ -10,6 +10,16 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# Why a direct device could not be read, as a code the report words: the two
+# failures the device client names itself, and no answer at all. An
+# exception's own message is kept as it is. These were English phrases ("SSH
+# timeout", "Connection failed") a Norwegian report showed as the status.
+DEVICE_READ_ERRORS = ("ssh_timeout", "sshpass_missing", "connection_failed")
+_CLIENT_ERRORS = {
+    "SSH timeout": "ssh_timeout",
+    "sshpass not installed — run: brew install hudochenkov/sshpass/sshpass": "sshpass_missing",
+}
+
 
 async def run_quick_network_audit(customer_config: dict, customer_id: str) -> dict:
     """Run a quick audit of FortiGate and/or UniFi for the given customer.
@@ -115,9 +125,8 @@ async def _audit_unifi_direct(customer_id: str, direct_devices: list[dict]) -> d
                     base["ssh_error"] = ssh_info["error"]
 
                 if not base["ok"]:
-                    base["error"] = ssh_info.get(
-                        "error", http_info.get("error", "Connection failed")
-                    )
+                    error = str(ssh_info.get("error") or http_info.get("error") or "")
+                    base["error"] = _CLIENT_ERRORS.get(error, error) or "connection_failed"
         except Exception as e:
             base["error"] = str(e)
         return base

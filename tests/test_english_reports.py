@@ -28,7 +28,7 @@ from app.reports.i18n import T
 from app.reports.recommendations import _build_recommendations
 from tests import compliance_characterisation as cc
 from tests import recommendations_characterisation as rc
-from tests.audit_fixture import BROKEN_AUDIT, FULL_AUDIT
+from tests.audit_fixture import BROKEN_AUDIT, FULL_AUDIT, OLD_AUDIT
 
 TEMPLATES = ("report_customer.html.j2", "report_tech.html.j2")
 
@@ -109,6 +109,7 @@ def _direct_unifi_and_unreadable_fortigate() -> dict[str, str]:
 FIXTURES = {
     "healthy tenant": FULL_AUDIT,
     "tenant with every finding": BROKEN_AUDIT,
+    "a run from before the codes": OLD_AUDIT,
     "direct UniFi, unreadable FortiGate": _direct_unifi_and_unreadable_fortigate(),
     "every section refused": _every_file_refused(),
     "nothing collected": {},

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.reports.evidence import _evidence_unavailable
-from app.reports.parsers.common import _first_prose_line
+from app.reports.parsers.common import _first_prose_line, unavailable_cause
 
 
 def _parse_entra_devices(count_text: str, detail_text: str, sidecar: dict | None = None) -> dict:
@@ -71,6 +71,7 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
         "compliance_pct": 0.0,
         "devices": [],
         "unavailable": False,
+        "unavailable_cause": None,
         "unavailable_reason": "",
     }
 
@@ -107,6 +108,11 @@ def _parse_intune_devices(count_text: str, detail_text: str, sidecar: dict | Non
     # the same empty file, and the report printed the same sentence for both.
     if _evidence_unavailable(detail_text) and _evidence_unavailable(count_text):
         result["unavailable"] = True
+        # The cause as a code the report words; the collector's first
+        # sentence, as it stands, for a file that names none it knows.
+        result["unavailable_cause"] = unavailable_cause(detail_text) or unavailable_cause(
+            count_text
+        )
         result["unavailable_reason"] = _first_prose_line(detail_text) or _first_prose_line(
             count_text
         )

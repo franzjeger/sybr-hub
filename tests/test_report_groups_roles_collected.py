@@ -70,7 +70,8 @@ async def test_ordinary_groups_read_the_same_from_either_file(tmp_path, sidecars
     groups = _parse_groups(files["06_groups.txt"], sidecar)
 
     assert groups["total"] == 4
-    assert groups["by_type"] == {"Microsoft 365": 1, "Dynamic": 1, "Security": 2}
+    # Codes, which the report words (TODO C15).
+    assert groups["by_type"] == {"m365": 1, "dynamic": 1, "security": 2}
     assert groups["empty_groups"] == 1, "a count that failed is not an empty group"
     assert groups["dynamic_groups"] == 1
     by_name = {g["name"]: g for g in groups["groups"]}
@@ -88,7 +89,7 @@ async def test_a_group_name_longer_than_its_column_is_still_a_group(tmp_path):
     by_name = {g["name"]: g for g in groups["groups"]}
     assert by_name[LONG_GROUP] == {
         "name": LONG_GROUP,
-        "type": "Security",
+        "type": "security",
         "members": 12,
         "members_known": True,
     }
@@ -103,7 +104,7 @@ async def test_the_text_alone_still_counts_a_group_whose_name_fills_its_column(t
 
     assert groups["total"] == 5
     by_name = {g["name"]: g for g in groups["groups"]}
-    assert by_name[LONG_GROUP[:50]]["type"] == "Security"
+    assert by_name[LONG_GROUP[:50]]["type"] == "security"
     assert by_name[LONG_GROUP[:50]]["members"] == 12
 
 
@@ -305,3 +306,53 @@ async def test_it_is_flagged_on_a_run_whose_roles_predate_their_sidecar(tmp_path
 
     assert rec is not None, "the cut UPN must still match the whole one"
     assert LONG_UPN in rec["sub_items"][0]
+
+
+# ── A group's kind is a code, worded by the report ────────────────────────────
+#
+# The collector wrote English labels ("Security", "Other") that the customer
+# report used as its own row headings, and the customer report counted
+# Microsoft 365 groups under a label no collector wrote, so it said 0 for
+# every tenant (TODO C15).
+
+
+@pytest.mark.parametrize(
+    ("lang", "words"),
+    [
+        ("no", {"Microsoft 365", "Dynamisk", "Sikkerhet"}),
+        ("en", {"Microsoft 365", "Dynamic", "Security"}),
+    ],
+)
+async def test_the_customer_report_words_each_kind_and_counts_microsoft_365(tmp_path, lang, words):
+    import re
+
+    from app.reports.generator import _jinja_env, build_report_context
+    from app.reports.i18n import T
+
+    run = tmp_path / "Acme_AS" / "2026-10-03_0900"
+    run.mkdir(parents=True)
+    await _collect_groups(run, ORDINARY_GROUPS, sidecars=True)
+    ctx = build_report_context("Acme AS", "acme.example", run, [], lang=lang, persist_metrics=False)
+    ctx.update(t=T(lang), lang=lang, theme="light")
+    page = _jinja_env().get_template("report_customer.html.j2").render(**ctx)
+
+    rows = dict(
+        re.findall(r'<div class="env-row"><span>([^<]*)</span><span>(\d+)</span></div>', page)
+    )
+    assert words <= set(rows), rows
+    assert "security" not in rows and "m365" not in rows
+    assert re.search(
+        re.escape(str(T(lang).m365_groups_incl_teams)) + r"</span>\s*<span>1</span>", page
+    ), "one Microsoft 365 group"
+
+
+@pytest.mark.parametrize("label", ["Security", "Microsoft 365", "Something new"])
+def test_an_old_runs_labels_read_back_to_codes_and_an_unknown_one_is_kept(label):
+    from app.reports.i18n import T
+    from app.reports.parsers.identity import group_type_text
+
+    line = f"  {'Acme Gruppe':<50} {label:<16} {'3':>8}"
+    groups = _parse_groups(f"{line}\n")
+    (group,) = groups["groups"]
+    expected = {"Security": "Sikkerhet", "Microsoft 365": "Microsoft 365"}.get(label, label)
+    assert group_type_text(group["type"], T("no")) == expected

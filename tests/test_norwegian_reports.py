@@ -8,11 +8,16 @@ or MEDIUM, every CIS control was titled in English, and a template asked for
 two keys that did not exist and printed their names.
 
 Same method: both templates are rendered in Norwegian from the audit
-fixtures and every text node is scanned for English words. What the run's
-own files say is data and stays as written: a node that is a piece of a file
-is left out, and so is a value the report took from a file and set into a
-sentence of its own (a line or a cell of a collector's table, the value after
-a "Key : " label, a JSON string). Nothing else is.
+fixtures and every text node is scanned for English words. What the tenant
+said in the run's files is data and stays as written: a node that is a piece
+of a file is left out, and so is a value the report took from a file and set
+into a sentence of its own (a line or a cell of a collector's table, the
+value after a "Key : " label, a JSON string). What the collector wrote there
+in its own words is not data (tests/collector_words.py reads those words out
+of the collectors' source, and lists what they wrote before they stored
+codes): "Admins and Guest Inviters" and "Policy 12: allow-all" passed as the
+tenant's words until the collectors stored codes and the report worded them
+(TODO C15). A whole file shown as itself, the raw-data appendix's, stays data.
 """
 
 from __future__ import annotations
@@ -26,7 +31,8 @@ import pytest
 
 from app.reports.compliance import _ISO_NAMES, _NIST_NAMES
 from app.reports.generator import _jinja_env, build_report_context
-from app.reports.i18n import TRANSLATIONS, T
+from app.reports.i18n import _SECTION_NAMES, TRANSLATIONS, T
+from tests.collector_words import written_by_a_collector
 from tests.test_english_reports import FIXTURES, TEMPLATES, _is_data, _text_nodes
 
 _TEMPLATE_DIR = Path("app/reports/templates")
@@ -44,7 +50,13 @@ _ENGLISH = re.compile(
     r"sign-ins?|risky|alerts?|rules?|groups?|members?|owners?|sharing|external|internal|"
     r"configured|assigned|unassigned|eligible|assignments?|registrations?|subscriptions?|"
     r"online|offline|open|insecure|priority|effort|details|roles?|access|ensure|"
-    r"measured|points|credentials|enrolled)\b",
+    r"measured|points|credentials|enrolled|"
+    # Words the collectors used in their own phrases (tests/collector_words.py),
+    # so one of those printed as it stood is seen.
+    r"restrictive|potential|candidate|allows|allow(?!-all)|traffic|inbound|weak|present|"
+    r"mechanism|warn|dynamic|distribution|phone|call|key|email|certificate|password|"
+    r"standalone|timeout|unattached|primary|general|reports|information|network|"
+    r"governance)\b",
     re.IGNORECASE,
 )
 
@@ -100,7 +112,8 @@ def _json_strings(value) -> set[str]:
 
 
 def _data_values(files: dict[str, str]) -> set[str]:
-    """What a file holds: its lines, table cells, labelled values and JSON strings."""
+    """What the tenant said in a file: its lines, table cells, labelled values
+    and JSON strings, less what the collector wrote there itself."""
     values: set[str] = set()
     for name, text in files.items():
         # The raw-data appendix titles each file by its name.
@@ -111,7 +124,7 @@ def _data_values(files: dict[str, str]) -> set[str]:
             values.add(line)
             values.update(re.split(r"\s{2,}|\t|\s*:\s+|;\s*", line))
     values = {" ".join(v.split()) for v in values}
-    return {v for v in values if len(v) >= 3}
+    return {v for v in values if len(v) >= 3 and not written_by_a_collector(v)}
 
 
 def _without_data(node: str, values: set[str]) -> str:
@@ -130,12 +143,21 @@ def _without_data(node: str, values: set[str]) -> str:
     return "".join(" " if p.strip() in words else p for p in parts)
 
 
+def _is_tenant_data(node: str, files: dict[str, str]) -> bool:
+    """A piece of a file that is not the collector's own words, or a whole
+    file shown as itself: the evidence, as it was collected."""
+    if not _is_data(node, files):
+        return False
+    whole = any(node == " ".join(text.split()) for text in files.values())
+    return whole or not written_by_a_collector(node)
+
+
 def _english_nodes(page: str, files: dict[str, str]) -> set[str]:
     values = _data_values(files)
     return {
         n
         for n in _text_nodes(page)
-        if _english(n) and not _is_data(n, files) and _english(_without_data(n, values))
+        if _english(n) and not _is_tenant_data(n, files) and _english(_without_data(n, values))
     }
 
 
@@ -170,11 +192,11 @@ def test_the_scan_finds_english_when_there_is_some(tmp_path):
 
 def test_a_value_from_a_file_is_data_but_the_words_around_it_are_not():
     files = {
-        "16b_teams_settings.txt": "  Allow Invites From       : Admins and Guest Inviters\n",
+        "08_conditional_access.txt": "  Policy Name       : Block external guests\n",
         "18_risky_users.json": json.dumps({"users": [{"level": "medium"}]}),
     }
     page = (
-        "<p>Invitasjoner: Admins and Guest Inviters</p>"
+        "<p>Policy: Block external guests</p>"
         "<p>u@acme.example (risikonivå: medium)</p>"
         "<p>2 brukere med høy/medium risiko</p>"
         "<p>Invites from: everyone</p>"
@@ -183,6 +205,73 @@ def test_a_value_from_a_file_is_data_but_the_words_around_it_are_not():
         "2 brukere med høy/medium risiko",
         "Invites from: everyone",
     }
+
+
+def test_a_collectors_own_words_in_a_file_are_not_the_tenants_data():
+    """The words a collector wrote are found wherever they stand: set into a
+    sentence, alone in a cell, or as an old run holds them (TODO C15)."""
+    files = {
+        "30b_teams_guest_access.txt": "  Allow Invites From       : Admins and Guest Inviters\n",
+        "60_fortigate_audit.txt": json.dumps({"policy_warnings": ["Policy 19: logging disabled"]}),
+        "07c_emergency_access_check.json": json.dumps(
+            {"admins": [{"notes": ["No MFA — potential break-glass"]}]}
+        ),
+        "26_email_dns_spf_dmarc.txt": "    SPF            : MISSING\n",
+    }
+    page = (
+        "<p>Invitasjoner: Admins and Guest Inviters</p>"
+        "<li>Policy 19: logging disabled</li>"
+        "<td>No MFA — potential break-glass</td>"
+        "<td>MISSING</td>"
+        # The tenant's own words, and the file shown whole, stay data.
+        "<td>Block external guests</td>"
+        f"<div>{files['30b_teams_guest_access.txt']}</div>"
+    )
+    files["08_conditional_access.txt"] = "  Block external guests\n"
+    assert _english_nodes(page, files) == {
+        "Invitasjoner: Admins and Guest Inviters",
+        "Policy 19: logging disabled",
+        "No MFA — potential break-glass",
+        "MISSING",
+    }
+
+
+# Old phrases that read the same in a Norwegian report: names, the industry's
+# terms and codes. Every other old phrase must be one the scan sees as English,
+# or a report that printed it as it stood would pass.
+_SAME_IN_NORWEGIAN = {
+    "OK (-all hardfail)",
+    "OK (p=reject)",
+    "CNAME -> {}",
+    "Other",
+    "Authenticator App",
+    "Windows Hello",
+    "OATH TOTP",
+    "SubscriptionState.{}",
+    "Policy {}: allow-all (src=all, dst=all, svc=ALL)",
+}
+
+
+def test_an_old_collector_phrase_printed_as_it_stood_would_be_seen():
+    from tests.collector_words import LEGACY
+
+    unseen = [
+        phrase
+        for phrase in LEGACY
+        if phrase not in _SAME_IN_NORWEGIAN and not _english(phrase.replace("{}", "12"))
+    ]
+    assert not unseen, unseen
+
+
+def test_the_collectors_words_are_read_from_their_source():
+    """What collector_words reads is what the collectors write today, not a list
+    kept by hand: a phrase a collector writes is found, the tenant's is not."""
+    assert written_by_a_collector(
+        "Guest invitation policy is set to 'Everyone' — any user can invite guests"
+    )
+    assert written_by_a_collector("Storage 'acmestorage': public blob access is enabled")
+    assert not written_by_a_collector("Block external guests")
+    assert not written_by_a_collector("enabled"), "a lone code is a value, as Graph's own are"
 
 
 def test_the_terms_kept_in_english_do_not_hide_a_sentence():
@@ -203,6 +292,14 @@ def test_every_norwegian_report_string_is_norwegian():
         text = re.sub(r"\{[^}]*\}", " ", langs["no"])  # placeholders are values
         if _english(text):
             english.append(f"{key}: {langs['no']}")
+    assert not english, "\n".join(english)
+
+
+def test_every_section_is_named_in_norwegian():
+    """A section's Norwegian name is in the report's sentences (section_name)."""
+    english = [
+        f"{name}: {names['no']}" for name, names in _SECTION_NAMES.items() if _english(names["no"])
+    ]
     assert not english, "\n".join(english)
 
 

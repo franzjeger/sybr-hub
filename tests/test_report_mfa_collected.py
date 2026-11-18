@@ -141,3 +141,41 @@ async def test_the_user_counts_come_from_every_page(tmp_path):
     assert counts["enabled"] == 6
     assert counts["disabled"] == 1
     assert counts["guests"] == 1
+
+
+# ── A registered method is a code, worded by the report ───────────────────────
+#
+# The collector wrote its own English label for each method ("Authenticator
+# App", "Phone (SMS/Call)"), and the technical report listed them as they
+# stood under a Norwegian heading (TODO C15).
+
+
+async def test_the_methods_are_stored_as_graphs_own_types(tmp_path):
+    """The sidecar's (the table's methods column is not read back)."""
+    files, _ = await _collect(tmp_path, sidecars=True)
+
+    mfa = _parse_mfa(
+        files["04_mfa_methods.txt"],
+        files["04b_mfa_ca_analysis.txt"],
+        [],
+        files.get("04_mfa_methods.json", ""),
+    )
+    by_name = {u["name"]: u for u in mfa["users"]}
+    assert by_name["Kari Nordmann"]["methods"] == "microsoftAuthenticator"
+    assert by_name[FULL_WIDTH_NAME]["methods"] == "fido2"
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        ("no", "Authenticator-app, FIDO2-sikkerhetsnøkkel, Midlertidig tilgangspass, ukjentMetode"),
+        ("en", "Authenticator app, FIDO2 security key, Temporary Access Pass, ukjentMetode"),
+    ],
+)
+def test_the_report_words_new_codes_and_old_labels_alike(lang, expected):
+    from app.reports.i18n import T
+    from app.reports.parsers.identity import mfa_methods_text
+
+    # A new run's codes, an old run's label, and a type nobody has a word for.
+    methods = "microsoftAuthenticator, FIDO2 Key, temporaryAccessPass, ukjentMetode"
+    assert mfa_methods_text(methods, T(lang)) == expected

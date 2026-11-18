@@ -347,3 +347,138 @@ async def test_failed_reads_write_no_sidecar_and_stay_unverified(tmp_path):
     assert risk["score"] == 100
     assert any("Risikobrukere ikke vurdert" in issue for issue in risk["data_quality_issues"])
     assert _risky_rec(files) is None
+
+
+# ── The break-glass notes are codes, worded by the report ─────────────────────
+#
+# The collector wrote each note as an English sentence ("No MFA — potential
+# break-glass") and the technical report printed the file as it stood, under
+# a Norwegian heading (TODO C15).
+
+
+def _tech_report(tmp_path, lang: str) -> str:
+    from app.reports.generator import _jinja_env, build_report_context
+    from app.reports.i18n import T
+
+    ctx = build_report_context(
+        "Acme AS", "acme.example", tmp_path, [], lang=lang, persist_metrics=False
+    )
+    ctx["t"], ctx["lang"], ctx["theme"] = T(lang), lang, "light"
+    return _jinja_env().get_template("report_tech.html.j2").render(**ctx)
+
+
+def _emergency_section(page: str) -> str:
+    start = page.index("Break-Glass</h3>")
+    return page[start : page.index("</table>", start)]
+
+
+async def test_the_break_glass_notes_are_stored_as_codes(tmp_path):
+    import json
+
+    from app.modules.m365_audit.sections.identity_security import BREAK_GLASS_NOTES
+
+    files = await _collect(tmp_path, sidecars=True)
+
+    admins = {a["upn"]: a for a in json.loads(files["07c_emergency_access_check.json"])["admins"]}
+    assert admins["breakglass@acme.example"]["notes"] == ["no_mfa", "ca_excluded"]
+    assert admins["kari@acme.example"]["notes"] == []
+    for admin in admins.values():
+        assert set(admin["notes"]) <= set(BREAK_GLASS_NOTES)
+
+
+@pytest.mark.parametrize(
+    ("lang", "notes"),
+    [
+        (
+            "no",
+            [
+                "Ingen MFA registrert: kan være en nødtilgangskonto",
+                "Unntatt fra Conditional Access og ikke brukt nylig: kandidat for nødtilgangskonto",
+            ],
+        ),
+        (
+            "en",
+            [
+                "No MFA registered: possibly a break-glass account",
+                "Excluded from Conditional Access and not used recently: break-glass candidate",
+            ],
+        ),
+    ],
+)
+async def test_the_technical_report_words_the_notes(tmp_path, lang, notes):
+    await _collect(tmp_path, sidecars=True)
+
+    section = _emergency_section(_tech_report(tmp_path, lang))
+
+    assert "breakglass@acme.example" in section and "kari@acme.example" in section
+    for note in notes:
+        assert note in section
+    assert "break-glass;" not in section and "no_mfa" not in section
+
+
+def test_an_old_runs_english_notes_are_worded_and_an_unknown_one_kept(tmp_path):
+    """A run from before the codes holds the sentences; the report words the
+    ones it knows and shows any other as it was stored."""
+    import json
+
+    from app.core.encryption import encrypted_write_text
+
+    old = {
+        "skipped": False,
+        "break_glass_candidates": 0,
+        "ca_exclusions_known": True,
+        "global_admins": 1,
+        "admins": [
+            {
+                "id": "u-1",
+                "upn": "admin@acme.example",
+                "mfa_registered": True,
+                "ca_excluded": True,
+                "last_sign_in_days": 3,
+                "break_glass_candidate": False,
+                "notes": [
+                    "Excluded from CA but signed in 3d ago — an actively-used admin "
+                    "bypassing MFA, NOT a break-glass account",
+                    "Reviewed by the customer",
+                ],
+            }
+        ],
+    }
+    encrypted_write_text(tmp_path / "07c_emergency_access_check.json", json.dumps(old))
+    encrypted_write_text(tmp_path / "07c_emergency_access_check.txt", "(the old text)\n")
+
+    section = _emergency_section(_tech_report(tmp_path, "no"))
+
+    assert (
+        "Unntatt fra Conditional Access, men logget på for 3 dager siden: en administrator "
+        "i daglig bruk som omgår MFA, ikke en nødtilgangskonto" in section
+    )
+    assert "Reviewed by the customer" in section
+    assert "actively-used" not in section
+
+
+async def test_a_run_without_the_sidecar_shows_the_text_as_it_is(tmp_path):
+    await _collect(tmp_path, sidecars=False)
+
+    page = _tech_report(tmp_path, "no")
+
+    assert '<span class="fn">07c_emergency_access_check.txt</span>' in page
+    assert "EMERGENCY / BREAK-GLASS ACCOUNT CHECK" in page
+
+
+async def test_a_skipped_check_says_so_in_the_reports_language(tmp_path):
+    await _collect(tmp_path, sidecars=True, admins=())
+
+    page = _tech_report(tmp_path, "no")
+
+    assert "Sjekken ble ikke kjørt: ingen globale administratorer ble gitt til den." in page
+    assert "skipping check" not in page.split("tab-rawdata")[0]
+
+
+def test_every_note_code_is_worded_in_both_languages():
+    from app.modules.m365_audit.sections.identity_security import BREAK_GLASS_NOTES
+    from app.reports.i18n import TRANSLATIONS
+
+    for code in BREAK_GLASS_NOTES:
+        for lang in ("no", "en"):
+            assert TRANSLATIONS[f"bg_note_{code}"][lang].strip(), (code, lang)

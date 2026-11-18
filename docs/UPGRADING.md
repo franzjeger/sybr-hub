@@ -69,6 +69,23 @@ No migration. API changes for scripts that read these routes:
 
 ---
 
+# Reports and alerts in the reader's language (October 2026, unreleased)
+
+No migration and no new permission. Scripts that read a run's files or the
+API see codes where collectors wrote English phrases:
+
+- the firmware API's and `61_unifi_audit.txt`'s `source` is
+  `manual-table:unifi-firmware-db` or `manual-table:fortios-lifecycle`;
+- DNS statuses, MFA methods, group types, break-glass notes, FortiGate
+  policy findings (`policy_findings`), Intune unavailable causes, Teams guest
+  settings, UniFi device read errors and Azure values are stored as codes;
+- a backup app past the read limit carries `permissions_skipped` (the limit)
+  instead of a `permissions_error` sentence.
+
+Runs from before are read back by the reports; nothing needs re-running.
+
+---
+
 # Datto RMM deep-link and backup app recognition (October 2026, unreleased)
 
 - **Datto RMM** needs API access enabled in Datto (Setup › Global Settings ›

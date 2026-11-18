@@ -156,3 +156,46 @@ async def test_alert_activity_preserves_failed_checks_and_system_actor(
     assert result["failed_checks"] == ["ssl_expiry"]
     assert found in written[0][1]["detail"] and failed in written[0][1]["detail"]
     assert written[0][1]["user"] == system_user.USERNAME
+
+
+@pytest.mark.parametrize(
+    "lang,expected",
+    [
+        ("no", "Customer A: Klienthemmelighet utløpt (2. mars 2026)"),
+        ("en", "Customer A: Client secret expired (2 March 2026)"),
+    ],
+)
+async def test_an_expired_credential_is_dated_as_the_reader_writes_a_date(
+    monkeypatch, lang, expected
+):
+    """The credential notice read "utløpt (2026-03-02)" in both languages (TODO C16)."""
+    from app.core.customer import CustomerManager
+
+    monkeypatch.setattr(words, "load_app_settings", lambda: {"ui_language": lang})
+    monkeypatch.setattr(
+        "app.services.audit_scheduler.get_scheduler_config",
+        lambda: {"webhook_url": "https://hooks.example/alerts"},
+    )
+    monkeypatch.setattr(
+        CustomerManager,
+        "list_customers",
+        staticmethod(
+            lambda: [{"CustomerName": "Customer A", "SecretExpiry": "2026-03-02T10:00:00Z"}]
+        ),
+    )
+    scheduler = AuditScheduler()
+    scheduler._send_webhook = AsyncMock()
+
+    await scheduler._check_credential_expiry()
+
+    assert expected in scheduler._send_webhook.call_args.args[0]
+
+
+def test_a_value_that_is_no_date_is_kept():
+    """format_date never loses what it was given."""
+    from app.reports.i18n import format_date
+
+    assert format_date("2026-02-30", "no") == "2026-02-30"
+    assert format_date("i morgen", "en") == "i morgen"
+    assert format_date(None, "en") == ""
+    assert format_date("2026-12-24T23:59:00+00:00", "no") == "24. desember 2026"

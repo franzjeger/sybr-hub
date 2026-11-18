@@ -245,3 +245,39 @@ def test_the_ordering_list_names_snapshots_the_collectors_actually_write():
     assert not unknown, (
         f"_ORDER names snapshots nothing writes: {unknown} (written: {sorted(written)})"
     )
+
+
+def test_a_report_names_a_snapshots_workload_not_its_file():
+    """ "Kjøringen fanget ikke intune_compliance_policies." named the
+    collector's file in a Norwegian sentence (TODO C15). The workload's own
+    name stands there now; a snapshot the inventory does not list keeps its
+    name rather than losing it."""
+    from app.reports.i18n import T
+    from app.reports.metrics import drift_reason_text
+
+    params = {"run": "2026-09-30_0900", "name": "intune_compliance_policies"}
+    assert (
+        drift_reason_text("predecessor_lacked_snapshot", params, T("no"))
+        == "2026-09-30_0900 fanget ikke Intune - samsvarspolicyer."
+    )
+    assert (
+        drift_reason_text("snapshot_unreadable", {"name": "intune_compliance_policies"}, T("en"))
+        == "Intune compliance policies could not be read for comparison."
+    )
+    assert drift_reason_text("snapshot_unreadable", {"name": "new_thing"}, T("no")) == (
+        "new_thing kunne ikke leses for sammenligning."
+    )
+
+
+def test_every_snapshot_the_collectors_write_has_a_workload_label():
+    import re
+
+    from app.core.policy_inventory import workload_label
+
+    written = set()
+    for path in pathlib.Path("app/modules/m365_audit/sections").glob("*.py"):
+        written |= set(
+            re.findall(r'_save_snapshot\(\s*["\']([a-z_]+)["\']', path.read_text(encoding="utf-8"))
+        )
+    unnamed = sorted(n for n in written if workload_label(n, "no") == n)
+    assert not unnamed, f"a report would name these by their file: {unnamed}"

@@ -139,9 +139,17 @@ documentation, fakes or mocks, and says so in its code.
     rule", the break-glass notes). `tests/test_norwegian_reports.py` treats
     anything in a run's files as data, so it passes them. Done when: the
     collectors store codes and the reports word them.
-16. **Smaller copy**: `SOURCE` labels ("manuell tabell") and the history
+    Mostly done (October 2026): Teams, break-glass, FortiGate, DNS, Intune
+    causes, groups, MFA methods, UniFi devices, Azure and section names
+    store codes; `tests/collector_words.py` makes the Norwegian report scan
+    fail on a collector's own English. Left: the Intune section's own
+    failure message is still an English sentence.
+16. [x] **Smaller copy**: `SOURCE` labels ("manuell tabell") and the history
     timestamp's fixed `nb-NO` locale in `app-integrations.js`; alert dates
     shown as ISO in sentences. Done when: keyed and formatted for the reader.
+    Done (October 2026): source codes, `format_date()` on the server and
+    `formatDateTime` in the browser, Varsler's severities and policy-drift
+    titles worded.
 
 ## D. Product
 
